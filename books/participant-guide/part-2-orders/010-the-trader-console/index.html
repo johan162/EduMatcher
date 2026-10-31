@@ -4697,6 +4697,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../protocols-and-clients/part-2-specifications/070-websocket/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    WebSocket API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -8163,7 +8191,7 @@ The ID must be preconfigured in <code>engine_config.yaml</code> under <code>part
 <ol>
 <li>Connects PUSH socket to the engine PULL port (5555)</li>
 <li>Connects SUB socket to the engine PUB port (5556)</li>
-<li>Subscribes to: <code>order.ack.{ID}</code>, <code>order.fill.{ID}</code>, <code>order.amended.{ID}</code>, <code>order.cancelled.{ID}</code>, <code>order.expired.{ID}</code>, <code>order.orders.{ID}</code>, <code>combo.ack.{ID}</code>, <code>combo.status.{ID}</code>, <code>oco.ack.{ID}</code>, <code>oco.cancelled.{ID}</code>, <code>quote.ack.{ID}</code>, <code>quote.status.{ID}</code>, <code>risk.kill_switch_ack.{ID}</code>, <code>system.symbols.{ID}</code>, <code>system.quote_bootstrap.{ID}</code>, <code>system.gateway_auth.{ID}</code>, <code>trade.executed</code></li>
+<li>Subscribes to: <code>order.ack.{ID}</code>, <code>order.fill.{ID}</code>, <code>order.amended.{ID}</code>, <code>order.cancelled.{ID}</code>, <code>order.expired.{ID}</code>, <code>order.orders.{ID}</code>, <code>combo.ack.{ID}</code>, <code>combo.cancel_ack.{ID}</code>, <code>combo.status.{ID}</code>, <code>oco.ack.{ID}</code>, <code>oco.cancel_ack.{ID}</code>, <code>oco.cancelled.{ID}</code>, <code>quote.ack.{ID}</code>, <code>quote.cancel_ack.{ID}</code>, <code>quote.status.{ID}</code>, <code>risk.kill_switch_ack.{ID}</code>, <code>system.symbols.{ID}</code>, <code>system.quote_bootstrap.{ID}</code>, <code>system.gateway_auth.{ID}</code>, <code>trade.executed</code></li>
 <li>Sends <code>system.gateway_connect</code> and waits up to <strong>3 seconds</strong> for the auth response</li>
 <li>If accepted: enters the interactive prompt loop</li>
 <li>If rejected: prints the reason and exits immediately</li>

@@ -5014,6 +5014,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../protocols-and-clients/part-2-specifications/070-websocket/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    WebSocket API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -8341,9 +8369,9 @@ built-in proxy in production).</p>
         UI["React app\n(Zustand + TanStack Query + React Router)"]
     end
     UI --&gt;|"REST /api/v1/*\n(API key bearer token)"| APIGWY["pm-api-gwy :8080"]
-    UI --&gt;|"WS /api/v1/events\nprivate order/fill/quote acks"| APIGWY
-    UI --&gt;|"WS /api/v1/market-data\nbook/trades/depth/auction"| APIGWY
-    UI --&gt;|"WS /api/v1/admin/monitor\nADMIN only"| APIGWY
+    UI --&gt;|"WS /api/v1/ws/private\nprivate order/fill/quote acks"| APIGWY
+    UI --&gt;|"WS /api/v1/ws/market-data\nbook/trades/depth/auction"| APIGWY
+    UI --&gt;|"WS /api/v1/ws/admin/monitor\nADMIN only"| APIGWY
     APIGWY &lt;--&gt;|"ZeroMQ"| ENGINE["pm-engine"]</code></pre>
 <p>The three sockets are not all opened by every role:</p>
 <table>
@@ -8356,17 +8384,17 @@ built-in proxy in production).</p>
 </thead>
 <tbody>
 <tr>
-<td><code>/api/v1/events</code></td>
+<td><code>/api/v1/ws/private</code></td>
 <td>Your own <code>order.*</code>, <code>quote.*</code>, <code>oco.*</code>, <code>combo.*</code> events, plus an <code>orders.snapshot</code> on every connect</td>
 <td><strong>TRADER, MARKET_MAKER only</strong></td>
 </tr>
 <tr>
-<td><code>/api/v1/market-data</code></td>
+<td><code>/api/v1/ws/market-data</code></td>
 <td><code>book</code>, <code>trades</code>, <code>depth</code>, <code>auction</code>, <code>session.state</code>, <code>circuit_breaker</code>, <code>news</code></td>
 <td>Every role</td>
 </tr>
 <tr>
-<td><code>/api/v1/admin/monitor</code></td>
+<td><code>/api/v1/ws/admin/monitor</code></td>
 <td>Cross-gateway order activity and the audit tail</td>
 <td><strong>ADMIN only</strong></td>
 </tr>
@@ -8382,7 +8410,7 @@ does not get an Active Orders blotter of its own.</p>
   most screens need no polling. The exceptions are the polled daily-stats
   rollup (change % / volume) and the REST-backed panels marked below.</li>
 <li><strong><code>orders.snapshot</code> is the reconcile point.</strong> It arrives on the first
-  <code>/events</code> frame <em>and on every reconnect</em>, so the blotter and the quote
+  <code>/ws/private</code> frame <em>and on every reconnect</em>, so the blotter and the quote
   cards resync themselves after a dropped connection without you doing
   anything.</li>
 <li><strong>Gaps are visible, not silent.</strong> The market-data socket tracks a sequence
@@ -8520,7 +8548,7 @@ process of its own, only the REST/WebSocket proxy. Leave them alone.</p>
 </code></pre></div>
 <p>Open <strong><a href="http://localhost:8193">http://localhost:8193</a></strong>, enter an API key, and click <strong>Connect</strong>.</p>
 <p><code>vite.config.ts</code> proxies every <code>/api/*</code> request — REST <em>and</em> the WebSocket
-upgrades for <code>/events</code>, <code>/market-data</code> and <code>/admin/monitor</code> — to
+upgrades under <code>/api/v1/ws/</code> (<code>private</code>, <code>market-data</code>, <code>admin/monitor</code>) — to
 <code>http://localhost:8080</code>. So as long as <code>pm-api-gwy</code>'s <code>desk</code> instance is
 reachable on port 8080 of your own machine, this needs no configuration:
 <code>VITE_API_BASE</code> and <code>VITE_WS_BASE</code> stay empty and the browser only ever talks
@@ -9539,9 +9567,10 @@ instead"</em>, which is also precisely what the engine would have answered. If
 your intent is to stop trading the remainder, cancel the order; the 40
 already filled are yours either way.</p>
 </div>
-<p>An amend that times out waiting for its ack shows <em>"Amend submitted —
-awaiting confirmation (check blotter)"</em> and closes the dialog, exactly like a
-submit timeout — it is not a rejection.</p>
+<p>An amend does not wait for the engine: the dialog closes once the gateway has
+taken it, and the outcome (amended, or refused with its reason) arrives in the
+blotter and the notifications. An error shown in the dialog means the amend
+was not sent.</p>
 <h3 id="cancel-replace">Cancel-Replace<a class="headerlink" href="#cancel-replace" title="Permanent link">&para;</a></h3>
 <p>Click the replace icon to open <strong>Replace</strong>, which lets you change price, stop
 price, and quantity for a resting order, same as Amend — but the mechanism is
@@ -9554,12 +9583,17 @@ genuinely new order (for example, increasing size well beyond the original),
 and Amend when a same-price size reduction is enough — Amend is the only path
 that preserves your queue position.</p>
 <p>On success you get <em>"Replaced <code>{old}</code> → <code>{new}</code>"</em>, naming both order ids.</p>
-<p>If the cancel leg of a Replace times out waiting for its ack, the dialog
-shows a different message than the general "awaiting confirmation" pattern:
-<em>"Replace could not complete — the order may have already filled."</em> This is
-because a timeout here usually means the original order filled before the
-cancel could land, so no replacement was submitted — the dialog stays open
-rather than assuming success, and nothing was left live.</p>
+<p>A Replace can fail in two ways, and the dialog stays open and says which:</p>
+<ul>
+<li><em>"Replace refused: <code>{reason}</code> — nothing was sent."</em> The engine refused to
+  cancel the original, typically because it filled first. No replacement was
+  submitted.</li>
+<li><em>"The cancel was not confirmed and no replacement was sent — check the
+  blotter: the original may still be working."</em> The cancel's outcome did not
+  come back in time. The gateway never sends a replacement for an unconfirmed
+  cancel, so you cannot end up with two orders, but the original may still be
+  live.</li>
+</ul>
 <h3 id="cancelling-an-order">Cancelling an order<a class="headerlink" href="#cancelling-an-order" title="Permanent link">&para;</a></h3>
 <p>Click the × icon on a row, or select it and press <code>Delete</code>/<code>Backspace</code>, to
 cancel a single order. With <strong>Confirm cancellations</strong> on (the default), a
@@ -9581,7 +9615,9 @@ large selection sends one request per order.</p>
 per OCO/Combo group, which cancels the group as a unit
 (<code>DELETE /oco/{id}</code> or <code>DELETE /combos/{id}</code>) rather than looping over its
 member orders. The confirmation spells out the consequence, including that a
-combo's already-filled legs are not reversed.</p>
+combo's already-filled legs are not reversed. The outcome arrives as a
+notification, <em>"OCO <code>{id}</code> cancelled"</em> or <em>"Cancel of OCO <code>{id}</code> refused"</em>
+(likewise for combos), next to the members' own cancels in the blotter.</p>
 <h3 id="seeing-whether-an-order-is-resting-or-executed">Seeing whether an order is resting or executed<a class="headerlink" href="#seeing-whether-an-order-is-resting-or-executed" title="Permanent link">&para;</a></h3>
 <p>Every order has one of these statuses, shown as a coloured pill:</p>
 <table>
@@ -9746,7 +9782,7 @@ type: <code>Spread: 0.05 (5 ticks)</code>, using the symbol's own tick size. It 
 the current prices and sizes</strong> (with a fresh id), so adjusting a live quote is
 a two-field edit rather than a re-entry.</p>
 <h3 id="watching-and-reacting-to-fills">Watching and reacting to fills<a class="headerlink" href="#watching-and-reacting-to-fills" title="Permanent link">&para;</a></h3>
-<p>Quote lifecycle events arrive on the <code>/events</code> socket and drive three things:</p>
+<p>Quote lifecycle events arrive on the <code>/ws/private</code> socket and drive three things:</p>
 <ul>
 <li><strong><code>quote.ack</code></strong> — a rejected quote raises an error toast
   (<em>"Quote <code>{symbol}</code> rejected: <code>{reason}</code>"</em>) and a <code>REJECT</code> entry; an accepted
@@ -9771,12 +9807,13 @@ confirmation dialog — the power-user <em>Confirm cancellations</em> setting do
 not apply to it, and there is no undo toast. A quote cancel removes two
 resting orders at once, so it is treated as a high-impact action.</p>
 </div>
-<p>A cancel that times out waiting for its ack shows <em>"Cancel submitted for
-<code>{symbol}</code> — awaiting confirmation"</em> — again, not a rejection.</p>
+<p>The outcome arrives as a notification: <em>"Quote <code>{symbol}</code> cancelled"</em>, or
+<em>"Cancel of quote <code>{symbol}</code> refused"</em> with the engine's reason (for example
+when there was no live quote).</p>
 <h3 id="quote-bootstrap-legs">Quote Bootstrap &amp; Legs<a class="headerlink" href="#quote-bootstrap-legs" title="Permanent link">&para;</a></h3>
 <p>A diagnostic screen with two complementary read sources and a <strong>Resync</strong>
 button that refetches both, plus a "Reconciled at" stamp.</p>
-<p><strong>Active Quotes</strong> (<code>GET /quotes/bootstrap</code>) is the <strong>reliable per-side
+<p><strong>Active Quotes</strong> (<code>GET /quotes</code>) is the <strong>reliable per-side
 source</strong>: symbol, quote id, state, bid and ask as <code>price × qty (remaining)</code>,
 and per-leg status.</p>
 <p><strong>Legs</strong> (<code>GET /quotes/legs</code>) is the granular view: symbol, quote id, order
@@ -9795,7 +9832,7 @@ behaviour — see <a href="#positions-and-flatten">Positions and Flatten</a> abo
 <h2 id="the-admin-role">The ADMIN role<a class="headerlink" href="#the-admin-role" title="Permanent link">&para;</a></h2>
 <h3 id="system-dashboard">System Dashboard<a class="headerlink" href="#system-dashboard" title="Permanent link">&para;</a></h3>
 <p>The ADMIN landing screen — a read-only overview fed by the
-<code>/api/v1/admin/monitor</code> WebSocket (cross-gateway orders and events) plus the
+<code>/api/v1/ws/admin/monitor</code> WebSocket (cross-gateway orders and events) plus the
 shared live market stores.</p>
 <ul>
 <li><strong>Four KPI cards</strong>: current session phase, active orders across <em>every</em>
@@ -9810,7 +9847,7 @@ shared live market stores.</p>
 reconnecting/disconnected"</em> note appears next to the page title.</p>
 <h3 id="index-administration">Index Administration<a class="headerlink" href="#index-administration" title="Permanent link">&para;</a></h3>
 <p>Read-only. Configured indexes (id, description, base value, constituent count
-— hover for the full list) from <code>GET /admin/indexes</code>, and, for the selected
+— hover for the full list) from <code>GET /reference/indexes</code>, and, for the selected
 index, its recent recorded daily levels (Date, Open, High, Low, Close,
 Session) from <code>GET /history/index-daily</code>.</p>
 <p>Rebalancing <strong>does</strong> exist at the API level
@@ -9885,7 +9922,7 @@ reopens via a call auction — there is no per-level resumption mode.</p>
 resumes trading. The Level selector offers only <em>Indefinite (no level)</em>:
 this exchange configures no breaker ladder for the symbol.</em></p>
 <p>The live operational counterpart to Risk Controls, bootstrapped from
-<code>GET /admin/halts</code> and kept current by the <code>circuit_breaker</code> market-data
+<code>GET /halts</code> and kept current by the <code>circuit_breaker</code> market-data
 channel.</p>
 <p><strong>Manual halt</strong> takes a symbol and an optional <strong>Level</strong>, populated from that
 symbol's <em>own</em> configured ladder (the selector is disabled when the symbol has
@@ -10206,10 +10243,13 @@ under you, can still produce them.</p>
 <p>OCO cascades are not errors: <em>"OCO sibling <code>{id}</code> reached <code>{STATUS}</code>"</em> is the
 expected cancel reason on the surviving leg.</p>
 <h3 id="class-c-timeouts-which-are-not-rejections">Class C — timeouts, which are <strong>not</strong> rejections<a class="headerlink" href="#class-c-timeouts-which-are-not-rejections" title="Permanent link">&para;</a></h3>
-<p>A <code>503</code> / <code>ENGINE_TIMEOUT</code> means the command reached the engine but its
+<p>A late acknowledgement means the command reached the engine but its
 acknowledgement did not come back in time. The action may well have
-succeeded. The app never presents these as rejections; every one of them uses
-neutral "awaiting confirmation" wording:</p>
+succeeded. It can only happen on the actions that wait for the engine's
+answer. For an order submit the gateway says so explicitly (<code>202</code> with
+<code>ack_timeout: true</code>); for the others it is <code>503 ENGINE_TIMEOUT</code>. The app never
+presents these as rejections; each uses neutral "awaiting confirmation"
+wording:</p>
 <table>
 <thead>
 <tr>
@@ -10221,26 +10261,6 @@ neutral "awaiting confirmation" wording:</p>
 <tr>
 <td>Order submit</td>
 <td><em>"<code>{side} {symbol}</code> submitted — awaiting confirmation (check blotter)"</em></td>
-</tr>
-<tr>
-<td>Amend</td>
-<td><em>"Amend submitted — awaiting confirmation (check blotter)"</em></td>
-</tr>
-<tr>
-<td>Cancel</td>
-<td><em>"Cancel submitted — awaiting confirmation for <code>{id}</code>"</em></td>
-</tr>
-<tr>
-<td>Group cancel</td>
-<td><em>"Cancel <code>{kind}</code> <code>{id}</code> submitted — awaiting confirmation"</em> (<code>kind</code> is <code>OCO</code> or <code>COMBO</code>)</td>
-</tr>
-<tr>
-<td>Quote cancel</td>
-<td><em>"Cancel submitted for <code>{symbol}</code> — awaiting confirmation"</em></td>
-</tr>
-<tr>
-<td>Flatten</td>
-<td><em>"Flatten <code>{symbol}</code> submitted — awaiting confirmation"</em></td>
 </tr>
 <tr>
 <td>Session transition</td>
@@ -10260,12 +10280,16 @@ neutral "awaiting confirmation" wording:</p>
 </tr>
 </tbody>
 </table>
+<p>Amend, cancel, group and quote cancels, and Flatten don't wait: the gateway
+answers at once and the outcome arrives in the blotter. Any error on them,
+including a <code>503</code>, means nothing was sent. Only <code>ENGINE_TIMEOUT</code> means
+"sent, unconfirmed"; a <code>503 ENGINE_UNAVAILABLE</code> or <code>SYMBOLS_NOT_READY</code> is a
+plain failure, shown as in class D, and safe to retry.</p>
 <p><strong>Do not resubmit.</strong> Reconcile instead: check Active Orders (or hit its
 Refresh), or check the relevant admin screen, and act on what you actually
 see.</p>
-<p>Cancel-Replace is the one exception to the wording, because a timeout there
-has a specific likely cause — see
-<a href="#cancel-replace">Cancel-Replace</a>.</p>
+<p>Cancel-Replace has its own wording, because the gateway never sends a
+replacement for an unconfirmed cancel — see <a href="#cancel-replace">Cancel-Replace</a>.</p>
 <h3 id="class-d-gateway-and-http-errors">Class D — gateway and HTTP errors<a class="headerlink" href="#class-d-gateway-and-http-errors" title="Permanent link">&para;</a></h3>
 <p>Anything else that comes back from <code>pm-api-gwy</code> is shown as
 <em>"<code>{CODE}</code>: <code>{message}</code>"</em>. The codes you are most likely to meet:</p>
@@ -10326,7 +10350,17 @@ has a specific likely cause — see
 <tr>
 <td><code>ENGINE_UNAVAILABLE</code></td>
 <td>503</td>
-<td>The gateway cannot reach the engine at all</td>
+<td>The gateway could not hand the command to the engine; nothing was sent, retry</td>
+</tr>
+<tr>
+<td><code>SYMBOLS_NOT_READY</code></td>
+<td>503</td>
+<td>The symbol's reference data has not reached the gateway yet; nothing was sent, retry</td>
+</tr>
+<tr>
+<td><code>REPLACE_REJECTED</code></td>
+<td>409</td>
+<td>The engine refused a Replace's cancel; see <a href="#cancel-replace">Cancel-Replace</a></td>
 </tr>
 <tr>
 <td><code>STATS_DB</code></td>
@@ -10920,7 +10954,7 @@ outside that network, and it has to be told how to get back in.</p>
 </tr>
 <tr>
 <td>An order I submitted isn't in the blotter and I got no rejection</td>
-<td>The ack timed out (<code>ENGINE_TIMEOUT</code>)</td>
+<td>The ack timed out (<code>ack_timeout</code>)</td>
 <td>Do <strong>not</strong> resubmit — press Refresh and look again; see <a href="#class-c-timeouts-which-are-not-rejections">class C errors</a></td>
 </tr>
 <tr>

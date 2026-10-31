@@ -3978,6 +3978,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../protocols-and-clients/part-2-specifications/070-websocket/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    WebSocket API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -8027,6 +8055,21 @@ them.</p>
   currently produce. After adding a command or changing a flag, subcommand,
   <code>choices=</code> list or help text, run <code>make completion</code> and commit the
   result -- see <a href="../../../operator-guide/part-1-install-and-deploy/010-installation/#shell-completion">Installation → Shell completion</a>.</li>
+<li><strong>REST contract</strong>: <code>spec/rest/openapi.json</code> is the committed v1 contract,
+  exactly what <code>pm-api-gwy</code> serves at <code>/openapi.json</code>. <code>make openapi-check</code>
+  (part of <code>make check</code> and CI) fails, with a diff, when a route, model,
+  parameter or description no longer matches it. After a <em>deliberate</em> REST
+  change, run <code>make openapi</code> and commit the result with the code. The diff is
+  where a reviewer decides whether the change is additive. Unlike the message
+  bindings, <code>scripts/mkbld.sh</code> never regenerates it, so a build cannot quietly
+  accept an API change. Error codes are held exactly: each route lists the
+  codes it can return in <code>responses=docs.errors(...)</code>, a test derives the
+  same set from the code (<code>tests/api_gateway_error_scan.py</code>), and a new
+  <code>error.code</code> must first be added to <code>api_gateway/errors.py</code>. The REST
+  spec's endpoint tables (arguments, success statuses, error codes) are
+  checked against the contract by <code>tests/test_rest_spec_matches_contract.py</code>.
+  See
+  <a href="../../../protocols-and-clients/part-2-specifications/060-rest-and-websocket/#compatibility-and-deprecation-policy">Compatibility and deprecation policy</a>.</li>
 </ul>
 <h3 id="what-to-preserve">What to preserve<a class="headerlink" href="#what-to-preserve" title="Permanent link">&para;</a></h3>
 <p>This repository values:</p>

@@ -3989,6 +3989,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../part-2-specifications/070-websocket/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    WebSocket API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -8723,7 +8751,10 @@ library or a binary client tool to verify connectivity.</p>
 <p><code>pm-api-gwy</code> exposes a JSON REST API for order submission and session queries.
 The support library (<code>api_gateway_client</code>) uses only the Python standard
 library and the C standard socket API — no third-party HTTP libraries are
-required.</p>
+required. The two WebSocket examples need the <code>websockets</code> package
+(<code>pip install websockets</code>).</p>
+<p>Every Python example runs against a real exchange in <code>make test-e2e</code>
+(<code>tests/test_examples_e2e.py</code>), so they are kept working.</p>
 <h3 id="source-files_4">Source files<a class="headerlink" href="#source-files_4" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
@@ -8744,6 +8775,26 @@ required.</p>
 <tr>
 <td><a href="../../../downloads/examples/REST/python/submit_market_order.py">REST/python/submit_market_order.py</a></td>
 <td>Submit a MARKET order from the command line</td>
+</tr>
+<tr>
+<td><a href="../../../downloads/examples/REST/python/order_lifecycle.py">REST/python/order_lifecycle.py</a></td>
+<td>LIMIT with <code>wait=ack</code> and an <code>Idempotency-Key</code>, a safe retry, amend, replace, cancel, and a <code>TICK_VIOLATION</code> refusal</td>
+</tr>
+<tr>
+<td><a href="../../../downloads/examples/REST/python/history_pages.py">REST/python/history_pages.py</a></td>
+<td>Read a whole history list by following <code>next_cursor</code></td>
+</tr>
+<tr>
+<td><a href="../../../downloads/examples/REST/python/private_stream.py">REST/python/private_stream.py</a></td>
+<td>The private WebSocket: snapshot, <code>stream_seq</code> gap detection, reconnect recovery</td>
+</tr>
+<tr>
+<td><a href="../../../downloads/examples/REST/python/market_data.py">REST/python/market_data.py</a></td>
+<td>Market data: <code>items</code> subscribe, per-topic <code>seq</code>, trades <code>resume</code></td>
+</tr>
+<tr>
+<td><a href="../../../downloads/examples/REST/python/admin_halt_reopen.py">REST/python/admin_halt_reopen.py</a></td>
+<td>Admin: halt a symbol, list its orders, dry-run reopen, reopen or resume</td>
 </tr>
 <tr>
 <td><a href="../../../downloads/examples/REST/c/api_gateway_client.h">REST/c/api_gateway_client.h</a></td>
@@ -8773,39 +8824,60 @@ The default development key is <code>key-trader-demo</code>.</p>
 <h3 id="python-api-api_gateway_clientpy">Python API — <code>api_gateway_client.py</code><a class="headerlink" href="#python-api-api_gateway_clientpy" title="Permanent link">&para;</a></h3>
 <p><strong><code>ApiGatewayClient(base_url, api_key, timeout=5.0)</code></strong>
 : Construct a client for the given base URL and API key.</p>
-<p><strong><code>client.get_json(path: str) → dict</code></strong>
-: Issue a <code>GET</code> request and return the parsed JSON body.  Raises
-  <code>RuntimeError</code> on HTTP error responses.</p>
-<p><strong><code>client.post_json(path: str, payload: dict) → dict</code></strong>
+<p><strong><code>client.get_json(path: str, params: dict | None = None) → dict</code></strong>
+: Issue a <code>GET</code> request (with <code>params</code> as the query string) and return the
+  parsed JSON body.</p>
+<p><strong><code>client.post_json(path: str, payload: dict | None = None, idempotency_key: str | None = None) → dict</code></strong>
 : Issue a <code>POST</code> request with a JSON body and return the parsed JSON
-  response.  Raises <code>RuntimeError</code> on HTTP error responses.</p>
+  response.  With <code>idempotency_key</code>, sends it as the <code>Idempotency-Key</code>
+  header: reuse the same key to retry a write safely (the gateway replays the
+  first reply).</p>
+<p><strong><code>client.patch_json(path, payload)</code> / <code>client.delete_json(path)</code></strong>
+: Amend and cancel.</p>
+<p><strong><code>client.pages(path: str, key: str, params: dict | None = None) → Iterator[dict]</code></strong>
+: Every item of a paginated list (<code>key</code> names it: <code>trades</code>, <code>events</code>, ...),
+  following <code>next_cursor</code> until <code>has_more</code> is false.</p>
+<p>Errors are two exception types, because a client must react differently:</p>
+<ul>
+<li><strong><code>ApiError</code></strong>: the gateway answered with an error envelope; <code>status</code>,
+  <code>code</code>, <code>reject_code</code>, <code>field</code> and <code>message</code> come from it. Nothing reached
+  the engine, so the request may be fixed and sent again.</li>
+<li><strong><code>ApiUnreachable</code></strong>: no answer at all. A write may or may not have been
+  sent; retry it only with the same <code>Idempotency-Key</code>.</li>
+</ul>
+<p>Both subclass <code>RuntimeError</code>.</p>
 <h3 id="python-usage-pattern_4">Python usage pattern<a class="headerlink" href="#python-usage-pattern_4" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">api_gateway_client</span><span class="w"> </span><span class="kn">import</span> <span class="n">ApiGatewayClient</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">uuid</span>
 <a id="__codelineno-29-2" name="__codelineno-29-2" href="#__codelineno-29-2"></a>
-<a id="__codelineno-29-3" name="__codelineno-29-3" href="#__codelineno-29-3"></a><span class="n">client</span> <span class="o">=</span> <span class="n">ApiGatewayClient</span><span class="p">(</span><span class="s2">"http://127.0.0.1:8080"</span><span class="p">,</span> <span class="s2">"key-trader-demo"</span><span class="p">)</span>
+<a id="__codelineno-29-3" name="__codelineno-29-3" href="#__codelineno-29-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">api_gateway_client</span><span class="w"> </span><span class="kn">import</span> <span class="n">ApiGatewayClient</span>
 <a id="__codelineno-29-4" name="__codelineno-29-4" href="#__codelineno-29-4"></a>
-<a id="__codelineno-29-5" name="__codelineno-29-5" href="#__codelineno-29-5"></a><span class="c1"># Query endpoints</span>
-<a id="__codelineno-29-6" name="__codelineno-29-6" href="#__codelineno-29-6"></a><span class="n">status</span>  <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">get_json</span><span class="p">(</span><span class="s2">"/api/v1/status"</span><span class="p">)</span>
-<a id="__codelineno-29-7" name="__codelineno-29-7" href="#__codelineno-29-7"></a><span class="n">symbols</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">get_json</span><span class="p">(</span><span class="s2">"/api/v1/symbols"</span><span class="p">)</span>
-<a id="__codelineno-29-8" name="__codelineno-29-8" href="#__codelineno-29-8"></a><span class="n">session</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">get_json</span><span class="p">(</span><span class="s2">"/api/v1/session"</span><span class="p">)</span>
-<a id="__codelineno-29-9" name="__codelineno-29-9" href="#__codelineno-29-9"></a>
-<a id="__codelineno-29-10" name="__codelineno-29-10" href="#__codelineno-29-10"></a><span class="c1"># Submit a MARKET order</span>
-<a id="__codelineno-29-11" name="__codelineno-29-11" href="#__codelineno-29-11"></a><span class="n">result</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">post_json</span><span class="p">(</span><span class="s2">"/api/v1/orders"</span><span class="p">,</span> <span class="p">{</span>
-<a id="__codelineno-29-12" name="__codelineno-29-12" href="#__codelineno-29-12"></a>    <span class="s2">"symbol"</span><span class="p">:</span>     <span class="s2">"AAPL"</span><span class="p">,</span>
-<a id="__codelineno-29-13" name="__codelineno-29-13" href="#__codelineno-29-13"></a>    <span class="s2">"side"</span><span class="p">:</span>       <span class="s2">"BUY"</span><span class="p">,</span>
-<a id="__codelineno-29-14" name="__codelineno-29-14" href="#__codelineno-29-14"></a>    <span class="s2">"order_type"</span><span class="p">:</span> <span class="s2">"MARKET"</span><span class="p">,</span>
-<a id="__codelineno-29-15" name="__codelineno-29-15" href="#__codelineno-29-15"></a>    <span class="s2">"quantity"</span><span class="p">:</span>   <span class="mi">100</span><span class="p">,</span>
-<a id="__codelineno-29-16" name="__codelineno-29-16" href="#__codelineno-29-16"></a><span class="p">})</span>
-<a id="__codelineno-29-17" name="__codelineno-29-17" href="#__codelineno-29-17"></a><span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s2">"order_id"</span><span class="p">],</span> <span class="n">result</span><span class="p">[</span><span class="s2">"status"</span><span class="p">])</span>
-<a id="__codelineno-29-18" name="__codelineno-29-18" href="#__codelineno-29-18"></a>
-<a id="__codelineno-29-19" name="__codelineno-29-19" href="#__codelineno-29-19"></a><span class="c1"># Submit and wait for the engine ACK</span>
-<a id="__codelineno-29-20" name="__codelineno-29-20" href="#__codelineno-29-20"></a><span class="n">result</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">post_json</span><span class="p">(</span><span class="s2">"/api/v1/orders?wait=ack"</span><span class="p">,</span> <span class="p">{</span>
-<a id="__codelineno-29-21" name="__codelineno-29-21" href="#__codelineno-29-21"></a>    <span class="s2">"symbol"</span><span class="p">:</span>     <span class="s2">"MSFT"</span><span class="p">,</span>
-<a id="__codelineno-29-22" name="__codelineno-29-22" href="#__codelineno-29-22"></a>    <span class="s2">"side"</span><span class="p">:</span>       <span class="s2">"SELL"</span><span class="p">,</span>
-<a id="__codelineno-29-23" name="__codelineno-29-23" href="#__codelineno-29-23"></a>    <span class="s2">"order_type"</span><span class="p">:</span> <span class="s2">"MARKET"</span><span class="p">,</span>
-<a id="__codelineno-29-24" name="__codelineno-29-24" href="#__codelineno-29-24"></a>    <span class="s2">"quantity"</span><span class="p">:</span>   <span class="mi">50</span><span class="p">,</span>
-<a id="__codelineno-29-25" name="__codelineno-29-25" href="#__codelineno-29-25"></a><span class="p">})</span>
-<a id="__codelineno-29-26" name="__codelineno-29-26" href="#__codelineno-29-26"></a><span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"event"</span><span class="p">))</span>   <span class="c1"># engine acknowledgement event</span>
+<a id="__codelineno-29-5" name="__codelineno-29-5" href="#__codelineno-29-5"></a><span class="n">client</span> <span class="o">=</span> <span class="n">ApiGatewayClient</span><span class="p">(</span><span class="s2">"http://127.0.0.1:8080"</span><span class="p">,</span> <span class="s2">"key-trader-demo"</span><span class="p">)</span>
+<a id="__codelineno-29-6" name="__codelineno-29-6" href="#__codelineno-29-6"></a>
+<a id="__codelineno-29-7" name="__codelineno-29-7" href="#__codelineno-29-7"></a><span class="c1"># Query endpoints</span>
+<a id="__codelineno-29-8" name="__codelineno-29-8" href="#__codelineno-29-8"></a><span class="n">status</span>  <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">get_json</span><span class="p">(</span><span class="s2">"/api/v1/status"</span><span class="p">)</span>
+<a id="__codelineno-29-9" name="__codelineno-29-9" href="#__codelineno-29-9"></a><span class="n">symbols</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">get_json</span><span class="p">(</span><span class="s2">"/api/v1/symbols"</span><span class="p">)</span>
+<a id="__codelineno-29-10" name="__codelineno-29-10" href="#__codelineno-29-10"></a><span class="n">session</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">get_json</span><span class="p">(</span><span class="s2">"/api/v1/session"</span><span class="p">)</span>
+<a id="__codelineno-29-11" name="__codelineno-29-11" href="#__codelineno-29-11"></a>
+<a id="__codelineno-29-12" name="__codelineno-29-12" href="#__codelineno-29-12"></a><span class="c1"># Submit a MARKET order</span>
+<a id="__codelineno-29-13" name="__codelineno-29-13" href="#__codelineno-29-13"></a><span class="n">result</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">post_json</span><span class="p">(</span><span class="s2">"/api/v1/orders"</span><span class="p">,</span> <span class="p">{</span>
+<a id="__codelineno-29-14" name="__codelineno-29-14" href="#__codelineno-29-14"></a>    <span class="s2">"symbol"</span><span class="p">:</span>     <span class="s2">"AAPL"</span><span class="p">,</span>
+<a id="__codelineno-29-15" name="__codelineno-29-15" href="#__codelineno-29-15"></a>    <span class="s2">"side"</span><span class="p">:</span>       <span class="s2">"BUY"</span><span class="p">,</span>
+<a id="__codelineno-29-16" name="__codelineno-29-16" href="#__codelineno-29-16"></a>    <span class="s2">"order_type"</span><span class="p">:</span> <span class="s2">"MARKET"</span><span class="p">,</span>
+<a id="__codelineno-29-17" name="__codelineno-29-17" href="#__codelineno-29-17"></a>    <span class="s2">"quantity"</span><span class="p">:</span>   <span class="mi">100</span><span class="p">,</span>
+<a id="__codelineno-29-18" name="__codelineno-29-18" href="#__codelineno-29-18"></a><span class="p">})</span>
+<a id="__codelineno-29-19" name="__codelineno-29-19" href="#__codelineno-29-19"></a><span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s2">"order_id"</span><span class="p">],</span> <span class="n">result</span><span class="p">[</span><span class="s2">"status"</span><span class="p">])</span>
+<a id="__codelineno-29-20" name="__codelineno-29-20" href="#__codelineno-29-20"></a>
+<a id="__codelineno-29-21" name="__codelineno-29-21" href="#__codelineno-29-21"></a><span class="c1"># Submit and wait for the engine ACK; the key makes a retry safe</span>
+<a id="__codelineno-29-22" name="__codelineno-29-22" href="#__codelineno-29-22"></a><span class="n">result</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">post_json</span><span class="p">(</span><span class="s2">"/api/v1/orders?wait=ack"</span><span class="p">,</span> <span class="p">{</span>
+<a id="__codelineno-29-23" name="__codelineno-29-23" href="#__codelineno-29-23"></a>    <span class="s2">"symbol"</span><span class="p">:</span>     <span class="s2">"MSFT"</span><span class="p">,</span>
+<a id="__codelineno-29-24" name="__codelineno-29-24" href="#__codelineno-29-24"></a>    <span class="s2">"side"</span><span class="p">:</span>       <span class="s2">"SELL"</span><span class="p">,</span>
+<a id="__codelineno-29-25" name="__codelineno-29-25" href="#__codelineno-29-25"></a>    <span class="s2">"order_type"</span><span class="p">:</span> <span class="s2">"MARKET"</span><span class="p">,</span>
+<a id="__codelineno-29-26" name="__codelineno-29-26" href="#__codelineno-29-26"></a>    <span class="s2">"quantity"</span><span class="p">:</span>   <span class="mi">50</span><span class="p">,</span>
+<a id="__codelineno-29-27" name="__codelineno-29-27" href="#__codelineno-29-27"></a><span class="p">},</span> <span class="n">idempotency_key</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">uuid</span><span class="o">.</span><span class="n">uuid4</span><span class="p">()))</span>
+<a id="__codelineno-29-28" name="__codelineno-29-28" href="#__codelineno-29-28"></a><span class="k">if</span> <span class="n">result</span><span class="p">[</span><span class="s2">"ack_timeout"</span><span class="p">]:</span>
+<a id="__codelineno-29-29" name="__codelineno-29-29" href="#__codelineno-29-29"></a>    <span class="nb">print</span><span class="p">(</span><span class="s2">"sent; the ACK was late -- follow it, do not resubmit"</span><span class="p">)</span>
+<a id="__codelineno-29-30" name="__codelineno-29-30" href="#__codelineno-29-30"></a><span class="k">else</span><span class="p">:</span>
+<a id="__codelineno-29-31" name="__codelineno-29-31" href="#__codelineno-29-31"></a>    <span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"event"</span><span class="p">))</span>   <span class="c1"># engine acknowledgement event</span>
 </code></pre></div>
 <h3 id="run-python-examples">Run Python examples<a class="headerlink" href="#run-python-examples" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a><span class="nb">cd</span><span class="w"> </span>docs/examples/REST/python
@@ -8822,6 +8894,21 @@ The default development key is <code>key-trader-demo</code>.</p>
 <a id="__codelineno-30-12" name="__codelineno-30-12" href="#__codelineno-30-12"></a><span class="c1"># Override URL or key on the command line</span>
 <a id="__codelineno-30-13" name="__codelineno-30-13" href="#__codelineno-30-13"></a>python3<span class="w"> </span>submit_market_order.py<span class="w"> </span>--url<span class="w"> </span>http://10.0.0.5:8080<span class="w"> </span>--key<span class="w"> </span>mykey<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-30-14" name="__codelineno-30-14" href="#__codelineno-30-14"></a><span class="w">    </span>--side<span class="w"> </span>BUY<span class="w"> </span>--symbol<span class="w"> </span>TSLA<span class="w"> </span>--qty<span class="w"> </span><span class="m">10</span>
+<a id="__codelineno-30-15" name="__codelineno-30-15" href="#__codelineno-30-15"></a>
+<a id="__codelineno-30-16" name="__codelineno-30-16" href="#__codelineno-30-16"></a><span class="c1"># One order's whole life; --price below the bid so it rests</span>
+<a id="__codelineno-30-17" name="__codelineno-30-17" href="#__codelineno-30-17"></a>python3<span class="w"> </span>order_lifecycle.py<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--price<span class="w"> </span><span class="m">22</span>.70
+<a id="__codelineno-30-18" name="__codelineno-30-18" href="#__codelineno-30-18"></a>
+<a id="__codelineno-30-19" name="__codelineno-30-19" href="#__codelineno-30-19"></a><span class="c1"># Today's trades, page by page</span>
+<a id="__codelineno-30-20" name="__codelineno-30-20" href="#__codelineno-30-20"></a>python3<span class="w"> </span>history_pages.py<span class="w"> </span>--limit<span class="w"> </span><span class="m">50</span>
+<a id="__codelineno-30-21" name="__codelineno-30-21" href="#__codelineno-30-21"></a>
+<a id="__codelineno-30-22" name="__codelineno-30-22" href="#__codelineno-30-22"></a><span class="c1"># The private stream: place and cancel one order, watch both events arrive</span>
+<a id="__codelineno-30-23" name="__codelineno-30-23" href="#__codelineno-30-23"></a>python3<span class="w"> </span>private_stream.py<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--price<span class="w"> </span><span class="m">22</span>.70
+<a id="__codelineno-30-24" name="__codelineno-30-24" href="#__codelineno-30-24"></a>
+<a id="__codelineno-30-25" name="__codelineno-30-25" href="#__codelineno-30-25"></a><span class="c1"># Market data: book for every symbol, trades for one; --trade makes a print</span>
+<a id="__codelineno-30-26" name="__codelineno-30-26" href="#__codelineno-30-26"></a>python3<span class="w"> </span>market_data.py<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--trade
+<a id="__codelineno-30-27" name="__codelineno-30-27" href="#__codelineno-30-27"></a>
+<a id="__codelineno-30-28" name="__codelineno-30-28" href="#__codelineno-30-28"></a><span class="c1"># Admin (an ADMIN key): halt, inspect, dry-run reopen, reopen</span>
+<a id="__codelineno-30-29" name="__codelineno-30-29" href="#__codelineno-30-29"></a>python3<span class="w"> </span>admin_halt_reopen.py<span class="w"> </span>--symbol<span class="w"> </span>MSFT<span class="w"> </span>--key<span class="w"> </span>&lt;admin<span class="w"> </span>key&gt;
 </code></pre></div>
 <h3 id="c-api-api_gateway_clienth">C API — <code>api_gateway_client.h</code><a class="headerlink" href="#c-api-api_gateway_clienth" title="Permanent link">&para;</a></h3>
 <p><strong><code>ApiGatewayClient api_gateway_client(host, port, api_key)</code></strong>

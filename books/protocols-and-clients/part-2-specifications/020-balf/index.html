@@ -4531,6 +4531,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../070-websocket/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    WebSocket API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -8211,6 +8239,10 @@ begins from <code>1</code> on subsequent messages.</p>
 </tr>
 </tbody>
 </table>
+<p>A price field is "absent" when it is zero. Every other price field must be
+zero: a non-zero field the type does not use (a <code>trail_offset</code> on a <code>LIMIT</code>,
+say) is refused with <code>RC_INVALID_FIELD</code> rather than ignored. This is the same
+per-type rule REST, ALF and the engine apply.</p>
 <p><strong>TIF codes:</strong></p>
 <table>
 <thead>
@@ -8350,7 +8382,7 @@ order.</p>
 <tr>
 <td><code>0x0C</code></td>
 <td><code>RC_INVALID_FIELD</code></td>
-<td>Invalid field — bad quantity, missing LIMIT price, or a price that is not on the instrument's tick grid (<code>reason</code> = <code>"price off tick grid"</code>)</td>
+<td>Invalid field — bad quantity, a price field the order type needs and lacks (<code>"LIMIT requires price"</code>) or does not use (<code>"LIMIT forbids trail_offset"</code>), or a price that is not on the instrument's tick grid (<code>reason</code> = <code>"price off tick grid"</code>)</td>
 </tr>
 <tr>
 <td><code>0xFF</code></td>

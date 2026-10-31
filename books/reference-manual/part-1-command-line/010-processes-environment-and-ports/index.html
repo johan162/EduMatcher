@@ -4938,6 +4938,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../protocols-and-clients/part-2-specifications/070-websocket/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    WebSocket API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -13682,14 +13710,14 @@ section of <code>engine_config.yaml</code>.</p>
 <tr>
 <td><code>GET</code></td>
 <td><code>/symbols</code></td>
-<td>any</td>
-<td>Instrument metadata</td>
+<td>trading</td>
+<td>Instrument metadata for the caller</td>
 </tr>
 <tr>
 <td><code>GET</code></td>
 <td><code>/session</code></td>
 <td>any</td>
-<td>Current engine session state</td>
+<td>Session phase, timezone, trading date</td>
 </tr>
 <tr>
 <td><code>GET</code></td>
@@ -13721,12 +13749,6 @@ section of <code>engine_config.yaml</code>.</p>
 <td>any</td>
 <td>Daily OHLCV from <code>pm-stats</code></td>
 </tr>
-<tr>
-<td><code>GET</code></td>
-<td><code>/market-data</code></td>
-<td>any</td>
-<td>Live order book top-of-book via REST</td>
-</tr>
 </tbody>
 </table>
 <p><strong>WebSocket endpoints:</strong></p>
@@ -13740,17 +13762,30 @@ section of <code>engine_config.yaml</code>.</p>
 </thead>
 <tbody>
 <tr>
-<td><code>/events</code></td>
+<td><code>/ws/private</code></td>
 <td>trading</td>
 <td>Private fills, acks, expiries — filtered to the connected gateway</td>
 </tr>
 <tr>
-<td><code>/market-data</code></td>
+<td><code>/ws/market-data</code></td>
 <td>any</td>
 <td>Public order book snapshots and trade events</td>
 </tr>
+<tr>
+<td><code>/ws/admin/monitor</code></td>
+<td>ADMIN</td>
+<td>Cross-gateway monitor feed</td>
+</tr>
+<tr>
+<td><code>/ws/admin/sim</code></td>
+<td>ADMIN</td>
+<td><code>pm-market-sim</code> true values and heartbeat</td>
+</tr>
 </tbody>
 </table>
+<p>This is a summary. The full contract is the
+<a href="../../../protocols-and-clients/part-2-specifications/060-rest-and-websocket/">REST API Reference</a>
+and the <a href="../../../protocols-and-clients/part-2-specifications/070-websocket/">WebSocket API Reference</a>.</p>
 <p><strong>Authentication:</strong></p>
 <ul>
 <li>REST: <code>Authorization: Bearer &lt;api_key&gt;</code> header</li>
@@ -13758,119 +13793,49 @@ section of <code>engine_config.yaml</code>.</p>
 </ul>
 <p>Trading keys (<code>gateway_id</code> set to a gateway ID) can reach order-entry endpoints
 and private event streams. Read-only keys (<code>gateway_id: null</code>) are limited to
-market-data and history endpoints.</p>
+the public endpoints: reference data, session, halts, public history and market
+data.</p>
 <div class="admonition tip">
 <p class="admonition-title">Tip</p>
 <p>When <code>swagger_enabled: true</code> in config, browse <code>http://127.0.0.1:&lt;PORT&gt;/docs</code>
 for interactive endpoint documentation and a live try-it UI.</p>
 </div>
-<p><strong>Messages sent</strong> (PUSH → :5555):</p>
+<p><strong>Messages sent</strong> (PUSH → :5555, the engine):</p>
 <table>
 <thead>
 <tr>
-<th>Topic</th>
-<th>Purpose</th>
+<th>Group</th>
+<th>Topics</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>system.gateway_connect</code></td>
-<td>Engine authentication request (once at startup)</td>
+<td>Session</td>
+<td><code>system.gateway_connect</code>, <code>system.gateway_heartbeat</code>, <code>system.gateway_disconnect</code></td>
 </tr>
 <tr>
-<td><code>order.new</code></td>
-<td>Order submission</td>
+<td>Order entry</td>
+<td><code>order.new</code>, <code>order.cancel</code>, <code>order.amend</code>, <code>order.oco</code>, <code>order.oco_cancel</code>, <code>order.combo</code>, <code>order.combo_cancel</code>, <code>quote.new</code>, <code>quote.cancel</code>, <code>risk.kill_switch</code> (<code>/mass-cancel</code>)</td>
 </tr>
 <tr>
-<td><code>order.cancel</code></td>
-<td>Order cancellation</td>
+<td>Queries</td>
+<td><code>order.orders_request</code>, <code>system.symbols_request</code>, <code>system.reference_request</code>, <code>system.session_state_request</code>, <code>system.session_schedule_request</code>, <code>system.position_request</code>, <code>system.halt_status_request</code>, <code>system.quote_bootstrap_request</code>, <code>system.quote_legs_request</code>, <code>system.gateways_request</code>, <code>system.risk_state_request</code>, <code>system.volume_request</code>, <code>book.snapshot_request</code>, <code>order.price_level_orders_request</code></td>
 </tr>
 <tr>
-<td><code>order.combo</code></td>
-<td>Combo submission</td>
-</tr>
-<tr>
-<td><code>quote.new</code></td>
-<td>Quote submission</td>
-</tr>
-<tr>
-<td><code>quote.cancel</code></td>
-<td>Quote cancellation</td>
-</tr>
-<tr>
-<td><code>risk.kill_switch</code></td>
-<td>Mass cancel triggered by <code>/mass-cancel</code></td>
+<td>Admin</td>
+<td><code>session.transition</code>, <code>system.reference_reload</code>, <code>risk.symbol_halt</code>, <code>risk.symbol_resume</code>, <code>risk.cancel_symbol</code>, <code>risk.kill_switch_gateway</code>, <code>risk.kill_switch_global</code>, <code>risk.circuit_breaker_halt_all</code>, <code>risk.circuit_breaker_resume_all</code>, <code>risk.force_uncross</code></td>
 </tr>
 </tbody>
 </table>
-<p><strong>Messages subscribed</strong> (SUB from :5556):</p>
-<table>
-<thead>
-<tr>
-<th>Topic</th>
-<th>Purpose</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>system.gateway_auth.{GW_ID}</code></td>
-<td>Engine authentication reply</td>
-</tr>
-<tr>
-<td><code>order.ack.{GW_ID}</code></td>
-<td>Order accepted or rejected</td>
-</tr>
-<tr>
-<td><code>order.fill.{GW_ID}</code></td>
-<td>Partial or full fill</td>
-</tr>
-<tr>
-<td><code>order.cancelled.{GW_ID}</code></td>
-<td>Cancel confirmation</td>
-</tr>
-<tr>
-<td><code>order.expired.{GW_ID}</code></td>
-<td>TIF expiry</td>
-</tr>
-<tr>
-<td><code>order.amended.{GW_ID}</code></td>
-<td>Amend confirmation</td>
-</tr>
-<tr>
-<td><code>combo.ack.{GW_ID}</code></td>
-<td>Combo accepted or rejected</td>
-</tr>
-<tr>
-<td><code>combo.status.{GW_ID}</code></td>
-<td>Combo lifecycle changes</td>
-</tr>
-<tr>
-<td><code>quote.ack.{GW_ID}</code></td>
-<td>Quote accepted or rejected</td>
-</tr>
-<tr>
-<td><code>quote.status.{GW_ID}</code></td>
-<td>Quote lifecycle changes</td>
-</tr>
-<tr>
-<td><code>system.symbols.{GW_ID}</code></td>
-<td>Symbol list reply</td>
-</tr>
-<tr>
-<td><code>book.{SYMBOL}</code></td>
-<td>Live book snapshots for the market-data WebSocket stream</td>
-</tr>
-<tr>
-<td><code>trade.executed</code></td>
-<td>Trade events for the public market-data stream</td>
-</tr>
-<tr>
-<td><code>session.state</code></td>
-<td>Session phase changes</td>
-</tr>
-</tbody>
-</table>
-<p>See <a href="../../../operator-guide/part-5-gateways/050-api-gateway/">API Gateway (REST/WebSocket)</a> for endpoint reference, authentication examples, Swagger access, and client code.</p>
+<p>To <code>pm-index</code> (its own PULL socket): <code>index.rebalance</code>, <code>index.history_request</code>.</p>
+<p><strong>Messages subscribed:</strong> every topic the engine publishes (SUB from :5556 with
+an empty filter). The gateway routes each event itself: one addressed to a
+gateway goes to that gateway's private sockets, the rest to market data, and
+all of it to the admin monitor (see the
+<a href="../../../protocols-and-clients/part-2-specifications/070-websocket/">WebSocket API Reference</a>).
+It also subscribes to <code>pm-index</code> and <code>pm-market-sim</code> for index history and the
+simulator's state, values and news.</p>
+<p>See <a href="../../../operator-guide/part-5-gateways/050-api-gateway/">API Gateway (REST/WebSocket)</a> for configuration, keys, caches and operation, and <a href="../../../protocols-and-clients/part-4-writing-clients/030-example-libraries/#rest-api-support-library-and-examples">Protocol Support Library Examples</a> for client code.</p>
 <h2 id="pm-admin-interactive-admin-console">pm-admin — Interactive Admin Console<a class="headerlink" href="#pm-admin-interactive-admin-console" title="Permanent link">&para;</a></h2>
 <p>An interactive REPL for sending operational commands to a running engine without
 needing a full gateway session.</p>
@@ -16071,7 +16036,7 @@ control and does not participate in the ZeroMQ runtime message bus.</p>
 <li><a href="../../../operator-guide/part-5-gateways/030-calf-gateway/">CALF Gateway — Market Data</a> — external CALF gateway usage</li>
 <li><a href="../../../operator-guide/part-6-observe-and-recover/040-log-server/">Centralized Log Server</a> — pm-log-srv/pm-log-cli operational guide</li>
 <li><a href="../../../operator-guide/part-5-gateways/010-alf-gateway/">ALF Gateway — Order Entry</a> — external ALF order-entry gateway usage</li>
-<li><a href="../../../operator-guide/part-5-gateways/050-api-gateway/">API Gateway (REST/WebSocket)</a> — REST/WebSocket gateway usage and endpoint reference</li>
+<li><a href="../../../operator-guide/part-5-gateways/050-api-gateway/">API Gateway (REST/WebSocket)</a> — running and operating the REST/WebSocket gateway; the endpoint contract is the <a href="../../../protocols-and-clients/part-2-specifications/060-rest-and-websocket/">REST API Reference</a> and the <a href="../../../protocols-and-clients/part-2-specifications/070-websocket/">WebSocket API Reference</a></li>
 <li><a href="../../../operator-guide/part-4-run-a-market/070-market-index/">Market Index (pm-index)</a> — index configuration, calculation, and corporate actions</li>
 </ul>
 <p><strong>Protocols and Clients:</strong></p>

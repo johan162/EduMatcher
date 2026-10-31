@@ -3978,6 +3978,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../protocols-and-clients/part-2-specifications/070-websocket/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    WebSocket API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -7590,7 +7618,7 @@ with the instructor's key:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>curl<span class="w"> </span>-s<span class="w"> </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer key-ops01-3e34rs"</span><span class="w"> </span>http://localhost:8080/api/v1/admin/sim
 </code></pre></div>
 <p>The answer holds the model's state and the latest value of every share. The
-same data streams on the WebSocket <code>/api/v1/admin/sim</code>. Only ADMIN keys get
+same data streams on the WebSocket <code>/api/v1/ws/admin/sim</code>. Only ADMIN keys get
 an answer; a student's key is refused.</p>
 <h2 id="changing-the-model">Changing the model<a class="headerlink" href="#changing-the-model" title="Permanent link">&para;</a></h2>
 <p>The model's settings are in <code>market_sim.yaml</code>, deployed next to the engine

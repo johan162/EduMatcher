@@ -4775,6 +4775,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../protocols-and-clients/part-2-specifications/070-websocket/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    WebSocket API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -8805,7 +8833,7 @@ session statistics and a trade tape, in <code>web-apps/book-gui/</code>. Press <
 <code>F1</code> to switch symbol, as in <code>pm-viewer</code>. It depends on:</p>
 <ul>
 <li><code>pm-api-gwy</code> with the read-only API key, for <strong>all</strong> of its data — the live
-  book and trades over the <code>/api/v1/market-data</code> WebSocket, and the session's
+  book and trades over the <code>/api/v1/ws/market-data</code> WebSocket, and the session's
   earlier trades and the previous close from the history endpoints</li>
 <li><code>pm-stats</code>, which records those history endpoints' data; without it the
   statistics cover only the trades seen since the book was opened</li>

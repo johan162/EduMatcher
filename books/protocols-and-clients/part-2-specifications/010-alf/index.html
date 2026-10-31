@@ -5078,6 +5078,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../070-websocket/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    WebSocket API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -8472,6 +8500,14 @@ gateway parses fields into a key/value map and then validates what is present.</
 <p>This is parsed as <code>SYM=MSFT</code>.</p>
 <p>Unknown fields are ignored by the gateway unless they are required for the
 specific command being validated.</p>
+<p>The price fields are the exception: <code>PRICE</code>, <code>STOP</code>, <code>VISIBLE</code> and <code>TRAIL</code>
+(and their <code>LEGn_</code> / <code>LEGi.</code> forms) follow one per-type rule, the same one
+REST, BALF and the engine apply. A field the <code>TYPE</code> needs and lacks is
+<code>MISSING_FIELD</code> (<code>"STOP_LIMIT requires PRICE"</code>). A field the <code>TYPE</code> does not
+use is refused, not ignored: <code>UNSUPPORTED_FIELD</code> (<code>"LIMIT forbids TRAIL"</code>). A
+leg type the leg has no field for (an <code>ICEBERG</code> OCO or combo leg) is
+<code>INVALID_VALUE</code>. The same order gets the same <code>REJECT_CODE</code> on every
+transport.</p>
 <h3 id="numeric-formatting">Numeric formatting<a class="headerlink" href="#numeric-formatting" title="Permanent link">&para;</a></h3>
 <p>ALF uses human-readable decimal prices:</p>
 <ul>
@@ -9215,11 +9251,13 @@ cancelled.</p>
 </tr>
 <tr>
 <td><code>ICEBERG</code></td>
-<td>No practical ALF support</td>
-<td>ALF OCO syntax has no <code>LEGn_VISIBLE</code> field</td>
+<td>No, refused (<code>INVALID_VALUE</code>)</td>
+<td>An OCO leg has no visible quantity</td>
 </tr>
 </tbody>
 </table>
+<p>Any other price field on a leg is refused (<code>UNSUPPORTED_FIELD</code>), as on a
+single order.</p>
 <h3 id="examples_1">Examples<a class="headerlink" href="#examples_1" title="Permanent link">&para;</a></h3>
 <p>Classic take-profit / stop-loss exit:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-43-1" name="__codelineno-43-1" href="#__codelineno-43-1"></a>NEW|TYPE=OCO|OCO_ID=EXIT-AAPL|SYM=AAPL|QTY=100|TIF=GTC|LEG1_SIDE=SELL|LEG1_TYPE=LIMIT|LEG1_PRICE=155.00|LEG2_SIDE=SELL|LEG2_TYPE=STOP|LEG2_STOP=148.00
@@ -9257,6 +9295,7 @@ cancelled.</p>
 <a id="__codelineno-45-16" name="__codelineno-45-16" href="#__codelineno-45-16"></a>|LEG&lt;n-1&gt;.QTY=&lt;quantity&gt;
 <a id="__codelineno-45-17" name="__codelineno-45-17" href="#__codelineno-45-17"></a>[|LEG&lt;n-1&gt;.TYPE=&lt;order-type&gt;]
 <a id="__codelineno-45-18" name="__codelineno-45-18" href="#__codelineno-45-18"></a>[|LEG&lt;n-1&gt;.PRICE=&lt;price&gt;]
+<a id="__codelineno-45-19" name="__codelineno-45-19" href="#__codelineno-45-19"></a>[|LEG&lt;n-1&gt;.STOP=&lt;price&gt;]
 </code></pre></div>
 <h3 id="combo-field-semantics">Combo field semantics<a class="headerlink" href="#combo-field-semantics" title="Permanent link">&para;</a></h3>
 <table>
@@ -9303,73 +9342,61 @@ the submitting gateway's configured <code>participants[].smp_action</code> (see
 <a href="#supported-smp-values">Supported <code>SMP</code> values</a> above) rather than a fixed
 <code>NONE</code>.</p>
 <h3 id="combo-leg-expressibility">Combo leg expressibility<a class="headerlink" href="#combo-leg-expressibility" title="Permanent link">&para;</a></h3>
-<p>This is an important ALF limitation.</p>
-<p>The current text parser exposes only:</p>
-<ul>
-<li><code>LEGi.SYM</code></li>
-<li><code>LEGi.SIDE</code></li>
-<li><code>LEGi.QTY</code></li>
-<li><code>LEGi.TYPE</code></li>
-<li><code>LEGi.PRICE</code></li>
-</ul>
-<p>It does <strong>not</strong> expose:</p>
-<ul>
-<li><code>LEGi.STOP</code></li>
-<li><code>LEGi.TRAIL</code></li>
-<li><code>LEGi.VISIBLE</code></li>
-</ul>
-<p>So, in practical ALF terms:</p>
+<p>A combo leg carries <code>LEGi.SYM</code>, <code>LEGi.SIDE</code>, <code>LEGi.QTY</code>, <code>LEGi.TYPE</code>,
+<code>LEGi.PRICE</code> and <code>LEGi.STOP</code>. It has no <code>LEGi.TRAIL</code> or <code>LEGi.VISIBLE</code>:</p>
 <table>
 <thead>
 <tr>
 <th>Leg type</th>
-<th>Practical ALF combo support</th>
-<th>Reason</th>
+<th>ALF combo support</th>
+<th>Fields</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td><code>LIMIT</code></td>
 <td>Yes</td>
-<td>Default leg type; <code>PRICE</code> available</td>
+<td>Default leg type; <code>LEGi.PRICE</code></td>
 </tr>
 <tr>
 <td><code>MARKET</code></td>
 <td>Yes</td>
-<td>No extra fields required</td>
+<td>none</td>
 </tr>
 <tr>
 <td><code>IOC</code></td>
 <td>Yes</td>
-<td><code>PRICE</code> available</td>
+<td><code>LEGi.PRICE</code></td>
 </tr>
 <tr>
 <td><code>FOK</code></td>
 <td>Yes</td>
-<td><code>PRICE</code> available</td>
+<td><code>LEGi.PRICE</code></td>
 </tr>
 <tr>
 <td><code>STOP</code></td>
-<td>No practical ALF support</td>
-<td>No <code>LEGi.STOP</code> field</td>
+<td>Yes</td>
+<td><code>LEGi.STOP</code></td>
 </tr>
 <tr>
 <td><code>STOP_LIMIT</code></td>
-<td>No practical ALF support</td>
-<td>No <code>LEGi.STOP</code> field</td>
+<td>Yes</td>
+<td><code>LEGi.STOP</code> and <code>LEGi.PRICE</code></td>
 </tr>
 <tr>
 <td><code>TRAILING_STOP</code></td>
-<td>No practical ALF support</td>
-<td>No <code>LEGi.TRAIL</code> field</td>
+<td>No, refused (<code>INVALID_VALUE</code>)</td>
+<td>A combo leg has no trail</td>
 </tr>
 <tr>
 <td><code>ICEBERG</code></td>
-<td>No practical ALF support</td>
-<td>No <code>LEGi.VISIBLE</code> field</td>
+<td>No, refused (<code>INVALID_VALUE</code>)</td>
+<td>A combo leg has no visible quantity</td>
 </tr>
 </tbody>
 </table>
+<p>A missing field is <code>MISSING_FIELD</code>; a field the leg's type does not use is
+<code>UNSUPPORTED_FIELD</code>.</p>
 <h3 id="examples_2">Examples<a class="headerlink" href="#examples_2" title="Permanent link">&para;</a></h3>
 <p>Two-leg pairs trade:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-46-1" name="__codelineno-46-1" href="#__codelineno-46-1"></a>NEW|TYPE=COMBO|COMBO_ID=PAIR-001|COMBO_TYPE=AON|TIF=GTC|LEG_COUNT=2|LEG0.SYM=MSFT|LEG0.SIDE=BUY|LEG0.QTY=100|LEG0.PRICE=415.00|LEG1.SYM=AAPL|LEG1.SIDE=SELL|LEG1.QTY=100|LEG1.PRICE=210.00

@@ -4769,6 +4769,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../protocols-and-clients/part-2-specifications/070-websocket/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    WebSocket API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -8320,7 +8348,7 @@ same <code>execute_command()</code> function.  Every command maps 1-to-1:</p>
 <tr>
 <td><code>KILL\|GW=X\|SYM=Y</code></td>
 <td><code>kill --gw X --sym Y</code></td>
-<td><code>client.kill_switch("X", symbol="Y")</code></td>
+<td><code>client.kill_switch_gateway("X", symbol="Y")</code> (own gateway: <code>client.kill_switch</code>)</td>
 </tr>
 <tr>
 <td><code>KICK\|GW=X\|REASON=Z</code></td>
@@ -8330,7 +8358,7 @@ same <code>execute_command()</code> function.  Every command maps 1-to-1:</p>
 <tr>
 <td><code>QCANCEL\|GW=X\|SYM=Y</code></td>
 <td><code>qcancel --gw X --sym Y</code></td>
-<td><code>client.quote_cancel("X", "Y")</code></td>
+<td><code>client.kill_switch_gateway("X", symbol="Y", quotes_only=True)</code> (own gateway: <code>client.quote_cancel</code>)</td>
 </tr>
 <tr>
 <td><code>BOOK\|SYM=X</code></td>
@@ -8619,6 +8647,10 @@ priority; residual interest stays resting.</p>
 </tr>
 </tbody>
 </table>
+<p>For another gateway, <code>kill</code> sends the ADMIN kill switch
+(<code>risk.kill_switch_gateway</code>): the audit trail names you, and the target need
+not be connected. On your own gateway it is the self-service
+<code>risk.kill_switch</code>.</p>
 <h4 id="kick-forcefully-disconnect-a-gateway"><code>kick</code> — Forcefully disconnect a gateway<a class="headerlink" href="#kick-forcefully-disconnect-a-gateway" title="Permanent link">&para;</a></h4>
 <p><div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>kick<span class="w"> </span>--gw<span class="w"> </span>TRADER01
 <a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>kick<span class="w"> </span>--gw<span class="w"> </span>TRADER01<span class="w"> </span>--reason<span class="w"> </span><span class="s2">"Compliance hold"</span>
@@ -8652,7 +8684,9 @@ Verify with <code>orders --gw TRADER01</code>.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a>QCANCEL OK  MM01  AAPL
 </code></pre></div>
 Cancels both bid and ask legs of the active quote.  Resting limit orders
-are unaffected.  Use <code>kill</code> to also remove those.</p>
+are unaffected.  Use <code>kill</code> to also remove those.  For another gateway this
+is the ADMIN kill switch limited to quotes, so the audit trail names you and
+the market maker need not be connected.</p>
 <h4 id="book-print-the-order-book-snapshot-for-a-symbol"><code>book</code> — Print the order-book snapshot for a symbol<a class="headerlink" href="#book-print-the-order-book-snapshot-for-a-symbol" title="Permanent link">&para;</a></h4>
 <p><div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>book<span class="w"> </span>--sym<span class="w"> </span>AAPL
 </code></pre></div>
@@ -8850,7 +8884,7 @@ neither a position nor an active quote is omitted from the result:</p>
 <p>This is the same <code>system.position_request</code>/<code>system.position_snapshot.{GW}</code>
 message pair used by <code>POS|GW=&lt;gateway_id&gt;</code> on
 <a href="../../../participant-guide/part-2-orders/010-the-trader-console/#posgwgateway_id-query-another-gateways-position"><code>pm-alf-console</code> and <code>pm-alf-gwy</code></a>
-and by <code>GET /api/v1/admin/positions</code> on the <a href="../../../protocols-and-clients/part-2-specifications/060-rest-and-websocket/">REST API</a> —
+and by <code>GET /api/v1/admin/gateways/{gateway_id}/positions</code> on the <a href="../../../protocols-and-clients/part-2-specifications/060-rest-and-websocket/">REST API</a> —
 all four surfaces agree on the position figures, since they all read the
 same engine ledger. The bid/ask/spread/mid addition here is specific to
 <code>pm-admin-cli</code>'s <code>position</code> command.</p>
@@ -9507,7 +9541,7 @@ sockets are closed on exit.</p>
 <td>target GW ID, symbol</td>
 <td>Any connected GW</td>
 <td><code>quote.cancel</code></td>
-<td><code>quote.ack.{target}</code></td>
+<td><code>quote.cancel_ack.{target}</code></td>
 </tr>
 <tr>
 <td><code>gateway_kick(target, reason?)</code></td>
@@ -9615,8 +9649,8 @@ sockets are closed on exit.</p>
 <td><code>risk.force_uncross_ack.{GW}</code></td>
 </tr>
 <tr>
-<td><code>kill_switch_gateway(target, note?)</code></td>
-<td>target GW ID, optional note</td>
+<td><code>kill_switch_gateway(target, note?, symbol?, quotes_only?)</code></td>
+<td>target GW ID; optional note, symbol, quotes-only</td>
 <td><strong>ADMIN</strong></td>
 <td><code>risk.kill_switch_gateway</code></td>
 <td><code>risk.kill_switch_gateway_ack.{GW}</code></td>

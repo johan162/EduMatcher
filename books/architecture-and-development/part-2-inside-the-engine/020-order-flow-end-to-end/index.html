@@ -3978,6 +3978,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../protocols-and-clients/part-2-specifications/070-websocket/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    WebSocket API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -7748,8 +7776,8 @@ order, each with the real check.</p>
     B -- "yes" --&gt; C{"Symbol in allowlist?"}
     C -- "no" --&gt; RC["REJECT: UNKNOWN_SYMBOL"]
     C -- "yes" --&gt; D["ensure book exists (self._book(symbol))"]
-    D --&gt; E{"_validate_new_order: duplicate id? qty greater than 0? price required? iceberg ok? order-size / notional caps?"}
-    E -- "fails" --&gt; RE["REJECT: DUPLICATE_ORDER / QTY_OUT_OF_RANGE / PRICE_OUT_OF_RANGE / MISSING_FIELD"]
+    D --&gt; E{"_validate_new_order: duplicate id? qty greater than 0? per-type fields? price positive? iceberg ok? order-size / notional caps?"}
+    E -- "fails" --&gt; RE["REJECT: DUPLICATE_ORDER / QTY_OUT_OF_RANGE / MISSING_FIELD / UNSUPPORTED_FIELD / PRICE_OUT_OF_RANGE"]
     E -- "passes" --&gt; F{"Session accepts orders right now?"}
     F -- "no" --&gt; RF["REJECT: MARKET_CLOSED"]
     F -- "yes" --&gt; G{"TIF=ATO outside OPENING_AUCTION, or TIF=ATC outside CLOSING_AUCTION?"}
@@ -7786,16 +7814,21 @@ reaches the book:</p>
 <a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>    <span class="k">return</span> <span class="s2">"DUPLICATE_ORDER"</span><span class="p">,</span> <span class="sa">f</span><span class="s2">"Duplicate order id </span><span class="si">{</span><span class="n">order</span><span class="o">.</span><span class="n">id</span><span class="si">}</span><span class="s2">"</span>
 <a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="k">if</span> <span class="n">order</span><span class="o">.</span><span class="n">quantity</span> <span class="o">&lt;=</span> <span class="mi">0</span> <span class="ow">or</span> <span class="n">order</span><span class="o">.</span><span class="n">remaining_qty</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
 <a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>    <span class="k">return</span> <span class="s2">"QTY_OUT_OF_RANGE"</span><span class="p">,</span> <span class="s2">"Quantity must be positive"</span>
-<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="n">price_required</span> <span class="o">=</span> <span class="n">order</span><span class="o">.</span><span class="n">order_type</span> <span class="ow">in</span> <span class="p">(</span>
-<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a>    <span class="n">OrderType</span><span class="o">.</span><span class="n">LIMIT</span><span class="p">,</span> <span class="n">OrderType</span><span class="o">.</span><span class="n">FOK</span><span class="p">,</span> <span class="n">OrderType</span><span class="o">.</span><span class="n">STOP_LIMIT</span><span class="p">,</span> <span class="n">OrderType</span><span class="o">.</span><span class="n">ICEBERG</span><span class="p">,</span>
-<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a><span class="p">)</span>
-<a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a><span class="k">if</span> <span class="n">price_required</span> <span class="ow">and</span> <span class="p">(</span><span class="n">order</span><span class="o">.</span><span class="n">price_ticks</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">order</span><span class="o">.</span><span class="n">price_ticks</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">):</span>
+<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="n">violation</span> <span class="o">=</span> <span class="n">check_type_fields</span><span class="p">(</span><span class="n">order</span><span class="o">.</span><span class="n">order_type</span><span class="p">,</span> <span class="n">present_fields</span><span class="p">)</span>  <span class="c1"># models/order_fields</span>
+<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="k">if</span> <span class="n">violation</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a>    <span class="k">return</span> <span class="n">violation</span><span class="o">.</span><span class="n">reject_code</span><span class="p">,</span> <span class="n">violation</span><span class="o">.</span><span class="n">message</span>  <span class="c1"># MISSING_FIELD / UNSUPPORTED_FIELD</span>
+<a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a><span class="k">if</span> <span class="n">order</span><span class="o">.</span><span class="n">price_ticks</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">order</span><span class="o">.</span><span class="n">price_ticks</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
 <a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a>    <span class="k">return</span> <span class="p">(</span><span class="s2">"PRICE_OUT_OF_RANGE"</span><span class="p">,</span>
 <a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a>            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">order</span><span class="o">.</span><span class="n">order_type</span><span class="o">.</span><span class="n">value</span><span class="si">}</span><span class="s2"> order requires a positive price"</span><span class="p">)</span>
 <a id="__codelineno-9-12" name="__codelineno-9-12" href="#__codelineno-9-12"></a><span class="c1"># ... ICEBERG visible_qty checks ...</span>
 <a id="__codelineno-9-13" name="__codelineno-9-13" href="#__codelineno-9-13"></a><span class="c1"># ... order-size / notional cap check via validate_order_limits() ...</span>
 <a id="__codelineno-9-14" name="__codelineno-9-14" href="#__codelineno-9-14"></a><span class="k">return</span> <span class="kc">None</span>
 </code></pre></div>
+<p>The per-type rule (<code>models/order_fields.py</code>) is the one REST, ALF and BALF
+already applied before sending: which of <code>price</code>, <code>stop_price</code>, <code>visible_qty</code>
+and <code>trail_offset</code> each order type needs, may carry, or must not carry. The
+engine applies it again as the backstop for every transport, to OCO and combo
+legs too, so a mistake gets the same <code>reject_code</code> however it arrives.</p>
 <p>Our order is <code>LIMIT</code>, <code>quantity=100</code>, <code>price=15000</code> ticks — every check
 here passes.</p>
 <p><strong>Gate 4 — session gating.</strong></p>

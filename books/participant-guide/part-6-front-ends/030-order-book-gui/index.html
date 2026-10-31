@@ -4432,6 +4432,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../protocols-and-clients/part-2-specifications/070-websocket/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    WebSocket API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -7724,7 +7752,7 @@ serves the web page. The bridge reads its market data from the
 </thead>
 <tbody>
 <tr>
-<td><code>WS /api/v1/market-data</code></td>
+<td><code>WS /api/v1/ws/market-data</code></td>
 <td>The live book and every new trade of the symbols being watched</td>
 </tr>
 <tr>
@@ -7732,7 +7760,7 @@ serves the web page. The bridge reads its market data from the
 <td>The symbol list in the picker, and each symbol's number of price decimals</td>
 </tr>
 <tr>
-<td><code>GET /api/v1/history/session</code></td>
+<td><code>GET /api/v1/session</code></td>
 <td>The exchange session timezone and today's trading date</td>
 </tr>
 <tr>
@@ -7756,7 +7784,7 @@ The read-only API key stays in the bridge; the browser never sees it.</p>
         UI["React app\n(Zustand)"]
     end
     UI --&gt;|"WS /ws/stream\n(JSON frames)"| BRIDGE["pm-book-bridge\nFastify + Node :8094"]
-    BRIDGE --&gt;|"WS /api/v1/market-data\none connection, shared by every tab"| APIGWY["pm-api-gwy :8081\n(dashboards instance)"]
+    BRIDGE --&gt;|"WS /api/v1/ws/market-data\none connection, shared by every tab"| APIGWY["pm-api-gwy :8081\n(dashboards instance)"]
     BRIDGE --&gt;|"REST /api/v1/history/*\n/api/v1/reference/symbols"| APIGWY
     APIGWY --&gt;|"read-only history"| STATS["pm-stats\nstats.db"]
     BRIDGE -.-&gt;|"LALF TCP :5600\noperational logging"| LOGSRV["pm-log-srv"]</code></pre>
@@ -8612,7 +8640,7 @@ installations set only <code>PM_BOOK_API_KEY</code> and, outside the whole stack
 <tr>
 <td><code>API_GATEWAY_URL</code></td>
 <td><code>http://127.0.0.1:8081</code> — app compose <code>http://host.docker.internal:8081</code>, whole stack <code>http://edumatcher:8081</code></td>
-<td>Base URL of the <code>dashboards</code> instance. The market-data WebSocket URL is derived from it (<code>ws://…/api/v1/market-data</code>, or <code>wss://</code> for <code>https://</code>)</td>
+<td>Base URL of the <code>dashboards</code> instance. The market-data WebSocket URL is derived from it (<code>ws://…/api/v1/ws/market-data</code>, or <code>wss://</code> for <code>https://</code>)</td>
 </tr>
 <tr>
 <td><code>PM_BOOK_API_KEY</code></td>

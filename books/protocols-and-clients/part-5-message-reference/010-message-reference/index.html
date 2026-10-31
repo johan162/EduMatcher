@@ -3989,6 +3989,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../part-2-specifications/070-websocket/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    WebSocket API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -5920,6 +5948,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#quotecancel_ackgateway_id" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        quote.cancel_ack.{gateway_id}
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -6401,6 +6440,28 @@
     <span class="md-ellipsis">
       
         oco.cancelled.{gateway_id}
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ococancel_ackgateway_id" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        oco.cancel_ack.{gateway_id}
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#combocancel_ackgateway_id" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        combo.cancel_ack.{gateway_id}
       
     </span>
   </a>
@@ -11071,6 +11132,11 @@ wire-format specification in the
 <td><code>engine</code></td>
 </tr>
 <tr>
+<td><code>combo.cancel_ack.{gateway_id}</code></td>
+<td><code>structure</code></td>
+<td><code>engine</code></td>
+</tr>
+<tr>
 <td><code>combo.status.{gateway_id}</code></td>
 <td><code>structure</code></td>
 <td><code>engine</code></td>
@@ -11251,6 +11317,11 @@ wire-format specification in the
 <td><code>engine</code></td>
 </tr>
 <tr>
+<td><code>oco.cancel_ack.{gateway_id}</code></td>
+<td><code>structure</code></td>
+<td><code>engine</code></td>
+</tr>
+<tr>
 <td><code>oco.cancelled.{gateway_id}</code></td>
 <td><code>structure</code></td>
 <td><code>engine</code></td>
@@ -11349,6 +11420,11 @@ wire-format specification in the
 <td><code>quote.cancel</code></td>
 <td><code>quote</code></td>
 <td><code>admin</code>, <code>api_gateway</code>, <code>gateway</code></td>
+</tr>
+<tr>
+<td><code>quote.cancel_ack.{gateway_id}</code></td>
+<td><code>quote</code></td>
+<td><code>engine</code></td>
 </tr>
 <tr>
 <td><code>quote.new</code></td>
@@ -11710,6 +11786,13 @@ wire-format specification in the
 <td>omitted when unset</td>
 <td>max_len 32</td>
 <td>The participant acted upon, for <code>kill_switch.gateway</code>.</td>
+</tr>
+<tr>
+<td><code>quotes_only</code></td>
+<td><code>bool</code></td>
+<td>omitted when unset</td>
+<td>—</td>
+<td>For <code>kill_switch.gateway</code>: only the target's quotes were cancelled.</td>
 </tr>
 <tr>
 <td><code>level</code></td>
@@ -18025,6 +18108,13 @@ wire-format specification in the
 <td>max_len 32</td>
 <td></td>
 </tr>
+<tr>
+<td><code>request_tag</code></td>
+<td><code>string</code></td>
+<td>omitted when empty</td>
+<td>max_len 64</td>
+<td>Echoed on combo.cancel_ack, so the caller can attribute the outcome.</td>
+</tr>
 </tbody>
 </table>
 <p><strong>See also:</strong> <code>order.combo</code>, <code>order.cancel</code></p>
@@ -18117,7 +18207,7 @@ wire-format specification in the
 <td><code>string</code></td>
 <td>defaults to <code>''</code></td>
 <td>max_len 64</td>
-<td>Client-supplied label for the pair.</td>
+<td>Client-supplied label for the pair, unique among the gateway's live pairs: a submit reusing one is refused. Free again once the pair is done.</td>
 </tr>
 <tr>
 <td><code>gateway_id</code></td>
@@ -18205,7 +18295,7 @@ wire-format specification in the
 <td><code>string</code></td>
 <td>defaults to <code>''</code></td>
 <td>max_len 64</td>
-<td>Client-supplied OCO label.</td>
+<td>Client-supplied OCO label. Names a pair of the sending gateway only.</td>
 </tr>
 <tr>
 <td><code>gateway_id</code></td>
@@ -18213,6 +18303,13 @@ wire-format specification in the
 <td>defaults to <code>''</code></td>
 <td>max_len 32</td>
 <td></td>
+</tr>
+<tr>
+<td><code>request_tag</code></td>
+<td><code>string</code></td>
+<td>omitted when empty</td>
+<td>max_len 64</td>
+<td>Echoed on oco.cancel_ack, so the caller can attribute the outcome.</td>
 </tr>
 </tbody>
 </table>
@@ -18501,6 +18598,13 @@ wire-format specification in the
 <td>max_len 16</td>
 <td></td>
 </tr>
+<tr>
+<td><code>request_tag</code></td>
+<td><code>string</code></td>
+<td>omitted when empty</td>
+<td>max_len 64</td>
+<td>Echoed on quote.cancel_ack, so the caller can attribute the outcome.</td>
+</tr>
 </tbody>
 </table>
 <div class="admonition note">
@@ -18640,6 +18744,85 @@ wire-format specification in the
 <p>They are distinct states rather than one INACTIVE plus a side field because models/quote.py::QuoteState is what the engine actually holds, and a wire that renames its own state machine is a translation nobody asked for.</p>
 </div>
 <p><strong>See also:</strong> <code>quote.ack.{GW_ID}</code></p>
+<h3 id="quotecancel_ackgateway_id"><code>quote.cancel_ack.{gateway_id}</code><a class="headerlink" href="#quotecancel_ackgateway_id" title="Permanent link">&para;</a></h3>
+<p><strong>Published by:</strong> <code>engine</code></p>
+<p><strong>Transport:</strong> <code>engine_pub</code></p>
+<p><strong>Since:</strong> 1.0</p>
+<p>Engine to market maker: the outcome of a quote.cancel.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Presence</th>
+<th>Rules</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>gateway_id</code></td>
+<td><code>string</code></td>
+<td>required</td>
+<td>max_len 32</td>
+<td></td>
+</tr>
+<tr>
+<td><code>symbol</code></td>
+<td><code>string</code></td>
+<td>required</td>
+<td>max_len 16</td>
+<td></td>
+</tr>
+<tr>
+<td><code>quote_id</code></td>
+<td><code>string</code></td>
+<td>defaults to <code>''</code></td>
+<td>max_len 64</td>
+<td>The withdrawn quote's id; "" when there was none.</td>
+</tr>
+<tr>
+<td><code>accepted</code></td>
+<td><code>bool</code></td>
+<td>required</td>
+<td>—</td>
+<td></td>
+</tr>
+<tr>
+<td><code>reason</code></td>
+<td><code>string</code></td>
+<td>defaults to <code>''</code></td>
+<td>max_len 512</td>
+<td></td>
+</tr>
+<tr>
+<td><code>reject_code</code></td>
+<td><code>string</code></td>
+<td>omitted when empty</td>
+<td>max_len 32</td>
+<td>On a refusal, a member of order.ack's <code>reject_code</code> vocabulary (ORDER_NOT_FOUND, ORDER_ALREADY_TERMINAL, GATEWAY_NOT_CONFIGURED, AUTH_REQUIRED); absent when accepted. A string rather than that enum only because the IDL has no shared enum type: the engine is held to the vocabulary by tests/test_engine_structure_cancel_acks.py.</td>
+</tr>
+<tr>
+<td><code>request_tag</code></td>
+<td><code>string</code></td>
+<td>omitted when empty</td>
+<td>max_len 64</td>
+<td>Echoed from the cancel request, so the caller can attribute the outcome.</td>
+</tr>
+<tr>
+<td><code>cancelled_order_ids</code></td>
+<td>list of <code>string</code></td>
+<td>defaults to <code>[]</code></td>
+<td>—</td>
+<td>The engine order ids the cancel removed; empty on a refusal.</td>
+</tr>
+</tbody>
+</table>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Every cancel gets exactly one of these, accepted or refused, so a caller (REST's <code>?wait=ack</code>) can wait for its own outcome.</p>
+<p>Before WP-API17 a refusal rode the submit ack and a success had no group-level reply at all, so neither could be attributed to the request that asked.</p>
+</div>
 <h2 id="family-risk">Family <code>risk</code><a class="headerlink" href="#family-risk" title="Permanent link">&para;</a></h2>
 <h3 id="riskkill_switch"><code>risk.kill_switch</code><a class="headerlink" href="#riskkill_switch" title="Permanent link">&para;</a></h3>
 <p><strong>Published by:</strong> <code>admin</code>, <code>api_gateway</code>, <code>gateway</code></p>
@@ -18805,6 +18988,20 @@ wire-format specification in the
 <td>Whose orders and quotes are cancelled.</td>
 </tr>
 <tr>
+<td><code>symbol</code></td>
+<td><code>string</code></td>
+<td>omitted when empty</td>
+<td>max_len 16</td>
+<td>Scope the cancel to one instrument; omitted cancels across all.</td>
+</tr>
+<tr>
+<td><code>quotes_only</code></td>
+<td><code>bool</code></td>
+<td>defaults to <code>False</code></td>
+<td>—</td>
+<td>Cancel only the target's quotes, leaving its other resting orders. With <code>symbol</code>, this is an admin pulling one market maker's quote on one instrument -- through this ADMIN message rather than by sending the participant's own quote.cancel, which would put the target's name on the audit trail and fail while it is disconnected.</td>
+</tr>
+<tr>
 <td><code>note</code></td>
 <td><code>string</code></td>
 <td>omitted when empty</td>
@@ -18863,6 +19060,20 @@ wire-format specification in the
 <td>defaults to <code>''</code></td>
 <td>max_len 32</td>
 <td></td>
+</tr>
+<tr>
+<td><code>symbol</code></td>
+<td><code>string</code></td>
+<td>omitted when empty</td>
+<td>max_len 16</td>
+<td>Echoed when the cancel was scoped.</td>
+</tr>
+<tr>
+<td><code>quotes_only</code></td>
+<td><code>bool</code></td>
+<td>defaults to <code>False</code></td>
+<td>—</td>
+<td>Echoed: whether only quotes were cancelled.</td>
 </tr>
 <tr>
 <td><code>reason</code></td>
@@ -20643,6 +20854,150 @@ wire-format specification in the
 <p>This says <em>why</em> - the sibling filled or was cancelled - and names the pair, which an order-level event cannot.</p>
 </div>
 <p><strong>See also:</strong> <code>oco.ack.{GW_ID}</code>, <code>order.cancelled.{GW_ID}</code></p>
+<h3 id="ococancel_ackgateway_id"><code>oco.cancel_ack.{gateway_id}</code><a class="headerlink" href="#ococancel_ackgateway_id" title="Permanent link">&para;</a></h3>
+<p><strong>Published by:</strong> <code>engine</code></p>
+<p><strong>Transport:</strong> <code>engine_pub</code></p>
+<p><strong>Since:</strong> 1.0</p>
+<p>Engine to gateway: the outcome of an order.oco_cancel.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Presence</th>
+<th>Rules</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>gateway_id</code></td>
+<td><code>string</code></td>
+<td>required</td>
+<td>max_len 32</td>
+<td></td>
+</tr>
+<tr>
+<td><code>oco_id</code></td>
+<td><code>string</code></td>
+<td>required</td>
+<td>max_len 64</td>
+<td></td>
+</tr>
+<tr>
+<td><code>accepted</code></td>
+<td><code>bool</code></td>
+<td>required</td>
+<td>—</td>
+<td></td>
+</tr>
+<tr>
+<td><code>reason</code></td>
+<td><code>string</code></td>
+<td>defaults to <code>''</code></td>
+<td>max_len 512</td>
+<td></td>
+</tr>
+<tr>
+<td><code>reject_code</code></td>
+<td><code>string</code></td>
+<td>omitted when empty</td>
+<td>max_len 32</td>
+<td>On a refusal, a member of order.ack's <code>reject_code</code> vocabulary (ORDER_NOT_FOUND, ORDER_ALREADY_TERMINAL, GATEWAY_NOT_CONFIGURED, AUTH_REQUIRED); absent when accepted. A string rather than that enum only because the IDL has no shared enum type: the engine is held to the vocabulary by tests/test_engine_structure_cancel_acks.py.</td>
+</tr>
+<tr>
+<td><code>request_tag</code></td>
+<td><code>string</code></td>
+<td>omitted when empty</td>
+<td>max_len 64</td>
+<td>Echoed from the cancel request, so the caller can attribute the outcome.</td>
+</tr>
+<tr>
+<td><code>cancelled_order_ids</code></td>
+<td>list of <code>string</code></td>
+<td>defaults to <code>[]</code></td>
+<td>—</td>
+<td>The engine order ids the cancel removed; empty on a refusal.</td>
+</tr>
+</tbody>
+</table>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Every cancel gets exactly one of these, accepted or refused, so a caller (REST's <code>?wait=ack</code>) can wait for its own outcome.</p>
+<p>Before WP-API17 a refusal rode the submit ack and a success had no group-level reply at all, so neither could be attributed to the request that asked.</p>
+</div>
+<h3 id="combocancel_ackgateway_id"><code>combo.cancel_ack.{gateway_id}</code><a class="headerlink" href="#combocancel_ackgateway_id" title="Permanent link">&para;</a></h3>
+<p><strong>Published by:</strong> <code>engine</code></p>
+<p><strong>Transport:</strong> <code>engine_pub</code></p>
+<p><strong>Since:</strong> 1.0</p>
+<p>Engine to gateway: the outcome of an order.combo_cancel.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Presence</th>
+<th>Rules</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>gateway_id</code></td>
+<td><code>string</code></td>
+<td>required</td>
+<td>max_len 32</td>
+<td></td>
+</tr>
+<tr>
+<td><code>combo_id</code></td>
+<td><code>string</code></td>
+<td>required</td>
+<td>max_len 64</td>
+<td></td>
+</tr>
+<tr>
+<td><code>accepted</code></td>
+<td><code>bool</code></td>
+<td>required</td>
+<td>—</td>
+<td></td>
+</tr>
+<tr>
+<td><code>reason</code></td>
+<td><code>string</code></td>
+<td>defaults to <code>''</code></td>
+<td>max_len 512</td>
+<td></td>
+</tr>
+<tr>
+<td><code>reject_code</code></td>
+<td><code>string</code></td>
+<td>omitted when empty</td>
+<td>max_len 32</td>
+<td>On a refusal, a member of order.ack's <code>reject_code</code> vocabulary (ORDER_NOT_FOUND, ORDER_ALREADY_TERMINAL, GATEWAY_NOT_CONFIGURED, AUTH_REQUIRED); absent when accepted. A string rather than that enum only because the IDL has no shared enum type: the engine is held to the vocabulary by tests/test_engine_structure_cancel_acks.py.</td>
+</tr>
+<tr>
+<td><code>request_tag</code></td>
+<td><code>string</code></td>
+<td>omitted when empty</td>
+<td>max_len 64</td>
+<td>Echoed from the cancel request, so the caller can attribute the outcome.</td>
+</tr>
+<tr>
+<td><code>cancelled_order_ids</code></td>
+<td>list of <code>string</code></td>
+<td>defaults to <code>[]</code></td>
+<td>—</td>
+<td>The engine order ids the cancel removed; empty on a refusal.</td>
+</tr>
+</tbody>
+</table>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Every cancel gets exactly one of these, accepted or refused, so a caller (REST's <code>?wait=ack</code>) can wait for its own outcome.</p>
+<p>Before WP-API17 a refusal rode the submit ack and a success had no group-level reply at all, so neither could be attributed to the request that asked.</p>
+</div>
 <h2 id="family-system">Family <code>system</code><a class="headerlink" href="#family-system" title="Permanent link">&para;</a></h2>
 <h3 id="record-types_8">Record types<a class="headerlink" href="#record-types_8" title="Permanent link">&para;</a></h3>
 <h4 id="symbolinfo"><code>SymbolInfo</code><a class="headerlink" href="#symbolinfo" title="Permanent link">&para;</a></h4>

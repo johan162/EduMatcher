@@ -4846,6 +4846,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../protocols-and-clients/part-2-specifications/070-websocket/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    WebSocket API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -9812,7 +9840,7 @@ parallel bookkeeping of the same fills — the two should always agree, since
 both are derived from the same fill stream, but only the engine's ledger
 is reachable remotely via <code>POS|GW=</code>.</p>
 <p>The same query is available over REST for an admin-role caller, via
-<a href="../../../protocols-and-clients/part-2-specifications/060-rest-and-websocket/#get-apiv1adminpositions"><code>GET /api/v1/admin/positions?gateway_id=MM_AAPL_01</code></a>
+<a href="../../../protocols-and-clients/part-2-specifications/060-rest-and-websocket/#get-apiv1admingatewaysgateway_idpositions"><code>GET /api/v1/admin/gateways/MM_AAPL_01/positions</code></a>
 — useful for a dashboard or a script that wants to watch a bot's position
 without an interactive console session. It reads the same
 <code>system.position_request</code>/<code>system.position_snapshot</code> pair <code>POS|GW=</code> uses,

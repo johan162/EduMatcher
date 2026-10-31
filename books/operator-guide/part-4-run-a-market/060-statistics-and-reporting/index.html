@@ -4930,6 +4930,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../protocols-and-clients/part-2-specifications/070-websocket/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    WebSocket API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -9373,7 +9401,7 @@ row for the same execution, depending on delivery latency. Within
 <tr>
 <td><code>QUOTE_REJECT</code></td>
 <td><code>quote.ack.*</code> with <code>accepted: false</code></td>
-<td>Quote rejected. A quote cancel for a symbol with no live quote names no quote: its row has an empty <code>order_id</code> and is identified by <code>gateway_id</code> and <code>symbol</code></td>
+<td>Quote rejected</td>
 </tr>
 <tr>
 <td><code>QUOTE_STATUS</code></td>
@@ -9392,13 +9420,17 @@ row for the same execution, depending on delivery latency. Within
 </tr>
 </tbody>
 </table>
+<p>The outcome of an OCO, combo or quote <em>cancel</em> (<code>oco.cancel_ack</code>,
+<code>combo.cancel_ack</code>, <code>quote.cancel_ack</code>) is not a row of its own: the legs it
+cancelled appear as <code>CANCEL</code> rows, and a combo's as <code>COMBO_STATUS</code>
+<code>CANCELLED</code>. The <code>*_ACK</code> and <code>*_REJECT</code> rows are submissions only.</p>
 <p>Every <code>*_REJECT</code> row keeps the engine's <code>reject_code</code> (for example
 <code>INSUFFICIENT_LIQUIDITY</code>, <code>ORDER_NOT_FOUND</code>) next to the free-text <code>reason</code>.</p>
 <p>Combo, OCO and quote events each carry their own accept / reject / cancel /
 status value rather than a single family name, so a rejected combo is
 distinguishable from an accepted one and <code>oco.cancelled</code> is findable as a
 cancellation. Filters are validated against this list — <code>pm-stats-cli</code> rejects
-an unknown <code>--event-type</code> at parse time and the API returns <code>422</code>, rather than
+an unknown <code>--event-type</code> at parse time and the API returns <code>400</code>, rather than
 silently returning an empty page.</p>
 <div class="admonition note">
 <p class="admonition-title"><code>UNKNOWN</code> means the engine did not say</p>
@@ -10437,7 +10469,7 @@ API gateway with matching config:</p>
 <tr>
 <td><code>event_type</code></td>
 <td>No</td>
-<td>Restrict to one normalized type — see <a href="#event_type-values"><code>event_type</code> values</a>. An unknown value returns <code>422</code></td>
+<td>Restrict to one normalized type — see <a href="#event_type-values"><code>event_type</code> values</a>. An unknown value returns <code>400</code></td>
 </tr>
 <tr>
 <td><code>date</code></td>
@@ -10468,7 +10500,7 @@ API gateway with matching config:</p>
 </table>
 <p><code>/history/orders</code> (and <code>/history/fills</code>) responses include <code>next_cursor</code> when
 more rows are available. See
-<a href="../../part-5-gateways/050-api-gateway/#pagination">API Gateway — Pagination</a> for the full
+<a href="../../../protocols-and-clients/part-2-specifications/060-rest-and-websocket/#pagination-contract">the REST pagination contract</a> for the full
 <code>count</code>/<code>has_more</code>/<code>next_cursor</code> contract, including which endpoints are
 exceptions to it.</p>
 <p>To reconstruct one order's lifecycle, use the order ID path:</p>

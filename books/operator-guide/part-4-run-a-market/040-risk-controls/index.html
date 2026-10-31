@@ -4908,6 +4908,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../protocols-and-clients/part-2-specifications/070-websocket/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    WebSocket API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -9491,7 +9519,7 @@ the engine will begin enforcing MM obligation checks again immediately.</p>
 <p>Alongside the exchange-wide <code>risk.circuit_breaker_halt_all</code> / <code>risk.circuit_breaker_resume_all</code>
 pair, an <code>ADMIN</code> gateway can halt or resume <strong>one symbol at a time</strong> using
 <code>risk.symbol_halt</code> / <code>risk.symbol_resume</code>. This is the command used by the
-<code>/api/v1/admin/circuit-breaker/trigger</code> and <code>/api/v1/admin/circuit-breaker/resume</code>
+<code>/api/v1/admin/symbols/{symbol}/halt</code> and <code>/api/v1/admin/symbols/{symbol}/resume</code>
 REST endpoints (see <a href="../../part-5-gateways/050-api-gateway/">API Gateway</a>) and is the mechanism behind
 the "Per-symbol operator halt" row in the
 <a href="#market-maker-interaction">Market-maker interaction</a> table below.</p>
@@ -9537,7 +9565,7 @@ the requested symbol isn't in it.</p>
 <strong>across all gateways</strong> — not just the sender's own exposure like the kill
 switch. It does not halt the symbol; trading continues immediately with an
 empty book (aside from any order that arrives afterward). It is <code>ADMIN</code>-only
-and is the command behind the <code>/api/v1/admin/kill-switch/symbol</code> REST endpoint
+and is the command behind the <code>/api/v1/admin/symbols/{symbol}/cancel-orders</code> REST endpoint
 (see <a href="../../part-5-gateways/050-api-gateway/">API Gateway</a>).</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a>Frame 0 (topic):   b"risk.cancel_symbol"
 <a id="__codelineno-28-2" name="__codelineno-28-2" href="#__codelineno-28-2"></a>Frame 1 (payload): {"gateway_id": "GW_ADMIN", "symbol": "AAPL"}
@@ -9638,9 +9666,9 @@ its own orders.</p>
 <p class="admonition-title">Cross-gateway kill switches need ADMIN</p>
 <p>A gateway's own kill switch targets only that gateway.  An <code>ADMIN</code>
 gateway can additionally cancel another gateway's exposure with
-<code>risk.kill_switch_gateway</code> (REST: <code>POST /api/v1/admin/kill-switch/gateway</code>),
+<code>risk.kill_switch_gateway</code> (REST: <code>POST /api/v1/admin/gateways/{gateway_id}/kill-switch</code>),
 or every resting order and quote on the exchange with
-<code>risk.kill_switch_global</code> (REST: <code>POST /api/v1/admin/kill-switch/global</code>);
+<code>risk.kill_switch_global</code> (REST: <code>POST /api/v1/admin/market/kill-switch</code>);
 both reject non-ADMIN callers. <code>pm-admin</code> exposes <code>KILL|GW=&lt;gw&gt;[|SYM=&lt;sym&gt;]</code>.
 To stop trading rather than clear the book, use a per-symbol
 <code>risk.symbol_halt</code> or an exchange-wide <code>risk.circuit_breaker_halt_all</code>

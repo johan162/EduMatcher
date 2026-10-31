@@ -18,7 +18,7 @@
         <link rel="prev" href="../050-lalf/">
       
       
-        <link rel="next" href="../../part-3-session-behaviour/030-calf-market-data-feed/">
+        <link rel="next" href="../070-websocket/">
       
       
         
@@ -4163,6 +4163,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#response-contract" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Response contract
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#canonical-error-envelope" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4178,6 +4189,17 @@
     <span class="md-ellipsis">
       
         Pagination contract
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#write-outcomes-and-safe-retries" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Write outcomes and safe retries
       
     </span>
   </a>
@@ -4489,17 +4511,6 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#post-apiv1kill-switch" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        POST /api/v1/kill-switch
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
   <a href="#get-apiv1symbols" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4577,10 +4588,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#get-apiv1quotesbootstrap" class="md-nav__link">
+  <a href="#get-apiv1quotes" class="md-nav__link">
     <span class="md-ellipsis">
       
-        GET /api/v1/quotes/bootstrap
+        GET /api/v1/quotes
       
     </span>
   </a>
@@ -4743,17 +4754,6 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#get-apiv1historysession" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        GET /api/v1/history/session
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
   <a href="#get-apiv1historytrades" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4809,10 +4809,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#get-apiv1historyindex-ids" class="md-nav__link">
+  <a href="#get-apiv1historyindexes" class="md-nav__link">
     <span class="md-ellipsis">
       
-        GET /api/v1/history/index-ids
+        GET /api/v1/history/indexes
       
     </span>
   </a>
@@ -4859,10 +4859,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#get-apiv1adminsessionschedule" class="md-nav__link">
+  <a href="#get-apiv1adminsim" class="md-nav__link">
     <span class="md-ellipsis">
       
-        GET /api/v1/admin/session/schedule
+        GET /api/v1/admin/sim
       
     </span>
   </a>
@@ -4881,10 +4881,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#post-apiv1admingatewaysgiddisconnect" class="md-nav__link">
+  <a href="#post-apiv1admingatewaysgateway_iddisconnect" class="md-nav__link">
     <span class="md-ellipsis">
       
-        POST /api/v1/admin/gateways/{gid}/disconnect
+        POST /api/v1/admin/gateways/{gateway_id}/disconnect
       
     </span>
   </a>
@@ -4892,10 +4892,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#post-apiv1admincircuit-breakertrigger" class="md-nav__link">
+  <a href="#post-apiv1adminsymbolssymbolhalt" class="md-nav__link">
     <span class="md-ellipsis">
       
-        POST /api/v1/admin/circuit-breaker/trigger
+        POST /api/v1/admin/symbols/{symbol}/halt
       
     </span>
   </a>
@@ -4903,21 +4903,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#post-apiv1admincircuit-breakerresume" class="md-nav__link">
+  <a href="#post-apiv1adminsymbolssymbolresume" class="md-nav__link">
     <span class="md-ellipsis">
       
-        POST /api/v1/admin/circuit-breaker/resume
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#get-apiv1adminhalts" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        GET /api/v1/admin/halts
+        POST /api/v1/admin/symbols/{symbol}/resume
       
     </span>
   </a>
@@ -4936,6 +4925,28 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#get-apiv1admingatewaysgateway_idorders" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /api/v1/admin/gateways/{gateway_id}/orders
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-apiv1adminsymbolssymbolorders" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /api/v1/admin/symbols/{symbol}/orders
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#get-apiv1adminorders" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4947,10 +4958,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#get-apiv1adminordersorder_id" class="md-nav__link">
+  <a href="#get-apiv1adminordersorder_idaudit" class="md-nav__link">
     <span class="md-ellipsis">
       
-        GET /api/v1/admin/orders/{order_id}
+        GET /api/v1/admin/orders/{order_id}/audit
       
     </span>
   </a>
@@ -4958,10 +4969,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#get-apiv1adminpositions" class="md-nav__link">
+  <a href="#get-apiv1admingatewaysgateway_idpositions" class="md-nav__link">
     <span class="md-ellipsis">
       
-        GET /api/v1/admin/positions
+        GET /api/v1/admin/gateways/{gateway_id}/positions
       
     </span>
   </a>
@@ -4969,10 +4980,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#post-apiv1adminkill-switchsymbol" class="md-nav__link">
+  <a href="#post-apiv1adminsymbolssymbolcancel-orders" class="md-nav__link">
     <span class="md-ellipsis">
       
-        POST /api/v1/admin/kill-switch/symbol
+        POST /api/v1/admin/symbols/{symbol}/cancel-orders
       
     </span>
   </a>
@@ -4980,10 +4991,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#post-apiv1adminkill-switchgateway" class="md-nav__link">
+  <a href="#post-apiv1admingatewaysgateway_idkill-switch" class="md-nav__link">
     <span class="md-ellipsis">
       
-        POST /api/v1/admin/kill-switch/gateway
+        POST /api/v1/admin/gateways/{gateway_id}/kill-switch
       
     </span>
   </a>
@@ -4991,10 +5002,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#post-apiv1adminkill-switchglobal" class="md-nav__link">
+  <a href="#delete-apiv1admingatewaysgateway_idquotessymbol" class="md-nav__link">
     <span class="md-ellipsis">
       
-        POST /api/v1/admin/kill-switch/global
+        DELETE /api/v1/admin/gateways/{gateway_id}/quotes/{symbol}
       
     </span>
   </a>
@@ -5002,10 +5013,54 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#get-apiv1adminindexes" class="md-nav__link">
+  <a href="#post-apiv1adminmarkethalt" class="md-nav__link">
     <span class="md-ellipsis">
       
-        GET /api/v1/admin/indexes
+        POST /api/v1/admin/market/halt
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#post-apiv1adminmarketresume" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        POST /api/v1/admin/market/resume
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-apiv1adminmarketvolume" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /api/v1/admin/market/volume
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#post-apiv1adminsymbolssymbolreopen" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        POST /api/v1/admin/symbols/{symbol}/reopen
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#post-apiv1adminmarketkill-switch" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        POST /api/v1/admin/market/kill-switch
       
     </span>
   </a>
@@ -5054,6 +5109,34 @@
   
 </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../070-websocket/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    WebSocket API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -8322,10 +8405,14 @@ The key words MUST, MUST NOT, SHOULD, and MAY are used per RFC 2119.</p>
 <h2 id="scope-conventions">Scope &amp; conventions<a class="headerlink" href="#scope-conventions" title="Permanent link">&para;</a></h2>
 <p>This appendix documents the client-visible REST surface of the API gateway.
 It covers request shapes, replies, query parameters, auth rules, and the
-stable error codes returned by the gateway. WebSocket streams are documented
-in <a href="../../../operator-guide/part-5-gateways/050-api-gateway/">API Gateway (REST/WebSocket)</a> and are not repeated
-here.</p>
-<p>All paths are rooted at <code>/api/v1</code>.</p>
+stable error codes returned by the gateway. WebSocket streams live under
+<code>/api/v1/ws/</code> (<code>private</code>, <code>market-data</code>, <code>admin/monitor</code>, <code>admin/sim</code>) and are
+specified normatively in the <a href="../070-websocket/">WebSocket API Reference</a>; they
+are not repeated here.</p>
+<p>All paths are rooted at <code>/api/v1</code>. Admin paths name their target as a path
+segment — <code>/admin/symbols/{symbol}/...</code>, <code>/admin/gateways/{gateway_id}/...</code>,
+<code>/admin/market/...</code> — and a body, where one is accepted, carries only
+optional parameters.</p>
 <h2 id="endpoint-index">Endpoint index<a class="headerlink" href="#endpoint-index" title="Permanent link">&para;</a></h2>
 <h3 id="bootstrap">Bootstrap<a class="headerlink" href="#bootstrap" title="Permanent link">&para;</a></h3>
 <table>
@@ -8430,11 +8517,6 @@ here.</p>
 <td>Cancel all resting exposure for the caller or one symbol</td>
 </tr>
 <tr>
-<td><a href="#post-apiv1kill-switch">POST /api/v1/kill-switch</a></td>
-<td>Trading key</td>
-<td>Alias of mass-cancel</td>
-</tr>
-<tr>
 <td><a href="#get-apiv1symbols">GET /api/v1/symbols</a></td>
 <td>Trading key</td>
 <td>Return instrument metadata</td>
@@ -8451,18 +8533,18 @@ here.</p>
 </tr>
 <tr>
 <td><a href="#get-apiv1session">GET /api/v1/session</a></td>
-<td>Trading key</td>
-<td>Return the current engine session state</td>
+<td>Authenticated key</td>
+<td>Return the session phase, exchange timezone and trading date</td>
 </tr>
 <tr>
 <td><a href="#get-apiv1halts">GET /api/v1/halts</a></td>
-<td>Trading key</td>
-<td>Return currently-halted symbols (non-admin)</td>
+<td>Authenticated key</td>
+<td>Return currently-halted symbols</td>
 </tr>
 <tr>
 <td><a href="#get-apiv1status">GET /api/v1/status</a></td>
 <td>Trading key</td>
-<td>Return gateway cache summary and resolved role</td>
+<td>Return the caller's gateway id and role</td>
 </tr>
 <tr>
 <td><a href="#get-apiv1healthz">GET /api/v1/healthz</a></td>
@@ -8470,9 +8552,9 @@ here.</p>
 <td>Liveness probe</td>
 </tr>
 <tr>
-<td><a href="#get-apiv1quotesbootstrap">GET /api/v1/quotes/bootstrap</a></td>
+<td><a href="#get-apiv1quotes">GET /api/v1/quotes</a></td>
 <td>Trading key</td>
-<td>Return active market-maker quote bootstrap state</td>
+<td>Return the caller's active market-maker quotes</td>
 </tr>
 <tr>
 <td><a href="#get-apiv1quoteslegs">GET /api/v1/quotes/legs</a></td>
@@ -8554,11 +8636,6 @@ here.</p>
 <td>Return fill events</td>
 </tr>
 <tr>
-<td><a href="#get-apiv1historysession">GET /api/v1/history/session</a></td>
-<td>Authenticated key</td>
-<td>Return the session timezone and current trading date</td>
-</tr>
-<tr>
 <td><a href="#get-apiv1historytrades">GET /api/v1/history/trades</a></td>
 <td>Authenticated key</td>
 <td>Return public trade tape rows</td>
@@ -8584,7 +8661,7 @@ here.</p>
 <td>Return intraday index snapshots</td>
 </tr>
 <tr>
-<td><a href="#get-apiv1historyindex-ids">GET /api/v1/history/index-ids</a></td>
+<td><a href="#get-apiv1historyindexes">GET /api/v1/history/indexes</a></td>
 <td>Authenticated key</td>
 <td>List index ids with recorded data</td>
 </tr>
@@ -8611,9 +8688,9 @@ here.</p>
 <td>Request a session-phase transition</td>
 </tr>
 <tr>
-<td><a href="#get-apiv1adminsessionschedule">GET /api/v1/admin/session/schedule</a></td>
+<td><a href="#get-apiv1adminsim">GET /api/v1/admin/sim</a></td>
 <td>Admin role</td>
-<td>Return current session schedule settings</td>
+<td>Market simulator state and its true fair values</td>
 </tr>
 <tr>
 <td><a href="#get-apiv1admingateways">GET /api/v1/admin/gateways</a></td>
@@ -8621,24 +8698,19 @@ here.</p>
 <td>List configured gateways and live connection state</td>
 </tr>
 <tr>
-<td><a href="#post-apiv1admingatewaysgiddisconnect">POST /api/v1/admin/gateways/{gid}/disconnect</a></td>
+<td><a href="#post-apiv1admingatewaysgateway_iddisconnect">POST /api/v1/admin/gateways/{gateway_id}/disconnect</a></td>
 <td>Admin role</td>
 <td>Forcibly disconnect one gateway</td>
 </tr>
 <tr>
-<td><a href="#post-apiv1admincircuit-breakertrigger">POST /api/v1/admin/circuit-breaker/trigger</a></td>
+<td><a href="#post-apiv1adminsymbolssymbolhalt">POST /api/v1/admin/symbols/{symbol}/halt</a></td>
 <td>Admin role</td>
 <td>Halt one symbol through the circuit breaker</td>
 </tr>
 <tr>
-<td><a href="#post-apiv1admincircuit-breakerresume">POST /api/v1/admin/circuit-breaker/resume</a></td>
+<td><a href="#post-apiv1adminsymbolssymbolresume">POST /api/v1/admin/symbols/{symbol}/resume</a></td>
 <td>Admin role</td>
 <td>Resume one halted symbol</td>
-</tr>
-<tr>
-<td><a href="#get-apiv1adminhalts">GET /api/v1/admin/halts</a></td>
-<td>Admin role</td>
-<td>Return the current active halts table</td>
 </tr>
 <tr>
 <td><a href="#get-apiv1adminriskstate">GET /api/v1/admin/risk/state</a></td>
@@ -8651,34 +8723,64 @@ here.</p>
 <td>Return the cross-gateway active-order table</td>
 </tr>
 <tr>
-<td><a href="#get-apiv1adminordersorder_id">GET /api/v1/admin/orders/{order_id}</a></td>
+<td><a href="#get-apiv1adminordersorder_idaudit">GET /api/v1/admin/orders/{order_id}/audit</a></td>
 <td>Admin role</td>
 <td>Return the full cross-gateway lifecycle of one order</td>
 </tr>
 <tr>
-<td><a href="#get-apiv1adminpositions">GET /api/v1/admin/positions</a></td>
+<td><a href="#get-apiv1admingatewaysgateway_idpositions">GET /api/v1/admin/gateways/{gateway_id}/positions</a></td>
 <td>Admin role</td>
 <td>Return net position and average cost for any one gateway</td>
 </tr>
 <tr>
-<td><a href="#post-apiv1adminkill-switchsymbol">POST /api/v1/admin/kill-switch/symbol</a></td>
+<td><a href="#post-apiv1adminsymbolssymbolcancel-orders">POST /api/v1/admin/symbols/{symbol}/cancel-orders</a></td>
 <td>Admin role</td>
 <td>Cancel all resting exposure on one symbol</td>
 </tr>
 <tr>
-<td><a href="#post-apiv1adminkill-switchgateway">POST /api/v1/admin/kill-switch/gateway</a></td>
+<td><a href="#post-apiv1admingatewaysgateway_idkill-switch">POST /api/v1/admin/gateways/{gateway_id}/kill-switch</a></td>
 <td>Admin role</td>
 <td>Cancel all resting exposure for one gateway</td>
 </tr>
 <tr>
-<td><a href="#post-apiv1adminkill-switchglobal">POST /api/v1/admin/kill-switch/global</a></td>
+<td><a href="#post-apiv1adminmarkethalt">POST /api/v1/admin/market/halt</a></td>
 <td>Admin role</td>
-<td>Cancel all resting exposure across every gateway and symbol</td>
+<td>Halt every symbol and cancel every quote</td>
 </tr>
 <tr>
-<td><a href="#get-apiv1adminindexes">GET /api/v1/admin/indexes</a></td>
+<td><a href="#post-apiv1adminmarketresume">POST /api/v1/admin/market/resume</a></td>
 <td>Admin role</td>
-<td>Return index configuration for the ADMIN UI</td>
+<td>Resume every symbol halted by a market halt</td>
+</tr>
+<tr>
+<td><a href="#get-apiv1adminmarketvolume">GET /api/v1/admin/market/volume</a></td>
+<td>Admin role</td>
+<td>Today's traded volume per symbol and in total</td>
+</tr>
+<tr>
+<td><a href="#post-apiv1adminsymbolssymbolreopen">POST /api/v1/admin/symbols/{symbol}/reopen</a></td>
+<td>Admin role</td>
+<td>Uncross and reopen a symbol, optionally at an operator price</td>
+</tr>
+<tr>
+<td><a href="#get-apiv1adminsymbolssymbolorders">GET /api/v1/admin/symbols/{symbol}/orders</a></td>
+<td>Admin role</td>
+<td>Every resting order on a symbol, optionally one price level</td>
+</tr>
+<tr>
+<td><a href="#get-apiv1admingatewaysgateway_idorders">GET /api/v1/admin/gateways/{gateway_id}/orders</a></td>
+<td>Admin role</td>
+<td>One gateway's orders as the engine holds them</td>
+</tr>
+<tr>
+<td><a href="#delete-apiv1admingatewaysgateway_idquotessymbol">DELETE /api/v1/admin/gateways/{gateway_id}/quotes/{symbol}</a></td>
+<td>Admin role</td>
+<td>Withdraw one gateway's quote on one symbol</td>
+</tr>
+<tr>
+<td><a href="#post-apiv1adminmarketkill-switch">POST /api/v1/admin/market/kill-switch</a></td>
+<td>Admin role</td>
+<td>Cancel all resting exposure across every gateway and symbol</td>
 </tr>
 <tr>
 <td><a href="#post-apiv1adminindexesindex_idrebalance">POST /api/v1/admin/indexes/{index_id}/rebalance</a></td>
@@ -8695,8 +8797,9 @@ here.</p>
 <h3 id="auth-and-roles">Auth and roles<a class="headerlink" href="#auth-and-roles" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Trading and admin REST requests use <code>Authorization: Bearer &lt;api_key&gt;</code>.</li>
-<li><code>gateway_id: null</code> credentials are read-only and may access public history
-  and reference data, but not trading or admin write endpoints.</li>
+<li><code>gateway_id: null</code> credentials are read-only and may access public data —
+  reference data, public history, <code>GET /session</code>, <code>GET /halts</code>, news and
+  company profiles — but no gateway-scoped or admin endpoint.</li>
 <li>ADMIN endpoints require a credential whose resolved engine gateway role is
   <code>ADMIN</code>.</li>
 </ul>
@@ -8736,117 +8839,255 @@ here.</p>
   new key set is loaded.</li>
 </ul>
 <h3 id="common-error-codes">Common error codes<a class="headerlink" href="#common-error-codes" title="Permanent link">&para;</a></h3>
+<p>Every non-2xx reply carries one of these <code>error.code</code> values. <code>reject_code</code>
+is the engine vocabulary shared with ALF; it is <code>UNKNOWN</code> where no engine
+reject applies.</p>
+<p>Every endpoint can answer <code>AUTH</code>, <code>ENGINE_AUTH</code>, <code>ENGINE_UNAVAILABLE</code> (the
+engine could not be reached to confirm a trading key) and <code>INTERNAL_ERROR</code>.
+Each endpoint's <strong>Errors</strong> table lists exactly the other codes it can return;
+the OpenAPI document lists all of them per operation.</p>
 <table>
 <thead>
 <tr>
 <th>Code</th>
 <th style="text-align: right;">HTTP status</th>
+<th><code>reject_code</code></th>
 <th>Meaning</th>
 </tr>
 </thead>
 <tbody>
 <tr>
+<td><code>VALIDATION</code></td>
+<td style="text-align: right;"><code>400</code></td>
+<td><code>MISSING_FIELD</code>, <code>UNSUPPORTED_FIELD</code>, <code>INVALID_VALUE</code>, <code>TICK_VIOLATION</code></td>
+<td>A body field, query parameter or history filter (date, cursor, <code>event_type</code>) failed validation; <code>field</code> names it. A price off the instrument's tick grid carries <code>TICK_VIOLATION</code></td>
+</tr>
+<tr>
 <td><code>AUTH</code></td>
 <td style="text-align: right;"><code>401</code></td>
-<td>Missing or malformed API key</td>
+<td><code>AUTH_REQUIRED</code></td>
+<td>Missing, malformed or unknown API key. The reply carries <code>WWW-Authenticate: Bearer</code></td>
 </tr>
 <tr>
 <td><code>ENGINE_AUTH</code></td>
 <td style="text-align: right;"><code>403</code></td>
-<td>Engine rejected the gateway identity</td>
+<td><code>AUTH_FAILED</code></td>
+<td>The engine refused the key's gateway identity</td>
 </tr>
 <tr>
 <td><code>READ_ONLY</code></td>
 <td style="text-align: right;"><code>403</code></td>
-<td>Read-only key used on a trading endpoint</td>
+<td><code>ROLE_DENIED</code></td>
+<td>Read-only key used on a gateway-scoped endpoint</td>
 </tr>
 <tr>
 <td><code>ROLE_DENIED</code></td>
 <td style="text-align: right;"><code>403</code></td>
-<td>Non-admin key used on an admin endpoint</td>
+<td><code>ROLE_DENIED</code></td>
+<td>The key's gateway lacks the role the endpoint needs (<code>ADMIN</code>, or <code>MARKET_MAKER</code> for <code>/bootstrap/mm</code>)</td>
 </tr>
 <tr>
-<td><code>VALIDATION</code></td>
-<td style="text-align: right;"><code>400</code>, <code>422</code></td>
-<td>Request body or parameters failed validation. A price off the instrument's tick grid lands here with <code>reject_code: TICK_VIOLATION</code></td>
-</tr>
-<tr>
-<td><code>SYMBOLS_NOT_READY</code></td>
-<td style="text-align: right;"><code>503</code></td>
-<td>Order-entry request arrived before the engine's symbol metadata reached the gateway; <code>reject_code: SYMBOL_NOT_READY</code>. Transient — retry</td>
-</tr>
-<tr>
-<td><code>RATE_LIMIT</code></td>
-<td style="text-align: right;"><code>429</code></td>
-<td>Per-key write limit exceeded</td>
-</tr>
-<tr>
-<td><code>ENGINE_TIMEOUT</code></td>
-<td style="text-align: right;"><code>503</code></td>
-<td>No engine reply in time</td>
-</tr>
-<tr>
-<td><code>STATS_DB</code></td>
-<td style="text-align: right;"><code>503</code></td>
-<td><code>pm-stats</code> database not present</td>
-</tr>
-<tr>
-<td><code>AUDIT_INDEX_UNAVAILABLE</code></td>
-<td style="text-align: right;"><code>503</code></td>
-<td><code>pm-audit</code> index not built or not running</td>
+<td><code>NOT_FOUND</code></td>
+<td style="text-align: right;"><code>404</code></td>
+<td><code>UNKNOWN</code></td>
+<td>No such path</td>
 </tr>
 <tr>
 <td><code>UNKNOWN_ORDER</code></td>
 <td style="text-align: right;"><code>404</code></td>
-<td>Order id has no audited events</td>
+<td><code>UNKNOWN</code></td>
+<td>Order id unknown to the gateway (<code>GET /orders/{id}</code>) or absent from the audit trail (<code>GET /admin/orders/{id}</code>)</td>
+</tr>
+<tr>
+<td><code>UNKNOWN_COMPANY</code></td>
+<td style="text-align: right;"><code>404</code></td>
+<td><code>UNKNOWN</code></td>
+<td>No company profile for the symbol</td>
+</tr>
+<tr>
+<td><code>METHOD_NOT_ALLOWED</code></td>
+<td style="text-align: right;"><code>405</code></td>
+<td><code>UNKNOWN</code></td>
+<td>The path exists but not for this method; the reply carries <code>Allow</code></td>
 </tr>
 <tr>
 <td><code>TRANSITION_REJECTED</code></td>
 <td style="text-align: right;"><code>409</code></td>
-<td>Session transition refused by the engine</td>
+<td><code>UNKNOWN</code></td>
+<td>The engine refused the session transition</td>
 </tr>
 <tr>
 <td><code>RELOAD_REJECTED</code></td>
 <td style="text-align: right;"><code>409</code></td>
-<td>Reference reload rejected</td>
+<td><code>UNKNOWN</code></td>
+<td>The engine refused the reference reload</td>
+</tr>
+<tr>
+<td><code>HALT_REJECTED</code></td>
+<td style="text-align: right;"><code>409</code></td>
+<td><code>UNKNOWN</code></td>
+<td>The engine refused the halt (for example <code>Unknown symbol: XYZ</code>)</td>
+</tr>
+<tr>
+<td><code>RESUME_REJECTED</code></td>
+<td style="text-align: right;"><code>409</code></td>
+<td><code>UNKNOWN</code></td>
+<td>The engine refused the resume (for example <code>TSLA is not halted</code>)</td>
+</tr>
+<tr>
+<td><code>KILL_SWITCH_REJECTED</code></td>
+<td style="text-align: right;"><code>409</code></td>
+<td><code>UNKNOWN</code></td>
+<td>The engine refused a symbol, gateway or global kill switch</td>
+</tr>
+<tr>
+<td><code>REOPEN_REJECTED</code></td>
+<td style="text-align: right;"><code>409</code></td>
+<td><code>UNKNOWN</code></td>
+<td>The engine refused a symbol reopen (force-uncross), for example the symbol is not halted</td>
+</tr>
+<tr>
+<td><code>QUERY_REJECTED</code></td>
+<td style="text-align: right;"><code>409</code></td>
+<td><code>UNKNOWN</code></td>
+<td>The engine refused an admin query, for example <code>Unknown symbol: XYZ</code></td>
 </tr>
 <tr>
 <td><code>REBALANCE_REJECTED</code></td>
 <td style="text-align: right;"><code>409</code></td>
-<td>Index rebalance rejected</td>
+<td><code>UNKNOWN</code></td>
+<td><code>pm-index</code> refused the rebalance</td>
 </tr>
 <tr>
-<td><code>INDEX_TIMEOUT</code></td>
-<td style="text-align: right;"><code>503</code></td>
-<td>No <code>pm-index</code> reply in time</td>
+<td><code>REPLACE_REJECTED</code></td>
+<td style="text-align: right;"><code>409</code></td>
+<td>engine's</td>
+<td>The engine refused <code>replace</code>'s cancel (for example the order already filled); nothing was sent</td>
+</tr>
+<tr>
+<td><code>IDEMPOTENCY_KEY_REUSED</code></td>
+<td style="text-align: right;"><code>409</code></td>
+<td><code>UNKNOWN</code></td>
+<td>The <code>Idempotency-Key</code> was already used for a different request</td>
+</tr>
+<tr>
+<td><code>RATE_LIMIT</code></td>
+<td style="text-align: right;"><code>429</code></td>
+<td><code>RATE_LIMITED</code></td>
+<td>Per-key write limit exceeded</td>
+</tr>
+<tr>
+<td><code>INTERNAL_ERROR</code></td>
+<td style="text-align: right;"><code>500</code></td>
+<td><code>INTERNAL_ERROR</code></td>
+<td>A gateway bug; the message carries no internals</td>
 </tr>
 <tr>
 <td><code>INDEX_ERROR</code></td>
 <td style="text-align: right;"><code>502</code></td>
-<td><code>pm-index</code> rejected the request</td>
+<td><code>UNKNOWN</code></td>
+<td><code>pm-index</code> answered with an error</td>
+</tr>
+<tr>
+<td><code>ENGINE_TIMEOUT</code></td>
+<td style="text-align: right;"><code>503</code></td>
+<td><code>INTERNAL_ERROR</code></td>
+<td>No engine reply in time to a read, or to <code>replace</code>'s cancel. Transient — retry. A write whose ack is late is not an error: <code>202</code> with <code>ack_timeout: true</code></td>
+</tr>
+<tr>
+<td><code>ENGINE_UNAVAILABLE</code></td>
+<td style="text-align: right;"><code>503</code></td>
+<td><code>INTERNAL_ERROR</code></td>
+<td>The command could not be handed to the engine (down or backpressured). Transient — retry</td>
+</tr>
+<tr>
+<td><code>SYMBOLS_NOT_READY</code></td>
+<td style="text-align: right;"><code>503</code></td>
+<td><code>SYMBOL_NOT_READY</code></td>
+<td>Order entry before the symbol's tick precision reached the gateway. Transient — retry</td>
+</tr>
+<tr>
+<td><code>INDEX_TIMEOUT</code></td>
+<td style="text-align: right;"><code>503</code></td>
+<td><code>UNKNOWN</code></td>
+<td>No <code>pm-index</code> reply in time</td>
+</tr>
+<tr>
+<td><code>STATS_DB</code></td>
+<td style="text-align: right;"><code>503</code></td>
+<td><code>UNKNOWN</code></td>
+<td>The <code>pm-stats</code> database is not present</td>
+</tr>
+<tr>
+<td><code>AUDIT_INDEX_UNAVAILABLE</code></td>
+<td style="text-align: right;"><code>503</code></td>
+<td><code>UNKNOWN</code></td>
+<td>The <code>pm-audit</code> index is not built or not running</td>
+</tr>
+<tr>
+<td><code>COMPANY_DB_UNAVAILABLE</code></td>
+<td style="text-align: right;"><code>503</code></td>
+<td><code>UNKNOWN</code></td>
+<td>The company database is missing or unreadable</td>
 </tr>
 </tbody>
 </table>
+<p>For an engine refusal (<code>409</code>), <code>message</code> is the engine's own reason. New codes
+may be added within v1; clients must treat an unknown <code>code</code> by its HTTP status.</p>
 <h3 id="swaggeropenapi-documentation">Swagger/OpenAPI documentation<a class="headerlink" href="#swaggeropenapi-documentation" title="Permanent link">&para;</a></h3>
 <p>The API gateway supports live API documentation through FastAPI:</p>
 <ul>
 <li>OpenAPI schema: <code>/openapi.json</code></li>
 <li>Swagger UI: <code>/docs</code></li>
 </ul>
+<p>The same document is committed in the repository as
+<a href="https://github.com/johan162/EduMatcher/blob/develop/spec/rest/openapi.json"><code>spec/rest/openapi.json</code></a>,
+so a client can be generated or reviewed without a running gateway. It does not
+depend on deployment configuration: every v1 gateway publishes exactly that
+document, and CI fails if the code and the committed copy disagree.</p>
 <p>These endpoints are available when <code>swagger_enabled: true</code> in the
 <code>api_gateways</code> configuration. When disabled, <code>/docs</code> and <code>/openapi.json</code> are
 not exposed.</p>
 <h3 id="common-reply-shapes">Common reply shapes<a class="headerlink" href="#common-reply-shapes" title="Permanent link">&para;</a></h3>
 <ul>
-<li><code>202 Accepted</code> means the gateway accepted the request and is waiting for the
-  engine or <code>pm-index</code> to confirm it.</li>
-<li><code>200 OK</code> is used for read endpoints and for a few admin endpoints whose
-  response is immediately authoritative.</li>
+<li><code>200 OK</code> means the response body carries the outcome: every read, and every
+  command the gateway waited for (admin commands, <code>POST /mass-cancel</code>, and any
+  order, cancel, amend, replace, OCO, combo or quote write with <code>?wait=ack</code>
+  whose verdict arrived in time).</li>
+<li><code>202 Accepted</code> means the request was handed on and the outcome follows on a
+  WebSocket: those writes without <code>?wait=ack</code> (or with it, when the verdict was
+  late: <code>ack_timeout: true</code>), and <code>POST /admin/gateways/{gateway_id}/disconnect</code>.</li>
 <li>Pagination endpoints return <code>count</code>, <code>has_more</code>, and <code>next_cursor</code> where
   applicable; <code>after</code> is the opaque cursor input.</li>
 </ul>
+<h3 id="response-contract">Response contract<a class="headerlink" href="#response-contract" title="Permanent link">&para;</a></h3>
+<p>Every reply has a declared schema in the OpenAPI document (<code>/openapi.json</code>),
+and the gateway validates what it sends against it. The schemas of replies the
+gateway forwards from the engine are generated from the same message specs
+as the engine's own bindings, so the REST shape and the bus payload cannot
+drift apart (see <a href="../../part-5-message-reference/010-message-reference/">Messages</a>).</p>
+<ul>
+<li><strong>Omitted versus null.</strong> A field the schema marks optional is <em>omitted</em> when
+  it does not apply (an ordinary order has no <code>oco_group_id</code>); a field it marks
+  required is always present, and is <code>null</code> only where the schema allows it.</li>
+<li><strong>Collections</strong> are <code>{ "&lt;plural&gt;": [...], "count": n }</code>; a paginated one adds
+  <code>has_more</code> and <code>next_cursor</code>. Envelopes do not nest: a bootstrap's <code>orders</code>
+  is the list itself, not <code>{ "orders": [...] }</code>.</li>
+<li><strong>Status fields</strong> are closed enums declared in the schema.</li>
+<li><strong>Time.</strong> <code>*_ns</code> fields are epoch nanoseconds; <code>ts</code> fields and every history
+  <code>from</code>/<code>to</code> are ISO-8601 (or a <code>YYYY-MM-DD</code> date); <code>date</code> is a trading day in
+  the exchange timezone (<code>session_timezone</code> in <code>GET /session</code>).</li>
+<li><strong>Prices</strong> are JSON numbers in display units (<code>187.25</code>), always on the
+  symbol's tick grid. A field named <code>*_ticks</code> carries the same price as an
+  integer tick count; it supplements a display field and never replaces one.</li>
+<li><strong>Extension.</strong> New optional fields, new endpoints and new enum members may
+  be added within v1. A client must ignore fields and enum values it does not
+  recognise.</li>
+</ul>
 <h3 id="canonical-error-envelope">Canonical error envelope<a class="headerlink" href="#canonical-error-envelope" title="Permanent link">&para;</a></h3>
-<p>All non-2xx replies MUST use this JSON envelope shape.</p>
+<p>All non-2xx replies MUST use this JSON envelope shape — including an unknown
+path (<code>404 NOT_FOUND</code>), a wrong method (<code>405 METHOD_NOT_ALLOWED</code>) and an
+unhandled gateway error (<code>500 INTERNAL_ERROR</code>).</p>
 <table>
 <thead>
 <tr>
@@ -8888,12 +9129,6 @@ not exposed.</p>
 <td>Canonical order-rejection class for ALF/REST comparison, when applicable</td>
 </tr>
 <tr>
-<td><code>error.reason</code></td>
-<td><code>String</code></td>
-<td>no</td>
-<td>Human-readable rejection reason; usually the same text as <code>message</code> on request-shape errors</td>
-</tr>
-<tr>
 <td><code>error.client_tag</code></td>
 <td><code>String</code></td>
 <td>no</td>
@@ -8913,23 +9148,82 @@ not exposed.</p>
 <a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">    </span><span class="nt">"code"</span><span class="p">:</span><span class="w"> </span><span class="s2">"VALIDATION"</span><span class="p">,</span>
 <a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">    </span><span class="nt">"reject_code"</span><span class="p">:</span><span class="w"> </span><span class="s2">"INVALID_VALUE"</span><span class="p">,</span>
 <a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">    </span><span class="nt">"message"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Input should be greater than 0"</span><span class="p">,</span>
-<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">    </span><span class="nt">"reason"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Input should be greater than 0"</span><span class="p">,</span>
-<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">    </span><span class="nt">"field"</span><span class="p">:</span><span class="w"> </span><span class="s2">"quantity"</span><span class="p">,</span>
-<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">    </span><span class="nt">"client_tag"</span><span class="p">:</span><span class="w"> </span><span class="s2">"desk1-aapl-00042"</span>
-<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">  </span><span class="p">}</span>
-<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="p">}</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">    </span><span class="nt">"field"</span><span class="p">:</span><span class="w"> </span><span class="s2">"quantity"</span><span class="p">,</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">    </span><span class="nt">"client_tag"</span><span class="p">:</span><span class="w"> </span><span class="s2">"desk1-aapl-00042"</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">  </span><span class="p">}</span>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="p">}</span>
 </code></pre></div>
 <h3 id="pagination-contract">Pagination contract<a class="headerlink" href="#pagination-contract" title="Permanent link">&para;</a></h3>
 <p>Endpoints that support pagination use keyset cursoring with these rules:</p>
 <ul>
 <li>Clients MAY pass <code>after</code> (opaque cursor from a previous response).</li>
-<li>Replies include <code>count</code> and <code>has_more</code>.</li>
-<li>When another page exists, replies MUST include <code>next_cursor</code>.</li>
+<li>Replies include <code>count</code>, <code>has_more</code> and <code>next_cursor</code>.</li>
+<li><code>next_cursor</code> is a string when another page exists and <code>null</code> on the last.</li>
 <li>Clients fetch the next page by passing <code>after=&lt;next_cursor&gt;</code> unchanged.</li>
 <li>Ordering is deterministic and backend-defined per endpoint; cursors are valid
   only for the same endpoint and compatible filter set.</li>
-<li>A malformed, stale, or cross-endpoint cursor returns <code>422 VALIDATION</code>.</li>
+<li>A malformed, stale, or cross-endpoint cursor returns <code>400 VALIDATION</code> with
+  <code>field: "after"</code>.</li>
 </ul>
+<h3 id="write-outcomes-and-safe-retries">Write outcomes and safe retries<a class="headerlink" href="#write-outcomes-and-safe-retries" title="Permanent link">&para;</a></h3>
+<p>Every write that creates or changes orders (<code>POST /orders</code>, <code>DELETE</code> and
+<code>PATCH /orders/{order_id}</code>, <code>POST /orders/{order_id}/replace</code>, <code>POST</code> and
+<code>DELETE</code> on <code>/oco</code>, <code>/combos</code> and <code>/quotes</code>) answers in one of three ways, so a
+client can always tell whether something reached the engine:</p>
+<table>
+<thead>
+<tr>
+<th>Reply</th>
+<th>Sent to the engine?</th>
+<th>What to do</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>200 OK</code>, <code>status: "ACKED"</code></td>
+<td>Yes, and the verdict is in the body (<code>accepted</code>, <code>reject_code</code>, <code>event</code>)</td>
+<td>Done</td>
+</tr>
+<tr>
+<td><code>202 Accepted</code>, <code>ack_timeout: false</code></td>
+<td>Yes; no <code>?wait=ack</code>, the verdict follows on the private WebSocket</td>
+<td>Watch the WebSocket</td>
+</tr>
+<tr>
+<td><code>202 Accepted</code>, <code>ack_timeout: true</code></td>
+<td>Yes; <code>?wait=ack</code> gave up waiting (<code>wait_ack_sec</code>)</td>
+<td>Watch the WebSocket or <code>GET /orders</code>; <strong>do not resubmit</strong></td>
+</tr>
+<tr>
+<td><code>4xx</code> or <code>5xx</code></td>
+<td>No (<code>503 ENGINE_UNAVAILABLE</code>, <code>400</code>, <code>429</code>, ...)</td>
+<td>Fix and retry</td>
+</tr>
+</tbody>
+</table>
+<p>The reply always carries the id to cancel or track (<code>order_id</code>, <code>oco_id</code>,
+<code>combo_id</code>, <code>symbol</code>), including after an ack timeout. Two exceptions, both on
+<code>replace</code>, which only sends the replacement once the original's cancel is
+confirmed: a refused cancel is <code>409 REPLACE_REJECTED</code> (nothing sent), and a
+cancel whose outcome did not arrive is <code>503 ENGINE_TIMEOUT</code> (no replacement
+sent; check the original with <code>GET /orders/{order_id}</code>).</p>
+<p><strong><code>Idempotency-Key</code>.</strong> A client whose connection dropped cannot know which of
+those replies it missed. The submit writes (<code>POST /orders</code>, <code>/oco</code>, <code>/combos</code>,
+<code>/quotes</code> and <code>/orders/{order_id}/replace</code>) accept an optional
+<code>Idempotency-Key</code> header (1–255 characters; a UUID per logical request):</p>
+<ul>
+<li>The first request with a key runs. A later one with the same key, from the
+  same gateway, is not sent again: it gets the first reply (same status, same
+  body) with the header <code>Idempotent-Replayed: true</code>. A duplicate that arrives
+  while the first is still waiting for its ack waits for it too.</li>
+<li>The same key on a different request (another path, query or body) is
+  <code>409 IDEMPOTENCY_KEY_REUSED</code>.</li>
+<li>A request that failed before the engine was reached is not remembered, so it
+  may be retried with the same key.</li>
+<li>Keys are kept for <code>order_retention_sec</code> and are lost when the gateway
+  restarts.</li>
+</ul>
+<p><code>client_tag</code> is unrelated: it is an opaque, non-unique label (below).</p>
 <h3 id="order-correlation-with-client_tag">Order correlation with <code>client_tag</code><a class="headerlink" href="#order-correlation-with-client_tag" title="Permanent link">&para;</a></h3>
 <p>Order submit supports <code>client_tag</code> as an optional client-supplied correlation
 tag.</p>
@@ -9130,13 +9424,42 @@ illustrative.</p>
 </code></pre></div>
 <h3 id="compatibility-and-deprecation-policy">Compatibility and deprecation policy<a class="headerlink" href="#compatibility-and-deprecation-policy" title="Permanent link">&para;</a></h3>
 <ul>
-<li>Versioning: this surface is namespaced under <code>/api/v1</code>.</li>
+<li>Versioning: this surface is namespaced under <code>/api/v1</code>. The WebSocket
+  streams under <code>/api/v1/ws/</code> (the <a href="../070-websocket/">WebSocket API Reference</a>)
+  are part of the same v1 contract and follow every rule below.</li>
 <li>Backward compatibility: additive changes (new optional fields/endpoints) MAY
   be introduced within v1 without changing the base path.</li>
 <li>Breaking changes (field removal, required-field additions, semantic
   redefinition) MUST ship under a new versioned base path.</li>
 <li>Deprecation: deprecated fields/endpoints SHOULD be documented with migration
   guidance before removal in a later major API version.</li>
+<li>The contract: <code>spec/rest/openapi.json</code> is the v1 contract. Any change to it
+  is a reviewed diff, and each diff is judged against these rules.</li>
+<li>Additive in practice:</li>
+<li>A new endpoint is additive.</li>
+<li>A new optional request field is additive.</li>
+<li>A new response field is additive. Clients must ignore unknown response
+    fields.</li>
+<li>A new error <code>code</code> is additive. Clients handle an unknown one by its HTTP
+    status.</li>
+<li>A new enum value in a response is additive only if the gateway and engine
+    are deployed together. The gateway validates its responses, so a gateway
+    older than the engine answers <code>500</code> on a value it does not know. EduMatcher
+    releases both from one spec.</li>
+<li>What clients MUST tolerate, so that the additive changes above stay
+  additive for them:</li>
+<li><strong>Unknown fields</strong>, in any REST response body and in any WebSocket frame
+    or <code>data</code>: ignore them.</li>
+<li><strong>Unknown enum values</strong>, in any enum (<code>status</code>, <code>reject_code</code>,
+    <code>cancel_reason</code>, <code>order_type</code>, ...): treat them as "other", not as an
+    error. New members may be added to any enum within v1.</li>
+<li><strong>Unknown WebSocket <code>type</code> values</strong>: ignore the frame. New event types
+    may be added within v1.</li>
+<li><strong>Unknown error <code>code</code> values</strong>: handle them by HTTP status.</li>
+<li>What is breaking for error codes: removing a <code>code</code> a route can return,
+  changing a <code>code</code>'s HTTP status or meaning, or returning a different <code>code</code>
+  for a condition that already has one. Adding a <code>code</code>, or returning an
+  existing <code>code</code> from one more route, is additive.</li>
 </ul>
 <h2 id="bootstrap_1">Bootstrap<a class="headerlink" href="#bootstrap_1" title="Permanent link">&para;</a></h2>
 <p>Bootstrap endpoints return a single composed response that a browser client
@@ -9153,29 +9476,44 @@ would be too incomplete to be useful without them.</p>
 sessions.  Returns identity, full reference data, live session state,
 positions, active orders, today's recent fills, and capability flags.</p>
 <p><strong>Access:</strong> any valid key (read-only keys receive <code>gateway_role: "READ_ONLY"</code>,
-empty <code>positions</code>, and empty <code>orders</code>).</p>
-<p><strong>Query parameters</strong></p>
+empty <code>positions</code> and <code>orders</code> and <code>null</code> <code>recent_fills</code>, but <code>session</code> and
+<code>halts</code> like any key).</p>
+<p><strong>Arguments</strong></p>
 <table>
 <thead>
 <tr>
 <th>Name</th>
 <th>Type</th>
-<th>Default</th>
-<th>Constraints</th>
+<th>Req</th>
 <th>Description</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td><code>fills_limit</code></td>
-<td><code>int</code></td>
-<td><code>50</code></td>
-<td><code>1..500</code></td>
-<td>Maximum number of today's fill events to include in <code>recent_fills</code></td>
+<td><code>Int</code></td>
+<td>no</td>
+<td>Maximum number of today's fill events in <code>recent_fills</code>; <code>1..500</code>, default <code>50</code></td>
 </tr>
 </tbody>
 </table>
-<p><strong>Reply <code>200 OK</code></strong></p>
+<p><strong>Reply</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Shape</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>200 OK</code></td>
+<td>the object below</td>
+<td>Startup payload</td>
+</tr>
+</tbody>
+</table>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>{
 <a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>  "ts": "2026-07-27T09:30:01.123Z",
 <a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>  "incomplete": [],               // field names that timed out (values are null)
@@ -9193,30 +9531,37 @@ empty <code>positions</code>, and empty <code>orders</code>).</p>
 <a id="__codelineno-14-15" name="__codelineno-14-15" href="#__codelineno-14-15"></a>  },
 <a id="__codelineno-14-16" name="__codelineno-14-16" href="#__codelineno-14-16"></a>
 <a id="__codelineno-14-17" name="__codelineno-14-17" href="#__codelineno-14-17"></a>  // identical to GET /session; null if engine timed out (optional)
-<a id="__codelineno-14-18" name="__codelineno-14-18" href="#__codelineno-14-18"></a>  "session": { "state": "CONTINUOUS", "since": "2026-07-27T09:30:00.000Z" },
-<a id="__codelineno-14-19" name="__codelineno-14-19" href="#__codelineno-14-19"></a>
-<a id="__codelineno-14-20" name="__codelineno-14-20" href="#__codelineno-14-20"></a>  // identical to GET /positions (pure cache, never null)
-<a id="__codelineno-14-21" name="__codelineno-14-21" href="#__codelineno-14-21"></a>  "positions": [ { "symbol": "AAPL", "net_qty": 200, "last_price": 210.25 } ],
-<a id="__codelineno-14-22" name="__codelineno-14-22" href="#__codelineno-14-22"></a>
-<a id="__codelineno-14-23" name="__codelineno-14-23" href="#__codelineno-14-23"></a>  // identical to GET /orders response body (required — 503 on failure)
-<a id="__codelineno-14-24" name="__codelineno-14-24" href="#__codelineno-14-24"></a>  "orders": { "orders": [ /* Order[] */ ] },
+<a id="__codelineno-14-18" name="__codelineno-14-18" href="#__codelineno-14-18"></a>  "session": { "state": "CONTINUOUS", "sessions_enabled": true, "next": { ... },
+<a id="__codelineno-14-19" name="__codelineno-14-19" href="#__codelineno-14-19"></a>               "session_timezone": "Europe/Stockholm", "session_date": "2026-07-27" },
+<a id="__codelineno-14-20" name="__codelineno-14-20" href="#__codelineno-14-20"></a>
+<a id="__codelineno-14-21" name="__codelineno-14-21" href="#__codelineno-14-21"></a>  // identical to GET /positions: an engine round trip (required — 503 on failure)
+<a id="__codelineno-14-22" name="__codelineno-14-22" href="#__codelineno-14-22"></a>  "positions": [ { "symbol": "AAPL", "net_qty": 200, "avg_cost": 208.40, "last_price": 210.25,
+<a id="__codelineno-14-23" name="__codelineno-14-23" href="#__codelineno-14-23"></a>                   "market_value": 42050.0, "unrealized_pnl": 370.0,
+<a id="__codelineno-14-24" name="__codelineno-14-24" href="#__codelineno-14-24"></a>                   "realized_pnl_session": 0.0, "realized_pnl_mtd": 0.0, "realized_pnl_ytd": 0.0 } ],
 <a id="__codelineno-14-25" name="__codelineno-14-25" href="#__codelineno-14-25"></a>
-<a id="__codelineno-14-26" name="__codelineno-14-26" href="#__codelineno-14-26"></a>  // today's fills, limited to fills_limit; null if stats DB absent (optional)
-<a id="__codelineno-14-27" name="__codelineno-14-27" href="#__codelineno-14-27"></a>  "recent_fills": { "events": [ /* Fill[] */ ], "count": 12 },
+<a id="__codelineno-14-26" name="__codelineno-14-26" href="#__codelineno-14-26"></a>  // the `orders` list of GET /orders (required — 503 on failure)
+<a id="__codelineno-14-27" name="__codelineno-14-27" href="#__codelineno-14-27"></a>  "orders": [ /* OrderDisplay[] */ ],
 <a id="__codelineno-14-28" name="__codelineno-14-28" href="#__codelineno-14-28"></a>
-<a id="__codelineno-14-29" name="__codelineno-14-29" href="#__codelineno-14-29"></a>  // capability flags — assembled from config, never null
-<a id="__codelineno-14-30" name="__codelineno-14-30" href="#__codelineno-14-30"></a>  "capabilities": {
-<a id="__codelineno-14-31" name="__codelineno-14-31" href="#__codelineno-14-31"></a>    "sessions_enabled": true,    // from reference.schedule.sessions_enabled
-<a id="__codelineno-14-32" name="__codelineno-14-32" href="#__codelineno-14-32"></a>    "stats_db_available": true,  // false → history unavailable
-<a id="__codelineno-14-33" name="__codelineno-14-33" href="#__codelineno-14-33"></a>    "audit_db_available": false, // false → order lifecycle drill-down unavailable
-<a id="__codelineno-14-34" name="__codelineno-14-34" href="#__codelineno-14-34"></a>    "index_available": false     // false → index tab unavailable
-<a id="__codelineno-14-35" name="__codelineno-14-35" href="#__codelineno-14-35"></a>  }
-<a id="__codelineno-14-36" name="__codelineno-14-36" href="#__codelineno-14-36"></a>}
+<a id="__codelineno-14-29" name="__codelineno-14-29" href="#__codelineno-14-29"></a>  // today's fill events, at most fills_limit; null if stats DB absent (optional)
+<a id="__codelineno-14-30" name="__codelineno-14-30" href="#__codelineno-14-30"></a>  "recent_fills": [ /* OrderEvent[] */ ],
+<a id="__codelineno-14-31" name="__codelineno-14-31" href="#__codelineno-14-31"></a>
+<a id="__codelineno-14-32" name="__codelineno-14-32" href="#__codelineno-14-32"></a>  // the `halted` list of GET /halts; null if engine timed out (optional)
+<a id="__codelineno-14-33" name="__codelineno-14-33" href="#__codelineno-14-33"></a>  "halts": [ ],
+<a id="__codelineno-14-34" name="__codelineno-14-34" href="#__codelineno-14-34"></a>
+<a id="__codelineno-14-35" name="__codelineno-14-35" href="#__codelineno-14-35"></a>  // capability flags — assembled from config, never null
+<a id="__codelineno-14-36" name="__codelineno-14-36" href="#__codelineno-14-36"></a>  "capabilities": {
+<a id="__codelineno-14-37" name="__codelineno-14-37" href="#__codelineno-14-37"></a>    "sessions_enabled": true,    // from reference.schedule.sessions_enabled
+<a id="__codelineno-14-38" name="__codelineno-14-38" href="#__codelineno-14-38"></a>    "stats_db_available": true,  // false → history unavailable
+<a id="__codelineno-14-39" name="__codelineno-14-39" href="#__codelineno-14-39"></a>    "audit_db_available": false, // false → order lifecycle drill-down unavailable
+<a id="__codelineno-14-40" name="__codelineno-14-40" href="#__codelineno-14-40"></a>    "index_available": false     // false → index tab unavailable
+<a id="__codelineno-14-41" name="__codelineno-14-41" href="#__codelineno-14-41"></a>  }
+<a id="__codelineno-14-42" name="__codelineno-14-42" href="#__codelineno-14-42"></a>}
 </code></pre></div>
 <p><strong>Required fields</strong> (return <code>503 ENGINE_TIMEOUT</code> if they fail):
-<code>reference</code>, <code>orders</code> (omitted for read-only keys).</p>
+<code>reference</code>, <code>orders</code> and <code>positions</code> (the last two are empty, without an
+engine query, for read-only keys).</p>
 <p><strong>Optional fields</strong> (appear as <code>null</code> + listed in <code>incomplete</code> on failure):
-<code>session</code>, <code>recent_fills</code>.</p>
+<code>session</code>, <code>recent_fills</code>, <code>halts</code>.</p>
 <p><strong>Errors</strong></p>
 <table>
 <thead>
@@ -9228,19 +9573,19 @@ empty <code>positions</code>, and empty <code>orders</code>).</p>
 </thead>
 <tbody>
 <tr>
-<td><code>AUTH</code></td>
-<td><code>401</code></td>
-<td>Missing or malformed key</td>
+<td><code>VALIDATION</code></td>
+<td><code>400</code></td>
+<td><code>fills_limit</code> is not an integer in 1–500</td>
+</tr>
+<tr>
+<td><code>READ_ONLY</code></td>
+<td><code>403</code></td>
+<td>A read-only key used on a gateway-scoped endpoint</td>
 </tr>
 <tr>
 <td><code>ENGINE_TIMEOUT</code></td>
 <td><code>503</code></td>
-<td><code>reference</code> or <code>orders</code> could not be fetched</td>
-</tr>
-<tr>
-<td><code>VALIDATION</code></td>
-<td><code>422</code></td>
-<td><code>fills_limit</code> is not a valid integer</td>
+<td><code>reference</code>, <code>orders</code> or <code>positions</code> could not be fetched</td>
 </tr>
 </tbody>
 </table>
@@ -9249,22 +9594,56 @@ empty <code>positions</code>, and empty <code>orders</code>).</p>
 <p>Purpose: one-request startup payload for MARKET_MAKER sessions.  Superset of
 <code>/bootstrap/trader</code> — adds active quote bootstrap state and quote legs.</p>
 <p><strong>Access:</strong> MARKET_MAKER key only.  TRADER and ADMIN keys receive <code>403</code>.</p>
-<p><strong>Query parameters:</strong> same as <code>/bootstrap/trader</code> (<code>fills_limit</code>).</p>
-<p><strong>Reply <code>200 OK</code></strong></p>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>fills_limit</code></td>
+<td><code>Int</code></td>
+<td>no</td>
+<td>As for <code>/bootstrap/trader</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Reply</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Shape</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>200 OK</code></td>
+<td>the object below</td>
+<td>Startup payload</td>
+</tr>
+</tbody>
+</table>
 <p>All fields from <code>/bootstrap/trader</code>, plus:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>{
 <a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>  // ...trader fields...
 <a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>  "gateway_role": "MARKET_MAKER",
 <a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a>
-<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a>  // identical to GET /quotes/bootstrap; null if engine timed out (optional)
-<a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a>  "quote_bootstrap": { "quotes": [ /* ActiveQuote[] */ ] },
+<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a>  // the `quotes` list of GET /quotes; null if engine timed out (optional)
+<a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a>  "quotes": [ /* ActiveQuote[] */ ],
 <a id="__codelineno-15-7" name="__codelineno-15-7" href="#__codelineno-15-7"></a>
-<a id="__codelineno-15-8" name="__codelineno-15-8" href="#__codelineno-15-8"></a>  // identical to GET /quotes/legs; null if engine timed out (optional)
-<a id="__codelineno-15-9" name="__codelineno-15-9" href="#__codelineno-15-9"></a>  "quote_legs": { "legs": [ /* QuoteLeg[] */ ] }
+<a id="__codelineno-15-8" name="__codelineno-15-8" href="#__codelineno-15-8"></a>  // the `legs` list of GET /quotes/legs; null if engine timed out (optional)
+<a id="__codelineno-15-9" name="__codelineno-15-9" href="#__codelineno-15-9"></a>  "quote_legs": [ /* QuoteLeg[] */ ]
 <a id="__codelineno-15-10" name="__codelineno-15-10" href="#__codelineno-15-10"></a>}
 </code></pre></div>
-<p><strong>Required fields:</strong> <code>reference</code>, <code>orders</code>.</p>
-<p><strong>Optional fields:</strong> <code>session</code>, <code>recent_fills</code>, <code>quote_bootstrap</code>, <code>quote_legs</code>.</p>
+<p><strong>Required fields:</strong> <code>reference</code>, <code>orders</code>, <code>positions</code>.</p>
+<p><strong>Optional fields:</strong> <code>session</code>, <code>recent_fills</code>, <code>halts</code>, <code>quotes</code>, <code>quote_legs</code>.</p>
 <p><strong>Errors</strong></p>
 <table>
 <thead>
@@ -9276,9 +9655,9 @@ empty <code>positions</code>, and empty <code>orders</code>).</p>
 </thead>
 <tbody>
 <tr>
-<td><code>AUTH</code></td>
-<td><code>401</code></td>
-<td>Missing or malformed key</td>
+<td><code>VALIDATION</code></td>
+<td><code>400</code></td>
+<td><code>fills_limit</code> is not an integer in 1–500</td>
 </tr>
 <tr>
 <td><code>READ_ONLY</code></td>
@@ -9293,12 +9672,7 @@ empty <code>positions</code>, and empty <code>orders</code>).</p>
 <tr>
 <td><code>ENGINE_TIMEOUT</code></td>
 <td><code>503</code></td>
-<td><code>reference</code> or <code>orders</code> could not be fetched</td>
-</tr>
-<tr>
-<td><code>VALIDATION</code></td>
-<td><code>422</code></td>
-<td><code>fills_limit</code> is not a valid integer</td>
+<td><code>reference</code>, <code>orders</code> or <code>positions</code> could not be fetched</td>
 </tr>
 </tbody>
 </table>
@@ -9309,8 +9683,42 @@ data, session state, the full gateway roster, active halts, per-gateway
 active-order counts, per-gateway drop-copy sequence numbers, and capability
 flags.</p>
 <p><strong>Access:</strong> ADMIN role required.  TRADER and MARKET_MAKER keys receive <code>403</code>.</p>
-<p><strong>No query parameters.</strong></p>
-<p><strong>Reply <code>200 OK</code></strong></p>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>none</td>
+<td>—</td>
+<td>—</td>
+<td>No query parameters</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Reply</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Shape</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>200 OK</code></td>
+<td>the object below</td>
+<td>Startup payload</td>
+</tr>
+</tbody>
+</table>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>{
 <a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>  "ts": "2026-07-27T09:30:01.250Z",
 <a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a>  "incomplete": [],
@@ -9322,36 +9730,34 @@ flags.</p>
 <a id="__codelineno-16-9" name="__codelineno-16-9" href="#__codelineno-16-9"></a>  "reference": { /* symbols, risk, schedule, config_version */ },
 <a id="__codelineno-16-10" name="__codelineno-16-10" href="#__codelineno-16-10"></a>
 <a id="__codelineno-16-11" name="__codelineno-16-11" href="#__codelineno-16-11"></a>  // identical to GET /session; null if engine timed out (optional)
-<a id="__codelineno-16-12" name="__codelineno-16-12" href="#__codelineno-16-12"></a>  "session": { "state": "CONTINUOUS", "since": "..." },
+<a id="__codelineno-16-12" name="__codelineno-16-12" href="#__codelineno-16-12"></a>  "session": { "state": "CONTINUOUS", "sessions_enabled": true, "session_timezone": "...", "session_date": "..." },
 <a id="__codelineno-16-13" name="__codelineno-16-13" href="#__codelineno-16-13"></a>
-<a id="__codelineno-16-14" name="__codelineno-16-14" href="#__codelineno-16-14"></a>  // identical to GET /admin/gateways response body; null if engine timed out (optional)
-<a id="__codelineno-16-15" name="__codelineno-16-15" href="#__codelineno-16-15"></a>  "gateways": {
-<a id="__codelineno-16-16" name="__codelineno-16-16" href="#__codelineno-16-16"></a>    "gateways": [
-<a id="__codelineno-16-17" name="__codelineno-16-17" href="#__codelineno-16-17"></a>      { "gateway_id": "TRADER01", "role": "TRADER", "description": "...", "connected": true }
-<a id="__codelineno-16-18" name="__codelineno-16-18" href="#__codelineno-16-18"></a>    ]
-<a id="__codelineno-16-19" name="__codelineno-16-19" href="#__codelineno-16-19"></a>  },
-<a id="__codelineno-16-20" name="__codelineno-16-20" href="#__codelineno-16-20"></a>
-<a id="__codelineno-16-21" name="__codelineno-16-21" href="#__codelineno-16-21"></a>  // identical to GET /admin/halts response body; null if engine timed out (optional)
-<a id="__codelineno-16-22" name="__codelineno-16-22" href="#__codelineno-16-22"></a>  "halts": { "halted": [ { "symbol": "AAPL", "level": "L2", ... } ] },
-<a id="__codelineno-16-23" name="__codelineno-16-23" href="#__codelineno-16-23"></a>
-<a id="__codelineno-16-24" name="__codelineno-16-24" href="#__codelineno-16-24"></a>  // per-gateway active (non-terminal) order count — pure cache, never null
-<a id="__codelineno-16-25" name="__codelineno-16-25" href="#__codelineno-16-25"></a>  "active_order_counts": { "TRADER01": 3, "MM01": 12 },
-<a id="__codelineno-16-26" name="__codelineno-16-26" href="#__codelineno-16-26"></a>
-<a id="__codelineno-16-27" name="__codelineno-16-27" href="#__codelineno-16-27"></a>  // per-gateway highest drop-copy stream_seq seen — pure cache, never null
-<a id="__codelineno-16-28" name="__codelineno-16-28" href="#__codelineno-16-28"></a>  "monitor_last_seq": { "TRADER01": 100482, "MM01": 88213 },
-<a id="__codelineno-16-29" name="__codelineno-16-29" href="#__codelineno-16-29"></a>
-<a id="__codelineno-16-30" name="__codelineno-16-30" href="#__codelineno-16-30"></a>  "capabilities": {
-<a id="__codelineno-16-31" name="__codelineno-16-31" href="#__codelineno-16-31"></a>    "sessions_enabled": true,
-<a id="__codelineno-16-32" name="__codelineno-16-32" href="#__codelineno-16-32"></a>    "stats_db_available": true,
-<a id="__codelineno-16-33" name="__codelineno-16-33" href="#__codelineno-16-33"></a>    "audit_db_available": false,
-<a id="__codelineno-16-34" name="__codelineno-16-34" href="#__codelineno-16-34"></a>    "index_available": false
-<a id="__codelineno-16-35" name="__codelineno-16-35" href="#__codelineno-16-35"></a>  }
-<a id="__codelineno-16-36" name="__codelineno-16-36" href="#__codelineno-16-36"></a>}
+<a id="__codelineno-16-14" name="__codelineno-16-14" href="#__codelineno-16-14"></a>  // the `gateways` list of GET /admin/gateways; null if engine timed out (optional)
+<a id="__codelineno-16-15" name="__codelineno-16-15" href="#__codelineno-16-15"></a>  "gateways": [
+<a id="__codelineno-16-16" name="__codelineno-16-16" href="#__codelineno-16-16"></a>    { "id": "TRADER01", "role": "TRADER", "description": "...", "connected": true }
+<a id="__codelineno-16-17" name="__codelineno-16-17" href="#__codelineno-16-17"></a>  ],
+<a id="__codelineno-16-18" name="__codelineno-16-18" href="#__codelineno-16-18"></a>
+<a id="__codelineno-16-19" name="__codelineno-16-19" href="#__codelineno-16-19"></a>  // the `halted` list of GET /halts; null if engine timed out (optional)
+<a id="__codelineno-16-20" name="__codelineno-16-20" href="#__codelineno-16-20"></a>  "halts": [ { "symbol": "AAPL", "level": "L2", ... } ],
+<a id="__codelineno-16-21" name="__codelineno-16-21" href="#__codelineno-16-21"></a>
+<a id="__codelineno-16-22" name="__codelineno-16-22" href="#__codelineno-16-22"></a>  // per-gateway active (non-terminal) order count — pure cache, never null
+<a id="__codelineno-16-23" name="__codelineno-16-23" href="#__codelineno-16-23"></a>  "active_order_counts": { "TRADER01": 3, "MM01": 12 },
+<a id="__codelineno-16-24" name="__codelineno-16-24" href="#__codelineno-16-24"></a>
+<a id="__codelineno-16-25" name="__codelineno-16-25" href="#__codelineno-16-25"></a>  // each active gateway's private-stream stream_seq now — pure cache, never null
+<a id="__codelineno-16-26" name="__codelineno-16-26" href="#__codelineno-16-26"></a>  "monitor_last_seq": { "TRADER01": 100482, "MM01": 88213 },
+<a id="__codelineno-16-27" name="__codelineno-16-27" href="#__codelineno-16-27"></a>
+<a id="__codelineno-16-28" name="__codelineno-16-28" href="#__codelineno-16-28"></a>  "capabilities": {
+<a id="__codelineno-16-29" name="__codelineno-16-29" href="#__codelineno-16-29"></a>    "sessions_enabled": true,
+<a id="__codelineno-16-30" name="__codelineno-16-30" href="#__codelineno-16-30"></a>    "stats_db_available": true,
+<a id="__codelineno-16-31" name="__codelineno-16-31" href="#__codelineno-16-31"></a>    "audit_db_available": false,
+<a id="__codelineno-16-32" name="__codelineno-16-32" href="#__codelineno-16-32"></a>    "index_available": false
+<a id="__codelineno-16-33" name="__codelineno-16-33" href="#__codelineno-16-33"></a>  }
+<a id="__codelineno-16-34" name="__codelineno-16-34" href="#__codelineno-16-34"></a>}
 </code></pre></div>
 <p><strong>Required fields:</strong> <code>reference</code>.</p>
 <p><strong>Optional fields:</strong> <code>session</code>, <code>gateways</code>, <code>halts</code>.
 The <code>gateways</code> and <code>halts</code> fields are also supplied by the <code>monitor.snapshot</code>
-frame that the <code>WS /api/v1/admin/monitor</code> socket sends immediately after auth
+frame that the <code>WS /api/v1/ws/admin/monitor</code> socket sends immediately after auth
 — a partial bootstrap response is therefore recoverable without a manual retry.</p>
 <p><strong>Errors</strong></p>
 <table>
@@ -9364,9 +9770,9 @@ frame that the <code>WS /api/v1/admin/monitor</code> socket sends immediately af
 </thead>
 <tbody>
 <tr>
-<td><code>AUTH</code></td>
-<td><code>401</code></td>
-<td>Missing or malformed key</td>
+<td><code>READ_ONLY</code></td>
+<td><code>403</code></td>
+<td>A read-only key used on a gateway-scoped endpoint</td>
 </tr>
 <tr>
 <td><code>ROLE_DENIED</code></td>
@@ -9429,25 +9835,25 @@ frame that the <code>WS /api/v1/admin/monitor</code> socket sends immediately af
 <td><code>price</code></td>
 <td><code>Price</code></td>
 <td>conditional</td>
-<td>Required for limit-style orders</td>
+<td>Required for <code>LIMIT</code>, <code>FOK</code>, <code>IOC</code>, <code>STOP_LIMIT</code>, <code>ICEBERG</code></td>
 </tr>
 <tr>
 <td><code>stop_price</code></td>
 <td><code>Price</code></td>
 <td>conditional</td>
-<td>Required for stop-style orders</td>
+<td>Required for <code>STOP</code>, <code>STOP_LIMIT</code>; optional initial stop for <code>TRAILING_STOP</code> (default: last trade ± <code>trail_offset</code>)</td>
 </tr>
 <tr>
 <td><code>visible_qty</code></td>
 <td><code>Qty</code></td>
 <td>conditional</td>
-<td>Required for iceberg orders</td>
+<td>Required for <code>ICEBERG</code>; must be less than <code>quantity</code></td>
 </tr>
 <tr>
 <td><code>trail_offset</code></td>
-<td><code>Ticks</code></td>
+<td><code>Price</code></td>
 <td>conditional</td>
-<td>Required for trailing-stop orders</td>
+<td>Required for <code>TRAILING_STOP</code></td>
 </tr>
 <tr>
 <td><code>smp_action</code></td>
@@ -9460,6 +9866,18 @@ frame that the <code>WS /api/v1/admin/monitor</code> socket sends immediately af
 <td><code>Str</code></td>
 <td>no</td>
 <td>Optional opaque client correlation tag</td>
+</tr>
+<tr>
+<td><code>wait</code></td>
+<td><code>Bool</code></td>
+<td>no</td>
+<td><code>?wait=ack</code> waits for the engine's verdict (see <a href="#write-outcomes-and-safe-retries">Write outcomes and safe retries</a>)</td>
+</tr>
+<tr>
+<td><code>Idempotency-Key</code></td>
+<td>header</td>
+<td>no</td>
+<td>Makes a retry safe; see <a href="#write-outcomes-and-safe-retries">Write outcomes and safe retries</a></td>
 </tr>
 </tbody>
 </table>
@@ -9475,55 +9893,66 @@ frame that the <code>WS /api/v1/admin/monitor</code> socket sends immediately af
 <tbody>
 <tr>
 <td><code>202 Accepted</code></td>
-<td><code>{"order_id": "...", "status": "PENDING"}</code></td>
+<td><code>{"order_id": "...", "status": "PENDING", "ack_timeout": false, ...}</code></td>
 <td>Default immediate reply</td>
 </tr>
 <tr>
 <td><code>200 OK</code></td>
-<td><code>{"order_id": "...", "status": "ACKED", "accepted": false, "reject_code": "COLLAR_BREACH", "reason": "collar breach"}</code></td>
-<td>Returned when <code>?wait=ack</code> waits for the matching ACK; rejected ACKs include a stable machine-readable <code>reject_code</code> and the human-readable <code>reason</code></td>
+<td><code>{"order_id": "...", "status": "ACKED", "accepted": false, "reject_code": "COLLAR_BREACH", "event": {..., "reason": "collar breach"}, "ack_timeout": false}</code></td>
+<td>Returned when <code>?wait=ack</code> waits for the matching ACK; a rejected ACK carries the stable machine-readable <code>reject_code</code>, and the engine's <code>order.ack</code> in <code>event</code> has the human-readable <code>reason</code></td>
+</tr>
+<tr>
+<td><code>202 Accepted</code></td>
+<td><code>{"order_id": "...", "status": "PENDING", "ack_timeout": true, ...}</code></td>
+<td><code>?wait=ack</code> and the ACK did not arrive in time; the order was sent</td>
 </tr>
 </tbody>
 </table>
+<p>Takes an optional <code>Idempotency-Key</code> header; see
+<a href="#write-outcomes-and-safe-retries">Write outcomes and safe retries</a>.</p>
 <p><strong>Errors</strong></p>
 <table>
 <thead>
 <tr>
 <th>Code</th>
+<th>Status</th>
 <th>When</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>AUTH</code></td>
-<td>Missing or malformed key</td>
-</tr>
-<tr>
-<td><code>READ_ONLY</code></td>
-<td>Read-only credential used</td>
-</tr>
-<tr>
-<td><code>ROLE_DENIED</code></td>
-<td>ADMIN-only restriction violated</td>
-</tr>
-<tr>
 <td><code>VALIDATION</code></td>
+<td><code>400</code></td>
 <td>Body does not match the order type, or a price is not an exact multiple of the instrument's tick size (<code>reject_code: TICK_VIOLATION</code>)</td>
 </tr>
 <tr>
-<td><code>SYMBOLS_NOT_READY</code></td>
-<td>Symbol metadata has not reached the gateway yet (<code>reject_code: SYMBOL_NOT_READY</code>)</td>
+<td><code>READ_ONLY</code></td>
+<td><code>403</code></td>
+<td>Read-only credential used</td>
+</tr>
+<tr>
+<td><code>IDEMPOTENCY_KEY_REUSED</code></td>
+<td><code>409</code></td>
+<td>The <code>Idempotency-Key</code> was used for a different request</td>
 </tr>
 <tr>
 <td><code>RATE_LIMIT</code></td>
+<td><code>429</code></td>
 <td>Write limit exceeded</td>
 </tr>
 <tr>
-<td><code>ENGINE_TIMEOUT</code></td>
-<td>Engine did not ACK in time</td>
+<td><code>SYMBOLS_NOT_READY</code></td>
+<td><code>503</code></td>
+<td>Symbol metadata has not reached the gateway yet (<code>reject_code: SYMBOL_NOT_READY</code>)</td>
 </tr>
 </tbody>
 </table>
+<p>A conditional field the <code>order_type</code> does not use is rejected
+(<code>400 VALIDATION</code>, <code>reject_code: UNSUPPORTED_FIELD</code>, for example
+<code>"LIMIT forbids trail_offset"</code>), never silently dropped; a missing one is
+<code>MISSING_FIELD</code>. The same per-type rule applies to OCO and combo legs, and ALF,
+BALF and the engine apply it too, so an order gets the same <code>reject_code</code> on
+every transport.</p>
 <p>Prices are refused rather than rounded to the nearest tick: rounding would rest
 the order at a price the client never sent. See
 <a href="../../../operator-guide/part-5-gateways/050-api-gateway/#tick-precision">Tick precision</a>.</p>
@@ -9573,39 +10002,47 @@ the order at a price the client never sent. See
 <tr>
 <td><code>202 Accepted</code></td>
 <td><code>{"order_id": "...", "request_tag": "...", "status": "PENDING_CANCEL"}</code></td>
-<td>Request accepted</td>
+<td>Default: cancel sent; the outcome follows on the private WebSocket</td>
 </tr>
 <tr>
 <td><code>200 OK</code></td>
-<td>cancel ACK payload</td>
-<td>Returned when waiting for the ACK</td>
+<td><code>{"order_id": "...", "status": "ACKED" \| "REJECTED", "accepted": ..., "reject_code": ..., "event": {...}}</code></td>
+<td>With <code>?wait=ack</code>: the cancel's outcome</td>
+</tr>
+<tr>
+<td><code>202 Accepted</code></td>
+<td><code>{..., "status": "PENDING_CANCEL", "ack_timeout": true}</code></td>
+<td><code>?wait=ack</code> and the outcome did not arrive in time; the cancel was sent</td>
 </tr>
 </tbody>
 </table>
+<p>Without a <code>request_tag</code>, <code>?wait=ack</code> waits for <code>order.cancelled</code> alone, so a
+refused cancel shows as an ack timeout; pass a <code>request_tag</code> to get it as
+<code>REJECTED</code>.</p>
 <p><strong>Errors</strong></p>
 <table>
 <thead>
 <tr>
 <th>Code</th>
+<th>Status</th>
 <th>When</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>AUTH</code></td>
-<td>Missing or malformed key</td>
-</tr>
-<tr>
-<td><code>READ_ONLY</code></td>
-<td>Read-only credential used</td>
-</tr>
-<tr>
 <td><code>VALIDATION</code></td>
+<td><code>400</code></td>
 <td>Bad path or query</td>
 </tr>
 <tr>
-<td><code>ENGINE_TIMEOUT</code></td>
-<td>Engine did not ACK in time</td>
+<td><code>READ_ONLY</code></td>
+<td><code>403</code></td>
+<td>Read-only credential used</td>
+</tr>
+<tr>
+<td><code>RATE_LIMIT</code></td>
+<td><code>429</code></td>
+<td>Per-key write limit exceeded; retry after a short pause</td>
 </tr>
 </tbody>
 </table>
@@ -9667,12 +10104,17 @@ the order at a price the client never sent. See
 <tr>
 <td><code>202 Accepted</code></td>
 <td><code>{"order_id": "...", "request_tag": "...", "status": "PENDING_AMEND"}</code></td>
-<td>Request accepted</td>
+<td>Default: amend sent; the outcome follows on the private WebSocket</td>
 </tr>
 <tr>
 <td><code>200 OK</code></td>
-<td>amend ACK payload</td>
-<td>Returned when waiting for the ACK</td>
+<td><code>{"order_id": "...", "status": "ACKED" \| "REJECTED", "accepted": ..., "reject_code": ..., "event": {...}}</code></td>
+<td>With <code>?wait=ack</code>: the amend's outcome</td>
+</tr>
+<tr>
+<td><code>202 Accepted</code></td>
+<td><code>{..., "status": "PENDING_AMEND", "ack_timeout": true}</code></td>
+<td><code>?wait=ack</code> and the outcome did not arrive in time; the amend was sent</td>
 </tr>
 </tbody>
 </table>
@@ -9681,25 +10123,25 @@ the order at a price the client never sent. See
 <thead>
 <tr>
 <th>Code</th>
+<th>Status</th>
 <th>When</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>AUTH</code></td>
-<td>Missing or malformed key</td>
-</tr>
-<tr>
-<td><code>READ_ONLY</code></td>
-<td>Read-only credential used</td>
-</tr>
-<tr>
 <td><code>VALIDATION</code></td>
+<td><code>400</code></td>
 <td>Neither or both fields invalid</td>
 </tr>
 <tr>
-<td><code>ENGINE_TIMEOUT</code></td>
-<td>Engine did not ACK in time</td>
+<td><code>READ_ONLY</code></td>
+<td><code>403</code></td>
+<td>Read-only credential used</td>
+</tr>
+<tr>
+<td><code>RATE_LIMIT</code></td>
+<td><code>429</code></td>
+<td>Per-key write limit exceeded; retry after a short pause</td>
 </tr>
 </tbody>
 </table>
@@ -9726,10 +10168,24 @@ the order at a price the client never sent. See
 <td>body</td>
 <td><code>Order</code> fields</td>
 <td>yes</td>
-<td>Same shape as <code>POST /orders</code></td>
+<td>Same shape as <code>POST /orders</code>, on the same symbol</td>
+</tr>
+<tr>
+<td><code>wait</code></td>
+<td><code>Bool</code></td>
+<td>no</td>
+<td><code>?wait=ack</code> also waits for the replacement's <code>order.ack</code></td>
+</tr>
+<tr>
+<td><code>Idempotency-Key</code></td>
+<td>header</td>
+<td>no</td>
+<td>See <a href="#write-outcomes-and-safe-retries">Write outcomes and safe retries</a></td>
 </tr>
 </tbody>
 </table>
+<p>The gateway always waits for the original's cancel, and sends the replacement
+only once the engine has confirmed it.</p>
 <p><strong>Reply</strong></p>
 <table>
 <thead>
@@ -9742,8 +10198,13 @@ the order at a price the client never sent. See
 <tbody>
 <tr>
 <td><code>202 Accepted</code></td>
-<td>cancel ACK then replacement ACK</td>
-<td>Synchronous cancel-then-submit workflow</td>
+<td><code>{"cancelled_order_id": "...", "replacement_order_id": "...", "status": "PENDING", "accepted": null, ...}</code></td>
+<td>Original cancelled; replacement sent</td>
+</tr>
+<tr>
+<td><code>200 OK</code></td>
+<td><code>{..., "status": "ACKED", "accepted": true \| false, "reject_code": ..., "event": {...}}</code></td>
+<td>With <code>?wait=ack</code>: the replacement's verdict</td>
 </tr>
 </tbody>
 </table>
@@ -9752,30 +10213,51 @@ the order at a price the client never sent. See
 <thead>
 <tr>
 <th>Code</th>
+<th>Status</th>
 <th>When</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>AUTH</code></td>
-<td>Missing or malformed key</td>
+<td><code>VALIDATION</code></td>
+<td><code>400</code></td>
+<td>Replacement body invalid, or names another symbol than the original (<code>field: symbol</code>)</td>
 </tr>
 <tr>
 <td><code>READ_ONLY</code></td>
+<td><code>403</code></td>
 <td>Read-only credential used</td>
 </tr>
 <tr>
-<td><code>VALIDATION</code></td>
-<td>Replacement body invalid</td>
+<td><code>IDEMPOTENCY_KEY_REUSED</code></td>
+<td><code>409</code></td>
+<td>The <code>Idempotency-Key</code> was used for a different request</td>
+</tr>
+<tr>
+<td><code>REPLACE_REJECTED</code></td>
+<td><code>409</code></td>
+<td>The engine refused the cancel (the order already filled, say; <code>reject_code</code> says why); nothing was sent</td>
+</tr>
+<tr>
+<td><code>RATE_LIMIT</code></td>
+<td><code>429</code></td>
+<td>Per-key write limit exceeded; retry after a short pause</td>
 </tr>
 <tr>
 <td><code>ENGINE_TIMEOUT</code></td>
-<td>Cancel or submit timed out</td>
+<td><code>503</code></td>
+<td>The cancel's outcome did not arrive in time; no replacement was sent</td>
+</tr>
+<tr>
+<td><code>SYMBOLS_NOT_READY</code></td>
+<td><code>503</code></td>
+<td>The symbol's metadata is not loaded; nothing was cancelled</td>
 </tr>
 </tbody>
 </table>
 <h3 id="get-apiv1orders"><code>GET /api/v1/orders</code><a class="headerlink" href="#get-apiv1orders" title="Permanent link">&para;</a></h3>
-<p>Purpose: return the caller gateway's live order cache.</p>
+<p>Purpose: return the caller gateway's orders as the engine holds them: resting
+orders plus recently finished ones.</p>
 <p><strong>Arguments</strong></p>
 <table>
 <thead>
@@ -9788,28 +10270,10 @@ the order at a price the client never sent. See
 </thead>
 <tbody>
 <tr>
-<td><code>symbol</code></td>
-<td><code>Symbol</code></td>
-<td>no</td>
-<td>Filter by symbol</td>
-</tr>
-<tr>
-<td><code>status</code></td>
-<td><code>OrderStatus</code></td>
-<td>no</td>
-<td>Filter by order status</td>
-</tr>
-<tr>
-<td><code>after</code></td>
-<td><code>Cursor</code></td>
-<td>no</td>
-<td>Opaque page cursor</td>
-</tr>
-<tr>
-<td><code>limit</code></td>
-<td><code>Int</code></td>
-<td>no</td>
-<td>Page size, bounded by the gateway</td>
+<td>none</td>
+<td>—</td>
+<td>—</td>
+<td>No query parameters</td>
 </tr>
 </tbody>
 </table>
@@ -9825,8 +10289,8 @@ the order at a price the client never sent. See
 <tbody>
 <tr>
 <td><code>200 OK</code></td>
-<td><code>{ "orders": [...], "count": N, "has_more": bool, "next_cursor": str? }</code></td>
-<td>Current live orders</td>
+<td><code>{ "orders": [...] }</code></td>
+<td>The engine's order snapshot for the caller</td>
 </tr>
 </tbody>
 </table>
@@ -9835,25 +10299,20 @@ the order at a price the client never sent. See
 <thead>
 <tr>
 <th>Code</th>
+<th>Status</th>
 <th>When</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>AUTH</code></td>
-<td>Missing or malformed key</td>
-</tr>
-<tr>
 <td><code>READ_ONLY</code></td>
+<td><code>403</code></td>
 <td>Read-only credential used</td>
 </tr>
 <tr>
-<td><code>VALIDATION</code></td>
-<td>Query parameters invalid</td>
-</tr>
-<tr>
 <td><code>ENGINE_TIMEOUT</code></td>
-<td>Fresh snapshot request to the engine timed out</td>
+<td><code>503</code></td>
+<td>The engine did not answer in time. There is no fallback to the gateway's cache; the private WebSocket <code>orders.snapshot</code> is the cached view</td>
 </tr>
 </tbody>
 </table>
@@ -9905,20 +10364,24 @@ the order at a price the client never sent. See
 <thead>
 <tr>
 <th>Code</th>
+<th>Status</th>
 <th>When</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>AUTH</code></td>
-<td>Missing or malformed key</td>
+<td><code>VALIDATION</code></td>
+<td><code>400</code></td>
+<td>A body field, query parameter, header or history filter failed validation; <code>field</code> names it. <code>reject_code</code> is one of <code>MISSING_FIELD</code>, <code>UNSUPPORTED_FIELD</code>, <code>INVALID_VALUE</code>, <code>TICK_VIOLATION</code></td>
 </tr>
 <tr>
 <td><code>READ_ONLY</code></td>
+<td><code>403</code></td>
 <td>Read-only credential used</td>
 </tr>
 <tr>
 <td><code>UNKNOWN_ORDER</code></td>
+<td><code>404</code></td>
 <td>Order id unknown to the cache</td>
 </tr>
 </tbody>
@@ -9940,7 +10403,7 @@ the order at a price the client never sent. See
 <td><code>oco_id</code></td>
 <td><code>Str</code></td>
 <td>yes</td>
-<td>Group id for the pair</td>
+<td>Your id for the pair, unique among your live pairs: reusing one is refused (<code>accepted: false</code>). Free again once the pair is done</td>
 </tr>
 <tr>
 <td><code>symbol</code></td>
@@ -9958,13 +10421,37 @@ the order at a price the client never sent. See
 <td><code>leg1</code></td>
 <td><code>OrderLeg</code></td>
 <td>yes</td>
-<td>First leg definition</td>
+<td>First leg definition: <code>side</code>, <code>order_type</code>, and the <code>price</code> / <code>stop_price</code> / <code>trail_offset</code> that type needs (same rule as <code>POST /orders</code>; <code>ICEBERG</code> is not supported on a leg)</td>
 </tr>
 <tr>
 <td><code>leg2</code></td>
 <td><code>OrderLeg</code></td>
 <td>yes</td>
-<td>Second leg definition</td>
+<td>Second leg definition, same shape</td>
+</tr>
+<tr>
+<td><code>tif</code></td>
+<td><code>Tif</code></td>
+<td>no</td>
+<td>Time-in-force of both legs; defaults to <code>DAY</code></td>
+</tr>
+<tr>
+<td><code>client_tag</code></td>
+<td><code>Str</code></td>
+<td>no</td>
+<td>Opaque label echoed on both legs' events; max 64 chars</td>
+</tr>
+<tr>
+<td><code>wait</code></td>
+<td><code>Bool</code></td>
+<td>no</td>
+<td><code>?wait=ack</code> waits for the engine's verdict (see <a href="#write-outcomes-and-safe-retries">Write outcomes and safe retries</a>)</td>
+</tr>
+<tr>
+<td><code>Idempotency-Key</code></td>
+<td>header</td>
+<td>no</td>
+<td>Makes a retry safe; see <a href="#write-outcomes-and-safe-retries">Write outcomes and safe retries</a></td>
 </tr>
 </tbody>
 </table>
@@ -9980,35 +10467,57 @@ the order at a price the client never sent. See
 <tbody>
 <tr>
 <td><code>202 Accepted</code></td>
-<td>ack payload</td>
-<td>OCO accepted for processing</td>
+<td><code>{ "oco_id": "...", "status": "PENDING", "accepted": null, "reason": null, "event": null, "ack_timeout": false }</code></td>
+<td>Sent; the verdict follows on the private WebSocket (<code>oco.ack</code>)</td>
+</tr>
+<tr>
+<td><code>200 OK</code></td>
+<td><code>{ "oco_id": "...", "status": "ACKED", "accepted": true \| false, "reason": ..., "event": {...}, "ack_timeout": false }</code></td>
+<td>With <code>?wait=ack</code>: the engine's <code>oco.ack</code></td>
+</tr>
+<tr>
+<td><code>202 Accepted</code></td>
+<td><code>{..., "status": "PENDING", "ack_timeout": true}</code></td>
+<td><code>?wait=ack</code> and the verdict did not arrive in time; it was sent</td>
 </tr>
 </tbody>
 </table>
+<p>Takes <code>?wait=ack</code> and an optional <code>Idempotency-Key</code> header; see
+<a href="#write-outcomes-and-safe-retries">Write outcomes and safe retries</a>.</p>
 <p><strong>Errors</strong></p>
 <table>
 <thead>
 <tr>
 <th>Code</th>
+<th>Status</th>
 <th>When</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>AUTH</code></td>
-<td>Missing or malformed key</td>
-</tr>
-<tr>
-<td><code>READ_ONLY</code></td>
-<td>Read-only credential used</td>
-</tr>
-<tr>
 <td><code>VALIDATION</code></td>
+<td><code>400</code></td>
 <td>Body invalid</td>
 </tr>
 <tr>
-<td><code>ENGINE_TIMEOUT</code></td>
-<td>Engine did not ACK in time</td>
+<td><code>READ_ONLY</code></td>
+<td><code>403</code></td>
+<td>Read-only credential used</td>
+</tr>
+<tr>
+<td><code>IDEMPOTENCY_KEY_REUSED</code></td>
+<td><code>409</code></td>
+<td>The <code>Idempotency-Key</code> was used for a different request</td>
+</tr>
+<tr>
+<td><code>RATE_LIMIT</code></td>
+<td><code>429</code></td>
+<td>Per-key write limit exceeded; retry after a short pause</td>
+</tr>
+<tr>
+<td><code>SYMBOLS_NOT_READY</code></td>
+<td><code>503</code></td>
+<td>Order entry before the symbol's tick precision reached the gateway. Transient; retry</td>
 </tr>
 </tbody>
 </table>
@@ -10029,7 +10538,19 @@ the order at a price the client never sent. See
 <td><code>oco_id</code></td>
 <td><code>Str</code></td>
 <td>yes (path)</td>
-<td>OCO group to cancel</td>
+<td>One of your own OCO pairs; another gateway's id is <code>ORDER_NOT_FOUND</code></td>
+</tr>
+<tr>
+<td><code>request_tag</code></td>
+<td><code>Str</code></td>
+<td>no</td>
+<td>Query: echoed on the engine's <code>oco.cancel_ack</code>; max 64 chars</td>
+</tr>
+<tr>
+<td><code>wait</code></td>
+<td><code>Bool</code></td>
+<td>no</td>
+<td><code>?wait=ack</code> waits for the <code>oco.cancel_ack</code></td>
 </tr>
 </tbody>
 </table>
@@ -10045,8 +10566,18 @@ the order at a price the client never sent. See
 <tbody>
 <tr>
 <td><code>202 Accepted</code></td>
-<td>cancel ack payload</td>
-<td>OCO cancel accepted</td>
+<td><code>{ "oco_id": "...", "request_tag": ..., "status": "PENDING_CANCEL", "accepted": null, ..., "ack_timeout": false }</code></td>
+<td>Default: cancel sent; the outcome follows on the private WebSocket (<code>oco.cancel_ack</code>)</td>
+</tr>
+<tr>
+<td><code>200 OK</code></td>
+<td><code>{ ..., "status": "ACKED" \| "REJECTED", "accepted": ..., "reject_code": ..., "event": {...} }</code></td>
+<td>With <code>?wait=ack</code>: the engine's <code>oco.cancel_ack</code>. A refusal (<code>ORDER_NOT_FOUND</code>, <code>ORDER_ALREADY_TERMINAL</code>) is <code>REJECTED</code>, not an error</td>
+</tr>
+<tr>
+<td><code>202 Accepted</code></td>
+<td><code>{ ..., "status": "PENDING_CANCEL", "ack_timeout": true }</code></td>
+<td><code>?wait=ack</code> and the ack did not arrive in time; the cancel was sent</td>
 </tr>
 </tbody>
 </table>
@@ -10055,21 +10586,25 @@ the order at a price the client never sent. See
 <thead>
 <tr>
 <th>Code</th>
+<th>Status</th>
 <th>When</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>AUTH</code></td>
-<td>Missing or malformed key</td>
+<td><code>VALIDATION</code></td>
+<td><code>400</code></td>
+<td>A body field, query parameter, header or history filter failed validation; <code>field</code> names it. <code>reject_code</code> is one of <code>MISSING_FIELD</code>, <code>UNSUPPORTED_FIELD</code>, <code>INVALID_VALUE</code>, <code>TICK_VIOLATION</code></td>
 </tr>
 <tr>
 <td><code>READ_ONLY</code></td>
+<td><code>403</code></td>
 <td>Read-only credential used</td>
 </tr>
 <tr>
-<td><code>ENGINE_TIMEOUT</code></td>
-<td>Cancel timed out</td>
+<td><code>RATE_LIMIT</code></td>
+<td><code>429</code></td>
+<td>Per-key write limit exceeded; retry after a short pause</td>
 </tr>
 </tbody>
 </table>
@@ -10096,7 +10631,43 @@ the order at a price the client never sent. See
 <td><code>legs</code></td>
 <td><code>List&lt;ComboLeg&gt;</code></td>
 <td>yes</td>
-<td>Leg list</td>
+<td>2–10 legs: <code>symbol</code>, <code>side</code>, <code>order_type</code> (default <code>LIMIT</code>), <code>quantity</code>, and the <code>price</code> / <code>stop_price</code> that type needs (same rule as <code>POST /orders</code>; <code>ICEBERG</code> and <code>TRAILING_STOP</code> are not supported on a leg)</td>
+</tr>
+<tr>
+<td><code>combo_type</code></td>
+<td><code>ComboType</code></td>
+<td>no</td>
+<td>Fill rule; <code>AON</code> (all or none), the default and only value</td>
+</tr>
+<tr>
+<td><code>tif</code></td>
+<td><code>Tif</code></td>
+<td>no</td>
+<td>Time-in-force of every leg; defaults to <code>DAY</code></td>
+</tr>
+<tr>
+<td><code>smp_action</code></td>
+<td><code>SmpAction</code></td>
+<td>no</td>
+<td>Self-match prevention action, as on <code>POST /orders</code></td>
+</tr>
+<tr>
+<td><code>client_tag</code></td>
+<td><code>Str</code></td>
+<td>no</td>
+<td>Opaque label echoed on every leg's events; max 64 chars</td>
+</tr>
+<tr>
+<td><code>wait</code></td>
+<td><code>Bool</code></td>
+<td>no</td>
+<td><code>?wait=ack</code> waits for the engine's verdict (see <a href="#write-outcomes-and-safe-retries">Write outcomes and safe retries</a>)</td>
+</tr>
+<tr>
+<td><code>Idempotency-Key</code></td>
+<td>header</td>
+<td>no</td>
+<td>Makes a retry safe; see <a href="#write-outcomes-and-safe-retries">Write outcomes and safe retries</a></td>
 </tr>
 </tbody>
 </table>
@@ -10112,35 +10683,57 @@ the order at a price the client never sent. See
 <tbody>
 <tr>
 <td><code>202 Accepted</code></td>
-<td>ack payload</td>
-<td>Combo accepted for processing</td>
+<td><code>{ "combo_id": "...", "status": "PENDING", "accepted": null, "reason": null, "event": null, "ack_timeout": false }</code></td>
+<td>Sent; the verdict follows on the private WebSocket (<code>combo.ack</code>)</td>
+</tr>
+<tr>
+<td><code>200 OK</code></td>
+<td><code>{ "combo_id": "...", "status": "ACKED", "accepted": true \| false, "reason": ..., "event": {...}, "ack_timeout": false }</code></td>
+<td>With <code>?wait=ack</code>: the engine's <code>combo.ack</code></td>
+</tr>
+<tr>
+<td><code>202 Accepted</code></td>
+<td><code>{..., "status": "PENDING", "ack_timeout": true}</code></td>
+<td><code>?wait=ack</code> and the verdict did not arrive in time; it was sent</td>
 </tr>
 </tbody>
 </table>
+<p>Takes <code>?wait=ack</code> and an optional <code>Idempotency-Key</code> header; see
+<a href="#write-outcomes-and-safe-retries">Write outcomes and safe retries</a>.</p>
 <p><strong>Errors</strong></p>
 <table>
 <thead>
 <tr>
 <th>Code</th>
+<th>Status</th>
 <th>When</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>AUTH</code></td>
-<td>Missing or malformed key</td>
-</tr>
-<tr>
-<td><code>READ_ONLY</code></td>
-<td>Read-only credential used</td>
-</tr>
-<tr>
 <td><code>VALIDATION</code></td>
+<td><code>400</code></td>
 <td>Body invalid</td>
 </tr>
 <tr>
-<td><code>ENGINE_TIMEOUT</code></td>
-<td>Engine did not ACK in time</td>
+<td><code>READ_ONLY</code></td>
+<td><code>403</code></td>
+<td>Read-only credential used</td>
+</tr>
+<tr>
+<td><code>IDEMPOTENCY_KEY_REUSED</code></td>
+<td><code>409</code></td>
+<td>The <code>Idempotency-Key</code> was used for a different request</td>
+</tr>
+<tr>
+<td><code>RATE_LIMIT</code></td>
+<td><code>429</code></td>
+<td>Per-key write limit exceeded; retry after a short pause</td>
+</tr>
+<tr>
+<td><code>SYMBOLS_NOT_READY</code></td>
+<td><code>503</code></td>
+<td>Order entry before the symbol's tick precision reached the gateway. Transient; retry</td>
 </tr>
 </tbody>
 </table>
@@ -10163,6 +10756,18 @@ the order at a price the client never sent. See
 <td>yes (path)</td>
 <td>Combo group to cancel</td>
 </tr>
+<tr>
+<td><code>request_tag</code></td>
+<td><code>Str</code></td>
+<td>no</td>
+<td>Query: echoed on the engine's <code>combo.cancel_ack</code>; max 64 chars</td>
+</tr>
+<tr>
+<td><code>wait</code></td>
+<td><code>Bool</code></td>
+<td>no</td>
+<td><code>?wait=ack</code> waits for the <code>combo.cancel_ack</code></td>
+</tr>
 </tbody>
 </table>
 <p><strong>Reply</strong></p>
@@ -10177,8 +10782,18 @@ the order at a price the client never sent. See
 <tbody>
 <tr>
 <td><code>202 Accepted</code></td>
-<td>cancel ack payload</td>
-<td>Combo cancel accepted</td>
+<td><code>{ "combo_id": "...", "request_tag": ..., "status": "PENDING_CANCEL", "accepted": null, ..., "ack_timeout": false }</code></td>
+<td>Default: cancel sent; the outcome follows on the private WebSocket (<code>combo.cancel_ack</code>)</td>
+</tr>
+<tr>
+<td><code>200 OK</code></td>
+<td><code>{ ..., "status": "ACKED" \| "REJECTED", "accepted": ..., "reject_code": ..., "event": {...} }</code></td>
+<td>With <code>?wait=ack</code>: the engine's <code>combo.cancel_ack</code>. A refusal (<code>ORDER_NOT_FOUND</code>, <code>ORDER_ALREADY_TERMINAL</code>) is <code>REJECTED</code>, not an error</td>
+</tr>
+<tr>
+<td><code>202 Accepted</code></td>
+<td><code>{ ..., "status": "PENDING_CANCEL", "ack_timeout": true }</code></td>
+<td><code>?wait=ack</code> and the ack did not arrive in time; the cancel was sent</td>
 </tr>
 </tbody>
 </table>
@@ -10187,21 +10802,25 @@ the order at a price the client never sent. See
 <thead>
 <tr>
 <th>Code</th>
+<th>Status</th>
 <th>When</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>AUTH</code></td>
-<td>Missing or malformed key</td>
+<td><code>VALIDATION</code></td>
+<td><code>400</code></td>
+<td>A body field, query parameter, header or history filter failed validation; <code>field</code> names it. <code>reject_code</code> is one of <code>MISSING_FIELD</code>, <code>UNSUPPORTED_FIELD</code>, <code>INVALID_VALUE</code>, <code>TICK_VIOLATION</code></td>
 </tr>
 <tr>
 <td><code>READ_ONLY</code></td>
+<td><code>403</code></td>
 <td>Read-only credential used</td>
 </tr>
 <tr>
-<td><code>ENGINE_TIMEOUT</code></td>
-<td>Cancel timed out</td>
+<td><code>RATE_LIMIT</code></td>
+<td><code>429</code></td>
+<td>Per-key write limit exceeded; retry after a short pause</td>
 </tr>
 </tbody>
 </table>
@@ -10248,6 +10867,30 @@ the order at a price the client never sent. See
 <td>yes</td>
 <td>Ask quantity</td>
 </tr>
+<tr>
+<td><code>tif</code></td>
+<td><code>Tif</code></td>
+<td>no</td>
+<td>Time-in-force of both sides; defaults to <code>DAY</code></td>
+</tr>
+<tr>
+<td><code>quote_id</code></td>
+<td><code>Str</code></td>
+<td>no</td>
+<td>Your id for the quote; defaults to the symbol</td>
+</tr>
+<tr>
+<td><code>wait</code></td>
+<td><code>Bool</code></td>
+<td>no</td>
+<td><code>?wait=ack</code> waits for the engine's verdict (see <a href="#write-outcomes-and-safe-retries">Write outcomes and safe retries</a>)</td>
+</tr>
+<tr>
+<td><code>Idempotency-Key</code></td>
+<td>header</td>
+<td>no</td>
+<td>Makes a retry safe; see <a href="#write-outcomes-and-safe-retries">Write outcomes and safe retries</a></td>
+</tr>
 </tbody>
 </table>
 <p><strong>Reply</strong></p>
@@ -10262,35 +10905,57 @@ the order at a price the client never sent. See
 <tbody>
 <tr>
 <td><code>202 Accepted</code></td>
-<td>quote ack payload</td>
-<td>Quote accepted</td>
+<td><code>{ "symbol": "...", "quote_id": "..." \| null, "status": "PENDING", "accepted": null, "reason": null, "event": null, "ack_timeout": false }</code></td>
+<td>Sent; the verdict follows on the private WebSocket (<code>quote.ack</code>)</td>
+</tr>
+<tr>
+<td><code>200 OK</code></td>
+<td><code>{ "symbol": "...", ..., "status": "ACKED", "accepted": true \| false, "reason": ..., "event": {...} }</code></td>
+<td>With <code>?wait=ack</code>: the engine's <code>quote.ack</code></td>
+</tr>
+<tr>
+<td><code>202 Accepted</code></td>
+<td><code>{..., "status": "PENDING", "ack_timeout": true}</code></td>
+<td><code>?wait=ack</code> and the verdict did not arrive in time; it was sent</td>
 </tr>
 </tbody>
 </table>
+<p>Takes <code>?wait=ack</code> and an optional <code>Idempotency-Key</code> header; see
+<a href="#write-outcomes-and-safe-retries">Write outcomes and safe retries</a>.</p>
 <p><strong>Errors</strong></p>
 <table>
 <thead>
 <tr>
 <th>Code</th>
+<th>Status</th>
 <th>When</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>AUTH</code></td>
-<td>Missing or malformed key</td>
-</tr>
-<tr>
-<td><code>READ_ONLY</code></td>
-<td>Read-only credential used</td>
-</tr>
-<tr>
 <td><code>VALIDATION</code></td>
+<td><code>400</code></td>
 <td>Quote body invalid</td>
 </tr>
 <tr>
-<td><code>ENGINE_TIMEOUT</code></td>
-<td>Quote ACK timed out</td>
+<td><code>READ_ONLY</code></td>
+<td><code>403</code></td>
+<td>Read-only credential used</td>
+</tr>
+<tr>
+<td><code>IDEMPOTENCY_KEY_REUSED</code></td>
+<td><code>409</code></td>
+<td>The <code>Idempotency-Key</code> was used for a different request</td>
+</tr>
+<tr>
+<td><code>RATE_LIMIT</code></td>
+<td><code>429</code></td>
+<td>Per-key write limit exceeded; retry after a short pause</td>
+</tr>
+<tr>
+<td><code>SYMBOLS_NOT_READY</code></td>
+<td><code>503</code></td>
+<td>Order entry before the symbol's tick precision reached the gateway. Transient; retry</td>
 </tr>
 </tbody>
 </table>
@@ -10313,6 +10978,18 @@ the order at a price the client never sent. See
 <td>yes (path)</td>
 <td>Quoted instrument</td>
 </tr>
+<tr>
+<td><code>request_tag</code></td>
+<td><code>Str</code></td>
+<td>no</td>
+<td>Query: echoed on the engine's <code>quote.cancel_ack</code>; max 64 chars</td>
+</tr>
+<tr>
+<td><code>wait</code></td>
+<td><code>Bool</code></td>
+<td>no</td>
+<td><code>?wait=ack</code> waits for the <code>quote.cancel_ack</code></td>
+</tr>
 </tbody>
 </table>
 <p><strong>Reply</strong></p>
@@ -10327,8 +11004,18 @@ the order at a price the client never sent. See
 <tbody>
 <tr>
 <td><code>202 Accepted</code></td>
-<td>cancel ack payload</td>
-<td>Quote cancel accepted</td>
+<td><code>{ "symbol": "...", "request_tag": ..., "status": "PENDING_CANCEL", "accepted": null, ..., "ack_timeout": false }</code></td>
+<td>Default: cancel sent; the outcome follows on the private WebSocket (<code>quote.cancel_ack</code>)</td>
+</tr>
+<tr>
+<td><code>200 OK</code></td>
+<td><code>{ ..., "status": "ACKED" \| "REJECTED", "accepted": ..., "reject_code": ..., "event": {...} }</code></td>
+<td>With <code>?wait=ack</code>: the engine's <code>quote.cancel_ack</code>. A refusal (<code>ORDER_NOT_FOUND</code>, <code>ORDER_ALREADY_TERMINAL</code>) is <code>REJECTED</code>, not an error</td>
+</tr>
+<tr>
+<td><code>202 Accepted</code></td>
+<td><code>{ ..., "status": "PENDING_CANCEL", "ack_timeout": true }</code></td>
+<td><code>?wait=ack</code> and the ack did not arrive in time; the cancel was sent</td>
 </tr>
 </tbody>
 </table>
@@ -10337,21 +11024,25 @@ the order at a price the client never sent. See
 <thead>
 <tr>
 <th>Code</th>
+<th>Status</th>
 <th>When</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>AUTH</code></td>
-<td>Missing or malformed key</td>
+<td><code>VALIDATION</code></td>
+<td><code>400</code></td>
+<td>A body field, query parameter, header or history filter failed validation; <code>field</code> names it. <code>reject_code</code> is one of <code>MISSING_FIELD</code>, <code>UNSUPPORTED_FIELD</code>, <code>INVALID_VALUE</code>, <code>TICK_VIOLATION</code></td>
 </tr>
 <tr>
 <td><code>READ_ONLY</code></td>
+<td><code>403</code></td>
 <td>Read-only credential used</td>
 </tr>
 <tr>
-<td><code>ENGINE_TIMEOUT</code></td>
-<td>Cancel timed out</td>
+<td><code>RATE_LIMIT</code></td>
+<td><code>429</code></td>
+<td>Per-key write limit exceeded; retry after a short pause</td>
 </tr>
 </tbody>
 </table>
@@ -10374,12 +11065,6 @@ the order at a price the client never sent. See
 <td>no</td>
 <td>Restrict the cancel to one symbol</td>
 </tr>
-<tr>
-<td><code>reason</code></td>
-<td><code>Str</code></td>
-<td>no</td>
-<td>Free-text note carried to monitor events</td>
-</tr>
 </tbody>
 </table>
 <p><strong>Reply</strong></p>
@@ -10393,9 +11078,9 @@ the order at a price the client never sent. See
 </thead>
 <tbody>
 <tr>
-<td><code>202 Accepted</code></td>
-<td>ack payload</td>
-<td>Cancel request accepted</td>
+<td><code>200 OK</code></td>
+<td>kill-switch ack</td>
+<td>What the engine cancelled (the call waits for the ack)</td>
 </tr>
 </tbody>
 </table>
@@ -10404,87 +11089,29 @@ the order at a price the client never sent. See
 <thead>
 <tr>
 <th>Code</th>
-<th>When</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>AUTH</code></td>
-<td>Missing or malformed key</td>
-</tr>
-<tr>
-<td><code>READ_ONLY</code></td>
-<td>Read-only credential used</td>
-</tr>
-<tr>
-<td><code>ENGINE_TIMEOUT</code></td>
-<td>Engine did not ACK in time</td>
-</tr>
-</tbody>
-</table>
-<h3 id="post-apiv1kill-switch"><code>POST /api/v1/kill-switch</code><a class="headerlink" href="#post-apiv1kill-switch" title="Permanent link">&para;</a></h3>
-<p>Purpose: alias of <code>POST /api/v1/mass-cancel</code>.</p>
-<p><strong>Arguments</strong></p>
-<table>
-<thead>
-<tr>
-<th>Name</th>
-<th>Type</th>
-<th>Req</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>symbol</code></td>
-<td><code>Symbol</code></td>
-<td>no</td>
-<td>Optional symbol-scoped kill</td>
-</tr>
-<tr>
-<td><code>reason</code></td>
-<td><code>Str</code></td>
-<td>no</td>
-<td>Free-text note</td>
-</tr>
-</tbody>
-</table>
-<p><strong>Reply</strong></p>
-<table>
-<thead>
-<tr>
 <th>Status</th>
-<th>Shape</th>
-<th>Meaning</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>202 Accepted</code></td>
-<td>ack payload</td>
-<td>Same behavior as <code>/mass-cancel</code></td>
-</tr>
-</tbody>
-</table>
-<p><strong>Errors</strong></p>
-<table>
-<thead>
-<tr>
-<th>Code</th>
 <th>When</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>AUTH</code></td>
-<td>Missing or malformed key</td>
+<td><code>VALIDATION</code></td>
+<td><code>400</code></td>
+<td>A body field, query parameter, header or history filter failed validation; <code>field</code> names it. <code>reject_code</code> is one of <code>MISSING_FIELD</code>, <code>UNSUPPORTED_FIELD</code>, <code>INVALID_VALUE</code>, <code>TICK_VIOLATION</code></td>
 </tr>
 <tr>
 <td><code>READ_ONLY</code></td>
+<td><code>403</code></td>
 <td>Read-only credential used</td>
 </tr>
 <tr>
+<td><code>RATE_LIMIT</code></td>
+<td><code>429</code></td>
+<td>Per-key write limit exceeded; retry after a short pause</td>
+</tr>
+<tr>
 <td><code>ENGINE_TIMEOUT</code></td>
+<td><code>503</code></td>
 <td>Engine did not ACK in time</td>
 </tr>
 </tbody>
@@ -10532,16 +11159,19 @@ the order at a price the client never sent. See
 <thead>
 <tr>
 <th>Code</th>
+<th>Status</th>
 <th>When</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>AUTH</code></td>
-<td>Missing or malformed key</td>
+<td><code>READ_ONLY</code></td>
+<td><code>403</code></td>
+<td>A read-only key used on a gateway-scoped endpoint</td>
 </tr>
 <tr>
 <td><code>ENGINE_TIMEOUT</code></td>
+<td><code>503</code></td>
 <td>Engine did not reply in time</td>
 </tr>
 </tbody>
@@ -10592,16 +11222,14 @@ since this is public information, not a trading action.</p>
 <thead>
 <tr>
 <th>Code</th>
+<th>Status</th>
 <th>When</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>AUTH</code></td>
-<td>Missing or malformed key</td>
-</tr>
-<tr>
 <td><code>VALIDATION</code></td>
+<td><code>400</code></td>
 <td><code>limit</code> outside <code>1</code>-<code>200</code></td>
 </tr>
 </tbody>
@@ -10652,26 +11280,31 @@ are public information.</p>
 <thead>
 <tr>
 <th>Code</th>
+<th>Status</th>
 <th>When</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>AUTH</code></td>
-<td>Missing or malformed key</td>
+<td><code>VALIDATION</code></td>
+<td><code>400</code></td>
+<td>A body field, query parameter, header or history filter failed validation; <code>field</code> names it. <code>reject_code</code> is one of <code>MISSING_FIELD</code>, <code>UNSUPPORTED_FIELD</code>, <code>INVALID_VALUE</code>, <code>TICK_VIOLATION</code></td>
 </tr>
 <tr>
 <td><code>UNKNOWN_COMPANY</code></td>
-<td><code>404</code>: the database has no profile for <code>symbol</code></td>
+<td><code>404</code></td>
+<td>The database has no profile for <code>symbol</code></td>
 </tr>
 <tr>
 <td><code>COMPANY_DB_UNAVAILABLE</code></td>
-<td><code>503</code>: no <code>companies.db</code> in the data directory, or it cannot be read</td>
+<td><code>503</code></td>
+<td>No <code>companies.db</code> in the data directory, or it cannot be read</td>
 </tr>
 </tbody>
 </table>
 <h3 id="get-apiv1session"><code>GET /api/v1/session</code><a class="headerlink" href="#get-apiv1session" title="Permanent link">&para;</a></h3>
-<p>Purpose: return the current engine session state for the caller.</p>
+<p>Purpose: return the venue's session phase and the locale clients render it in.
+Open to every key, read-only included.</p>
 <p><strong>Arguments</strong></p>
 <table>
 <thead>
@@ -10703,8 +11336,8 @@ are public information.</p>
 <tbody>
 <tr>
 <td><code>200 OK</code></td>
-<td>session state object</td>
-<td>Current session state</td>
+<td><code>{ "state", "sessions_enabled", "next", "session_timezone", "session_date" }</code></td>
+<td><code>state</code> and <code>next</code> come from the engine; <code>session_timezone</code> (IANA) is the exchange timezone every wall-clock time and history <code>date</code> filter is in, and <code>session_date</code> today's trading date in it</td>
 </tr>
 </tbody>
 </table>
@@ -10713,27 +11346,23 @@ are public information.</p>
 <thead>
 <tr>
 <th>Code</th>
+<th>Status</th>
 <th>When</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>AUTH</code></td>
-<td>Missing or malformed key</td>
-</tr>
-<tr>
 <td><code>ENGINE_TIMEOUT</code></td>
+<td><code>503</code></td>
 <td>Engine did not reply in time</td>
 </tr>
 </tbody>
 </table>
 <h3 id="get-apiv1halts"><code>GET /api/v1/halts</code><a class="headerlink" href="#get-apiv1halts" title="Permanent link">&para;</a></h3>
-<p>Purpose: return the currently-halted symbols table, for any trading key
-(TRADER or MARKET_MAKER) — the admin-only <code>GET /api/v1/admin/halts</code> serves
-the identical engine query without the ADMIN-role gate, since halt state is
-not admin-only information: a trading gateway needs it at bootstrap and
-again on every market-data reconnect, or a halt missed while disconnected
-leaves a stale badge for the rest of the session.</p>
+<p>Purpose: return the currently-halted symbols table, for any key, read-only
+included. Halt state is public: every client needs it at bootstrap and again
+on every market-data reconnect, or a halt missed while disconnected leaves a
+stale badge for the rest of the session.</p>
 <p><strong>Arguments</strong></p>
 <table>
 <thead>
@@ -10766,7 +11395,7 @@ leaves a stale badge for the rest of the session.</p>
 <tr>
 <td><code>200 OK</code></td>
 <td><code>{ "halted": [...] }</code></td>
-<td>Currently-halted symbols; each <code>{ symbol, resume_at_ns?, level?, halt_source? }</code>, same shape as <code>GET /api/v1/admin/halts</code></td>
+<td>Currently-halted symbols; each <code>{ symbol, resume_at_ns?, level?, halt_source? }</code></td>
 </tr>
 </tbody>
 </table>
@@ -10775,26 +11404,20 @@ leaves a stale badge for the rest of the session.</p>
 <thead>
 <tr>
 <th>Code</th>
+<th>Status</th>
 <th>When</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>AUTH</code></td>
-<td>Missing or malformed key</td>
-</tr>
-<tr>
-<td><code>READ_ONLY</code></td>
-<td>Read-only key (no <code>gateway_id</code>)</td>
-</tr>
-<tr>
 <td><code>ENGINE_TIMEOUT</code></td>
+<td><code>503</code></td>
 <td>Engine did not reply in time</td>
 </tr>
 </tbody>
 </table>
 <h3 id="get-apiv1status"><code>GET /api/v1/status</code><a class="headerlink" href="#get-apiv1status" title="Permanent link">&para;</a></h3>
-<p>Purpose: return the gateway cache summary and resolved role.</p>
+<p>Purpose: return who the caller is: its gateway id and engine role.</p>
 <p><strong>Arguments</strong></p>
 <table>
 <thead>
@@ -10826,8 +11449,8 @@ leaves a stale badge for the rest of the session.</p>
 <tbody>
 <tr>
 <td><code>200 OK</code></td>
-<td>status object</td>
-<td>Cache summary, resolved role, and for ADMIN keys <code>gateway_count</code></td>
+<td><code>{ "gateway_id", "gateway_role", "gateway_count"? }</code></td>
+<td><code>gateway_role</code> is TRADER, MARKET_MAKER or ADMIN; ADMIN keys also get <code>gateway_count</code>, the connected gateways</td>
 </tr>
 </tbody>
 </table>
@@ -10836,13 +11459,15 @@ leaves a stale badge for the rest of the session.</p>
 <thead>
 <tr>
 <th>Code</th>
+<th>Status</th>
 <th>When</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>AUTH</code></td>
-<td>Missing or malformed key</td>
+<td><code>READ_ONLY</code></td>
+<td><code>403</code></td>
+<td>A read-only key used on a gateway-scoped endpoint</td>
 </tr>
 </tbody>
 </table>
@@ -10879,8 +11504,13 @@ leaves a stale badge for the rest of the session.</p>
 <tbody>
 <tr>
 <td><code>200 OK</code></td>
-<td>health object</td>
+<td><code>{ "ok": true, ... }</code></td>
 <td>Gateway is enabled and its engine listener is alive</td>
+</tr>
+<tr>
+<td><code>503 Service Unavailable</code></td>
+<td><code>{ "ok": false, ... }</code></td>
+<td>Gateway is disabled or its engine listener has stopped; probes read the status code</td>
 </tr>
 </tbody>
 </table>
@@ -10899,8 +11529,9 @@ leaves a stale badge for the rest of the session.</p>
 </tr>
 </tbody>
 </table>
-<h3 id="get-apiv1quotesbootstrap"><code>GET /api/v1/quotes/bootstrap</code><a class="headerlink" href="#get-apiv1quotesbootstrap" title="Permanent link">&para;</a></h3>
-<p>Purpose: return the active market-maker quote bootstrap state.</p>
+<h3 id="get-apiv1quotes"><code>GET /api/v1/quotes</code><a class="headerlink" href="#get-apiv1quotes" title="Permanent link">&para;</a></h3>
+<p>Purpose: return the caller's active market-maker quotes: both legs' order ids,
+sizes, remaining quantities, statuses and prices.</p>
 <p><strong>Arguments</strong></p>
 <table>
 <thead>
@@ -10932,8 +11563,8 @@ leaves a stale badge for the rest of the session.</p>
 <tbody>
 <tr>
 <td><code>200 OK</code></td>
-<td>quote bootstrap object</td>
-<td>Current quote bootstrap state</td>
+<td><code>{ "quotes": [...] }</code></td>
+<td>The caller's active quotes</td>
 </tr>
 </tbody>
 </table>
@@ -10942,16 +11573,19 @@ leaves a stale badge for the rest of the session.</p>
 <thead>
 <tr>
 <th>Code</th>
+<th>Status</th>
 <th>When</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>AUTH</code></td>
-<td>Missing or malformed key</td>
+<td><code>READ_ONLY</code></td>
+<td><code>403</code></td>
+<td>A read-only key used on a gateway-scoped endpoint</td>
 </tr>
 <tr>
 <td><code>ENGINE_TIMEOUT</code></td>
+<td><code>503</code></td>
 <td>Engine did not reply in time</td>
 </tr>
 </tbody>
@@ -10999,16 +11633,19 @@ leaves a stale badge for the rest of the session.</p>
 <thead>
 <tr>
 <th>Code</th>
+<th>Status</th>
 <th>When</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>AUTH</code></td>
-<td>Missing or malformed key</td>
+<td><code>READ_ONLY</code></td>
+<td><code>403</code></td>
+<td>A read-only key used on a gateway-scoped endpoint</td>
 </tr>
 <tr>
 <td><code>ENGINE_TIMEOUT</code></td>
+<td><code>503</code></td>
 <td>Engine did not reply in time</td>
 </tr>
 </tbody>
@@ -11016,8 +11653,8 @@ leaves a stale badge for the rest of the session.</p>
 <h3 id="get-apiv1positions"><code>GET /api/v1/positions</code><a class="headerlink" href="#get-apiv1positions" title="Permanent link">&para;</a></h3>
 <p>Purpose: return current net positions by symbol.</p>
 <p>To query a <em>different</em> gateway's position (e.g. checking on a running
-<code>pm-mm-bot</code>), see <a href="#get-apiv1adminpositions">GET /api/v1/admin/positions</a>,
-which requires the ADMIN role and returns <code>avg_cost</code> as well.</p>
+<code>pm-mm-bot</code>), see <a href="#get-apiv1admingatewaysgateway_idpositions">GET /api/v1/admin/gateways/{gateway_id}/positions</a>,
+which requires the ADMIN role.</p>
 <p><strong>Arguments</strong></p>
 <table>
 <thead>
@@ -11049,8 +11686,8 @@ which requires the ADMIN role and returns <code>avg_cost</code> as well.</p>
 <tbody>
 <tr>
 <td><code>200 OK</code></td>
-<td><code>{ "positions": [...] }</code></td>
-<td>Net positions for the caller gateway</td>
+<td><code>{ "positions": [{ "symbol", "net_qty", "avg_cost", "last_price", "market_value", "unrealized_pnl", "realized_pnl_session", "realized_pnl_mtd", "realized_pnl_ytd" }, ...] }</code></td>
+<td>Net positions for the caller gateway, from the engine; P&amp;L fields are <code>null</code> when unknown</td>
 </tr>
 </tbody>
 </table>
@@ -11059,16 +11696,19 @@ which requires the ADMIN role and returns <code>avg_cost</code> as well.</p>
 <thead>
 <tr>
 <th>Code</th>
+<th>Status</th>
 <th>When</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>AUTH</code></td>
-<td>Missing or malformed key</td>
+<td><code>READ_ONLY</code></td>
+<td><code>403</code></td>
+<td>A read-only key used on a gateway-scoped endpoint</td>
 </tr>
 <tr>
 <td><code>ENGINE_TIMEOUT</code></td>
+<td><code>503</code></td>
 <td>Engine did not reply in time</td>
 </tr>
 </tbody>
@@ -11119,16 +11759,14 @@ that changes only when an admin reloads it.</p>
 <thead>
 <tr>
 <th>Code</th>
+<th>Status</th>
 <th>When</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>AUTH</code></td>
-<td>Missing or malformed key</td>
-</tr>
-<tr>
 <td><code>ENGINE_TIMEOUT</code></td>
+<td><code>503</code></td>
 <td>Engine did not reply in time</td>
 </tr>
 </tbody>
@@ -11176,16 +11814,14 @@ that changes only when an admin reloads it.</p>
 <thead>
 <tr>
 <th>Code</th>
+<th>Status</th>
 <th>When</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>AUTH</code></td>
-<td>Missing or malformed key</td>
-</tr>
-<tr>
 <td><code>ENGINE_TIMEOUT</code></td>
+<td><code>503</code></td>
 <td>Engine did not reply in time</td>
 </tr>
 </tbody>
@@ -11240,16 +11876,14 @@ Either is omitted entirely when not configured. Full field law:
 <thead>
 <tr>
 <th>Code</th>
+<th>Status</th>
 <th>When</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>AUTH</code></td>
-<td>Missing or malformed key</td>
-</tr>
-<tr>
 <td><code>ENGINE_TIMEOUT</code></td>
+<td><code>503</code></td>
 <td>Engine did not reply in time</td>
 </tr>
 </tbody>
@@ -11301,16 +11935,14 @@ field law: <code>RiskLevel</code> in the <a href="../../part-5-message-reference
 <thead>
 <tr>
 <th>Code</th>
+<th>Status</th>
 <th>When</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>AUTH</code></td>
-<td>Missing or malformed key</td>
-</tr>
-<tr>
 <td><code>ENGINE_TIMEOUT</code></td>
+<td><code>503</code></td>
 <td>Engine did not reply in time</td>
 </tr>
 </tbody>
@@ -11358,16 +11990,14 @@ field law: <code>RiskLevel</code> in the <a href="../../part-5-message-reference
 <thead>
 <tr>
 <th>Code</th>
+<th>Status</th>
 <th>When</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>AUTH</code></td>
-<td>Missing or malformed key</td>
-</tr>
-<tr>
 <td><code>ENGINE_TIMEOUT</code></td>
+<td><code>503</code></td>
 <td>Engine did not reply in time</td>
 </tr>
 </tbody>
@@ -11415,16 +12045,14 @@ field law: <code>RiskLevel</code> in the <a href="../../part-5-message-reference
 <thead>
 <tr>
 <th>Code</th>
+<th>Status</th>
 <th>When</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>AUTH</code></td>
-<td>Missing or malformed key</td>
-</tr>
-<tr>
 <td><code>ENGINE_TIMEOUT</code></td>
+<td><code>503</code></td>
 <td>Engine did not reply in time</td>
 </tr>
 </tbody>
@@ -11511,25 +12139,25 @@ gateway id; public history accepts any valid key.</p>
 <thead>
 <tr>
 <th>Code</th>
+<th>Status</th>
 <th>When</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>AUTH</code></td>
-<td>Missing or malformed key</td>
+<td><code>VALIDATION</code></td>
+<td><code>400</code></td>
+<td>Query invalid</td>
 </tr>
 <tr>
 <td><code>READ_ONLY</code></td>
+<td><code>403</code></td>
 <td>Read-only credential used</td>
 </tr>
 <tr>
 <td><code>STATS_DB</code></td>
+<td><code>503</code></td>
 <td><code>pm-stats</code> database missing</td>
-</tr>
-<tr>
-<td><code>VALIDATION</code></td>
-<td>Query invalid</td>
 </tr>
 </tbody>
 </table>
@@ -11576,25 +12204,25 @@ gateway id; public history accepts any valid key.</p>
 <thead>
 <tr>
 <th>Code</th>
+<th>Status</th>
 <th>When</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>AUTH</code></td>
-<td>Missing or malformed key</td>
+<td><code>VALIDATION</code></td>
+<td><code>400</code></td>
+<td>Path invalid</td>
 </tr>
 <tr>
 <td><code>READ_ONLY</code></td>
+<td><code>403</code></td>
 <td>Read-only credential used</td>
 </tr>
 <tr>
 <td><code>STATS_DB</code></td>
+<td><code>503</code></td>
 <td><code>pm-stats</code> database missing</td>
-</tr>
-<tr>
-<td><code>VALIDATION</code></td>
-<td>Path invalid</td>
 </tr>
 </tbody>
 </table>
@@ -11671,65 +12299,24 @@ gateway id; public history accepts any valid key.</p>
 <thead>
 <tr>
 <th>Code</th>
+<th>Status</th>
 <th>When</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>AUTH</code></td>
-<td>Missing or malformed key</td>
+<td><code>VALIDATION</code></td>
+<td><code>400</code></td>
+<td>A body field, query parameter, header or history filter failed validation; <code>field</code> names it. <code>reject_code</code> is one of <code>MISSING_FIELD</code>, <code>UNSUPPORTED_FIELD</code>, <code>INVALID_VALUE</code>, <code>TICK_VIOLATION</code></td>
 </tr>
 <tr>
 <td><code>READ_ONLY</code></td>
+<td><code>403</code></td>
 <td>Read-only credential used</td>
 </tr>
 <tr>
 <td><code>STATS_DB</code></td>
-<td><code>pm-stats</code> database missing</td>
-</tr>
-</tbody>
-</table>
-<h3 id="get-apiv1historysession"><code>GET /api/v1/history/session</code><a class="headerlink" href="#get-apiv1historysession" title="Permanent link">&para;</a></h3>
-<p>Purpose: return the exchange's current locale — its country and the
-session timezone <code>pm-stats</code> records in — and today's trading date in that
-timezone. The timezone resolution is the same one every <code>date</code> filter on
-<code>/api/v1/history</code> uses, so a client's "today" and session clock agree with
-the <code>date</code> column of <code>/history/daily</code>. <code>country</code> is the same value
-<code>GET /api/v1/reference/schedule</code> reports.</p>
-<p><strong>Arguments</strong></p>
-<p>None.</p>
-<p><strong>Reply</strong></p>
-<table>
-<thead>
-<tr>
-<th>Status</th>
-<th>Shape</th>
-<th>Meaning</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>200 OK</code></td>
-<td><code>{"country": string \| null, "session_timezone": str, "session_date": Date}</code></td>
-<td>ISO 3166-1 alpha-2 country code (<code>null</code> if the engine has no config loaded), IANA timezone name (<code>UTC</code> when none was recorded), and the current trading date</td>
-</tr>
-</tbody>
-</table>
-<p><strong>Errors</strong></p>
-<table>
-<thead>
-<tr>
-<th>Code</th>
-<th>When</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>AUTH</code></td>
-<td>Missing or malformed key</td>
-</tr>
-<tr>
-<td><code>STATS_DB</code></td>
+<td><code>503</code></td>
 <td><code>pm-stats</code> database missing</td>
 </tr>
 </tbody>
@@ -11807,16 +12394,19 @@ the <code>date</code> column of <code>/history/daily</code>. <code>country</code
 <thead>
 <tr>
 <th>Code</th>
+<th>Status</th>
 <th>When</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>AUTH</code></td>
-<td>Missing or malformed key</td>
+<td><code>VALIDATION</code></td>
+<td><code>400</code></td>
+<td>A body field, query parameter, header or history filter failed validation; <code>field</code> names it. <code>reject_code</code> is one of <code>MISSING_FIELD</code>, <code>UNSUPPORTED_FIELD</code>, <code>INVALID_VALUE</code>, <code>TICK_VIOLATION</code></td>
 </tr>
 <tr>
 <td><code>STATS_DB</code></td>
+<td><code>503</code></td>
 <td><code>pm-stats</code> database missing</td>
 </tr>
 </tbody>
@@ -11894,16 +12484,19 @@ the <code>date</code> column of <code>/history/daily</code>. <code>country</code
 <thead>
 <tr>
 <th>Code</th>
+<th>Status</th>
 <th>When</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>AUTH</code></td>
-<td>Missing or malformed key</td>
+<td><code>VALIDATION</code></td>
+<td><code>400</code></td>
+<td>A body field, query parameter, header or history filter failed validation; <code>field</code> names it. <code>reject_code</code> is one of <code>MISSING_FIELD</code>, <code>UNSUPPORTED_FIELD</code>, <code>INVALID_VALUE</code>, <code>TICK_VIOLATION</code></td>
 </tr>
 <tr>
 <td><code>STATS_DB</code></td>
+<td><code>503</code></td>
 <td><code>pm-stats</code> database missing</td>
 </tr>
 </tbody>
@@ -11981,16 +12574,19 @@ the <code>date</code> column of <code>/history/daily</code>. <code>country</code
 <thead>
 <tr>
 <th>Code</th>
+<th>Status</th>
 <th>When</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>AUTH</code></td>
-<td>Missing or malformed key</td>
+<td><code>VALIDATION</code></td>
+<td><code>400</code></td>
+<td>A body field, query parameter, header or history filter failed validation; <code>field</code> names it. <code>reject_code</code> is one of <code>MISSING_FIELD</code>, <code>UNSUPPORTED_FIELD</code>, <code>INVALID_VALUE</code>, <code>TICK_VIOLATION</code></td>
 </tr>
 <tr>
 <td><code>STATS_DB</code></td>
+<td><code>503</code></td>
 <td><code>pm-stats</code> database missing</td>
 </tr>
 </tbody>
@@ -12068,16 +12664,19 @@ the <code>date</code> column of <code>/history/daily</code>. <code>country</code
 <thead>
 <tr>
 <th>Code</th>
+<th>Status</th>
 <th>When</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>AUTH</code></td>
-<td>Missing or malformed key</td>
+<td><code>VALIDATION</code></td>
+<td><code>400</code></td>
+<td>A body field, query parameter, header or history filter failed validation; <code>field</code> names it. <code>reject_code</code> is one of <code>MISSING_FIELD</code>, <code>UNSUPPORTED_FIELD</code>, <code>INVALID_VALUE</code>, <code>TICK_VIOLATION</code></td>
 </tr>
 <tr>
 <td><code>STATS_DB</code></td>
+<td><code>503</code></td>
 <td><code>pm-stats</code> database missing</td>
 </tr>
 </tbody>
@@ -12155,21 +12754,24 @@ the <code>date</code> column of <code>/history/daily</code>. <code>country</code
 <thead>
 <tr>
 <th>Code</th>
+<th>Status</th>
 <th>When</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>AUTH</code></td>
-<td>Missing or malformed key</td>
+<td><code>VALIDATION</code></td>
+<td><code>400</code></td>
+<td>A body field, query parameter, header or history filter failed validation; <code>field</code> names it. <code>reject_code</code> is one of <code>MISSING_FIELD</code>, <code>UNSUPPORTED_FIELD</code>, <code>INVALID_VALUE</code>, <code>TICK_VIOLATION</code></td>
 </tr>
 <tr>
 <td><code>STATS_DB</code></td>
+<td><code>503</code></td>
 <td><code>pm-stats</code> database missing</td>
 </tr>
 </tbody>
 </table>
-<h3 id="get-apiv1historyindex-ids"><code>GET /api/v1/history/index-ids</code><a class="headerlink" href="#get-apiv1historyindex-ids" title="Permanent link">&para;</a></h3>
+<h3 id="get-apiv1historyindexes"><code>GET /api/v1/history/indexes</code><a class="headerlink" href="#get-apiv1historyindexes" title="Permanent link">&para;</a></h3>
 <p>Purpose: list index ids with recorded data.</p>
 <p><strong>Arguments</strong></p>
 <table>
@@ -12212,16 +12814,19 @@ the <code>date</code> column of <code>/history/daily</code>. <code>country</code
 <thead>
 <tr>
 <th>Code</th>
+<th>Status</th>
 <th>When</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>AUTH</code></td>
-<td>Missing or malformed key</td>
+<td><code>VALIDATION</code></td>
+<td><code>400</code></td>
+<td>A body field, query parameter, header or history filter failed validation; <code>field</code> names it. <code>reject_code</code> is one of <code>MISSING_FIELD</code>, <code>UNSUPPORTED_FIELD</code>, <code>INVALID_VALUE</code>, <code>TICK_VIOLATION</code></td>
 </tr>
 <tr>
 <td><code>STATS_DB</code></td>
+<td><code>503</code></td>
 <td><code>pm-stats</code> database missing</td>
 </tr>
 </tbody>
@@ -12247,15 +12852,15 @@ the <code>date</code> column of <code>/history/daily</code>. <code>country</code
 </tr>
 <tr>
 <td><code>from</code></td>
-<td><code>Secs</code></td>
+<td><code>Timestamp</code></td>
 <td>no</td>
-<td>Unix time start</td>
+<td>ISO-8601 or <code>YYYY-MM-DD</code>, like every history range (no offset = exchange time); default 30 days ago</td>
 </tr>
 <tr>
 <td><code>to</code></td>
-<td><code>Secs</code></td>
+<td><code>Timestamp</code></td>
 <td>no</td>
-<td>Unix time end</td>
+<td>Same form; default now</td>
 </tr>
 <tr>
 <td><code>types</code></td>
@@ -12293,21 +12898,25 @@ the <code>date</code> column of <code>/history/daily</code>. <code>country</code
 <thead>
 <tr>
 <th>Code</th>
+<th>Status</th>
 <th>When</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>AUTH</code></td>
-<td>Missing or malformed key</td>
-</tr>
-<tr>
-<td><code>INDEX_TIMEOUT</code></td>
-<td><code>pm-index</code> did not reply in time</td>
+<td><code>VALIDATION</code></td>
+<td><code>400</code></td>
+<td>A body field, query parameter, header or history filter failed validation; <code>field</code> names it. <code>reject_code</code> is one of <code>MISSING_FIELD</code>, <code>UNSUPPORTED_FIELD</code>, <code>INVALID_VALUE</code>, <code>TICK_VIOLATION</code></td>
 </tr>
 <tr>
 <td><code>INDEX_ERROR</code></td>
+<td><code>502</code></td>
 <td><code>pm-index</code> rejected the request</td>
+</tr>
+<tr>
+<td><code>INDEX_TIMEOUT</code></td>
+<td><code>503</code></td>
+<td><code>pm-index</code> did not reply in time</td>
 </tr>
 </tbody>
 </table>
@@ -12345,9 +12954,9 @@ the <code>date</code> column of <code>/history/daily</code>. <code>country</code
 </thead>
 <tbody>
 <tr>
-<td><code>202 Accepted</code></td>
+<td><code>200 OK</code></td>
 <td><code>{"requested_state": "...", "status": "APPLIED", "command_id": "..."}</code></td>
-<td>Transition request accepted and applied</td>
+<td>Transition applied</td>
 </tr>
 <tr>
 <td><code>409 Conflict</code></td>
@@ -12361,34 +12970,47 @@ the <code>date</code> column of <code>/history/daily</code>. <code>country</code
 <thead>
 <tr>
 <th>Code</th>
+<th>Status</th>
 <th>When</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>AUTH</code></td>
-<td>Missing or malformed key</td>
-</tr>
-<tr>
-<td><code>ROLE_DENIED</code></td>
-<td>Caller is not ADMIN</td>
-</tr>
-<tr>
 <td><code>VALIDATION</code></td>
+<td><code>400</code></td>
 <td>Invalid <code>to_state</code></td>
 </tr>
 <tr>
+<td><code>READ_ONLY</code></td>
+<td><code>403</code></td>
+<td>A read-only key used on a gateway-scoped endpoint</td>
+</tr>
+<tr>
+<td><code>ROLE_DENIED</code></td>
+<td><code>403</code></td>
+<td>Caller is not ADMIN</td>
+</tr>
+<tr>
 <td><code>TRANSITION_REJECTED</code></td>
+<td><code>409</code></td>
 <td>Engine rejected the transition</td>
 </tr>
 <tr>
+<td><code>RATE_LIMIT</code></td>
+<td><code>429</code></td>
+<td>Per-key write limit exceeded; retry after a short pause</td>
+</tr>
+<tr>
 <td><code>ENGINE_TIMEOUT</code></td>
+<td><code>503</code></td>
 <td>Engine did not reply in time</td>
 </tr>
 </tbody>
 </table>
-<h3 id="get-apiv1adminsessionschedule"><code>GET /api/v1/admin/session/schedule</code><a class="headerlink" href="#get-apiv1adminsessionschedule" title="Permanent link">&para;</a></h3>
-<p>Purpose: return the current session schedule settings.</p>
+<h3 id="get-apiv1adminsim"><code>GET /api/v1/admin/sim</code><a class="headerlink" href="#get-apiv1adminsim" title="Permanent link">&para;</a></h3>
+<p>Purpose: the market simulator's latest state and the model's true (hidden)
+fair value per symbol, from <code>pm-market-sim</code>. For instructors: students see
+only prices, never these values.</p>
 <p><strong>Arguments</strong></p>
 <table>
 <thead>
@@ -12420,8 +13042,8 @@ the <code>date</code> column of <code>/history/daily</code>. <code>country</code
 <tbody>
 <tr>
 <td><code>200 OK</code></td>
-<td>schedule object</td>
-<td>Current schedule and session enablement</td>
+<td><code>{ "available": true, "state": {...}, "values": {...} }</code></td>
+<td><code>available</code> is false, and <code>state</code>/<code>values</code> null, when the simulator is not running</td>
 </tr>
 </tbody>
 </table>
@@ -12430,21 +13052,20 @@ the <code>date</code> column of <code>/history/daily</code>. <code>country</code
 <thead>
 <tr>
 <th>Code</th>
+<th>Status</th>
 <th>When</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>AUTH</code></td>
-<td>Missing or malformed key</td>
+<td><code>READ_ONLY</code></td>
+<td><code>403</code></td>
+<td>A read-only key used on a gateway-scoped endpoint</td>
 </tr>
 <tr>
 <td><code>ROLE_DENIED</code></td>
-<td>Caller is not ADMIN</td>
-</tr>
-<tr>
-<td><code>ENGINE_TIMEOUT</code></td>
-<td>Engine did not reply in time</td>
+<td><code>403</code></td>
+<td>The key's gateway is not ADMIN</td>
 </tr>
 </tbody>
 </table>
@@ -12491,25 +13112,29 @@ the <code>date</code> column of <code>/history/daily</code>. <code>country</code
 <thead>
 <tr>
 <th>Code</th>
+<th>Status</th>
 <th>When</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>AUTH</code></td>
-<td>Missing or malformed key</td>
+<td><code>READ_ONLY</code></td>
+<td><code>403</code></td>
+<td>A read-only key used on a gateway-scoped endpoint</td>
 </tr>
 <tr>
 <td><code>ROLE_DENIED</code></td>
+<td><code>403</code></td>
 <td>Caller is not ADMIN</td>
 </tr>
 <tr>
 <td><code>ENGINE_TIMEOUT</code></td>
+<td><code>503</code></td>
 <td>Engine did not reply in time</td>
 </tr>
 </tbody>
 </table>
-<h3 id="post-apiv1admingatewaysgiddisconnect"><code>POST /api/v1/admin/gateways/{gid}/disconnect</code><a class="headerlink" href="#post-apiv1admingatewaysgiddisconnect" title="Permanent link">&para;</a></h3>
+<h3 id="post-apiv1admingatewaysgateway_iddisconnect"><code>POST /api/v1/admin/gateways/{gateway_id}/disconnect</code><a class="headerlink" href="#post-apiv1admingatewaysgateway_iddisconnect" title="Permanent link">&para;</a></h3>
 <p>Purpose: forcibly disconnect one gateway.</p>
 <p><strong>Arguments</strong></p>
 <table>
@@ -12523,16 +13148,16 @@ the <code>date</code> column of <code>/history/daily</code>. <code>country</code
 </thead>
 <tbody>
 <tr>
-<td><code>gid</code></td>
+<td><code>gateway_id</code></td>
 <td><code>GatewayId</code></td>
 <td>yes (path)</td>
-<td>Gateway to disconnect</td>
+<td>Gateway to disconnect (case-insensitive)</td>
 </tr>
 <tr>
 <td><code>reason</code></td>
 <td><code>Str</code></td>
 <td>no</td>
-<td>Optional note</td>
+<td>Body, optional: note recorded in the engine log (default <code>admin disconnect</code>)</td>
 </tr>
 </tbody>
 </table>
@@ -12548,8 +13173,8 @@ the <code>date</code> column of <code>/history/daily</code>. <code>country</code
 <tbody>
 <tr>
 <td><code>202 Accepted</code></td>
-<td><code>{ "gateway_id": "...", "status": "DISCONNECTED" }</code></td>
-<td>Gateway disconnect accepted</td>
+<td><code>{ "gateway_id": "...", "status": "PENDING_DISCONNECT" }</code></td>
+<td>Disconnect sent; not awaited — the roster in <code>GET /admin/gateways</code> shows the result</td>
 </tr>
 </tbody>
 </table>
@@ -12558,26 +13183,36 @@ the <code>date</code> column of <code>/history/daily</code>. <code>country</code
 <thead>
 <tr>
 <th>Code</th>
+<th>Status</th>
 <th>When</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>AUTH</code></td>
-<td>Missing or malformed key</td>
+<td><code>VALIDATION</code></td>
+<td><code>400</code></td>
+<td>A body field, query parameter, header or history filter failed validation; <code>field</code> names it. <code>reject_code</code> is one of <code>MISSING_FIELD</code>, <code>UNSUPPORTED_FIELD</code>, <code>INVALID_VALUE</code>, <code>TICK_VIOLATION</code></td>
+</tr>
+<tr>
+<td><code>READ_ONLY</code></td>
+<td><code>403</code></td>
+<td>A read-only key used on a gateway-scoped endpoint</td>
 </tr>
 <tr>
 <td><code>ROLE_DENIED</code></td>
+<td><code>403</code></td>
 <td>Caller is not ADMIN</td>
 </tr>
 <tr>
-<td><code>ENGINE_TIMEOUT</code></td>
-<td>Engine did not reply in time</td>
+<td><code>RATE_LIMIT</code></td>
+<td><code>429</code></td>
+<td>Per-key write limit exceeded; retry after a short pause</td>
 </tr>
 </tbody>
 </table>
-<h3 id="post-apiv1admincircuit-breakertrigger"><code>POST /api/v1/admin/circuit-breaker/trigger</code><a class="headerlink" href="#post-apiv1admincircuit-breakertrigger" title="Permanent link">&para;</a></h3>
-<p>Purpose: halt one symbol through the engine's circuit-breaker path.</p>
+<h3 id="post-apiv1adminsymbolssymbolhalt"><code>POST /api/v1/admin/symbols/{symbol}/halt</code><a class="headerlink" href="#post-apiv1adminsymbolssymbolhalt" title="Permanent link">&para;</a></h3>
+<p>Purpose: halt one symbol through the engine's circuit-breaker path. The body
+is optional.</p>
 <p><strong>Arguments</strong></p>
 <table>
 <thead>
@@ -12592,152 +13227,20 @@ the <code>date</code> column of <code>/history/daily</code>. <code>country</code
 <tr>
 <td><code>symbol</code></td>
 <td><code>Symbol</code></td>
-<td>yes</td>
-<td>Symbol to halt</td>
+<td>yes (path)</td>
+<td>Symbol to halt (case-insensitive)</td>
 </tr>
 <tr>
 <td><code>level</code></td>
 <td><code>Str</code></td>
-<td>yes</td>
-<td>Requested level name</td>
+<td>no</td>
+<td>A rung of the symbol's ladder; omit for an indefinite halt until resumed</td>
 </tr>
 <tr>
 <td><code>reason</code></td>
 <td><code>Str</code></td>
 <td>no</td>
 <td>Optional note</td>
-</tr>
-</tbody>
-</table>
-<p><strong>Reply</strong></p>
-<table>
-<thead>
-<tr>
-<th>Status</th>
-<th>Shape</th>
-<th>Meaning</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>202 Accepted</code></td>
-<td>ack payload</td>
-<td>Halt accepted</td>
-</tr>
-</tbody>
-</table>
-<p><strong>Errors</strong></p>
-<table>
-<thead>
-<tr>
-<th>Code</th>
-<th>When</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>AUTH</code></td>
-<td>Missing or malformed key</td>
-</tr>
-<tr>
-<td><code>ROLE_DENIED</code></td>
-<td>Caller is not ADMIN</td>
-</tr>
-<tr>
-<td><code>VALIDATION</code></td>
-<td>Symbol or level invalid</td>
-</tr>
-<tr>
-<td><code>ENGINE_TIMEOUT</code></td>
-<td>Engine did not reply in time</td>
-</tr>
-</tbody>
-</table>
-<h3 id="post-apiv1admincircuit-breakerresume"><code>POST /api/v1/admin/circuit-breaker/resume</code><a class="headerlink" href="#post-apiv1admincircuit-breakerresume" title="Permanent link">&para;</a></h3>
-<p>Purpose: resume one halted symbol.</p>
-<p><strong>Arguments</strong></p>
-<table>
-<thead>
-<tr>
-<th>Name</th>
-<th>Type</th>
-<th>Req</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>symbol</code></td>
-<td><code>Symbol</code></td>
-<td>yes</td>
-<td>Symbol to resume</td>
-</tr>
-<tr>
-<td><code>reason</code></td>
-<td><code>Str</code></td>
-<td>no</td>
-<td>Optional note</td>
-</tr>
-</tbody>
-</table>
-<p><strong>Reply</strong></p>
-<table>
-<thead>
-<tr>
-<th>Status</th>
-<th>Shape</th>
-<th>Meaning</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>202 Accepted</code></td>
-<td>ack payload</td>
-<td>Resume accepted</td>
-</tr>
-</tbody>
-</table>
-<p><strong>Errors</strong></p>
-<table>
-<thead>
-<tr>
-<th>Code</th>
-<th>When</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>AUTH</code></td>
-<td>Missing or malformed key</td>
-</tr>
-<tr>
-<td><code>ROLE_DENIED</code></td>
-<td>Caller is not ADMIN</td>
-</tr>
-<tr>
-<td><code>ENGINE_TIMEOUT</code></td>
-<td>Engine did not reply in time</td>
-</tr>
-</tbody>
-</table>
-<h3 id="get-apiv1adminhalts"><code>GET /api/v1/admin/halts</code><a class="headerlink" href="#get-apiv1adminhalts" title="Permanent link">&para;</a></h3>
-<p>Purpose: return the current active halts table.</p>
-<p><strong>Arguments</strong></p>
-<table>
-<thead>
-<tr>
-<th>Name</th>
-<th>Type</th>
-<th>Req</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>none</td>
-<td>—</td>
-<td>—</td>
-<td>No query parameters</td>
 </tr>
 </tbody>
 </table>
@@ -12753,8 +13256,13 @@ the <code>date</code> column of <code>/history/daily</code>. <code>country</code
 <tbody>
 <tr>
 <td><code>200 OK</code></td>
-<td><code>{ "halted": [...] }</code></td>
-<td>Currently-halted symbols; each <code>{ symbol, resume_at_ns?, level?, halt_source? }</code></td>
+<td>halt ack</td>
+<td>The symbol is halted</td>
+</tr>
+<tr>
+<td><code>409 Conflict</code></td>
+<td>error envelope</td>
+<td>The engine refused the halt</td>
 </tr>
 </tbody>
 </table>
@@ -12763,20 +13271,130 @@ the <code>date</code> column of <code>/history/daily</code>. <code>country</code
 <thead>
 <tr>
 <th>Code</th>
+<th>Status</th>
 <th>When</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>AUTH</code></td>
-<td>Missing or malformed key</td>
+<td><code>VALIDATION</code></td>
+<td><code>400</code></td>
+<td>Body invalid</td>
+</tr>
+<tr>
+<td><code>READ_ONLY</code></td>
+<td><code>403</code></td>
+<td>A read-only key used on a gateway-scoped endpoint</td>
 </tr>
 <tr>
 <td><code>ROLE_DENIED</code></td>
+<td><code>403</code></td>
 <td>Caller is not ADMIN</td>
 </tr>
 <tr>
+<td><code>HALT_REJECTED</code></td>
+<td><code>409</code></td>
+<td>Engine refused (unknown symbol, no circuit breaker, unknown level); <code>message</code> is its reason</td>
+</tr>
+<tr>
+<td><code>RATE_LIMIT</code></td>
+<td><code>429</code></td>
+<td>Per-key write limit exceeded; retry after a short pause</td>
+</tr>
+<tr>
 <td><code>ENGINE_TIMEOUT</code></td>
+<td><code>503</code></td>
+<td>Engine did not reply in time</td>
+</tr>
+</tbody>
+</table>
+<h3 id="post-apiv1adminsymbolssymbolresume"><code>POST /api/v1/admin/symbols/{symbol}/resume</code><a class="headerlink" href="#post-apiv1adminsymbolssymbolresume" title="Permanent link">&para;</a></h3>
+<p>Purpose: resume one halted symbol.</p>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>symbol</code></td>
+<td><code>Symbol</code></td>
+<td>yes (path)</td>
+<td>Symbol to resume (case-insensitive)</td>
+</tr>
+<tr>
+<td><code>reason</code></td>
+<td><code>Str</code></td>
+<td>no</td>
+<td>Body, optional: note for the audit log</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Reply</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Shape</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>200 OK</code></td>
+<td>resume ack</td>
+<td>The symbol is trading again</td>
+</tr>
+<tr>
+<td><code>409 Conflict</code></td>
+<td>error envelope</td>
+<td>The engine refused the resume</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Errors</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Status</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>VALIDATION</code></td>
+<td><code>400</code></td>
+<td>A body field, query parameter, header or history filter failed validation; <code>field</code> names it. <code>reject_code</code> is one of <code>MISSING_FIELD</code>, <code>UNSUPPORTED_FIELD</code>, <code>INVALID_VALUE</code>, <code>TICK_VIOLATION</code></td>
+</tr>
+<tr>
+<td><code>READ_ONLY</code></td>
+<td><code>403</code></td>
+<td>A read-only key used on a gateway-scoped endpoint</td>
+</tr>
+<tr>
+<td><code>ROLE_DENIED</code></td>
+<td><code>403</code></td>
+<td>Caller is not ADMIN</td>
+</tr>
+<tr>
+<td><code>RESUME_REJECTED</code></td>
+<td><code>409</code></td>
+<td>Engine refused (for example the symbol is not halted); <code>message</code> is its reason</td>
+</tr>
+<tr>
+<td><code>RATE_LIMIT</code></td>
+<td><code>429</code></td>
+<td>Per-key write limit exceeded; retry after a short pause</td>
+</tr>
+<tr>
+<td><code>ENGINE_TIMEOUT</code></td>
+<td><code>503</code></td>
 <td>Engine did not reply in time</td>
 </tr>
 </tbody>
@@ -12824,20 +13442,180 @@ the <code>date</code> column of <code>/history/daily</code>. <code>country</code
 <thead>
 <tr>
 <th>Code</th>
+<th>Status</th>
 <th>When</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>AUTH</code></td>
-<td>Missing or malformed key</td>
+<td><code>READ_ONLY</code></td>
+<td><code>403</code></td>
+<td>A read-only key used on a gateway-scoped endpoint</td>
 </tr>
 <tr>
 <td><code>ROLE_DENIED</code></td>
+<td><code>403</code></td>
 <td>Caller is not ADMIN</td>
 </tr>
 <tr>
 <td><code>ENGINE_TIMEOUT</code></td>
+<td><code>503</code></td>
+<td>Engine did not reply in time</td>
+</tr>
+</tbody>
+</table>
+<h3 id="get-apiv1admingatewaysgateway_idorders"><code>GET /api/v1/admin/gateways/{gateway_id}/orders</code><a class="headerlink" href="#get-apiv1admingatewaysgateway_idorders" title="Permanent link">&para;</a></h3>
+<p>Purpose: one gateway's resting and recently finished orders as the engine holds
+them: the authoritative view. <code>GET /admin/orders</code> is the gateway's own read
+model across all gateways, faster and filterable but limited to what this
+gateway has seen since it started.</p>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>gateway_id</code></td>
+<td><code>GatewayId</code></td>
+<td>yes (path)</td>
+<td>Whose orders (case-insensitive)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Reply</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Shape</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>200 OK</code></td>
+<td><code>{ "orders": [...], "count": N }</code></td>
+<td>Same shape as <code>GET /orders</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Errors</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Status</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>VALIDATION</code></td>
+<td><code>400</code></td>
+<td>A body field, query parameter, header or history filter failed validation; <code>field</code> names it. <code>reject_code</code> is one of <code>MISSING_FIELD</code>, <code>UNSUPPORTED_FIELD</code>, <code>INVALID_VALUE</code>, <code>TICK_VIOLATION</code></td>
+</tr>
+<tr>
+<td><code>READ_ONLY</code></td>
+<td><code>403</code></td>
+<td>A read-only key used on a gateway-scoped endpoint</td>
+</tr>
+<tr>
+<td><code>ROLE_DENIED</code></td>
+<td><code>403</code></td>
+<td>Caller is not ADMIN</td>
+</tr>
+<tr>
+<td><code>ENGINE_TIMEOUT</code></td>
+<td><code>503</code></td>
+<td>Engine did not reply in time</td>
+</tr>
+</tbody>
+</table>
+<h3 id="get-apiv1adminsymbolssymbolorders"><code>GET /api/v1/admin/symbols/{symbol}/orders</code><a class="headerlink" href="#get-apiv1adminsymbolssymbolorders" title="Permanent link">&para;</a></h3>
+<p>Purpose: every resting order on one symbol across all gateways, each with its
+<code>gateway_id</code>, ordered by price then arrival (time priority). With <code>price</code>, only
+that level: the per-order composition behind the book's aggregated levels.</p>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>symbol</code></td>
+<td><code>Symbol</code></td>
+<td>yes (path)</td>
+<td>Instrument (case-insensitive)</td>
+</tr>
+<tr>
+<td><code>price</code></td>
+<td><code>Price</code></td>
+<td>no</td>
+<td>Query: only this price level</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Reply</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Shape</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>200 OK</code></td>
+<td><code>{ "symbol", "price"?, "rejected": false, "orders": [...], "count": N }</code></td>
+<td>The resting orders</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Errors</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Status</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>VALIDATION</code></td>
+<td><code>400</code></td>
+<td>A body field, query parameter, header or history filter failed validation; <code>field</code> names it. <code>reject_code</code> is one of <code>MISSING_FIELD</code>, <code>UNSUPPORTED_FIELD</code>, <code>INVALID_VALUE</code>, <code>TICK_VIOLATION</code></td>
+</tr>
+<tr>
+<td><code>READ_ONLY</code></td>
+<td><code>403</code></td>
+<td>A read-only key used on a gateway-scoped endpoint</td>
+</tr>
+<tr>
+<td><code>ROLE_DENIED</code></td>
+<td><code>403</code></td>
+<td>Caller is not ADMIN</td>
+</tr>
+<tr>
+<td><code>QUERY_REJECTED</code></td>
+<td><code>409</code></td>
+<td>Engine refused (for example <code>Unknown symbol: XYZ</code>)</td>
+</tr>
+<tr>
+<td><code>ENGINE_TIMEOUT</code></td>
+<td><code>503</code></td>
 <td>Engine did not reply in time</td>
 </tr>
 </tbody>
@@ -12897,21 +13675,29 @@ the <code>date</code> column of <code>/history/daily</code>. <code>country</code
 <thead>
 <tr>
 <th>Code</th>
+<th>Status</th>
 <th>When</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>AUTH</code></td>
-<td>Missing or malformed key</td>
+<td><code>VALIDATION</code></td>
+<td><code>400</code></td>
+<td>A body field, query parameter, header or history filter failed validation; <code>field</code> names it. <code>reject_code</code> is one of <code>MISSING_FIELD</code>, <code>UNSUPPORTED_FIELD</code>, <code>INVALID_VALUE</code>, <code>TICK_VIOLATION</code></td>
+</tr>
+<tr>
+<td><code>READ_ONLY</code></td>
+<td><code>403</code></td>
+<td>A read-only key used on a gateway-scoped endpoint</td>
 </tr>
 <tr>
 <td><code>ROLE_DENIED</code></td>
+<td><code>403</code></td>
 <td>Caller is not ADMIN</td>
 </tr>
 </tbody>
 </table>
-<h3 id="get-apiv1adminordersorder_id"><code>GET /api/v1/admin/orders/{order_id}</code><a class="headerlink" href="#get-apiv1adminordersorder_id" title="Permanent link">&para;</a></h3>
+<h3 id="get-apiv1adminordersorder_idaudit"><code>GET /api/v1/admin/orders/{order_id}/audit</code><a class="headerlink" href="#get-apiv1adminordersorder_idaudit" title="Permanent link">&para;</a></h3>
 <p>Purpose: return the full cross-gateway lifecycle of one order.</p>
 <p><strong>Arguments</strong></p>
 <table>
@@ -12960,36 +13746,44 @@ the <code>date</code> column of <code>/history/daily</code>. <code>country</code
 <thead>
 <tr>
 <th>Code</th>
+<th>Status</th>
 <th>When</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>AUTH</code></td>
-<td>Missing or malformed key</td>
+<td><code>VALIDATION</code></td>
+<td><code>400</code></td>
+<td>A body field, query parameter, header or history filter failed validation; <code>field</code> names it. <code>reject_code</code> is one of <code>MISSING_FIELD</code>, <code>UNSUPPORTED_FIELD</code>, <code>INVALID_VALUE</code>, <code>TICK_VIOLATION</code></td>
+</tr>
+<tr>
+<td><code>READ_ONLY</code></td>
+<td><code>403</code></td>
+<td>A read-only key used on a gateway-scoped endpoint</td>
 </tr>
 <tr>
 <td><code>ROLE_DENIED</code></td>
+<td><code>403</code></td>
 <td>Caller is not ADMIN</td>
 </tr>
 <tr>
-<td><code>AUDIT_INDEX_UNAVAILABLE</code></td>
-<td>No audit index available</td>
+<td><code>UNKNOWN_ORDER</code></td>
+<td><code>404</code></td>
+<td>No audited events for the order</td>
 </tr>
 <tr>
-<td><code>UNKNOWN_ORDER</code></td>
-<td>No audited events for the order</td>
+<td><code>AUDIT_INDEX_UNAVAILABLE</code></td>
+<td><code>503</code></td>
+<td>No audit index available</td>
 </tr>
 </tbody>
 </table>
-<h3 id="get-apiv1adminpositions"><code>GET /api/v1/admin/positions</code><a class="headerlink" href="#get-apiv1adminpositions" title="Permanent link">&para;</a></h3>
+<h3 id="get-apiv1admingatewaysgateway_idpositions"><code>GET /api/v1/admin/gateways/{gateway_id}/positions</code><a class="headerlink" href="#get-apiv1admingatewaysgateway_idpositions" title="Permanent link">&para;</a></h3>
 <p>Purpose: return net position and average cost for <em>any one</em> gateway (not
 just the caller's own) -- the admin counterpart to
-<a href="#get-apiv1positions">GET /api/v1/positions</a>. Distinct in two ways: it can
-target any <code>gateway_id</code>, and it is a live engine round trip against the
-engine's authoritative VWAP ledger, so unlike <code>/positions</code> (own gateway,
-local cache) the reply carries <code>avg_cost</code> as well as <code>net_qty</code>. It is the
-REST equivalent of <code>pm-alf-console</code>'s and <code>pm-alf-gwy</code>'s <code>POS|GW=&lt;gateway_id&gt;</code>
+<a href="#get-apiv1positions">GET /api/v1/positions</a>, which serves the same engine
+round trip for the caller enriched with prices and P&amp;L. It is the REST
+equivalent of <code>pm-alf-console</code>'s and <code>pm-alf-gwy</code>'s <code>POS|GW=&lt;gateway_id&gt;</code>
 command -- all three read the same <code>system.position_request</code> /
 <code>system.position_snapshot.&lt;gateway_id&gt;</code> pair, so they always agree.</p>
 <p><strong>Arguments</strong></p>
@@ -13006,8 +13800,8 @@ command -- all three read the same <code>system.position_request</code> /
 <tr>
 <td><code>gateway_id</code></td>
 <td><code>GatewayId</code></td>
-<td>yes</td>
-<td>Gateway to query (any gateway, not just the caller's)</td>
+<td>yes (path)</td>
+<td>Gateway to query (any gateway, case-insensitive)</td>
 </tr>
 </tbody>
 </table>
@@ -13033,26 +13827,35 @@ command -- all three read the same <code>system.position_request</code> /
 <thead>
 <tr>
 <th>Code</th>
+<th>Status</th>
 <th>When</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>AUTH</code></td>
-<td>Missing or malformed key</td>
+<td><code>VALIDATION</code></td>
+<td><code>400</code></td>
+<td>A body field, query parameter, header or history filter failed validation; <code>field</code> names it. <code>reject_code</code> is one of <code>MISSING_FIELD</code>, <code>UNSUPPORTED_FIELD</code>, <code>INVALID_VALUE</code>, <code>TICK_VIOLATION</code></td>
+</tr>
+<tr>
+<td><code>READ_ONLY</code></td>
+<td><code>403</code></td>
+<td>A read-only key used on a gateway-scoped endpoint</td>
 </tr>
 <tr>
 <td><code>ROLE_DENIED</code></td>
+<td><code>403</code></td>
 <td>Caller is not ADMIN</td>
 </tr>
 <tr>
 <td><code>ENGINE_TIMEOUT</code></td>
+<td><code>503</code></td>
 <td>Engine did not reply in time</td>
 </tr>
 </tbody>
 </table>
-<h3 id="post-apiv1adminkill-switchsymbol"><code>POST /api/v1/admin/kill-switch/symbol</code><a class="headerlink" href="#post-apiv1adminkill-switchsymbol" title="Permanent link">&para;</a></h3>
-<p>Purpose: cancel all resting exposure on one symbol.</p>
+<h3 id="post-apiv1adminsymbolssymbolcancel-orders"><code>POST /api/v1/admin/symbols/{symbol}/cancel-orders</code><a class="headerlink" href="#post-apiv1adminsymbolssymbolcancel-orders" title="Permanent link">&para;</a></h3>
+<p>Purpose: cancel all resting exposure on one symbol, across every gateway.</p>
 <p><strong>Arguments</strong></p>
 <table>
 <thead>
@@ -13067,14 +13870,14 @@ command -- all three read the same <code>system.position_request</code> /
 <tr>
 <td><code>symbol</code></td>
 <td><code>Symbol</code></td>
-<td>yes</td>
-<td>Symbol to cancel</td>
+<td>yes (path)</td>
+<td>Symbol to clear (case-insensitive)</td>
 </tr>
 <tr>
 <td><code>reason</code></td>
 <td><code>Str</code></td>
 <td>no</td>
-<td>Optional note</td>
+<td>Body, optional: note for the audit log</td>
 </tr>
 </tbody>
 </table>
@@ -13089,9 +13892,14 @@ command -- all three read the same <code>system.position_request</code> /
 </thead>
 <tbody>
 <tr>
-<td><code>202 Accepted</code></td>
-<td>ack payload</td>
-<td>Symbol kill-switch accepted</td>
+<td><code>200 OK</code></td>
+<td>kill-switch ack</td>
+<td>What the engine cancelled</td>
+</tr>
+<tr>
+<td><code>409 Conflict</code></td>
+<td>error envelope</td>
+<td>The engine refused the command</td>
 </tr>
 </tbody>
 </table>
@@ -13100,26 +13908,46 @@ command -- all three read the same <code>system.position_request</code> /
 <thead>
 <tr>
 <th>Code</th>
+<th>Status</th>
 <th>When</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>AUTH</code></td>
-<td>Missing or malformed key</td>
+<td><code>VALIDATION</code></td>
+<td><code>400</code></td>
+<td>A body field, query parameter, header or history filter failed validation; <code>field</code> names it. <code>reject_code</code> is one of <code>MISSING_FIELD</code>, <code>UNSUPPORTED_FIELD</code>, <code>INVALID_VALUE</code>, <code>TICK_VIOLATION</code></td>
+</tr>
+<tr>
+<td><code>READ_ONLY</code></td>
+<td><code>403</code></td>
+<td>A read-only key used on a gateway-scoped endpoint</td>
 </tr>
 <tr>
 <td><code>ROLE_DENIED</code></td>
+<td><code>403</code></td>
 <td>Caller is not ADMIN</td>
 </tr>
 <tr>
+<td><code>KILL_SWITCH_REJECTED</code></td>
+<td><code>409</code></td>
+<td>Engine refused; <code>message</code> is its reason</td>
+</tr>
+<tr>
+<td><code>RATE_LIMIT</code></td>
+<td><code>429</code></td>
+<td>Per-key write limit exceeded; retry after a short pause</td>
+</tr>
+<tr>
 <td><code>ENGINE_TIMEOUT</code></td>
+<td><code>503</code></td>
 <td>Engine did not reply in time</td>
 </tr>
 </tbody>
 </table>
-<h3 id="post-apiv1adminkill-switchgateway"><code>POST /api/v1/admin/kill-switch/gateway</code><a class="headerlink" href="#post-apiv1adminkill-switchgateway" title="Permanent link">&para;</a></h3>
-<p>Purpose: cancel all resting exposure for one target gateway.</p>
+<h3 id="post-apiv1admingatewaysgateway_idkill-switch"><code>POST /api/v1/admin/gateways/{gateway_id}/kill-switch</code><a class="headerlink" href="#post-apiv1admingatewaysgateway_idkill-switch" title="Permanent link">&para;</a></h3>
+<p>Purpose: cancel all resting exposure for one target gateway, without
+disconnecting it.</p>
 <p><strong>Arguments</strong></p>
 <table>
 <thead>
@@ -13132,19 +13960,26 @@ command -- all three read the same <code>system.position_request</code> /
 </thead>
 <tbody>
 <tr>
-<td><code>target_gateway_id</code></td>
+<td><code>gateway_id</code></td>
 <td><code>GatewayId</code></td>
-<td>yes</td>
-<td>Gateway to cancel</td>
+<td>yes (path)</td>
+<td>Gateway whose orders and quotes to cancel (case-insensitive)</td>
+</tr>
+<tr>
+<td><code>symbol</code></td>
+<td><code>Symbol</code></td>
+<td>no</td>
+<td>Query: only this instrument; omit for all</td>
 </tr>
 <tr>
 <td><code>reason</code></td>
 <td><code>Str</code></td>
 <td>no</td>
-<td>Optional note</td>
+<td>Body, optional: note for the audit log</td>
 </tr>
 </tbody>
 </table>
+<p>The target need not be connected, and the audit trail names the ADMIN.</p>
 <p><strong>Reply</strong></p>
 <table>
 <thead>
@@ -13156,9 +13991,14 @@ command -- all three read the same <code>system.position_request</code> /
 </thead>
 <tbody>
 <tr>
-<td><code>202 Accepted</code></td>
-<td>ack payload</td>
-<td>Gateway kill-switch accepted</td>
+<td><code>200 OK</code></td>
+<td>kill-switch ack</td>
+<td>What the engine cancelled; <code>symbol</code> is echoed when the cancel was scoped</td>
+</tr>
+<tr>
+<td><code>409 Conflict</code></td>
+<td>error envelope</td>
+<td>The engine refused the command</td>
 </tr>
 </tbody>
 </table>
@@ -13167,26 +14007,47 @@ command -- all three read the same <code>system.position_request</code> /
 <thead>
 <tr>
 <th>Code</th>
+<th>Status</th>
 <th>When</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>AUTH</code></td>
-<td>Missing or malformed key</td>
+<td><code>VALIDATION</code></td>
+<td><code>400</code></td>
+<td>A body field, query parameter, header or history filter failed validation; <code>field</code> names it. <code>reject_code</code> is one of <code>MISSING_FIELD</code>, <code>UNSUPPORTED_FIELD</code>, <code>INVALID_VALUE</code>, <code>TICK_VIOLATION</code></td>
+</tr>
+<tr>
+<td><code>READ_ONLY</code></td>
+<td><code>403</code></td>
+<td>A read-only key used on a gateway-scoped endpoint</td>
 </tr>
 <tr>
 <td><code>ROLE_DENIED</code></td>
+<td><code>403</code></td>
 <td>Caller is not ADMIN</td>
 </tr>
 <tr>
+<td><code>KILL_SWITCH_REJECTED</code></td>
+<td><code>409</code></td>
+<td>Engine refused; <code>message</code> is its reason</td>
+</tr>
+<tr>
+<td><code>RATE_LIMIT</code></td>
+<td><code>429</code></td>
+<td>Per-key write limit exceeded; retry after a short pause</td>
+</tr>
+<tr>
 <td><code>ENGINE_TIMEOUT</code></td>
+<td><code>503</code></td>
 <td>Engine did not reply in time</td>
 </tr>
 </tbody>
 </table>
-<h3 id="post-apiv1adminkill-switchglobal"><code>POST /api/v1/admin/kill-switch/global</code><a class="headerlink" href="#post-apiv1adminkill-switchglobal" title="Permanent link">&para;</a></h3>
-<p>Purpose: cancel all resting exposure across every gateway and symbol.</p>
+<h3 id="delete-apiv1admingatewaysgateway_idquotessymbol"><code>DELETE /api/v1/admin/gateways/{gateway_id}/quotes/{symbol}</code><a class="headerlink" href="#delete-apiv1admingatewaysgateway_idquotessymbol" title="Permanent link">&para;</a></h3>
+<p>Purpose: withdraw one participant's two-sided quote on one symbol, leaving its
+other orders. Runs through the ADMIN kill switch (<code>quotes_only</code>), so it works
+whether or not that gateway is connected and the audit trail names the ADMIN.</p>
 <p><strong>Arguments</strong></p>
 <table>
 <thead>
@@ -13199,10 +14060,16 @@ command -- all three read the same <code>system.position_request</code> /
 </thead>
 <tbody>
 <tr>
-<td><code>reason</code></td>
-<td><code>Str</code></td>
-<td>no</td>
-<td>Optional note</td>
+<td><code>gateway_id</code></td>
+<td><code>GatewayId</code></td>
+<td>yes (path)</td>
+<td>Whose quote (case-insensitive)</td>
+</tr>
+<tr>
+<td><code>symbol</code></td>
+<td><code>Symbol</code></td>
+<td>yes (path)</td>
+<td>Instrument (case-insensitive)</td>
 </tr>
 </tbody>
 </table>
@@ -13217,9 +14084,9 @@ command -- all three read the same <code>system.position_request</code> /
 </thead>
 <tbody>
 <tr>
-<td><code>202 Accepted</code></td>
-<td>ack payload</td>
-<td>Global kill-switch accepted</td>
+<td><code>200 OK</code></td>
+<td>kill-switch ack, <code>quotes_only: true</code></td>
+<td>The quote legs cancelled; <code>cancelled_quotes</code> is 0 when there was no quote</td>
 </tr>
 </tbody>
 </table>
@@ -13228,26 +14095,198 @@ command -- all three read the same <code>system.position_request</code> /
 <thead>
 <tr>
 <th>Code</th>
+<th>Status</th>
 <th>When</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>AUTH</code></td>
-<td>Missing or malformed key</td>
+<td><code>VALIDATION</code></td>
+<td><code>400</code></td>
+<td>A body field, query parameter, header or history filter failed validation; <code>field</code> names it. <code>reject_code</code> is one of <code>MISSING_FIELD</code>, <code>UNSUPPORTED_FIELD</code>, <code>INVALID_VALUE</code>, <code>TICK_VIOLATION</code></td>
+</tr>
+<tr>
+<td><code>READ_ONLY</code></td>
+<td><code>403</code></td>
+<td>A read-only key used on a gateway-scoped endpoint</td>
 </tr>
 <tr>
 <td><code>ROLE_DENIED</code></td>
+<td><code>403</code></td>
 <td>Caller is not ADMIN</td>
 </tr>
 <tr>
+<td><code>KILL_SWITCH_REJECTED</code></td>
+<td><code>409</code></td>
+<td>Engine refused; <code>message</code> is its reason</td>
+</tr>
+<tr>
+<td><code>RATE_LIMIT</code></td>
+<td><code>429</code></td>
+<td>Per-key write limit exceeded; retry after a short pause</td>
+</tr>
+<tr>
 <td><code>ENGINE_TIMEOUT</code></td>
+<td><code>503</code></td>
 <td>Engine did not reply in time</td>
 </tr>
 </tbody>
 </table>
-<h3 id="get-apiv1adminindexes"><code>GET /api/v1/admin/indexes</code><a class="headerlink" href="#get-apiv1adminindexes" title="Permanent link">&para;</a></h3>
-<p>Purpose: return index configuration for the ADMIN UI.</p>
+<h3 id="post-apiv1adminmarkethalt"><code>POST /api/v1/admin/market/halt</code><a class="headerlink" href="#post-apiv1adminmarkethalt" title="Permanent link">&para;</a></h3>
+<p>Purpose: halt every symbol (halt source <code>ADMIN</code>) and cancel every market-maker
+quote. Resting orders stay on the book; <code>POST /admin/market/kill-switch</code>
+cancels those.</p>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>none</td>
+<td>—</td>
+<td>—</td>
+<td>No arguments</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Reply</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Shape</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>200 OK</code></td>
+<td><code>{ "accepted": true, "halted_symbols": 3, "halted_symbol_ids": [...], "cancelled_quotes": 4, ... }</code></td>
+<td>What the engine halted</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Errors</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Status</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>READ_ONLY</code></td>
+<td><code>403</code></td>
+<td>A read-only key used on a gateway-scoped endpoint</td>
+</tr>
+<tr>
+<td><code>ROLE_DENIED</code></td>
+<td><code>403</code></td>
+<td>Caller is not ADMIN</td>
+</tr>
+<tr>
+<td><code>HALT_REJECTED</code></td>
+<td><code>409</code></td>
+<td>Engine refused; <code>message</code> is its reason</td>
+</tr>
+<tr>
+<td><code>RATE_LIMIT</code></td>
+<td><code>429</code></td>
+<td>Per-key write limit exceeded; retry after a short pause</td>
+</tr>
+<tr>
+<td><code>ENGINE_TIMEOUT</code></td>
+<td><code>503</code></td>
+<td>Engine did not reply in time</td>
+</tr>
+</tbody>
+</table>
+<h3 id="post-apiv1adminmarketresume"><code>POST /api/v1/admin/market/resume</code><a class="headerlink" href="#post-apiv1adminmarketresume" title="Permanent link">&para;</a></h3>
+<p>Purpose: lift the halt of <code>POST /admin/market/halt</code> on every symbol.</p>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>none</td>
+<td>—</td>
+<td>—</td>
+<td>No arguments</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Reply</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Shape</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>200 OK</code></td>
+<td><code>{ "accepted": true, "resumed_symbols": 3, "resumed_symbol_ids": [...], ... }</code></td>
+<td>What the engine resumed</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Errors</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Status</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>READ_ONLY</code></td>
+<td><code>403</code></td>
+<td>A read-only key used on a gateway-scoped endpoint</td>
+</tr>
+<tr>
+<td><code>ROLE_DENIED</code></td>
+<td><code>403</code></td>
+<td>Caller is not ADMIN</td>
+</tr>
+<tr>
+<td><code>RESUME_REJECTED</code></td>
+<td><code>409</code></td>
+<td>Engine refused; <code>message</code> is its reason</td>
+</tr>
+<tr>
+<td><code>RATE_LIMIT</code></td>
+<td><code>429</code></td>
+<td>Per-key write limit exceeded; retry after a short pause</td>
+</tr>
+<tr>
+<td><code>ENGINE_TIMEOUT</code></td>
+<td><code>503</code></td>
+<td>Engine did not reply in time</td>
+</tr>
+</tbody>
+</table>
+<h3 id="get-apiv1adminmarketvolume"><code>GET /api/v1/admin/market/volume</code><a class="headerlink" href="#get-apiv1adminmarketvolume" title="Permanent link">&para;</a></h3>
+<p>Purpose: today's traded quantity, value and trade count per symbol, and the
+venue totals.</p>
 <p><strong>Arguments</strong></p>
 <table>
 <thead>
@@ -13279,8 +14318,8 @@ command -- all three read the same <code>system.position_request</code> /
 <tbody>
 <tr>
 <td><code>200 OK</code></td>
-<td><code>{ "indexes": [...], "config_version": "..." }</code></td>
-<td>Static index definitions</td>
+<td><code>{ "symbols": [{ "symbol", "qty", "value", "trades" }], "count": 2, "total_qty", "total_value", "total_trades" }</code></td>
+<td>Today's volume; <code>value</code> is display money</td>
 </tr>
 </tbody>
 </table>
@@ -13289,17 +14328,216 @@ command -- all three read the same <code>system.position_request</code> /
 <thead>
 <tr>
 <th>Code</th>
+<th>Status</th>
 <th>When</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>AUTH</code></td>
-<td>Missing or malformed key</td>
+<td><code>READ_ONLY</code></td>
+<td><code>403</code></td>
+<td>A read-only key used on a gateway-scoped endpoint</td>
 </tr>
 <tr>
 <td><code>ROLE_DENIED</code></td>
+<td><code>403</code></td>
 <td>Caller is not ADMIN</td>
+</tr>
+<tr>
+<td><code>ENGINE_TIMEOUT</code></td>
+<td><code>503</code></td>
+<td>Engine did not reply in time</td>
+</tr>
+</tbody>
+</table>
+<h3 id="post-apiv1adminsymbolssymbolreopen"><code>POST /api/v1/admin/symbols/{symbol}/reopen</code><a class="headerlink" href="#post-apiv1adminsymbolssymbolreopen" title="Permanent link">&para;</a></h3>
+<p>Purpose: force one symbol to uncross now and clear any halt in one step. Without
+<code>price</code> it opens at the natural equilibrium; with one, at that operator price,
+for when a failed auction left no equilibrium. <code>dry_run</code> reports the indicative
+print without changing anything.</p>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>symbol</code></td>
+<td><code>Symbol</code></td>
+<td>yes (path)</td>
+<td>Instrument (case-insensitive)</td>
+</tr>
+<tr>
+<td><code>price</code></td>
+<td><code>Price</code></td>
+<td>no</td>
+<td>Body: operator opening price, on the tick grid (refused, not rounded, otherwise)</td>
+</tr>
+<tr>
+<td><code>dry_run</code></td>
+<td><code>Bool</code></td>
+<td>no</td>
+<td>Body: report the indicative print only; default <code>false</code></td>
+</tr>
+<tr>
+<td><code>reason</code></td>
+<td><code>Str</code></td>
+<td>no</td>
+<td>Body: note for the audit log</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Reply</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Shape</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>200 OK</code></td>
+<td><code>{ "accepted": true, "symbol", "dry_run", "indicative_price", "indicative_qty", "surplus", "imbalance_side"?, "printed_price", "traded_qty" }</code></td>
+<td>The uncross result; <code>printed_price</code> is null on a dry run</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Errors</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Status</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>VALIDATION</code></td>
+<td><code>400</code></td>
+<td>A body field, query parameter, header or history filter failed validation; <code>field</code> names it. <code>reject_code</code> is one of <code>MISSING_FIELD</code>, <code>UNSUPPORTED_FIELD</code>, <code>INVALID_VALUE</code>, <code>TICK_VIOLATION</code></td>
+</tr>
+<tr>
+<td><code>READ_ONLY</code></td>
+<td><code>403</code></td>
+<td>A read-only key used on a gateway-scoped endpoint</td>
+</tr>
+<tr>
+<td><code>ROLE_DENIED</code></td>
+<td><code>403</code></td>
+<td>Caller is not ADMIN</td>
+</tr>
+<tr>
+<td><code>REOPEN_REJECTED</code></td>
+<td><code>409</code></td>
+<td>Engine refused (for example the symbol is not halted); <code>message</code> is its reason</td>
+</tr>
+<tr>
+<td><code>RATE_LIMIT</code></td>
+<td><code>429</code></td>
+<td>Per-key write limit exceeded; retry after a short pause</td>
+</tr>
+<tr>
+<td><code>ENGINE_TIMEOUT</code></td>
+<td><code>503</code></td>
+<td>Engine did not reply in time</td>
+</tr>
+<tr>
+<td><code>SYMBOLS_NOT_READY</code></td>
+<td><code>503</code></td>
+<td><code>price</code> given before the symbol's tick precision reached the gateway</td>
+</tr>
+</tbody>
+</table>
+<h3 id="post-apiv1adminmarketkill-switch"><code>POST /api/v1/admin/market/kill-switch</code><a class="headerlink" href="#post-apiv1adminmarketkill-switch" title="Permanent link">&para;</a></h3>
+<p>Purpose: cancel all resting exposure across every gateway and symbol.</p>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>reason</code></td>
+<td><code>Str</code></td>
+<td>no</td>
+<td>Optional note</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Reply</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Shape</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>200 OK</code></td>
+<td>kill-switch ack</td>
+<td>What the engine cancelled</td>
+</tr>
+<tr>
+<td><code>409 Conflict</code></td>
+<td>error envelope</td>
+<td>The engine refused the command</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Errors</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Status</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>VALIDATION</code></td>
+<td><code>400</code></td>
+<td>A body field, query parameter, header or history filter failed validation; <code>field</code> names it. <code>reject_code</code> is one of <code>MISSING_FIELD</code>, <code>UNSUPPORTED_FIELD</code>, <code>INVALID_VALUE</code>, <code>TICK_VIOLATION</code></td>
+</tr>
+<tr>
+<td><code>READ_ONLY</code></td>
+<td><code>403</code></td>
+<td>A read-only key used on a gateway-scoped endpoint</td>
+</tr>
+<tr>
+<td><code>ROLE_DENIED</code></td>
+<td><code>403</code></td>
+<td>Caller is not ADMIN</td>
+</tr>
+<tr>
+<td><code>KILL_SWITCH_REJECTED</code></td>
+<td><code>409</code></td>
+<td>Engine refused; <code>message</code> is its reason</td>
+</tr>
+<tr>
+<td><code>RATE_LIMIT</code></td>
+<td><code>429</code></td>
+<td>Per-key write limit exceeded; retry after a short pause</td>
+</tr>
+<tr>
+<td><code>ENGINE_TIMEOUT</code></td>
+<td><code>503</code></td>
+<td>Engine did not reply in time</td>
 </tr>
 </tbody>
 </table>
@@ -13328,12 +14566,6 @@ command -- all three read the same <code>system.position_request</code> /
 <td>yes</td>
 <td>Shares-outstanding updates</td>
 </tr>
-<tr>
-<td><code>reason</code></td>
-<td><code>Str</code></td>
-<td>no</td>
-<td>Optional note</td>
-</tr>
 </tbody>
 </table>
 <p><strong>Reply</strong></p>
@@ -13347,9 +14579,9 @@ command -- all three read the same <code>system.position_request</code> /
 </thead>
 <tbody>
 <tr>
-<td><code>202 Accepted</code></td>
+<td><code>200 OK</code></td>
 <td>rebalance ack</td>
-<td>Update accepted and applied</td>
+<td>Update applied</td>
 </tr>
 <tr>
 <td><code>409 Conflict</code></td>
@@ -13363,33 +14595,40 @@ command -- all three read the same <code>system.position_request</code> /
 <thead>
 <tr>
 <th>Code</th>
+<th>Status</th>
 <th>When</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>AUTH</code></td>
-<td>Missing or malformed key</td>
-</tr>
-<tr>
-<td><code>ROLE_DENIED</code></td>
-<td>Caller is not ADMIN</td>
-</tr>
-<tr>
 <td><code>VALIDATION</code></td>
+<td><code>400</code></td>
 <td>Batch body invalid</td>
 </tr>
 <tr>
+<td><code>READ_ONLY</code></td>
+<td><code>403</code></td>
+<td>A read-only key used on a gateway-scoped endpoint</td>
+</tr>
+<tr>
+<td><code>ROLE_DENIED</code></td>
+<td><code>403</code></td>
+<td>Caller is not ADMIN</td>
+</tr>
+<tr>
 <td><code>REBALANCE_REJECTED</code></td>
+<td><code>409</code></td>
 <td><code>pm-index</code> rejected the request</td>
 </tr>
 <tr>
-<td><code>INDEX_TIMEOUT</code></td>
-<td><code>pm-index</code> did not reply in time</td>
+<td><code>RATE_LIMIT</code></td>
+<td><code>429</code></td>
+<td>Per-key write limit exceeded; retry after a short pause</td>
 </tr>
 <tr>
-<td><code>INDEX_ERROR</code></td>
-<td><code>pm-index</code> returned an error</td>
+<td><code>INDEX_TIMEOUT</code></td>
+<td><code>503</code></td>
+<td><code>pm-index</code> did not reply in time</td>
 </tr>
 </tbody>
 </table>
@@ -13436,24 +14675,34 @@ command -- all three read the same <code>system.position_request</code> /
 <thead>
 <tr>
 <th>Code</th>
+<th>Status</th>
 <th>When</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>AUTH</code></td>
-<td>Missing or malformed key</td>
+<td><code>READ_ONLY</code></td>
+<td><code>403</code></td>
+<td>A read-only key used on a gateway-scoped endpoint</td>
 </tr>
 <tr>
 <td><code>ROLE_DENIED</code></td>
+<td><code>403</code></td>
 <td>Caller is not ADMIN</td>
 </tr>
 <tr>
 <td><code>RELOAD_REJECTED</code></td>
+<td><code>409</code></td>
 <td>Reload would change the symbol or index set</td>
 </tr>
 <tr>
+<td><code>RATE_LIMIT</code></td>
+<td><code>429</code></td>
+<td>Per-key write limit exceeded; retry after a short pause</td>
+</tr>
+<tr>
 <td><code>ENGINE_TIMEOUT</code></td>
+<td><code>503</code></td>
 <td>Engine did not reply in time</td>
 </tr>
 </tbody>
@@ -13466,11 +14715,10 @@ command -- all three read the same <code>system.position_request</code> /
   <code>orders.snapshot</code> frame, and <code>GET /api/v1/admin/orders</code>.</li>
 <li><code>market_data_cache_sec</code> bounds the market-data stream cache that backs the
   snapshot-on-subscribe, <code>snapshot</code>, and <code>resume</code> controls on
-  <code>WS /api/v1/market-data</code> (latest <code>book</code>/<code>depth</code>/<code>auction</code> snapshots are kept
+  <code>WS /api/v1/ws/market-data</code> (latest <code>book</code>/<code>depth</code>/<code>auction</code> snapshots are kept
   regardless of age; only the <code>trades</code> tail is bounded).</li>
-<li>WebSocket streams use the chapter-level contracts in
-  <a href="../../../operator-guide/part-5-gateways/050-api-gateway/">API Gateway (REST/WebSocket)</a>; this appendix is REST
-  only.</li>
+<li>WebSocket streams are specified in the
+  <a href="../070-websocket/">WebSocket API Reference</a>; this appendix is REST only.</li>
 </ul>
 
 

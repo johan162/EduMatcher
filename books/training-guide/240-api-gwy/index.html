@@ -3978,6 +3978,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../protocols-and-clients/part-2-specifications/070-websocket/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    WebSocket API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -7563,8 +7591,8 @@ event handling, and multi-process logical separation.</p>
 <p><code>pm-api-gwy</code> is an HTTP and WebSocket wrapper around the matching engine. It
 uses bearer tokens from <code>api_gateways.&lt;NAME&gt;.credentials</code>. A credential with a
 non-null <code>gateway_id</code> can submit and manage orders for that ALF gateway. A
-credential with <code>gateway_id: null</code> is read-only and can use status, reference,
-market-data, history, and public WebSocket paths.</p>
+credential with <code>gateway_id: null</code> is read-only and can use the session, halts,
+reference, market-data, history, and public WebSocket paths.</p>
 <p>Multiple API gateway processes are configured with top-level <code>api_gateways</code>:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nt">api_gateways</span><span class="p">:</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">  </span><span class="nt">desk</span><span class="p">:</span>
@@ -7597,7 +7625,7 @@ directly from that one resolved <code>gateway_id</code>:</p>
 <tbody>
 <tr>
 <td><code>null</code></td>
-<td>Read-only: reference data, history, public market data, <code>/status</code>, <code>/healthz</code></td>
+<td>Read-only: session, halts, reference data, history, public market data, <code>/healthz</code></td>
 </tr>
 <tr>
 <td>a configured ALF <code>gateway_id</code></td>
@@ -7679,7 +7707,8 @@ Use it anyway in labs so the selected process is explicit.</p>
 read-only key.</p>
 <p>Expected behavior:</p>
 <ul>
-<li>status works for trading and read-only keys</li>
+<li>status works for a trading key and answers <code>403 READ_ONLY</code> for a read-only
+  key (it reports the caller's gateway, which a read-only key does not have)</li>
 <li>order entry rejects a read-only key</li>
 <li>Swagger lists the same route shapes exposed by <code>/openapi.json</code></li>
 </ul>
@@ -7808,15 +7837,15 @@ a trading key:</p>
 <li><code>/history/orders</code> and <code>/history/fills</code> are scoped to the caller's own
   gateway — <code>TRADER01</code>'s key never sees <code>TRADER02</code>'s orders</li>
 <li><code>/history/trades</code> and <code>/history/daily</code> are public and show both sides</li>
-<li>a reply with <code>"has_more": true</code> always includes <code>next_cursor</code>; passing it
-  back unchanged as <code>after</code> returns the next page</li>
+<li>every page carries <code>next_cursor</code>: a string while <code>"has_more": true</code> (pass it
+  back unchanged as <code>after</code> for the next page) and <code>null</code> on the last page</li>
 <li>if <code>pm-stats</code> is not running, every history call returns <code>503 STATS_DB</code></li>
 </ul>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: you can explain why
 <code>/history/orders</code> is gateway-scoped but <code>/history/trades</code> is not.</p>
 <h2 id="exercise-9-observe-websocket-events">Exercise 9: Observe WebSocket Events<a class="headerlink" href="#exercise-9-observe-websocket-events" title="Permanent link">&para;</a></h2>
 <p>Connect to private events before submitting new orders:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>python3<span class="w"> </span>-m<span class="w"> </span>websockets<span class="w"> </span>ws://127.0.0.1:8080/api/v1/events
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>python3<span class="w"> </span>-m<span class="w"> </span>websockets<span class="w"> </span>ws://127.0.0.1:8080/api/v1/ws/private
 </code></pre></div>
 <p>Once connected, the CLI waits for you to type. Send the authentication message
 as your first input, then press Enter:</p>
@@ -7826,7 +7855,7 @@ as your first input, then press Enter:</p>
 <p>In another terminal, submit or cancel an order with the same key. Observe the
 private event stream.</p>
 <p>Then connect to a public market-data WebSocket with a read-only key:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>python3<span class="w"> </span>-m<span class="w"> </span>websockets<span class="w"> </span>ws://127.0.0.1:8080/api/v1/market-data
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>python3<span class="w"> </span>-m<span class="w"> </span>websockets<span class="w"> </span>ws://127.0.0.1:8080/api/v1/ws/market-data
 </code></pre></div>
 <p>After authentication, send a subscription control message:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>&gt; {"api_key": "key-readonly-demo"}
@@ -7863,23 +7892,22 @@ focused instrument:</p>
 <p><code>gateway_role</code> must read <code>ADMIN</code>; the reply also includes <code>gateway_count</code>, a
 field only ADMIN callers get back. Now try the same idea with a trading key:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>curl<span class="w"> </span>-i<span class="w"> </span>-H<span class="w"> </span><span class="s1">'Authorization: Bearer key-trader-demo'</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a><span class="w">  </span>http://127.0.0.1:8080/api/v1/admin/halts
+<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a><span class="w">  </span>http://127.0.0.1:8080/api/v1/admin/gateways
 </code></pre></div>
 <p>Expect <code>403 ROLE_DENIED</code> — a trading key is never accepted on <code>/admin/*</code>,
 regardless of which gateway it is bound to.</p>
-<p>Trigger and resume a circuit-breaker halt with the ADMIN key:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a>curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>http://127.0.0.1:8080/api/v1/admin/circuit-breaker/trigger<span class="w"> </span><span class="se">\</span>
+<p>Trigger and resume a circuit-breaker halt with the ADMIN key. The symbol is
+part of the path; the body carries only the optional <code>level</code> (and <code>reason</code>):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a>curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>http://127.0.0.1:8080/api/v1/admin/symbols/AAPL/halt<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a><span class="w">  </span>-H<span class="w"> </span><span class="s1">'Authorization: Bearer key-ops01-demo'</span><span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a><span class="w">  </span>-H<span class="w"> </span><span class="s1">'Content-Type: application/json'</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-22-4" name="__codelineno-22-4" href="#__codelineno-22-4"></a><span class="w">  </span>-d<span class="w"> </span><span class="s1">'{"symbol": "AAPL", "level": "L1"}'</span>
+<a id="__codelineno-22-4" name="__codelineno-22-4" href="#__codelineno-22-4"></a><span class="w">  </span>-d<span class="w"> </span><span class="s1">'{"level": "L1"}'</span>
 <a id="__codelineno-22-5" name="__codelineno-22-5" href="#__codelineno-22-5"></a>
 <a id="__codelineno-22-6" name="__codelineno-22-6" href="#__codelineno-22-6"></a>curl<span class="w"> </span>-H<span class="w"> </span><span class="s1">'Authorization: Bearer key-ops01-demo'</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-22-7" name="__codelineno-22-7" href="#__codelineno-22-7"></a><span class="w">  </span>http://127.0.0.1:8080/api/v1/admin/halts
+<a id="__codelineno-22-7" name="__codelineno-22-7" href="#__codelineno-22-7"></a><span class="w">  </span>http://127.0.0.1:8080/api/v1/halts
 <a id="__codelineno-22-8" name="__codelineno-22-8" href="#__codelineno-22-8"></a>
-<a id="__codelineno-22-9" name="__codelineno-22-9" href="#__codelineno-22-9"></a>curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>http://127.0.0.1:8080/api/v1/admin/circuit-breaker/resume<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-22-10" name="__codelineno-22-10" href="#__codelineno-22-10"></a><span class="w">  </span>-H<span class="w"> </span><span class="s1">'Authorization: Bearer key-ops01-demo'</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-22-11" name="__codelineno-22-11" href="#__codelineno-22-11"></a><span class="w">  </span>-H<span class="w"> </span><span class="s1">'Content-Type: application/json'</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-22-12" name="__codelineno-22-12" href="#__codelineno-22-12"></a><span class="w">  </span>-d<span class="w"> </span><span class="s1">'{"symbol": "AAPL"}'</span>
+<a id="__codelineno-22-9" name="__codelineno-22-9" href="#__codelineno-22-9"></a>curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>http://127.0.0.1:8080/api/v1/admin/symbols/AAPL/resume<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-22-10" name="__codelineno-22-10" href="#__codelineno-22-10"></a><span class="w">  </span>-H<span class="w"> </span><span class="s1">'Authorization: Bearer key-ops01-demo'</span>
 </code></pre></div>
 <p>Request a session transition. This call now waits for the engine's verdict
 instead of firing and forgetting:</p>
@@ -7888,10 +7916,10 @@ instead of firing and forgetting:</p>
 <a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a><span class="w">  </span>-H<span class="w"> </span><span class="s1">'Content-Type: application/json'</span><span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-23-4" name="__codelineno-23-4" href="#__codelineno-23-4"></a><span class="w">  </span>-d<span class="w"> </span><span class="s1">'{"to_state": "CONTINUOUS"}'</span>
 </code></pre></div>
-<p>A successful transition returns <code>202</code> with <code>status: "APPLIED"</code> and a
+<p>A successful transition returns <code>200</code> with <code>status: "APPLIED"</code> and a
 <code>command_id</code>. Requesting a state the engine cannot apply (for example when
-sessions are disabled) returns <code>409 TRANSITION_REJECTED</code> with a <code>reason</code>,
-instead of leaving you to guess from a timeout.</p>
+sessions are disabled) returns <code>409 TRANSITION_REJECTED</code> with the engine's
+reason as <code>message</code>, instead of leaving you to guess from a timeout.</p>
 <p>Look at cross-gateway order visibility:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>curl<span class="w"> </span>-H<span class="w"> </span><span class="s1">'Authorization: Bearer key-ops01-demo'</span><span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a><span class="w">  </span><span class="s2">"http://127.0.0.1:8080/api/v1/admin/orders?symbol=AAPL"</span>
@@ -7903,30 +7931,32 @@ reply — filled/cancelled/expired orders are evicted from this view after
 instance), while resting orders are never evicted regardless of age.</p>
 <p>Fetch one order's full cross-gateway lifecycle from the audit trail:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>curl<span class="w"> </span>-i<span class="w"> </span>-H<span class="w"> </span><span class="s1">'Authorization: Bearer key-ops01-demo'</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a><span class="w">  </span>http://127.0.0.1:8080/api/v1/admin/orders/ORDER_ID
+<a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a><span class="w">  </span>http://127.0.0.1:8080/api/v1/admin/orders/ORDER_ID/audit
 </code></pre></div>
 <p>This endpoint is optional: it depends on a separate <code>pm-audit</code> index that
 this gateway only <em>reads</em>, never writes. If <code>pm-audit</code> has not built one,
 expect <code>503 AUDIT_INDEX_UNAVAILABLE</code> — every other admin endpoint keeps
 working normally.</p>
 <p>Finally, cancel resting exposure with the kill-switch family:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a>curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>http://127.0.0.1:8080/api/v1/admin/kill-switch/symbol<span class="w"> </span><span class="se">\</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a>curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>http://127.0.0.1:8080/api/v1/admin/symbols/AAPL/cancel-orders<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a><span class="w">  </span>-H<span class="w"> </span><span class="s1">'Authorization: Bearer key-ops01-demo'</span><span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-26-3" name="__codelineno-26-3" href="#__codelineno-26-3"></a><span class="w">  </span>-H<span class="w"> </span><span class="s1">'Content-Type: application/json'</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-26-4" name="__codelineno-26-4" href="#__codelineno-26-4"></a><span class="w">  </span>-d<span class="w"> </span><span class="s1">'{"symbol": "AAPL", "reason": "training exercise"}'</span>
+<a id="__codelineno-26-4" name="__codelineno-26-4" href="#__codelineno-26-4"></a><span class="w">  </span>-d<span class="w"> </span><span class="s1">'{"reason": "training exercise"}'</span>
 <a id="__codelineno-26-5" name="__codelineno-26-5" href="#__codelineno-26-5"></a>
-<a id="__codelineno-26-6" name="__codelineno-26-6" href="#__codelineno-26-6"></a>curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>http://127.0.0.1:8080/api/v1/admin/kill-switch/gateway<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-26-6" name="__codelineno-26-6" href="#__codelineno-26-6"></a>curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>http://127.0.0.1:8080/api/v1/admin/gateways/TRADER01/kill-switch<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-26-7" name="__codelineno-26-7" href="#__codelineno-26-7"></a><span class="w">  </span>-H<span class="w"> </span><span class="s1">'Authorization: Bearer key-ops01-demo'</span><span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-26-8" name="__codelineno-26-8" href="#__codelineno-26-8"></a><span class="w">  </span>-H<span class="w"> </span><span class="s1">'Content-Type: application/json'</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-26-9" name="__codelineno-26-9" href="#__codelineno-26-9"></a><span class="w">  </span>-d<span class="w"> </span><span class="s1">'{"target_gateway_id": "TRADER01", "reason": "training exercise"}'</span>
+<a id="__codelineno-26-9" name="__codelineno-26-9" href="#__codelineno-26-9"></a><span class="w">  </span>-d<span class="w"> </span><span class="s1">'{"reason": "training exercise"}'</span>
 </code></pre></div>
 <p>Expected behavior:</p>
 <ul>
 <li>a trading key gets <code>403 ROLE_DENIED</code> on every <code>/admin/*</code> path</li>
+<li>halting a symbol the engine does not know returns <code>409 HALT_REJECTED</code> with
+  <code>message: "Unknown symbol: ..."</code> — the engine refused, your role is fine</li>
 <li><code>/admin/session/transition</code> blocks for the engine's verdict and never just
   times out silently</li>
 <li><code>/admin/orders</code> returns orders from every gateway, not just <code>OPS01</code>'s</li>
-<li><code>/admin/orders/{order_id}</code> either returns the full lifecycle or a clear
+<li><code>/admin/orders/{order_id}/audit</code> either returns the full lifecycle or a clear
   <code>503 AUDIT_INDEX_UNAVAILABLE</code> if no audit index is deployed</li>
 </ul>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: you can explain why role

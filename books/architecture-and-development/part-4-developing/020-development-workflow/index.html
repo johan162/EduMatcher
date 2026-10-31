@@ -3978,6 +3978,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../protocols-and-clients/part-2-specifications/070-websocket/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    WebSocket API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -7746,7 +7774,7 @@ and says so.</p>
 </code></pre></div>
 <p>Open <a href="http://localhost:8193">http://localhost:8193</a>. <strong>No <code>dev-env</code> needed</strong>: trader-gui has no
 bridge, and <code>vite.config.ts</code> proxies <code>/api</code> — REST and the WebSocket upgrades
-for <code>/events</code>, <code>/market-data</code> and <code>/admin/monitor</code> — straight to
+under <code>/api/v1/ws/</code> (<code>private</code>, <code>market-data</code>, <code>admin/monitor</code>) — straight to
 <code>http://localhost:8080</code>, the <code>desk</code> instance. Trading credentials are entered
 in the browser, so there is no key to inject.</p>
 <p>That also makes it the one app whose dev server is a true drop-in for the
