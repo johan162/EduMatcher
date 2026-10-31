@@ -1,3 +1,16 @@
+## [v0.66.2] - 2026-10-31
+
+Release Type: patch
+
+### 📋 Summary
+This patch improves log-server startup reliability so client processes are less likely to miss a server that is still starting.
+
+### 🐛 Bug Fixes
+- Fixed client processes permanently falling back to stdout when the log server was still starting by retrying discovery and starting the server before other profile processes
+
+### 🛠 Internal
+- Added regression tests for delayed log-server startup and process start ordering
+
 ## [v0.66.1] - 2026-10-31
 
 Release Type: minor
