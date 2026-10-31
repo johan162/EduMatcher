@@ -7611,11 +7611,14 @@ messages used by the interactive <code>pm-alf-console</code> terminal.</p>
 <p>Unlike <code>post_trade_gateway</code>, <code>market_data_gateway</code>, <code>api_gateways</code>, and
 <code>balf_gateway</code>, <code>pm-config-gen</code> has <strong>no <code>--alf-gateway*</code> flags</strong> — there is
 no CLI generator support for the <code>alf_gateway:</code> section. Generate the base
-config, then add <code>alf_gateway:</code> by hand:</p>
+config (<code>--no-mm-seed-quotes</code> because <code>MM01</code> is a market maker and the generator
+would otherwise emit price-less seed stubs that <code>pm-config-deploy</code> refuses),
+then add <code>alf_gateway:</code> by hand:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pm-config-gen<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">  </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span>MSFT<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">  </span>--participants<span class="w"> </span>TRADER01<span class="w"> </span>TRADER02<span class="w"> </span>MM01:MARKET_MAKER<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">  </span>--output<span class="w"> </span>engine_config.yaml<span class="w"> </span>--force
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">  </span>--participants<span class="w"> </span>TRADER01<span class="w"> </span>TRADER02<span class="w"> </span>OPS01:ADMIN<span class="w"> </span>MM01:MARKET_MAKER<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">  </span>--no-mm-seed-quotes<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">  </span>--output<span class="w"> </span>engine_config.yaml<span class="w"> </span>--force
 </code></pre></div>
 <p>Append the <code>alf_gateway:</code> section yourself:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nt">alf_gateway</span><span class="p">:</span>

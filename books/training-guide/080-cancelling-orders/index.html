@@ -7485,7 +7485,7 @@ state, inspecting resting orders, and managing the order lifecycle.</p>
 <p>Note the <code>order_id</code>, then:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>[TRADER01]&gt; CANCEL|ID=&lt;order_id&gt;|RTAG=CXL-REST-001
 </code></pre></div>
-<p>Expected: cancellation confirmed.</p>
+<p>Expected: <code>CANCELLED &lt;order_id&gt; rtag=CXL-REST-001</code>.</p>
 <p><code>RTAG</code> identifies this cancel request. The engine echoes it on the <code>CANCELLED</code>
 response or rejected ACK, which makes retries and concurrent cancel tests easier
 to audit.
@@ -7493,32 +7493,44 @@ The original order <code>TAG</code> is echoed separately, so a client can tell w
 was acted on and which cancel request completed.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> order cancelled; <code>ORDERS</code> no longer lists it as resting.</p>
 <h2 id="exercise-2-cancel-a-partially-filled-order">Exercise 2: Cancel a Partially Filled Order<a class="headerlink" href="#exercise-2-cancel-a-partially-filled-order" title="Permanent link">&para;</a></h2>
+<p>You need an order that fills only in part, so control what is on offer. From the
+operator console clear AAPL (stop any <code>pm-mm-bot</code> quoting it), and have
+<code>TRADER02</code> offer 300 shares:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>[GW_ADMIN|ADMIN]&gt; CANCEL_SYM|SYM=AAPL
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>[TRADER02]&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=300|PRICE=150.10|TIF=DAY
+</code></pre></div>
 <ol>
 <li>
-<p>Place a large limit buy at an aggressive price (to get a partial fill from the MM):
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=1000|PRICE=150.10|TIF=DAY
-</code></pre></div></p>
+<p>Place a large limit buy at the same price. It takes the 300 and the other
+   700 rest:
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=1000|PRICE=150.10|TIF=DAY
+</code></pre></div>
+   Expected: <code>FILL … qty=300 @150.1  remaining=700  [PARTIAL]</code>.</p>
 </li>
 <li>
-<p>After partial fill, cancel the remainder:
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a> [TRADER01]&gt; CANCEL|ID=&lt;order_id&gt;|RTAG=CXL-PARTIAL-001
+<p>Cancel the remainder:
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>[TRADER01]&gt; CANCEL|ID=&lt;order_id&gt;|RTAG=CXL-PARTIAL-001
 </code></pre></div></p>
 </li>
 </ol>
-<p>Expected: the unfilled portion is cancelled; the filled portion remains executed.</p>
+<p>Expected: <code>CANCELLED &lt;order_id&gt; rtag=CXL-PARTIAL-001</code>. The unfilled 700 are gone; the
+300 that filled stay executed. <code>ORDERS</code> shows the order as <code>CANCELLED</code> with
+<code>Qty</code> 1000 and <code>Rem</code> 700 — the quantity that was still open when it was
+cancelled, not the filled part.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> cancel succeeds; filled qty preserved.</p>
 <h2 id="exercise-3-compare-status-and-orders">Exercise 3: Compare STATUS and ORDERS<a class="headerlink" href="#exercise-3-compare-status-and-orders" title="Permanent link">&para;</a></h2>
 <p>Place a fresh resting order so the gateway has something to inspect:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>[TRADER01]&gt; NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=25|PRICE=419.00|TIF=DAY
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>[TRADER01]&gt; NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=25|PRICE=419.00|TIF=DAY
 </code></pre></div>
 <p>First run <code>STATUS</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>[TRADER01]&gt; STATUS
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>[TRADER01]&gt; STATUS
 </code></pre></div>
-<p><code>STATUS</code> gives a quick gateway/session summary: gateway ID, known symbols,
-cached order counts by lifecycle state, cached quote legs, and position symbols.
+<p><code>STATUS</code> gives a quick gateway summary: gateway ID, whether it is authenticated,
+known symbols, cached order counts by lifecycle state (for example
+<code>CANCELLED=3, NEW=1</code>), cached and active quote legs, and position symbols.
 It is useful for a fast health check, but it is not the detailed order table.</p>
 <p>Now inspect the actual orders:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>[TRADER01]&gt; ORDERS
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>[TRADER01]&gt; ORDERS
 </code></pre></div>
 <p><code>ORDERS</code> is the gateway command for detailed order inspection. It displays order
 ID, symbol, side, type, TIF, price, quantity, remaining quantity, and status for
@@ -7527,7 +7539,7 @@ orders belonging to your gateway.</p>
 debugging one specific order lifecycle.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> <code>STATUS</code> shows summary counts; <code>ORDERS</code> shows the full order row and ID.</p>
 <h2 id="exercise-4-inspect-resting-order-details">Exercise 4: Inspect Resting Order Details<a class="headerlink" href="#exercise-4-inspect-resting-order-details" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>[TRADER01]&gt; ORDERS
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>[TRADER01]&gt; ORDERS
 </code></pre></div>
 <p>Find your order in the table. The response includes:</p>
 <ul>
@@ -7538,7 +7550,7 @@ debugging one specific order lifecycle.</p>
 </ul>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> <code>ORDERS</code> returns full details for each resting order.</p>
 <h2 id="exercise-5-cancel-a-non-existent-order">Exercise 5: Cancel a Non-Existent Order<a class="headerlink" href="#exercise-5-cancel-a-non-existent-order" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>[TRADER01]&gt; CANCEL|ID=DOES_NOT_EXIST|RTAG=CXL-MISSING-001
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>[TRADER01]&gt; CANCEL|ID=DOES_NOT_EXIST|RTAG=CXL-MISSING-001
 </code></pre></div>
 <p>Expected: rejection, shown in the console as
 <code>REJECTED  DOES_NOT_EXIST code=ORDER_NOT_FOUND rtag=CXL-MISSING-001  Order not found</code>
@@ -7546,23 +7558,28 @@ debugging one specific order lifecycle.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> error message returned cleanly.</p>
 <h2 id="exercise-6-cancel-another-gateways-order">Exercise 6: Cancel Another Gateway's Order<a class="headerlink" href="#exercise-6-cancel-another-gateways-order" title="Permanent link">&para;</a></h2>
 <p>Try cancelling an order belonging to TRADER02:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>[TRADER01]&gt; CANCEL|ID=&lt;trader02_order_id&gt;|RTAG=CXL-NOTOWNER-001
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>[TRADER01]&gt; CANCEL|ID=&lt;trader02_order_id&gt;|RTAG=CXL-NOTOWNER-001
 </code></pre></div>
 <p>Expected: rejection — you can only cancel your own orders:
 <code>code=NOT_OWNER  Cannot cancel an order owned by another gateway</code>.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> cross-gateway cancel rejected.</p>
 <h2 id="exercise-7-admin-kill-switch">Exercise 7: Admin Kill Switch<a class="headerlink" href="#exercise-7-admin-kill-switch" title="Permanent link">&para;</a></h2>
 <p>From the admin gateway, cancel all orders for a specific gateway:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>[GW_ADMIN|ADMIN]&gt; KILL|GW=TRADER01
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>[GW_ADMIN|ADMIN]&gt; KILL|GW=TRADER01
 </code></pre></div>
-<p>All of TRADER01's resting orders are cancelled.</p>
+<p>The console reports <code>KILL OK  TRADER01  orders=&lt;n&gt;  quotes=&lt;n&gt;</code> — the number of
+orders and of market-maker quote legs cancelled — and each cancelled order
+appears on <code>TRADER01</code>'s console as <code>CANCELLED &lt;order_id&gt; reason=KILL_SWITCH</code>.</p>
 <p>Or cancel all orders for a specific symbol across all gateways:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>[GW_ADMIN|ADMIN]&gt; CANCEL_SYM|SYM=TSLA
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>[GW_ADMIN|ADMIN]&gt; CANCEL_SYM|SYM=TSLA
 </code></pre></div>
+<p>which answers <code>CANCEL_SYM OK  TSLA  orders=&lt;n&gt;  quotes=&lt;n&gt;</code>. Both commands
+also clear market-maker quotes, which is why they are the quickest way to empty
+a book before an experiment.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> admin commands successfully cancel orders.</p>
 <h2 id="exercise-8-inspect-symbols-metadata-from-gateway">Exercise 8: Inspect SYMBOLS Metadata from Gateway<a class="headerlink" href="#exercise-8-inspect-symbols-metadata-from-gateway" title="Permanent link">&para;</a></h2>
 <p>Request the symbol catalog:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>[TRADER01]&gt; SYMBOLS
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>[TRADER01]&gt; SYMBOLS
 </code></pre></div>
 <p>The table shows each symbol's tick size and its market-maker obligation
 settings (enforced or not, maximum spread in ticks, minimum quoted quantity) —

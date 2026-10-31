@@ -7689,6 +7689,8 @@ connection (<code>Ctrl+D</code> / <code>Ctrl+C</code> in <code>nc</code>) rather
 <a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>HELLO|CLIENT=x|PROTO=RALF1|ROLE=BAD
 <a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>SUB|CH=UNKNOWN|SYM=*
 </code></pre></div>
+<p>The gateway closes the connection after a handshake error, so open a fresh
+<code>nc</code> session for each line.</p>
 <p>Map observed ERR codes to operator action:</p>
 <ul>
 <li>AUTH_REQUIRED: client handshake bug or ordering error</li>

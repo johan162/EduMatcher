@@ -7482,7 +7482,7 @@ useful when several changes are outstanding for the same order.</p>
 <p>Reduce the order to 200 shares:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>[TRADER01]&gt; AMEND|ID=&lt;order_id&gt;|QTY=200|RTAG=AMD-DOWN-001
 </code></pre></div>
-<p>Expected: amendment accepted; new qty=200.</p>
+<p>Expected: <code>AMENDED &lt;order_id&gt;  price=419.5 qty=200 remaining=200 rtag=AMD-DOWN-001</code>. There is no <code>(priority reset)</code> note, because priority was kept.</p>
 <div class="admonition note">
 <p class="admonition-title">Priority preserved</p>
 <p>Reducing quantity does <strong>not</strong> lose time priority — your order keeps its
@@ -7495,7 +7495,7 @@ claim at the same price level.</p>
 <p>Move the order to a more aggressive price:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>[TRADER01]&gt; AMEND|ID=&lt;order_id&gt;|PRICE=419.70|RTAG=AMD-PRICE-001
 </code></pre></div>
-<p>Expected: amendment accepted; new price=419.70.</p>
+<p>Expected: <code>AMENDED &lt;order_id&gt;  price=419.7 qty=200 remaining=200 (priority reset) rtag=AMD-PRICE-001</code>.</p>
 <div class="admonition warning">
 <p class="admonition-title">Priority lost</p>
 <p>A price change <strong>always</strong> loses time priority — the order moves to the back
@@ -7524,31 +7524,47 @@ for the full explanation.</p>
 <p>Try setting quantity to zero:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>[TRADER01]&gt; AMEND|ID=&lt;order_id&gt;|QTY=0|RTAG=AMD-BAD-001
 </code></pre></div>
-<p>Expected: rejection — <code>code=QTY_OUT_OF_RANGE  Quantity must be positive</code>. The
+<p>Expected: <code>REJECTED … code=QTY_OUT_OF_RANGE rtag=AMD-BAD-001  Quantity must be positive</code>. The
 rejection carries a stable code (<code>REJECT_CODE</code> on the wire) as well as the
 text reason, and echoes your <code>rtag</code>.</p>
 <p>Try amending a non-existent order:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>[TRADER01]&gt; AMEND|ID=INVALID123|PRICE=100.00|RTAG=AMD-MISSING-001
 </code></pre></div>
-<p>Expected: rejection — <code>code=ORDER_NOT_FOUND  Order not found</code>.</p>
+<p>Expected: <code>REJECTED INVALID123 code=ORDER_NOT_FOUND rtag=AMD-MISSING-001  Order not found</code>.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> both invalid amendments rejected with clear errors.</p>
 <h2 id="exercise-6-amend-after-partial-fill">Exercise 6: Amend After Partial Fill<a class="headerlink" href="#exercise-6-amend-after-partial-fill" title="Permanent link">&para;</a></h2>
+<p>To amend a partially filled order you first need one. TSLA is a good symbol for
+it, as long as you control exactly what is resting there. From the operator
+console clear it (this cancels every order and quote on TSLA, and stop any
+<code>pm-mm-bot</code> quoting it), then have <code>TRADER02</code> offer 200 shares:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>[GW_ADMIN|ADMIN]&gt; CANCEL_SYM|SYM=TSLA
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>[TRADER02]&gt; NEW|SYM=TSLA|SIDE=SELL|TYPE=LIMIT|QTY=200|PRICE=250.00|TIF=DAY
+</code></pre></div>
 <ol>
 <li>
-<p>Place a large buy:
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=500|PRICE=150.10|TIF=DAY
+<p>From <code>TRADER01</code>, place a buy for 500 at the same price. Only 200 shares are
+   on offer, so it fills 200 and the other 300 rest:
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>[TRADER01]&gt; NEW|SYM=TSLA|SIDE=BUY|TYPE=LIMIT|QTY=500|PRICE=250.00|TIF=DAY
 </code></pre></div>
-   (This may immediately fill partially against the MM ask.)</p>
+   Expected: <code>FILL … qty=200 @250.0  remaining=300  [PARTIAL]</code>. Note the order
+   ID of this buy.</p>
 </li>
 <li>
-<p>If partially filled, amend it. <code>QTY=</code> in an <code>AMEND</code> is the order's new
-   <strong>total</strong> quantity, not the remainder. If, say, 500 shares filled against
-   the market maker's ask, the total must stay above 500; to cut the unfilled
-   part from 500 to 200, set the total to 700:
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a> [TRADER01]&gt; AMEND|ID=&lt;order_id&gt;|QTY=700|RTAG=AMD-PARTIAL-001
+<p>Amend it. <code>QTY=</code> in an <code>AMEND</code> is the order's new <strong>total</strong> quantity, not the
+   remainder, and 200 of it are already filled. Try to cut it back to the
+   filled amount, or below it:
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>[TRADER01]&gt; AMEND|ID=&lt;order_id&gt;|QTY=200|RTAG=AMD-PARTIAL-001
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>[TRADER01]&gt; AMEND|ID=&lt;order_id&gt;|QTY=150|RTAG=AMD-PARTIAL-002
 </code></pre></div>
-   Try <code>QTY=200</code> too: it is rejected with <code>code=QTY_OUT_OF_RANGE  New quantity
-   must exceed already-filled quantity</code>.</p>
+   Both are rejected with <code>code=QTY_OUT_OF_RANGE  New quantity must exceed
+   already-filled quantity</code>.</p>
+</li>
+<li>
+<p>Now raise the total to 700, which leaves 500 shares resting (700 − 200
+   filled):
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>[TRADER01]&gt; AMEND|ID=&lt;order_id&gt;|QTY=700|RTAG=AMD-PARTIAL-003
+</code></pre></div>
+   Expected: <code>AMENDED … price=250.0 qty=700 remaining=500 (priority reset)</code>.</p>
 </li>
 </ol>
 <div class="admonition note">
@@ -7556,7 +7572,7 @@ text reason, and echoes your <code>rtag</code>.</p>
 <p>The new qty must be <strong>strictly greater than</strong> the already-filled quantity. Setting it equal to the filled quantity is rejected — use <code>CANCEL</code> if you want the remainder gone. You cannot amend below
 what has already been executed.</p>
 </div>
-<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> amendment accepted on partially filled order.</p>
+<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> the amendment to 700 is accepted on the partially filled order, and the two amendments at or below the filled quantity are rejected.</p>
 <h2 id="exercise-7-see-queue-priority-change">Exercise 7: See Queue Priority Change<a class="headerlink" href="#exercise-7-see-queue-priority-change" title="Permanent link">&para;</a></h2>
 <p>The rules below are easy to state and easy to disbelieve. This exercise makes
 them visible, using two traders queued at the same price.</p>
@@ -7564,7 +7580,7 @@ them visible, using two traders queued at the same price.</p>
 a better price would trade first and spoil the experiment, so clear the
 symbol from the operator console (this cancels every order and quote on it)
 and stop any <code>pm-mm-bot</code> quoting AAPL:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>[GW_ADMIN|ADMIN]&gt; CANCEL_SYM|SYM=AAPL
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>[GW_ADMIN|ADMIN]&gt; CANCEL_SYM|SYM=AAPL
 </code></pre></div>
 <p>The seller in this exercise is the market maker's console, <code>MM_AAPL_01</code>. A
 market maker may send ordinary orders too, and using a third participant
@@ -7573,18 +7589,18 @@ real exchanges prevent.</p>
 <p><strong>Step 1 — build a queue.</strong> From <code>TRADER01</code>, then <code>TRADER02</code>, place the same
 buy at the same price. <code>TRADER01</code> is now <em>ahead</em> in the queue because it
 arrived first:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=149.50|TIF=DAY
-<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>[TRADER02]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=149.50|TIF=DAY
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=149.50|TIF=DAY
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>[TRADER02]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=149.50|TIF=DAY
 </code></pre></div>
 <p>Confirm both are resting at 149.50 in the operator console:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>[GW_ADMIN|ADMIN]&gt; BOOK|SYM=AAPL
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>[GW_ADMIN|ADMIN]&gt; BOOK|SYM=AAPL
 </code></pre></div>
 <p><strong>Step 2 — reduce quantity and prove priority survives.</strong> From <code>TRADER01</code>,
 amend <em>down</em> to 50:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>[TRADER01]&gt; AMEND|ID=&lt;TRADER01 order id&gt;|QTY=50|RTAG=AMD-KEEP-001
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>[TRADER01]&gt; AMEND|ID=&lt;TRADER01 order id&gt;|QTY=50|RTAG=AMD-KEEP-001
 </code></pre></div>
 <p>Now sell 50 into the bid:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>[MM_AAPL_01]&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=50|PRICE=149.50|TIF=DAY
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>[MM_AAPL_01]&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=50|PRICE=149.50|TIF=DAY
 </code></pre></div>
 <p>Because <code>TRADER01</code> kept its place, <code>TRADER01</code> is filled and <code>TRADER02</code> is
 untouched. Check who filled with <code>ORDERS</code> on each trader console.</p>
@@ -7592,15 +7608,15 @@ untouched. Check who filled with <code>ORDERS</code> on each trader console.</p>
 again so step 2's leftovers (TRADER02's untouched bid is still there, and
 already first in line) cannot decide the outcome, then rebuild the queue
 exactly as in step 1:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>[GW_ADMIN|ADMIN]&gt; CANCEL_SYM|SYM=AAPL
-<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=149.50|TIF=DAY
-<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>[TRADER02]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=149.50|TIF=DAY
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>[GW_ADMIN|ADMIN]&gt; CANCEL_SYM|SYM=AAPL
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=149.50|TIF=DAY
+<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>[TRADER02]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=149.50|TIF=DAY
 </code></pre></div>
 <p>Amend <code>TRADER01</code> <em>up</em>. The console confirms with <code>(priority reset)</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>[TRADER01]&gt; AMEND|ID=&lt;TRADER01 order id&gt;|QTY=200|RTAG=AMD-LOSE-001
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>[TRADER01]&gt; AMEND|ID=&lt;TRADER01 order id&gt;|QTY=200|RTAG=AMD-LOSE-001
 </code></pre></div>
 <p>Sell 100 into the bid again:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>[MM_AAPL_01]&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=149.50|TIF=DAY
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>[MM_AAPL_01]&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=149.50|TIF=DAY
 </code></pre></div>
 <p>This time <code>TRADER02</code> fills, because <code>TRADER01</code>'s increase sent it to the back
 of the queue at that price.</p>

@@ -7545,7 +7545,8 @@ this is the step that makes everything after it possible:</p>
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>pm-config-deploy<span class="w"> </span>engine_config.yaml
 <a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>pm-config-deploy<span class="w"> </span>--show<span class="w">               </span><span class="c1"># confirm where it landed</span>
 </code></pre></div>
-<p>Warnings and advisories are fine here; errors are not. Expect warning
+<p>Warnings and advisories are fine here; errors are not. Expect the warning
+<code>M032</code> (no read-only API credential — nothing in this venue uses one) and
 <code>C001</code> (no reference prices): the books have no price until the market makers
 quote, so the static collar only takes effect from the first trades on. If <code>pm-cverifier</code>
 reports an error, fix it before deploying — a refused deploy leaves the
@@ -7560,7 +7561,10 @@ errors and <code>pm-config-deploy</code> completes.</p>
 <a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>pm-clearing
 <a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>pm-audit<span class="w"> </span>--terminal
 <a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>pm-viewer<span class="w"> </span>--symbol<span class="w"> </span>AAPL
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>pm-alf-gwy<span class="w"> </span>-v
 </code></pre></div>
+<p><code>pm-alf-gwy</code> is the TCP gateway that <code>pm-ai-trader</code> logs on through in Exercise 6
+(Chapter 14); without it the AI traders report <code>cannot reach ALF gateway</code>.</p>
 <p><code>pm-scheduler</code> is left out on purpose: you will drive the trading day by hand
 from the operator console, as in Chapter 06, so the capstone works at any
 time of day.</p>

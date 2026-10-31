@@ -7480,8 +7480,12 @@ operations, admins also need targeted controls for:</p>
 </code></pre></div>
 <p>Verification:</p>
 <ol>
-<li>In the <code>TRADER02</code> terminal, confirm disconnect occurred.</li>
-<li>Reconnect:</li>
+<li>The <code>TRADER02</code> console is <strong>not told</strong> it was kicked; its prompt looks
+   unchanged. Confirm the disconnect from the operator side with <code>GATEWAYS</code>
+   (<code>TRADER02</code> now shows <code>no</code> under <em>Connected</em>), and from the trader side by
+   sending any order: it is refused with
+   <code>code=AUTH_REQUIRED  Gateway not connected: TRADER02</code>.</li>
+<li>Leave that console (<code>EXIT</code>) and reconnect with a fresh one:</li>
 </ol>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>TRADER02
 </code></pre></div>

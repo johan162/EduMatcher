@@ -8014,7 +8014,7 @@ book underrepresents true liquidity. EduMatcher shows child orders on the book
 </tr>
 <tr>
 <td><code>LEG&lt;i&gt;.TYPE</code></td>
-<td>Order type for leg <em>i</em> — <code>LIMIT</code>, <code>MARKET</code>, <code>STOP</code>, <code>STOP_LIMIT</code>, <code>FOK</code>, <code>ICEBERG</code>, <code>IOC</code>, or <code>TRAILING_STOP</code> (defaults to <code>LIMIT</code> if omitted)</td>
+<td>Order type for leg <em>i</em> — <code>LIMIT</code>, <code>MARKET</code>, <code>STOP</code>, <code>STOP_LIMIT</code>, <code>FOK</code>, or <code>IOC</code> (defaults to <code>LIMIT</code> if omitted). <code>ICEBERG</code> and <code>TRAILING_STOP</code> are not supported on a combo leg</td>
 </tr>
 <tr>
 <td><code>LEG&lt;i&gt;.QTY</code></td>
@@ -8022,11 +8022,11 @@ book underrepresents true liquidity. EduMatcher shows child orders on the book
 </tr>
 <tr>
 <td><code>LEG&lt;i&gt;.PRICE</code></td>
-<td>Limit price for leg <em>i</em> — required for legs typed <code>LIMIT</code>, <code>IOC</code>, or <code>FOK</code></td>
+<td>Limit price for leg <em>i</em> — required for legs typed <code>LIMIT</code>, <code>IOC</code>, <code>FOK</code> or <code>STOP_LIMIT</code>; refused on <code>MARKET</code> and <code>STOP</code></td>
 </tr>
 <tr>
 <td><code>LEG&lt;i&gt;.STOP</code></td>
-<td>Stop price for leg <em>i</em> — required for legs typed <code>STOP</code> or <code>STOP_LIMIT</code></td>
+<td>Stop price for leg <em>i</em> — required for legs typed <code>STOP</code> or <code>STOP_LIMIT</code>; refused on other types</td>
 </tr>
 <tr>
 <td><code>SMP=</code></td>
@@ -8035,13 +8035,13 @@ book underrepresents true liquidity. EduMatcher shows child orders on the book
 </tbody>
 </table>
 <div class="admonition note">
-<p class="admonition-title">Price/stop requirements are enforced differently at different points</p>
-<p>The exact set of leg order types that require <code>LEG&lt;i&gt;.PRICE</code> vs <code>LEG&lt;i&gt;.STOP</code>
-can differ slightly depending on whether the combo is submitted live via the
-gateway or seeded from <code>market_maker_combos</code> in <code>engine_config.yaml</code> at
-startup — treat the table above as a practical guide, and expect the engine
-to reject a combo outright (with a descriptive error) rather than silently
-accept an inconsistent leg.</p>
+<p class="admonition-title">One field rule for every entry point</p>
+<p>The price/stop requirements above are the same for a live combo from any
+gateway and for a combo seeded from <code>market_maker_combos</code> in
+<code>engine_config.yaml</code>: the engine applies the same per-type field table
+(<a href="../020-order-types/#fields-each-type-takes">Order Types — Fields each type takes</a>)
+and rejects the whole combo, with a descriptive error, rather than
+silently accept an inconsistent leg.</p>
 </div>
 <h3 id="what-happens-after-submission">What Happens After Submission<a class="headerlink" href="#what-happens-after-submission" title="Permanent link">&para;</a></h3>
 <ol>

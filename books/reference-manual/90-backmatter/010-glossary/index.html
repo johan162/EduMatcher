@@ -7605,16 +7605,51 @@ FIX") is text order entry, BALF (Binary ALF) binary order entry, CALF (Channel
 ALF) the market-data feed, RALF (Reconciliation ALF) post-trade dissemination,
 LALF (Log ALF) centralized logging and DC1 the drop-copy feed over TCP.
 See <a href="../../../protocols-and-clients/part-1-choosing-and-connecting/010-protocols-overview/">Protocols Overview</a>.</p>
+<p><strong>Arrival sequence (<code>arrival_seq</code>):</strong> The number an order book assigns to an
+order each time the order is placed on a heap, strictly increasing within one
+book. It, not the client-supplied <code>ts_ns</code>, decides queue position at a price, so
+a back-dated timestamp cannot jump the queue. A new number is taken whenever an
+order goes to the back of its queue: when it first rests, when a stop is armed,
+when an iceberg shows a fresh slice, and when an amend raises the quantity or
+changes the price. The engine reports it as <code>priority_seq</code>. See <a href="../../../architecture-and-development/part-2-inside-the-engine/010-order-book-deep-dive/">The Order Book:
+Deep Dive</a>.</p>
+<p><strong>Automated Corridor Expansion (ACE):</strong> The rule that governs how a symbol
+reopens after a halt. The reopening auction may only cross inside a corridor
+around the reference price; if the equilibrium price falls outside it, the call
+phase is extended and the corridor widened one rung of a ladder at a time, the
+last rung repeating until the price fits. Configured under
+<code>circuit_breaker_defaults.reopening</code> and tuned with <code>pm-config-gen --ace-*</code>.</p>
+<p><strong>Book checkpoint:</strong> The <code>system.book_checkpoint.&lt;SYM&gt;</code> message in which the
+engine publishes a symbol's whole book (resting orders in matching priority,
+armed stops in trigger order, trailing stops, and the last prices) at startup
+and at other defined moments, so that a replay can start from a known state
+rather than from the first message of the day.</p>
 <p><strong>Data directory (<code>EDUMATCHER_DATA_DIR</code>):</strong> The one directory in which an
 exchange instance keeps its deployed configuration, databases, logs and saved
 state. All processes of one exchange must use the same one. See
 <a href="../../part-1-command-line/010-processes-environment-and-ports/#environment-variables">Environment variables</a>.</p>
+<p><strong>Episode (audit replay):</strong> In <code>pm-audit-replay</code>, a group of causally connected
+facts with one business meaning: one order, one trade, one quote or one command,
+together with its outcome. Episodes sit between the raw events and the narrated
+story, and are kept in the episode index (<code>audit_replay.db</code>). See <a href="../../../operator-guide/part-6-observe-and-recover/030-audit-replay/">Audit
+Replay</a>.</p>
 <p><strong>Deployed configuration:</strong> The compiled configuration at
 <code>&lt;data directory&gt;/ref_data/engine_config.json</code> that every process reads. You
 edit <code>engine_config.yaml</code> and install it with <code>pm-config-deploy</code> (or
 <code>pm-setup</code>); editing the YAML alone changes nothing.</p>
 <p><strong>Engine (<code>pm-engine</code>):</strong> EduMatcher's matching engine, the single process that
 owns every order book and decides every trade.</p>
+<p><strong>Health beacon:</strong> The small message every long-running <code>pm-*</code> process pushes
+to <code>pm-monitor</code> every two seconds (<code>monitor.beacon_interval_sec</code>). <code>pm-monitor</code>
+judges each process from its beacons and publishes <code>health.snapshot</code> and
+<code>health.event</code>. A process whose beacons stop is first SILENT, then DEAD. See
+<a href="../../../operator-guide/part-6-observe-and-recover/060-health-monitor/">Health Monitoring</a>.</p>
+<p><strong>Lazy deletion:</strong> How an order book removes an order from the middle of a heap
+without searching for it: the entry is only marked invalid (<code>valid = False</code>),
+and whoever next reaches it at the top discards it (<code>_peek</code>). Because dead
+entries pile up deep in the book, <code>_compact_heaps</code> rebuilds the heaps once they
+hold more than twice the live entries plus 64. The consequence to remember is
+that the length of a heap is not the number of resting orders.</p>
 <p><strong>Gateway ID:</strong> The identity a participant presents when it connects, for
 example <code>TRADER01</code>. It is the participant's <code>id</code> from the configuration;
 messages and protocols call it <code>gateway_id</code>. See also <em>Gateway</em>.</p>
@@ -7656,6 +7691,11 @@ trades against resting orders. It "sweeps" the book.</p>
 <p><strong>Arbitrage:</strong> The simultaneous purchase and sale of the same (or equivalent) asset on different markets to profit from a price difference. Pure arbitrage is risk-free (buy cheap here, sell expensive there at the same moment); in practice, most arbitrage involves some timing or execution risk. Arbitrage is the mechanism by which prices on different venues are kept consistent, arbitrageurs quickly eliminate price discrepancies, making markets more efficient. <strong>Latency arbitrage</strong> is a specific form exploiting the time it takes for price changes to propagate between venues.</p>
 <p><strong>Ask / Offer:</strong> The price at which a seller is willing to sell. The best (lowest) ask is the top of the sell side of the order book.
 The collection of all active asks forms the sell side of the book.</p>
+<p><strong>AON (All-Or-None combo):</strong> A combo type that checks, at entry, whether every leg
+could fill completely right now. If so the legs are matched; if not, none is
+matched on entry and all rest as interest. It is a guard at entry only, not a
+guarantee that the legs execute atomically later, so a combo still carries leg
+risk. See <a href="../020-known-limitations/">Known Limitations</a>.</p>
 <p><strong>ATC (At-The-Close):</strong> An order TIF valid only during the closing auction. Expired automatically when the closing auction ends (transition to <code>CLOSED</code>).</p>
 <p><strong>ATO (At-The-Open):</strong> An order TIF valid only during the opening auction. Expired automatically when the opening auction ends (transition to <code>CONTINUOUS</code>).</p>
 <p><strong>Auction / Call Auction / Uncross / Fixing:</strong> A trading mechanism where orders are collected over a period and then matched simultaneously at a single equilibrium price. Contrasts with continuous matching where orders match one at a time as they arrive.</p>
@@ -7705,6 +7745,10 @@ stop-loss STOP, typically implemented as an OCO pair. See <a href="../../../part
 <p><strong>Cum-Dividend:</strong> The period during which a share trades <em>with</em> entitlement to a declared dividend, the buyer receives the upcoming payment. A share trades cum-dividend from the dividend announcement up to (but not including) the ex-dividend date. After the ex-dividend date the share trades <em>ex-dividend</em> and the buyer is not entitled to the payment. The price typically drops by approximately the dividend amount on the ex-dividend date.</p>
 <p><strong>CUSIP:</strong> A 9-character identifier for US and Canadian securities used in clearing and settlement. Analogous to ISIN.</p>
 <p><strong>Custody:</strong> The safekeeping of securities on behalf of investors by a broker or custodian bank, with records maintained at a central securities depository.</p>
+<p><strong>Crossed book:</strong> An order book in which the best bid is at or above the best
+ask. It is normal while a call phase (auction, halt) collects orders without
+matching, and is resolved by the uncross at one price. In continuous trading a
+crossed book is a bug, and the order-book invariant I2 checks for it.</p>
 <h3 id="d">D<a class="headerlink" href="#d" title="Permanent link">&para;</a></h3>
 <p><strong>Dark Fibre:</strong> Unused optical fibre cable already laid in the ground but not yet carrying data traffic ("lit"). Trading firms and data providers lease dark fibre from infrastructure companies and run their own optical transceivers, creating private, dedicated network links between financial data centres. Dark fibre links are used between major exchange co-location sites (e.g., NYSE in Mahwah and NASDAQ in Carteret) to reduce cross-venue latency for arbitrage and hedging strategies.</p>
 <p><strong>Dark Pool:</strong> A private trading venue where orders are not displayed in a public order book. Participants submit orders and are matched against other participants' orders, typically at the midpoint of the NBBO, with the trade only reported publicly after it occurs. Used by large institutional investors to trade without revealing their intentions and causing adverse price movement. Contrast with <em>lit markets</em> (public exchanges) where resting orders are visible to all. See <em>Regulatory Surveillance</em>.</p>

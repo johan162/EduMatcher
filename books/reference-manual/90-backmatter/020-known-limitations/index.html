@@ -3633,6 +3633,17 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#current-limitations-and-design-boundaries" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Current limitations and design boundaries
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#what-this-page-covers" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -7396,8 +7407,15 @@
 <p class="admonition-title">Learning objectives</p>
 <p>After reading this page you will understand:</p>
 <ul>
-<li>A real historical bug in how the engine reported fills for orders that
-  sweep <strong>multiple price levels</strong> in a single execution</li>
+<li>
+<p>What the exchange <strong>deliberately does not do</strong> today: the boundaries of
+  the model, collected in one table with a pointer to the chapter that
+  explains each</p>
+</li>
+<li>
+<p>A real historical bug in how the engine reported fills for orders that
+  sweep <strong>multiple price levels</strong> in a single execution</p>
+</li>
 <li>Why the bug affected only the <strong>average cost</strong> (and therefore unrealized
   P&amp;L) of the aggressing order, never the <strong>quantity</strong> of any position</li>
 <li>A worked numeric example that makes the size of the (former) error
@@ -7409,6 +7427,91 @@
 <p><strong>Prerequisite</strong>: Read <a href="../../../participant-guide/part-5-positions-and-results/010-positions-and-pnl/">Positions and P&amp;L</a> first — this page
 builds directly on the VWAP average-cost formula described there.</p>
 </div>
+<h2 id="current-limitations-and-design-boundaries">Current limitations and design boundaries<a class="headerlink" href="#current-limitations-and-design-boundaries" title="Permanent link">&para;</a></h2>
+<p>EduMatcher is a teaching exchange. Some things a production venue does are
+left out on purpose, and a few are simply not built yet. This table collects
+them in one place so a student, or an operator planning an exercise, does not
+have to find them by running into them. Each row names the chapter that
+explains the detail.</p>
+<table>
+<thead>
+<tr>
+<th>Area</th>
+<th>Boundary</th>
+<th>What to do instead / why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Combo orders</strong></td>
+<td>A combo is a parent with independent child orders on separate books, so it has <strong>leg risk</strong>: if one leg fills and the other never does, the combo ends <code>FAILED</code>, the other leg is cancelled, and the fill that happened stays a real, committed trade. There is no atomic combo book</td>
+<td>An <code>AON</code> combo only guards the <em>entry</em>: if every leg could fill completely right now the legs are matched, otherwise none is matched on entry and all rest as interest. It is not an atomic guarantee for later fills, so size legs with the risk in mind. See <a href="../../../architecture-and-development/part-1-architecture/020-guided-tour/">Guided Tour</a></td>
+</tr>
+<tr>
+<td><strong>Implied / synthetic orders</strong></td>
+<td>No spread book and no implied quotes. Combo handling is parent/child tracking over the outright books</td>
+<td>See <a href="../../../participant-guide/part-2-orders/040-implied-orders/">Implied Orders</a>, which describes the mechanism as a concept only</td>
+</tr>
+<tr>
+<td><strong>Amending</strong></td>
+<td>Only resting <code>LIMIT</code> and <code>ICEBERG</code> orders can be amended. A stop, trailing stop or any other type answers <code>Cannot amend &lt;TYPE&gt; orders</code></td>
+<td>Cancel and re-enter. An amend that raises the quantity or changes the price loses time priority by design. See <a href="../../../architecture-and-development/part-2-inside-the-engine/010-order-book-deep-dive/#amending-amend_order">The Order Book: Deep Dive</a></td>
+</tr>
+<tr>
+<td><strong>Stops before the first trade</strong></td>
+<td>A stop is compared with <code>last_trade_price</code> only. In a session with no trade yet every stop is armed, however near its trigger is to the market</td>
+<td>See the deep dive, <em>Stop Orders</em></td>
+</tr>
+<tr>
+<td><strong>Instruments</strong></td>
+<td>One order book per symbol, priced on an integer tick grid of 0–8 decimals. No contract multipliers (a design proposal only), no per-price tick table</td>
+<td>Model a different size with <code>outstanding_shares</code> and <code>tick_decimals</code></td>
+</tr>
+<tr>
+<td><strong>Positions and P&amp;L</strong></td>
+<td>P&amp;L is gross (no fees or commissions), tracked per gateway ID with no netting across gateways of one participant, and marked intraday. Settlement dates (T+1/T+2) are not tracked</td>
+<td>See <a href="../../../participant-guide/part-5-positions-and-results/010-positions-and-pnl/">Positions and P&amp;L</a></td>
+</tr>
+<tr>
+<td><strong>Engine concurrency</strong></td>
+<td>The engine is one single-threaded event loop and the single writer for a data directory: no hot standby and no failover. One data directory is one exchange</td>
+<td>A deliberate choice: it removes locks and makes matching deterministic. Restarting restores resting orders and combos from the persisted state. See <a href="../../../operator-guide/part-6-observe-and-recover/010-persistence/">Persistence</a></td>
+</tr>
+<tr>
+<td><strong>Lossy event bus</strong></td>
+<td>The <code>PUB</code>/<code>SUB</code> feeds drop messages for a subscriber that falls behind its high-water mark, silently. The engine's inbound <code>PULL</code> queue can also fill</td>
+<td>Every published message carries a per-topic sequence number in its envelope, so a consumer can detect a gap; the drop-copy feed adds a <code>from_seq</code> replay. See <a href="../../../architecture-and-development/part-1-architecture/010-architecture-overview/">Architecture Overview</a> and <a href="../../../architecture-and-development/part-2-inside-the-engine/020-order-flow-end-to-end/">Order Flow End to End</a></td>
+</tr>
+<tr>
+<td><strong>Drop-copy replay</strong></td>
+<td>The replay buffer holds the last <code>drop_copy_buffer_size</code> events (default <code>10000</code>). A consumer that was away longer receives only the subset still buffered</td>
+<td>Fill the gap from the audit log. See <a href="../../../protocols-and-clients/part-3-session-behaviour/060-drop-copy/">Drop Copy</a></td>
+</tr>
+<tr>
+<td><strong>Security</strong></td>
+<td>The internal bus has no authentication or encryption and binds to <code>127.0.0.1</code> by default. The <code>pm-index</code> command socket accepts any non-empty <code>gateway_id</code> and uses it only to route acks. BALF has no protocol-level encryption</td>
+<td>Keep the bus on a private interface; put external gateways behind TLS or a tunnel. See <a href="../../part-1-command-line/010-processes-environment-and-ports/#network-variables">Environment variables</a></td>
+</tr>
+<tr>
+<td><strong>BALF 1.0.0</strong></td>
+<td>No OCO, no multi-leg combos, no market-data broadcast, no sequence recovery (reconnect on a gap), symbols of at most 8 ASCII characters</td>
+<td>Use ALF for OCO and combos, <code>pm-md-gwy</code> for market data. See <a href="../../../operator-guide/part-5-gateways/020-balf-gateway/">BALF Gateway</a></td>
+</tr>
+<tr>
+<td><strong>Indices</strong></td>
+<td>At most 5 indices, cap-weighted</td>
+<td>See the <code>indices</code> block in <a href="../../part-3-configuration/010-schema-and-process-blocks/">Configuration Schema</a></td>
+</tr>
+<tr>
+<td><strong>Market-maker bot</strong></td>
+<td>The <code>passive</code> strategy does not skew for inventory, and cannot be combined with <code>inventory_skew</code>. Its notion of "covered" is judged from aggregated price levels</td>
+<td>See <a href="../../../participant-guide/part-3-market-making/030-the-market-maker-bot/">The Market-Maker Bot</a></td>
+</tr>
+</tbody>
+</table>
+<p>The rest of this chapter is a worked case study of one limitation that <em>was</em>
+fixed.</p>
+<hr />
 <h2 id="what-this-page-covers">What this page covers<a class="headerlink" href="#what-this-page-covers" title="Permanent link">&para;</a></h2>
 <p>EduMatcher is a teaching exchange, and part of teaching is being honest about
 the places where the implementation used to take a shortcut — and what it
@@ -7449,10 +7552,10 @@ aggressor object afterwards; it only ever existed in the separate list of
 <code>Trade</code> records.</p>
 <p>After matching, the publish loop walks <code>events</code> and emits an <code>order.fill</code>
 message for each fill. Because the aggressor object was appended N times (once
-per price level it consumed), a guard called <code>_published_fill_ids</code> ensures the
-engine still sends <strong>exactly one</strong> <code>order.fill</code> message for the aggressor
-instead of N duplicates — that part of the design was correct from the start
-and is unchanged today. What <em>that</em> single message reported was the bug:</p>
+per price level it consumed), a guard (a <code>seen</code> set in <code>_publish_dispatch</code>,
+tagged H5) ensures the engine still sends <strong>exactly one</strong> <code>order.fill</code> message
+for the aggressor instead of N duplicates — that part of the design was correct
+from the start and is unchanged today. What <em>that</em> single message reported was the bug:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># The bug: every fill message used the price of the LAST trade in the</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="c1"># sweep, no matter how many price levels the order actually walked through.</span>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="n">fill_price</span> <span class="o">=</span> <span class="n">from_ticks</span><span class="p">(</span><span class="n">book</span><span class="o">.</span><span class="n">last_trade_price</span><span class="p">,</span> <span class="n">order</span><span class="o">.</span><span class="n">symbol</span><span class="p">)</span>
@@ -7593,8 +7696,8 @@ the spread between the sweep's average price and its last price, multiplied
 by the swept quantity.</p>
 <div class="admonition note">
 <p class="admonition-title">Position quantity was never wrong</p>
-<p>The dedup guard (<code>_published_fill_ids</code>, H5) always guaranteed the quantity
-was counted <strong>once</strong>, so the net position size was always exact, even
+<p>The dedup guard (the <code>seen</code> set in <code>_publish_dispatch</code>, H5) always
+guaranteed the quantity was counted <strong>once</strong>, so the net position size was always exact, even
 before the price fix. Only the <strong>price</strong> attached to that quantity was
 ever approximate.</p>
 </div>
@@ -7667,6 +7770,17 @@ no additional allocation on the matching path itself, and <strong>no change</str
 how many messages a gateway receives per order. The dedup guard (H5) that
 ensures exactly one <code>order.fill</code> per order is unchanged; only the <em>price</em> it
 carries is now correct.</p>
+<p>Two properties of the message are worth stating precisely, because the
+aggregation could otherwise be misread:</p>
+<ul>
+<li><code>fill_qty</code> is the quantity matched <strong>in this dispatch</strong>, not a running total.
+  A resting order that is hit again later gets a second <code>order.fill</code> carrying
+  only the new quantity; its running total is <code>quantity - remaining_qty</code>, and
+  the engine keeps the running notional on the order itself.</li>
+<li>The fill carries the <code>trade_ids</code>, in match order, of the trades it
+  aggregates, so a consumer can join a private fill to the public tape and
+  recompute the VWAP itself.</li>
+</ul>
 <p>Because no test asserted the specific (wrong) last-trade-price value, fixing
 this required no changes to the existing test suite — only new tests asserting
 that a multi-level sweep's fill price equals the true VWAP.</p>

@@ -7571,19 +7571,46 @@ below the market maker's 249.75 bid on purpose: <code>BOOK</code> adds up all or
 one price, so at 249.75 you would see the market maker's 200 plus your 100.)</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> only peak quantity visible in the book.</p>
 <h2 id="exercise-6-trailing-stop">Exercise 6: Trailing Stop<a class="headerlink" href="#exercise-6-trailing-stop" title="Permanent link">&para;</a></h2>
-<p>A trailing stop follows the market by a fixed offset:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=TRAILING_STOP|QTY=100|TRAIL=0.20|TIF=DAY
+<p>A trailing stop follows the market by a fixed offset. To watch it work you
+control every trade, as in the setup above. Clear AAPL again and create a last
+traded price of 150.00:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>[GW_ADMIN|ADMIN]&gt; CANCEL_SYM|SYM=AAPL
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>[MM_AAPL_01]&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=150.00|TIF=DAY
+<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>[TRADER02]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TIF=DAY
 </code></pre></div>
-<p>No <code>STOP=</code> is given here, so the engine derives the initial trigger from the
-last traded price minus <code>TRAIL</code> (this works because AAPL has already traded
-in earlier exercises). If AAPL has no trade history yet, <code>TRAILING_STOP</code>
-without an explicit <code>STOP=</code> is <strong>rejected</strong> — pass <code>STOP=&lt;price&gt;</code> explicitly
-to set the initial trigger yourself, e.g. <code>STOP=149.50</code>.</p>
-<p>If AAPL rises to 150.50, the stop moves to 150.30 (150.50 − 0.20).
-If AAPL then falls to 150.30, the stop triggers and sells at market.</p>
+<p>Now place the trailing stop. No <code>STOP=</code> is given, so the engine derives the
+initial trigger from the last traded price minus <code>TRAIL</code>: 150.00 − 0.20 =
+<strong>149.80</strong>.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=TRAILING_STOP|QTY=100|TRAIL=0.20|TIF=DAY
+</code></pre></div>
+<div class="admonition note">
+<p class="admonition-title">Without a trade, no automatic trigger</p>
+<p>If AAPL has no trade history, a <code>TRAILING_STOP</code> without an explicit
+<code>STOP=</code> is <strong>rejected</strong> — pass <code>STOP=&lt;price&gt;</code> to set the initial trigger
+yourself, e.g. <code>STOP=149.80</code>.</p>
+</div>
+<p>Put a bid in the book for the stop to sell into once it fires (it becomes a
+market sell), well below the trigger so it does not interfere:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>[MM_AAPL_01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=149.70|TIF=DAY
+</code></pre></div>
+<p><strong>Let the price rise.</strong> A trade at 150.50 drags the stop up to 150.30
+(150.50 − 0.20); nothing happens visibly:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>[MM_AAPL_01]&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=150.50|TIF=DAY
+<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>[TRADER02]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.50|TIF=DAY
+</code></pre></div>
+<p><strong>Let it reverse.</strong> A trade at 150.30 reaches the (raised) stop. Had the stop
+stayed at 149.80 this trade would not have touched it:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>[MM_AAPL_01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.30|TIF=DAY
+<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>[TRADER02]&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=150.30|TIF=DAY
+</code></pre></div>
+<p><code>TRADER01</code>'s console now reports the stop's market sell, filled against the
+149.70 bid:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>[&lt;time&gt;] FILL      &lt;order_id&gt;  qty=100 @149.7  remaining=0  [FILLED]
+</code></pre></div>
 <p>The stop only moves <strong>up</strong> (for a sell) or <strong>down</strong> (for a buy) — never against
-you.</p>
-<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> trailing stop triggers after price reversal.</p>
+you — and, like a plain stop, it guarantees the exit, not the price: it was
+triggered at 150.30 and sold at 149.70.</p>
+<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> the trailing stop sat unfilled while the price rose, then sold at 149.70 after the reversal to 150.30.</p>
 <h2 id="order-type-summary">Order Type Summary<a class="headerlink" href="#order-type-summary" title="Permanent link">&para;</a></h2>
 <table>
 <thead>

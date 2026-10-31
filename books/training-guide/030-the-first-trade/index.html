@@ -7503,9 +7503,9 @@ those from the order you just sent):</p>
 summary: <code>TRADER01</code> is long 100 AAPL at 150.05, and <code>MM_AAPL_01</code> is short 100
 at the same price.</p>
 <p>Look at the market maker's console too:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>[&lt;time&gt;] FILL      &lt;ask leg id&gt;  qty=100 @150.05  remaining=400  [PARTIAL]
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>[&lt;time&gt;] CANCELLED &lt;bid leg id&gt;
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>[&lt;time&gt;] QUOTE INACTIVE_ASK_FILLED  AAPL-MM-001
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>[&lt;time&gt;] CANCELLED &lt;bid leg id&gt; reason=QUOTE_LEG_FILLED
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>[&lt;time&gt;] QUOTE INACTIVE_ASK_FILLED  AAPL-MM-001
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>[&lt;time&gt;] FILL      &lt;ask leg id&gt;  qty=100 @150.05  remaining=400  [PARTIAL]
 </code></pre></div>
 <p>Chapter 02 configured <code>MM_AAPL_01</code> with <code>quote_refresh_policy:
 INACTIVATE_ON_ANY_FILL</code>: the moment either side of its quote is hit, the
@@ -7534,7 +7534,8 @@ Now sell:</p>
 <p>Place a buy order below the current bid — it should rest on the book:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=200|PRICE=149.80|TIF=DAY
 </code></pre></div>
-<p>Expected: order acknowledged, status=NEW (resting).</p>
+<p>Expected: <code>ACK &lt;order id&gt;  order accepted</code>. The order rests, because its
+price is below the best ask (it is not marketable).</p>
 <p>Verify in the <strong>operator console</strong> — a trader cannot see the whole book:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>[GW_ADMIN|ADMIN]&gt; BOOK|SYM=AAPL
 </code></pre></div>

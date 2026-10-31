@@ -7847,7 +7847,11 @@ the fill price for the newly-opened side.</p>
 market maker quoting AAPL — the market orders below need someone to trade
 with. Chapters 05–11 cleared AAPL several times; re-quote it from
 <code>MM_AAPL_01</code> (the chapter 02 <code>QUOTE</code> command) or start
-<code>pm-mm-bot --symbol AAPL --gap 0.10 --qty 500</code>.</p>
+<code>pm-mm-bot --symbol AAPL --gap 0.10 --qty 500</code>. Prefer the bot: a manual
+quote under <code>INACTIVATE_ON_ANY_FILL</code> pulls its other side on the first fill
+(Chapter 03), so with a manual quote you must re-send <code>QUOTE</code> before every
+market order that needs the opposite side — the sell orders in Exercises 5
+and 6 would otherwise find no bid and be cancelled unfilled.</p>
 </div>
 <h3 id="exercise-1-start-the-clearing-service">Exercise 1: Start the clearing service<a class="headerlink" href="#exercise-1-start-the-clearing-service" title="Permanent link">&para;</a></h3>
 <p>If <code>pm-clearing</code> is still running from chapter 03, keep it and skip to
@@ -8134,8 +8138,9 @@ whose mark changed at EOD, and say which price each version was marked against.<
 <p>Expected:
 - <code>OK — no discrepancies found.</code> when consistent
 - Rows showing side / date / gateway / symbol / quantity-diff / notional-diff if not</p>
-<p>Reconcile across the whole week:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-41-1" name="__codelineno-41-1" href="#__codelineno-41-1"></a>pm-clearing-cli<span class="w"> </span>reconcile<span class="w"> </span>--from<span class="w"> </span><span class="s2">"</span><span class="k">$(</span>date<span class="w"> </span>+%F<span class="k">)</span><span class="s2">"</span><span class="w"> </span>--to<span class="w"> </span><span class="s2">"</span><span class="k">$(</span>date<span class="w"> </span>+%F<span class="k">)</span><span class="s2">"</span>
+<p>Reconcile across the last week (the <code>date -d</code> form is GNU <code>date</code>; on macOS use
+<code>date -v-7d +%F</code>):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-41-1" name="__codelineno-41-1" href="#__codelineno-41-1"></a>pm-clearing-cli<span class="w"> </span>reconcile<span class="w"> </span>--from<span class="w"> </span><span class="s2">"</span><span class="k">$(</span>date<span class="w"> </span>-d<span class="w"> </span><span class="s1">'7 days ago'</span><span class="w"> </span>+%F<span class="k">)</span><span class="s2">"</span><span class="w"> </span>--to<span class="w"> </span><span class="s2">"</span><span class="k">$(</span>date<span class="w"> </span>+%F<span class="k">)</span><span class="s2">"</span>
 </code></pre></div>
 <p>If discrepancies appear, use <code>trades</code> to investigate the affected gateway/symbol/date.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> you can run a full reconciliation and interpret the result.</p>

@@ -7532,17 +7532,21 @@ exercise.</p>
 </div>
 <h2 id="exercise-1-observe-session-phases">Exercise 1: Observe Session Phases<a class="headerlink" href="#exercise-1-observe-session-phases" title="Permanent link">&para;</a></h2>
 <p>Start the scheduler in rapid-fire mode to see all transitions quickly:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pm-scheduler<span class="w"> </span>--now
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pm-scheduler<span class="w"> </span>--now<span class="w"> </span>--delay<span class="w"> </span><span class="m">5</span>
 </code></pre></div>
-<p>Watch the transitions. The trader console does <strong>not</strong> subscribe to session
+<p>Watch the transitions (<code>--delay 5</code> leaves five seconds between them, long
+enough to query the phase after each one; the whole day takes about 25 seconds). The trader console does <strong>not</strong> subscribe to session
 broadcasts — it only answers an explicit <code>SESSION</code> query — so use the operator
 console, which does:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>[GW_ADMIN|ADMIN]&gt; SESSION_STATUS
 </code></pre></div>
-<p>Run it after each transition, or watch <code>pm-audit --terminal</code> in another
-terminal for the live <code>session.state</code> events:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>session.state  PRE_OPEN -&gt; OPENING_AUCTION
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>session.state  OPENING_AUCTION -&gt; CONTINUOUS
+<p>Run it after each transition, or watch the audit trail in another terminal for
+the live <code>session.state</code> events. The audit logger also prints order-book
+checkpoints at every phase change, so filter for the lines you want:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>pm-audit<span class="w"> </span>--terminal<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span><span class="s1">'\[session.state\]'</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>[2026-10-31T11:40:59.5+00:00] [session.state] [seq=3 eseq=40 msg=… cause=… chain=…] {"state": "OPENING_AUCTION", "prev_state": "PRE_OPEN"}
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>[2026-10-31T11:41:01.5+00:00] [session.state] [seq=4 eseq=52 msg=… cause=… chain=…] {"state": "CONTINUOUS", "prev_state": "OPENING_AUCTION"}
 </code></pre></div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> you see at least one session state transition.</p>
 <h2 id="freezeadvance-procedure-deterministic-session-control">Freeze/Advance Procedure (Deterministic Session Control)<a class="headerlink" href="#freezeadvance-procedure-deterministic-session-control" title="Permanent link">&para;</a></h2>
@@ -7562,8 +7566,8 @@ gateway to freeze on a phase and advance only when you are ready:</p>
    sequence, and from <code>CLOSED</code> the only legal move is to <code>PRE_OPEN</code> — so to
    reach <code>CONTINUOUS</code> go in two steps:</li>
 </ol>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>[GW_ADMIN|ADMIN]&gt; SESSION|STATE=PRE_OPEN
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>[GW_ADMIN|ADMIN]&gt; SESSION|STATE=CONTINUOUS
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>[GW_ADMIN|ADMIN]&gt; SESSION|STATE=PRE_OPEN
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>[GW_ADMIN|ADMIN]&gt; SESSION|STATE=CONTINUOUS
 </code></pre></div>
 <p>An illegal jump (for example <code>CLOSED</code> straight to <code>CONTINUOUS</code>) is
    silently ignored by the engine, and the console just prints <code>TIMEOUT</code>
@@ -7572,27 +7576,27 @@ gateway to freeze on a phase and advance only when you are ready:</p>
 <ol>
 <li>Confirm the change took effect with:</li>
 </ol>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>[GW_ADMIN|ADMIN]&gt; SESSION_STATUS
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>[GW_ADMIN|ADMIN]&gt; SESSION_STATUS
 </code></pre></div>
 <ol>
 <li>Run the TIF exercise's orders while frozen in that phase.</li>
 <li>When the exercise calls for a transition (e.g., DAY expiry at <code>CLOSED</code>,
    or <code>ATO</code>/<code>ATC</code> at auction phases), advance deliberately:</li>
 </ol>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>[GW_ADMIN|ADMIN]&gt; SESSION|STATE=CLOSING_AUCTION
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>[GW_ADMIN|ADMIN]&gt; SESSION|STATE=CLOSED
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>[GW_ADMIN|ADMIN]&gt; SESSION|STATE=CLOSING_AUCTION
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>[GW_ADMIN|ADMIN]&gt; SESSION|STATE=CLOSED
 </code></pre></div>
 <p>Using <code>SESSION|STATE=</code> this way means each exercise below runs in a
 reproducible phase instead of racing a free-running scheduler.</p>
 <h2 id="exercise-2-day-order-expiry">Exercise 2: DAY Order Expiry<a class="headerlink" href="#exercise-2-day-order-expiry" title="Permanent link">&para;</a></h2>
 <p>During CONTINUOUS (freeze there with <code>SESSION|STATE=CONTINUOUS</code> per the
 procedure above), place a DAY order:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=148.00|TIF=DAY
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=148.00|TIF=DAY
 </code></pre></div>
 <p>Advance the session to CLOSED — from CONTINUOUS that is two steps, through
 the closing auction:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>[GW_ADMIN|ADMIN]&gt; SESSION|STATE=CLOSING_AUCTION
-<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>[GW_ADMIN|ADMIN]&gt; SESSION|STATE=CLOSED
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>[GW_ADMIN|ADMIN]&gt; SESSION|STATE=CLOSING_AUCTION
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>[GW_ADMIN|ADMIN]&gt; SESSION|STATE=CLOSED
 </code></pre></div>
 <p>Watch the trader console right after the second transition: the order is
 reported <code>EXPIRED</code>.</p>
@@ -7600,19 +7604,24 @@ reported <code>EXPIRED</code>.</p>
 must not persist.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> DAY order expired at session close.</p>
 <h2 id="exercise-3-gtc-order-survives">Exercise 3: GTC Order Survives<a class="headerlink" href="#exercise-3-gtc-order-survives" title="Permanent link">&para;</a></h2>
-<p>Place a GTC order:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>[TRADER01]&gt; NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=50|PRICE=415.00|TIF=GTC
+<p>Exercise 2 left the market <code>CLOSED</code>, where every order is rejected. Open a new
+day first (<code>SESSION|STATE=PRE_OPEN</code>, then <code>SESSION|STATE=CONTINUOUS</code>) and place
+a GTC order:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>[TRADER01]&gt; NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=50|PRICE=415.00|TIF=GTC
 </code></pre></div>
-<p>This order survives the CLOSED phase and will still be resting when the next
-session opens.</p>
+<p>Close the day again (<code>SESSION|STATE=CLOSING_AUCTION</code>, then
+<code>SESSION|STATE=CLOSED</code>). This order survives the CLOSED phase and will still
+be resting when the next session opens. <code>ORDERS</code> on <code>TRADER01</code> now shows the
+DAY order from Exercise 2 as <code>EXPIRED</code> and this one still <code>NEW</code>.</p>
 <p>Operational note: GTC is used for standing instructions that remain valid until
 explicitly cancelled.</p>
-<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> GTC order remains after session restart.</p>
+<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> after the session reaches <code>CLOSED</code>, <code>ORDERS</code> still lists the GTC order as <code>NEW</code>.</p>
 <h2 id="exercise-4-ato-order">Exercise 4: ATO Order<a class="headerlink" href="#exercise-4-ato-order" title="Permanent link">&para;</a></h2>
-<p>Freeze in OPENING_AUCTION (<code>[GW_ADMIN|ADMIN]&gt; SESSION|STATE=OPENING_AUCTION</code> — from
-PRE_OPEN, this is a valid direct transition), then place an At-The-Open
-order:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=200|PRICE=150.50|TIF=ATO
+<p>The market is <code>CLOSED</code> after Exercise 3. Open a new day to <code>PRE_OPEN</code>
+(<code>SESSION|STATE=PRE_OPEN</code>), then freeze in OPENING_AUCTION
+(<code>[GW_ADMIN|ADMIN]&gt; SESSION|STATE=OPENING_AUCTION</code> — from PRE_OPEN, this is a
+valid direct transition), and place an At-The-Open order:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=200|PRICE=150.50|TIF=ATO
 </code></pre></div>
 <div class="admonition warning">
 <p class="admonition-title">ATO is rejected during PRE_OPEN, not just outside auction hours</p>
@@ -7628,21 +7637,26 @@ auction, it expires the moment the session leaves <code>OPENING_AUCTION</code>
 (e.g. when CONTINUOUS begins).</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> ATO order participates in the auction or expires.</p>
 <h2 id="exercise-5-atc-order">Exercise 5: ATC Order<a class="headerlink" href="#exercise-5-atc-order" title="Permanent link">&para;</a></h2>
-<p>First try an At-The-Close order during CONTINUOUS:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=149.00|TIF=ATC
+<p>Exercise 4 left the session in <code>OPENING_AUCTION</code>; move on to <code>CONTINUOUS</code>
+(<code>SESSION|STATE=CONTINUOUS</code>). First try an At-The-Close order during
+CONTINUOUS:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=149.00|TIF=ATC
 </code></pre></div>
 <p>It is rejected: <code>ATC orders only accepted during closing auction</code>. An <code>ATC</code>
 order is not parked until the close — it can only be entered <em>during</em> the
 closing auction. Freeze there and send it again:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>[GW_ADMIN|ADMIN]&gt; SESSION|STATE=CLOSING_AUCTION
-<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=149.00|TIF=ATC
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>[GW_ADMIN|ADMIN]&gt; SESSION|STATE=CLOSING_AUCTION
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=149.00|TIF=ATC
 </code></pre></div>
 <p>Now it is accepted and waits in the auction; it can only trade when the
 closing auction uncrosses, on the move to <code>CLOSED</code>.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> ATC is rejected in CONTINUOUS and accepted in CLOSING_AUCTION.</p>
 <h2 id="exercise-6-rejected-tif">Exercise 6: Rejected TIF<a class="headerlink" href="#exercise-6-rejected-tif" title="Permanent link">&para;</a></h2>
-<p>Try submitting an ATO order during CONTINUOUS:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TIF=ATO
+<p>Exercise 5 left the session in <code>CLOSING_AUCTION</code>. Take it through <code>CLOSED</code> and a
+fresh <code>PRE_OPEN</code> back to <code>CONTINUOUS</code> (<code>SESSION|STATE=CLOSED</code>,
+<code>SESSION|STATE=PRE_OPEN</code>, <code>SESSION|STATE=CONTINUOUS</code>), then try submitting an
+ATO order:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TIF=ATO
 </code></pre></div>
 <p>Expected: rejection — <code>ATO orders only accepted during opening auction</code>. The
 phase must be <strong>exactly</strong> <code>OPENING_AUCTION</code>; <code>PRE_OPEN</code> is not enough, even
@@ -7655,7 +7669,7 @@ summary below and the rule you saw in Exercise 4.</p>
 <tr>
 <th>Phase</th>
 <th>Accepts</th>
-<th>Cancels on <strong>entry</strong></th>
+<th>Order expiry at this boundary</th>
 </tr>
 </thead>
 <tbody>

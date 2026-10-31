@@ -7645,19 +7645,25 @@ not on the API key — the key is only a pointer to that gateway identity.</p>
 <p>See <a href="../../protocols-and-clients/part-2-specifications/060-rest-and-websocket/#auth-and-roles">Appendix: REST API Reference — Auth and roles</a>
 for the normative statement of this model, including how keys are provisioned.</p>
 <h2 id="exercise-1-generate-a-single-api-gateway-config">Exercise 1: Generate a Single API Gateway Config<a class="headerlink" href="#exercise-1-generate-a-single-api-gateway-config" title="Permanent link">&para;</a></h2>
-<p>Generate a local lab config with trading keys and one read-only dashboard key:</p>
+<p>Generate a local lab config with trading keys and one read-only dashboard key.
+<code>--sessions-enabled</code> lets Exercise 10 drive the session, and <code>--cb-levels L1:0.05:30</code>
+gives every symbol a 5% circuit-breaker level with a 30-minute halt, which the
+admin halt in the same exercise needs (a symbol with no circuit breaker
+configured refuses it with <code>HALT_REJECTED</code>, <code>AAPL has no circuit breaker configured</code>):</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pm-config-gen<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span>MSFT<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">  </span>--participants<span class="w"> </span>TRADER01<span class="w"> </span>TRADER02<span class="w"> </span>OPS01:ADMIN<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">  </span>--outstanding-shares<span class="w"> </span>AAPL:15400000000<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">  </span>--outstanding-shares<span class="w"> </span>MSFT:7430000000<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">  </span>--api-gateway<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">  </span>--api-gateway-name<span class="w"> </span>desk<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">  </span>--api-gateway-readonly-key<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">  </span>--api-gateway-host<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="w">  </span>--api-gateway-port<span class="w"> </span><span class="m">8080</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="w">  </span>--seed<span class="w"> </span><span class="m">20260624</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="w">  </span>--output<span class="w"> </span>engine_config.yaml<span class="w"> </span>--force
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">  </span>--sessions-enabled<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">  </span>--cb-levels<span class="w"> </span>L1:0.05:30<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">  </span>--api-gateway<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">  </span>--api-gateway-name<span class="w"> </span>desk<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="w">  </span>--api-gateway-readonly-key<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="w">  </span>--api-gateway-host<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="w">  </span>--api-gateway-port<span class="w"> </span><span class="m">8080</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="w">  </span>--seed<span class="w"> </span><span class="m">20260624</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="w">  </span>--output<span class="w"> </span>engine_config.yaml<span class="w"> </span>--force
 </code></pre></div>
 <div class="admonition note">
 <p class="admonition-title">Back up, check, deploy — then restart</p>
@@ -7687,6 +7693,10 @@ Exercise 10 uses it for every admin REST call.</p>
 </code></pre></div>
 <p>If the config contains only one <code>api_gateways</code> entry, <code>--instance</code> can be omitted.
 Use it anyway in labs so the selected process is explicit.</p>
+<p>Sessions are enabled, so the engine starts in <code>CLOSED</code> and refuses orders until
+the day is opened. Open it from the operator console (<code>pm-admin --id OPS01</code>,
+then <code>SESSION|STATE=PRE_OPEN</code> and <code>SESSION|STATE=CONTINUOUS</code>) before Exercise 4;
+Exercise 10 shows the REST equivalent.</p>
 <p>Expected behavior:</p>
 <ul>
 <li><code>pm-api-gwy</code> binds to <code>127.0.0.1:8080</code></li>
@@ -7845,7 +7855,7 @@ a trading key:</p>
 <code>/history/orders</code> is gateway-scoped but <code>/history/trades</code> is not.</p>
 <h2 id="exercise-9-observe-websocket-events">Exercise 9: Observe WebSocket Events<a class="headerlink" href="#exercise-9-observe-websocket-events" title="Permanent link">&para;</a></h2>
 <p>Connect to private events before submitting new orders:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>python3<span class="w"> </span>-m<span class="w"> </span>websockets<span class="w"> </span>ws://127.0.0.1:8080/api/v1/ws/private
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>python3<span class="w"> </span>-m<span class="w"> </span>websockets<span class="w"> </span>ws://127.0.0.1:8080/api/v1/ws/private<span class="w">   </span><span class="c1"># needs `pip install websockets`</span>
 </code></pre></div>
 <p>Once connected, the CLI waits for you to type. Send the authentication message
 as your first input, then press Enter:</p>
@@ -7909,8 +7919,9 @@ part of the path; the body carries only the optional <code>level</code> (and <co
 <a id="__codelineno-22-9" name="__codelineno-22-9" href="#__codelineno-22-9"></a>curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>http://127.0.0.1:8080/api/v1/admin/symbols/AAPL/resume<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-22-10" name="__codelineno-22-10" href="#__codelineno-22-10"></a><span class="w">  </span>-H<span class="w"> </span><span class="s1">'Authorization: Bearer key-ops01-demo'</span>
 </code></pre></div>
-<p>Request a session transition. This call now waits for the engine's verdict
-instead of firing and forgetting:</p>
+<p>Request a session transition. This call waits for the engine's verdict
+instead of firing and forgetting. If you have not opened the day yet, send
+<code>PRE_OPEN</code> first; the engine only accepts the legal next phase:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>curl<span class="w"> </span>-i<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>http://127.0.0.1:8080/api/v1/admin/session/transition<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a><span class="w">  </span>-H<span class="w"> </span><span class="s1">'Authorization: Bearer key-ops01-demo'</span><span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a><span class="w">  </span>-H<span class="w"> </span><span class="s1">'Content-Type: application/json'</span><span class="w"> </span><span class="se">\</span>

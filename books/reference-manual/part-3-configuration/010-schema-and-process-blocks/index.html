@@ -3648,17 +3648,6 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#configuring-pm-api-gwy" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Configuring pm-api-gwy
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
   <a href="#configuring-pm-dc-gwy" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3670,7 +3659,7 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#configuring-pm-api-gwy_1" class="md-nav__link">
+  <a href="#configuring-pm-api-gwy" class="md-nav__link">
     <span class="md-ellipsis">
       
         Configuring pm-api-gwy
@@ -8715,7 +8704,6 @@ subscribers. In the current implementation:</p>
 <code>pm-config-gen</code> can emit it with <code>--balf-gateway</code> and optional <code>--balf-*</code>
 overrides.  See <a href="../../../operator-guide/part-5-gateways/020-balf-gateway/">BALF TCP Gateway</a> for the full
 client-facing documentation.</p>
-<h2 id="configuring-pm-api-gwy">Configuring <code>pm-api-gwy</code><a class="headerlink" href="#configuring-pm-api-gwy" title="Permanent link">&para;</a></h2>
 <h2 id="configuring-pm-dc-gwy">Configuring <code>pm-dc-gwy</code><a class="headerlink" href="#configuring-pm-dc-gwy" title="Permanent link">&para;</a></h2>
 <p><code>pm-dc-gwy</code> reads an optional top-level <code>dc_gateway</code> block from the same
 <code>engine_config.yaml</code> file. This block is not consumed by <code>pm-engine</code>; it is
@@ -8780,7 +8768,7 @@ address for one run.</p>
 <code>pm-config-gen</code> can emit it with <code>--dc-gateway</code> and optional <code>--dc-*</code>
 overrides. See <a href="../../../operator-guide/part-5-gateways/060-drop-copy-gateway/">Drop-Copy Gateway</a> for the full
 client-facing documentation.</p>
-<h2 id="configuring-pm-api-gwy_1">Configuring <code>pm-api-gwy</code><a class="headerlink" href="#configuring-pm-api-gwy_1" title="Permanent link">&para;</a></h2>
+<h2 id="configuring-pm-api-gwy">Configuring <code>pm-api-gwy</code><a class="headerlink" href="#configuring-pm-api-gwy" title="Permanent link">&para;</a></h2>
 <p><code>pm-api-gwy</code> reads an optional top-level <code>api_gateways</code> block from the same
 <code>engine_config.yaml</code> file. This block is not consumed by <code>pm-engine</code>; it is
 consumed by the REST/WebSocket API gateway process.</p>
@@ -10561,6 +10549,14 @@ Ranges use mathematical interval notation: <code>(a, b)</code> is open (exclusiv
 <td>—</td>
 <td>—</td>
 <td>Named <code>pm-api-gwy</code> instances; see <a href="#configuring-pm-api-gwy">Configuring <code>pm-api-gwy</code></a></td>
+</tr>
+<tr>
+<td><code>monitor</code></td>
+<td>mapping</td>
+<td style="text-align: right;">No</td>
+<td>—</td>
+<td>—</td>
+<td><code>pm-monitor</code> and health-beacon settings; an absent block means defaults, with the monitor enabled; see <a href="#configuring-pm-monitor">Configuring <code>pm-monitor</code></a></td>
 </tr>
 </tbody>
 </table>

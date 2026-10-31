@@ -7568,6 +7568,7 @@ use <code>pm-dc-gwy</code> on 5590 instead of subscribing to 5557 directly.</p>
 <h2 id="exercise-5b-subscribe-to-the-raw-socket">Exercise 5b: Subscribe to the Raw Socket<a class="headerlink" href="#exercise-5b-subscribe-to-the-raw-socket" title="Permanent link">&para;</a></h2>
 <p>Understanding what the tools do for you is worth one level down. Connect a
 minimal ZMQ subscriber to the same socket <code>pm-dc-spy</code> reads:</p>
+<p>The snippet needs the <code>zmq</code> Python package (<code>pyzmq</code>); in a container shell or a Poetry checkout use <code>python</code>/<code>poetry run python</code>, and with <code>pipx</code> use <code>pipx runpip edumatcher</code>'s interpreter or <code>pip install pyzmq</code> in a virtual environment.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>python<span class="w"> </span>-<span class="w"> </span><span class="s">&lt;&lt;'PY'</span>
 <a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="s">import json</span>
 <a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="s">import zmq</span>
@@ -7589,7 +7590,7 @@ minimal ZMQ subscriber to the same socket <code>pm-dc-spy</code> reads:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=100
 </code></pre></div>
 <p>You should see one <code>drop_copy.event.&lt;gateway_id&gt;</code> message per participant on
-each side of the trade, each with its own monotonically increasing <code>seq</code>.
+each side of the trade, stamped with a monotonically increasing <code>seq</code> (one counter for the whole feed, so the two sides of one trade get consecutive numbers).
 Each message also carries <code>trade_ids</code>, the durable public trade ID that lets a
 risk or clearing consumer correlate its private execution with <code>trade.executed</code>.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> you received at least one drop-copy message directly from port 5557, distinct from anything <code>pm-audit</code> printed on port 5556.</p>

@@ -7785,10 +7785,11 @@ MSFT near 420 and TSLA near 250); have the instructor align the configuration
 before starting rather than treating a risk rejection as a strategy result.</p>
 <p>Copy commands without the console prompt. Replace <code>&lt;...&gt;</code> placeholders with
 actual IDs. Use a fresh <code>COMBO_ID</code> or <code>OCO_ID</code> on every repeat. Save the child
-IDs from acknowledgements: <code>ORDERS</code> shows working orders, not a history of
-filled orders or a parent-combo status table. Use fill/cancel messages and
-parent status messages as evidence; <code>pm-audit --terminal</code> is useful alongside
-the consoles.</p>
+IDs from acknowledgements: <code>ORDERS</code> lists every order the console has seen —
+the children of a combo or OCO included — with its latest status, but there is
+no parent-combo status row. Use fill/cancel messages and parent status messages
+as evidence; the operator console's <code>ORDERS|GW=&lt;gateway&gt;</code> shows what the engine
+really has resting, and <code>pm-audit --terminal</code> is useful alongside the consoles.</p>
 <h3 id="progression">Progression<a class="headerlink" href="#progression" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
@@ -7919,8 +7920,8 @@ This is the case people are surprised by, so cause it deliberately.</p>
 <p><strong>3.</strong> Look at what happened to the combo:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>[TRADER01]&gt; ORDERS
 </code></pre></div>
-<p>The MSFT fill message says <code>FILLED</code>; that leg is no longer in the working
-<code>ORDERS</code> list. The AAPL leg is still <code>NEW</code>, resting. The combo has moved to
+<p>The MSFT fill message says <code>FILLED</code>, and <code>ORDERS</code> now lists that leg as
+<code>FILLED</code>. The AAPL leg is still <code>NEW</code>, resting. The combo has moved to
 <code>PARTIALLY_MATCHED</code>.</p>
 <p><code>TRADER01</code> is now short 50 MSFT with no offsetting AAPL position — precisely
 the leg risk the combo was supposed to prevent. The AON guarantee was never
@@ -8373,7 +8374,11 @@ clean stop. Do not hand-edit persistence files to manufacture a result.</p>
    <code>COMBO_ID=RECOVER-GTC-01</code> and <code>TIF=GTC</code>. Also submit a passive OCO with
    <code>TIF=GTC</code>. Record parent labels and all child IDs.</li>
 <li>Stop and restart the engine using the same data directory. Reconnect
-   the gateways and restore <code>CONTINUOUS</code> if sessions are enabled.</li>
+   the gateways and restore <code>CONTINUOUS</code> if sessions are enabled. The restart
+   also places the configured market-maker seed quotes again, and they would
+   take the fill in step 4. Pull them with <code>KILL|GW=MM_AAPL_01</code>,
+   <code>KILL|GW=MM_MSFT_01</code> and <code>KILL|GW=MM_TSLA_01</code> — not <code>CANCEL_SYM</code>, which
+   would cancel your restored GTC orders as well.</li>
 <li>Cancel the restored combo by <code>COMBO_ID</code>; both working children must
    disappear, proving the parent-child relationship was restored.</li>
 <li>Fill one restored OCO leg completely. Its restored sibling must cancel,

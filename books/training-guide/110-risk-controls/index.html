@@ -5958,6 +5958,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#exercise-11-named-risk-levels-one-policy-many-symbols" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercise 11: Named Risk Levels — One Policy, Many Symbols
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#risk-control-summary" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -7571,7 +7582,9 @@ nothing, because every process reads the compiled artifact:</p>
 </code></pre></div>
 <p>If the reference price is 150.00 and the static collar is ±10%, anything
 above 165.00 or below 135.00 is rejected.</p>
-<p>Expected: rejection — price outside static collar.</p>
+<p>Expected: <code>REJECTED … code=COLLAR_BREACH  STATIC_COLLAR_BREACH: price 20000 ticks is
+outside [13500, 16500] ticks (±10% from reference 15000)</code> (prices are shown in
+ticks of 0.01).</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> out-of-range order rejected with collar error.</p>
 <h2 id="exercise-3-configure-circuit-breakers">Exercise 3: Configure Circuit Breakers<a class="headerlink" href="#exercise-3-configure-circuit-breakers" title="Permanent link">&para;</a></h2>
 <p>Circuit-breaker trigger percentages and halt durations come from a global
@@ -7733,7 +7746,7 @@ checklist without opening an interactive console:</p>
 <p>Cancel all orders for a misbehaving gateway:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>[GW_ADMIN|ADMIN]&gt; KILL|GW=TRADER02
 </code></pre></div>
-<p>Expected: all of TRADER02's resting orders cancelled.</p>
+<p>Expected: <code>KILL OK  TRADER02  orders=&lt;n&gt;  quotes=&lt;n&gt;</code> — all of TRADER02's resting orders cancelled.</p>
 <p>Or scope to a single symbol:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>[GW_ADMIN|ADMIN]&gt; KILL|GW=TRADER02|SYM=AAPL
 </code></pre></div>
@@ -7741,6 +7754,91 @@ checklist without opening an interactive console:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span><span class="nb">kill</span><span class="w"> </span>--gw<span class="w"> </span>TRADER02<span class="w"> </span>--sym<span class="w"> </span>AAPL
 </code></pre></div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> kill switch cancels targeted orders.</p>
+<h2 id="exercise-11-named-risk-levels-one-policy-many-symbols">Exercise 11: Named Risk Levels — One Policy, Many Symbols<a class="headerlink" href="#exercise-11-named-risk-levels-one-policy-many-symbols" title="Permanent link">&para;</a></h2>
+<p>Exercise 1 gave each symbol its own inline <code>collar:</code>. With 150 symbols that is
+150 copies of the same numbers. A <strong>risk level</strong> is a named collar profile that
+symbols share: define it once under <code>risk_controls.levels</code>, pick a
+<code>default_level</code> for symbols that name none, and let a volatile or thinly traded
+symbol opt into a looser one with <code>level:</code>.</p>
+<p>Replace the inline collars of AAPL and MSFT by this (keep <code>TSLA</code> and the other
+symbols as they are, with no <code>collar:</code> and no <code>level:</code>):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a><span class="nt">risk_controls</span><span class="p">:</span>
+<a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a><span class="w">  </span><span class="nt">default_level</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">L2</span>
+<a id="__codelineno-26-3" name="__codelineno-26-3" href="#__codelineno-26-3"></a><span class="w">  </span><span class="nt">levels</span><span class="p">:</span>
+<a id="__codelineno-26-4" name="__codelineno-26-4" href="#__codelineno-26-4"></a><span class="w">    </span><span class="nt">L1</span><span class="p">:</span><span class="w">                       </span><span class="c1"># loose: for volatile names</span>
+<a id="__codelineno-26-5" name="__codelineno-26-5" href="#__codelineno-26-5"></a><span class="w">      </span><span class="nt">collar</span><span class="p">:</span>
+<a id="__codelineno-26-6" name="__codelineno-26-6" href="#__codelineno-26-6"></a><span class="w">        </span><span class="nt">static_band_pct</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.30</span>
+<a id="__codelineno-26-7" name="__codelineno-26-7" href="#__codelineno-26-7"></a><span class="w">        </span><span class="nt">dynamic_band_pct</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.05</span>
+<a id="__codelineno-26-8" name="__codelineno-26-8" href="#__codelineno-26-8"></a><span class="w">    </span><span class="nt">L2</span><span class="p">:</span><span class="w">                       </span><span class="c1"># tight: the house default</span>
+<a id="__codelineno-26-9" name="__codelineno-26-9" href="#__codelineno-26-9"></a><span class="w">      </span><span class="nt">collar</span><span class="p">:</span>
+<a id="__codelineno-26-10" name="__codelineno-26-10" href="#__codelineno-26-10"></a><span class="w">        </span><span class="nt">static_band_pct</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.05</span>
+<a id="__codelineno-26-11" name="__codelineno-26-11" href="#__codelineno-26-11"></a><span class="w">        </span><span class="nt">dynamic_band_pct</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.02</span>
+<a id="__codelineno-26-12" name="__codelineno-26-12" href="#__codelineno-26-12"></a>
+<a id="__codelineno-26-13" name="__codelineno-26-13" href="#__codelineno-26-13"></a><span class="nt">symbols</span><span class="p">:</span>
+<a id="__codelineno-26-14" name="__codelineno-26-14" href="#__codelineno-26-14"></a><span class="w">  </span><span class="nt">MSFT</span><span class="p">:</span>
+<a id="__codelineno-26-15" name="__codelineno-26-15" href="#__codelineno-26-15"></a><span class="w">    </span><span class="nt">level</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">L1</span><span class="w">                 </span><span class="c1"># MSFT opts into the loose profile</span>
+</code></pre></div>
+<p>AAPL and TSLA name no level, so both get <code>default_level: L2</code>. Check, deploy and
+restart the engine, then reopen the market. <strong>Predict</strong> the outcome of each
+order before sending it (reference prices are 150, 420 and 250). Use buys below
+the market, which rest instead of trading, so that only the <em>static</em> band is
+being tested:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=1|PRICE=143.00|TIF=DAY
+<a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=1|PRICE=142.00|TIF=DAY
+<a id="__codelineno-27-3" name="__codelineno-27-3" href="#__codelineno-27-3"></a>[TRADER01]&gt; NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=1|PRICE=300.00|TIF=DAY
+<a id="__codelineno-27-4" name="__codelineno-27-4" href="#__codelineno-27-4"></a>[TRADER01]&gt; NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=1|PRICE=290.00|TIF=DAY
+<a id="__codelineno-27-5" name="__codelineno-27-5" href="#__codelineno-27-5"></a>[TRADER01]&gt; NEW|SYM=TSLA|SIDE=BUY|TYPE=LIMIT|QTY=1|PRICE=240.00|TIF=DAY
+<a id="__codelineno-27-6" name="__codelineno-27-6" href="#__codelineno-27-6"></a>[TRADER01]&gt; NEW|SYM=TSLA|SIDE=BUY|TYPE=LIMIT|QTY=1|PRICE=237.00|TIF=DAY
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Order</th>
+<th>Band that applies</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>AAPL 143.00</td>
+<td>L2 (default), ±5% of 150 = 142.50–157.50</td>
+<td>accepted</td>
+</tr>
+<tr>
+<td>AAPL 142.00</td>
+<td>same</td>
+<td><code>COLLAR_BREACH</code> — price 14200 ticks is outside [14250, 15750]</td>
+</tr>
+<tr>
+<td>MSFT 300.00</td>
+<td>L1, ±30% of 420 = 294–546</td>
+<td>accepted</td>
+</tr>
+<tr>
+<td>MSFT 290.00</td>
+<td>same</td>
+<td><code>COLLAR_BREACH</code> — outside [29399, 54600]</td>
+</tr>
+<tr>
+<td>TSLA 240.00</td>
+<td>L2 (default), ±5% of 250 = 237.50–262.50</td>
+<td>accepted</td>
+</tr>
+<tr>
+<td>TSLA 237.00</td>
+<td>same</td>
+<td><code>COLLAR_BREACH</code> — outside [23750, 26250]</td>
+</tr>
+</tbody>
+</table>
+<p>MSFT's 290.00 would have been rejected under L2 as well, and AAPL's 142.00 would
+have passed under L1: the level is the whole difference. An inline <code>collar:</code> on
+a symbol still overrides its level field by field, which is how <code>TSLA</code> in
+<a href="../../operator-guide/part-2-configure/010-the-configuration-workflow/#risk-controls-and-collars">The Configuration Workflow</a>
+sets only a tighter <code>dynamic_band_pct</code>.</p>
+<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> you predicted all six results
+before sending the orders, and can say which symbols the single line
+<code>default_level: L2</code> governs.</p>
 <h2 id="risk-control-summary">Risk Control Summary<a class="headerlink" href="#risk-control-summary" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -7754,7 +7852,7 @@ checklist without opening an interactive console:</p>
 <tbody>
 <tr>
 <td>Static collar</td>
-<td>Per symbol</td>
+<td>Per symbol (inline or via a named level)</td>
 <td>Order price vs reference</td>
 <td>Order rejected</td>
 </tr>

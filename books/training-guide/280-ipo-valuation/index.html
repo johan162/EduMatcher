@@ -6583,6 +6583,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#exercise-8-no-market-maker-the-crowd-sets-the-price" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercise 8: No Market Maker — the Crowd Sets the Price
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#summary" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -7489,7 +7500,7 @@ auction show whether the price was right.</p>
 <ul>
 <li>Chapter 00 completed (EduMatcher installed). Exercises 1–6 need nothing
   else: <code>pm-valuation</code> runs without an exchange.</li>
-<li>Exercise 7 lists and trades the stock. It needs chapters 01–03 (a running
+<li>Exercises 7 and 8 list and trade the stock. They need chapters 01–03 (a running
   exchange with a market maker and two trader consoles) and the auctions
   chapter (<a href="../070-auctions/">Auctions</a>), because the new stock opens in the
   opening auction.</li>
@@ -7763,7 +7774,9 @@ heuristic says, or too high, as the Monte Carlo suggests in almost one draw
 out of two?</p>
 <div class="admonition note">
 <p class="admonition-title">If <code>--list</code> refuses</p>
-<p>The refusals are <code>pm-new-symbol</code>'s: the exchange is still running, the
+<p>The refusals are <code>pm-new-symbol</code>'s: the deployed configuration is a bundled
+example (<code>--example …</code>), which is never edited — deploy a copy, as in
+Exercise 8; the exchange is still running, the
 data directory holds saved state for TORN from an earlier run, or the
 configuration has several market-maker gateways and one must be chosen for
 the seed quote. See
@@ -7771,6 +7784,51 @@ the seed quote. See
 last one, run the command from the report's Next step section yourself,
 adding <code>--mm-gateway-id</code>.</p>
 </div>
+<h2 id="exercise-8-no-market-maker-the-crowd-sets-the-price">Exercise 8: No Market Maker — the Crowd Sets the Price<a class="headerlink" href="#exercise-8-no-market-maker-the-crowd-sets-the-price" title="Permanent link">&para;</a></h2>
+<p>In Exercise 7 a market maker's seed quote (1000 @ 104.90 / 1000 @ 105.10)
+framed the opening around the offer price. A real IPO has no such anchor:
+the first price is whatever the orders in the auction say. List the same stock
+into a configuration <strong>without</strong> a market maker's quotes and see what the
+auction does with nothing but your classmates' orders.</p>
+<p><code>--list</code> refuses to edit a bundled example, so work on a copy (Chapter 00 says
+where the examples live; with a container install, <code>docs/examples/…</code> is inside
+the container):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>pm-opctl-cli<span class="w"> </span>stop
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>cp<span class="w"> </span>docs/examples/ref_data/s3-nominal-nomm-setup/engine_config.yaml<span class="w"> </span>classroom.yaml
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>pm-config-deploy<span class="w"> </span>classroom.yaml
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>pm-valuation<span class="w"> </span>--case<span class="w"> </span>tornfalk<span class="w"> </span>--no-tui<span class="w"> </span>--mode<span class="w"> </span>deterministic<span class="w"> </span>--list
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>[output]
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>Listed TORN in …/classroom.yaml: IPO price 105.00, 158095238 shares outstanding
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>  no seed quote: the book opens empty
+</code></pre></div>
+<p><code>s3-nominal-nomm</code> has sessions enabled (the opening auction needs them) and its
+market maker has no seeded quotes, so <code>TORN</code> opens on an empty book. Start the
+exchange, then from the operator console (<code>OPS01</code>) go to <code>PRE_OPEN</code> and on to
+<code>OPENING_AUCTION</code>. Enter these three orders, all <code>TIF=ATO</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>[TRADER01]&gt; NEW|SYM=TORN|SIDE=BUY|TYPE=LIMIT|QTY=1000|PRICE=125.00|TIF=ATO
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>[TRADER02]&gt; NEW|SYM=TORN|SIDE=SELL|TYPE=LIMIT|QTY=600|PRICE=110.00|TIF=ATO
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>[TRADER02]&gt; NEW|SYM=TORN|SIDE=SELL|TYPE=LIMIT|QTY=600|PRICE=120.00|TIF=ATO
+</code></pre></div>
+<p><strong>Predict the opening price and the fills before moving on</strong>, using the
+equilibrium rule from <a href="../070-auctions/">Auctions</a>. Then open continuous trading
+with <code>SESSION|STATE=CONTINUOUS</code>.</p>
+<div class="admonition tip">
+<p class="admonition-title">Answer</p>
+<p>At 110.00 only 600 shares are offered against 1000 wanted, so 600 trade. At
+120.00 and at 125.00 all 1000 buy shares can trade (1200 are offered, 200
+too many). The maximum matched quantity, 1000, is first reached at <strong>120.00</strong>,
+and the engine keeps the lowest of tied prices, so TORN opens at 120.00:
+<code>TRADER01</code> is filled 1000 @120.0; <code>TRADER02</code> sells 600 + 400 @120.0 and the
+last 200 of its 120.00 offer expire unfilled, because it is an <code>ATO</code> order.
+The book is empty again.</p>
+</div>
+<p>Compare the result with the offer price (105.00) and with Exercise 7. A first
+price of 120.00 is 14% above the offer, which is the "pop" the report predicted
+(29.8% expected), reached without any quote from the exchange. Change
+<code>TRADER01</code>'s bid to 115.00 and run the day again: which price do you predict
+now, and does the stock open above or below the offer?</p>
+<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> TORN listed with no seed quote, opening price predicted as 120.00 before it printed, and you can say why the answer is 120.00 and not 125.00.</p>
 <h2 id="summary">Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h2>
 <table>
 <thead>

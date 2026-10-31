@@ -7513,7 +7513,7 @@ after the next exercise:</p>
 </code></pre></div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> stats service running and <code>$EDUMATCHER_DATA_DIR/stats.db</code> exists.</p>
 <h2 id="exercise-2-generate-some-trading-activity">Exercise 2: Generate Some Trading Activity<a class="headerlink" href="#exercise-2-generate-some-trading-activity" title="Permanent link">&para;</a></h2>
-<p>Ensure MMs and (optionally) AI traders are running. Execute a few manual trades:</p>
+<p>Ensure <code>pm-mm-bot</code> (or AI traders) is quoting. A manual market-maker quote is pulled after its first fill (Chapter 03), so the second and third orders below would find no liquidity if you rely on one. Execute a few manual trades:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=100
 <a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=MARKET|QTY=50
 <a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>[TRADER01]&gt; NEW|SYM=MSFT|SIDE=BUY|TYPE=MARKET|QTY=200

@@ -7454,7 +7454,8 @@ observe how auction orders are collected and matched in a single uncrossing even
 <h2 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h2>
 <ul>
 <li>Chapters 01–06 completed.</li>
-<li>Scheduler control available so you can observe auction phases.</li>
+<li><code>pm-engine</code>, both trader consoles, the market-maker gateway and the operator
+  console running, and <strong>no</strong> <code>pm-scheduler</code> (you drive the phases by hand).</li>
 </ul>
 <h2 id="background">Background<a class="headerlink" href="#background" title="Permanent link">&para;</a></h2>
 <p>Auctions concentrate liquidity at a single price. All orders are collected
@@ -7496,10 +7497,18 @@ check the book is empty:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>[TRADER02]&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=400|PRICE=149.80|TIF=ATO
 <a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>[TRADER02]&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=150.30|TIF=ATO
 </code></pre></div></p>
+<p>Add one order that cannot cross, for Exercise 3 — a bid for MSFT far below the
+market maker's ask of about 420:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>[TRADER01]&gt; NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=400.00|TIF=ATO
+</code></pre></div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> orders accepted, resting in auction book.</p>
 <h2 id="exercise-2-trigger-the-auction-uncrossing">Exercise 2: Trigger the Auction Uncrossing<a class="headerlink" href="#exercise-2-trigger-the-auction-uncrossing" title="Permanent link">&para;</a></h2>
-<p>When the scheduler transitions from OPENING_AUCTION → CONTINUOUS, all crossing
-orders match at the equilibrium price.</p>
+<p>When the session leaves OPENING_AUCTION for CONTINUOUS, all crossing orders
+match at the equilibrium price. Nothing has traded yet — the orders from
+Exercise 1 are collected, not matched. Work out the result by hand first, then
+fire the uncrossing:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>[GW_ADMIN|ADMIN]&gt; SESSION|STATE=CONTINUOUS
+</code></pre></div>
 <p>For the exact orders entered in Exercise 1, here is the full calculation
 (verified against <code>engine/auction.py</code>):</p>
 <table>
@@ -7555,42 +7564,64 @@ and reports <code>[PARTIAL]</code>; its unfilled 100, and TRADER02's sell at 150
 expire, because an <code>ATO</code> order only lives for the opening auction.</p>
 <p>What to observe: identify the one common execution price printed across all
 fill events, and confirm it equals <code>149.80</code> and the total filled quantity
-equals <code>400</code> (300 from TRADER01's first order + 100 remaining from the
-second, against TRADER02's 400-share sell).</p>
+equals <code>400</code> (300 from TRADER01's first order + 100 from the
+second, against TRADER02's 400-share sell). On <code>TRADER01</code> you see:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>FILL      &lt;first order id&gt;   qty=300 @149.8  remaining=0    [FILLED]
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>FILL      &lt;second order id&gt;  qty=100 @149.8  remaining=100  [PARTIAL]
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>EXPIRED   &lt;second order id&gt;  (DAY order — trading day ended)
+</code></pre></div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> all fills report execution price <code>149.80</code> and matched quantity <code>400</code>.</p>
 <h2 id="exercise-3-unfilled-auction-orders">Exercise 3: Unfilled Auction Orders<a class="headerlink" href="#exercise-3-unfilled-auction-orders" title="Permanent link">&para;</a></h2>
-<p>If an ATO order does not cross (e.g. a buy at 148.00 with no matching sell),
-it expires when CONTINUOUS begins.</p>
-<p>Place:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>[TRADER01]&gt; NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=400.00|TIF=ATO
+<p>An ATO order that does not cross expires when the auction ends, instead of
+carrying on into continuous trading. You entered one in Exercise 1: the MSFT
+bid at 400.00. The uncrossing in Exercise 2 left it unfilled — the MSFT market
+maker from chapter 02 asks about 420, far above 400 — and the console reported
+it <code>EXPIRED</code> in the same burst as the AAPL fills. Confirm it:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>[TRADER01]&gt; ORDERS
 </code></pre></div>
-<p>After the auction uncrosses this order is not filled — the MSFT market maker
-from chapter 02 asks about 420, far above 400 — and the console reports it
-<code>EXPIRED</code>. (The console's explanation reads <em>DAY order — trading day ended</em>;
-for an <code>ATO</code> order, read it as <em>the opening auction ended</em>.)</p>
+<p>The MSFT order is listed with status <code>EXPIRED</code>. (The console's explanation
+reads <em>DAY order — trading day ended</em>; for an <code>ATO</code> order, read it as <em>the
+opening auction ended</em>.)</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> the unmatched ATO order expired at the start of CONTINUOUS.</p>
 <h2 id="exercise-4-closing-auction">Exercise 4: Closing Auction<a class="headerlink" href="#exercise-4-closing-auction" title="Permanent link">&para;</a></h2>
 <p>Move the session to the closing auction:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>[GW_ADMIN|ADMIN]&gt; SESSION|STATE=CLOSING_AUCTION
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>[GW_ADMIN|ADMIN]&gt; SESSION|STATE=CLOSING_AUCTION
 </code></pre></div>
 <p>Then enter:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.80|TIF=ATC
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>[TRADER02]&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=150.60|TIF=ATC
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.80|TIF=ATC
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>[TRADER02]&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=150.60|TIF=ATC
 </code></pre></div>
 <p>Close the day; on the transition to CLOSED the auction uncrosses and fills
 are generated:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>[GW_ADMIN|ADMIN]&gt; SESSION|STATE=CLOSED
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>[GW_ADMIN|ADMIN]&gt; SESSION|STATE=CLOSED
 </code></pre></div>
+<p>Both orders fill in full at one price, <strong>150.60</strong>: the candidates 150.60 and
+150.80 both match 100 shares with no surplus, and the engine keeps the lower of
+two tied prices, exactly as in Exercise 2. Each console prints
+<code>FILL … qty=100 @150.6 remaining=0 [FILLED]</code>.</p>
 <p>Remember to reopen the market (<code>PRE_OPEN</code>, then <code>CONTINUOUS</code>) before the next
 chapter.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> closing auction produces fills.</p>
 <h2 id="exercise-5-gtc-orders-in-auctions">Exercise 5: GTC Orders in Auctions<a class="headerlink" href="#exercise-5-gtc-orders-in-auctions" title="Permanent link">&para;</a></h2>
-<p>GTC orders participate in auctions alongside ATO/ATC orders:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=50|PRICE=150.00|TIF=GTC
+<p>GTC orders participate in auctions alongside ATO/ATC orders. Prove it for the
+opening auction. After Exercise 4 the market is <code>CLOSED</code>; move to <code>PRE_OPEN</code>
+(which accepts GTC but not ATO), clear AAPL with <code>CANCEL_SYM|SYM=AAPL</code>, and
+rest a GTC bid:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>[GW_ADMIN|ADMIN]&gt; SESSION|STATE=PRE_OPEN
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=50|PRICE=150.00|TIF=GTC
 </code></pre></div>
-<p>This order participates in both opening and closing auctions, and rests during
-CONTINUOUS trading.</p>
-<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> GTC order fills in auction or continues resting.</p>
+<p>Move to <code>OPENING_AUCTION</code>, offer 50 shares at the same price as an ATO order,
+and uncross:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>[GW_ADMIN|ADMIN]&gt; SESSION|STATE=OPENING_AUCTION
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>[TRADER02]&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=50|PRICE=150.00|TIF=ATO
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>[GW_ADMIN|ADMIN]&gt; SESSION|STATE=CONTINUOUS
+</code></pre></div>
+<p>Both consoles report <code>FILL … qty=50 @150.0 [FILLED]</code>: the GTC bid, placed
+before the auction began, was matched in it. The same holds in the closing
+auction — rest a GTC bid during <code>CONTINUOUS</code>, send an <code>ATC</code> sell at the same
+price after <code>SESSION|STATE=CLOSING_AUCTION</code>, and they trade when the session
+moves to <code>CLOSED</code>.</p>
+<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> the GTC bid filled in the opening auction against an ATO order.</p>
 <h2 id="equilibrium-price-rules">Equilibrium Price Rules<a class="headerlink" href="#equilibrium-price-rules" title="Permanent link">&para;</a></h2>
 <p>The auction algorithm scans candidate prices from lowest to highest and
 selects the price that:</p>

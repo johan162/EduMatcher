@@ -7789,9 +7789,10 @@ Without it <code>pm-index</code> will refuse to start.</p>
 <a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>index ready index_id=EDU100 constituents=3 level=1000.0
 </code></pre></div>
 <p>(Each line is preceded by the usual timestamp, level and logger name.)</p>
-<p>The <code>INIT</code> record has been written to <code>data/indexes/EDU100_history.jsonl</code>.
+<p>The <code>INIT</code> record has been written to <code>$EDUMATCHER_DATA_DIR/indexes/EDU100_history.jsonl</code>
+(the config's relative <code>data/indexes/...</code> path resolves under the data directory).
 Verify:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>cat<span class="w"> </span>data/indexes/EDU100_history.jsonl
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>cat<span class="w"> </span><span class="s2">"</span><span class="nv">$EDUMATCHER_DATA_DIR</span><span class="s2">/indexes/EDU100_history.jsonl"</span>
 </code></pre></div>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="p">{</span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"INIT"</span><span class="p">,</span><span class="w"> </span><span class="nt">"ts_ns"</span><span class="p">:</span><span class="w"> </span><span class="err">...</span><span class="p">,</span><span class="w"> </span><span class="nt">"index_id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"EDU100"</span><span class="p">,</span><span class="w"> </span><span class="nt">"base_value"</span><span class="p">:</span><span class="w"> </span><span class="mf">1000.0</span><span class="p">,</span><span class="w"> </span><span class="nt">"divisor"</span><span class="p">:</span><span class="w"> </span><span class="mf">7007100000.0</span><span class="p">,</span><span class="w"> </span><span class="nt">"constituents"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"AAPL"</span><span class="p">,</span><span class="w"> </span><span class="s2">"MSFT"</span><span class="p">,</span><span class="w"> </span><span class="s2">"TSLA"</span><span class="p">],</span><span class="w"> </span><span class="nt">"level"</span><span class="p">:</span><span class="w"> </span><span class="mf">1000.0</span><span class="p">}</span>
 </code></pre></div>
@@ -7800,8 +7801,13 @@ Verify:</p>
 <p>Connect your TRADER01 gateway and run the <code>INDEX</code> command:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>[TRADER01]&gt; INDEX
 </code></pre></div>
-<p>Expected response (level will depend on seeded prices):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>[10:00:01.042] EDU100  1000.00  +0.00  +0.00%  O=-- H=-- L=--  PRE_OPEN
+<p><code>pm-index</code> publishes a level when a constituent trades (and once at the end of
+the day), not on a timer. Until the first trade, <code>INDEX</code> answers
+<code>No index data received yet. Is pm-index running?</code> — that does not mean
+<code>pm-index</code> is down. Come back to this exercise's output after Exercise 4's first
+trade. Expected response (the level will not be 1000: it is computed from the
+price that traded and the <em>seeded</em> reference prices of the other two constituents):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>[10:00:01.042] EDU100 637.57 +0.00 +0.00% O=637.57 H=637.57 L=637.57 CONTINUOUS
 </code></pre></div>
 <p>Fields shown:</p>
 <table>
@@ -7841,12 +7847,18 @@ Verify:</p>
 <p>The <code>INDEX</code> command works from any gateway role (TRADER, ADMIN, or read-only).</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> <code>INDEX</code> command returns a level for <code>EDU100</code>.</p>
 <h2 id="exercise-4-watch-the-index-move">Exercise 4: Watch the Index Move<a class="headerlink" href="#exercise-4-watch-the-index-move" title="Permanent link">&para;</a></h2>
-<p>Move the session into <code>CONTINUOUS</code> (if the scheduler hasn't already done so)
-and execute a few trades:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>[OPS01|ADMIN]&gt; SESSION|STATE=CONTINUOUS
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=500
-<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>[TRADER01]&gt; NEW|SYM=MSFT|SIDE=BUY|TYPE=MARKET|QTY=300
-<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>[TRADER01]&gt; NEW|SYM=TSLA|SIDE=SELL|TYPE=MARKET|QTY=200
+<p>Move the session into <code>CONTINUOUS</code> (if the scheduler hasn't already done so —
+from <code>CLOSED</code> that is <code>PRE_OPEN</code> first, then <code>CONTINUOUS</code>). The books start
+empty (<code>--no-mm-seed-quotes</code>), so connect <code>pm-alf-console --id MM01</code> and give
+each symbol a market, with prices near the seeded ones (print the seeded
+prices with <code>grep -E "last_(buy|sell)_price" engine_config.yaml</code>), for example
+<code>QUOTE|SYM=AAPL|BID=&lt;p-1&gt;|ASK=&lt;p+1&gt;|BID_QTY=1000|ASK_QTY=1000|TIF=DAY|QUOTE_ID=Q-AAPL</code>
+and the same for MSFT and TSLA. Then execute a few trades:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>[OPS01|ADMIN]&gt; SESSION|STATE=PRE_OPEN
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>[OPS01|ADMIN]&gt; SESSION|STATE=CONTINUOUS
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=500
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>[TRADER01]&gt; NEW|SYM=MSFT|SIDE=BUY|TYPE=MARKET|QTY=300
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>[TRADER01]&gt; NEW|SYM=TSLA|SIDE=SELL|TYPE=MARKET|QTY=200
 </code></pre></div>
 <p>After each fill, query the index again:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>[TRADER01]&gt; INDEX
@@ -7878,8 +7890,10 @@ talks directly to <code>pm-index</code>'s PULL socket (port 5559). See
 <div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>pm-index-admin-cli<span class="w"> </span>--id<span class="w"> </span>OPS01<span class="w"> </span>split<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="w">  </span>--index<span class="w"> </span>EDU100<span class="w"> </span>--sym<span class="w"> </span>AAPL<span class="w"> </span>--ratio<span class="w"> </span><span class="m">2</span>:1
 </code></pre></div>
-<p>You'll be shown a confirmation prompt before the command is sent (add <code>-y</code> to
-skip it, or <code>--dry-run</code> to preview the payload without sending). The command
+<p>You'll be shown a confirmation prompt before the command is sent. Add <code>-y</code> to
+skip it, or <code>--dry-run</code> to preview the payload without sending — both are
+options of the tool itself, so they go <strong>before</strong> the sub-command
+(<code>pm-index-admin-cli --id OPS01 -y split …</code>). The command
 blocks for the <code>index.corp_action_ack.OPS01</code> response and prints the result.
 <code>pm-index</code> applies the action in-process, publishes an updated index value
 live, and writes a <code>CORP_ACTION</code> record to the structural/audit history file.</p>
@@ -7888,7 +7902,7 @@ live, and writes a <code>CORP_ACTION</code> record to the structural/audit histo
 </code></pre></div>
 <p>The level should be <strong>unchanged</strong> (or differ by only rounding). Now check that
 the divisor was adjusted in the history file:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>grep<span class="w"> </span>CORP_ACTION<span class="w"> </span>data/indexes/EDU100_history.jsonl<span class="w"> </span><span class="p">|</span><span class="w"> </span>python3<span class="w"> </span>-m<span class="w"> </span>json.tool
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>grep<span class="w"> </span>CORP_ACTION<span class="w"> </span><span class="s2">"</span><span class="nv">$EDUMATCHER_DATA_DIR</span><span class="s2">/indexes/EDU100_history.jsonl"</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>python3<span class="w"> </span>-m<span class="w"> </span>json.tool
 </code></pre></div>
 <p>You should see <code>old_divisor</code> and <code>new_divisor</code> in the record, and the two
 values should be <strong>approximately equal</strong> (differing only by integer-rounding
