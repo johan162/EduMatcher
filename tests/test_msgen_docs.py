@@ -105,9 +105,10 @@ class TestTheAppendixDocumentsEveryMessage:
 
         129 -> 130: system.book_checkpoint (S25).
         130 -> 131: BALF stop_triggered (S24b).
+        131 -> 134: oco/combo/quote.cancel_ack (WP-API17).
         """
         total = sum(len(f.messages) for f in families)
-        assert total == 131, total
+        assert total == 134, total
 
     def test_every_record_type_has_a_section(self, families: list, page: str) -> None:
         missing = [

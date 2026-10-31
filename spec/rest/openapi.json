@@ -1931,7 +1931,7 @@
           "orders"
         ],
         "summary": "Cancel an OCO pair",
-        "description": "Cancel both legs of the OCO group `oco_id`.",
+        "description": "Cancel both legs of the OCO group `oco_id`. `request_tag` (query) is echoed on the engine's cancel ack. Returns `202` (`PENDING_CANCEL`); with `?wait=ack`, `200` and the outcome (`ACKED`, or `REJECTED` with a `reject_code`), or `202` with `ack_timeout: true` if it did not come in time.",
         "operationId": "cancel_oco",
         "security": [
           {
@@ -1950,19 +1950,64 @@
               "title": "Oco Id"
             },
             "description": "The `oco_id` you submitted the pair with."
+          },
+          {
+            "name": "wait",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^ack$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Pass `ack` to hold the response until the engine acknowledges the request (up to the gateway's `wait_ack_sec`). Without it the call returns immediately with a `PENDING` status and the verdict arrives on the private WebSocket.",
+              "title": "Wait"
+            },
+            "description": "Pass `ack` to hold the response until the engine acknowledges the request (up to the gateway's `wait_ack_sec`). Without it the call returns immediately with a `PENDING` status and the verdict arrives on the private WebSocket."
+          },
+          {
+            "name": "request_tag",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 64
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Caller label echoed on the cancel's ack.",
+              "title": "Request Tag"
+            },
+            "description": "Caller label echoed on the cancel's ack."
           }
         ],
         "responses": {
           "202": {
-            "description": "Cancel sent to the engine.",
+            "description": "Cancel sent (`PENDING_CANCEL`); the outcome follows on the private WebSocket.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/OcoCancelPending"
+                  "$ref": "#/components/schemas/OcoCancelAccepted"
                 },
-                "example": {
-                  "oco_id": "oco-2026-0042",
-                  "status": "PENDING_CANCEL"
+                "examples": {
+                  "pending": {
+                    "summary": "Default: cancel sent, outcome follows on the WebSocket",
+                    "value": {
+                      "oco_id": "oco-2026-0042",
+                      "request_tag": "cxl-1",
+                      "status": "PENDING_CANCEL",
+                      "ack_timeout": false
+                    }
+                  }
                 }
               }
             }
@@ -1985,6 +2030,54 @@
                 },
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "With `?wait=ack`: the cancel's outcome.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "acked": {
+                    "summary": "With ?wait=ack: cancelled",
+                    "value": {
+                      "oco_id": "oco-2026-0042",
+                      "request_tag": "cxl-1",
+                      "status": "ACKED",
+                      "accepted": true,
+                      "event": {
+                        "oco_id": "oco-2026-0042",
+                        "accepted": true,
+                        "reason": "",
+                        "request_tag": "cxl-1",
+                        "cancelled_order_ids": [
+                          "9f2c4e7a1b3d4c58a6e0f1d2c3b4a596",
+                          "3b7e1d9a5c2f4e86b0a1d3c5e7f90214"
+                        ]
+                      },
+                      "ack_timeout": false
+                    }
+                  },
+                  "rejected": {
+                    "summary": "With ?wait=ack: the cancel was refused",
+                    "value": {
+                      "oco_id": "oco-2026-0042",
+                      "request_tag": "cxl-1",
+                      "status": "REJECTED",
+                      "accepted": false,
+                      "reject_code": "ORDER_NOT_FOUND",
+                      "event": {
+                        "oco_id": "oco-2026-0042",
+                        "accepted": false,
+                        "reason": "OCO not found",
+                        "reject_code": "ORDER_NOT_FOUND",
+                        "request_tag": "cxl-1",
+                        "cancelled_order_ids": []
+                      },
+                      "ack_timeout": false
+                    }
+                  }
                 }
               }
             }
@@ -2405,7 +2498,7 @@
           "orders"
         ],
         "summary": "Cancel a combo order",
-        "description": "Cancel every leg of the combo `combo_id`.",
+        "description": "Cancel every leg of the combo `combo_id`. `request_tag` (query) is echoed on the engine's cancel ack. Returns `202` (`PENDING_CANCEL`); with `?wait=ack`, `200` and the outcome (`ACKED`, or `REJECTED` with a `reject_code`), or `202` with `ack_timeout: true` if it did not come in time.",
         "operationId": "cancel_combo",
         "security": [
           {
@@ -2424,19 +2517,64 @@
               "title": "Combo Id"
             },
             "description": "The `combo_id` you submitted the combo with."
+          },
+          {
+            "name": "wait",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^ack$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Pass `ack` to hold the response until the engine acknowledges the request (up to the gateway's `wait_ack_sec`). Without it the call returns immediately with a `PENDING` status and the verdict arrives on the private WebSocket.",
+              "title": "Wait"
+            },
+            "description": "Pass `ack` to hold the response until the engine acknowledges the request (up to the gateway's `wait_ack_sec`). Without it the call returns immediately with a `PENDING` status and the verdict arrives on the private WebSocket."
+          },
+          {
+            "name": "request_tag",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 64
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Caller label echoed on the cancel's ack.",
+              "title": "Request Tag"
+            },
+            "description": "Caller label echoed on the cancel's ack."
           }
         ],
         "responses": {
           "202": {
-            "description": "Cancel sent to the engine.",
+            "description": "Cancel sent (`PENDING_CANCEL`); the outcome follows on the private WebSocket.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ComboCancelPending"
+                  "$ref": "#/components/schemas/ComboCancelAccepted"
                 },
-                "example": {
-                  "combo_id": "combo-spread-17",
-                  "status": "PENDING_CANCEL"
+                "examples": {
+                  "pending": {
+                    "summary": "Default: cancel sent, outcome follows on the WebSocket",
+                    "value": {
+                      "combo_id": "combo-spread-17",
+                      "request_tag": "cxl-1",
+                      "status": "PENDING_CANCEL",
+                      "ack_timeout": false
+                    }
+                  }
                 }
               }
             }
@@ -2459,6 +2597,54 @@
                 },
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "With `?wait=ack`: the cancel's outcome.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "acked": {
+                    "summary": "With ?wait=ack: cancelled",
+                    "value": {
+                      "combo_id": "combo-spread-17",
+                      "request_tag": "cxl-1",
+                      "status": "ACKED",
+                      "accepted": true,
+                      "event": {
+                        "combo_id": "combo-spread-17",
+                        "accepted": true,
+                        "reason": "",
+                        "request_tag": "cxl-1",
+                        "cancelled_order_ids": [
+                          "9f2c4e7a1b3d4c58a6e0f1d2c3b4a596",
+                          "3b7e1d9a5c2f4e86b0a1d3c5e7f90214"
+                        ]
+                      },
+                      "ack_timeout": false
+                    }
+                  },
+                  "rejected": {
+                    "summary": "With ?wait=ack: the cancel was refused",
+                    "value": {
+                      "combo_id": "combo-spread-17",
+                      "request_tag": "cxl-1",
+                      "status": "REJECTED",
+                      "accepted": false,
+                      "reject_code": "ORDER_NOT_FOUND",
+                      "event": {
+                        "combo_id": "combo-spread-17",
+                        "accepted": false,
+                        "reason": "Combo not found",
+                        "reject_code": "ORDER_NOT_FOUND",
+                        "request_tag": "cxl-1",
+                        "cancelled_order_ids": []
+                      },
+                      "ack_timeout": false
+                    }
+                  }
                 }
               }
             }
@@ -3038,7 +3224,7 @@
           "orders"
         ],
         "summary": "Cancel my quote on a symbol",
-        "description": "Withdraw the caller's active quote on `symbol`.",
+        "description": "Withdraw the caller's active quote on `symbol`. `request_tag` (query) is echoed on the engine's cancel ack. Returns `202` (`PENDING_CANCEL`); with `?wait=ack`, `200` and the outcome (`ACKED`, or `REJECTED` with a `reject_code`), or `202` with `ack_timeout: true` if it did not come in time.",
         "operationId": "cancel_quote",
         "security": [
           {
@@ -3058,19 +3244,64 @@
               "title": "Symbol"
             },
             "description": "Instrument, e.g. `AAPL` (case-insensitive)."
+          },
+          {
+            "name": "wait",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^ack$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Pass `ack` to hold the response until the engine acknowledges the request (up to the gateway's `wait_ack_sec`). Without it the call returns immediately with a `PENDING` status and the verdict arrives on the private WebSocket.",
+              "title": "Wait"
+            },
+            "description": "Pass `ack` to hold the response until the engine acknowledges the request (up to the gateway's `wait_ack_sec`). Without it the call returns immediately with a `PENDING` status and the verdict arrives on the private WebSocket."
+          },
+          {
+            "name": "request_tag",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 64
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Caller label echoed on the cancel's ack.",
+              "title": "Request Tag"
+            },
+            "description": "Caller label echoed on the cancel's ack."
           }
         ],
         "responses": {
           "202": {
-            "description": "Cancel sent to the engine.",
+            "description": "Cancel sent (`PENDING_CANCEL`); the outcome follows on the private WebSocket.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/QuoteCancelPending"
+                  "$ref": "#/components/schemas/QuoteCancelAccepted"
                 },
-                "example": {
-                  "symbol": "AAPL",
-                  "status": "PENDING_CANCEL"
+                "examples": {
+                  "pending": {
+                    "summary": "Default: cancel sent, outcome follows on the WebSocket",
+                    "value": {
+                      "symbol": "AAPL",
+                      "request_tag": "cxl-1",
+                      "status": "PENDING_CANCEL",
+                      "ack_timeout": false
+                    }
+                  }
                 }
               }
             }
@@ -3093,6 +3324,54 @@
                 },
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "With `?wait=ack`: the cancel's outcome.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "acked": {
+                    "summary": "With ?wait=ack: cancelled",
+                    "value": {
+                      "symbol": "AAPL",
+                      "request_tag": "cxl-1",
+                      "status": "ACKED",
+                      "accepted": true,
+                      "event": {
+                        "symbol": "AAPL",
+                        "accepted": true,
+                        "reason": "",
+                        "request_tag": "cxl-1",
+                        "cancelled_order_ids": [
+                          "9f2c4e7a1b3d4c58a6e0f1d2c3b4a596",
+                          "3b7e1d9a5c2f4e86b0a1d3c5e7f90214"
+                        ]
+                      },
+                      "ack_timeout": false
+                    }
+                  },
+                  "rejected": {
+                    "summary": "With ?wait=ack: the cancel was refused",
+                    "value": {
+                      "symbol": "AAPL",
+                      "request_tag": "cxl-1",
+                      "status": "REJECTED",
+                      "accepted": false,
+                      "reject_code": "ORDER_NOT_FOUND",
+                      "event": {
+                        "symbol": "AAPL",
+                        "accepted": false,
+                        "reason": "Quote not found",
+                        "reject_code": "ORDER_NOT_FOUND",
+                        "request_tag": "cxl-1",
+                        "cancelled_order_ids": []
+                      },
+                      "ack_timeout": false
+                    }
+                  }
                 }
               }
             }
@@ -15688,24 +15967,84 @@
         ],
         "title": "ComboAccepted"
       },
-      "ComboCancelPending": {
+      "ComboCancelAccepted": {
         "properties": {
-          "combo_id": {
-            "type": "string",
-            "title": "Combo Id"
+          "request_tag": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Request Tag",
+            "description": "Echo of the request's `request_tag` query param."
           },
           "status": {
             "type": "string",
-            "const": "PENDING_CANCEL",
+            "enum": [
+              "PENDING_CANCEL",
+              "ACKED",
+              "REJECTED"
+            ],
             "title": "Status"
+          },
+          "accepted": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Accepted",
+            "description": "Engine verdict; null until acknowledged."
+          },
+          "reject_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reject Code",
+            "description": "Why the cancel was refused, when it was."
+          },
+          "event": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event",
+            "description": "The engine's cancel ack, once received."
+          },
+          "ack_timeout": {
+            "type": "boolean",
+            "title": "Ack Timeout",
+            "description": "True when `?wait=ack` gave up waiting: the cancel was sent and the outcome follows on the private WebSocket.",
+            "default": false
+          },
+          "combo_id": {
+            "type": "string",
+            "title": "Combo Id"
           }
         },
+        "additionalProperties": false,
         "type": "object",
         "required": [
-          "combo_id",
-          "status"
+          "status",
+          "combo_id"
         ],
-        "title": "ComboCancelPending"
+        "title": "ComboCancelAccepted"
       },
       "ComboLegRequest": {
         "properties": {
@@ -18244,24 +18583,84 @@
         ],
         "title": "OcoAccepted"
       },
-      "OcoCancelPending": {
+      "OcoCancelAccepted": {
         "properties": {
-          "oco_id": {
-            "type": "string",
-            "title": "Oco Id"
+          "request_tag": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Request Tag",
+            "description": "Echo of the request's `request_tag` query param."
           },
           "status": {
             "type": "string",
-            "const": "PENDING_CANCEL",
+            "enum": [
+              "PENDING_CANCEL",
+              "ACKED",
+              "REJECTED"
+            ],
             "title": "Status"
+          },
+          "accepted": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Accepted",
+            "description": "Engine verdict; null until acknowledged."
+          },
+          "reject_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reject Code",
+            "description": "Why the cancel was refused, when it was."
+          },
+          "event": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event",
+            "description": "The engine's cancel ack, once received."
+          },
+          "ack_timeout": {
+            "type": "boolean",
+            "title": "Ack Timeout",
+            "description": "True when `?wait=ack` gave up waiting: the cancel was sent and the outcome follows on the private WebSocket.",
+            "default": false
+          },
+          "oco_id": {
+            "type": "string",
+            "title": "Oco Id"
           }
         },
+        "additionalProperties": false,
         "type": "object",
         "required": [
-          "oco_id",
-          "status"
+          "status",
+          "oco_id"
         ],
-        "title": "OcoCancelPending"
+        "title": "OcoCancelAccepted"
       },
       "OcoLegRequest": {
         "properties": {
@@ -19971,24 +20370,84 @@
         ],
         "title": "QuoteAccepted"
       },
-      "QuoteCancelPending": {
+      "QuoteCancelAccepted": {
         "properties": {
-          "symbol": {
-            "type": "string",
-            "title": "Symbol"
+          "request_tag": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Request Tag",
+            "description": "Echo of the request's `request_tag` query param."
           },
           "status": {
             "type": "string",
-            "const": "PENDING_CANCEL",
+            "enum": [
+              "PENDING_CANCEL",
+              "ACKED",
+              "REJECTED"
+            ],
             "title": "Status"
+          },
+          "accepted": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Accepted",
+            "description": "Engine verdict; null until acknowledged."
+          },
+          "reject_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reject Code",
+            "description": "Why the cancel was refused, when it was."
+          },
+          "event": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event",
+            "description": "The engine's cancel ack, once received."
+          },
+          "ack_timeout": {
+            "type": "boolean",
+            "title": "Ack Timeout",
+            "description": "True when `?wait=ack` gave up waiting: the cancel was sent and the outcome follows on the private WebSocket.",
+            "default": false
+          },
+          "symbol": {
+            "type": "string",
+            "title": "Symbol"
           }
         },
+        "additionalProperties": false,
         "type": "object",
         "required": [
-          "symbol",
-          "status"
+          "status",
+          "symbol"
         ],
-        "title": "QuoteCancelPending"
+        "title": "QuoteCancelAccepted"
       },
       "QuoteLeg": {
         "properties": {

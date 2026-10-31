@@ -304,9 +304,9 @@ Endpoints that support pagination use keyset cursoring with these rules:
 ### Write outcomes and safe retries
 
 Every write that creates or changes orders (`POST /orders`, `DELETE` and
-`PATCH /orders/{order_id}`, `POST /orders/{order_id}/replace`, `POST /oco`,
-`POST /combos`, `POST /quotes`) answers in one of three ways, so a client can
-always tell whether something reached the engine:
+`PATCH /orders/{order_id}`, `POST /orders/{order_id}/replace`, `POST` and
+`DELETE` on `/oco`, `/combos` and `/quotes`) answers in one of three ways, so a
+client can always tell whether something reached the engine:
 
 | Reply | Sent to the engine? | What to do |
 |---|---|---|
@@ -1064,12 +1064,16 @@ Purpose: cancel an OCO pair.
 | Name | Type | Req | Description |
 |---|---|---|---|
 | `oco_id` | `Str` | yes (path) | OCO group to cancel |
+| `request_tag` | `Str` | no | Query: echoed on the engine's `oco.cancel_ack`; max 64 chars |
+| `wait` | `Bool` | no | `?wait=ack` waits for the `oco.cancel_ack` |
 
 **Reply**
 
 | Status | Shape | Meaning |
 |---|---|---|
-| `202 Accepted` | cancel ack payload | OCO cancel accepted |
+| `202 Accepted` | `{ "oco_id": "...", "request_tag": ..., "status": "PENDING_CANCEL", "accepted": null, ..., "ack_timeout": false }` | Default: cancel sent; the outcome follows on the private WebSocket (`oco.cancel_ack`) |
+| `200 OK` | `{ ..., "status": "ACKED" \| "REJECTED", "accepted": ..., "reject_code": ..., "event": {...} }` | With `?wait=ack`: the engine's `oco.cancel_ack`. A refusal (`ORDER_NOT_FOUND`, `ORDER_ALREADY_TERMINAL`) is `REJECTED`, not an error |
+| `202 Accepted` | `{ ..., "status": "PENDING_CANCEL", "ack_timeout": true }` | `?wait=ack` and the ack did not arrive in time; the cancel was sent |
 
 **Errors**
 
@@ -1126,12 +1130,16 @@ Purpose: cancel a combo order.
 | Name | Type | Req | Description |
 |---|---|---|---|
 | `combo_id` | `Str` | yes (path) | Combo group to cancel |
+| `request_tag` | `Str` | no | Query: echoed on the engine's `combo.cancel_ack`; max 64 chars |
+| `wait` | `Bool` | no | `?wait=ack` waits for the `combo.cancel_ack` |
 
 **Reply**
 
 | Status | Shape | Meaning |
 |---|---|---|
-| `202 Accepted` | cancel ack payload | Combo cancel accepted |
+| `202 Accepted` | `{ "combo_id": "...", "request_tag": ..., "status": "PENDING_CANCEL", "accepted": null, ..., "ack_timeout": false }` | Default: cancel sent; the outcome follows on the private WebSocket (`combo.cancel_ack`) |
+| `200 OK` | `{ ..., "status": "ACKED" \| "REJECTED", "accepted": ..., "reject_code": ..., "event": {...} }` | With `?wait=ack`: the engine's `combo.cancel_ack`. A refusal (`ORDER_NOT_FOUND`, `ORDER_ALREADY_TERMINAL`) is `REJECTED`, not an error |
+| `202 Accepted` | `{ ..., "status": "PENDING_CANCEL", "ack_timeout": true }` | `?wait=ack` and the ack did not arrive in time; the cancel was sent |
 
 **Errors**
 
@@ -1189,12 +1197,16 @@ Purpose: cancel the active quote for one symbol.
 | Name | Type | Req | Description |
 |---|---|---|---|
 | `symbol` | `Symbol` | yes (path) | Quoted instrument |
+| `request_tag` | `Str` | no | Query: echoed on the engine's `quote.cancel_ack`; max 64 chars |
+| `wait` | `Bool` | no | `?wait=ack` waits for the `quote.cancel_ack` |
 
 **Reply**
 
 | Status | Shape | Meaning |
 |---|---|---|
-| `202 Accepted` | cancel ack payload | Quote cancel accepted |
+| `202 Accepted` | `{ "symbol": "...", "request_tag": ..., "status": "PENDING_CANCEL", "accepted": null, ..., "ack_timeout": false }` | Default: cancel sent; the outcome follows on the private WebSocket (`quote.cancel_ack`) |
+| `200 OK` | `{ ..., "status": "ACKED" \| "REJECTED", "accepted": ..., "reject_code": ..., "event": {...} }` | With `?wait=ack`: the engine's `quote.cancel_ack`. A refusal (`ORDER_NOT_FOUND`, `ORDER_ALREADY_TERMINAL`) is `REJECTED`, not an error |
+| `202 Accepted` | `{ ..., "status": "PENDING_CANCEL", "ack_timeout": true }` | `?wait=ack` and the ack did not arrive in time; the cancel was sent |
 
 **Errors**
 

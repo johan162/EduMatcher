@@ -1178,6 +1178,30 @@ export interface QuoteAckData {
   ask_order_id: string;
 }
 
+/**
+ * The outcome of one OCO, combo or quote cancel (WP-API17): every cancel gets
+ * exactly one, accepted or refused. The submit acks report submissions only.
+ */
+interface StructureCancelAckBase {
+  gateway_id: string;
+  accepted: boolean;
+  reason: string;
+  /** On a refusal: ORDER_NOT_FOUND, ORDER_ALREADY_TERMINAL, ... */
+  reject_code?: RejectCode;
+  request_tag?: string;
+  cancelled_order_ids: string[];
+}
+export interface OcoCancelAckData extends StructureCancelAckBase {
+  oco_id: string;
+}
+export interface ComboCancelAckData extends StructureCancelAckBase {
+  combo_id: string;
+}
+export interface QuoteCancelAckData extends StructureCancelAckBase {
+  symbol: string;
+  quote_id: string;
+}
+
 export interface QuoteStatusData {
   gateway_id: string;
   status: string;
@@ -1277,6 +1301,9 @@ export interface WsDataByType {
   "oco.cancelled": OcoCancelledData;
   "quote.ack": QuoteAckData;
   "quote.status": QuoteStatusData;
+  "oco.cancel_ack": OcoCancelAckData;
+  "combo.cancel_ack": ComboCancelAckData;
+  "quote.cancel_ack": QuoteCancelAckData;
   "mass_cancel.ack": MassCancelAckData;
   book: BookData;
   depth: DepthData;

@@ -76,6 +76,29 @@ export function useQuoteEvents(): void {
     invalidateQuotes();
   });
 
+  // A quote cancel's own outcome (WP-API17); it used to arrive as a quote.ack
+  // and read as "Quote ... accepted".
+  useWsEvent("quote.cancel_ack", (env) => {
+    const d = env.data;
+    if (d.accepted) {
+      push({
+        ts: Date.now(),
+        kind: "CANCEL",
+        title: `Quote ${d.symbol} cancelled`,
+        detail: d.quote_id || d.symbol,
+      });
+    } else {
+      toast.error(`Cancel of quote ${d.symbol} refused: ${d.reason || "refused"}`);
+      push({
+        ts: Date.now(),
+        kind: "REJECT",
+        title: `Cancel of quote ${d.symbol} refused`,
+        detail: d.reason || "refused",
+      });
+    }
+    invalidateQuotes();
+  });
+
   useWsEvent("quote.status", (env) => {
     const d = env.data;
     const quote = findQuote(d.quote_id);

@@ -278,6 +278,11 @@ from edumatcher.models.reject import CancelReason, RejectCode
 from edumatcher.models.generated.quote import (
     TOPIC_QUOTE_CANCEL,
     TOPIC_QUOTE_NEW,
+    make_quote_cancel_ack,
+)
+from edumatcher.models.generated.structure import (
+    make_combo_cancel_ack,
+    make_oco_cancel_ack,
 )
 from edumatcher.models.generated.system import (
     TOPIC_GATEWAYS_REQUEST,
@@ -4095,37 +4100,52 @@ class Engine:
 
         Removes the quote record, then cancels both legs through
         ``_cancel_quote_entry`` (which publishes the per-leg cancels).  The
-        reply is a ``quote.ack``: accepted if a quote existed, otherwise a
-        reject saying there was none.
+        reply is a ``quote.cancel_ack``: accepted if a quote existed, otherwise
+        a refusal saying there was none.
         """
         gateway_id = str(payload.get("gateway_id", "")).upper()
         symbol = str(payload.get("symbol", "")).upper()
+        request_tag = str(payload.get("request_tag", ""))
+
+        def _refuse(reason: str, code: RejectCode) -> None:
+            self.pub_sock.send_multipart(
+                self._structure_cancel_ack(
+                    "quote",
+                    gateway_id,
+                    accepted=False,
+                    reason=reason,
+                    reject_code=code,
+                    request_tag=request_tag,
+                    symbol=symbol,
+                    quote_id="",
+                )
+            )
 
         ok, reason = self._gateway_status(gateway_id)
         if not ok:
-            self.pub_sock.send_multipart(
-                self._quote_ack(gateway_id, "", False, reason, symbol=symbol)
-            )
+            _refuse(reason, self._gateway_reject_code(reason))
             return
 
         entry = self._quote_index.remove(
             gateway_id, symbol, reason="Cancelled by participant"
         )
         if not entry:
-            self.pub_sock.send_multipart(
-                self._quote_ack(
-                    gateway_id,
-                    "",
-                    False,
-                    "No active quote for symbol",
-                    symbol=symbol,
-                )
-            )
+            _refuse("No active quote for symbol", "ORDER_NOT_FOUND")
             return
 
-        self._cancel_quote_entry(entry, reason="Cancelled by participant")
+        cancelled_ids = self._cancel_quote_entry(
+            entry, reason="Cancelled by participant"
+        )
         self.pub_sock.send_multipart(
-            self._quote_ack(gateway_id, entry.quote_id, True, symbol=symbol)
+            self._structure_cancel_ack(
+                "quote",
+                gateway_id,
+                accepted=True,
+                request_tag=request_tag,
+                cancelled_order_ids=cancelled_ids,
+                symbol=symbol,
+                quote_id=entry.quote_id or "",
+            )
         )
 
     def _handle_gateway_disconnect(self, payload: dict[str, Any]) -> None:
@@ -5424,13 +5444,25 @@ class Engine:
         already reached a terminal status cannot be cancelled again.
         """
         gateway_id = str(payload.get("gateway_id", "")).upper()
-        combo_id = payload.get("combo_id", "")
+        combo_id = str(payload.get("combo_id", ""))
+        request_tag = str(payload.get("request_tag", ""))
+
+        def _refuse(reason: str, code: RejectCode) -> None:
+            self.pub_sock.send_multipart(
+                self._structure_cancel_ack(
+                    "combo",
+                    gateway_id,
+                    accepted=False,
+                    reason=reason,
+                    reject_code=code,
+                    request_tag=request_tag,
+                    combo_id=combo_id,
+                )
+            )
 
         ok, reason = self._gateway_status(gateway_id)
         if not ok:
-            self.pub_sock.send_multipart(
-                self._combo_ack(gateway_id, combo_id, False, reason)
-            )
+            _refuse(reason, self._gateway_reject_code(reason))
             return
 
         # Find the combo by user-provided combo_id
@@ -5440,9 +5472,7 @@ class Engine:
                 combo = c
                 break
         if not combo:
-            self.pub_sock.send_multipart(
-                self._combo_ack(gateway_id, combo_id, False, "Combo not found")
-            )
+            _refuse("Combo not found", "ORDER_NOT_FOUND")
             return
         if combo.status in (
             ComboStatus.MATCHED,
@@ -5450,14 +5480,20 @@ class Engine:
             ComboStatus.CANCELLED,
             ComboStatus.REJECTED,
         ):
-            self.pub_sock.send_multipart(
-                self._combo_ack(
-                    gateway_id, combo_id, False, f"Combo already {combo.status.value}"
-                )
-            )
+            _refuse(f"Combo already {combo.status.value}", "ORDER_ALREADY_TERMINAL")
             return
 
-        self._cascade_cancel_combo(combo, ComboStatus.CANCELLED)
+        cancelled_ids = self._cascade_cancel_combo(combo, ComboStatus.CANCELLED)
+        self.pub_sock.send_multipart(
+            self._structure_cancel_ack(
+                "combo",
+                gateway_id,
+                accepted=True,
+                request_tag=request_tag,
+                cancelled_order_ids=cancelled_ids,
+                combo_id=combo_id,
+            )
+        )
 
     def _check_combo_after_child_event(self, child_order: Order) -> None:
         """Called after any child order fill/cancel/expire/reject to update combo state.
@@ -5537,8 +5573,10 @@ class Engine:
 
     def _cascade_cancel_combo(
         self, combo: ComboOrder, terminal_status: ComboStatus, reason: str = ""
-    ) -> None:
+    ) -> list[str]:
         """Cancel all resting child legs and mark combo as terminal.
+
+        Returns the ids of the legs it cancelled.
 
         Used for both a user cancel (CANCELLED) and a failed leg (FAILED).
         The status is set FIRST so that the cancels below, which re-enter
@@ -5549,6 +5587,7 @@ class Engine:
         """
         combo.status = terminal_status
 
+        cancelled_ids: list[str] = []
         for child_id in combo.child_order_ids:
             symbol = self._order_symbol.get(child_id)
             book = self.books.get(symbol) if symbol else None
@@ -5561,6 +5600,7 @@ class Engine:
                         )
                     )
                     self._mark_dirty(symbol)  # type: ignore[arg-type]
+                    cancelled_ids.append(child_id)
             self._order_symbol.pop(child_id, None)
             self._order_to_combo.pop(child_id, None)
 
@@ -5576,6 +5616,7 @@ class Engine:
             f"COMBO {combo.combo_id} {terminal_status.value}"
             + (f" — {reason}" if reason else "")
         )
+        return cancelled_ids
 
     # ------------------------------------------------------------------
     # Session / auction transitions
@@ -6191,6 +6232,41 @@ class Engine:
 
         log.info(f"OCO {oco_id}: legs {leg1.id[:8]} and {leg2.id[:8]} posted")
 
+    def _structure_cancel_ack(
+        self,
+        kind: str,
+        gateway_id: str,
+        *,
+        accepted: bool,
+        reason: str = "",
+        reject_code: RejectCode | None = None,
+        request_tag: str = "",
+        cancelled_order_ids: list[str] | None = None,
+        **ids: str,
+    ) -> list[bytes]:
+        """The reply to one OCO, combo or quote cancel (WP-API17).
+
+        Every cancel gets exactly one, accepted or refused, echoing the
+        request's ``request_tag``: the submit acks (``oco.ack`` etc.) report
+        submissions only, so a caller waiting on its cancel can attribute the
+        outcome. ``ids`` is the structure's identity (``oco_id``,
+        ``combo_id``, or ``symbol`` and ``quote_id``).
+        """
+        fields: dict[str, Any] = {
+            "gateway_id": gateway_id,
+            "accepted": accepted,
+            "reason": reason,
+            "reject_code": reject_code or "",
+            "request_tag": request_tag,
+            "cancelled_order_ids": cancelled_order_ids or [],
+            **ids,
+        }
+        if kind == "oco":
+            return make_oco_cancel_ack(**fields)
+        if kind == "combo":
+            return make_combo_cancel_ack(**fields)
+        return make_quote_cancel_ack(**fields)
+
     def _handle_oco_cancel(self, payload: dict[str, Any]) -> None:
         """Handle ``order.oco_cancel``: cancel both legs of an OCO pair.
 
@@ -6198,22 +6274,33 @@ class Engine:
         this cancels BOTH legs because the client asked to drop the pair.
         """
         gateway_id = str(payload.get("gateway_id", "")).upper()
-        oco_id = payload.get("oco_id", "")
+        oco_id = str(payload.get("oco_id", ""))
+        request_tag = str(payload.get("request_tag", ""))
+
+        def _refuse(reason: str, code: RejectCode) -> None:
+            self.pub_sock.send_multipart(
+                self._structure_cancel_ack(
+                    "oco",
+                    gateway_id,
+                    accepted=False,
+                    reason=reason,
+                    reject_code=code,
+                    request_tag=request_tag,
+                    oco_id=oco_id,
+                )
+            )
 
         ok, reason = self._gateway_status(gateway_id)
         if not ok:
-            self.pub_sock.send_multipart(
-                self._oco_ack(gateway_id, oco_id, False, reason)
-            )
+            _refuse(reason, self._gateway_reject_code(reason))
             return
 
         order_ids = self._oco_groups.get(oco_id)
         if not order_ids:
-            self.pub_sock.send_multipart(
-                self._oco_ack(gateway_id, oco_id, False, "OCO not found")
-            )
+            _refuse("OCO not found", "ORDER_NOT_FOUND")
             return
 
+        cancelled_ids: list[str] = []
         for order_id in list(order_ids):
             symbol = self._order_symbol.get(order_id)
             book = self.books.get(symbol) if symbol else None
@@ -6226,10 +6313,21 @@ class Engine:
                         )
                     )
                     self._mark_dirty(symbol)  # type: ignore[arg-type]
+                    cancelled_ids.append(order_id)
             self._order_symbol.pop(order_id, None)
             self._order_to_oco.pop(order_id, None)
 
         self._oco_groups.pop(oco_id, None)
+        self.pub_sock.send_multipart(
+            self._structure_cancel_ack(
+                "oco",
+                gateway_id,
+                accepted=True,
+                request_tag=request_tag,
+                cancelled_order_ids=cancelled_ids,
+                oco_id=oco_id,
+            )
+        )
 
         log.info(f"OCO {oco_id} cancelled by {gateway_id}")
 

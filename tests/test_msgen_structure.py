@@ -139,14 +139,17 @@ class TestPresence:
 
 
 class TestTheTopicsAreDeclared:
-    def test_four_topics(self) -> None:
-        assert len(G.FAMILY_TOPICS) == 4
+    def test_six_topics(self) -> None:
+        # + oco.cancel_ack and combo.cancel_ack (WP-API17)
+        assert len(G.FAMILY_TOPICS) == 6
 
     def test_the_prefixes_subscribers_use(self) -> None:
         assert G.PREFIX_COMBO_ACK == "combo.ack."
         assert G.PREFIX_COMBO_STATUS == "combo.status."
         assert G.PREFIX_OCO_ACK == "oco.ack."
         assert G.PREFIX_OCO_CANCELLED == "oco.cancelled."
+        assert G.PREFIX_OCO_CANCEL_ACK == "oco.cancel_ack."
+        assert G.PREFIX_COMBO_CANCEL_ACK == "combo.cancel_ack."
 
     def test_a_combo_ack_prefix_does_not_match_a_status(self) -> None:
         assert G.match_combo_ack("combo.status.GW1") is None

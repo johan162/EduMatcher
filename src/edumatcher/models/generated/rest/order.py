@@ -849,6 +849,8 @@ class OrderComboCancel(BaseModel):
     combo_id: str = Field(max_length=64)
     """Client-supplied combo label, not the internal UUID."""
     gateway_id: str = Field(max_length=32)
+    request_tag: str | None = Field(default=None, max_length=64)
+    """Echoed on combo.cancel_ack, so the caller can attribute the outcome."""
 
 
 class OrderCombo(BaseModel):
@@ -907,6 +909,8 @@ class OrderOcoCancel(BaseModel):
     oco_id: str = Field(max_length=64)
     """Client-supplied OCO label."""
     gateway_id: str = Field(max_length=32)
+    request_tag: str | None = Field(default=None, max_length=64)
+    """Echoed on oco.cancel_ack, so the caller can attribute the outcome."""
 
 
 class OrdersRequest(BaseModel):

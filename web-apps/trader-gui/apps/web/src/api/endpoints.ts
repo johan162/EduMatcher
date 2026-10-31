@@ -129,7 +129,8 @@ export const submitOco = (body: Record<string, unknown>) =>
     body: JSON.stringify(body),
   });
 
-// DELETE answers 202 `{ oco_id, status: "PENDING_CANCEL" }`; body is ignored.
+// DELETE answers 202 `{ oco_id, status: "PENDING_CANCEL", ... }`; body is ignored —
+// the outcome arrives on the private WebSocket as `oco.cancel_ack`.
 export const cancelOco = (ocoId: string) =>
   apiFetch<{ oco_id: string; status: string }>(`/api/v1/oco/${ocoId}`, { method: "DELETE" });
 
@@ -139,7 +140,8 @@ export const submitCombo = (body: Record<string, unknown>) =>
     body: JSON.stringify(body),
   });
 
-// DELETE answers 202 `{ combo_id, status: "PENDING_CANCEL" }`; body is ignored.
+// DELETE answers 202 `{ combo_id, status: "PENDING_CANCEL", ... }`; body is ignored —
+// the outcome arrives on the private WebSocket as `combo.cancel_ack`.
 export const cancelCombo = (comboId: string) =>
   apiFetch<{ combo_id: string; status: string }>(`/api/v1/combos/${comboId}`, {
     method: "DELETE",
@@ -165,7 +167,8 @@ export const submitQuote = (body: Record<string, unknown>) =>
   });
 
 // Quotes are addressed by symbol for cancel (one active quote per gateway+symbol).
-// DELETE answers 202 `{ symbol, status: "PENDING_CANCEL" }`; body is ignored.
+// DELETE answers 202 `{ symbol, status: "PENDING_CANCEL", ... }`; body is ignored —
+// the outcome arrives on the private WebSocket as `quote.cancel_ack`.
 export const cancelQuote = (symbol: string) =>
   apiFetch<{ symbol: string; status: string }>(
     `/api/v1/quotes/${encodeURIComponent(symbol)}`,

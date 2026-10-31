@@ -93,6 +93,9 @@ messages:
     fields:
       - { name: gateway_id, type: string, validate: { max_len: 32 } }
       - { name: symbol, type: string, validate: { max_len: 16 } }
+      - { name: request_tag, type: string, required: false, omit_when_empty: true,
+          validate: { max_len: 64 },
+          doc: "Echoed on quote.cancel_ack, so the caller can attribute the outcome." }
     encoding:
       engine_pub: { frames: [topic, json_payload], include: all }
 
@@ -171,5 +174,48 @@ messages:
           correlation purpose as order.cancelled.command_id. Null when the
           quote left for a reason with no originating command (participant
           cancel, replacement by a new quote, a leg fill).
+    encoding:
+      engine_pub: { frames: [topic, json_payload] }
+
+  - name: quote_cancel_ack
+    topic: "quote.cancel_ack.{gateway_id}"
+    transport: [engine_pub]
+    doc:
+      motivation: "Engine to market maker: the outcome of a quote.cancel."
+      published_by: [engine]
+      since: "1.0"
+      example_note: >
+        Every cancel gets exactly one of these, accepted or refused, so a
+        caller (REST's `?wait=ack`) can wait for its own outcome. Before
+        WP-API17 a refusal rode the submit ack and a success had no group-level
+        reply at all, so neither could be attributed to the request that asked.
+    fields:
+      - { name: gateway_id, type: string, validate: { max_len: 32 } }
+      - { name: symbol, type: string, validate: { max_len: 16 } }
+      - { name: quote_id, type: string, required: false, default: "",
+          validate: { max_len: 64 }, doc: "The withdrawn quote's id; \"\" when there was none." }
+      - { name: accepted, type: bool }
+      - { name: reason, type: string, required: false, default: "",
+          validate: { max_len: 512 } }
+      - name: reject_code
+        type: string
+        required: false
+        omit_when_empty: true
+        validate: { max_len: 32 }
+        doc: >
+          On a refusal, a member of order.ack's `reject_code` vocabulary
+          (ORDER_NOT_FOUND, ORDER_ALREADY_TERMINAL, GATEWAY_NOT_CONFIGURED,
+          AUTH_REQUIRED); absent when accepted. A string rather than that enum
+          only because the IDL has no shared enum type: the engine is held to
+          the vocabulary by tests/test_engine_structure_cancel_acks.py.
+      - { name: request_tag, type: string, required: false, omit_when_empty: true,
+          validate: { max_len: 64 },
+          doc: "Echoed from the cancel request, so the caller can attribute the outcome." }
+      - name: cancelled_order_ids
+        type: list
+        item: string
+        required: false
+        default: []
+        doc: "The engine order ids the cancel removed; empty on a refusal."
     encoding:
       engine_pub: { frames: [topic, json_payload] }

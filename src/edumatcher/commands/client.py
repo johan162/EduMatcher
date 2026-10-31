@@ -106,7 +106,7 @@ from edumatcher.models.generated.index import (
 )
 from edumatcher.models.generated.quote import (
     PREFIX_QUOTE_ACK,
-    topic_quote_ack,
+    topic_quote_cancel_ack,
 )
 from edumatcher.models.generated.system import (
     PREFIX_GATEWAYS,
@@ -533,7 +533,7 @@ class ExchangeCommandClient:
         dict with keys: ``accepted``, ``reason``, ``quote_id``.
         """
         self._send(make_quote_cancel_msg(target_gw.upper(), symbol.upper()))
-        return self._recv(topic_quote_ack(target_gw.upper()))
+        return self._recv(topic_quote_cancel_ack(target_gw.upper()))
 
     def gateway_kick(self, target_gw: str, reason: str = "") -> None:
         """

@@ -714,20 +714,26 @@ class EngineClient:
     def send_combo(self, payload: dict[str, Any]) -> None:
         self._send(make_combo_order_msg(payload))
 
-    def send_combo_cancel(self, combo_id: str, gateway_id: str) -> None:
-        self._send(make_combo_cancel_msg(combo_id, gateway_id))
+    def send_combo_cancel(
+        self, combo_id: str, gateway_id: str, request_tag: str = ""
+    ) -> None:
+        self._send(make_combo_cancel_msg(combo_id, gateway_id, request_tag=request_tag))
 
     def send_oco(self, payload: dict[str, Any]) -> None:
         self._send(make_oco_order_msg(payload))
 
-    def send_oco_cancel(self, oco_id: str, gateway_id: str) -> None:
-        self._send(make_oco_cancel_msg(oco_id, gateway_id))
+    def send_oco_cancel(
+        self, oco_id: str, gateway_id: str, request_tag: str = ""
+    ) -> None:
+        self._send(make_oco_cancel_msg(oco_id, gateway_id, request_tag=request_tag))
 
     def send_quote(self, payload: dict[str, Any]) -> None:
         self._send(make_quote_new_msg(payload))
 
-    def send_quote_cancel(self, gateway_id: str, symbol: str) -> None:
-        self._send(make_quote_cancel_msg(gateway_id, symbol))
+    def send_quote_cancel(
+        self, gateway_id: str, symbol: str, request_tag: str = ""
+    ) -> None:
+        self._send(make_quote_cancel_msg(gateway_id, symbol, request_tag=request_tag))
 
     def send_mass_cancel(
         self, gateway_id: str, symbol: str = "", command_id: str = ""

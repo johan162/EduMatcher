@@ -207,6 +207,45 @@ class CancelAccepted(StrictModel):
     )
 
 
+class _StructureCancelResult(StrictModel):
+    """The reply to an OCO, combo or quote cancel (WP-API17).
+
+    Mirrors ``CancelAccepted``: ``202 PENDING_CANCEL`` by default; with
+    ``?wait=ack``, ``200`` and the engine's ``*.cancel_ack`` verdict.
+    """
+
+    request_tag: str | None = Field(
+        default=None, description="Echo of the request's `request_tag` query param."
+    )
+    status: Literal["PENDING_CANCEL", "ACKED", "REJECTED"]
+    accepted: bool | None = Field(
+        default=None, description="Engine verdict; null until acknowledged."
+    )
+    reject_code: str | None = Field(
+        default=None, description="Why the cancel was refused, when it was."
+    )
+    event: dict[str, Any] | None = Field(
+        default=None, description="The engine's cancel ack, once received."
+    )
+    ack_timeout: bool = Field(
+        default=False,
+        description="True when `?wait=ack` gave up waiting: the cancel was sent "
+        "and the outcome follows on the private WebSocket.",
+    )
+
+
+class OcoCancelAccepted(_StructureCancelResult):
+    oco_id: str
+
+
+class ComboCancelAccepted(_StructureCancelResult):
+    combo_id: str
+
+
+class QuoteCancelAccepted(_StructureCancelResult):
+    symbol: str
+
+
 class AmendRequest(StrictModel):
     model_config = ConfigDict(
         json_schema_extra={

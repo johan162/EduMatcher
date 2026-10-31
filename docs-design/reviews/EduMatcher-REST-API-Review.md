@@ -1098,7 +1098,7 @@ before WP-API07:
 | **WP-API14** ✅ | Spec tables vs contract | **Done 2026-10-30 (uncommitted)**, extended to exact per-route error codes (Johan), see §9.7. A test checks each endpoint section of the REST spec (statuses, error codes) against `spec/rest/openapi.json`; fix what it finds (e.g. `ENGINE_TIMEOUT` on `DELETE /oco`, `/combos`). Pulled forward from WP-API09's docs part. | §9.1, §9.2, §9.5 | S–M |
 | **WP-API15** ✅ | trader-gui failure wording | **Done 2026-10-30 (uncommitted)**, see §9.8. Amend, cancel, replace, bulk and kill switch call a 503 "awaiting confirmation", but they don't wait, so a 503 means nothing was sent. Reuse WP-API02's ticket fix; correct the trader GUI guide's class C table. | §9.5 | S |
 | **WP-API16** ✅ | One order-validation rule | **Done 2026-10-30 (uncommitted)**, see §9.9. Move `_TYPE_FIELDS` to `models/` and apply it in REST, ALF (and BALF) and the engine (the engine is the backstop for combo legs, whose check differs today). One shared reject-code mapping. ALF rejects a field the order type doesn't use, like REST, with the same `reject_code`; ALF spec updated. | §9.1, §9.2, Q9 | M |
-| **WP-API17** | Structure cancel acks (Q8) | Engine: `oco.cancel_ack`, `combo.cancel_ack`, `quote.cancel_ack` (new messages, `request_tag` echoed, on success and refusal). REST: `DELETE /oco/{id}`, `/combos/{id}`, `/quotes/{symbol}` take `request_tag` and `?wait=ack` (200 with the verdict, 202 + `ack_timeout` when late), like order cancel; ALF and the GUIs read the new acks. After WP-API09, before 1.0. | Q8, §9.5 | M |
+| **WP-API17** ✅ | Structure cancel acks (Q8) | **Done 2026-10-31 (uncommitted)**, see §9.13. Engine: `oco.cancel_ack`, `combo.cancel_ack`, `quote.cancel_ack` (new messages, `request_tag` echoed, on success and refusal). REST: `DELETE /oco/{id}`, `/combos/{id}`, `/quotes/{symbol}` take `request_tag` and `?wait=ack` (200 with the verdict, 202 + `ack_timeout` when late), like order cancel; ALF and the GUIs read the new acks. After WP-API09, before 1.0. | Q8, §9.5 | M |
 
 ### 9.7 WP-API14 outcome (2026-10-30)
 
@@ -1531,6 +1531,88 @@ exchange, in `make test-e2e`.
   pagination contract.
 - **DOC3** needed nothing: WP-API04 and WP-API06 already removed the stale
   and internal text.
+
+### 9.13 WP-API17 outcome (2026-10-31)
+
+Implements Q8 as decided: dedicated cancel acks, before 1.0.
+
+**Engine and IDL:**
+
+- New messages `oco.cancel_ack`, `combo.cancel_ack` and `quote.cancel_ack`.
+  Each carries the structure's id, `accepted`, `reason`, `reject_code`
+  (`ORDER_NOT_FOUND`, `ORDER_ALREADY_TERMINAL`, or the gateway-status codes),
+  the echoed `request_tag` and `cancelled_order_ids`.
+- The three cancel requests gained an optional `request_tag`.
+- The engine answers **every** structure cancel with exactly one cancel ack,
+  accepted or refused, and no longer uses the submit acks (`oco.ack`,
+  `combo.ack`, `quote.ack`) for cancels. Combo still publishes
+  `combo.status: CANCELLED`, and OCO its leg cancels.
+- `reject_code` is a string, because the IDL has no shared enum type. A test
+  pins the engine to `order.ack`'s vocabulary.
+
+**REST:**
+
+- `DELETE /oco/{id}`, `/combos/{id}` and `/quotes/{symbol}` take
+  `request_tag` and `?wait=ack`, exactly as order cancel does:
+  - `202 PENDING_CANCEL` by default;
+  - `200` with `ACKED`, or `REJECTED` and a `reject_code`;
+  - `202` with `ack_timeout` when late.
+- Replies are `OcoCancelAccepted`, `ComboCancelAccepted` and
+  `QuoteCancelAccepted`. The `*CancelPending` models are gone.
+- The contract was regenerated, and the spec sections and the
+  write-outcomes scope updated.
+
+**Consumers:**
+
+- **ALF (frozen):** the gateway renders the new acks as the frames ALF
+  always sent. A refusal is `OCO_ACK`/`COMBO_ACK` with `ACCEPTED=FALSE`;
+  every quote cancel is `QUOTE_ACK`; an accepted OCO or combo cancel has no
+  frame, as before. A frame-parity test pins this. ALF clients, including
+  the AI traders, see no change.
+- **Private WebSocket:** the three types are routed to the caller. The
+  WebSocket chapter's catalogue and its guard test are updated.
+- **trader-gui:**
+  - A refused cancel now reads "Cancel of OCO X refused". Before, it read
+    "OCO X rejected", like a failed submission.
+  - A quote cancel now reads "Quote AAPL cancelled". Before, a successful
+    cancel read "Quote ... accepted".
+  - The quote list refreshes on either outcome.
+- **The rest:**
+  - `pm-alf-console` subscribes to and renders the new acks;
+  - `pm-admin-cli`'s `quote_cancel` waits for `quote.cancel_ack`;
+  - audit replay has the three kinds, templates and cancel-request links
+    (exact by `request_tag`, `STRONG` by id).
+
+**Bugs the old wire caused, fixed by it:**
+
+- **MM bot.** A successful quote cancel's `quote.ack` (`accepted: true`)
+  matched the bot's `quote_id`, so the bot set `QUOTING` and logged
+  "quote ACK" for a quote it had just withdrawn. A refused cancel (empty
+  `quote_id`) fell through to the submit FIFO and was attributed to the next
+  quote it had sent. The bot no longer receives either.
+- **pm-stats.** It recorded a refused structure cancel as `OCO_REJECT` /
+  `COMBO_REJECT` / `QUOTE_REJECT` (a submit rejection), and a quote cancel
+  as `QUOTE_ACK`. It now records neither. The legs' `order.cancelled`
+  events remain.
+
+**New finding, not fixed (engine, outside this WP):**
+
+- `_handle_oco_cancel` does not check that the caller owns the pair.
+- `_oco_groups` is keyed by the client-chosen `oco_id` alone. So one gateway
+  can cancel another's OCO by naming its id, and two gateways using the same
+  `oco_id` collide.
+- Combos check ownership; OCOs should too, and the key should be
+  `(gateway_id, oco_id)`. This needs its own small engine WP before 1.0.
+
+**Tests:**
+
+- engine (10);
+- ALF frame parity (5);
+- ALF console (3);
+- REST (5);
+- audit links (4);
+- trader-gui (4);
+- updated expectations in the combo, OCO, CLI and msgen-count tests.
 
 ### P1: strongly recommended for 1.0 (additive, but defines "complete control")
 

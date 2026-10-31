@@ -777,6 +777,66 @@ def test_amended_and_cancelled_events_echo_request_tag(gateway: AlfGateway) -> N
     peer.close()
 
 
+@pytest.mark.parametrize(
+    ("topic", "payload", "expected"),
+    [
+        # A refused OCO cancel: the OCO_ACK refusal frame ALF always sent.
+        (
+            "oco.cancel_ack.TRADER01",
+            {"oco_id": "O1", "accepted": False, "reason": "OCO not found",
+             "reject_code": "ORDER_NOT_FOUND", "cancelled_order_ids": []},
+            ("OCO_ACK", {"OCO_ID": "O1", "ACCEPTED": "FALSE", "LEG1_ID": "",
+                         "LEG2_ID": "", "REASON": "OCO NOT FOUND"}),
+        ),
+        (
+            "combo.cancel_ack.TRADER01",
+            {"combo_id": "C1", "accepted": False, "reason": "Combo already MATCHED",
+             "reject_code": "ORDER_ALREADY_TERMINAL", "cancelled_order_ids": []},
+            ("COMBO_ACK", {"COMBO_ID": "C1", "ACCEPTED": "FALSE",
+                           "REASON": "COMBO ALREADY MATCHED"}),
+        ),
+        # A quote cancel, either way: the QUOTE_ACK ALF always sent for it.
+        (
+            "quote.cancel_ack.TRADER01",
+            {"symbol": "AAPL", "quote_id": "Q1", "accepted": True, "reason": "",
+             "cancelled_order_ids": ["b", "a"]},
+            ("QUOTE_ACK", {"QUOTE_ID": "Q1", "SYM": "AAPL", "ACCEPTED": "TRUE",
+                           "REASON": "", "BID_ID": "", "ASK_ID": ""}),
+        ),
+        # An accepted OCO or combo cancel had no ack frame; the leg cancels
+        # (and COMBO_STATUS) tell the client, as before.
+        ("oco.cancel_ack.TRADER01",
+         {"oco_id": "O1", "accepted": True, "reason": "", "cancelled_order_ids": ["x"]},
+         None),
+        ("combo.cancel_ack.TRADER01",
+         {"combo_id": "C1", "accepted": True, "reason": "", "cancelled_order_ids": ["x"]},
+         None),
+    ],
+)  # fmt: skip
+def test_structure_cancel_acks_keep_the_alf_frames(
+    gateway: AlfGateway,
+    topic: str,
+    payload: dict[str, object],
+    expected: tuple[str, dict[str, str]] | None,
+) -> None:
+    """WP-API17 moved cancel outcomes onto *.cancel_ack; ALF is frozen at 1.0,
+    so an ALF client must see exactly the frames it saw before. (The test
+    parser upper-cases values, as ALF's does.)"""
+    session, peer = _make_session()
+    session.authenticated = True
+    session.gateway_id = "TRADER01"
+    gateway._clients[session.sock.fileno()] = session
+    gateway._active_gateway_sessions["TRADER01"] = session.sock.fileno()
+    gateway._route_gateway_scoped_event(topic, payload)
+    frames = [parse_alf_line(x.decode("utf-8")) for x in session.out_queue]
+    if expected is None:
+        assert frames == []
+    else:
+        (frame,) = frames
+        assert (frame.command, frame.fields) == expected
+    peer.close()
+
+
 def test_a_fired_stop_reaches_its_session_as_triggered(gateway: AlfGateway) -> None:
     from edumatcher.models.price import register_tick_decimals
 

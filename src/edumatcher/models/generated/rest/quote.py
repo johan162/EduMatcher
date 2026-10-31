@@ -61,6 +61,8 @@ class QuoteCancel(BaseModel):
 
     gateway_id: str = Field(max_length=32)
     symbol: str = Field(max_length=16)
+    request_tag: str | None = Field(default=None, max_length=64)
+    """Echoed on quote.cancel_ack, so the caller can attribute the outcome."""
 
 
 class QuoteAck(BaseModel):
@@ -98,3 +100,26 @@ class QuoteStatus(BaseModel):
     originating command (participant cancel, replacement by a new quote, a leg
     fill).
     """
+
+
+class QuoteCancelAck(BaseModel):
+    """Engine to market maker: the outcome of a quote.cancel."""
+
+    model_config = ConfigDict(use_attribute_docstrings=True)
+
+    symbol: str = Field(max_length=16)
+    quote_id: str = Field(max_length=64)
+    """The withdrawn quote's id; "" when there was none."""
+    accepted: bool
+    reason: str = Field(max_length=512)
+    reject_code: str | None = Field(default=None, max_length=32)
+    """On a refusal, a member of order.ack's `reject_code` vocabulary
+    (ORDER_NOT_FOUND, ORDER_ALREADY_TERMINAL, GATEWAY_NOT_CONFIGURED,
+    AUTH_REQUIRED); absent when accepted. A string rather than that enum only
+    because the IDL has no shared enum type: the engine is held to the vocabulary
+    by tests/test_engine_structure_cancel_acks.py.
+    """
+    request_tag: str | None = Field(default=None, max_length=64)
+    """Echoed from the cancel request, so the caller can attribute the outcome."""
+    cancelled_order_ids: list[str]
+    """The engine order ids the cancel removed; empty on a refusal."""

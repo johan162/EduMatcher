@@ -296,7 +296,13 @@ _ORDER_KINDS = frozenset(
     }
 )
 _QUOTE_KINDS = frozenset(
-    {kinds.QUOTE_NEW, kinds.QUOTE_CANCEL, kinds.QUOTE_ACK, kinds.QUOTE_STATUS}
+    {
+        kinds.QUOTE_NEW,
+        kinds.QUOTE_CANCEL,
+        kinds.QUOTE_ACK,
+        kinds.QUOTE_STATUS,
+        kinds.QUOTE_CANCEL_ACK,
+    }
 )
 _OCO_KINDS = frozenset(
     {
@@ -304,6 +310,7 @@ _OCO_KINDS = frozenset(
         kinds.ORDER_OCO_CANCEL,
         kinds.OCO_ACK,
         kinds.OCO_CANCELLED,
+        kinds.OCO_CANCEL_ACK,
     }
 )
 _COMBO_KINDS = frozenset(
@@ -312,6 +319,7 @@ _COMBO_KINDS = frozenset(
         kinds.ORDER_COMBO_CANCEL,
         kinds.COMBO_ACK,
         kinds.COMBO_STATUS,
+        kinds.COMBO_CANCEL_ACK,
     }
 )
 _INDEX_KINDS = frozenset(

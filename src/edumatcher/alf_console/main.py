@@ -160,12 +160,15 @@ from edumatcher.models.generated.order import (
 )
 from edumatcher.models.generated.structure import (
     topic_combo_ack,
+    topic_combo_cancel_ack,
     topic_combo_status,
     topic_oco_ack,
+    topic_oco_cancel_ack,
     topic_oco_cancelled,
 )
 from edumatcher.models.generated.quote import (
     topic_quote_ack,
+    topic_quote_cancel_ack,
     topic_quote_status,
 )
 from edumatcher.models.generated.system import (
@@ -373,10 +376,13 @@ class Gateway:
             topic_order_expired(self.gateway_id),
             topic_orders(self.gateway_id),
             topic_combo_ack(self.gateway_id),
+            topic_combo_cancel_ack(self.gateway_id),
             topic_combo_status(self.gateway_id),
             topic_oco_ack(self.gateway_id),
+            topic_oco_cancel_ack(self.gateway_id),
             topic_oco_cancelled(self.gateway_id),
             topic_quote_ack(self.gateway_id),
+            topic_quote_cancel_ack(self.gateway_id),
             topic_quote_status(self.gateway_id),
             topic_kill_switch_ack(self.gateway_id),
             topic_symbols(self.gateway_id),
@@ -1013,6 +1019,27 @@ class Gateway:
                             leg_price if isinstance(leg_price, (int, float)) else None
                         ),
                     )
+
+        elif ".cancel_ack." in topic:
+            # The outcome of one OCO/combo/quote cancel (WP-API17).
+            kind = topic.split(".", 1)[0].upper()
+            target = (
+                payload.get("oco_id")
+                or payload.get("combo_id")
+                or payload.get("symbol")
+                or "?"
+            )
+            if payload.get("accepted"):
+                legs = len(payload.get("cancelled_order_ids") or [])
+                console.print(
+                    f"[{ts}] [yellow]{kind} CXL OK[/yellow] {target}  legs cancelled={legs}"
+                )
+            else:
+                reason = payload.get("reason", "")
+                code = payload.get("reject_code", "")
+                console.print(
+                    f"[{ts}] [red]{kind} CXL REJ[/red] {target}  {code} {reason}"
+                )
 
         elif "combo.ack" in topic:
             cid = payload.get("combo_id", "?")

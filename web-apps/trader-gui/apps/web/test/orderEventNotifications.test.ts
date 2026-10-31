@@ -272,3 +272,35 @@ describe("useOrderEventNotifications — FOK/MARKET/IOC kill outcome (M2)", () =
     expect(useNotificationStore.getState().entries).toHaveLength(0);
   });
 });
+
+// WP-API17: a structure cancel's outcome is its own *.cancel_ack. Before, a
+// refused cancel arrived as oco.ack/combo.ack and was shown as a *submit*
+// rejection.
+describe("useOrderEventNotifications — structure cancel acks (WP-API17)", () => {
+  function emit(type: "oco.cancel_ack" | "combo.cancel_ack", data: Record<string, unknown>): void {
+    __privateMessageForTest({
+      type,
+      topic: `${type}.GW1`,
+      ts: "2026-10-31T10:00:00Z",
+      data: { gateway_id: "GW1", reason: "", cancelled_order_ids: [], ...data },
+    } as WsEnvelope<never>);
+  }
+
+  it("reports a refused OCO cancel as a refused cancel, not a rejected OCO", () => {
+    renderHook(() => useOrderEventNotifications());
+    emit("oco.cancel_ack", { oco_id: "O1", accepted: false, reason: "OCO not found", reject_code: "ORDER_NOT_FOUND" });
+    const entry = useNotificationStore.getState().entries[0]!;
+    expect(entry.kind).toBe("REJECT");
+    expect(entry.title).toBe("Cancel of OCO O1 refused");
+    expect(vi.mocked(toast.error)).toHaveBeenCalled();
+  });
+
+  it("records an accepted combo cancel as a cancel", () => {
+    renderHook(() => useOrderEventNotifications());
+    emit("combo.cancel_ack", { combo_id: "C1", accepted: true, cancelled_order_ids: ["a", "b"] });
+    const entry = useNotificationStore.getState().entries[0]!;
+    expect(entry.kind).toBe("CANCEL");
+    expect(entry.title).toBe("Combo C1 cancelled");
+    expect(vi.mocked(toast.error)).not.toHaveBeenCalled();
+  });
+});

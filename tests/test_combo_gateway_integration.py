@@ -460,8 +460,10 @@ class TestComboEndToEnd:
             }
         )
 
-        acks = _messages_by_topic(pub_sock, "combo.ack")
+        # WP-API17: a cancel's outcome is its own ack, not the submit's.
+        acks = _messages_by_topic(pub_sock, "combo.cancel_ack")
         assert acks[0]["accepted"] is False
+        assert acks[0]["reject_code"] == "ORDER_NOT_FOUND"
         assert "not found" in acks[0]["reason"].lower()
 
     def test_combo_day_order_survives_shutdown_pending(self, combo_engine) -> None:

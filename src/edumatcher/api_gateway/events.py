@@ -24,12 +24,15 @@ from edumatcher.models.generated.admin import PREFIX_ADMIN_ACTION
 from edumatcher.models.generated.risk import PREFIX_KILL_SWITCH_ACK
 from edumatcher.models.generated.structure import (
     PREFIX_COMBO_ACK,
+    PREFIX_COMBO_CANCEL_ACK,
     PREFIX_COMBO_STATUS,
     PREFIX_OCO_ACK,
+    PREFIX_OCO_CANCEL_ACK,
     PREFIX_OCO_CANCELLED,
 )
 from edumatcher.models.generated.quote import (
     PREFIX_QUOTE_ACK,
+    PREFIX_QUOTE_CANCEL_ACK,
     PREFIX_QUOTE_STATUS,
 )
 from edumatcher.models.generated.registry import TOPIC_REGISTRY
@@ -86,6 +89,10 @@ PRIVATE_PREFIXES = (
     PREFIX_OCO_CANCELLED,
     PREFIX_QUOTE_ACK,
     PREFIX_QUOTE_STATUS,
+    # The outcome of each structure cancel (WP-API17).
+    PREFIX_OCO_CANCEL_ACK,
+    PREFIX_COMBO_CANCEL_ACK,
+    PREFIX_QUOTE_CANCEL_ACK,
     PREFIX_KILL_SWITCH_ACK,
     PREFIX_GATEWAY_AUTH,
     SYSTEM_SYMBOLS_PREFIX,

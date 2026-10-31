@@ -95,12 +95,15 @@ from edumatcher.models.generated.risk import (
 )
 from edumatcher.models.generated.structure import (
     PREFIX_COMBO_ACK,
+    PREFIX_COMBO_CANCEL_ACK,
     PREFIX_COMBO_STATUS,
     PREFIX_OCO_ACK,
+    PREFIX_OCO_CANCEL_ACK,
     PREFIX_OCO_CANCELLED,
 )
 from edumatcher.models.generated.quote import (
     PREFIX_QUOTE_ACK,
+    PREFIX_QUOTE_CANCEL_ACK,
     PREFIX_QUOTE_STATUS,
 )
 from edumatcher.models.generated.system import (
@@ -277,10 +280,13 @@ class AlfGateway:
             PREFIX_ORDER_EXPIRED,
             PREFIX_ORDERS,
             PREFIX_QUOTE_ACK,
+            PREFIX_QUOTE_CANCEL_ACK,
             PREFIX_QUOTE_STATUS,
             PREFIX_COMBO_ACK,
+            PREFIX_COMBO_CANCEL_ACK,
             PREFIX_COMBO_STATUS,
             PREFIX_OCO_ACK,
+            PREFIX_OCO_CANCEL_ACK,
             PREFIX_OCO_CANCELLED,
             PREFIX_KILL_SWITCH_ACK,
             PREFIX_SYMBOLS,
@@ -1845,6 +1851,39 @@ class AlfGateway:
                 "OCO_ID": str(payload.get("oco_id", "")),
                 "CANCELLED_ID": str(payload.get("cancelled_order_id", "")),
                 "REASON": str(payload.get("reason", "")),
+            }
+        # WP-API17 moved structure-cancel outcomes onto their own *.cancel_ack
+        # topics. ALF is frozen at 1.0, so they are rendered as the frames an
+        # ALF client always got for them: the submit-ack frame for a refusal
+        # (and for every quote cancel), and nothing for an accepted OCO or
+        # combo cancel, whose leg cancels and COMBO_STATUS say it.
+        elif topic.startswith(PREFIX_OCO_CANCEL_ACK):
+            if not bool(payload.get("accepted", False)):
+                msg_type = "OCO_ACK"
+                fields = {
+                    "OCO_ID": str(payload.get("oco_id", "")),
+                    "ACCEPTED": "FALSE",
+                    "LEG1_ID": "",
+                    "LEG2_ID": "",
+                    "REASON": str(payload.get("reason", "")),
+                }
+        elif topic.startswith(PREFIX_COMBO_CANCEL_ACK):
+            if not bool(payload.get("accepted", False)):
+                msg_type = "COMBO_ACK"
+                fields = {
+                    "COMBO_ID": str(payload.get("combo_id", "")),
+                    "ACCEPTED": "FALSE",
+                    "REASON": str(payload.get("reason", "")),
+                }
+        elif topic.startswith(PREFIX_QUOTE_CANCEL_ACK):
+            msg_type = "QUOTE_ACK"
+            fields = {
+                "QUOTE_ID": str(payload.get("quote_id", "")),
+                "SYM": str(payload.get("symbol", "")),
+                "ACCEPTED": "TRUE" if bool(payload.get("accepted", False)) else "FALSE",
+                "REASON": str(payload.get("reason", "")),
+                "BID_ID": "",
+                "ASK_ID": "",
             }
         elif topic.startswith(PREFIX_KILL_SWITCH_ACK):
             msg_type = "KILL_ACK"

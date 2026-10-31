@@ -22,10 +22,7 @@ from edumatcher.api_gateway.idempotency import idempotent
 from edumatcher.api_gateway.responses import (
     AmendAccepted,
     CachedOrder,
-    ComboCancelPending,
-    OcoCancelPending,
     OrderList,
-    QuoteCancelPending,
 )
 from edumatcher.api_gateway.routing import ContractRoute
 from edumatcher.api_gateway.params import (
@@ -43,9 +40,12 @@ from edumatcher.api_gateway.schemas import (
     OcoRequest,
     OrderAccepted,
     ComboAccepted,
+    ComboCancelAccepted,
     OcoAccepted,
+    OcoCancelAccepted,
     OrderRequest,
     QuoteAccepted,
+    QuoteCancelAccepted,
     QuoteRequest,
     ReplaceResponse,
 )
@@ -59,8 +59,13 @@ from edumatcher.api_gateway.translate import (
 )
 from edumatcher.models.generated.rest.risk import KillSwitchAck
 from edumatcher.models.price import has_tick_decimals
-from edumatcher.models.generated.quote import topic_quote_ack
-from edumatcher.models.generated.structure import topic_combo_ack, topic_oco_ack
+from edumatcher.models.generated.quote import topic_quote_ack, topic_quote_cancel_ack
+from edumatcher.models.generated.structure import (
+    topic_combo_ack,
+    topic_combo_cancel_ack,
+    topic_oco_ack,
+    topic_oco_cancel_ack,
+)
 from edumatcher.models.generated.order import (
     topic_order_ack,
     topic_order_amended,
@@ -168,6 +173,42 @@ def _ok_when_answered(response: Response, event: dict[str, Any] | None) -> None:
     """200 when the body carries the engine's outcome, else the route's 202."""
     if event is not None:
         response.status_code = status.HTTP_200_OK
+
+
+async def _structure_cancel_reply(
+    request: Request,
+    response: Response,
+    *,
+    topic: str,
+    ids: dict[str, str],
+    wait: str | None,
+    request_tag: str | None,
+) -> dict[str, Any]:
+    """The reply to an OCO, combo or quote cancel, as for an order cancel.
+
+    The engine answers every structure cancel on its own ``*.cancel_ack``
+    (WP-API17), success or refusal alike, so ``?wait=ack`` can wait for it:
+    matched on the structure's id, and on ``request_tag`` when there is one.
+    """
+    match = dict(ids)
+    if request_tag:
+        match["request_tag"] = request_tag
+    event, timed_out = await _await_ack(request, topic, match, wait)
+    _ok_when_answered(response, event)
+    rejected = event is not None and event.get("accepted") is False
+    return {
+        **ids,
+        "request_tag": request_tag,
+        "status": (
+            "PENDING_CANCEL" if event is None else "REJECTED" if rejected else "ACKED"
+        ),
+        "accepted": None if event is None else not rejected,
+        "reject_code": (
+            event.get("reject_code") if event is not None and rejected else None
+        ),
+        "event": event,
+        "ack_timeout": timed_out,
+    }
 
 
 def _structure_verdict(
@@ -706,24 +747,52 @@ async def submit_oco(
 
 @router.delete(
     "/oco/{oco_id}",
-    response_model=OcoCancelPending,
+    response_model=OcoCancelAccepted,
     status_code=status.HTTP_202_ACCEPTED,
     summary="Cancel an OCO pair",
-    description="Cancel both legs of the OCO group `oco_id`.",
+    description=(
+        "Cancel both legs of the OCO group `oco_id`. " + docs.STRUCTURE_CANCEL_ACK
+    ),
     responses=docs.merge(
-        docs.ok(docs.OCO_CANCEL, "Cancel sent to the engine.", 202),
+        docs.ok_or_acked(
+            docs.OCO_CANCEL,
+            "Cancel sent (`PENDING_CANCEL`); the outcome follows on the private "
+            "WebSocket.",
+            "With `?wait=ack`: the cancel's outcome.",
+        ),
         docs.errors(*docs.TRADING_KEY, "RATE_LIMIT", "VALIDATION"),
     ),
 )
 async def cancel_oco(
     oco_id: OcoIdPath,
     request: Request,
+    response: Response,
     session: Annotated[Session, Depends(auth)],
-) -> dict[str, str]:
+    wait: Annotated[
+        str | None, Query(pattern="^ack$", description=docs.WAIT_ACK)
+    ] = None,
+    request_tag: Annotated[
+        str | None,
+        Query(
+            max_length=64,
+            description="Caller label echoed on the cancel's ack.",
+        ),
+    ] = None,
+) -> dict[str, Any]:
     gateway_id = require_trading(session)
     _check_rate_limit(request, session)
-    request.app.state.engine.send_oco_cancel(oco_id, gateway_id)
-    return {"oco_id": oco_id, "status": "PENDING_CANCEL"}
+    ident = oco_id
+    request.app.state.engine.send_oco_cancel(
+        ident, gateway_id, request_tag=request_tag or ""
+    )
+    return await _structure_cancel_reply(
+        request,
+        response,
+        topic=topic_oco_cancel_ack(gateway_id),
+        ids={"oco_id": ident},
+        wait=wait,
+        request_tag=request_tag,
+    )
 
 
 @router.post(
@@ -785,24 +854,52 @@ async def submit_combo(
 
 @router.delete(
     "/combos/{combo_id}",
-    response_model=ComboCancelPending,
+    response_model=ComboCancelAccepted,
     status_code=status.HTTP_202_ACCEPTED,
     summary="Cancel a combo order",
-    description="Cancel every leg of the combo `combo_id`.",
+    description=(
+        "Cancel every leg of the combo `combo_id`. " + docs.STRUCTURE_CANCEL_ACK
+    ),
     responses=docs.merge(
-        docs.ok(docs.COMBO_CANCEL, "Cancel sent to the engine.", 202),
+        docs.ok_or_acked(
+            docs.COMBO_CANCEL,
+            "Cancel sent (`PENDING_CANCEL`); the outcome follows on the private "
+            "WebSocket.",
+            "With `?wait=ack`: the cancel's outcome.",
+        ),
         docs.errors(*docs.TRADING_KEY, "RATE_LIMIT", "VALIDATION"),
     ),
 )
 async def cancel_combo(
     combo_id: ComboIdPath,
     request: Request,
+    response: Response,
     session: Annotated[Session, Depends(auth)],
-) -> dict[str, str]:
+    wait: Annotated[
+        str | None, Query(pattern="^ack$", description=docs.WAIT_ACK)
+    ] = None,
+    request_tag: Annotated[
+        str | None,
+        Query(
+            max_length=64,
+            description="Caller label echoed on the cancel's ack.",
+        ),
+    ] = None,
+) -> dict[str, Any]:
     gateway_id = require_trading(session)
     _check_rate_limit(request, session)
-    request.app.state.engine.send_combo_cancel(combo_id, gateway_id)
-    return {"combo_id": combo_id, "status": "PENDING_CANCEL"}
+    ident = combo_id
+    request.app.state.engine.send_combo_cancel(
+        ident, gateway_id, request_tag=request_tag or ""
+    )
+    return await _structure_cancel_reply(
+        request,
+        response,
+        topic=topic_combo_cancel_ack(gateway_id),
+        ids={"combo_id": ident},
+        wait=wait,
+        request_tag=request_tag,
+    )
 
 
 @router.post(
@@ -867,24 +964,52 @@ async def submit_quote(
 
 @router.delete(
     "/quotes/{symbol}",
-    response_model=QuoteCancelPending,
+    response_model=QuoteCancelAccepted,
     status_code=status.HTTP_202_ACCEPTED,
     summary="Cancel my quote on a symbol",
-    description="Withdraw the caller's active quote on `symbol`.",
+    description=(
+        "Withdraw the caller's active quote on `symbol`. " + docs.STRUCTURE_CANCEL_ACK
+    ),
     responses=docs.merge(
-        docs.ok(docs.QUOTE_CANCEL, "Cancel sent to the engine.", 202),
+        docs.ok_or_acked(
+            docs.QUOTE_CANCEL,
+            "Cancel sent (`PENDING_CANCEL`); the outcome follows on the private "
+            "WebSocket.",
+            "With `?wait=ack`: the cancel's outcome.",
+        ),
         docs.errors(*docs.TRADING_KEY, "RATE_LIMIT", "VALIDATION"),
     ),
 )
 async def cancel_quote(
     symbol: SymbolPath,
     request: Request,
+    response: Response,
     session: Annotated[Session, Depends(auth)],
-) -> dict[str, str]:
+    wait: Annotated[
+        str | None, Query(pattern="^ack$", description=docs.WAIT_ACK)
+    ] = None,
+    request_tag: Annotated[
+        str | None,
+        Query(
+            max_length=64,
+            description="Caller label echoed on the cancel's ack.",
+        ),
+    ] = None,
+) -> dict[str, Any]:
     gateway_id = require_trading(session)
     _check_rate_limit(request, session)
-    request.app.state.engine.send_quote_cancel(gateway_id, symbol.upper())
-    return {"symbol": symbol.upper(), "status": "PENDING_CANCEL"}
+    ident = symbol.upper()
+    request.app.state.engine.send_quote_cancel(
+        gateway_id, ident, request_tag=request_tag or ""
+    )
+    return await _structure_cancel_reply(
+        request,
+        response,
+        topic=topic_quote_cancel_ack(gateway_id),
+        ids={"symbol": ident},
+        wait=wait,
+        request_tag=request_tag,
+    )
 
 
 @router.post(

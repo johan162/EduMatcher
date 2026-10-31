@@ -129,19 +129,25 @@ class FakeEngine:
     def send_combo(self, payload: dict[str, Any]) -> None:
         self.calls.append(("send_combo", payload))
 
-    def send_combo_cancel(self, combo_id: str, gateway_id: str) -> None:
+    def send_combo_cancel(
+        self, combo_id: str, gateway_id: str, request_tag: str = ""
+    ) -> None:
         self.calls.append(("send_combo_cancel", (combo_id, gateway_id)))
 
     def send_oco(self, payload: dict[str, Any]) -> None:
         self.calls.append(("send_oco", payload))
 
-    def send_oco_cancel(self, oco_id: str, gateway_id: str) -> None:
+    def send_oco_cancel(
+        self, oco_id: str, gateway_id: str, request_tag: str = ""
+    ) -> None:
         self.calls.append(("send_oco_cancel", (oco_id, gateway_id)))
 
     def send_quote(self, payload: dict[str, Any]) -> None:
         self.calls.append(("send_quote", payload))
 
-    def send_quote_cancel(self, gateway_id: str, symbol: str) -> None:
+    def send_quote_cancel(
+        self, gateway_id: str, symbol: str, request_tag: str = ""
+    ) -> None:
         self.calls.append(("send_quote_cancel", (gateway_id, symbol)))
 
     def send_mass_cancel(self, gateway_id: str, symbol: str = "") -> None:
@@ -538,17 +544,17 @@ async def test_composite_quote_and_risk_routes() -> None:
     sent = await orders.submit_oco(oco, request, Response(), session)
     assert (sent.oco_id, sent.status) == ("O1", "PENDING")
     check_contract(orders.submit_oco, sent)
-    oco_cancel = await orders.cancel_oco("O1", request, session)
+    oco_cancel = await orders.cancel_oco("O1", request, Response(), session)
     check_contract(orders.cancel_oco, oco_cancel)
     sent_combo = await orders.submit_combo(combo, request, Response(), session)
     assert sent_combo.combo_id == "C1"
     check_contract(orders.submit_combo, sent_combo)
-    combo_cancel = await orders.cancel_combo("C1", request, session)
+    combo_cancel = await orders.cancel_combo("C1", request, Response(), session)
     check_contract(orders.cancel_combo, combo_cancel)
     quoted = await orders.submit_quote(quote, request, Response(), session)
     check_contract(orders.submit_quote, quoted)
     assert (quoted.symbol, quoted.quote_id) == ("AAPL", None)
-    quote_cancel = await orders.cancel_quote("aapl", request, session)
+    quote_cancel = await orders.cancel_quote("aapl", request, Response(), session)
     check_contract(orders.cancel_quote, quote_cancel)
     assert quote_cancel["symbol"] == "AAPL"
     result = await orders.mass_cancel(

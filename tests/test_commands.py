@@ -19,6 +19,8 @@ correctly parsed and returned.
 
 from __future__ import annotations
 
+from edumatcher.models.generated.quote import make_quote_cancel_ack
+
 from collections import deque
 from dataclasses import dataclass, field
 
@@ -42,7 +44,6 @@ from edumatcher.models.message import (
     make_orders_msg,
     make_position_snapshot_msg,
     make_price_level_orders_msg,
-    make_quote_ack_msg,
     make_quote_bootstrap_msg,
     make_reference_reload_ack_msg,
     make_index_error_msg,
@@ -354,7 +355,12 @@ class TestRiskControls:
         assert result["cancelled_quotes"] == 2
 
     def test_quote_cancel_sends_correct_frames(self) -> None:
-        client, push = _client(recv_queue=_q(make_quote_ack_msg("MM01", "Q001", True)))
+        # WP-API17: the reply is quote.cancel_ack, not a quote.ack.
+        reply = make_quote_cancel_ack(
+            gateway_id="MM01", symbol="AAPL", quote_id="Q001", accepted=True,
+            cancelled_order_ids=["b", "a"],
+        )  # fmt: skip
+        client, push = _client(recv_queue=_q(reply))
         result = client.quote_cancel("mm01", "aapl")  # lowercase input
 
         topic, payload = _last_sent(push)

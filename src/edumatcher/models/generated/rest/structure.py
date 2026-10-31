@@ -69,3 +69,45 @@ class OcoCancelled(BaseModel):
     oco_id: str = Field(max_length=64)
     cancelled_order_id: str = Field(max_length=64)
     reason: str = Field(max_length=512)
+
+
+class OcoCancelAck(BaseModel):
+    """Engine to gateway: the outcome of an order.oco_cancel."""
+
+    model_config = ConfigDict(use_attribute_docstrings=True)
+
+    oco_id: str = Field(max_length=64)
+    accepted: bool
+    reason: str = Field(max_length=512)
+    reject_code: str | None = Field(default=None, max_length=32)
+    """On a refusal, a member of order.ack's `reject_code` vocabulary
+    (ORDER_NOT_FOUND, ORDER_ALREADY_TERMINAL, GATEWAY_NOT_CONFIGURED,
+    AUTH_REQUIRED); absent when accepted. A string rather than that enum only
+    because the IDL has no shared enum type: the engine is held to the vocabulary
+    by tests/test_engine_structure_cancel_acks.py.
+    """
+    request_tag: str | None = Field(default=None, max_length=64)
+    """Echoed from the cancel request, so the caller can attribute the outcome."""
+    cancelled_order_ids: list[str]
+    """The engine order ids the cancel removed; empty on a refusal."""
+
+
+class ComboCancelAck(BaseModel):
+    """Engine to gateway: the outcome of an order.combo_cancel."""
+
+    model_config = ConfigDict(use_attribute_docstrings=True)
+
+    combo_id: str = Field(max_length=64)
+    accepted: bool
+    reason: str = Field(max_length=512)
+    reject_code: str | None = Field(default=None, max_length=32)
+    """On a refusal, a member of order.ack's `reject_code` vocabulary
+    (ORDER_NOT_FOUND, ORDER_ALREADY_TERMINAL, GATEWAY_NOT_CONFIGURED,
+    AUTH_REQUIRED); absent when accepted. A string rather than that enum only
+    because the IDL has no shared enum type: the engine is held to the vocabulary
+    by tests/test_engine_structure_cancel_acks.py.
+    """
+    request_tag: str | None = Field(default=None, max_length=64)
+    """Echoed from the cancel request, so the caller can attribute the outcome."""
+    cancelled_order_ids: list[str]
+    """The engine order ids the cancel removed; empty on a refusal."""

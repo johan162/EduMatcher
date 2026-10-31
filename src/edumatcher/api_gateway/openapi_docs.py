@@ -608,13 +608,53 @@ def _structure_sent(ids: dict[str, Any], event: dict[str, Any]) -> dict[str, Any
 
 
 OCO_SENT = _structure_sent({"oco_id": "oco-2026-0042"}, OCO_ACK_EVENT)
-OCO_CANCEL = {"oco_id": "oco-2026-0042", "status": "PENDING_CANCEL"}
+
+
+def _structure_cancel(ids: dict[str, Any], topic_kind: str) -> dict[str, Any]:
+    """Pending / acked / rejected examples of an OCO, combo or quote cancel."""
+    blank = {"accepted": None, "reject_code": None, "event": None}
+    acked_event = {
+        **ids,
+        "accepted": True,
+        "reason": "",
+        "request_tag": "cxl-1",
+        "cancelled_order_ids": [_ORDER_1, _ORDER_2],
+    }
+    refused_event = {
+        **ids,
+        "accepted": False,
+        "reason": f"{topic_kind} not found",
+        "reject_code": "ORDER_NOT_FOUND",
+        "request_tag": "cxl-1",
+        "cancelled_order_ids": [],
+    }
+    return {
+        "pending": (
+            "Default: cancel sent, outcome follows on the WebSocket",
+            {**ids, "request_tag": "cxl-1", "status": "PENDING_CANCEL", **blank,
+             "ack_timeout": False},
+        ),
+        "acked": (
+            "With ?wait=ack: cancelled",
+            {**ids, "request_tag": "cxl-1", "status": "ACKED", "accepted": True,
+             "reject_code": None, "event": acked_event, "ack_timeout": False},
+        ),
+        "rejected": (
+            "With ?wait=ack: the cancel was refused",
+            {**ids, "request_tag": "cxl-1", "status": "REJECTED", "accepted": False,
+             "reject_code": "ORDER_NOT_FOUND", "event": refused_event,
+             "ack_timeout": False},
+        ),
+    }  # fmt: skip
+
+
+OCO_CANCEL = _structure_cancel({"oco_id": "oco-2026-0042"}, "OCO")
 COMBO_SENT = _structure_sent({"combo_id": "combo-spread-17"}, COMBO_ACK_EVENT)
-COMBO_CANCEL = {"combo_id": "combo-spread-17", "status": "PENDING_CANCEL"}
+COMBO_CANCEL = _structure_cancel({"combo_id": "combo-spread-17"}, "Combo")
 QUOTE_SENT = _structure_sent(
     {"symbol": "AAPL", "quote_id": "q-AAPL-0001"}, QUOTE_ACK_EVENT
 )
-QUOTE_CANCEL = {"symbol": "AAPL", "status": "PENDING_CANCEL"}
+QUOTE_CANCEL = _structure_cancel({"symbol": "AAPL"}, "Quote")
 
 MASS_CANCEL: dict[str, Any] = {
     "gateway_id": "TRADER01",
@@ -1307,6 +1347,13 @@ ADMIN_POSITIONS: dict[str, Any] = {
 # ---------------------------------------------------------------------------
 # Request examples and shared parameter text
 # ---------------------------------------------------------------------------
+
+STRUCTURE_CANCEL_ACK = (
+    "`request_tag` (query) is echoed on the engine's cancel ack. Returns `202` "
+    "(`PENDING_CANCEL`); with `?wait=ack`, `200` and the outcome (`ACKED`, or "
+    "`REJECTED` with a `reject_code`), or `202` with `ack_timeout: true` if it "
+    "did not come in time."
+)
 
 STRUCTURE_ACK = (
     "Returns `202` (`PENDING`), the verdict following on the private "

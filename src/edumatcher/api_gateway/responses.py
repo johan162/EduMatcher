@@ -89,21 +89,6 @@ class AdminCachedOrder(CachedOrder):
     gateway_id: str = Field(description="The gateway that owns the order.")
 
 
-class OcoCancelPending(BaseModel):
-    oco_id: str
-    status: Literal["PENDING_CANCEL"]
-
-
-class ComboCancelPending(BaseModel):
-    combo_id: str
-    status: Literal["PENDING_CANCEL"]
-
-
-class QuoteCancelPending(BaseModel):
-    symbol: str
-    status: Literal["PENDING_CANCEL"]
-
-
 # ---------------------------------------------------------------------------
 # Reference and account
 # ---------------------------------------------------------------------------

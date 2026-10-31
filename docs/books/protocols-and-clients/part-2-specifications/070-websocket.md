@@ -162,12 +162,19 @@ state is idempotent, so a client MAY apply such a duplicate twice.
 | `oco.cancelled` | `oco.cancelled.{gateway_id}` | [oco.cancelled](../part-5-message-reference/010-message-reference.md#ococancelledgateway_id) |
 | `quote.ack` | `quote.ack.{gateway_id}` | [quote.ack](../part-5-message-reference/010-message-reference.md#quoteackgateway_id) |
 | `quote.status` | `quote.status.{gateway_id}` | [quote.status](../part-5-message-reference/010-message-reference.md#quotestatusgateway_id) |
+| `oco.cancel_ack` | `oco.cancel_ack.{gateway_id}` | [oco.cancel_ack](../part-5-message-reference/010-message-reference.md#ococancel_ackgateway_id) |
+| `combo.cancel_ack` | `combo.cancel_ack.{gateway_id}` | [combo.cancel_ack](../part-5-message-reference/010-message-reference.md#combocancel_ackgateway_id) |
+| `quote.cancel_ack` | `quote.cancel_ack.{gateway_id}` | [quote.cancel_ack](../part-5-message-reference/010-message-reference.md#quotecancel_ackgateway_id) |
 | `mass_cancel.ack` | `risk.kill_switch_ack.{gateway_id}` | [risk.kill_switch_ack](../part-5-message-reference/010-message-reference.md#riskkill_switch_ackgateway_id) |
 | `system.gateway_auth` | `system.gateway_auth.{gateway_id}` | [system.gateway_auth](../part-5-message-reference/010-message-reference.md#systemgateway_authgateway_id) |
 | `system.symbols` | `system.symbols.{gateway_id}` | [system.symbols](../part-5-message-reference/010-message-reference.md#systemsymbolsgateway_id) |
 | `system.quote_bootstrap` | `system.quote_bootstrap.{gateway_id}` | [system.quote_bootstrap](../part-5-message-reference/010-message-reference.md#systemquote_bootstrapgateway_id) |
 | `system.quote_legs` | `system.quote_legs.{gateway_id}` | [system.quote_legs](../part-5-message-reference/010-message-reference.md#systemquote_legsgateway_id) |
 | `system.session_status` | `system.session_status.{gateway_id}` | [system.session_status](../part-5-message-reference/010-message-reference.md#systemsession_statusgateway_id) |
+
+Each OCO, combo or quote cancel is answered by its own `*.cancel_ack`, accepted
+or refused, echoing the cancel's `request_tag`; the submit acks (`oco.ack`,
+`combo.ack`, `quote.ack`) report submissions only.
 
 The `order.*` events carry the order's `client_tag`, and cancels and amends
 their `request_tag` (see the REST spec's

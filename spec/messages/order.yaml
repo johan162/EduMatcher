@@ -1258,6 +1258,9 @@ messages:
           validate: { max_len: 64 } }
       - { name: gateway_id, type: string, required: false, default: "",
           validate: { max_len: 32 } }
+      - { name: request_tag, type: string, required: false, omit_when_empty: true,
+          validate: { max_len: 64 },
+          doc: "Echoed on combo.cancel_ack, so the caller can attribute the outcome." }
     encoding:
       engine_pub: { frames: [topic, json_payload], include: all }
 
@@ -1366,6 +1369,9 @@ messages:
           doc: "Client-supplied OCO label.", validate: { max_len: 64 } }
       - { name: gateway_id, type: string, required: false, default: "",
           validate: { max_len: 32 } }
+      - { name: request_tag, type: string, required: false, omit_when_empty: true,
+          validate: { max_len: 64 },
+          doc: "Echoed on oco.cancel_ack, so the caller can attribute the outcome." }
     encoding:
       engine_pub: { frames: [topic, json_payload], include: all }
 

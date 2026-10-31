@@ -73,6 +73,21 @@ class _Engine:
     def send_quote(self, payload: dict[str, Any]) -> None:
         self._send("quote", payload)
 
+    def send_oco_cancel(
+        self, oco_id: str, gateway_id: str, request_tag: str = ""
+    ) -> None:
+        self._send("oco_cancel", (oco_id, request_tag))
+
+    def send_combo_cancel(
+        self, combo_id: str, gateway_id: str, request_tag: str = ""
+    ) -> None:
+        self._send("combo_cancel", (combo_id, request_tag))
+
+    def send_quote_cancel(
+        self, gateway_id: str, symbol: str, request_tag: str = ""
+    ) -> None:
+        self._send("quote_cancel", (symbol, request_tag))
+
     def kinds(self) -> list[str]:
         return [kind for kind, _ in self.sent]
 
@@ -83,6 +98,14 @@ class _Engine:
             await asyncio.sleep(self.delay)
         if topic.startswith(self.timeout_prefixes):
             raise TimeoutError(f"Timed out waiting for {topic}")
+        if ".cancel_ack." in topic and not self.cancel_accepted:
+            return {
+                "accepted": False,
+                "reason": "OCO not found",
+                "reject_code": "ORDER_NOT_FOUND",
+                "cancelled_order_ids": [],
+                **(match or {}),
+            }
         return {"accepted": True, "reason": "", **(match or {})}
 
     async def await_cancel_or_amend_outcome(
@@ -419,3 +442,56 @@ async def test_replace_wait_ack_returns_the_replacements_verdict() -> None:
     )
     assert (status, body["status"], body["accepted"]) == (200, "ACKED", True)
     assert body["cancelled_order_id"] == "ORD1" and body["replacement_order_id"]
+
+
+# --- WP-API17: structure cancels report their own outcome ------------------------
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("path", "kind", "ident_field", "ident"),
+    [
+        ("/api/v1/oco/oco-1", "oco_cancel", "oco_id", "oco-1"),
+        ("/api/v1/combos/combo-1", "combo_cancel", "combo_id", "combo-1"),
+        ("/api/v1/quotes/aapl", "quote_cancel", "symbol", "AAPL"),
+    ],
+)
+async def test_structure_cancels_wait_for_their_own_ack(
+    path: str, kind: str, ident_field: str, ident: str
+) -> None:
+    engine = _Engine()
+    app = make_app(engine)
+    pending = await call(app, "DELETE", path)
+    assert (pending[0], pending[2]["status"], pending[2]["accepted"]) == (
+        202,
+        "PENDING_CANCEL",
+        None,
+    )
+    acked = await call(app, "DELETE", f"{path}?wait=ack&request_tag=rt-1")
+    assert (acked[0], acked[2]["status"], acked[2]["accepted"]) == (200, "ACKED", True)
+    assert (acked[2][ident_field], acked[2]["request_tag"]) == (ident, "rt-1")
+    assert engine.sent[-1] == (kind, (ident, "rt-1"))
+
+
+@pytest.mark.anyio
+async def test_a_refused_structure_cancel_is_rejected_not_an_error() -> None:
+    """As for an order cancel: the refusal is the outcome, in a 200."""
+    engine = _Engine(cancel_accepted=False)
+    status, _, body = await call(
+        make_app(engine), "DELETE", "/api/v1/oco/gone?wait=ack"
+    )
+    assert (status, body["status"], body["accepted"]) == (200, "REJECTED", False)
+    assert body["reject_code"] == "ORDER_NOT_FOUND"
+
+
+@pytest.mark.anyio
+async def test_a_late_structure_cancel_ack_is_202_with_ack_timeout() -> None:
+    engine = _Engine(timeout_prefixes=("combo.cancel_ack.",))
+    status, _, body = await call(
+        make_app(engine), "DELETE", "/api/v1/combos/c?wait=ack"
+    )
+    assert (status, body["status"], body["ack_timeout"]) == (
+        202,
+        "PENDING_CANCEL",
+        True,
+    )

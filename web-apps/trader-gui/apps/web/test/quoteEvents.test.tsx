@@ -107,6 +107,26 @@ describe("useQuoteEvents (§14.1.2)", () => {
     expect(useNotificationStore.getState().entries[0]!.kind).toBe("ACK");
   });
 
+  // WP-API17: a quote cancel is answered by quote.cancel_ack. Before, its
+  // success arrived as quote.ack accepted=true and read "Quote ... accepted".
+  it("records a quote cancel as a cancel and refreshes the quotes", () => {
+    const { invalidateSpy } = setup();
+    invalidateSpy.mockClear();
+    fire("quote.cancel_ack", { symbol: "AAPL", quote_id: "mm-aapl-1", accepted: true, reason: "", cancelled_order_ids: ["b1", "a1"] });
+    const entry = useNotificationStore.getState().entries[0]!;
+    expect(entry.kind).toBe("CANCEL");
+    expect(entry.title).toBe("Quote AAPL cancelled");
+    const keys = invalidateSpy.mock.calls.map((c) => (c[0] as { queryKey: string[] }).queryKey[0]);
+    expect(keys).toContain("quotes/bootstrap");
+  });
+
+  it("reports a refused quote cancel", () => {
+    setup();
+    fire("quote.cancel_ack", { symbol: "AAPL", quote_id: "", accepted: false, reason: "No active quote for symbol", reject_code: "ORDER_NOT_FOUND", cancelled_order_ids: [] });
+    expect(toast.error).toHaveBeenCalled();
+    expect(useNotificationStore.getState().entries[0]!.title).toBe("Cancel of quote AAPL refused");
+  });
+
   it("reconciles the quote caches on orders.snapshot (connect/reconnect)", () => {
     const { invalidateSpy } = setup();
     invalidateSpy.mockClear();

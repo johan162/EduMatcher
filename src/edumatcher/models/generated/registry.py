@@ -536,6 +536,14 @@ TOPIC_REGISTRY: Mapping[str, Mapping[str, Any]] = {
         "params": ("gateway_id",),
         "fields": _quote.describe_quote_status(),
     },
+    _quote.TOPIC_QUOTE_CANCEL_ACK: {
+        "family": "quote",
+        "message": "quote_cancel_ack",
+        "prefix": _quote.PREFIX_QUOTE_CANCEL_ACK,
+        "transport": ("engine_pub",),
+        "params": ("gateway_id",),
+        "fields": _quote.describe_quote_cancel_ack(),
+    },
     _risk.TOPIC_KILL_SWITCH: {
         "family": "risk",
         "message": "kill_switch",
@@ -783,6 +791,22 @@ TOPIC_REGISTRY: Mapping[str, Mapping[str, Any]] = {
         "transport": ("engine_pub",),
         "params": ("gateway_id",),
         "fields": _structure.describe_oco_cancelled(),
+    },
+    _structure.TOPIC_OCO_CANCEL_ACK: {
+        "family": "structure",
+        "message": "oco_cancel_ack",
+        "prefix": _structure.PREFIX_OCO_CANCEL_ACK,
+        "transport": ("engine_pub",),
+        "params": ("gateway_id",),
+        "fields": _structure.describe_oco_cancel_ack(),
+    },
+    _structure.TOPIC_COMBO_CANCEL_ACK: {
+        "family": "structure",
+        "message": "combo_cancel_ack",
+        "prefix": _structure.PREFIX_COMBO_CANCEL_ACK,
+        "transport": ("engine_pub",),
+        "params": ("gateway_id",),
+        "fields": _structure.describe_combo_cancel_ack(),
     },
     _system.TOPIC_GATEWAY_CONNECT: {
         "family": "system",

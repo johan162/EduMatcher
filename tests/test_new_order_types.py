@@ -931,11 +931,17 @@ class TestOCOEngine:
             {"oco_id": "DOES_NOT_EXIST", "gateway_id": "TRADER01"}
         )
 
-        oco_acks = [
-            decode(f)[1] for f in pub_sock.sent if decode(f)[0] == "oco.ack.TRADER01"
+        # WP-API17: a cancel's outcome is its own ack, not the submit's.
+        acks = [
+            decode(f)[1]
+            for f in pub_sock.sent
+            if decode(f)[0] == "oco.cancel_ack.TRADER01"
         ]
-        assert len(oco_acks) == 1
-        assert not oco_acks[0]["accepted"]
+        assert len(acks) == 1
+        assert (acks[0]["accepted"], acks[0]["reject_code"]) == (
+            False,
+            "ORDER_NOT_FOUND",
+        )
 
 
 # ===========================================================================
