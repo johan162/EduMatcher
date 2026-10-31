@@ -380,7 +380,7 @@ class TestEngineCancelOCO:
                 },
             }
         )
-        order_ids = engine._oco_groups.get("OCO_CANCEL_TEST", [])
+        order_ids = engine._oco_groups.get(("GW01", "OCO_CANCEL_TEST"), [])
         assert len(order_ids) == 2
 
         # Cancel leg1 — should trigger OCO cascade

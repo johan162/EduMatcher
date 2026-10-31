@@ -825,7 +825,7 @@ class TestOCOHandlers:
             _connect(engine, "GW02")
         # Register OCO pair manually and simulate one leg getting filled
         engine._handle_oco_order(self._oco_payload())
-        order_ids = engine._oco_groups.get("OCO001", [])
+        order_ids = engine._oco_groups.get(("GW01", "OCO001"), [])
         assert len(order_ids) == 2
 
     def test_oco_market_closed_rejected(self, monkeypatch, tmp_path) -> None:

@@ -381,7 +381,7 @@ class TestOCOSiblingCancel:
                 },
             }
         )
-        order_ids = engine._oco_groups.get("OCO_FILL", [])
+        order_ids = engine._oco_groups.get(("GW01", "OCO_FILL"), [])
         assert len(order_ids) == 2
         # Directly call _check_oco_after_event with a simulated filled order
         leg1_id = order_ids[0]

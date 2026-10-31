@@ -2627,7 +2627,7 @@ Submit a One-Cancels-Other pair: two orders on the same instrument, of which a f
 
 | Field | Type | Presence | Rules | Description |
 |---|---|---|---|---|
-| `oco_id` | `string` | defaults to `''` | max_len 64 | Client-supplied label for the pair. |
+| `oco_id` | `string` | defaults to `''` | max_len 64 | Client-supplied label for the pair, unique among the gateway's live pairs: a submit reusing one is refused. Free again once the pair is done. |
 | `gateway_id` | `string` | defaults to `''` | max_len 32 |  |
 | `symbol` | `string` | defaults to `''` | max_len 16 | Both legs trade this instrument. |
 | `tick_decimals` | `int` | defaults to `0` | ge 0, le 8, unit `dimensionless` | Decimal scale for both legs' `_ticks` prices; 1 tick = 10^-tick_decimals. One value for the pair rather than one per leg, because both legs trade the instrument named above. |
@@ -2659,7 +2659,7 @@ Cancel an OCO pair and both of its legs.
 
 | Field | Type | Presence | Rules | Description |
 |---|---|---|---|---|
-| `oco_id` | `string` | defaults to `''` | max_len 64 | Client-supplied OCO label. |
+| `oco_id` | `string` | defaults to `''` | max_len 64 | Client-supplied OCO label. Names a pair of the sending gateway only. |
 | `gateway_id` | `string` | defaults to `''` | max_len 32 |  |
 | `request_tag` | `string` | omitted when empty | max_len 64 | Echoed on oco.cancel_ack, so the caller can attribute the outcome. |
 

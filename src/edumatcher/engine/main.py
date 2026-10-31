@@ -685,11 +685,12 @@ class Engine:
         self._combos: dict[str, ComboOrder] = {}  # combo internal id → ComboOrder
         self._order_to_combo: dict[str, str] = {}  # child order_id → combo internal id
 
-        # OCO-order tracking
-        self._oco_groups: dict[str, list[str]] = (
-            {}
-        )  # oco_group_id → [order_id_1, order_id_2]
-        self._order_to_oco: dict[str, str] = {}  # order_id → oco_group_id
+        # OCO-order tracking, keyed by (gateway_id, oco_id): the id is the
+        # client's own label, unique only within its gateway, so on its own
+        # it let one gateway cancel -- or collide with -- another's pair.
+        self._oco_groups: dict[tuple[str, str], list[str]] = {}
+        #: order_id -> its pair's (gateway_id, oco_id)
+        self._order_to_oco: dict[str, tuple[str, str]] = {}
 
         # Per-gateway position ledger — updated on every fill; keyed by
         # uppercase gateway_id → symbol → value.  Allows bots to resync
@@ -1537,7 +1538,7 @@ class Engine:
         # the QuoteIndex rebuild below. See
         # docs-design/EduMatcher-Revised-Quote-Persistence.md §5.3.
         restored_quote_legs: list[Order] = []
-        restored_oco_legs: dict[str, list[Order]] = {}
+        restored_oco_legs: dict[tuple[str, str], list[Order]] = {}
         for order in orders:
             # Skip GTC orders for symbols no longer in config
             if self._allowed_symbols and order.symbol not in self._allowed_symbols:
@@ -1608,15 +1609,17 @@ class Engine:
             if order.origin == OrderOrigin.QUOTE and order.quote_id:
                 restored_quote_legs.append(order)
             if order.oco_group_id:
-                restored_oco_legs.setdefault(order.oco_group_id, []).append(order)
+                restored_oco_legs.setdefault(
+                    (order.gateway_id, order.oco_group_id), []
+                ).append(order)
         # X23: re-link OCO pairs, as quotes are rebuilt below. Legs come in
         # priority order, so leg 1 (posted first) comes first. A pair with one
         # surviving leg is not re-linked: its leg rests as a plain order.
-        for oco_id, legs in restored_oco_legs.items():
+        for oco_key, legs in restored_oco_legs.items():
             if len(legs) == 2:
-                self._oco_groups[oco_id] = [leg.id for leg in legs]
+                self._oco_groups[oco_key] = [leg.id for leg in legs]
                 for leg in legs:
-                    self._order_to_oco[leg.id] = oco_id
+                    self._order_to_oco[leg.id] = oco_key
         if restored_count:
             log.info(
                 f"Restored {restored_count} resting order(s) from previous session."
@@ -6023,6 +6026,17 @@ class Engine:
             )
             return
 
+        # A live pair already holds this id: accepting would orphan its legs,
+        # still linked to the id, so that one ending would pull the new
+        # pair's sibling. The id is free again once the pair is done.
+        if (gateway_id, oco_id) in self._oco_groups:
+            self.pub_sock.send_multipart(
+                self._oco_ack(
+                    gateway_id, oco_id, False, f"OCO id {oco_id} is already in use"
+                )
+            )
+            return
+
         symbol = str(payload.get("symbol", "")).upper()
         quantity = int(payload.get("quantity", 0))
         tif = TIF(payload.get("tif", "DAY"))
@@ -6146,9 +6160,9 @@ class Engine:
         leg2.oco_group_id = oco_id
 
         # Register the pair
-        self._oco_groups[oco_id] = [leg1.id, leg2.id]
-        self._order_to_oco[leg1.id] = oco_id
-        self._order_to_oco[leg2.id] = oco_id
+        self._oco_groups[(gateway_id, oco_id)] = [leg1.id, leg2.id]
+        self._order_to_oco[leg1.id] = (gateway_id, oco_id)
+        self._order_to_oco[leg2.id] = (gateway_id, oco_id)
         self._order_symbol[leg1.id] = symbol
         self._order_symbol[leg2.id] = symbol
 
@@ -6295,7 +6309,9 @@ class Engine:
             _refuse(reason, self._gateway_reject_code(reason))
             return
 
-        order_ids = self._oco_groups.get(oco_id)
+        # Keyed by the caller's own gateway, so another gateway's pair is simply
+        # not found: the reply does not reveal that it exists.
+        order_ids = self._oco_groups.get((gateway_id, oco_id))
         if not order_ids:
             _refuse("OCO not found", "ORDER_NOT_FOUND")
             return
@@ -6317,7 +6333,7 @@ class Engine:
             self._order_symbol.pop(order_id, None)
             self._order_to_oco.pop(order_id, None)
 
-        self._oco_groups.pop(oco_id, None)
+        self._oco_groups.pop((gateway_id, oco_id), None)
         self.pub_sock.send_multipart(
             self._structure_cancel_ack(
                 "oco",
@@ -6346,7 +6362,8 @@ class Engine:
         oco_id = order.oco_group_id
         if not oco_id:
             return
-        order_ids = self._oco_groups.get(oco_id)
+        oco_key = (order.gateway_id, oco_id)
+        order_ids = self._oco_groups.get(oco_key)
         if not order_ids:
             return
 
@@ -6370,7 +6387,7 @@ class Engine:
             self._order_to_oco.pop(sibling_id, None)
 
         self._order_to_oco.pop(order.id, None)
-        self._oco_groups.pop(oco_id, None)
+        self._oco_groups.pop(oco_key, None)
 
         log.info(
             f"OCO {oco_id}: sibling cancelled after {order.id[:8]} {order.status.value}"

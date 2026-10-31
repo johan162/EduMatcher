@@ -883,7 +883,9 @@ class OrderOco(BaseModel):
     model_config = ConfigDict(use_attribute_docstrings=True)
 
     oco_id: str = Field(max_length=64)
-    """Client-supplied label for the pair."""
+    """Client-supplied label for the pair, unique among the gateway's live pairs: a
+    submit reusing one is refused. Free again once the pair is done.
+    """
     gateway_id: str = Field(max_length=32)
     symbol: str = Field(max_length=16)
     """Both legs trade this instrument."""
@@ -907,7 +909,7 @@ class OrderOcoCancel(BaseModel):
     model_config = ConfigDict(use_attribute_docstrings=True)
 
     oco_id: str = Field(max_length=64)
-    """Client-supplied OCO label."""
+    """Client-supplied OCO label. Names a pair of the sending gateway only."""
     gateway_id: str = Field(max_length=32)
     request_tag: str | None = Field(default=None, max_length=64)
     """Echoed on oco.cancel_ack, so the caller can attribute the outcome."""

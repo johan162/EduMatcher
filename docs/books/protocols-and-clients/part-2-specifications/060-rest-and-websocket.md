@@ -1024,7 +1024,7 @@ Purpose: submit an OCO pair.
 
 | Name | Type | Req | Description |
 |---|---|---|---|
-| `oco_id` | `Str` | yes | Group id for the pair |
+| `oco_id` | `Str` | yes | Your id for the pair, unique among your live pairs: reusing one is refused (`accepted: false`). Free again once the pair is done |
 | `symbol` | `Symbol` | yes | Instrument symbol |
 | `quantity` | `Qty` | yes | Total quantity |
 | `leg1` | `OrderLeg` | yes | First leg definition: `side`, `order_type`, and the `price` / `stop_price` / `trail_offset` that type needs (same rule as `POST /orders`; `ICEBERG` is not supported on a leg) |
@@ -1063,7 +1063,7 @@ Purpose: cancel an OCO pair.
 
 | Name | Type | Req | Description |
 |---|---|---|---|
-| `oco_id` | `Str` | yes (path) | OCO group to cancel |
+| `oco_id` | `Str` | yes (path) | One of your own OCO pairs; another gateway's id is `ORDER_NOT_FOUND` |
 | `request_tag` | `Str` | no | Query: echoed on the engine's `oco.cancel_ack`; max 64 chars |
 | `wait` | `Bool` | no | `?wait=ack` waits for the `oco.cancel_ack` |
 

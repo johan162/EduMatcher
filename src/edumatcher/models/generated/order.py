@@ -5147,7 +5147,7 @@ _ORDER_OCO_FIELDS: tuple[dict[str, Any], ...] = (
         "type": "string",
         "unit": None,
         "required": False,
-        "doc": "Client-supplied label for the pair.",
+        "doc": "Client-supplied label for the pair, unique among the gateway's live pairs: a submit reusing one is refused. Free again once the pair is done.",
         "constraints": {"max_len": 64},
     },
     {
@@ -5358,7 +5358,7 @@ _ORDER_OCO_CANCEL_FIELDS: tuple[dict[str, Any], ...] = (
         "type": "string",
         "unit": None,
         "required": False,
-        "doc": "Client-supplied OCO label.",
+        "doc": "Client-supplied OCO label. Names a pair of the sending gateway only.",
         "constraints": {"max_len": 64},
     },
     {

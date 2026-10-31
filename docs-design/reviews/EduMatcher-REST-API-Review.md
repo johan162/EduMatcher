@@ -1595,7 +1595,7 @@ Implements Q8 as decided: dedicated cancel acks, before 1.0.
   as `QUOTE_ACK`. It now records neither. The legs' `order.cancelled`
   events remain.
 
-**New finding, not fixed (engine, outside this WP):**
+**New finding (engine, outside this WP; fixed 2026-10-31, see §9.15):**
 
 - `_handle_oco_cancel` does not check that the caller owns the pair.
 - `_oco_groups` is keyed by the client-chosen `oco_id` alone. So one gateway
@@ -1648,7 +1648,7 @@ jumps from Q6 to Q8.
 
 | Item | When | Note |
 |---|---|---|
-| OCO cancel ownership (found in WP-API17, §9.13) | **before 1.0** | Engine: no owner check on `order.oco_cancel`, and pairs are keyed by the client's `oco_id` alone. Small engine WP |
+| ~~OCO cancel ownership (found in WP-API17, §9.13)~~ | **done 2026-10-31** | Fixed, see §9.15 |
 | WP-API10 to 13 (P2) | 1.x | All additive: market-data REST snapshots, structure and order queries, index and classroom control, rate-limit and caching headers |
 | `oasdiff breaking` in CI | after 1.0 | Needs a released 1.0 to diff against (§9.6) |
 | Intermittent e2e failure seen once on 2026-10-30 | watch | Not reproduced in about ten runs since; capture the test name if it recurs |
@@ -1703,6 +1703,34 @@ swept it:
 
 **Verdict:** the REST API v1 review can close once the OCO-ownership fix
 lands. Everything else open is additive and belongs to 1.x.
+
+### 9.15 OCO pair ownership (2026-10-31)
+
+Fixes the §9.13 finding. The engine now keys OCO pairs by
+`(gateway_id, oco_id)` (`_oco_groups`, `_order_to_oco`, the restart re-link),
+so:
+
+- **Cancel is owner-only.** `order.oco_cancel` looks up the caller's own key.
+  Another gateway's pair is `ORDER_NOT_FOUND`, which does not reveal that it
+  exists.
+- **Gateways no longer collide.** Two gateways may use the same `oco_id`. One
+  leg ending pulls only its own pair's sibling, also after a restart. The
+  book's FOK liquidity check (one leg per pair) counts per gateway as well.
+- **A live id cannot be reused.** A submit naming an id one of the gateway's
+  live pairs holds is refused (`oco.ack`, `accepted: false`, "OCO id X is
+  already in use"). Before, it overwrote the bookkeeping and orphaned the
+  first pair. The id is free again once the pair is done.
+
+Contract: the `oco_id` field descriptions (message spec, REST schema, REST
+reference) state the rule; the OpenAPI contract is regenerated. No shape
+changes.
+
+Tests: `tests/test_engine_oco_ownership.py` (7, written first, 6 failed
+before the fix); 9 existing assertions moved to the new key.
+
+**The REST API v1 review is closed.** Open items are the 1.x P2 packages
+(WP-API10 to 13), `oasdiff` once 1.0 is released, and watching the one-off
+e2e failure.
 
 ## 10. Decisions needed from you
 

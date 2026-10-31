@@ -335,7 +335,9 @@ class OcoRequest(StrictModel):
     )
 
     oco_id: str = Field(
-        min_length=1, description="Your id for the pair; used to cancel it."
+        min_length=1,
+        description="Your id for the pair, unique among your live pairs; used to "
+        "cancel it.",
     )
     symbol: str = Field(min_length=1)
     quantity: int = Field(gt=0)

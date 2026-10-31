@@ -798,7 +798,7 @@ class TestOCOEngine:
 
         assert id1 not in engine._order_symbol
         assert id2 not in engine._order_symbol
-        assert "OCO5" not in engine._oco_groups
+        assert ("TRADER01", "OCO5") not in engine._oco_groups
 
     def test_oco_rejected_for_unknown_gateway(self, eng):
         """OCO is rejected if the gateway is not authenticated."""
@@ -901,7 +901,7 @@ class TestOCOEngine:
 
         engine._handle_oco_cancel({"oco_id": "OCO_CLEANUP", "gateway_id": "TRADER01"})
 
-        assert "OCO_CLEANUP" not in engine._oco_groups
+        assert ("TRADER01", "OCO_CLEANUP") not in engine._oco_groups
 
     def test_oco_two_limit_orders(self, eng):
         """OCO supports two LIMIT legs (e.g., bracket: take-profit above + take-loss below)."""

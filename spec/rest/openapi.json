@@ -18721,7 +18721,7 @@
             "type": "string",
             "minLength": 1,
             "title": "Oco Id",
-            "description": "Your id for the pair; used to cancel it."
+            "description": "Your id for the pair, unique among your live pairs; used to cancel it."
           },
           "symbol": {
             "type": "string",

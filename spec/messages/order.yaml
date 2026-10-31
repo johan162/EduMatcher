@@ -1326,7 +1326,7 @@ messages:
       # `.get(k, default)` - so none of them is `required`, and the defaults
       # below are the handler's own.
       - { name: oco_id, type: string, required: false, default: "",
-          doc: "Client-supplied label for the pair.", validate: { max_len: 64 } }
+          doc: "Client-supplied label for the pair, unique among the gateway's live pairs: a submit reusing one is refused. Free again once the pair is done.", validate: { max_len: 64 } }
       - { name: gateway_id, type: string, required: false, default: "",
           validate: { max_len: 32 } }
       - { name: symbol, type: string, required: false, default: "",
@@ -1366,7 +1366,7 @@ messages:
       see_also: ["order.oco", "order.cancel"]
     fields:
       - { name: oco_id, type: string, required: false, default: "",
-          doc: "Client-supplied OCO label.", validate: { max_len: 64 } }
+          doc: "Client-supplied OCO label. Names a pair of the sending gateway only.", validate: { max_len: 64 } }
       - { name: gateway_id, type: string, required: false, default: "",
           validate: { max_len: 32 } }
       - { name: request_tag, type: string, required: false, omit_when_empty: true,
