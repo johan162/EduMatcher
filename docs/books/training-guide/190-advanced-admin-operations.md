@@ -53,8 +53,12 @@ pm-admin-cli --id GW_ADMIN kick --gw TRADER02 --reason "Training disconnect chec
 
 Verification:
 
-1. In the `TRADER02` terminal, confirm disconnect occurred.
-2. Reconnect:
+1. The `TRADER02` console is **not told** it was kicked; its prompt looks
+   unchanged. Confirm the disconnect from the operator side with `GATEWAYS`
+   (`TRADER02` now shows `no` under *Connected*), and from the trader side by
+   sending any order: it is refused with
+   `code=AUTH_REQUIRED  Gateway not connected: TRADER02`.
+2. Leave that console (`EXIT`) and reconnect with a fresh one:
 
 ```bash
 pm-alf-console --id TRADER02

@@ -16,12 +16,18 @@ lifecycle, inactivation policies, QLEGS inspection, and MM obligations.
 Add a manual MM gateway to your config:
 
 ```yaml
-    - id: MM_MANUAL_01
-      description: "Manual market-maker for training"
-      role: MARKET_MAKER
-      disconnect_behaviour: CANCEL_QUOTES_ONLY
-      quote_refresh_policy: INACTIVATE_ON_ANY_FILL
+participants:
+  # ... everything from Chapter 02 ...
+  - id: MM_MANUAL_01
+    description: "Manual market-maker for training"
+    role: MARKET_MAKER
+    disconnect_behaviour: CANCEL_QUOTES_ONLY
+    quote_refresh_policy: INACTIVATE_ON_ANY_FILL
 ```
+
+It needs no `market_maker_quotes` seed of its own: the seeds from Chapter 02
+already satisfy the verifier for every symbol, and the engine places only the
+seeds that are written down.
 
 Deploy the change, then restart the engine — editing the YAML alone changes
 nothing, because every process reads the compiled artifact:
@@ -129,9 +135,9 @@ From TRADER01, buy into the MM's ask:
 Back at MM_MANUAL_01, you should see:
 
 ```
-FILL      <ask_id>  qty=100 @150.10
-CANCELLED <bid_id>
+CANCELLED <bid_id> reason=QUOTE_LEG_FILLED
 QUOTE INACTIVE_ASK_FILLED  Q001
+FILL      <ask_id>  qty=100 @150.1  remaining=400  [PARTIAL]
 ```
 
 Under `INACTIVATE_ON_ANY_FILL`, the first fill on either leg inactivates the
@@ -185,7 +191,8 @@ Expected:
 ```
 CANCELLED <bid_id>
 CANCELLED <ask_id>
-QUOTE CANCELLED  Q003
+QUOTE CANCELLED  Q003  Cancelled by participant
+QUOTE CXL OK AAPL  legs cancelled=2
 ```
 
 !!! note
@@ -290,7 +297,7 @@ The reply is a `Quote bootstrap` table, one row per active quote:
 |---|---|
 | `Symbol` | The instrument |
 | `Quote` | The `QUOTE_ID` of the quote occupying the slot |
-| `State` | The quote state — `ACTIVE`, `INACTIVE_BID_FILLED`, `INACTIVE_ASK_FILLED` or `CANCELLED` |
+| `State` | The quote state — `ACTIVE` for a live quote (an inactivated or cancelled quote is not listed) |
 | `Bid` / `Ask` | The two quoted prices, or `-` if that side has none |
 | `BidRem` / `AskRem` | Remaining quantity on each leg |
 
@@ -304,9 +311,13 @@ No active quote bootstrap entries returned.
 That empty response is the useful one on startup: it means the slot is free
 and you can quote without first cancelling something.
 
-Run it in both states to see the difference. With `Q001` still active from
-Exercise 1 you get a row; after Exercise 3's fill inactivates the quote, run it
-again and compare the `State` column with what `QLEGS` reports for the legs.
+Run it in both states to see the difference. With a quote active, as `Q001`
+was after Exercise 1, you get a row. Once a fill has inactivated the quote, as
+in Exercise 3, `QBOOT` reports **no entry at all** — the slot is free again —
+even though `QLEGS|SYM=AAPL|SHOW=ALL` still lists the quote's legs with
+`Quote status` `INACTIVE_ASK_FILLED`. That is the difference between the two
+commands: `QBOOT` answers "is there a live quote I must not duplicate?",
+`QLEGS` keeps the history.
 
 !!! note "`SYM=` is optional"
     `QBOOT` on its own asks about every symbol you have a quote on; `QBOOT|SYM=AAPL`
@@ -332,7 +343,9 @@ the difference — this is the exercise that makes the three names mean
 something.
 
 **1.** Edit `MM_MANUAL_01` in your configuration to
-`quote_refresh_policy: INACTIVATE_ON_FULL_FILL`, then deploy and restart:
+`quote_refresh_policy: INACTIVATE_ON_FULL_FILL`, then deploy, restart
+`pm-engine`, reopen the market, reconnect `MM_MANUAL_01`, and clear AAPL again
+with `CANCEL_SYM|SYM=AAPL`:
 
 ```bash
 pm-config-deploy engine_config.yaml
@@ -355,10 +368,15 @@ pm-config-deploy engine_config.yaml
 Under `INACTIVATE_ON_ANY_FILL` (Exercise 3) this partial fill would have pulled
 the bid and inactivated the quote. Under `INACTIVATE_ON_FULL_FILL` the ask leg
 shows `PARTIAL` with `Rem` 400, the bid leg is still `NEW`, and the quote is
-still `ACTIVE`.
+still `ACTIVE` — `QBOOT` lists it with `BidRem` 500 and `AskRem` 400.
 
 **4.** Now consume the rest of the ask (another 400) and watch the quote flip
-to `INACTIVE_ASK_FILLED`.
+to `INACTIVE_ASK_FILLED`: the bid leg is cancelled with
+`reason=QUOTE_LEG_FILLED` and `QBOOT` now reports no active entry.
+
+```
+[TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=400|PRICE=150.10|TIF=DAY
+```
 
 :material-checkbox-blank-outline: **Checkpoint:** you can state, for each of the
 three policies, what happens to the sibling leg on a *partial* fill — and you

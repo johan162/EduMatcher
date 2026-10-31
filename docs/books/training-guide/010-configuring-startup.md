@@ -140,7 +140,8 @@ matter. The generated file spells out many settings you left to their
 defaults, with a comment on each — a good way to discover what can be
 configured. And it has **no reference prices** (`last_buy_price` /
 `last_sell_price`): `pm-config-gen` cannot know what a stock is worth, and the
-verifier will warn about it (`C001`) in the next exercise. Price collars and
+verifier warns about it (`C001`) — run `pm-cverifier generated.yaml` once you
+have met the verifier in the next exercise. Price collars and
 several later exercises need those prices, so **keep using your hand-written
 `engine_config.yaml`** for the rest of the training; `generated.yaml` is for
 reference.
@@ -183,8 +184,16 @@ echo $?
 
 Expected for this chapter config:
 
-- Verdict is `OK` or `WARN` (depending on optional sections you did or did not add).
-- Exit code is `0` when there are no warnings/errors, `1` when warnings exist, and `2` when hard errors exist.
+- Verdict is `WARN`, with one warning, `M032`: no read-only API credential is
+  defined under `api_gateways`. That credential is what the browser
+  dashboards use; this configuration starts no API gateway until Chapter 24,
+  so you can leave the warning alone for now. Below it you will see a few
+  `INFO` advisories (`C003`, `C004`, `C007`) — suggestions, not problems.
+- Exit code is `0` when there are no warnings/errors, `1` when warnings exist, and `2` when hard errors exist. Here it is `1`, because of `M032`.
+
+Run it on `generated.yaml` as well and compare: that file has the same
+`M032`, plus the `C001` warning about the missing reference prices that
+Exercise 2 told you to expect.
 
 !!! tip "CI-style validation"
     Treat warnings as failures and emit machine-readable output:
@@ -230,9 +239,11 @@ the first layer that finds an error, because later checks would be judging a
 file it already knows is broken. Fix `tick_decimals` and run it again: now
 you see
 
-- `M013` warning (no gateway with role `ADMIN`).
+- `M013` warning (no gateway with role `ADMIN`), alongside the `M032` warning
+  from Exercise 3.
 
-Put the `GW_ADMIN` entry back and rerun until the verdict is `OK`.
+Both `M013` and the `M032` you already know are now reported. Put the
+`GW_ADMIN` entry back and rerun until only `M032` remains.
 
 :material-checkbox-blank-outline: **Checkpoint:** you can reproduce a verifier finding, map it to a check code, and clear it by fixing the config.
 
@@ -248,7 +259,7 @@ pm-config-deploy --check engine_config.yaml
 Expected output:
 
 ```
-OK — engine_config.yaml compiles (3 symbol(s), 3 gateway(s))
+OK — /home/you/training/engine_config.yaml compiles (3 symbol(s), 3 gateway(s))
 ```
 
 Now actually deploy it:
@@ -260,7 +271,7 @@ pm-config-deploy engine_config.yaml
 Expected output:
 
 ```
-Compiled engine_config.yaml
+Compiled /home/you/training/engine_config.yaml
       to /Users/you/.local/share/edumatcher/ref_data/engine_config.json
    3 symbol(s), 3 gateway(s).
    Restart any running processes to pick it up.
@@ -310,7 +321,7 @@ prints only warnings and errors. Expected output includes lines like these
 
 ```
 ... INFO edumatcher.engine.main - Loaded config from .../ref_data/engine_config.yaml  (3 symbol(s): AAPL, MSFT, TSLA; 3 gateway id(s))
-... INFO edumatcher.engine.main - Session handling: enabled
+... INFO edumatcher.engine.main - Session handling: enabled (startup state: CLOSED)
 ... INFO edumatcher.engine.main - Listening on PULL=tcp://127.0.0.1:5555  PUB=tcp://127.0.0.1:5556
 ```
 
@@ -332,21 +343,43 @@ regardless of what the startup banner said.
 In a **second terminal**:
 
 ```bash
-pm-scheduler
+pm-scheduler --verbose
 ```
 
-Expected output (illustrative):
+Like the engine, the scheduler prints only warnings and errors unless you pass
+`--verbose`. It runs **one day's** timetable from the deployed configuration
+and exits when the day ends. Your configuration has no `schedule:` block, so
+the built-in weekday timetable applies (pre-open 09:00, opening auction
+09:25, continuous 09:30, closing auction 16:00, closed 16:05; Saturdays,
+Sundays and bank holidays closed). What you see therefore depends on when you
+start it:
 
-```
-[INFO] Session state: PRE_OPEN
-```
+- inside trading hours it first *catches up*, sending the transitions that
+  were already due, and then waits for the next one:
 
-The scheduler will transition through PRE_OPEN → OPENING_AUCTION → CONTINUOUS
-automatically, following the timetable in the deployed configuration. To skip
-the wait and drive the sequence immediately, restart it with `--now`:
+  ```
+  ... INFO edumatcher.scheduler.main - Catching up 3 transition(s) to reach the current phase
+  ```
+
+- on a weekend it reports that the day is closed and exits at once;
+- outside hours on a weekday it catches up straight to `CLOSED`.
+
+To skip the wait and drive the sequence immediately, restart it with `--now`:
 
 ```bash
-pm-scheduler --now --delay 5
+pm-scheduler --now --delay 5 --verbose
+```
+
+Expected output (timestamps trimmed):
+
+```
+... INFO edumatcher.scheduler.main - --now mode: sending all transitions with 5.0s delays
+... INFO edumatcher.scheduler.main - -> PRE_OPEN
+... INFO edumatcher.scheduler.main - -> OPENING_AUCTION
+... INFO edumatcher.scheduler.main - -> CONTINUOUS
+... INFO edumatcher.scheduler.main - -> CLOSING_AUCTION
+... INFO edumatcher.scheduler.main - -> CLOSED
+... INFO edumatcher.scheduler.main - Done.
 ```
 
 `--now` starts the day's sequence from this moment instead of the configured
@@ -365,7 +398,7 @@ wall-clock times; `--delay 5` gives you five seconds between phases.
     `pm-config-deploy`, instead of silently falling back to a built-in
     timetable.
 
-:material-checkbox-blank-outline: **Checkpoint:** scheduler reports session state changes.
+:material-checkbox-blank-outline: **Checkpoint:** you ran `pm-scheduler --now` and saw it send all five transitions, ending with `Done.`
 
  
 
@@ -380,7 +413,7 @@ pm-alf-console --id TRADER01
 You should see:
 
 ```
-Gateway TRADER01 connected.   Type HELP for commands.  Tab=complete  ↑↓=history  Ctrl-A/E=line start/end
+Gateway TRADER01 connected.   — Alice — first trader Type HELP for commands.  Tab=complete  ↑↓=history  Ctrl-A/E=line start/end
 
 [TRADER01]>
 ```
@@ -530,7 +563,7 @@ python3 -c "
 import json
 p = '$EDUMATCHER_DATA_DIR/ref_data/engine_config.json'
 data = json.load(open(p))
-data['symbols']['AAPL']['tick_decimals'] = 4
+data['engine']['symbols']['AAPL']['tick_decimals'] = 4
 json.dump(data, open(p, 'w'), indent=2)
 "
 ```
@@ -577,7 +610,7 @@ deliberately skip the deploy step — this only changes the file on disk, it
 does not affect the already-running engine:
 
 ```bash
-sed -i.bak 's/tick_decimals: 2/tick_decimals: 3/' engine_config.yaml   # edits AAPL's line, the first match
+sed -i.bak 's/tick_decimals: 2/tick_decimals: 3/' engine_config.yaml   # changes every symbol: each has its own tick_decimals line
 ```
 
 Now stop the engine (`Ctrl-C`) and start it again without redeploying:
@@ -589,8 +622,9 @@ pm-engine
 Expected: the engine **starts anyway**, but logs a warning that
 `engine_config.yaml` has changed since the running configuration was
 compiled and that the exchange is still serving the previous one. Confirm
-with `SYMBOLS` from a gateway that AAPL still reports the old
-`tick_decimals` — the warning told the truth, nothing was silently applied.
+with `SYMBOLS` from a gateway that the symbols still report the old tick size
+(`0.01`, not `0.001`) — the warning told the truth, nothing was silently
+applied.
 
 Restore the file and redeploy to clear the warning:
 
@@ -615,13 +649,15 @@ state which of the two blocks startup and which only warns.
 
 ## Exercise 13: Weekday / Weekend / Holiday Scheduling
 
-Exercise 2's `--sessions-enabled` config used the built-in default
-schedule — the same five times every day, Monday through Friday, with
+Exercise 2's `--sessions-enabled` config (and your hand-written one) used the
+built-in default schedule — the same five times every day, Monday through Friday, with
 Saturday, Sunday and bank holidays all `CLOSED`. Real exchanges are rarely
 that uniform: some run a short Friday, some trade weekends, and all of them
 close (or shorten hours) on bank holidays that fall on an otherwise-ordinary
 weekday. `pm-config-gen` can generate all three variations, and this
-exercise walks through each.
+exercise walks through each. The generated files go to a separate
+`schedule.yaml`, so your hand-written `engine_config.yaml` — the one with
+reference prices that later chapters need — stays untouched.
 
 Resolving which schedule applies to a given calendar day always happens in
 this order:
@@ -658,7 +694,7 @@ pm-config-gen \
   --weekend-continuous 10:30 \
   --weekend-closing-auction 14:00 \
   --weekend-closing-end 14:05 \
-  --output engine_config.yaml --force
+  --output schedule.yaml --force
 ```
 
 Inspect the generated `schedule:` block — Saturday and Sunday now carry
@@ -668,7 +704,8 @@ their own five transition times instead of being absent.
 
 Pass `--holidays` to give bank holidays a schedule of their own instead of
 `CLOSED` (a common real-world case is a reduced half-day rather than a full
-close):
+close). This command is the previous one plus the `--holidays…` and
+`--country` flags, so the file it writes has all three features:
 
 ```bash
 pm-config-gen \
@@ -680,6 +717,12 @@ pm-config-gen \
   --static-band 0.10 \
   --dynamic-band 0.05 \
   --sessions-enabled \
+  --weekend \
+  --weekend-pre-open 10:00 \
+  --weekend-opening-auction 10:25 \
+  --weekend-continuous 10:30 \
+  --weekend-closing-auction 14:00 \
+  --weekend-closing-end 14:05 \
   --holidays \
   --holidays-pre-open 10:00 \
   --holidays-opening-auction 10:25 \
@@ -687,7 +730,7 @@ pm-config-gen \
   --holidays-closing-auction 13:00 \
   --holidays-closing-end 13:05 \
   --country DE \
-  --output engine_config.yaml --force
+  --output schedule.yaml --force
 ```
 
 `--country` is what tells `pm-scheduler` *which* calendar of bank holidays
@@ -707,22 +750,46 @@ separate validation step for this — run `pm-cverifier` (Exercise 3) after
 any change to `locale.country` or the schedule and read its output, don't
 just deploy.
 
-Verify the country was picked up:
+Verify the country was picked up. The summary should read `Sessions enabled
+— 7 of 7 days scheduled, holidays overridden`, and there should be no `M026`
+(the `M032` and `C001` warnings are the ones you already know, and this file
+has no reference prices, as in Exercise 2):
 
 ```bash
-pm-cverifier engine_config.yaml
+pm-cverifier schedule.yaml
 ```
 
-Deploy and confirm the resolved schedule end-to-end:
+Deploy it:
+
+```bash
+pm-config-deploy schedule.yaml
+```
+
+Restart `pm-engine` (`Ctrl-C`, then start it again) so that it reads the new
+artifact, and ask the operator console for the schedule the engine is really
+running:
+
+```
+[GW_ADMIN|ADMIN]> SCHEDULE
+```
+
+`SCHEDULE` prints the weekly table — five transition times for each of Mon–Sun
+and a final `Holidays` column. Saturday and Sunday now read 10:00 / 10:25 /
+10:30 / 14:00 / 14:05 and the `Holidays` column 10:00 / 10:25 / 10:30 /
+13:00 / 13:05. (The trader console's `SESSION` only reports the current
+phase, not the timetable.)
+
+When you have seen it, put your training configuration back and restart the
+engine, because `schedule.yaml` has no reference prices and Chapter 11 needs
+them:
 
 ```bash
 pm-config-deploy engine_config.yaml
 ```
 
-Restart `pm-scheduler` (Exercise 7) and, from a gateway console
-(Exercise 8/10), query `SESSION` — or check the engine's own wire replies —
-to see the resolved weekly table, including today's entry and whether today
-is currently flagged as a holiday.
+Restart `pm-engine` once more (`Ctrl-C`, then `pm-engine`) and reopen the market
+with `SESSION|STATE=PRE_OPEN` and `SESSION|STATE=CONTINUOUS`, as at the end of
+Exercise 10.
 
 !!! tip "`weekend:` and `sat:`/`sun:` are mutually exclusive"
     `--weekend` generates a single shared block for both days. There is no
@@ -735,8 +802,9 @@ is currently flagged as a holiday.
 
 :material-checkbox-blank-outline: **Checkpoint:** generated config has a
 `weekend:` block, a `holidays:` block, and `locale.country: DE`;
-`pm-cverifier` reports no `M026` warning; the deployed schedule reflects
-all three when queried from a running engine.
+`pm-cverifier` reports no `M026` warning; `SCHEDULE` in `pm-admin` shows the
+weekend and `Holidays` columns filled in; and your hand-written
+`engine_config.yaml` is the deployed configuration again.
 
  
 

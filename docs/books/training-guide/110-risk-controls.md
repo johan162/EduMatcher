@@ -99,7 +99,9 @@ Place an order far outside the allowed range:
 If the reference price is 150.00 and the static collar is ±10%, anything
 above 165.00 or below 135.00 is rejected.
 
-Expected: rejection — price outside static collar.
+Expected: `REJECTED … code=COLLAR_BREACH  STATIC_COLLAR_BREACH: price 20000 ticks is
+outside [13500, 16500] ticks (±10% from reference 15000)` (prices are shown in
+ticks of 0.01).
 
 :material-checkbox-blank-outline: **Checkpoint:** out-of-range order rejected with collar error.
 
@@ -327,7 +329,7 @@ Cancel all orders for a misbehaving gateway:
 [GW_ADMIN|ADMIN]> KILL|GW=TRADER02
 ```
 
-Expected: all of TRADER02's resting orders cancelled.
+Expected: `KILL OK  TRADER02  orders=<n>  quotes=<n>` — all of TRADER02's resting orders cancelled.
 
 Or scope to a single symbol:
 
@@ -345,11 +347,76 @@ pm-admin-cli --id GW_ADMIN kill --gw TRADER02 --sym AAPL
 
  
 
+## Exercise 11: Named Risk Levels — One Policy, Many Symbols
+
+Exercise 1 gave each symbol its own inline `collar:`. With 150 symbols that is
+150 copies of the same numbers. A **risk level** is a named collar profile that
+symbols share: define it once under `risk_controls.levels`, pick a
+`default_level` for symbols that name none, and let a volatile or thinly traded
+symbol opt into a looser one with `level:`.
+
+Replace the inline collars of AAPL and MSFT by this (keep `TSLA` and the other
+symbols as they are, with no `collar:` and no `level:`):
+
+```yaml
+risk_controls:
+  default_level: L2
+  levels:
+    L1:                       # loose: for volatile names
+      collar:
+        static_band_pct: 0.30
+        dynamic_band_pct: 0.05
+    L2:                       # tight: the house default
+      collar:
+        static_band_pct: 0.05
+        dynamic_band_pct: 0.02
+
+symbols:
+  MSFT:
+    level: L1                 # MSFT opts into the loose profile
+```
+
+AAPL and TSLA name no level, so both get `default_level: L2`. Check, deploy and
+restart the engine, then reopen the market. **Predict** the outcome of each
+order before sending it (reference prices are 150, 420 and 250). Use buys below
+the market, which rest instead of trading, so that only the *static* band is
+being tested:
+
+```
+[TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=1|PRICE=143.00|TIF=DAY
+[TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=1|PRICE=142.00|TIF=DAY
+[TRADER01]> NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=1|PRICE=300.00|TIF=DAY
+[TRADER01]> NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=1|PRICE=290.00|TIF=DAY
+[TRADER01]> NEW|SYM=TSLA|SIDE=BUY|TYPE=LIMIT|QTY=1|PRICE=240.00|TIF=DAY
+[TRADER01]> NEW|SYM=TSLA|SIDE=BUY|TYPE=LIMIT|QTY=1|PRICE=237.00|TIF=DAY
+```
+
+| Order | Band that applies | Result |
+|---|---|---|
+| AAPL 143.00 | L2 (default), ±5% of 150 = 142.50–157.50 | accepted |
+| AAPL 142.00 | same | `COLLAR_BREACH` — price 14200 ticks is outside [14250, 15750] |
+| MSFT 300.00 | L1, ±30% of 420 = 294–546 | accepted |
+| MSFT 290.00 | same | `COLLAR_BREACH` — outside [29399, 54600] |
+| TSLA 240.00 | L2 (default), ±5% of 250 = 237.50–262.50 | accepted |
+| TSLA 237.00 | same | `COLLAR_BREACH` — outside [23750, 26250] |
+
+MSFT's 290.00 would have been rejected under L2 as well, and AAPL's 142.00 would
+have passed under L1: the level is the whole difference. An inline `collar:` on
+a symbol still overrides its level field by field, which is how `TSLA` in
+[The Configuration Workflow](../operator-guide/part-2-configure/010-the-configuration-workflow.md#risk-controls-and-collars)
+sets only a tighter `dynamic_band_pct`.
+
+:material-checkbox-blank-outline: **Checkpoint:** you predicted all six results
+before sending the orders, and can say which symbols the single line
+`default_level: L2` governs.
+
+ 
+
 ## Risk Control Summary
 
 | Control | Scope | Trigger | Effect |
 |---------|-------|---------|--------|
-| Static collar | Per symbol | Order price vs reference | Order rejected |
+| Static collar | Per symbol (inline or via a named level) | Order price vs reference | Order rejected |
 | Dynamic collar | Per symbol | Order price vs last trade | Order rejected |
 | Circuit breaker | Per symbol | Price move vs. average of recent trades | Symbol halted, then reopened by auction |
 | Symbol halt | Per symbol | `pm-admin` / `pm-admin-cli` | Trading paused |

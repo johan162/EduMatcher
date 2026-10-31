@@ -443,7 +443,8 @@ cat ~/.edumatcher/data/ref_data/engine_config.yaml
 **If you installed with pipx, the VM, or Poetry:**
 
 ```bash
-pm-config-deploy --show
+pm-config-deploy --show             # the paths of the source and compiled files
+pm-config-show                      # the configuration as a terminal dashboard
 cat "$EDUMATCHER_DATA_DIR/ref_data/engine_config.yaml"
 ```
 
@@ -580,7 +581,7 @@ handled in full:
 | Installer exits immediately with "Neither podman nor docker is installed" | No container engine on this machine | Install Podman or Docker Desktop, then re-run the install command |
 | `./edumatcher.sh start` fails with a bind error naming a port | Something else on your machine already uses `8080` or `8090`–`8095` | Free the port or stop the other service, then `./edumatcher.sh start` again |
 | Starting a second install fails, naming another install's data directory | Container names and ports are fixed, so two installs cannot run side by side | Stop the other one (`./edumatcher.sh stop` in its directory), then retry — see the warning in Exercise 1 |
-| `pip install pipx` fails with `externally-managed-environment` | Modern Linux distributions block installing into the system Python | Use `python -m pip install --user pipx` instead, as Route B now shows |
+| `pip install pipx` fails with `externally-managed-environment` | Modern Linux distributions block installing into the system Python | Use `python -m pip install --user pipx` instead, as Route B shows |
 | `command not found: pm-engine` right after `pipx install edumatcher` | `pipx ensurepath` only takes effect in a *new* shell | Open a new terminal (or `exec $SHELL`) and try again |
 | `pm-engine --version` works in one terminal but not another | `EDUMATCHER_DATA_DIR` was exported in one shell but never added to your shell profile | Add the `export` line from `pm-setup`'s output to `~/.zshrc` or `~/.bashrc`, then open a new terminal |
 | `multipass version` reports `command not found` | Multipass did not finish installing, or your shell has not picked up its PATH change | Reinstall from [multipass.run](https://multipass.run/install), then open a new terminal |

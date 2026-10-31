@@ -507,7 +507,7 @@ is validated while parsing `circuit_breaker_defaults`.
 | `M001` | ERROR    | MM gateway present but a symbol has no seed quotes (skipped when `require_mm_seed_quotes: false`) |
 | `M002` | ERROR    | MM seed references a gateway ID not in `participants`         |
 | `M003` | WARN     | MM seed spread exceeds `mm_max_spread_ticks`                  |
-| `M004` | ERROR    | `sessions_enabled: true` but no `schedule`                    |
+| `M004` | INFO     | Sessions enabled (the default) but no `schedule`: the built-in weekday timetable is used |
 | `M005` | WARN     | `sessions_enabled: false` but a `schedule` is present         |
 | `M006` | WARN     | Schedule times not in chronological order                     |
 | `M007` | WARN     | `enforce_collars: false` while collars are defined            |

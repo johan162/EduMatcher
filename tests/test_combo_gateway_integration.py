@@ -170,6 +170,28 @@ class TestGatewayComboParser:
         assert len(payload["legs"]) == 3
         assert payload["legs"][2]["symbol"] == "GOOG"
 
+    def test_stop_leg_carries_its_trigger_price(self, monkeypatch) -> None:
+        line = (
+            "NEW|TYPE=COMBO|COMBO_ID=COND|COMBO_TYPE=AON|TIF=DAY|LEG_COUNT=2|"
+            "LEG0.SYM=AAPL|LEG0.SIDE=BUY|LEG0.QTY=100|LEG0.TYPE=STOP|LEG0.STOP=151.00|"
+            "LEG1.SYM=MSFT|LEG1.SIDE=BUY|LEG1.QTY=50|LEG1.PRICE=420.00"
+        )
+        sent = self._parse_combo_via_gateway(monkeypatch, line)
+        assert len(sent) == 1
+        _, payload = decode(sent[0])
+        assert payload["legs"][0]["order_type"] == "STOP"
+        assert payload["legs"][0]["stop_price_ticks"] == 15100
+
+    def test_zero_quantity_leg_sends_nothing_and_does_not_raise(
+        self, monkeypatch
+    ) -> None:
+        line = (
+            "NEW|TYPE=COMBO|COMBO_ID=ZERO|COMBO_TYPE=AON|TIF=DAY|LEG_COUNT=2|"
+            "LEG0.SYM=AAPL|LEG0.SIDE=BUY|LEG0.QTY=0|LEG0.PRICE=150.00|"
+            "LEG1.SYM=MSFT|LEG1.SIDE=SELL|LEG1.QTY=50|LEG1.PRICE=420.00"
+        )
+        assert self._parse_combo_via_gateway(monkeypatch, line) == []
+
     def test_parse_combo_missing_combo_id_sends_nothing(self, monkeypatch) -> None:
         line = "NEW|TYPE=COMBO|COMBO_TYPE=AON|TIF=DAY|LEG_COUNT=2|LEG0.SYM=AAPL|LEG0.SIDE=BUY|LEG0.QTY=10|LEG0.PRICE=100|LEG1.SYM=MSFT|LEG1.SIDE=SELL|LEG1.QTY=10|LEG1.PRICE=200"
         sent = self._parse_combo_via_gateway(monkeypatch, line)

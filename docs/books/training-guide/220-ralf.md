@@ -265,6 +265,9 @@ HELLO|CLIENT=x|PROTO=RALF1|ROLE=BAD
 SUB|CH=UNKNOWN|SYM=*
 ```
 
+The gateway closes the connection after a handshake error, so open a fresh
+`nc` session for each line.
+
 Map observed ERR codes to operator action:
 
 - AUTH_REQUIRED: client handshake bug or ordering error

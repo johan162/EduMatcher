@@ -52,10 +52,11 @@ before starting rather than treating a risk rejection as a strategy result.
 
 Copy commands without the console prompt. Replace `<...>` placeholders with
 actual IDs. Use a fresh `COMBO_ID` or `OCO_ID` on every repeat. Save the child
-IDs from acknowledgements: `ORDERS` shows working orders, not a history of
-filled orders or a parent-combo status table. Use fill/cancel messages and
-parent status messages as evidence; `pm-audit --terminal` is useful alongside
-the consoles.
+IDs from acknowledgements: `ORDERS` lists every order the console has seen —
+the children of a combo or OCO included — with its latest status, but there is
+no parent-combo status row. Use fill/cancel messages and parent status messages
+as evidence; the operator console's `ORDERS|GW=<gateway>` shows what the engine
+really has resting, and `pm-audit --terminal` is useful alongside the consoles.
 
 ### Progression
 
@@ -205,8 +206,8 @@ You should see both child legs — the AAPL buy at 150.00 and the MSFT sell at
 [TRADER01]> ORDERS
 ```
 
-The MSFT fill message says `FILLED`; that leg is no longer in the working
-`ORDERS` list. The AAPL leg is still `NEW`, resting. The combo has moved to
+The MSFT fill message says `FILLED`, and `ORDERS` now lists that leg as
+`FILLED`. The AAPL leg is still `NEW`, resting. The combo has moved to
 `PARTIALLY_MATCHED`.
 
 `TRADER01` is now short 50 MSFT with no offsetting AAPL position — precisely
@@ -730,7 +731,11 @@ clean stop. Do not hand-edit persistence files to manufacture a result.
    `COMBO_ID=RECOVER-GTC-01` and `TIF=GTC`. Also submit a passive OCO with
    `TIF=GTC`. Record parent labels and all child IDs.
 2. Stop and restart the engine using the same data directory. Reconnect
-   the gateways and restore `CONTINUOUS` if sessions are enabled.
+   the gateways and restore `CONTINUOUS` if sessions are enabled. The restart
+   also places the configured market-maker seed quotes again, and they would
+   take the fill in step 4. Pull them with `KILL|GW=MM_AAPL_01`,
+   `KILL|GW=MM_MSFT_01` and `KILL|GW=MM_TSLA_01` — not `CANCEL_SYM`, which
+   would cancel your restored GTC orders as well.
 3. Cancel the restored combo by `COMBO_ID`; both working children must
    disappear, proving the parent-child relationship was restored.
 4. Fill one restored OCO leg completely. Its restored sibling must cancel,

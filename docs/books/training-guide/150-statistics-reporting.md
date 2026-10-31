@@ -64,7 +64,7 @@ ls -la "$EDUMATCHER_DATA_DIR/stats.db"
 
 ## Exercise 2: Generate Some Trading Activity
 
-Ensure MMs and (optionally) AI traders are running. Execute a few manual trades:
+Ensure `pm-mm-bot` (or AI traders) is quoting. A manual market-maker quote is pulled after its first fill (Chapter 03), so the second and third orders below would find no liquidity if you rely on one. Execute a few manual trades:
 
 ```
 [TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=100

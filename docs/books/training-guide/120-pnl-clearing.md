@@ -91,7 +91,11 @@ the fill price for the newly-opened side.
     market maker quoting AAPL — the market orders below need someone to trade
     with. Chapters 05–11 cleared AAPL several times; re-quote it from
     `MM_AAPL_01` (the chapter 02 `QUOTE` command) or start
-    `pm-mm-bot --symbol AAPL --gap 0.10 --qty 500`.
+    `pm-mm-bot --symbol AAPL --gap 0.10 --qty 500`. Prefer the bot: a manual
+    quote under `INACTIVATE_ON_ANY_FILL` pulls its other side on the first fill
+    (Chapter 03), so with a manual quote you must re-send `QUOTE` before every
+    market order that needs the opposite side — the sell orders in Exercises 5
+    and 6 would otherwise find no bid and be cancelled unfilled.
 
 
 ### Exercise 1: Start the clearing service
@@ -569,10 +573,11 @@ Expected:
 - `OK — no discrepancies found.` when consistent
 - Rows showing side / date / gateway / symbol / quantity-diff / notional-diff if not
 
-Reconcile across the whole week:
+Reconcile across the last week (the `date -d` form is GNU `date`; on macOS use
+`date -v-7d +%F`):
 
 ```bash
-pm-clearing-cli reconcile --from "$(date +%F)" --to "$(date +%F)"
+pm-clearing-cli reconcile --from "$(date -d '7 days ago' +%F)" --to "$(date +%F)"
 ```
 
 If discrepancies appear, use `trades` to investigate the affected gateway/symbol/date.

@@ -803,6 +803,23 @@ class Gateway:
                 full_id = payload.get("order_id", "?")
                 if full_id in self.order_cache:
                     self.order_cache[full_id]["status"] = "NEW"
+                elif payload.get("symbol") and not payload.get("quote_id"):
+                    # A child of a combo or OCO: this gateway sent the parent
+                    # and learns of the child orders only from their acks.
+                    self.order_cache[full_id] = {
+                        "id": full_id,
+                        "symbol": payload.get("symbol"),
+                        "side": payload.get("side", "?"),
+                        "type": payload.get("order_type", "?"),
+                        "tif": payload.get("tif", "?"),
+                        "qty": payload.get("qty", 0),
+                        "remaining": payload.get("qty", 0),
+                        "price": payload.get("price"),
+                        "stop_price": payload.get("stop_price"),
+                        "status": "NEW",
+                        "client_tag": payload.get("client_tag"),
+                        "time": ts[:8],
+                    }
             else:
                 reason = payload.get("reason", "")
                 code = payload.get("reject_code")
@@ -815,9 +832,12 @@ class Gateway:
                 log.debug(
                     "order rejected order_id=%s code=%s reason=%s", oid, code, reason
                 )
+                # Only a refused submission rejects the order. A refused AMEND
+                # or CANCEL leaves the resting order exactly as it was.
                 full_id = payload.get("order_id", "?")
-                if full_id in self.order_cache:
-                    self.order_cache[full_id]["status"] = "REJECTED"
+                cached = self.order_cache.get(full_id)
+                if cached is not None and cached.get("status") == "PENDING":
+                    cached["status"] = "REJECTED"
 
         elif PREFIX_ORDER_FILL in topic:
             qty = payload.get("fill_qty")
@@ -1084,6 +1104,8 @@ class Gateway:
             console.print(
                 f"[{ts}] [yellow]OCO CANCEL[/yellow] {oco_id}  sibling={sibling}  {reason}"
             )
+            if sibling in self.order_cache:
+                self.order_cache[sibling]["status"] = "CANCELLED"
 
         elif "quote.ack" in topic:
             quote_id = payload.get("quote_id", "?")
@@ -1851,6 +1873,7 @@ class Gateway:
             side = kv.get(f"{prefix}.SIDE")
             qty = kv.get(f"{prefix}.QTY")
             price = kv.get(f"{prefix}.PRICE")
+            stop = kv.get(f"{prefix}.STOP")
             leg_type = kv.get(f"{prefix}.TYPE", "LIMIT")
 
             if not sym or not side or not qty:
@@ -1862,6 +1885,8 @@ class Gateway:
                 console.print(f"[red]Leg {i} missing SYM, SIDE, or QTY[/red]")
                 return
             try:
+                if int(qty) < 1:
+                    raise ValueError(f"QTY must be a positive integer, got {qty}")
                 leg = ComboLeg(
                     symbol=sym,
                     side=Side(side),
@@ -1871,6 +1896,7 @@ class Gateway:
                     # TickViolation subclasses ValueError, so the except below
                     # already reports an off-grid leg price as a parse error.
                     price_ticks=to_ticks_exact(float(price), sym) if price else None,
+                    stop_price_ticks=to_ticks_exact(float(stop), sym) if stop else None,
                     smp_action=SmpAction(smp_str) if smp_str is not None else None,
                 )
             except (ValueError, KeyError) as exc:

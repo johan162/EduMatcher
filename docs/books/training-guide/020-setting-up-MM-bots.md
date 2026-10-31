@@ -31,9 +31,9 @@ A market maker posts simultaneous buy (bid) and sell (ask) prices. Without one,
 the order book is empty and no trader can get an immediate fill.
 
 !!! note "Manual first, automation second"
-  `pm-mm-bot` is available, but this chapter starts with manual
-  `pm-alf-console` + `QUOTE` so you can see quote lifecycle and operator tools
-  directly before using automation.
+    `pm-mm-bot` is available, but this chapter starts with manual
+    `pm-alf-console` + `QUOTE` so you can see quote lifecycle and operator tools
+    directly before using automation.
 
  
 
@@ -145,6 +145,18 @@ Then restart `pm-engine` to pick up the new gateways. A restarted engine
 starts in `CLOSED` again, so reopen the market from the operator console
 (`SESSION|STATE=PRE_OPEN`, then `SESSION|STATE=CONTINUOUS`).
 
+Now look at the books before any market maker has connected:
+
+```
+[GW_ADMIN|ADMIN]> BOOK|SYM=AAPL
+```
+
+They are **already two-sided**: at start-up the engine places each seed
+quote from `market_maker_quotes` on the market maker's behalf (the engine log
+shows `MM quote SEED-MM_AAPL_01-AAPL-1 …`). The seeds are what keeps the
+books from being empty the moment the exchange starts, and the exercises below
+take them over.
+
 :material-checkbox-blank-outline: **Checkpoint:** `pm-cverifier` reports 0 errors,
 the deploy succeeds, and the engine logs show 6 gateways loaded.
 
@@ -165,6 +177,18 @@ At the prompt, submit a two-sided quote:
 ```
 
 Expected output should include a quote acknowledgement and active status.
+Because the engine already placed a seed quote for this market maker, your
+`QUOTE` replaces it, and you see the old one go first:
+
+```
+CANCELLED  <order id>  reason=QUOTE_REPLACED
+QUOTE CANCELLED  SEED-MM_AAPL_01-AAPL-1  Replaced by new quote
+QUOTE ACK  AAPL-MM-001  bid=<order id> ask=<order id>
+QUOTE ACTIVE  AAPL-MM-001
+```
+
+A market maker holds at most one active quote per symbol; sending another
+always replaces the previous one.
 
 :material-checkbox-blank-outline: **Checkpoint:** AAPL quote acknowledged and active.
 
@@ -198,7 +222,9 @@ From the **operator console** (`pm-admin`) — a trader cannot inspect the whole
 [GW_ADMIN|ADMIN]> BOOK|SYM=AAPL
 ```
 
-You should see a two-sided book with the MM's bid and ask. Repeat for MSFT and TSLA.
+You should see a two-sided book with the MM's bid and ask (the prices are the same
+as the seed's, so the book looks the same as before — what changed is who owns
+the quote). Repeat for MSFT and TSLA.
 
 ```
 [GW_ADMIN|ADMIN]> BOOK|SYM=MSFT
@@ -220,7 +246,8 @@ From each market-maker gateway, inspect quote legs:
 ```
 
 `QLEGS` shows the bid and ask leg order IDs, prices, remaining quantities, and
-fill flags. This is the operator view that helps you reconcile fills after
+fill flags. With `SHOW=ALL` you also see the legs of the seed quote that your
+`QUOTE` replaced, marked `CANCELLED`; `SHOW=ACTIVE` hides them. This is the operator view that helps you reconcile fills after
 restart or partial execution.
 
 Interpretation guide:
@@ -245,16 +272,27 @@ below) and run:
 
 ```bash
 pm-mm-bot --symbol AAPL --gap 0.10 --qty 500
-pm-mm-bot --symbol MSFT --gap 0.20 --qty 300
-pm-mm-bot --symbol TSLA --gap 0.50 --qty 200
+pm-mm-bot --symbol MSFT --gap 0.16 --qty 300
+pm-mm-bot --symbol TSLA --gap 0.20 --qty 200
 ```
+
+Add `--verbose` to any of these to follow what the bot does; by default it
+prints only warnings and errors.
 
 The bot connects using the gateway ID `MM_<SYMBOL>_<id-suffix>` (default
 suffix `01`), quotes symmetrically around the current mid-price at `--gap`,
 reissues after fills, and reprices when the mid drifts. It also runs a
-`QBOOT` request at startup so it can adopt an already-active quote instead of
-creating a duplicate, and periodically re-runs `QLEGS` to reconcile leg state
+`QBOOT` request at startup so it can adopt an already-active quote — such as
+your manual quote, or the engine's seed — instead of creating a duplicate, and periodically re-runs `QLEGS` to reconcile leg state
 in case an engine reply was ever dropped.
+
+!!! note "The 20-tick limit on `--gap`"
+    The gaps above are not arbitrary. Every symbol has a maximum quoted spread,
+    `mm_max_spread_ticks`, which is **20 ticks** unless you configure
+    otherwise — the `Max Spread` column of `SYMBOLS` in Chapter 01. At
+    `tick_decimals: 2` that is 0.20, and a bot started with a wider `--gap`
+    refuses to quote that symbol:
+    `excluded from quoting: --gap exceeds mm_max_spread_ticks obligation`.
 
 !!! warning "Gateway ID must already exist in your config"
     `pm-mm-bot` does not create a gateway — it connects under the ID it
@@ -272,7 +310,7 @@ Quick primer:
   can adopt or replace safely instead of duplicating quotes.
 
 See the detailed walkthrough in [09 — Market Making](090-market-making.md), and
-[20 — Automation with CommandClient & MM Bot Tuning](210-automation-commandclient-mm-bot.md)
+[21 — Automation with CommandClient & MM Bot Tuning](210-automation-commandclient-mm-bot.md)
 for the advanced runtime flags (bootstrap timeout, QLEGS reconciliation
 interval, and similar) that this chapter deliberately leaves out.
 
@@ -306,7 +344,7 @@ symbols:
 Run the bot from it instead of typing the flags:
 
 ```bash
-pm-mm-bot --config mm_aapl.yaml
+pm-mm-bot --config mm_aapl.yaml --verbose
 ```
 
 The file has four blocks, and the split between them is the thing worth
@@ -334,13 +372,16 @@ No symbol needs to appear on the CLI at all as long as the file's `symbols:`
 block names one. The bot fails fast with a usage error if *neither* the CLI
 nor the file provides a symbol, rather than silently picking a default.
 
-!!! note "Two pricing strategies ship today"
+!!! note "Three pricing strategies ship today"
     `strategy: symmetric` (the default, so the line above is not strictly
     needed) quotes symmetrically around the tracked mid at `gap`.
     `strategy: inventory_skew` instead shifts both quotes to work an
     accumulated position back toward flat, and requires a `max_position:`
-    alongside it — the net position at which the skew saturates. Naming any
-    other strategy is a startup failure, not a silent fallback.
+    alongside it — the net position at which the skew saturates.
+    `strategy: passive` keeps its quotes behind other traders' orders instead
+    of in front of them (see the
+    [passive strategy](../participant-guide/part-3-market-making/030-the-market-maker-bot.md#the-passive-strategy)).
+    Naming any other strategy is a startup failure, not a silent fallback.
 
 !!! warning "A typo in the file fails fast, and tells you what you meant"
     An unknown key is rejected at startup rather than silently ignored, with
@@ -373,9 +414,9 @@ one symbol: the engine's `QuoteIndex` keys every active quote by
 gateway can hold AAPL's quote and MSFT's quote and TSLA's quote at the same
 time — and each of those symbols can be quoted on its own terms.
 
-Stop the three bots from Exercise 6 (Ctrl+C each, or leave them — startup
-reconciliation handles either case) and register one gateway that will
-quote all three symbols instead:
+Stop the three bots from Exercise 6 (Ctrl+C each — a bot cancels its own quote
+when it exits) and register one gateway that will quote all three symbols
+instead:
 
 ```yaml
 participants:
@@ -386,23 +427,47 @@ participants:
     quote_refresh_policy: INACTIVATE_ON_ANY_FILL
 ```
 
-!!! warning "The market_maker_quotes seed requirement still applies to every symbol"
-    `pm-cverifier`'s **M001** check fires whenever *any* `MARKET_MAKER`
-    gateway exists and a symbol has no `market_maker_quotes` entry — it does
-    not check which gateway is meant to quote which symbol. So `MM_TECH_01`
-    still needs a seed under `symbols.AAPL`, `symbols.MSFT`, *and*
-    `symbols.TSLA`, exactly as if it were three separate single-symbol
-    gateways. If you regenerate with `pm-config-gen`, point
-    `--participants ... MM_TECH_01:MARKET_MAKER` at the one new ID and it will
-    seed all three symbols against it automatically.
+!!! warning "The seed rule is per symbol, not per gateway"
+    `pm-cverifier`'s **M001** check fires for a symbol that has *no*
+    `market_maker_quotes` entry at all; it does not check which gateway is meant
+    to quote it. The seeds from Exercise 1 therefore already satisfy it, and the
+    configuration verifies clean without a seed for `MM_TECH_01`. Add one anyway
+    — a second item in each symbol's `market_maker_quotes` list, naming
+    `MM_TECH_01` — because a seed is also what gives a bot something to start
+    from (next paragraph). If you regenerate with `pm-config-gen`, pass
+    `--participants ... MM_TECH_01:MARKET_MAKER` and it seeds all three symbols
+    against it.
 
-Check and deploy as before, then start one bot covering all three symbols on
-identical terms:
+For AAPL the list becomes (and the same for MSFT and TSLA, with their own
+prices and sizes):
+
+```yaml
+    market_maker_quotes:
+      - gateway_id: MM_AAPL_01
+        bid_price: 149.95
+        ask_price: 150.05
+        bid_qty: 500
+        ask_qty: 500
+      - gateway_id: MM_TECH_01
+        bid_price: 149.95
+        ask_price: 150.05
+        bid_qty: 500
+        ask_qty: 500
+```
+
+Check and deploy as before, restart the engine and reopen the market. The old market makers' seed quotes are still in the books, so clear
+them from the operator console and leave `MM_TECH_01` the only quoter:
+
+```
+[GW_ADMIN|ADMIN]> KILL|GW=MM_AAPL_01
+[GW_ADMIN|ADMIN]> KILL|GW=MM_MSFT_01
+[GW_ADMIN|ADMIN]> KILL|GW=MM_TSLA_01
+```
+
+Now start one bot covering all three symbols on identical terms:
 
 ```bash
-pm-cverifier engine_config.yaml       # expect 0 errors
-pm-config-deploy engine_config.yaml
-pm-mm-bot --symbols AAPL,MSFT,TSLA --label TECH --gap 0.10 --qty 500
+pm-mm-bot --verbose --symbols AAPL,MSFT,TSLA --label TECH --gap 0.10 --qty 500
 ```
 
 `--label TECH` is what makes the gateway ID `MM_TECH_01` instead of the
@@ -420,9 +485,25 @@ and then **one line per symbol** with that symbol's resolved settings:
 [MM_TECH_01] [TSLA] strategy=symmetric gap=0.1 qty=500 tif=DAY drift_ticks=3
 ```
 
-Every per-symbol decision afterwards (a quote sent, a fill, a reprice) is
-tagged `[AAPL]`, `[MSFT]`, or `[TSLA]` — one process, three independent
-quoting lifecycles.
+A little further down, each symbol reports
+`adopted existing quote SEED-MM_TECH_01-AAPL-2 …` (and the same for MSFT and TSLA):
+the bot found its own seed quote through `QBOOT` and took it over instead of
+quoting afresh. Every per-symbol decision afterwards (a quote sent, a fill, a
+reprice) is tagged `[AAPL]`, `[MSFT]`, or `[TSLA]` — one process, three
+independent quoting lifecycles.
+
+!!! note "A bot needs a reference price to start"
+    Stop the bot with Ctrl+C and its quotes are cancelled — the books are
+    empty again. Start it once more and it exits with
+    `startup failed: no reference price available`. A bot prices around a
+    reference: the book's mid, the last trade, a quote of its own gateway that
+    `QBOOT` finds, or, failing all of those, a starting range you give it with
+    `initial_min` / `initial_max` (`--initial_min` / `--initial_max` on the
+    command line). The variants below all state a range per symbol so that they
+    start on an empty book; see
+    [Bootstrap: starting with an empty book](../participant-guide/part-3-market-making/030-the-market-maker-bot.md#bootstrap-starting-with-an-empty-book).
+    The bot then draws its first mid at random inside the range, so the exact
+    prices in your books will differ from run to run.
 
 ### Giving each symbol its own terms
 
@@ -431,10 +512,10 @@ rarely what you want. `--symbol` may be **repeated**, and every quoting flag
 after it applies to that symbol until the next `--symbol`:
 
 ```bash
-pm-mm-bot --label TECH --qty 500 \
-  --symbol AAPL --gap 0.10 \
-  --symbol MSFT --gap 0.20 --qty 300 \
-  --symbol TSLA --gap 0.50 --qty 200 --drift-ticks 5
+pm-mm-bot --verbose --label TECH --qty 500 \
+  --symbol AAPL --gap 0.10 --initial_min 149 --initial_max 151 \
+  --symbol MSFT --gap 0.16 --qty 300 --initial_min 419 --initial_max 421 \
+  --symbol TSLA --gap 0.20 --qty 200 --drift-ticks 5 --initial_min 249 --initial_max 251
 ```
 
 Flags **before** the first `--symbol` (here `--label` and `--qty 500`) are the
@@ -443,8 +524,8 @@ startup lines now differ per symbol — check them against what you typed:
 
 ```text
 [MM_TECH_01] [AAPL] strategy=symmetric gap=0.1 qty=500 tif=DAY drift_ticks=3
-[MM_TECH_01] [MSFT] strategy=symmetric gap=0.2 qty=300 tif=DAY drift_ticks=3
-[MM_TECH_01] [TSLA] strategy=symmetric gap=0.5 qty=200 tif=DAY drift_ticks=5
+[MM_TECH_01] [MSFT] strategy=symmetric gap=0.16 qty=300 tif=DAY drift_ticks=3
+[MM_TECH_01] [TSLA] strategy=symmetric gap=0.2 qty=200 tif=DAY drift_ticks=5
 ```
 
 That command line is already at the edge of readable, which is exactly what
@@ -465,22 +546,28 @@ defaults:
   drift_ticks: 3
 
 symbols:
-  AAPL: {}                 # house defaults
+  AAPL:                    # house defaults, plus a starting range
+    initial_min: 149
+    initial_max: 151
 
   MSFT:                    # wider, smaller
-    gap: 0.20
+    gap: 0.16
     qty: 300
+    initial_min: 419
+    initial_max: 421
 
   TSLA:                    # wider still, smaller still, less twitchy,
-    gap: 0.50              # and working its inventory back toward flat
+    gap: 0.20              # and working its inventory back toward flat
     qty: 200
     drift_ticks: 5
     strategy: inventory_skew
     max_position: 5000
+    initial_min: 249
+    initial_max: 251
 ```
 
 ```bash
-pm-mm-bot --config mm_tech.yaml
+pm-mm-bot --verbose --config mm_tech.yaml
 ```
 
 Compare the startup lines with the CLI version above: the same three spreads
@@ -489,7 +576,7 @@ and sizes, expressed as a file instead of a command line — plus a per-symbol
 
 !!! tip "Worked examples ship with the docs"
     `docs/examples/mm-bot/` contains `single-symbol.yaml`, `tech-desk.yaml`
-    (the file above, with every option commented), and `uniform-desk.yaml`
+    (a similar desk with every option commented), and `uniform-desk.yaml`
     showing the `symbols: [AAPL, MSFT, TSLA]` list shorthand for when no
     symbol needs its own block.
 
@@ -500,9 +587,9 @@ resolved from the most specific source that supplies one:
 
 | Rank | Source                                | Example                                 |
 |-----:|---------------------------------------|-----------------------------------------|
-|    1 | The symbol's own CLI scope            | `--symbol MSFT --gap 0.20`              |
+|    1 | The symbol's own CLI scope            | `--symbol MSFT --gap 0.16`              |
 |    2 | The symbol's block in the config file | `symbols.MSFT.gap`                      |
-|    3 | The global CLI scope                  | `--gap 0.20` before the first `--symbol` |
+|    3 | The global CLI scope                  | `--gap 0.18` before the first `--symbol` |
 |    4 | The file's `defaults:` block          | `defaults.gap`                          |
 |    5 | The built-in default                  | `0.10`                                  |
 
@@ -511,18 +598,19 @@ Try both and read the startup lines:
 
 ```bash
 # Widens only AAPL — the one symbol whose block asks for no gap of its own.
-# MSFT keeps 0.20 and TSLA keeps 0.50, because their blocks named a gap.
-pm-mm-bot --config mm_tech.yaml --gap 0.30
+# MSFT keeps 0.16 and TSLA keeps 0.20, because their blocks named a gap.
+pm-mm-bot --verbose --config mm_tech.yaml --gap 0.18
 
-# Widens TSLA too, because this names it
-pm-mm-bot --config mm_tech.yaml --symbol TSLA --gap 0.30
+# Widens TSLA too, because this names it (0.18 is narrower than its 0.20, but
+# the point is that the symbol's own CLI scope wins)
+pm-mm-bot --verbose --config mm_tech.yaml --symbol TSLA --gap 0.18
 ```
 
 A value someone deliberately wrote into a reviewed file for one symbol is
 not un-tuned by a throwaway gateway-wide flag. Overriding it is still one
 short command — you just have to say which symbol you mean.
 
-Confirm all three books are still served from `TRADER01`:
+Confirm the books from the operator console:
 
 ```
 [GW_ADMIN|ADMIN]> BOOK|SYM=AAPL
@@ -530,17 +618,25 @@ Confirm all three books are still served from `TRADER01`:
 [GW_ADMIN|ADMIN]> BOOK|SYM=TSLA
 ```
 
-The spreads should now differ visibly between the three symbols — that is the
-per-symbol `gap` reaching the book.
+The spreads should now differ visibly between the three symbols — 0.10, 0.16
+and 0.20 — that is the per-symbol `gap` reaching the book. (If you adopted the
+seeds instead of starting from a range, the first spreads are the seeds' own;
+force the bot to quote on its own terms with
+`QCANCEL|GW=MM_TECH_01|SYM=AAPL` — the bot notices the cancel and reissues at
+its configured gap.)
 
 !!! tip "A struggling symbol doesn't take the others down with it"
-    If one symbol's `gap` were to violate its own `mm_max_spread_ticks`
-    obligation, that symbol alone would be excluded from quoting at startup
-    (logged as `[SYM] excluded from quoting: ...`) while the rest of
-    `MM_TECH_01`'s symbols keep quoting normally — the whole process only
-    exits if *every* symbol fails. Try it: add
-    `mm_max_spread_ticks: 2` under one symbol's config, redeploy, and
-    restart the bot to see it happen.
+    If one symbol's `gap` violates its own `mm_max_spread_ticks` obligation
+    (20 ticks unless configured), that symbol alone is excluded from quoting at
+    startup while the rest of `MM_TECH_01`'s symbols keep quoting normally — the
+    whole process only exits if *every* symbol fails. Try it: change TSLA's
+    `gap` in `mm_tech.yaml` to `0.50` and restart the bot. Its log says
+
+    ```text
+    [MM_TECH_01] [TSLA] excluded from quoting: --gap exceeds mm_max_spread_ticks obligation (0.500000 > 20 * 0.010000)
+    ```
+
+    and AAPL and MSFT quote as before.
 
 :material-checkbox-blank-outline: **Checkpoint:** one `pm-mm-bot` process is
 quoting all three symbols with three different spreads and sizes, its startup
@@ -609,6 +705,6 @@ someone at 09:29 on a trading morning?
 - [ALF Console (pm-alf-console)](../participant-guide/part-2-orders/010-the-trader-console.md)
 - [ALF Protocol Reference](../protocols-and-clients/part-2-specifications/010-alf.md)
 - [Config Verifier (`pm-cverifier`)](../operator-guide/part-2-configure/020-config-verifier.md)
-- [20 — Automation with CommandClient & MM Bot Tuning](210-automation-commandclient-mm-bot.md)
+- [21 — Automation with CommandClient & MM Bot Tuning](210-automation-commandclient-mm-bot.md)
 
 **Next:** [03 — The First Trade](030-the-first-trade.md)

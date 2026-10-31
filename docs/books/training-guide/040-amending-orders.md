@@ -47,7 +47,7 @@ Reduce the order to 200 shares:
 [TRADER01]> AMEND|ID=<order_id>|QTY=200|RTAG=AMD-DOWN-001
 ```
 
-Expected: amendment accepted; new qty=200.
+Expected: `AMENDED <order_id>  price=419.5 qty=200 remaining=200 rtag=AMD-DOWN-001`. There is no `(priority reset)` note, because priority was kept.
 
 !!! note "Priority preserved"
     Reducing quantity does **not** lose time priority — your order keeps its
@@ -68,7 +68,7 @@ Move the order to a more aggressive price:
 [TRADER01]> AMEND|ID=<order_id>|PRICE=419.70|RTAG=AMD-PRICE-001
 ```
 
-Expected: amendment accepted; new price=419.70.
+Expected: `AMENDED <order_id>  price=419.7 qty=200 remaining=200 (priority reset) rtag=AMD-PRICE-001`.
 
 !!! warning "Priority lost"
     A price change **always** loses time priority — the order moves to the back
@@ -110,7 +110,7 @@ Try setting quantity to zero:
 [TRADER01]> AMEND|ID=<order_id>|QTY=0|RTAG=AMD-BAD-001
 ```
 
-Expected: rejection — `code=QTY_OUT_OF_RANGE  Quantity must be positive`. The
+Expected: `REJECTED … code=QTY_OUT_OF_RANGE rtag=AMD-BAD-001  Quantity must be positive`. The
 rejection carries a stable code (`REJECT_CODE` on the wire) as well as the
 text reason, and echoes your `rtag`.
 
@@ -120,7 +120,7 @@ Try amending a non-existent order:
 [TRADER01]> AMEND|ID=INVALID123|PRICE=100.00|RTAG=AMD-MISSING-001
 ```
 
-Expected: rejection — `code=ORDER_NOT_FOUND  Order not found`.
+Expected: `REJECTED INVALID123 code=ORDER_NOT_FOUND rtag=AMD-MISSING-001  Order not found`.
 
 :material-checkbox-blank-outline: **Checkpoint:** both invalid amendments rejected with clear errors.
 
@@ -128,27 +128,46 @@ Expected: rejection — `code=ORDER_NOT_FOUND  Order not found`.
 
 ## Exercise 6: Amend After Partial Fill
 
-1. Place a large buy:
-   ```
-   [TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=500|PRICE=150.10|TIF=DAY
-   ```
-   (This may immediately fill partially against the MM ask.)
+To amend a partially filled order you first need one. TSLA is a good symbol for
+it, as long as you control exactly what is resting there. From the operator
+console clear it (this cancels every order and quote on TSLA, and stop any
+`pm-mm-bot` quoting it), then have `TRADER02` offer 200 shares:
 
-2. If partially filled, amend it. `QTY=` in an `AMEND` is the order's new
-   **total** quantity, not the remainder. If, say, 500 shares filled against
-   the market maker's ask, the total must stay above 500; to cut the unfilled
-   part from 500 to 200, set the total to 700:
+```
+[GW_ADMIN|ADMIN]> CANCEL_SYM|SYM=TSLA
+[TRADER02]> NEW|SYM=TSLA|SIDE=SELL|TYPE=LIMIT|QTY=200|PRICE=250.00|TIF=DAY
+```
+
+1. From `TRADER01`, place a buy for 500 at the same price. Only 200 shares are
+   on offer, so it fills 200 and the other 300 rest:
    ```
-    [TRADER01]> AMEND|ID=<order_id>|QTY=700|RTAG=AMD-PARTIAL-001
+   [TRADER01]> NEW|SYM=TSLA|SIDE=BUY|TYPE=LIMIT|QTY=500|PRICE=250.00|TIF=DAY
    ```
-   Try `QTY=200` too: it is rejected with `code=QTY_OUT_OF_RANGE  New quantity
-   must exceed already-filled quantity`.
+   Expected: `FILL … qty=200 @250.0  remaining=300  [PARTIAL]`. Note the order
+   ID of this buy.
+
+2. Amend it. `QTY=` in an `AMEND` is the order's new **total** quantity, not the
+   remainder, and 200 of it are already filled. Try to cut it back to the
+   filled amount, or below it:
+   ```
+   [TRADER01]> AMEND|ID=<order_id>|QTY=200|RTAG=AMD-PARTIAL-001
+   [TRADER01]> AMEND|ID=<order_id>|QTY=150|RTAG=AMD-PARTIAL-002
+   ```
+   Both are rejected with `code=QTY_OUT_OF_RANGE  New quantity must exceed
+   already-filled quantity`.
+
+3. Now raise the total to 700, which leaves 500 shares resting (700 − 200
+   filled):
+   ```
+   [TRADER01]> AMEND|ID=<order_id>|QTY=700|RTAG=AMD-PARTIAL-003
+   ```
+   Expected: `AMENDED … price=250.0 qty=700 remaining=500 (priority reset)`.
 
 !!! note
     The new qty must be **strictly greater than** the already-filled quantity. Setting it equal to the filled quantity is rejected — use `CANCEL` if you want the remainder gone. You cannot amend below
     what has already been executed.
 
-:material-checkbox-blank-outline: **Checkpoint:** amendment accepted on partially filled order.
+:material-checkbox-blank-outline: **Checkpoint:** the amendment to 700 is accepted on the partially filled order, and the two amendments at or below the filled quantity are rejected.
 
  
 

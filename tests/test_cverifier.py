@@ -2952,3 +2952,20 @@ class TestMonitorSection:
             "monitor:\n  pub_port: 5700\nmarket_data_gateway:\n  port: 5700\n"
         )
         assert "M018" in _codes(results)
+
+
+def test_risk_summary_sessions_default_matches_engine() -> None:
+    from edumatcher.cverifier import risk_summary
+
+    assert risk_summary.build({}).sessions_enabled is True
+    assert risk_summary.build({"sessions_enabled": False}).sessions_enabled is False
+
+
+def test_m004_is_informational_and_default_matches_engine() -> None:
+    raw = _raw(
+        "symbols:\n  AAPL:\n    tick_decimals: 2\nparticipants:\n    - id: GW01\n"
+    )
+    results = layer3_semantic.check(raw, Path("x.yaml"))
+    m004 = [r for r in results if r.code == "M004"]
+    assert m004 and m004[0].severity.value == "INFO"
+    assert "M005" not in _codes(results)

@@ -193,25 +193,64 @@ one price, so at 249.75 you would see the market maker's 200 plus your 100.)
 
 ## Exercise 6: Trailing Stop
 
-A trailing stop follows the market by a fixed offset:
+A trailing stop follows the market by a fixed offset. To watch it work you
+control every trade, as in the setup above. Clear AAPL again and create a last
+traded price of 150.00:
+
+```
+[GW_ADMIN|ADMIN]> CANCEL_SYM|SYM=AAPL
+[MM_AAPL_01]> NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=150.00|TIF=DAY
+[TRADER02]> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TIF=DAY
+```
+
+Now place the trailing stop. No `STOP=` is given, so the engine derives the
+initial trigger from the last traded price minus `TRAIL`: 150.00 − 0.20 =
+**149.80**.
 
 ```
 [TRADER01]> NEW|SYM=AAPL|SIDE=SELL|TYPE=TRAILING_STOP|QTY=100|TRAIL=0.20|TIF=DAY
 ```
 
-No `STOP=` is given here, so the engine derives the initial trigger from the
-last traded price minus `TRAIL` (this works because AAPL has already traded
-in earlier exercises). If AAPL has no trade history yet, `TRAILING_STOP`
-without an explicit `STOP=` is **rejected** — pass `STOP=<price>` explicitly
-to set the initial trigger yourself, e.g. `STOP=149.50`.
+!!! note "Without a trade, no automatic trigger"
+    If AAPL has no trade history, a `TRAILING_STOP` without an explicit
+    `STOP=` is **rejected** — pass `STOP=<price>` to set the initial trigger
+    yourself, e.g. `STOP=149.80`.
 
-If AAPL rises to 150.50, the stop moves to 150.30 (150.50 − 0.20).
-If AAPL then falls to 150.30, the stop triggers and sells at market.
+Put a bid in the book for the stop to sell into once it fires (it becomes a
+market sell), well below the trigger so it does not interfere:
+
+```
+[MM_AAPL_01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=149.70|TIF=DAY
+```
+
+**Let the price rise.** A trade at 150.50 drags the stop up to 150.30
+(150.50 − 0.20); nothing happens visibly:
+
+```
+[MM_AAPL_01]> NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=150.50|TIF=DAY
+[TRADER02]> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.50|TIF=DAY
+```
+
+**Let it reverse.** A trade at 150.30 reaches the (raised) stop. Had the stop
+stayed at 149.80 this trade would not have touched it:
+
+```
+[MM_AAPL_01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.30|TIF=DAY
+[TRADER02]> NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=150.30|TIF=DAY
+```
+
+`TRADER01`'s console now reports the stop's market sell, filled against the
+149.70 bid:
+
+```
+[<time>] FILL      <order_id>  qty=100 @149.7  remaining=0  [FILLED]
+```
 
 The stop only moves **up** (for a sell) or **down** (for a buy) — never against
-you.
+you — and, like a plain stop, it guarantees the exit, not the price: it was
+triggered at 150.30 and sold at 149.70.
 
-:material-checkbox-blank-outline: **Checkpoint:** trailing stop triggers after price reversal.
+:material-checkbox-blank-outline: **Checkpoint:** the trailing stop sat unfilled while the price rose, then sold at 149.70 after the reversal to 150.30.
 
  
 

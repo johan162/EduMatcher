@@ -33,7 +33,7 @@ Note the `order_id`, then:
 [TRADER01]> CANCEL|ID=<order_id>|RTAG=CXL-REST-001
 ```
 
-Expected: cancellation confirmed.
+Expected: `CANCELLED <order_id> rtag=CXL-REST-001`.
 
 `RTAG` identifies this cancel request. The engine echoes it on the `CANCELLED`
 response or rejected ACK, which makes retries and concurrent cancel tests easier
@@ -47,17 +47,31 @@ was acted on and which cancel request completed.
 
 ## Exercise 2: Cancel a Partially Filled Order
 
-1. Place a large limit buy at an aggressive price (to get a partial fill from the MM):
+You need an order that fills only in part, so control what is on offer. From the
+operator console clear AAPL (stop any `pm-mm-bot` quoting it), and have
+`TRADER02` offer 300 shares:
+
+```
+[GW_ADMIN|ADMIN]> CANCEL_SYM|SYM=AAPL
+[TRADER02]> NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=300|PRICE=150.10|TIF=DAY
+```
+
+1. Place a large limit buy at the same price. It takes the 300 and the other
+   700 rest:
    ```
    [TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=1000|PRICE=150.10|TIF=DAY
    ```
+   Expected: `FILL … qty=300 @150.1  remaining=700  [PARTIAL]`.
 
-2. After partial fill, cancel the remainder:
+2. Cancel the remainder:
    ```
-    [TRADER01]> CANCEL|ID=<order_id>|RTAG=CXL-PARTIAL-001
+   [TRADER01]> CANCEL|ID=<order_id>|RTAG=CXL-PARTIAL-001
    ```
 
-Expected: the unfilled portion is cancelled; the filled portion remains executed.
+Expected: `CANCELLED <order_id> rtag=CXL-PARTIAL-001`. The unfilled 700 are gone; the
+300 that filled stay executed. `ORDERS` shows the order as `CANCELLED` with
+`Qty` 1000 and `Rem` 700 — the quantity that was still open when it was
+cancelled, not the filled part.
 
 :material-checkbox-blank-outline: **Checkpoint:** cancel succeeds; filled qty preserved.
 
@@ -77,8 +91,9 @@ First run `STATUS`:
 [TRADER01]> STATUS
 ```
 
-`STATUS` gives a quick gateway/session summary: gateway ID, known symbols,
-cached order counts by lifecycle state, cached quote legs, and position symbols.
+`STATUS` gives a quick gateway summary: gateway ID, whether it is authenticated,
+known symbols, cached order counts by lifecycle state (for example
+`CANCELLED=3, NEW=1`), cached and active quote legs, and position symbols.
 It is useful for a fast health check, but it is not the detailed order table.
 
 Now inspect the actual orders:
@@ -152,13 +167,19 @@ From the admin gateway, cancel all orders for a specific gateway:
 [GW_ADMIN|ADMIN]> KILL|GW=TRADER01
 ```
 
-All of TRADER01's resting orders are cancelled.
+The console reports `KILL OK  TRADER01  orders=<n>  quotes=<n>` — the number of
+orders and of market-maker quote legs cancelled — and each cancelled order
+appears on `TRADER01`'s console as `CANCELLED <order_id> reason=KILL_SWITCH`.
 
 Or cancel all orders for a specific symbol across all gateways:
 
 ```
 [GW_ADMIN|ADMIN]> CANCEL_SYM|SYM=TSLA
 ```
+
+which answers `CANCEL_SYM OK  TSLA  orders=<n>  quotes=<n>`. Both commands
+also clear market-maker quotes, which is why they are the quickest way to empty
+a book before an experiment.
 
 :material-checkbox-blank-outline: **Checkpoint:** admin commands successfully cancel orders.
 

@@ -15,7 +15,8 @@ observe how auction orders are collected and matched in a single uncrossing even
 ## Prerequisites
 
 - Chapters 01–06 completed.
-- Scheduler control available so you can observe auction phases.
+- `pm-engine`, both trader consoles, the market-maker gateway and the operator
+  console running, and **no** `pm-scheduler` (you drive the phases by hand).
 
  
 
@@ -75,14 +76,27 @@ From two gateways, enter orders while in `OPENING_AUCTION`:
 [TRADER02]> NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=150.30|TIF=ATO
 ```
 
+Add one order that cannot cross, for Exercise 3 — a bid for MSFT far below the
+market maker's ask of about 420:
+
+```
+[TRADER01]> NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=400.00|TIF=ATO
+```
+
 :material-checkbox-blank-outline: **Checkpoint:** orders accepted, resting in auction book.
 
  
 
 ## Exercise 2: Trigger the Auction Uncrossing
 
-When the scheduler transitions from OPENING_AUCTION → CONTINUOUS, all crossing
-orders match at the equilibrium price.
+When the session leaves OPENING_AUCTION for CONTINUOUS, all crossing orders
+match at the equilibrium price. Nothing has traded yet — the orders from
+Exercise 1 are collected, not matched. Work out the result by hand first, then
+fire the uncrossing:
+
+```
+[GW_ADMIN|ADMIN]> SESSION|STATE=CONTINUOUS
+```
 
 For the exact orders entered in Exercise 1, here is the full calculation
 (verified against `engine/auction.py`):
@@ -108,8 +122,14 @@ expire, because an `ATO` order only lives for the opening auction.
 
 What to observe: identify the one common execution price printed across all
 fill events, and confirm it equals `149.80` and the total filled quantity
-equals `400` (300 from TRADER01's first order + 100 remaining from the
-second, against TRADER02's 400-share sell).
+equals `400` (300 from TRADER01's first order + 100 from the
+second, against TRADER02's 400-share sell). On `TRADER01` you see:
+
+```
+FILL      <first order id>   qty=300 @149.8  remaining=0    [FILLED]
+FILL      <second order id>  qty=100 @149.8  remaining=100  [PARTIAL]
+EXPIRED   <second order id>  (DAY order — trading day ended)
+```
 
 :material-checkbox-blank-outline: **Checkpoint:** all fills report execution price `149.80` and matched quantity `400`.
 
@@ -117,19 +137,19 @@ second, against TRADER02's 400-share sell).
 
 ## Exercise 3: Unfilled Auction Orders
 
-If an ATO order does not cross (e.g. a buy at 148.00 with no matching sell),
-it expires when CONTINUOUS begins.
-
-Place:
+An ATO order that does not cross expires when the auction ends, instead of
+carrying on into continuous trading. You entered one in Exercise 1: the MSFT
+bid at 400.00. The uncrossing in Exercise 2 left it unfilled — the MSFT market
+maker from chapter 02 asks about 420, far above 400 — and the console reported
+it `EXPIRED` in the same burst as the AAPL fills. Confirm it:
 
 ```
-[TRADER01]> NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=400.00|TIF=ATO
+[TRADER01]> ORDERS
 ```
 
-After the auction uncrosses this order is not filled — the MSFT market maker
-from chapter 02 asks about 420, far above 400 — and the console reports it
-`EXPIRED`. (The console's explanation reads *DAY order — trading day ended*;
-for an `ATO` order, read it as *the opening auction ended*.)
+The MSFT order is listed with status `EXPIRED`. (The console's explanation
+reads *DAY order — trading day ended*; for an `ATO` order, read it as *the
+opening auction ended*.)
 
 :material-checkbox-blank-outline: **Checkpoint:** the unmatched ATO order expired at the start of CONTINUOUS.
 
@@ -157,6 +177,11 @@ are generated:
 [GW_ADMIN|ADMIN]> SESSION|STATE=CLOSED
 ```
 
+Both orders fill in full at one price, **150.60**: the candidates 150.60 and
+150.80 both match 100 shares with no surplus, and the engine keeps the lower of
+two tied prices, exactly as in Exercise 2. Each console prints
+`FILL … qty=100 @150.6 remaining=0 [FILLED]`.
+
 Remember to reopen the market (`PRE_OPEN`, then `CONTINUOUS`) before the next
 chapter.
 
@@ -166,16 +191,32 @@ chapter.
 
 ## Exercise 5: GTC Orders in Auctions
 
-GTC orders participate in auctions alongside ATO/ATC orders:
+GTC orders participate in auctions alongside ATO/ATC orders. Prove it for the
+opening auction. After Exercise 4 the market is `CLOSED`; move to `PRE_OPEN`
+(which accepts GTC but not ATO), clear AAPL with `CANCEL_SYM|SYM=AAPL`, and
+rest a GTC bid:
 
 ```
+[GW_ADMIN|ADMIN]> SESSION|STATE=PRE_OPEN
 [TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=50|PRICE=150.00|TIF=GTC
 ```
 
-This order participates in both opening and closing auctions, and rests during
-CONTINUOUS trading.
+Move to `OPENING_AUCTION`, offer 50 shares at the same price as an ATO order,
+and uncross:
 
-:material-checkbox-blank-outline: **Checkpoint:** GTC order fills in auction or continues resting.
+```
+[GW_ADMIN|ADMIN]> SESSION|STATE=OPENING_AUCTION
+[TRADER02]> NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=50|PRICE=150.00|TIF=ATO
+[GW_ADMIN|ADMIN]> SESSION|STATE=CONTINUOUS
+```
+
+Both consoles report `FILL … qty=50 @150.0 [FILLED]`: the GTC bid, placed
+before the auction began, was matched in it. The same holds in the closing
+auction — rest a GTC bid during `CONTINUOUS`, send an `ATC` sell at the same
+price after `SESSION|STATE=CLOSING_AUCTION`, and they trade when the session
+moves to `CLOSED`.
+
+:material-checkbox-blank-outline: **Checkpoint:** the GTC bid filled in the opening auction against an ATO order.
 
  
 

@@ -138,7 +138,7 @@ class _FakeClient:
     def volume(self) -> dict[str, Any]:
         self.calls.append(("volume", (), {}))
         return {
-            "symbols": {"AAPL": {"qty": 10, "value": 1500.0, "trades": 2}},
+            "symbols": [{"symbol": "AAPL", "qty": 10, "value": 1500.0, "trades": 2}],
             "total_qty": 10,
             "total_value": 1500.0,
             "total_trades": 2,
@@ -300,11 +300,11 @@ def test_display_helpers_smoke(monkeypatch: pytest.MonkeyPatch) -> None:
         [{"id": "GW_ADMIN", "role": "ADMIN", "description": "ops", "connected": True}]
     )
     console_mod._print_volume(
-        {"symbols": {}, "total_qty": 0, "total_value": 0.0, "total_trades": 0}
+        {"symbols": [], "total_qty": 0, "total_value": 0.0, "total_trades": 0}
     )
     console_mod._print_volume(
         {
-            "symbols": {"AAPL": {"qty": 1, "value": 10.0, "trades": 1}},
+            "symbols": [{"symbol": "AAPL", "qty": 1, "value": 10.0, "trades": 1}],
             "total_qty": 1,
             "total_value": 10.0,
             "total_trades": 1,

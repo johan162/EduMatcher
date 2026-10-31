@@ -59,10 +59,11 @@ Different TIF values control when orders are active and when they expire.
 Start the scheduler in rapid-fire mode to see all transitions quickly:
 
 ```bash
-pm-scheduler --now
+pm-scheduler --now --delay 5
 ```
 
-Watch the transitions. The trader console does **not** subscribe to session
+Watch the transitions (`--delay 5` leaves five seconds between them, long
+enough to query the phase after each one; the whole day takes about 25 seconds). The trader console does **not** subscribe to session
 broadcasts — it only answers an explicit `SESSION` query — so use the operator
 console, which does:
 
@@ -70,12 +71,17 @@ console, which does:
 [GW_ADMIN|ADMIN]> SESSION_STATUS
 ```
 
-Run it after each transition, or watch `pm-audit --terminal` in another
-terminal for the live `session.state` events:
+Run it after each transition, or watch the audit trail in another terminal for
+the live `session.state` events. The audit logger also prints order-book
+checkpoints at every phase change, so filter for the lines you want:
+
+```bash
+pm-audit --terminal | grep '\[session.state\]'
+```
 
 ```
-session.state  PRE_OPEN -> OPENING_AUCTION
-session.state  OPENING_AUCTION -> CONTINUOUS
+[2026-10-31T11:40:59.5+00:00] [session.state] [seq=3 eseq=40 msg=… cause=… chain=…] {"state": "OPENING_AUCTION", "prev_state": "PRE_OPEN"}
+[2026-10-31T11:41:01.5+00:00] [session.state] [seq=4 eseq=52 msg=… cause=… chain=…] {"state": "CONTINUOUS", "prev_state": "OPENING_AUCTION"}
 ```
 
 :material-checkbox-blank-outline: **Checkpoint:** you see at least one session state transition.
@@ -159,27 +165,32 @@ must not persist.
 
 ## Exercise 3: GTC Order Survives
 
-Place a GTC order:
+Exercise 2 left the market `CLOSED`, where every order is rejected. Open a new
+day first (`SESSION|STATE=PRE_OPEN`, then `SESSION|STATE=CONTINUOUS`) and place
+a GTC order:
 
 ```
 [TRADER01]> NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=50|PRICE=415.00|TIF=GTC
 ```
 
-This order survives the CLOSED phase and will still be resting when the next
-session opens.
+Close the day again (`SESSION|STATE=CLOSING_AUCTION`, then
+`SESSION|STATE=CLOSED`). This order survives the CLOSED phase and will still
+be resting when the next session opens. `ORDERS` on `TRADER01` now shows the
+DAY order from Exercise 2 as `EXPIRED` and this one still `NEW`.
 
 Operational note: GTC is used for standing instructions that remain valid until
 explicitly cancelled.
 
-:material-checkbox-blank-outline: **Checkpoint:** GTC order remains after session restart.
+:material-checkbox-blank-outline: **Checkpoint:** after the session reaches `CLOSED`, `ORDERS` still lists the GTC order as `NEW`.
 
  
 
 ## Exercise 4: ATO Order
 
-Freeze in OPENING_AUCTION (`[GW_ADMIN|ADMIN]> SESSION|STATE=OPENING_AUCTION` — from
-PRE_OPEN, this is a valid direct transition), then place an At-The-Open
-order:
+The market is `CLOSED` after Exercise 3. Open a new day to `PRE_OPEN`
+(`SESSION|STATE=PRE_OPEN`), then freeze in OPENING_AUCTION
+(`[GW_ADMIN|ADMIN]> SESSION|STATE=OPENING_AUCTION` — from PRE_OPEN, this is a
+valid direct transition), and place an At-The-Open order:
 
 ```
 [TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=200|PRICE=150.50|TIF=ATO
@@ -203,7 +214,9 @@ auction, it expires the moment the session leaves `OPENING_AUCTION`
 
 ## Exercise 5: ATC Order
 
-First try an At-The-Close order during CONTINUOUS:
+Exercise 4 left the session in `OPENING_AUCTION`; move on to `CONTINUOUS`
+(`SESSION|STATE=CONTINUOUS`). First try an At-The-Close order during
+CONTINUOUS:
 
 ```
 [TRADER01]> NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=149.00|TIF=ATC
@@ -227,7 +240,10 @@ closing auction uncrosses, on the move to `CLOSED`.
 
 ## Exercise 6: Rejected TIF
 
-Try submitting an ATO order during CONTINUOUS:
+Exercise 5 left the session in `CLOSING_AUCTION`. Take it through `CLOSED` and a
+fresh `PRE_OPEN` back to `CONTINUOUS` (`SESSION|STATE=CLOSED`,
+`SESSION|STATE=PRE_OPEN`, `SESSION|STATE=CONTINUOUS`), then try submitting an
+ATO order:
 
 ```
 [TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TIF=ATO
@@ -244,7 +260,7 @@ summary below and the rule you saw in Exercise 4.
 
 ## Summary
 
-| Phase | Accepts | Cancels on **entry** |
+| Phase | Accepts | Order expiry at this boundary |
 |-------|---------|---------|
 | PRE_OPEN | DAY, GTC (not ATO — see Exercise 4) | — |
 | OPENING_AUCTION | DAY, GTC, ATO | ATO (unfilled, on **exit** to any other phase) |

@@ -82,6 +82,8 @@ from edumatcher.models.generated.risk import (
     PREFIX_CIRCUIT_BREAKER_RESUME_ALL_ACK,
     PREFIX_FORCE_UNCROSS_ACK,
     PREFIX_KILL_SWITCH_ACK,
+    PREFIX_KILL_SWITCH_GATEWAY_ACK,
+    PREFIX_KILL_SWITCH_GLOBAL_ACK,
     PREFIX_SYMBOL_HALT_ACK,
     PREFIX_SYMBOL_RESUME_ACK,
     topic_cancel_symbol_ack,
@@ -106,6 +108,7 @@ from edumatcher.models.generated.index import (
 )
 from edumatcher.models.generated.quote import (
     PREFIX_QUOTE_ACK,
+    PREFIX_QUOTE_CANCEL_ACK,
     topic_quote_cancel_ack,
 )
 from edumatcher.models.generated.system import (
@@ -113,6 +116,7 @@ from edumatcher.models.generated.system import (
     PREFIX_GATEWAY_AUTH,
     PREFIX_POSITION_SNAPSHOT,
     PREFIX_QUOTE_BOOTSTRAP,
+    PREFIX_REFERENCE_RELOAD_ACK,
     PREFIX_SESSION_SCHEDULE,
     PREFIX_SESSION_STATUS,
     PREFIX_SYMBOLS,
@@ -139,7 +143,11 @@ _ACK_SUB_PREFIXES: tuple[str, ...] = (
     PREFIX_CANCEL_SYMBOL_ACK,
     PREFIX_FORCE_UNCROSS_ACK,
     PREFIX_KILL_SWITCH_ACK,
+    PREFIX_KILL_SWITCH_GATEWAY_ACK,
+    PREFIX_KILL_SWITCH_GLOBAL_ACK,
     PREFIX_QUOTE_ACK,
+    PREFIX_QUOTE_CANCEL_ACK,
+    PREFIX_REFERENCE_RELOAD_ACK,
     PREFIX_BOOK_SNAPSHOT,
     TOPIC_SESSION_STATE,
     PREFIX_SYMBOLS,
@@ -277,6 +285,25 @@ class ExchangeCommandClient:
     def _send(self, frames: list[bytes]) -> None:
         """Send a two-frame ZMQ multipart message over the PUSH socket."""
         self._push.send_multipart(frames)
+
+    def _send_index(self, frames: list[bytes]) -> None:
+        """Send to ``pm-index``, waiting for the PUSH connection to come up.
+
+        ``pm-index`` has no connect handshake, unlike the engine socket, so
+        nothing gives the connection time to establish before the first send.
+        The pusher is created with ``IMMEDIATE``, so a send before the peer is
+        connected fails at once with ``zmq.Again`` instead of queueing; retry
+        for up to the command timeout.
+        """
+        deadline = time.monotonic() + self._timeout_ms / 1000
+        while True:
+            try:
+                self._index_push.send_multipart(frames)
+                return
+            except zmq.Again:
+                if time.monotonic() >= deadline:
+                    raise
+                time.sleep(0.05)
 
     def _recv(
         self,
@@ -624,7 +651,7 @@ class ExchangeCommandClient:
         # AR-0.3: this method's own from_ts/to_ts stay seconds (its public
         # SDK-level contract); converted to the wire message's
         # from_ts_ns/to_ts_ns only at this boundary.
-        self._index_push.send_multipart(
+        self._send_index(
             make_index_history_request_msg(
                 gateway_id=self._gw_id,
                 index_id=index_id.upper(),
@@ -658,7 +685,7 @@ class ExchangeCommandClient:
             knows the index at that point and can reply on the expected
             topic.
         """
-        self._index_push.send_multipart(
+        self._send_index(
             make_index_corp_action_msg(
                 action=action.upper(),
                 index_id=index_id.upper(),
@@ -682,7 +709,7 @@ class ExchangeCommandClient:
         CommandError
             If *index_id* is not configured in ``pm-index``.
         """
-        self._index_push.send_multipart(
+        self._send_index(
             make_index_constituent_change_msg(
                 change_type="DELIST",
                 index_id=index_id.upper(),
@@ -711,7 +738,7 @@ class ExchangeCommandClient:
         CommandError
             If *index_id* is not configured in ``pm-index``.
         """
-        self._index_push.send_multipart(
+        self._send_index(
             make_index_constituent_change_msg(
                 change_type="ADD",
                 index_id=index_id.upper(),
