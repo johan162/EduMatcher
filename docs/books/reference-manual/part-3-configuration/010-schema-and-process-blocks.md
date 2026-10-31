@@ -324,8 +324,6 @@ overrides.  See [BALF TCP Gateway](../../operator-guide/part-5-gateways/020-balf
 client-facing documentation.
 
 
-## Configuring `pm-api-gwy`
-
 ## Configuring `pm-dc-gwy`
 
 `pm-dc-gwy` reads an optional top-level `dc_gateway` block from the same
@@ -1484,6 +1482,7 @@ Ranges use mathematical interval notation: `(a, b)` is open (exclusive),
 | `dc_gateway`               | mapping |       No | —                                                     | —                      | `pm-dc-gwy` settings; see [Drop-Copy Gateway](../../operator-guide/part-5-gateways/060-drop-copy-gateway.md) |
 | `log_server`               | mapping |       No | —                                                     | —                      | `pm-log-srv` settings; see [Configuring `pm-log-srv`](#configuring-pm-log-srv) |
 | `api_gateways`             | mapping |       No | —                                                     | —                      | Named `pm-api-gwy` instances; see [Configuring `pm-api-gwy`](#configuring-pm-api-gwy) |
+| `monitor`                  | mapping |       No | —                                                     | —                      | `pm-monitor` and health-beacon settings; an absent block means defaults, with the monitor enabled; see [Configuring `pm-monitor`](#configuring-pm-monitor) |
 
 ### `engine_tuning` fields
 

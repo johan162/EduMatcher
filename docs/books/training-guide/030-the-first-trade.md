@@ -73,9 +73,9 @@ at the same price.
 Look at the market maker's console too:
 
 ```
-[<time>] FILL      <ask leg id>  qty=100 @150.05  remaining=400  [PARTIAL]
-[<time>] CANCELLED <bid leg id>
+[<time>] CANCELLED <bid leg id> reason=QUOTE_LEG_FILLED
 [<time>] QUOTE INACTIVE_ASK_FILLED  AAPL-MM-001
+[<time>] FILL      <ask leg id>  qty=100 @150.05  remaining=400  [PARTIAL]
 ```
 
 Chapter 02 configured `MM_AAPL_01` with `quote_refresh_policy:
@@ -127,7 +127,8 @@ Place a buy order below the current bid — it should rest on the book:
 [TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=200|PRICE=149.80|TIF=DAY
 ```
 
-Expected: order acknowledged, status=NEW (resting).
+Expected: `ACK <order id>  order accepted`. The order rests, because its
+price is below the best ask (it is not marketable).
 
 Verify in the **operator console** — a trader cannot see the whole book:
 

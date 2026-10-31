@@ -528,7 +528,7 @@ def _print_gateways(gateways: list[dict[str, Any]]) -> None:
 
 
 def _print_volume(result: dict[str, Any]) -> None:
-    symbols: dict[str, dict[str, Any]] = result.get("symbols", {})
+    symbols: list[dict[str, Any]] = result.get("symbols", [])
     total_qty = result.get("total_qty", 0)
     total_value = result.get("total_value", 0.0)
     total_trades = result.get("total_trades", 0)
@@ -547,9 +547,9 @@ def _print_volume(result: dict[str, Any]) -> None:
     t.add_column("Value", justify="right", min_width=16)
     t.add_column("Trades", justify="right", min_width=8)
 
-    for sym, v in symbols.items():
+    for v in symbols:
         t.add_row(
-            sym,
+            str(v.get("symbol", "")),
             f"{v.get('qty', 0):,}",
             f"{v.get('value', 0.0):,.2f}",
             str(v.get("trades", 0)),

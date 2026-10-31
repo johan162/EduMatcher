@@ -134,6 +134,8 @@ use `pm-dc-gwy` on 5590 instead of subscribing to 5557 directly.
 Understanding what the tools do for you is worth one level down. Connect a
 minimal ZMQ subscriber to the same socket `pm-dc-spy` reads:
 
+The snippet needs the `zmq` Python package (`pyzmq`); in a container shell or a Poetry checkout use `python`/`poetry run python`, and with `pipx` use `pipx runpip edumatcher`'s interpreter or `pip install pyzmq` in a virtual environment.
+
 ```bash
 python - <<'PY'
 import json
@@ -160,7 +162,7 @@ While this is running, execute a trade from `TRADER01` in another terminal:
 ```
 
 You should see one `drop_copy.event.<gateway_id>` message per participant on
-each side of the trade, each with its own monotonically increasing `seq`.
+each side of the trade, stamped with a monotonically increasing `seq` (one counter for the whole feed, so the two sides of one trade get consecutive numbers).
 Each message also carries `trade_ids`, the durable public trade ID that lets a
 risk or clearing consumer correlate its private execution with `trade.executed`.
 

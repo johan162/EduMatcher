@@ -95,7 +95,8 @@ pm-config-deploy engine_config.yaml
 pm-config-deploy --show               # confirm where it landed
 ```
 
-Warnings and advisories are fine here; errors are not. Expect warning
+Warnings and advisories are fine here; errors are not. Expect the warning
+`M032` (no read-only API credential — nothing in this venue uses one) and
 `C001` (no reference prices): the books have no price until the market makers
 quote, so the static collar only takes effect from the first trades on. If `pm-cverifier`
 reports an error, fix it before deploying — a refused deploy leaves the
@@ -117,7 +118,11 @@ pm-stats
 pm-clearing
 pm-audit --terminal
 pm-viewer --symbol AAPL
+pm-alf-gwy -v
 ```
+
+`pm-alf-gwy` is the TCP gateway that `pm-ai-trader` logs on through in Exercise 6
+(Chapter 14); without it the AI traders report `cannot reach ALF gateway`.
 
 `pm-scheduler` is left out on purpose: you will drive the trading day by hand
 from the operator console, as in Chapter 06, so the capstone works at any

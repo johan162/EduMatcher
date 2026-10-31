@@ -100,7 +100,11 @@ for the normative statement of this model, including how keys are provisioned.
 
 ## Exercise 1: Generate a Single API Gateway Config
 
-Generate a local lab config with trading keys and one read-only dashboard key:
+Generate a local lab config with trading keys and one read-only dashboard key.
+`--sessions-enabled` lets Exercise 10 drive the session, and `--cb-levels L1:0.05:30`
+gives every symbol a 5% circuit-breaker level with a 30-minute halt, which the
+admin halt in the same exercise needs (a symbol with no circuit breaker
+configured refuses it with `HALT_REJECTED`, `AAPL has no circuit breaker configured`):
 
 ```bash
 pm-config-gen \
@@ -108,6 +112,8 @@ pm-config-gen \
   --participants TRADER01 TRADER02 OPS01:ADMIN \
   --outstanding-shares AAPL:15400000000 \
   --outstanding-shares MSFT:7430000000 \
+  --sessions-enabled \
+  --cb-levels L1:0.05:30 \
   --api-gateway \
   --api-gateway-name desk \
   --api-gateway-readonly-key \
@@ -155,6 +161,11 @@ pm-api-gwy --instance desk
 
 If the config contains only one `api_gateways` entry, `--instance` can be omitted.
 Use it anyway in labs so the selected process is explicit.
+
+Sessions are enabled, so the engine starts in `CLOSED` and refuses orders until
+the day is opened. Open it from the operator console (`pm-admin --id OPS01`,
+then `SESSION|STATE=PRE_OPEN` and `SESSION|STATE=CONTINUOUS`) before Exercise 4;
+Exercise 10 shows the REST equivalent.
 
 Expected behavior:
 
@@ -383,7 +394,7 @@ Expected behavior:
 Connect to private events before submitting new orders:
 
 ```bash
-python3 -m websockets ws://127.0.0.1:8080/api/v1/ws/private
+python3 -m websockets ws://127.0.0.1:8080/api/v1/ws/private   # needs `pip install websockets`
 ```
 
 Once connected, the CLI waits for you to type. Send the authentication message
@@ -475,8 +486,9 @@ curl -X POST http://127.0.0.1:8080/api/v1/admin/symbols/AAPL/resume \
   -H 'Authorization: Bearer key-ops01-demo'
 ```
 
-Request a session transition. This call now waits for the engine's verdict
-instead of firing and forgetting:
+Request a session transition. This call waits for the engine's verdict
+instead of firing and forgetting. If you have not opened the day yet, send
+`PRE_OPEN` first; the engine only accepts the legal next phase:
 
 ```bash
 curl -i -X POST http://127.0.0.1:8080/api/v1/admin/session/transition \

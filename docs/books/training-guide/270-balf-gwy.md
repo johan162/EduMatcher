@@ -64,7 +64,8 @@ Generate `engine_config.yaml` with the `balf_gateway:` section enabled:
 ```bash
 pm-config-gen \
   --symbols AAPL MSFT \
-  --participants TRADER01 TRADER02 MM01:MARKET_MAKER \
+  --participants TRADER01 TRADER02 OPS01:ADMIN MM01:MARKET_MAKER \
+  --no-mm-seed-quotes \
   --balf-gateway \
   --balf-port 5560 \
   --balf-bind-address 127.0.0.1 \
@@ -89,11 +90,13 @@ Expected output includes:
 ```yaml
 balf_gateway:
   name: balf-gwy01
-  bind_address: 0.0.0.0
+  bind_address: 127.0.0.1
   port: 5560
   heartbeat_interval_sec: 1
   heartbeat_timeout_sec: 5
   idle_timeout_sec: 30
+  auth_timeout_sec: 10
+  max_connections: 64
 ```
 
 Start processes with that config:
@@ -342,6 +345,115 @@ Expected behavior:
 - `LOGOUT sent`
 
 :material-checkbox-blank-outline: Checkpoint: you can submit and cancel an order over a raw BALF TCP session.
+
+ 
+
+## Exercise 4B: Amend an Order and Receive Fills
+
+Exercise 4 sent an order and cancelled it. The other half of order entry is
+what comes back when the order trades. This exercise uses two sessions —
+`TRADER01` rests a bid, amends it, and `TRADER02` sells into it — and decodes
+the `AMEND_ACK` and both sides' `EXECUTION_REPORT`. The market must be open
+(`SESSION|STATE=PRE_OPEN`, then `CONTINUOUS`, from `pm-admin --id OPS01`) and
+AAPL's book empty (the configuration from Exercise 1 has no seed quotes).
+
+```bash
+python3 - <<'EOF'
+import socket
+import struct
+
+PRICE_SCALE = 100_000_000
+FRAME_SIZES = {0x02: 92, 0x11: 60, 0x13: 32, 0x15: 48, 0x20: 64, 0x30: 16}
+
+
+def header(msg_type, seq):
+    return struct.pack("<BBBBI", 0xBA, 0x01, msg_type, 0, seq)
+
+
+def recv_exact(sock, n):
+    buf = bytearray()
+    while len(buf) < n:
+        chunk = sock.recv(n - len(buf))
+        if not chunk:
+            raise RuntimeError("connection closed")
+        buf.extend(chunk)
+    return bytes(buf)
+
+
+def next_frame(sock, want):
+    """Return the body of the next `want` frame, answering heartbeats."""
+    while True:
+        h = recv_exact(sock, 8)
+        body = recv_exact(sock, FRAME_SIZES[h[2]] - 8)
+        if h[2] == 0x30:
+            sock.sendall(header(0x31, 0) + body[:8])
+            continue
+        if h[2] == want:
+            return body
+
+
+def session(gateway):
+    sock = socket.create_connection(("127.0.0.1", 5560), timeout=10)
+    sock.sendall(header(0x01, 0) + struct.pack("<16sB7s", gateway, 1, b"\x00" * 7))
+    assert next_frame(sock, 0x02)[16] == 1, "LOGON rejected"
+    return sock
+
+
+def new_order(sock, seq, client_id, side, price, qty):
+    sock.sendall(
+        header(0x10, seq)
+        + struct.pack("<Q8sqqqIIBBBB", client_id, b"AAPL", round(price * PRICE_SCALE), 0, 0, qty, 0, side, 2, 1, 0)
+    )
+    return struct.unpack_from("<Q", next_frame(sock, 0x11), 8)[0]
+
+
+def report(label, body):
+    cid, oid, px, qty, rem = struct.unpack_from("<QQqII", body)
+    print(f"{label}: EXECUTION_REPORT client_order_id={cid} fill={qty}@{px / PRICE_SCALE:.2f} remaining={rem}")
+
+
+resting = session(b"TRADER01")
+taker = session(b"TRADER02")
+
+order_id = new_order(resting, 1, 1, 1, 150.00, 100)          # BUY 100 @ 150.00
+print("TRADER01 resting order_id", order_id)
+
+# AMEND: new price 150.50 and new total quantity 200 (flags: bit0 price, bit1 quantity)
+resting.sendall(header(0x14, 2) + struct.pack("<QQqIB7s", 2, order_id, round(150.50 * PRICE_SCALE), 200, 0b11, b"\x00" * 7))
+body = next_frame(resting, 0x15)
+cid, oid, px, qty, rem, accepted, reset = struct.unpack_from("<QQqIIBB", body)
+print(f"AMEND_ACK accepted={bool(accepted)} price={px / PRICE_SCALE:.2f} qty={qty} priority_reset={bool(reset)}")
+
+new_order(taker, 1, 7, 2, 150.50, 120)                       # SELL 120 @ 150.50 crosses it
+report("TRADER02 (taker)", next_frame(taker, 0x20))
+report("TRADER01 (resting)", next_frame(resting, 0x20))
+EOF
+```
+
+Expected:
+
+```text
+TRADER01 resting order_id 1
+AMEND_ACK accepted=True price=150.50 qty=200 priority_reset=True
+TRADER02 (taker): EXECUTION_REPORT client_order_id=7 fill=120@150.50 remaining=0
+TRADER01 (resting): EXECUTION_REPORT client_order_id=1 fill=120@150.50 remaining=80
+```
+
+Read it against the [BALF specification](../protocols-and-clients/part-2-specifications/020-balf.md):
+
+- `amend_flags` `0b11` says both the price and the quantity changed. `new_quantity`
+  is the new **total**, so 200 means 200 shares in all, as with `AMEND` in
+  Chapter 04.
+- `priority_reset=True`: a price change always loses time priority.
+- The fill is at the resting order's price, 150.50 (the taker's limit equals it
+  here). Both sides then get their own `EXECUTION_REPORT`; the `client_order_id`
+  in each is the number that session chose (1 and 7). The 80 shares left on the
+  bid stay on the book until you cancel them with `CANCEL_ORDER`, as in
+  Exercise 4.
+
+:material-checkbox-blank-outline: Checkpoint: you decoded an `AMEND_ACK` with `priority_reset=True` and the two
+`EXECUTION_REPORT` frames of one trade, and can say why the resting side's
+`remaining` is 80.
 
  
 

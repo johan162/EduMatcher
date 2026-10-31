@@ -60,7 +60,7 @@ def build(raw: dict[str, Any]) -> RiskSummary:
                     summary.admin_gateway = gw_id
 
     # Sessions
-    summary.sessions_enabled = bool(raw.get("sessions_enabled", False))
+    summary.sessions_enabled = bool(raw.get("sessions_enabled", True))
     schedule = raw.get("schedule")
     if summary.sessions_enabled and isinstance(schedule, dict):
         summary.schedule_summary = _summarize_schedule(schedule)

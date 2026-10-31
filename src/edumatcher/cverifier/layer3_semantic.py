@@ -262,20 +262,25 @@ def _check_mm_obligation_symbols(
 
 
 def _check_sessions_schedule(raw: dict[str, Any], results: list[CheckResult]) -> None:
-    sessions_enabled = bool(raw.get("sessions_enabled", False))
+    sessions_enabled = bool(raw.get("sessions_enabled", True))
     schedule = raw.get("schedule")
 
-    # M004: sessions enabled but no schedule
+    # M004: sessions enabled but no schedule. Not a fault: pm-scheduler then
+    # runs its built-in weekday timetable.
     if sessions_enabled and not isinstance(schedule, dict):
         results.append(
             CheckResult(
                 code="M004",
-                severity=Severity.ERROR,
+                severity=Severity.INFO,
                 message=(
-                    "sessions_enabled is true but no schedule is defined. "
-                    "The engine will wait indefinitely in CLOSED state."
+                    "Sessions are enabled and no schedule is defined, so "
+                    "pm-scheduler uses its built-in weekday timetable "
+                    "(09:00-16:05; weekends and bank holidays closed)."
                 ),
-                suggestion=("Add a schedule section or set sessions_enabled: false."),
+                suggestion=(
+                    "Add a schedule section to set your own times, or set "
+                    "sessions_enabled: false for always-continuous trading."
+                ),
                 path="schedule",
             )
         )

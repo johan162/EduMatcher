@@ -19,8 +19,8 @@
     in the Order Amendment section below for the full explanation.
 
 EduMatcher supports **eight order types** plus two multi-leg constructs (COMBO and
-OCO), from the simplest market order to multi-leg combo/OCO orders used to execute
-strategies across multiple symbols atomically.
+OCO), from the simplest market order to a COMBO that trades a strategy across
+several symbols all-or-none and an OCO that links two exits on one symbol.
 
 
 ## Contents
@@ -37,6 +37,58 @@ strategies across multiple symbols atomically.
 | [TRAILING_STOP](#trailing_stop) | Conditional | Dynamic stop that follows price by fixed offset       |
 | [COMBO](#combo)                 | Multi-leg   | Multiple linked orders across symbols                 |
 | [OCO](#oco-one-cancels-other)   | Multi-leg   | Two orders where fill/cancel of one cancels the other |
+
+### Choosing an order type
+
+Pick the type from what you are trying to achieve, then check the trade-off
+you are accepting. Each type has its own section below with worked examples
+and a *How traders use it* subsection.
+
+| I want to…                                                   | Use                                   | What I give up                                         |
+|--------------------------------------------------------------|---------------------------------------|--------------------------------------------------------|
+| Get in or out *now*, whatever the price                      | [MARKET](#market)                     | Price certainty (slippage)                             |
+| Get in or out now, but never worse than a price              | [IOC](#ioc-immediate-or-cancel)       | Guaranteed completion — the rest is cancelled          |
+| Trade a whole size or nothing                                | [FOK](#fok-fill-or-kill)              | Partial fills                                          |
+| Name my price and wait                                       | [LIMIT](#limit)                       | Execution certainty and queue position                 |
+| Work a large size without showing it                         | [ICEBERG](#iceberg)                   | Speed; the replenished peak joins the back of the queue |
+| Exit automatically if the market falls (or rises) to a level | [STOP](#stop-stop-market)             | Price certainty after the trigger                      |
+| Same, but with a worst acceptable price                      | [STOP_LIMIT](#stop_limit)             | Execution certainty after the trigger                  |
+| Protect a profit that keeps growing                          | [TRAILING_STOP](#trailing_stop)       | A reversal of `TRAIL` size is needed before it acts    |
+| Trade a relationship between instruments                     | [COMBO](#combo)                       | Each leg must be priced; fills only complete together  |
+| Have exactly one of two exits happen                         | [OCO](#oco-one-cancels-other)         | Both legs share one symbol and one quantity            |
+
+### Fields each type takes
+
+The same field rule is applied by every entry point (`pm-alf-console`,
+`pm-alf-gwy`, BALF, REST) and again by the engine, so a mistake gets the
+same reject code however it arrives. A required field that is absent is
+rejected with `MISSING_FIELD`; a field the type does not use is *rejected*
+with `UNSUPPORTED_FIELD`, never silently dropped.
+
+| Type            | Required              | Optional | Notes                                                      |
+|-----------------|-----------------------|----------|------------------------------------------------------------|
+| `MARKET`        | —                     | —        | Any `PRICE=` / `STOP=` is refused                          |
+| `LIMIT`         | `PRICE`               | —        |                                                            |
+| `STOP`          | `STOP`                | —        | `PRICE=` is refused — use `STOP_LIMIT` for a limit         |
+| `STOP_LIMIT`    | `STOP`, `PRICE`       | —        |                                                            |
+| `FOK`           | `PRICE`               | —        |                                                            |
+| `IOC`           | `PRICE`               | —        | A priceless IOC is not supported; use `MARKET`             |
+| `ICEBERG`       | `PRICE`, `VISIBLE`    | —        | `VISIBLE` must be smaller than `QTY`                       |
+| `TRAILING_STOP` | `TRAIL`               | `STOP`   | Without `STOP=` the engine starts it from the last trade   |
+
+`TIF=` (default `DAY`) is accepted on every type; see
+[Time-in-Force](#time-in-force-tif). `SMP=` and `TAG=` are likewise common to
+all single orders.
+
+### Behaviour by session phase
+
+| Type                                  | Continuous trading        | Auction / pre-open (no matching)                             | Symbol halted                                         |
+|---------------------------------------|---------------------------|--------------------------------------------------------------|-------------------------------------------------------|
+| `MARKET`, `IOC`, `FOK`                | Match on arrival          | **Rejected** `SESSION_NOT_PERMITTED` — they cannot rest      | **Rejected** `INSTRUMENT_HALTED` / `CIRCUIT_BREAKER_ACTIVE` |
+| `LIMIT`, `ICEBERG`                    | Match, then rest          | Rest and are collected for the uncross (an iceberg's hidden quantity takes part, ranked behind its visible slice) | Rest without matching |
+| `STOP`, `STOP_LIMIT`, `TRAILING_STOP` | Armed, or fired at once if already breached | Stored; evaluated after the uncross print | Stored |
+
+Everything is rejected with `MARKET_CLOSED` when the session is `CLOSED`.
 
 ### Single-order lifecycle
 
@@ -84,10 +136,14 @@ Use MARKET when:
 - You are entering/exiting quickly in a liquid symbol.
 - You are reducing directional risk and need certainty of fill.
 
+### How it behaves
+
 - Sweeps the opposite side of the book (consumes resting orders from best
   price outward) as far as needed
 - Partial fills are accepted — the unfilled remainder is **discarded** (not rested)
-- No price specified
+- Takes no `PRICE=`; supplying one is rejected (`UNSUPPORTED_FIELD`)
+- Trades at each *resting* order's price, so a sweep produces one fill per
+  price level touched and an average price worse than the best quote
 
 The discarded remainder is not silently dropped. The order is *accepted*, and
 what could not be filled arrives as a cancellation carrying
@@ -112,14 +168,45 @@ a client:
 all-or-nothing, so an unfillable `FOK` is *rejected* with
 `INSUFFICIENT_LIQUIDITY` rather than accepted and cancelled.
 
+### Gateway Syntax
+
 ```
 NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=100
 ```
+
+### Example — a market buy walks the book
+
+Asks: `50 @ 150.10`, `30 @ 150.20`, `100 @ 150.50`. You send the order above.
+
+| Fill | Price  | Qty |
+|------|--------|-----|
+| 1    | 150.10 | 50  |
+| 2    | 150.20 | 30  |
+| 3    | 150.50 | 20  |
+
+Average price = (50·150.10 + 30·150.20 + 20·150.50) / 100 = **150.21**, i.e.
+11 cents (the **slippage**) worse than the 150.10 you saw when you clicked.
+Had the book held only 80 shares, you would receive three fills for 80 and a
+`CANCELLED` for the other 20.
 
 **Educational note**: Market orders **guarantee execution but not price**. In a
 thin book (few resting orders, so liquidity is low), a large market order can
 move the price significantly — this is called **slippage** (the difference
 between expected execution price and actual average fill price).
+
+### How traders use it
+
+- **Emergency exits and hedges.** When the position is the problem (a news
+  shock, a margin call, a hedge that must be on *before* the next print), the
+  cost of waiting exceeds the cost of slippage.
+- **Small size in a deep book.** If your quantity is well inside the top
+  level, a market order costs one half-spread and nothing else.
+- **Don't** send large market orders into a thin book or just after an
+  announcement, when the spread is widest. Prefer an [IOC](#ioc-immediate-or-cancel)
+  with a limit a few ticks through the touch — a *protected market order* that
+  takes what is there but refuses a runaway price.
+- Market orders never rest, so they are the one type you cannot send during an
+  auction call phase; use a marketable `LIMIT` there.
 
 
 
@@ -145,9 +232,17 @@ Use LIMIT when:
 - You want to provide liquidity and potentially earn spread capture.
 - You are comfortable waiting in queue under price-time priority.
 
+### How it behaves
+
 - Buy LIMIT: fills at `price` or lower
 - Sell LIMIT: fills at `price` or higher
 - Becomes a resting order if not immediately matchable
+- A *marketable* limit (one that crosses the book) trades first, at the
+  resting orders' prices, then rests whatever is left at its own limit
+- Subject to the symbol's price collar and tick size: a price too far from
+  the reference, or off the tick grid, is rejected (`COLLAR_BREACH`,
+  `TICK_VIOLATION`)
+- Can be [amended](#order-amendment-amend) in place (the only type besides ICEBERG)
 
 ### Gateway Syntax
 
@@ -156,10 +251,35 @@ NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.50
 NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.50|TIF=GTC
 ```
 
+### Examples
+
+**Passive.** Best bid 150.40, best ask 150.60. `BUY LIMIT 100 @ 150.50` does
+not cross, so it rests *inside* the spread as the new best bid. Everyone now
+sees 150.50 as the price to hit.
+
+**Marketable.** Asks are `40 @ 150.60` and `100 @ 150.70`. `BUY LIMIT 100 @ 150.65`
+buys 40 @ 150.60 (price improvement over your limit), cannot touch 150.70, and
+rests the remaining 60 as a bid at 150.65.
+
 **Educational note**: Limit orders **guarantee price but not execution**. In a
 thin book (few resting orders, so liquidity is low), a large limit order may
 not fill immediately or at all, especially if the limit price is far from the
 current market price.
+
+### How traders use it
+
+- **Providing liquidity / capturing the spread.** Resting a bid and an offer
+  around the mid earns the spread when both fill; this is what market makers
+  do (see [Market Making](../part-3-market-making/020-market-making.md)).
+- **Queue position matters.** At one price, earlier `arrival_seq` fills
+  first. Joining the best bid early beats improving the price by one tick
+  late — but reducing quantity keeps your place, while a price change or a
+  quantity increase sends you to the back (see [Amendment](#order-amendment-amend)).
+- **Price discipline.** A buy limit under the market is a patient entry; a
+  sell limit above the market is a take-profit target. With `TIF=GTC` it
+  works across days until you cancel it.
+- **Improving vs joining.** Stepping one tick ahead of the best bid buys
+  priority at the cost of a tick; sitting at the touch costs nothing but time.
 
 
 
@@ -193,8 +313,44 @@ Use STOP when:
 NEW|SYM=AAPL|SIDE=SELL|TYPE=STOP|QTY=100|STOP=148.00
 ```
 
+Takes `STOP=` only; `PRICE=` is rejected. While dormant the order is in no
+price level and appears in no depth, and it can be cancelled but not amended.
+Full trigger rules are in [Stop Trigger Logic](#stop-trigger-logic).
+
 **Educational note**: Once triggered, a STOP becomes a MARKET order — execution price
 is not guaranteed, especially in fast markets.
+
+### Example — protective sell stop
+
+You bought 100 AAPL at 150.00 and will accept a 2-dollar loss. Last trade is
+150.30.
+
+```
+NEW|SYM=AAPL|SIDE=SELL|TYPE=STOP|QTY=100|STOP=148.00|TIF=GTC
+```
+
+Nothing happens while trades print above 148.00. When a trade prints at
+148.00 or lower, the order becomes `MARKET SELL 100` and hits the best bids.
+If bids are `60 @ 147.90` and `200 @ 147.50`, you sell 60 @ 147.90 and 40 @
+147.50 — an average of 147.74, below the 148.00 you chose.
+
+If you place a sell stop at or above the last trade price (say `STOP=151.00`
+with the last trade at 150.30) it is **already breached and fires
+immediately** — a stop is not a resting limit order at that price.
+
+### How traders use it
+
+- **Stop-loss.** The standard use: cap the loss on a long (sell stop below
+  the market) or a short (buy stop above it) without watching the screen.
+- **Breakout entry.** A buy stop above resistance enters only if the market
+  proves it can trade there; see [Why does a BUY STOP trigger at a price
+  *higher* than the stop?](#stop-trigger-logic).
+- **Know the failure mode.** A stop is a *trigger*, not a price. In a gap or
+  a thin book it fills far through the stop level, and a cluster of stops at
+  one level can push the price into the next cluster (a
+  [cascade](#trigger-cascades)). Where that risk is unacceptable, use
+  [STOP_LIMIT](#stop_limit); where the level should follow a rising market,
+  use [TRAILING_STOP](#trailing_stop).
 
 
 
@@ -231,6 +387,34 @@ NEW|SYM=AAPL|SIDE=SELL|TYPE=STOP_LIMIT|QTY=100|STOP=148.00|PRICE=147.50
 **Educational note**: The gap between stop price and limit price is the "insurance premium"
 against market impact. If the market falls through 147.50 before the order fills, it remains
 unexecuted as a resting limit.
+
+### Example — gap through the limit
+
+Last trade 150.00. You hold 100 AAPL and place the sell above, `STOP=148.00`,
+`PRICE=147.50`. Overnight news moves the market and the next trade prints at
+146.00 against bids that are all at 146.00 or lower.
+
+- Triggered: 146.00 ≤ 148.00, so the order becomes `LIMIT SELL 100 @ 147.50`.
+- No bid is at 147.50 or higher, so nothing fills. The order **rests as the
+  best offer at 147.50**, above the market, while the price keeps falling.
+
+A plain STOP would have sold at about 146.00 and left you flat; the
+STOP_LIMIT protected the price and left you still long, in a falling market.
+If the market later rallies back to 147.50 the resting limit fills there.
+
+### How traders use it
+
+- **Controlled exits in thin or gapping markets.** When a few ticks of
+  slippage would defeat the point of the exit, the limit caps it.
+- **Sizing the gap.** A tight gap (`STOP=148.00`, `PRICE=147.95`) is nearly a
+  stop-market that may miss; a wide gap behaves like a STOP in orderly
+  markets and only bites in a gap. Choose it from how far the instrument
+  typically moves between prints.
+- **Entries.** A buy stop-limit above resistance enters on the breakout but
+  refuses to chase a spike beyond the limit.
+- **Remember the leftover.** After the trigger it is an ordinary resting
+  limit that must be watched, amended or cancelled. It stays at the back of
+  the queue at that price (it receives a new queue position when it rests).
 
 
 
@@ -272,6 +456,44 @@ NEW|SYM=AAPL|SIDE=BUY|TYPE=FOK|QTY=100|PRICE=150.00
 
 **Educational note**: FOK is used when partial fills are unacceptable — e.g. algorithmic
 strategies needing an exact block to execute a multi-leg trade atomically.
+
+How a failed FOK is reported depends on why it failed:
+
+| Cause                                                        | Result                                                      |
+|--------------------------------------------------------------|-------------------------------------------------------------|
+| Not enough quantity at or better than `PRICE`                | One `ACK ACCEPTED=FALSE`, `INSUFFICIENT_LIQUIDITY`; nothing traded |
+| The shortfall is only because your own orders are in the way, and `SMP=CANCEL_AGGRESSOR` or `CANCEL_BOTH` | Accepted, then `CANCELLED` with `SELF_MATCH_PREVENTED` |
+| Auction call phase                                           | Rejected `SESSION_NOT_PERMITTED`                            |
+
+With `SMP=CANCEL_RESTING` or `CANCEL_BOTH` the same-gateway resting orders in
+the FOK's path are cancelled even when the FOK itself is then rejected for
+lack of liquidity — a FOK is not a free way to test a book you share with
+yourself.
+
+### Examples
+
+Asks: `60 @ 150.00`, `50 @ 150.10`, `100 @ 150.30`.
+
+- `BUY FOK 100 @ 150.10` — only 110 are available at or below 150.10, so the
+  order fills as 60 @ 150.00 + 40 @ 150.10, in one go. **FILLED.**
+- `BUY FOK 200 @ 150.10` — only 110 available. **Rejected**, no trade; the
+  book is untouched.
+- `BUY FOK 100 @ 150.00` — only 60 available at that price. **Rejected**,
+  although more is offered one tick higher; widen `PRICE=` to include it.
+
+### How traders use it
+
+- **Atomic block trades.** If 10,000 shares are needed for a hedge to work,
+  eight thousand is not "most of the trade", it is a position you didn't
+  want.
+- **Strict liquidity test.** A FOK either gets the whole size at your price
+  or tells you immediately, with no market footprint, that it isn't there —
+  unlike an IOC, which takes whatever it can and signals your interest.
+- **A leg that must not be partial.** When one leg's fill triggers another
+  trade, partial execution leaves unhedged exposure.
+- **Price it deliberately.** A FOK limited to the best ask only succeeds if
+  the top level alone covers you. Setting `PRICE=` a few ticks through the
+  touch lets it consume depth while still capping the price you will pay.
 
 
 
@@ -329,6 +551,52 @@ qty at that price level resets to 100 after each 100-lot fill. The order ID stay
 same, but its `arrival_seq` is refreshed (new `arrival_seq` = new queue position — the
 order's original client `timestamp` does not change).
 
+`VISIBLE` must be smaller than `QTY` (an iceberg showing everything is just a
+LIMIT) and both `PRICE=` and `VISIBLE=` are required.
+
+### Example — working 1,000 shares with a 100-share peak
+
+Bids: `300 @ 150.00` (other traders, ahead of you in the queue).
+
+```
+NEW|SYM=AAPL|SIDE=BUY|TYPE=ICEBERG|QTY=1000|PRICE=150.00|VISIBLE=100
+```
+
+1. **Rests with a 100 peak.** The book shows `400 @ 150.00` (300 + your 100).
+   The other 900 are known only to the engine.
+2. **Sellers arrive.** A `SELL 350 @ 150.00` fills the 300 ahead of you, then
+   your 50 of the peak. Your peak now has 50 left showing.
+3. **Peak exhausted.** Meanwhile another trader has bid 70 @ 150.00. A
+   `SELL 50` takes your last 50. The peak is replenished to 100 shown, **at
+   the back of the queue** — behind that 70 — and the book now shows
+   `170 @ 150.00`, with 900 of your 1,000 still to trade.
+4. Repeat until all 1,000 have traded. `FILL` messages report each execution
+   against the same order ID.
+
+If the same order had instead arrived while 150 shares were offered at
+150.00, it would first trade those 150 in full — as any limit order does —
+and rest only the remaining 850, behind a fresh 100 peak.
+
+An iceberg can be [amended](#order-amendment-amend). A price change or a
+quantity increase refills the peak and loses priority; a quantity decrease
+keeps priority and can only shrink the current peak.
+
+### How traders use it
+
+- **Reducing information leakage.** A visible 1,000-share bid invites others
+  to trade ahead of you or to lean on the price. A 100-share peak looks like
+  ordinary flow.
+- **Choosing the peak.** Too small and your queue position resets constantly
+  (each refill goes to the back) and a pattern of identical 100-lot refills
+  reveals the iceberg; too large and you lose the point. Peaks comparable to
+  the typical visible size at the level blend in best.
+- **Cost of hiding.** You trade slower than a displayed order of the same size
+  would: the hidden part has lowest priority at the price, and other
+  participants' displayed orders get filled first.
+- **In auctions** the hidden quantity counts toward the uncross, so an
+  iceberg is not penalised in size terms for being in an opening or closing
+  call.
+
 
 
 ## COMBO
@@ -353,7 +621,9 @@ Use COMBO when:
 - You want coordinated child lifecycle and automatic cascade-cancel.
 - You need operational safety against partial strategy completion.
 
-- Each leg is a standard LIMIT order posted to its respective symbol book
+- Each leg is posted to its own symbol's book as an ordinary order — a
+  `LIMIT` unless `LEG<i>.TYPE=` says otherwise (see below)
+- 2 to 10 legs, each on a **different** symbol
 - All legs are tracked together under a parent combo ID
 - If any leg is cancelled or expires, all remaining legs are automatically
   **cascade-cancelled** (unfilled quantities only — fills already executed
@@ -378,7 +648,20 @@ NEW|TYPE=COMBO|COMBO_ID=PAIR-001|COMBO_TYPE=AON|TIF=GTC|LEG_COUNT=2|LEG0.SYM=MSF
 | `LEG<i>.SYM`     | Symbol for leg *i*                                               |
 | `LEG<i>.SIDE`    | BUY or SELL for leg *i*                                          |
 | `LEG<i>.QTY`     | Quantity for leg *i*                                             |
-| `LEG<i>.PRICE`   | Limit price for leg *i*                                          |
+| `LEG<i>.TYPE`    | Optional; defaults to `LIMIT`. One of `LIMIT`, `MARKET`, `STOP`, `STOP_LIMIT`, `FOK`, `IOC` |
+| `LEG<i>.PRICE`   | Limit price for leg *i* (required for `LIMIT`, `FOK`, `IOC`, `STOP_LIMIT`) |
+| `LEG<i>.STOP`    | Trigger price for a `STOP` / `STOP_LIMIT` leg                    |
+
+`ICEBERG` and `TRAILING_STOP` cannot be combo legs (a leg has no `VISIBLE` or
+`TRAIL`); the combo is rejected with `INVALID_VALUE`. A combo's legs are
+collared like ordinary orders, and the whole combo is rejected if two legs
+share a symbol.
+
+**All-or-none in practice.** Before posting any leg the engine checks that
+*every* leg could fill in full. If one is short and nothing would trade right
+now, all the legs rest as pending interest; if one is short but another leg
+could already trade, the combo is rejected (`INSUFFICIENT_LIQUIDITY`) with
+nothing posted, so you are never left holding half the structure.
 
 **Educational note**: The `COMBO_TYPE` field is reserved for future expansion. Currently only `AON` (All-Or-Nothing) is supported, meaning the combo is successful only if every leg fills in full. In the future, we may add `ANY` (combo succeeds if at least one leg fills) or `MIN` (combo succeeds if a minimum number of legs fill).
 
@@ -411,6 +694,37 @@ Without combos, submitting legs separately exposes you to **leg risk** — one
 side fills while the other does not, leaving you with unintended directional
 exposure. See the [Combo Orders](030-combo-and-oco-orders.md) page for full details, examples,
 and the implied orders mechanism.
+
+### Example — a pairs trade
+
+You think MSFT is rich relative to AAPL. You want to sell 100 MSFT at 415.00
+and buy 200 AAPL at 210.00, and you want both or neither:
+
+```
+NEW|TYPE=COMBO|COMBO_ID=RV-1|COMBO_TYPE=AON|TIF=DAY|LEG_COUNT=2|LEG0.SYM=MSFT|LEG0.SIDE=SELL|LEG0.QTY=100|LEG0.PRICE=415.00|LEG1.SYM=AAPL|LEG1.SIDE=BUY|LEG1.QTY=200|LEG1.PRICE=210.00
+```
+
+Submitted separately, a MSFT fill with no AAPL fill leaves you short one
+stock, outright, which is the risk you wanted to avoid. As a combo, the engine
+first checks that both legs could fill in full; if they can, both trade at
+once. If not, both legs rest. Either way, if one leg is cancelled or expires
+the other is cascade-cancelled, and the combo is `MATCHED` only when both
+have filled.
+
+### How traders use it
+
+- **Pairs / relative value.** Profit comes from the spread between two names
+  converging, not from either name's direction.
+- **Hedged entries.** Buy the stock and sell the index or a related future in
+  the same instruction, so you are never naked.
+- **Calendar spreads.** Buy one expiry and sell another at a target
+  difference.
+- **Baskets.** Up to ten legs build a small basket in one order.
+- **Know the limits.** When the legs cannot all fill at once they rest as
+  separate orders in their own books, and one can trade before the other
+  (status `PARTIALLY_MATCHED`). Price each leg so that the relationship is
+  still worth having if only that leg fills for a while, and cancel the
+  combo (`CANCEL|COMBO_ID=`) to withdraw the unfilled legs.
 
 
 
@@ -452,6 +766,44 @@ Use TIF to align execution intent with horizon:
 ```
 NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TIF=GTC
 ```
+
+The `ATO` / `ATC` window checks apply whenever trading sessions are
+configured; an order carrying one outside its window is rejected with
+`SESSION_NOT_PERMITTED`. They are meant for `LIMIT` (and `ICEBERG`) orders: a
+`MARKET`, `IOC` or `FOK` cannot rest in an auction at all.
+
+### Examples
+
+```
+# Participate in the opening price, then disappear
+NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=500|PRICE=151.00|TIF=ATO
+# Day-only resting bid
+NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=149.50
+# Standing protective stop that survives the close
+NEW|SYM=AAPL|SIDE=SELL|TYPE=STOP|QTY=100|STOP=145.00|TIF=GTC
+```
+
+The first order is collected in the opening auction. If it fills at the
+uncross price, fine; any unfilled quantity is `EXPIRED` the moment the auction
+ends and never reaches continuous trading.
+
+### How traders use it
+
+- **`DAY` for tactical orders.** Anything whose reason lapses at the close —
+  a bid placed on today's news, a quote-chasing order — should expire with
+  the session so it cannot trade tomorrow on stale information.
+- **`GTC` for standing instructions.** Take-profit targets, protective stops
+  and trailing stops should outlive the session; they are saved at shutdown and
+  restored on the next start. You must cancel them yourself, and review them
+  after corporate events or gaps.
+- **`ATO` to trade the open.** A limit order priced generously for its side
+  (a high bid, a low offer) ranks first when the uncross allocates volume and
+  trades at the single equilibrium price — never worse than your limit, and
+  often better. If the auction is imbalanced on your side, you may still be
+  filled only in part.
+- **`ATC` to hit the benchmark.** Funds and index trackers are measured
+  against the closing price; sending to the closing auction gets that price
+  with no market-impact race against the close.
 
 
 
@@ -535,7 +887,10 @@ floor price. BUY STOP is simply the mirror image applied to the upside.
    - `STOP_LIMIT` -> `LIMIT` (retains the original `PRICE=`)
    - `TRAILING_STOP` -> `MARKET` (using current ratcheted `stop_price` for trigger only)
 3. The converted order is re-processed through normal matching logic.
-4. It receives a fresh queue timestamp at conversion time.
+4. It is treated as new from that moment: a `STOP_LIMIT` whose limit rests
+   gets a fresh `arrival_seq` (queue position) when it does — it does not
+   inherit any priority from when it was placed. A dormant stop has none,
+   since it is not on the visible book.
 
 This means a triggered stop behaves exactly like a newly submitted active
 order of its converted type.
@@ -752,17 +1107,42 @@ Result:
 NEW|SYM=AAPL|SIDE=BUY|TYPE=IOC|QTY=100|PRICE=150.00
 ```
 
-`IOC` ignores the `TIF=` field — it is always immediate-or-cancel by
-definition.  If you supply `TIF=GTC` (or any other value) alongside `TYPE=IOC`,
-the field is silently discarded.  The engine will reject an IOC during auction phases.
+An IOC never rests, so `TIF=DAY` and `TIF=GTC` make no difference to it — it
+is always immediate-or-cancel by definition. `TIF=ATO` / `TIF=ATC` are *not*
+ignored, though: the session-window check still applies, and an IOC that
+carries one is rejected with `SESSION_NOT_PERMITTED` (in continuous trading
+because the window is closed, in the auction itself because IOC cannot rest).
+Leave `TIF=` off.
 
 ### Edge Cases and Gotchas
 
 | Scenario | Behaviour |
 |----------|-----------|
-| Submitted during opening/closing auction | **REJECTED** — IOC cannot rest |
+| Submitted during opening/closing auction | **REJECTED** `SESSION_NOT_PERMITTED` — IOC cannot rest |
+| Symbol halted | **REJECTED** `INSTRUMENT_HALTED` or `CIRCUIT_BREAKER_ACTIVE` |
 | Self-match (same gateway on both sides) | SMP rule applies to the IOC fill attempt |
-| Price limit not specified | Not supported — IOC requires a `PRICE=` |
+| Price limit not specified | **REJECTED** `MISSING_FIELD` — IOC requires a `PRICE=` |
+| Unfilled remainder | `CANCELLED` with `CANCEL_REASON=INSUFFICIENT_LIQUIDITY` (the order itself was accepted) |
+
+### How traders use it
+
+- **Protected market order.** `BUY IOC 500 @ best_ask + 3 ticks` takes
+  everything up to three ticks through the touch and refuses worse prices —
+  a market order with a seat belt.
+- **Taking a visible quote without leaving a footprint.** If a displayed
+  offer is attractive but may be gone in a millisecond, an IOC at that price
+  takes what is still there and leaves nothing for others to see or trade
+  against.
+- **Sweeping to a price cap.** To buy "up to 99.00" across several levels,
+  one IOC at 99.00 is cleaner than repeated limit orders.
+- **Slicing algorithms.** Execution algos fire an IOC per slice and size the
+  next one from the fill; any residue is reported at once instead of lingering
+  as stale interest.
+- **Retry loop.** After a partial fill you decide what to do with the
+  remainder — re-price an IOC, rest a LIMIT, or stop — rather than hoping a
+  resting order catches up.
+- **IOC vs FOK.** Choose IOC when a partial fill is useful and FOK when it is
+  not.
 
 
 
@@ -876,11 +1256,11 @@ Trade at 106  →  stop = max(98, 104) = 104
 Trade at 95   →  95 $\leq$ 104?  YES  →  TRIGGERED
 ```
 
-Note that the trade at 95 did *not* move the stop down to 93 first.
-The trigger check happens in the same sweep as the ratchet update,
-but the trigger condition is evaluated against the *already-updated* stop.
-In practice a stop at 104 triggered by a trade at 95 means the order
-fires well below its stop — this is called **slippage on the stop trigger**.
+Note that the trade at 95 did *not* move the stop down to 93: the candidate
+(95 − 2 = 93) is lower than the current stop, so the ratchet leaves it at
+104, and 95 ≤ 104 triggers. The market gapped from 106 to 95 without
+printing near 104, so the resulting MARKET SELL goes out well below the stop
+level — **slippage on the stop trigger**.
 
 #### Example 3 — BUY trailing stop: price falls then rises
 
@@ -909,8 +1289,24 @@ CANCEL|ID=<order_id>|RTAG=trail-cxl-001
 
 A trailing stop can be cancelled at any time before trigger using its
 `order_id`. The engine marks the order CANCELLED, publishes an
-`order.cancelled` event, and removes it from the pending trailing stop
-list on the next trade cycle (lazy deletion).
+`order.cancelled` event, and drops it from the pending trailing-stop
+list the next time the list is evaluated (lazy deletion). A trailing stop
+cannot be amended.
+
+#### Example 5 — Trailing stop that starts from the last trade
+
+```
+NEW|SYM=AAPL|SIDE=SELL|TYPE=TRAILING_STOP|QTY=100|TRAIL=2.00
+```
+
+Last trade is 150.00 and no `STOP=` is given, so the engine sets the initial
+stop at 150.00 − 2.00 = **148.00**. Prints at 151, 153 and 152 move the stop
+to 149, 151 and leave it at 151; a print at 151 (or below) then fires a
+MARKET SELL. A trailing stop with no explicit `STOP=` and no prior trade in
+the symbol is rejected (`MISSING_FIELD`).
+
+If you supply a `STOP=` that is already breached by the last trade (for a
+SELL, `STOP=` at or above it), the order fires on entry rather than waiting.
 
 ### Gateway Syntax
 
@@ -932,6 +1328,27 @@ NEW|SYM=AAPL|SIDE=SELL|TYPE=TRAILING_STOP|QTY=100|TRAIL=2.00
 | Large `trail_offset` relative to price | Stop may never trigger if the market doesn't move that far |
 | Triggered during uncross | The resulting MARKET order participates in the uncross matching round |
 | Multiple trailing stops on the same symbol | All are evaluated after every trade in O(t) time (t = number of trailing stops) |
+| Several prints in one sweep | Evaluated once per incoming order, against the sweep's **last** price: the stop ratchets once, to that price |
+| Amend | **Rejected** — cancel and re-enter instead |
+
+### How traders use it
+
+- **Riding a trend.** Hold a long while the move continues and exit
+  automatically once it reverses by `TRAIL`. There is no profit target; the
+  trade ends only on a pullback.
+- **Calibrating `TRAIL`.** Too tight (a few ticks) and ordinary noise stops
+  you out of a healthy trend; too wide and you give back much of the gain
+  before it fires. A common rule of thumb is a multiple of the instrument's
+  typical short-term range, so a volatile name gets a wider trail than a
+  quiet one.
+- **Buy-side mirror.** A BUY trailing stop above the market covers a short
+  and follows the price *down*, locking in the profit of a falling market.
+- **Combined with a target.** Paired with a take-profit LIMIT in an
+  [OCO](#oco-one-cancels-other) it gives a bracket whose stop side
+  tightens as the trade works: whichever of target or reversal comes first
+  ends the position and cancels the other.
+- **Limits of the tool.** It reacts only to *trades*, converts to MARKET (so
+  gaps still slip), and, being a stop, is dormant during auctions.
 
 
 
@@ -1118,7 +1535,7 @@ One-Cancels-Other (OCO) is a paired order construct in which two orders
 are linked such that when one reaches a terminal state (filled, cancelled,
 or rejected), the other is automatically cancelled. OCO is a core primitive
 in institutional trading and has been standardised by the FIX Protocol
-(tag 1OC) and supported by virtually every major exchange and brokerage
+(`ContingencyType` 1385 = One Cancels the Other) and supported by virtually every major exchange and brokerage
 since the early 2000s.
 
 The classic use case is a **bracket order**: a trader enters a long position
@@ -1147,6 +1564,29 @@ simultaneously on a single triggering event. An OCO has two legs that
 compete — only one can survive.
 
 **Educational note**: OCO is a powerful risk management tool that automates the lifecycle coupling of two related orders. It is essential for any strategy that relies on mutually exclusive outcomes, such as profit-taking vs stop-loss scenarios.
+
+### How traders use it
+
+- **Exit bracket (take-profit / stop-loss).** The classic: one LIMIT to
+  bank the gain, one STOP (or STOP_LIMIT) to cap the loss. See Example 1.
+- **Breakout straddle.** A buy stop above a range and a sell stop below it
+  enters whichever way the market leaves the range, and only one side.
+  See Example 5.
+- **Two-sided entry.** A buy limit below the market and a sell limit above
+  it work as "buy the dip *or* sell the rip" — one position at most, never
+  both.
+- **Exit with a ratchet.** A LIMIT target plus a TRAILING_STOP lets a winner
+  run while keeping a ceiling and a floor. See Example 6.
+- **Choose the stop type for the market.** A STOP leg guarantees the exit but
+  may slip; a STOP_LIMIT leg bounds the price but, if the market gaps past its
+  limit, rests unfilled as a limit order. A triggered stop that is merely
+  *resting* has not ended, so its sibling is **not** cancelled: your
+  take-profit LIMIT can still be live next to it. Decide which failure is worse
+  for the position, and cancel the pair yourself if that happens.
+- **Partial fills.** A partially filled leg does *not* cancel its sibling;
+  only a leg reaching a terminal state does. After a partial fill you can be
+  working the remaining quantity on one leg and the full quantity on the other;
+  cancel the pair (`CANCEL|OCO_ID=`) if you do not want that.
 
 
 ### How It Works
@@ -1223,17 +1663,47 @@ CANCEL|OCO_ID=BRACKET1
 Both legs are cancelled atomically. The engine publishes `order.cancelled`
 for each leg and removes the OCO group.
 
-#### Example 4 — One leg rejects, the other is cancelled
+#### Example 4 — A malformed OCO is refused whole
 
-Gateway message (leg 1 has an invalid price):
+A leg with a missing or unsupported field never reaches the book. Here leg 1
+is a `LIMIT` with no price:
 
 ```
-NEW|TYPE=OCO|OCO_ID=BAD1|SYM=AAPL|QTY=50|TIF=GTC|LEG1_SIDE=SELL|LEG1_TYPE=LIMIT|LEG1_PRICE=INVALID|LEG2_SIDE=SELL|LEG2_TYPE=STOP|LEG2_STOP=145
+NEW|TYPE=OCO|OCO_ID=BAD1|SYM=AAPL|QTY=50|TIF=GTC|LEG1_SIDE=SELL|LEG1_TYPE=LIMIT|LEG2_SIDE=SELL|LEG2_TYPE=STOP|LEG2_STOP=145
 ```
 
-If leg 1 is rejected (e.g., invalid price format caught at engine level),
-the engine also cancels leg 2 and publishes `oco.cancelled.{GW}` to
-notify the gateway.
+The gateway answers with a `MISSING_FIELD` error (and a malformed number such
+as `LEG1_PRICE=INVALID` is refused the same way, as `INVALID_VALUE`). Neither
+leg is created. If the pair reaches the engine and fails there, you receive
+`oco.ack` with `accepted=false` and a `reason`, again with neither leg posted.
+
+#### Example 5 — Breakout bracket (range trading)
+
+The stock is coiled between 148 and 152 and you have no view on direction,
+only that it will leave the range. You want to be in on whichever side it
+breaks, but not both:
+
+```
+NEW|TYPE=OCO|OCO_ID=BREAKOUT|SYM=AAPL|QTY=100|TIF=DAY|LEG1_SIDE=BUY|LEG1_TYPE=STOP|LEG1_STOP=152.00|LEG2_SIDE=SELL|LEG2_TYPE=STOP|LEG2_STOP=148.00
+```
+
+If a trade prints at 152.00 or higher the buy stop fires, you are long, and
+the sell stop is cancelled. If the stock instead breaks down through 148.00
+the sell stop fires and the buy is cancelled. A stop that is *already*
+breached when the pair is placed fires on entry and cancels its sibling at
+once — place the legs on the correct side of the last trade price.
+
+#### Example 6 — Trailing protection with a profit target
+
+You are long 100 AAPL. Take profit at 160, otherwise let a trailing stop
+follow the price up:
+
+```
+NEW|TYPE=OCO|OCO_ID=RIDE|SYM=AAPL|QTY=100|TIF=GTC|LEG1_SIDE=SELL|LEG1_TYPE=LIMIT|LEG1_PRICE=160.00|LEG2_SIDE=SELL|LEG2_TYPE=TRAILING_STOP|LEG2_TRAIL=2.00
+```
+
+The limit takes the profit at 160 and cancels the trailing stop. If the stock
+reverses first, the trailing stop sells and the limit is cancelled.
 
 ### Gateway Syntax
 
@@ -1274,13 +1744,24 @@ CANCEL|OCO_ID=TPS
 
 ### Edge Cases and Gotchas
 
-!!! warning "OCO_ID uniqueness is not enforced"
-    A duplicate `oco_id` silently replaces the previously tracked group.
-    Always use a unique label per OCO pair.
+!!! note "OCO_ID must be unique among your live pairs"
+    Submitting an `OCO_ID` that one of your own pairs still holds is refused
+    (`oco.ack` with `accepted=false`, `OCO id … is already in use`). The label
+    is free again once that pair has ended. Ids are scoped per gateway, so two
+    gateways may use the same label.
+
+**Which leg types are allowed.** Each leg is `LIMIT`, `STOP`, `STOP_LIMIT`,
+`TRAILING_STOP`, `MARKET`, `IOC` or `FOK` and takes the same fields as the
+single order (`LEG<n>_PRICE`, `LEG<n>_STOP`, `LEG<n>_TRAIL`). `ICEBERG` is not
+allowed (an OCO leg has no `VISIBLE`). Both legs are on the same symbol and
+share the quantity and `TIF`. An OCO takes no `SMP=`; both legs use the
+gateway's configured default. Only a resting or dormant leg can usefully wait
+for its sibling — a `MARKET`, `IOC` or `FOK` leg trades or dies on entry and so
+ends the pair at once.
 
 | Scenario                                         | Behaviour                                                                              |
 |--------------------------------------------------|----------------------------------------------------------------------------------------|
-| OCO_ID already in use                            | **Not checked** — a duplicate `oco_id` silently replaces the tracked group             |
+| OCO_ID already in use                            | **REJECTED** with `oco.ack accepted=false` — neither leg is created                     |
 | Unknown symbol or gateway                        | **REJECTED** with `oco.ack accepted=false`                                             |
 | LIMIT leg missing `LEG1_PRICE=` or `LEG2_PRICE=` | **REJECTED**                                                                           |
 | STOP leg missing `LEG1_STOP=` or `LEG2_STOP=`    | **REJECTED**                                                                           |

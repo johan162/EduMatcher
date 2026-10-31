@@ -139,7 +139,7 @@ and per-symbol lines add a `[<symbol>]` tag. Representative startup lines
 ```
 [MM_AAPL_01] starting: gateway=MM_AAPL_01 symbols=AAPL
 [MM_AAPL_01] [AAPL] strategy=symmetric gap=0.1 qty=500 tif=DAY drift_ticks=3
-[MM_AAPL_01] [AAPL] bootstrap from random range: 100.37
+[MM_AAPL_01] [AAPL] bootstrap from random range: 150.37
 [MM_AAPL_01] running symbols=['AAPL'] session=CONTINUOUS
 ```
 
@@ -176,7 +176,7 @@ quote is live.
 Simulate sparse startup conditions and run bot with explicit bootstrap range:
 
 ```bash
-pm-mm-bot --symbol AAPL --initial_min 95.00 --initial_max 105.00 -v
+pm-mm-bot --symbol AAPL --initial_min 149.00 --initial_max 151.00 -v
 ```
 
 Then compare behavior with and without range configured.

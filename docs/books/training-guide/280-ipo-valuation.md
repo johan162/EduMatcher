@@ -28,7 +28,7 @@ You will practice:
 
 - Chapter 00 completed (EduMatcher installed). Exercises 1–6 need nothing
   else: `pm-valuation` runs without an exchange.
-- Exercise 7 lists and trades the stock. It needs chapters 01–03 (a running
+- Exercises 7 and 8 list and trade the stock. They need chapters 01–03 (a running
   exchange with a market maker and two trader consoles) and the auctions
   chapter ([Auctions](070-auctions.md)), because the new stock opens in the
   opening auction.
@@ -299,7 +299,9 @@ heuristic says, or too high, as the Monte Carlo suggests in almost one draw
 out of two?
 
 !!! note "If `--list` refuses"
-    The refusals are `pm-new-symbol`'s: the exchange is still running, the
+    The refusals are `pm-new-symbol`'s: the deployed configuration is a bundled
+    example (`--example …`), which is never edited — deploy a copy, as in
+    Exercise 8; the exchange is still running, the
     data directory holds saved state for TORN from an earlier run, or the
     configuration has several market-maker gateways and one must be chosen for
     the seed quote. See
@@ -308,6 +310,63 @@ out of two?
     adding `--mm-gateway-id`.
 
  
+
+## Exercise 8: No Market Maker — the Crowd Sets the Price
+
+In Exercise 7 a market maker's seed quote (1000 @ 104.90 / 1000 @ 105.10)
+framed the opening around the offer price. A real IPO has no such anchor:
+the first price is whatever the orders in the auction say. List the same stock
+into a configuration **without** a market maker's quotes and see what the
+auction does with nothing but your classmates' orders.
+
+`--list` refuses to edit a bundled example, so work on a copy (Chapter 00 says
+where the examples live; with a container install, `docs/examples/…` is inside
+the container):
+
+```bash
+pm-opctl-cli stop
+cp docs/examples/ref_data/s3-nominal-nomm-setup/engine_config.yaml classroom.yaml
+pm-config-deploy classroom.yaml
+pm-valuation --case tornfalk --no-tui --mode deterministic --list
+```
+
+```text
+[output]
+Listed TORN in …/classroom.yaml: IPO price 105.00, 158095238 shares outstanding
+  no seed quote: the book opens empty
+```
+
+`s3-nominal-nomm` has sessions enabled (the opening auction needs them) and its
+market maker has no seeded quotes, so `TORN` opens on an empty book. Start the
+exchange, then from the operator console (`OPS01`) go to `PRE_OPEN` and on to
+`OPENING_AUCTION`. Enter these three orders, all `TIF=ATO`:
+
+```
+[TRADER01]> NEW|SYM=TORN|SIDE=BUY|TYPE=LIMIT|QTY=1000|PRICE=125.00|TIF=ATO
+[TRADER02]> NEW|SYM=TORN|SIDE=SELL|TYPE=LIMIT|QTY=600|PRICE=110.00|TIF=ATO
+[TRADER02]> NEW|SYM=TORN|SIDE=SELL|TYPE=LIMIT|QTY=600|PRICE=120.00|TIF=ATO
+```
+
+**Predict the opening price and the fills before moving on**, using the
+equilibrium rule from [Auctions](070-auctions.md). Then open continuous trading
+with `SESSION|STATE=CONTINUOUS`.
+
+!!! tip "Answer"
+    At 110.00 only 600 shares are offered against 1000 wanted, so 600 trade. At
+    120.00 and at 125.00 all 1000 buy shares can trade (1200 are offered, 200
+    too many). The maximum matched quantity, 1000, is first reached at **120.00**,
+    and the engine keeps the lowest of tied prices, so TORN opens at 120.00:
+    `TRADER01` is filled 1000 @120.0; `TRADER02` sells 600 + 400 @120.0 and the
+    last 200 of its 120.00 offer expire unfilled, because it is an `ATO` order.
+    The book is empty again.
+
+Compare the result with the offer price (105.00) and with Exercise 7. A first
+price of 120.00 is 14% above the offer, which is the "pop" the report predicted
+(29.8% expected), reached without any quote from the exchange. Change
+`TRADER01`'s bid to 115.00 and run the day again: which price do you predict
+now, and does the stock open above or below the offer?
+
+:material-checkbox-blank-outline: **Checkpoint:** TORN listed with no seed quote, opening price predicted as 120.00 before it printed, and you can say why the answer is 120.00 and not 125.00.
 
 ## Summary
 

@@ -215,7 +215,7 @@ use `{placeholders}` for context-specific values.
 | `M001` | ERROR | MM gateway present but a symbol has no `market_maker_quotes` | `Symbol '{sym}' has no market_maker_quotes entry for MARKET_MAKER gateway '{gw}'. Add a bid/ask seed quote or the engine will reject startup. Run pm-config-gen with --seed-mm to generate placeholder seeds.` |
 | `M002` | WARN | MM quote seed references a gateway ID that is not in `participants` | `Symbol '{sym}': market_maker_quotes gateway_id '{gw}' is not listed in participants. Either add the gateway or remove the seed entry.` |
 | `M003` | WARN | MM quote bid/ask spread wider than the MM obligation `mm_max_spread_ticks` | `Symbol '{sym}': market_maker_quotes[{n}] spread ({spread} ticks) exceeds mm_max_spread_ticks ({limit}). The seed quote would be immediately rejected. Narrow the spread or raise mm_max_spread_ticks.` |
-| `M004` | ERROR | `sessions_enabled: true` but no `schedule` section | `sessions_enabled is true but no schedule is defined. The engine will wait indefinitely in CLOSED state. Add a schedule section or set sessions_enabled: false.` |
+| `M004` | INFO | `sessions_enabled: true` (the default) but no `schedule` section | `Sessions are enabled and no schedule is defined, so pm-scheduler uses its built-in weekday timetable.` |
 | `M005` | WARN | `sessions_enabled: false` but a `schedule` section is present | `A schedule section is present but sessions_enabled is false. The schedule will be ignored. Set sessions_enabled: true or remove the schedule section.` |
 | `M006` | WARN | Schedule times are not in chronological order | `Schedule times are out of order: {detail}. Expected: pre_open < opening_auction_start < continuous_start < closing_auction_start < closing_auction_end.` |
 | `M007` | WARN | `enforce_collars: false` while `risk_controls` defines collars | `enforce_collars is false but risk_controls defines collar levels. Collars are configured but inactive. Set enforce_collars: true to activate them, or remove the risk_controls.levels entries.` |
@@ -565,7 +565,7 @@ the full pipeline from file path to `VerificationReport`:
 | `no_admin_gw.yaml` | WARN | M013 |
 | `undefined_level.yaml` | ERROR | S013 |
 | `bid_gte_ask.yaml` | ERROR | S015 |
-| `sessions_no_schedule.yaml` | ERROR | M004 |
+| `sessions_no_schedule.yaml` | INFO | M004 |
 | `collars_not_enforced.yaml` | WARN | M007 |
 | `mm_gw_no_seeds.yaml` | ERROR | M001 |
 | `index_missing_symbol.yaml` | ERROR | M009 |

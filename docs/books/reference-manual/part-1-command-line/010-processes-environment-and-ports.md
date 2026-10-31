@@ -170,9 +170,12 @@ A complete EduMatcher session is built from the processes below: the core engine
 
 ## Environment variables
 
-One variable controls where EduMatcher finds and stores everything at runtime.
-Set it once in your shell profile (`~/.zshrc` or `~/.bashrc`) and every `pm-*`
-command picks it up automatically.
+One variable, `EDUMATCHER_DATA_DIR`, controls where EduMatcher finds and
+stores everything at runtime. Set it once in your shell profile (`~/.zshrc` or
+`~/.bashrc`) and every `pm-*` command picks it up automatically. A second
+family of variables, listed under [Network variables](#network-variables)
+below, moves the *network* endpoints; all of them are optional and the defaults
+keep everything on the loopback interface.
 
 | Variable | Default (installed) | Default (source checkout) | Purpose |
 |---|---|---|---|
@@ -197,6 +200,41 @@ pm-engine --verbose
 ```
 
 See [`pm-config-deploy`](#pm-config-deploy-compile-and-install-a-configuration) for installing a configuration.
+
+### Network variables
+
+These are read once, when a process starts, by `edumatcher/config.py` (the
+scheduler pair by `pm-scheduler` itself). Unset, every default keeps the core
+bus on `127.0.0.1`, so a plain install is not reachable from other machines.
+"Bind" variables say where a *server* listens; `EDUMATCHER_ENGINE_HOST` says
+where every *client* connects.
+
+| Variable | Default | Read by | Purpose |
+|---|---|---|---|
+| `EDUMATCHER_ENGINE_BIND_HOST` | `127.0.0.1` | `pm-engine` | Interface the engine binds `5555`, `5556` and `5557` on. Set to `0.0.0.0` (or a private address) to let processes on other hosts reach the bus |
+| `EDUMATCHER_ENGINE_HOST` | `127.0.0.1` | every process that connects | Host to connect to for the engine ports and for the index, sim and health endpoints below. Also the default for `--alf-host` on the AI bots |
+| `EDUMATCHER_INDEX_BIND_HOST` | `127.0.0.1` | `pm-index` | Interface for `5558`, `5559` and the index health socket |
+| `EDUMATCHER_INDEX_PUB_PORT` | `5558` | `pm-index` and its clients | Index `PUB` port (`index.update`) |
+| `EDUMATCHER_INDEX_PULL_PORT` | `5559` | `pm-index` and its clients | Index `PULL` port (operator commands, history requests) |
+| `EDUMATCHER_INDEX_HEALTH_PORT` | `5564` | `pm-index`, `pm-index-cli health` | Health `REP` socket |
+| `EDUMATCHER_SIM_BIND_HOST` | `127.0.0.1` | `pm-market-sim` | Interface for the sim ports. Loopback by default on purpose: nothing a student's client can reach carries a true value |
+| `EDUMATCHER_SIM_PUB_PORT` | `5553` | `pm-market-sim` and its clients | `sim.value`, `sim.state`, `news.event` |
+| `EDUMATCHER_SIM_PULL_PORT` | `5554` | `pm-market-sim` and its clients | `sim.command` from ADMIN participants |
+| `EDUMATCHER_STATS_BIND_HOST` / `EDUMATCHER_STATS_HEALTH_PORT` | `127.0.0.1` / `5561` | `pm-stats`, `pm-stats-cli health` | Health `REP` socket |
+| `EDUMATCHER_AUDIT_BIND_HOST` / `EDUMATCHER_AUDIT_HEALTH_PORT` | `127.0.0.1` / `5562` | `pm-audit`, `pm-audit-cli health` | Health `REP` socket |
+| `EDUMATCHER_CLEARING_BIND_HOST` / `EDUMATCHER_CLEARING_HEALTH_PORT` | `127.0.0.1` / `5563` | `pm-clearing`, `pm-clearing-cli health` | Health `REP` socket |
+| `EDUMATCHER_GATEWAY_BIND_HOST` | unset | `pm-alf-gwy`, `pm-balf-gwy`, `pm-md-gwy`, `pm-ralf-gwy`, `pm-dc-gwy`, `pm-log-srv`, `pm-api-gwy`, `pm-monitor` | Overrides the bind address of every service-layer listener at once. Precedence: an explicit `--host` flag, then this variable, then the section's `bind_address` in `engine_config.yaml`, then `0.0.0.0` (`127.0.0.1` for `pm-monitor`) |
+| `EDUMATCHER_SCHEDULER_SPEED` | unset | `pm-scheduler` | Default for `--speed`: run the `--daily` clock *F* times faster than the wall clock |
+| `EDUMATCHER_SCHEDULER_START` | unset | `pm-scheduler` | Default for `--start`: the session-local time (`YYYY-MM-DDTHH:MM`) the compressed clock starts at |
+
+!!! note "Two planes, two ways to steer them"
+    The **core plane** (`5553`–`5559`, and the health sockets) is steered only
+    by environment variables, because those ports are fixed source constants or
+    env-overridable and appear nowhere in `engine_config.yaml`. The **service
+    layer** (the TCP gateways, `pm-log-srv`, `pm-monitor`) is steered by its own
+    section of the YAML, and `EDUMATCHER_GATEWAY_BIND_HOST` is the single
+    override on top. `pm-config-show` prints both, with the source of each
+    value.
 
 ### How the default is selected
 
@@ -284,6 +322,7 @@ must be run from `~/.edumatcher`, where rule 4 finds `./data`.
 | **pm-clearing-cli** | `pm-clearing-cli <command> [options]` | Read/query interface for `clearing.db` (includes prune) | Optional           |
 | **pm-stats-cli**  | `pm-stats-cli <command> [options]` | Read-only query interface for `stats.db`                | Optional              |
 | **pm-audit-cli**  | `pm-audit-cli <command> [options]` | Read-only query interface for audit JSONL log files     | Optional              |
+| **pm-audit-replay** | `pm-audit-replay [options] <command>` | Read-only reconstruction of the audit trail into causal episodes and stories | Optional |
 | **pm-index-cli**  | `pm-index-cli <command> [options]` | Read-only query interface for index history JSONL files | Optional              |
 | **pm-index-admin-cli** | `pm-index-admin-cli --id <GW_ID> <command> [options]` | One-shot CLI for index corporate actions and constituent changes | Optional              |
 | **pm-log-cli**   | `pm-log-cli <command> [options]`  | Read-only query/troubleshooting interface for `log.db` (includes `diagnose`, `prune`) | Optional |
@@ -380,6 +419,8 @@ uses the web and bridge ports. They follow one scheme: `809N`, `819N`, `519N`.
 | **pm-cverifier**   | `pm-cverifier CONFIG_FILE`         | Validate a config across four layers                    | Recommended           |
 | **pm-config-deploy** | `pm-config-deploy SOURCE`        | Compile and install the config every process reads      | Required to run       |
 | **pm-config-show** | `pm-config-show [options]`         | Display the deployed config, or render it as a PDF      | Optional              |
+| **pm-new-symbol** / **pm-ipo** | `pm-new-symbol --symbol SYM ...` | List a new symbol (an IPO) in the configuration and redeploy it | Optional |
+| **pm-valuation**   | `pm-valuation [options]`           | Interview-driven DCF valuation and IPO simulation for a fictive company | Optional |
 
 **Optional AI trader tools:**
 
@@ -446,66 +487,69 @@ for the full flag reference and example output.
 None. `pm-engine` is a long-running background process after startup.
 
 **Startup behaviour**:
-1. Creates `data/` directory if needed
-2. Parses `engine_config.yaml` if present — registers symbol/gateway allowlists and session settings
-3. Binds the main ZMQ PULL :5555 and PUB :5556 sockets during engine initialization
-4. On `run()`, restores persisted book stats, GTC orders, and GTC combos
-5. Applies config-driven seeds (book stats gaps, market-maker quotes, market-maker combos)
-6. Tries to bind the dedicated drop-copy PUB :5557 socket
-7. Publishes initial book snapshots for populated books and enters the poll loop
+1. Reads the deployed `<DATA_DIR>/ref_data/engine_config.json` — registers the symbol and gateway allowlists, session settings, collars, circuit breakers and tuning
+2. Binds the main ZMQ PULL :5555 and PUB :5556 sockets during engine initialisation
+3. On `run()`, bumps the run sequence (`engine_run_seq.json`) so trade ids are unique across restarts
+4. Publishes `system.startup` first: engine version, git commit, the SHA-256 and full text of the configuration, and the persisted files it is about to load. An audit reader takes it as the start of a run
+5. Restores persisted resting orders (`gtc_orders.json`), combos (`gtc_combos.json`) and book statistics (`book_stats.json`). Both `GTC` and `DAY` orders are restored, in each book's saved priority order; a `DAY` order whose business day has passed is discarded. Publishes `system.startup_recovery` with the counts
+6. Applies config-driven seeds (book-statistics gaps, market-maker quotes, market-maker combos)
+7. Publishes what restoring left in the books' trace, the collar bands (`risk.band.<SYM>`) and a `system.book_checkpoint.<SYM>` for every book (reason `STARTUP`)
+8. Binds the dedicated drop-copy PUB :5557 socket (if that fails, it logs a warning and runs without drop copy), then enters the poll loop
 
-See [The Configuration Workflow](../../operator-guide/part-2-configure/010-the-configuration-workflow.md) for full details on the config file.
+The loop waits up to 200 ms for a message, handles it completely, then runs a
+maintenance tick (snapshots, timers, persistence checkpoint every 5 s). Every
+decoded inbound *command* (not the `*_request` queries) is re-published once,
+unchanged, so that `pm-audit` records what the exchange was *asked* to do, not just
+what it did, including a cancel the engine ignored.
 
-**Shutdown (Ctrl-C)**:
-1. Publishes `order.expired` for all resting DAY orders
-2. Serializes all resting GTC orders to `data/gtc_orders.json`
-3. Publishes `system.eod` with the final book snapshot for every active symbol
-4. Closes sockets
+**Shutdown (Ctrl-C / SIGTERM)**:
+1. Serialises every resting `GTC` **and** `DAY` order to `<DATA_DIR>/gtc_orders.json`. A process exit is not a day boundary, so `DAY` orders are *not* expired here; real end-of-day expiry happens when the scheduler moves the session to `CLOSED`
+2. Saves GTC combos (`gtc_combos.json`) and book statistics (`book_stats.json`)
+3. Publishes a `system.book_checkpoint.<SYM>` for every book (reason `EOD`)
+4. Publishes `system.eod` with the final book snapshot for every symbol, so subscribers record closing prices
+5. Closes the sockets
 
-**Messages received** (PULL :5555):
+A message that cannot be decoded at all is discarded and counted rather than
+ending the loop, so a malformed packet cannot skip the shutdown persistence.
 
-| Topic                             | Source          |
-|-----------------------------------|-----------------|
-| `order.new`                       | Gateways        |
-| `order.cancel`                    | Gateways        |
-| `order.combo`                     | Gateways        |
-| `order.combo_cancel`              | Gateways        |
-| `system.gateway_connect`          | Gateways        |
-| `book.snapshot_request`           | Viewers, Stats  |
-| `system.symbols_request`          | Gateways, Stats |
-| `order.orders_request`            | Gateways        |
-| `risk.kill_switch`                | Gateways, Admin |
-| `risk.circuit_breaker_halt_all`   | Admin gateways  |
-| `risk.circuit_breaker_resume_all` | Admin gateways  |
-| `session.transition`              | Scheduler       |
+**Messages received** (PULL :5555). The engine dispatches 38 inbound topics; a
+topic it does not recognise is dropped, counted and answered with a
+`system.diagnostic` (`UNROUTED_TOPIC`). A handler that raises is answered with a
+`system.diagnostic` (`DISPATCH_ERROR`) and a reject to the submitting gateway.
 
-**Messages published** (PUB :5556):
+| Group | Topics | Source |
+|---|---|---|
+| Orders | `order.new`, `order.cancel`, `order.amend`, `order.oco`, `order.oco_cancel`, `order.combo`, `order.combo_cancel` | Gateways |
+| Quotes | `quote.new`, `quote.cancel` | Market-maker gateways |
+| Session of a gateway | `system.gateway_connect`, `system.gateway_disconnect`, `system.gateway_heartbeat` | Gateways |
+| Queries | `system.symbols_request`, `system.reference_request`, `book.snapshot_request`, `order.orders_request`, `order.price_level_orders_request`, `system.quote_bootstrap_request`, `system.quote_legs_request`, `system.position_request` | Gateways, viewers, `pm-stats` |
+| Admin queries | `system.session_state_request`, `system.session_schedule_request`, `system.gateways_request`, `system.volume_request`, `system.halt_status_request`, `system.risk_state_request` | `pm-admin`, `pm-admin-cli`, `pm-api-gwy` |
+| Risk controls | `risk.kill_switch`, `risk.kill_switch_gateway`, `risk.kill_switch_global`, `risk.circuit_breaker_halt_all`, `risk.circuit_breaker_resume_all`, `risk.symbol_halt`, `risk.symbol_resume`, `risk.cancel_symbol`, `risk.force_uncross` | Admin gateways |
+| Session control | `session.transition`, `session.next` | Scheduler, admin |
+| Reference data | `system.reference_reload` | `pm-api-gwy` |
 
-| Topic                         | Purpose                          |
-|-------------------------------|----------------------------------|
-| `order.ack.{GW_ID}`           | Order accepted/rejected          |
-| `order.fill.{GW_ID}`          | Partial or full fill             |
-| `order.cancelled.{GW_ID}`     | Cancel confirmation              |
-| `order.expired.{GW_ID}`       | TIF expiry                       |
-| `order.orders.{GW_ID}`        | Order list reply                 |
-| `combo.ack.{GW_ID}`           | Combo accepted/rejected          |
-| `combo.status.{GW_ID}`        | Combo lifecycle change           |
-| `trade.executed`              | Every matched trade pair         |
-| `book.{SYMBOL}`               | Book snapshot after every change |
-| `session.state`               | Session phase change             |
-| `auction.result.{SYMBOL}`     | Auction uncross result           |
-| `system.gateway_auth.{GW_ID}` | Gateway authentication reply (connect) |
-| `system.gateway_bye.{GW_ID}`  | Gateway disconnect broadcast     |
-| `system.symbols.{GW_ID}`      | Symbol list reply                |
-| `system.eod`                  | End-of-day broadcast             |
+**Messages published** (PUB :5556). Per-gateway topics end in `.{GW_ID}`; the
+payload of every topic is defined in the [Message
+Reference](../../protocols-and-clients/part-5-message-reference/010-message-reference.md#topic-index).
+
+| Group | Topics | Purpose |
+|---|---|---|
+| Order events | `order.ack`, `order.fill`, `order.cancelled`, `order.expired`, `order.amended`, `order.triggered`, `order.orders`, `order.price_level_orders` (all `.{GW_ID}`) | Private to the owning gateway. `order.fill` carries one VWAP fill per order per dispatch; `order.triggered` reports a stop that fired |
+| Combo, OCO, quote | `combo.ack`/`status`/`cancel_ack`, `oco.ack`/`cancelled`/`cancel_ack`, `quote.ack`/`status`/`cancel_ack` (all `.{GW_ID}`) | Lifecycle of structured orders |
+| Market data | `trade.executed`, `book.{SYMBOL}`, `depth.{SYMBOL}`, `auction.indicative.{SYMBOL}`, `auction.result.{SYMBOL}` | Public tape and book. Snapshots are throttled to `snapshot_interval_sec` |
+| Session and risk | `session.state`, `circuit_breaker.halt`/`extend`/`resume.{SYMBOL}`, `risk.band.{SYMBOL}`, acknowledgements `risk.*_ack.{GW_ID}`, `session.transition_ack.{GW_ID}` | Phase changes, halts, collars, admin acknowledgements |
+| Admin | `admin.action.{GW_ID}` | What one admin command acted on |
+| System replies | `system.gateway_auth`, `system.gateway_bye`, `system.symbols`, `system.reference`, `system.gateways`, `system.volume`, `system.halt_status`, `system.risk_state`, `system.session_status`, `system.session_schedule`, `system.position_snapshot`, `system.quote_bootstrap`, `system.quote_legs`, `system.reference_reload_ack` (all `.{GW_ID}`) | Replies to the queries above |
+| Lifecycle and audit | `system.startup`, `system.startup_recovery`, `system.recovery_item`, `system.book_checkpoint.{SYMBOL}`, `engine.trace.{SYMBOL}`, `system.diagnostic`, `system.eod` | Run start and recovery, book checkpoints, queue-position trace, engine faults, end of day |
 
 **Messages published** (drop-copy PUB :5557):
 
 | Topic | Purpose |
 |---|---|
 | `drop_copy.event.{GW_ID}` | Fill event with sequence number and nanosecond timestamp, filtered per gateway |
+| `drop_copy.replay.{RECIPIENT_ID}` | Replay of buffered events to a consumer that asks for them |
 
-The drop-copy socket is lazily bound on startup. See [Drop-Copy Feed](../../protocols-and-clients/part-3-session-behaviour/060-drop-copy.md) for subscription protocol and replay support.
+The drop-copy socket is bound after startup (see step 8). See [Drop-Copy Feed](../../protocols-and-clients/part-3-session-behaviour/060-drop-copy.md) for the subscription protocol and replay support.
 
 !!! warning
     Start the engine **first** — gateways and subscribers will fail to connect otherwise.
@@ -926,6 +970,66 @@ pm-audit-cli [--log-file data/audit.log] [--log-dir PATH] [--format table|json|c
 - `json`: prints `[]`
 - `csv`: prints only header row unless `--no-header` is set
 
+
+
+## pm-audit-replay — Audit Replay
+
+Reconstructs the causal structure of the audit trail and narrates it: which
+order caused which trade, which kill switch cancelled what, where the log
+disagrees with itself. It reads the same JSONL files as `pm-audit-cli`,
+read-only, and keeps a derived *episode index* in its own SQLite file. It joins
+no ZeroMQ socket.
+
+```bash
+pm-audit-replay [global options] COMMAND [command options]
+pm-audit-replay --last 15m stream
+pm-audit-replay story --order 7f3a2c
+pm-audit-replay anomalies --severity warn
+```
+
+**Commands:**
+
+| Command | Purpose | Command options |
+|---|---|---|
+| `stream` | Narrate a window chronologically (the default view) | — |
+| `story` | One entity and everything causally connected to it (needs the index) | exactly one selector: `--order`, `--trade`, `--quote`, `--oco`, `--combo`, `--command`, `--client-tag`, `--chain ULID`, `--msg ULID`; `--depth N` (default 2; not with `--chain`), `--strict-causality` |
+| `digest` | One paragraph per episode, most significant first | `--top N`, `--significance {anomalies,notional,qty,duration}` |
+| `episodes` | The index as a table, one row per episode | `--outcome OUTCOME` (repeatable) |
+| `anomalies` | Every finding, worst first, with the `story` command to run next | `--severity {error,warn,info}` (a floor; default `info`) |
+| `stats` | Link confidence and envelope coverage over the window | — |
+| `index` | Build or refresh the episode index | `--stats` |
+
+**Global options** (accepted before or after the command):
+
+| Flag | Default | Description |
+|---|---|---|
+| `--log-file PATH` | `<DATA_DIR>/audit.log` | Audit log to read: the live trail (unarchived day parts, then this file). An archive or day part named here is read alone |
+| `--db PATH` | `<DATA_DIR>/audit_replay.db` | Episode index |
+| `--no-index` | off | Stream without building or reading an index |
+| `--rebuild` | off | Rebuild the index before rendering. There is no incremental mode; the index rebuilds itself whenever the reconstruction rules, the detection settings or the source logs change |
+| `--from ISO_TS`, `--to ISO_TS` | — | Window bounds (ISO-8601 or `YYYY-MM-DD`) |
+| `--date YYYY-MM-DD` | — | One trading day, in the session timezone. Cannot be combined with `--from`/`--to` or with an archive named by `--log-file` |
+| `--last DURATION` | — | Relative window, e.g. `15m`, `2h`, `1d`. Cannot be combined with `--from`, `--to` or `--date` |
+| `--symbol`, `--gateway`, `--kind` | — | Restrict to symbols, gateways or episode kinds; each repeatable |
+| `-q` / `-v` / `-vv` / `-vvv` | level 1 | Detail level: `-q` is level 0 (episode outcomes only); each `-v` adds one level, up to `-vvv` |
+| `--format {text,ndjson,json,markdown,csv}` | `text` | Output format (a command that cannot produce a format exits `2`) |
+| `--show-source` | off | Append `audit.log:LINE` to every narrated line |
+| `--show-units` | off | Append unit provenance to every price |
+| `--explain` | off | Show link evidence and confidence inline |
+| `--id-len N\|full` | `6` | Order-id abbreviation |
+| `--actor-style {id,descriptive}` | `id` | Actor naming |
+| `--tz TZ` | `UTC` | Zone for rendered timestamps |
+| `--reorder-window SPEC` | `2000`/`5s` | Reorder buffer, a message count or a duration |
+| `--no-color` / `--force-color` | auto | Never / always emit ANSI colour (`--force-color` for `... \| less -R`) |
+| `--strict` | off | Also report findings that are expected at a window edge (`ARRIVAL_SEQ_GAP`) |
+| `--clock-skew-warn SECONDS` | `0.1` | Engine-versus-receipt clock difference worth reporting |
+| `--version` | — | Print version and exit |
+
+**Exit codes:** `0` success; `1` nothing to narrate, or no audit log at the
+given path; `2` argument error.
+
+See [Audit Replay](../../operator-guide/part-6-observe-and-recover/030-audit-replay.md) for how causality is
+recovered, what each anomaly means and worked examples.
 
 
 ## pm-clearing — Clearing & P&L
@@ -1384,7 +1488,7 @@ CLOSING_AUCTION → CLOSED) by sending `session.transition` messages to the
 engine at configured wall-clock times.
 
 ```bash
-pm-scheduler [--now] [--delay 3] [--daily] [--no-confirm] [--log-level LEVEL] [-v|-vv] [-q] \
+pm-scheduler [--now] [--delay 3] [--daily] [--speed F] [--start YYYY-MM-DDTHH:MM] [--no-confirm] [--log-level LEVEL] [-v|-vv] [-q] \
   [--log-target TARGET] [--log-file PATH] [--log-failover-timeout SEC]
 ```
 
@@ -1394,7 +1498,9 @@ pm-scheduler [--now] [--delay 3] [--daily] [--no-confirm] [--log-level LEVEL] [-
 |--------------------|----------------------|-------------------------------------------------------------------------------------|
 | `--now`               | off                  | Skip wall-clock waiting; send all transitions immediately with a delay between each |
 | `--delay`             | `None` (effective default 3.0, only used with `--now`) | Seconds between transitions in `--now` mode (ignored, with a warning, outside `--now`) |
-| `--daily`             | off                  | Run continuously, repeating the schedule every calendar day                         |
+| `--daily`             | off                  | Run continuously, repeating the schedule every working day (weekends and the configured country's bank holidays are skipped) |
+| `--speed F`           | `$EDUMATCHER_SCHEDULER_SPEED`, else off | Compressed mode (with `--daily`): simulated time runs *F* times faster than the wall clock, so a whole trading day fits in minutes |
+| `--start YYYY-MM-DDTHH:MM` | `$EDUMATCHER_SCHEDULER_START`, else now | Compressed mode: the session-local time the simulated clock starts at |
 | `--no-confirm`        | off                  | Do not query/confirm session state via the engine before sending a transition       |
 | `--log-level`         | `WARNING`            | Explicit log level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG`                 |
 | `--verbose` / `-v`    | off                  | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`)                                 |
@@ -2224,34 +2330,92 @@ pm-compdb-cli list -c symbol,pe_ratio,operating_margin_pct,revenue_growth_pct -w
 ```
 
 
+## pm-new-symbol / pm-ipo — List a New Symbol
+
+Lists a new symbol (an IPO) in an engine configuration: appends it to
+`symbols:`, gives it its reference price and, normally, a seed quote from the
+market maker, validates the whole edited file and, when that file is the
+deployed source, redeploys it. `pm-ipo` is an alias for the same command.
+
+```bash
+pm-new-symbol --symbol NEWCO --ipo-price 25.00 --outstanding-shares 40000000
+pm-new-symbol --config my_config.yaml --symbol NEWCO --ipo-price 25.00 --outstanding-shares 40000000
+```
+
+**Startup options:**
+
+| Flag | Default | Description |
+|---|---|---|
+| `--config PATH` | the deployed configuration's source | Authored YAML to edit. A file that is not the deployed source is edited only; run `pm-config-deploy` on it yourself |
+| `--symbol NAME` | required | New symbol, 1–8 of `A-Z 0-9 . _` |
+| `--ipo-price PRICE` | required | Offer price; the book's reference price for collars and circuit breakers |
+| `--outstanding-shares N` | required | Shares outstanding (for index market caps) |
+| `--tick-decimals N` | `2` | Price grid, `0`–`8` |
+| `--mm-gateway-id ID` | the only `MARKET_MAKER` gateway | Gateway that posts the seed quote |
+| `--mm-bid-price`, `--mm-ask-price` | maximum allowed spread around the price | Explicit seed prices; give both or neither |
+| `--mm-bid-qty`, `--mm-ask-qty` | `1000` | Seed quote sizes |
+| `--mm-tif {DAY,GTC}` | `DAY` | Time-in-force of the seed quote |
+| `--mm-seed-once` / `--no-mm-seed-once` | on | Skip the seed when a restored quote already exists |
+| `--field KEY=YAML_VALUE` | none | Optional symbol section: `level`, `collar`, `order_limits` or `circuit_breaker`; repeatable, e.g. `--field 'collar={static_band_pct: 0.2}'` |
+| `--version` | — | Print version and exit |
+
+Nothing is written until the edited file passes the same four verification
+layers as `pm-config-deploy`; a refusal leaves both the YAML and the deployed
+artifact untouched. It refuses while `pm-engine` runs (when editing the
+deployed source), when the deployed source has undeployed edits, when saved
+engine state already exists for the symbol, and when the file is only a copy
+or a bundled example.
+
+See [Listing a New Symbol](../../operator-guide/part-4-run-a-market/010-new-symbols.md) for the full
+list of refusals, how the seed quote is priced and the IPO-day checklist.
+
+
 ## pm-mm-bot — Autonomous Market-Maker Bot
 
-Runs one autonomous market-maker gateway for a single symbol. Connects as a
-`MARKET_MAKER` participant, posts a two-sided quote, and automatically reprices
-on fills, mid-price drift, and session transitions.
+Runs one autonomous market-maker gateway. Connects as a `MARKET_MAKER`
+participant, posts a two-sided quote per symbol, and automatically reprices on
+fills, mid-price drift, and session transitions.
 
-Each instance handles one symbol. Run multiple instances (with different
-`--id-suffix` values) to cover several symbols or to compete on the same symbol.
+One process is one gateway and can quote several symbols: repeat `--symbol`,
+give `--symbols A,B,C`, or use `--all-symbols`. Each symbol is isolated from
+the others' failures. To compete on the same symbol, or to keep symbols under
+separate gateway IDs, run several instances with different `--id-suffix`
+values.
 
 ```bash
 pm-mm-bot --symbol AAPL [options]
+pm-mm-bot --symbol AAPL --gap 0.10 --symbol TSLA --gap 0.50 --strategy inventory_skew --max-position 5000
+pm-mm-bot --all-symbols
 ```
+
+**Per-symbol flags.** `--symbol` may be repeated. A per-symbol flag
+(`--strategy`, `--gap`, `--qty`, `--max-position`, `--drift-ticks`, `--tif`,
+`--anchor-sim`, the passive-strategy flags, ...) applies to the symbol named
+*before* it, until the next `--symbol`. Flags given before the first `--symbol`
+are shared defaults for all symbols. A flag on the command line overrides the
+same key in a `--config` file in the same scope.
 
 **Startup options:**
 
 | Flag                             | Default                | Description                                                      |
 |----------------------------------|------------------------|------------------------------------------------------------------|
-| `--symbol`                       | required unless `--symbols`/`--config` supplies one | Instrument to make a market in (e.g. `AAPL`)  |
-| `--symbols`                      | unset                  | Comma-separated symbols to run from one process (e.g. `AAPL,MSFT`); mutually exclusive with `--symbol`, each symbol isolated from the others' failures |
-| `--label`                        | derived from symbol(s) | Override the gateway-ID symbol segment (default: the single `--symbol`, or `SYM1_SYM2_...` from `--symbols`) |
-| `--config`                       | unset                  | YAML file supplying any of these flags by long name (bot-level overrides, not the engine config) |
-| `--strategy`                     | `symmetric`            | Pricing strategy                                                 |
-| `--max-position`                 | unset                  | Net position at which inventory skewing saturates; required when `--strategy inventory_skew`, unused otherwise |
+| `--symbol`                       | one of `--symbol`, `--symbols`, `--all-symbols` or a config `symbols:` block is required | Instrument to make a market in (e.g. `AAPL`). Repeatable; per-symbol flags after it apply to it (see above) |
+| `--symbols`                      | unset                  | Comma-separated symbols (e.g. `AAPL,MSFT`) that all share the same settings; shorthand for repeating `--symbol` with no per-symbol flags; mutually exclusive with `--symbol` |
+| `--all-symbols`                  | off                    | Quote every symbol of the currently deployed configuration with the same settings; gateway ID defaults to `MM_ALL_<nn>`. Mutually exclusive with `--symbol`, `--symbols` and a config `symbols:` block |
+| `--label`                        | derived from symbol(s) | Override the gateway-ID symbol segment (default: the single symbol, or `SYM1_SYM2_...`); mainly to keep a multi-symbol gateway ID short |
+| `--config`                       | unset                  | YAML file with gateway-wide settings, shared `defaults` and per-symbol overrides (bot-level, not the engine config). See *Config file* below |
+| `--strategy`                     | `symmetric`            | Pricing strategy: `symmetric`, `inventory_skew` or `passive`    |
+| `--max-position`                 | unset                  | Net position (either direction) at which inventory skewing saturates; required when `--strategy inventory_skew`, an error with any other strategy |
+| `--retreat-ticks`                | `5`                    | `passive` only: how many ticks beyond its home price each side may step back to stay behind other traders |
+| `--behind-ticks`                 | `1`                    | `passive` only: how many ticks behind other traders' best price a covered side quotes (must be ≥ 1) |
+| `--min-cover-qty`                | `1`                    | `passive` only: quantity other traders must show inside the retreat band before a side counts as covered |
+| `--fade-ticks`                   | `2`                    | `passive` only: extra ticks a side steps back after it is filled; `0` disables fading |
+| `--fade-sec`                     | `3.0`                  | `passive` only: seconds a fade lasts after a fill; `0` disables fading |
 | `--gap`                          | `0.10`                 | Total spread in price units (bid at mid−gap/2, ask at mid+gap/2) |
 | `--qty`                          | `500`                  | Quote size on each leg                                           |
 | `--id-suffix`                    | `01`                   | Running number for gateway ID (`MM_AAPL_01`)                     |
 | `--gateway-id`                   | *derived*              | Exact gateway ID (e.g. `MM01`); overrides `MM_<symbols>_<id-suffix>` |
-| `--drift-ticks`                  | `3`                    | Reprice when mid moves by this many ticks                        |
+| `--drift-ticks`                  | `3`                    | Reprice when mid moves by more than this many ticks (`passive`: when a side's target price does) |
 | `--anchor-sim`                   | `0` (off)              | Quote around `pm-market-sim`'s true value; share of the gap closed per model step (0–1) |
 | `--reissue-delay-ms`             | `200`                  | Milliseconds to wait after fill before re-issuing                |
 | `--tif`                          | `DAY`                  | Time-in-force for quote legs (`DAY` or `GTC`)                    |
@@ -2279,9 +2443,41 @@ None. The bot is fully autonomous after startup.
 
 **Gateway ID convention:**
 
-The gateway ID is constructed as `MM_<SYMBOL>_<suffix>` — for example,
-`pm-mm-bot --symbol AAPL --id-suffix 02` connects as `MM_AAPL_02`. This ID
-must be pre-registered in `engine_config.yaml` with `role: MARKET_MAKER`.
+The gateway ID is constructed as `MM_<label>_<suffix>`, where the label is the
+single symbol, `SYM1_SYM2_...` for several, or `ALL` with `--all-symbols` — for
+example, `pm-mm-bot --symbol AAPL --id-suffix 02` connects as `MM_AAPL_02`.
+`--gateway-id` overrides the whole name. Whichever way it is built, the ID must
+be pre-registered in `engine_config.yaml` with `role: MARKET_MAKER`.
+
+**Strategies:**
+
+| Strategy | Quotes | Parameters |
+|---|---|---|
+| `symmetric` | bid at mid − gap/2, ask at mid + gap/2 | `gap`, `drift_ticks` |
+| `inventory_skew` | like `symmetric`, but shifts both prices against the current position so a long bot sells more eagerly; skew saturates at `max_position` | `max_position` (required) |
+| `passive` | a backstop: steps `behind_ticks` behind other traders' best price, never tighter than its home price nor outside the `retreat_ticks` band, and fades `fade_ticks` for `fade_sec` after a fill. The mid comes from *other* traders' book only, so the bot never chases its own quote. If the symbol has a market-maker spread obligation, the band is narrowed so the widest quote still meets it | the five `passive` flags |
+
+**Config file (`--config`):** a YAML file with `version: 1` separates
+gateway-wide settings from per-symbol ones:
+
+```yaml
+version: 1
+gateway:
+  label: TECH
+  id_suffix: "01"
+defaults:
+  gap: 0.10
+  qty: 500
+symbols:
+  AAPL: {}
+  TSLA:
+    gap: 0.50
+    strategy: inventory_skew
+    max_position: 5000
+```
+
+Unknown keys are rejected with a suggestion for the likely typo. A
+`logging:` block sets `level`, `target`, `file` and `failover_timeout_sec`.
 
 **Startup behaviour:**
 
@@ -2353,6 +2549,46 @@ must be pre-registered in `engine_config.yaml` with `role: MARKET_MAKER`.
 See [Market-Maker Bot](../../participant-guide/part-3-market-making/030-the-market-maker-bot.md) for usage examples, configuration guide,
 bootstrap details, and troubleshooting.
 
+
+
+## pm-valuation — IPO Valuation
+
+Interviews the student about a fictive company, values it with a two-stage
+discounted cash flow, and simulates the IPO that prices it. The result can be
+listed with `pm-new-symbol`. It is a full-screen terminal application and joins
+no ZeroMQ socket.
+
+```bash
+pm-valuation
+pm-valuation --case halvard --level intermediate
+pm-valuation --load my_scenario.yaml --no-tui --export report.md
+```
+
+**Startup options:**
+
+| Flag | Default | Description |
+|---|---|---|
+| `--load FILE` | — | Scenario file to start from (mutually exclusive with `--case`) |
+| `--case {halvard,tornfalk}` | — | Classroom case to start from |
+| `--no-tui` | off | Print the report instead of interviewing |
+| `--level {beginner,intermediate,advanced,expert}` | `beginner` | Interview detail; `F3` changes it in the application |
+| `--market {se,us}` | scenario's, else `se` | Where the company lists: Sweden or the US; overrides the scenario |
+| `--mode {deterministic,montecarlo,both}` | scenario's, else `both` | Scenarios, Monte Carlo, or both |
+| `--draws N` | — | Monte Carlo draws |
+| `--seed N` | — | Monte Carlo seed |
+| `--save FILE` | — | Write the scenario to this file |
+| `--with-defaults` | off | With `--save`: write every value, commented with its source |
+| `--export FILE` | — | Write the report as Markdown |
+| `--pdf FILE` | — | Write the report as a printable PDF (also `p` in the application) |
+| `--paper {a4,letter}` | — | PDF page size |
+| `--presets FILE` | bundled | Alternative presets file |
+| `--list` | off | With `--no-tui`: list the priced IPO with `pm-new-symbol` |
+| `--config FILE` | deployed source | With `--list`: the engine YAML that `pm-new-symbol` edits |
+| `--version` | — | Print version and exit |
+
+See [IPO Valuation](../../operator-guide/part-4-run-a-market/020-valuation.md) for the finance behind
+the model and the interview, and the Training Guide's IPO chapter for the
+classroom exercise.
 
 
 ## pm-ralf-gwy — Post-Trade Dissemination Gateway
@@ -2851,6 +3087,7 @@ prints the result, and exits. Suitable for shell scripts and CI automation.
 | `--push <ADDR>`  | No       | Engine PULL address (default from config)     |
 | `--sub <ADDR>`   | No       | Engine PUB address (default from config)      |
 | `--timeout <MS>` | No       | Ack timeout in milliseconds (default: `3000`) |
+| `--format {text,json}` | No | `text` (default) prints a human-readable result; `json` prints it machine-readable to stdout, for scripts |
 | `--version`      | No       | Print version and exit                        |
 
 **Expected runtime input arguments:**
@@ -2997,14 +3234,16 @@ runtime message bus.
 Bootstraps a runnable EduMatcher session directory with sensible defaults.
 
 ```bash
-pm-setup
+pm-setup [--data-dir PATH] [--show] [--config NAME] [--force] [--no-config]
 ```
 
 **Startup options:**
 
 | Flag                   | Default                                               | Description                                   |
 |------------------------|-------------------------------------------------------|-----------------------------------------------|
-| `--data-dir <PATH>`    | `$EDUMATCHER_DATA_DIR` or `~/.local/share/edumatcher` | Data directory for persistent files           |
+| `--data-dir <PATH>`    | `$EDUMATCHER_DATA_DIR`, else `<repo>/src/data` in a source checkout, else `~/.local/share/edumatcher` | Data directory for persistent files           |
+| `--show`               | off                                                   | Print the data directory that would be used and exit |
+| `--config <NAME>`      | `s10-basic`                                           | Bundled example to deploy, e.g. `s1-basic`, `s3-nominal`, `s10-complex`, `s150-basic`. Resolved under `docs/examples/ref_data/`; append `-nomm` for the variant without market-maker quotes (`s1-basic-nomm`) |
 | `--force`              | off                                                   | Replace an already-deployed config            |
 | `--no-config`          | off                                                   | Create the data dir only; deploy nothing      |
 | `--version`            | —                                                      | Print version and exit                        |
@@ -3013,7 +3252,8 @@ pm-setup
 
 None.
 
-It creates the data directory and deploys the bundled sample configuration to
+It creates the data directory and deploys a bundled sample configuration
+(`s10-basic` unless `--config` names another) to
 `<DATA_DIR>/ref_data/engine_config.json`, so a fresh environment can start the
 exchange immediately.
 
@@ -3033,6 +3273,7 @@ result as the one file every process reads.
 ```bash
 pm-config-deploy my_config.yaml
 pm-config-deploy --check my_config.yaml
+pm-config-deploy --example s3-basic
 pm-config-deploy --show
 ```
 
@@ -3041,6 +3282,7 @@ pm-config-deploy --show
 | Flag       | Default | Description                                                  |
 |------------|---------|--------------------------------------------------------------|
 | `SOURCE`   | —       | Authored `engine_config.yaml` to validate, compile and install |
+| `--example NAME` | —  | Use a bundled example instead of `SOURCE`, e.g. `s3-basic` (from `docs/examples/ref_data/s3-basic-setup/engine_config.yaml`); append `-nomm` for the variant without market-maker quotes |
 | `--check`  | off     | Validate and compile, but install nothing — for CI            |
 | `--show`   | off     | Print the deployed paths and exit                             |
 | `--version`| —       | Print version and exit                                        |
@@ -3108,6 +3350,8 @@ pm-config-gen --symbols AAPL MSFT --participants TRADER01 TRADER02 OPS01:ADMIN -
 | `--symbol-static-band SYM:PCT` | Per-symbol collar static band in (0,1); repeatable |
 | `--symbol-dynamic-band SYM:PCT` | Per-symbol collar dynamic band in (0,1); repeatable |
 | `--symbol-risk-level SYM:LEVEL` | Per-symbol risk level key; repeatable |
+| `--symbol-max-order-qty SYM:N` | Per-symbol `order_limits.max_order_qty` in shares (> 0); repeatable |
+| `--symbol-max-order-value SYM:AMOUNT` | Per-symbol `order_limits.max_order_value` as notional (> 0); repeatable |
 | `--outstanding-shares SYM:N` | Per-symbol outstanding shares; repeatable |
 
 #### Session & engine tuning
@@ -3133,6 +3377,19 @@ pm-config-gen --symbols AAPL MSFT --participants TRADER01 TRADER02 OPS01:ADMIN -
 | `--cb-levels NAME:SHIFT_PCT[:HALT_MINS[:RESUMPTION_MODE]]` | — | Circuit-breaker level definition; repeatable |
 | `--cb-window-ns NS` | `300000000000` | Circuit-breaker reference window in nanoseconds |
 
+#### Reopening corridor (ACE)
+
+Automated Corridor Expansion governs how a halted symbol reopens. It is on by
+default; these flags tune or disable it.
+
+| Flag | Default | Description |
+|---|---|---|
+| `--no-ace` | off | Disable ACE: a halt then reopens at the equilibrium price whatever it is, with no corridor and no extensions |
+| `--ace-initial-band PCT` | `0.1` | Reopening corridor half-width as a fraction of the reference price |
+| `--ace-expansions WIDEN_PCT:MINUTES [...]` | `0.10:2 0.20:5` | Rungs of the expansion ladder, in order. The last rung repeats indefinitely, which is what lets the corridor eventually contain any price (the default is Nasdaq's ladder) |
+| `--ace-random-end-ns NS` | `30000000000` (30 s) | Upper bound of the uniform random tail added to every call phase; `0` disables the random end and makes reopen times predictable |
+| `--ace-random-seed N` | OS entropy | Seed the random-end generator for reproducible demos. Omit it on a real venue |
+
 #### Market-maker obligations
 
 | Flag | Default | Description |
@@ -3151,6 +3408,7 @@ pm-config-gen --symbols AAPL MSFT --participants TRADER01 TRADER02 OPS01:ADMIN -
 | `--seed-mm-mid-range MIN:MAX` | — | Seed MM quotes from a random midpoint |
 | `--mm-seed-spread-ticks N` | `10` | Half-spread, in ticks, either side of the seeded MM midpoint |
 | `--seed-last-prices-from-mm` | off | Set last prices from the seeded MM midpoint |
+| `--no-mm-seed-quotes` | off | Write `require_mm_seed_quotes: false` and no `market_maker_quotes`, so the book starts genuinely empty even though a `MARKET_MAKER` gateway exists. `--seed-mm-mid-range` then only seeds last prices (with `--seed-last-prices-from-mm`) |
 
 #### Gateway sections
 
@@ -3163,6 +3421,9 @@ Each flag below enables a top-level YAML section for the corresponding gateway p
 | `--alf-gateway` | `alf_gateway:` for `pm-alf-gwy` | `--alf-enabled`, `--alf-disabled`, `--alf-name`, `--alf-bind-address`, `--alf-port`, `--alf-heartbeat-interval-sec`, `--alf-handshake-timeout-sec`, `--alf-idle-timeout-sec`, `--alf-max-connections`, `--alf-max-client-queue`, `--alf-max-commands-per-second`, `--alf-max-errors-before-disconnect`, `--alf-error-window-sec` |
 | `--balf-gateway` | `balf_gateway:` for `pm-balf-gwy` | `--balf-name`, `--balf-bind-address`, `--balf-port`, `--balf-heartbeat-interval-sec`, `--balf-heartbeat-timeout-sec`, `--balf-idle-timeout-sec`, `--balf-auth-timeout-sec`, `--balf-max-connections`, `--balf-max-client-queue`, `--balf-max-messages-per-second`, `--balf-max-errors-before-disconnect`, `--balf-error-window-sec`, `--balf-duplicate-session-policy` |
 | `--api-gateway` | `api_gateways:` for `pm-api-gwy` | `--api-gateway-name`, `--api-gateway-instance NAME:GATEWAY[,GATEWAY...][:PORT]` (repeatable), `--api-gateway-host`, `--api-gateway-port`, `--api-gateway-log-level`, `--api-gateway-stats-db`, `--api-gateway-swagger-enabled` / `--api-gateway-swagger-disabled`, `--api-gateway-enabled` / `--api-gateway-disabled`, `--api-gateway-rate-limit-writes-per-second`, `--api-gateway-rate-limit-burst`, `--api-gateway-engine-auth-sec`, `--api-gateway-engine-reply-sec`, `--api-gateway-wait-ack-sec`, `--api-gateway-order-retention-sec`; credential flags: `--api-key KEY:GATEWAY_ID[:DESCRIPTION]` (repeatable), `--api-gateway-generate-keys` / `--no-api-gateway-generate-keys`, `--api-gateway-readonly-key` |
+| `--dc-gateway` | `dc_gateway:` for `pm-dc-gwy` | `--dc-name`, `--dc-bind-address`, `--dc-port`, `--dc-heartbeat-interval-sec`, `--dc-idle-timeout-sec`, `--dc-max-client-queue` |
+| `--log-server` | `log_server:` for `pm-log-srv` | `--log-server-enabled`/`-disabled`, `--log-server-name`, `-bind-address`, `-port`, `-db-path`, `-retention-days`, `-max-message-bytes`, `-max-client-queue`, `-write-batch-size`, `-write-batch-interval-ms`, `-heartbeat-interval-sec`, `-pubsub-enabled`/`-disabled`, `-pub-port`, `-pull-port`, `-lease-sec`, `-max-lease-sec`, `-max-subscribers`, `-notify-interval-ms`, `-backfill-chunk-rows`, `-max-backfill-minutes`, `-max-backfill-rows`, `-max-pending-rows`, `-pub-sndhwm` (each prefixed `--log-server`) |
+| `--monitor` | `monitor:` for `pm-monitor` and every health beacon, with every field | `--monitor-enabled`/`-disabled`, `--monitor-bind-address`, `--monitor-host`, `--monitor-pull-port`, `--monitor-pub-port`, `--monitor-beacon-interval-sec`, `--monitor-hung-after-sec`, `--monitor-silent-after-beacons`, `--monitor-book-metrics-interval-sec`, `--monitor-raw-hours`, `--monitor-minute-days`, `--monitor-threshold RULE:WARN:CRIT` (repeatable; rules `host_cpu_pct`, `host_mem_pct`, `disk_free_pct` (warn *above* crit), `engine_handle_p99_us`, `reject_pct_5m`, `rss_growth_pct_1h`, `heap_garbage_pct`) |
 
 #### Index sections
 
@@ -3319,6 +3580,17 @@ None (one-shot; runs a single subcommand and exits).
 | `add` | Add a new constituent |
 | `delist` | Remove a constituent |
 | `history` | Show recent structural/corp-action history for an index |
+
+**Subcommand arguments** (all take `--index INDEX_ID`, which is required):
+
+| Subcommand | Arguments | Notes |
+|---|---|---|
+| `split` | `--sym SYMBOL`, `--ratio N:M` | `4:1` is a 4-for-1 split, `1:10` a 1-for-10 reverse split |
+| `dividend` | `--sym SYMBOL`, `--amount AMOUNT` | Dividend per share in price units; must be > 0 |
+| `shares` | `--sym SYMBOL`, and either `--new-shares N` or `--delta N` | `--new-shares` is the new absolute total; `--delta` is a signed change to the last known count (negative for a buy-back), resolved via `history` and shown in the prompt |
+| `add` | `--sym SYMBOL`, `--shares N`, `--price PRICE` | Initial shares outstanding and reference price; both must be > 0 |
+| `delist` | `--sym SYMBOL` | |
+| `history` | `--from UNIX_TS`, `--to UNIX_TS`, `--types T,T,...`, `--limit N` | Defaults: last 24 h, all types (`INIT`, `CORP_ACTION`, `DELIST`, `ADD_CONSTITUENT`), 50 rows |
 
 Every mutating subcommand (`split`, `dividend`, `shares`, `add`, `delist`)
 prints the action and prompts `Continue? [y/N]` before sending, unless

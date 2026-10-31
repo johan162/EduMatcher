@@ -63,12 +63,15 @@ In this chapter, the most important operational ideas are:
 Unlike `post_trade_gateway`, `market_data_gateway`, `api_gateways`, and
 `balf_gateway`, `pm-config-gen` has **no `--alf-gateway*` flags** — there is
 no CLI generator support for the `alf_gateway:` section. Generate the base
-config, then add `alf_gateway:` by hand:
+config (`--no-mm-seed-quotes` because `MM01` is a market maker and the generator
+would otherwise emit price-less seed stubs that `pm-config-deploy` refuses),
+then add `alf_gateway:` by hand:
 
 ```bash
 pm-config-gen \
   --symbols AAPL MSFT \
-  --participants TRADER01 TRADER02 MM01:MARKET_MAKER \
+  --participants TRADER01 TRADER02 OPS01:ADMIN MM01:MARKET_MAKER \
+  --no-mm-seed-quotes \
   --output engine_config.yaml --force
 ```
 

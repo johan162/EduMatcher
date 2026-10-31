@@ -32,7 +32,7 @@ taken early:
 - **25 — Market Index** needs only chapters 00–03 (plus `pm-stats` from
   chapter 15 for Exercise 9).
 - **28 — IPO Valuation** needs only chapter 00 for its first six exercises;
-  the last also needs 00–03 and 07.
+  the last two also need 00–03 and 07.
 
 ### What you need
 

@@ -171,11 +171,12 @@ index ready index_id=EDU100 constituents=3 level=1000.0
 
 (Each line is preceded by the usual timestamp, level and logger name.)
 
-The `INIT` record has been written to `data/indexes/EDU100_history.jsonl`.
+The `INIT` record has been written to `$EDUMATCHER_DATA_DIR/indexes/EDU100_history.jsonl`
+(the config's relative `data/indexes/...` path resolves under the data directory).
 Verify:
 
 ```bash
-cat data/indexes/EDU100_history.jsonl
+cat "$EDUMATCHER_DATA_DIR/indexes/EDU100_history.jsonl"
 ```
 
 ```json
@@ -194,10 +195,15 @@ Connect your TRADER01 gateway and run the `INDEX` command:
 [TRADER01]> INDEX
 ```
 
-Expected response (level will depend on seeded prices):
+`pm-index` publishes a level when a constituent trades (and once at the end of
+the day), not on a timer. Until the first trade, `INDEX` answers
+`No index data received yet. Is pm-index running?` — that does not mean
+`pm-index` is down. Come back to this exercise's output after Exercise 4's first
+trade. Expected response (the level will not be 1000: it is computed from the
+price that traded and the *seeded* reference prices of the other two constituents):
 
 ```
-[10:00:01.042] EDU100  1000.00  +0.00  +0.00%  O=-- H=-- L=--  PRE_OPEN
+[10:00:01.042] EDU100 637.57 +0.00 +0.00% O=637.57 H=637.57 L=637.57 CONTINUOUS
 ```
 
 Fields shown:
@@ -219,10 +225,16 @@ The `INDEX` command works from any gateway role (TRADER, ADMIN, or read-only).
 
 ## Exercise 4: Watch the Index Move
 
-Move the session into `CONTINUOUS` (if the scheduler hasn't already done so)
-and execute a few trades:
+Move the session into `CONTINUOUS` (if the scheduler hasn't already done so —
+from `CLOSED` that is `PRE_OPEN` first, then `CONTINUOUS`). The books start
+empty (`--no-mm-seed-quotes`), so connect `pm-alf-console --id MM01` and give
+each symbol a market, with prices near the seeded ones (print the seeded
+prices with `grep -E "last_(buy|sell)_price" engine_config.yaml`), for example
+`QUOTE|SYM=AAPL|BID=<p-1>|ASK=<p+1>|BID_QTY=1000|ASK_QTY=1000|TIF=DAY|QUOTE_ID=Q-AAPL`
+and the same for MSFT and TSLA. Then execute a few trades:
 
 ```
+[OPS01|ADMIN]> SESSION|STATE=PRE_OPEN
 [OPS01|ADMIN]> SESSION|STATE=CONTINUOUS
 [TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=500
 [TRADER01]> NEW|SYM=MSFT|SIDE=BUY|TYPE=MARKET|QTY=300
@@ -269,8 +281,10 @@ pm-index-admin-cli --id OPS01 split \
   --index EDU100 --sym AAPL --ratio 2:1
 ```
 
-You'll be shown a confirmation prompt before the command is sent (add `-y` to
-skip it, or `--dry-run` to preview the payload without sending). The command
+You'll be shown a confirmation prompt before the command is sent. Add `-y` to
+skip it, or `--dry-run` to preview the payload without sending — both are
+options of the tool itself, so they go **before** the sub-command
+(`pm-index-admin-cli --id OPS01 -y split …`). The command
 blocks for the `index.corp_action_ack.OPS01` response and prints the result.
 `pm-index` applies the action in-process, publishes an updated index value
 live, and writes a `CORP_ACTION` record to the structural/audit history file.
@@ -285,7 +299,7 @@ The level should be **unchanged** (or differ by only rounding). Now check that
 the divisor was adjusted in the history file:
 
 ```bash
-grep CORP_ACTION data/indexes/EDU100_history.jsonl | python3 -m json.tool
+grep CORP_ACTION "$EDUMATCHER_DATA_DIR/indexes/EDU100_history.jsonl" | python3 -m json.tool
 ```
 
 You should see `old_divisor` and `new_divisor` in the record, and the two
