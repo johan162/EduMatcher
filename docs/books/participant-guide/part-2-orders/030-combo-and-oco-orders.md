@@ -285,19 +285,19 @@ NEW|TYPE=COMBO|COMBO_ID=PAIR-001|COMBO_TYPE=AON|TIF=GTC|LEG_COUNT=2|LEG0.SYM=MSF
 | `LEG_COUNT=2`       | Number of legs (2–10)                                                          |
 | `LEG<i>.SYM`        | Symbol for leg *i*                                                             |
 | `LEG<i>.SIDE`       | BUY or SELL for leg *i*                                                        |
-| `LEG<i>.TYPE`       | Order type for leg *i* — `LIMIT`, `MARKET`, `STOP`, `STOP_LIMIT`, `FOK`, `ICEBERG`, `IOC`, or `TRAILING_STOP` (defaults to `LIMIT` if omitted) |
+| `LEG<i>.TYPE`       | Order type for leg *i* — `LIMIT`, `MARKET`, `STOP`, `STOP_LIMIT`, `FOK`, or `IOC` (defaults to `LIMIT` if omitted). `ICEBERG` and `TRAILING_STOP` are not supported on a combo leg |
 | `LEG<i>.QTY`        | Quantity for leg *i*                                                           |
-| `LEG<i>.PRICE`      | Limit price for leg *i* — required for legs typed `LIMIT`, `IOC`, or `FOK`     |
-| `LEG<i>.STOP`       | Stop price for leg *i* — required for legs typed `STOP` or `STOP_LIMIT`        |
+| `LEG<i>.PRICE`      | Limit price for leg *i* — required for legs typed `LIMIT`, `IOC`, `FOK` or `STOP_LIMIT`; refused on `MARKET` and `STOP` |
+| `LEG<i>.STOP`       | Stop price for leg *i* — required for legs typed `STOP` or `STOP_LIMIT`; refused on other types |
 | `SMP=`              | Optional self-match-prevention action — `NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, or `CANCEL_BOTH`. One value for the *whole combo*, applied identically to every leg (there is no per-leg `LEG<i>.SMP` on this protocol). If omitted, falls back to the gateway's configured `participants[].smp_action` (else `NONE`) — see [Risk Controls — Self-Match Prevention](../../operator-guide/part-4-run-a-market/040-risk-controls.md#self-match-prevention-smp) for the full mechanics and precedence rules |
 
-!!! note "Price/stop requirements are enforced differently at different points"
-    The exact set of leg order types that require `LEG<i>.PRICE` vs `LEG<i>.STOP`
-    can differ slightly depending on whether the combo is submitted live via the
-    gateway or seeded from `market_maker_combos` in `engine_config.yaml` at
-    startup — treat the table above as a practical guide, and expect the engine
-    to reject a combo outright (with a descriptive error) rather than silently
-    accept an inconsistent leg.
+!!! note "One field rule for every entry point"
+    The price/stop requirements above are the same for a live combo from any
+    gateway and for a combo seeded from `market_maker_combos` in
+    `engine_config.yaml`: the engine applies the same per-type field table
+    ([Order Types — Fields each type takes](020-order-types.md#fields-each-type-takes))
+    and rejects the whole combo, with a descriptive error, rather than
+    silently accept an inconsistent leg.
 
 ### What Happens After Submission
 
