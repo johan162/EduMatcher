@@ -185,7 +185,7 @@ curl -s -H "Authorization: Bearer key-ops01-3e34rs" \
 ```
 
 returns the model's state and every share's latest value; the WebSocket
-`ws://localhost:8080/api/v1/admin/sim` streams them. Students' keys are
+`ws://localhost:8080/api/v1/ws/admin/sim` streams them. Students' keys are
 refused.
 
 ## See also

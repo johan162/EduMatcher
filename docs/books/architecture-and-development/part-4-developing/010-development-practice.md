@@ -196,6 +196,21 @@ but the standard way to run all checks and a full build is the `mkbld.sh` script
   currently produce. After adding a command or changing a flag, subcommand,
   `choices=` list or help text, run `make completion` and commit the
   result -- see [Installation → Shell completion](../../operator-guide/part-1-install-and-deploy/010-installation.md#shell-completion).
+- **REST contract**: `spec/rest/openapi.json` is the committed v1 contract,
+  exactly what `pm-api-gwy` serves at `/openapi.json`. `make openapi-check`
+  (part of `make check` and CI) fails, with a diff, when a route, model,
+  parameter or description no longer matches it. After a *deliberate* REST
+  change, run `make openapi` and commit the result with the code. The diff is
+  where a reviewer decides whether the change is additive. Unlike the message
+  bindings, `scripts/mkbld.sh` never regenerates it, so a build cannot quietly
+  accept an API change. Error codes are held exactly: each route lists the
+  codes it can return in `responses=docs.errors(...)`, a test derives the
+  same set from the code (`tests/api_gateway_error_scan.py`), and a new
+  `error.code` must first be added to `api_gateway/errors.py`. The REST
+  spec's endpoint tables (arguments, success statuses, error codes) are
+  checked against the contract by `tests/test_rest_spec_matches_contract.py`.
+  See
+  [Compatibility and deprecation policy](../../protocols-and-clients/part-2-specifications/060-rest-and-websocket.md#compatibility-and-deprecation-policy).
 
 ### What to preserve
 

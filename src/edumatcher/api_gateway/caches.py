@@ -201,12 +201,3 @@ class SessionCaches:
             del self.orders[order_id]
             del self.terminal_at[order_id]
         return len(stale)
-
-    def status(self) -> dict[str, Any]:
-        """Return a compact summary for the status endpoint."""
-        return {
-            "orders": len(self.orders),
-            "quote_legs": len(self.quote_legs),
-            "positions": self.positions,
-            "known_symbols": sorted(self.known_symbols),
-        }

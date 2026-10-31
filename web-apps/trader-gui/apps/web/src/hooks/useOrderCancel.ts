@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import { useCancelOrderMutation, useSubmitOrderMutation } from "@/queries/index.js";
-import { summarizeSettled, type BulkOutcome } from "@/lib/bulkOutcome.js";
+import { summarizeSettled, type BulkOutcome, isUnconfirmed } from "@/lib/bulkOutcome.js";
 import { useSettingsStore } from "@/store/useSettingsStore.js";
 import { buildResubmitOrder } from "@/lib/resubmit.js";
 import { ApiError } from "@/api/apiFetch.js";
@@ -28,7 +28,7 @@ export function useOrderCancel() {
   const [confirmTarget, setConfirmTarget] = useState<Order | null>(null);
 
   const onCancelError = (id8: string) => (err: unknown) => {
-    if (err instanceof ApiError && (err.status === 503 || err.code === "ENGINE_TIMEOUT")) {
+    if (isUnconfirmed(err)) {
       toast(`Cancel submitted — awaiting confirmation for ${id8}`);
       return;
     }

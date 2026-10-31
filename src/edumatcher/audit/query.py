@@ -307,6 +307,7 @@ class AuditEntry:
         "order_id",
         "trade_id",
         "seq",
+        "eseq",
         "msg_id",
         "causation_id",
         "correlation_id",
@@ -337,6 +338,10 @@ class AuditEntry:
         meta = meta or {}
         raw_seq = meta.get("seq")
         self.seq: int | None = int(raw_seq) if raw_seq and raw_seq.isdigit() else None
+        raw_eseq = meta.get("eseq")
+        self.eseq: int | None = (
+            int(raw_eseq) if raw_eseq and raw_eseq.isdigit() else None
+        )
         #: ULID of this message. None for a line recorded without an envelope.
         self.msg_id: str | None = meta.get("msg")
         #: ULID of the message that caused this one. None means it had no
@@ -370,6 +375,7 @@ class AuditEntry:
             "order_id": self.order_id,
             "trade_id": self.trade_id,
             "seq": self.seq,
+            "eseq": self.eseq,
             "msg_id": self.msg_id,
             "causation_id": self.causation_id,
             "correlation_id": self.correlation_id,

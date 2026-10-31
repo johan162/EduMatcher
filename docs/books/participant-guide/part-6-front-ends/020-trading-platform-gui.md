@@ -67,9 +67,9 @@ flowchart LR
         UI["React app\n(Zustand + TanStack Query + React Router)"]
     end
     UI -->|"REST /api/v1/*\n(API key bearer token)"| APIGWY["pm-api-gwy :8080"]
-    UI -->|"WS /api/v1/events\nprivate order/fill/quote acks"| APIGWY
-    UI -->|"WS /api/v1/market-data\nbook/trades/depth/auction"| APIGWY
-    UI -->|"WS /api/v1/admin/monitor\nADMIN only"| APIGWY
+    UI -->|"WS /api/v1/ws/private\nprivate order/fill/quote acks"| APIGWY
+    UI -->|"WS /api/v1/ws/market-data\nbook/trades/depth/auction"| APIGWY
+    UI -->|"WS /api/v1/ws/admin/monitor\nADMIN only"| APIGWY
     APIGWY <-->|"ZeroMQ"| ENGINE["pm-engine"]
 ```
 
@@ -77,9 +77,9 @@ The three sockets are not all opened by every role:
 
 | Socket | Carries | Opened by |
 |---|---|---|
-| `/api/v1/events` | Your own `order.*`, `quote.*`, `oco.*`, `combo.*` events, plus an `orders.snapshot` on every connect | **TRADER, MARKET_MAKER only** |
-| `/api/v1/market-data` | `book`, `trades`, `depth`, `auction`, `session.state`, `circuit_breaker`, `news` | Every role |
-| `/api/v1/admin/monitor` | Cross-gateway order activity and the audit tail | **ADMIN only** |
+| `/api/v1/ws/private` | Your own `order.*`, `quote.*`, `oco.*`, `combo.*` events, plus an `orders.snapshot` on every connect | **TRADER, MARKET_MAKER only** |
+| `/api/v1/ws/market-data` | `book`, `trades`, `depth`, `auction`, `session.state`, `circuit_breaker`, `news` | Every role |
+| `/api/v1/ws/admin/monitor` | Cross-gateway order activity and the audit tail | **ADMIN only** |
 
 The consequence worth remembering: **ADMIN has no private order stream.**
 An ADMIN key sees every gateway's activity through the monitor feed, but it
@@ -92,7 +92,7 @@ Three details shape how the screens behave:
   most screens need no polling. The exceptions are the polled daily-stats
   rollup (change % / volume) and the REST-backed panels marked below.
 - **`orders.snapshot` is the reconcile point.** It arrives on the first
-  `/events` frame *and on every reconnect*, so the blotter and the quote
+  `/ws/private` frame *and on every reconnect*, so the blotter and the quote
   cards resync themselves after a dropped connection without you doing
   anything.
 - **Gaps are visible, not silent.** The market-data socket tracks a sequence
@@ -210,7 +210,7 @@ make dev        # Vite with hot reload
 Open **<http://localhost:8193>**, enter an API key, and click **Connect**.
 
 `vite.config.ts` proxies every `/api/*` request — REST *and* the WebSocket
-upgrades for `/events`, `/market-data` and `/admin/monitor` — to
+upgrades under `/api/v1/ws/` (`private`, `market-data`, `admin/monitor`) — to
 `http://localhost:8080`. So as long as `pm-api-gwy`'s `desk` instance is
 reachable on port 8080 of your own machine, this needs no configuration:
 `VITE_API_BASE` and `VITE_WS_BASE` stay empty and the browser only ever talks
@@ -871,9 +871,10 @@ semantics once amended, so the engine rejects the attempt with *"Cannot amend
     your intent is to stop trading the remainder, cancel the order; the 40
     already filled are yours either way.
 
-An amend that times out waiting for its ack shows *"Amend submitted —
-awaiting confirmation (check blotter)"* and closes the dialog, exactly like a
-submit timeout — it is not a rejection.
+An amend does not wait for the engine: the dialog closes once the gateway has
+taken it, and the outcome (amended, or refused with its reason) arrives in the
+blotter and the notifications. An error shown in the dialog means the amend
+was not sent.
 
 ### Cancel-Replace
 
@@ -891,12 +892,16 @@ that preserves your queue position.
 
 On success you get *"Replaced `{old}` → `{new}`"*, naming both order ids.
 
-If the cancel leg of a Replace times out waiting for its ack, the dialog
-shows a different message than the general "awaiting confirmation" pattern:
-*"Replace could not complete — the order may have already filled."* This is
-because a timeout here usually means the original order filled before the
-cancel could land, so no replacement was submitted — the dialog stays open
-rather than assuming success, and nothing was left live.
+A Replace can fail in two ways, and the dialog stays open and says which:
+
+- *"Replace refused: `{reason}` — nothing was sent."* The engine refused to
+  cancel the original, typically because it filled first. No replacement was
+  submitted.
+- *"The cancel was not confirmed and no replacement was sent — check the
+  blotter: the original may still be working."* The cancel's outcome did not
+  come back in time. The gateway never sends a replacement for an unconfirmed
+  cancel, so you cannot end up with two orders, but the original may still be
+  live.
 
 ### Cancelling an order
 
@@ -923,7 +928,9 @@ large selection sends one request per order.
 per OCO/Combo group, which cancels the group as a unit
 (`DELETE /oco/{id}` or `DELETE /combos/{id}`) rather than looping over its
 member orders. The confirmation spells out the consequence, including that a
-combo's already-filled legs are not reversed.
+combo's already-filled legs are not reversed. The outcome arrives as a
+notification, *"OCO `{id}` cancelled"* or *"Cancel of OCO `{id}` refused"*
+(likewise for combos), next to the members' own cancels in the blotter.
 
 ### Seeing whether an order is resting or executed
 
@@ -1062,7 +1069,7 @@ a two-field edit rather than a re-entry.
 
 ### Watching and reacting to fills
 
-Quote lifecycle events arrive on the `/events` socket and drive three things:
+Quote lifecycle events arrive on the `/ws/private` socket and drive three things:
 
 - **`quote.ack`** — a rejected quote raises an error toast
   (*"Quote `{symbol}` rejected: `{reason}`"*) and a `REJECT` entry; an accepted
@@ -1089,15 +1096,16 @@ takes **both resting legs** at once.
     not apply to it, and there is no undo toast. A quote cancel removes two
     resting orders at once, so it is treated as a high-impact action.
 
-A cancel that times out waiting for its ack shows *"Cancel submitted for
-`{symbol}` — awaiting confirmation"* — again, not a rejection.
+The outcome arrives as a notification: *"Quote `{symbol}` cancelled"*, or
+*"Cancel of quote `{symbol}` refused"* with the engine's reason (for example
+when there was no live quote).
 
 ### Quote Bootstrap & Legs
 
 A diagnostic screen with two complementary read sources and a **Resync**
 button that refetches both, plus a "Reconciled at" stamp.
 
-**Active Quotes** (`GET /quotes/bootstrap`) is the **reliable per-side
+**Active Quotes** (`GET /quotes`) is the **reliable per-side
 source**: symbol, quote id, state, bid and ask as `price × qty (remaining)`,
 and per-leg status.
 
@@ -1123,7 +1131,7 @@ behaviour — see [Positions and Flatten](#positions-and-flatten) above.
 ### System Dashboard
 
 The ADMIN landing screen — a read-only overview fed by the
-`/api/v1/admin/monitor` WebSocket (cross-gateway orders and events) plus the
+`/api/v1/ws/admin/monitor` WebSocket (cross-gateway orders and events) plus the
 shared live market stores.
 
 - **Four KPI cards**: current session phase, active orders across *every*
@@ -1140,7 +1148,7 @@ reconnecting/disconnected"* note appears next to the page title.
 ### Index Administration
 
 Read-only. Configured indexes (id, description, base value, constituent count
-— hover for the full list) from `GET /admin/indexes`, and, for the selected
+— hover for the full list) from `GET /reference/indexes`, and, for the selected
 index, its recent recorded daily levels (Date, Open, High, Low, Close,
 Session) from `GET /history/index-daily`.
 
@@ -1205,7 +1213,7 @@ resumes trading. The Level selector offers only *Indefinite (no level)*:
 this exchange configures no breaker ladder for the symbol.*
 
 The live operational counterpart to Risk Controls, bootstrapped from
-`GET /admin/halts` and kept current by the `circuit_breaker` market-data
+`GET /halts` and kept current by the `circuit_breaker` market-data
 channel.
 
 **Manual halt** takes a symbol and an optional **Level**, populated from that
@@ -1379,31 +1387,34 @@ expected cancel reason on the surviving leg.
 
 ### Class C — timeouts, which are **not** rejections
 
-A `503` / `ENGINE_TIMEOUT` means the command reached the engine but its
+A late acknowledgement means the command reached the engine but its
 acknowledgement did not come back in time. The action may well have
-succeeded. The app never presents these as rejections; every one of them uses
-neutral "awaiting confirmation" wording:
+succeeded. It can only happen on the actions that wait for the engine's
+answer. For an order submit the gateway says so explicitly (`202` with
+`ack_timeout: true`); for the others it is `503 ENGINE_TIMEOUT`. The app never
+presents these as rejections; each uses neutral "awaiting confirmation"
+wording:
 
 | Action | Message |
 |---|---|
 | Order submit | *"`{side} {symbol}` submitted — awaiting confirmation (check blotter)"* |
-| Amend | *"Amend submitted — awaiting confirmation (check blotter)"* |
-| Cancel | *"Cancel submitted — awaiting confirmation for `{id}`"* |
-| Group cancel | *"Cancel `{kind}` `{id}` submitted — awaiting confirmation"* (`kind` is `OCO` or `COMBO`) |
-| Quote cancel | *"Cancel submitted for `{symbol}` — awaiting confirmation"* |
-| Flatten | *"Flatten `{symbol}` submitted — awaiting confirmation"* |
 | Session transition | *"Transition submitted — awaiting engine confirmation"* |
 | CB halt | *"Halt submitted for `{symbol}` — awaiting confirmation"* |
 | CB resume | *"Resume submitted for `{symbol}` — awaiting confirmation"* |
 | Kill switch | *"Kill switch submitted — awaiting engine confirmation"* |
 
+Amend, cancel, group and quote cancels, and Flatten don't wait: the gateway
+answers at once and the outcome arrives in the blotter. Any error on them,
+including a `503`, means nothing was sent. Only `ENGINE_TIMEOUT` means
+"sent, unconfirmed"; a `503 ENGINE_UNAVAILABLE` or `SYMBOLS_NOT_READY` is a
+plain failure, shown as in class D, and safe to retry.
+
 **Do not resubmit.** Reconcile instead: check Active Orders (or hit its
 Refresh), or check the relevant admin screen, and act on what you actually
 see.
 
-Cancel-Replace is the one exception to the wording, because a timeout there
-has a specific likely cause — see
-[Cancel-Replace](#cancel-replace).
+Cancel-Replace has its own wording, because the gateway never sends a
+replacement for an unconfirmed cancel — see [Cancel-Replace](#cancel-replace).
 
 ### Class D — gateway and HTTP errors
 
@@ -1421,7 +1432,9 @@ Anything else that comes back from `pm-api-gwy` is shown as
 | `RATE_LIMIT` | 429 | Write rate exceeded |
 | `TRANSITION_REJECTED` | 409 | Session transition refused by the engine |
 | `ENGINE_TIMEOUT` | 503 | See class C above |
-| `ENGINE_UNAVAILABLE` | 503 | The gateway cannot reach the engine at all |
+| `ENGINE_UNAVAILABLE` | 503 | The gateway could not hand the command to the engine; nothing was sent, retry |
+| `SYMBOLS_NOT_READY` | 503 | The symbol's reference data has not reached the gateway yet; nothing was sent, retry |
+| `REPLACE_REJECTED` | 409 | The engine refused a Replace's cancel; see [Cancel-Replace](#cancel-replace) |
 | `STATS_DB` | 503 | `pm-stats` unavailable — history endpoints only |
 | `AUDIT_INDEX_UNAVAILABLE` | 503 | `pm-audit` unavailable — admin order drill-down only |
 | `UNKNOWN_ORDER` | 404 | No audited events for that order id |
@@ -1709,7 +1722,7 @@ outside that network, and it has to be told how to get back in.
 | Change % and Volume columns are blank on Market Overview | The daily stats rollup is unavailable | Check that the stats database used by `pm-api-gwy`'s `/history/daily` endpoint is reachable; live prices are unaffected |
 | Trade History, the chart's history, or the Order Detail timeline is empty | Same cause — no `pm-stats` | Live fills and live events still appear; only the durable record is missing |
 | The blotter looks stale or disagrees with the engine | A missed event or a long reconnect | Press **Refresh** on Active Orders for an explicit `GET /orders` reconcile |
-| An order I submitted isn't in the blotter and I got no rejection | The ack timed out (`ENGINE_TIMEOUT`) | Do **not** resubmit — press Refresh and look again; see [class C errors](#class-c-timeouts-which-are-not-rejections) |
+| An order I submitted isn't in the blotter and I got no rejection | The ack timed out (`ack_timeout`) | Do **not** resubmit — press Refresh and look again; see [class C errors](#class-c-timeouts-which-are-not-rejections) |
 | MARKET / FOK / IOC tabs are disabled | An auction phase is running | Expected — those three cannot rest, so the engine refuses them during a call phase |
 | Flatten and Flatten All are disabled | The phase is not `CONTINUOUS` | Expected — flatten submits MARKET orders |
 | A quote was rejected with "Quotes are only allowed for MARKET_MAKER participants" | The key's gateway is not a market maker | Use a `MARKET_MAKER` credential |

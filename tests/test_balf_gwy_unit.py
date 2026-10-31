@@ -868,6 +868,28 @@ class TestValidateNewOrderPriceLogic:
     def test_trailing_stop_with_offset_ok(self):
         validate_new_order_price_logic(self._parsed("TRAILING_STOP", trail_offset=100))
 
+    # WP-API16: the shared per-type rule. A field the type does not use used
+    # to be ignored; now it is refused, as on REST, ALF and the engine.
+    @pytest.mark.parametrize(
+        ("ot", "fields"),
+        [
+            ("LIMIT", {"price": 100, "trail_offset": 5}),
+            ("MARKET", {"price": 100}),
+            ("STOP", {"stop_price": 95, "visible_qty": 10}),
+            ("ICEBERG", {"price": 100, "visible_qty": 10, "stop_price": 95}),
+        ],
+    )
+    def test_an_unused_field_is_refused(self, ot: str, fields: dict[str, int]):
+        with pytest.raises(BalfValidationError) as excinfo:
+            validate_new_order_price_logic(self._parsed(ot, **fields))
+        assert excinfo.value.reject_code == RC_INVALID_FIELD
+        assert "forbids" in str(excinfo.value)
+
+    def test_trailing_stop_may_set_its_initial_stop(self):
+        validate_new_order_price_logic(
+            self._parsed("TRAILING_STOP", trail_offset=100, stop_price=9500)
+        )
+
 
 class TestValidateAmendFlags:
     @pytest.mark.parametrize("flags", [0x01, 0x02, 0x03])

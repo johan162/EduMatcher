@@ -18,9 +18,10 @@ import argparse
 import json
 import os
 import sys
+import uuid
 from typing import Any
 
-from api_gateway_client import ApiGatewayClient
+from api_gateway_client import ApiGatewayClient, ApiUnreachable
 
 
 def _print_result(result: dict[str, Any]) -> None:
@@ -30,6 +31,9 @@ def _print_result(result: dict[str, Any]) -> None:
         print(f"client_tag: {result['client_tag']}")
     if result.get("accepted") is not None:
         print(f"accepted  : {result['accepted']}")
+    if result.get("ack_timeout"):
+        # Sent, but the ack was late: follow it, do not submit it again.
+        print("ack       : not received in time; the order was sent")
     if result.get("event"):
         print("engine ack:")
         print(json.dumps(result["event"], indent=2))
@@ -79,8 +83,16 @@ def main() -> None:
     if args.client_tag:
         payload["client_tag"] = args.client_tag
 
+    # One key per logical order, reused on a retry, so a retry after a
+    # dropped connection can never submit the order twice.
+    key = str(uuid.uuid4())
     try:
-        result = client.post_json(path, payload)
+        try:
+            result = client.post_json(path, payload, idempotency_key=key)
+        except ApiUnreachable:
+            # No answer: the order may or may not have gone out. The same key
+            # makes the retry safe -- the gateway replays the first reply.
+            result = client.post_json(path, payload, idempotency_key=key)
     except RuntimeError as exc:
         print(f"error: {exc}", file=sys.stderr)
         sys.exit(1)

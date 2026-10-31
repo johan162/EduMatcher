@@ -170,6 +170,37 @@ def _str_list(payload: Mapping[str, Any], name: str) -> tuple[str, ...]:
 #: day it is specified.
 _ACK_SUFFIX = "_ack"
 
+#: Each structure cancel's ack, and the request kind it answers (WP-API17).
+_CANCEL_ACK_REQUEST: dict[str, str] = {
+    kinds.OCO_CANCEL_ACK: kinds.ORDER_OCO_CANCEL,
+    kinds.COMBO_CANCEL_ACK: kinds.ORDER_COMBO_CANCEL,
+    kinds.QUOTE_CANCEL_ACK: kinds.QUOTE_CANCEL,
+}
+_CANCEL_ID_FIELD: dict[str, str] = {
+    kinds.ORDER_OCO_CANCEL: "oco_id",
+    kinds.OCO_CANCEL_ACK: "oco_id",
+    kinds.ORDER_COMBO_CANCEL: "combo_id",
+    kinds.COMBO_CANCEL_ACK: "combo_id",
+    kinds.QUOTE_CANCEL: "symbol",
+    kinds.QUOTE_CANCEL_ACK: "symbol",
+}
+
+
+def _structure_cancel_key(
+    kind: str, gateway_id: str | None, payload: Mapping[str, Any]
+) -> str | None:
+    """``kind:gateway:id`` pairing a cancel request with its ack.
+
+    Gateway-qualified because OCO and combo ids are client-chosen (unique only
+    within one gateway) and a quote is addressed by gateway and symbol. The
+    request carries its gateway in the payload, the ack in its topic.
+    """
+    request_kind = _CANCEL_ACK_REQUEST.get(kind, kind)
+    ident = _str(payload, _CANCEL_ID_FIELD[kind])
+    if not gateway_id or not ident:
+        return None
+    return f"{request_kind}:{gateway_id.upper()}:{ident.upper()}"
+
 
 class LinkResolver:
     """Four tiers, cheapest and most certain first (section 7.2).
@@ -207,6 +238,9 @@ class LinkResolver:
         #: which is precisely the case that must not resolve confidently.
         self._cancel_requests: dict[str, list[tuple[str, str | None]]] = {}
         self._amend_requests: dict[str, list[tuple[str, str | None]]] = {}
+        #: OCO, combo and quote cancel requests awaiting their *.cancel_ack,
+        #: keyed by ``_structure_cancel_key`` (WP-API17).
+        self._structure_cancels: dict[str, list[tuple[str, str | None]]] = {}
         self._transitions: list[tuple[str, str]] = []
         self._halt_open: dict[str, str] = {}
         #: command_id -> the order ids observed cancelled under it, for the
@@ -343,6 +377,15 @@ class LinkResolver:
                 return _link(source, this, CAUSED, Confidence.CERTAIN, "oco_id")
             return None
 
+        if kind in _CANCEL_ACK_REQUEST:
+            return self._request_cause(
+                fact,
+                this,
+                self._structure_cancels,
+                _CANCEL_ACK_REQUEST[kind],
+                key=_structure_cancel_key(kind, fact.actor, payload),
+            )
+
         if kind.endswith(_ACK_SUFFIX):
             command_id = _str(payload, "command_id")
             source = self._command.get(command_id) if command_id else None
@@ -396,6 +439,7 @@ class LinkResolver:
         this: str,
         pending: dict[str, list[tuple[str, str | None]]],
         request_kind: str,
+        key: str | None = None,
     ) -> Link | None:
         """Match an effect to the request that asked for it.
 
@@ -405,7 +449,7 @@ class LinkResolver:
         cancels for one order with no tag is the ambiguous case, and it has to
         degrade to HEURISTIC rather than pick the earlier one and sound sure.
         """
-        order_id = _str(fact.payload, "order_id")
+        order_id = key if key is not None else _str(fact.payload, "order_id")
         if not order_id:
             return None
         waiting = pending.get(order_id)
@@ -679,6 +723,12 @@ class LinkResolver:
             combo_id = _str(payload, "combo_id")
             if combo_id:
                 self._combo[combo_id] = this
+        elif kind in _CANCEL_ACK_REQUEST.values():
+            key = _structure_cancel_key(kind, _str(payload, "gateway_id"), payload)
+            if key:
+                self._structure_cancels.setdefault(key, []).append(
+                    (this, _str(payload, "request_tag"))
+                )
         elif kind == kinds.ORDER_CANCEL:
             order_id = _str(payload, "order_id")
             if order_id:

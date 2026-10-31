@@ -12,16 +12,19 @@ from typing import Any, AsyncGenerator, cast
 
 import uvicorn
 from fastapi import FastAPI, Request
-from fastapi import HTTPException as FastAPIHTTPException
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from fastapi.routing import APIRoute
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from edumatcher.api_gateway.errors import ERROR_CODES
+from edumatcher.api_gateway.idempotency import IdempotencyStore
 from edumatcher.api_gateway.metrics import install as install_metrics
 from edumatcher.api_gateway.openapi_docs import (
     API_DESCRIPTION,
-    COMMON_ERRORS,
     TAGS_METADATA,
     drop_stock_validation_error,
+    errors,
 )
 from edumatcher.health import HealthReporter
 from edumatcher.api_gateway.config import (
@@ -61,16 +64,10 @@ _LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s - %(message)s"
 log = logging.getLogger(__name__)
 
 
-_HTTP_REJECT_CODES = {
-    "AUTH": "AUTH_REQUIRED",
-    "ENGINE_AUTH": "AUTH_FAILED",
-    "READ_ONLY": "ROLE_DENIED",
-    "ROLE_DENIED": "ROLE_DENIED",
-    "RATE_LIMIT": "RATE_LIMITED",
-    "SYMBOLS_NOT_READY": "SYMBOL_NOT_READY",
-    "VALIDATION": "INVALID_VALUE",
-    "ENGINE_TIMEOUT": "INTERNAL_ERROR",
-}
+#: `code` for an HTTPException raised with a plain-string detail -- in
+#: practice only Starlette's own routing errors, since every route raises the
+#: structured `{"error": {...}}` form.
+_HTTP_STATUS_CODES = {404: "NOT_FOUND", 405: "METHOD_NOT_ALLOWED"}
 
 
 def _extract_correlation(body: object, request: Request) -> dict[str, str]:
@@ -101,6 +98,9 @@ async def _safe_body(request: Request) -> object:
 
 
 def _validation_reject_code(error_type: str, message: str) -> str:
+    # The shared per-type rule names its verdict (schemas._check_type_fields).
+    if error_type in ("missing_field", "unsupported_field", "invalid_value"):
+        return error_type.upper()
     lower_message = message.lower()
     if (
         error_type == "missing"
@@ -111,6 +111,10 @@ def _validation_reject_code(error_type: str, message: str) -> str:
     if error_type == "extra_forbidden":
         return "UNSUPPORTED_FIELD"
     return "INVALID_VALUE"
+
+
+def _operation_id(route: APIRoute) -> str:
+    return route.name
 
 
 def create_app(config: ApiGatewayConfig, *, instance: str | None = None) -> FastAPI:
@@ -227,13 +231,21 @@ def create_app(config: ApiGatewayConfig, *, instance: str | None = None) -> Fast
         version="1.0.0",
         description=API_DESCRIPTION,
         openapi_tags=TAGS_METADATA,
-        responses=COMMON_ERRORS,
+        # Every route can fail with a gateway bug; each route lists the rest.
+        responses=errors("INTERNAL_ERROR"),
         docs_url=docs_url,
         redoc_url=None,
         openapi_url=openapi_url,
         lifespan=lifespan,
+        # operationIds become generated-SDK method names, so they are the
+        # handler names (`submit_order`) rather than FastAPI's default
+        # `submit_order_api_v1_orders_post`. Unique across routers by test.
+        generate_unique_id_function=_operation_id,
     )
     metrics = install_metrics(app)
+    # Idempotency-Key replies live as long as finished orders do; with
+    # eviction disabled (0) they still expire, so the store stays bounded.
+    app.state.idempotency = IdempotencyStore(config.order_retention_sec or 3600)
 
     default_openapi = app.openapi
 
@@ -264,7 +276,6 @@ def create_app(config: ApiGatewayConfig, *, instance: str | None = None) -> Fast
                     "reject_code": _validation_reject_code(
                         str(first.get("type", "")), message
                     ),
-                    "reason": message,
                     **_extract_correlation(body, request),
                 }
             },
@@ -292,35 +303,54 @@ def create_app(config: ApiGatewayConfig, *, instance: str | None = None) -> Fast
                     "message": str(exc),
                     "field": "price",
                     "reject_code": "TICK_VIOLATION",
-                    "reason": str(exc),
                     **_extract_correlation(await _safe_body(request), request),
                 }
             },
         )
 
-    @app.exception_handler(FastAPIHTTPException)
+    # Registered on Starlette's base class, not FastAPI's subclass: routing
+    # raises the base class for an unknown path (404) or method (405), and
+    # those must use the envelope too.
+    @app.exception_handler(StarletteHTTPException)
     async def http_exception_handler(  # pyright: ignore[reportUnusedFunction]
         _request: Request,
-        exc: FastAPIHTTPException,
+        exc: StarletteHTTPException,
     ) -> JSONResponse:
         detail = exc.detail
         if isinstance(detail, dict) and isinstance(detail.get("error"), dict):
             detail_dict = cast(dict[str, Any], detail)
-            source_error = cast(dict[str, Any], detail_dict["error"])
-            error = dict(source_error)
+            error = dict(cast(dict[str, Any], detail_dict["error"]))
             code = str(error.get("code", "UNKNOWN"))
-            message = str(error.get("message", ""))
-            error.setdefault("reject_code", _HTTP_REJECT_CODES.get(code, "UNKNOWN"))
-            error.setdefault("reason", message)
-            return JSONResponse(status_code=exc.status_code, content={"error": error})
+            known = ERROR_CODES.get(code)
+            error.setdefault("reject_code", known.reject_code if known else "UNKNOWN")
+        else:
+            error = {
+                "code": _HTTP_STATUS_CODES.get(exc.status_code, "HTTP_ERROR"),
+                "message": str(detail),
+                "reject_code": "UNKNOWN",
+            }
+        # Headers carry meaning here: WWW-Authenticate on a 401, Allow on a 405.
         return JSONResponse(
-            status_code=exc.status_code,
+            status_code=exc.status_code, content={"error": error}, headers=exc.headers
+        )
+
+    @app.exception_handler(Exception)
+    async def unhandled_exception_handler(  # pyright: ignore[reportUnusedFunction]
+        _request: Request,
+        _exc: Exception,
+    ) -> JSONResponse:
+        """A bug, not a client error: the envelope, and no internals in it.
+
+        Starlette re-raises the exception after sending this response, so the
+        server still logs the traceback.
+        """
+        return JSONResponse(
+            status_code=500,
             content={
                 "error": {
-                    "code": "HTTP_ERROR",
-                    "message": str(detail),
-                    "reject_code": "UNKNOWN",
-                    "reason": str(detail),
+                    "code": "INTERNAL_ERROR",
+                    "message": "Internal server error",
+                    "reject_code": "INTERNAL_ERROR",
                 }
             },
         )

@@ -78,11 +78,9 @@ export type RejectCode =
   | "UNKNOWN";
 
 // ── REST: status ──────────────────────────────────────────────────────────────
+/** `GET /api/v1/status` — who the caller is. */
 export interface StatusResponse {
-  orders: number;
-  quote_legs: number;
-  positions: Record<string, unknown>;
-  known_symbols: string[];
+  gateway_id: string;
   gateway_role: GatewayRole;
   gateway_count?: number; // ADMIN keys only
 }
@@ -92,8 +90,9 @@ export interface StatusResponse {
  * Canonical order shape used across the UI. It is NOT the raw wire shape:
  * `GET /orders` returns the engine's pm-msgen `OrderDisplay`, whose id key is
  * `id`, whose timestamp is `ts_ns` (epoch nanoseconds), and whose client tag
- * is `client_tag`; the timeout-fallback path returns a thinner row keyed on
- * `order_id`. `normalizeOrder()` (below) folds both into this one shape, so
+ * is `client_tag`; the gateway's cached rows (private WebSocket
+ * `orders.snapshot`) are thinner and keyed on `order_id`.
+ * `normalizeOrder()` (below) folds both into this one shape, so
  * every screen reads `order_id`/`updated_at`/`client_tag` regardless of
  * which path served the data.
  */
@@ -126,9 +125,9 @@ export interface Order {
  * `order.ack` event. Submitting with `?wait=ack` folds the first ack into this
  * response: `status` becomes `"ACKED"`, `accepted` is the ack verdict, and
  * `event` is the raw `order.ack` payload. Without `wait`, `status` is
- * `"PENDING"` and `accepted`/`event` are null. Note: under `wait=ack` an ack
- * that does not arrive in time is returned as HTTP `503 ENGINE_TIMEOUT`, NOT a
- * `PENDING` body — the order is still submitted and must be reconciled (§12.9).
+ * `"PENDING"` and `accepted`/`event` are null. Under `wait=ack` an ack that
+ * does not arrive in time is a `202` `PENDING` body with `ack_timeout: true`:
+ * the order is submitted and must be reconciled (§12.9).
  */
 export interface OrderAccepted {
   order_id: string;
@@ -140,6 +139,8 @@ export interface OrderAccepted {
   reject_code?: RejectCode | null;
   /** Raw `order.ack` payload when `wait=ack` resolved, else null. */
   event: OrderAckData | null;
+  /** True when `wait=ack` gave up waiting; the order was still sent. */
+  ack_timeout: boolean;
 }
 
 /**
@@ -156,7 +157,7 @@ export interface RawOrder {
   order_type?: OrderType;
   tif?: Tif;
   quantity?: number;
-  qty?: number; // ack/fill/amend events and the /events snapshot cache use `qty`
+  qty?: number; // ack/fill/amend events and the /ws/private snapshot cache use `qty`
   remaining_qty?: number;
   price?: number | null;
   stop_price?: number | null;
@@ -314,21 +315,29 @@ export interface HistoryFillsResponse {
   events: OrderHistoryEvent[];
   count: number;
   has_more: boolean;
-  next_cursor?: string;
+  next_cursor: string | null;
   retained_from?: string | null;
 }
 
 /**
- * Response of `POST /api/v1/oco`, `POST /api/v1/combos`, and `POST /quotes`
- * (gateway `PendingIdResponse`). NOTE the key is the generic **`id`** (equal
- * to the submitted oco_id / combo_id / quote_id), NOT `oco_id`/`combo_id`.
- * `event` is always null for these — they have no `?wait=ack` support and
- * answer `202`/`PENDING` immediately.
+ * Responses of `POST /api/v1/oco`, `POST /api/v1/combos` and `POST /api/v1/quotes`.
+ * Each echoes the id its cancel takes; all answer `202`/`PENDING` at once (the
+ * verdict follows on the private WebSocket).
  */
-export interface PendingIdResponse {
-  id: string;
-  status: string;
-  event: Record<string, unknown> | null;
+export interface OcoPending {
+  oco_id: string;
+  status: "PENDING";
+}
+
+export interface ComboPending {
+  combo_id: string;
+  status: "PENDING";
+}
+
+export interface QuotePending {
+  symbol: string;
+  quote_id: string | null;
+  status: "PENDING";
 }
 
 // ── REST: Fill (private order.fill event / pm-msgen OrderFill) ────────────────
@@ -386,7 +395,7 @@ export interface HistoryTradesResponse {
   trades: HistoryTrade[];
   count: number;
   has_more: boolean;
-  next_cursor?: string;
+  next_cursor: string | null;
 }
 
 // ── Book / Depth / Auction (market-data) ─────────────────────────────────────
@@ -515,7 +524,7 @@ export interface QuoteLeg {
 
 /**
  * pm-msgen `ActiveQuote` — one active two-sided quote with both legs' live
- * state, from `GET /api/v1/quotes/bootstrap` (§14.3). This is the authoritative
+ * state, from `GET /api/v1/quotes` (§14.3). This is the authoritative
  * per-side source for the quote cards (§14.1): it always carries bid/ask price,
  * qty, remaining_qty and status, so `filled = qty - remaining_qty`. A leg whose
  * resting order is gone reports `MISSING` with zero quantities rather than being
@@ -539,7 +548,7 @@ export interface ActiveQuote {
   ask_status: string;
 }
 
-/** `GET /api/v1/quotes/bootstrap` response. */
+/** `GET /api/v1/quotes` response. */
 export interface QuoteBootstrapResponse {
   quotes: ActiveQuote[];
 }
@@ -752,7 +761,7 @@ export interface AdminOrdersResponse {
   retention_sec: number;
 }
 
-/** One audited event from `GET /api/v1/admin/orders/{id}` (pm-audit index). */
+/** One audited event from `GET /api/v1/admin/orders/{order_id}/audit` (pm-audit index). */
 export interface AdminOrderLifecycleEvent {
   timestamp: string;
   topic: string;
@@ -770,9 +779,9 @@ export interface AdminOrderLifecycleResponse {
 }
 
 /**
- * `POST /api/v1/admin/kill-switch/symbol` response (engine `CancelSymbolAck`).
- * A rejected command is surfaced by the gateway as `403 ROLE_DENIED`, so a
- * `200`/`202` body here always has `accepted: true`.
+ * `POST /api/v1/admin/symbols/{symbol}/cancel-orders` response (engine `CancelSymbolAck`).
+ * A rejected command is surfaced by the gateway as `409 KILL_SWITCH_REJECTED`,
+ * so a `200` body here always has `accepted: true`.
  */
 export interface AdminSymbolKillSwitchResponse {
   accepted: boolean;
@@ -784,9 +793,9 @@ export interface AdminSymbolKillSwitchResponse {
 }
 
 /**
- * `POST /api/v1/admin/kill-switch/gateway` response (engine `KillSwitchGatewayAck`).
+ * `POST /api/v1/admin/gateways/{gateway_id}/kill-switch` response (engine `KillSwitchGatewayAck`).
  * Cancels every resting order/quote of one named participant (without
- * disconnecting it). Rejection → `403 ROLE_DENIED`, so a success body always has
+ * disconnecting it). Rejection → `409 KILL_SWITCH_REJECTED`, so a success body always has
  * `accepted: true`.
  */
 export interface AdminGatewayKillSwitchResponse {
@@ -799,7 +808,7 @@ export interface AdminGatewayKillSwitchResponse {
 }
 
 /**
- * `POST /api/v1/admin/kill-switch/global` response (engine `KillSwitchGlobalAck`).
+ * `POST /api/v1/admin/market/kill-switch` response (engine `KillSwitchGlobalAck`).
  * Full-market emergency stop: cancels every resting order/quote for every
  * gateway. Adds `affected_gateways` to the usual counters.
  */
@@ -813,10 +822,10 @@ export interface AdminGlobalKillSwitchResponse {
 }
 
 /**
- * `POST /api/v1/admin/circuit-breaker/trigger` response (engine `SymbolHaltAck`).
+ * `POST /api/v1/admin/symbols/{symbol}/halt` response (engine `SymbolHaltAck`).
  * `level` is honoured end-to-end: naming one of the symbol's configured CB
  * levels runs the real breaker activation (auto-resume); omitting it is an
- * indefinite halt. Rejection → `403 ROLE_DENIED`.
+ * indefinite halt. Rejection → `409 HALT_REJECTED`.
  */
 export interface SymbolHaltAckResponse {
   accepted: boolean;
@@ -826,7 +835,7 @@ export interface SymbolHaltAckResponse {
   command_id?: string;
 }
 
-/** `POST /api/v1/admin/circuit-breaker/resume` response (engine `SymbolResumeAck`). */
+/** `POST /api/v1/admin/symbols/{symbol}/resume` response (engine `SymbolResumeAck`). */
 export interface SymbolResumeAckResponse {
   accepted: boolean;
   symbol: string;
@@ -842,13 +851,13 @@ export interface AdminIndex {
   constituents: string[];
 }
 
-/** `GET /api/v1/admin/indexes` — static index config (not live level/divisor). */
-export interface AdminIndexesResponse {
+/** `GET /api/v1/reference/indexes` — static index config (not live level/divisor). */
+export interface ReferenceIndexesResponse {
   indexes: AdminIndex[];
   config_version: string | null;
 }
 
-/** `GET /api/v1/history/index-ids` — index ids with recorded stats. */
+/** `GET /api/v1/history/indexes` — index ids with recorded stats. */
 export interface IndexIdsResponse {
   index_ids: string[];
   count: number;
@@ -874,7 +883,7 @@ export interface IndexDailyResponse {
   daily: IndexDailyRow[];
   count: number;
   has_more: boolean;
-  next_cursor?: string;
+  next_cursor: string | null;
 }
 
 // ── History: daily rollup (GET /history/daily) ───────────────────────────────
@@ -910,7 +919,7 @@ export interface DailyStatsResponse {
   daily: DailyStat[];
   count: number;
   has_more: boolean;
-  next_cursor?: string;
+  next_cursor: string | null;
 }
 
 // ── Reference bundle (GET /reference, and `reference` inside bootstrap) ──────
@@ -1038,10 +1047,12 @@ export interface BootstrapTrader {
   reference: ReferenceBundle;
   session: SessionStatusDTO | null;
   positions: Position[];
-  orders: { orders: Order[] };
-  recent_fills: { events: unknown[]; count: number } | null;
+  /** Engine OrderDisplay rows (keyed on `id`); normalize via normalizeOrder. */
+  orders: RawOrder[];
+  /** Today's fills; null + `incomplete` when the stats DB is unavailable. */
+  recent_fills: unknown[] | null;
   /** Currently-halted symbols (§H4) — null + `incomplete` on engine timeout. */
-  halts: { halted: HaltEntry[] } | null;
+  halts: HaltEntry[] | null;
   capabilities: BootstrapCapabilities;
 }
 
@@ -1054,8 +1065,8 @@ export interface BootstrapAdmin {
   session_timezone: string;
   reference: ReferenceBundle;
   session: SessionStatusDTO | null;
-  gateways: { gateways: AdminGateway[] } | null;
-  halts: { halted: HaltEntry[] } | null;
+  gateways: AdminGateway[] | null;
+  halts: HaltEntry[] | null;
   active_order_counts: Record<string, number>;
   monitor_last_seq: Record<string, number>;
   capabilities: BootstrapCapabilities;
@@ -1167,6 +1178,30 @@ export interface QuoteAckData {
   ask_order_id: string;
 }
 
+/**
+ * The outcome of one OCO, combo or quote cancel (WP-API17): every cancel gets
+ * exactly one, accepted or refused. The submit acks report submissions only.
+ */
+interface StructureCancelAckBase {
+  gateway_id: string;
+  accepted: boolean;
+  reason: string;
+  /** On a refusal: ORDER_NOT_FOUND, ORDER_ALREADY_TERMINAL, ... */
+  reject_code?: RejectCode;
+  request_tag?: string;
+  cancelled_order_ids: string[];
+}
+export interface OcoCancelAckData extends StructureCancelAckBase {
+  oco_id: string;
+}
+export interface ComboCancelAckData extends StructureCancelAckBase {
+  combo_id: string;
+}
+export interface QuoteCancelAckData extends StructureCancelAckBase {
+  symbol: string;
+  quote_id: string;
+}
+
 export interface QuoteStatusData {
   gateway_id: string;
   status: string;
@@ -1240,7 +1275,7 @@ export interface TradeData {
 }
 
 /**
- * The `/events` socket's first data frame on (re)connect — a point-in-time
+ * The `/ws/private` socket's first data frame on (re)connect — a point-in-time
  * snapshot of this gateway's cached orders/positions/quote legs, accurate as of
  * `stream_seq`. `orders` rows are the accreted session-cache shape (keyed
  * `order_id`, `qty`/`quantity` both possible, status incl. PENDING/AMENDED),
@@ -1266,6 +1301,9 @@ export interface WsDataByType {
   "oco.cancelled": OcoCancelledData;
   "quote.ack": QuoteAckData;
   "quote.status": QuoteStatusData;
+  "oco.cancel_ack": OcoCancelAckData;
+  "combo.cancel_ack": ComboCancelAckData;
+  "quote.cancel_ack": QuoteCancelAckData;
   "mass_cancel.ack": MassCancelAckData;
   book: BookData;
   depth: DepthData;

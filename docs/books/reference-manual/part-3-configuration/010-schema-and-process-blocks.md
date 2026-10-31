@@ -412,7 +412,7 @@ engine reply waits are applied. In the current implementation:
 - `swagger_enabled` controls `/docs` and `/openapi.json`
 - `stats_db` points history endpoints at the `pm-stats` SQLite database
 - `audit_db` is `pm-audit`'s read-only index, used only by
-  `GET /admin/orders/{order_id}`; optional, and that endpoint returns `503`
+  `GET /admin/orders/{order_id}/audit`; optional, and that endpoint returns `503`
   when the file is absent
 - `clearing_db` is `pm-clearing`'s read-only ledger, used only for the
   session/MTD/YTD realized P&L on `GET /positions`; optional, and those three

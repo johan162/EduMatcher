@@ -237,9 +237,23 @@ export function OrderTicket({ compact = false, lockedSymbol, tickDecimals = 2 }:
             });
             return;
           }
-          // accepted == null → gateway returned status PENDING without waiting
-          // (only happens if wait=ack was omitted). Defensive; the ticket always
-          // waits, so a genuine ack timeout arrives on the onError path as a 503.
+          // A wait=ack timeout is NOT a rejection: the order was sent and may
+          // be working; only the ack didn't return in time (§12.9 step 6).
+          // Surface "awaiting confirmation" so the trader reconciles via the
+          // blotter rather than resubmitting a possibly-live order.
+          if (res.ack_timeout) {
+            toast(`${side} ${symbol} submitted — awaiting confirmation (check blotter)`);
+            pushNotification({
+              ts: Date.now(),
+              kind: "ACK",
+              title: `${side} ${symbol} — awaiting ACK`,
+              detail: `${orderType} · order ${id8} · no ack yet; reconcile via the blotter`,
+              orderId: res.order_id,
+            });
+            return;
+          }
+          // accepted == null without a timeout → wait=ack was omitted.
+          // Defensive; the ticket always waits.
           toast(`${side} ${symbol} submitted — pending ACK`);
           pushNotification({
             ts: Date.now(),
@@ -250,21 +264,7 @@ export function OrderTicket({ compact = false, lockedSymbol, tickDecimals = 2 }:
           });
         },
         onError: (err) => {
-          // A wait=ack timeout is 503 ENGINE_TIMEOUT — NOT a rejection. The order
-          // was already sent to the engine (send_new_order fired) and may be
-          // working; only the ack didn't return in time (§12.9 step 6). Surface
-          // "awaiting confirmation" so the trader reconciles via the blotter
-          // rather than resubmitting a possibly-live order.
-          if (err instanceof ApiError && (err.status === 503 || err.code === "ENGINE_TIMEOUT")) {
-            toast(`${side} ${symbol} submitted — awaiting confirmation (check blotter)`);
-            pushNotification({
-              ts: Date.now(),
-              kind: "ACK",
-              title: `${side} ${symbol} — awaiting ACK`,
-              detail: `${orderType} · no ack yet; reconcile via the blotter`,
-            });
-            return;
-          }
+          // Every error means nothing was sent (a timeout is `ack_timeout`).
           const msg =
             err instanceof ApiError ? `${err.code}: ${err.message}` : "Order submission failed";
           setErrors({ _form: msg });

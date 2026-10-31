@@ -22,14 +22,14 @@ function statusLabel(status: string): string {
 }
 
 /**
- * Bridge MARKET_MAKER quote lifecycle events (`/events`) into the quote
+ * Bridge MARKET_MAKER quote lifecycle events (`/ws/private`) into the quote
  * dashboard, the Event Center (§20), and Sonner fill alerts (§14.1.2). Mounted
  * once at the app root; inert for TRADER/ADMIN (no `quote.*` events reach them).
  *
- * Data flow (§14.3): the quote cards read `GET /quotes/bootstrap` (ActiveQuote,
+ * Data flow (§14.3): the quote cards read `GET /quotes` (ActiveQuote,
  * the reliable per-side source) and `GET /quotes/legs`. Those caches are
  * reconciled to engine truth by invalidating on:
- *  - `orders.snapshot` — the first `/events` frame on connect AND every
+ *  - `orders.snapshot` — the first `/ws/private` frame on connect AND every
  *    reconnect, so the dashboard resyncs before replayed live events continue.
  *  - `quote.ack` / `quote.status` — each quote lifecycle change.
  *
@@ -71,6 +71,29 @@ export function useQuoteEvents(): void {
         kind: "REJECT",
         title: `Quote ${label} rejected`,
         detail: d.reason || "rejected",
+      });
+    }
+    invalidateQuotes();
+  });
+
+  // A quote cancel's own outcome (WP-API17); it used to arrive as a quote.ack
+  // and read as "Quote ... accepted".
+  useWsEvent("quote.cancel_ack", (env) => {
+    const d = env.data;
+    if (d.accepted) {
+      push({
+        ts: Date.now(),
+        kind: "CANCEL",
+        title: `Quote ${d.symbol} cancelled`,
+        detail: d.quote_id || d.symbol,
+      });
+    } else {
+      toast.error(`Cancel of quote ${d.symbol} refused: ${d.reason || "refused"}`);
+      push({
+        ts: Date.now(),
+        kind: "REJECT",
+        title: `Cancel of quote ${d.symbol} refused`,
+        detail: d.reason || "refused",
       });
     }
     invalidateQuotes();

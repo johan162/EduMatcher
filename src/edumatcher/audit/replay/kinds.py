@@ -57,6 +57,7 @@ from edumatcher.models.generated.order import (
 )
 from edumatcher.models.generated.quote import (
     PREFIX_QUOTE_ACK,
+    PREFIX_QUOTE_CANCEL_ACK,
     PREFIX_QUOTE_STATUS,
     TOPIC_QUOTE_CANCEL,
     TOPIC_QUOTE_NEW,
@@ -79,8 +80,10 @@ from edumatcher.models.generated.session import (
 )
 from edumatcher.models.generated.structure import (
     PREFIX_COMBO_ACK,
+    PREFIX_COMBO_CANCEL_ACK,
     PREFIX_COMBO_STATUS,
     PREFIX_OCO_ACK,
+    PREFIX_OCO_CANCEL_ACK,
     PREFIX_OCO_CANCELLED,
 )
 from edumatcher.models.generated.system import (
@@ -130,11 +133,14 @@ QUOTE_NEW = TOPIC_QUOTE_NEW
 QUOTE_CANCEL = TOPIC_QUOTE_CANCEL
 QUOTE_ACK = _kind(PREFIX_QUOTE_ACK)
 QUOTE_STATUS = _kind(PREFIX_QUOTE_STATUS)
+QUOTE_CANCEL_ACK = _kind(PREFIX_QUOTE_CANCEL_ACK)
 
 OCO_ACK = _kind(PREFIX_OCO_ACK)
 OCO_CANCELLED = _kind(PREFIX_OCO_CANCELLED)
 COMBO_ACK = _kind(PREFIX_COMBO_ACK)
 COMBO_STATUS = _kind(PREFIX_COMBO_STATUS)
+OCO_CANCEL_ACK = _kind(PREFIX_OCO_CANCEL_ACK)
+COMBO_CANCEL_ACK = _kind(PREFIX_COMBO_CANCEL_ACK)
 
 SESSION_STATE = TOPIC_SESSION_STATE
 SESSION_TRANSITION = TOPIC_SESSION_TRANSITION

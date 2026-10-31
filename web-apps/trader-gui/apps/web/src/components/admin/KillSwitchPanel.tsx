@@ -11,6 +11,7 @@ import { ConfirmTypedDialog } from "@/components/shared/ConfirmTypedDialog.js";
 import { ApiError } from "@/api/apiFetch.js";
 import type { AdminGateway } from "@/types/index.js";
 import { FieldHelp } from "@/components/shared/FieldHelp.js";
+import { isUnconfirmed } from "@/lib/bulkOutcome.js";
 
 interface KillSwitchPanelProps {
   gateways: AdminGateway[];
@@ -21,11 +22,13 @@ const fieldCls =
 
 /** Shared error handling for the three kill-switch scopes. */
 function killSwitchError(err: unknown): void {
-  if (err instanceof ApiError && err.code === "ROLE_DENIED") {
+  // 409 KILL_SWITCH_REJECTED: the engine refused (its reason is the message);
+  // 403 ROLE_DENIED: the key lost its ADMIN role.
+  if (err instanceof ApiError && (err.code === "KILL_SWITCH_REJECTED" || err.code === "ROLE_DENIED")) {
     toast.error(`Rejected: ${err.message}`);
     return;
   }
-  if (err instanceof ApiError && (err.status === 503 || err.code === "ENGINE_TIMEOUT")) {
+  if (isUnconfirmed(err)) {
     toast("Kill switch submitted — awaiting engine confirmation");
     return;
   }
@@ -39,7 +42,7 @@ function killSwitchError(err: unknown): void {
  *
  * NOTE: an earlier design revision treated By Gateway / Global as disabled
  * placeholders pending a backend endpoint. Those endpoints
- * (`/admin/kill-switch/gateway`, `/admin/kill-switch/global`) now exist, so they
+ * (`/admin/gateways/{gateway_id}/kill-switch`, `/admin/market/kill-switch`) now exist, so they
  * are implemented and working here.
  */
 export function KillSwitchPanel({ gateways }: KillSwitchPanelProps) {

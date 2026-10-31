@@ -9,7 +9,7 @@ from typing import Any, cast
 from zoneinfo import ZoneInfo
 
 import pytest
-from fastapi import HTTPException
+from fastapi import HTTPException, Response
 
 from edumatcher.api_gateway.caches import SessionCaches
 from edumatcher.api_gateway.config import ApiCredential, ApiGatewayConfig
@@ -37,6 +37,7 @@ from edumatcher.compdb import store as compdb
 from edumatcher.models.generated.order import topic_order_amended, topic_order_cancelled
 from edumatcher.models.order import OrderType, Side
 from edumatcher.models.price import clear_tick_registry, register_tick_decimals
+from tests.api_gateway_harness import check_contract
 
 
 class FakeEngine:
@@ -64,6 +65,13 @@ class FakeEngine:
             return {"orders": [{"order_id": "ORD1"}]}
         if topic.startswith("system.position_snapshot."):
             return {"positions": [{"symbol": "AAPL", "net_qty": 5, "avg_cost": 150.0}]}
+        if topic.startswith("system.quote_legs."):
+            return {
+                "legs": [{"quote_id": "Q1", "side": "BUY"}],
+                "show_requested": "ALL",
+                "complete": True,
+                "recent": [],
+            }
         if topic.startswith("risk.kill_switch_ack."):
             return {"accepted": True, "cancelled_orders": 1, "cancelled_quotes": 0}
         return {
@@ -121,19 +129,25 @@ class FakeEngine:
     def send_combo(self, payload: dict[str, Any]) -> None:
         self.calls.append(("send_combo", payload))
 
-    def send_combo_cancel(self, combo_id: str, gateway_id: str) -> None:
+    def send_combo_cancel(
+        self, combo_id: str, gateway_id: str, request_tag: str = ""
+    ) -> None:
         self.calls.append(("send_combo_cancel", (combo_id, gateway_id)))
 
     def send_oco(self, payload: dict[str, Any]) -> None:
         self.calls.append(("send_oco", payload))
 
-    def send_oco_cancel(self, oco_id: str, gateway_id: str) -> None:
+    def send_oco_cancel(
+        self, oco_id: str, gateway_id: str, request_tag: str = ""
+    ) -> None:
         self.calls.append(("send_oco_cancel", (oco_id, gateway_id)))
 
     def send_quote(self, payload: dict[str, Any]) -> None:
         self.calls.append(("send_quote", payload))
 
-    def send_quote_cancel(self, gateway_id: str, symbol: str) -> None:
+    def send_quote_cancel(
+        self, gateway_id: str, symbol: str, request_tag: str = ""
+    ) -> None:
         self.calls.append(("send_quote_cancel", (gateway_id, symbol)))
 
     def send_mass_cancel(self, gateway_id: str, symbol: str = "") -> None:
@@ -342,7 +356,7 @@ def test_session_caches_apply_events() -> None:
     cache.apply("trade.executed", {"symbol": "AAPL", "price": 151.0})
     assert cache.positions["AAPL"] == 5
     assert cache.last_prices["AAPL"] == 151.0
-    assert cache.status()["orders"] == 2
+    assert len(cache.orders) == 2
 
 
 @pytest.mark.anyio
@@ -357,17 +371,19 @@ async def test_order_routes_send_engine_messages() -> None:
         quantity=10,
         price=150.0,
     )
-    submitted = await orders.submit_order(order_body, request, session)
+    submitted = await orders.submit_order(order_body, request, Response(), session)
     assert submitted.status == "PENDING"
     assert any(call[0] == "send_new_order" for call in engine.calls)
 
-    cancel = await orders.cancel_order("ORD1", request, session, wait="ack")
+    cancel = await orders.cancel_order("ORD1", request, Response(), session, wait="ack")
     amend = await orders.amend_order(
-        "ORD1", AmendRequest(price=151.0), request, session, wait="ack"
+        "ORD1", AmendRequest(price=151.0), request, Response(), session, wait="ack"
     )
     listed = await orders.list_orders(request, session)
-    engine.cache.orders["ORD1"] = {"order_id": "ORD1"}
+    engine.cache.orders["ORD1"] = {"order_id": "ORD1", "status": "NEW"}
     one = await orders.get_order("ORD1", request, session)
+    check_contract(orders.amend_order, amend)
+    check_contract(orders.get_order, one)
     assert cancel.event is not None
     assert amend["event"] is not None
     assert listed["orders"]
@@ -383,6 +399,7 @@ async def test_cancel_and_amend_route_request_tags_are_forwarded() -> None:
     cancel = await orders.cancel_order(
         "ORD1",
         request,
+        Response(),
         session,
         wait="ack",
         request_tag="RT-CXL-001",
@@ -391,6 +408,7 @@ async def test_cancel_and_amend_route_request_tags_are_forwarded() -> None:
         "ORD1",
         AmendRequest(price=151.0, request_tag="RT-AMD-001"),
         request,
+        Response(),
         session,
         wait="ack",
     )
@@ -439,7 +457,7 @@ async def test_d1_client_tag_round_trips_through_rest_order_cache() -> None:
         client_tag="T1-LM001-001",
     )
 
-    submitted = await orders.submit_order(order_body, request, session)
+    submitted = await orders.submit_order(order_body, request, Response(), session)
     sent_order = next(call[1] for call in engine.calls if call[0] == "send_new_order")
     stored = await orders.get_order(sent_order.id, request, session)
 
@@ -462,7 +480,9 @@ async def test_rejected_order_ack_flows_through_rest_wait_response() -> None:
         client_tag="REST-ORDER-001",
     )
 
-    submitted = await orders.submit_order(order_body, request, session, wait="ack")
+    submitted = await orders.submit_order(
+        order_body, request, Response(), session, wait="ack"
+    )
 
     assert submitted.accepted is False
     assert submitted.reject_code == "COLLAR_BREACH"
@@ -483,18 +503,20 @@ async def test_replace_order_and_error_paths() -> None:
         quantity=10,
         price=150.0,
     )
-    replaced = await orders.replace_order("OLD", order_body, request, session)
+    replaced = await orders.replace_order(
+        "OLD", order_body, request, Response(), session
+    )
     assert replaced.cancelled_order_id == "OLD"
 
-    with pytest.raises(Exception):
-        await orders.cancel_order(
-            "ORD1", fake_request(TimeoutEngine()), session, wait="ack"
-        )
+    timed_out = await orders.cancel_order(
+        "ORD1", fake_request(TimeoutEngine()), Response(), session, wait="ack"
+    )
+    assert (timed_out.status, timed_out.ack_timeout) == ("PENDING_CANCEL", True)
 
     rate_limited = limited_request()
-    await orders.cancel_order("ORD1", rate_limited, session)
+    await orders.cancel_order("ORD1", rate_limited, Response(), session)
     with pytest.raises(Exception):
-        await orders.cancel_order("ORD2", rate_limited, session)
+        await orders.cancel_order("ORD2", rate_limited, Response(), session)
 
 
 @pytest.mark.anyio
@@ -519,12 +541,22 @@ async def test_composite_quote_and_risk_routes() -> None:
     quote = QuoteRequest(
         symbol="AAPL", bid_price=150.0, bid_qty=10, ask_price=150.1, ask_qty=10
     )
-    assert (await orders.submit_oco(oco, request, session)).id == "O1"
-    assert (await orders.cancel_oco("O1", request, session))["status"]
-    assert (await orders.submit_combo(combo, request, session)).id == "C1"
-    assert (await orders.cancel_combo("C1", request, session))["status"]
-    assert (await orders.submit_quote(quote, request, session)).id == "AAPL"
-    assert (await orders.cancel_quote("aapl", request, session))["symbol"] == "AAPL"
+    sent = await orders.submit_oco(oco, request, Response(), session)
+    assert (sent.oco_id, sent.status) == ("O1", "PENDING")
+    check_contract(orders.submit_oco, sent)
+    oco_cancel = await orders.cancel_oco("O1", request, Response(), session)
+    check_contract(orders.cancel_oco, oco_cancel)
+    sent_combo = await orders.submit_combo(combo, request, Response(), session)
+    assert sent_combo.combo_id == "C1"
+    check_contract(orders.submit_combo, sent_combo)
+    combo_cancel = await orders.cancel_combo("C1", request, Response(), session)
+    check_contract(orders.cancel_combo, combo_cancel)
+    quoted = await orders.submit_quote(quote, request, Response(), session)
+    check_contract(orders.submit_quote, quoted)
+    assert (quoted.symbol, quoted.quote_id) == ("AAPL", None)
+    quote_cancel = await orders.cancel_quote("aapl", request, Response(), session)
+    check_contract(orders.cancel_quote, quote_cancel)
+    assert quote_cancel["symbol"] == "AAPL"
     result = await orders.mass_cancel(
         MassCancelRequest(symbol="AAPL"), request, session
     )
@@ -539,11 +571,14 @@ async def test_reference_routes() -> None:
     assert await reference.symbols(request, session)
     assert await reference.session_state(request, session)
     assert await reference.halts(request, session)
-    assert await reference.quote_bootstrap(request, session)
+    assert await reference.active_quotes(request, session)
+    # Always an engine round trip now, never the leg cache (WP-API04).
     engine.cache.quote_legs["Q1"] = {"quote_id": "Q1"}
-    assert (await reference.quote_legs(request, session))["legs"]
+    legs = await reference.quote_legs(request, session)
+    assert legs["legs"] == [{"quote_id": "Q1", "side": "BUY"}] and legs["count"] == 1
     engine.cache.last_prices["AAPL"] = 151.0
     result = await reference.positions(request, session)
+    check_contract(reference.positions, result)
     # No clearing.db in the test environment, so the three realized windows
     # report "unknown" rather than a misleading zero.
     assert result["positions"] == [
@@ -560,11 +595,14 @@ async def test_reference_routes() -> None:
         }
     ]
     assert ("request_position", "GW01") in engine.calls
-    engine.cache.positions["AAPL"] = 5
     summary = await reference.status_summary(request, session)
-    assert summary["positions"]
-    assert summary["gateway_role"] == "TRADER"
-    assert (await reference.healthz(request))["ok"] is True  # test double
+    check_contract(reference.status_summary, summary)
+    # WP-API04: who-am-I only; the cache counters and the cached (flat after
+    # a restart) positions are gone.
+    assert summary == {"gateway_id": "GW01", "gateway_role": "TRADER"}
+    response = Response()
+    assert (await reference.healthz(request, response))["ok"] is True  # test double
+    assert response.status_code == 200
 
 
 @pytest.mark.anyio
@@ -610,23 +648,42 @@ async def test_positions_empty_reply_renders_empty_list() -> None:
     request = fake_request(engine)
     session = trading_session()
     result = await reference.positions(request, session)
-    assert result == {"positions": []}
+    assert result == {"positions": [], "count": 0}
 
 
 @pytest.mark.anyio
-async def test_list_orders_timeout_falls_back_to_cache() -> None:
+async def test_list_orders_timeout_is_503_not_the_cache() -> None:
+    """WP-API05 (R4): an engine timeout used to fall back to the gateway's
+    cache without saying so, while every other engine-backed read -- and
+    bootstrap, deliberately -- answers 503. A cached list a client cannot
+    tell apart from the engine's is the stale-state risk bootstrap refuses."""
     engine = TimeoutEngine()
     engine.cache.orders["ORD1"] = {"order_id": "ORD1", "status": "NEW"}
     request = fake_request(engine)
     session = trading_session()
-    result = await orders.list_orders(request, session)
-    assert result["orders"] == [
-        {
-            "order_id": "ORD1",
-            "status": "NEW",
-            "client_tag": None,
-        }
-    ]
+    with pytest.raises(HTTPException) as exc:
+        await orders.list_orders(request, session)
+    assert exc.value.status_code == 503
+    assert cast(dict[str, Any], exc.value.detail)["error"]["code"] == "ENGINE_TIMEOUT"
+
+
+@pytest.mark.anyio
+async def test_rate_limit_log_does_not_carry_the_api_key(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """WP-API05 (O1): the bearer key is the only credential, so it must never
+    reach a log record -- the gateway id identifies the caller instead."""
+    session = Session(api_key="sekrit-key-123", gateway_id="GW01", description="")
+    request = limited_request()
+    request.app.state.rate_limiter.allow(session.api_key)  # spend the burst
+    with caplog.at_level("DEBUG", logger=orders.log.name):
+        with pytest.raises(HTTPException) as exc:
+            orders._check_rate_limit(
+                request, session
+            )  # pyright: ignore[reportPrivateUsage]
+    assert exc.value.status_code == 429
+    assert "sekrit-key-123" not in caplog.text
+    assert "GW01" in caplog.text
 
 
 @pytest.mark.anyio
@@ -644,8 +701,11 @@ async def test_healthz_reports_unhealthy_when_not_running() -> None:
             )
         )
     )
-    result = await reference.healthz(request)  # type: ignore[arg-type]  # test double
+    response = Response()
+    result = await reference.healthz(request, response)  # type: ignore[arg-type]  # test double
     assert result["ok"] is False
+    # WP-API05 (O2): probes read the status code, not the body.
+    assert response.status_code == 503
 
 
 # ---------------------------------------------------------------------------
@@ -662,7 +722,7 @@ async def test_rejected_cancel_is_reported_not_timed_out() -> None:
     session = trading_session()
 
     cancelled = await orders.cancel_order(
-        "ORD1", request, session, wait="ack", request_tag="RT-CXL-001"
+        "ORD1", request, Response(), session, wait="ack", request_tag="RT-CXL-001"
     )
 
     assert cancelled.status == "REJECTED"
@@ -692,6 +752,7 @@ async def test_rejected_amend_is_reported_not_timed_out() -> None:
         "ORD1",
         AmendRequest(price=151.0, request_tag="RT-AMD-001"),
         request,
+        Response(),
         session,
         wait="ack",
     )
@@ -709,7 +770,7 @@ async def test_accepted_cancel_still_reports_acked() -> None:
     session = trading_session()
 
     cancelled = await orders.cancel_order(
-        "ORD1", request, session, wait="ack", request_tag="RT-CXL-002"
+        "ORD1", request, Response(), session, wait="ack", request_tag="RT-CXL-002"
     )
 
     assert cancelled.status == "ACKED"
@@ -727,6 +788,7 @@ async def test_accepted_amend_still_reports_acked() -> None:
         "ORD1",
         AmendRequest(price=151.0, request_tag="RT-AMD-002"),
         request,
+        Response(),
         session,
         wait="ack",
     )
@@ -744,7 +806,9 @@ async def test_cancel_wait_ack_without_request_tag_falls_back_to_single_topic() 
     request = fake_request(engine)
     session = trading_session()
 
-    cancelled = await orders.cancel_order("ORD1", request, session, wait="ack")
+    cancelled = await orders.cancel_order(
+        "ORD1", request, Response(), session, wait="ack"
+    )
 
     assert cancelled.status == "ACKED"
     assert (
@@ -759,15 +823,18 @@ async def test_cancel_wait_ack_without_request_tag_falls_back_to_single_topic() 
 
 
 @pytest.mark.anyio
-async def test_cancel_wait_ack_timeout_still_surfaces_503_with_request_tag() -> None:
+async def test_cancel_wait_ack_timeout_with_request_tag_is_pending() -> None:
+    """WP-API02 (E7): the cancel was sent, so a timeout is not an error."""
     engine = TimeoutEngine()
     request = fake_request(engine)
     session = trading_session()
+    response = Response()
 
-    with pytest.raises(Exception):
-        await orders.cancel_order(
-            "ORD1", request, session, wait="ack", request_tag="RT-CXL-003"
-        )
+    cancelled = await orders.cancel_order(
+        "ORD1", request, response, session, wait="ack", request_tag="RT-CXL-003"
+    )
+    assert (cancelled.status, cancelled.ack_timeout) == ("PENDING_CANCEL", True)
+    check_contract(orders.cancel_order, cancelled)
 
 
 @pytest.mark.anyio
@@ -777,7 +844,7 @@ async def test_cancel_without_wait_does_not_call_the_racing_wait() -> None:
     session = trading_session()
 
     cancelled = await orders.cancel_order(
-        "ORD1", request, session, request_tag="RT-CXL-004"
+        "ORD1", request, Response(), session, request_tag="RT-CXL-004"
     )
 
     assert cancelled.event is None

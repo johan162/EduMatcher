@@ -6,12 +6,13 @@ import { CancelConfirm } from "@/components/orders/CancelConfirm.js";
 import { SESSION_PHASE_META, VALID_TRANSITIONS } from "@/lib/sessionState.js";
 import { ApiError } from "@/api/apiFetch.js";
 import type { SessionState } from "@/types/index.js";
+import { isUnconfirmed } from "@/lib/bulkOutcome.js";
 
 /**
  * Session Control (§15.4) — buttons for each valid next phase transition from
  * the current session state. Each is confirmed, then `POST
  * /admin/session/transition`; the REST response is authoritative
- * (`202`/APPLIED, `409`/TRANSITION_REJECTED with a reason, `503`/ENGINE_TIMEOUT).
+ * (`200`/APPLIED, `409`/TRANSITION_REJECTED with a reason, `503`/ENGINE_TIMEOUT).
  * The resulting phase still arrives app-wide via the `session.state` broadcast.
  */
 export function AdminSessionPage() {
@@ -29,7 +30,7 @@ export function AdminSessionPage() {
           toast.error(`Transition rejected: ${err.message}`);
           return;
         }
-        if (err instanceof ApiError && (err.status === 503 || err.code === "ENGINE_TIMEOUT")) {
+        if (isUnconfirmed(err)) {
           toast(`Transition submitted — awaiting engine confirmation`);
           return;
         }

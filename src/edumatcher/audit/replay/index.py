@@ -41,7 +41,7 @@ from typing import Any, Generator, Iterable, Mapping
 from edumatcher.audit.replay.derived import derive
 from edumatcher.audit.replay.episodes import Episode
 from edumatcher.audit.replay.links import ref
-from edumatcher.audit.replay.ordering import pack_sort_key
+from edumatcher.audit.replay.ordering import pack_sort_key, pack_sort_key_tuple
 from edumatcher.audit.replay.state import StateModel
 
 #: The shape of the tables below. Bumped when a column is added or retyped.
@@ -50,7 +50,9 @@ from edumatcher.audit.replay.state import StateModel
 #: column that is populated on one path and empty on the other is worse than
 #: no column. There is no migration -- :func:`check_versions` refuses the old
 #: index and ``ensure_index`` rebuilds it, which is the whole of the policy.
-SCHEMA_VERSION = 2
+#: Version 3 added ``eseq``; version 4 added ``publisher_run`` for reset-aware
+#: canonical ordering.
+SCHEMA_VERSION = 4
 
 #: What the rows *mean*: the link rules of section 5.1, the episode claim
 #: rules of section 4, and :func:`~edumatcher.audit.replay.ordering.pack_sort_key`.
@@ -62,7 +64,9 @@ SCHEMA_VERSION = 2
 #: Bumped to 3 for phase 8's nine new codes: an index built under 2 is
 #: missing findings its rows do not say are missing, which is the one way a
 #: stale index can be worse than no index.
-RULES_VERSION = 3
+#: Bumped to 4 for publisher-wide ``eseq`` gap/discontinuity findings.
+#: Bumped to 5 when ``eseq`` became the canonical order within a publisher run.
+RULES_VERSION = 5
 
 META_SCHEMA_VERSION = "schema_version"
 META_RULES_VERSION = "rules_version"
@@ -121,6 +125,8 @@ CREATE TABLE IF NOT EXISTS episode_events (
     causation_id   TEXT,
     correlation_id TEXT,
     topic_seq      INTEGER,
+    eseq           INTEGER,
+    publisher_run  INTEGER NOT NULL DEFAULT 0,
     payload     TEXT    NOT NULL,
     PRIMARY KEY (episode_id, seq_in_ep)
 );
@@ -205,8 +211,8 @@ _EPISODE_SQL = (
 _EVENT_SQL = (
     "INSERT OR REPLACE INTO episode_events (episode_id, seq_in_ep, ref, "
     "sort_key, receipt_ts, topic, kind, file, line_no, role, late, msg_id, "
-    "causation_id, correlation_id, topic_seq, payload) "
-    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    "causation_id, correlation_id, topic_seq, eseq, publisher_run, payload) "
+    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 )
 _STATED_SQL = (
     "INSERT OR REPLACE INTO stated_links "
@@ -471,6 +477,8 @@ class IndexWriter:
                     fact.causation_id,
                     fact.correlation_id,
                     fact.topic_seq,
+                    fact.eseq,
+                    fact.publisher_run,
                     json.dumps(fact.payload),
                 )
             )
@@ -619,15 +627,15 @@ def _pack_closed(episode: Episode) -> str:
     span is closed by a fact that belongs to the *next* episode (section 7.3)
     and this one never held it.
     """
-    millis, receipt, ordinal = episode.closed_sort_key or (
-        0,
-        episode.opened_ts,
-        0,
-    )
-    return (
-        f"{millis:013d}"
-        f"\x1f{receipt.isoformat(timespec='microseconds')}"
-        f"\x1f{ordinal:012d}"
+    return pack_sort_key_tuple(
+        episode.closed_sort_key
+        or (
+            0,
+            1,
+            0,
+            episode.opened_ts,
+            0,
+        )
     )
 
 

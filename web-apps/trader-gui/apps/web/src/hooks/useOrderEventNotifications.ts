@@ -6,7 +6,7 @@ import { useSymbolStore } from "@/store/useSymbolStore.js";
 import { formatPrice } from "@/lib/formatters.js";
 
 /**
- * Bridge live private order lifecycle events (`/events`) into the Event Center
+ * Bridge live private order lifecycle events (`/ws/private`) into the Event Center
  * (§20) and Sonner toasts. Mounted once at the app root for TRADER/MARKET_MAKER.
  *
  * The synchronous accepted/rejected verdict for a NEW order is handled by the
@@ -155,6 +155,26 @@ export function useOrderEventNotifications(): void {
       detail: d.reason || "rejected",
     });
   });
+
+  // A structure cancel's own outcome (WP-API17). A refusal is a refused
+  // *cancel* -- the OCO or combo itself was accepted long ago.
+  const cancelOutcome = (label: string, d: { accepted: boolean; reason: string }) => {
+    if (d.accepted) {
+      push({ ts: Date.now(), kind: "CANCEL", title: `${label} cancelled`, detail: label });
+      return;
+    }
+    toast.error(`Cancel of ${label} refused: ${d.reason || "refused"}`);
+    push({
+      ts: Date.now(),
+      kind: "REJECT",
+      title: `Cancel of ${label} refused`,
+      detail: d.reason || "refused",
+    });
+  };
+  useWsEvent("oco.cancel_ack", (env) => cancelOutcome(`OCO ${env.data.oco_id}`, env.data));
+  useWsEvent("combo.cancel_ack", (env) =>
+    cancelOutcome(`Combo ${env.data.combo_id}`, env.data),
+  );
 
   useWsEvent("combo.status", (env) => {
     const d = env.data;

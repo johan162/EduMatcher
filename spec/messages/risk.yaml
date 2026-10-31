@@ -143,6 +143,19 @@ messages:
           doc: "The ADMIN caller; the ack is addressed to this id." }
       - { name: target_gateway_id, type: string, validate: { max_len: 32 },
           doc: "Whose orders and quotes are cancelled." }
+      - { name: symbol, type: string, required: false, omit_when_empty: true,
+          validate: { max_len: 16 },
+          doc: "Scope the cancel to one instrument; omitted cancels across all." }
+      - name: quotes_only
+        type: bool
+        required: false
+        default: false
+        doc: >
+          Cancel only the target's quotes, leaving its other resting orders.
+          With `symbol`, this is an admin pulling one market maker's quote on
+          one instrument -- through this ADMIN message rather than by sending
+          the participant's own quote.cancel, which would put the target's
+          name on the audit trail and fail while it is disconnected.
       - { name: note, type: string, required: false, omit_when_empty: true,
           validate: { max_len: 256 } }
       - { name: command_id, type: string, required: false,
@@ -167,6 +180,10 @@ messages:
       - { name: accepted, type: bool }
       - { name: target_gateway_id, type: string, required: false, default: "",
           validate: { max_len: 32 } }
+      - { name: symbol, type: string, required: false, omit_when_empty: true,
+          validate: { max_len: 16 }, doc: "Echoed when the cancel was scoped." }
+      - { name: quotes_only, type: bool, required: false, default: false,
+          doc: "Echoed: whether only quotes were cancelled." }
       - { name: reason, type: string, required: false, default: "",
           validate: { max_len: 512 } }
       - { name: cancelled_orders, type: int, unit: dimensionless,

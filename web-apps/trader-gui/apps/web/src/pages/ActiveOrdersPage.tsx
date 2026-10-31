@@ -12,7 +12,7 @@ import { useBookStore } from "@/store/useBookStore.js";
 import { useSymbolStore } from "@/store/useSymbolStore.js";
 import { useUiStore } from "@/store/useUiStore.js";
 import { useOrderCancel } from "@/hooks/useOrderCancel.js";
-import { describeBulkOutcome } from "@/lib/bulkOutcome.js";
+import { describeBulkOutcome, isUnconfirmed } from "@/lib/bulkOutcome.js";
 import { useCancelOcoMutation, useCancelComboMutation } from "@/queries/index.js";
 import { getOrders } from "@/api/endpoints.js";
 import { ApiError } from "@/api/apiFetch.js";
@@ -81,7 +81,7 @@ export function ActiveOrdersPage() {
   // combo.status events.
   const doCancelGroup = (group: OrderGroup) => {
     const onError = (err: unknown) => {
-      if (err instanceof ApiError && (err.status === 503 || err.code === "ENGINE_TIMEOUT")) {
+      if (isUnconfirmed(err)) {
         toast(`Cancel ${group.kind} ${group.id} submitted — awaiting confirmation`);
         return;
       }

@@ -9,6 +9,7 @@ import { legFill } from "@/lib/quotes.js";
 import { formatPrice, formatQty } from "@/lib/formatters.js";
 import { ApiError } from "@/api/apiFetch.js";
 import type { ActiveQuote } from "@/types/index.js";
+import { isUnconfirmed } from "@/lib/bulkOutcome.js";
 
 interface QuoteCardProps {
   symbol: string;
@@ -86,7 +87,7 @@ export function QuoteCard({ symbol, tickDecimals, quote }: QuoteCardProps) {
         void qc.invalidateQueries({ queryKey: ["quotes/legs"] });
       },
       onError: (err) => {
-        if (err instanceof ApiError && (err.status === 503 || err.code === "ENGINE_TIMEOUT")) {
+        if (isUnconfirmed(err)) {
           toast(`Cancel submitted for ${symbol} — awaiting confirmation`);
           return;
         }

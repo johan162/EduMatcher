@@ -32,7 +32,7 @@ only.
 |---|---|
 | AI traders with the `value` strategy (presets `value-investor`, `institutional`) | Buy below their view of the value, sell above it |
 | `pm-mm-bot --anchor-sim W` | Move its quoted mid a share `W` of the way toward the value |
-| ADMIN API keys | `GET /api/v1/admin/sim`, WebSocket `/api/v1/admin/sim` |
+| ADMIN API keys | `GET /api/v1/admin/sim`, WebSocket `/api/v1/ws/admin/sim` |
 | `pm-market-sim --status --id OPS01` | Where the market is furthest from the value |
 
 The model also publishes *news*: headlines that move the values (see

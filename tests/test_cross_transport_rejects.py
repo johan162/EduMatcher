@@ -8,7 +8,9 @@ from collections.abc import Iterator, Mapping
 from typing import Any, cast
 
 import pytest
+from fastapi import Response
 from fastapi.exceptions import RequestValidationError
+from pydantic import BaseModel
 from pydantic import ValidationError as PydanticValidationError
 from starlette.requests import Request
 
@@ -18,7 +20,7 @@ from edumatcher.alf_gwy.protocol import parse_alf_line
 from edumatcher.api_gateway.config import ApiGatewayConfig
 from edumatcher.api_gateway.main import create_app
 from edumatcher.api_gateway.routers import orders
-from edumatcher.api_gateway.schemas import OrderRequest
+from edumatcher.api_gateway.schemas import ComboRequest, OcoRequest, OrderRequest
 from edumatcher.api_gateway.sessions import Session
 from edumatcher.models.order import OrderType, Side
 from edumatcher.models.price import (
@@ -111,6 +113,17 @@ def _alf_err_reject_code(gateway: AlfGateway, line: str) -> str:
         session.close()
 
 
+def _alf_err_detail(gateway: AlfGateway, line: str) -> str:
+    session, peer = _session()
+    try:
+        gateway._handle_client_line(session, line)
+        frame = parse_alf_line(session.out_queue[0].decode("utf-8"))
+        return frame.fields["DETAIL"]
+    finally:
+        peer.close()
+        session.close()
+
+
 def _alf_ack_reject_code(gateway: AlfGateway, payload: dict[str, object]) -> str:
     session, peer = _session()
     try:
@@ -141,9 +154,11 @@ def _request() -> Request:
     )
 
 
-async def _rest_validation_reject_code(body: dict[str, object]) -> str:
+async def _rest_validation_reject_code(
+    body: dict[str, object], model: type[BaseModel] = OrderRequest
+) -> str:
     try:
-        OrderRequest.model_validate(body)
+        model.model_validate(body)
     except PydanticValidationError as exc:
         errors = cast(list[dict[str, object]], exc.errors())
     else:  # pragma: no cover - defensive; every caller passes an invalid body
@@ -288,6 +303,7 @@ async def test_alf_and_rest_business_rule_reject_codes_match(
             client_tag="CT-BUSINESS",
         ),
         _request_with_engine(rest_engine),
+        Response(),
         Session(api_key="key", gateway_id="TRADER01", description="test"),
         wait="ack",
     )
@@ -337,3 +353,196 @@ async def test_alf_and_rest_agree_on_tick_violation(
     rest_code = str(cast(dict[str, Any], content["error"])["reject_code"])
 
     assert alf_code == rest_code == "TICK_VIOLATION"
+
+
+# --- WP-API16: one per-type field rule on every transport ---------------------
+
+_ORDER = {"symbol": "AAPL", "side": "BUY", "quantity": 10}
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("alf_line", "rest_body", "expected"),
+    [
+        # A field the type does not use: ALF used to drop it silently.
+        (
+            "NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=10|PRICE=100|TRAIL=0.5",
+            {**_ORDER, "order_type": "LIMIT", "price": 100.0, "trail_offset": 0.5},
+            "UNSUPPORTED_FIELD",
+        ),
+        (
+            "NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=10|PRICE=100",
+            {**_ORDER, "order_type": "MARKET", "price": 100.0},
+            "UNSUPPORTED_FIELD",
+        ),
+        (
+            "NEW|SYM=AAPL|SIDE=BUY|TYPE=ICEBERG|QTY=10|PRICE=100|VISIBLE=2|STOP=95",
+            {
+                **_ORDER,
+                "order_type": "ICEBERG",
+                "price": 100.0,
+                "visible_qty": 2,
+                "stop_price": 95.0,
+            },
+            "UNSUPPORTED_FIELD",
+        ),
+        (
+            "NEW|SYM=AAPL|SIDE=BUY|TYPE=STOP_LIMIT|QTY=10|STOP=95",
+            {**_ORDER, "order_type": "STOP_LIMIT", "stop_price": 95.0},
+            "MISSING_FIELD",
+        ),
+    ],
+)
+async def test_single_orders_follow_one_type_rule(
+    alf_gateway: AlfGateway,
+    alf_line: str,
+    rest_body: dict[str, object],
+    expected: str,
+) -> None:
+    assert _alf_err_reject_code(alf_gateway, alf_line) == expected
+    assert await _rest_validation_reject_code(rest_body) == expected
+
+
+_OCO = {"oco_id": "O1", "symbol": "AAPL", "quantity": 10}
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("alf_legs", "rest_legs", "expected"),
+    # REST bodies carry display prices (D8); the gateway converts to ticks.
+    [
+        # ALF used to forward these to the engine unchecked.
+        (
+            "LEG1_SIDE=SELL|LEG1_TYPE=LIMIT|LEG2_SIDE=SELL|LEG2_TYPE=STOP|LEG2_STOP=95",
+            (
+                {"side": "SELL", "order_type": "LIMIT"},
+                {
+                    "side": "SELL",
+                    "order_type": "STOP",
+                    "stop_price": 95.0,
+                },
+            ),
+            "MISSING_FIELD",
+        ),
+        (
+            "LEG1_SIDE=SELL|LEG1_TYPE=LIMIT|LEG1_PRICE=105|LEG1_STOP=99"
+            "|LEG2_SIDE=SELL|LEG2_TYPE=STOP|LEG2_STOP=95",
+            (
+                {
+                    "side": "SELL",
+                    "order_type": "LIMIT",
+                    "price": 105.0,
+                    "stop_price": 99.0,
+                },
+                {
+                    "side": "SELL",
+                    "order_type": "STOP",
+                    "stop_price": 95.0,
+                },
+            ),
+            "UNSUPPORTED_FIELD",
+        ),
+        (
+            "LEG1_SIDE=SELL|LEG1_TYPE=ICEBERG|LEG1_PRICE=105"
+            "|LEG2_SIDE=SELL|LEG2_TYPE=STOP|LEG2_STOP=95",
+            (
+                {
+                    "side": "SELL",
+                    "order_type": "ICEBERG",
+                    "price": 105.0,
+                },
+                {
+                    "side": "SELL",
+                    "order_type": "STOP",
+                    "stop_price": 95.0,
+                },
+            ),
+            "INVALID_VALUE",
+        ),
+    ],
+)
+async def test_oco_legs_follow_one_type_rule(
+    alf_gateway: AlfGateway,
+    alf_legs: str,
+    rest_legs: tuple[dict[str, object], dict[str, object]],
+    expected: str,
+) -> None:
+    line = f"NEW|TYPE=OCO|OCO_ID=O1|SYM=AAPL|QTY=10|{alf_legs}"
+    assert _alf_err_reject_code(alf_gateway, line) == expected
+    # The verdict is on the leg, not an unrelated missing field.
+    assert "LEG1_" in _alf_err_detail(
+        alf_gateway, line
+    ) or "OCO leg" in _alf_err_detail(alf_gateway, line)
+    body = {**_OCO, "leg1": rest_legs[0], "leg2": rest_legs[1]}
+    assert await _rest_validation_reject_code(body, OcoRequest) == expected
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("alf_leg0", "rest_leg0", "expected"),
+    [
+        # STOP_LIMIT without a price: ALF and the engine used to accept it.
+        (
+            "LEG0.TYPE=STOP_LIMIT|LEG0.STOP=95",
+            {"order_type": "STOP_LIMIT", "stop_price": 95.0},
+            "MISSING_FIELD",
+        ),
+        (
+            "LEG0.TYPE=LIMIT|LEG0.PRICE=100|LEG0.STOP=95",
+            {"order_type": "LIMIT", "price": 100.0, "stop_price": 95.0},
+            "UNSUPPORTED_FIELD",
+        ),
+        (
+            "LEG0.TYPE=TRAILING_STOP",
+            {"order_type": "TRAILING_STOP"},
+            "INVALID_VALUE",
+        ),
+    ],
+)
+async def test_combo_legs_follow_one_type_rule(
+    alf_gateway: AlfGateway,
+    alf_leg0: str,
+    rest_leg0: dict[str, object],
+    expected: str,
+) -> None:
+    alf_gateway._known_symbols = {"AAPL", "MSFT"}
+    line = (
+        "NEW|TYPE=COMBO|COMBO_ID=C1|LEG_COUNT=2|LEG0.SYM=AAPL|LEG0.SIDE=BUY|LEG0.QTY=10|"
+        f"{alf_leg0}|LEG1.SYM=MSFT|LEG1.SIDE=SELL|LEG1.QTY=5|LEG1.PRICE=410"
+    )
+    assert _alf_err_reject_code(alf_gateway, line) == expected
+    detail = _alf_err_detail(alf_gateway, line)
+    assert "LEG0." in detail or "combo leg" in detail
+    body: dict[str, object] = {
+        "combo_id": "C1",
+        "legs": [
+            {"symbol": "AAPL", "side": "BUY", "quantity": 10, **rest_leg0},
+            {"symbol": "MSFT", "side": "SELL", "quantity": 5, "price": 410.0},
+        ],
+    }
+    assert await _rest_validation_reject_code(body, ComboRequest) == expected
+
+
+def test_shared_conditions_map_to_one_reject_code() -> None:
+    """The reject-code half of WP-API16: REST and ALF name their errors
+    differently (RATE_LIMIT vs RATE_LIMITED), but a condition both report must
+    carry the same reject_code."""
+    from edumatcher.alf_gwy.protocol import _reject_code_for_error
+    from edumatcher.api_gateway.errors import ERROR_CODES
+
+    same_condition = {
+        # REST code: ALF code
+        "VALIDATION": "INVALID_VALUE",
+        "READ_ONLY": "ROLE_DENIED",
+        "ROLE_DENIED": "ROLE_DENIED",
+        "RATE_LIMIT": "RATE_LIMITED",
+        "SYMBOLS_NOT_READY": "SYMBOLS_NOT_READY",
+        "ENGINE_UNAVAILABLE": "ENGINE_UNAVAILABLE",
+        "INTERNAL_ERROR": "INTERNAL_ERROR",
+        "AUTH": "AUTH_REQUIRED",
+    }
+    for rest_code, alf_code in same_condition.items():
+        assert ERROR_CODES[rest_code].reject_code == _reject_code_for_error(alf_code), (
+            rest_code,
+            alf_code,
+        )

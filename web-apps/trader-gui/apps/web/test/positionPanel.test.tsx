@@ -121,6 +121,27 @@ describe("PositionPanel (§13.6)", () => {
     });
   });
 
+  // WP-API15: a plain submit never waits, so a 503 means nothing was sent.
+  it("reports a flatten refused with 503 as a failure, not pending", async () => {
+    const serve = apiFetchMock.getMockImplementation()!;
+    apiFetchMock.mockImplementation(async (path, init) => {
+      if (path.startsWith("/api/v1/orders")) {
+        throw new ApiError(503, "ENGINE_UNAVAILABLE", "engine down");
+      }
+      return serve(path, init);
+    });
+    try {
+      wrap(<PositionPanel />);
+      await waitFor(() => expect(screen.getByText("AAPL")).toBeTruthy());
+      fireEvent.click(screen.getByRole("button", { name: "Flatten AAPL" }));
+      fireEvent.click(screen.getByRole("button", { name: "Flatten" }));
+      await waitFor(() => expect(vi.mocked(toast.error)).toHaveBeenCalled());
+      expect(vi.mocked(toast).mock.calls.some(([m]) => String(m).includes("awaiting"))).toBe(false);
+    } finally {
+      apiFetchMock.mockImplementation(serve);
+    }
+  });
+
   it("disables flatten actions outside CONTINUOUS", async () => {
     useSessionStore.setState({ phase: "CLOSED" });
     wrap(<PositionPanel />);

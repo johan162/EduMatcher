@@ -18,7 +18,7 @@ let indexDaily503 = false;
 
 const apiFetchMock = vi.fn(async (path: string) => {
   if (path === "/api/v1/reference") return REFERENCE;
-  if (path === "/api/v1/admin/indexes") {
+  if (path === "/api/v1/reference/indexes") {
     return {
       indexes: [{ id: "SPX", description: "Big Cap", base_value: 1000, constituents: ["AAPL", "MSFT"] }],
       config_version: "v1",

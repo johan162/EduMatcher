@@ -46,9 +46,9 @@ serves the web page. The bridge reads its market data from the
 
 | From `pm-api-gwy` | Used for |
 |---|---|
-| `WS /api/v1/market-data` | The live book and every new trade of the symbols being watched |
+| `WS /api/v1/ws/market-data` | The live book and every new trade of the symbols being watched |
 | `GET /api/v1/reference/symbols` | The symbol list in the picker, and each symbol's number of price decimals |
-| `GET /api/v1/history/session` | The exchange session timezone and today's trading date |
+| `GET /api/v1/session` | The exchange session timezone and today's trading date |
 | `GET /api/v1/history/trades` | The session's earlier trades, so the statistics and tape are complete when you open a book |
 | `GET /api/v1/history/daily` | The previous close |
 
@@ -66,7 +66,7 @@ flowchart LR
         UI["React app\n(Zustand)"]
     end
     UI -->|"WS /ws/stream\n(JSON frames)"| BRIDGE["pm-book-bridge\nFastify + Node :8094"]
-    BRIDGE -->|"WS /api/v1/market-data\none connection, shared by every tab"| APIGWY["pm-api-gwy :8081\n(dashboards instance)"]
+    BRIDGE -->|"WS /api/v1/ws/market-data\none connection, shared by every tab"| APIGWY["pm-api-gwy :8081\n(dashboards instance)"]
     BRIDGE -->|"REST /api/v1/history/*\n/api/v1/reference/symbols"| APIGWY
     APIGWY -->|"read-only history"| STATS["pm-stats\nstats.db"]
     BRIDGE -.->|"LALF TCP :5600\noperational logging"| LOGSRV["pm-log-srv"]
@@ -688,7 +688,7 @@ installations set only `PM_BOOK_API_KEY` and, outside the whole stack,
 
 | Variable | Default (dev / container) | Purpose |
 |---|---|---|
-| `API_GATEWAY_URL` | `http://127.0.0.1:8081` — app compose `http://host.docker.internal:8081`, whole stack `http://edumatcher:8081` | Base URL of the `dashboards` instance. The market-data WebSocket URL is derived from it (`ws://…/api/v1/market-data`, or `wss://` for `https://`) |
+| `API_GATEWAY_URL` | `http://127.0.0.1:8081` — app compose `http://host.docker.internal:8081`, whole stack `http://edumatcher:8081` | Base URL of the `dashboards` instance. The market-data WebSocket URL is derived from it (`ws://…/api/v1/ws/market-data`, or `wss://` for `https://`) |
 | `PM_BOOK_API_KEY` | — (**required**) | The read-only (`gateway_id: null`) key of that instance. Never sent to the browser |
 | `UPSTREAM_PING_SEC` / `UPSTREAM_PING_MAX_MISSED` | `10` / `3` | Liveness check of the upstream WebSocket |
 | `UPSTREAM_DOWN_AFTER_SEC` | `30` | How long `RECONNECTING` lasts before it is reported as `DOWN` |

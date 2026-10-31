@@ -914,9 +914,16 @@ def make_combo_order_msg(combo_dict: dict[str, Any]) -> list[bytes]:
     return _gen_order.make_order_combo(**combo_dict)
 
 
-def make_combo_cancel_msg(combo_id: str, gateway_id: str) -> list[bytes]:
-    """Gateway → engine: cancel a combo and all its child legs."""
-    return _gen_order.make_order_combo_cancel(combo_id=combo_id, gateway_id=gateway_id)
+def make_combo_cancel_msg(
+    combo_id: str, gateway_id: str, *, request_tag: str = ""
+) -> list[bytes]:
+    """Gateway → engine: cancel a combo and all its child legs.
+
+    *request_tag* is echoed on ``combo.cancel_ack`` to attribute the outcome.
+    """
+    return _gen_order.make_order_combo_cancel(
+        combo_id=combo_id, gateway_id=gateway_id, request_tag=request_tag
+    )
 
 
 def make_combo_ack_msg(
@@ -1153,9 +1160,16 @@ def make_oco_order_msg(payload: dict[str, Any]) -> list[bytes]:
     return _gen_order.make_order_oco(**payload)
 
 
-def make_oco_cancel_msg(oco_id: str, gateway_id: str) -> list[bytes]:
-    """Gateway → engine: cancel an OCO pair and both its legs."""
-    return _gen_order.make_order_oco_cancel(oco_id=oco_id, gateway_id=gateway_id)
+def make_oco_cancel_msg(
+    oco_id: str, gateway_id: str, *, request_tag: str = ""
+) -> list[bytes]:
+    """Gateway → engine: cancel an OCO pair and both its legs.
+
+    *request_tag* is echoed on ``oco.cancel_ack`` to attribute the outcome.
+    """
+    return _gen_order.make_order_oco_cancel(
+        oco_id=oco_id, gateway_id=gateway_id, request_tag=request_tag
+    )
 
 
 def make_oco_ack_msg(
@@ -1207,9 +1221,16 @@ def make_quote_new_msg(payload: dict[str, Any]) -> list[bytes]:
     return _gen_quote.make_quote_new(**payload)
 
 
-def make_quote_cancel_msg(gateway_id: str, symbol: str) -> list[bytes]:
-    """Gateway → engine: cancel active quote for one symbol."""
-    return _gen_quote.make_quote_cancel(gateway_id=gateway_id, symbol=symbol)
+def make_quote_cancel_msg(
+    gateway_id: str, symbol: str, *, request_tag: str = ""
+) -> list[bytes]:
+    """Gateway → engine: cancel active quote for one symbol.
+
+    *request_tag* is echoed on ``quote.cancel_ack`` to attribute the outcome.
+    """
+    return _gen_quote.make_quote_cancel(
+        gateway_id=gateway_id, symbol=symbol, request_tag=request_tag
+    )
 
 
 def make_quote_ack_msg(
@@ -1578,17 +1599,26 @@ def make_force_uncross_ack_msg(
 
 
 def make_kill_switch_gateway_msg(
-    gateway_id: str, target_gateway_id: str, note: str = "", command_id: str = ""
+    gateway_id: str,
+    target_gateway_id: str,
+    note: str = "",
+    command_id: str = "",
+    *,
+    symbol: str = "",
+    quotes_only: bool = False,
 ) -> list[bytes]:
     """ADMIN → engine: cancel every order/quote belonging to *target_gateway_id*.
 
     ``gateway_id`` is the ADMIN caller (for role/connection checks and the
     ack topic); ``target_gateway_id`` is whose exposure gets cancelled —
-    unlike ``risk.kill_switch``, these are allowed to differ.
+    unlike ``risk.kill_switch``, these are allowed to differ. ``symbol``
+    scopes it to one instrument; ``quotes_only`` leaves non-quote orders.
     """
     return _gen_risk.make_kill_switch_gateway(
         gateway_id=gateway_id,
         target_gateway_id=target_gateway_id.upper(),
+        symbol=symbol.upper(),
+        quotes_only=quotes_only,
         note=note,
         command_id=command_id,
     )
@@ -1604,12 +1634,16 @@ def make_kill_switch_gateway_ack_msg(
     cancelled_quotes: int = 0,
     cancelled_quote_order_ids: list[str] | None = None,
     command_id: str = "",
+    symbol: str = "",
+    quotes_only: bool = False,
 ) -> list[bytes]:
     """Engine → ADMIN: gateway-targeted kill-switch result."""
     return _gen_risk.make_kill_switch_gateway_ack(
         gateway_id=gateway_id,
         accepted=accepted,
         target_gateway_id=target_gateway_id,
+        symbol=symbol,
+        quotes_only=quotes_only,
         reason=reason,
         cancelled_orders=cancelled_orders,
         cancelled_order_ids=cancelled_order_ids or [],

@@ -95,12 +95,11 @@ export function NewQuoteForm({ symbol, tickDecimals, initial, onDone }: NewQuote
       },
       {
         onSuccess: (res) => {
-          // PendingIdResponse.id echoes the quote_id (key is `id`, not quote_id).
-          toast(`Quote ${res.id} submitted`);
+          toast(`Quote ${res.quote_id ?? res.symbol} submitted`);
           pushNotification({
             ts: Date.now(),
             kind: "ACK",
-            title: `Quote ${res.id} submitted`,
+            title: `Quote ${res.quote_id ?? res.symbol} submitted`,
             detail: `${d.symbol} · ${d.bid_price} × ${d.bid_qty} / ${d.ask_price} × ${d.ask_qty}`,
           });
           onDone();

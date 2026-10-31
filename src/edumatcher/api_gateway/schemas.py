@@ -5,9 +5,16 @@ from __future__ import annotations
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic_core import PydanticCustomError
 
 from edumatcher.models.combo import ComboType
 from edumatcher.models.order import OrderType, Side, SmpAction, TIF
+from edumatcher.models.order_fields import (
+    COMBO_LEG_FIELDS,
+    OCO_LEG_FIELDS,
+    ORDER_FIELDS,
+    check_type_fields,
+)
 from edumatcher.models.session import SessionState
 
 
@@ -19,10 +26,14 @@ class StrictModel(BaseModel):
 
 class ErrorDetail(StrictModel):
     code: str = Field(
-        description="HTTP-level category, e.g. VALIDATION, AUTH, ROLE_DENIED, "
-        "RATE_LIMIT, ENGINE_TIMEOUT, HTTP_ERROR."
+        description="Stable machine-readable category, e.g. VALIDATION, AUTH, "
+        "ROLE_DENIED, RATE_LIMIT, ENGINE_TIMEOUT, NOT_FOUND, INTERNAL_ERROR, or "
+        "a command-specific refusal such as HALT_REJECTED."
     )
-    message: str = Field(description="Human-readable explanation.")
+    message: str = Field(
+        description="Human-readable explanation; for an engine refusal, the "
+        "engine's own reason."
+    )
     field: str | None = Field(
         default=None, description="The offending request field, when there is one."
     )
@@ -31,7 +42,6 @@ class ErrorDetail(StrictModel):
         description="Engine-vocabulary reject code, identical across REST and "
         "ALF (e.g. TICK_VIOLATION, MISSING_FIELD, RATE_LIMITED).",
     )
-    reason: str | None = Field(default=None, description="Same text as `message`.")
     client_tag: str | None = Field(
         default=None, description="The request's `client_tag`, echoed back."
     )
@@ -42,6 +52,23 @@ class ErrorDetail(StrictModel):
 
 class ErrorResponse(StrictModel):
     error: ErrorDetail
+
+
+def _check_type_fields(
+    model: BaseModel, order_type: OrderType, carried: tuple[str, ...], where: str
+) -> None:
+    """Apply the shared per-type rule (``models/order_fields``) to *model*.
+
+    The error's type is the verdict's ``reject_code``, which the validation
+    handler passes through, so a REST client gets the same ``reject_code`` as
+    an ALF or BALF client sending the same order.
+    """
+    present = [name for name in carried if getattr(model, name) is not None]
+    violation = check_type_fields(order_type, present, carried=carried, where=where)
+    if violation is not None:
+        raise PydanticCustomError(
+            violation.reject_code.lower(), "{message}", {"message": violation.message}
+        )
 
 
 class OrderRequest(StrictModel):
@@ -82,7 +109,9 @@ class OrderRequest(StrictModel):
     )
     stop_price: float | None = Field(
         default=None,
-        description="Trigger price. Required for STOP and STOP_LIMIT.",
+        description="Trigger price. Required for STOP and STOP_LIMIT; for "
+        "TRAILING_STOP an optional initial stop (default: last trade +/- "
+        "`trail_offset`); forbidden otherwise.",
     )
     visible_qty: int | None = Field(
         default=None,
@@ -118,34 +147,13 @@ class OrderRequest(StrictModel):
     @model_validator(mode="after")
     def validate_by_order_type(self) -> "OrderRequest":
         order_type = OrderType(self.order_type)
-        if order_type == OrderType.MARKET and (
-            self.price is not None or self.stop_price is not None
+        _check_type_fields(self, order_type, ORDER_FIELDS, "on an order")
+        if (
+            order_type == OrderType.ICEBERG
+            and self.visible_qty is not None
+            and self.visible_qty >= self.quantity
         ):
-            raise ValueError("MARKET forbids price and stop_price")
-        if order_type in {OrderType.LIMIT, OrderType.FOK, OrderType.IOC}:
-            if self.price is None:
-                raise ValueError(f"{order_type.value} requires price")
-            if self.stop_price is not None:
-                raise ValueError(f"{order_type.value} forbids stop_price")
-        if order_type == OrderType.STOP:
-            if self.stop_price is None:
-                raise ValueError("STOP requires stop_price")
-            if self.price is not None:
-                raise ValueError("STOP forbids price")
-        if order_type == OrderType.STOP_LIMIT and (
-            self.price is None or self.stop_price is None
-        ):
-            raise ValueError("STOP_LIMIT requires price and stop_price")
-        if order_type == OrderType.ICEBERG:
-            if self.price is None or self.visible_qty is None:
-                raise ValueError("ICEBERG requires price and visible_qty")
-            if self.visible_qty >= self.quantity:
-                raise ValueError("ICEBERG visible_qty must be less than quantity")
-        if order_type == OrderType.TRAILING_STOP:
-            if self.trail_offset is None:
-                raise ValueError("TRAILING_STOP requires trail_offset")
-            if self.price is not None:
-                raise ValueError("TRAILING_STOP forbids price")
+            raise ValueError("ICEBERG visible_qty must be less than quantity")
         return self
 
 
@@ -154,7 +162,9 @@ class OrderAccepted(StrictModel):
     client_tag: str | None = Field(
         default=None, description="Echo of the request's tag."
     )
-    status: str = Field(description="`PENDING` (not yet acknowledged) or `ACKED`.")
+    status: Literal["PENDING", "ACKED"] = Field(
+        description="`PENDING` (not yet acknowledged) or `ACKED`."
+    )
     accepted: bool | None = Field(
         default=None,
         description="Engine verdict; null until acknowledged (see `?wait=ack`).",
@@ -166,13 +176,19 @@ class OrderAccepted(StrictModel):
         default=None, description="The engine's `order.ack` event, once received."
     )
 
+    ack_timeout: bool = Field(
+        default=False,
+        description="True when `?wait=ack` gave up waiting: the request was sent "
+        "and the outcome follows on the private WebSocket.",
+    )
+
 
 class CancelAccepted(StrictModel):
     order_id: str
     request_tag: str | None = Field(
         default=None, description="Echo of the request's `request_tag` query param."
     )
-    status: str = Field(description="`PENDING_CANCEL`, `ACKED` or `REJECTED`.")
+    status: Literal["PENDING_CANCEL", "ACKED", "REJECTED"]
     accepted: bool | None = Field(
         default=None, description="Engine verdict; null until acknowledged."
     )
@@ -183,6 +199,51 @@ class CancelAccepted(StrictModel):
         default=None,
         description="The engine's cancel (or reject) event, once received.",
     )
+
+    ack_timeout: bool = Field(
+        default=False,
+        description="True when `?wait=ack` gave up waiting: the request was sent "
+        "and the outcome follows on the private WebSocket.",
+    )
+
+
+class _StructureCancelResult(StrictModel):
+    """The reply to an OCO, combo or quote cancel (WP-API17).
+
+    Mirrors ``CancelAccepted``: ``202 PENDING_CANCEL`` by default; with
+    ``?wait=ack``, ``200`` and the engine's ``*.cancel_ack`` verdict.
+    """
+
+    request_tag: str | None = Field(
+        default=None, description="Echo of the request's `request_tag` query param."
+    )
+    status: Literal["PENDING_CANCEL", "ACKED", "REJECTED"]
+    accepted: bool | None = Field(
+        default=None, description="Engine verdict; null until acknowledged."
+    )
+    reject_code: str | None = Field(
+        default=None, description="Why the cancel was refused, when it was."
+    )
+    event: dict[str, Any] | None = Field(
+        default=None, description="The engine's cancel ack, once received."
+    )
+    ack_timeout: bool = Field(
+        default=False,
+        description="True when `?wait=ack` gave up waiting: the cancel was sent "
+        "and the outcome follows on the private WebSocket.",
+    )
+
+
+class OcoCancelAccepted(_StructureCancelResult):
+    oco_id: str
+
+
+class ComboCancelAccepted(_StructureCancelResult):
+    combo_id: str
+
+
+class QuoteCancelAccepted(_StructureCancelResult):
+    symbol: str
 
 
 class AmendRequest(StrictModel):
@@ -212,7 +273,23 @@ class AmendRequest(StrictModel):
 class ReplaceResponse(StrictModel):
     cancelled_order_id: str = Field(description="The order that was cancelled.")
     replacement_order_id: str = Field(description="Id of the new order.")
-    status: str = Field(description="`PENDING`: the replacement awaits the engine.")
+    status: Literal["PENDING", "ACKED"] = Field(
+        description="`PENDING` until the engine acks the replacement (`?wait=ack`)."
+    )
+    accepted: bool | None = Field(
+        default=None, description="The replacement's verdict; null until acked."
+    )
+    reject_code: str | None = Field(
+        default=None, description="Why the replacement was refused, when it was."
+    )
+    event: dict[str, Any] | None = Field(
+        default=None, description="The replacement's `order.ack`, once received."
+    )
+    ack_timeout: bool = Field(
+        default=False,
+        description="True when `?wait=ack` gave up waiting: the request was sent "
+        "and the outcome follows on the private WebSocket.",
+    )
 
 
 class OcoLegRequest(StrictModel):
@@ -227,6 +304,13 @@ class OcoLegRequest(StrictModel):
     trail_offset: float | None = Field(
         default=None, description="For trailing-stop legs."
     )
+
+    @model_validator(mode="after")
+    def validate_by_order_type(self) -> "OcoLegRequest":
+        _check_type_fields(
+            self, OrderType(self.order_type), OCO_LEG_FIELDS, "on an OCO leg"
+        )
+        return self
 
 
 class OcoRequest(StrictModel):
@@ -251,7 +335,9 @@ class OcoRequest(StrictModel):
     )
 
     oco_id: str = Field(
-        min_length=1, description="Your id for the pair; used to cancel it."
+        min_length=1,
+        description="Your id for the pair, unique among your live pairs; used to "
+        "cancel it.",
     )
     symbol: str = Field(min_length=1)
     quantity: int = Field(gt=0)
@@ -278,6 +364,13 @@ class ComboLegRequest(StrictModel):
     @classmethod
     def uppercase_symbol(cls, value: str) -> str:
         return value.upper()
+
+    @model_validator(mode="after")
+    def validate_by_order_type(self) -> "ComboLegRequest":
+        _check_type_fields(
+            self, OrderType(self.order_type), COMBO_LEG_FIELDS, "on a combo leg"
+        )
+        return self
 
 
 class ComboRequest(StrictModel):
@@ -373,21 +466,75 @@ class MassCancelRequest(StrictModel):
         return None if value is None else value.upper()
 
 
-class PendingIdResponse(StrictModel):
-    id: str = Field(description="The id you chose (or the symbol, for quotes).")
-    status: str = Field(description="`PENDING`: sent, awaiting the engine's verdict.")
+class OcoAccepted(StrictModel):
+    oco_id: str = Field(
+        description="The id you chose; `DELETE /oco/{oco_id}` takes it."
+    )
+    status: Literal["PENDING", "ACKED"] = Field(
+        description="`PENDING`: sent, the verdict follows on the private WebSocket "
+        "(`oco.ack`); `ACKED` with `?wait=ack`."
+    )
+    accepted: bool | None = Field(
+        default=None, description="Engine verdict; null until acknowledged."
+    )
+    reason: str | None = Field(
+        default=None, description="The engine's reason, when it refused."
+    )
     event: dict[str, Any] | None = Field(
-        default=None, description="Engine event, once received (usually null here)."
+        default=None, description="The engine's `oco.ack`, once received."
+    )
+    ack_timeout: bool = Field(
+        default=False,
+        description="True when `?wait=ack` gave up waiting: the request was sent "
+        "and the outcome follows on the private WebSocket.",
     )
 
 
-class HistoryQuery(StrictModel):
-    symbol: str | None = None
-    event_type: str | None = None
-    date: str | None = None
-    from_ts: str | None = None
-    to_ts: str | None = None
-    limit: int = Field(default=500, ge=1, le=5000)
+class ComboAccepted(StrictModel):
+    combo_id: str = Field(
+        description="The id you chose; `DELETE /combos/{combo_id}` takes it."
+    )
+    status: Literal["PENDING", "ACKED"] = Field(
+        description="`PENDING`: sent, the verdict follows on the private WebSocket "
+        "(`combo.ack`); `ACKED` with `?wait=ack`."
+    )
+    accepted: bool | None = Field(
+        default=None, description="Engine verdict; null until acknowledged."
+    )
+    reason: str | None = Field(
+        default=None, description="The engine's reason, when it refused."
+    )
+    event: dict[str, Any] | None = Field(
+        default=None, description="The engine's `combo.ack`, once received."
+    )
+    ack_timeout: bool = Field(
+        default=False,
+        description="True when `?wait=ack` gave up waiting: the request was sent "
+        "and the outcome follows on the private WebSocket.",
+    )
+
+
+class QuoteAccepted(StrictModel):
+    symbol: str = Field(description="`DELETE /quotes/{symbol}` takes it.")
+    quote_id: str | None = Field(description="Your id for the quote, if you set one.")
+    status: Literal["PENDING", "ACKED"] = Field(
+        description="`PENDING`: sent, the verdict follows on the private WebSocket "
+        "(`quote.ack`); `ACKED` with `?wait=ack`."
+    )
+    accepted: bool | None = Field(
+        default=None, description="Engine verdict; null until acknowledged."
+    )
+    reason: str | None = Field(
+        default=None, description="The engine's reason, when it refused."
+    )
+    event: dict[str, Any] | None = Field(
+        default=None, description="The engine's `quote.ack`, once received."
+    )
+    ack_timeout: bool = Field(
+        default=False,
+        description="True when `?wait=ack` gave up waiting: the request was sent "
+        "and the outcome follows on the private WebSocket.",
+    )
 
 
 class SessionTransitionRequest(StrictModel):
@@ -402,24 +549,24 @@ class SessionTransitionRequest(StrictModel):
 #: They are load-bearing, not cosmetic: since 5.3a/5.3b the builders validate,
 #: so an unbounded value here reaches a generated constructor and raises —
 #: turning a client's bad input into a 500 where FastAPI would otherwise have
-#: returned a 422 naming the offending field. Bound at the edge, where the
-#: error can still say what was wrong.
-_MAX_SYMBOL = 16
-_MAX_GATEWAY_ID = 32
+#: returned a 400 naming the offending field. Bound at the edge, where the
+#: error can still say what was wrong. The admin routes apply the first two to
+#: their `{symbol}` and `{gateway_id}` path parameters.
+SYMBOL_MAX_LEN = 16
+GATEWAY_ID_MAX_LEN = 32
 _MAX_CB_LEVEL = 32
 _MAX_REASON = 256
 
 
-class CircuitBreakerTriggerRequest(StrictModel):
+class SymbolHaltRequest(StrictModel):
+    """Body of `POST /admin/symbols/{symbol}/halt`; may be omitted."""
+
     model_config = ConfigDict(
         json_schema_extra={
-            "examples": [
-                {"symbol": "TSLA", "level": "L1", "reason": "Unusual volatility"}
-            ]
+            "examples": [{"level": "L1", "reason": "Unusual volatility"}]
         }
     )
 
-    symbol: str = Field(min_length=1, max_length=_MAX_SYMBOL)
     level: str | None = Field(
         default=None,
         max_length=_MAX_CB_LEVEL,
@@ -432,62 +579,45 @@ class CircuitBreakerTriggerRequest(StrictModel):
         description="Free-text note for the audit log.",
     )
 
-    @field_validator("symbol")
-    @classmethod
-    def uppercase_symbol(cls, value: str) -> str:
-        return value.upper()
 
+class AdminNoteRequest(StrictModel):
+    """Body of the admin actions that take only a note; may be omitted."""
 
-class CircuitBreakerResumeRequest(StrictModel):
     model_config = ConfigDict(
-        json_schema_extra={"examples": [{"symbol": "TSLA", "reason": "Reviewed"}]}
+        json_schema_extra={"examples": [{"reason": "Runaway algo"}]}
     )
 
-    symbol: str = Field(min_length=1, max_length=_MAX_SYMBOL)
-    reason: str | None = Field(default=None, max_length=_MAX_REASON)
-
-    @field_validator("symbol")
-    @classmethod
-    def uppercase_symbol(cls, value: str) -> str:
-        return value.upper()
-
-
-class SymbolCancelRequest(StrictModel):
-    model_config = ConfigDict(
-        json_schema_extra={"examples": [{"symbol": "TSLA", "reason": "Bad prints"}]}
+    reason: str | None = Field(
+        default=None,
+        max_length=_MAX_REASON,
+        description="Free-text note for the audit log.",
     )
 
-    symbol: str = Field(min_length=1, max_length=_MAX_SYMBOL)
-    reason: str | None = Field(default=None, max_length=_MAX_REASON)
 
-    @field_validator("symbol")
-    @classmethod
-    def uppercase_symbol(cls, value: str) -> str:
-        return value.upper()
+class ReopenRequest(StrictModel):
+    """Body of `POST /admin/symbols/{symbol}/reopen`; may be omitted."""
 
-
-class KillSwitchGatewayRequest(StrictModel):
     model_config = ConfigDict(
         json_schema_extra={
-            "examples": [{"target_gateway_id": "TRADER01", "reason": "Runaway algo"}]
+            "examples": [{"price": 150.25, "dry_run": True, "reason": "Failed open"}]
         }
     )
 
-    target_gateway_id: str = Field(min_length=1, max_length=_MAX_GATEWAY_ID)
-    reason: str | None = Field(default=None, max_length=_MAX_REASON)
-
-    @field_validator("target_gateway_id")
-    @classmethod
-    def uppercase_target(cls, value: str) -> str:
-        return value.upper()
-
-
-class KillSwitchGlobalRequest(StrictModel):
-    model_config = ConfigDict(
-        json_schema_extra={"examples": [{"reason": "Exchange-wide incident"}]}
+    price: float | None = Field(
+        default=None,
+        gt=0,
+        description="Operator opening price, on the symbol's tick grid. Omit to "
+        "open at the natural equilibrium; set it when a failed auction left none.",
     )
-
-    reason: str | None = Field(default=None, max_length=_MAX_REASON)
+    dry_run: bool = Field(
+        default=False,
+        description="Report the indicative print without changing anything.",
+    )
+    reason: str | None = Field(
+        default=None,
+        max_length=_MAX_REASON,
+        description="Free-text note for the audit log.",
+    )
 
 
 class IndexRebalanceUpdate(StrictModel):
@@ -509,14 +639,12 @@ class IndexRebalanceRequest(StrictModel):
                         {"symbol": "AAPL", "new_shares_outstanding": 15500000000},
                         {"symbol": "TSLA", "new_shares_outstanding": 3250000000},
                     ],
-                    "reason": "Quarterly share count update",
                 }
             ]
         }
     )
 
     updates: list[IndexRebalanceUpdate] = Field(min_length=1)
-    reason: str | None = None
 
 
 MarketDataChannel = Literal["book", "trades", "depth", "auction"]

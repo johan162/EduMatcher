@@ -28,6 +28,7 @@ from edumatcher.api_gateway.caches import TERMINAL_ORDER_STATUSES, SessionCaches
 from edumatcher.api_gateway.config import ApiCredential, ApiGatewayConfig
 from edumatcher.api_gateway.engine_client import EngineClient
 from edumatcher.api_gateway.routers import admin
+from tests.api_gateway_harness import check_contract
 from edumatcher.api_gateway.sessions import Session
 from edumatcher.audit.indexer import open_index, query_index_events
 
@@ -225,6 +226,7 @@ async def test_admin_orders_filters(engine: EngineClient) -> None:
             request, _admin_session(), status_filter="NEW"
         )
 
+    check_contract(admin.admin_orders, every)
     assert every["count"] == 3
     assert {o["order_id"] for o in by_symbol["orders"]} == {"A", "C"}
     assert {o["order_id"] for o in by_gateway["orders"]} == {"C"}
@@ -361,6 +363,7 @@ async def test_lifecycle_returns_the_full_ordered_history(
     with patch.object(admin, "require_admin", return_value="ADMIN01"):
         result = await admin.admin_order_lifecycle("ORD-1", request, _admin_session())
 
+    check_contract(admin.admin_order_lifecycle, result)
     assert result["count"] == 3
     assert [e["topic"] for e in result["events"]] == [
         "order.ack.GW01",

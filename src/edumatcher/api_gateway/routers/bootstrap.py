@@ -4,9 +4,10 @@ Each endpoint issues all independent engine round-trips in parallel using
 ``asyncio.gather(..., return_exceptions=True)``.  Fields that require a
 best-effort query (``session``, ``halts``, ``gateways``) are set to ``null``
 and listed in ``incomplete`` when their query times out.  Fields that are
-*required* (``reference`` and ``orders`` for trader/mm; ``reference`` for
-admin) return ``503 ENGINE_TIMEOUT`` if they fail — a response without them
-would leave the UI in an unrecoverable state at login time.
+*required* (``reference``, ``orders`` and ``positions`` for trader/mm;
+``reference`` for admin) return ``503 ENGINE_TIMEOUT`` if they fail — a
+response without them would leave the UI in an unrecoverable state at login
+time.
 
 Design doc: docs-design/EduMatcher-bootstrap-api.md
 """
@@ -24,10 +25,21 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from edumatcher.api_gateway import openapi_docs as docs
 from edumatcher.api_gateway.config import ApiGatewayConfig
 from edumatcher.api_gateway.events import now_iso
-from edumatcher.api_gateway.routers.reference import fetch_reference_bundle
+from edumatcher.api_gateway.responses import (
+    BootstrapAdmin,
+    BootstrapMM,
+    BootstrapTrader,
+)
+from edumatcher.api_gateway.routing import ContractRoute
+from edumatcher.api_gateway.routers.reference import (
+    fetch_positions,
+    fetch_reference_bundle,
+    fetch_session,
+)
 from edumatcher.api_gateway.sessions import (
     Session,
     auth,
+    correlation_id,
     require_admin,
     require_trading,
 )
@@ -39,7 +51,6 @@ from edumatcher.models.generated.system import (
     topic_halt_status,
     topic_quote_bootstrap,
     topic_quote_legs,
-    topic_session_status,
 )
 from edumatcher.stats.query import (
     open_readonly_connection,
@@ -50,14 +61,16 @@ from edumatcher.stats.trading_day import timezone_name, trading_date
 
 log = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/v1/bootstrap", tags=["bootstrap"])
+router = APIRouter(
+    prefix="/api/v1/bootstrap", tags=["bootstrap"], route_class=ContractRoute
+)
 
 # Terminal statuses are not counted in the per-gateway active-order totals.
 _TERMINAL = frozenset({"FILLED", "CANCELLED", "EXPIRED", "REJECTED"})
 
 _FILLS_LIMIT_MAX = 500
 _FILLS_LIMIT_DEFAULT = 50
-_QueryResult: TypeAlias = dict[str, Any] | BaseException
+_QueryResult: TypeAlias = dict[str, Any] | list[dict[str, Any]] | BaseException
 
 
 # ---------------------------------------------------------------------------
@@ -80,12 +93,6 @@ async def _await_topic(request: Request, topic: str) -> dict[str, Any]:
             topic, request.app.state.config.timeouts.engine_reply_sec
         ),
     )
-
-
-async def _fetch_session(request: Request, gateway_id: str) -> dict[str, Any]:
-    engine = request.app.state.engine
-    engine.request_session(gateway_id)
-    return await _await_topic(request, topic_session_status(gateway_id))
 
 
 async def _fetch_orders(request: Request, gateway_id: str) -> dict[str, Any]:
@@ -123,7 +130,7 @@ def _query_fills_sync(
             limit=fills_limit,
             tz=tz,
         )
-    return {"events": events, "count": len(events)}
+    return {"events": events}
 
 
 async def _fetch_fills(
@@ -146,9 +153,6 @@ async def _fetch_quote_bootstrap(request: Request, gateway_id: str) -> dict[str,
 
 async def _fetch_quote_legs(request: Request, gateway_id: str) -> dict[str, Any]:
     engine = request.app.state.engine
-    cache = engine.get_caches(gateway_id)
-    if cache.quote_legs:
-        return {"legs": list(cache.quote_legs.values())}
     engine.request_quote_legs(gateway_id)
     return await _await_topic(request, topic_quote_legs(gateway_id))
 
@@ -159,10 +163,10 @@ async def _fetch_gateways(request: Request, gateway_id: str) -> dict[str, Any]:
     return await _await_topic(request, topic_gateways(gateway_id))
 
 
-async def _fetch_halts(request: Request, gateway_id: str) -> dict[str, Any]:
+async def _fetch_halts(request: Request, correlation: str) -> dict[str, Any]:
     engine = request.app.state.engine
-    engine.request_halt_status(gateway_id)
-    return await _await_topic(request, topic_halt_status(gateway_id))
+    engine.request_halt_status(correlation)
+    return await _await_topic(request, topic_halt_status(correlation))
 
 
 # ---------------------------------------------------------------------------
@@ -189,14 +193,6 @@ def _capabilities(request: Request, reference: dict[str, Any]) -> dict[str, Any]
     }
 
 
-def _positions(request: Request, gateway_id: str) -> list[dict[str, Any]]:
-    cache = request.app.state.engine.get_caches(gateway_id)
-    return [
-        {"symbol": sym, "net_qty": qty, "last_price": cache.last_prices.get(sym)}
-        for sym, qty in sorted(cache.positions.items())
-    ]
-
-
 def _active_order_counts(request: Request) -> dict[str, int]:
     """Per-gateway count of non-terminal orders.
 
@@ -217,6 +213,11 @@ def _active_order_counts(request: Request) -> dict[str, int]:
 def _monitor_last_seq(request: Request) -> dict[str, int]:
     engine = request.app.state.engine
     return {gid: engine.stream_seq(gid) for gid in sorted(engine.active_gateways())}
+
+
+def _items(reply: dict[str, Any] | None, key: str) -> list[Any] | None:
+    """The list a reply wraps, un-nested (D6); ``None`` stays ``None``."""
+    return None if reply is None else list(reply.get(key, []))
 
 
 def _require_or_503(field_results: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -267,12 +268,16 @@ def _collect_optional(
 
 @router.get(
     "/trader",
+    response_model=BootstrapTrader,
     summary="Startup payload: trader",
-    responses=docs.ok(
-        docs.BOOTSTRAP_TRADER,
-        "Everything a trading client needs to render after login. A "
-        "read-only key gets `gateway_role: READ_ONLY`, empty positions and "
-        "orders, and `null` session/recent_fills/halts.",
+    responses=docs.merge(
+        docs.ok(
+            docs.BOOTSTRAP_TRADER,
+            "Everything a trading client needs to render after login. A "
+            "read-only key gets `gateway_role: READ_ONLY`, empty positions and "
+            "orders and `null` recent_fills, but session and halts like any key.",
+        ),
+        docs.errors(*docs.TRADING_KEY, "ENGINE_TIMEOUT", "VALIDATION"),
     ),
 )
 async def bootstrap_trader(
@@ -289,59 +294,82 @@ async def bootstrap_trader(
 
     Returns gateway identity, full reference data, live session state,
     positions, active orders, recent fills for today, currently-halted
-    symbols, and capability flags.  ``reference`` and ``orders`` are
-    required — the endpoint returns ``503`` if either cannot be fetched.
+    symbols, and capability flags.  ``reference``, ``orders`` and
+    ``positions`` are required — the endpoint returns ``503`` if any cannot
+    be fetched.  ``positions`` are the same engine-sourced rows as
+    ``GET /positions``.
     All other engine-backed fields (``session``, ``recent_fills``,
     ``halts``) are optional: they appear as ``null`` with their name listed
     in ``incomplete`` on failure.
 
     Read-only keys (``gateway_id: null``) receive ``gateway_role: "READ_ONLY"``,
-    empty ``positions``, and empty ``orders`` without an engine round-trip for
-    those fields.
+    empty ``positions`` and ``orders`` and ``null`` ``recent_fills`` (there is
+    no gateway to own them), but ``session`` and ``halts`` like any caller.
     """
     engine = request.app.state.engine
     timeout = request.app.state.config.timeouts.engine_reply_sec
     gateway_id = session.gateway_id
 
-    # --- read-only credential: reference only -------------------------------
-    # A keyless credential has no gateway-scoped state. session and
-    # recent_fills are *structurally* unavailable (not transiently failed), so
-    # they are returned as null but deliberately kept out of `incomplete` —
-    # `incomplete` means "retry the per-resource endpoint", which would never
-    # succeed here.  Session phase is still available live on the market-data
-    # WebSocket `session` event.
+    # --- read-only credential: no gateway-scoped state ----------------------
+    # A keyless credential owns no positions, orders or fills: those are
+    # *structurally* empty (not transiently failed), so they stay out of
+    # `incomplete`, which means "retry the per-resource endpoint". Session
+    # and halts are public and fetched like for anyone else.
     if gateway_id is None:
-        reference = await _fetch_reference(request, session)
+        correlation = correlation_id(session)
+        ro_results: tuple[_QueryResult, _QueryResult, _QueryResult] = (
+            await asyncio.gather(
+                _fetch_reference(request, session),
+                fetch_session(request, correlation),
+                _fetch_halts(request, correlation),
+                return_exceptions=True,
+            )
+        )
+        ref_r, sess_r, halts_r = ro_results
+        reference = _require_or_503([("reference", ref_r)])["reference"]
+        ro_incomplete: list[str] = []
+        ro_data: dict[str, Any] = {}
+        _collect_optional(
+            [("session", sess_r), ("halts", halts_r)], ro_data, ro_incomplete
+        )
         return {
             "ts": now_iso(),
-            "incomplete": [],
+            "incomplete": ro_incomplete,
             "gateway_id": None,
             "gateway_role": "READ_ONLY",
             "session_timezone": _session_timezone(),
             "reference": reference,
-            "session": None,
+            "session": ro_data.get("session"),
             "positions": [],
-            "orders": {"orders": []},
+            "orders": [],
             "recent_fills": None,
-            "halts": None,
+            "halts": _items(ro_data.get("halts"), "halted"),
             "capabilities": _capabilities(request, reference),
         }
 
     # --- trading credential: all sub-queries in parallel --------------------
     gateway_role = await engine.resolve_role(gateway_id, timeout)
     results: tuple[
-        _QueryResult, _QueryResult, _QueryResult, _QueryResult, _QueryResult
+        _QueryResult,
+        _QueryResult,
+        _QueryResult,
+        _QueryResult,
+        _QueryResult,
+        _QueryResult,
     ] = await asyncio.gather(
         _fetch_reference(request, session),
-        _fetch_session(request, gateway_id),
+        fetch_session(request, gateway_id),
         _fetch_orders(request, gateway_id),
+        fetch_positions(request, gateway_id),
         _fetch_fills(request, gateway_id, fills_limit),
         _fetch_halts(request, gateway_id),
         return_exceptions=True,
     )
-    ref_r, sess_r, orders_r, fills_r, halts_r = results
+    ref_r, sess_r, orders_r, pos_r, fills_r, halts_r = results
 
-    required = _require_or_503([("reference", ref_r), ("orders", orders_r)])
+    required = _require_or_503(
+        [("reference", ref_r), ("orders", orders_r), ("positions", pos_r)]
+    )
     reference = required["reference"]
 
     incomplete: list[str] = []
@@ -360,20 +388,24 @@ async def bootstrap_trader(
         "session_timezone": _session_timezone(),
         "reference": reference,
         "session": data.get("session"),
-        "positions": _positions(request, gateway_id),
-        "orders": required["orders"],
-        "recent_fills": data.get("recent_fills"),
-        "halts": data.get("halts"),
+        "positions": required["positions"],
+        "orders": required["orders"]["orders"],
+        "recent_fills": _items(data.get("recent_fills"), "events"),
+        "halts": _items(data.get("halts"), "halted"),
         "capabilities": _capabilities(request, reference),
     }
 
 
 @router.get(
     "/mm",
+    response_model=BootstrapMM,
     summary="Startup payload: market maker",
-    responses=docs.ok(
-        docs.BOOTSTRAP_MM,
-        "The trader payload plus the caller's quotes and quote legs.",
+    responses=docs.merge(
+        docs.ok(
+            docs.BOOTSTRAP_MM,
+            "The trader payload plus the caller's quotes and quote legs.",
+        ),
+        docs.errors(*docs.TRADING_KEY, "ENGINE_TIMEOUT", "ROLE_DENIED", "VALIDATION"),
     ),
 )
 async def bootstrap_mm(
@@ -392,8 +424,9 @@ async def bootstrap_mm(
     state) and ``quote_legs`` (per-leg fill flags and prices).
 
     Restricted to MARKET_MAKER keys.  TRADER and ADMIN keys receive ``403``.
-    ``reference`` and ``orders`` are required (503 on failure).  Quote fields
-    and ``session``/``recent_fills``/``halts`` are optional (null + incomplete).
+    ``reference``, ``orders`` and ``positions`` are required (503 on
+    failure).  Quote fields and ``session``/``recent_fills``/``halts`` are
+    optional (null + incomplete).
     """
     engine = request.app.state.engine
     timeout = request.app.state.config.timeouts.engine_reply_sec
@@ -413,7 +446,7 @@ async def bootstrap_mm(
         )
 
     # --- all sub-queries in parallel ----------------------------------------
-    # 7 args is past typeshed's asyncio.gather tuple overloads (it falls back
+    # 8 args is past typeshed's asyncio.gather tuple overloads (it falls back
     # to list[Any] beyond 6) -- cast back to the known-fixed shape, same as
     # `_await_topic`'s cast a few lines up.
     results = cast(
@@ -425,11 +458,13 @@ async def bootstrap_mm(
             _QueryResult,
             _QueryResult,
             _QueryResult,
+            _QueryResult,
         ],
         await asyncio.gather(
             _fetch_reference(request, session),
-            _fetch_session(request, gateway_id),
+            fetch_session(request, gateway_id),
             _fetch_orders(request, gateway_id),
+            fetch_positions(request, gateway_id),
             _fetch_fills(request, gateway_id, fills_limit),
             _fetch_quote_bootstrap(request, gateway_id),
             _fetch_quote_legs(request, gateway_id),
@@ -437,10 +472,12 @@ async def bootstrap_mm(
             return_exceptions=True,
         ),
     )
-    ref_r, sess_r, orders_r, fills_r, qb_r, ql_r, halts_r = results
+    ref_r, sess_r, orders_r, pos_r, fills_r, qb_r, ql_r, halts_r = results
 
     # --- required fields (503 on failure) -----------------------------------
-    required = _require_or_503([("reference", ref_r), ("orders", orders_r)])
+    required = _require_or_503(
+        [("reference", ref_r), ("orders", orders_r), ("positions", pos_r)]
+    )
     reference = required["reference"]
 
     # --- optional fields ----------------------------------------------------
@@ -450,7 +487,7 @@ async def bootstrap_mm(
         [
             ("session", sess_r),
             ("recent_fills", fills_r),
-            ("quote_bootstrap", qb_r),
+            ("quotes", qb_r),
             ("quote_legs", ql_r),
             ("halts", halts_r),
         ],
@@ -468,24 +505,30 @@ async def bootstrap_mm(
         "session_timezone": _session_timezone(),
         "reference": reference,
         "session": data.get("session"),
-        "positions": _positions(request, gateway_id),
-        "orders": required["orders"],
-        "recent_fills": data.get("recent_fills"),
+        "positions": required["positions"],
+        "orders": required["orders"]["orders"],
+        "recent_fills": _items(data.get("recent_fills"), "events"),
         "capabilities": caps,
-        "quote_bootstrap": data.get("quote_bootstrap"),
-        "quote_legs": data.get("quote_legs"),
-        "halts": data.get("halts"),
+        "quotes": _items(data.get("quotes"), "quotes"),
+        "quote_legs": _items(data.get("quote_legs"), "legs"),
+        "halts": _items(data.get("halts"), "halted"),
     }
 
 
 @router.get(
     "/admin",
+    response_model=BootstrapAdmin,
     summary="Startup payload: admin",
-    responses=docs.ok(
-        docs.BOOTSTRAP_ADMIN,
-        "Everything an operator console needs after login. "
-        "`monitor_last_seq` is the per-gateway sequence to resume the "
-        "`/ws/admin/monitor` stream from.",
+    responses=docs.merge(
+        docs.ok(
+            docs.BOOTSTRAP_ADMIN,
+            "Everything an operator console needs after login. "
+            "`monitor_last_seq` is each active gateway's private-stream "
+            "`stream_seq` now: `/ws/admin/monitor` events for that gateway "
+            "carry the same counter, so a console can skip the ones it "
+            "already has. The monitor has no replay.",
+        ),
+        docs.errors(*docs.TRADING_KEY, "ENGINE_TIMEOUT", "ROLE_DENIED"),
     ),
 )
 async def bootstrap_admin(
@@ -500,7 +543,7 @@ async def bootstrap_admin(
 
     Restricted to ADMIN keys.  ``reference`` is required (503 on failure).
     ``session``, ``gateways``, and ``halts`` are optional (null + incomplete):
-    both have the ``/admin/monitor`` WebSocket ``monitor.snapshot`` as an
+    both have the ``/ws/admin/monitor`` WebSocket ``monitor.snapshot`` as an
     immediate fallback.
     """
     gateway_id = await require_admin(request, session)
@@ -509,7 +552,7 @@ async def bootstrap_admin(
     results: tuple[_QueryResult, _QueryResult, _QueryResult, _QueryResult] = (
         await asyncio.gather(
             _fetch_reference(request, session),
-            _fetch_session(request, gateway_id),
+            fetch_session(request, gateway_id),
             _fetch_gateways(request, gateway_id),
             _fetch_halts(request, gateway_id),
             return_exceptions=True,
@@ -540,8 +583,8 @@ async def bootstrap_admin(
         "session_timezone": _session_timezone(),
         "reference": reference,
         "session": data.get("session"),
-        "gateways": data.get("gateways"),
-        "halts": data.get("halts"),
+        "gateways": _items(data.get("gateways"), "gateways"),
+        "halts": _items(data.get("halts"), "halted"),
         "active_order_counts": _active_order_counts(request),
         "monitor_last_seq": _monitor_last_seq(request),
         "capabilities": caps,

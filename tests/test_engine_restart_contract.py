@@ -65,14 +65,14 @@ def test_x23_a_restart_keeps_an_oco_pair_linked(
          "leg1": {"side": "SELL", "order_type": "LIMIT", "price_ticks": 10100},
          "leg2": {"side": "SELL", "order_type": "STOP", "stop_price_ticks": 9900}}  # fmt: skip
     )
-    assert len(a._oco_groups["K1"]) == 2
+    assert len(a._oco_groups[("GW01", "K1")]) == 2
 
     b, pub = restart(monkeypatch, tmp_path, a)
     assert b._oco_groups == a._oco_groups
     # The limit leg fills: the stop leg must go with it.
     new(b, Side.BUY, OrderType.LIMIT, 5, "GW02", price=101.00)
     (cancelled,) = msgs(pub, "oco.cancelled.GW01")
-    assert cancelled["cancelled_order_id"] == a._oco_groups["K1"][1]
+    assert cancelled["cancelled_order_id"] == a._oco_groups[("GW01", "K1")][1]
 
 
 def test_x24_a_restart_keeps_the_last_trade_price(

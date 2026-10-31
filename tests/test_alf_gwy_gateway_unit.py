@@ -429,6 +429,43 @@ def test_new_oco_and_combo_forward_client_tag(gateway: AlfGateway) -> None:
     assert combo_payload["client_tag"] == "COMBO-TAG"
 
 
+def test_combo_legs_carry_their_own_symbols_tick_scale(gateway: AlfGateway) -> None:
+    """WP-API16: every ALF combo leg was stamped tick_decimals=2, so a leg on a
+    4-decimal instrument told readers of the wire record the wrong scale for
+    its ticks. REST already sent the symbol's own."""
+    from edumatcher.models.price import clear_tick_registry, register_tick_decimals
+
+    clear_tick_registry()
+    register_tick_decimals("AAPL", 2)
+    register_tick_decimals("EURUSD", 4)
+    try:
+        session, peer = _make_session()
+        session.authenticated = True
+        session.gateway_id = "TRADER01"
+        session.role = "TRADER"
+        session.rate_tokens = 10.0
+        gateway._symbols_snapshot_loaded = True
+        gateway._known_symbols = {"AAPL", "EURUSD"}
+        gateway._handle_client_line(
+            session,
+            "NEW|TYPE=COMBO|COMBO_ID=C4|LEG_COUNT=2|"
+            "LEG0.SYM=AAPL|LEG0.SIDE=BUY|LEG0.QTY=1|LEG0.PRICE=100|"
+            "LEG1.SYM=EURUSD|LEG1.SIDE=SELL|LEG1.QTY=1|LEG1.PRICE=1.0850",
+        )
+        fake_push = gateway._push
+        assert isinstance(fake_push, _FakePush)
+        _, payload = decode(fake_push.sent[-1])
+        legs = {leg["symbol"]: leg for leg in payload["legs"]}
+        assert legs["AAPL"]["tick_decimals"] == 2
+        assert (legs["EURUSD"]["tick_decimals"], legs["EURUSD"]["price_ticks"]) == (
+            4,
+            10850,
+        )
+        peer.close()
+    finally:
+        clear_tick_registry()
+
+
 def test_new_oco_leg_prices_are_ticks_on_the_wire(gateway: AlfGateway) -> None:
     """LEG1_PRICE/LEG1_STOP/LEG2_STOP must reach the engine as *_ticks.
 
@@ -737,6 +774,66 @@ def test_amended_and_cancelled_events_echo_request_tag(gateway: AlfGateway) -> N
     assert cancelled.command == "CANCELLED"
     assert cancelled.fields["TAG"] == "TAG-001"
     assert cancelled.fields["RTAG"] == "RT-CXL-001"
+    peer.close()
+
+
+@pytest.mark.parametrize(
+    ("topic", "payload", "expected"),
+    [
+        # A refused OCO cancel: the OCO_ACK refusal frame ALF always sent.
+        (
+            "oco.cancel_ack.TRADER01",
+            {"oco_id": "O1", "accepted": False, "reason": "OCO not found",
+             "reject_code": "ORDER_NOT_FOUND", "cancelled_order_ids": []},
+            ("OCO_ACK", {"OCO_ID": "O1", "ACCEPTED": "FALSE", "LEG1_ID": "",
+                         "LEG2_ID": "", "REASON": "OCO NOT FOUND"}),
+        ),
+        (
+            "combo.cancel_ack.TRADER01",
+            {"combo_id": "C1", "accepted": False, "reason": "Combo already MATCHED",
+             "reject_code": "ORDER_ALREADY_TERMINAL", "cancelled_order_ids": []},
+            ("COMBO_ACK", {"COMBO_ID": "C1", "ACCEPTED": "FALSE",
+                           "REASON": "COMBO ALREADY MATCHED"}),
+        ),
+        # A quote cancel, either way: the QUOTE_ACK ALF always sent for it.
+        (
+            "quote.cancel_ack.TRADER01",
+            {"symbol": "AAPL", "quote_id": "Q1", "accepted": True, "reason": "",
+             "cancelled_order_ids": ["b", "a"]},
+            ("QUOTE_ACK", {"QUOTE_ID": "Q1", "SYM": "AAPL", "ACCEPTED": "TRUE",
+                           "REASON": "", "BID_ID": "", "ASK_ID": ""}),
+        ),
+        # An accepted OCO or combo cancel had no ack frame; the leg cancels
+        # (and COMBO_STATUS) tell the client, as before.
+        ("oco.cancel_ack.TRADER01",
+         {"oco_id": "O1", "accepted": True, "reason": "", "cancelled_order_ids": ["x"]},
+         None),
+        ("combo.cancel_ack.TRADER01",
+         {"combo_id": "C1", "accepted": True, "reason": "", "cancelled_order_ids": ["x"]},
+         None),
+    ],
+)  # fmt: skip
+def test_structure_cancel_acks_keep_the_alf_frames(
+    gateway: AlfGateway,
+    topic: str,
+    payload: dict[str, object],
+    expected: tuple[str, dict[str, str]] | None,
+) -> None:
+    """WP-API17 moved cancel outcomes onto *.cancel_ack; ALF is frozen at 1.0,
+    so an ALF client must see exactly the frames it saw before. (The test
+    parser upper-cases values, as ALF's does.)"""
+    session, peer = _make_session()
+    session.authenticated = True
+    session.gateway_id = "TRADER01"
+    gateway._clients[session.sock.fileno()] = session
+    gateway._active_gateway_sessions["TRADER01"] = session.sock.fileno()
+    gateway._route_gateway_scoped_event(topic, payload)
+    frames = [parse_alf_line(x.decode("utf-8")) for x in session.out_queue]
+    if expected is None:
+        assert frames == []
+    else:
+        (frame,) = frames
+        assert (frame.command, frame.fields) == expected
     peer.close()
 
 

@@ -6,7 +6,7 @@
 # and its WebSocket endpoint on the same port.
 #
 # Everything this container talks to runs outside this compose file:
-# pm-api-gwy for live market data (WS /api/v1/market-data) and history
+# pm-api-gwy for live market data (WS /api/v1/ws/market-data) and history
 # (REST /api/v1/history/*), pm-md-gwy for the session phase (CALF, 5570), and
 # optionally pm-log-srv for operational logging. Point
 # API_GATEWAY_URL/CALF_HOST/LOG_SRV_HOST at wherever those are reachable from

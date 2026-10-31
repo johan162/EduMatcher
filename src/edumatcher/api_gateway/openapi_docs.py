@@ -18,7 +18,13 @@ from typing import Any
 
 from fastapi.openapi.models import Example
 
+from edumatcher.api_gateway.errors import ERROR_CODES
 from edumatcher.api_gateway.schemas import ErrorResponse
+from edumatcher.models.generated import index as index_msgs
+from edumatcher.models.generated import news as news_msgs
+from edumatcher.models.generated import order as order_msgs
+from edumatcher.models.generated import risk as risk_msgs
+from edumatcher.models.generated import system as system_msgs
 from edumatcher.models.generated.order import topic_order_ack, topic_order_fill
 
 API_DESCRIPTION = """\
@@ -56,12 +62,21 @@ timeout; the verdict is then in `accepted`, `reject_code` and `event`.
 Every error uses one envelope, whatever the cause:
 
     {"error": {"code": "VALIDATION", "message": "...", "field": "price",
-               "reject_code": "TICK_VIOLATION", "reason": "..."}}
+               "reject_code": "TICK_VIOLATION"}}
 
-`code` is the HTTP-level category; `reject_code` is the same vocabulary the
-engine uses on `order.ack` rejects, so REST and ALF clients see identical
-values for the same mistake. `client_tag` / `request_tag` are echoed back when
-the request carried one.
+That includes an unknown path (`404 NOT_FOUND`), a wrong method
+(`405 METHOD_NOT_ALLOWED`) and a gateway bug (`500 INTERNAL_ERROR`). `code` is
+the HTTP-level category; `reject_code` is the same vocabulary the engine uses
+on `order.ack` rejects, so REST and ALF clients see identical values for the
+same mistake. `client_tag` / `request_tag` are echoed back when the request
+carried one. Validation failures are always `400`.
+
+## Status codes
+
+`200` means the response carries the outcome; `202` means the request was
+handed on and the outcome follows on a WebSocket. An order submit, cancel or
+amend is `202` by default and `200` with `?wait=ack`. An admin command the
+engine refuses is `409` with a command-specific code.
 
 ## Rate limiting
 
@@ -72,16 +87,17 @@ is `429 RATE_LIMITED`. Reads are not limited.
 ## Prices and time
 
 Prices are decimal display prices (`187.25`), always on the symbol's tick grid
-(`tick_decimals` in `/symbols`); an off-grid price is `400 TICK_VIOLATION`.
+(`tick_decimals` in `/reference/symbols`); an off-grid price is `400 TICK_VIOLATION`.
 Timestamps named `ts_ns` / `*_ns` are epoch nanoseconds; `ts` in history rows is
 ISO-8601 UTC. `date` filters are trading days in the exchange's own timezone
-(see `/history/session`).
+(`session_timezone` in `GET /session`).
 
 ## WebSocket
 
-Live streams are WebSockets and are not part of this OpenAPI document:
-`/api/v1/ws/private` (orders, fills, quotes), `/api/v1/ws/market-data`
-(book, trades, depth, auction, session, halts, news) and `/api/v1/ws/admin/monitor`.
+Live streams are WebSockets under `/api/v1/ws/` and are not part of this
+OpenAPI document: `/api/v1/ws/private` (orders, fills, quotes),
+`/api/v1/ws/market-data` (book, trades, depth, auction, session, halts, news),
+and, for ADMIN keys, `/api/v1/ws/admin/monitor` and `/api/v1/ws/admin/sim`.
 """
 
 TAGS_METADATA: list[dict[str, str]] = [
@@ -144,6 +160,8 @@ TAGS_METADATA: list[dict[str, str]] = [
 # ---------------------------------------------------------------------------
 
 _ORDER_1 = "9f2c4e7a1b3d4c58a6e0f1d2c3b4a596"
+#: For error examples elsewhere that name an order.
+ORDER_ID_EXAMPLE = _ORDER_1
 _ORDER_2 = "3b7e1d9a5c2f4e86b0a1d3c5e7f90214"
 _ORDER_3 = "c81a64f0d2e94b37a5f6091e8d3b72c4"
 _TRADE_1 = "T-20260829-000412"
@@ -191,113 +209,82 @@ def ok_named(
     return {status_code: _json_named(examples, description)}
 
 
-def _error(code: str, message: str, **extra: str) -> dict[str, Any]:
-    error: dict[str, Any] = {"code": code, "message": message}
-    error.update(extra)
-    return {"error": error}
+#: The codes a route's key check can produce. Any key: unknown (`AUTH`); a
+#: trading key the engine refuses (`ENGINE_AUTH`) or cannot be reached to
+#: confirm (`ENGINE_UNAVAILABLE`).
+ANY_KEY = ("AUTH", "ENGINE_AUTH", "ENGINE_UNAVAILABLE")
+#: A gateway-scoped endpoint additionally refuses a read-only key.
+TRADING_KEY = (*ANY_KEY, "READ_ONLY")
 
 
-def _err_response(description: str, example: dict[str, Any]) -> dict[str, Any]:
-    return {
-        "model": ErrorResponse,
-        "description": description,
-        "content": {"application/json": {"example": example}},
-    }
+def errors(
+    *codes: str, examples: dict[str, dict[str, Any]] | None = None
+) -> dict[int | str, dict[str, Any]]:
+    """``responses=`` entries for exactly the error *codes* a route can return.
+
+    One response per HTTP status, listing its codes and carrying one named
+    example per code (Swagger shows a dropdown). *examples* overrides a
+    code's example fields (``message``, ``field``, ``reject_code``, ...);
+    otherwise the registry's example message and default ``reject_code`` are
+    used. Each route's set is held to what its code can raise by
+    ``tests/test_api_gateway_error_codes.py``.
+    """
+    by_status: dict[int, list[str]] = {}
+    for code in sorted(set(codes)):
+        by_status.setdefault(ERROR_CODES[code].status, []).append(code)
+    out: dict[int | str, dict[str, Any]] = {}
+    for status_code, group in sorted(by_status.items()):
+        named = {}
+        for code in group:
+            entry = ERROR_CODES[code]
+            fields: dict[str, Any] = {
+                "message": entry.example,
+                "reject_code": entry.reject_code,
+                **(examples or {}).get(code, {}),
+            }
+            named[code] = {
+                "summary": code,
+                "value": {"error": {"code": code, **fields}},
+            }
+        out[status_code] = {
+            "model": ErrorResponse,
+            "description": " ".join(
+                f"`{code}`: {ERROR_CODES[code].meaning}" for code in group
+            ),
+            "content": {"application/json": {"examples": named}},
+        }
+    return out
 
 
-#: Errors any authenticated endpoint can produce. Applied once, on the app.
-COMMON_ERRORS: dict[int | str, dict[str, Any]] = {
-    400: _err_response(
-        "A parameter or body field is missing, unknown or invalid. "
-        "`reject_code` is one of `MISSING_FIELD`, `UNSUPPORTED_FIELD`, "
-        "`INVALID_VALUE`, `TICK_VIOLATION`; `field` names the culprit.",
-        _error(
-            "VALIDATION",
-            "Input should be less than or equal to 5000",
-            field="limit",
-            reject_code="INVALID_VALUE",
-            reason="Input should be less than or equal to 5000",
-        ),
-    ),
-    401: _err_response(
-        "Missing, malformed or unknown API key.",
-        _error(
-            "AUTH",
-            "Unknown API key",
-            reject_code="AUTH_REQUIRED",
-            reason="Unknown API key",
-        ),
-    ),
-    403: _err_response(
-        "The key is valid but not allowed to do this: a read-only key on a "
-        "gateway-scoped endpoint (`READ_ONLY`), a non-ADMIN key on an admin "
-        "endpoint (`ROLE_DENIED`), or the engine refused the gateway "
-        "(`ENGINE_AUTH`).",
-        _error(
-            "ROLE_DENIED",
-            "ADMIN role required",
-            reject_code="ROLE_DENIED",
-            reason="ADMIN role required",
-        ),
-    ),
-    503: _err_response(
-        "The engine (or pm-index) did not answer within the configured " "timeout.",
-        _error(
-            "ENGINE_TIMEOUT",
-            "Timed out waiting for engine reply",
-            reject_code="INTERNAL_ERROR",
-            reason="Timed out waiting for engine reply",
-        ),
-    ),
+#: ``examples=`` for the order-entry writes' ``VALIDATION``.
+ORDER_VALIDATION = {
+    "message": "LIMIT requires price",
+    "field": "__root__",
+    "reject_code": "MISSING_FIELD",
+    "client_tag": "strategy-7",
 }
-
-#: Added to routes with a request body or query validation.
-VALIDATION_ERROR: dict[int | str, dict[str, Any]] = {
-    400: _err_response(
-        "The request is malformed or breaks a rule: missing/extra field, bad "
-        "value, price off the tick grid. `reject_code` is one of "
-        "`MISSING_FIELD`, `UNSUPPORTED_FIELD`, `INVALID_VALUE`, "
-        "`TICK_VIOLATION`.",
-        _error(
-            "VALIDATION",
-            "LIMIT requires price",
-            field="__root__",
-            reject_code="MISSING_FIELD",
-            reason="LIMIT requires price",
-            client_tag="strategy-7",
-        ),
-    )
-}
-
-#: Added to the order-entry writes.
-RATE_LIMITED: dict[int | str, dict[str, Any]] = {
-    429: _err_response(
-        "Write rate exceeded for this API key; retry after a short pause.",
-        _error(
-            "RATE_LIMIT",
-            "Write rate exceeded",
-            reject_code="RATE_LIMITED",
-            reason="Write rate exceeded",
-        ),
-    )
+#: ``examples=`` for the history filters' ``VALIDATION``.
+FILTER_VALIDATION = {
+    "message": "Invalid date format: yesterday (expected YYYY-MM-DD)",
+    "field": "date",
 }
 
 
-def not_found(code: str, message: str) -> dict[int | str, dict[str, Any]]:
-    return {
-        404: _err_response(
-            "Nothing with that identifier.",
-            _error(code, message, reject_code="UNKNOWN", reason=message),
-        )
-    }
+def ok_or_acked(
+    examples: dict[str, tuple[str, Any]],
+    pending_description: str,
+    acked_description: str,
+) -> dict[int | str, dict[str, Any]]:
+    """``202`` with the ``pending`` example, ``200`` with the others.
 
-
-def conflict(code: str, message: str) -> dict[int | str, dict[str, Any]]:
+    For the writes that answer ``202`` by default and ``200`` once
+    ``?wait=ack`` has the engine's outcome in the body.
+    """
+    pending = {name: ex for name, ex in examples.items() if name == "pending"}
+    answered = {name: ex for name, ex in examples.items() if name != "pending"}
     return {
-        409: _err_response(
-            "The engine refused the command.",
-            _error(code, message, reject_code="UNKNOWN", reason=message),
-        )
+        202: _json_named(pending, pending_description),
+        200: _json_named(answered, acked_description),
     }
 
 
@@ -349,6 +336,7 @@ ORDER_SUBMITTED = {
             "accepted": None,
             "reject_code": None,
             "event": None,
+            "ack_timeout": False,
         },
     ),
     "acked": (
@@ -360,6 +348,7 @@ ORDER_SUBMITTED = {
             "accepted": True,
             "reject_code": None,
             "event": ORDER_ACK_EVENT,
+            "ack_timeout": False,
         },
     ),
     "rejected": (
@@ -371,6 +360,19 @@ ORDER_SUBMITTED = {
             "accepted": False,
             "reject_code": "TICK_VIOLATION",
             "event": ORDER_REJECT_EVENT,
+            "ack_timeout": False,
+        },
+    ),
+    "timeout": (
+        "With ?wait=ack: sent, but the verdict did not arrive in time",
+        {
+            "order_id": _ORDER_1,
+            "client_tag": "strategy-7",
+            "status": "PENDING",
+            "accepted": None,
+            "reject_code": None,
+            "event": None,
+            "ack_timeout": True,
         },
     ),
 }
@@ -395,6 +397,7 @@ ORDER_CANCEL_RESULT = {
             "accepted": None,
             "reject_code": None,
             "event": None,
+            "ack_timeout": False,
         },
     ),
     "acked": (
@@ -406,6 +409,7 @@ ORDER_CANCEL_RESULT = {
             "accepted": True,
             "reject_code": None,
             "event": ORDER_CANCELLED_EVENT,
+            "ack_timeout": False,
         },
     ),
     "rejected": (
@@ -424,6 +428,7 @@ ORDER_CANCEL_RESULT = {
                 "reject_code": "ORDER_ALREADY_TERMINAL",
                 "request_tag": "cxl-1",
             },
+            "ack_timeout": False,
         },
     ),
 }
@@ -438,6 +443,7 @@ ORDER_AMEND_RESULT = {
             "accepted": None,
             "reject_code": None,
             "event": None,
+            "ack_timeout": False,
         },
     ),
     "acked": (
@@ -461,14 +467,36 @@ ORDER_AMEND_RESULT = {
                 "client_tag": "strategy-7",
                 "request_tag": "amend-1",
             },
+            "ack_timeout": False,
         },
     ),
 }
 
 ORDER_REPLACED = {
-    "cancelled_order_id": _ORDER_1,
-    "replacement_order_id": _ORDER_2,
-    "status": "PENDING",
+    "pending": (
+        "Default: original cancelled, replacement sent",
+        {
+            "cancelled_order_id": _ORDER_1,
+            "replacement_order_id": _ORDER_2,
+            "status": "PENDING",
+            "accepted": None,
+            "reject_code": None,
+            "event": None,
+            "ack_timeout": False,
+        },
+    ),
+    "acked": (
+        "With ?wait=ack: the replacement was accepted",
+        {
+            "cancelled_order_id": _ORDER_1,
+            "replacement_order_id": _ORDER_2,
+            "status": "ACKED",
+            "accepted": True,
+            "reject_code": None,
+            "event": {**ORDER_ACK_EVENT, "order_id": _ORDER_2},
+            "ack_timeout": False,
+        },
+    ),
 }
 
 _ORDER_DISPLAY_LIMIT: dict[str, Any] = {
@@ -535,12 +563,98 @@ ORDER_CACHED: dict[str, Any] = {
     "trade_ids": [_TRADE_1],
 }
 
-OCO_PENDING = {"id": "oco-2026-0042", "status": "PENDING", "event": None}
-OCO_CANCEL = {"oco_id": "oco-2026-0042", "status": "PENDING_CANCEL"}
-COMBO_PENDING = {"id": "combo-spread-17", "status": "PENDING", "event": None}
-COMBO_CANCEL = {"combo_id": "combo-spread-17", "status": "PENDING_CANCEL"}
-QUOTE_PENDING = {"id": "q-AAPL-0001", "status": "PENDING", "event": None}
-QUOTE_CANCEL = {"symbol": "AAPL", "status": "PENDING_CANCEL"}
+OCO_ACK_EVENT: dict[str, Any] = {
+    "oco_id": "oco-2026-0042",
+    "accepted": True,
+    "reason": "",
+    "order_id_1": "ORD-OCO-1",
+    "order_id_2": "ORD-OCO-2",
+}
+COMBO_ACK_EVENT: dict[str, Any] = {
+    "combo_id": "combo-spread-17",
+    "accepted": True,
+    "reason": "",
+}
+QUOTE_ACK_EVENT: dict[str, Any] = {
+    "quote_id": "q-AAPL-0001",
+    "accepted": True,
+    "symbol": "AAPL",
+    "reason": "",
+    "bid_order_id": "ORD-QB-1",
+    "ask_order_id": "ORD-QA-1",
+}
+
+
+def _structure_sent(ids: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
+    """The pending and acked examples of an OCO, combo or quote submit."""
+    unanswered = {"accepted": None, "reason": None, "event": None}
+    return {
+        "pending": (
+            "Default: sent, the verdict follows on the WebSocket",
+            {**ids, "status": "PENDING", **unanswered, "ack_timeout": False},
+        ),
+        "acked": (
+            "With ?wait=ack: the engine's verdict",
+            {
+                **ids,
+                "status": "ACKED",
+                "accepted": True,
+                "reason": None,
+                "event": event,
+                "ack_timeout": False,
+            },
+        ),
+    }
+
+
+OCO_SENT = _structure_sent({"oco_id": "oco-2026-0042"}, OCO_ACK_EVENT)
+
+
+def _structure_cancel(ids: dict[str, Any], topic_kind: str) -> dict[str, Any]:
+    """Pending / acked / rejected examples of an OCO, combo or quote cancel."""
+    blank = {"accepted": None, "reject_code": None, "event": None}
+    acked_event = {
+        **ids,
+        "accepted": True,
+        "reason": "",
+        "request_tag": "cxl-1",
+        "cancelled_order_ids": [_ORDER_1, _ORDER_2],
+    }
+    refused_event = {
+        **ids,
+        "accepted": False,
+        "reason": f"{topic_kind} not found",
+        "reject_code": "ORDER_NOT_FOUND",
+        "request_tag": "cxl-1",
+        "cancelled_order_ids": [],
+    }
+    return {
+        "pending": (
+            "Default: cancel sent, outcome follows on the WebSocket",
+            {**ids, "request_tag": "cxl-1", "status": "PENDING_CANCEL", **blank,
+             "ack_timeout": False},
+        ),
+        "acked": (
+            "With ?wait=ack: cancelled",
+            {**ids, "request_tag": "cxl-1", "status": "ACKED", "accepted": True,
+             "reject_code": None, "event": acked_event, "ack_timeout": False},
+        ),
+        "rejected": (
+            "With ?wait=ack: the cancel was refused",
+            {**ids, "request_tag": "cxl-1", "status": "REJECTED", "accepted": False,
+             "reject_code": "ORDER_NOT_FOUND", "event": refused_event,
+             "ack_timeout": False},
+        ),
+    }  # fmt: skip
+
+
+OCO_CANCEL = _structure_cancel({"oco_id": "oco-2026-0042"}, "OCO")
+COMBO_SENT = _structure_sent({"combo_id": "combo-spread-17"}, COMBO_ACK_EVENT)
+COMBO_CANCEL = _structure_cancel({"combo_id": "combo-spread-17"}, "Combo")
+QUOTE_SENT = _structure_sent(
+    {"symbol": "AAPL", "quote_id": "q-AAPL-0001"}, QUOTE_ACK_EVENT
+)
+QUOTE_CANCEL = _structure_cancel({"symbol": "AAPL"}, "Quote")
 
 MASS_CANCEL: dict[str, Any] = {
     "gateway_id": "TRADER01",
@@ -739,6 +853,7 @@ SESSION_STATUS: dict[str, Any] = {
     "next": {"state": "CLOSING_AUCTION", "at": "2026-08-29T17:25:00+02:00"},
 }
 
+
 HALT_STATUS: dict[str, Any] = {
     "gateway_id": "TRADER01",
     "halted": [
@@ -907,11 +1022,6 @@ HISTORY_FILLS: dict[str, Any] = {
     "has_more": False,
     "retained_from": _RETAINED_FROM,
 }
-HISTORY_SESSION = {
-    "country": "SE",
-    "session_timezone": "Europe/Stockholm",
-    "session_date": "2026-08-29",
-}
 HISTORY_TRADES: dict[str, Any] = {
     "trades": [
         {
@@ -1007,7 +1117,7 @@ HISTORY_INDEX_SNAPSHOTS: dict[str, Any] = {
     "count": 1,
     "has_more": False,
 }
-HISTORY_INDEX_IDS = {"index_ids": ["EDU3"], "count": 1}
+HISTORY_INDEXES = {"index_ids": ["EDU3"], "count": 1}
 HISTORY_INDEX_EVENTS: dict[str, Any] = {
     "events": [
         {
@@ -1047,66 +1157,6 @@ _CAPABILITIES = {
 }
 _FILLS_TODAY = {"events": [_EVENT_FILL], "count": 1}
 
-BOOTSTRAP_TRADER: dict[str, Any] = {
-    "ts": "2026-08-29T13:30:05.412+00:00",
-    "incomplete": [],
-    "gateway_id": "TRADER01",
-    "gateway_role": "TRADER",
-    "session_timezone": "Europe/Stockholm",
-    "reference": REFERENCE_BUNDLE,
-    "session": SESSION_STATUS,
-    "positions": [
-        {"symbol": "AAPL", "net_qty": 40, "last_price": 187.4},
-        {"symbol": "TSLA", "net_qty": -25, "last_price": None},
-    ],
-    "orders": ORDERS_LIST,
-    "recent_fills": _FILLS_TODAY,
-    "halts": {"gateway_id": "TRADER01", "halted": []},
-    "capabilities": _CAPABILITIES,
-}
-BOOTSTRAP_MM: dict[str, Any] = {
-    **BOOTSTRAP_TRADER,
-    "gateway_id": "MM01",
-    "gateway_role": "MARKET_MAKER",
-    "quote_bootstrap": QUOTE_BOOTSTRAP,
-    "quote_legs": QUOTE_LEGS,
-}
-BOOTSTRAP_ADMIN: dict[str, Any] = {
-    "ts": "2026-08-29T13:30:05.412+00:00",
-    "incomplete": [],
-    "gateway_id": "OPS01",
-    "gateway_role": "ADMIN",
-    "session_timezone": "Europe/Stockholm",
-    "reference": REFERENCE_BUNDLE,
-    "session": {**SESSION_STATUS, "gateway_id": "OPS01"},
-    "gateways": {
-        "gateway_id": "OPS01",
-        "gateways": [
-            {
-                "id": "TRADER01",
-                "role": "TRADER",
-                "connected": True,
-                "description": "Student desk 1",
-            },
-            {
-                "id": "MM01",
-                "role": "MARKET_MAKER",
-                "connected": True,
-                "description": "Market maker",
-            },
-            {
-                "id": "OPS01",
-                "role": "ADMIN",
-                "connected": True,
-                "description": "Instructor console",
-            },
-        ],
-    },
-    "halts": {"gateway_id": "OPS01", "halted": []},
-    "active_order_counts": {"TRADER01": 2, "MM01": 2, "OPS01": 0},
-    "monitor_last_seq": {"TRADER01": 1843, "MM01": 5120, "OPS01": 77},
-    "capabilities": _CAPABILITIES,
-}
 
 # ---------------------------------------------------------------------------
 # Admin
@@ -1118,11 +1168,6 @@ ADMIN_TRANSITION = {
     "command_id": _CMD,
 }
 ADMIN_RELOAD = {"status": "RELOADED", "config_version": _CONFIG_VERSION}
-ADMIN_SCHEDULE: dict[str, Any] = {
-    "gateway_id": "OPS01",
-    "sessions_enabled": True,
-    "schedule": _WEEKLY_SCHEDULE,
-}
 ADMIN_SIM: dict[str, Any] = {
     "available": True,
     "state": {
@@ -1144,8 +1189,30 @@ ADMIN_SIM: dict[str, Any] = {
         ],
     },
 }
-ADMIN_GATEWAYS = BOOTSTRAP_ADMIN["gateways"]
-ADMIN_DISCONNECT = {"gateway_id": "TRADER01", "status": "DISCONNECTED"}
+ADMIN_GATEWAYS: dict[str, Any] = {
+    "gateway_id": "OPS01",
+    "gateways": [
+        {
+            "id": "TRADER01",
+            "role": "TRADER",
+            "connected": True,
+            "description": "Student desk 1",
+        },
+        {
+            "id": "MM01",
+            "role": "MARKET_MAKER",
+            "connected": True,
+            "description": "Market maker",
+        },
+        {
+            "id": "OPS01",
+            "role": "ADMIN",
+            "connected": True,
+            "description": "Instructor console",
+        },
+    ],
+}
+ADMIN_DISCONNECT = {"gateway_id": "TRADER01", "status": "PENDING_DISCONNECT"}
 ADMIN_HALT_ACK: dict[str, Any] = {
     "gateway_id": "OPS01",
     "accepted": True,
@@ -1159,10 +1226,6 @@ ADMIN_RESUME_ACK: dict[str, Any] = {
     "accepted": True,
     "symbol": "TSLA",
     "command_id": _CMD,
-}
-ADMIN_HALTS: dict[str, Any] = {
-    "gateway_id": "OPS01",
-    "halted": HALT_STATUS["halted"],
 }
 ADMIN_RISK_STATE: dict[str, Any] = {
     "gateway_id": "OPS01",
@@ -1285,6 +1348,20 @@ ADMIN_POSITIONS: dict[str, Any] = {
 # Request examples and shared parameter text
 # ---------------------------------------------------------------------------
 
+STRUCTURE_CANCEL_ACK = (
+    "`request_tag` (query) is echoed on the engine's cancel ack. Returns `202` "
+    "(`PENDING_CANCEL`); with `?wait=ack`, `200` and the outcome (`ACKED`, or "
+    "`REJECTED` with a `reject_code`), or `202` with `ack_timeout: true` if it "
+    "did not come in time."
+)
+
+STRUCTURE_ACK = (
+    "Returns `202` (`PENDING`), the verdict following on the private "
+    "WebSocket; with `?wait=ack`, `200` and the verdict in the same response, "
+    "or `202` with `ack_timeout: true` if it did not come in time. Send an "
+    "`Idempotency-Key` to make a retry safe."
+)
+
 WAIT_ACK = (
     "Pass `ack` to hold the response until the engine acknowledges the "
     "request (up to the gateway's `wait_ack_sec`). Without it the call "
@@ -1376,3 +1453,235 @@ def drop_stock_validation_error(schema: dict[str, Any]) -> None:
     components = schema.get("components", {}).get("schemas", {})
     components.pop("HTTPValidationError", None)
     components.pop("ValidationError", None)
+
+
+# ---------------------------------------------------------------------------
+# Route examples (WP-API04)
+#
+# What each route actually sends. The examples above are the engine's
+# payloads, kept pure because they are checked against the message specs;
+# a route's example is that payload as the engine serialises it (through the
+# generated binding, so no always-present field is missing) plus whatever the
+# gateway adds -- a D6 `count`, the session locale, an un-nested bootstrap.
+# tests/test_api_gateway_openapi.py checks each against its response model.
+# ---------------------------------------------------------------------------
+
+
+def _wire(message: Any, example: dict[str, Any]) -> dict[str, Any]:
+    payload: dict[str, Any] = message.from_dict(example).to_dict()
+    return payload
+
+
+def _counted(reply: dict[str, Any], key: str) -> dict[str, Any]:
+    return {**reply, "count": len(reply[key])}
+
+
+def _page(page: dict[str, Any], key: str) -> dict[str, Any]:
+    """A history page as sent: no internal `_rowid`, `next_cursor` always set."""
+    rows = [{k: v for k, v in row.items() if k != "_rowid"} for row in page[key]]
+    cursor = (
+        "eyJ0cyI6IjIwMjYtMDgtMjlUMTM6MzA6MDIuOTA0KzAwOjAwIn0"
+        if page.get("has_more")
+        else None
+    )
+    return {**page, key: rows, "next_cursor": cursor}
+
+
+REFERENCE_REPLY = _wire(system_msgs.Reference, REFERENCE_BUNDLE)
+REFERENCE_SYMBOLS_REPLY = {
+    "symbols": REFERENCE_REPLY["symbols"],
+    "count": len(REFERENCE_REPLY["symbols"]),
+    "config_version": REFERENCE_REPLY["config_version"],
+}
+REFERENCE_INDEXES_REPLY = {
+    "indexes": REFERENCE_REPLY["indexes"],
+    "count": len(REFERENCE_REPLY["indexes"]),
+    "config_version": REFERENCE_REPLY["config_version"],
+}
+SYMBOLS_REPLY = _counted(_wire(system_msgs.Symbols, SYMBOLS), "symbols")
+SESSION: dict[str, Any] = {
+    **_wire(system_msgs.SessionStatus, SESSION_STATUS),
+    "session_timezone": "Europe/Stockholm",
+    "session_date": "2026-08-29",
+}
+HALTS_REPLY = _counted(_wire(system_msgs.HaltStatus, HALT_STATUS), "halted")
+QUOTES_REPLY = _counted(_wire(system_msgs.QuoteBootstrap, QUOTE_BOOTSTRAP), "quotes")
+QUOTE_LEGS_REPLY = _counted(_wire(system_msgs.QuoteLegs, QUOTE_LEGS), "legs")
+NEWS_REPLY: dict[str, Any] = {
+    "news": [_wire(news_msgs.NewsEvent, item) for item in NEWS["news"]],
+    "count": len(NEWS["news"]),
+    "sectors": NEWS["sectors"],
+}
+POSITIONS_REPLY = _counted(POSITIONS, "positions")
+STATUS_REPLY: dict[str, Any] = {"gateway_id": "TRADER01", "gateway_role": "TRADER"}
+ORDERS_LIST_REPLY = _counted(_wire(order_msgs.Orders, ORDERS_LIST), "orders")
+MASS_CANCEL_REPLY = _wire(risk_msgs.KillSwitchAck, MASS_CANCEL)
+
+HISTORY_ORDERS_REPLY = _page(HISTORY_ORDERS, "events")
+HISTORY_FILLS_REPLY = _page(HISTORY_FILLS, "events")
+HISTORY_TRADES_REPLY = _page(HISTORY_TRADES, "trades")
+HISTORY_DAILY_REPLY = _page(HISTORY_DAILY, "daily")
+HISTORY_PRICE_SNAPSHOTS_REPLY = _page(HISTORY_PRICE_SNAPSHOTS, "snapshots")
+HISTORY_INDEX_DAILY_REPLY = _page(HISTORY_INDEX_DAILY, "daily")
+HISTORY_INDEX_SNAPSHOTS_REPLY = _page(HISTORY_INDEX_SNAPSHOTS, "snapshots")
+
+ADMIN_GATEWAYS_REPLY = _counted(_wire(system_msgs.Gateways, ADMIN_GATEWAYS), "gateways")
+ADMIN_RISK_STATE_REPLY = _counted(
+    _wire(system_msgs.RiskState, ADMIN_RISK_STATE), "symbols"
+)
+ADMIN_HALT_ACK_REPLY = _wire(risk_msgs.SymbolHaltAck, ADMIN_HALT_ACK)
+ADMIN_RESUME_ACK_REPLY = _wire(risk_msgs.SymbolResumeAck, ADMIN_RESUME_ACK)
+ADMIN_KILL_SYMBOL_REPLY = _wire(risk_msgs.CancelSymbolAck, ADMIN_KILL_SYMBOL)
+ADMIN_KILL_GATEWAY_REPLY = _wire(risk_msgs.KillSwitchGatewayAck, ADMIN_KILL_GATEWAY)
+ADMIN_KILL_GLOBAL_REPLY = _wire(risk_msgs.KillSwitchGlobalAck, ADMIN_KILL_GLOBAL)
+ADMIN_KILL_GATEWAY_SYMBOL_REPLY = _wire(
+    risk_msgs.KillSwitchGatewayAck,
+    {
+        **ADMIN_KILL_GATEWAY,
+        "symbol": "AAPL",
+        "cancelled_order_ids": [_ORDER_1],
+        "cancelled_orders": 1,
+    },
+)
+ADMIN_QUOTE_CANCEL_REPLY = _wire(
+    risk_msgs.KillSwitchGatewayAck,
+    {
+        **ADMIN_KILL_GATEWAY,
+        "target_gateway_id": "MM01",
+        "symbol": "AAPL",
+        "quotes_only": True,
+        "cancelled_orders": 0,
+        "cancelled_order_ids": [],
+        "cancelled_quotes": 2,
+        "cancelled_quote_order_ids": [_ORDER_2, _ORDER_3],
+    },
+)
+ADMIN_HALT_ALL_REPLY = _wire(
+    risk_msgs.CircuitBreakerHaltAllAck,
+    {
+        "gateway_id": "OPS01",
+        "accepted": True,
+        "halted_symbols": 3,
+        "halted_symbol_ids": ["AAPL", "MSFT", "TSLA"],
+        "cancelled_quotes": 4,
+        "cancelled_quote_order_ids": [_ORDER_2, _ORDER_3],
+    },
+)
+ADMIN_RESUME_ALL_REPLY = _wire(
+    risk_msgs.CircuitBreakerResumeAllAck,
+    {
+        "gateway_id": "OPS01",
+        "accepted": True,
+        "resumed_symbols": 3,
+        "resumed_symbol_ids": ["AAPL", "MSFT", "TSLA"],
+    },
+)
+ADMIN_REOPEN_REPLY = {
+    "dry_run": (
+        "dry_run: the indicative print, nothing changed",
+        _wire(
+            risk_msgs.ForceUncrossAck,
+            {
+                "gateway_id": "OPS01",
+                "accepted": True,
+                "symbol": "AAPL",
+                "dry_run": True,
+                "indicative_price": 187.25,
+                "indicative_qty": 1200,
+                "surplus": 300,
+                "imbalance_side": "BUY",
+                "printed_price": None,
+                "traded_qty": 0,
+                "command_id": _CMD,
+            },
+        ),
+    ),
+    "reopened": (
+        "Reopened at an operator price",
+        _wire(
+            risk_msgs.ForceUncrossAck,
+            {
+                "gateway_id": "OPS01",
+                "accepted": True,
+                "symbol": "AAPL",
+                "dry_run": False,
+                "indicative_price": 187.25,
+                "indicative_qty": 1200,
+                "surplus": 300,
+                "imbalance_side": "BUY",
+                "printed_price": 187.25,
+                "traded_qty": 1200,
+                "command_id": _CMD,
+            },
+        ),
+    ),
+}
+ADMIN_GATEWAY_ORDERS_REPLY = _counted(
+    _wire(order_msgs.Orders, {**ORDERS_LIST, "gateway_id": "MM01"}), "orders"
+)
+ADMIN_PRICE_LEVEL_REPLY = _counted(
+    _wire(
+        order_msgs.PriceLevelOrders,
+        {
+            "gateway_id": "OPS01",
+            "symbol": "AAPL",
+            "price": 187.25,
+            "rejected": False,
+            "orders": [{**_ORDER_DISPLAY_LIMIT, "gateway_id": "TRADER01"}],
+        },
+    ),
+    "orders",
+)
+ADMIN_VOLUME_REPLY = _counted(
+    _wire(
+        system_msgs.Volume,
+        {
+            "gateway_id": "OPS01",
+            "symbols": [
+                {"symbol": "AAPL", "qty": 18400, "value": 3445200.0, "trades": 312},
+                {"symbol": "MSFT", "qty": 9100, "value": 3756480.0, "trades": 140},
+            ],
+            "total_qty": 27500,
+            "total_value": 7201680.0,
+            "total_trades": 452,
+        },
+    ),
+    "symbols",
+)
+ADMIN_REBALANCE_REPLY = _wire(index_msgs.IndexRebalanceAck, ADMIN_REBALANCE)
+
+BOOTSTRAP_TRADER: dict[str, Any] = {
+    "ts": "2026-08-29T13:30:05.412+00:00",
+    "incomplete": [],
+    "gateway_id": "TRADER01",
+    "gateway_role": "TRADER",
+    "session_timezone": "Europe/Stockholm",
+    "reference": REFERENCE_REPLY,
+    "session": SESSION,
+    "positions": POSITIONS["positions"],
+    "orders": ORDERS_LIST_REPLY["orders"],
+    "recent_fills": HISTORY_FILLS_REPLY["events"],
+    "halts": [],
+    "capabilities": _CAPABILITIES,
+}
+BOOTSTRAP_MM: dict[str, Any] = {
+    **BOOTSTRAP_TRADER,
+    "gateway_id": "MM01",
+    "gateway_role": "MARKET_MAKER",
+    "quotes": QUOTES_REPLY["quotes"],
+    "quote_legs": QUOTE_LEGS_REPLY["legs"],
+}
+BOOTSTRAP_ADMIN: dict[str, Any] = {
+    "ts": "2026-08-29T13:30:05.412+00:00",
+    "incomplete": [],
+    "gateway_id": "OPS01",
+    "gateway_role": "ADMIN",
+    "session_timezone": "Europe/Stockholm",
+    "reference": REFERENCE_REPLY,
+    "session": SESSION,
+    "gateways": ADMIN_GATEWAYS_REPLY["gateways"],
+    "halts": [],
+    "active_order_counts": {"TRADER01": 2, "MM01": 2, "OPS01": 0},
+    "monitor_last_seq": {"TRADER01": 1843, "MM01": 5120, "OPS01": 77},
+    "capabilities": _CAPABILITIES,
+}

@@ -41,6 +41,13 @@ UNKNOWN_ENUM = "UNKNOWN_ENUM"
 #: rather than a suspicion. Section 12.3.
 SEQ_GAP = "SEQ_GAP"
 
+#: A gap in the engine publisher's socket-wide ``eseq``: messages are missing
+#: across the whole audit stream, including topics whose final message was lost.
+ESEQ_GAP = "ESEQ_GAP"
+
+#: A repeated or decreasing ``eseq`` without a ``system.startup`` boundary.
+ESEQ_DISCONTINUITY = "ESEQ_DISCONTINUITY"
+
 #: A fact that arrived after its reorder window had closed. Section 12.3.
 LATE_ARRIVAL = "LATE_ARRIVAL"
 

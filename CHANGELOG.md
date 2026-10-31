@@ -1,3 +1,56 @@
+## [v0.66.0] - 2026-10-31
+
+Release Type: major
+
+### 📋 Summary
+This release establishes a typed REST/WebSocket v1 contract with consistent errors, safe asynchronous writes and expanded administrator controls. It also corrects audit shutdown and replay behavior and extends hands-on OCO and combo strategy training.
+
+### ⚠️ Breaking Changes
+- Moved WebSockets to `/ws/private`, `/ws/market-data`, `/ws/admin/monitor` and `/ws/admin/sim` under the API prefix; update clients using the previous socket URLs
+- Reorganized administrator routes around `/admin/market`, `/admin/symbols/{symbol}` and `/admin/gateways/{gateway_id}`; removed redundant aliases, renamed `/quotes/bootstrap` to `/quotes` and `/history/index-ids` to `/history/indexes`, and moved order audit queries to `/admin/orders/{order_id}/audit`. Update clients using the [REST API Reference](docs/books/protocols-and-clients/part-2-specifications/060-rest-and-websocket.md)
+- Standardized REST failures on the shared error envelope without its former `reason` field; validation and history-filter errors return `400`, missing or invalid bearer keys return `401`, and administrator action refusals return `409` with action-specific codes
+- Standardized response models, collection counts, pagination cursors, structure identifiers and bootstrap fields; bootstrap collections are flattened, `/status` no longer exposes cache counters, and generated SDK operation IDs use stable handler names
+- Changed acknowledgement timeouts for sent writes to `202` with `ack_timeout: true` and the tracking identifier rather than `503`; update retry handling and reconcile pending outcomes instead of blindly resubmitting. Replace retains `503 ENGINE_TIMEOUT` when its cancellation outcome is unknown
+- Enforced one per-order-type field rule across REST, ALF, BALF and the engine; remove fields a type does not use and supply required prices and triggers. ICEBERG legs and TRAILING_STOP combo legs are refused, and index rebalance requests no longer accept `reason`
+- Changed history index-event `from` and `to` filters from Unix seconds to ISO-8601 timestamps or dates
+- Replaced engine OCO, combo and quote submit acknowledgements used for cancellation with dedicated `oco.cancel_ack`, `combo.cancel_ack` and `quote.cancel_ack` events; update direct bus and private-WebSocket consumers. Existing ALF cancellation frames remain unchanged
+- Changed audit replay's canonical ordering and packed `sort_key` to use publisher runs and `eseq`; update consumers decoding the key and rebuild older replay indexes
+
+### ✨ Additions
+- Added optional `Idempotency-Key` support for order, OCO, combo and quote submissions and order replacement, including concurrent duplicate suppression, replayed responses and conflicting-key rejection
+- Added `wait=ack` for structure submissions and cancellations, with request-tagged cancel outcomes, rejection codes and cancelled child-order IDs
+- Added REST administrator market halt/resume, symbol reopening with dry-run support, symbol-scoped gateway kill switches, quote-only cancellation, authoritative per-gateway order queries, price-level drill-down and daily volume
+- Added publisher-wide `ESEQ_GAP` and `ESEQ_DISCONTINUITY` audit-replay findings and exposed `eseq` and `publisher_run` in machine-readable beats
+
+### 🚀 Improvements
+- Added runtime response validation and generated REST payload models from the message specification, preserving omitted engine fields rather than replacing them with nulls
+- Opened session and halt reads to read-only keys and included those views in read-only bootstrap responses
+- Improved administrator scoped cancellation to retain the operator's identity in the audit trail and work when the target gateway is disconnected
+- Improved order replacement by checking symbol readiness before cancellation, preventing symbol changes and correlating cancellation refusals before submitting a replacement
+
+### 🐛 Bug Fixes
+- Fixed audit shutdown losing in-flight end-of-day checkpoints by draining until `system.eod`, and corrected G3 forensics checkpoint-round selection
+- Fixed audit replay placing republished gateway-originated messages ahead of earlier engine publications by ordering on `eseq` within startup runs instead of ULID timestamps
+- Fixed REST order reads returning stale cached success on engine timeouts and bootstrap positions appearing flat after gateway restart
+- Fixed trader GUI actions reporting unsent requests as awaiting confirmation instead of reporting the failure
+- Fixed quote cancellation acknowledgements confusing market-maker bot state and statistics with quote submissions, and corrected cancellation notifications in the trading GUI
+- Fixed ALF combo legs reporting a hard-coded tick scale instead of their symbol's actual precision
+- Fixed `/healthz` returning success when the gateway reports unhealthy status
+
+### 📚 Documentation
+- Added a normative WebSocket reference covering authentication, event catalogues, sequencing, slow-consumer drops, subscriptions and recovery
+- Updated the REST specification and client migration guidance, and consolidated the operator API guide around concepts with links to the normative contracts
+- Added runnable Python examples for order lifecycle and safe retries, history pagination, private-stream recovery, market-data replay and administrator halt/reopen workflows
+- Expanded combo training from six to fifteen exercises covering hedge ratios, pair exits, baskets, OCO partial fills and stop variants, execution depth, conditional legs, SMP, amendments, auctions and recovery
+- Updated audit-replay guidance for publisher ordering, output interpretation and current anomaly coverage
+
+### 🛠 Internal
+- Added a committed OpenAPI contract, `make openapi` and `make openapi-check`, with CI drift checks and tests holding REST and WebSocket documentation to the implementation
+- Added shared per-type order-field validation and cross-transport rejection-code parity coverage
+- Added real-exchange end-to-end checks for REST examples and improved teardown to wait for service ports before starting the next scenario
+- Expanded audit shutdown, replay ordering, structure-cancel acknowledgement, administrator control and GUI regression coverage
+- Fixed the audit metrics test's infinitely readable socket mock with a finite stream covering normal and shutdown-drained EOD receipt
+
 ## [v0.65.6] - 2026-10-30
 
 Release Type: minor

@@ -391,6 +391,53 @@ class TestTheDirectKeyTier:
         link = only(resolution.links, CAUSED)
         assert (link.source, link.confidence) == (oco.ref, Confidence.CERTAIN)
 
+    # WP-API17: a structure cancel's outcome is its own ack, caused by the
+    # cancel request -- not by the original submission.
+    @pytest.mark.parametrize(
+        ("request_topic", "cancel_payload", "ack_topic", "ack"),
+        [
+            ("order.oco_cancel", {"oco_id": "O-1", "gateway_id": "TRADER01"},
+             "oco.cancel_ack.TRADER01", {"oco_id": "O-1", "accepted": True}),
+            ("order.combo_cancel", {"combo_id": "C-1", "gateway_id": "TRADER01"},
+             "combo.cancel_ack.TRADER01", {"combo_id": "C-1", "accepted": False,
+                                           "reject_code": "ORDER_NOT_FOUND"}),
+            ("quote.cancel", {"symbol": "AAPL", "gateway_id": "MM01"},
+             "quote.cancel_ack.MM01", {"symbol": "AAPL", "quote_id": "Q-7",
+                                       "accepted": True}),
+        ],
+    )  # fmt: skip
+    def test_a_cancel_ack_to_its_cancel_request(
+        self,
+        request_topic: str,
+        cancel_payload: dict[str, Any],
+        ack_topic: str,
+        ack: dict[str, Any],
+    ) -> None:
+        feeder = Feeder()
+        cancel = feeder.feed(request_topic, cancel_payload)
+        resolution = feeder.feed(ack_topic, ack)
+        link = only(resolution.links, CAUSED)
+        # Untagged: one request in flight is STRONG, as for order cancels;
+        # only a request_tag makes it CERTAIN (next test).
+        assert (link.source, link.confidence) == (cancel.ref, Confidence.STRONG)
+
+    def test_a_cancel_ack_finds_its_request_by_tag(self) -> None:
+        feeder = Feeder()
+        feeder.feed(
+            "order.oco_cancel",
+            {"oco_id": "O-1", "gateway_id": "TRADER01", "request_tag": "a"},
+        )
+        second = feeder.feed(
+            "order.oco_cancel",
+            {"oco_id": "O-1", "gateway_id": "TRADER01", "request_tag": "b"},
+        )
+        resolution = feeder.feed(
+            "oco.cancel_ack.TRADER01",
+            {"oco_id": "O-1", "accepted": False, "request_tag": "b"},
+        )
+        link = only(resolution.links, CAUSED)
+        assert (link.source, link.confidence) == (second.ref, Confidence.CERTAIN)
+
 
 class TestParentage:
     """A leg to its parent. Not a cause, so the envelope never settles it --

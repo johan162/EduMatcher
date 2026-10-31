@@ -14,7 +14,7 @@ const apiFetchMock = vi.fn(async (path: string) => {
       ],
     };
   }
-  if (path.startsWith("/api/v1/admin/halts")) return { halted: [{ symbol: "TSLA", level: "2" }] };
+  if (path.startsWith("/api/v1/halts")) return { halted: [{ symbol: "TSLA", level: "2" }] };
   if (path.startsWith("/api/v1/history/daily")) return { daily: [], has_more: false };
   return {};
 });
@@ -106,7 +106,7 @@ describe("AdminDashboardPage (§15.1)", () => {
     expect(screen.getByText("40 @ 150")).toBeTruthy();
   });
 
-  it("reconciles halts from GET /admin/halts", async () => {
+  it("reconciles halts from GET /halts", async () => {
     wrap(<AdminDashboardPage />);
     await waitFor(() => expect(useHaltStore.getState().halts.TSLA).toBeTruthy());
   });

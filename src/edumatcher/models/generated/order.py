@@ -4823,6 +4823,14 @@ _ORDER_COMBO_CANCEL_FIELDS: tuple[dict[str, Any], ...] = (
         "doc": "",
         "constraints": {"max_len": 32},
     },
+    {
+        "name": "request_tag",
+        "type": "string",
+        "unit": None,
+        "required": False,
+        "doc": "Echoed on combo.cancel_ack, so the caller can attribute the outcome.",
+        "constraints": {"max_len": 64},
+    },
 )
 
 
@@ -4832,6 +4840,7 @@ class OrderComboCancel:
 
     combo_id: str = ""
     gateway_id: str = ""
+    request_tag: str = ""
 
     def validate(self) -> None:
         """Raise MessageValidationError if any declared rule fails.
@@ -4848,6 +4857,10 @@ class OrderComboCancel:
             raise MessageValidationError(
                 f"gateway_id: length {len(self.gateway_id)} exceeds max_len 32"
             )
+        if len(self.request_tag) > 64:
+            raise MessageValidationError(
+                f"request_tag: length {len(self.request_tag)} exceeds max_len 64"
+            )
 
     @classmethod
     def from_dict(cls, p: Mapping[str, Any]) -> "OrderComboCancel":
@@ -4860,14 +4873,18 @@ class OrderComboCancel:
         return cls(
             combo_id=str(p.get("combo_id", "")),
             gateway_id=str(p.get("gateway_id", "")),
+            request_tag=str(p.get("request_tag", "")),
         )
 
     def to_dict(self) -> dict[str, Any]:
         """Return the bus payload, in the spec's declared field order."""
-        return {
+        payload: dict[str, Any] = {
             "combo_id": self.combo_id,
             "gateway_id": self.gateway_id,
         }
+        if self.request_tag:
+            payload["request_tag"] = self.request_tag
+        return payload
 
 
 def is_order_combo_cancel(topic: str) -> bool:
@@ -4894,6 +4911,7 @@ def make_order_combo_cancel_unchecked(
     *,
     combo_id: str = "",
     gateway_id: str = "",
+    request_tag: str = "",
 ) -> list[bytes]:
     """Identical frames to ``make_order_combo_cancel``, without ``validate()``.
 
@@ -4905,14 +4923,15 @@ def make_order_combo_cancel_unchecked(
     Coerces exactly as ``make_*`` does, so for any input the two emit byte-identical
     frames.
     """
+    payload: dict[str, Any] = {
+        "combo_id": str(combo_id),
+        "gateway_id": str(gateway_id),
+    }
+    if request_tag:
+        payload["request_tag"] = str(request_tag)
     return [
         _TOPIC_ORDER_COMBO_CANCEL_BYTES,
-        _msg.dumps(
-            {
-                "combo_id": str(combo_id),
-                "gateway_id": str(gateway_id),
-            }
-        ),
+        _msg.dumps(payload),
     ]
 
 
@@ -5128,7 +5147,7 @@ _ORDER_OCO_FIELDS: tuple[dict[str, Any], ...] = (
         "type": "string",
         "unit": None,
         "required": False,
-        "doc": "Client-supplied label for the pair.",
+        "doc": "Client-supplied label for the pair, unique among the gateway's live pairs: a submit reusing one is refused. Free again once the pair is done.",
         "constraints": {"max_len": 64},
     },
     {
@@ -5339,7 +5358,7 @@ _ORDER_OCO_CANCEL_FIELDS: tuple[dict[str, Any], ...] = (
         "type": "string",
         "unit": None,
         "required": False,
-        "doc": "Client-supplied OCO label.",
+        "doc": "Client-supplied OCO label. Names a pair of the sending gateway only.",
         "constraints": {"max_len": 64},
     },
     {
@@ -5350,6 +5369,14 @@ _ORDER_OCO_CANCEL_FIELDS: tuple[dict[str, Any], ...] = (
         "doc": "",
         "constraints": {"max_len": 32},
     },
+    {
+        "name": "request_tag",
+        "type": "string",
+        "unit": None,
+        "required": False,
+        "doc": "Echoed on oco.cancel_ack, so the caller can attribute the outcome.",
+        "constraints": {"max_len": 64},
+    },
 )
 
 
@@ -5359,6 +5386,7 @@ class OrderOcoCancel:
 
     oco_id: str = ""
     gateway_id: str = ""
+    request_tag: str = ""
 
     def validate(self) -> None:
         """Raise MessageValidationError if any declared rule fails.
@@ -5375,6 +5403,10 @@ class OrderOcoCancel:
             raise MessageValidationError(
                 f"gateway_id: length {len(self.gateway_id)} exceeds max_len 32"
             )
+        if len(self.request_tag) > 64:
+            raise MessageValidationError(
+                f"request_tag: length {len(self.request_tag)} exceeds max_len 64"
+            )
 
     @classmethod
     def from_dict(cls, p: Mapping[str, Any]) -> "OrderOcoCancel":
@@ -5387,14 +5419,18 @@ class OrderOcoCancel:
         return cls(
             oco_id=str(p.get("oco_id", "")),
             gateway_id=str(p.get("gateway_id", "")),
+            request_tag=str(p.get("request_tag", "")),
         )
 
     def to_dict(self) -> dict[str, Any]:
         """Return the bus payload, in the spec's declared field order."""
-        return {
+        payload: dict[str, Any] = {
             "oco_id": self.oco_id,
             "gateway_id": self.gateway_id,
         }
+        if self.request_tag:
+            payload["request_tag"] = self.request_tag
+        return payload
 
 
 def is_order_oco_cancel(topic: str) -> bool:
@@ -5421,6 +5457,7 @@ def make_order_oco_cancel_unchecked(
     *,
     oco_id: str = "",
     gateway_id: str = "",
+    request_tag: str = "",
 ) -> list[bytes]:
     """Identical frames to ``make_order_oco_cancel``, without ``validate()``.
 
@@ -5432,14 +5469,15 @@ def make_order_oco_cancel_unchecked(
     Coerces exactly as ``make_*`` does, so for any input the two emit byte-identical
     frames.
     """
+    payload: dict[str, Any] = {
+        "oco_id": str(oco_id),
+        "gateway_id": str(gateway_id),
+    }
+    if request_tag:
+        payload["request_tag"] = str(request_tag)
     return [
         _TOPIC_ORDER_OCO_CANCEL_BYTES,
-        _msg.dumps(
-            {
-                "oco_id": str(oco_id),
-                "gateway_id": str(gateway_id),
-            }
-        ),
+        _msg.dumps(payload),
     ]
 
 

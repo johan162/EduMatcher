@@ -10,8 +10,9 @@ The design, and the reasons behind it, are in
 [`docs-design/EduMatcher-Book-GUI.md`](../../docs-design/EduMatcher-Book-GUI.md).
 
 **Dependencies:** `pm-api-gwy` is required — the bridge reads _everything_
-through it: the live book and trades from `WS /api/v1/market-data`, today's
-trades, the previous close and the session timezone from `/api/v1/history/*`,
+through it: the live book and trades from `WS /api/v1/ws/market-data`, the
+session timezone from `/api/v1/session`, today's trades and the previous close
+from `/api/v1/history/*`,
 and the symbol list from `/api/v1/reference/symbols`. It uses a read-only API
 key (`gateway_id: null`), issued on the `dashboards` instance (default
 `http://127.0.0.1:8081`), not on `desk` (8080). The key never reaches the

@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 
 const apiFetchMock = vi.fn(async (path: string) => {
-  if (path.startsWith("/api/v1/quotes/bootstrap")) {
+  if (path === "/api/v1/quotes") {
     return {
       quotes: [
         {

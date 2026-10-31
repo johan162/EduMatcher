@@ -12,7 +12,6 @@ Covers:
   - QuoteRequest with inverted spread (bid >= ask)
   - OcoRequest with empty oco_id
   - ComboRequest with too few legs (< 2)
-  - HistoryQuery limit out of bounds (0 and 5001)
   - Engine-level: symbol not in allowlist, gateway not connected/not configured
   - Engine-level: order with unknown enum values in raw payload
 """
@@ -20,6 +19,7 @@ Covers:
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 import pytest
 
@@ -29,7 +29,7 @@ from edumatcher.api_gateway.schemas import (
     AmendRequest,
     ComboLegRequest,
     ComboRequest,
-    HistoryQuery,
+    IndexRebalanceRequest,
     OcoLegRequest,
     OcoRequest,
     OrderRequest,
@@ -341,6 +341,103 @@ class TestOrderRequestStopLimitAndIceberg:
             )
 
 
+class TestOrderRequestIrrelevantFields:
+    """WP-API05 (S5): a field the order type does not use was silently
+    accepted and dropped. extra="forbid" shows strictness is the intent, so a
+    field outside the type's rule is a 400 like an unknown one."""
+
+    @pytest.mark.parametrize(
+        ("order_type", "fields", "message"),
+        [
+            (OrderType.LIMIT, {"price": 100.0, "trail_offset": 1.0}, "LIMIT forbids trail_offset"),
+            (OrderType.LIMIT, {"price": 100.0, "visible_qty": 5}, "LIMIT forbids visible_qty"),
+            (OrderType.STOP, {"stop_price": 95.0, "visible_qty": 5}, "STOP forbids visible_qty"),
+            (OrderType.ICEBERG, {"price": 100.0, "visible_qty": 5, "stop_price": 95.0}, "ICEBERG forbids stop_price"),
+            (OrderType.TRAILING_STOP, {"trail_offset": 1.0, "visible_qty": 5}, "TRAILING_STOP forbids visible_qty"),
+        ],
+    )  # fmt: skip
+    def test_field_outside_the_type_rejected(
+        self, order_type: OrderType, fields: dict[str, Any], message: str
+    ) -> None:
+        with pytest.raises(ValidationError, match=message):
+            OrderRequest(
+                symbol="AAPL",
+                side=Side.SELL,
+                order_type=order_type,
+                quantity=10,
+                **fields,
+            )
+
+    def test_trailing_stop_accepts_an_initial_stop_price(self) -> None:
+        """The engine derives the initial stop from the last trade when
+        omitted (engine/main.py), so stop_price is optional, not forbidden."""
+        order = OrderRequest(
+            symbol="AAPL",
+            side=Side.SELL,
+            order_type=OrderType.TRAILING_STOP,
+            quantity=10,
+            trail_offset=1.0,
+            stop_price=99.0,
+        )
+        assert order.stop_price == 99.0
+
+
+class TestStructureLegValidation:
+    """WP-API05 (S5): OCO and combo legs had no per-type rules, so a malformed
+    leg got 202 PENDING and an asynchronous engine reject on the WebSocket
+    instead of the synchronous 400 a malformed POST /orders gets."""
+
+    @pytest.mark.parametrize(
+        ("leg", "message"),
+        [
+            ({"order_type": OrderType.LIMIT}, "LIMIT requires price"),
+            ({"order_type": OrderType.STOP}, "STOP requires stop_price"),
+            ({"order_type": OrderType.MARKET, "price": 100.0}, "MARKET forbids price"),
+            ({"order_type": OrderType.LIMIT, "price": 100.0, "stop_price": 95.0}, "LIMIT forbids stop_price"),
+            ({"order_type": OrderType.ICEBERG, "price": 100.0}, "ICEBERG is not supported on an OCO leg"),
+        ],
+    )  # fmt: skip
+    def test_bad_oco_leg_rejected(self, leg: dict[str, Any], message: str) -> None:
+        with pytest.raises(ValidationError, match=message):
+            OcoLegRequest(side=Side.SELL, **leg)
+
+    def test_trailing_oco_leg_accepted(self) -> None:
+        leg = OcoLegRequest(
+            side=Side.SELL, order_type=OrderType.TRAILING_STOP, trail_offset=1.0
+        )
+        assert leg.trail_offset == 1.0
+
+    @pytest.mark.parametrize(
+        ("leg", "message"),
+        [
+            ({"order_type": OrderType.LIMIT}, "LIMIT requires price"),
+            ({"order_type": OrderType.MARKET, "price": 100.0}, "MARKET forbids price"),
+            ({"order_type": OrderType.ICEBERG, "price": 100.0}, "ICEBERG is not supported on a combo leg"),
+            ({"order_type": OrderType.TRAILING_STOP}, "TRAILING_STOP is not supported on a combo leg"),
+        ],
+    )  # fmt: skip
+    def test_bad_combo_leg_rejected(self, leg: dict[str, Any], message: str) -> None:
+        with pytest.raises(ValidationError, match=message):
+            ComboLegRequest(symbol="AAPL", side=Side.BUY, quantity=10, **leg)
+
+    def test_market_combo_leg_accepted(self) -> None:
+        """The trader-gui combo form sends MARKET legs without a price."""
+        leg = ComboLegRequest(
+            symbol="AAPL", side=Side.BUY, quantity=10, order_type=OrderType.MARKET
+        )
+        assert leg.price is None
+
+
+def test_rebalance_reason_is_not_accepted() -> None:
+    """WP-API05 (S5): `reason` was accepted and then dropped -- index.rebalance
+    has no field to carry it. Refusing it is honest; a caller learns at once."""
+    with pytest.raises(ValidationError, match="reason"):
+        IndexRebalanceRequest(
+            updates=[{"symbol": "AAPL", "new_shares_outstanding": 10}],  # type: ignore[list-item]
+            reason="Quarterly share count update",  # type: ignore[call-arg]
+        )
+
+
 class TestAmendRequestValidation:
     """Test 17: AmendRequest must have at least one of price or quantity."""
 
@@ -507,26 +604,6 @@ class TestComboRequestValidation:
                     for i in range(11)
                 ],
             )
-
-
-class TestHistoryQueryValidation:
-    """HistoryQuery limit boundary checks."""
-
-    def test_limit_zero_rejected(self) -> None:
-        with pytest.raises(ValidationError, match="limit"):
-            HistoryQuery(limit=0)
-
-    def test_limit_above_max_rejected(self) -> None:
-        with pytest.raises(ValidationError, match="limit"):
-            HistoryQuery(limit=5001)
-
-    def test_limit_at_minimum_accepted(self) -> None:
-        q = HistoryQuery(limit=1)
-        assert q.limit == 1
-
-    def test_limit_at_maximum_accepted(self) -> None:
-        q = HistoryQuery(limit=5000)
-        assert q.limit == 5000
 
 
 # ===========================================================================

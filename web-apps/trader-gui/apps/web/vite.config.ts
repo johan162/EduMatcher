@@ -19,7 +19,7 @@ export default defineConfig({
       "/api": {
         target: "http://localhost:8080",
         changeOrigin: true,
-        ws: true, // proxy WebSocket upgrades (/events, /market-data, /admin/monitor)
+        ws: true, // proxy WebSocket upgrades (/api/v1/ws/private, /ws/market-data, /ws/admin/monitor)
       },
     },
   },

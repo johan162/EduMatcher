@@ -10,7 +10,7 @@ function clock(ms: number | undefined): string {
 
 /**
  * Quote Bootstrap and Legs View (§14.3). Two complementary read sources:
- *  - `GET /quotes/bootstrap` (ActiveQuote) — the higher-level active-quote
+ *  - `GET /quotes` (ActiveQuote) — the higher-level active-quote
  *    snapshot, and the reliable per-side price/qty source.
  *  - `GET /quotes/legs` — the granular legs. This endpoint is dual-shaped: full
  *    QuoteLeg records on the engine round-trip, or degraded per-quote ack/status

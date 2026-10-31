@@ -14,7 +14,7 @@ generation.md.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Literal, Mapping, cast
 
 from edumatcher.models import message as _msg
@@ -787,9 +787,467 @@ def describe_oco_cancelled() -> tuple[dict[str, Any], ...]:
     return _OCO_CANCELLED_FIELDS
 
 
+TOPIC_OCO_CANCEL_ACK = "oco.cancel_ack.{gateway_id}"
+PREFIX_OCO_CANCEL_ACK = "oco.cancel_ack."
+_OCO_CANCEL_ACK_RE = re.compile("oco\\.cancel_ack\\.(?P<gateway_id>[^.]+)")
+
+
+_OCO_CANCEL_ACK_FIELDS: tuple[dict[str, Any], ...] = (
+    {
+        "name": "gateway_id",
+        "type": "string",
+        "unit": None,
+        "required": True,
+        "doc": "",
+        "constraints": {"max_len": 32},
+    },
+    {
+        "name": "oco_id",
+        "type": "string",
+        "unit": None,
+        "required": True,
+        "doc": "",
+        "constraints": {"max_len": 64},
+    },
+    {
+        "name": "accepted",
+        "type": "bool",
+        "unit": None,
+        "required": True,
+        "doc": "",
+    },
+    {
+        "name": "reason",
+        "type": "string",
+        "unit": None,
+        "required": False,
+        "doc": "",
+        "constraints": {"max_len": 512},
+    },
+    {
+        "name": "reject_code",
+        "type": "string",
+        "unit": None,
+        "required": False,
+        "doc": "On a refusal, a member of order.ack's `reject_code` vocabulary (ORDER_NOT_FOUND, ORDER_ALREADY_TERMINAL, GATEWAY_NOT_CONFIGURED, AUTH_REQUIRED); absent when accepted. A string rather than that enum only because the IDL has no shared enum type: the engine is held to the vocabulary by tests/test_engine_structure_cancel_acks.py.",
+        "constraints": {"max_len": 32},
+    },
+    {
+        "name": "request_tag",
+        "type": "string",
+        "unit": None,
+        "required": False,
+        "doc": "Echoed from the cancel request, so the caller can attribute the outcome.",
+        "constraints": {"max_len": 64},
+    },
+    {
+        "name": "cancelled_order_ids",
+        "type": "list",
+        "unit": None,
+        "required": False,
+        "doc": "The engine order ids the cancel removed; empty on a refusal.",
+    },
+)
+
+
+@dataclass(frozen=True, slots=True)
+class OcoCancelAck:
+    """Engine to gateway: the outcome of an order.oco_cancel.
+
+    Every cancel gets exactly one of these, accepted or refused, so a caller (REST's
+    `?wait=ack`) can wait for its own outcome. Before WP-API17 a refusal rode the submit
+    ack and a success had no group-level reply at all, so neither could be attributed to
+    the request that asked.
+    """
+
+    gateway_id: str
+    oco_id: str
+    accepted: bool
+    reason: str = ""
+    reject_code: str = ""
+    request_tag: str = ""
+    cancelled_order_ids: list[str] = field(default_factory=list)
+
+    def validate(self) -> None:
+        """Raise MessageValidationError if any declared rule fails.
+
+        The only strictness gate: ``from_dict`` coerces but never validates, so a reader
+        of historical data can opt out of the rules by calling ``from_dict`` alone
+        (design section 5.1.1).
+        """
+        if len(self.gateway_id) > 32:
+            raise MessageValidationError(
+                f"gateway_id: length {len(self.gateway_id)} exceeds max_len 32"
+            )
+        if len(self.oco_id) > 64:
+            raise MessageValidationError(
+                f"oco_id: length {len(self.oco_id)} exceeds max_len 64"
+            )
+        if len(self.reason) > 512:
+            raise MessageValidationError(
+                f"reason: length {len(self.reason)} exceeds max_len 512"
+            )
+        if len(self.reject_code) > 32:
+            raise MessageValidationError(
+                f"reject_code: length {len(self.reject_code)} exceeds max_len 32"
+            )
+        if len(self.request_tag) > 64:
+            raise MessageValidationError(
+                f"request_tag: length {len(self.request_tag)} exceeds max_len 64"
+            )
+
+    @classmethod
+    def from_dict(cls, p: Mapping[str, Any]) -> "OcoCancelAck":
+        """Coerce a payload mapping into this message. Does NOT validate.
+
+        Mirrors the hand-written payload's coercion exactly, including its lenient
+        fallbacks, so it is a drop-in replacement for readers of already-published data
+        (design section 5.1.1).
+        """
+        return cls(
+            gateway_id=str(p.get("gateway_id", "")),
+            oco_id=str(p["oco_id"]),
+            accepted=bool(p["accepted"]),
+            reason=str(p.get("reason", "")),
+            reject_code=str(p.get("reject_code", "")),
+            request_tag=str(p.get("request_tag", "")),
+            cancelled_order_ids=(
+                [str(item) for item in p.get("cancelled_order_ids", [])]
+            ),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return the bus payload, in the spec's declared field order."""
+        payload: dict[str, Any] = {
+            "oco_id": self.oco_id,
+            "accepted": self.accepted,
+            "reason": self.reason,
+            "cancelled_order_ids": self.cancelled_order_ids,
+        }
+        if self.reject_code:
+            payload["reject_code"] = self.reject_code
+        if self.request_tag:
+            payload["request_tag"] = self.request_tag
+        return payload
+
+
+def topic_oco_cancel_ack(gateway_id: str) -> str:
+    """Build this message's topic without a string literal."""
+    return f"oco.cancel_ack.{gateway_id}"
+
+
+def match_oco_cancel_ack(topic: str) -> str | None:
+    """Return ``gateway_id`` when ``topic`` matches, else None."""
+    m = _OCO_CANCEL_ACK_RE.fullmatch(topic)
+    return m.group("gateway_id") if m else None
+
+
+def make_oco_cancel_ack(**kw: Any) -> list[bytes]:
+    """Coerce, validate, and return the TWO bus frames [topic, payload].
+
+    The per-topic sequence third frame is NOT added here; it is appended by
+    SequencedPublisher.send_multipart() at publish time (edumatcher/messaging/bus.py).
+
+    Routes through ``from_dict`` rather than the dataclass constructor, so a caller
+    passing ``price=100`` puts a float on the wire rather than an int (design section
+    5.1.1).
+    """
+    obj = OcoCancelAck.from_dict(kw)
+    obj.validate()
+    return _msg.encode(topic_oco_cancel_ack(obj.gateway_id), obj.to_dict())
+
+
+def make_oco_cancel_ack_unchecked(
+    *,
+    gateway_id: str,
+    oco_id: str,
+    accepted: bool,
+    reason: str = "",
+    reject_code: str = "",
+    request_tag: str = "",
+    cancelled_order_ids: list[str] = [],
+) -> list[bytes]:
+    """Identical frames to ``make_oco_cancel_ack``, without ``validate()``.
+
+    For measured hot paths only; every other caller should use the validating
+    constructor. Builds the payload directly rather than via the dataclass, which is
+    what makes it cheap enough to be worth having — see the generator's _unchecked_block
+    docstring for the measurements.
+
+    Coerces exactly as ``make_*`` does, so for any input the two emit byte-identical
+    frames.
+    """
+    payload: dict[str, Any] = {
+        "oco_id": str(oco_id),
+        "accepted": bool(accepted),
+        "reason": str(reason),
+        "cancelled_order_ids": [str(item) for item in cancelled_order_ids],
+    }
+    if reject_code:
+        payload["reject_code"] = str(reject_code)
+    if request_tag:
+        payload["request_tag"] = str(request_tag)
+    return [
+        topic_oco_cancel_ack(gateway_id).encode(),
+        _msg.dumps(payload),
+    ]
+
+
+def parse_oco_cancel_ack(frames: list[bytes]) -> "OcoCancelAck":
+    """Decode bus frames into a validated message.
+
+    Raises MessageValidationError if the payload breaks a declared rule. Call
+    ``from_dict`` on a decoded payload instead to read without validating.
+    """
+    topic, payload = _msg.decode(frames)
+    matched = match_oco_cancel_ack(topic)
+    if matched is None:
+        raise MessageValidationError(f"topic {topic!r} is not {TOPIC_OCO_CANCEL_ACK!r}")
+    payload = {**payload, "gateway_id": matched}
+    obj = OcoCancelAck.from_dict(payload)
+    obj.validate()
+    return obj
+
+
+def describe_oco_cancel_ack() -> tuple[dict[str, Any], ...]:
+    """Return field metadata, for spy tools and runtime pretty-printing."""
+    return _OCO_CANCEL_ACK_FIELDS
+
+
+TOPIC_COMBO_CANCEL_ACK = "combo.cancel_ack.{gateway_id}"
+PREFIX_COMBO_CANCEL_ACK = "combo.cancel_ack."
+_COMBO_CANCEL_ACK_RE = re.compile("combo\\.cancel_ack\\.(?P<gateway_id>[^.]+)")
+
+
+_COMBO_CANCEL_ACK_FIELDS: tuple[dict[str, Any], ...] = (
+    {
+        "name": "gateway_id",
+        "type": "string",
+        "unit": None,
+        "required": True,
+        "doc": "",
+        "constraints": {"max_len": 32},
+    },
+    {
+        "name": "combo_id",
+        "type": "string",
+        "unit": None,
+        "required": True,
+        "doc": "",
+        "constraints": {"max_len": 64},
+    },
+    {
+        "name": "accepted",
+        "type": "bool",
+        "unit": None,
+        "required": True,
+        "doc": "",
+    },
+    {
+        "name": "reason",
+        "type": "string",
+        "unit": None,
+        "required": False,
+        "doc": "",
+        "constraints": {"max_len": 512},
+    },
+    {
+        "name": "reject_code",
+        "type": "string",
+        "unit": None,
+        "required": False,
+        "doc": "On a refusal, a member of order.ack's `reject_code` vocabulary (ORDER_NOT_FOUND, ORDER_ALREADY_TERMINAL, GATEWAY_NOT_CONFIGURED, AUTH_REQUIRED); absent when accepted. A string rather than that enum only because the IDL has no shared enum type: the engine is held to the vocabulary by tests/test_engine_structure_cancel_acks.py.",
+        "constraints": {"max_len": 32},
+    },
+    {
+        "name": "request_tag",
+        "type": "string",
+        "unit": None,
+        "required": False,
+        "doc": "Echoed from the cancel request, so the caller can attribute the outcome.",
+        "constraints": {"max_len": 64},
+    },
+    {
+        "name": "cancelled_order_ids",
+        "type": "list",
+        "unit": None,
+        "required": False,
+        "doc": "The engine order ids the cancel removed; empty on a refusal.",
+    },
+)
+
+
+@dataclass(frozen=True, slots=True)
+class ComboCancelAck:
+    """Engine to gateway: the outcome of an order.combo_cancel.
+
+    Every cancel gets exactly one of these, accepted or refused, so a caller (REST's
+    `?wait=ack`) can wait for its own outcome. Before WP-API17 a refusal rode the submit
+    ack and a success had no group-level reply at all, so neither could be attributed to
+    the request that asked.
+    """
+
+    gateway_id: str
+    combo_id: str
+    accepted: bool
+    reason: str = ""
+    reject_code: str = ""
+    request_tag: str = ""
+    cancelled_order_ids: list[str] = field(default_factory=list)
+
+    def validate(self) -> None:
+        """Raise MessageValidationError if any declared rule fails.
+
+        The only strictness gate: ``from_dict`` coerces but never validates, so a reader
+        of historical data can opt out of the rules by calling ``from_dict`` alone
+        (design section 5.1.1).
+        """
+        if len(self.gateway_id) > 32:
+            raise MessageValidationError(
+                f"gateway_id: length {len(self.gateway_id)} exceeds max_len 32"
+            )
+        if len(self.combo_id) > 64:
+            raise MessageValidationError(
+                f"combo_id: length {len(self.combo_id)} exceeds max_len 64"
+            )
+        if len(self.reason) > 512:
+            raise MessageValidationError(
+                f"reason: length {len(self.reason)} exceeds max_len 512"
+            )
+        if len(self.reject_code) > 32:
+            raise MessageValidationError(
+                f"reject_code: length {len(self.reject_code)} exceeds max_len 32"
+            )
+        if len(self.request_tag) > 64:
+            raise MessageValidationError(
+                f"request_tag: length {len(self.request_tag)} exceeds max_len 64"
+            )
+
+    @classmethod
+    def from_dict(cls, p: Mapping[str, Any]) -> "ComboCancelAck":
+        """Coerce a payload mapping into this message. Does NOT validate.
+
+        Mirrors the hand-written payload's coercion exactly, including its lenient
+        fallbacks, so it is a drop-in replacement for readers of already-published data
+        (design section 5.1.1).
+        """
+        return cls(
+            gateway_id=str(p.get("gateway_id", "")),
+            combo_id=str(p["combo_id"]),
+            accepted=bool(p["accepted"]),
+            reason=str(p.get("reason", "")),
+            reject_code=str(p.get("reject_code", "")),
+            request_tag=str(p.get("request_tag", "")),
+            cancelled_order_ids=(
+                [str(item) for item in p.get("cancelled_order_ids", [])]
+            ),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return the bus payload, in the spec's declared field order."""
+        payload: dict[str, Any] = {
+            "combo_id": self.combo_id,
+            "accepted": self.accepted,
+            "reason": self.reason,
+            "cancelled_order_ids": self.cancelled_order_ids,
+        }
+        if self.reject_code:
+            payload["reject_code"] = self.reject_code
+        if self.request_tag:
+            payload["request_tag"] = self.request_tag
+        return payload
+
+
+def topic_combo_cancel_ack(gateway_id: str) -> str:
+    """Build this message's topic without a string literal."""
+    return f"combo.cancel_ack.{gateway_id}"
+
+
+def match_combo_cancel_ack(topic: str) -> str | None:
+    """Return ``gateway_id`` when ``topic`` matches, else None."""
+    m = _COMBO_CANCEL_ACK_RE.fullmatch(topic)
+    return m.group("gateway_id") if m else None
+
+
+def make_combo_cancel_ack(**kw: Any) -> list[bytes]:
+    """Coerce, validate, and return the TWO bus frames [topic, payload].
+
+    The per-topic sequence third frame is NOT added here; it is appended by
+    SequencedPublisher.send_multipart() at publish time (edumatcher/messaging/bus.py).
+
+    Routes through ``from_dict`` rather than the dataclass constructor, so a caller
+    passing ``price=100`` puts a float on the wire rather than an int (design section
+    5.1.1).
+    """
+    obj = ComboCancelAck.from_dict(kw)
+    obj.validate()
+    return _msg.encode(topic_combo_cancel_ack(obj.gateway_id), obj.to_dict())
+
+
+def make_combo_cancel_ack_unchecked(
+    *,
+    gateway_id: str,
+    combo_id: str,
+    accepted: bool,
+    reason: str = "",
+    reject_code: str = "",
+    request_tag: str = "",
+    cancelled_order_ids: list[str] = [],
+) -> list[bytes]:
+    """Identical frames to ``make_combo_cancel_ack``, without ``validate()``.
+
+    For measured hot paths only; every other caller should use the validating
+    constructor. Builds the payload directly rather than via the dataclass, which is
+    what makes it cheap enough to be worth having — see the generator's _unchecked_block
+    docstring for the measurements.
+
+    Coerces exactly as ``make_*`` does, so for any input the two emit byte-identical
+    frames.
+    """
+    payload: dict[str, Any] = {
+        "combo_id": str(combo_id),
+        "accepted": bool(accepted),
+        "reason": str(reason),
+        "cancelled_order_ids": [str(item) for item in cancelled_order_ids],
+    }
+    if reject_code:
+        payload["reject_code"] = str(reject_code)
+    if request_tag:
+        payload["request_tag"] = str(request_tag)
+    return [
+        topic_combo_cancel_ack(gateway_id).encode(),
+        _msg.dumps(payload),
+    ]
+
+
+def parse_combo_cancel_ack(frames: list[bytes]) -> "ComboCancelAck":
+    """Decode bus frames into a validated message.
+
+    Raises MessageValidationError if the payload breaks a declared rule. Call
+    ``from_dict`` on a decoded payload instead to read without validating.
+    """
+    topic, payload = _msg.decode(frames)
+    matched = match_combo_cancel_ack(topic)
+    if matched is None:
+        raise MessageValidationError(
+            f"topic {topic!r} is not {TOPIC_COMBO_CANCEL_ACK!r}"
+        )
+    payload = {**payload, "gateway_id": matched}
+    obj = ComboCancelAck.from_dict(payload)
+    obj.validate()
+    return obj
+
+
+def describe_combo_cancel_ack() -> tuple[dict[str, Any], ...]:
+    """Return field metadata, for spy tools and runtime pretty-printing."""
+    return _COMBO_CANCEL_ACK_FIELDS
+
+
 FAMILY_TOPICS: tuple[str, ...] = (
     TOPIC_COMBO_ACK,
     TOPIC_COMBO_STATUS,
     TOPIC_OCO_ACK,
     TOPIC_OCO_CANCELLED,
+    TOPIC_OCO_CANCEL_ACK,
+    TOPIC_COMBO_CANCEL_ACK,
 )

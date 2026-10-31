@@ -235,6 +235,11 @@ from edumatcher.models.price import (
     to_ticks,
     to_ticks_exact,
 )
+from edumatcher.models.order_fields import (
+    COMBO_LEG_FIELDS,
+    OCO_LEG_FIELDS,
+    check_type_fields,
+)
 from edumatcher.models.price import get_tick_decimals, register_tick_decimals
 from edumatcher.models.trade import current_run_seq, set_run_seq
 from edumatcher.models.quote import (
@@ -273,6 +278,11 @@ from edumatcher.models.reject import CancelReason, RejectCode
 from edumatcher.models.generated.quote import (
     TOPIC_QUOTE_CANCEL,
     TOPIC_QUOTE_NEW,
+    make_quote_cancel_ack,
+)
+from edumatcher.models.generated.structure import (
+    make_combo_cancel_ack,
+    make_oco_cancel_ack,
 )
 from edumatcher.models.generated.system import (
     TOPIC_GATEWAYS_REQUEST,
@@ -675,11 +685,12 @@ class Engine:
         self._combos: dict[str, ComboOrder] = {}  # combo internal id → ComboOrder
         self._order_to_combo: dict[str, str] = {}  # child order_id → combo internal id
 
-        # OCO-order tracking
-        self._oco_groups: dict[str, list[str]] = (
-            {}
-        )  # oco_group_id → [order_id_1, order_id_2]
-        self._order_to_oco: dict[str, str] = {}  # order_id → oco_group_id
+        # OCO-order tracking, keyed by (gateway_id, oco_id): the id is the
+        # client's own label, unique only within its gateway, so on its own
+        # it let one gateway cancel -- or collide with -- another's pair.
+        self._oco_groups: dict[tuple[str, str], list[str]] = {}
+        #: order_id -> its pair's (gateway_id, oco_id)
+        self._order_to_oco: dict[str, tuple[str, str]] = {}
 
         # Per-gateway position ledger — updated on every fill; keyed by
         # uppercase gateway_id → symbol → value.  Allows bots to resync
@@ -1527,7 +1538,7 @@ class Engine:
         # the QuoteIndex rebuild below. See
         # docs-design/EduMatcher-Revised-Quote-Persistence.md §5.3.
         restored_quote_legs: list[Order] = []
-        restored_oco_legs: dict[str, list[Order]] = {}
+        restored_oco_legs: dict[tuple[str, str], list[Order]] = {}
         for order in orders:
             # Skip GTC orders for symbols no longer in config
             if self._allowed_symbols and order.symbol not in self._allowed_symbols:
@@ -1598,15 +1609,17 @@ class Engine:
             if order.origin == OrderOrigin.QUOTE and order.quote_id:
                 restored_quote_legs.append(order)
             if order.oco_group_id:
-                restored_oco_legs.setdefault(order.oco_group_id, []).append(order)
+                restored_oco_legs.setdefault(
+                    (order.gateway_id, order.oco_group_id), []
+                ).append(order)
         # X23: re-link OCO pairs, as quotes are rebuilt below. Legs come in
         # priority order, so leg 1 (posted first) comes first. A pair with one
         # surviving leg is not re-linked: its leg rests as a plain order.
-        for oco_id, legs in restored_oco_legs.items():
+        for oco_key, legs in restored_oco_legs.items():
             if len(legs) == 2:
-                self._oco_groups[oco_id] = [leg.id for leg in legs]
+                self._oco_groups[oco_key] = [leg.id for leg in legs]
                 for leg in legs:
-                    self._order_to_oco[leg.id] = oco_id
+                    self._order_to_oco[leg.id] = oco_key
         if restored_count:
             log.info(
                 f"Restored {restored_count} resting order(s) from previous session."
@@ -1736,21 +1749,33 @@ class Engine:
         # M7: quantity must be positive.
         if order.quantity <= 0 or order.remaining_qty <= 0:
             return "QTY_OUT_OF_RANGE", "Quantity must be positive"
-        # M7: order types that rest / price-limit must carry a positive price.
-        price_required = order.order_type in (
-            OrderType.LIMIT,
-            OrderType.FOK,
-            OrderType.STOP_LIMIT,
-            OrderType.ICEBERG,
+        # WP-API16: the per-type field rule every gateway applies too, here as
+        # the backstop for all of them (and for any client that bypasses one).
+        violation = check_type_fields(
+            order.order_type,
+            [
+                name
+                for name, value in (
+                    ("price", order.price_ticks),
+                    ("stop_price", order.stop_price_ticks),
+                    ("visible_qty", order.visible_qty),
+                    ("trail_offset", order.trail_offset_ticks),
+                )
+                if value is not None
+            ],
+            where="on an order",
         )
-        if price_required and (order.price_ticks is None or order.price_ticks <= 0):
+        if violation is not None:
+            return violation.reject_code, violation.message
+        # M7: a price that is present must be positive.
+        if order.price_ticks is not None and order.price_ticks <= 0:
             return (
                 "PRICE_OUT_OF_RANGE",
                 f"{order.order_type.value} order requires a positive price",
             )
-        # M7: iceberg visible slice must be present and not exceed quantity.
-        if order.order_type == OrderType.ICEBERG:
-            if order.visible_qty is None or order.visible_qty <= 0:
+        # M7: iceberg visible slice must be positive and not exceed quantity.
+        if order.order_type == OrderType.ICEBERG and order.visible_qty is not None:
+            if order.visible_qty <= 0:
                 return "MISSING_FIELD", "ICEBERG order requires a positive visible_qty"
             if order.visible_qty > order.quantity:
                 return (
@@ -2497,7 +2522,7 @@ class Engine:
         """Reply with live per-symbol risk state (ADMIN only).
 
         Distinct from GET /reference/risk (static, named risk-level
-        definitions) and GET /admin/halts (currently-halted symbols only):
+        definitions) and GET /halts (currently-halted symbols only):
         this reports the *live* collar reference price and circuit-breaker
         state for every symbol that has one configured, halted or not.
         Prices are converted to display units; nothing here is a new piece
@@ -4078,37 +4103,52 @@ class Engine:
 
         Removes the quote record, then cancels both legs through
         ``_cancel_quote_entry`` (which publishes the per-leg cancels).  The
-        reply is a ``quote.ack``: accepted if a quote existed, otherwise a
-        reject saying there was none.
+        reply is a ``quote.cancel_ack``: accepted if a quote existed, otherwise
+        a refusal saying there was none.
         """
         gateway_id = str(payload.get("gateway_id", "")).upper()
         symbol = str(payload.get("symbol", "")).upper()
+        request_tag = str(payload.get("request_tag", ""))
+
+        def _refuse(reason: str, code: RejectCode) -> None:
+            self.pub_sock.send_multipart(
+                self._structure_cancel_ack(
+                    "quote",
+                    gateway_id,
+                    accepted=False,
+                    reason=reason,
+                    reject_code=code,
+                    request_tag=request_tag,
+                    symbol=symbol,
+                    quote_id="",
+                )
+            )
 
         ok, reason = self._gateway_status(gateway_id)
         if not ok:
-            self.pub_sock.send_multipart(
-                self._quote_ack(gateway_id, "", False, reason, symbol=symbol)
-            )
+            _refuse(reason, self._gateway_reject_code(reason))
             return
 
         entry = self._quote_index.remove(
             gateway_id, symbol, reason="Cancelled by participant"
         )
         if not entry:
-            self.pub_sock.send_multipart(
-                self._quote_ack(
-                    gateway_id,
-                    "",
-                    False,
-                    "No active quote for symbol",
-                    symbol=symbol,
-                )
-            )
+            _refuse("No active quote for symbol", "ORDER_NOT_FOUND")
             return
 
-        self._cancel_quote_entry(entry, reason="Cancelled by participant")
+        cancelled_ids = self._cancel_quote_entry(
+            entry, reason="Cancelled by participant"
+        )
         self.pub_sock.send_multipart(
-            self._quote_ack(gateway_id, entry.quote_id, True, symbol=symbol)
+            self._structure_cancel_ack(
+                "quote",
+                gateway_id,
+                accepted=True,
+                request_tag=request_tag,
+                cancelled_order_ids=cancelled_ids,
+                symbol=symbol,
+                quote_id=entry.quote_id or "",
+            )
         )
 
     def _handle_gateway_disconnect(self, payload: dict[str, Any]) -> None:
@@ -4305,24 +4345,42 @@ class Engine:
         Unlike ``_handle_kill_switch``, the caller (``gateway_id``, checked
         for ADMIN role) and the affected gateway (``target_gateway_id``) are
         allowed to differ — this is one admin acting on another participant's
-        exposure, not a gateway acting on its own.
+        exposure, not a gateway acting on its own. Only the caller must be
+        connected: pulling a disconnected participant's resting orders is
+        exactly when an operator needs this.
+
+        ``symbol`` scopes the cancel to one instrument and ``quotes_only``
+        leaves the target's non-quote orders (WP-API07), so an admin can pull
+        one market maker's quote under its own name on the audit trail.
         """
         gateway_id = _clamp_wire_id(payload.get("gateway_id", ""))
         target_gateway_id = _clamp_wire_id(payload.get("target_gateway_id", ""))
+        symbol_filter = _clamp_wire_id(payload.get("symbol", ""), 16)
+        quotes_only = bool(payload.get("quotes_only", False))
         command_id = str(payload.get("command_id", ""))[:_MAX_WIRE_COMMAND_ID_LEN]
         note = str(payload.get("note", ""))[:_MAX_WIRE_NOTE_LEN]
 
         def _reject(reason: str) -> None:
             self.pub_sock.send_multipart(
                 make_kill_switch_gateway_ack_msg(
-                    gateway_id, target_gateway_id, False, reason, command_id=command_id
+                    gateway_id,
+                    target_gateway_id,
+                    False,
+                    reason,
+                    command_id=command_id,
+                    symbol=symbol_filter,
+                    quotes_only=quotes_only,
                 )
             )
             self._publish_admin_action(
                 gateway_id,
                 command_id,
                 "kill_switch.gateway",
-                {"target_gateway_id": target_gateway_id},
+                {
+                    "target_gateway_id": target_gateway_id,
+                    "symbol": symbol_filter or None,
+                    "quotes_only": quotes_only or None,
+                },
                 accepted=False,
                 reason=reason,
             )
@@ -4346,9 +4404,18 @@ class Engine:
         cancelled_order_ids: list[str] = []
         cancelled_quote_order_ids: list[str] = []
 
-        for entry in self._quote_index.cancel_all_for_gateway(
-            target_gateway_id, reason="ADMIN kill switch"
-        ):
+        if symbol_filter:
+            entry = self._quote_index.get(target_gateway_id, symbol_filter)
+            entries = [] if entry is None else [entry]
+            if entry is not None:
+                self._quote_index.remove(
+                    target_gateway_id, symbol_filter, reason="ADMIN kill switch"
+                )
+        else:
+            entries = self._quote_index.cancel_all_for_gateway(
+                target_gateway_id, reason="ADMIN kill switch"
+            )
+        for entry in entries:
             cancelled_quote_order_ids += self._cancel_quote_entry(
                 entry,
                 reason="ADMIN kill switch",
@@ -4360,6 +4427,10 @@ class Engine:
         # resting orders there) instead of a scan of every resting order in
         # every book — see ../../../docs/books/architecture-and-development/part-1-architecture/020-guided-tour.md §10.
         for book in self.books.values():
+            if quotes_only:
+                break
+            if symbol_filter and book.symbol != symbol_filter:
+                continue
             for order in list(book.orders_for_gateway(target_gateway_id)):
                 if order.origin != OrderOrigin.QUOTE:
                     cancelled = self._cancel_order_by_id(
@@ -4383,6 +4454,8 @@ class Engine:
                 cancelled_quotes=cancelled_quotes,
                 cancelled_quote_order_ids=cancelled_quote_order_ids,
                 command_id=command_id,
+                symbol=symbol_filter,
+                quotes_only=quotes_only,
             )
         )
         self._publish_admin_action(
@@ -4391,6 +4464,8 @@ class Engine:
             "kill_switch.gateway",
             {
                 "target_gateway_id": target_gateway_id,
+                "symbol": symbol_filter or None,
+                "quotes_only": quotes_only or None,
                 "note": note,
                 "cancelled_orders": cancelled_orders,
                 "cancelled_order_ids": cancelled_order_ids,
@@ -5155,14 +5230,22 @@ class Engine:
         for i, leg in enumerate(combo.legs):
             if leg.quantity <= 0:
                 return f"Leg {i}: invalid quantity {leg.quantity}"
-            needs_price = leg.order_type in (
-                OrderType.LIMIT,
-                OrderType.FOK,
-                OrderType.STOP_LIMIT,
-                OrderType.ICEBERG,
+            # WP-API16: the per-type rule the gateways apply, as the backstop.
+            violation = check_type_fields(
+                leg.order_type,
+                [
+                    name
+                    for name, value in (
+                        ("price", leg.price_ticks),
+                        ("stop_price", leg.stop_price_ticks),
+                    )
+                    if value is not None
+                ],
+                carried=COMBO_LEG_FIELDS,
+                where="on a combo leg",
             )
-            if needs_price and leg.price_ticks is None:
-                return f"Leg {i}: {leg.order_type.value} requires a price"
+            if violation is not None:
+                return f"Leg {i}: {violation.message}"
 
         return ""
 
@@ -5364,13 +5447,25 @@ class Engine:
         already reached a terminal status cannot be cancelled again.
         """
         gateway_id = str(payload.get("gateway_id", "")).upper()
-        combo_id = payload.get("combo_id", "")
+        combo_id = str(payload.get("combo_id", ""))
+        request_tag = str(payload.get("request_tag", ""))
+
+        def _refuse(reason: str, code: RejectCode) -> None:
+            self.pub_sock.send_multipart(
+                self._structure_cancel_ack(
+                    "combo",
+                    gateway_id,
+                    accepted=False,
+                    reason=reason,
+                    reject_code=code,
+                    request_tag=request_tag,
+                    combo_id=combo_id,
+                )
+            )
 
         ok, reason = self._gateway_status(gateway_id)
         if not ok:
-            self.pub_sock.send_multipart(
-                self._combo_ack(gateway_id, combo_id, False, reason)
-            )
+            _refuse(reason, self._gateway_reject_code(reason))
             return
 
         # Find the combo by user-provided combo_id
@@ -5380,9 +5475,7 @@ class Engine:
                 combo = c
                 break
         if not combo:
-            self.pub_sock.send_multipart(
-                self._combo_ack(gateway_id, combo_id, False, "Combo not found")
-            )
+            _refuse("Combo not found", "ORDER_NOT_FOUND")
             return
         if combo.status in (
             ComboStatus.MATCHED,
@@ -5390,14 +5483,20 @@ class Engine:
             ComboStatus.CANCELLED,
             ComboStatus.REJECTED,
         ):
-            self.pub_sock.send_multipart(
-                self._combo_ack(
-                    gateway_id, combo_id, False, f"Combo already {combo.status.value}"
-                )
-            )
+            _refuse(f"Combo already {combo.status.value}", "ORDER_ALREADY_TERMINAL")
             return
 
-        self._cascade_cancel_combo(combo, ComboStatus.CANCELLED)
+        cancelled_ids = self._cascade_cancel_combo(combo, ComboStatus.CANCELLED)
+        self.pub_sock.send_multipart(
+            self._structure_cancel_ack(
+                "combo",
+                gateway_id,
+                accepted=True,
+                request_tag=request_tag,
+                cancelled_order_ids=cancelled_ids,
+                combo_id=combo_id,
+            )
+        )
 
     def _check_combo_after_child_event(self, child_order: Order) -> None:
         """Called after any child order fill/cancel/expire/reject to update combo state.
@@ -5477,8 +5576,10 @@ class Engine:
 
     def _cascade_cancel_combo(
         self, combo: ComboOrder, terminal_status: ComboStatus, reason: str = ""
-    ) -> None:
+    ) -> list[str]:
         """Cancel all resting child legs and mark combo as terminal.
+
+        Returns the ids of the legs it cancelled.
 
         Used for both a user cancel (CANCELLED) and a failed leg (FAILED).
         The status is set FIRST so that the cancels below, which re-enter
@@ -5489,6 +5590,7 @@ class Engine:
         """
         combo.status = terminal_status
 
+        cancelled_ids: list[str] = []
         for child_id in combo.child_order_ids:
             symbol = self._order_symbol.get(child_id)
             book = self.books.get(symbol) if symbol else None
@@ -5501,6 +5603,7 @@ class Engine:
                         )
                     )
                     self._mark_dirty(symbol)  # type: ignore[arg-type]
+                    cancelled_ids.append(child_id)
             self._order_symbol.pop(child_id, None)
             self._order_to_combo.pop(child_id, None)
 
@@ -5516,6 +5619,7 @@ class Engine:
             f"COMBO {combo.combo_id} {terminal_status.value}"
             + (f" — {reason}" if reason else "")
         )
+        return cancelled_ids
 
     # ------------------------------------------------------------------
     # Session / auction transitions
@@ -5922,6 +6026,17 @@ class Engine:
             )
             return
 
+        # A live pair already holds this id: accepting would orphan its legs,
+        # still linked to the id, so that one ending would pull the new
+        # pair's sibling. The id is free again once the pair is done.
+        if (gateway_id, oco_id) in self._oco_groups:
+            self.pub_sock.send_multipart(
+                self._oco_ack(
+                    gateway_id, oco_id, False, f"OCO id {oco_id} is already in use"
+                )
+            )
+            return
+
         symbol = str(payload.get("symbol", "")).upper()
         quantity = int(payload.get("quantity", 0))
         tif = TIF(payload.get("tif", "DAY"))
@@ -6000,44 +6115,26 @@ class Engine:
             )
             return
 
-        # Validate that legs with limit/stop prices have those prices
+        # WP-API16: the per-type rule the gateways apply, as the backstop.
         for i, leg in enumerate((leg1, leg2), 1):
-            if (
-                leg.order_type in (OrderType.LIMIT, OrderType.IOC, OrderType.FOK)
-                and leg.price_ticks is None
-            ):
-                self.pub_sock.send_multipart(
-                    self._oco_ack(
-                        gateway_id,
-                        oco_id,
-                        False,
-                        f"Leg {i} ({leg.order_type.value}) requires price",
+            violation = check_type_fields(
+                leg.order_type,
+                [
+                    name
+                    for name, value in (
+                        ("price", leg.price_ticks),
+                        ("stop_price", leg.stop_price_ticks),
+                        ("trail_offset", leg.trail_offset_ticks),
                     )
-                )
-                return
-            if (
-                leg.order_type in (OrderType.STOP, OrderType.STOP_LIMIT)
-                and leg.stop_price_ticks is None
-            ):
+                    if value is not None
+                ],
+                carried=OCO_LEG_FIELDS,
+                where="on an OCO leg",
+            )
+            if violation is not None:
                 self.pub_sock.send_multipart(
                     self._oco_ack(
-                        gateway_id,
-                        oco_id,
-                        False,
-                        f"Leg {i} ({leg.order_type.value}) requires stop_price",
-                    )
-                )
-                return
-            if (
-                leg.order_type == OrderType.TRAILING_STOP
-                and leg.trail_offset_ticks is None
-            ):
-                self.pub_sock.send_multipart(
-                    self._oco_ack(
-                        gateway_id,
-                        oco_id,
-                        False,
-                        f"Leg {i} (TRAILING_STOP) requires trail_offset",
+                        gateway_id, oco_id, False, f"Leg {i}: {violation.message}"
                     )
                 )
                 return
@@ -6063,9 +6160,9 @@ class Engine:
         leg2.oco_group_id = oco_id
 
         # Register the pair
-        self._oco_groups[oco_id] = [leg1.id, leg2.id]
-        self._order_to_oco[leg1.id] = oco_id
-        self._order_to_oco[leg2.id] = oco_id
+        self._oco_groups[(gateway_id, oco_id)] = [leg1.id, leg2.id]
+        self._order_to_oco[leg1.id] = (gateway_id, oco_id)
+        self._order_to_oco[leg2.id] = (gateway_id, oco_id)
         self._order_symbol[leg1.id] = symbol
         self._order_symbol[leg2.id] = symbol
 
@@ -6149,6 +6246,41 @@ class Engine:
 
         log.info(f"OCO {oco_id}: legs {leg1.id[:8]} and {leg2.id[:8]} posted")
 
+    def _structure_cancel_ack(
+        self,
+        kind: str,
+        gateway_id: str,
+        *,
+        accepted: bool,
+        reason: str = "",
+        reject_code: RejectCode | None = None,
+        request_tag: str = "",
+        cancelled_order_ids: list[str] | None = None,
+        **ids: str,
+    ) -> list[bytes]:
+        """The reply to one OCO, combo or quote cancel (WP-API17).
+
+        Every cancel gets exactly one, accepted or refused, echoing the
+        request's ``request_tag``: the submit acks (``oco.ack`` etc.) report
+        submissions only, so a caller waiting on its cancel can attribute the
+        outcome. ``ids`` is the structure's identity (``oco_id``,
+        ``combo_id``, or ``symbol`` and ``quote_id``).
+        """
+        fields: dict[str, Any] = {
+            "gateway_id": gateway_id,
+            "accepted": accepted,
+            "reason": reason,
+            "reject_code": reject_code or "",
+            "request_tag": request_tag,
+            "cancelled_order_ids": cancelled_order_ids or [],
+            **ids,
+        }
+        if kind == "oco":
+            return make_oco_cancel_ack(**fields)
+        if kind == "combo":
+            return make_combo_cancel_ack(**fields)
+        return make_quote_cancel_ack(**fields)
+
     def _handle_oco_cancel(self, payload: dict[str, Any]) -> None:
         """Handle ``order.oco_cancel``: cancel both legs of an OCO pair.
 
@@ -6156,22 +6288,35 @@ class Engine:
         this cancels BOTH legs because the client asked to drop the pair.
         """
         gateway_id = str(payload.get("gateway_id", "")).upper()
-        oco_id = payload.get("oco_id", "")
+        oco_id = str(payload.get("oco_id", ""))
+        request_tag = str(payload.get("request_tag", ""))
+
+        def _refuse(reason: str, code: RejectCode) -> None:
+            self.pub_sock.send_multipart(
+                self._structure_cancel_ack(
+                    "oco",
+                    gateway_id,
+                    accepted=False,
+                    reason=reason,
+                    reject_code=code,
+                    request_tag=request_tag,
+                    oco_id=oco_id,
+                )
+            )
 
         ok, reason = self._gateway_status(gateway_id)
         if not ok:
-            self.pub_sock.send_multipart(
-                self._oco_ack(gateway_id, oco_id, False, reason)
-            )
+            _refuse(reason, self._gateway_reject_code(reason))
             return
 
-        order_ids = self._oco_groups.get(oco_id)
+        # Keyed by the caller's own gateway, so another gateway's pair is simply
+        # not found: the reply does not reveal that it exists.
+        order_ids = self._oco_groups.get((gateway_id, oco_id))
         if not order_ids:
-            self.pub_sock.send_multipart(
-                self._oco_ack(gateway_id, oco_id, False, "OCO not found")
-            )
+            _refuse("OCO not found", "ORDER_NOT_FOUND")
             return
 
+        cancelled_ids: list[str] = []
         for order_id in list(order_ids):
             symbol = self._order_symbol.get(order_id)
             book = self.books.get(symbol) if symbol else None
@@ -6184,10 +6329,21 @@ class Engine:
                         )
                     )
                     self._mark_dirty(symbol)  # type: ignore[arg-type]
+                    cancelled_ids.append(order_id)
             self._order_symbol.pop(order_id, None)
             self._order_to_oco.pop(order_id, None)
 
-        self._oco_groups.pop(oco_id, None)
+        self._oco_groups.pop((gateway_id, oco_id), None)
+        self.pub_sock.send_multipart(
+            self._structure_cancel_ack(
+                "oco",
+                gateway_id,
+                accepted=True,
+                request_tag=request_tag,
+                cancelled_order_ids=cancelled_ids,
+                oco_id=oco_id,
+            )
+        )
 
         log.info(f"OCO {oco_id} cancelled by {gateway_id}")
 
@@ -6206,7 +6362,8 @@ class Engine:
         oco_id = order.oco_group_id
         if not oco_id:
             return
-        order_ids = self._oco_groups.get(oco_id)
+        oco_key = (order.gateway_id, oco_id)
+        order_ids = self._oco_groups.get(oco_key)
         if not order_ids:
             return
 
@@ -6230,7 +6387,7 @@ class Engine:
             self._order_to_oco.pop(sibling_id, None)
 
         self._order_to_oco.pop(order.id, None)
-        self._oco_groups.pop(oco_id, None)
+        self._oco_groups.pop(oco_key, None)
 
         log.info(
             f"OCO {oco_id}: sibling cancelled after {order.id[:8]} {order.status.value}"

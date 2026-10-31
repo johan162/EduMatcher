@@ -163,7 +163,7 @@ On startup, the terminal:
 
 1. Connects PUSH socket to the engine PULL port (5555)
 2. Connects SUB socket to the engine PUB port (5556)
-3. Subscribes to: `order.ack.{ID}`, `order.fill.{ID}`, `order.amended.{ID}`, `order.cancelled.{ID}`, `order.expired.{ID}`, `order.orders.{ID}`, `combo.ack.{ID}`, `combo.status.{ID}`, `oco.ack.{ID}`, `oco.cancelled.{ID}`, `quote.ack.{ID}`, `quote.status.{ID}`, `risk.kill_switch_ack.{ID}`, `system.symbols.{ID}`, `system.quote_bootstrap.{ID}`, `system.gateway_auth.{ID}`, `trade.executed`
+3. Subscribes to: `order.ack.{ID}`, `order.fill.{ID}`, `order.amended.{ID}`, `order.cancelled.{ID}`, `order.expired.{ID}`, `order.orders.{ID}`, `combo.ack.{ID}`, `combo.cancel_ack.{ID}`, `combo.status.{ID}`, `oco.ack.{ID}`, `oco.cancel_ack.{ID}`, `oco.cancelled.{ID}`, `quote.ack.{ID}`, `quote.cancel_ack.{ID}`, `quote.status.{ID}`, `risk.kill_switch_ack.{ID}`, `system.symbols.{ID}`, `system.quote_bootstrap.{ID}`, `system.gateway_auth.{ID}`, `trade.executed`
 4. Sends `system.gateway_connect` and waits up to **3 seconds** for the auth response
 5. If accepted: enters the interactive prompt loop
 6. If rejected: prints the reason and exits immediately

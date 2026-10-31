@@ -37,6 +37,7 @@ class AdminActionScope:
 
     symbol: str | None = None
     target_gateway_id: str | None = None
+    quotes_only: bool | None = None
     level: str | None = None
     note: str = ""
     cancelled_orders: int | None = None  # unit: dimensionless
@@ -103,6 +104,9 @@ class AdminActionScope:
                 if p.get("target_gateway_id") is None
                 else str(p["target_gateway_id"])
             ),
+            quotes_only=(
+                None if p.get("quotes_only") is None else bool(p["quotes_only"])
+            ),
             level=None if p.get("level") is None else str(p["level"]),
             note=str(p.get("note", "")),
             cancelled_orders=(
@@ -138,6 +142,8 @@ class AdminActionScope:
             payload["symbol"] = self.symbol
         if self.target_gateway_id is not None:
             payload["target_gateway_id"] = self.target_gateway_id
+        if self.quotes_only is not None:
+            payload["quotes_only"] = self.quotes_only
         if self.level is not None:
             payload["level"] = self.level
         if self.note:

@@ -34,6 +34,22 @@ class _FakeClient:
         self.calls.append(("kill_switch", (gw,), {"symbol": symbol}))
         return {"accepted": True, "cancelled_orders": 3, "cancelled_quotes": 1}
 
+    @property
+    def gateway_id(self) -> str:
+        return "ADM01"
+
+    def kill_switch_gateway(
+        self, gw: str, note: str = "", *, symbol: str = "", quotes_only: bool = False
+    ) -> dict[str, Any]:
+        self.calls.append(
+            (
+                "kill_switch_gateway",
+                (gw,),
+                {"symbol": symbol, "quotes_only": quotes_only},
+            )
+        )
+        return {"accepted": True, "cancelled_orders": 3, "cancelled_quotes": 1}
+
     def gateway_kick(self, gw: str, reason: str = "") -> None:
         self.calls.append(("gateway_kick", (gw,), {"reason": reason}))
 
@@ -436,6 +452,16 @@ def test_execute_command_rejections(monkeypatch: pytest.MonkeyPatch) -> None:
         def quote_cancel(self, gw: str, sym: str) -> dict[str, Any]:
             return {"accepted": False, "reason": "x"}
 
+        def kill_switch_gateway(
+            self,
+            gw: str,
+            note: str = "",
+            *,
+            symbol: str = "",
+            quotes_only: bool = False,
+        ) -> dict[str, Any]:
+            return {"accepted": False, "reason": "x"}
+
     client = cast(ExchangeCommandClient, _Rejecting())
     assert console_mod.execute_command(client, "HALT", {})[0] is False
     assert console_mod.execute_command(client, "RESUME", {})[0] is False
@@ -444,6 +470,27 @@ def test_execute_command_rejections(monkeypatch: pytest.MonkeyPatch) -> None:
         console_mod.execute_command(client, "QCANCEL", {"GW": "MM01", "SYM": "AAPL"})[0]
         is False
     )
+
+
+def test_kill_and_qcancel_on_another_gateway_use_the_admin_message(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """WP-API07: acting on another participant goes through the ADMIN kill
+    switch, so the audit names the operator; the caller's own gateway keeps the
+    self-service messages."""
+    _capture_print(monkeypatch)
+    fake = _FakeClient()
+    client = cast(ExchangeCommandClient, fake)
+    console_mod.execute_command(client, "KILL", {"GW": "MM01", "SYM": "AAPL"})
+    console_mod.execute_command(client, "QCANCEL", {"GW": "MM01", "SYM": "AAPL"})
+    console_mod.execute_command(client, "KILL", {"GW": "adm01"})
+    console_mod.execute_command(client, "QCANCEL", {"GW": "ADM01", "SYM": "AAPL"})
+    assert fake.calls == [
+        ("kill_switch_gateway", ("MM01",), {"symbol": "AAPL", "quotes_only": False}),
+        ("kill_switch_gateway", ("MM01",), {"symbol": "AAPL", "quotes_only": True}),
+        ("kill_switch", ("adm01",), {"symbol": ""}),
+        ("quote_cancel", ("ADM01", "AAPL"), {}),
+    ]
 
 
 def test_cmd_reopen_requires_sym(monkeypatch: pytest.MonkeyPatch) -> None:

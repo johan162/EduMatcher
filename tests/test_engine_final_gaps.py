@@ -507,7 +507,7 @@ class TestCancelOCOLeg:
                 },
             }
         )
-        order_ids = engine._oco_groups.get("OC_CASCADE", [])
+        order_ids = engine._oco_groups.get(("GW01", "OC_CASCADE"), [])
         assert len(order_ids) == 2
         pub_sock.sent.clear()
         # Cancel one leg — the other should be cancelled via OCO cascade

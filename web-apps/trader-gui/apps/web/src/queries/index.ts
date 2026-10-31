@@ -79,8 +79,7 @@ export function useSessionQuery() {
 export function useOrdersQuery() {
   return useQuery({
     queryKey: ["orders"],
-    // Both `/orders` shapes (engine OrderDisplay keyed on `id`, and the
-    // timeout-fallback cache row keyed on `order_id`) are folded into the
+    // The engine OrderDisplay is keyed on `id`; it is folded into the
     // canonical Order here, so consumers only ever see `order_id`.
     queryFn: () => api.getOrders().then((r) => r.orders.map(normalizeOrder)),
     staleTime: 30_000,
@@ -297,7 +296,7 @@ export function useAdminGatewaysQuery() {
 export function useAdminHaltsQuery() {
   return useQuery({
     queryKey: ["admin/halts"],
-    queryFn: api.getAdminHalts,
+    queryFn: api.getHalts,
     staleTime: 15_000,
   });
 }
@@ -383,7 +382,7 @@ export function useResumeCircuitBreakerMutation() {
 export function useAdminIndexesQuery() {
   return useQuery({
     queryKey: ["admin/indexes"],
-    queryFn: api.getAdminIndexes,
+    queryFn: api.getReferenceIndexes,
     staleTime: 5 * 60_000,
   });
 }

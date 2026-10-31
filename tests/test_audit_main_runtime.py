@@ -23,6 +23,10 @@ class _FakeSub:
         self._remaining -= 1
         return [b"topic", b"payload"]
 
+    def poll(self, timeout: int) -> int:
+        _ = timeout
+        return 1 if self._remaining else 0
+
     def close(self) -> None:
         self.closed = True
 
@@ -74,6 +78,7 @@ def test_receive_buffers_and_flushes_audit_lines(tmp_path: Path) -> None:
             ],
         ),
     ):
+        proc._eod_seen = True  # the exit's drain has nothing to wait for
         proc._receive()
 
     proc._flush_buffer()
@@ -112,6 +117,7 @@ def test_receive_survives_decode_errors_and_continues(
         ),
         caplog.at_level(logging.WARNING),
     ):
+        proc._eod_seen = True  # the exit's drain has nothing to wait for
         proc._receive()
 
     proc._flush_buffer()
@@ -120,6 +126,44 @@ def test_receive_survives_decode_errors_and_continues(
     assert "[trade.executed]" in contents
     assert '"symbol": "MSFT"' in contents
     assert "failed to decode/log message" in caplog.text
+
+
+def test_a_stop_drains_until_the_engines_eod(tmp_path: Path) -> None:
+    """X34: the teardown's SIGTERM arrived while the engine was still
+    publishing its EOD checkpoint round, and the trail kept one checkpoint
+    of 300. A stopped loop now reads on until the engine's last message,
+    ``system.eod``."""
+    fake_sub = _FakeSub(frame_count=3)
+    log_path = tmp_path / "audit.log"
+
+    with (
+        patch("edumatcher.audit.main.make_subscriber", return_value=fake_sub),
+        patch("edumatcher.audit.main.make_replier"),
+    ):
+        proc = AuditProcess(log_path=log_path, to_terminal=False, buffer_size=100)
+
+    with (
+        # EINTR at once: the SIGTERM ends the loop before any frame is read.
+        patch(
+            "edumatcher.audit.main.zmq.Poller",
+            return_value=_PollerWithNEvents(fake_sub, events=0),
+        ),
+        patch(
+            "edumatcher.audit.main.decode",
+            side_effect=[
+                ("system.book_checkpoint.AAPL", {"symbol": "AAPL"}),
+                ("system.book_checkpoint.MSFT", {"symbol": "MSFT"}),
+                ("system.eod", {"books": []}),
+            ],
+        ),
+    ):
+        proc._receive()
+
+    proc._flush_buffer()
+
+    contents = log_path.read_text(encoding="utf-8")
+    assert contents.count("[system.book_checkpoint.") == 2
+    assert "[system.eod]" in contents
 
 
 # ---------------------------------------------------------------------------
@@ -261,6 +305,7 @@ def test_receive_answers_health_ping_with_utc_timestamp(tmp_path: Path) -> None:
         "edumatcher.audit.main.zmq.Poller",
         return_value=_PollerWithNEvents(fake_rep, events=1),
     ):
+        proc._eod_seen = True  # the exit's drain has nothing to wait for
         proc._receive()
 
     assert len(fake_rep.sent) == 1

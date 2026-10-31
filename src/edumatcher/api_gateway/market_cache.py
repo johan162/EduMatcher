@@ -1,7 +1,7 @@
 """In-gateway market-data stream cache for snapshot / resume.
 
 Backs the snapshot-on-subscribe, explicit ``snapshot``, and ``resume`` verbs
-on ``WS /api/v1/market-data`` (see
+on ``WS /api/v1/ws/market-data`` (see
 ``docs-design/EduMatcher-MarketData-Snapshot-Resume.md``).
 
 The cache is deliberately asymmetric, because the four subscribable channels

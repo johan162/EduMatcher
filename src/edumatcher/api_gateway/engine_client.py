@@ -27,8 +27,11 @@ from edumatcher.models.message import (
     decode,
     make_book_snapshot_request_msg,
     make_cancel_symbol_msg,
+    make_circuit_breaker_halt_all_msg,
+    make_circuit_breaker_resume_all_msg,
     make_combo_cancel_msg,
     make_combo_order_msg,
+    make_force_uncross_msg,
     make_gateway_connect_msg,
     make_gateway_disconnect_msg,
     make_gateway_heartbeat_msg,
@@ -44,6 +47,7 @@ from edumatcher.models.message import (
     make_order_new_msg,
     make_orders_request_msg,
     make_position_request_msg,
+    make_price_level_orders_request_msg,
     make_quote_bootstrap_request_msg,
     make_quote_cancel_msg,
     make_quote_legs_request_msg,
@@ -57,6 +61,7 @@ from edumatcher.models.message import (
     make_symbol_halt_msg,
     make_symbol_resume_msg,
     make_symbols_request_msg,
+    make_volume_request_msg,
 )
 from edumatcher.models.generated.order import topic_order_ack
 from edumatcher.models.order import Order
@@ -117,7 +122,7 @@ class EngineClient:
         self._sinks: dict[str, set[asyncio.Queue[dict[str, Any]]]] = defaultdict(set)
         self._market_data_sinks: set[asyncio.Queue[dict[str, Any]]] = set()
         # Latest-snapshot-per-topic plus a bounded trades tail, feeding the
-        # snapshot/resume verbs on WS /api/v1/market-data.
+        # snapshot/resume verbs on WS /api/v1/ws/market-data.
         self._market_cache = MarketDataCache(market_cache_sec)
         # ADMIN monitor sinks receive every event across all gateways.
         self._admin_sinks: set[asyncio.Queue[dict[str, Any]]] = set()
@@ -430,7 +435,7 @@ class EngineClient:
         """Monotonic sequence across *all* of one gateway's private events.
 
         Market data cannot have this: subscribers filter, so a stream-wide
-        counter would show phantom gaps. ``/api/v1/events`` applies no
+        counter would show phantom gaps. ``/api/v1/ws/private`` applies no
         filtering at all — a client receives every topic for its gateway — so
         a single counter is contiguous there, and one counter is markedly
         easier to check than one per topic.
@@ -709,20 +714,26 @@ class EngineClient:
     def send_combo(self, payload: dict[str, Any]) -> None:
         self._send(make_combo_order_msg(payload))
 
-    def send_combo_cancel(self, combo_id: str, gateway_id: str) -> None:
-        self._send(make_combo_cancel_msg(combo_id, gateway_id))
+    def send_combo_cancel(
+        self, combo_id: str, gateway_id: str, request_tag: str = ""
+    ) -> None:
+        self._send(make_combo_cancel_msg(combo_id, gateway_id, request_tag=request_tag))
 
     def send_oco(self, payload: dict[str, Any]) -> None:
         self._send(make_oco_order_msg(payload))
 
-    def send_oco_cancel(self, oco_id: str, gateway_id: str) -> None:
-        self._send(make_oco_cancel_msg(oco_id, gateway_id))
+    def send_oco_cancel(
+        self, oco_id: str, gateway_id: str, request_tag: str = ""
+    ) -> None:
+        self._send(make_oco_cancel_msg(oco_id, gateway_id, request_tag=request_tag))
 
     def send_quote(self, payload: dict[str, Any]) -> None:
         self._send(make_quote_new_msg(payload))
 
-    def send_quote_cancel(self, gateway_id: str, symbol: str) -> None:
-        self._send(make_quote_cancel_msg(gateway_id, symbol))
+    def send_quote_cancel(
+        self, gateway_id: str, symbol: str, request_tag: str = ""
+    ) -> None:
+        self._send(make_quote_cancel_msg(gateway_id, symbol, request_tag=request_tag))
 
     def send_mass_cancel(
         self, gateway_id: str, symbol: str = "", command_id: str = ""
@@ -877,12 +888,55 @@ class EngineClient:
         target_gateway_id: str,
         note: str = "",
         command_id: str = "",
+        *,
+        symbol: str = "",
+        quotes_only: bool = False,
     ) -> None:
         self._send(
             make_kill_switch_gateway_msg(
-                gateway_id, target_gateway_id, note=note, command_id=command_id
+                gateway_id,
+                target_gateway_id,
+                note=note,
+                command_id=command_id,
+                symbol=symbol,
+                quotes_only=quotes_only,
             )
         )
+
+    def send_halt_all(self, gateway_id: str) -> None:
+        self._send(make_circuit_breaker_halt_all_msg(gateway_id))
+
+    def send_resume_all(self, gateway_id: str) -> None:
+        self._send(make_circuit_breaker_resume_all_msg(gateway_id))
+
+    def send_force_uncross(
+        self,
+        gateway_id: str,
+        symbol: str,
+        *,
+        price: float | None,
+        dry_run: bool,
+        note: str,
+        command_id: str,
+    ) -> None:
+        self._send(
+            make_force_uncross_msg(
+                gateway_id,
+                symbol,
+                price=price,
+                dry_run=dry_run,
+                note=note,
+                command_id=command_id,
+            )
+        )
+
+    def request_price_level_orders(
+        self, gateway_id: str, symbol: str, price: float | None
+    ) -> None:
+        self._send(make_price_level_orders_request_msg(gateway_id, symbol, price))
+
+    def request_volume(self, gateway_id: str) -> None:
+        self._send(make_volume_request_msg(gateway_id))
 
     def send_kill_switch_global(
         self, gateway_id: str, note: str = "", command_id: str = ""

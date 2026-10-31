@@ -670,10 +670,15 @@ Every value the recorder can write, and the engine topic it comes from:
 | `OCO_REJECT` | `oco.ack.*` with `accepted: false` | OCO pair rejected |
 | `OCO_CANCEL` | `oco.cancelled.*` | One leg of an OCO pair cancelled (row keyed on the OCO id; the leg also gets a `CANCEL`) |
 | `QUOTE_ACK` | `quote.ack.*` with `accepted: true` | Quote accepted |
-| `QUOTE_REJECT` | `quote.ack.*` with `accepted: false` | Quote rejected. A quote cancel for a symbol with no live quote names no quote: its row has an empty `order_id` and is identified by `gateway_id` and `symbol` |
+| `QUOTE_REJECT` | `quote.ack.*` with `accepted: false` | Quote rejected |
 | `QUOTE_STATUS` | `quote.status.*` | Quote status update |
 | `UNKNOWN` | any ack topic missing its `accepted` flag | See the note below |
 | `EVENT` | any other subscribed private topic | Unclassified |
+
+The outcome of an OCO, combo or quote *cancel* (`oco.cancel_ack`,
+`combo.cancel_ack`, `quote.cancel_ack`) is not a row of its own: the legs it
+cancelled appear as `CANCEL` rows, and a combo's as `COMBO_STATUS`
+`CANCELLED`. The `*_ACK` and `*_REJECT` rows are submissions only.
 
 Every `*_REJECT` row keeps the engine's `reject_code` (for example
 `INSUFFICIENT_LIQUIDITY`, `ORDER_NOT_FOUND`) next to the free-text `reason`.
@@ -682,7 +687,7 @@ Combo, OCO and quote events each carry their own accept / reject / cancel /
 status value rather than a single family name, so a rejected combo is
 distinguishable from an accepted one and `oco.cancelled` is findable as a
 cancellation. Filters are validated against this list — `pm-stats-cli` rejects
-an unknown `--event-type` at parse time and the API returns `422`, rather than
+an unknown `--event-type` at parse time and the API returns `400`, rather than
 silently returning an empty page.
 
 !!! note "`UNKNOWN` means the engine did not say"
@@ -1372,7 +1377,7 @@ API filters for `/api/v1/history/orders`:
 | Query parameter | Required | Description |
 |-----------------|----------|-------------|
 | `symbol` | No | Restrict to one symbol |
-| `event_type` | No | Restrict to one normalized type — see [`event_type` values](#event_type-values). An unknown value returns `422` |
+| `event_type` | No | Restrict to one normalized type — see [`event_type` values](#event_type-values). An unknown value returns `400` |
 | `date` | No | Restrict to one `YYYY-MM-DD` date based on `order_events.ts` |
 | `from` | No | Inclusive ISO timestamp lower bound |
 | `to` | No | Inclusive ISO timestamp upper bound |
@@ -1381,7 +1386,7 @@ API filters for `/api/v1/history/orders`:
 
 `/history/orders` (and `/history/fills`) responses include `next_cursor` when
 more rows are available. See
-[API Gateway — Pagination](../part-5-gateways/050-api-gateway.md#pagination) for the full
+[the REST pagination contract](../../protocols-and-clients/part-2-specifications/060-rest-and-websocket.md#pagination-contract) for the full
 `count`/`has_more`/`next_cursor` contract, including which endpoints are
 exceptions to it.
 

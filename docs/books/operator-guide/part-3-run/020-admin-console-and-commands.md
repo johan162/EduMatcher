@@ -191,9 +191,9 @@ same `execute_command()` function.  Every command maps 1-to-1:
 | `RESUME_SYM\|SYM=X`    | `resume-sym --sym X`     | `client.symbol_resume("X")`            |
 | `CANCEL_SYM\|SYM=X`    | `cancel-sym --sym X`     | `client.cancel_symbol("X")`            |
 | `REOPEN\|SYM=X[\|PRICE=Y][\|DRY_RUN=1][\|NOTE=Z]` | `reopen --sym X [--price Y] [--dry-run] [--note Z]` | `client.force_uncross("X", price=Y, dry_run=..., note=Z)` |
-| `KILL\|GW=X\|SYM=Y`    | `kill --gw X --sym Y`    | `client.kill_switch("X", symbol="Y")`  |
+| `KILL\|GW=X\|SYM=Y`    | `kill --gw X --sym Y`    | `client.kill_switch_gateway("X", symbol="Y")` (own gateway: `client.kill_switch`) |
 | `KICK\|GW=X\|REASON=Z` | `kick --gw X --reason Z` | `client.gateway_kick("X", reason="Z")` |
-| `QCANCEL\|GW=X\|SYM=Y` | `qcancel --gw X --sym Y` | `client.quote_cancel("X", "Y")`        |
+| `QCANCEL\|GW=X\|SYM=Y` | `qcancel --gw X --sym Y` | `client.kill_switch_gateway("X", symbol="Y", quotes_only=True)` (own gateway: `client.quote_cancel`) |
 | `BOOK\|SYM=X`          | `book --sym X`           | `client.book_depth("X")`               |
 | `ORDERS\|GW=X`         | `orders --gw X`          | `client.order_list("X")`               |
 | `LEVEL\|SYM=X[\|PRICE=Y]` | `level --sym X [--price Y]` | `client.price_level_orders("X", price=Y)` |
@@ -393,6 +393,11 @@ KILL OK  TRADER01  orders=4  quotes=0
 | `--gw GW_ID`   | yes      | Target gateway to cancel for       |
 | `--sym SYMBOL` | no       | Scope to one symbol (omit for all) |
 
+For another gateway, `kill` sends the ADMIN kill switch
+(`risk.kill_switch_gateway`): the audit trail names you, and the target need
+not be connected. On your own gateway it is the self-service
+`risk.kill_switch`.
+
 
 
 #### `kick` — Forcefully disconnect a gateway
@@ -420,7 +425,9 @@ pm-admin-cli --id GW_ADMIN qcancel --gw MM01 --sym AAPL
 QCANCEL OK  MM01  AAPL
 ```
 Cancels both bid and ask legs of the active quote.  Resting limit orders
-are unaffected.  Use `kill` to also remove those.
+are unaffected.  Use `kill` to also remove those.  For another gateway this
+is the ADMIN kill switch limited to quotes, so the audit trail names you and
+the market maker need not be connected.
 
 
 
@@ -662,7 +669,7 @@ pm-admin-cli --id GW_ADMIN --format json position --gw MM_AAPL_01
 This is the same `system.position_request`/`system.position_snapshot.{GW}`
 message pair used by `POS|GW=<gateway_id>` on
 [`pm-alf-console` and `pm-alf-gwy`](../../participant-guide/part-2-orders/010-the-trader-console.md#posgwgateway_id-query-another-gateways-position)
-and by `GET /api/v1/admin/positions` on the [REST API](../../protocols-and-clients/part-2-specifications/060-rest-and-websocket.md) —
+and by `GET /api/v1/admin/gateways/{gateway_id}/positions` on the [REST API](../../protocols-and-clients/part-2-specifications/060-rest-and-websocket.md) —
 all four surfaces agree on the position figures, since they all read the
 same engine ledger. The bid/ask/spread/mid addition here is specific to
 `pm-admin-cli`'s `position` command.
@@ -1113,7 +1120,7 @@ with ExchangeCommandClient("GW_ADMIN") as client:
 | `halt_all()`                    | —                             | **ADMIN**        | `risk.circuit_breaker_halt_all`   | `risk.circuit_breaker_halt_all_ack.{GW}`   |
 | `resume_all()`                  | —                             | **ADMIN**        | `risk.circuit_breaker_resume_all` | `risk.circuit_breaker_resume_all_ack.{GW}` |
 | `kill_switch(target, symbol?)`  | target GW ID, optional symbol | Any connected GW | `risk.kill_switch`                | `risk.kill_switch_ack.{target}`            |
-| `quote_cancel(target, symbol)`  | target GW ID, symbol          | Any connected GW | `quote.cancel`                    | `quote.ack.{target}`                       |
+| `quote_cancel(target, symbol)`  | target GW ID, symbol          | Any connected GW | `quote.cancel`                    | `quote.cancel_ack.{target}`                |
 | `gateway_kick(target, reason?)` | target GW ID, optional reason | Any connected GW | `system.gateway_disconnect`       | *(none)*                                   |
 | `book_depth(symbol)`            | symbol                        | Any connected GW | `book.snapshot_request`           | `book.{SYMBOL}`                            |
 | `order_list(target)`            | target GW ID                  | Any connected GW | `order.orders_request`            | `order.orders.{target}`                    |
@@ -1129,7 +1136,7 @@ with ExchangeCommandClient("GW_ADMIN") as client:
 | `symbol_resume(symbol)`         | symbol                        | **ADMIN**        | `risk.symbol_resume`              | `risk.symbol_resume_ack.{GW}`              |
 | `cancel_symbol(symbol)`         | symbol                        | **ADMIN**        | `risk.cancel_symbol`              | `risk.cancel_symbol_ack.{GW}`              |
 | `force_uncross(symbol)`         | symbol                        | **ADMIN**        | `risk.force_uncross`              | `risk.force_uncross_ack.{GW}`              |
-| `kill_switch_gateway(target, note?)` | target GW ID, optional note | **ADMIN**     | `risk.kill_switch_gateway`        | `risk.kill_switch_gateway_ack.{GW}`        |
+| `kill_switch_gateway(target, note?, symbol?, quotes_only?)` | target GW ID; optional note, symbol, quotes-only | **ADMIN** | `risk.kill_switch_gateway` | `risk.kill_switch_gateway_ack.{GW}` |
 | `kill_switch_global(note?)`     | optional note                 | **ADMIN**        | `risk.kill_switch_global`         | `risk.kill_switch_global_ack.{GW}`         |
 | `reference_reload()`            | —                             | **ADMIN**        | `system.reference_reload`         | `system.reference_reload_ack.{GW}`         |
 | `quote_bootstrap(target, symbol?)` | target GW ID, optional symbol | Any connected GW | `system.quote_bootstrap_request` | `system.quote_bootstrap.{target}`        |

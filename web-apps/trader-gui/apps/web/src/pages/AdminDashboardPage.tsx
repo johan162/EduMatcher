@@ -25,7 +25,7 @@ function KpiCard({ label, value, tone }: { label: string; value: string; tone?: 
  * System Dashboard (§15.1) — the ADMIN landing screen. A read-only overview:
  * KPI cards, a per-symbol summary, and the recent cross-gateway event feed. The
  * orders KPI and event feed come from the admin monitor stream (useMonitorStore,
- * fed by the `/admin/monitor` socket); session/halts/books come from the shared
+ * fed by the `/ws/admin/monitor` socket); session/halts/books come from the shared
  * live stores; the gateway roster from `GET /admin/gateways`.
  */
 export function AdminDashboardPage() {

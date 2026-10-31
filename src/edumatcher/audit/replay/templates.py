@@ -108,17 +108,26 @@ TEMPLATES: Mapping[str, Mapping[int, str]] = {
         1: "{actor} submitted a one-cancels-other pair on {symbol} — OCO {ref}"
     },
     kinds.QUOTE_CANCEL: {1: "{actor} asked to cancel quote {ref}"},
+    kinds.QUOTE_CANCEL_ACK: {
+        1: "Engine {verdict} the cancel of quote {ref} on {symbol}{because_clause}"
+    },
     kinds.OCO_ACK: {1: "Engine {verdict} OCO {ref}{legs_clause}"},
     kinds.OCO_CANCELLED: {
         1: "OCO {ref} pulled its remaining leg {leg_ref}{because_clause}"
     },
     kinds.ORDER_OCO_CANCEL: {1: "{actor} asked to cancel OCO {ref}"},
+    kinds.OCO_CANCEL_ACK: {
+        1: "Engine {verdict} the cancel of OCO {ref}{because_clause}"
+    },
     kinds.ORDER_COMBO: {
         1: "{actor} submitted {combo_article} {combo_type} combo — combo {ref}"
     },
     kinds.COMBO_ACK: {1: "Engine {verdict} combo {ref}{because_clause}"},
     kinds.COMBO_STATUS: {1: "Combo {ref} is {status}{because_clause}"},
     kinds.ORDER_COMBO_CANCEL: {1: "{actor} asked to cancel combo {ref}"},
+    kinds.COMBO_CANCEL_ACK: {
+        1: "Engine {verdict} the cancel of combo {ref}{because_clause}"
+    },
     # -- the market ---------------------------------------------------------
     # Level 3 (``-vv``) and above. These are the bulk of a real log by line
     # count, and until this level they are withheld rather than dropped. The

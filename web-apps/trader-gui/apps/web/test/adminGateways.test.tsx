@@ -10,7 +10,7 @@ vi.mock("sonner", () => ({
 
 const apiFetchMock = vi.fn(async (path: string, _init?: { body?: string }) => {
   if (path.startsWith("/api/v1/admin/gateways") && path.endsWith("/disconnect")) {
-    return { gateway_id: "GW01", status: "DISCONNECTED" };
+    return { gateway_id: "GW01", status: "PENDING_DISCONNECT" };
   }
   if (path.startsWith("/api/v1/admin/gateways")) {
     return {
@@ -20,13 +20,13 @@ const apiFetchMock = vi.fn(async (path: string, _init?: { body?: string }) => {
       ],
     };
   }
-  if (path === "/api/v1/admin/kill-switch/symbol") {
+  if (path === "/api/v1/admin/symbols/AAPL/cancel-orders") {
     return { accepted: true, symbol: "AAPL", reason: "", cancelled_orders: 3, cancelled_quotes: 0 };
   }
-  if (path === "/api/v1/admin/kill-switch/gateway") {
+  if (path === "/api/v1/admin/gateways/GW01/kill-switch") {
     return { accepted: true, target_gateway_id: "GW01", reason: "", cancelled_orders: 5, cancelled_quotes: 2 };
   }
-  if (path === "/api/v1/admin/kill-switch/global") {
+  if (path === "/api/v1/admin/market/kill-switch") {
     return { accepted: true, reason: "", cancelled_orders: 9, cancelled_quotes: 4, affected_gateways: 3 };
   }
   return {};
@@ -89,11 +89,31 @@ describe("KillSwitchPanel (§15.8)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Cancel symbol" }));
     // Dialog "Cancel symbol" confirm button; nothing posted yet.
     expect(screen.getByText(/Kill switch — symbol\?/)).toBeTruthy();
-    expect(called("/api/v1/admin/kill-switch/symbol")).toBe(false);
+    expect(called("/api/v1/admin/symbols/AAPL/cancel-orders")).toBe(false);
     // The dialog's confirm button also reads "Cancel symbol" — pick the one in the dialog.
     const dialog = screen.getByRole("dialog", { name: "Kill switch — symbol?" });
     fireEvent.click(within(dialog).getByRole("button", { name: "Cancel symbol" }));
-    await waitFor(() => expect(called("/api/v1/admin/kill-switch/symbol")).toBe(true));
+    await waitFor(() => expect(called("/api/v1/admin/symbols/AAPL/cancel-orders")).toBe(true));
+  });
+
+  it("reports an engine refusal (409 KILL_SWITCH_REJECTED) with the engine's reason", async () => {
+    // WP-API01: refusals used to arrive as 403 ROLE_DENIED.
+    const { ApiError } = await import("@/api/apiFetch");
+    const { toast } = await import("sonner");
+    wrap(<AdminGatewaysPage />);
+    await waitFor(() => expect(screen.getByText("GW01")).toBeTruthy());
+    apiFetchMock.mockRejectedValueOnce(
+      new ApiError(409, "KILL_SWITCH_REJECTED", "Symbol-level mass cancel is only allowed for ADMIN participants"),
+    );
+    fireEvent.change(screen.getByLabelText("Kill switch symbol"), { target: { value: "AAPL" } });
+    fireEvent.click(screen.getByRole("button", { name: "Cancel symbol" }));
+    const dialog = screen.getByRole("dialog", { name: "Kill switch — symbol?" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel symbol" }));
+    await waitFor(() =>
+      expect((toast.error as unknown as { mock: { calls: unknown[][] } }).mock.calls.at(-1)![0]).toBe(
+        "Rejected: Symbol-level mass cancel is only allowed for ADMIN participants",
+      ),
+    );
   });
 
   it("cancels by gateway after confirmation", async () => {
@@ -103,11 +123,12 @@ describe("KillSwitchPanel (§15.8)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Cancel gateway" }));
     const dialog = screen.getByRole("dialog", { name: "Kill switch — gateway?" });
     fireEvent.click(within(dialog).getByRole("button", { name: "Cancel gateway" }));
-    await waitFor(() => expect(called("/api/v1/admin/kill-switch/gateway")).toBe(true));
+    // D1: the target gateway is the path segment, not a body field.
+    await waitFor(() => expect(called("/api/v1/admin/gateways/GW01/kill-switch")).toBe(true));
     const body = JSON.parse(
-      apiFetchMock.mock.calls.find(([p]) => p === "/api/v1/admin/kill-switch/gateway")![1]!.body as string,
+      apiFetchMock.mock.calls.find(([p]) => p === "/api/v1/admin/gateways/GW01/kill-switch")![1]!.body as string,
     );
-    expect(body).toEqual({ target_gateway_id: "GW01" });
+    expect(body).toEqual({});
   });
 
   it("global kill switch requires typing CONFIRM before Execute is enabled", async () => {
@@ -119,6 +140,6 @@ describe("KillSwitchPanel (§15.8)", () => {
     fireEvent.change(screen.getByLabelText("Type CONFIRM to confirm"), { target: { value: "CONFIRM" } });
     expect(screen.getByRole("button", { name: "Execute global kill" })).toHaveProperty("disabled", false);
     fireEvent.click(screen.getByRole("button", { name: "Execute global kill" }));
-    await waitFor(() => expect(called("/api/v1/admin/kill-switch/global")).toBe(true));
+    await waitFor(() => expect(called("/api/v1/admin/market/kill-switch")).toBe(true));
   });
 });

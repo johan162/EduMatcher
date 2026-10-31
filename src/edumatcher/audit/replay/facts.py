@@ -46,6 +46,7 @@ from edumatcher.audit.replay.anomalies import (
     Anomaly,
 )
 from edumatcher.models.generated.order import TOPIC_ORDER_NEW
+from edumatcher.models.generated.system import TOPIC_STARTUP
 
 #: Clocks a Fact can carry. Kept as separate labels rather than one normalised
 #: column precisely because normalising the *unit* does not make two clocks
@@ -178,6 +179,8 @@ class Fact:
     correlation_id: str | None
     #: Per-topic sequence, dense, so a gap in it proves loss.
     topic_seq: int | None
+    #: Publisher-wide sequence, dense across the engine's whole PUB socket.
+    eseq: int | None
     #: Position in the stream as read. The tie-break that makes the canonical
     #: sort total and stable (design section 5.2.2); ``line_no`` cannot serve,
     #: because it restarts at every day part.
@@ -191,6 +194,8 @@ class Fact:
     #: kind, and carried here so a consumer grouping by family does not repeat
     #: the lookup on every fact. None exactly when ``known`` is False.
     family: str | None
+    #: Publisher restart epoch. ``eseq`` resets at each startup boundary.
+    publisher_run: int = 0
     #: True when this fact arrived after its reorder window had closed and was
     #: therefore emitted where it landed rather than where it belongs. Set by
     #: the ordering pass; never true on a healthy log, so it is itself a
@@ -385,6 +390,7 @@ def to_fact(entry: AuditEntry, ordinal: int) -> Fact:
         causation_id=entry.causation_id,
         correlation_id=entry.correlation_id,
         topic_seq=entry.seq,
+        eseq=entry.eseq,
         ordinal=ordinal,
         file=entry.file,
         line_no=entry.line_no,
@@ -409,8 +415,14 @@ def normalise(entries: Iterable[AuditEntry]) -> Iterator[Fact]:
     log would be reported the same way; ``pm-audit`` does not write one.
     """
     previous: tuple[str | None, int] | None = None
+    publisher_run = 0
+    seen_fact = False
     for ordinal, entry in enumerate(entries):
+        if seen_fact and entry.topic == TOPIC_STARTUP and entry.seq == 1:
+            publisher_run += 1
         fact = to_fact(entry, ordinal)
+        fact = replace(fact, publisher_run=publisher_run)
+        seen_fact = True
         if previous is not None and previous[0] == entry.file:
             unread = entry.line_no - previous[1] - 1
             if unread > 0:

@@ -30,6 +30,6 @@ export function hydrateFromBootstrap(payload: BootstrapTrader | BootstrapAdmin):
     useSessionStore.getState().setPhase(payload.session.state, null, null);
   }
   if (payload.halts) {
-    useHaltStore.getState().setHalts(payload.halts.halted);
+    useHaltStore.getState().setHalts(payload.halts);
   }
 }

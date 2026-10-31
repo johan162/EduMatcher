@@ -14,10 +14,18 @@ from typing import Any
 
 import pytest
 
-from edumatcher.audit.replay.anomalies import LATE_ARRIVAL, SEQ_GAP
+from edumatcher.audit.replay.anomalies import (
+    ESEQ_DISCONTINUITY,
+    ESEQ_GAP,
+    LATE_ARRIVAL,
+    SEQ_GAP,
+)
+from edumatcher.audit.query import AuditEntry
 from edumatcher.audit.replay.facts import Fact
+from edumatcher.audit.replay.facts import normalise
 from edumatcher.audit.replay.ordering import (
     ReorderWindow,
+    detect_eseq_gaps,
     detect_seq_gaps,
     in_canonical_order,
     mint_millis,
@@ -55,6 +63,7 @@ def make_fact(
     received_ms: int | None = None,
     topic: str | None = None,
     topic_seq: int | None = None,
+    eseq: int | None = None,
     enveloped: bool = True,
 ) -> Fact:
     """A Fact with only the fields ordering looks at."""
@@ -76,6 +85,7 @@ def make_fact(
         causation_id=None,
         correlation_id=None,
         topic_seq=topic_seq,
+        eseq=eseq,
         ordinal=ordinal,
         file="audit.log",
         line_no=ordinal + 1,
@@ -142,6 +152,37 @@ class TestSortKey:
         assert [f.kind for f in in_canonical_order([late, early])] == [
             "early",
             "late",
+        ]
+
+    def test_publisher_sequence_wins_over_preserved_msg_id_time(self) -> None:
+        base = int(_EPOCH.timestamp() * 1000)
+        published_first = make_fact(
+            kind="depth",
+            ordinal=0,
+            minted_ms=base + 1,
+            eseq=10,
+        )
+        published_second = make_fact(
+            kind="order.new",
+            ordinal=1,
+            minted_ms=base,
+            eseq=11,
+        )
+
+        assert [
+            fact.kind
+            for fact in in_canonical_order([published_second, published_first])
+        ] == ["depth", "order.new"]
+
+    def test_publisher_run_precedes_reset_sequence(self) -> None:
+        first_run = make_fact(kind="before", ordinal=0, eseq=80)
+        second_run = replace(
+            make_fact(kind="after", ordinal=1, eseq=1), publisher_run=1
+        )
+
+        assert [fact.kind for fact in in_canonical_order([second_run, first_run])] == [
+            "before",
+            "after",
         ]
 
     def test_an_engine_restart_needs_no_run_partitioning(self) -> None:
@@ -294,6 +335,98 @@ class TestSeqGaps:
         """An archived line carries no metadata section at all."""
         stream = [make_fact(ordinal=0, enveloped=False)]
         assert list(detect_seq_gaps(stream))[0].anomalies == ()
+
+
+class TestPublisherSequence:
+    def test_normalise_assigns_runs_at_startup_boundaries(self) -> None:
+        topics = [
+            ("system.startup", 1, 1),
+            ("book.AAPL", 1, 2),
+            ("system.startup", 1, 1),
+            ("book.AAPL", 1, 2),
+        ]
+        entries = [
+            AuditEntry(
+                _EPOCH.isoformat(),
+                topic,
+                {},
+                {"seq": str(seq), "eseq": str(eseq)},
+                file="audit.log",
+                line_no=index + 1,
+            )
+            for index, (topic, seq, eseq) in enumerate(topics)
+        ]
+
+        facts = list(normalise(entries))
+
+        assert [fact.publisher_run for fact in facts] == [0, 0, 1, 1]
+        assert [fact.kind for fact in in_canonical_order(reversed(facts))] == [
+            "system.startup",
+            "book",
+            "system.startup",
+            "book",
+        ]
+
+    def test_a_publisher_gap_is_reported(self) -> None:
+        stream = [
+            make_fact(topic="system.startup", topic_seq=1, eseq=1),
+            make_fact(topic="book.AAPL", ordinal=1, eseq=2),
+            make_fact(topic="trade.executed", ordinal=2, eseq=5),
+        ]
+        out = list(detect_eseq_gaps(stream))
+
+        assert [a.code for a in out[2].anomalies] == [ESEQ_GAP]
+        assert out[2].anomalies[0].detail == ("engine eseq 2->5 - 2 message(s) missing")
+
+    def test_a_startup_resets_the_publisher_sequence(self) -> None:
+        stream = [
+            make_fact(ordinal=0, topic="book.AAPL", eseq=8),
+            make_fact(
+                ordinal=1,
+                topic="system.startup",
+                topic_seq=1,
+                eseq=1,
+            ),
+            make_fact(ordinal=2, topic="book.AAPL", eseq=2),
+        ]
+        assert all(not fact.anomalies for fact in detect_eseq_gaps(stream))
+
+    def test_an_unmarked_decrease_is_reported(self) -> None:
+        stream = [
+            make_fact(ordinal=0, topic="trade.executed", eseq=5),
+            make_fact(ordinal=1, topic="trade.executed", eseq=1),
+        ]
+        out = list(detect_eseq_gaps(stream))
+        assert [a.code for a in out[1].anomalies] == [ESEQ_DISCONTINUITY]
+
+    def test_old_lines_without_eseq_break_the_comparison(self) -> None:
+        stream = [
+            make_fact(ordinal=0, topic="trade.executed", eseq=5),
+            make_fact(ordinal=1, topic="trade.executed"),
+            make_fact(ordinal=2, topic="trade.executed", eseq=11),
+        ]
+        assert all(not fact.anomalies for fact in detect_eseq_gaps(stream))
+
+    def test_a_gap_is_found_before_the_reorder_window_changes_order(self) -> None:
+        later = make_fact(
+            ordinal=0,
+            kind="trade.executed",
+            topic="trade.executed",
+            minted_ms=2,
+            eseq=2,
+        )
+        earlier = make_fact(
+            ordinal=1,
+            kind="order.ack",
+            topic="order.ack.GW01",
+            minted_ms=1,
+            eseq=4,
+        )
+
+        out = list(ordered([later, earlier], max_facts=8, max_seconds=5))
+
+        assert [fact.kind for fact in out] == ["trade.executed", "order.ack"]
+        assert [a.code for a in out[1].anomalies] == [ESEQ_GAP]
 
 
 class TestOrderedPipeline:

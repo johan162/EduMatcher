@@ -14,7 +14,7 @@ import type {
  * Live order model for the Active Orders Blotter (§13.1) and the compact
  * Workspace blotter (§11.2).
  *
- * Single source of truth, keyed on `order_id`. It is seeded by the `/events`
+ * Single source of truth, keyed on `order_id`. It is seeded by the `/ws/private`
  * `orders.snapshot` (sent on every connect, so no `GET /orders` round-trip is
  * needed) and kept current by folding live `order.*` events — mirroring the
  * gateway's own `SessionCaches.apply` status transitions so the client agrees

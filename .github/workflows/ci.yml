@@ -57,6 +57,11 @@ jobs:
       - name: SQLite schema documentation drift check
         run: PYTHONPATH=src poetry run python -m edumatcher.sqlite_schema_docs check
 
+      # The committed REST contract: any change to the v1 surface must show
+      # up as a reviewed diff of spec/rest/openapi.json (`make openapi`).
+      - name: REST contract (openapi.json) drift check
+        run: PYTHONPATH=src poetry run python -m edumatcher.api_gateway.contract check
+
   testing:
     name: Testing
     runs-on: ubuntu-latest

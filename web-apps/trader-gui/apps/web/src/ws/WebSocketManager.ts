@@ -2,9 +2,9 @@
  * WebSocketManager — orchestrates all WebSocket connections (§17.1).
  *
  * Sockets:
- *  /api/v1/events          — private order/fill/quote events  (TRADER, MM)
- *  /api/v1/market-data     — book/trades/depth/auction        (all roles)
- *  /api/v1/admin/monitor   — cross-gateway admin feed         (ADMIN only)
+ *  /api/v1/ws/private        — private order/fill/quote events  (TRADER, MM)
+ *  /api/v1/ws/market-data    — book/trades/depth/auction        (all roles)
+ *  /api/v1/ws/admin/monitor  — cross-gateway admin feed         (ADMIN only)
  *
  * One singleton lives in module scope (not React state) and is mounted once
  * at the app root via `useWebSocketManager()`. Components subscribe to typed
@@ -511,7 +511,7 @@ function handleAuthFailure(): void {
 
 /** Build and connect the events socket (shared by initial connect and gap repair). */
 function connectEvents(): void {
-  eventsWs = new ManagedSocket(wsUrl("/api/v1/events"), {
+  eventsWs = new ManagedSocket(wsUrl("/api/v1/ws/private"), {
     authFrame,
     onReconnect: () => notifyHealth(),
     onAuthFailure: handleAuthFailure,
@@ -549,7 +549,7 @@ export function connectAll(role: GatewayRole): void {
   }
 
   // Market-data socket (all roles).
-  marketDataWs = new ManagedSocket(wsUrl("/api/v1/market-data"), {
+  marketDataWs = new ManagedSocket(wsUrl("/api/v1/ws/market-data"), {
     authFrame,
     onAuthFailure: handleAuthFailure,
     onReconnect: (ws) => {
@@ -570,7 +570,7 @@ export function connectAll(role: GatewayRole): void {
 
   // Admin monitor socket (ADMIN only).
   if (role === "ADMIN") {
-    adminWs = new ManagedSocket(wsUrl("/api/v1/admin/monitor"), {
+    adminWs = new ManagedSocket(wsUrl("/api/v1/ws/admin/monitor"), {
       authFrame,
       onReconnect: () => notifyHealth(),
       onAuthFailure: handleAuthFailure,

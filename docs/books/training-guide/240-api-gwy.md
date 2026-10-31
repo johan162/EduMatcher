@@ -50,8 +50,8 @@ Recommended startup order:
 `pm-api-gwy` is an HTTP and WebSocket wrapper around the matching engine. It
 uses bearer tokens from `api_gateways.<NAME>.credentials`. A credential with a
 non-null `gateway_id` can submit and manage orders for that ALF gateway. A
-credential with `gateway_id: null` is read-only and can use status, reference,
-market-data, history, and public WebSocket paths.
+credential with `gateway_id: null` is read-only and can use the session, halts,
+reference, market-data, history, and public WebSocket paths.
 
 Multiple API gateway processes are configured with top-level `api_gateways`:
 
@@ -83,7 +83,7 @@ directly from that one resolved `gateway_id`:
 
 | Resolved `gateway_id` | Access |
 |---|---|
-| `null` | Read-only: reference data, history, public market data, `/status`, `/healthz` |
+| `null` | Read-only: session, halts, reference data, history, public market data, `/healthz` |
 | a configured ALF `gateway_id` | Trading: everything read-only gets, plus order/quote/combo/OCO submission and cancellation scoped to that one gateway |
 | a configured ALF `gateway_id` whose **engine** role is `ADMIN` | Everything trading gets, plus every `/api/v1/admin/*` endpoint |
 
@@ -188,7 +188,8 @@ read-only key.
 
 Expected behavior:
 
-- status works for trading and read-only keys
+- status works for a trading key and answers `403 READ_ONLY` for a read-only
+  key (it reports the caller's gateway, which a read-only key does not have)
 - order entry rejects a read-only key
 - Swagger lists the same route shapes exposed by `/openapi.json`
 
@@ -368,8 +369,8 @@ Expected behavior:
 - `/history/orders` and `/history/fills` are scoped to the caller's own
   gateway — `TRADER01`'s key never sees `TRADER02`'s orders
 - `/history/trades` and `/history/daily` are public and show both sides
-- a reply with `"has_more": true` always includes `next_cursor`; passing it
-  back unchanged as `after` returns the next page
+- every page carries `next_cursor`: a string while `"has_more": true` (pass it
+  back unchanged as `after` for the next page) and `null` on the last page
 - if `pm-stats` is not running, every history call returns `503 STATS_DB`
 
 :material-checkbox-blank-outline: Checkpoint: you can explain why
@@ -382,7 +383,7 @@ Expected behavior:
 Connect to private events before submitting new orders:
 
 ```bash
-python3 -m websockets ws://127.0.0.1:8080/api/v1/events
+python3 -m websockets ws://127.0.0.1:8080/api/v1/ws/private
 ```
 
 Once connected, the CLI waits for you to type. Send the authentication message
@@ -399,7 +400,7 @@ private event stream.
 Then connect to a public market-data WebSocket with a read-only key:
 
 ```bash
-python3 -m websockets ws://127.0.0.1:8080/api/v1/market-data
+python3 -m websockets ws://127.0.0.1:8080/api/v1/ws/market-data
 ```
 
 After authentication, send a subscription control message:
@@ -452,27 +453,26 @@ field only ADMIN callers get back. Now try the same idea with a trading key:
 
 ```bash
 curl -i -H 'Authorization: Bearer key-trader-demo' \
-  http://127.0.0.1:8080/api/v1/admin/halts
+  http://127.0.0.1:8080/api/v1/admin/gateways
 ```
 
 Expect `403 ROLE_DENIED` — a trading key is never accepted on `/admin/*`,
 regardless of which gateway it is bound to.
 
-Trigger and resume a circuit-breaker halt with the ADMIN key:
+Trigger and resume a circuit-breaker halt with the ADMIN key. The symbol is
+part of the path; the body carries only the optional `level` (and `reason`):
 
 ```bash
-curl -X POST http://127.0.0.1:8080/api/v1/admin/circuit-breaker/trigger \
+curl -X POST http://127.0.0.1:8080/api/v1/admin/symbols/AAPL/halt \
   -H 'Authorization: Bearer key-ops01-demo' \
   -H 'Content-Type: application/json' \
-  -d '{"symbol": "AAPL", "level": "L1"}'
+  -d '{"level": "L1"}'
 
 curl -H 'Authorization: Bearer key-ops01-demo' \
-  http://127.0.0.1:8080/api/v1/admin/halts
+  http://127.0.0.1:8080/api/v1/halts
 
-curl -X POST http://127.0.0.1:8080/api/v1/admin/circuit-breaker/resume \
-  -H 'Authorization: Bearer key-ops01-demo' \
-  -H 'Content-Type: application/json' \
-  -d '{"symbol": "AAPL"}'
+curl -X POST http://127.0.0.1:8080/api/v1/admin/symbols/AAPL/resume \
+  -H 'Authorization: Bearer key-ops01-demo'
 ```
 
 Request a session transition. This call now waits for the engine's verdict
@@ -485,10 +485,10 @@ curl -i -X POST http://127.0.0.1:8080/api/v1/admin/session/transition \
   -d '{"to_state": "CONTINUOUS"}'
 ```
 
-A successful transition returns `202` with `status: "APPLIED"` and a
+A successful transition returns `200` with `status: "APPLIED"` and a
 `command_id`. Requesting a state the engine cannot apply (for example when
-sessions are disabled) returns `409 TRANSITION_REJECTED` with a `reason`,
-instead of leaving you to guess from a timeout.
+sessions are disabled) returns `409 TRANSITION_REJECTED` with the engine's
+reason as `message`, instead of leaving you to guess from a timeout.
 
 Look at cross-gateway order visibility:
 
@@ -507,7 +507,7 @@ Fetch one order's full cross-gateway lifecycle from the audit trail:
 
 ```bash
 curl -i -H 'Authorization: Bearer key-ops01-demo' \
-  http://127.0.0.1:8080/api/v1/admin/orders/ORDER_ID
+  http://127.0.0.1:8080/api/v1/admin/orders/ORDER_ID/audit
 ```
 
 This endpoint is optional: it depends on a separate `pm-audit` index that
@@ -518,24 +518,26 @@ working normally.
 Finally, cancel resting exposure with the kill-switch family:
 
 ```bash
-curl -X POST http://127.0.0.1:8080/api/v1/admin/kill-switch/symbol \
+curl -X POST http://127.0.0.1:8080/api/v1/admin/symbols/AAPL/cancel-orders \
   -H 'Authorization: Bearer key-ops01-demo' \
   -H 'Content-Type: application/json' \
-  -d '{"symbol": "AAPL", "reason": "training exercise"}'
+  -d '{"reason": "training exercise"}'
 
-curl -X POST http://127.0.0.1:8080/api/v1/admin/kill-switch/gateway \
+curl -X POST http://127.0.0.1:8080/api/v1/admin/gateways/TRADER01/kill-switch \
   -H 'Authorization: Bearer key-ops01-demo' \
   -H 'Content-Type: application/json' \
-  -d '{"target_gateway_id": "TRADER01", "reason": "training exercise"}'
+  -d '{"reason": "training exercise"}'
 ```
 
 Expected behavior:
 
 - a trading key gets `403 ROLE_DENIED` on every `/admin/*` path
+- halting a symbol the engine does not know returns `409 HALT_REJECTED` with
+  `message: "Unknown symbol: ..."` — the engine refused, your role is fine
 - `/admin/session/transition` blocks for the engine's verdict and never just
   times out silently
 - `/admin/orders` returns orders from every gateway, not just `OPS01`'s
-- `/admin/orders/{order_id}` either returns the full lifecycle or a clear
+- `/admin/orders/{order_id}/audit` either returns the full lifecycle or a clear
   `503 AUDIT_INDEX_UNAVAILABLE` if no audit index is deployed
 
 :material-checkbox-blank-outline: Checkpoint: you can explain why role

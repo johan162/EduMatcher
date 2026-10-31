@@ -1470,7 +1470,7 @@ class OrderBook:
         total = 0
         level_price: Optional[int] = None
         level_hidden = 0  # hidden iceberg qty queued at the back of this level
-        oco_seen: set[str] = set()
+        oco_seen: set[tuple[str, str]] = set()
         for entry in live:
             o = entry.order
             price = o.price_ticks
@@ -1493,9 +1493,12 @@ class OrderBook:
             # other, and a FOK that takes only part of it is done before
             # reaching the other: only the first leg met can count.
             if o.oco_group_id is not None:
-                if o.oco_group_id in oco_seen:
+                # Per gateway: the id is the client's own label, so two
+                # gateways' pairs may share one and are still two pairs.
+                pair = (o.gateway_id, o.oco_group_id)
+                if pair in oco_seen:
                     continue
-                oco_seen.add(o.oco_group_id)
+                oco_seen.add(pair)
             shown = (
                 o.displayed_qty
                 if o.order_type == OrderType.ICEBERG and o.displayed_qty is not None

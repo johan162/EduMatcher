@@ -464,6 +464,21 @@ _KILL_SWITCH_GATEWAY_FIELDS: tuple[dict[str, Any], ...] = (
         "constraints": {"max_len": 32},
     },
     {
+        "name": "symbol",
+        "type": "string",
+        "unit": None,
+        "required": False,
+        "doc": "Scope the cancel to one instrument; omitted cancels across all.",
+        "constraints": {"max_len": 16},
+    },
+    {
+        "name": "quotes_only",
+        "type": "bool",
+        "unit": None,
+        "required": False,
+        "doc": "Cancel only the target's quotes, leaving its other resting orders. With `symbol`, this is an admin pulling one market maker's quote on one instrument -- through this ADMIN message rather than by sending the participant's own quote.cancel, which would put the target's name on the audit trail and fail while it is disconnected.",
+    },
+    {
         "name": "note",
         "type": "string",
         "unit": None,
@@ -497,6 +512,8 @@ class KillSwitchGateway:
 
     gateway_id: str
     target_gateway_id: str
+    symbol: str = ""
+    quotes_only: bool = False
     note: str = ""
     command_id: str = ""
 
@@ -514,6 +531,10 @@ class KillSwitchGateway:
         if len(self.target_gateway_id) > 32:
             raise MessageValidationError(
                 f"target_gateway_id: length {len(self.target_gateway_id)} exceeds max_len 32"
+            )
+        if len(self.symbol) > 16:
+            raise MessageValidationError(
+                f"symbol: length {len(self.symbol)} exceeds max_len 16"
             )
         if len(self.note) > 256:
             raise MessageValidationError(
@@ -535,6 +556,8 @@ class KillSwitchGateway:
         return cls(
             gateway_id=str(p["gateway_id"]),
             target_gateway_id=str(p["target_gateway_id"]),
+            symbol=str(p.get("symbol", "")),
+            quotes_only=bool(p.get("quotes_only", False)),
             note=str(p.get("note", "")),
             command_id=str(p.get("command_id", "")),
         )
@@ -544,7 +567,10 @@ class KillSwitchGateway:
         payload: dict[str, Any] = {
             "gateway_id": self.gateway_id,
             "target_gateway_id": self.target_gateway_id,
+            "quotes_only": self.quotes_only,
         }
+        if self.symbol:
+            payload["symbol"] = self.symbol
         if self.note:
             payload["note"] = self.note
         if self.command_id:
@@ -576,6 +602,8 @@ def make_kill_switch_gateway_unchecked(
     *,
     gateway_id: str,
     target_gateway_id: str,
+    symbol: str = "",
+    quotes_only: bool = False,
     note: str = "",
     command_id: str = "",
 ) -> list[bytes]:
@@ -592,7 +620,10 @@ def make_kill_switch_gateway_unchecked(
     payload: dict[str, Any] = {
         "gateway_id": str(gateway_id),
         "target_gateway_id": str(target_gateway_id),
+        "quotes_only": bool(quotes_only),
     }
+    if symbol:
+        payload["symbol"] = str(symbol)
     if note:
         payload["note"] = str(note)
     if command_id:
@@ -650,6 +681,21 @@ _KILL_SWITCH_GATEWAY_ACK_FIELDS: tuple[dict[str, Any], ...] = (
         "required": False,
         "doc": "",
         "constraints": {"max_len": 32},
+    },
+    {
+        "name": "symbol",
+        "type": "string",
+        "unit": None,
+        "required": False,
+        "doc": "Echoed when the cancel was scoped.",
+        "constraints": {"max_len": 16},
+    },
+    {
+        "name": "quotes_only",
+        "type": "bool",
+        "unit": None,
+        "required": False,
+        "doc": "Echoed: whether only quotes were cancelled.",
     },
     {
         "name": "reason",
@@ -712,6 +758,8 @@ class KillSwitchGatewayAck:
     gateway_id: str
     accepted: bool
     target_gateway_id: str = ""
+    symbol: str = ""
+    quotes_only: bool = False
     reason: str = ""
     cancelled_orders: int = 0  # unit: dimensionless
     cancelled_order_ids: list[str] = field(default_factory=list)
@@ -733,6 +781,10 @@ class KillSwitchGatewayAck:
         if len(self.target_gateway_id) > 32:
             raise MessageValidationError(
                 f"target_gateway_id: length {len(self.target_gateway_id)} exceeds max_len 32"
+            )
+        if len(self.symbol) > 16:
+            raise MessageValidationError(
+                f"symbol: length {len(self.symbol)} exceeds max_len 16"
             )
         if len(self.reason) > 512:
             raise MessageValidationError(
@@ -763,6 +815,8 @@ class KillSwitchGatewayAck:
             gateway_id=str(p.get("gateway_id", "")),
             accepted=bool(p["accepted"]),
             target_gateway_id=str(p.get("target_gateway_id", "")),
+            symbol=str(p.get("symbol", "")),
+            quotes_only=bool(p.get("quotes_only", False)),
             reason=str(p.get("reason", "")),
             cancelled_orders=int(p.get("cancelled_orders", 0)),
             cancelled_order_ids=(
@@ -780,12 +834,15 @@ class KillSwitchGatewayAck:
         payload: dict[str, Any] = {
             "accepted": self.accepted,
             "target_gateway_id": self.target_gateway_id,
+            "quotes_only": self.quotes_only,
             "reason": self.reason,
             "cancelled_orders": self.cancelled_orders,
             "cancelled_order_ids": self.cancelled_order_ids,
             "cancelled_quotes": self.cancelled_quotes,
             "cancelled_quote_order_ids": self.cancelled_quote_order_ids,
         }
+        if self.symbol:
+            payload["symbol"] = self.symbol
         if self.command_id:
             payload["command_id"] = self.command_id
         return payload
@@ -822,6 +879,8 @@ def make_kill_switch_gateway_ack_unchecked(
     gateway_id: str,
     accepted: bool,
     target_gateway_id: str = "",
+    symbol: str = "",
+    quotes_only: bool = False,
     reason: str = "",
     cancelled_orders: int = 0,
     cancelled_order_ids: list[str] = [],
@@ -842,12 +901,15 @@ def make_kill_switch_gateway_ack_unchecked(
     payload: dict[str, Any] = {
         "accepted": bool(accepted),
         "target_gateway_id": str(target_gateway_id),
+        "quotes_only": bool(quotes_only),
         "reason": str(reason),
         "cancelled_orders": int(cancelled_orders),
         "cancelled_order_ids": [str(item) for item in cancelled_order_ids],
         "cancelled_quotes": int(cancelled_quotes),
         "cancelled_quote_order_ids": [str(item) for item in cancelled_quote_order_ids],
     }
+    if symbol:
+        payload["symbol"] = str(symbol)
     if command_id:
         payload["command_id"] = str(command_id)
     return [

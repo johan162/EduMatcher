@@ -25,7 +25,7 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from fastapi import HTTPException
@@ -33,6 +33,7 @@ from fastapi import HTTPException
 from edumatcher.api_gateway.config import ApiGatewayConfig
 from edumatcher.api_gateway.rate_limit import RateLimiter
 from edumatcher.api_gateway.routers import history
+from tests.api_gateway_harness import check_contract
 from edumatcher.api_gateway.sessions import Session
 from edumatcher.stats.main import SCHEMA
 
@@ -256,7 +257,7 @@ async def _call_index_daily(
     to_date: str | None = None,
     limit: int = 500,
 ) -> dict[str, Any]:
-    return await history.history_index_daily(
+    result = await history.history_index_daily(
         request,
         session,
         index_id=index_id,
@@ -265,6 +266,8 @@ async def _call_index_daily(
         to_date=to_date,
         limit=limit,
     )
+    check_contract(history.history_index_daily, result)
+    return result
 
 
 async def _call_index_snapshots(
@@ -277,7 +280,7 @@ async def _call_index_snapshots(
     to_ts: str | None = None,
     limit: int = 500,
 ) -> dict[str, Any]:
-    return await history.history_index_snapshots(
+    result = await history.history_index_snapshots(
         request,
         session,
         index_id=index_id,
@@ -286,6 +289,8 @@ async def _call_index_snapshots(
         to_ts=to_ts,
         limit=limit,
     )
+    check_contract(history.history_index_snapshots, result)
+    return result
 
 
 async def _call_price_snapshots(
@@ -299,7 +304,7 @@ async def _call_price_snapshots(
     limit: int = 500,
     after: str | None = None,
 ) -> dict[str, Any]:
-    return await history.history_price_snapshots(
+    result = await history.history_price_snapshots(
         request,
         session,
         symbol=symbol,
@@ -309,6 +314,8 @@ async def _call_price_snapshots(
         limit=limit,
         after=after,
     )
+    check_contract(history.history_price_snapshots, result)
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -385,13 +392,14 @@ async def test_index_daily_omitting_index_id_returns_all_indexes(
 
 
 @pytest.mark.anyio
-async def test_index_daily_invalid_date_rejected_with_422(seeded_db: Path) -> None:
+async def test_index_daily_invalid_date_rejected_with_400(seeded_db: Path) -> None:
     request = _request_for(seeded_db)
     with pytest.raises(HTTPException) as exc_info:
         await _call_index_daily(
             request, _readonly_session(), index_id="EDU100", date="not-a-date"
         )
-    assert exc_info.value.status_code == 422
+    assert exc_info.value.status_code == 400
+    assert cast(dict[str, Any], exc_info.value.detail)["error"]["field"] == "date"
 
 
 @pytest.mark.anyio
@@ -420,7 +428,7 @@ async def test_index_daily_empty_db_returns_empty_not_error(empty_db: Path) -> N
     result = await _call_index_daily(
         request, _readonly_session(), index_id="EDU100", date=None
     )
-    assert result == {"daily": [], "count": 0, "has_more": False}
+    assert result == {"daily": [], "count": 0, "has_more": False, "next_cursor": None}
 
 
 # ---------------------------------------------------------------------------
@@ -482,7 +490,8 @@ async def test_index_snapshots_invalid_time_range_rejected(seeded_db: Path) -> N
         await _call_index_snapshots(
             request, _readonly_session(), index_id="EDU100", from_ts="garbage"
         )
-    assert exc_info.value.status_code == 422
+    assert exc_info.value.status_code == 400
+    assert cast(dict[str, Any], exc_info.value.detail)["error"]["field"] == "from"
 
 
 @pytest.mark.anyio
@@ -493,7 +502,12 @@ async def test_index_snapshots_empty_db_returns_empty_not_error(
     result = await _call_index_snapshots(
         request, _readonly_session(), index_id="EDU100"
     )
-    assert result == {"snapshots": [], "count": 0, "has_more": False}
+    assert result == {
+        "snapshots": [],
+        "count": 0,
+        "has_more": False,
+        "next_cursor": None,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -523,11 +537,12 @@ async def test_index_ids_filters_by_date(seeded_db: Path) -> None:
 
 
 @pytest.mark.anyio
-async def test_index_ids_invalid_date_rejected_with_422(seeded_db: Path) -> None:
+async def test_index_ids_invalid_date_rejected_with_400(seeded_db: Path) -> None:
     request = _request_for(seeded_db)
     with pytest.raises(HTTPException) as exc_info:
         await history.history_index_ids(request, _readonly_session(), date="06/14/2026")
-    assert exc_info.value.status_code == 422
+    assert exc_info.value.status_code == 400
+    assert cast(dict[str, Any], exc_info.value.detail)["error"]["field"] == "date"
 
 
 @pytest.mark.anyio
@@ -624,7 +639,8 @@ async def test_price_snapshots_invalid_time_range_rejected(seeded_db: Path) -> N
         await _call_price_snapshots(
             request, _readonly_session(), symbol="AAPL", from_ts="garbage"
         )
-    assert exc_info.value.status_code == 422
+    assert exc_info.value.status_code == 400
+    assert cast(dict[str, Any], exc_info.value.detail)["error"]["field"] == "from"
 
 
 @pytest.mark.anyio
@@ -633,7 +649,12 @@ async def test_price_snapshots_empty_db_returns_empty_not_error(
 ) -> None:
     request = _request_for(empty_db)
     result = await _call_price_snapshots(request, _readonly_session(), symbol="AAPL")
-    assert result == {"snapshots": [], "count": 0, "has_more": False}
+    assert result == {
+        "snapshots": [],
+        "count": 0,
+        "has_more": False,
+        "next_cursor": None,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -673,61 +694,3 @@ async def test_missing_stats_db_returns_503(tmp_path: Path) -> None:
     detail = exc_info.value.detail
     assert isinstance(detail, dict)
     assert detail["error"]["code"] == "STATS_DB"
-
-
-# ===========================================================================
-# /history/session
-# ===========================================================================
-
-# 2026-06-14T12:00:00Z is already 2026-06-15 in UTC+14.
-_NOON_UTC = 1_781_438_400.0
-
-
-@pytest.mark.anyio
-async def test_session_reports_the_recorded_timezone_and_its_trading_date(
-    empty_db: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """A client's "today" and clock must match the ``date`` column pm-stats
-    wrote, which is in the recorded session timezone, not UTC."""
-    conn = sqlite3.connect(empty_db)
-    conn.execute(
-        "INSERT INTO stats_meta (key, value) VALUES ('session_timezone', 'Pacific/Kiritimati')"
-    )
-    conn.commit()
-    conn.close()
-    monkeypatch.setattr(
-        "edumatcher.api_gateway.routers.history.time.time", lambda: _NOON_UTC
-    )
-
-    result = await history.history_session(_request_for(empty_db), _readonly_session())
-
-    assert result == {
-        "country": "SE",
-        "session_timezone": "Pacific/Kiritimati",
-        "session_date": "2026-06-15",
-    }
-
-
-@pytest.mark.anyio
-async def test_session_defaults_to_utc_when_none_was_recorded(
-    empty_db: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(
-        "edumatcher.api_gateway.routers.history.time.time", lambda: _NOON_UTC
-    )
-
-    result = await history.history_session(_request_for(empty_db), _readonly_session())
-
-    assert result == {
-        "country": "SE",
-        "session_timezone": "UTC",
-        "session_date": "2026-06-14",
-    }
-
-
-@pytest.mark.anyio
-async def test_session_with_a_missing_stats_db_returns_503(tmp_path: Path) -> None:
-    request = _request_for(tmp_path / "does_not_exist.db")
-    with pytest.raises(HTTPException) as exc_info:
-        await history.history_session(request, _readonly_session())
-    assert exc_info.value.status_code == 503

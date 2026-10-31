@@ -114,7 +114,7 @@ async def test_rest_validation_error_carries_reject_code_and_client_tag() -> Non
     error = cast(dict[str, Any], content["error"])
     assert error["code"] == "VALIDATION"
     assert error["reject_code"] == "MISSING_FIELD"
-    assert error["reason"] == error["message"]
+    assert "reason" not in error  # WP-API01: it only duplicated `message`
     assert error["client_tag"] == "REST-ORDER-001"
 
 

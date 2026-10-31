@@ -36,6 +36,7 @@ vi.mock("@/api/apiFetch", () => ({
   },
 }));
 
+import { ApiError } from "@/api/apiFetch";
 import { AmendDialog } from "@/components/orders/AmendDialog";
 import { ReplaceDialog } from "@/components/orders/ReplaceDialog";
 import { OrderDetailDrawer } from "@/components/orders/OrderDetailDrawer";
@@ -168,6 +169,27 @@ describe("AmendDialog (§13.2)", () => {
 });
 
 describe("ReplaceDialog (§13.2)", () => {
+  // WP-API15: the gateway now tells the two failures apart (WP-API02).
+  it("reports a refused cancel as nothing sent", async () => {
+    useOrderStore.getState().seed([ORDER]);
+    apiFetchMock.mockRejectedValueOnce(
+      new ApiError(409, "REPLACE_REJECTED", "Order already filled"),
+    );
+    wrap(<ReplaceDialog orderId={ORDER.order_id} onClose={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Replace order" }));
+    await waitFor(() => expect(screen.getByText(/Order already filled/)).toBeTruthy());
+    expect(screen.getByText(/nothing was sent/)).toBeTruthy();
+  });
+
+  it("reports an unconfirmed cancel as: original may be live, no replacement", async () => {
+    useOrderStore.getState().seed([ORDER]);
+    apiFetchMock.mockRejectedValueOnce(new ApiError(503, "ENGINE_TIMEOUT", "no reply"));
+    wrap(<ReplaceDialog orderId={ORDER.order_id} onClose={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Replace order" }));
+    await waitFor(() => expect(screen.getByText(/no replacement was sent/)).toBeTruthy());
+    expect(screen.getByText(/check the blotter/)).toBeTruthy();
+  });
+
   it("POSTs a full replacement order with the edited price", async () => {
     useOrderStore.getState().seed([ORDER]);
     wrap(<ReplaceDialog orderId={ORDER.order_id} onClose={vi.fn()} />);

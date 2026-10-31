@@ -10,7 +10,7 @@ vi.mock("sonner", () => ({
 
 const apiFetchMock = vi.fn(async (path: string, _init?: { body?: string }) => {
   if (path.startsWith("/api/v1/quotes/")) return { symbol: "AAPL", status: "PENDING_CANCEL" };
-  if (path.startsWith("/api/v1/quotes")) return { id: "mm-aapl-x", status: "PENDING", event: null };
+  if (path.startsWith("/api/v1/quotes")) return { symbol: "AAPL", quote_id: "mm-aapl-x", status: "PENDING" };
   return {};
 });
 
@@ -88,7 +88,7 @@ describe("NewQuoteForm (§14.2)", () => {
     expect(typeof body.quote_id).toBe("string");
   });
 
-  it("records the response `id` (not quote_id) in the Event Center", async () => {
+  it("records the response `quote_id` in the Event Center", async () => {
     wrap(<NewQuoteForm symbol="AAPL" tickDecimals={2} onDone={vi.fn()} />);
     fireEvent.change(screen.getByLabelText("Bid price"), { target: { value: "149.9" } });
     fireEvent.change(screen.getByLabelText("Ask price"), { target: { value: "150.1" } });

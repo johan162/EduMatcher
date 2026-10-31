@@ -122,7 +122,7 @@ describe("history proxy", () => {
   });
 
   it("propagates the 503 pm-api-gwy returns when the stats DB is unavailable", async () => {
-    const body = { detail: { error: { code: "STATS_DB", message: "missing" } } };
+    const body = { error: { code: "STATS_DB", message: "missing", reject_code: "UNKNOWN" } };
     const app = await proxyApp((async () => jsonResponse(body, 503)) as unknown as typeof fetch);
 
     const res = await app.inject({ method: "GET", url: "/api/history/daily" });
@@ -131,15 +131,24 @@ describe("history proxy", () => {
     expect(res.json()).toEqual(body);
   });
 
-  it("propagates a 422 validation error rather than masking it", async () => {
-    const app = await proxyApp((async () =>
-      jsonResponse({ detail: "bad date" }, 422)) as unknown as typeof fetch);
-    expect((await app.inject({ method: "GET", url: "/api/history/daily?date=today" })).statusCode).toBe(422);
+  it("propagates a 400 validation error rather than masking it", async () => {
+    const body = {
+      error: {
+        code: "VALIDATION",
+        message: "Invalid date format: today (expected YYYY-MM-DD)",
+        field: "date",
+        reject_code: "INVALID_VALUE",
+      },
+    };
+    const app = await proxyApp((async () => jsonResponse(body, 400)) as unknown as typeof fetch);
+    const res = await app.inject({ method: "GET", url: "/api/history/daily?date=today" });
+    expect(res.statusCode).toBe(400);
+    expect(res.json()).toEqual(body);
   });
 
   it("propagates a 401, which means the bridge's own key is wrong", async () => {
     const app = await proxyApp((async () =>
-      jsonResponse({ detail: "unknown key" }, 401)) as unknown as typeof fetch);
+      jsonResponse({ error: { code: "AUTH", message: "Unknown API key", reject_code: "AUTH_REQUIRED" } }, 401)) as unknown as typeof fetch);
     expect((await app.inject({ method: "GET", url: "/api/history/daily" })).statusCode).toBe(401);
   });
 

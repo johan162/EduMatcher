@@ -30,9 +30,9 @@ export interface Bridge {
   close(): Promise<void>;
 }
 
-/** `http://host:port` → `ws://host:port/api/v1/market-data` (and https → wss). */
+/** `http://host:port` → `ws://host:port/api/v1/ws/market-data` (and https → wss). */
 export function marketDataUrl(baseUrl: string): string {
-  const url = new URL("/api/v1/market-data", baseUrl.replace(/\/+$/, "") + "/");
+  const url = new URL("/api/v1/ws/market-data", baseUrl.replace(/\/+$/, "") + "/");
   url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
   return url.toString();
 }

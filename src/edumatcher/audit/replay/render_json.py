@@ -71,7 +71,7 @@ from edumatcher.audit.replay.anomalies import SEVERITY_INFO, Anomaly
 from edumatcher.audit.replay.derived import derive
 from edumatcher.audit.replay.episodes import Episode, EpisodeEvent
 from edumatcher.audit.replay.links import Link
-from edumatcher.audit.replay.ordering import pack_sort_key
+from edumatcher.audit.replay.ordering import pack_sort_key, sort_key
 from edumatcher.audit.replay.render_text import Options, Rendered, Renderer, suppressed
 from edumatcher.audit.replay.state import StateModel
 
@@ -257,6 +257,8 @@ def _beat(episode: Episode, event: EpisodeEvent, rendered: Rendered) -> dict[str
         "causation_id": fact.causation_id,
         "correlation_id": fact.correlation_id,
         "topic_seq": fact.topic_seq,
+        "eseq": fact.eseq,
+        "publisher_run": fact.publisher_run,
         "receipt_ts": fact.receipt_raw,
         "topic": fact.topic,
         "kind": fact.kind,
@@ -322,7 +324,7 @@ def _narrated(episodes: Sequence[Episode]) -> list[tuple[Episode, EpisodeEvent]]
     """
     return sorted(
         ((episode, event) for episode in episodes for event in episode.events),
-        key=lambda pair: pair[1].fact.ordinal,
+        key=lambda pair: sort_key(pair[1].fact),
     )
 
 

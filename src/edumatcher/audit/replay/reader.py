@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from dataclasses import replace
 from datetime import datetime
 from typing import Any, Iterable, Iterator, Mapping, Sequence
 
@@ -30,11 +31,12 @@ from edumatcher.audit.replay.anomalies import Anomaly
 from edumatcher.audit.replay.episodes import Episode, EpisodeEvent
 from edumatcher.audit.replay.facts import to_fact
 from edumatcher.audit.replay.links import Confidence, Link, Resolution
+from edumatcher.audit.replay.ordering import sort_key
 from edumatcher.audit.replay.pipeline import Step
 from edumatcher.audit.replay.state import StateModel
 
 #: The separator :func:`~edumatcher.audit.replay.ordering.pack_sort_key` joins
-#: the key's four fields with.
+#: the key's five fields with.
 _PACK_SEP = "\x1f"
 
 
@@ -267,7 +269,10 @@ def _event(
         file=str(row["file"]) or None,
         line_no=int(row["line_no"]),
     )
-    fact = to_fact(entry, _ordinal(str(row["sort_key"])))
+    fact = replace(
+        to_fact(entry, _ordinal(str(row["sort_key"]))),
+        publisher_run=int(row["publisher_run"]),
+    )
     resolution = Resolution(
         ref=ref,
         origin=fact.msg_id is not None and fact.causation_id is None,
@@ -295,6 +300,8 @@ def _meta(row: sqlite3.Row) -> dict[str, str]:
             meta[key] = str(value)
     if row["topic_seq"] is not None:
         meta["seq"] = str(row["topic_seq"])
+    if row["eseq"] is not None:
+        meta["eseq"] = str(row["eseq"])
     return meta
 
 
@@ -428,5 +435,5 @@ def facts_of(episodes: Iterable[Episode]) -> Iterator[EpisodeEvent]:
     """Every event of every episode, in canonical order across all of them."""
     yield from sorted(
         (event for episode in episodes for event in episode.events),
-        key=lambda event: event.fact.ordinal,
+        key=lambda event: sort_key(event.fact),
     )

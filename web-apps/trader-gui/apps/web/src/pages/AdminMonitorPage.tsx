@@ -81,7 +81,7 @@ const MonitorRow = memo(function MonitorRow({
 
 /**
  * Audit / Monitor Log Viewer (§15.9) — the ADMIN live tail of cross-gateway
- * activity from the `/admin/monitor` socket (via useMonitorStore). Filter by
+ * activity from the `/ws/admin/monitor` socket (via useMonitorStore). Filter by
  * kind/symbol/gateway, export the visible rows to CSV, and drill into an order's
  * full lifecycle from the audit trail. On reconnect a GAP row marks the boundary
  * the feed could not replay.

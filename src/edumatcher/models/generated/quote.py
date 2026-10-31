@@ -14,7 +14,7 @@ generation.md.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Literal, Mapping, cast
 
 from edumatcher.models import message as _msg
@@ -310,6 +310,14 @@ _QUOTE_CANCEL_FIELDS: tuple[dict[str, Any], ...] = (
         "doc": "",
         "constraints": {"max_len": 16},
     },
+    {
+        "name": "request_tag",
+        "type": "string",
+        "unit": None,
+        "required": False,
+        "doc": "Echoed on quote.cancel_ack, so the caller can attribute the outcome.",
+        "constraints": {"max_len": 64},
+    },
 )
 
 
@@ -324,6 +332,7 @@ class QuoteCancel:
 
     gateway_id: str
     symbol: str
+    request_tag: str = ""
 
     def validate(self) -> None:
         """Raise MessageValidationError if any declared rule fails.
@@ -340,6 +349,10 @@ class QuoteCancel:
             raise MessageValidationError(
                 f"symbol: length {len(self.symbol)} exceeds max_len 16"
             )
+        if len(self.request_tag) > 64:
+            raise MessageValidationError(
+                f"request_tag: length {len(self.request_tag)} exceeds max_len 64"
+            )
 
     @classmethod
     def from_dict(cls, p: Mapping[str, Any]) -> "QuoteCancel":
@@ -352,14 +365,18 @@ class QuoteCancel:
         return cls(
             gateway_id=str(p["gateway_id"]),
             symbol=str(p["symbol"]),
+            request_tag=str(p.get("request_tag", "")),
         )
 
     def to_dict(self) -> dict[str, Any]:
         """Return the bus payload, in the spec's declared field order."""
-        return {
+        payload: dict[str, Any] = {
             "gateway_id": self.gateway_id,
             "symbol": self.symbol,
         }
+        if self.request_tag:
+            payload["request_tag"] = self.request_tag
+        return payload
 
 
 def is_quote_cancel(topic: str) -> bool:
@@ -386,6 +403,7 @@ def make_quote_cancel_unchecked(
     *,
     gateway_id: str,
     symbol: str,
+    request_tag: str = "",
 ) -> list[bytes]:
     """Identical frames to ``make_quote_cancel``, without ``validate()``.
 
@@ -397,14 +415,15 @@ def make_quote_cancel_unchecked(
     Coerces exactly as ``make_*`` does, so for any input the two emit byte-identical
     frames.
     """
+    payload: dict[str, Any] = {
+        "gateway_id": str(gateway_id),
+        "symbol": str(symbol),
+    }
+    if request_tag:
+        payload["request_tag"] = str(request_tag)
     return [
         _TOPIC_QUOTE_CANCEL_BYTES,
-        _msg.dumps(
-            {
-                "gateway_id": str(gateway_id),
-                "symbol": str(symbol),
-            }
-        ),
+        _msg.dumps(payload),
     ]
 
 
@@ -864,9 +883,256 @@ def describe_quote_status() -> tuple[dict[str, Any], ...]:
     return _QUOTE_STATUS_FIELDS
 
 
+TOPIC_QUOTE_CANCEL_ACK = "quote.cancel_ack.{gateway_id}"
+PREFIX_QUOTE_CANCEL_ACK = "quote.cancel_ack."
+_QUOTE_CANCEL_ACK_RE = re.compile("quote\\.cancel_ack\\.(?P<gateway_id>[^.]+)")
+
+
+_QUOTE_CANCEL_ACK_FIELDS: tuple[dict[str, Any], ...] = (
+    {
+        "name": "gateway_id",
+        "type": "string",
+        "unit": None,
+        "required": True,
+        "doc": "",
+        "constraints": {"max_len": 32},
+    },
+    {
+        "name": "symbol",
+        "type": "string",
+        "unit": None,
+        "required": True,
+        "doc": "",
+        "constraints": {"max_len": 16},
+    },
+    {
+        "name": "quote_id",
+        "type": "string",
+        "unit": None,
+        "required": False,
+        "doc": 'The withdrawn quote\'s id; "" when there was none.',
+        "constraints": {"max_len": 64},
+    },
+    {
+        "name": "accepted",
+        "type": "bool",
+        "unit": None,
+        "required": True,
+        "doc": "",
+    },
+    {
+        "name": "reason",
+        "type": "string",
+        "unit": None,
+        "required": False,
+        "doc": "",
+        "constraints": {"max_len": 512},
+    },
+    {
+        "name": "reject_code",
+        "type": "string",
+        "unit": None,
+        "required": False,
+        "doc": "On a refusal, a member of order.ack's `reject_code` vocabulary (ORDER_NOT_FOUND, ORDER_ALREADY_TERMINAL, GATEWAY_NOT_CONFIGURED, AUTH_REQUIRED); absent when accepted. A string rather than that enum only because the IDL has no shared enum type: the engine is held to the vocabulary by tests/test_engine_structure_cancel_acks.py.",
+        "constraints": {"max_len": 32},
+    },
+    {
+        "name": "request_tag",
+        "type": "string",
+        "unit": None,
+        "required": False,
+        "doc": "Echoed from the cancel request, so the caller can attribute the outcome.",
+        "constraints": {"max_len": 64},
+    },
+    {
+        "name": "cancelled_order_ids",
+        "type": "list",
+        "unit": None,
+        "required": False,
+        "doc": "The engine order ids the cancel removed; empty on a refusal.",
+    },
+)
+
+
+@dataclass(frozen=True, slots=True)
+class QuoteCancelAck:
+    """Engine to market maker: the outcome of a quote.cancel.
+
+    Every cancel gets exactly one of these, accepted or refused, so a caller (REST's
+    `?wait=ack`) can wait for its own outcome. Before WP-API17 a refusal rode the submit
+    ack and a success had no group-level reply at all, so neither could be attributed to
+    the request that asked.
+    """
+
+    gateway_id: str
+    symbol: str
+    accepted: bool
+    quote_id: str = ""
+    reason: str = ""
+    reject_code: str = ""
+    request_tag: str = ""
+    cancelled_order_ids: list[str] = field(default_factory=list)
+
+    def validate(self) -> None:
+        """Raise MessageValidationError if any declared rule fails.
+
+        The only strictness gate: ``from_dict`` coerces but never validates, so a reader
+        of historical data can opt out of the rules by calling ``from_dict`` alone
+        (design section 5.1.1).
+        """
+        if len(self.gateway_id) > 32:
+            raise MessageValidationError(
+                f"gateway_id: length {len(self.gateway_id)} exceeds max_len 32"
+            )
+        if len(self.symbol) > 16:
+            raise MessageValidationError(
+                f"symbol: length {len(self.symbol)} exceeds max_len 16"
+            )
+        if len(self.quote_id) > 64:
+            raise MessageValidationError(
+                f"quote_id: length {len(self.quote_id)} exceeds max_len 64"
+            )
+        if len(self.reason) > 512:
+            raise MessageValidationError(
+                f"reason: length {len(self.reason)} exceeds max_len 512"
+            )
+        if len(self.reject_code) > 32:
+            raise MessageValidationError(
+                f"reject_code: length {len(self.reject_code)} exceeds max_len 32"
+            )
+        if len(self.request_tag) > 64:
+            raise MessageValidationError(
+                f"request_tag: length {len(self.request_tag)} exceeds max_len 64"
+            )
+
+    @classmethod
+    def from_dict(cls, p: Mapping[str, Any]) -> "QuoteCancelAck":
+        """Coerce a payload mapping into this message. Does NOT validate.
+
+        Mirrors the hand-written payload's coercion exactly, including its lenient
+        fallbacks, so it is a drop-in replacement for readers of already-published data
+        (design section 5.1.1).
+        """
+        return cls(
+            gateway_id=str(p.get("gateway_id", "")),
+            symbol=str(p["symbol"]),
+            quote_id=str(p.get("quote_id", "")),
+            accepted=bool(p["accepted"]),
+            reason=str(p.get("reason", "")),
+            reject_code=str(p.get("reject_code", "")),
+            request_tag=str(p.get("request_tag", "")),
+            cancelled_order_ids=(
+                [str(item) for item in p.get("cancelled_order_ids", [])]
+            ),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return the bus payload, in the spec's declared field order."""
+        payload: dict[str, Any] = {
+            "symbol": self.symbol,
+            "quote_id": self.quote_id,
+            "accepted": self.accepted,
+            "reason": self.reason,
+            "cancelled_order_ids": self.cancelled_order_ids,
+        }
+        if self.reject_code:
+            payload["reject_code"] = self.reject_code
+        if self.request_tag:
+            payload["request_tag"] = self.request_tag
+        return payload
+
+
+def topic_quote_cancel_ack(gateway_id: str) -> str:
+    """Build this message's topic without a string literal."""
+    return f"quote.cancel_ack.{gateway_id}"
+
+
+def match_quote_cancel_ack(topic: str) -> str | None:
+    """Return ``gateway_id`` when ``topic`` matches, else None."""
+    m = _QUOTE_CANCEL_ACK_RE.fullmatch(topic)
+    return m.group("gateway_id") if m else None
+
+
+def make_quote_cancel_ack(**kw: Any) -> list[bytes]:
+    """Coerce, validate, and return the TWO bus frames [topic, payload].
+
+    The per-topic sequence third frame is NOT added here; it is appended by
+    SequencedPublisher.send_multipart() at publish time (edumatcher/messaging/bus.py).
+
+    Routes through ``from_dict`` rather than the dataclass constructor, so a caller
+    passing ``price=100`` puts a float on the wire rather than an int (design section
+    5.1.1).
+    """
+    obj = QuoteCancelAck.from_dict(kw)
+    obj.validate()
+    return _msg.encode(topic_quote_cancel_ack(obj.gateway_id), obj.to_dict())
+
+
+def make_quote_cancel_ack_unchecked(
+    *,
+    gateway_id: str,
+    symbol: str,
+    accepted: bool,
+    quote_id: str = "",
+    reason: str = "",
+    reject_code: str = "",
+    request_tag: str = "",
+    cancelled_order_ids: list[str] = [],
+) -> list[bytes]:
+    """Identical frames to ``make_quote_cancel_ack``, without ``validate()``.
+
+    For measured hot paths only; every other caller should use the validating
+    constructor. Builds the payload directly rather than via the dataclass, which is
+    what makes it cheap enough to be worth having — see the generator's _unchecked_block
+    docstring for the measurements.
+
+    Coerces exactly as ``make_*`` does, so for any input the two emit byte-identical
+    frames.
+    """
+    payload: dict[str, Any] = {
+        "symbol": str(symbol),
+        "quote_id": str(quote_id),
+        "accepted": bool(accepted),
+        "reason": str(reason),
+        "cancelled_order_ids": [str(item) for item in cancelled_order_ids],
+    }
+    if reject_code:
+        payload["reject_code"] = str(reject_code)
+    if request_tag:
+        payload["request_tag"] = str(request_tag)
+    return [
+        topic_quote_cancel_ack(gateway_id).encode(),
+        _msg.dumps(payload),
+    ]
+
+
+def parse_quote_cancel_ack(frames: list[bytes]) -> "QuoteCancelAck":
+    """Decode bus frames into a validated message.
+
+    Raises MessageValidationError if the payload breaks a declared rule. Call
+    ``from_dict`` on a decoded payload instead to read without validating.
+    """
+    topic, payload = _msg.decode(frames)
+    matched = match_quote_cancel_ack(topic)
+    if matched is None:
+        raise MessageValidationError(
+            f"topic {topic!r} is not {TOPIC_QUOTE_CANCEL_ACK!r}"
+        )
+    payload = {**payload, "gateway_id": matched}
+    obj = QuoteCancelAck.from_dict(payload)
+    obj.validate()
+    return obj
+
+
+def describe_quote_cancel_ack() -> tuple[dict[str, Any], ...]:
+    """Return field metadata, for spy tools and runtime pretty-printing."""
+    return _QUOTE_CANCEL_ACK_FIELDS
+
+
 FAMILY_TOPICS: tuple[str, ...] = (
     TOPIC_QUOTE_NEW,
     TOPIC_QUOTE_CANCEL,
     TOPIC_QUOTE_ACK,
     TOPIC_QUOTE_STATUS,
+    TOPIC_QUOTE_CANCEL_ACK,
 )

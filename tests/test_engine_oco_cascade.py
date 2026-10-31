@@ -221,4 +221,4 @@ def test_a_leg_that_fills_on_entry_keeps_its_sibling_out_of_the_book(
         if stop_leg in (p.get("order_id"), p.get("cancelled_order_id"))
     ] == ["order.ack", "oco.cancelled"]
     assert stop_leg not in resting_ids(engine.books[SYMBOL])
-    assert "OCO1" not in engine._oco_groups
+    assert ("GW01", "OCO1") not in engine._oco_groups

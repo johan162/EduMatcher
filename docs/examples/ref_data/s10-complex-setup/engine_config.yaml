@@ -848,7 +848,7 @@
 #   stats_db: data/stats.db
 #     SQLite stats database used by /history endpoints.
 #   audit_db: data/audit_index.db
-#     pm-audit index, opened read-only by GET /admin/orders/{order_id}; that endpoint returns 503 when absent.
+#     pm-audit index, opened read-only by GET /admin/orders/{order_id}/audit; that endpoint returns 503 when absent.
 #   clearing_db: data/clearing.db
 #     pm-clearing ledger, opened read-only for the session/MTD/YTD realized P&L on GET /positions; those fields report null when absent.
 #   order_retention_sec: 3600

@@ -10,8 +10,9 @@ Status: Design and Research Proposal
 > `ts_ns` convention finished in the index family, a clock on book and depth
 > snapshots, id lists beside the counted effects, and `command_id` on
 > `session.state`. Section 5 is revised accordingly: the `phase_rank` ordering
-> heuristic is removed (§5.2.2 — superseded again in 1.3.0, where `msg_id`
-> becomes the ordering key), and §5.1.2 **corrects an error in 1.0.0** —
+> heuristic is removed (§5.2.2 — an earlier update proposed `msg_id` as the
+> ordering key; the code-alignment update below supersedes that), and §5.1.2
+> **corrects an error in 1.0.0** —
 > `order.cancelled.command_id` already exists and is populated, so the
 > kill-switch link is CERTAIN, not heuristic.
 >
@@ -21,10 +22,13 @@ Status: Design and Research Proposal
 > ZMQ frame rather than in the payload — see §13.1 for why that differs from
 > what 1.0.0 proposed. The rest of this document is now written against that:
 > causality is **read** from `causation_id` and inferred only as a fallback
-> (§5.1, §7.2); ordering is `msg_id`, which is mint-ordered and therefore
-> total across topics (§5.2.2); and **AR-0.1, the proposed engine `seq`, is
-> dropped** — both of its purposes are already met, which takes Phase 0 from
-> 8 days to 6 and removes its riskiest item.
+> (§5.1, §7.2); and **AR-0.1, the proposed engine `seq`, is dropped** at that
+> point in the plan.
+
+> **Code-alignment update:** `msg_id` may be minted by a gateway and preserved
+> verbatim when the engine republishes its message. Replay therefore uses the
+> engine socket's `eseq` as its canonical order within each `system.startup`
+> run; older logs fall back to ULID time, receipt time and stream order.
 
 # EduMatcher — Audit Replay and Narration Tool
 
@@ -101,26 +105,27 @@ Here is a real, minimal case: `TRADER01` sends a buy limit for 200 AAPL at 75.69
 which partially matches a resting sell from `TRADER02`. Trimmed for width, this is
 what lands in `data/audit.log`:
 
-The metadata section — `[seq=… msg=… cause=… chain=…]` — is the causal
-envelope of §13. The submission carries no `cause`: the gateway minted it as a
-chain root, and the engine re-published it verbatim, which is why it is in a
-trail fed only by the engine's PUB socket.
+The metadata section — `[seq=… eseq=… msg=… cause=… chain=…]` — carries the
+per-topic and publisher-wide sequences plus the causal envelope of §13. The
+submission carries no `cause`: the gateway minted it as a chain root, and the
+engine re-published it verbatim, which is why it is in a trail fed only by the
+engine's PUB socket.
 
 ```text
-[2026-09-08T09:31:02.120+00:00] [order.new] [seq=1 msg=01M205PK33…001 chain=01M205PK33…001]
+[2026-09-08T09:31:02.120+00:00] [order.new] [seq=1 eseq=16 msg=01M205PK33…001 chain=01M205PK33…001]
   {"id":"4f2c9a…","symbol":"AAPL","side":"BUY","order_type":"LIMIT","tif":"DAY",
    "quantity":200,"remaining_qty":200,"gateway_id":"TRADER01","tick_decimals":2,
-   "price_ticks":7569,"ts_ns":1788859862115000000,"status":"NEW","arrival_seq":8814,
+   "price_ticks":7569,"ts_ns":1788859862115000000,"status":"NEW","arrival_seq":0,
    "origin":"ORDER","client_tag":"blotter-88"}
-[2026-09-08T09:31:02.121+00:00] [order.ack.TRADER01] [seq=1 msg=01M205PK39…00Y
+[2026-09-08T09:31:02.121+00:00] [order.ack.TRADER01] [seq=1 eseq=17 msg=01M205PK39…00Y
   cause=01M205PK33…001 chain=01M205PK33…001] {"gateway_id":"TRADER01",
   "order_id":"4f2c9a…","accepted":true,"symbol":"AAPL","side":"BUY","qty":200,"price":75.69,…}
-[2026-09-08T09:31:02.122+00:00] [trade.executed] [seq=1 msg=01M205PK3A…018
+[2026-09-08T09:31:02.122+00:00] [trade.executed] [seq=1 eseq=18 msg=01M205PK3A…018
   cause=01M205PK33…001 chain=01M205PK33…001] {"id":"000042-000001873","run_seq":42,
   "symbol":"AAPL","buy_order_id":"4f2c9a…","sell_order_id":"9ab1c4…",
   "buy_gateway_id":"TRADER01","sell_gateway_id":"TRADER02","price":74.80,"quantity":150,
   "aggressor_side":"BUY","ts_ns":1788859862122334567,"tick_decimals":2}
-[2026-09-08T09:31:02.122+00:00] [order.fill.TRADER01] [seq=1 msg=01M205PK3A…019
+[2026-09-08T09:31:02.122+00:00] [order.fill.TRADER01] [seq=1 eseq=19 msg=01M205PK3A…019
   cause=01M205PK33…001 chain=01M205PK33…001] {"order_id":"4f2c9a…","fill_qty":150,
   "fill_price":74.80,"remaining_qty":50,"status":"PARTIAL","liquidity_flag":"TAKER",
   "trade_ids":["000042-000001873"],…}
@@ -441,8 +446,9 @@ worse, a plausible one. So ordering deserves an explicit, documented policy.
 
 | Source | Field | Unit | Clock | Trustworthy for ordering? |
 |---|---|---|---|---|
-| every engine-published message | `msg_id` | ULID | engine publish site | **Yes — this is the ordering authority** (§5.2.2) |
-| every engine-published message | `seq` | int, per topic | engine publish site | For *completeness*, not order: dense per topic, so a gap proves loss |
+| every engine-published message | `eseq` | int, per socket | engine publish site | **Yes — this is the ordering authority** (§5.2.2) |
+| every engine-published message | `msg_id` | ULID | original sender; preserved on republish | Identity and causality; not necessarily engine publish order |
+| every engine-published message | `seq` | int, per topic | engine publish site | For *completeness*: dense per topic, so a gap proves loss |
 | audit line prefix | `[ts]` | ISO-8601 ms | `pm-audit` receipt | Only for messages carrying no envelope |
 | `order.new` | `timestamp` | epoch **nanos** | **client** | **No.** Spec says explicitly: not what the book uses for priority |
 | `order.new` | `arrival_seq` | int | engine, per run | **Yes** — this is the engine's own priority order |
@@ -454,44 +460,44 @@ worse, a plausible one. So ordering deserves an explicit, documented policy.
 
 #### 5.2.2 The canonical ordering key
 
-The envelope's `msg_id` is a ULID, minted at the publish site. Two properties
-of that, together, make ordering a lookup rather than an inference:
-
-1. **ULIDs sort by generation time** — the first 48 bits are a millisecond
-   timestamp, and `new_ulid()` keeps a monotonic counter so ids minted inside
-   one millisecond still sort in mint order.
-2. **The engine publishes from a single thread**, so mint order *is* publish
-   order.
-
-Therefore, across every topic the engine publishes, **lexicographic `msg_id`
-order equals the order the exchange did things in.** Measured over 20 000
-publications interleaved across five topics, `sorted(ids) == ids` holds
-exactly. The sort key is:
+`eseq` is stamped by `SequencedPublisher` immediately before the engine socket
+publishes each message. It is the total order across topics and is reset at a
+`system.startup` boundary, so replay assigns each run a monotonically
+increasing run number. `msg_id` remains the stable identity used by causality,
+but an inbound envelope may have been minted by a gateway and preserved
+verbatim by the engine; its ULID timestamp is not a reliable substitute for
+the engine's publication order. The in-memory sort key is:
 
 ```text
-sort_key = (msg_id, receipt_ts, file_ordinal)
+sort_key = (publisher_run, sequence_mode, sequence_or_timestamp, receipt_ts, file_ordinal)
 ```
 
-- `msg_id` — the engine's own publication order, total across all topics.
-- `receipt_ts` — the audit prefix. Reached only for messages carrying no
-  envelope: archived lines, and publishers outside the engine.
-- `file_ordinal` — line number, so the sort is stable and total.
+- `publisher_run` — the run boundary detected from `system.startup` and its
+  first per-topic sequence.
+- `sequence_mode` — `0` for sequenced records, `1` for legacy fallback records.
+- `sequence_or_timestamp` — `eseq` for current records; for older records,
+  ULID milliseconds, falling back to receipt-clock milliseconds when no ULID
+  timestamp is available.
+- `receipt_ts` and `file_ordinal` — stable tie-breakers; receipt time and
+  stream ordinal also complete the legacy fallback order.
+
+Sequenced records sort before fallback records within the same publisher run.
+Where a log mixes both metadata forms within one run, their relative order
+cannot be recovered from the available metadata.
 
 Three things the previous design worked for now fall out for free:
 
 - **Out-of-order delivery stops mattering.** An `order.ack` recorded after the
-  `trade.executed` it preceded sorts back into place, because both carry a
-  mint-ordered id. The `phase_rank` table of protocol-implied precedence — a
+  `trade.executed` it preceded sorts back into place by `eseq`. The `phase_rank`
+  table of protocol-implied precedence — a
   submission before its ack, an ack before its fills, a trade before the book
   snapshot reflecting it — is **deleted**. It was a pile of special cases
   standing in for a number the engine already knew.
-- **Engine restarts need no special handling.** A ULID's timestamp prefix keeps
-  ordering across a restart without partitioning by run.
-- **Cross-publisher order is honest.** `pm-index` and the gateways mint their
-  own ULIDs, so across processes the ordering is only as good as their clocks
-  agree — millisecond-accurate, not exact. The tool marks such a fact's
-  position as approximate at `-vv` rather than implying a precision it does
-  not have.
+- **Engine restarts are explicit.** `eseq` resets at startup, so the run
+  boundary is part of the key rather than inferred from wall-clock timestamps.
+- **Preserved envelopes do not distort order.** A gateway-originated `msg_id`
+  remains unchanged for causality, while `eseq` records when the engine
+  actually published the message.
 
 #### 5.2.3 Completeness, and the reorder window
 
@@ -500,21 +506,25 @@ fields. `msg_id` is *not* dense, so it cannot prove nothing was lost. The
 per-topic `seq` is dense, so a gap in it proves messages are missing from that
 topic — and `pm-audit` now records it.
 
-Per-topic rather than global is the right shape here, and not by accident:
+The per-topic `seq` remains the right shape for subscribers that filter:
 `SequencedPublisher`'s docstring gives the reason. A subscriber filtering on
 `trade.` would see a socket-wide counter jump on every `depth.` message it
-filtered out, and report continuous phantom gaps. Counting per topic makes
-every subscriber's view contiguous regardless of what it subscribes to — and
-gives the replay tool per-stream loss detection, which localises a problem
-better than one global count would.
+filtered out, and report continuous phantom gaps. `pm-audit` subscribes to
+every topic, so its records also carry `eseq`, the publisher's socket-wide
+counter. Replay checks both: `SEQ_GAP` localises a missing topic message, while
+`ESEQ_GAP` catches loss across the whole stream, including a topic's last
+message when no later message on that topic exists. A repeated or decreasing
+`eseq` without a `system.startup` boundary is `ESEQ_DISCONTINUITY`. Older
+audit lines without `eseq` remain readable; they simply cannot prove
+publisher-wide completeness.
 
-The reorder window shrinks to a formality. Facts are buffered briefly (default
-2 000 facts / 5 s of receipt time, `--reorder-window`) and emitted in `msg_id`
-order. A fact arriving after its window closed is emitted **in place** and
-tagged `late`; a `seq` gap is reported where it was noticed:
+The reorder window buffers briefly (default 2 000 facts / 5 s of receipt time,
+`--reorder-window`) and emits facts in publisher-sequence order. A fact arriving
+after its window closed is emitted **in place** and tagged `late`; a `seq` or
+`eseq` gap is reported where it was noticed:
 
 ```text
-09:31:04.881  ⟲ late: ack for 7d10bb… (minted 2.777s earlier)
+09:31:04.881  ⟲ late: ack for 7d10bb… (engine eseq 42 arrived after eseq 45 was emitted)
 09:31:05.002  ⚠ SEQ_GAP: order.fill.TRADER01 seq 41→45 — 3 messages missing
 ```
 
@@ -525,7 +535,7 @@ Neither marker should appear on a healthy system, so either is itself a finding.
 The rendered timestamp is always the **receipt** clock, because that is the only
 clock that exists on every line and the only one the reader can grep back to. At
 `-vv` the engine clock is printed alongside when it differs by more than a
-configurable threshold (`--clock-skew-warn`, default 250 ms), which makes
+configurable threshold (`--clock-skew-warn`, default 0.1 s), which makes
 publisher stalls visible.
 
 ### 5.3 Unit, clock and vocabulary normalisation
@@ -712,6 +722,8 @@ CREATE TABLE episode_events (
     causation_id   TEXT,            -- envelope: what caused it (NULL = nothing did)
     correlation_id TEXT,            -- envelope: its chain
     topic_seq      INTEGER,         -- per-topic sequence, for gap detection
+    eseq           INTEGER,         -- socket-wide publisher sequence
+    publisher_run  INTEGER NOT NULL,-- run epoch for eseq resets
     payload     TEXT    NOT NULL,
     PRIMARY KEY (episode_id, seq_in_ep)
 );
@@ -802,11 +814,10 @@ independently, and collapsing them would discard one of the two reasons the
 tool has for believing the pair.
 
 **`opened_sort_key` is the canonical key flattened.** A tuple cannot be a
-column and four columns cannot be one index, so each numeric field is
-zero-padded to a fixed width and joined with `\x1f`, which is below every
-character that can occur in a field. An envelope-less fact packs an empty
-`msg_id` and sorts before every ULID, exactly as it does in `sort_key`.
-Changing that packing is one of the three things that must bump
+column, so each numeric field is zero-padded to a fixed width and joined with
+`\x1f`, which is below every character that can occur in a field. Sequenced
+records sort by publisher run and `eseq`; legacy records use the ULID/receipt
+fallback. Changing that packing is one of the things that must bump
 `rules_version`.
 
 **Measured**, on a synthetic 180 000-line (65 MB) log on the dev VM: 28 s to
@@ -1344,9 +1355,11 @@ ERICB    418 orders · 190 trades ·  88 100 shares ·  7.9M notional
 
 ## 11. Machine-Readable Output
 
-`--format ndjson` emits one JSON object per narrated element — the reconstructed
-model, not the raw log. Consumers get the causal graph without re-implementing
-§5, which is the whole point of separating the model from the prose.
+`--format ndjson` emits the reconstructed model, not the raw log. At detail
+levels 1–4 it emits one beat per narrated fact, along with episode, link and
+anomaly objects. At level 0 (`-q`) it emits episode summaries instead of beats.
+Consumers get the causal graph without re-implementing §5, which is the whole
+point of separating the model from the prose.
 
 ```json
 {"type":"episode","id":4471,"kind":"order","anchor":"4f2c9a…","actor":"TRADER01",
@@ -1359,14 +1372,17 @@ model, not the raw log. Consumers get the causal graph without re-implementing
             "price_improvement_per_share":0.89,"ack_latency_ms":3,
             "time_to_first_fill_ms":4,"lifetime_ms":1888}}
 
-{"type":"beat","episode":4471,"seq":2,"sort_key":"01ARZ3NDEKTSV4RRFFQ69G5FB2|…",
+{"type":"beat","episode":4471,"seq":2,
+ "sort_key":"000000000000\u001f0\u001f00000000000000000019\u001f2026-09-08T09:31:02.122000+00:00\u001f000000000006",
  "msg_id":"01ARZ3NDEKTSV4RRFFQ69G5FB2","causation_id":"01ARZ3NDEKTSV4RRFFQ69G5FAV",
- "correlation_id":"01ARZ3NDEKTSV4RRFFQ69G5FAV","topic_seq":4471,
+ "correlation_id":"01ARZ3NDEKTSV4RRFFQ69G5FAV","topic_seq":1,
+ "eseq":19,"publisher_run":0,
  "receipt_ts":"2026-09-08T09:31:02.122+00:00","kind":"order.fill","role":"progress",
  "text":"AAPL traded 150 @ 74.80 — TRADER01's 4f2c9a… took liquidity from TRADER02's resting SELL 9ab1c4…",
  "source":{"file":"audit.log","line":118423},
  "fields":{"fill_qty":150,"fill_price":74.80,"remaining_qty":50,
-           "liquidity_flag":"TAKER","trade_ids":["000042-000001873"]}}
+           "liquidity_flag":"TAKER","trade_ids":["000042-000001873"]},
+ "prices":{"fill_price":74.80}}
 
 {"type":"link","from":4471,"to":4472,"relation":"matched_with",
  "confidence":"RECORDED","evidence":"causation_id=01ARZ3NDEKTSV4RRFFQ69G5FAV"}
@@ -1376,13 +1392,21 @@ model, not the raw log. Consumers get the causal graph without re-implementing
  "detail":"order 7d10bb… filled without a preceding order.ack in the window"}
 ```
 
-Every prose line has a `beat` with the same `text`, so the two formats never
-diverge — the text renderer *is* the `text` field.
+At detail levels 1–4, each narrated prose line has a `beat` with the same
+`text`, and both are ordered by the canonical replay key. At level 0, the
+renderer emits episode summaries rather than narrated beats.
+
+The packed `sort_key` fields are `publisher_run`, sequence mode (`0` for
+`eseq`, `1` for legacy fallback), sequence or fallback timestamp, receipt
+timestamp, and stream ordinal. It is an internal sortable key, not a display
+timestamp; consumers should use the explicit `eseq`, `publisher_run`, and
+`receipt_ts` fields instead.
 
 Because every beat carries its `correlation_id`, a consumer can reassemble the
-causal graph without re-deriving any of §5.1: group by chain, order by `msg_id`,
-and follow `causation_id` for the tree shape. That was the point of separating
-the model from the prose, and the envelope is what makes it cheap.
+causal graph without re-deriving any of §5.1: group by chain, order by
+`publisher_run` and `eseq` (or the documented legacy `sort_key` fallback), and
+follow `causation_id` for the tree shape. That was the point of separating the
+model from the prose, and the envelope is what makes it cheap.
 
 `--format json` wraps the same content in a single document with a header
 (`window`, `source_files`, `rules_version`, counts) for tools that prefer one
@@ -1443,6 +1467,8 @@ matters.
 | `ARRIVAL_SEQ_GAP` | info | A gap in `arrival_seq` within a run; expected across gateways, reported only with `--strict` |
 | `RUN_SEQ_CHANGE` | info | Engine restart observed mid-window |
 | `SEQ_GAP` | error | A gap in a topic's `seq`: messages are missing from the audit trail for that topic |
+| `ESEQ_GAP` | error | A gap in the engine publisher's socket-wide `eseq`: messages are missing from the audit stream |
+| `ESEQ_DISCONTINUITY` | error | A repeated or decreasing `eseq` without a `system.startup` boundary |
 | `ENVELOPE_MISSING` | info | An engine-published message with no envelope. Expected on archived lines; on a current log it means a publisher is bypassing `CausalPublisher` |
 | `CAUSE_NOT_FOUND` | warn | A `causation_id` naming a `msg_id` that is nowhere in the window. Usually the window starts too late; occasionally a dropped message. Before the engine echoed inbound commands this fired on *every* order, because the submission every effect named was never recorded — which is what made the echo worth its two microseconds |
 | `CHAIN_BROKEN` | error | An effect whose `correlation_id` differs from its cause's — the chain was not propagated, which breaks `story --chain` |
@@ -1451,11 +1477,12 @@ matters.
 | `ARRIVAL_SEQ_REUSED` | error | A repeated or decreasing `arrival_seq` within one run: two orders claiming one queue position. Always reported, unlike `ARRIVAL_SEQ_GAP` — a *gap* is expected whenever the window omits another gateway's orders, a *reuse* is expected never (AR-8.5) |
 | `DROP_COPY_SEQ_GAP` | error | A gap or a repeat in `drop_copy.seq`, the feed's own counter — one process-wide stream across every gateway's topic, not one per gateway. Not covered by `SEQ_GAP`, which keys on the audit metadata's per-topic sequence; and repeats count, because the spec names duplicate detection as half the reason the counter exists (AR-8.4) |
 
-`SEQ_GAP` deserves emphasis. Because each topic's `seq` is dense, the tool can
-**prove** that messages are missing from the audit trail rather than merely
-suspecting it — on every topic, not just trades. That is a completeness check
-on the audit system itself, and it now works on any log recorded since
-`pm-audit` began writing the metadata section.
+`SEQ_GAP` and `ESEQ_GAP` deserve emphasis. The per-topic and socket-wide
+counters are dense, so the tool can **prove** that messages are missing from
+the audit trail rather than merely suspecting it. `eseq` also catches a lost
+final message that no later per-topic sequence could expose. These checks work
+on logs recorded with the corresponding metadata; older lines remain readable
+but cannot prove completeness for counters they do not carry.
 
 `CHAIN_BROKEN` is the one to watch during development. `correlation_id` is
 propagated by `Envelope.caused()`, so a break means something constructed an
@@ -1520,7 +1547,7 @@ Three fields, carried in a dedicated ZMQ frame rather than in the JSON payload:
 
 | Field | Meaning |
 |---|---|
-| `msg_id` | ULID of this message. Unique, and sorts by generation time |
+| `msg_id` | ULID of this message. Unique and timestamp-sortable, but not necessarily in engine publication order |
 | `causation_id` | The `msg_id` of the message that caused this one. `None` means nothing did |
 | `correlation_id` | Shared by every message in one causal chain; equals the root's `msg_id` |
 
@@ -1634,31 +1661,18 @@ consumers → fix tests → `pm-msgen check`.** The generator will not let the
 bindings drift; it will happily let a *consumer* drift, which is where the risk
 actually lives.
 
-#### AR-0.1 — Engine publish sequence — **dropped, already solved**
+#### AR-0.1 — Engine publish sequence — **superseded by existing `eseq`**
 
-This task proposed a global, dense `seq` on every engine message, for two
-purposes: a total order across topics, and proof that nothing was lost. Both
-are already met by work that has since landed, so building it would add a
-field that earns nothing.
+The original task proposed a global, dense sequence on every engine message
+for total ordering and loss detection. It was dropped when `msg_id` was
+believed to provide both. The current `SequencedPublisher` now stamps
+socket-wide `eseq` as well as per-topic `seq`; `pm-audit` records both. Replay
+uses `eseq` for publication order and checks it for loss, so no additional
+wire field is needed. Per-topic `seq` remains useful for localising loss and
+for subscribers that filter topics.
 
-**Ordering** is `msg_id`. ULIDs sort by generation time, `new_ulid()` is
-monotonic within a millisecond, and the engine publishes from one thread — so
-lexicographic `msg_id` order *is* publish order, across every topic. Measured
-over 20 000 publications interleaved across five topics: `sorted(ids) == ids`
-holds exactly. See §5.2.2.
-
-**Completeness** is the per-topic `seq` that `SequencedPublisher` has always
-stamped and that `pm-audit` now records. It is dense per topic, so a gap proves
-loss. Per-topic is also the *better* shape, not a compromise: a global counter
-would make every subscriber that filters by topic prefix see phantom gaps for
-the messages it filtered out — the reasoning is in `SequencedPublisher`'s own
-docstring.
-
-What remains is a one-line check rather than a two-day task, folded into
-AR-0.7's sweep: confirm on a captured session that every engine-published line
-carries an envelope and a `seq`, i.e. that no publisher is bypassing
-`CausalPublisher`. The `ENVELOPE_MISSING` anomaly (§12.3) is the standing
-version of that check.
+The `ENVELOPE_MISSING` anomaly (§12.3) remains the check that current
+engine-published messages do not bypass `CausalPublisher`.
 
 > **Phase 0 is now ~6 days, not 8, and its riskiest item is gone.** AR-0.2
 > through AR-0.6 are independent of each other and can be done in any order or
@@ -1830,19 +1844,21 @@ refusal.
 
 #### AR-1.4 — `ordering.py`: canonical sort key (0.5 day)
 
-**Do.** Implement `(msg_id, receipt_ts, file_ordinal)` per §5.2.2, the reorder
-window, `late` tagging, and per-topic `seq` gap detection. Smaller than it was:
-`phase_rank` is gone, and there is no run partitioning to do.
+**Do.** Implement `(publisher_run, sequence_mode, sequence_or_timestamp,
+receipt_ts, file_ordinal)` per §5.2.2, the reorder window, `late` tagging, and
+both per-topic `seq` and publisher-wide `eseq` gap detection. Legacy records
+without `eseq` use the documented timestamp fallback.
 
 **Verify.** Write these tests first, and watch each fail:
 
-1. A deliberately inverted ack/fill pair — ack written to the log *after* the
-   fill — sorts back into mint order.
-2. Facts spanning an engine restart order correctly with no run partitioning
-   (the ULID timestamp prefix carries it).
+1. A deliberately inverted record pair sorts back into `eseq` order even when
+   the preserved gateway `msg_id` timestamps disagree.
+2. Facts spanning an engine restart order correctly using separate publisher
+   runs, even though `eseq` resets.
 3. A per-topic `seq` gap is reported, not silently skipped.
-4. Envelope-less facts fall back to `receipt_ts` and sort stably among
-   themselves, interleaved with enveloped ones by receipt time.
+4. Legacy facts without `eseq` use the documented fallback and sort stably
+   among themselves; do not assume they can be precisely interleaved with
+   sequenced facts from the same run.
 5. Property test: shuffle a known-good fact stream, sort, assert the original
    order is recovered exactly.
 
@@ -2418,10 +2434,11 @@ inference ladder both became fallbacks rather than mechanisms.
   ladder, including the *refusal* case where no `tick_decimals` is available;
   epoch-nanos and epoch-seconds normalisation; topic wildcard split for every
   wildcard topic in `spec/messages/`.
-- **`ordering.py`** — `msg_id` ordering across an engine restart with no run
-  partitioning; a deliberately inverted ack/fill pair sorting back into mint
-  order; envelope-less facts falling back to receipt time; per-topic `seq` gap
-  detection; late-arrival tagging; stability under equal keys.
+- **`ordering.py`** — `eseq` ordering within a run and explicit restart
+  boundaries; a deliberately inverted record pair sorting back into publisher
+  order; legacy facts falling back to ULID/receipt order; per-topic `seq` and
+  publisher-wide `eseq` gap detection, including publisher restarts;
+  late-arrival tagging; stability under equal keys.
 - **`links.py`** — one test per row of the §5.1.1 table, each asserting both the
   link *and* its confidence. Confidence assertions are the important half: a
   regression that silently promotes HEURISTIC to RECORDED is exactly the bug this

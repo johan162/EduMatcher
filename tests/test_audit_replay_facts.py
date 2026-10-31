@@ -231,7 +231,13 @@ class TestTopicAndEnvelope:
             entry(
                 "trade.executed",
                 {"symbol": "AAPL"},
-                {"seq": "12", "msg": "01AAA", "cause": "01BBB", "chain": "01CCC"},
+                {
+                    "seq": "12",
+                    "eseq": "34",
+                    "msg": "01AAA",
+                    "cause": "01BBB",
+                    "chain": "01CCC",
+                },
             ),
             0,
         )
@@ -239,6 +245,7 @@ class TestTopicAndEnvelope:
         assert f.causation_id == "01BBB"
         assert f.correlation_id == "01CCC"
         assert f.topic_seq == 12
+        assert f.eseq == 34
         assert f.has_envelope is True
 
     def test_a_declared_origin_is_not_a_missing_envelope(self) -> None:

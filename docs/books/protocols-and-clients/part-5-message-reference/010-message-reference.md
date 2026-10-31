@@ -545,6 +545,7 @@ Every topic in the system, and which process puts it on the wire.
 | `circuit_breaker.halt.{symbol}` | `circuit_breaker` | `engine` |
 | `circuit_breaker.resume.{symbol}` | `circuit_breaker` | `engine` |
 | `combo.ack.{gateway_id}` | `structure` | `engine` |
+| `combo.cancel_ack.{gateway_id}` | `structure` | `engine` |
 | `combo.status.{gateway_id}` | `structure` | `engine` |
 | `depth.{symbol}` | `book` | `engine` |
 | `drop_copy.event.{gateway_id}` | `drop_copy` | `engine` |
@@ -581,6 +582,7 @@ Every topic in the system, and which process puts it on the wire.
 | `log.unsubscribe_ack.{sub_id}` | `log` | `log_server` |
 | `news.event` | `news` | `market_sim` |
 | `oco.ack.{gateway_id}` | `structure` | `engine` |
+| `oco.cancel_ack.{gateway_id}` | `structure` | `engine` |
 | `oco.cancelled.{gateway_id}` | `structure` | `engine` |
 | `order.ack.{gateway_id}` | `order` | `engine` |
 | `order.amend` | `order` | `gateway` |
@@ -601,6 +603,7 @@ Every topic in the system, and which process puts it on the wire.
 | `order.triggered.{gateway_id}` | `order` | `engine` |
 | `quote.ack.{gateway_id}` | `quote` | `engine` |
 | `quote.cancel` | `quote` | `admin`, `api_gateway`, `gateway` |
+| `quote.cancel_ack.{gateway_id}` | `quote` | `engine` |
 | `quote.new` | `quote` | `gateway` |
 | `quote.status.{gateway_id}` | `quote` | `engine` |
 | `risk.band.{symbol}` | `risk` | `engine` |
@@ -680,6 +683,7 @@ What one admin command acted on, and what it did. Every field is optional becaus
 |---|---|---|---|---|
 | `symbol` | `string` | omitted when unset | max_len 16 | The instrument, when the command named one. `kill_switch.self` used to emit this as an explicit `null` when unscoped while its siblings omitted the key -- two spellings of one absence, and this is now the second. |
 | `target_gateway_id` | `string` | omitted when unset | max_len 32 | The participant acted upon, for `kill_switch.gateway`. |
+| `quotes_only` | `bool` | omitted when unset | — | For `kill_switch.gateway`: only the target's quotes were cancelled. |
 | `level` | `string` | omitted when unset | max_len 32 | The circuit-breaker rung, for `circuit_breaker.trigger`. Not an enum: the ladder is per-symbol configuration, so the value set differs per deployment. Bounded to match `circuit_breaker.halt.level`, which carries the same name onward. |
 | `note` | `string` | omitted when empty | max_len 256 | The operator's free-text reason, when one was supplied. Regime 4 to match `risk.kill_switch`'s own `note`, which is where this value arrives from -- a field that omits on one message and emits `""` on the next would be two answers to one question. |
 | `cancelled_orders` | `int` | omitted when unset | ge 0, unit `dimensionless` | Outcome, on accepted kill-switch actions only. |
@@ -2576,6 +2580,7 @@ Cancel a combo order and all of its resting child legs.
 |---|---|---|---|---|
 | `combo_id` | `string` | defaults to `''` | max_len 64 | Client-supplied combo label, not the internal UUID. |
 | `gateway_id` | `string` | defaults to `''` | max_len 32 |  |
+| `request_tag` | `string` | omitted when empty | max_len 64 | Echoed on combo.cancel_ack, so the caller can attribute the outcome. |
 
 **See also:** `order.combo`, `order.cancel`
 
@@ -2622,7 +2627,7 @@ Submit a One-Cancels-Other pair: two orders on the same instrument, of which a f
 
 | Field | Type | Presence | Rules | Description |
 |---|---|---|---|---|
-| `oco_id` | `string` | defaults to `''` | max_len 64 | Client-supplied label for the pair. |
+| `oco_id` | `string` | defaults to `''` | max_len 64 | Client-supplied label for the pair, unique among the gateway's live pairs: a submit reusing one is refused. Free again once the pair is done. |
 | `gateway_id` | `string` | defaults to `''` | max_len 32 |  |
 | `symbol` | `string` | defaults to `''` | max_len 16 | Both legs trade this instrument. |
 | `tick_decimals` | `int` | defaults to `0` | ge 0, le 8, unit `dimensionless` | Decimal scale for both legs' `_ticks` prices; 1 tick = 10^-tick_decimals. One value for the pair rather than one per leg, because both legs trade the instrument named above. |
@@ -2654,8 +2659,9 @@ Cancel an OCO pair and both of its legs.
 
 | Field | Type | Presence | Rules | Description |
 |---|---|---|---|---|
-| `oco_id` | `string` | defaults to `''` | max_len 64 | Client-supplied OCO label. |
+| `oco_id` | `string` | defaults to `''` | max_len 64 | Client-supplied OCO label. Names a pair of the sending gateway only. |
 | `gateway_id` | `string` | defaults to `''` | max_len 32 |  |
+| `request_tag` | `string` | omitted when empty | max_len 64 | Echoed on oco.cancel_ack, so the caller can attribute the outcome. |
 
 **See also:** `order.oco`, `order.cancel`
 
@@ -2785,6 +2791,7 @@ Market maker to engine: pull the active quote on one symbol.
 |---|---|---|---|---|
 | `gateway_id` | `string` | required | max_len 32 |  |
 | `symbol` | `string` | required | max_len 16 |  |
+| `request_tag` | `string` | omitted when empty | max_len 64 | Echoed on quote.cancel_ack, so the caller can attribute the outcome. |
 
 !!! note
 
@@ -2845,6 +2852,33 @@ Engine to market maker: the quote left the book, and why.
     They are distinct states rather than one INACTIVE plus a side field because models/quote.py::QuoteState is what the engine actually holds, and a wire that renames its own state machine is a translation nobody asked for.
 
 **See also:** `quote.ack.{GW_ID}`
+
+### `quote.cancel_ack.{gateway_id}`
+
+**Published by:** `engine`
+
+**Transport:** `engine_pub`
+
+**Since:** 1.0
+
+Engine to market maker: the outcome of a quote.cancel.
+
+| Field | Type | Presence | Rules | Description |
+|---|---|---|---|---|
+| `gateway_id` | `string` | required | max_len 32 |  |
+| `symbol` | `string` | required | max_len 16 |  |
+| `quote_id` | `string` | defaults to `''` | max_len 64 | The withdrawn quote's id; "" when there was none. |
+| `accepted` | `bool` | required | — |  |
+| `reason` | `string` | defaults to `''` | max_len 512 |  |
+| `reject_code` | `string` | omitted when empty | max_len 32 | On a refusal, a member of order.ack's `reject_code` vocabulary (ORDER_NOT_FOUND, ORDER_ALREADY_TERMINAL, GATEWAY_NOT_CONFIGURED, AUTH_REQUIRED); absent when accepted. A string rather than that enum only because the IDL has no shared enum type: the engine is held to the vocabulary by tests/test_engine_structure_cancel_acks.py. |
+| `request_tag` | `string` | omitted when empty | max_len 64 | Echoed from the cancel request, so the caller can attribute the outcome. |
+| `cancelled_order_ids` | list of `string` | defaults to `[]` | — | The engine order ids the cancel removed; empty on a refusal. |
+
+!!! note
+
+    Every cancel gets exactly one of these, accepted or refused, so a caller (REST's `?wait=ack`) can wait for its own outcome.
+
+    Before WP-API17 a refusal rode the submit ack and a success had no group-level reply at all, so neither could be attributed to the request that asked.
 
 ## Family `risk`
 
@@ -2918,6 +2952,8 @@ ADMIN to engine: cancel every order and quote belonging to one named participant
 |---|---|---|---|---|
 | `gateway_id` | `string` | required | max_len 32 | The ADMIN caller; the ack is addressed to this id. |
 | `target_gateway_id` | `string` | required | max_len 32 | Whose orders and quotes are cancelled. |
+| `symbol` | `string` | omitted when empty | max_len 16 | Scope the cancel to one instrument; omitted cancels across all. |
+| `quotes_only` | `bool` | defaults to `False` | — | Cancel only the target's quotes, leaving its other resting orders. With `symbol`, this is an admin pulling one market maker's quote on one instrument -- through this ADMIN message rather than by sending the participant's own quote.cancel, which would put the target's name on the audit trail and fail while it is disconnected. |
 | `note` | `string` | omitted when empty | max_len 256 |  |
 | `command_id` | `string` | omitted when empty | max_len 64 |  |
 
@@ -2946,6 +2982,8 @@ Engine to ADMIN: what the gateway-targeted kill switch cancelled.
 | `gateway_id` | `string` | required | max_len 32 |  |
 | `accepted` | `bool` | required | — |  |
 | `target_gateway_id` | `string` | defaults to `''` | max_len 32 |  |
+| `symbol` | `string` | omitted when empty | max_len 16 | Echoed when the cancel was scoped. |
+| `quotes_only` | `bool` | defaults to `False` | — | Echoed: whether only quotes were cancelled. |
 | `reason` | `string` | defaults to `''` | max_len 512 |  |
 | `cancelled_orders` | `int` | defaults to `0` | ge 0, unit `dimensionless` |  |
 | `cancelled_order_ids` | list of `string` | defaults to `[]` | — | AR-0.5: the order ids counted in cancelled_orders, so a caller can tell which orders were hit rather than only how many. A list whose length disagrees with cancelled_orders is itself a detectable defect. |
@@ -3675,6 +3713,58 @@ Engine to gateway: one leg of an OCO pair was cancelled because the other was ac
     This says *why* - the sibling filled or was cancelled - and names the pair, which an order-level event cannot.
 
 **See also:** `oco.ack.{GW_ID}`, `order.cancelled.{GW_ID}`
+
+### `oco.cancel_ack.{gateway_id}`
+
+**Published by:** `engine`
+
+**Transport:** `engine_pub`
+
+**Since:** 1.0
+
+Engine to gateway: the outcome of an order.oco_cancel.
+
+| Field | Type | Presence | Rules | Description |
+|---|---|---|---|---|
+| `gateway_id` | `string` | required | max_len 32 |  |
+| `oco_id` | `string` | required | max_len 64 |  |
+| `accepted` | `bool` | required | — |  |
+| `reason` | `string` | defaults to `''` | max_len 512 |  |
+| `reject_code` | `string` | omitted when empty | max_len 32 | On a refusal, a member of order.ack's `reject_code` vocabulary (ORDER_NOT_FOUND, ORDER_ALREADY_TERMINAL, GATEWAY_NOT_CONFIGURED, AUTH_REQUIRED); absent when accepted. A string rather than that enum only because the IDL has no shared enum type: the engine is held to the vocabulary by tests/test_engine_structure_cancel_acks.py. |
+| `request_tag` | `string` | omitted when empty | max_len 64 | Echoed from the cancel request, so the caller can attribute the outcome. |
+| `cancelled_order_ids` | list of `string` | defaults to `[]` | — | The engine order ids the cancel removed; empty on a refusal. |
+
+!!! note
+
+    Every cancel gets exactly one of these, accepted or refused, so a caller (REST's `?wait=ack`) can wait for its own outcome.
+
+    Before WP-API17 a refusal rode the submit ack and a success had no group-level reply at all, so neither could be attributed to the request that asked.
+
+### `combo.cancel_ack.{gateway_id}`
+
+**Published by:** `engine`
+
+**Transport:** `engine_pub`
+
+**Since:** 1.0
+
+Engine to gateway: the outcome of an order.combo_cancel.
+
+| Field | Type | Presence | Rules | Description |
+|---|---|---|---|---|
+| `gateway_id` | `string` | required | max_len 32 |  |
+| `combo_id` | `string` | required | max_len 64 |  |
+| `accepted` | `bool` | required | — |  |
+| `reason` | `string` | defaults to `''` | max_len 512 |  |
+| `reject_code` | `string` | omitted when empty | max_len 32 | On a refusal, a member of order.ack's `reject_code` vocabulary (ORDER_NOT_FOUND, ORDER_ALREADY_TERMINAL, GATEWAY_NOT_CONFIGURED, AUTH_REQUIRED); absent when accepted. A string rather than that enum only because the IDL has no shared enum type: the engine is held to the vocabulary by tests/test_engine_structure_cancel_acks.py. |
+| `request_tag` | `string` | omitted when empty | max_len 64 | Echoed from the cancel request, so the caller can attribute the outcome. |
+| `cancelled_order_ids` | list of `string` | defaults to `[]` | — | The engine order ids the cancel removed; empty on a refusal. |
+
+!!! note
+
+    Every cancel gets exactly one of these, accepted or refused, so a caller (REST's `?wait=ack`) can wait for its own outcome.
+
+    Before WP-API17 a refusal rode the submit ack and a success had no group-level reply at all, so neither could be attributed to the request that asked.
 
 ## Family `system`
 

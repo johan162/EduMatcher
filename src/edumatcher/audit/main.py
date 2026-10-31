@@ -78,6 +78,7 @@ from edumatcher.models.message import (
     decode_sequence,
 )
 from edumatcher.models.generated.book import PREFIX_BOOK_SNAPSHOT
+from edumatcher.models.generated.system import TOPIC_EOD
 
 _CLIENT_NAME = "pm-audit"
 
@@ -85,6 +86,9 @@ _LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s - %(message)s"
 
 _POLL_TIMEOUT_MS = 300
 _JOIN_POLL_SEC = 0.5
+#: How long a stopped receive loop keeps reading for the engine's
+#: ``system.eod`` (see AuditProcess._drain).
+_DRAIN_SEC = 5.0
 #: Receive high-water mark for the engine subscription. Deep enough to ride
 #: out a burst without dropping, bounded so a stalled writer cannot grow
 #: the process without limit.
@@ -294,6 +298,9 @@ class AuditProcess:
         self._log_path = log_path
         self._to_terminal = to_terminal
         self._running = True
+        #: The engine's ``system.eod`` has been recorded -- its last message,
+        #: so a stopped receive loop knows there is nothing left to drain.
+        self._eod_seen = False
         # Health beacon (operator dashboard §8.5), attached by main(); ticked
         # on the receive thread, which does the work (finding F7).
         self._reporter: HealthReporter | None = None
@@ -525,28 +532,51 @@ class AuditProcess:
             if self.health_rep in socks:
                 answer_health_ping(self.health_rep, log)
             if self.sub in socks:
-                frames = self.sub.recv_multipart()
-                try:
-                    topic, payload = decode(frames)
-                    self._dbg_count("messages_received")
-                    self._dbg_count(f"topic_family_{self._topic_family(topic)}")
-                    now = self._now()
-                    ts = now.isoformat(timespec="milliseconds")
-                    day = now.astimezone(self._session_tz).date().isoformat()
-                    meta = _meta_section(frames)
-                    if meta is None:
-                        self._dbg_count("messages_without_envelope")
-                        line = f"[{ts}] [{topic}] {json.dumps(payload)}"
-                    else:
-                        line = f"[{ts}] [{topic}] [{meta}] {json.dumps(payload)}"
-                    self._add_to_buffer(day, line)
-                    self._records += 1
-                    self._bytes += len(line) + 1  # the newline written with it
-                except Exception as exc:
-                    # Never let a single bad message kill the receive loop
-                    self._dbg_count("decode_errors")
-                    self._decode_errors += 1
-                    log.warning("failed to decode/log message: %s", exc)
+                self._receive_one_message()
+        self._drain()
+
+    def _receive_one_message(self) -> None:
+        frames = self.sub.recv_multipart()
+        try:
+            topic, payload = decode(frames)
+            if topic == TOPIC_EOD:
+                self._eod_seen = True
+            self._dbg_count("messages_received")
+            self._dbg_count(f"topic_family_{self._topic_family(topic)}")
+            now = self._now()
+            ts = now.isoformat(timespec="milliseconds")
+            day = now.astimezone(self._session_tz).date().isoformat()
+            meta = _meta_section(frames)
+            if meta is None:
+                self._dbg_count("messages_without_envelope")
+                line = f"[{ts}] [{topic}] {json.dumps(payload)}"
+            else:
+                line = f"[{ts}] [{topic}] [{meta}] {json.dumps(payload)}"
+            self._add_to_buffer(day, line)
+            self._records += 1
+            self._bytes += len(line) + 1  # the newline written with it
+        except Exception as exc:
+            # Never let a single bad message kill the receive loop
+            self._dbg_count("decode_errors")
+            self._decode_errors += 1
+            log.warning("failed to decode/log message: %s", exc)
+
+    def _drain(self) -> None:
+        """After a stop, keep recording until the engine's ``system.eod``.
+
+        A stop arrives while the engine is still shutting down: it saves its
+        state, publishes the EOD book checkpoints (S25), and ends with
+        ``system.eod``. Leaving the loop at once cut that round out of the
+        trail (X34: one checkpoint of 300 recorded, G3 failed on a book the
+        engine kept perfectly). ``system.eod`` is the engine's last message,
+        so reading up to it loses nothing; bounded by _DRAIN_SEC so a live
+        engine (a lone pm-audit restart) cannot hold the shutdown open, and
+        run() joins this thread for a second longer than that.
+        """
+        deadline = time.monotonic() + _DRAIN_SEC
+        while not self._eod_seen and time.monotonic() < deadline:
+            if self.sub.poll(timeout=50):
+                self._receive_one_message()
 
     def run(self) -> None:
         signal.signal(signal.SIGINT, lambda *_: self._stop())
@@ -570,9 +600,10 @@ class AuditProcess:
             while self._running:
                 t.join(timeout=_JOIN_POLL_SEC)  # re-check _running every 500 ms
         finally:
-            # The receive loop stops first, so no line arrives after the last
-            # flush or is written to the closed file.
-            t.join(timeout=1.0)
+            # The receive loop stops first (draining up to _DRAIN_SEC for the
+            # engine's system.eod), so no line arrives after the last flush
+            # or is written to the closed file.
+            t.join(timeout=_DRAIN_SEC + 1.0)
             if self._flush_timer is not None:
                 self._flush_timer.cancel()
             self._flush_buffer()

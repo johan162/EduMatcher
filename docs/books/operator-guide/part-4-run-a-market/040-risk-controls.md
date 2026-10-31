@@ -1238,7 +1238,7 @@ sequenceDiagram
 Alongside the exchange-wide `risk.circuit_breaker_halt_all` / `risk.circuit_breaker_resume_all`
 pair, an `ADMIN` gateway can halt or resume **one symbol at a time** using
 `risk.symbol_halt` / `risk.symbol_resume`. This is the command used by the
-`/api/v1/admin/circuit-breaker/trigger` and `/api/v1/admin/circuit-breaker/resume`
+`/api/v1/admin/symbols/{symbol}/halt` and `/api/v1/admin/symbols/{symbol}/resume`
 REST endpoints (see [API Gateway](../part-5-gateways/050-api-gateway.md)) and is the mechanism behind
 the "Per-symbol operator halt" row in the
 [Market-maker interaction](#market-maker-interaction) table below.
@@ -1291,7 +1291,7 @@ the requested symbol isn't in it.
 **across all gateways** — not just the sender's own exposure like the kill
 switch. It does not halt the symbol; trading continues immediately with an
 empty book (aside from any order that arrives afterward). It is `ADMIN`-only
-and is the command behind the `/api/v1/admin/kill-switch/symbol` REST endpoint
+and is the command behind the `/api/v1/admin/symbols/{symbol}/cancel-orders` REST endpoint
 (see [API Gateway](../part-5-gateways/050-api-gateway.md)).
 
 ```
@@ -1384,9 +1384,9 @@ payload: {
 !!! note "Cross-gateway kill switches need ADMIN"
     A gateway's own kill switch targets only that gateway.  An `ADMIN`
     gateway can additionally cancel another gateway's exposure with
-    `risk.kill_switch_gateway` (REST: `POST /api/v1/admin/kill-switch/gateway`),
+    `risk.kill_switch_gateway` (REST: `POST /api/v1/admin/gateways/{gateway_id}/kill-switch`),
     or every resting order and quote on the exchange with
-    `risk.kill_switch_global` (REST: `POST /api/v1/admin/kill-switch/global`);
+    `risk.kill_switch_global` (REST: `POST /api/v1/admin/market/kill-switch`);
     both reject non-ADMIN callers. `pm-admin` exposes `KILL|GW=<gw>[|SYM=<sym>]`.
     To stop trading rather than clear the book, use a per-symbol
     `risk.symbol_halt` or an exchange-wide `risk.circuit_breaker_halt_all`

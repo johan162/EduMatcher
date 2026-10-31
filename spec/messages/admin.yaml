@@ -60,6 +60,12 @@ types:
         omit_when_none: true
         validate: { max_len: 32 }
         doc: "The participant acted upon, for `kill_switch.gateway`."
+      - name: quotes_only
+        type: bool
+        required: false
+        nullable: true
+        omit_when_none: true
+        doc: "For `kill_switch.gateway`: only the target's quotes were cancelled."
       - name: level
         type: string
         required: false

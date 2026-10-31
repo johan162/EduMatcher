@@ -51,6 +51,7 @@ from edumatcher.audit.replay.episodes import (
 )
 from edumatcher.audit.replay.facts import Fact
 from edumatcher.audit.replay.links import REJECTED_BECAUSE, Confidence, Link
+from edumatcher.audit.replay.ordering import sort_key
 from edumatcher.audit.replay.state import StateModel
 
 #: The indent a continuation line carries, matching section 10's examples.
@@ -877,7 +878,7 @@ def narrate(
     else:
         events = sorted(
             ((episode, event) for episode in episodes for event in episode.events),
-            key=lambda pair: pair[1].fact.ordinal,
+            key=lambda pair: sort_key(pair[1].fact),
         )
         rendered = renderer.stream(events)
     return [line for item in rendered for line in item.lines()]

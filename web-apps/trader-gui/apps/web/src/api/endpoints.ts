@@ -25,7 +25,9 @@ import type {
   OrderAccepted,
   OrderHistoryResponse,
   HistoryFillsResponse,
-  PendingIdResponse,
+  OcoPending,
+  ComboPending,
+  QuotePending,
   AdminOrdersResponse,
   AdminOrderLifecycleResponse,
   AdminSymbolKillSwitchResponse,
@@ -34,7 +36,7 @@ import type {
   RiskConfig,
   SymbolHaltAckResponse,
   SymbolResumeAckResponse,
-  AdminIndexesResponse,
+  ReferenceIndexesResponse,
   IndexIdsResponse,
   IndexDailyResponse,
 } from "@/types/index.js";
@@ -67,8 +69,8 @@ export const getReferenceSchedule = () =>
 export const getSession = () => apiFetch<SessionStatusDTO>("/api/v1/session");
 
 // ── Halts (§H4) ───────────────────────────────────────────────────────────────
-// Trading-role equivalent of GET /admin/halts — same engine query, no ADMIN
-// gate, so the market-data reconnect resync (WebSocketManager) can call it.
+// Open to every key; the market-data reconnect resync (WebSocketManager) and the
+// admin circuit-breaker page both read it.
 export const getHalts = () => apiFetch<{ halted: HaltEntry[] }>("/api/v1/halts");
 
 // ── News (WP-E5) ──────────────────────────────────────────────────────────────
@@ -81,15 +83,15 @@ export const getCompany = (symbol: string) =>
   apiFetch<CompanyProfile>(`/api/v1/companies/${encodeURIComponent(symbol)}`);
 
 // ── Orders ────────────────────────────────────────────────────────────────────
-// Raw rows: the engine `OrderDisplay` (id/timestamp/client_tag) or the thin
-// timeout-fallback cache row (order_id). Callers normalize via normalizeOrder.
+// Raw rows: the engine `OrderDisplay` (id/timestamp/client_tag); an engine
+// timeout is a 503, never cached rows. Callers normalize via normalizeOrder.
 export const getOrders = () => apiFetch<{ orders: RawOrder[] }>("/api/v1/orders");
 
 export const getOrder = (orderId: string) => apiFetch<Order>(`/api/v1/orders/${orderId}`);
 
 // `wait: "ack"` asks the gateway to fold the first `order.ack` into the HTTP
 // response (§12.9) — the ticket uses this so a LIMIT submit yields a synchronous
-// accepted/rejected verdict without needing the /events + PENDING-row machinery.
+// accepted/rejected verdict without needing the /ws/private + PENDING-row machinery.
 export const submitOrder = (body: Record<string, unknown>, wait?: "ack") =>
   apiFetch<OrderAccepted>(`/api/v1/orders${wait ? `?wait=${wait}` : ""}`, {
     method: "POST",
@@ -114,31 +116,32 @@ export const replaceOrder = (orderId: string, body: Record<string, unknown>) =>
   );
 
 export const massCancelOrders = (body?: Record<string, unknown>) =>
-  apiFetch<{ cancelled_orders: number; command_id: string }>("/api/v1/kill-switch", {
+  apiFetch<{ cancelled_orders: number; command_id: string }>("/api/v1/mass-cancel", {
     method: "POST",
     body: JSON.stringify(body ?? {}),
   });
 
 // ── OCO / Combo ───────────────────────────────────────────────────────────────
-// Both submit endpoints answer 202 with PendingIdResponse — the returned key is
-// `id` (equal to the submitted oco_id / combo_id), NOT `oco_id`/`combo_id`.
+// Both submit endpoints answer 202 with the id you chose (`oco_id` / `combo_id`).
 export const submitOco = (body: Record<string, unknown>) =>
-  apiFetch<PendingIdResponse>("/api/v1/oco", {
+  apiFetch<OcoPending>("/api/v1/oco", {
     method: "POST",
     body: JSON.stringify(body),
   });
 
-// DELETE answers 202 `{ oco_id, status: "PENDING_CANCEL" }`; body is ignored.
+// DELETE answers 202 `{ oco_id, status: "PENDING_CANCEL", ... }`; body is ignored —
+// the outcome arrives on the private WebSocket as `oco.cancel_ack`.
 export const cancelOco = (ocoId: string) =>
   apiFetch<{ oco_id: string; status: string }>(`/api/v1/oco/${ocoId}`, { method: "DELETE" });
 
 export const submitCombo = (body: Record<string, unknown>) =>
-  apiFetch<PendingIdResponse>("/api/v1/combos", {
+  apiFetch<ComboPending>("/api/v1/combos", {
     method: "POST",
     body: JSON.stringify(body),
   });
 
-// DELETE answers 202 `{ combo_id, status: "PENDING_CANCEL" }`; body is ignored.
+// DELETE answers 202 `{ combo_id, status: "PENDING_CANCEL", ... }`; body is ignored —
+// the outcome arrives on the private WebSocket as `combo.cancel_ack`.
 export const cancelCombo = (comboId: string) =>
   apiFetch<{ combo_id: string; status: string }>(`/api/v1/combos/${comboId}`, {
     method: "DELETE",
@@ -152,21 +155,20 @@ export const getPositions = () =>
 // Bootstrap is the authoritative per-side source (ActiveQuote); legs is a dual-
 // shape supplement (see QuoteLegsResponse). Both require a trading key (no MM
 // role gate at the gateway — the engine may still reject via quote.ack).
-export const getQuoteBootstrap = () =>
-  apiFetch<QuoteBootstrapResponse>("/api/v1/quotes/bootstrap");
+export const getQuoteBootstrap = () => apiFetch<QuoteBootstrapResponse>("/api/v1/quotes");
 
 export const getQuoteLegs = () => apiFetch<QuoteLegsResponse>("/api/v1/quotes/legs");
 
-// 202 PendingIdResponse — the returned key is `id` (equal to the submitted
-// quote_id, or the uppercased symbol when quote_id was omitted), NOT `quote_id`.
+// 202 `{ symbol, quote_id, status }` — quote_id is null when none was submitted.
 export const submitQuote = (body: Record<string, unknown>) =>
-  apiFetch<PendingIdResponse>("/api/v1/quotes", {
+  apiFetch<QuotePending>("/api/v1/quotes", {
     method: "POST",
     body: JSON.stringify(body),
   });
 
 // Quotes are addressed by symbol for cancel (one active quote per gateway+symbol).
-// DELETE answers 202 `{ symbol, status: "PENDING_CANCEL" }`; body is ignored.
+// DELETE answers 202 `{ symbol, status: "PENDING_CANCEL", ... }`; body is ignored —
+// the outcome arrives on the private WebSocket as `quote.cancel_ack`.
 export const cancelQuote = (symbol: string) =>
   apiFetch<{ symbol: string; status: string }>(
     `/api/v1/quotes/${encodeURIComponent(symbol)}`,
@@ -181,7 +183,7 @@ export const getHistoryFills = async (params?: Record<string, string>) => {
   const pageParams = new URLSearchParams(params);
   pageParams.set("limit", "5000");
   const events: HistoryFillsResponse["events"] = [];
-  let nextCursor: string | undefined;
+  let nextCursor: string | null = null;
   let response: HistoryFillsResponse;
 
   do {
@@ -233,33 +235,32 @@ export const getAdminGateways = () =>
   apiFetch<{ gateways: AdminGateway[] }>("/api/v1/admin/gateways");
 
 export const disconnectGateway = (id: string, reason?: string) =>
-  apiFetch<{ gateway_id: string; status: string }>(`/api/v1/admin/gateways/${id}/disconnect`, {
+  apiFetch<{ gateway_id: string; status: string }>(`/api/v1/admin/gateways/${encodeURIComponent(id)}/disconnect`, {
     method: "POST",
     body: JSON.stringify(reason ? { reason } : {}),
   });
 
-export const getAdminHalts = () => apiFetch<{ halted: HaltEntry[] }>("/api/v1/admin/halts");
-
 // Halt one symbol. `level` (one of the symbol's configured CB levels) runs the
 // real breaker activation with auto-resume; omitting it halts indefinitely.
-// 202 SymbolHaltAck; a rejection is 403 ROLE_DENIED.
+// 200 SymbolHaltAck; an engine refusal is 409 HALT_REJECTED (its reason is the message).
 export const triggerCircuitBreaker = (symbol: string, level?: string) =>
-  apiFetch<SymbolHaltAckResponse>("/api/v1/admin/circuit-breaker/trigger", {
+  apiFetch<SymbolHaltAckResponse>(`/api/v1/admin/symbols/${encodeURIComponent(symbol)}/halt`, {
     method: "POST",
-    body: JSON.stringify({ symbol, ...(level ? { level } : {}) }),
+    body: JSON.stringify(level ? { level } : {}),
   });
 
 export const resumeCircuitBreaker = (symbol: string) =>
-  apiFetch<SymbolResumeAckResponse>("/api/v1/admin/circuit-breaker/resume", {
+  apiFetch<SymbolResumeAckResponse>(`/api/v1/admin/symbols/${encodeURIComponent(symbol)}/resume`, {
     method: "POST",
-    body: JSON.stringify({ symbol }),
+    body: JSON.stringify({}),
   });
 
 // ── Index administration (read-only for phase 13) ───────────────────────────
-export const getAdminIndexes = () => apiFetch<AdminIndexesResponse>("/api/v1/admin/indexes");
+export const getReferenceIndexes = () =>
+  apiFetch<ReferenceIndexesResponse>("/api/v1/reference/indexes");
 
 export const getHistoryIndexIds = (date?: string) =>
-  apiFetch<IndexIdsResponse>(`/api/v1/history/index-ids${date ? `?date=${encodeURIComponent(date)}` : ""}`);
+  apiFetch<IndexIdsResponse>(`/api/v1/history/indexes${date ? `?date=${encodeURIComponent(date)}` : ""}`);
 
 export const getHistoryIndexDaily = (params?: { index_id?: string; date?: string; limit?: number }) => {
   const qs = new URLSearchParams();
@@ -291,30 +292,28 @@ export const getAdminOrders = (params?: Record<string, string>) => {
 // UNKNOWN_ORDER when the order has no audited events.
 export const getAdminOrderDetail = (orderId: string, limit?: number) =>
   apiFetch<AdminOrderLifecycleResponse>(
-    `/api/v1/admin/orders/${encodeURIComponent(orderId)}${limit ? `?limit=${limit}` : ""}`,
+    `/api/v1/admin/orders/${encodeURIComponent(orderId)}/audit${limit ? `?limit=${limit}` : ""}`,
   );
 
-// Admin kill-switch scopes (§15.8). All 202 with an engine ack; a rejection is a
-// 403 ROLE_DENIED, not an `accepted: false` body.
+// Admin kill-switch scopes (§15.8). All 200 with the engine ack; an engine refusal
+// is a 409 KILL_SWITCH_REJECTED, not an `accepted: false` body.
 export const adminSymbolKillSwitch = (symbol: string, reason?: string) =>
-  apiFetch<AdminSymbolKillSwitchResponse>("/api/v1/admin/kill-switch/symbol", {
-    method: "POST",
-    body: JSON.stringify(reason ? { symbol, reason } : { symbol }),
-  });
+  apiFetch<AdminSymbolKillSwitchResponse>(
+    `/api/v1/admin/symbols/${encodeURIComponent(symbol)}/cancel-orders`,
+    { method: "POST", body: JSON.stringify(reason ? { reason } : {}) },
+  );
 
 // Cancel every resting order/quote of one named gateway (does NOT disconnect it
-// — that is the separate Kick action). Body key is `target_gateway_id`.
+// — that is the separate Kick action). The gateway is the path segment.
 export const adminGatewayKillSwitch = (targetGatewayId: string, reason?: string) =>
-  apiFetch<AdminGatewayKillSwitchResponse>("/api/v1/admin/kill-switch/gateway", {
-    method: "POST",
-    body: JSON.stringify(
-      reason ? { target_gateway_id: targetGatewayId, reason } : { target_gateway_id: targetGatewayId },
-    ),
-  });
+  apiFetch<AdminGatewayKillSwitchResponse>(
+    `/api/v1/admin/gateways/${encodeURIComponent(targetGatewayId)}/kill-switch`,
+    { method: "POST", body: JSON.stringify(reason ? { reason } : {}) },
+  );
 
 // Full-market emergency stop: cancel every resting order/quote for every gateway.
 export const adminGlobalKillSwitch = (reason?: string) =>
-  apiFetch<AdminGlobalKillSwitchResponse>("/api/v1/admin/kill-switch/global", {
+  apiFetch<AdminGlobalKillSwitchResponse>("/api/v1/admin/market/kill-switch", {
     method: "POST",
     body: JSON.stringify(reason ? { reason } : {}),
   });

@@ -244,12 +244,14 @@ def test_stats_counts_a_feed_gap(stats_proc: Any) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_audit_counts_records_and_bytes(tmp_path: Path) -> None:
+@pytest.mark.parametrize("main_loop_records", [4, 5])
+def test_audit_counts_records_and_bytes(tmp_path: Path, main_loop_records: int) -> None:
     from edumatcher.audit.main import AuditProcess
 
     sub = MagicMock()
     frames = encode("trade.executed", {"x": 1})
-    sub.recv_multipart.return_value = frames
+    sub.recv_multipart.side_effect = [frames] * 4 + [encode("system.eod", {})]
+    sub.poll.return_value = zmq.POLLIN
     with (
         patch("edumatcher.audit.main.make_subscriber", return_value=sub),
         patch("edumatcher.audit.main.make_replier", return_value=MagicMock()),
@@ -266,7 +268,7 @@ def test_audit_counts_records_and_bytes(tmp_path: Path) -> None:
 
         def poll(self, timeout: int = 0) -> dict[Any, int]:
             n["polls"] += 1
-            if n["polls"] > 5:
+            if n["polls"] > main_loop_records:
                 audit._running = False
                 return {}
             return {sub: zmq.POLLIN}
@@ -277,7 +279,9 @@ def test_audit_counts_records_and_bytes(tmp_path: Path) -> None:
     assert _value(samples, "audit.records") == 5
     assert _value(samples, "audit.bytes") > 5 * len(b'{"x": 1}')
     assert _value(samples, "audit.decode_errors") == 0
-    assert reporter.ticks >= 5  # ticked on the receive loop itself
+    assert reporter.ticks >= main_loop_records  # ticked on the receive loop itself
+    assert sub.recv_multipart.call_count == 5
+    assert sub.poll.call_count == 5 - main_loop_records
 
 
 # ---------------------------------------------------------------------------

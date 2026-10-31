@@ -227,8 +227,9 @@ class TestTheEnumsMirrorTheEngine:
 
 
 class TestTheTopicsAreDeclared:
-    def test_four_topics(self) -> None:
-        assert len(G.FAMILY_TOPICS) == 4
+    def test_five_topics(self) -> None:
+        # + quote.cancel_ack (WP-API17)
+        assert len(G.FAMILY_TOPICS) == 5
 
     def test_the_submissions_are_plain(self) -> None:
         assert G.TOPIC_QUOTE_NEW == "quote.new"

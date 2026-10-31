@@ -10,13 +10,15 @@ import sys
 from contextlib import suppress
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, cast
 
 import pytest
 import uvicorn
 from fastapi import HTTPException, WebSocketDisconnect, status
+from fastapi.security import HTTPAuthorizationCredentials
 
 from edumatcher.api_gateway import engine_client, main
+from tests.api_gateway_harness import check_contract
 from edumatcher.api_gateway.config import ApiCredential, ApiGatewayConfig
 from edumatcher.api_gateway.engine_client import EngineClient
 from edumatcher.api_gateway.market_cache import MarketDataCache
@@ -510,14 +512,21 @@ async def test_auth_dependency_success_and_failures() -> None:
             )
         )
     )
-    session = await auth(request, "Bearer good")  # type: ignore[arg-type]  # test double
+
+    def bearer(token: str) -> HTTPAuthorizationCredentials:
+        return HTTPAuthorizationCredentials(scheme="Bearer", credentials=token)
+
+    session = await auth(request, bearer("good"))  # type: ignore[arg-type]  # test double
     assert session.gateway_id == "GW01"
-    with pytest.raises(Exception):
-        await auth(request, "Token nope")  # type: ignore[arg-type]  # test double
-    with pytest.raises(Exception):
-        await auth(request, "Bearer missing")  # type: ignore[arg-type]  # test double
-    with pytest.raises(Exception):
-        await auth(request, "Bearer bad")  # type: ignore[arg-type]  # test double
+    with pytest.raises(HTTPException) as no_header:
+        await auth(request, None)  # type: ignore[arg-type]  # test double
+    assert no_header.value.status_code == 401
+    with pytest.raises(HTTPException) as unknown:
+        await auth(request, bearer("missing"))  # type: ignore[arg-type]  # test double
+    assert unknown.value.status_code == 401
+    with pytest.raises(HTTPException) as refused:
+        await auth(request, bearer("bad"))  # type: ignore[arg-type]  # test double
+    assert refused.value.status_code == 403
 
 
 def prepare_history_db(path: Path) -> None:
@@ -680,56 +689,56 @@ async def test_history_routes(tmp_path: Path) -> None:
         )
     )
     session = Session(api_key="key", gateway_id="GW01", description="")
-    assert (
-        await history.history_orders(  # test double
-            request,  # type: ignore[arg-type]
-            session,
-            symbol=None,
-            event_type=None,
-            date=None,
-            from_ts=None,
-            to_ts=None,
-            limit=500,
-        )
-    )["count"] == 2
-    assert (
-        await history.history_order_lifecycle("ORD1", request, session)  # type: ignore[arg-type]  # test double
-    )["count"] == 2
-    assert (
-        await history.history_fills(  # test double
-            request,  # type: ignore[arg-type]
-            session,
-            symbol=None,
-            date=None,
-            from_ts=None,
-            to_ts=None,
-            limit=500,
-        )
-    )["count"] == 1
-    assert (
-        await history.history_trades(  # test double
-            request,  # type: ignore[arg-type]
-            session,
-            symbol=None,
-            date=None,
-            from_ts=None,
-            to_ts=None,
-            limit=500,
-        )
-    )["count"] == 1
-    assert (
-        await history.history_daily(  # test double
-            request,  # type: ignore[arg-type]
-            session,
-            symbol=None,
-            date=None,
-            # Called as a plain coroutine, so FastAPI is not here to resolve
-            # the Query() defaults these two carry for their from/to aliases.
-            from_date=None,
-            to_date=None,
-            limit=500,
-        )
-    )["count"] == 1
+    result = await history.history_orders(  # test double
+        request,  # type: ignore[arg-type]
+        session,
+        symbol=None,
+        event_type=None,
+        date=None,
+        from_ts=None,
+        to_ts=None,
+        limit=500,
+    )
+    check_contract(history.history_orders, result)
+    assert result["count"] == 2
+    result = await history.history_order_lifecycle("ORD1", request, session)  # type: ignore[arg-type]  # test double
+    check_contract(history.history_order_lifecycle, result)
+    assert result["count"] == 2
+    result = await history.history_fills(  # test double
+        request,  # type: ignore[arg-type]
+        session,
+        symbol=None,
+        date=None,
+        from_ts=None,
+        to_ts=None,
+        limit=500,
+    )
+    check_contract(history.history_fills, result)
+    assert result["count"] == 1
+    result = await history.history_trades(  # test double
+        request,  # type: ignore[arg-type]
+        session,
+        symbol=None,
+        date=None,
+        from_ts=None,
+        to_ts=None,
+        limit=500,
+    )
+    check_contract(history.history_trades, result)
+    assert result["count"] == 1
+    result = await history.history_daily(  # test double
+        request,  # type: ignore[arg-type]
+        session,
+        symbol=None,
+        date=None,
+        # Called as a plain coroutine, so FastAPI is not here to resolve
+        # the Query() defaults these two carry for their from/to aliases.
+        from_date=None,
+        to_date=None,
+        limit=500,
+    )
+    check_contract(history.history_daily, result)
+    assert result["count"] == 1
 
 
 def test_websocket_helper_functions() -> None:
@@ -801,12 +810,10 @@ async def test_websocket_auth_controls_and_filtering() -> None:
     subscription = ws.Subscription()
     with pytest.raises(WebSocketDisconnect):
         await ws._receive_market_controls(controls, subscription)  # type: ignore[arg-type]  # test double
-    # The legacy ack keys keep their meaning; `items`, `always` and `rejected`
-    # are additive.
-    assert controls.sent[0]["data"]["symbols"] == ["AAPL"]
-    assert controls.sent[0]["data"]["channels"] == ["trades"]
-    assert controls.sent[1]["data"]["symbols"] == []
-    assert controls.sent[1]["data"]["channels"] == []
+    assert controls.sent[0]["data"]["items"] == [
+        {"symbols": ["AAPL"], "channels": ["trades"]}
+    ]
+    assert controls.sent[1]["data"]["items"] == []
     assert controls.sent[2]["type"] == "error"
 
     sender = FakeWebSocket([])
@@ -894,7 +901,7 @@ async def test_await_event_timeout_cleans_up(
 
 @pytest.mark.anyio
 async def test_history_validation_rejects_bad_dates() -> None:
-    """Verify malformed date parameters return 422."""
+    """Verify malformed date parameters return 400 naming the field."""
     from edumatcher.api_gateway.routers import history as hist_router
 
     db_path = Path("/tmp/nonexist_test.db")
@@ -915,4 +922,5 @@ async def test_history_validation_rejects_bad_dates() -> None:
             to_ts=None,
             limit=500,
         )
-    assert exc_info.value.status_code == 422
+    assert exc_info.value.status_code == 400
+    assert cast(dict[str, Any], exc_info.value.detail)["error"]["field"] == "date"
