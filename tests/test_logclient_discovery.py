@@ -180,3 +180,30 @@ def test_server_absent_explicit_target_warns_and_falls_back(
     captured = capsys.readouterr()
     assert f"{_HOST}:{port}" in captured.err
     assert "falling back to stdout" in captured.err
+
+
+def test_server_appearing_during_probe_wait_is_attached(tmp_path: Path) -> None:
+    """A server that starts a moment after its client is still found."""
+    server = _RunningServer(tmp_path)
+    timer = threading.Timer(0.5, server.start)
+    timer.start()
+    try:
+        handler = resolve_handler(
+            log_target=None,
+            log_file=None,
+            client_name="pm-test",
+            instance=None,
+            host=_HOST,
+            port=server.port,
+            connect_timeout_sec=0.5,
+            failover_timeout_sec=5.0,
+            failover_dir=tmp_path,
+            probe_wait_sec=5.0,
+        )
+        try:
+            assert isinstance(handler, TcpLogHandler)
+        finally:
+            handler.close()
+    finally:
+        timer.join()
+        server.stop()

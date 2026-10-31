@@ -164,6 +164,9 @@ RUNTIME_DIR_NAME = "emo"
 ACTIVE_PROFILE_FILE = "active-profile"
 HEALTHCHECK_TIMEOUT_SEC = 2.0
 TCP_CHECK_TIMEOUT_SEC = 0.3
+LOG_SRV_COMMAND = "pm-log-srv"
+LOG_SRV_READY_TIMEOUT_SEC = 10.0
+LOG_SRV_READY_POLL_SEC = 0.1
 GREEN = "\033[32m"
 RED = "\033[31m"
 YELLOW = "\033[33m"
@@ -876,6 +879,17 @@ def health_profile(quiet: bool) -> int:
     return 0 if healthy else 1
 
 
+def wait_for_tcp(address: str, timeout_sec: float) -> bool:
+    """Poll until a TCP connect to ``address`` succeeds or the timeout expires."""
+    deadline = time.monotonic() + timeout_sec
+    while True:
+        if check_tcp(address)[0] == "running":
+            return True
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(LOG_SRV_READY_POLL_SEC)
+
+
 def start_profile(profile_name: str, *, debug: bool = False) -> int:
     profiles = load_profiles()
     if profile_name not in profiles:
@@ -897,6 +911,9 @@ def start_profile(profile_name: str, *, debug: bool = False) -> int:
     print(f"Starting pm-opctl configuration {profile_name!r} from {config_path()}")
     print(f"Data directory: {DATA_DIR}")
     claimed: set[int] = set()
+    # pm-log-srv always goes first: every other process probes for it once at
+    # startup and never re-probes, so it has to be accepting connections by then.
+    processes = sorted(processes, key=lambda p: p["command"][0] != LOG_SRV_COMMAND)
     for process in processes:
         name = process["name"]
         existing, _ = resolve_pid(process, claimed)
@@ -907,6 +924,14 @@ def start_profile(profile_name: str, *, debug: bool = False) -> int:
         if pid is None:
             return 1
         print(f"  started {name} (pid {pid}): {' '.join(process['command'])}")
+        address = process.get("tcp")
+        if process["command"][0] == LOG_SRV_COMMAND and isinstance(address, str):
+            if not wait_for_tcp(address, LOG_SRV_READY_TIMEOUT_SEC):
+                print(
+                    f"  warning: {name} not accepting connections on {address} "
+                    f"after {LOG_SRV_READY_TIMEOUT_SEC:g}s; continuing",
+                    file=sys.stderr,
+                )
     return 0
 
 
