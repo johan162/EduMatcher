@@ -1,3 +1,34 @@
+## [v0.66.1] - 2026-10-31
+
+Release Type: minor
+
+### 📋 Summary
+This release expands practical order-type and exchange training and aligns the exercises with current engine behavior. It also improves console handling of combo and OCO children and fixes administrator command acknowledgements and configuration-verifier defaults.
+
+### ✨ Additions
+- Added `LEGn.STOP` parsing to the ALF console for conditional combo legs, with exact symbol tick conversion and positive-quantity validation
+- Added a BALF exercise for amending an order and receiving fills
+
+### 🚀 Improvements
+- Improved the ALF console's order cache to display acknowledged combo and OCO children and reflect OCO sibling cancellations
+
+### 🐛 Bug Fixes
+- Fixed gateway and global kill switches, quote cancellation and reference reload reporting command timeouts despite successful execution because their acknowledgement topics were not subscribed
+- Fixed index commands failing immediately while their connection to `pm-index` was still establishing by retrying sends within the command timeout
+- Fixed refused amendments and cancellations incorrectly marking resting orders as rejected in the ALF console
+- Fixed administrator volume output expecting a symbol mapping instead of the current list-shaped response
+- Fixed the configuration verifier treating an omitted `sessions_enabled` as false and rejecting enabled sessions without an explicit schedule; the default now matches the engine and M004 explains the scheduler's built-in timetable as an informational finding
+
+### 📚 Documentation
+- Expanded the order-type reference with selection guidance, required and forbidden fields, session-phase behavior, worked examples and trading-strategy trade-offs
+- Updated training chapters for current startup, market-making, amendment, cancellation, risk-control, index, valuation and API behavior
+- Made auction exercises explicitly operator-driven, with unmatched orders submitted before uncrossing, exact expected fills and expiry outcomes, and a worked GTC participation exercise
+- Clarified combo and OCO behavior and updated ALF, BALF and REST training commands and checkpoints
+- Brought reference- and order book deep dive books up to date to match latest code base 
+
+### 🛠 Internal
+- Added regression coverage for awaited acknowledgement subscriptions, index connection retries, conditional combo parsing, console order-state updates, volume rendering and configuration-verifier session defaults
+
 ## [v0.66.0] - 2026-10-31
 
 Release Type: major

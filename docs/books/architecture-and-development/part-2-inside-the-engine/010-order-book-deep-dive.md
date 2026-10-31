@@ -337,8 +337,9 @@ at the new one.
 | The book itself (heaps) | `_bids`, `_asks` |
 | Dormant stops | `_buy_stops`, `_sell_stops` (heaps), `_trailing_stops` (list), `_has_stops` (fast-path flag), `_triggered` (waiting room) |
 | **The five side indexes** | `_order_index`, `_entry_index`, `_orders_by_gateway`, `_bid_qty`, `_ask_qty` |
-| Market statistics | `last_trade_price`, `last_trade_qty`, `last_buy_price`, `last_sell_price`, `recent_trades`, `daily_qty`, `daily_value_ticks`, `daily_trades` |
-| Engine callbacks | `on_quote_leg_fill`, `on_oco_leg_done` |
+| Market statistics | `last_trade_price`, `last_trade_id`, `last_trade_qty`, `last_buy_price`, `last_sell_price`, `recent_trades`, `daily_qty`, `daily_value_ticks`, `daily_trades` |
+| Counters | `_gtc_count` (resting orders with TIF=GTC, kept in step with `_orders_by_gateway`) |
+| Engine hooks | `on_quote_leg_fill`, `on_oco_leg_done` (callbacks), `trace` (shared report list) |
 | Time priority | `_arrival_seq` |
 
 The figure below shows how the heaps and the five side indexes all point at the
@@ -443,6 +444,13 @@ self._orders_by_gateway: dict[str, dict[str, None]] = {}
     iterates in insertion order, so two runs over the same input publish
     identically (finding **X11**). The code adds with
     `setdefault(gw, {})[order.id] = None` and removes with `.pop(order.id, None)`.
+
+Adds and removes go through two helpers, `_track_gateway(order)` and
+`_discard_from_gateway_index(order)`, so the bookkeeping exists once. They also
+maintain `_gtc_count`, the number of resting orders with `TIF.GTC` (the orders
+that survive the close), which lets `book_stats()` report it without walking
+the book. Both are idempotent: an id already present is not counted twice, and
+a missing one is ignored.
 
 `orders_for_gateway(gw)` resolves the ids through `_order_index`, and
 `quote_orders_for_gateway(gw)` filters that result to `OrderOrigin.QUOTE`. The
@@ -561,33 +569,38 @@ self.daily_value_ticks: int = 0
 self.daily_trades: int = 0
 ```
 
-All of them are written in exactly one place, `_apply_fill`. Their uses are
+All of them are written in exactly one place, `_apply_fill`. The same function
+also records `last_trade_id`, the id of the trade that set `last_trade_price`:
+when a stop fires, that is the trade it triggered on. Their uses are
 covered in [The Three Last Prices](#the-three-last-prices). `daily_value_ticks`
 accumulates `price_ticks × qty` as an integer (finding **M11**); the
 `daily_value` property converts it to money once, so no floating-point drift
 accumulates over thousands of fills.
 
-### Engine callbacks
+### Engine hooks
 
 ```python
 self.on_quote_leg_fill: Optional[Callable[[Order], None]] = None
 self.on_oco_leg_done: Optional[Callable[[Order], None]] = None
+self.trace: Optional[list[tuple[Any, ...]]] = None
 ```
 
 The book cannot cancel a market maker's other quote leg or an OCO sibling by
 itself — that bookkeeping lives in the engine. So `Engine._book()` wires two
-callbacks when it creates a book:
+callbacks, and a trace list, when it creates a book:
 
 ```python
 # Engine._book (engine/main.py)
 book = OrderBook(symbol, recent_trades_maxlen=self.recent_trades_maxlen)
 book.on_quote_leg_fill = self._on_quote_leg_filled   # X3
 book.on_oco_leg_done = self._check_oco_after_event   # X15
+book.trace = self._trace                             # S24: one list, shared by all books
 ```
 
-They are called *during* the sweep, which is explained in
+The callbacks are called *during* the sweep, which is explained in
 [`_apply_fill`](#where-every-trade-is-born-_apply_fill). In a plain unit test
-they are `None` and simply skipped.
+they are `None` and simply skipped. `trace` is covered in
+[Trace Records](#trace-records-what-the-book-reports-besides-trades).
 
 
 ## Lazy Deletion and Compaction
@@ -709,7 +722,7 @@ leave that structure alone.
 
 | Code path | Heap / list | `_bid_qty`/`_ask_qty` | `_order_index` | `_entry_index` | `_orders_by_gateway` |
 |---|---|---|---|---|---|
-| `_rest` (LIMIT/ICEBERG starts resting) | push new entry | `+=` visible | add | add | add |
+| `_rest` (LIMIT/ICEBERG starts resting) | push new entry | `+=` visible | add | add | add (`_track_gateway`) |
 | `_add_stop` (STOP/STOP_LIMIT armed) | push on stop heap | — | add | add | add |
 | `_add_trailing_stop` | append to list | — | add | — | add |
 | `_apply_fill`, passive partly filled | — | `-=` fill | — | — | — |
@@ -721,6 +734,7 @@ leave that structure alone.
 | `amend_order`, priority lost | old entry invalid, new entry pushed | `-=` old visible, `+=` new visible | — | replaced | — |
 | `_check_stops` (stop fires) | popped from stop heap | — | pop | pop | discard |
 | `_check_trailing_stops` (fires) | dropped from list | — | pop | — | discard |
+| `_trigger_stop_now` (breached on entry) | — (never armed) | — | — | — | — |
 | `_peek` | pops dead entries | — | — | — | — |
 | `_compact_heaps` | rebuilt without dead entries | — | — | — | — |
 
@@ -897,32 +911,46 @@ until some unrelated future trade (finding **M2**).
 order just died (an IOC remainder, an SMP or FOK refusal) and belongs to an OCO
 group, so its sibling is pulled *before* the stop cascade can trade with it.
 
-**7. The stop cascade**, driven by an explicit work queue:
+**7. The stop cascade**, driven by an explicit work queue in `run_stops`:
 
 ```python
 if trades and self._has_stops and _cascade_stops:
-    pending = self._check_stops(now) + self._check_trailing_stops(now)
-    while pending:
-        t_order = pending.pop(0)
-        sub_trades, sub_events = self.process(
-            t_order, now=now, _cascade_stops=False
-        )
-        trades.extend(sub_trades)
-        events.extend(sub_events)
-        if sub_trades and self._has_stops:
-            pending.extend(self._check_stops(now))
-            pending.extend(self._check_trailing_stops(now))
+    sub_trades, sub_events = self.run_stops(now)
+    trades.extend(sub_trades)
+    events.extend(sub_events)
 ```
 
-The three guards are cheap early-outs: no trades means the price did not move;
-`_has_stops` means there is anything to trigger at all; `_cascade_stops` is
-`False` inside the nested call. That nested `self.process(...)` is **not**
-recursion of the cascade: the inner call cannot start its own loop, and
-whatever it triggers is appended to the same `pending` list. An earlier version
-recursed, and a long enough stop chain exhausted Python's recursion limit
-(finding **#23**). `pending` is FIFO (`pop(0)`): stops run in the order they
-were released — buy stops first, then sell stops, then trailing stops, each
-group by trigger price and then arrival.
+```python
+# OrderBook.run_stops
+pending = self._check_stops(now) + self._check_trailing_stops(now)
+while pending:
+    t_order = pending.pop(0)
+    sub_trades, sub_events = self.process(
+        t_order, now=now, _cascade_stops=False
+    )
+    trades.extend(sub_trades)
+    events.extend(sub_events)
+    if sub_trades and self._has_stops:
+        pending.extend(self._check_stops(now))
+        pending.extend(self._check_trailing_stops(now))
+```
+
+The three guards in `process` are cheap early-outs: no trades means the price
+did not move; `_has_stops` means there is anything to trigger at all;
+`_cascade_stops` is `False` inside the nested call. That nested
+`self.process(...)` is **not** recursion of the cascade: the inner call cannot
+start its own loop, and whatever it triggers is appended to the same `pending`
+list, so the cascade runs breadth-first. An earlier version recursed, and a
+long enough stop chain exhausted Python's recursion limit (finding **#23**).
+`pending` is FIFO (`pop(0)`): stops run in the order they were released — buy
+stops first, then sell stops, then trailing stops, each group by trigger price
+and then arrival. Stops released by *later* trades queue **behind** those
+already waiting.
+
+`run_stops` is public because `Engine._run_uncross` calls it too, after an
+auction print (see [No-Matching Mode and Auctions](#no-matching-mode-and-auctions)).
+It returns `(trades, events)` in the same shape as `process`, and returns two
+empty lists at once when `_has_stops` is false.
 
 ### What comes back
 
@@ -1169,11 +1197,22 @@ else:
 aggressor_side = _AUCTION_AGGRESSOR if both_resting else aggressor.side.value
 trade = Trade.create(symbol=self.symbol, buy_order_id=buy_order.id,
                      sell_order_id=sell_order.id, ..., price=fill_price,
-                     quantity=fill_qty, aggressor_side=aggressor_side, now=now)
+                     quantity=fill_qty, aggressor_side=aggressor_side, now=now,
+                     trigger_order_id=(aggressor.id
+                                       if not both_resting
+                                       and aggressor.stop_price_ticks is not None
+                                       else None))
 trades.append(trade)
 self.last_trade_price = fill_price
+self.last_trade_id = trade.id
 ...
 ```
+
+`trigger_order_id` marks a trade made by a **triggered stop**: the aggressor
+was a STOP / STOP_LIMIT / TRAILING_STOP that has since become a MARKET or
+LIMIT order but still carries its `stop_price_ticks`. Market data and the audit
+trail use it to show that this print was a stop cascade, not ordinary flow.
+Auction prints never carry it.
 
 ### The aggressor side
 
@@ -1349,6 +1388,7 @@ def _rest(self, order: Order) -> None:
         else order.remaining_qty
     )
     order.arrival_seq = self._next_seq()                     # time priority (H1)
+    self._note("RESTED", order.id, order.arrival_seq)        # trace record
     if order.side == Side.BUY:
         key = (-price, order.arrival_seq)
         heap = self._bids
@@ -1361,7 +1401,7 @@ def _rest(self, order: Order) -> None:
     heapq.heappush(heap, entry)                               # 2. heap
     self._order_index[order.id] = order                       # 3. id → Order
     self._entry_index[order.id] = entry                       # 4. id → entry
-    self._orders_by_gateway.setdefault(order.gateway_id, {})[order.id] = None  # 5.
+    self._track_gateway(order)                                # 5. gateway index (+ GTC count)
 ```
 
 `price = order.price_ticks` binds the narrowed `int` to a local (finding
@@ -1459,13 +1499,38 @@ amend x1 qty 200 → 400  → priority_reset=True    _bids keys: (-10000,1) vali
                                                              (-10000,3)  ← x1 now behind x2
 ```
 
+Details that are easy to miss:
+
+- **A priority-losing amend refills an iceberg's peak** (`displayed_qty =
+  min(visible_qty, remaining_qty)`), because the order is re-queued at the back
+  anyway. A priority-keeping amend (quantity decrease only) can merely *shrink*
+  the current slice, `min(displayed_qty, remaining_qty)`.
+- **`quantity` is the order's new total**, not the new remainder: the book keeps
+  `filled_qty` and sets `remaining_qty = qty - filled_qty`, which is why a new
+  quantity at or below the filled amount is refused.
+- **A rejected amend changes nothing**: every validation runs before the first
+  mutation, so a refusal never leaves the level index half-updated.
+- **Only `LIMIT` and `ICEBERG` can be amended.** Stops, trailing stops and the
+  like answer `Cannot amend <TYPE> orders`.
+- **A priority loss is traced** as a `RESTED` record with the new
+  `arrival_seq`, and the engine returns it as `priority_seq` in `order.amended`.
+
 !!! note "Amending into a crossing price"
     `amend_order` never matches. If an amend moves a bid up to or through the
     best ask, the engine (`Engine._handle_amend`) checks
     `book.best_ask_ticks()` / `book.best_bid_ticks()` and, if the order became
     marketable, cancels it and runs it through `process()` again as a fresh
     aggressive order. Otherwise the book would be left crossed (invariant I2;
-    finding **H2**).
+    finding **H2**). This is skipped when matching is off (auction, halt),
+    where a crossed book is normal.
+
+The book is only the last step of an amend. `_handle_amend` first applies the
+protections a new order faces, so an amend cannot be used to dodge them: the
+gateway check, order lookup, **ownership** (`NOT_OWNER`), **tick size**
+(`TICK_VIOLATION`; the amend message carries display money, converted with
+`to_ticks_exact`), the **session** gate (`MARKET_CLOSED`), the **price collar**
+(`COLLAR_BREACH`) and the **order-size / notional limits** on the *amended*
+total quantity and price.
 
 
 ## Icebergs
@@ -1599,6 +1664,7 @@ real order:
 
 ```python
 order.arrival_seq = self._next_seq()     # ties at the same trigger (H1 / M10)
+self._note("RESTED", order.id, order.arrival_seq)
 if order.side == Side.BUY:
     key = (order.stop_price_ticks, order.arrival_seq)
     entry = _HeapEntry(key=key, order=order)
@@ -1609,14 +1675,23 @@ else:
     heapq.heappush(self._sell_stops, entry)
 self._order_index[order.id] = order
 self._entry_index[order.id] = entry
-self._orders_by_gateway.setdefault(order.gateway_id, {})[order.id] = None
+self._track_gateway(order)
 self._has_stops = True
 events.append(order)   # a NEW state notification, not a second ACK
 ```
 
-If the stop is already breached on arrival, `process()` calls
-`_trigger_stop_now` instead, which converts it the same way and matches it
-immediately (M2).
+If the stop is already breached on arrival (M2), `process()` calls
+`_trigger_stop_now` instead. It applies the same conversion (STOP and
+TRAILING_STOP → MARKET, STOP_LIMIT → LIMIT at its limit price), resets
+`ts_ns`, and matches the order straight away. Such an order was never armed, so
+it is in no index and never visits `_triggered`; a STOP_LIMIT that does not
+fill completely then rests through `_rest` and gets a fresh `arrival_seq` like
+any LIMIT. The check uses `last_trade_price` only: with no trade yet in the
+session, every stop is armed, however close its trigger is to the market.
+
+A stop is also **not amendable**: `amend_order` accepts only resting LIMIT and
+ICEBERG orders and answers `Cannot amend STOP orders` (and likewise for
+STOP_LIMIT and TRAILING_STOP). Cancel and re-enter instead.
 
 ### Triggering: `_check_stops`
 
@@ -1631,6 +1706,7 @@ while self._buy_stops:
         break                               # lowest buy stop not reached: none are
     heapq.heappop(self._buy_stops)
     stop_order = entry.order
+    self._note_trigger(stop_order)          # trace: armed as, on which trade, becomes
     if stop_order.order_type == OrderType.STOP:
         stop_order.order_type = OrderType.MARKET
         stop_order.price_ticks = None
@@ -1714,6 +1790,13 @@ EXPIRED and FILLED entries. A fired trailing stop becomes MARKET with
 `trail_offset_ticks = None`, is popped from `_order_index` and the gateway
 index, and goes to `_triggered` like any other stop.
 
+Two corner cases follow from the plain list. A **cancelled** trailing stop is
+purged from the indexes at once, but stays in the list until the next
+`_check_trailing_stops` scan, and `_has_stops` stays true until that scan finds
+all three stop structures empty. And the check runs only after a trade
+(`last_trade_price` is its only input), so a quiet market never moves a
+trailing trigger.
+
 The initial trigger is set by the engine, not the book: if the client sends
 no `STOP=`, `_handle_new_order` derives it as `last_trade_price - offset`
 (SELL) or `+ offset` (BUY), and rejects the order if there has been no trade
@@ -1766,6 +1849,31 @@ trade's `aggressor_side` is `"AUCTION"`, and the quote/OCO callbacks are
 skipped (the engine runs those follow-ups after the uncross).
 
 
+## Trace Records: What the Book Reports Besides Trades
+
+Trades and order events do not show everything that happens inside a book. An
+order that *rests* gets a queue position nobody is told about; an iceberg
+refill re-queues the order silently; a trailing trigger moves without a trade;
+a stop turns into another order type. The book therefore appends small tuples
+to `self.trace` through `_note(kind, *fields)` (and `_note_trigger` for stops).
+`_note` does nothing when `trace` is `None`, so unit tests pay nothing.
+
+| Record | Written by | Fields after `(kind, symbol, ...)` |
+|---|---|---|
+| `RESTED` | `_rest`, `_add_stop`, `_add_trailing_stop`, `amend_order` (priority lost) | `order_id`, `arrival_seq` (`None` for a trailing stop, which has no sequence) |
+| `ICEBERG_REFILL` | `_reinsert_iceberg` | `order_id`, new `arrival_seq`, new peak |
+| `TRAILING_RATCHET` | `_check_trailing_stops` | `order_id`, new stop price, trade price |
+| `TRIGGERED` | `_note_trigger`, from `_check_stops`, `_check_trailing_stops` and `_trigger_stop_now` | the `Order`, armed type, stop price, `last_trade_id`, `last_trade_price`, what it `becomes` (`MARKET`/`LIMIT`) |
+
+`TRIGGERED` is written **before** the order is converted, so it still holds
+the type it was armed as. The engine owns one list for all books
+(`Engine._trace`) and `_flush_trace` publishes it after each dispatch:
+`TRIGGERED` becomes `order.triggered.<GW>` for the owner, the other three
+become `engine.trace.<SYM>` (audit only). The book never publishes; it only
+reports. See the [message reference](../../protocols-and-clients/part-5-message-reference/010-message-reference.md)
+for the wire format.
+
+
 ## Read-Only Views
 
 | Method | Returns | Cost | Used by |
@@ -1778,9 +1886,26 @@ skipped (the engine runs those follow-ups after the uncross).
 | `best_bid_ticks()` / `best_ask_ticks()` | best price or `None` | O(levels) | crossing-amend check |
 | `fillable_quantity(side, limit)` | executable qty incl. hidden | O(n) | combo AON pre-check (M5) |
 | `book_stats()` | `BookStats` | O(levels + stops) | health beacon, metrics |
+| `checkpoint()` | whole book as plain dicts: bids, asks and stops in priority order, last prices | O(n log n) | `system.book_checkpoint`, replay and restart |
+| `restore_stats(...)` | — (sets `last_buy_price`, `last_sell_price`, and `last_trade_price` if still unset) | O(1) | startup restore |
 | `containers()` | every container | — | memory size estimate |
 | `depth_snapshot(tol)` | depth, imbalance, microprice, cost to move | O(levels) | market data |
 | `snapshot()` | full aggregated book + last 5 trades | O(heap entries) | market data / viewer |
+
+`BookStats` holds `resting_orders`, `gtc_orders`, `stop_orders`, `bid_levels`,
+`ask_levels`, `heap_entries` (dead ones included), `live_entries` and
+`recent_trades`; its `heap_garbage_pct` property is the dead share of the heaps.
+
+`checkpoint()` sorts each heap by key, so `bids`/`asks` come out in true
+matching priority with each order's `priority_seq`. Trailing stops carry no
+sequence (their `priority_seq` is `None`) and are listed in checking order.
+
+**Priority across a restart.** `arrival_seq` is per process, but queue order
+must survive a restart. The persisted file lists orders by first arrival, which
+is wrong for an iceberg that was refilled or an order whose amend lost priority
+(finding **X26**), so `Engine._restore_gtc` sorts each book's orders by their
+saved `arrival_seq` before resting them. They receive fresh numbers, in the
+same relative order.
 
 `snapshot()` walks the bid and ask heaps, skips dead entries, aggregates live
 orders by price level (an iceberg counts only its `displayed_qty`) and
@@ -1810,10 +1935,12 @@ runs a sequence of checks *before* an order reaches `book.process()`, and
 flowchart LR
     IN["order.new"] --> G1["gateway connected<br/>and authenticated"]
     G1 --> G2["symbol allowed"]
-    G2 --> G3["session state /<br/>ATO-ATC window"]
+    G2 --> GV["field validation (M7)<br/>qty, price, iceberg slice,<br/>order limits"]
+    GV --> G3["session state /<br/>ATO-ATC window"]
     G3 --> G4["halt gate"]
     G4 --> G5["price collar"]
-    G5 --> ACK["ACK (or deferred, X5)"]
+    G5 --> GN["no-match phase:<br/>MARKET / IOC / FOK rejected"]
+    GN --> ACK["ACK (or deferred, X5)"]
     ACK --> PR["book.process(order,<br/>match=do_match)"]
     PR --> PD["_publish_dispatch"]
     PD --> CB["_publish_trade →<br/>_check_circuit_breaker"]
@@ -1823,10 +1950,12 @@ flowchart LR
 |---|---|---|
 | Gateway allowed, connected and authenticated | `_handle_new_order` (fast path `_connected_fix_gateways`, fallback `_gateway_status`) | A disconnected or unauthorised participant must not inject live orders; rejecting early saves matching work. |
 | Symbol allow-list | `_allowed_symbols` | Prevents trading in unconfigured instruments. |
+| Field validation (M7) | `_validate_new_order` | Positive quantity and price, `visible_qty` in `(0, quantity]`, and the per-symbol order-size / notional caps. Bad values must be refused with a reason *before* the ACK, not crash inside the book. |
 | Session state | `accepts_orders(self._session_state)`; ATO only in `OPENING_AUCTION`, ATC only in `CLOSING_AUCTION` | A wrongly accepted order cannot be "un-traded". |
 | Halt gate | `_halted_symbols` | During a halt MARKET/IOC/FOK are rejected; LIMIT/ICEBERG may rest with matching off. |
 | Price collar | `validate_collar(...)` | Anti-fat-finger; a bad print cannot be undone after matching. |
-| Matching mode | `do_match = is_matching_enabled(self._session_state)` | Selects continuous matching or queue-only mode in `process()`. |
+| Matching mode | `do_match = is_matching_enabled(self._session_state)` | Selects continuous matching or queue-only mode in `process()`. A halted symbol forces `do_match = False`. |
+| No-match phase | `_handle_new_order`, step [9] | MARKET / IOC / FOK cannot wait in a queue, so they are refused with `SESSION_NOT_PERMITTED`; the book's own `match=False` rejection is a second line of defence. |
 | Circuit breaker | `_publish_trade` → `_check_circuit_breaker(symbol, price, ts_ns)` | Must see each trade price in order, so the halt lands at the intended threshold. |
 
 **ACK timing.** Normally the engine publishes the positive ACK *before*
@@ -2015,7 +2144,7 @@ Set them by function name and follow the order as it moves down this table:
 | `_purge_from_indexes` | an order leaves the book | `order.status`, `order.id in self._order_index` |
 | `_rest` | a remainder starts resting | `key`, `qty` |
 | `_compact_heaps` — first `for heap in heaps` | a compaction actually runs | `len(self._entry_index)` |
-| `process` — `t_order = pending.pop(0)` | a stop cascade step | `pending`, `t_order.order_type` |
+| `run_stops` — `t_order = pending.pop(0)` | a stop cascade step | `pending`, `t_order.order_type` |
 | `_check_stops` — `triggered.append(stop_order)` | a stop fires | `stop_price`, `self.last_trade_price` |
 | `cancel_order` / `amend_order` | a cancel / amend arrives | `entry.valid`, `priority_reset` |
 
@@ -2081,7 +2210,7 @@ logger narrates matching without a debugger:
 3. **SMP.** Give the aggressor the same `gw` as a resting order and try each
    `SmpAction`. Break in `_sweep` at the SMP branch.
 4. **Stop cascade.** Rest bids at 99.90 and 99.80, arm a SELL STOP at 99.90,
-   send a SELL 100 @ 99.90 and break at `t_order = pending.pop(0)`.
+   send a SELL 100 @ 99.90 and break at `t_order = pending.pop(0)` in `run_stops`.
 5. **Lazy deletion and compaction.** Rest 200 asks far from the market, cancel
    them one by one and watch `len(book._asks)` grow garbage until
    `_compact_heaps` rebuilds the heap.
@@ -2119,7 +2248,7 @@ All in `src/edumatcher/engine/order_book.py` unless stated otherwise:
 | Index maintenance | `_deduct_qty_index`, `_discard_from_gateway_index`, the comments in `__init__` |
 | Icebergs | `_sweep` (the #17 cap), `_apply_fill` (refill), `_reinsert_iceberg` |
 | Amends and priority | `amend_order`; the crossing-amend re-match in `Engine._handle_amend` (`engine/main.py`) |
-| Stops | `_add_stop`, `_stop_is_triggered`, `_trigger_stop_now`, `_check_stops`, the cascade loop in `process` |
+| Stops | `_add_stop`, `_stop_is_triggered`, `_trigger_stop_now`, `_check_stops`, the cascade loop in `run_stops` |
 | Trailing stops | `_add_trailing_stop`, `_check_trailing_stops`; initial trigger in `Engine._handle_new_order` |
 | FOK | `_match_fok`, `_fok_available_qty` |
 | Auctions | `engine/auction.py`: `compute_equilibrium`, `execute_uncross`; `Engine._run_uncross` |
@@ -2144,6 +2273,8 @@ All in `src/edumatcher/engine/order_book.py` unless stated otherwise:
 | `_orders_by_gateway` | dict | `gateway_id` | `dict[order_id, None]` (ordered set) | One gateway's resting orders, deterministic order |
 | `_bid_qty` | dict | `price_ticks` | `int` | Visible bid quantity per level |
 | `_ask_qty` | dict | `price_ticks` | `int` | Visible ask quantity per level |
+| `_gtc_count` | int | — | — | Resting GTC orders, for `book_stats()` |
+| `trace` | list or `None` | — | tuple | Records shared with the engine, published after each dispatch |
 | `recent_trades` | deque | — | `Trade` | Last 20 trades (snapshot publishes 5) |
 
 

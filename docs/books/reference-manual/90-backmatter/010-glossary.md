@@ -19,10 +19,38 @@ ALF) the market-data feed, RALF (Reconciliation ALF) post-trade dissemination,
 LALF (Log ALF) centralized logging and DC1 the drop-copy feed over TCP.
 See [Protocols Overview](../../protocols-and-clients/part-1-choosing-and-connecting/010-protocols-overview.md).
 
+**Arrival sequence (`arrival_seq`):** The number an order book assigns to an
+order each time the order is placed on a heap, strictly increasing within one
+book. It, not the client-supplied `ts_ns`, decides queue position at a price, so
+a back-dated timestamp cannot jump the queue. A new number is taken whenever an
+order goes to the back of its queue: when it first rests, when a stop is armed,
+when an iceberg shows a fresh slice, and when an amend raises the quantity or
+changes the price. The engine reports it as `priority_seq`. See [The Order Book:
+Deep Dive](../../architecture-and-development/part-2-inside-the-engine/010-order-book-deep-dive.md).
+
+**Automated Corridor Expansion (ACE):** The rule that governs how a symbol
+reopens after a halt. The reopening auction may only cross inside a corridor
+around the reference price; if the equilibrium price falls outside it, the call
+phase is extended and the corridor widened one rung of a ladder at a time, the
+last rung repeating until the price fits. Configured under
+`circuit_breaker_defaults.reopening` and tuned with `pm-config-gen --ace-*`.
+
+**Book checkpoint:** The `system.book_checkpoint.<SYM>` message in which the
+engine publishes a symbol's whole book (resting orders in matching priority,
+armed stops in trigger order, trailing stops, and the last prices) at startup
+and at other defined moments, so that a replay can start from a known state
+rather than from the first message of the day.
+
 **Data directory (`EDUMATCHER_DATA_DIR`):** The one directory in which an
 exchange instance keeps its deployed configuration, databases, logs and saved
 state. All processes of one exchange must use the same one. See
 [Environment variables](../part-1-command-line/010-processes-environment-and-ports.md#environment-variables).
+
+**Episode (audit replay):** In `pm-audit-replay`, a group of causally connected
+facts with one business meaning: one order, one trade, one quote or one command,
+together with its outcome. Episodes sit between the raw events and the narrated
+story, and are kept in the episode index (`audit_replay.db`). See [Audit
+Replay](../../operator-guide/part-6-observe-and-recover/030-audit-replay.md).
 
 **Deployed configuration:** The compiled configuration at
 `<data directory>/ref_data/engine_config.json` that every process reads. You
@@ -31,6 +59,19 @@ edit `engine_config.yaml` and install it with `pm-config-deploy` (or
 
 **Engine (`pm-engine`):** EduMatcher's matching engine, the single process that
 owns every order book and decides every trade.
+
+**Health beacon:** The small message every long-running `pm-*` process pushes
+to `pm-monitor` every two seconds (`monitor.beacon_interval_sec`). `pm-monitor`
+judges each process from its beacons and publishes `health.snapshot` and
+`health.event`. A process whose beacons stop is first SILENT, then DEAD. See
+[Health Monitoring](../../operator-guide/part-6-observe-and-recover/060-health-monitor.md).
+
+**Lazy deletion:** How an order book removes an order from the middle of a heap
+without searching for it: the entry is only marked invalid (`valid = False`),
+and whoever next reaches it at the top discards it (`_peek`). Because dead
+entries pile up deep in the book, `_compact_heaps` rebuilds the heaps once they
+hold more than twice the live entries plus 64. The consequence to remember is
+that the length of a heap is not the number of resting orders.
 
 **Gateway ID:** The identity a participant presents when it connects, for
 example `TRADER01`. It is the participant's `id` from the configuration;
@@ -89,6 +130,12 @@ trades against resting orders. It "sweeps" the book.
 
 **Ask / Offer:** The price at which a seller is willing to sell. The best (lowest) ask is the top of the sell side of the order book.
 The collection of all active asks forms the sell side of the book.
+
+**AON (All-Or-None combo):** A combo type that checks, at entry, whether every leg
+could fill completely right now. If so the legs are matched; if not, none is
+matched on entry and all rest as interest. It is a guard at entry only, not a
+guarantee that the legs execute atomically later, so a combo still carries leg
+risk. See [Known Limitations](020-known-limitations.md).
 
 **ATC (At-The-Close):** An order TIF valid only during the closing auction. Expired automatically when the closing auction ends (transition to `CLOSED`).
 
@@ -188,6 +235,11 @@ stop-loss STOP, typically implemented as an OCO pair. See [OCO](../../participan
 
 **Custody:** The safekeeping of securities on behalf of investors by a broker or custodian bank, with records maintained at a central securities depository.
 
+
+**Crossed book:** An order book in which the best bid is at or above the best
+ask. It is normal while a call phase (auction, halt) collects orders without
+matching, and is resolved by the uncross at one price. In continuous trading a
+crossed book is a bug, and the order-book invariant I2 checks for it.
 
 ### D
 
