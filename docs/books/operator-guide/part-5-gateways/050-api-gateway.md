@@ -148,6 +148,7 @@ Useful options:
 | `--instance NAME`    | auto-selected only when one entry exists | Select a named `api_gateways` entry              |
 | `--engine-host HOST` |                             config value | Override engine host for ZMQ ports `5555`/`5556` |
 | `--stats-db PATH`    |                             config value | SQLite database for `/history/*`                 |
+| `--clearing-db PATH` |                             config value | `pm-clearing` database, read-only, for the session / month-to-date / year-to-date realized P&L on `GET /positions` |
 | `--log-level LEVEL`  |                             `WARNING`    | `CRITICAL`, `ERROR`, `WARNING`, `INFO`, or `DEBUG` (uppercase; this is the CLI process's own log level, separate from the `log_level` config value that sets uvicorn's own logger) |
 | `-v` / `--verbose`   |                             off          | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`) |
 | `-q` / `--quiet`     |                             off          | Reduce output to warnings/errors |

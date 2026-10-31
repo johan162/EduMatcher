@@ -815,6 +815,10 @@ pm-stats
 |--------------------------|-----------------|----------------------------------------------------------------------------------------|
 | `--db`                   | `<DATA_DIR>/stats.db` | Custom statistics database path                                                  |
 | `--snapshot-interval`    | `900` (15 min)  | Seconds between `price_snapshots` rows per symbol; minimum `1`. Lower values give finer intraday resolution at the cost of more database writes. Anything under a second is **rejected at startup**: `price_snapshots` is keyed on `(ts, symbol)` at second precision, so it cannot hold more than one row per second per symbol and the extras would be silently discarded |
+| `--keep-days`            | `0` (keep everything) | Retention: keep the last N days of `trade_log`, `order_events`, `price_snapshots` and `feed_gaps`; older rows are deleted at startup and then once an hour. The daily rollups (`daily_stats`, `index_daily_stats`) are always kept. See [Retention](#retention) |
+| `--keep-order-events-days` | as `--keep-days` | Retention for `order_events` alone, overriding `--keep-days` for them. Fractions are accepted: `0.1` is about 2.4 hours |
+| `--human-gateways`       | none            | Comma-separated glob patterns naming the gateways that are people rather than bots, e.g. `'TRADER*'` |
+| `--keep-human-order-events-days` | as `--keep-order-events-days` | Retention for the order events of `--human-gateways` |
 | `--sql-trace`            | off             | Log executed SQLite statements from the stats writer connection — useful for debugging what `pm-stats` is actually writing |
 | `--log-level`            | `WARNING`       | Explicit level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG`                       |
 | `-v`, `--verbose`        | off             | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`)                                   |
@@ -842,6 +846,32 @@ not reachable it logs `pm-stats waiting for pm-engine to start` and retries the
 startup symbol request every second until it succeeds, so the opening book
 snapshots are still captured. Starting it after the engine is simply the
 quieter route.
+
+### Retention
+
+`--keep-days N` bounds the per-event tables. Rows older than N days are deleted
+when `pm-stats` starts and then once an hour; the daily rollups are kept for
+good. The file stops growing once it holds N days, because SQLite reuses the
+freed pages.
+
+Under an AI swarm, `order_events` are almost all of the file. Give them a
+retention of their own so a long run keeps hours of them and days of everything
+else:
+
+```bash
+pm-stats --keep-days 7 --keep-order-events-days 0.25
+```
+
+A retention short enough for a swarm would also delete the few order events of a
+person. `--human-gateways` names the gateways that are people, and
+`--keep-human-order-events-days` gives their order events a slower clock:
+
+```bash
+pm-stats --keep-days 30 --keep-order-events-days 0.25 \
+         --human-gateways 'TRADER*' --keep-human-order-events-days 7
+```
+
+Matched gateways are still pruned — just later.
 
 ### Exit codes
 
@@ -1948,14 +1978,15 @@ print(daily[['symbol', 'return_pct']])
    ```
 
 !!! note "Growth and retention"
-    `trade_log`, `order_events` and `feed_gaps` are append-only and unbounded
-    — `pm-stats` never prunes them. **Never prune `feed_gaps`**: it is the only
-    record that a session was incomplete, and deleting it silently converts a
-    known-lossy dataset back into an apparently clean one. On a long-running deployment, plan for periodic
-    archival (copy out with `VACUUM INTO`, then `DELETE` old rows and `VACUUM`
-    — see the cursor caveat under [Row identity and pagination
-    cursors](#row-identity-and-pagination-cursors))
-    and monitor the file size. There is no built-in retention setting.
+    By default `trade_log`, `order_events`, `price_snapshots` and `feed_gaps`
+    are append-only and unbounded. Set `--keep-days N` (see
+    [Retention](#retention)) to cap them, and monitor the file size either way.
+    Note that `--keep-days` also prunes `feed_gaps`, which is the only record
+    that a session was incomplete: pruning it silently turns a known-lossy
+    dataset back into an apparently clean one. If you need that record for
+    longer than the other tables, archive first (copy out with `VACUUM INTO`;
+    see the cursor caveat under [Row identity and pagination
+    cursors](#row-identity-and-pagination-cursors)) and keep the copy.
 
 ### Snapshot times seem wrong or are missing
 

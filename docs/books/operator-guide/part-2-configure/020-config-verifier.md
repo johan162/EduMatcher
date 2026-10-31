@@ -272,7 +272,7 @@ the key if it appears on a risk level.
 | `S118` | `participant_defaults` is not a mapping, or has a key other than `smp_action` / `disconnect_behaviour` |
 | `S119` | `participant_defaults.disconnect_behaviour` is not a recognised value |
 | `S120` | `participant_defaults.smp_action` is not a recognised value |
-| `S121` | A key in `alf_gateway`, `balf_gateway`, `market_data_gateway`, `post_trade_gateway`, `dc_gateway`, `log_server` (or `log_server.client`), `monitor` (or `monitor.retention`, `monitor.thresholds`, or one of its `{warn, crit}` bands), or an `api_gateways.<name>` instance (or its `rate_limit`, `timeouts` or `credentials[]`) that no loader reads. The loaders ignore such a key, so the setting silently has no effect; the verifier reports the closest accepted name |
+| `S121` | A key that no loader reads, at any level of the file: a top-level key, a key in any engine section (`symbols`, `participants`, `mm_obligation_defaults`, `engine_tuning`, `locale`, `risk_controls`, `circuit_breaker_defaults`, `market_maker_combos`, `indices`, a `schedule` day block, and their nested blocks), or a key in a gateway or service block (`alf_gateway`, `balf_gateway`, `market_data_gateway`, `post_trade_gateway`, `dc_gateway`, `log_server`, `monitor`, or an `api_gateways.<name>` instance and its nested blocks). The loaders ignore such a key, so the setting silently has no effect; the verifier reports the closest accepted name |
 
 **Circuit breaker fields**
 
@@ -560,6 +560,24 @@ all is deliberately left quiet (confirmed by
 | `C011` | INFO     | Risk level defined but no symbol uses it                            |
 | `C012` | WARN     | More than 20 symbols with `snapshot_interval_sec < 0.2`             |
 | `C013` | WARN     | Index `history_file` or `state_file` parent directory may not exist |
+
+!!! warning "Three messages that say more than the engine does"
+    - **`C004` and the *(built-in defaults)* note in the Risk Summary** say that
+      the built-in ladder (L1 7 %, L2 13 %, L3 20 %) "will be used" when
+      `circuit_breaker_defaults` is absent. It is not: with no
+      `circuit_breaker_defaults` and no per-symbol `circuit_breaker` block, the
+      engine creates **no** breaker for the symbol. The built-in ladder only
+      fills in `levels` when a circuit-breaker block exists but names none. To get
+      breakers, write `circuit_breaker_defaults` (see
+      [Step 4](005-the-configuration-file.md#step-4-price-protection)).
+    - **`M003`** compares each seed quote's spread with the *global*
+      `mm_obligation_defaults.mm_max_spread_ticks` (or 20) only. A wider
+      per-symbol or per-participant limit is not considered, so a seed that is
+      within its own limit can still be reported.
+    - **`C013`** tests whether the index file's parent directory exists relative
+      to your shell's current directory. `pm-index` creates the directory itself,
+      under the data directory, so the warning can be ignored for the default
+      `data/indexes/…` paths.
 
 
 ## Using in CI

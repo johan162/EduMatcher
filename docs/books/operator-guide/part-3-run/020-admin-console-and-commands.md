@@ -505,15 +505,15 @@ table.
 pm-admin-cli --id GW_ADMIN symbols
 ```
 ```
-┌─────────────────────────────┐
-│   Configured instruments    │
-├────┬────────────────────────┤
-│ #  │ Symbol                 │
-├────┼────────────────────────┤
-│ 1  │ AAPL                   │
-│ 2  │ MSFT                   │
-│ 3  │ TSLA                   │
-└────┴────────────────────────┘
+     Configured      
+     instruments     
+┏━━━━━━┳━━━━━━━━━━━━┓
+┃ #    ┃ Symbol     ┃
+┡━━━━━━╇━━━━━━━━━━━━┩
+│ 1    │ AAPL       │
+│ 2    │ MSFT       │
+│ 3    │ TSLA       │
+└──────┴────────────┘
 ```
 
 
@@ -559,18 +559,22 @@ monitoring scripts that need to know the exchange state before taking action.
 pm-admin-cli --id GW_ADMIN schedule
 ```
 ```
-┌─────────────────────────────────────────┬────────────────┐
-│   Session schedule                        │ Time (HH:MM)  │
-├─────────────────────────────────────────┼────────────────┤
-│ Pre-Open                                │ 09:00         │
-│ Opening Auction Start                   │ 09:25         │
-│ Continuous Trading Start                │ 09:30         │
-│ Closing Auction Start                   │ 16:00         │
-│ Closing Auction End                     │ 16:05         │
-└─────────────────────────────────────────┴────────────────┘
+                                     Session schedule                                      
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━┳━━━━━┳━━━━━━━━━━┓
+┃ Phase                    ┃   Mon ┃   Tue ┃   Wed ┃   Thu ┃   Fri ┃ Sat ┃ Sun ┃ Holidays ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━╇━━━━━╇━━━━━━━━━━┩
+│ Pre-Open                 │ 09:00 │ 09:00 │ 09:00 │ 09:00 │ 09:00 │   — │   — │        — │
+│ Opening Auction Start    │ 09:25 │ 09:25 │ 09:25 │ 09:25 │ 09:25 │   — │   — │        — │
+│ Continuous Trading Start │ 09:30 │ 09:30 │ 09:30 │ 09:30 │ 09:30 │   — │   — │        — │
+│ Closing Auction Start    │ 16:00 │ 16:00 │ 16:00 │ 16:00 │ 16:00 │   — │   — │        — │
+│ Closing Auction End      │ 16:05 │ 16:05 │ 16:05 │ 16:05 │ 16:05 │   — │   — │        — │
+└──────────────────────────┴───────┴───────┴───────┴───────┴───────┴─────┴─────┴──────────┘
 ```
-If `sessions_enabled` is false in the engine config, a message is printed
-before the table explaining that automatic scheduling is disabled.
+One column per weekday plus **Holidays**, filled from the `schedule` block;
+a dash means the exchange is `CLOSED` that day (no block resolves for it). The
+times are in `locale.session_timezone`. If `sessions_enabled` is false in the
+engine config, a message is printed before the table explaining that automatic
+scheduling is disabled.
 
 
 
@@ -580,13 +584,14 @@ before the table explaining that automatic scheduling is disabled.
 pm-admin-cli --id GW_ADMIN gateways
 ```
 ```
-┌────────────┬──────────┬──────────────────────┬────────────┐
-│ ID         │ Role     │ Description          │ Connected  │
-├────────────┼──────────┼──────────────────────┼────────────┤
-│ GW_ADMIN   │ ADMIN    │ Operator console     │    YES     │
-│ TRADER01   │ TRADER   │ Proprietary desk 1   │    YES     │
-│ MM01       │ MARKET_MAKER │ Market maker 1   │    no      │
-└────────────┴──────────┴──────────────────────┴────────────┘
+                        Configured gateways                        
+┏━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━┓
+┃ ID           ┃ Role         ┃ Description          ┃ Connected  ┃
+┡━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━┩
+│ GW_ADMIN     │ ADMIN        │ Operator console     │    YES     │
+│ MM01         │ MARKET_MAKER │ Market maker 1       │     no     │
+│ TRADER01     │ TRADER       │ Proprietary desk 1   │     no     │
+└──────────────┴──────────────┴──────────────────────┴────────────┘
 ```
 Shows every gateway entry from `engine_config.yaml` with its role and
 current connection status.  A gateway not listed in the config but that
@@ -600,15 +605,16 @@ somehow connected will not appear (it would have been rejected during auth).
 pm-admin-cli --id GW_ADMIN volume
 ```
 ```
-┌────────────┬──────────────┬───────────────────┬────────┐
-│ Symbol     │        Qty   │             Value │ Trades │
-├────────────┼──────────────┼───────────────────┼────────┤
-│ AAPL       │        5,000 │      750,000.00   │     12 │
-│ MSFT       │        3,200 │      576,000.00   │      8 │
-│ TSLA       │        1,100 │      275,000.00   │      5 │
-├────────────┼──────────────┼───────────────────┼────────┤
-│ TOTAL      │        9,300 │    1,601,000.00   │     25 │
-└────────────┴──────────────┴───────────────────┴────────┘
+                    Daily traded volume                    
+┏━━━━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━┓
+┃ Symbol     ┃          Qty ┃            Value ┃   Trades ┃
+┡━━━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━┩
+│ AAPL       │        5,000 │       750,000.00 │       12 │
+│ MSFT       │        3,200 │       576,000.00 │        8 │
+│ TSLA       │        1,100 │       275,000.00 │        5 │
+├────────────┼──────────────┼──────────────────┼──────────┤
+│ TOTAL      │        9,300 │     1,601,000.00 │       25 │
+└────────────┴──────────────┴──────────────────┴──────────┘
 ```
 Counters reset automatically at the start of each trading day — on
 the transition into `PRE_OPEN` — as well as when the engine restarts, so a

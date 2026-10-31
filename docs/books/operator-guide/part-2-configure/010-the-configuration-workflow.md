@@ -29,13 +29,11 @@
 !!! note "Learning objectives"
     After reading this page you will understand:
 
-    - Which `engine_config.yaml` sections are required when a config file exists
-    - How to generate a starter config with `pm-config-gen`
-    - Which fields the current engine and scheduler parsers recognize
-    - How to configure the optional `pm-ralf-gwy`, `pm-md-gwy`, `pm-balf-gwy`, `pm-dc-gwy`, `pm-index`, `pm-log-srv`, and `pm-api-gwy` blocks
-    - How to configure symbols, gateways, risk controls, market-maker seeds, combo seeds, and schedules
+    - How a configuration moves through the create → verify → deploy → inspect pipeline
+    - How to generate a starter config with `pm-config-gen`, and what each of its options does
+    - How to compile and install a config with `pm-config-deploy`
     - How to inspect a deployed config at a glance with `pm-config-show`
-    - How to choose between minimal, medium, and fully featured configurations
+    - Where to find the structure and every parameter of the file itself
     - Which checks to perform before using a config in a class, demo, or test
 
 ## Configuration Workflow
@@ -61,26 +59,30 @@ inspecting what was deployed.
 
 ## Configuring the Exchange
 
-The matching engine and session scheduler both read `engine_config.yaml`. The
-engine uses it to define the symbol universe, authenticated ALF gateway IDs,
-session mode, risk controls, market-maker policy, per-symbol outstanding shares,
-and startup seeds. The scheduler uses only the optional `schedule` section.
-The optional `alf_gateway`, `balf_gateway`, `post_trade_gateway`,
-`market_data_gateway`, `dc_gateway`, `log_server`, and `api_gateways` sections
-are read by `pm-alf-gwy`, `pm-balf-gwy`, `pm-ralf-gwy`, `pm-md-gwy`,
-`pm-dc-gwy`, `pm-log-srv`, and `pm-api-gwy` respectively.
+!!! tip "What goes *in* the file is the next chapter's subject"
+    This chapter is about the **workflow** around `engine_config.yaml`. The file's
+    structure, a minimal version, and every parameter of every block are
+    described in [The Configuration File, Block by Block](005-the-configuration-file.md).
+    Read that first if you have not written a config before.
 
-If the config file is absent, `pm-engine` starts in unrestricted mode: any symbol
-and gateway can be used, and no startup seeds are loaded. If the config file is
-present, the parser requires two sections:
+The matching engine and session scheduler both read the configuration. The
+engine uses it to define the symbol universe, authenticated gateway IDs, session
+mode, risk controls, market-maker policy, per-symbol outstanding shares, and
+startup seeds. The scheduler uses the `schedule` and `locale` sections. The
+optional `alf_gateway`, `balf_gateway`, `post_trade_gateway`,
+`market_data_gateway`, `dc_gateway`, `api_gateways`, `log_server` and `monitor`
+sections are read by `pm-alf-gwy`, `pm-balf-gwy`, `pm-ralf-gwy`, `pm-md-gwy`,
+`pm-dc-gwy`, `pm-api-gwy`, `pm-log-srv` and `pm-monitor` respectively, and
+`indices` by `pm-index`.
+
+If no configuration has been deployed, `pm-engine` starts in unrestricted mode
+(it logs a warning saying so): any symbol and gateway can be used, and no startup
+seeds are loaded. `pm-scheduler` instead refuses to start. If a configuration is
+deployed, the parser requires two sections:
 
 - `symbols` - a mapping of accepted symbols; generated examples include a
   positive integer `outstanding_shares` field for each symbol
 - `participants` - a list with at least one accepted ALF gateway
-
-The sample `engine_config.yaml` intentionally keeps the
-live configuration minimal and places the full parser-recognized shape in
-comments. This page explains that shape in operational terms.
 
 !!! tip "Prefer a form over the CLI? Use the Config Builder GUI"
     If you would rather build or edit `engine_config.yaml` visually — with live
@@ -283,6 +285,12 @@ Session and schedule options:
 | `--continuous HH:MM`                           | String    | `09:30` | Continuous start                                                       |
 | `--closing-auction HH:MM`                      | String    | `16:00` | Closing auction start                                                  |
 | `--closing-end HH:MM`                          | String    | `16:05` | Closing auction end                                                    |
+| `--weekend`                                    | Flag      | off     | Also emit a `weekend:` block (Saturday and Sunday). Without it weekends are `CLOSED` |
+| `--weekend-pre-open HH:MM`, `--weekend-opening-auction HH:MM`, `--weekend-continuous HH:MM`, `--weekend-closing-auction HH:MM`, `--weekend-closing-end HH:MM` | String | `10:00`, `10:25`, `10:30`, `14:00`, `14:05` | The five weekend times; only used with `--weekend` |
+| `--holidays` / `--no-holidays`                 | Flag pair | off     | Also emit a `holidays:` block. Without it bank holidays are `CLOSED`   |
+| `--holidays-pre-open HH:MM`, `--holidays-opening-auction HH:MM`, `--holidays-continuous HH:MM`, `--holidays-closing-auction HH:MM`, `--holidays-closing-end HH:MM` | String | `10:00`, `10:25`, `10:30`, `14:00`, `14:05` | The five bank-holiday times; only used with `--holidays` |
+| `--country COUNTRY`                            | String    | unset   | Writes `locale.country`: a country name (`Sweden`) or ISO code (`SE`). Unset: no value written, so the engine default `Sweden` applies |
+| `--session-timezone TZ`                        | String    | unset   | Writes `locale.session_timezone`, an IANA name such as `America/New_York`. Unset: no value written, so the engine default `Europe/Stockholm` applies. Schedule times are interpreted in this timezone |
 
 Core engine and risk options:
 
@@ -305,6 +313,16 @@ Core engine and risk options:
 | `--risk-level NAME:STATIC[:DYNAMIC]`     | Repeatable       | none            | Add named risk levels under `risk_controls.levels`  |
 | `--cb-levels NAME:SHIFT[:HALT_MINS] ...` | List | built-in ladder | Circuit-breaker level specs |
 | `--cb-window-ns NS`                      | int (`> 0`)      | `300000000000`  | Circuit-breaker reference window                    |
+| `--no-ace`                               | Flag             | off             | Write `circuit_breaker_defaults.reopening.enabled: false` (no reopening corridor) |
+| `--ace-initial-band PCT`                 | float in `(0,1)` | `0.1`           | `reopening.initial_band_pct` — starting corridor half-width, as a fraction of the reference price |
+| `--ace-expansions WIDEN:MINUTES ...`     | List             | `0.10:2 0.20:5` | `reopening.expansions` — corridor widening rungs, in order; the last rung repeats |
+| `--ace-random-end-ns NS`                 | int (`>= 0`)     | `30000000000`   | `reopening.random_end_max_ns` — random tail on every call phase; `0` makes reopen times predictable |
+| `--ace-random-seed N`                    | int              | OS entropy      | `reopening.random_seed` — reproducible reopen times for demos |
+
+The `--no-ace` and `--ace-*` options shape the `reopening` block of
+`circuit_breaker_defaults`, which `pm-config-gen` writes when `--cb-levels` is
+given. Without `--cb-levels` they have no effect. The per-symbol forms are the
+`ace_*` keys of `--symbol-opts` below.
 
 Market-maker and symbol defaults:
 
@@ -745,18 +763,20 @@ SYM/SIDE/ORDER_TYPE/QTY[/PRICE[/STOP_PRICE[/SMP_ACTION]]]
 | `SIDE`       | Yes      | `BUY`, `SELL`                                                                         | —        |
 | `ORDER_TYPE` | Yes      | `LIMIT`, `MARKET`, `STOP`, `STOP_LIMIT`, `FOK`, `ICEBERG`, `IOC`, `TRAILING_STOP`    | —        |
 | `QTY`        | Yes      | Positive integer                                                                      | —        |
-| `PRICE`      | No       | Integer tick count or decimal display price (see note below); omit or use `null` for market orders | `null`   |
-| `STOP_PRICE` | No       | Integer tick count or decimal display price for stop orders; omit or use `null` otherwise | `null`   |
+| `PRICE`      | No       | Display price, e.g. `209.50` (see note below); omit or use `null` for market orders | `null`   |
+| `STOP_PRICE` | No       | Display price for stop orders; omit or use `null` otherwise                           | `null`   |
 | `SMP_ACTION` | No       | `NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH`                           | `NONE`   |
 
 Constraints: at least 2 and at most 10 legs; each `SYM` must appear in `--symbols`; duplicate leg symbols within one combo are rejected.
 
-!!! note "`--combo` PRICE/STOP_PRICE accept ticks or a decimal price"
-    Unlike hand-written `market_maker_combos` YAML — where `legs[].price`/`legs[].stop_price`
-    are always integer ticks — the `--combo` flag's `PRICE`/`STOP_PRICE` parts accept **either**
-    a plain integer tick count (e.g. `20950`) **or** a decimal display price containing a `.`
-    (e.g. `209.50`), which is converted to ticks using the leg symbol's `tick_decimals`. With
-    `tick_decimals: 2`, both `20950` and `209.50` produce the same stored value: `$209.50`.
+!!! warning "`PRICE` and `STOP_PRICE` are display prices — write the decimal point"
+    Every price in `engine_config.yaml`, including `market_maker_combos[].legs[].price`
+    and `stop_price`, is **display money**: `209.50` means $209.50. `pm-config-gen`
+    copies the number you give it into the file unchanged. A bare integer such as
+    `20950` is therefore *not* read as a tick count — it is written as `20950.0`,
+    a price of $20,950.00, which is valid on a two-decimal grid and so passes every
+    check. Always write the price as the quote shows it, with its decimals:
+    `AAPL/BUY/LIMIT/100/209.50`.
 
 Minimal two-leg example:
 
@@ -764,7 +784,7 @@ Minimal two-leg example:
 pm-config-gen \
   --symbols AAPL MSFT \
   --participants TRADER01 \
-  --combo "SEED-PAIR:AON:DAY:AAPL/BUY/LIMIT/100/20950,MSFT/SELL/LIMIT/50/41550" \
+  --combo "SEED-PAIR:AON:DAY:AAPL/BUY/LIMIT/100/209.50,MSFT/SELL/LIMIT/50/415.50" \
   --output engine_config.yaml
 ```
 
@@ -780,14 +800,14 @@ market_maker_combos:
     side: BUY
     order_type: LIMIT
     quantity: 100
-    price: 20950.0
+    price: 209.5
     stop_price: null
     smp_action: NONE
   - symbol: MSFT
     side: SELL
     order_type: LIMIT
     quantity: 50
-    price: 41550.0
+    price: 415.5
     stop_price: null
     smp_action: NONE
 ```
@@ -798,8 +818,8 @@ Multiple combos use repeated `--combo` flags:
 pm-config-gen \
   --symbols AAPL MSFT TSLA \
   --participants TRADER01 \
-  --combo "PAIR-AM:AON:DAY:AAPL/BUY/LIMIT/100/20950,MSFT/SELL/LIMIT/50/41550" \
-  --combo "PAIR-AT:AON:DAY:AAPL/BUY/LIMIT/100/20950,TSLA/SELL/LIMIT/20/24800" \
+  --combo "PAIR-AM:AON:DAY:AAPL/BUY/LIMIT/100/209.50,MSFT/SELL/LIMIT/50/415.50" \
+  --combo "PAIR-AT:AON:DAY:AAPL/BUY/LIMIT/100/209.50,TSLA/SELL/LIMIT/20/248.00" \
   --output engine_config.yaml
 ```
 
@@ -1063,8 +1083,8 @@ pm-config-gen \
   --outstanding-shares MSFT:7430000000 \
   --outstanding-shares TSLA:3200000000 \
   --sessions-enabled \
-  --combo "SEED-AM:AON:DAY:AAPL/BUY/LIMIT/100/20950,MSFT/SELL/LIMIT/50/41550" \
-  --combo "SEED-AT:AON:DAY:AAPL/BUY/LIMIT/100/20950,TSLA/SELL/LIMIT/20/24800" \
+  --combo "SEED-AM:AON:DAY:AAPL/BUY/LIMIT/100/209.50,MSFT/SELL/LIMIT/50/415.50" \
+  --combo "SEED-AT:AON:DAY:AAPL/BUY/LIMIT/100/209.50,TSLA/SELL/LIMIT/20/248.00" \
   --output engine_config.yaml
 ```
 
@@ -1104,13 +1124,17 @@ pm-config-gen \
   --symbol-opts AAPL:enforce_mm_obligation=true,mm_spread_ticks=8 \
   --symbol-opts MSFT:enforce_mm_obligation=false \
   --seed-mm-mid-range 20:300 \
+  --mm-seed-spread-ticks 4 \
   --seed 20260706 \
   --sessions-enabled \
   --output engine_config.yaml
 ```
 
 This uses `enforce_mm_obligation=false` on MSFT to disable the check for that
-symbol only, while leaving it enabled globally. Gateway descriptions appear in
+symbol only, while leaving it enabled globally. `--mm-seed-spread-ticks 4`
+makes the seeded quotes 8 ticks wide, so they satisfy AAPL's
+`mm_spread_ticks=8`; with the default half-spread of 10 ticks the seeds would be
+20 ticks wide, and `pm-config-gen` would refuse to write the file. Gateway descriptions appear in
 the generated YAML as the `description` field on each `participants` entry.
 
 
@@ -1136,9 +1160,10 @@ pm-scheduler
 ```
 
 The artifact is not a reformatted copy of your YAML. A source naming two keys
-compiles to nine fully-resolved sections: a `market_data_gateway` block you
-never wrote still arrives with all of its fields, which is what lets each
-process deserialise rather than decide.
+compiles to ten fully-resolved sections (`engine`, the six gateway and service
+sections, `log_client`, `monitor` and `api_gateways`) plus a `meta` block: a
+`market_data_gateway` block you never wrote still arrives with all of its
+fields, which is what lets each process deserialise rather than decide.
 
 Deployment replaces the running configuration but does not disturb live
 processes; restart them to pick it up.
@@ -1195,12 +1220,14 @@ The available examples are all located in the directory `docs/examples/ref_data/
 | `s150-nominal-nomm-setup` | `s150-nominal-nomm` | nominal | 150 | yes | no |
 | `s150-complex-nomm-setup` | `s150-complex-nomm` | complex | 150 | yes | no |
 | `s300-load-setup` | `s300-load` | load | 300 | yes | yes |
+| `s300-sim-setup` | `s300-sim` | sim | 300 | yes | yes |
 
 The shorthand is always `s<count>-<profile>`, where `<count>` is one of `1`,
 `3`, `10`, `30`, or `150` and `<profile>` is one of `basic`, `nominal`, or
-`complex`. The one exception is `s300-load`, the AI-trader load test bed
-(300 symbols, participants `AI001`–`AI500`), which has no profile and no
-`-nomm` variant. Any other shorthand also accepts an optional trailing `-nomm`
+`complex`. The exceptions are `s300-load`, the AI-trader load test bed
+(300 symbols, participants `AI001`–`AI500`), and `s300-sim`, the long-running
+simulated market (300 symbols, `AI001`–`AI100`, with a `market_sim.yaml`); neither
+has a profile or a `-nomm` variant. Any other shorthand also accepts an optional trailing `-nomm`
 (`s<count>-<profile>-nomm`, e.g. `s3-basic-nomm`) to deploy the
 no-market-maker-quotes variant of that same example — the `MARKET_MAKER`
 gateway is still present so a market maker can connect and quote, but the
@@ -1241,9 +1268,9 @@ instead.
 
 ```json
 "meta": {
-  "schema_version": 3,
-  "compiler_version": "0.17.0",
-  "compiled_at": "2026-07-30T16:43:18.000Z",
+  "schema_version": 5,
+  "compiler_version": "0.66.3",
+  "compiled_at": "2026-10-31T23:19:37.000Z",
   "source_path": "/Users/you/course/engine_config.yaml",
   "source_sha256": "e3bc2f14cf5c10da…",
   "content_sha256": "87be4dc0b9b645cb…"
@@ -1431,306 +1458,23 @@ pm-config-show --format pdf --all -o operations.pdf     # keys in full
     hand out or print for a class.
 
 
-## Minimal Example
+## Choosing a Starting Point
 
-Use this when you want the smallest fully working configured exchange. It starts
-in continuous matching mode, accepts only `AAPL`, and allows two trader gateways.
-This mirrors the live sample `engine_config.yaml`.
+Three real configurations used to be listed here as "minimal", "medium" and
+"fully complex". They are now built up step by step, with every parameter
+explained and every listing verified, in
+[The Configuration File, Block by Block](005-the-configuration-file.md). Pick the
+step that matches the exchange you want to run:
 
-```yaml
-sessions_enabled: false
-enforce_collars: true
-enforce_circuit_breakers: true
-engine_tuning:
-  snapshot_interval_sec: 0.5
+| You want… | Start from | Then add |
+|---|---|---|
+| A matching demo with no scheduler and no liquidity | [Step 1](005-the-configuration-file.md#step-1-the-smallest-working-file) — `symbols`, `participants`, `sessions_enabled: false` | reference prices ([Step 2](005-the-configuration-file.md#step-2-reference-data)) |
+| A classroom day with auctions | [Step 3](005-the-configuration-file.md#step-3-the-trading-day) | collars and breakers ([Step 4](005-the-configuration-file.md#step-4-price-protection)) |
+| Books that are never empty | [Step 5](005-the-configuration-file.md#step-5-market-makers-and-seeded-liquidity) | an index ([Step 7](005-the-configuration-file.md#step-7-a-market-index)) |
+| External clients, dashboards, logs | [Step 8](005-the-configuration-file.md#step-8-the-access-points) and [Step 9](005-the-configuration-file.md#step-9-operations-logging-and-health) | — |
+| A ready-made file for a class of a given size | [Deploying example configurations](#deploying-example-configurations) | edit and redeploy |
 
-symbols:
-  AAPL:
-    tick_decimals: 2
-    last_buy_price: 209.50
-    last_sell_price: 210.50
-
-participants:
-  - id: TRADER01
-    description: Student workstation 1
-    role: TRADER
-    disconnect_behaviour: CANCEL_ALL
-  - id: TRADER02
-    description: Student workstation 2
-    role: TRADER
-    disconnect_behaviour: CANCEL_ALL
-```
-
-This config does not define a `MARKET_MAKER` gateway, so no
-`market_maker_quotes` are required.
-
-
-## Medium Example
-
-Use this for a classroom session with scheduled phases, multiple symbols, an
-operator gateway, reusable collar levels, and a normal continuous trading day.
-
-```yaml
-sessions_enabled: true
-enforce_collars: true
-enforce_circuit_breakers: true
-engine_tuning:
-  snapshot_interval_sec: 0.5
-
-risk_controls:
-  default_level: L2
-  levels:
-    L1:
-      collar:
-        static_band_pct: 0.30
-        dynamic_band_pct: 0.05
-    L2:
-      collar:
-        static_band_pct: 0.20
-        dynamic_band_pct: 0.02
-
-symbols:
-  AAPL:
-    tick_decimals: 2
-    last_buy_price: 209.50
-    last_sell_price: 210.50
-  MSFT:
-    tick_decimals: 2
-    level: L1
-    last_buy_price: 415.00
-    last_sell_price: 415.50
-  TSLA:
-    tick_decimals: 2
-    collar:
-      dynamic_band_pct: 0.04
-
-participants:
-  - id: TRADER01
-    description: Student workstation 1
-    role: TRADER
-    disconnect_behaviour: CANCEL_ALL
-  - id: TRADER02
-    description: Student workstation 2
-    role: TRADER
-    disconnect_behaviour: CANCEL_ALL
-  - id: OPS01
-    description: Instructor console
-    role: ADMIN
-    disconnect_behaviour: LEAVE_ALL
-
-schedule:
-  weekdays:
-    pre_open: "09:00"
-    opening_auction_start: "09:25"
-    continuous_start: "09:30"
-    closing_auction_start: "16:00"
-    closing_auction_end: "16:05"
-```
-
-This still avoids market-maker seed quotes. Students can supply liquidity
-manually, and the operator can manage session phases and exchange-wide
-circuit-breaker controls.
-
-
-## Fully Complex Example
-
-Use this as a reference for every major parser-supported feature: market-maker
-roles, quote seeds, obligation policy, collar profiles, circuit-breaker defaults,
-symbol overrides, startup combo seeds, and scheduler times.
-
-```yaml
-sessions_enabled: true
-enforce_collars: true
-enforce_circuit_breakers: true
-engine_tuning:
-  snapshot_interval_sec: 0.5
-  quote_history_maxlen: 30
-  drop_copy_buffer_size: 10000
-  recent_trades_maxlen: 20
-  depth_snapshot_tolerance_ticks: 100
-
-mm_obligation_defaults:
-  enforce_mm_obligation: true
-  mm_max_spread_ticks: 20
-  mm_min_qty: 100
-  symbols:
-    AAPL:
-      enforce_mm_obligation: true
-      mm_max_spread_ticks: 8
-      mm_min_qty: 200
-    TSLA:
-      enforce_mm_obligation: true
-      mm_max_spread_ticks: 40
-      mm_min_qty: 50
-
-risk_controls:
-  default_level: L2
-  levels:
-    L1:
-      collar:
-        static_band_pct: 0.30
-        dynamic_band_pct: 0.05
-    L2:
-      collar:
-        static_band_pct: 0.20
-        dynamic_band_pct: 0.02
-    L3:
-      collar:
-        static_band_pct: 0.12
-        dynamic_band_pct: 0.01
-
-circuit_breaker_defaults:
-  reference_window_ns: 300000000000
-  levels:
-    L1:
-      price_shift_pct: 0.07
-      halt_duration_ns: 300000000000
-    L2:
-      price_shift_pct: 0.13
-      halt_duration_ns: 900000000000
-    L3:
-      price_shift_pct: 0.20
-      halt_duration_ns:
-
-participants:
-  - id: TRADER01
-    description: Student workstation 1
-    role: TRADER
-    disconnect_behaviour: CANCEL_ALL
-  - id: TRADER02
-    description: Student workstation 2
-    role: TRADER
-    disconnect_behaviour: CANCEL_ALL
-  - id: MM01
-    description: Primary market maker
-    role: MARKET_MAKER
-    disconnect_behaviour: CANCEL_QUOTES_ONLY
-    quote_refresh_policy: INACTIVATE_ON_ANY_FILL
-    enforce_mm_obligation: true
-    mm_max_spread_ticks: 20
-    mm_min_qty: 100
-    mm_obligations:
-      AAPL:
-        enforce_mm_obligation: true
-        max_spread_ticks: 6
-        min_qty: 300
-      TSLA:
-        enforce_mm_obligation: true
-        max_spread_ticks: 50
-        min_qty: 50
-  - id: MM02
-    description: Backup market maker
-    role: MARKET_MAKER
-    disconnect_behaviour: CANCEL_QUOTES_ONLY
-    quote_refresh_policy: INACTIVATE_ON_FULL_FILL
-    enforce_mm_obligation: true
-    mm_max_spread_ticks: 30
-    mm_min_qty: 50
-  - id: OPS01
-    description: Instructor console
-    role: ADMIN
-    disconnect_behaviour: LEAVE_ALL
-
-symbols:
-  AAPL:
-    tick_decimals: 2
-    last_buy_price: 209.50
-    last_sell_price: 210.50
-    collar:
-      dynamic_band_pct: 0.015
-    circuit_breaker:
-      levels:
-        L1:
-          halt_duration_ns: 180000000000
-    market_maker_quotes:
-      - gateway_id: MM01
-        quote_id: SEED-MM01-AAPL
-        bid_price: 209.00
-        ask_price: 211.00
-        bid_qty: 2000
-        ask_qty: 2000
-        tif: DAY
-        seed_once: true
-      - gateway_id: MM02
-        quote_id: SEED-MM02-AAPL
-        bid_price: 208.50
-        ask_price: 211.50
-        bid_qty: 1000
-        ask_qty: 1000
-        tif: DAY
-        seed_once: true
-
-  MSFT:
-    tick_decimals: 2
-    level: L1
-    last_buy_price: 415.00
-    last_sell_price: 415.50
-    market_maker_quotes:
-      - gateway_id: MM01
-        quote_id: SEED-MM01-MSFT
-        bid_price: 414.00
-        ask_price: 416.00
-        bid_qty: 1000
-        ask_qty: 1000
-        tif: DAY
-        seed_once: true
-
-  TSLA:
-    tick_decimals: 2
-    level: L3
-    last_buy_price: 248.00
-    last_sell_price: 249.00
-    collar:
-      dynamic_band_pct: 0.04
-    circuit_breaker:
-      levels:
-        L1:
-          halt_duration_ns: 600000000000
-        L2:
-          halt_duration_ns: 1800000000000
-    market_maker_quotes:
-      - gateway_id: MM01
-        quote_id: SEED-MM01-TSLA
-        bid_price: 247.00
-        ask_price: 250.00
-        bid_qty: 500
-        ask_qty: 500
-        tif: DAY
-        seed_once: false
-
-market_maker_combos:
-  - combo_id: SEED-PAIR-AAPL-MSFT
-    combo_type: AON
-    tif: DAY
-    legs:
-      - symbol: AAPL
-        side: BUY
-        order_type: LIMIT
-        quantity: 100
-        price: 20950
-        smp_action: NONE
-      - symbol: MSFT
-        side: SELL
-        order_type: LIMIT
-        quantity: 50
-        price: 41550
-        smp_action: NONE
-
-schedule:
-  weekdays:
-    pre_open: "09:00"
-    opening_auction_start: "09:25"
-    continuous_start: "09:30"
-    closing_auction_start: "16:00"
-    closing_auction_end: "16:05"
-```
-
-!!! important "Every price in this file is display money"
-    `market_maker_quotes`, `last_buy_price`/`last_sell_price` and startup combo
-    legs all use display prices such as `209.50`. The engine converts them to
-    ticks as it loads, and rejects a price the symbol's tick grid cannot
-    represent: at `tick_decimals: 2`, `209.505` is a config error rather than a
-    price quietly rounded to `209.50` or `209.51`.
+The complete file at the end of that chapter is the reference "full" configuration.
 
 
 ## Configuration Checklist
@@ -1743,11 +1487,14 @@ Use this checklist when creating a new engine configuration.
 
 2. Define the symbol universe.
    Add every tradable symbol under `symbols`, set `tick_decimals`, and add
-   `last_buy_price` / `last_sell_price` if viewers should start with references.
+   `last_buy_price` / `last_sell_price` so collars and circuit breakers have a
+   reference from the first order. Add `outstanding_shares` for index
+   constituents.
 
-3. Define ALF gateways.
-   Add every expected `pm-alf-console --id ...` under `participants`. Choose
-   `TRADER`, `MARKET_MAKER`, or `ADMIN`, then choose disconnect behavior.
+3. Define the participants.
+   Add every expected `pm-alf-console --id ...` (and every BALF and API
+   identity) under `participants`. Choose `TRADER`, `MARKET_MAKER`, or `ADMIN`,
+   then choose disconnect behavior. Include at least one `ADMIN`.
 
 4. Decide whether market makers exist.
    If no gateway has `role: MARKET_MAKER`, `market_maker_quotes` are optional.
@@ -1766,8 +1513,8 @@ Use this checklist when creating a new engine configuration.
    only for gateway-specific exceptions.
 
 7. Add startup combos only after symbols are stable.
-   Keep combo leg symbols unique within one combo, use 2 to 10 legs, and remember
-   combo leg prices are integer ticks.
+   Keep combo leg symbols unique within one combo and use 2 to 10 legs. Leg
+   prices are display money (`209.50`), like every other price in the file.
 
 8. Add index calculations if needed.
    Define each `pm-index` process in the `indices` block. Every constituent must
@@ -1776,8 +1523,9 @@ Use this checklist when creating a new engine configuration.
    block automatically.
 
 9. Add a schedule if sessions are enabled.
-   Provide all five schedule keys for readability and confirm times are local
-   server `HH:MM` strings.
+   Every schedule block must contain all five keys. Times are `HH:MM` in
+   `locale.session_timezone` (default `Europe/Stockholm`), not the host's
+   clock; set `locale` to match where your class is.
 
 10. Check persistence before first run.
     Remove stale state when changing seed behavior or symbol universe, especially
@@ -1786,8 +1534,9 @@ Use this checklist when creating a new engine configuration.
     when installed, or `$EDUMATCHER_DATA_DIR` if set).
 
 11. Validate before class or demo.
-    Start `pm-engine --verbose`, connect each gateway
-    ID you expect to use, and run `SYMBOLS` from a gateway.
+    Run `pm-cverifier`, deploy with `pm-config-deploy`, start
+    `pm-engine --verbose`, connect each gateway ID you expect to use, and run
+    `SYMBOLS` from a gateway.
 
 
 ## Startup and Persistence Order
@@ -1797,15 +1546,18 @@ The effective engine startup sequence is:
 ```text
 Engine startup
     |
-    +-- 1. Parse config if present
-    +-- 2. Bind main PULL/PUB sockets
-    +-- 3. Restore persisted GTC orders from <DATA_DIR>/gtc_orders.json
-    +-- 4. Restore persisted GTC combos from <DATA_DIR>/gtc_combos.json
-    +-- 5. Load persisted book stats from <DATA_DIR>/book_stats.json
-    +-- 6. Inject market_maker_quotes
-    +-- 7. Inject market_maker_combos
-    +-- 8. Bind drop-copy PUB :5557 if available
-    +-- 9. Publish initial book snapshots
+    +-- 1. Load the deployed (compiled) configuration, if there is one
+    +-- 2. Bind the main PULL (5555) and PUB (5556) sockets
+    +-- 3. Restore persisted GTC orders and combos from
+    |      <DATA_DIR>/gtc_orders.json and <DATA_DIR>/gtc_combos.json
+    +-- 4. Load persisted book stats from <DATA_DIR>/book_stats.json, seed the
+    |      books' last prices, and build collars and circuit breakers from them
+    +-- 5. Inject market_maker_quotes (a seed_once quote is skipped when its
+    |      gateway already has a restored live quote on the symbol)
+    +-- 6. Inject market_maker_combos
+    +-- 7. Publish the starting collar bands and book checkpoints
+    +-- 8. Bind the drop-copy PUB socket (5557)
+    +-- 9. Start serving
 ```
 
 `<DATA_DIR>` resolves to `src/data/` in a source checkout, `~/.local/share/edumatcher`
@@ -1852,14 +1604,26 @@ Edit `engine_config.yaml` and restart the engine.
 
 ## Validation Commands
 
-For a quick parser check from a source checkout:
+Before a configuration reaches a running exchange, check it in this order:
+
+```bash
+pm-cverifier engine_config.yaml          # every layer, with a Risk Summary
+pm-config-deploy --check engine_config.yaml   # validate and compile, install nothing
+```
+
+`pm-cverifier` reports every problem it can find; `pm-config-deploy --check`
+additionally compiles each section with the loader its own process uses. Neither
+changes anything.
+
+For a quick parser check from a source checkout, load the file with the engine's
+own loader:
 
 ```bash
 poetry run python -c 'from pathlib import Path; from edumatcher.engine.config_loader import load_engine_config; print(load_engine_config(Path("engine_config.yaml")))'
 ```
 
-If the file is valid, this prints the parsed `EngineConfig` object.  On error
-you get a traceback ending with a descriptive message:
+If the file is valid, this prints the parsed `EngineConfig` object. On error you
+get a traceback ending with a descriptive message:
 
 ```text
 ValueError: Engine config must have a 'symbols' mapping
@@ -1869,12 +1633,9 @@ ValueError: Engine config must have a 'symbols' mapping
 ValueError: participants[0].disconnect_behaviour is invalid
 ```
 
-For installed (pipx) users who do not have access to the `poetry run` environment,
-pass the config file to the engine directly — it validates on startup:
-
-```bash
-pm-engine
-```
+`pm-engine` itself does not take a config path: it always loads the **deployed**
+artifact, so an authored file is only checked by `pm-engine` after
+`pm-config-deploy` has installed it.
 
 For the focused config parser test suite:
 

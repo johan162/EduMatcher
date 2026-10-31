@@ -72,11 +72,12 @@ if optional, its absence leaves the feature disabled.
 
 Loaders are **permissive**: a key not defined in this specification is **ignored**
 and MUST NOT be relied upon for behaviour. Conforming producers SHOULD NOT emit
-unknown keys. `pm-cverifier` reports an unrecognised key inside a gateway or
-service process block (§6) as an **error** (`S121`), because the loader's
-silent fallback to a default would otherwise hide the typo; it does not check
-top-level keys, which `pm-config-show --all` lists — a mistyped section name is otherwise
-indistinguishable from an absent one.
+unknown keys. `pm-cverifier` reports an unrecognised key anywhere in the file —
+at the top level or at any depth of an engine section (§5) or gateway and service
+block (§6) — as an **error** (`S121`), because the loader's silent fallback to a
+default would otherwise hide the typo. The one exception is the key set of
+`schedule` itself, whose unknown keys are reported as `M027`. `pm-config-show --all`
+also lists top-level sections that are not part of this specification.
 
 ### 1.6 Case normalisation
 
@@ -345,7 +346,7 @@ ThresholdBandSpec:
 | `ask_qty` | `Qty` | ✔ | — | `> 0` |
 | `tif` | `Enum<TIF>` | – | `DAY` | |
 | `quote_id` | `Str` | – | `null` | empty string treated as `null` |
-| `seed_once` | `Bool` | – | `true` | when `true`, skip injection if `book_stats` already has this symbol |
+| `seed_once` | `Bool` | – | `true` | when `true`, skip injection if this gateway already has a live quote on the symbol restored from the previous run |
 
 ### 4.2 `CollarSpec` — `symbols.<S>.collar` and `risk_controls.levels.<L>.collar`
 
