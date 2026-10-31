@@ -2700,8 +2700,9 @@ No terminal input. External clients connect via HTTP or WebSocket.
 | `/ws/admin/monitor` | ADMIN    | Cross-gateway monitor feed                                        |
 | `/ws/admin/sim`     | ADMIN    | `pm-market-sim` true values and heartbeat                         |
 
-This is a summary; the full endpoint list is in the
-[REST and WebSocket API Reference](../../protocols-and-clients/part-2-specifications/060-rest-and-websocket.md).
+This is a summary. The full contract is the
+[REST API Reference](../../protocols-and-clients/part-2-specifications/060-rest-and-websocket.md)
+and the [WebSocket API Reference](../../protocols-and-clients/part-2-specifications/070-websocket.md).
 
 **Authentication:**
 
@@ -2710,44 +2711,33 @@ This is a summary; the full endpoint list is in the
 
 Trading keys (`gateway_id` set to a gateway ID) can reach order-entry endpoints
 and private event streams. Read-only keys (`gateway_id: null`) are limited to
-market-data and history endpoints.
+the public endpoints: reference data, session, halts, public history and market
+data.
 
 !!! tip
     When `swagger_enabled: true` in config, browse `http://127.0.0.1:<PORT>/docs`
     for interactive endpoint documentation and a live try-it UI.
 
-**Messages sent** (PUSH → :5555):
+**Messages sent** (PUSH → :5555, the engine):
 
-| Topic                    | Purpose                                         |
-|--------------------------|-------------------------------------------------|
-| `system.gateway_connect` | Engine authentication request (once at startup) |
-| `order.new`              | Order submission                                |
-| `order.cancel`           | Order cancellation                              |
-| `order.combo`            | Combo submission                                |
-| `quote.new`              | Quote submission                                |
-| `quote.cancel`           | Quote cancellation                              |
-| `risk.kill_switch`       | Mass cancel triggered by `/mass-cancel`         |
+| Group | Topics |
+|---|---|
+| Session | `system.gateway_connect`, `system.gateway_heartbeat`, `system.gateway_disconnect` |
+| Order entry | `order.new`, `order.cancel`, `order.amend`, `order.oco`, `order.oco_cancel`, `order.combo`, `order.combo_cancel`, `quote.new`, `quote.cancel`, `risk.kill_switch` (`/mass-cancel`) |
+| Queries | `order.orders_request`, `system.symbols_request`, `system.reference_request`, `system.session_state_request`, `system.session_schedule_request`, `system.position_request`, `system.halt_status_request`, `system.quote_bootstrap_request`, `system.quote_legs_request`, `system.gateways_request`, `system.risk_state_request`, `system.volume_request`, `book.snapshot_request`, `order.price_level_orders_request` |
+| Admin | `session.transition`, `system.reference_reload`, `risk.symbol_halt`, `risk.symbol_resume`, `risk.cancel_symbol`, `risk.kill_switch_gateway`, `risk.kill_switch_global`, `risk.circuit_breaker_halt_all`, `risk.circuit_breaker_resume_all`, `risk.force_uncross` |
 
-**Messages subscribed** (SUB from :5556):
+To `pm-index` (its own PULL socket): `index.rebalance`, `index.history_request`.
 
-| Topic                         | Purpose                                                  |
-|-------------------------------|----------------------------------------------------------|
-| `system.gateway_auth.{GW_ID}` | Engine authentication reply                              |
-| `order.ack.{GW_ID}`           | Order accepted or rejected                               |
-| `order.fill.{GW_ID}`          | Partial or full fill                                     |
-| `order.cancelled.{GW_ID}`     | Cancel confirmation                                      |
-| `order.expired.{GW_ID}`       | TIF expiry                                               |
-| `order.amended.{GW_ID}`       | Amend confirmation                                       |
-| `combo.ack.{GW_ID}`           | Combo accepted or rejected                               |
-| `combo.status.{GW_ID}`        | Combo lifecycle changes                                  |
-| `quote.ack.{GW_ID}`           | Quote accepted or rejected                               |
-| `quote.status.{GW_ID}`        | Quote lifecycle changes                                  |
-| `system.symbols.{GW_ID}`      | Symbol list reply                                        |
-| `book.{SYMBOL}`               | Live book snapshots for the market-data WebSocket stream |
-| `trade.executed`              | Trade events for the public market-data stream           |
-| `session.state`               | Session phase changes                                    |
+**Messages subscribed:** every topic the engine publishes (SUB from :5556 with
+an empty filter). The gateway routes each event itself: one addressed to a
+gateway goes to that gateway's private sockets, the rest to market data, and
+all of it to the admin monitor (see the
+[WebSocket API Reference](../../protocols-and-clients/part-2-specifications/070-websocket.md)).
+It also subscribes to `pm-index` and `pm-market-sim` for index history and the
+simulator's state, values and news.
 
-See [API Gateway (REST/WebSocket)](../../operator-guide/part-5-gateways/050-api-gateway.md) for endpoint reference, authentication examples, Swagger access, and client code.
+See [API Gateway (REST/WebSocket)](../../operator-guide/part-5-gateways/050-api-gateway.md) for configuration, keys, caches and operation, and [Protocol Support Library Examples](../../protocols-and-clients/part-4-writing-clients/030-example-libraries.md#rest-api-support-library-and-examples) for client code.
 
 
 
@@ -3817,7 +3807,7 @@ See [Messages](../../protocols-and-clients/part-5-message-reference/010-message-
 - [CALF Gateway — Market Data](../../operator-guide/part-5-gateways/030-calf-gateway.md) — external CALF gateway usage
 - [Centralized Log Server](../../operator-guide/part-6-observe-and-recover/040-log-server.md) — pm-log-srv/pm-log-cli operational guide
 - [ALF Gateway — Order Entry](../../operator-guide/part-5-gateways/010-alf-gateway.md) — external ALF order-entry gateway usage
-- [API Gateway (REST/WebSocket)](../../operator-guide/part-5-gateways/050-api-gateway.md) — REST/WebSocket gateway usage and endpoint reference
+- [API Gateway (REST/WebSocket)](../../operator-guide/part-5-gateways/050-api-gateway.md) — running and operating the REST/WebSocket gateway; the endpoint contract is the [REST API Reference](../../protocols-and-clients/part-2-specifications/060-rest-and-websocket.md) and the [WebSocket API Reference](../../protocols-and-clients/part-2-specifications/070-websocket.md)
 - [Market Index (pm-index)](../../operator-guide/part-4-run-a-market/070-market-index.md) — index configuration, calculation, and corporate actions
 
 **Protocols and Clients:**

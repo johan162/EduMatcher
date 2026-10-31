@@ -646,12 +646,12 @@ the same WP, with no aliases (no-backwards-compat rule).
 
 | WP | Title | Content | Findings | Size |
 |---|---|---|---|---|
-| **WP-API01** ✅ | Error model unification | **Done 2026-10-30 (uncommitted)**, see §9.2. Envelope for 404, 405 and 500 (Starlette and catch-all handlers). `HTTPBearer` with 401 and `WWW-Authenticate`. One validation status code (Q3). Admin engine refusals become 409 with specific codes. `UNKNOWN_ORDER` on `GET /orders/{id}`. Rule: 200 when the outcome is in the body, 202 when not. Decide `reason` and `errors[]`. Complete code table in the spec. | E1–E8, S2 | M |
-| **WP-API02** ✅ | Safe asynchronous writes | **Done 2026-10-30 (uncommitted)**, except `wait=ack` on the structure cancels (Q8), see §9.5. Ack timeout returns 202 with `order_id` and `ack_timeout: true`, never 503. Idempotency (Q2). `wait=ack` for OCO, combo, quote and their cancels. `replace`: race the reject topic, symbol-ready check, same-symbol rule, optional `wait=ack` for the replacement. | E7, R1, R2, C8 | M–L |
-| **WP-API03** ✅ | Resource layout freeze | **Done 2026-10-30 (uncommitted)**, see §9.3. WebSockets under `/api/v1/ws/*`. Admin resource scheme (D1). Remove duplicates (D2). One public `GET /session` open to read-only keys, plus `/halts` and symbols metadata (C5). `GET /quotes` replaces `/quotes/bootstrap`. Admin audit path rename (D3). Explicit `oco_id`/`combo_id` in responses. Update all four GUIs, the examples and the docs. Accept and pass through the disconnect `reason` trader-gui already sends (§9.2). | D1–D5, C5, DOC1 | L |
-| **WP-API04** ✅ | Typed contract | **Done 2026-10-30 (uncommitted)**, see §9.4. Response models for all operations. Generate engine-payload models from `spec/messages` through msgen; hand-write the gateway-owned ones. List-envelope convention and status enums (D6). Timestamp rule, with `index-events` switched to ISO (D7). Price-unit rule (D8, Q1). Explicit operationIds. Parameter descriptions and bounds. Scrub internal references from descriptions. Drop compatibility shims (subscription-ack legacy fields). | S1, S3, S4, D6–D8, DOC3 | L |
-| **WP-API05** ✅ | Correctness fixes | **Done 2026-10-30 (uncommitted)**, see §9.1. Bootstrap positions from the engine, matching `/positions` (R3). `/healthz` returns 503 when unhealthy (O2). Rebalance `reason` bounded and passed through, or removed (S5). Stop logging the API key (O1). OCO and combo leg validation, and rejection of irrelevant `OrderRequest` fields (S5). `GET /orders` cache fallback flagged or turned into a 503 (R4). Each fix gets a reproducing test first. | R3, R4, O1, O2, S5 | S–M |
-| **WP-API06** ✅ | Contract guard | **Done 2026-10-30 (uncommitted)**, see §9.6. Commit `openapi.json`; a test regenerates it and fails on diff; optional `oasdiff breaking` in CI. Lands last among the P0s, after WP-API04. | X1 | S |
+| **WP-API01** ✅ | Error model unification | **Done 2026-10-30**, see §9.2. Envelope for 404, 405 and 500 (Starlette and catch-all handlers). `HTTPBearer` with 401 and `WWW-Authenticate`. One validation status code (Q3). Admin engine refusals become 409 with specific codes. `UNKNOWN_ORDER` on `GET /orders/{id}`. Rule: 200 when the outcome is in the body, 202 when not. Decide `reason` and `errors[]`. Complete code table in the spec. | E1–E8, S2 | M |
+| **WP-API02** ✅ | Safe asynchronous writes | **Done 2026-10-30**, except `wait=ack` on the structure cancels (Q8), see §9.5. Ack timeout returns 202 with `order_id` and `ack_timeout: true`, never 503. Idempotency (Q2). `wait=ack` for OCO, combo, quote and their cancels. `replace`: race the reject topic, symbol-ready check, same-symbol rule, optional `wait=ack` for the replacement. | E7, R1, R2, C8 | M–L |
+| **WP-API03** ✅ | Resource layout freeze | **Done 2026-10-30**, see §9.3. WebSockets under `/api/v1/ws/*`. Admin resource scheme (D1). Remove duplicates (D2). One public `GET /session` open to read-only keys, plus `/halts` and symbols metadata (C5). `GET /quotes` replaces `/quotes/bootstrap`. Admin audit path rename (D3). Explicit `oco_id`/`combo_id` in responses. Update all four GUIs, the examples and the docs. Accept and pass through the disconnect `reason` trader-gui already sends (§9.2). | D1–D5, C5, DOC1 | L |
+| **WP-API04** ✅ | Typed contract | **Done 2026-10-30**, see §9.4. Response models for all operations. Generate engine-payload models from `spec/messages` through msgen; hand-write the gateway-owned ones. List-envelope convention and status enums (D6). Timestamp rule, with `index-events` switched to ISO (D7). Price-unit rule (D8, Q1). Explicit operationIds. Parameter descriptions and bounds. Scrub internal references from descriptions. Drop compatibility shims (subscription-ack legacy fields). | S1, S3, S4, D6–D8, DOC3 | L |
+| **WP-API05** ✅ | Correctness fixes | **Done 2026-10-30**, see §9.1. Bootstrap positions from the engine, matching `/positions` (R3). `/healthz` returns 503 when unhealthy (O2). Rebalance `reason` bounded and passed through, or removed (S5). Stop logging the API key (O1). OCO and combo leg validation, and rejection of irrelevant `OrderRequest` fields (S5). `GET /orders` cache fallback flagged or turned into a 503 (R4). Each fix gets a reproducing test first. | R3, R4, O1, O2, S5 | S–M |
+| **WP-API06** ✅ | Contract guard | **Done 2026-10-30**, see §9.6. Commit `openapi.json`; a test regenerates it and fails on diff; optional `oasdiff breaking` in CI. Lands last among the P0s, after WP-API04. | X1 | S |
 
 Suggested order: **05** (small, independent, removes bugs before refactoring)
 → **01** → **03** → **04** → **02** → **06**. WP-API03 and WP-API04 both touch
@@ -1095,10 +1095,10 @@ before WP-API07:
 
 | WP | Name | Scope | From | Size |
 |---|---|---|---|---|
-| **WP-API14** ✅ | Spec tables vs contract | **Done 2026-10-30 (uncommitted)**, extended to exact per-route error codes (Johan), see §9.7. A test checks each endpoint section of the REST spec (statuses, error codes) against `spec/rest/openapi.json`; fix what it finds (e.g. `ENGINE_TIMEOUT` on `DELETE /oco`, `/combos`). Pulled forward from WP-API09's docs part. | §9.1, §9.2, §9.5 | S–M |
-| **WP-API15** ✅ | trader-gui failure wording | **Done 2026-10-30 (uncommitted)**, see §9.8. Amend, cancel, replace, bulk and kill switch call a 503 "awaiting confirmation", but they don't wait, so a 503 means nothing was sent. Reuse WP-API02's ticket fix; correct the trader GUI guide's class C table. | §9.5 | S |
-| **WP-API16** ✅ | One order-validation rule | **Done 2026-10-30 (uncommitted)**, see §9.9. Move `_TYPE_FIELDS` to `models/` and apply it in REST, ALF (and BALF) and the engine (the engine is the backstop for combo legs, whose check differs today). One shared reject-code mapping. ALF rejects a field the order type doesn't use, like REST, with the same `reject_code`; ALF spec updated. | §9.1, §9.2, Q9 | M |
-| **WP-API17** ✅ | Structure cancel acks (Q8) | **Done 2026-10-31 (uncommitted)**, see §9.13. Engine: `oco.cancel_ack`, `combo.cancel_ack`, `quote.cancel_ack` (new messages, `request_tag` echoed, on success and refusal). REST: `DELETE /oco/{id}`, `/combos/{id}`, `/quotes/{symbol}` take `request_tag` and `?wait=ack` (200 with the verdict, 202 + `ack_timeout` when late), like order cancel; ALF and the GUIs read the new acks. After WP-API09, before 1.0. | Q8, §9.5 | M |
+| **WP-API14** ✅ | Spec tables vs contract | **Done 2026-10-30**, extended to exact per-route error codes (Johan), see §9.7. A test checks each endpoint section of the REST spec (statuses, error codes) against `spec/rest/openapi.json`; fix what it finds (e.g. `ENGINE_TIMEOUT` on `DELETE /oco`, `/combos`). Pulled forward from WP-API09's docs part. | §9.1, §9.2, §9.5 | S–M |
+| **WP-API15** ✅ | trader-gui failure wording | **Done 2026-10-30**, see §9.8. Amend, cancel, replace, bulk and kill switch call a 503 "awaiting confirmation", but they don't wait, so a 503 means nothing was sent. Reuse WP-API02's ticket fix; correct the trader GUI guide's class C table. | §9.5 | S |
+| **WP-API16** ✅ | One order-validation rule | **Done 2026-10-30**, see §9.9. Move `_TYPE_FIELDS` to `models/` and apply it in REST, ALF (and BALF) and the engine (the engine is the backstop for combo legs, whose check differs today). One shared reject-code mapping. ALF rejects a field the order type doesn't use, like REST, with the same `reject_code`; ALF spec updated. | §9.1, §9.2, Q9 | M |
+| **WP-API17** ✅ | Structure cancel acks (Q8) | **Done 2026-10-31**, see §9.13. Engine: `oco.cancel_ack`, `combo.cancel_ack`, `quote.cancel_ack` (new messages, `request_tag` echoed, on success and refusal). REST: `DELETE /oco/{id}`, `/combos/{id}`, `/quotes/{symbol}` take `request_tag` and `?wait=ack` (200 with the verdict, 202 + `ack_timeout` when late), like order cancel; ALF and the GUIs read the new acks. After WP-API09, before 1.0. | Q8, §9.5 | M |
 
 ### 9.7 WP-API14 outcome (2026-10-30)
 
@@ -1618,9 +1618,9 @@ Implements Q8 as decided: dedicated cancel acks, before 1.0.
 
 | WP | Title | Content | Findings | Size |
 |---|---|---|---|---|
-| **WP-API07** ✅ | Admin parity with `pm-admin-cli` | **Done 2026-10-30 (uncommitted)**, see §9.10. Market halt/resume (`halt_all`/`resume_all`). Symbol reopen through force-uncross, with `price` and `dry_run`. Gateway kill switch scoped by symbol. Admin quote cancel for another gateway. Engine-authoritative `GET /admin/gateways/{id}/orders`. Price-level drill-down. Daily volume. Fits the D1 scheme. | C1, R5 | M |
-| **WP-API08** ✅ | WebSocket normative spec | **Done 2026-10-30 (uncommitted)**, see §9.11. Normative WebSocket chapter (or AsyncAPI): auth, close codes, full event catalogue with schemas, control frames, seq and recovery semantics, slow-consumer and drop policy. Include `/ws/admin/sim`. Add the enum and unknown-field extension rules and the 1.0 stability statement (DOC6). | DOC2, DOC6 | M |
-| **WP-API09** ✅ | Examples and single source of docs | **Done 2026-10-30 (uncommitted)**, see §9.12. A Python client covering the order lifecycle, errors and retries, pagination, private-WebSocket recovery, market-data subscribe/resume and one admin flow. Examples run in CI. Spec endpoint tables generated from or tested against OpenAPI; the operator guide trimmed to concepts. | DOC4, DOC5 | M |
+| **WP-API07** ✅ | Admin parity with `pm-admin-cli` | **Done 2026-10-30**, see §9.10. Market halt/resume (`halt_all`/`resume_all`). Symbol reopen through force-uncross, with `price` and `dry_run`. Gateway kill switch scoped by symbol. Admin quote cancel for another gateway. Engine-authoritative `GET /admin/gateways/{id}/orders`. Price-level drill-down. Daily volume. Fits the D1 scheme. | C1, R5 | M |
+| **WP-API08** ✅ | WebSocket normative spec | **Done 2026-10-30**, see §9.11. Normative WebSocket chapter (or AsyncAPI): auth, close codes, full event catalogue with schemas, control frames, seq and recovery semantics, slow-consumer and drop policy. Include `/ws/admin/sim`. Add the enum and unknown-field extension rules and the 1.0 stability statement (DOC6). | DOC2, DOC6 | M |
+| **WP-API09** ✅ | Examples and single source of docs | **Done 2026-10-30**, see §9.12. A Python client covering the order lifecycle, errors and retries, pagination, private-WebSocket recovery, market-data subscribe/resume and one admin flow. Examples run in CI. Spec endpoint tables generated from or tested against OpenAPI; the operator guide trimmed to concepts. | DOC4, DOC5 | M |
 
 ### P2: can follow in 1.x (all additive)
 
@@ -1632,6 +1632,77 @@ Implements Q8 as decided: dedicated cancel acks, before 1.0.
 | **WP-API13** | Operations polish | Read rate-limit bucket, `Retry-After` and `RateLimit-*` headers, `ETag`/`If-None-Match` on `/reference*` (keyed on `config_version`), `X-Request-ID` echo, build version exposed, hashed keys and key reload, swagger-off guidance. | R6, O3, S6 | M |
 
 ---
+
+### 9.14 Close-out review (2026-10-31)
+
+**Status.** Every work package planned for 1.0 is done and committed:
+
+- the P0 set (WP-API01 to 06);
+- the P0b follow-ups (WP-API14 to 17);
+- P1 (WP-API07 to 09).
+
+All decided questions are recorded below. There is no Q7: the numbering
+jumps from Q6 to Q8.
+
+**What remains, and where it belongs:**
+
+| Item | When | Note |
+|---|---|---|
+| OCO cancel ownership (found in WP-API17, §9.13) | **before 1.0** | Engine: no owner check on `order.oco_cancel`, and pairs are keyed by the client's `oco_id` alone. Small engine WP |
+| WP-API10 to 13 (P2) | 1.x | All additive: market-data REST snapshots, structure and order queries, index and classroom control, rate-limit and caching headers |
+| `oasdiff breaking` in CI | after 1.0 | Needs a released 1.0 to diff against (§9.6) |
+| Intermittent e2e failure seen once on 2026-10-30 | watch | Not reproduced in about ten runs since; capture the test name if it recurs |
+
+**Documentation audit.** Four automated guards hold the normative documents
+to the code:
+
+- the committed contract (`spec/rest/openapi.json`);
+- per-route error codes;
+- the REST spec tables versus the contract;
+- the WebSocket chapter versus the code.
+
+The rest of the documentation is prose that no test reads, so this review
+swept it:
+
+- every `/api/v1/...` path named in the books, examples, READMEs, GUI
+  sources and Python sources, checked against the live route table;
+- the behaviours each WP changed: removed endpoints, error shapes, ack
+  timeouts, cancel acks, validation, `/status` access and the bootstrap
+  shapes.
+
+**Stale text the sweep found and fixed:**
+
+- **REST spec:**
+  - a "replaces `GET /history/session`" note;
+  - the admin bootstrap's `monitor_last_seq`, described as a drop-copy
+    sequence (it is the private-stream `stream_seq`). The route's OpenAPI
+    description also promised a monitor "resume" that does not exist; both
+    were corrected and the contract regenerated.
+- **Training guide:**
+  - the audit endpoint path (now `/audit`);
+  - `/status` described as open to read-only keys (it needs a trading key).
+- **Reference manual:**
+  - the gateway's sent and subscribed message lists were incomplete (no
+    amend, OCO, admin or query topics), and claimed a topic list where the
+    gateway subscribes to everything. They were rewritten from the code;
+  - the read-only key scope;
+  - pointers to the specs.
+- **Trader GUI guide:**
+  - the amend and quote-cancel "awaiting confirmation" timeouts, which can
+    no longer happen;
+  - the cancel-outcome notifications of WP-API17.
+- **Other guides:**
+  - the statistics guide's history rows for cancel refusals;
+  - the trader console's subscriptions;
+  - the admin console's `quote_cancel` reply topic;
+  - the protocols overview pointer.
+- **Code comments:** the generated `audit_db` config comment, in its two
+  sources and 32 example configs; 15 trader-gui comments naming
+  pre-WP-API03 paths (`/events`, `/quotes/bootstrap`, old admin paths); one
+  engine docstring.
+
+**Verdict:** the REST API v1 review can close once the OCO-ownership fix
+lands. Everything else open is additive and belongs to 1.x.
 
 ## 10. Decisions needed from you
 

@@ -4,7 +4,7 @@ import { useOrderStore } from "@/store/useOrderStore.js";
 import { useAuthStore } from "@/store/useAuthStore.js";
 
 /**
- * Feeds the live {@link useOrderStore} from the private `/events` stream: the
+ * Feeds the live {@link useOrderStore} from the private `/ws/private` stream: the
  * `orders.snapshot` seeds the working set on (re)connect, and each `order.*`
  * event is folded in. Mounted once at the app root for TRADER/MM (inert for
  * ADMIN, which receives no private order events). The blotter just reads the

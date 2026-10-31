@@ -670,10 +670,15 @@ Every value the recorder can write, and the engine topic it comes from:
 | `OCO_REJECT` | `oco.ack.*` with `accepted: false` | OCO pair rejected |
 | `OCO_CANCEL` | `oco.cancelled.*` | One leg of an OCO pair cancelled (row keyed on the OCO id; the leg also gets a `CANCEL`) |
 | `QUOTE_ACK` | `quote.ack.*` with `accepted: true` | Quote accepted |
-| `QUOTE_REJECT` | `quote.ack.*` with `accepted: false` | Quote rejected. A quote cancel for a symbol with no live quote names no quote: its row has an empty `order_id` and is identified by `gateway_id` and `symbol` |
+| `QUOTE_REJECT` | `quote.ack.*` with `accepted: false` | Quote rejected |
 | `QUOTE_STATUS` | `quote.status.*` | Quote status update |
 | `UNKNOWN` | any ack topic missing its `accepted` flag | See the note below |
 | `EVENT` | any other subscribed private topic | Unclassified |
+
+The outcome of an OCO, combo or quote *cancel* (`oco.cancel_ack`,
+`combo.cancel_ack`, `quote.cancel_ack`) is not a row of its own: the legs it
+cancelled appear as `CANCEL` rows, and a combo's as `COMBO_STATUS`
+`CANCELLED`. The `*_ACK` and `*_REJECT` rows are submissions only.
 
 Every `*_REJECT` row keeps the engine's `reject_code` (for example
 `INSUFFICIENT_LIQUIDITY`, `ORDER_NOT_FOUND`) next to the free-text `reason`.

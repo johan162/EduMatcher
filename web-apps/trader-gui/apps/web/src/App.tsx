@@ -44,7 +44,7 @@ export default function App() {
   // market-data focus subscription bound to the active symbol + watchlist.
   useWebSocketManager();
   useMarketDataSubscription();
-  // Surface live fills/terminals from /events as toasts + Event Center entries
+  // Surface live fills/terminals from /ws/private as toasts + Event Center entries
   // (TRADER/MM private stream; inert for ADMIN which has no order.* events).
   useOrderEventNotifications();
   // Keep the live order store (blotter) seeded from orders.snapshot + order.*.

@@ -42,7 +42,7 @@ function killSwitchError(err: unknown): void {
  *
  * NOTE: an earlier design revision treated By Gateway / Global as disabled
  * placeholders pending a backend endpoint. Those endpoints
- * (`/admin/kill-switch/gateway`, `/admin/kill-switch/global`) now exist, so they
+ * (`/admin/gateways/{gateway_id}/kill-switch`, `/admin/market/kill-switch`) now exist, so they
  * are implemented and working here.
  */
 export function KillSwitchPanel({ gateways }: KillSwitchPanelProps) {

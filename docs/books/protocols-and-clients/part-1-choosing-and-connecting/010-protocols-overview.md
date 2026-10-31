@@ -177,8 +177,8 @@ Use REST/WebSocket when you need:
 
 Where to read more:
 
-- Operational guide and endpoint reference: [API Gateway](../../operator-guide/part-5-gateways/050-api-gateway.md)
-- Formal reference: [Appendix - REST API Reference](../part-2-specifications/060-rest-and-websocket.md)
+- Endpoint contract: [REST API Reference](../part-2-specifications/060-rest-and-websocket.md) and [WebSocket API Reference](../part-2-specifications/070-websocket.md)
+- Running the gateway: [API Gateway](../../operator-guide/part-5-gateways/050-api-gateway.md)
 
 
 ## Drop copy and DC1 (`pm-dc-gwy`)

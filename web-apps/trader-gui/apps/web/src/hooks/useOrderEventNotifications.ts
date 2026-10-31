@@ -6,7 +6,7 @@ import { useSymbolStore } from "@/store/useSymbolStore.js";
 import { formatPrice } from "@/lib/formatters.js";
 
 /**
- * Bridge live private order lifecycle events (`/events`) into the Event Center
+ * Bridge live private order lifecycle events (`/ws/private`) into the Event Center
  * (§20) and Sonner toasts. Mounted once at the app root for TRADER/MARKET_MAKER.
  *
  * The synchronous accepted/rejected verdict for a NEW order is handled by the

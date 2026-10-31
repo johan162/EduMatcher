@@ -50,8 +50,8 @@ Recommended startup order:
 `pm-api-gwy` is an HTTP and WebSocket wrapper around the matching engine. It
 uses bearer tokens from `api_gateways.<NAME>.credentials`. A credential with a
 non-null `gateway_id` can submit and manage orders for that ALF gateway. A
-credential with `gateway_id: null` is read-only and can use status, reference,
-market-data, history, and public WebSocket paths.
+credential with `gateway_id: null` is read-only and can use the session, halts,
+reference, market-data, history, and public WebSocket paths.
 
 Multiple API gateway processes are configured with top-level `api_gateways`:
 
@@ -83,7 +83,7 @@ directly from that one resolved `gateway_id`:
 
 | Resolved `gateway_id` | Access |
 |---|---|
-| `null` | Read-only: reference data, history, public market data, `/status`, `/healthz` |
+| `null` | Read-only: session, halts, reference data, history, public market data, `/healthz` |
 | a configured ALF `gateway_id` | Trading: everything read-only gets, plus order/quote/combo/OCO submission and cancellation scoped to that one gateway |
 | a configured ALF `gateway_id` whose **engine** role is `ADMIN` | Everything trading gets, plus every `/api/v1/admin/*` endpoint |
 
@@ -188,7 +188,8 @@ read-only key.
 
 Expected behavior:
 
-- status works for trading and read-only keys
+- status works for a trading key and answers `403 READ_ONLY` for a read-only
+  key (it reports the caller's gateway, which a read-only key does not have)
 - order entry rejects a read-only key
 - Swagger lists the same route shapes exposed by `/openapi.json`
 
@@ -506,7 +507,7 @@ Fetch one order's full cross-gateway lifecycle from the audit trail:
 
 ```bash
 curl -i -H 'Authorization: Bearer key-ops01-demo' \
-  http://127.0.0.1:8080/api/v1/admin/orders/ORDER_ID
+  http://127.0.0.1:8080/api/v1/admin/orders/ORDER_ID/audit
 ```
 
 This endpoint is optional: it depends on a separate `pm-audit` index that

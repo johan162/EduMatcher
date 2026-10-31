@@ -785,7 +785,7 @@ flags.
   // per-gateway active (non-terminal) order count — pure cache, never null
   "active_order_counts": { "TRADER01": 3, "MM01": 12 },
 
-  // per-gateway highest drop-copy stream_seq seen — pure cache, never null
+  // each active gateway's private-stream stream_seq now — pure cache, never null
   "monitor_last_seq": { "TRADER01": 100482, "MM01": 88213 },
 
   "capabilities": {
@@ -1319,8 +1319,7 @@ are public information.
 ### `GET /api/v1/session`
 
 Purpose: return the venue's session phase and the locale clients render it in.
-Open to every key, read-only included. Replaces the former
-`GET /api/v1/history/session`.
+Open to every key, read-only included.
 
 **Arguments**
 

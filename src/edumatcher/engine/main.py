@@ -2519,7 +2519,7 @@ class Engine:
         """Reply with live per-symbol risk state (ADMIN only).
 
         Distinct from GET /reference/risk (static, named risk-level
-        definitions) and GET /admin/halts (currently-halted symbols only):
+        definitions) and GET /halts (currently-halted symbols only):
         this reports the *live* collar reference price and circuit-breaker
         state for every symbol that has one configured, halted or not.
         Prices are converted to display units; nothing here is a new piece

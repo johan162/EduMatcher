@@ -8,7 +8,7 @@ import { quotesBySymbol } from "@/lib/quotes.js";
 
 /**
  * Quote Management Panel (§14.1) — a card grid, one per configured symbol,
- * showing the active two-sided quote (from `GET /quotes/bootstrap`) with per-leg
+ * showing the active two-sided quote (from `GET /quotes`) with per-leg
  * fill bars. New quotes and cancels happen inline on each card; fill alerts and
  * cache reconciliation are handled app-wide by `useQuoteEvents`.
  *

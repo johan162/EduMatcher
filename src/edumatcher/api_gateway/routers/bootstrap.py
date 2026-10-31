@@ -523,8 +523,10 @@ async def bootstrap_mm(
         docs.ok(
             docs.BOOTSTRAP_ADMIN,
             "Everything an operator console needs after login. "
-            "`monitor_last_seq` is the per-gateway sequence to resume the "
-            "`/ws/admin/monitor` stream from.",
+            "`monitor_last_seq` is each active gateway's private-stream "
+            "`stream_seq` now: `/ws/admin/monitor` events for that gateway "
+            "carry the same counter, so a console can skip the ones it "
+            "already has. The monitor has no replay.",
         ),
         docs.errors(*docs.TRADING_KEY, "ENGINE_TIMEOUT", "ROLE_DENIED"),
     ),

@@ -871,9 +871,10 @@ semantics once amended, so the engine rejects the attempt with *"Cannot amend
     your intent is to stop trading the remainder, cancel the order; the 40
     already filled are yours either way.
 
-An amend that times out waiting for its ack shows *"Amend submitted —
-awaiting confirmation (check blotter)"* and closes the dialog, exactly like a
-submit timeout — it is not a rejection.
+An amend does not wait for the engine: the dialog closes once the gateway has
+taken it, and the outcome (amended, or refused with its reason) arrives in the
+blotter and the notifications. An error shown in the dialog means the amend
+was not sent.
 
 ### Cancel-Replace
 
@@ -927,7 +928,9 @@ large selection sends one request per order.
 per OCO/Combo group, which cancels the group as a unit
 (`DELETE /oco/{id}` or `DELETE /combos/{id}`) rather than looping over its
 member orders. The confirmation spells out the consequence, including that a
-combo's already-filled legs are not reversed.
+combo's already-filled legs are not reversed. The outcome arrives as a
+notification, *"OCO `{id}` cancelled"* or *"Cancel of OCO `{id}` refused"*
+(likewise for combos), next to the members' own cancels in the blotter.
 
 ### Seeing whether an order is resting or executed
 
@@ -1093,8 +1096,9 @@ takes **both resting legs** at once.
     not apply to it, and there is no undo toast. A quote cancel removes two
     resting orders at once, so it is treated as a high-impact action.
 
-A cancel that times out waiting for its ack shows *"Cancel submitted for
-`{symbol}` — awaiting confirmation"* — again, not a rejection.
+The outcome arrives as a notification: *"Quote `{symbol}` cancelled"*, or
+*"Cancel of quote `{symbol}` refused"* with the engine's reason (for example
+when there was no live quote).
 
 ### Quote Bootstrap & Legs
 

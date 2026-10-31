@@ -157,7 +157,7 @@ export interface RawOrder {
   order_type?: OrderType;
   tif?: Tif;
   quantity?: number;
-  qty?: number; // ack/fill/amend events and the /events snapshot cache use `qty`
+  qty?: number; // ack/fill/amend events and the /ws/private snapshot cache use `qty`
   remaining_qty?: number;
   price?: number | null;
   stop_price?: number | null;
@@ -761,7 +761,7 @@ export interface AdminOrdersResponse {
   retention_sec: number;
 }
 
-/** One audited event from `GET /api/v1/admin/orders/{id}` (pm-audit index). */
+/** One audited event from `GET /api/v1/admin/orders/{order_id}/audit` (pm-audit index). */
 export interface AdminOrderLifecycleEvent {
   timestamp: string;
   topic: string;
@@ -779,7 +779,7 @@ export interface AdminOrderLifecycleResponse {
 }
 
 /**
- * `POST /api/v1/admin/kill-switch/symbol` response (engine `CancelSymbolAck`).
+ * `POST /api/v1/admin/symbols/{symbol}/cancel-orders` response (engine `CancelSymbolAck`).
  * A rejected command is surfaced by the gateway as `409 KILL_SWITCH_REJECTED`,
  * so a `200` body here always has `accepted: true`.
  */
@@ -793,7 +793,7 @@ export interface AdminSymbolKillSwitchResponse {
 }
 
 /**
- * `POST /api/v1/admin/kill-switch/gateway` response (engine `KillSwitchGatewayAck`).
+ * `POST /api/v1/admin/gateways/{gateway_id}/kill-switch` response (engine `KillSwitchGatewayAck`).
  * Cancels every resting order/quote of one named participant (without
  * disconnecting it). Rejection → `409 KILL_SWITCH_REJECTED`, so a success body always has
  * `accepted: true`.
@@ -808,7 +808,7 @@ export interface AdminGatewayKillSwitchResponse {
 }
 
 /**
- * `POST /api/v1/admin/kill-switch/global` response (engine `KillSwitchGlobalAck`).
+ * `POST /api/v1/admin/market/kill-switch` response (engine `KillSwitchGlobalAck`).
  * Full-market emergency stop: cancels every resting order/quote for every
  * gateway. Adds `affected_gateways` to the usual counters.
  */
@@ -822,7 +822,7 @@ export interface AdminGlobalKillSwitchResponse {
 }
 
 /**
- * `POST /api/v1/admin/circuit-breaker/trigger` response (engine `SymbolHaltAck`).
+ * `POST /api/v1/admin/symbols/{symbol}/halt` response (engine `SymbolHaltAck`).
  * `level` is honoured end-to-end: naming one of the symbol's configured CB
  * levels runs the real breaker activation (auto-resume); omitting it is an
  * indefinite halt. Rejection → `409 HALT_REJECTED`.
@@ -835,7 +835,7 @@ export interface SymbolHaltAckResponse {
   command_id?: string;
 }
 
-/** `POST /api/v1/admin/circuit-breaker/resume` response (engine `SymbolResumeAck`). */
+/** `POST /api/v1/admin/symbols/{symbol}/resume` response (engine `SymbolResumeAck`). */
 export interface SymbolResumeAckResponse {
   accepted: boolean;
   symbol: string;
@@ -1275,7 +1275,7 @@ export interface TradeData {
 }
 
 /**
- * The `/events` socket's first data frame on (re)connect — a point-in-time
+ * The `/ws/private` socket's first data frame on (re)connect — a point-in-time
  * snapshot of this gateway's cached orders/positions/quote legs, accurate as of
  * `stream_seq`. `orders` rows are the accreted session-cache shape (keyed
  * `order_id`, `qty`/`quantity` both possible, status incl. PENDING/AMENDED),

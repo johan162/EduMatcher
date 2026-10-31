@@ -91,7 +91,7 @@ export const getOrder = (orderId: string) => apiFetch<Order>(`/api/v1/orders/${o
 
 // `wait: "ack"` asks the gateway to fold the first `order.ack` into the HTTP
 // response (§12.9) — the ticket uses this so a LIMIT submit yields a synchronous
-// accepted/rejected verdict without needing the /events + PENDING-row machinery.
+// accepted/rejected verdict without needing the /ws/private + PENDING-row machinery.
 export const submitOrder = (body: Record<string, unknown>, wait?: "ack") =>
   apiFetch<OrderAccepted>(`/api/v1/orders${wait ? `?wait=${wait}` : ""}`, {
     method: "POST",
