@@ -73,6 +73,7 @@ def check(raw: dict[str, Any], path: Path) -> list[CheckResult]:  # noqa: ARG001
     _check_monitor(raw, results)
     _check_api_gateway_sections(raw, results)
     _check_unknown_process_keys(raw, results)
+    _check_unknown_engine_keys(raw, results)
     return results
 
 
@@ -2937,11 +2938,12 @@ def _check_monitor_thresholds(thresholds: object, results: list[CheckResult]) ->
 
 
 # ---------------------------------------------------------------------------
-# Unknown keys in process blocks (S121)
+# Unknown keys (S121)
 # ---------------------------------------------------------------------------
 # The runtime loaders ignore a key they do not read, so a misspelled option
 # silently falls back to its default. These sets are the keys each loader reads;
-# tests/test_cverifier.py pins them to the loaders' config dataclasses.
+# tests/test_cverifier.py pins the process-block sets to the loaders' config
+# dataclasses. The engine sets further down follow the specification (§3-§5).
 
 _PROCESS_BLOCK_KEYS: dict[str, frozenset[str]] = {
     "alf_gateway": frozenset(
@@ -3105,16 +3107,17 @@ def _report_unknown_keys(
             continue
         close = difflib.get_close_matches(str(key), sorted(allowed), n=1)
         hint = f" Did you mean '{close[0]}'?" if close else ""
+        full = f"{path}.{key}" if path else str(key)
         results.append(
             CheckResult(
                 code="S121",
                 severity=Severity.ERROR,
-                message=f"'{path}.{key}' is not a recognised field.",
+                message=f"'{full}' is not a recognised field.",
                 suggestion=(
                     f"The loader ignores unknown keys, so this setting has no "
                     f"effect.{hint} Accepted: {', '.join(sorted(allowed))}."
                 ),
-                path=f"{path}.{key}",
+                path=full,
             )
         )
 
@@ -3179,3 +3182,249 @@ def _check_unknown_process_keys(
                     f"{base}.credentials[{index}]",
                     results,
                 )
+
+
+_ENGINE_TOP_LEVEL_KEYS = frozenset(
+    {
+        "symbols",
+        "participants",
+        "participant_defaults",
+        "sessions_enabled",
+        "enforce_collars",
+        "enforce_circuit_breakers",
+        "require_mm_seed_quotes",
+        "auction_indicative_interval_sec",
+        "engine_tuning",
+        "mm_obligation_defaults",
+        "risk_controls",
+        "circuit_breaker_defaults",
+        "market_maker_combos",
+        "indices",
+        "schedule",
+        "locale",
+        "api_gateways",
+        *_PROCESS_BLOCK_KEYS,
+    }
+)
+_SYMBOL_KEYS = frozenset(
+    {
+        "level",
+        "tick_decimals",
+        "outstanding_shares",
+        "last_buy_price",
+        "last_sell_price",
+        "market_maker_quotes",
+        "collar",
+        "order_limits",
+        "circuit_breaker",
+    }
+)
+_MM_QUOTE_KEYS = frozenset(
+    {
+        "gateway_id",
+        "bid_price",
+        "ask_price",
+        "bid_qty",
+        "ask_qty",
+        "tif",
+        "quote_id",
+        "seed_once",
+    }
+)
+_COLLAR_KEYS = frozenset({"static_band_pct", "dynamic_band_pct"})
+_ORDER_LIMIT_KEYS = frozenset({"max_order_qty", "max_order_value"})
+_PARTICIPANT_KEYS = frozenset(
+    {
+        "id",
+        "description",
+        "role",
+        "disconnect_behaviour",
+        "quote_refresh_policy",
+        "enforce_mm_obligation",
+        "mm_max_spread_ticks",
+        "mm_min_qty",
+        "mm_obligations",
+        "smp_action",
+    }
+)
+_PARTICIPANT_OBLIGATION_KEYS = frozenset(
+    {"enforce_mm_obligation", "max_spread_ticks", "min_qty"}
+)
+_MM_DEFAULTS_KEYS = frozenset(
+    {"enforce_mm_obligation", "mm_max_spread_ticks", "mm_min_qty", "symbols"}
+)
+_MM_DEFAULTS_SYMBOL_KEYS = frozenset(
+    {"enforce_mm_obligation", "mm_max_spread_ticks", "mm_min_qty"}
+)
+_ENGINE_TUNING_KEYS = frozenset(
+    {
+        "snapshot_interval_sec",
+        "quote_history_maxlen",
+        "drop_copy_buffer_size",
+        "recent_trades_maxlen",
+        "depth_snapshot_tolerance_ticks",
+    }
+)
+_RISK_CONTROLS_KEYS = frozenset({"default_level", "levels"})
+# circuit_breaker and order_limits are not supported under a risk level, but
+# are rejected by their own checks; naming them here avoids a second error.
+_RISK_LEVEL_KEYS = frozenset({"collar", "circuit_breaker", "order_limits"})
+_CB_KEYS = frozenset({"reference_window_ns", "levels", "reopening"})
+_CB_LEVEL_KEYS = frozenset({"price_shift_pct", "halt_duration_ns"})
+_CB_REOPENING_KEYS = frozenset(
+    {"enabled", "initial_band_pct", "expansions", "random_end_max_ns", "random_seed"}
+)
+_CB_EXPANSION_KEYS = frozenset({"widen_pct", "min_duration_ns"})
+_COMBO_KEYS = frozenset({"combo_id", "combo_type", "tif", "legs"})
+_COMBO_LEG_KEYS = frozenset(
+    {"symbol", "side", "order_type", "quantity", "price", "stop_price", "smp_action"}
+)
+_INDEX_KEYS = frozenset(
+    {
+        "id",
+        "description",
+        "base_value",
+        "publish_interval_sec",
+        "history_file",
+        "state_file",
+        "constituents",
+    }
+)
+_LOCALE_KEYS = frozenset({"country", "session_timezone"})
+_SCHEDULE_DAY_KEYS = frozenset(
+    {
+        "pre_open",
+        "opening_auction_start",
+        "continuous_start",
+        "closing_auction_start",
+        "closing_auction_end",
+    }
+)
+_SCHEDULE_BLOCK_NAMES = frozenset(
+    {"weekdays", "weekend", "holidays", "mon", "tue", "wed", "thu", "fri", "sat", "sun"}
+)
+
+
+def _each(section: object) -> list[tuple[str, object]]:
+    """``(index-or-key suffix, item)`` pairs of a list or mapping, else empty."""
+    if isinstance(section, list):
+        return [(f"[{i}]", item) for i, item in enumerate(section)]
+    if isinstance(section, dict):
+        return [(f".{k}", v) for k, v in section.items()]
+    return []
+
+
+def _check_unknown_cb_keys(cb: object, path: str, results: list[CheckResult]) -> None:
+    """S121 — a ``circuit_breaker`` / ``circuit_breaker_defaults`` block."""
+    _report_unknown_keys(cb, _CB_KEYS, path, results)
+    if not isinstance(cb, dict):
+        return
+    for suffix, level in _each(cb.get("levels")):
+        _report_unknown_keys(level, _CB_LEVEL_KEYS, f"{path}.levels{suffix}", results)
+    reopening = cb.get("reopening")
+    _report_unknown_keys(reopening, _CB_REOPENING_KEYS, f"{path}.reopening", results)
+    if isinstance(reopening, dict):
+        for suffix, rung in _each(reopening.get("expansions")):
+            _report_unknown_keys(
+                rung,
+                _CB_EXPANSION_KEYS,
+                f"{path}.reopening.expansions{suffix}",
+                results,
+            )
+
+
+def _check_unknown_engine_keys(raw: dict[str, Any], results: list[CheckResult]) -> None:
+    """S121 — a key no engine loader reads, at any level of an engine section."""
+    _report_unknown_keys(raw, _ENGINE_TOP_LEVEL_KEYS, "", results)
+
+    symbols = raw.get("symbols")
+    if isinstance(symbols, dict):
+        for sym, cfg in symbols.items():
+            base = f"symbols.{sym}"
+            _report_unknown_keys(cfg, _SYMBOL_KEYS, base, results)
+            if not isinstance(cfg, dict):
+                continue
+            for suffix, quote in _each(cfg.get("market_maker_quotes")):
+                _report_unknown_keys(
+                    quote,
+                    _MM_QUOTE_KEYS,
+                    f"{base}.market_maker_quotes{suffix}",
+                    results,
+                )
+            _report_unknown_keys(
+                cfg.get("collar"), _COLLAR_KEYS, f"{base}.collar", results
+            )
+            _report_unknown_keys(
+                cfg.get("order_limits"),
+                _ORDER_LIMIT_KEYS,
+                f"{base}.order_limits",
+                results,
+            )
+            _check_unknown_cb_keys(
+                cfg.get("circuit_breaker"), f"{base}.circuit_breaker", results
+            )
+
+    for suffix, participant in _each(raw.get("participants")):
+        base = f"participants{suffix}"
+        _report_unknown_keys(participant, _PARTICIPANT_KEYS, base, results)
+        if isinstance(participant, dict):
+            for sym, obligation in _each(participant.get("mm_obligations")):
+                _report_unknown_keys(
+                    obligation,
+                    _PARTICIPANT_OBLIGATION_KEYS,
+                    f"{base}.mm_obligations{sym}",
+                    results,
+                )
+
+    mm_defaults = raw.get("mm_obligation_defaults")
+    _report_unknown_keys(
+        mm_defaults, _MM_DEFAULTS_KEYS, "mm_obligation_defaults", results
+    )
+    if isinstance(mm_defaults, dict):
+        for suffix, entry in _each(mm_defaults.get("symbols")):
+            _report_unknown_keys(
+                entry,
+                _MM_DEFAULTS_SYMBOL_KEYS,
+                f"mm_obligation_defaults.symbols{suffix}",
+                results,
+            )
+
+    _report_unknown_keys(
+        raw.get("engine_tuning"), _ENGINE_TUNING_KEYS, "engine_tuning", results
+    )
+    _report_unknown_keys(raw.get("locale"), _LOCALE_KEYS, "locale", results)
+
+    risk = raw.get("risk_controls")
+    _report_unknown_keys(risk, _RISK_CONTROLS_KEYS, "risk_controls", results)
+    if isinstance(risk, dict):
+        for suffix, level in _each(risk.get("levels")):
+            level_path = f"risk_controls.levels{suffix}"
+            _report_unknown_keys(level, _RISK_LEVEL_KEYS, level_path, results)
+            if isinstance(level, dict):
+                _report_unknown_keys(
+                    level.get("collar"), _COLLAR_KEYS, f"{level_path}.collar", results
+                )
+
+    _check_unknown_cb_keys(
+        raw.get("circuit_breaker_defaults"), "circuit_breaker_defaults", results
+    )
+
+    for suffix, combo in _each(raw.get("market_maker_combos")):
+        base = f"market_maker_combos{suffix}"
+        _report_unknown_keys(combo, _COMBO_KEYS, base, results)
+        if isinstance(combo, dict):
+            for leg_suffix, leg in _each(combo.get("legs")):
+                _report_unknown_keys(
+                    leg, _COMBO_LEG_KEYS, f"{base}.legs{leg_suffix}", results
+                )
+
+    for suffix, index in _each(raw.get("indices")):
+        _report_unknown_keys(index, _INDEX_KEYS, f"indices{suffix}", results)
+
+    schedule = raw.get("schedule")
+    if isinstance(schedule, dict):
+        # Unknown keys of ``schedule`` itself are M027.
+        for name in sorted(_SCHEDULE_BLOCK_NAMES & set(schedule)):
+            _report_unknown_keys(
+                schedule[name], _SCHEDULE_DAY_KEYS, f"schedule.{name}", results
+            )
