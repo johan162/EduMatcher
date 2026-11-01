@@ -10472,7 +10472,7 @@ runs a sequence of checks <em>before</em> an order reaches <code>book.process()<
 <tbody>
 <tr>
 <td>Gateway allowed, connected and authenticated</td>
-<td><code>_handle_new_order</code> (fast path <code>_connected_fix_gateways</code>, fallback <code>_gateway_status</code>)</td>
+<td><code>_handle_new_order</code> (fast path <code>_connected_participants</code>, fallback <code>_gateway_status</code>)</td>
 <td>A disconnected or unauthorised participant must not inject live orders; rejecting early saves matching work.</td>
 </tr>
 <tr>
