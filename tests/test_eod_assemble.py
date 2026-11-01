@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import sqlite3
 from collections.abc import Generator
+from dataclasses import replace
 from decimal import Decimal
 from pathlib import Path
 
@@ -129,6 +130,30 @@ def test_a_self_trade_is_one_line_and_other_days_are_left_out(
     }
     assert [t.side for t in by["A"].trades] == ["BUY", "BUY"]
     assert [t.side for t in by["B"].trades] == ["SELL", "SELL", "SELF"]
+
+
+def test_result_by_symbol_leaves_out_what_is_neither_held_traded_nor_moved(
+    tmp_path: Path,
+) -> None:
+    # A symbol closed out long ago stays in the snapshot at 0.00 forever.
+    clearing = open_writer_connection(tmp_path / "clearing.db")
+    old = lambda sym, qty: replace(pos("A", qty, 0.0), symbol=sym)  # noqa: E731
+    flush_batch(
+        clearing,
+        [trade("T1", "A", "B", 1_000_000_000_000)],  # AAPL, flat afterwards
+        [old("AAPL", 0), old("HELD", 10), old("GONE", 0), pos("B", 0, 0.0)],
+        [],
+    )
+    write_close_snapshot(clearing, "2026-07-01")
+    ledger = open_ledger(tmp_path / "eod.db")
+    record_day(ledger, "2026-07-01", settle_date(clearing, "2026-07-01", None))
+    by = {
+        s.gateway: s for s in build_day(clearing, ledger, "2026-07-01", {}).statements
+    }
+    clearing.close()
+    ledger.close()
+    assert sorted(by["A"].symbol_pnl) == ["AAPL", "HELD"]  # traded; held
+    assert sorted(by["B"].symbol_pnl) == ["AAPL"]  # traded
 
 
 def test_warnings_name_unlisted_gateways(

@@ -7,7 +7,9 @@ from pathlib import Path
 
 import pytest
 
+from edumatcher.clearing.store import open_writer_connection
 from edumatcher.eod import main as eod_main
+from edumatcher.eod.ledger import open_ledger, runs
 from tests.test_eod_runner import close_day  # noqa: F401  (reuse the seeding helper)
 
 
@@ -92,6 +94,47 @@ def test_pending_runs_oldest_first_and_stops_at_a_failure(
     assert out.index("2026-07-01") < out.index("2026-07-02")
     assert cli(data, "run", "--pending") == 0
     assert "nothing pending" in capsys.readouterr().out
+
+
+def test_a_catch_up_takes_one_backup_after_its_last_date(
+    data: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # Every date would back up the same current databases under an old label.
+    close_day(data, "2026-07-02", 2000.0)
+    close_day(data, "2026-07-03", 3000.0)
+    assert cli(data, "run", "--pending") == 0
+    out = capsys.readouterr().out
+    assert sorted(p.name for p in (data / "backup").iterdir()) == ["2026-07-03"]
+    assert out.count("backup: deferred") == 3
+    lines = out.rstrip().splitlines()
+    assert lines[-2] == "2026-07-03:"
+    assert lines[-1].startswith("  [ok] backup: backed up")
+
+
+def test_a_catch_up_that_stops_still_backs_up_what_it_did(
+    data: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    close_day(data, "2026-07-02", 2000.0)
+    conn = open_writer_connection(data / "clearing.db")
+    conn.execute(  # a reconcile discrepancy fails 2026-07-02's gate
+        "INSERT INTO trade_events (id, ts_ns, trade_date, symbol, quantity,"
+        " price, buy_gateway_id, sell_gateway_id, ingest_ts_ns)"
+        " VALUES ('T', 1, '2026-07-02', 'AAPL', 5, 100, 'A', 'B', 1)"
+    )
+    conn.commit()
+    conn.close()
+    assert cli(data, "run", "--pending") == 1
+    assert sorted(p.name for p in (data / "backup").iterdir()) == ["2026-07-01"]
+    assert "stopping" in capsys.readouterr().out
+
+
+def test_one_date_backs_up_as_part_of_its_run(data: Path) -> None:
+    assert cli(data, "run", "--date", "2026-07-01") == 0
+    ledger = open_ledger(data / "eod.db")
+    steps = json.loads(runs(ledger)[0]["steps_json"])
+    ledger.close()
+    backup = next(s for s in steps if s["step"] == "backup")
+    assert backup["message"].startswith("backed up")
 
 
 def test_status_lists_runs_and_quiet_reports_health(

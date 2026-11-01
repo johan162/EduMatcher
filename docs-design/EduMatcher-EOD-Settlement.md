@@ -33,6 +33,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 | 9 | R2 | Review: a day's close snapshot is final once the day has closed | R1 | — | ☑ | 2026-11-01 |
 | 10 | R3 | Review: read one day of trades and the snapshot dates by index | R1 | — | ☑ | 2026-11-01 |
 | 11 | R4 | Review: docs (worked example re-run), `--only`+`--dry-run`, roster `.inf` | R3 | — | ☑ | 2026-11-01 |
+| 12 | R5 | Review: one backup per catch-up; statements without long-dead symbols | R4 | — | ☑ | 2026-11-01 |
 
 Total ≈ 7.5 d. E1 first because settlement is only as good as the closing
 marks it reads. E4 is independent of the money path and can run in parallel
@@ -697,3 +698,18 @@ instead of with the day. Measured on 1M `trade_events` (10 days), 100 gateways
 - Left alone: `query_close_snapshots(date_value=…)` has the same optional-filter
   form and scans the snapshot table (~40 ms per call at a year of history; a
   run makes four calls). The gate's `query_reconcile` is ~0.3 s per 1M trades.
+
+**Review fixes R5 (2026-11-01).** The last two low findings.
+- **One backup per catch-up.** A `--pending` run over N dates backed up the
+  same current databases N times, each under an older date's name. Now
+  `Options.backup=False` makes each date's step `deferred`, and `main` takes one
+  `backup_step` after the last date that got through, also when a later date
+  fails and stops the run. A single-date run (the normal close) still backs up
+  inside its run and records it in `eod_runs`. The deferred backup is printed,
+  counts towards the exit code, and is not recorded in a run row.
+- **Statements without long-dead symbols.** Flat positions stay in the
+  snapshot for good, so "Result by symbol" printed 0.00 for every symbol the
+  trader ever touched. It now lists a symbol only if it is held at the close,
+  traded that day or has a non-zero result; the ledger's `detail_json` keeps
+  every symbol. The empty-table text is now "Nothing held, traded or changed
+  today." (it said "No positions.", which was wrong for a trader with a result).

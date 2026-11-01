@@ -1562,7 +1562,7 @@ pm-eod [--datapath DIR] [--format table|json|csv] balances [--date YYYY-MM-DD] [
 | Flag | Default | Description |
 |---|---|---|
 | `--date YYYY-MM-DD` | â€” | The trading date to close. Exactly one of `--date` and `--pending` is required. |
-| `--pending` | off | Every closed date that has a close snapshot and no `ok` run, oldest first. Stops at the first failing date. |
+| `--pending` | off | Every closed date that has a close snapshot and no `ok` run, oldest first. Stops at the first failing date. With more than one date, each date's `backup` step is deferred and one backup is taken at the end, under the last date that got through. |
 | `--only STEP` | all steps | Re-run just `report`, `audit`, `logs` or `backup` for an already settled date. Not recorded in the run history. |
 | `--force` | off | Do not require the `CLOSED` session event (for exchanges without a scheduler). The close snapshot and reconcile checks still apply. |
 | `--redo` | off | Recompute the date: deletes its settlement **and the settlement of every later date**, then settles it again, all in one transaction (if the recomputation fails, nothing is deleted). |
@@ -1606,7 +1606,7 @@ A missing file is an empty roster. Errors name the line (`roster.yaml: line 7: â
 
 | File | Content |
 |---|---|
-| `statements/<gateway>.md` | The trader's statement (the headline, result by symbol, open positions at the close, trades) |
+| `statements/<gateway>.md` | The trader's statement (the headline, result by symbol, open positions at the close, trades). Result by symbol lists a symbol only if it is held at the close, traded that day or has a non-zero result |
 | `statements/<gateway>.json` | The same, with `amount_minor` / `balance_minor` as integers in minor units |
 | `statements/<gateway>.csv` | One row per symbol: `symbol,day_pnl,net_qty,mark` |
 | `instructions.csv` | `gateway,name,email,amount,direction,balance`; `direction` is `receive`, `pay` or `none` |

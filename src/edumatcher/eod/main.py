@@ -16,6 +16,7 @@ import csv
 import json
 import sys
 from collections.abc import Sequence
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -32,6 +33,7 @@ from edumatcher.eod.runner import (
     Paths,
     RunLocked,
     RunOutcome,
+    backup_step,
     exit_code,
     pending_dates,
     run_day,
@@ -154,18 +156,31 @@ def _cmd_run(args: argparse.Namespace, paths: Paths) -> int:
             if not dates:
                 print("nothing pending")
                 return 0
-            worst = 0
+            # Each date would back up the same current databases under its own
+            # (older) label, so a run of several dates takes one backup, after
+            # the last date it got through.
+            batch = len(dates) > 1
+            day_opts = replace(opts, backup=False) if batch else opts
+            worst, last_done = 0, None
             for day in dates:
                 outcome = run_day(
-                    paths, day, opts, today=_today(), now=datetime.now(UTC)
+                    paths, day, day_opts, today=_today(), now=datetime.now(UTC)
                 )
                 _print_outcome(outcome)
                 code = exit_code(outcome)
                 if code == 1:
-                    if len(dates) > 1:
+                    if batch:
                         print(f"stopping: later dates wait for {day}")
-                    return 1
-                worst = max(worst, code)
+                    worst = 1
+                    break
+                worst, last_done = max(worst, code), day
+            if batch and last_done and opts.only in (None, "backup"):
+                if not opts.dry_run:
+                    backup = RunOutcome(
+                        last_done, (backup_step(paths, last_done, opts),)
+                    )
+                    _print_outcome(backup)
+                    worst = max(worst, exit_code(backup))
             return worst
     except RunLocked as exc:
         print(f"pm-eod: {exc}", file=sys.stderr)

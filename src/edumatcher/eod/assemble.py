@@ -68,6 +68,17 @@ def build_day(
     statements = []
     for gateway in sorted(set(amounts) | set(roster)):
         person = roster.get(gateway)
+        # Flat positions stay in the snapshot for good, so a symbol closed out
+        # weeks ago would print 0.00 on every statement; show what the trader
+        # holds, traded today or gained/lost on today.
+        relevant = {p.symbol for p in held.get(gateway, ())} | {
+            t.symbol for t in trades.get(gateway, ())
+        }
+        symbol_pnl = {
+            sym: pnl
+            for sym, pnl in detail.get(gateway, {}).items()
+            if pnl != 0 or sym in relevant
+        }
         statements.append(
             Statement(
                 gateway=gateway,
@@ -77,7 +88,7 @@ def build_day(
                 trade_date=trade_date,
                 amount_minor=amounts.get(gateway, 0),
                 balance_minor=running.get(gateway, 0),
-                symbol_pnl=detail.get(gateway, {}),
+                symbol_pnl=symbol_pnl,
                 positions=tuple(held.get(gateway, ())),
                 trades=tuple(trades.get(gateway, ())),
             )

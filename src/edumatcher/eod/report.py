@@ -118,7 +118,7 @@ def render_statement_md(s: Statement) -> str:
         lines += ["| Symbol | Result |", "|---|---:|"]
         lines += [f"| {sym} | {pnl:.2f} |" for sym, pnl in sorted(s.symbol_pnl.items())]
     else:
-        lines.append("No positions.")
+        lines.append("Nothing held, traded or changed today.")
     lines += ["", "## Open positions at the close", ""]
     if s.positions:
         lines += ["| Symbol | Quantity | Closing price |", "|---|---:|---:|"]

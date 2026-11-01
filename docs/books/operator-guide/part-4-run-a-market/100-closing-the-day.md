@@ -719,7 +719,7 @@ arithmetic, and as text (`amount`: `"-20.00"`) for display.
 | `listed` | `true` if the gateway is in the roster |
 | `amount_minor` / `amount` | Today's settlement (positive = exchange owes the trader) |
 | `balance_minor` / `balance` | Running balance after today, including the opening balance |
-| `symbol_pnl` | Today's amount broken down by symbol |
+| `symbol_pnl` | Today's amount broken down by symbol. A symbol the trader no longer holds, did not trade today and made nothing on today is left out (otherwise every symbol ever traded would show 0.00 forever) |
 | `positions` | Open positions at the close: `symbol`, `net_qty`, `mark` (closing price) |
 | `trades` | Today's trades: `time_utc`, `symbol`, `side` (`BUY`, `SELL`, or `SELF`), `quantity`, `price` |
 
@@ -876,6 +876,9 @@ the step:
    to compare** — only a copy proven identical replaces anything.
 4. Deletes backup folders older than `--backup-keep-days` (default **7**).
 
+A run that catches up several days takes one backup at the end, under the last
+day's date (see [The scheduler was down](#the-scheduler-was-down-or-the-machine-was-off)).
+
 To leave a database out — for example a very large `stats.db` that you can do
 without — use `--backup-skip`, which may be repeated:
 `pm-eod run --pending --backup-skip stats.db`. The step's message then ends with
@@ -967,6 +970,28 @@ Nothing special: the next `pm-eod run --pending` (the scheduler runs it when it
 starts) settles every closed day that is still waiting, **oldest first**. If one
 of them fails, it stops there and says `stopping: later dates wait for <date>`,
 because a later day must never be settled before an earlier one.
+
+Catching up several days takes **one** backup, not one per day: every day would
+copy the same current databases, only under an older date. Each day's `backup`
+line says `deferred: one backup after the run's last date`, and the run ends with
+the backup itself, filed under the last day it got through. The worked example,
+with the scheduler down for all three days and `--pending` run once afterwards,
+ends like this:
+
+```text
+2026-11-04:
+  [ok] gate: closed, snapshot present, reconciled
+  [ok] settle: settled
+  [ok] report: wrote /srv/exchange/data/settlement/2026-11-04
+  [ok] audit: nothing pending
+  [ok] logs: no log directory
+  [ok] backup: deferred: one backup after the run's last date
+2026-11-04:
+  [ok] backup: backed up clearing.db, eod.db (132.0 KB -> 4.5 KB); not present: stats.db
+```
+
+If a day fails and the run stops, the backup is still taken, under the last day
+before it.
 
 ### The engine was restarted during the day
 

@@ -89,7 +89,9 @@ There are exactly three possible sentences:
 ### Result by symbol
 
 A **symbol** is the short code of one company's shares (`AAPL`). If you hold or
-traded several, this table shows how much of today's result came from each.
+traded several, this table shows how much of today's result came from each. A
+symbol you no longer hold, did not trade today and made nothing on today is not
+listed.
 Each line is rounded to two decimals on its own, so the lines can add up to
 0.01 more or less than *Today's result*; the result is the number that counts.
 

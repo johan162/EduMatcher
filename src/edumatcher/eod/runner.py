@@ -100,6 +100,9 @@ class Options:
     backup_keep_days: int = 7
     #: File names (``clearing.db`` ...) left out of the backup.
     backup_skip: tuple[str, ...] = ()
+    #: False defers the backup to the caller: a run of several dates copies
+    #: the same current databases each time, so it takes one at the end.
+    backup: bool = True
 
 
 @dataclass(frozen=True)
@@ -241,24 +244,35 @@ def run_day(
                 compress_logs(paths.logs, now=now, keep_days=opts.log_keep_days)
             )
         if opts.only in (None, "backup"):
-            wanted = [
-                db
-                for db in (paths.clearing, paths.stats, paths.ledger)
-                if db.name not in opts.backup_skip
-            ]
-            backup = backup_databases(
-                wanted, paths.backup, trade_date, keep_days=opts.backup_keep_days
-            )
-            if opts.backup_skip:
-                backup = StepResult(
-                    backup.step,
-                    backup.status,
-                    f"{backup.message}; skipped by request: {', '.join(opts.backup_skip)}",
+            steps.append(
+                backup_step(paths, trade_date, opts)
+                if opts.backup
+                else StepResult(
+                    "backup", "ok", "deferred: one backup after the run's last date"
                 )
-            steps.append(backup)
+            )
     finally:
         clearing.close()
     return finish()
+
+
+def backup_step(paths: Paths, trade_date: str, opts: Options) -> StepResult:
+    """Back up the databases under ``backup/<trade_date>/``."""
+    wanted = [
+        db
+        for db in (paths.clearing, paths.stats, paths.ledger)
+        if db.name not in opts.backup_skip
+    ]
+    backup = backup_databases(
+        wanted, paths.backup, trade_date, keep_days=opts.backup_keep_days
+    )
+    if opts.backup_skip:
+        backup = StepResult(
+            backup.step,
+            backup.status,
+            f"{backup.message}; skipped by request: {', '.join(opts.backup_skip)}",
+        )
+    return backup
 
 
 def _dry_run(
