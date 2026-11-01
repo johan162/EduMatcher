@@ -160,7 +160,7 @@ nav:
       - "Market Index (`pm-index`)": books/operator-guide/part-4-run-a-market/070-market-index.md
       - "Index Administration (`pm-index-admin-cli`)": books/operator-guide/part-4-run-a-market/080-index-administration.md
       - "The Market Model (`pm-market-sim`)": books/operator-guide/part-4-run-a-market/090-market-model.md
-      - "Closing the Day (`pm-eod`)": books/operator-guide/part-4-run-a-market/100-closing-the-day.md
+      - "Closing the Day: Settlement, Statements and Housekeeping": books/operator-guide/part-4-run-a-market/100-closing-the-day.md
     - "Part V: Gateways":
       - "ALF Gateway — Order Entry": books/operator-guide/part-5-gateways/010-alf-gateway.md
       - "BALF Gateway — Binary Order Entry": books/operator-guide/part-5-gateways/020-balf-gateway.md
@@ -256,7 +256,7 @@ nav:
       - "Capstone Scenario": books/training-guide/170-capstone-scenario.md
       - "Exchange Observer Processes": books/training-guide/180-exchange-observer-processes.md
       - "Advanced Admin Operations": books/training-guide/190-advanced-admin-operations.md
-      - "Closing the Day": books/training-guide/195-closing-the-day.md
+      - "Closing the Day: Settlement (`pm-eod`)": books/training-guide/195-closing-the-day.md
     - "Part V: Integration and advanced topics":
       - "Integration and advanced topics": books/training-guide/00-part-5.md
       - "Drop-Copy Replay & Recovery Patterns": books/training-guide/200-drop-copy-replay-recovery.md
