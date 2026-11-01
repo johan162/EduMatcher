@@ -17,6 +17,7 @@ def test_reference_renders_all_runtime_databases_and_ddl() -> None:
     for filename in (
         "stats.db",
         "clearing.db",
+        "eod.db",
         "log.db",
         "market_sim_news.db",
         "log-ui-acks.db",

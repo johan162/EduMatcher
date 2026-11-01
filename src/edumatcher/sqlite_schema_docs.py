@@ -39,6 +39,12 @@ def _initialize_clearing(conn: sqlite3.Connection) -> None:
     apply_schema(conn)
 
 
+def _initialize_eod(conn: sqlite3.Connection) -> None:
+    from edumatcher.eod.ledger import SCHEMA
+
+    conn.executescript(SCHEMA)
+
+
 def _initialize_log(conn: sqlite3.Connection) -> None:
     from edumatcher.log_srv.schema import initialize_schema
 
@@ -95,6 +101,13 @@ def database_specs() -> tuple[DatabaseSpec, ...]:
             "Executions, gateway positions, daily summaries, and clearing metadata.",
             "src/edumatcher/clearing/store.py",
             _initialize_clearing,
+        ),
+        DatabaseSpec(
+            "eod.db",
+            "pm-eod",
+            "End-of-day settlement ledger: each trader's amount per trading date.",
+            "src/edumatcher/eod/ledger.py",
+            _initialize_eod,
         ),
         DatabaseSpec(
             "log.db",

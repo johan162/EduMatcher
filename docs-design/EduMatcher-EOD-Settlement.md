@@ -23,7 +23,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 | # | WP | Content | Depends on | Est. | Status | Done on |
 |---|---|---|---|---|---|---|
 | 1 | E1 | Close-time snapshot: `pm-clearing` records every position, marked, when the session closes | — | 1 d | ☑ | 2026-11-01 |
-| 2 | E2 | Settlement engine and ledger: day P&L → integer cash, zero-sum, running balances (`eod.db`) | E1 | 1.5 d | ☐ | |
+| 2 | E2 | Settlement engine and ledger: day P&L → integer cash, zero-sum, running balances (`eod.db`) | E1 | 1.5 d | ☑ | 2026-11-01 |
 | 3 | E3 | Roster and reports: per-trader statements, exchange summary, leaderboard (CSV/JSON/Markdown) | E2 | 1.5 d | ☐ | |
 | 4 | E4 | Housekeeping steps: audit-archive check, log compression, compressed DB backups, retention | — | 1 d | ☐ | |
 | 5 | E5 | `pm-eod` CLI: `run` (gates, steps, idempotency), `--pending`, `status`, `balances`, health | E2–E4 | 1.5 d | ☐ | |
@@ -415,3 +415,25 @@ documented in E7.
 - `make test-e2e` ran 1 passed / 20 skipped here (the fixed-port exchange
   tests skip), so the end-to-end path of the new snapshot is covered by the
   unit tests only; a real sim day is the manual check.
+
+**E2 (2026-11-01).**
+- New package `src/edumatcher/eod/`: `settle.py` (pure arithmetic plus
+  `settle_date`, which only reads `position_close_snapshot`) and `ledger.py`
+  (`eod.db`, `EOD_DB_FILE` in `config.py`, listed in the generated SQLite
+  reference).
+- Changes against §3.1/§3.3, all simplifications: a position present in the
+  previous snapshot but absent today is **ignored** (not counted as 0 equity,
+  which would book a loss from nothing and break the zero sum); `eod_runs`
+  is **not** created yet — E5 owns it; balances are a function over the
+  amounts (`balances()`), not the `eod_balance` view; `redo_from` has no
+  "snapshot was pruned" refusal because snapshots are never pruned.
+- The zero-sum gate is `|exact total| ≤ 0.01 × positions`; anything beyond
+  is a `SettlementError`, anything within is booked to `EXCHANGE`
+  (`rounding_minor`). `record_day` independently refuses a day that does not
+  sum to exactly 0 and a date that is already settled or older than the
+  latest one.
+- `hypothesis` is not a dev dependency, so the property test is 25 seeded
+  random zero-sum days (2–40 accounts, 0–6 tick decimals): sum exactly 0 and
+  every amount within 1 minor unit of exact.
+- Any gateway with a snapshot row appears in the result, with 0 if its
+  equity did not change, so E3 can give every active trader a statement.

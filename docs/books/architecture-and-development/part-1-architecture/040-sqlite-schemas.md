@@ -709,6 +709,37 @@ CREATE INDEX ix_trade_events_symbol_date
   ON trade_events(symbol, trade_date)
 ```
 
+## `eod.db`
+
+**Owner:** pm-eod  
+**Purpose:** End-of-day settlement ledger: each trader's amount per trading date.  
+**Schema source:** `src/edumatcher/eod/ledger.py`
+
+### Fields
+
+| Object | Field | Declared type | Not null | Default | Primary key |
+|---|---|---|---|---|---|
+| `table: eod_settlement` | `trade_date` | `TEXT` | yes |  | 1 |
+| `table: eod_settlement` | `account` | `TEXT` | yes |  | 2 |
+| `table: eod_settlement` | `amount_minor` | `INTEGER` | yes |  |  |
+| `table: eod_settlement` | `detail_json` | `TEXT` | yes |  |  |
+
+### DDL
+
+#### `table eod_settlement`
+
+```sql
+CREATE TABLE eod_settlement (
+  trade_date   TEXT    NOT NULL,
+  -- A gateway id, or 'EXCHANGE' for the rounding residual.
+  account      TEXT    NOT NULL,
+  amount_minor INTEGER NOT NULL,
+  -- {symbol: day P&L in display currency} for the statement.
+  detail_json  TEXT    NOT NULL,
+  PRIMARY KEY (trade_date, account)
+)
+```
+
 ## `log.db`
 
 **Owner:** pm-log-srv  
