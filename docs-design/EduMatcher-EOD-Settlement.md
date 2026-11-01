@@ -604,3 +604,19 @@ documented in E7.
 - Rehearsal caveat (documented): `pm-scheduler --speed` compresses the
   timetable but trading dates come from the real clock, so several fast days
   share one date and one settlement.
+
+**Simulation default (2026-11-01).**
+- `ai-swarm`, `ai-sim` and `mm-demo` are built from `DEFAULT_PROCESSES`, so
+  they already ran `pm-eod run --pending` after every close; a test now pins
+  that. `ai-sim` (the weeks-long profile) has its own scheduler command:
+  `--on-close "pm-eod run --pending --backup-keep-days 2 --backup-skip stats.db"`.
+- New `pm-eod run --backup-skip NAME` (repeatable; `clearing.db`, `stats.db`
+  or `eod.db`). The `backup` step's message ends with `skipped by request:
+  <names>` so a missing backup is never silent.
+- Why: `stats.db` peaks at about 3 GB in the simulation (the sim docs' own
+  table) and is mostly order events that are discarded after 12 hours; its
+  uncompressed working copy alone would have added ~3 GB to the disk needed at
+  every close. The compressed size of the retained backups is **not measured**;
+  the simulation docs say so and ask the operator to check `du -sh data/backup`
+  after a week.
+

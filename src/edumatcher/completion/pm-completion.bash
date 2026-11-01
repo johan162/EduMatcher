@@ -4385,7 +4385,7 @@ complete -o bashdefault -F _shtab_pm_engine pm-engine
 
 _shtab_pm_eod_subparsers=(run status balances)
 
-_shtab_pm_eod_run_option_strings=(-h --help --date --pending --only --force --redo --dry-run --log-keep-days --backup-keep-days)
+_shtab_pm_eod_run_option_strings=(-h --help --date --pending --only --force --redo --dry-run --log-keep-days --backup-keep-days --backup-skip)
 _shtab_pm_eod_status_option_strings=(-h --help -q --quiet --limit)
 _shtab_pm_eod_balances_option_strings=(-h --help --date --gateway --check)
 _shtab_pm_eod_option_strings=(-h --help --version --datapath --format --no-header)
@@ -4393,6 +4393,7 @@ _shtab_pm_eod_option_strings=(-h --help --version --datapath --format --no-heade
 
 
 _shtab_pm_eod_run___only_choices=(report audit logs backup)
+_shtab_pm_eod_run___backup_skip_choices=(clearing.db stats.db eod.db)
 _shtab_pm_eod_pos_0_choices=(run status balances)
 _shtab_pm_eod___format_choices=(table json csv)
 

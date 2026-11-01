@@ -93,7 +93,15 @@ def test_ai_sim_profile_is_ai_swarm_set_up_for_long_runs() -> None:
     ai_swarm = {p["name"]: p for p in load_profiles()["ai-swarm"]}
     assert list(processes) == list(ai_swarm)
     changed = {name for name in processes if processes[name] != ai_swarm[name]}
-    assert changed == {"engine", "audit", "stats", "clearing", "ai-swarm", "mm-bot"}
+    assert changed == {
+        "engine",
+        "audit",
+        "stats",
+        "clearing",
+        "ai-swarm",
+        "mm-bot",
+        "scheduler",
+    }
     # A whole session of audit trail survives for post-run forensics.
     audit = processes["audit"]["command"]
     assert audit[audit.index("--max-file-mb") + 1] == "256"
@@ -841,8 +849,18 @@ def test_only_profiles_with_clearing_run_pm_eod_after_the_close() -> None:
         (entry,) = (e for e in profile if e["name"] == "scheduler")
         return list(entry["command"])
 
-    command = scheduler(emo_cli.DEFAULT_PROCESSES)
-    assert command[command.index("--on-close") + 1] == "pm-eod run --pending"
+    # The simulation profiles are built from DEFAULT_PROCESSES; this pins that
+    # they keep settling every simulated day.
+    for name in ("default", "mm-demo", "ai-swarm"):
+        command = scheduler(emo_cli.BUILTIN_PROFILES[name])
+        assert command[command.index("--on-close") + 1] == "pm-eod run --pending", name
+    assert "--on-close" in scheduler(emo_cli.BUILTIN_PROFILES["ai-sim"])
+    # The weeks-long simulation keeps two days of backups and leaves out stats.db
+    # (about 3 GB of mostly disposable order events).
+    sim = scheduler(emo_cli.BUILTIN_PROFILES["ai-sim"])
+    assert sim[sim.index("--on-close") + 1] == (
+        "pm-eod run --pending --backup-keep-days 2 --backup-skip stats.db"
+    )
     # mini has no pm-clearing: pm-eod would fail its gate at every close.
     assert "--on-close" not in scheduler(emo_cli.MINI_PROCESSES)
 

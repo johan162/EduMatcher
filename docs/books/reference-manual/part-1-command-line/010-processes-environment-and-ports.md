@@ -1543,7 +1543,7 @@ in [Closing the Day](../../operator-guide/part-4-run-a-market/100-closing-the-da
 ```bash
 pm-eod [--datapath DIR] [--format table|json|csv] [--no-header] run \
   (--date YYYY-MM-DD | --pending) [--only STEP] [--force] [--redo] [--dry-run] \
-  [--log-keep-days N] [--backup-keep-days N]
+  [--log-keep-days N] [--backup-keep-days N] [--backup-skip NAME ...]
 pm-eod [--datapath DIR] [--format table|json|csv] status [-q] [--limit N]
 pm-eod [--datapath DIR] [--format table|json|csv] balances [--date YYYY-MM-DD] [--gateway GW_ID] [--check]
 ```
@@ -1569,6 +1569,7 @@ pm-eod [--datapath DIR] [--format table|json|csv] balances [--date YYYY-MM-DD] [
 | `--dry-run` | off | Run the gate and compute the amounts, print them, write nothing. |
 | `--log-keep-days N` | `14` | Delete compressed fallback logs older than N days |
 | `--backup-keep-days N` | `7` | Delete backup folders older than N days |
+| `--backup-skip NAME` | none | Leave one database out of the backup: `clearing.db`, `stats.db` or `eod.db`. Repeatable. The `backup` step's message says what was skipped. |
 
 **`status` options:** `-q` / `--quiet` prints nothing and exits 0 when no closed
 date is waiting (a closed date whose run failed counts as waiting) and 1

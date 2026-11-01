@@ -14,7 +14,7 @@
 | Check | Why |
 |---|---|
 | **Pin the version**: `EM_VERSION=<release>` in `.env` | `latest` changes with every release; a restart would bring a different exchange |
-| **Free disk**: at least 4 GB for 30 days | See [What grows](#what-grows) |
+| **Free disk**: at least 4 GB for 30 days, plus room for the nightly backup | See [What grows](#what-grows) and [The nightly backup](#the-nightly-backup) |
 | **The machine stays awake** | A laptop that sleeps stops the market; nothing trades while it sleeps, and the day's schedule resumes when it wakes |
 | **Docker starts at boot** (Docker Desktop: *Start when you sign in*; Linux: `systemctl enable docker`) | The containers restart after a reboot only if Docker itself does |
 | **Time zone** is what you want (`TZ`, default `Europe/Stockholm`) | The trading hours follow it |
@@ -91,6 +91,42 @@ Look for:
 3. once a week, `./edumatcher.sh logs edumatcher | grep Restarting` — the same
    process restarting every day is worth a look in its log;
 4. one daily summary file per trading day in `data/ai_swarm/`.
+
+## The nightly backup
+
+After each close `pm-eod` backs up the money record into `data/backup/<date>/`
+(compressed; see
+[End of day](../part-3-run-it/110-the-simulation-container.md#end-of-day)).
+In the `ai-sim` profile this is deliberately light, because the simulation's
+databases are big:
+
+- **Two days are kept**, not the default seven (`--backup-keep-days 2`).
+- **`stats.db` is not backed up** (`--backup-skip stats.db`). It is the largest
+  file here — about 3 GB at the close by the table above — and most of it is
+  order events that are thrown away after 12 hours anyway. What cannot be
+  recreated is `clearing.db` (the trades) and `eod.db` (the balances), and
+  those are backed up.
+
+The table above was measured before the backup existed, so **its totals do not
+include it**. What can be said without measuring:
+
+- To take a copy that is safe while a database is open, SQLite first writes an
+  uncompressed copy next to the backup. The biggest one is `clearing.db`, about
+  **0.8 GB** at the close by the table above, so the disk needs that much free
+  *at the close*, on top of the steady state. The copy is deleted as soon as it
+  is compressed.
+- Two compressed backups of `clearing.db` and `eod.db` stay in `data/backup/`.
+  How small they compress has not been measured for this set-up. **After the
+  first week run `du -sh data/backup`** and add it to your disk estimate.
+- `data/settlement/` grows by a few hundred kilobytes a trading day (a statement
+  for every trader) and is never pruned.
+
+To change this, edit the scheduler's `--on-close` in `emo-config.yaml`
+(`./edumatcher.sh shell pm-opctl-cli init` writes the file; see
+[Your own traders or process flags](../part-3-run-it/110-the-simulation-container.md#your-own-traders-or-process-flags)).
+For example, add `--backup-skip clearing.db` to skip that backup as well, or
+remove `--backup-skip stats.db` to back up everything (and keep another 3 GB
+free).
 
 ## Backups
 

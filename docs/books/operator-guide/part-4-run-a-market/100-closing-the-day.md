@@ -840,6 +840,12 @@ the step:
    to compare** — only a copy proven identical replaces anything.
 4. Deletes backup folders older than `--backup-keep-days` (default **7**).
 
+To leave a database out — for example a very large `stats.db` that you can do
+without — use `--backup-skip`, which may be repeated:
+`pm-eod run --pending --backup-skip stats.db`. The step's message then ends with
+`skipped by request: stats.db`, so a missing backup is never a surprise. Keep
+`clearing.db` and `eod.db`: they hold the trades and the money record.
+
 If the backup fails, the *previous* backup of that date is left untouched. A
 database that does not exist is simply listed (`not present: stats.db`).
 
@@ -884,7 +890,8 @@ The housekeeping *saves* space overall, but keep an eye on three things:
 `settlement/` (small — a few kilobytes per trader per day), `backup/` (daily
 compressed copies, kept 7 days by default), and the audit archives
 (`pm-audit --keep-days`, default: keep everything). Change the retention with
-`pm-eod run --log-keep-days N --backup-keep-days N`; in the scheduler hook
+`pm-eod run --log-keep-days N --backup-keep-days N` and leave a large database out
+of the backup with `--backup-skip`; in the scheduler hook
 write it into the command: `--on-close "pm-eod run --pending --backup-keep-days 14"`.
 
 ## Correcting mistakes and special situations
@@ -1088,6 +1095,7 @@ only happens after the close.
 | `pm-eod run --date D --only STEP` | Re-run `report`, `audit`, `logs` or `backup` for a settled date |
 | `pm-eod run --date D --force` | Skip the "has the day closed?" test (no scheduler) |
 | `pm-eod run --date D --redo` | Recompute D and drop every later settlement |
+| `pm-eod run … --backup-skip NAME` | Leave `clearing.db`, `stats.db` or `eod.db` out of the backup |
 | `pm-eod status [-q]` | Recent runs; `-q` is a health check (0 = no closed day waiting) |
 | `pm-eod balances [--date D] [--gateway G] [--check]` | Running balances, or verify the books |
 

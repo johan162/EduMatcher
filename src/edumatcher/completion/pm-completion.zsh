@@ -2721,6 +2721,7 @@ _shtab_pm_eod_run_options=(
   "--dry-run[Gate and compute, print the amounts, write nothing]"
   "--log-keep-days[N]:N:"
   "--backup-keep-days[N]:N:"
+  "*--backup-skip[Leave this database out of the backup (repeatable)\: clearing.db, stats.db or eod.db]:NAME:(clearing.db stats.db eod.db)"
 )
 
 # guard to ensure default positional specs are added only once per session

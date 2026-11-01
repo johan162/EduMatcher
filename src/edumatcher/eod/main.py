@@ -94,6 +94,15 @@ def build_parser() -> argparse.ArgumentParser:
     )
     run.add_argument("--log-keep-days", type=int, default=14, metavar="N")
     run.add_argument("--backup-keep-days", type=int, default=7, metavar="N")
+    run.add_argument(
+        "--backup-skip",
+        action="append",
+        default=[],
+        choices=("clearing.db", "stats.db", "eod.db"),
+        metavar="NAME",
+        help="Leave this database out of the backup (repeatable): "
+        "clearing.db, stats.db or eod.db",
+    )
 
     status = sub.add_parser("status", help="Recent runs")
     status.add_argument(
@@ -129,6 +138,7 @@ def _cmd_run(args: argparse.Namespace, paths: Paths) -> int:
         dry_run=args.dry_run,
         log_keep_days=args.log_keep_days,
         backup_keep_days=args.backup_keep_days,
+        backup_skip=tuple(args.backup_skip),
     )
     if not args.date and not args.pending:
         print("pm-eod run: give --date or --pending", file=sys.stderr)

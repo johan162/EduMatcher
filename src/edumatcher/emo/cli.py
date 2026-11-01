@@ -398,6 +398,16 @@ AI_SWARM_PROCESSES: list[dict[str, Any]] = [
 # 300 symbols was most of the exchange's messages, CPU and disk.
 _AI_SIM_COMMANDS = {
     "engine": ["pm-engine"],
+    # pm-eod settles every simulated day, but backs up less than the default:
+    # two days, and not stats.db (about 3 GB of mostly disposable order events;
+    # the money record is clearing.db and eod.db).
+    "scheduler": [
+        "pm-scheduler",
+        "--daily",
+        "--verbose",
+        "--on-close",
+        "pm-eod run --pending --backup-keep-days 2 --backup-skip stats.db",
+    ],
     "mm-bot": [
         "pm-mm-bot",
         "--gateway-id",

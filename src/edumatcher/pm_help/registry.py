@@ -1738,7 +1738,7 @@ _ADMIN_AND_OPS: tuple[CommandInfo, ...] = (
         synopsis=(
             "pm-eod [--datapath DIR] [--format table|json|csv] run (--date D | --pending)",
             "       [--only STEP] [--force] [--redo] [--dry-run]",
-            "       [--log-keep-days 14] [--backup-keep-days 7]",
+            "       [--log-keep-days 14] [--backup-keep-days 7] [--backup-skip NAME]",
             "pm-eod [--datapath DIR] [--format table|json|csv] status [-q]",
             "pm-eod [--datapath DIR] [--format table|json|csv] balances [--date D] [--gateway G] [--check]",
         ),
@@ -1812,6 +1812,12 @@ _ADMIN_AND_OPS: tuple[CommandInfo, ...] = (
                 "--backup-keep-days N",
                 "7",
                 "run: delete backup folders older than N days",
+                "run",
+            ),
+            Option(
+                "--backup-skip NAME",
+                "none",
+                "run: leave clearing.db, stats.db or eod.db out of the backup (repeatable)",
                 "run",
             ),
             Option(

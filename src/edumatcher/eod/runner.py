@@ -97,6 +97,8 @@ class Options:
     dry_run: bool = False
     log_keep_days: int = 14
     backup_keep_days: int = 7
+    #: File names (``clearing.db`` ...) left out of the backup.
+    backup_skip: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -240,14 +242,21 @@ def run_day(
                 compress_logs(paths.logs, now=now, keep_days=opts.log_keep_days)
             )
         if opts.only in (None, "backup"):
-            steps.append(
-                backup_databases(
-                    [paths.clearing, paths.stats, paths.ledger],
-                    paths.backup,
-                    trade_date,
-                    keep_days=opts.backup_keep_days,
-                )
+            wanted = [
+                db
+                for db in (paths.clearing, paths.stats, paths.ledger)
+                if db.name not in opts.backup_skip
+            ]
+            backup = backup_databases(
+                wanted, paths.backup, trade_date, keep_days=opts.backup_keep_days
             )
+            if opts.backup_skip:
+                backup = StepResult(
+                    backup.step,
+                    backup.status,
+                    f"{backup.message}; skipped by request: {', '.join(opts.backup_skip)}",
+                )
+            steps.append(backup)
     finally:
         clearing.close()
     return finish()

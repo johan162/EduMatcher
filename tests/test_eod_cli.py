@@ -43,6 +43,24 @@ def test_run_prints_each_step_and_exits_zero(
         assert f"[ok] {step}" in out
 
 
+def test_backup_skip_is_repeatable_and_validated(data: Path) -> None:
+    assert (
+        cli(
+            data,
+            "run",
+            "--date",
+            "2026-07-01",
+            "--backup-skip",
+            "stats.db",
+            "--backup-skip",
+            "clearing.db",
+        )
+        == 0
+    )
+    assert not (data / "backup" / "2026-07-01" / "clearing.db.zst").exists()
+    assert cli(data, "run", "--date", "2026-07-01", "--backup-skip", "audit.log") == 2
+
+
 def test_run_failure_exits_one(data: Path, capsys: pytest.CaptureFixture[str]) -> None:
     assert cli(data, "run", "--date", "2026-07-02") == 1
     assert "[FAIL] gate" in capsys.readouterr().out

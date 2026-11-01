@@ -194,6 +194,29 @@ class TestSteps:
         assert [r["status"] for r in runs(ledger)] == ["ok"]
         ledger.close()
 
+    def test_backup_skip_leaves_a_database_out_and_says_so(self, data: Path) -> None:
+        conn = open_writer_connection(data / "clearing.db")
+        conn.close()
+        (data / "stats.db").write_bytes((data / "clearing.db").read_bytes())
+        outcome = run_day(
+            Paths(data),
+            "2026-07-01",
+            Options(backup_skip=("stats.db",)),
+            today="2026-07-05",
+            now=NOW,
+        )
+        backup = next(s for s in outcome.steps if s.step == "backup")
+        assert (
+            backup.status == "ok" and "skipped by request: stats.db" in backup.message
+        )
+        names = sorted(p.name for p in (data / "backup" / "2026-07-01").iterdir())
+        assert names == ["clearing.db.zst", "eod.db.zst"]
+
+    def test_without_skip_stats_is_backed_up(self, data: Path) -> None:
+        (data / "stats.db").write_bytes((data / "clearing.db").read_bytes())
+        run(data)
+        assert (data / "backup" / "2026-07-01" / "stats.db.zst").is_file()
+
     def test_exit_codes(self, data: Path) -> None:
         ok = run_day(Paths(data), "2026-07-01", Options(), today="2026-07-05", now=NOW)
         assert exit_code(ok) == 0
