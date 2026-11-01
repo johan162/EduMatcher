@@ -15,7 +15,7 @@ and does not exist in the current EduMatcher runtime.
 
 ## Prerequisites
 
-- Chapters 01-19 completed.
+- Chapters 01-20 completed.
 - Engine running with drop-copy PUB enabled on `:5557`.
 - Basic Python command-line familiarity.
 
@@ -235,4 +235,4 @@ subscriber's socket briefly dropped messages?
 - [Messages](../protocols-and-clients/part-5-message-reference/010-message-reference.md)
 - [Persistence](../operator-guide/part-6-observe-and-recover/010-persistence.md)
 
-**Next:** [21 - Automation with CommandClient & MM Bot Tuning](210-automation-commandclient-mm-bot.md)
+**Next:** [22 - Automation with CommandClient & MM Bot Tuning](210-automation-commandclient-mm-bot.md)

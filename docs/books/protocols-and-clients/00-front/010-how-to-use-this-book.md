@@ -32,4 +32,4 @@ gateway behaves, every message, and how to write and test a client.
    [Protocol Support Library Examples](../part-4-writing-clients/030-example-libraries.md),
    and watch the gateway with a spy tool while you develop.
 
-The Training Guide's chapters 22–27 are exercises against each live gateway.
+The Training Guide's chapters 23–28 are exercises against each live gateway.

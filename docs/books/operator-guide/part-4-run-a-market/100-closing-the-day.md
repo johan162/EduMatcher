@@ -1184,6 +1184,9 @@ and `pm-help pm-eod`. The words used here are collected in the
 
 ## See also
 
+- [Training Guide, chapter 20: Closing the Day](../../training-guide/195-closing-the-day.md)
+  — hands-on exercises: settle a day, read the statements, recover from a
+  missed day, a broken roster and trading after the close
 - [Sessions and Scheduling](030-sessions-and-scheduling.md) — what drives the
   market to `CLOSED`, and the `--on-close` option
 - [Statistics and Reporting](060-statistics-and-reporting.md) — the other daily

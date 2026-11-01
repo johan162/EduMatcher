@@ -206,4 +206,4 @@ choice available?
 - [Processes, Environment and Ports](../reference-manual/part-1-command-line/010-processes-environment-and-ports.md)
 - [Risk Controls](../operator-guide/part-4-run-a-market/040-risk-controls.md)
 
-**Next:** [20 - Drop-Copy Replay & Recovery Patterns](200-drop-copy-replay-recovery.md)
+**Next:** [20 — Closing the Day](195-closing-the-day.md)

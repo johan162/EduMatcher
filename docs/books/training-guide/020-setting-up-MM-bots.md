@@ -310,7 +310,7 @@ Quick primer:
   can adopt or replace safely instead of duplicating quotes.
 
 See the detailed walkthrough in [09 — Market Making](090-market-making.md), and
-[21 — Automation with CommandClient & MM Bot Tuning](210-automation-commandclient-mm-bot.md)
+[22 — Automation with CommandClient & MM Bot Tuning](210-automation-commandclient-mm-bot.md)
 for the advanced runtime flags (bootstrap timeout, QLEGS reconciliation
 interval, and similar) that this chapter deliberately leaves out.
 
@@ -705,6 +705,6 @@ someone at 09:29 on a trading morning?
 - [ALF Console (pm-alf-console)](../participant-guide/part-2-orders/010-the-trader-console.md)
 - [ALF Protocol Reference](../protocols-and-clients/part-2-specifications/010-alf.md)
 - [Config Verifier (`pm-cverifier`)](../operator-guide/part-2-configure/020-config-verifier.md)
-- [21 — Automation with CommandClient & MM Bot Tuning](210-automation-commandclient-mm-bot.md)
+- [22 — Automation with CommandClient & MM Bot Tuning](210-automation-commandclient-mm-bot.md)
 
 **Next:** [03 — The First Trade](030-the-first-trade.md)
