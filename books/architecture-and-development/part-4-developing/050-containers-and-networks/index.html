@@ -5048,6 +5048,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Summary">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#compose-file-map" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Compose file map
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -7749,13 +7766,13 @@
 <p class="admonition-title">Learning objectives</p>
 <p>After reading this page you will understand:</p>
 <ul>
-<li>How the seven container images, the compose overlays and the three layers
+<li>How the eight container images, the compose overlays and the three layers
   of Makefile fit together</li>
 <li>Where networking responsibility actually sits, and which of the several
   <code>127.0.0.1</code>/<code>0.0.0.0</code> knobs controls what</li>
 <li>What is baked into an image at build time versus decided at start time,
   and the precedence order between the ways of setting each</li>
-<li>How a release turns one git tag into a wheel and seven multi-architecture
+<li>How a release turns one git tag into a wheel and eight multi-architecture
   images</li>
 <li>What maintenance this design will demand as the system grows, and where
   it will drift first</li>
@@ -7763,8 +7780,9 @@
 </ul>
 </div>
 <h2 id="summary">Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h2>
-<p>EduMatcher ships as <strong>seven container images</strong>; six of them run as <strong>one
-Compose project</strong>:</p>
+<p>EduMatcher ships as <strong>eight container images</strong>. The backend and the five
+backend-connected GUIs run as <strong>one Compose project</strong> (<code>config-gui</code> is opt-in,
+and <code>edumatcher-ai-sim</code> runs in a project of its own):</p>
 <table>
 <thead>
 <tr>
@@ -7837,7 +7855,7 @@ containers that reach it over the Compose network.</p>
         SH["install.sh\nedumatcher.sh"]
     end
 
-    GH["GHCR\nseven multi-arch images\ntagged with the release version"]
+    GH["GHCR\neight multi-arch images\ntagged with the release version"]
 
     BE --&gt; DC
     WA --&gt; DC
@@ -7846,6 +7864,82 @@ containers that reach it over the Compose network.</p>
     GH --&gt; RC
     DC --- MK
     RC --- SH</code></pre>
+<h3 id="compose-file-map">Compose file map<a class="headerlink" href="#compose-file-map" title="Permanent link">&para;</a></h3>
+<p>There are three families of compose files. Only the first is for development.</p>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Role</th>
+<th>Standalone?</th>
+<th>Started by</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>deployment/docker/compose.yaml</code></td>
+<td>Base: the one <code>edumatcher</code> backend container, ports, <code>./data</code> volume, bind hosts</td>
+<td>Yes</td>
+<td><code>make up</code>, <code>make up-all</code></td>
+</tr>
+<tr>
+<td><code>deployment/docker/compose.guis.yaml</code></td>
+<td>Overlay: the five backend-connected GUIs, built from <code>web-apps/</code>, in the <strong>same project</strong> so they reach <code>edumatcher:&lt;port&gt;</code></td>
+<td>No, needs the base</td>
+<td><code>make up-all</code></td>
+</tr>
+<tr>
+<td><code>deployment/docker/compose.config-gui.yaml</code></td>
+<td>Overlay: <code>config-gui</code>, which needs no backend</td>
+<td>No</td>
+<td><code>make up-all CONFIG_GUI=1</code></td>
+</tr>
+<tr>
+<td><code>deployment/docker/compose.zmq.yaml</code></td>
+<td>Overlay: publish the raw ZeroMQ bus (5555-5559, 5601/5602, 5611)</td>
+<td>No</td>
+<td><code>ZMQ=1</code></td>
+</tr>
+<tr>
+<td><code>deployment/docker/compose.ssh.yaml</code></td>
+<td>Overlay: sshd on <code>SSH_PORT</code> (default 2222)</td>
+<td>No</td>
+<td><code>SSH=1</code></td>
+</tr>
+<tr>
+<td><code>deployment/docker/compose.ai-sim.yaml</code></td>
+<td>The AI-trader simulation and five GUIs, images from GHCR (the backend can be built locally with <code>LOCAL=1</code>)</td>
+<td>Yes, ignores <code>.env</code></td>
+<td><code>make up-sim</code></td>
+</tr>
+<tr>
+<td><code>deployment/curl/compose.yaml</code>, <code>compose.zmq.yaml</code>, <code>compose.ai-sim.yaml</code></td>
+<td>Released twins of the files above, build-free, images from GHCR</td>
+<td>Same as the twin; <code>compose.yaml</code> already includes the GUIs</td>
+<td><code>edumatcher.sh</code></td>
+</tr>
+<tr>
+<td><code>deployment/curl/compose.guis.yaml</code></td>
+<td><strong>Only</strong> the six GUIs, for an exchange running on the host (pipx install). Despite the name this is <em>not</em> a twin of the docker overlay</td>
+<td>Yes</td>
+<td><code>edumatcher.sh</code> with <code>EM_STACK=guis</code></td>
+</tr>
+<tr>
+<td><code>web-apps/&lt;app&gt;/docker-compose.yml</code> (+ <code>docker-compose.linux.yml</code>)</td>
+<td>One GUI alone, talking to a backend <strong>outside</strong> compose via <code>host.docker.internal</code> (the Linux overlay adds the <code>host-gateway</code> mapping)</td>
+<td>Yes</td>
+<td><code>make up</code> in the app, or <code>make up</code> in <code>web-apps/</code></td>
+</tr>
+</tbody>
+</table>
+<p>The decisive difference is networking. In the <code>deployment/</code> families every
+container shares one compose project, so the GUIs find the backend by service
+name. The per-app files have no such project, so they reach the backend through
+the host, which is why they need <code>*_HOST</code> overrides on Podman or in a VM.</p>
+<p>Overlays are additive <code>-f</code> arguments. The Makefile builds the list from its
+flags, so you rarely type them: <code>make up-all ZMQ=1 CONFIG_GUI=1</code> runs
+<code>compose -f compose.yaml -f compose.zmq.yaml -f compose.guis.yaml -f compose.config-gui.yaml up -d</code>.
+<code>make -n up-all ZMQ=1</code> prints the exact command.</p>
 <p><code>deployment/docker/</code> is the one you use while changing the code: it builds
 from your working tree. <code>deployment/curl/</code> is its released twin: identical
 wiring, no <code>build:</code> sections, images pulled by tag. Keeping those two in step
@@ -7863,7 +7957,7 @@ is the main standing maintenance cost of this design — see
     C5["web-apps/book-gui/Makefile"]
     C6["web-apps/dash-gui/Makefile"]
 
-    A --&gt;|"compose build/up across\nall seven contexts"| IMGS["seven images"]
+    A --&gt;|"compose build/up across\nthe seven build contexts"| IMGS["eight images"]
     B --&gt;|"make -C, one per app"| C1
     B --&gt; C2
     B --&gt; C3
@@ -8289,7 +8383,7 @@ on this project, from a path in the <code>RUN</code> step that did not match the
 <h2 id="part-4-starting-and-configuring-the-whole-system">Part 4 — Starting and configuring the whole system<a class="headerlink" href="#part-4-starting-and-configuring-the-whole-system" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="nb">cd</span><span class="w"> </span>deployment/docker
 <a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>make<span class="w"> </span>build<span class="w">          </span><span class="c1"># backend image from a wheel built out of this checkout</span>
-<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>make<span class="w"> </span>up-all<span class="w">         </span><span class="c1"># exchange + terminal-, log- and trader-gui</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>make<span class="w"> </span>up-all<span class="w">         </span><span class="c1"># exchange + the five backend-connected GUIs</span>
 <a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>make<span class="w"> </span>down-all<span class="w">       </span><span class="c1"># stop and remove everything</span>
 </code></pre></div>
 <table>
@@ -8372,8 +8466,8 @@ same extraction snippet — that logic lives in <code>edumatcher.sh</code> rathe
 <p>A configuration with no read-only credential is not an error: the start
 continues and warns. The live CALF feed needs no key; only history does.</p>
 <h2 id="part-5-the-release-process">Part 5 — The release process<a class="headerlink" href="#part-5-the-release-process" title="Permanent link">&para;</a></h2>
-<p>One git tag produces a wheel and seven multi-architecture images, all carrying
-the same version. That coupling is what lets <code>install.sh --version 0.66.3</code>
+<p>One git tag produces a wheel and eight multi-architecture images, all carrying
+the same version. That coupling is what lets <code>install.sh --version 0.67.0</code>
 pin an entire system with one number.</p>
 <pre class="mermaid"><code>flowchart TD
     MK["scripts/mkrelease.sh\nbump, build docs, commit, tag"]
@@ -8383,7 +8477,7 @@ pin an entire system with one number.</p>
     PY["publish-to-pypi.yml"]
     IMG["publish-images.yml"]
 
-    subgraph matrix["build job — 7 images x 2 architectures"]
+    subgraph matrix["build job — 8 images x 2 architectures"]
         AMD["ubuntu-24.04\nlinux/amd64"]
         ARM["ubuntu-24.04-arm\nlinux/arm64"]
     end
@@ -8422,7 +8516,7 @@ never becomes what a new user gets by default. That is the same test
 <code>publish-to-pypi.yml</code> uses to choose between PyPI and TestPyPI.</p>
 <p><strong><code>mkghrelease.sh</code> waits but does not push.</strong> Its PHASE 6B polls
 <code>gh run view</code> for the image workflow — bounded by <code>IMAGE_WAIT_MINUTES</code>
-(default 30), skippable with <code>--skip-images</code> — and reports the seven image
+(default 30), skippable with <code>--skip-images</code> — and reports the eight image
 references. If the workflow fails the GitHub release still exists; only the
 images are missing, and <code>gh workflow run publish-images.yml -f tag=vX.Y.Z</code>
 re-runs just that part.</p>
@@ -8470,7 +8564,7 @@ tag, and <code>latest</code> never moving unless asked.</p>
 </tr>
 </tbody>
 </table>
-<p>A newly created GHCR package is private. Until each of the seven is made public
+<p>A newly created GHCR package is private. Until each of the eight is made public
 in its package settings, <code>podman pull</code> fails for every user but you.</p>
 <h3 id="a-package-the-workflow-did-not-create">A package the workflow did not create<a class="headerlink" href="#a-package-the-workflow-did-not-create" title="Permanent link">&para;</a></h3>
 <p>A package that a workflow pushes for the first time is linked to the repository
@@ -8571,7 +8665,7 @@ section.</p>
 </code></pre></div>
 <h3 id="standing-costs">Standing costs<a class="headerlink" href="#standing-costs" title="Permanent link">&para;</a></h3>
 <p><strong>Version coupling.</strong> Every image carries the EduMatcher release version, so
-every release republishes all seven even when only the backend changed. That is
+every release republishes all eight even when only the backend changed. That is
 the price of "one tag names a coherent set" and is almost certainly the right
 trade — but it means a GUI-only fix still needs a full release.</p>
 <p><strong>The GUI <code>package.json</code> versions are now decorative</strong> for release purposes.

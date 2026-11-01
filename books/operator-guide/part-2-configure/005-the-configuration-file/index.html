@@ -9906,7 +9906,7 @@ can generate keys for you. Add at least one read-only key
 <a id="__codelineno-13-43" name="__codelineno-13-43" href="#__codelineno-13-43"></a><span class="w">    </span><span class="nt">engine_handle_p99_us</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">warn</span><span class="p">:</span><span class="w"> </span><span class="nv">5000</span><span class="p p-Indicator">,</span><span class="nt"> crit</span><span class="p">:</span><span class="w"> </span><span class="nv">20000</span><span class="p p-Indicator">}</span>
 <a id="__codelineno-13-44" name="__codelineno-13-44" href="#__codelineno-13-44"></a><span class="w">    </span><span class="nt">reject_pct_5m</span><span class="p">:</span><span class="w">        </span><span class="p p-Indicator">{</span><span class="nt">warn</span><span class="p">:</span><span class="w"> </span><span class="nv">10</span><span class="p p-Indicator">,</span><span class="nt">   crit</span><span class="p">:</span><span class="w"> </span><span class="nv">30</span><span class="p p-Indicator">}</span>
 <a id="__codelineno-13-45" name="__codelineno-13-45" href="#__codelineno-13-45"></a><span class="w">    </span><span class="nt">rss_growth_pct_1h</span><span class="p">:</span><span class="w">    </span><span class="p p-Indicator">{</span><span class="nt">warn</span><span class="p">:</span><span class="w"> </span><span class="nv">50</span><span class="p p-Indicator">,</span><span class="nt">   crit</span><span class="p">:</span><span class="w"> </span><span class="nv">100</span><span class="p p-Indicator">}</span>
-<a id="__codelineno-13-46" name="__codelineno-13-46" href="#__codelineno-13-46"></a><span class="w">    </span><span class="nt">heap_garbage_pct</span><span class="p">:</span><span class="w">     </span><span class="p p-Indicator">{</span><span class="nt">warn</span><span class="p">:</span><span class="w"> </span><span class="nv">50</span><span class="p p-Indicator">,</span><span class="nt">   crit</span><span class="p">:</span><span class="w"> </span><span class="nv">80</span><span class="p p-Indicator">}</span>
+<a id="__codelineno-13-46" name="__codelineno-13-46" href="#__codelineno-13-46"></a><span class="w">    </span><span class="nt">heap_bloat_ratio</span><span class="p">:</span><span class="w">     </span><span class="p p-Indicator">{</span><span class="nt">warn</span><span class="p">:</span><span class="w"> </span><span class="nv">1.5</span><span class="p p-Indicator">,</span><span class="nt">  crit</span><span class="p">:</span><span class="w"> </span><span class="nv">3</span><span class="p p-Indicator">}</span>
 </code></pre></div>
 <h3 id="log_server-central-log-collector-pm-log-srv"><code>log_server</code> — central log collector (<code>pm-log-srv</code>)<a class="headerlink" href="#log_server-central-log-collector-pm-log-srv" title="Permanent link">&para;</a></h3>
 <p>Every <code>pm-*</code> process sends its log lines to <code>pm-log-srv</code>, which stores them in
@@ -10160,10 +10160,10 @@ defaults, with monitoring on.</p>
 <td>Process memory growth over an hour, %</td>
 </tr>
 <tr>
-<td><code>heap_garbage_pct</code></td>
-<td style="text-align: right;">50</td>
-<td style="text-align: right;">80</td>
-<td>Share of the heap that is collectable garbage, %</td>
+<td><code>heap_bloat_ratio</code></td>
+<td style="text-align: right;">1.5</td>
+<td style="text-align: right;">3</td>
+<td>Book heap size over the size compaction tolerates (1 = at the limit)</td>
 </tr>
 </tbody>
 </table>
@@ -10515,7 +10515,7 @@ beyond one informational note that <code>snapshot_interval_sec</code> is at its 
 <a id="__codelineno-14-340" name="__codelineno-14-340" href="#__codelineno-14-340"></a><span class="w">    </span><span class="nt">engine_handle_p99_us</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">warn</span><span class="p">:</span><span class="w"> </span><span class="nv">5000</span><span class="p p-Indicator">,</span><span class="nt"> crit</span><span class="p">:</span><span class="w"> </span><span class="nv">20000</span><span class="p p-Indicator">}</span>
 <a id="__codelineno-14-341" name="__codelineno-14-341" href="#__codelineno-14-341"></a><span class="w">    </span><span class="nt">reject_pct_5m</span><span class="p">:</span><span class="w">        </span><span class="p p-Indicator">{</span><span class="nt">warn</span><span class="p">:</span><span class="w"> </span><span class="nv">10</span><span class="p p-Indicator">,</span><span class="nt">   crit</span><span class="p">:</span><span class="w"> </span><span class="nv">30</span><span class="p p-Indicator">}</span>
 <a id="__codelineno-14-342" name="__codelineno-14-342" href="#__codelineno-14-342"></a><span class="w">    </span><span class="nt">rss_growth_pct_1h</span><span class="p">:</span><span class="w">    </span><span class="p p-Indicator">{</span><span class="nt">warn</span><span class="p">:</span><span class="w"> </span><span class="nv">50</span><span class="p p-Indicator">,</span><span class="nt">   crit</span><span class="p">:</span><span class="w"> </span><span class="nv">100</span><span class="p p-Indicator">}</span>
-<a id="__codelineno-14-343" name="__codelineno-14-343" href="#__codelineno-14-343"></a><span class="w">    </span><span class="nt">heap_garbage_pct</span><span class="p">:</span><span class="w">     </span><span class="p p-Indicator">{</span><span class="nt">warn</span><span class="p">:</span><span class="w"> </span><span class="nv">50</span><span class="p p-Indicator">,</span><span class="nt">   crit</span><span class="p">:</span><span class="w"> </span><span class="nv">80</span><span class="p p-Indicator">}</span>
+<a id="__codelineno-14-343" name="__codelineno-14-343" href="#__codelineno-14-343"></a><span class="w">    </span><span class="nt">heap_bloat_ratio</span><span class="p">:</span><span class="w">     </span><span class="p p-Indicator">{</span><span class="nt">warn</span><span class="p">:</span><span class="w"> </span><span class="nv">1.5</span><span class="p p-Indicator">,</span><span class="nt">  crit</span><span class="p">:</span><span class="w"> </span><span class="nv">3</span><span class="p p-Indicator">}</span>
 </code></pre></div>
 <p>Verify, deploy and inspect it:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>pm-cverifier<span class="w"> </span>engine_config.yaml

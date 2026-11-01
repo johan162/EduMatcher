@@ -7640,8 +7640,8 @@ Apple Silicon pull the same tag and each gets the right binary.</p>
 never becomes what a new user gets by default — the same rule the PyPI workflow
 uses to choose between PyPI and TestPyPI.</p>
 <h3 id="publishing-by-hand">Publishing by hand<a class="headerlink" href="#publishing-by-hand" title="Permanent link">&para;</a></h3>
-<p><code>make ghcr-push</code> in <code>deployment/docker/</code> builds all seven images from your
-checkout and pushes them, for when the workflow cannot run:</p>
+<p><code>make ghcr-push</code> in <code>deployment/docker/</code> builds the seven images other than
+<code>edumatcher-ai-sim</code> from your checkout and pushes them, for when the workflow cannot run:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">GITHUB_USER</span><span class="o">=</span>&lt;you&gt;<span class="w"> </span><span class="nv">GHCR_TOKEN</span><span class="o">=</span>&lt;token<span class="w"> </span>with<span class="w"> </span>write:packages&gt;
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>make<span class="w"> </span>ghcr-push<span class="w">                              </span><span class="c1"># all six, tagged :dev</span>
 <a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>make<span class="w"> </span>ghcr-push<span class="w"> </span><span class="nv">TAG</span><span class="o">=</span><span class="m">0</span>.20.6<span class="w"> </span><span class="nv">FORCE</span><span class="o">=</span><span class="m">1</span><span class="w"> </span><span class="nv">LATEST</span><span class="o">=</span><span class="m">1</span><span class="w">  </span><span class="c1"># as a release tag</span>

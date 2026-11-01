@@ -4967,6 +4967,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#getting-started-from-a-fresh-clone" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Getting started: from a fresh clone
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#part-1-why-make-up-all-does-not-pick-up-your-change" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -7586,6 +7597,62 @@ chapter is about choosing between them.</p>
 <p>That works because <strong>every bridge defaults its connect targets to
 <code>127.0.0.1</code></strong>, and <code>127.0.0.1</code> is exactly where the container stack publishes
 its ports. The container and the host see the same addresses.</p>
+<h2 id="getting-started-from-a-fresh-clone">Getting started: from a fresh clone<a class="headerlink" href="#getting-started-from-a-fresh-clone" title="Permanent link">&para;</a></h2>
+<p>Everything below assumes this has been done once.</p>
+<p><strong>Prerequisites</strong></p>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Needed for</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Podman or Docker (with Compose)</td>
+<td>The container stack</td>
+<td>Podman is preferred when both are installed; <code>make info</code> in <code>deployment/docker</code> shows what was detected</td>
+</tr>
+<tr>
+<td>GNU make</td>
+<td>Every workflow</td>
+<td></td>
+</tr>
+<tr>
+<td>Poetry and Python</td>
+<td><code>make build</code> builds the backend wheel from your checkout</td>
+<td>See <a href="../010-development-practice/">Development Practice</a></td>
+</tr>
+<tr>
+<td>Node.js <strong>22.13 or newer</strong>, with npm</td>
+<td>Hybrid loop, <code>make install</code>, <code>make test</code> in <code>web-apps/&lt;app&gt;</code></td>
+<td>The images build on Node 22. Most apps accept Node 20, but <code>trader-gui</code> needs 22 and <code>dash-gui</code> 22.13, so use one version for all of them. Install it with nvm or fnm</td>
+</tr>
+</tbody>
+</table>
+<p><strong>First run</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nb">cd</span><span class="w"> </span>deployment/docker
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>make<span class="w"> </span>build<span class="w">            </span><span class="c1"># backend image, from a wheel built from your checkout</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>make<span class="w"> </span>up-all<span class="w">           </span><span class="c1"># the exchange and five GUIs; builds any missing GUI image</span>
+</code></pre></div>
+<p>The first run is slow (every GUI image runs <code>npm ci</code> and a Vite build) and needs
+network access to the npm and PyPI registries. Later starts take seconds. When it
+finishes, the GUIs answer on <a href="http://localhost:8090">http://localhost:8090</a> to <a href="http://localhost:8095">http://localhost:8095</a>
+(<code>config-gui</code> on 8092 only with <code>CONFIG_GUI=1</code>). <code>make status</code> shows one row per
+backend process.</p>
+<p><strong>Which Makefile?</strong> For development use <code>deployment/docker</code> (<code>make up-all</code>). The
+<code>make up</code> in <code>web-apps/</code> starts only the GUI containers against a backend that is
+already running elsewhere, such as a VM. It does not include <code>config-gui</code>.</p>
+<p><strong>Before you push web-app changes.</strong> The release gate (<code>mkbld.sh</code>) runs these for
+every app, so run them in the app you touched:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nb">cd</span><span class="w"> </span>web-apps/&lt;app&gt;
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>make<span class="w"> </span>typecheck<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span>lint<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span><span class="nb">test</span>
+</code></pre></div>
+<p>On Linux with Docker, GUI containers reach the host through a
+<code>docker-compose.linux.yml</code> overlay that the app Makefiles add automatically. With
+Podman, override the <code>*_HOST</code> variables to <code>host.containers.internal</code>. The hybrid
+loop below is unaffected, because it uses <code>127.0.0.1</code>.</p>
 <h2 id="part-1-why-make-up-all-does-not-pick-up-your-change">Part 1 — Why <code>make up-all</code> does not pick up your change<a class="headerlink" href="#part-1-why-make-up-all-does-not-pick-up-your-change" title="Permanent link">&para;</a></h2>
 <p><code>up-all</code> runs <code>compose up -d</code>, deliberately <em>without</em> <code>--build</code>. Compose only
 builds an image that does not exist yet, so an image tagged
@@ -7596,20 +7663,20 @@ contexts on every start (the six GUIs plus the backend), which turns a
 three-second start into a multi-minute one. Building is a separate decision
 from starting.</p>
 <p>So the loop is <em>build, then start</em>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>make<span class="w"> </span>build-guis<span class="w"> </span><span class="nv">GUI</span><span class="o">=</span>terminal-gui<span class="w">     </span><span class="c1"># rebuild one image</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>make<span class="w"> </span>up-all<span class="w">                          </span><span class="c1"># recreate the containers whose image changed</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>make<span class="w"> </span>build-guis<span class="w"> </span><span class="nv">GUI</span><span class="o">=</span>terminal-gui<span class="w">     </span><span class="c1"># rebuild one image</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>make<span class="w"> </span>up-all<span class="w">                          </span><span class="c1"># recreate the containers whose image changed</span>
 </code></pre></div>
 <p>or, in one step:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>make<span class="w"> </span>up-all<span class="w"> </span><span class="nv">BUILD</span><span class="o">=</span><span class="m">1</span><span class="w"> </span><span class="nv">GUI</span><span class="o">=</span>terminal-gui
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>make<span class="w"> </span>up-all<span class="w"> </span><span class="nv">BUILD</span><span class="o">=</span><span class="m">1</span><span class="w">                  </span><span class="c1"># all six</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>make<span class="w"> </span>up-all<span class="w"> </span><span class="nv">BUILD</span><span class="o">=</span><span class="m">1</span><span class="w"> </span><span class="nv">GUI</span><span class="o">=</span>terminal-gui
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>make<span class="w"> </span>up-all<span class="w"> </span><span class="nv">BUILD</span><span class="o">=</span><span class="m">1</span><span class="w">                  </span><span class="c1"># all six</span>
 </code></pre></div>
 <p><code>make build-guis</code> with no <code>GUI=</code> rebuilds all six. It builds through
 <code>compose.yaml -f compose.guis.yaml -f compose.config-gui.yaml</code>, so config-gui
 is always buildable here whether or not you start it with <code>CONFIG_GUI=1</code>.</p>
 <p>For a <strong>backend</strong> change the equivalent is <code>make build</code>, which rebuilds the
 wheel from the checkout first:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nb">cd</span><span class="w"> </span>deployment/docker
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>make<span class="w"> </span>build<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span>up-all
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="nb">cd</span><span class="w"> </span>deployment/docker
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>make<span class="w"> </span>build<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span>up-all
 </code></pre></div>
 <div class="admonition warning">
 <p class="admonition-title">Check the wheel line</p>
@@ -7663,13 +7730,13 @@ currently shipped.</p>
 generated per engine configuration, and the paths into this stack's <code>./data</code>.
 <code>make dev-env</code> reads them out of the running backend and prints them as <code>export</code>
 lines, so they can be evaluated straight into your shell:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="gp">$ </span><span class="nb">cd</span><span class="w"> </span>deployment/docker
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="gp">$ </span>make<span class="w"> </span>-s<span class="w"> </span>dev-env<span class="w"> </span><span class="nv">GUI</span><span class="o">=</span>terminal-gui
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="gp"># </span>terminal-gui:<span class="w"> </span>web<span class="w"> </span>on<span class="w"> </span><span class="m">8190</span>,<span class="w"> </span>bridge<span class="w"> </span>on<span class="w"> </span><span class="m">5190</span><span class="w"> </span><span class="o">(</span>Vite<span class="w"> </span>proxies<span class="w"> </span>/api<span class="w"> </span>and<span class="w"> </span>/ws<span class="o">)</span>
-<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="go">export API_GATEWAY_URL=http://127.0.0.1:8081</span>
-<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="go">export PM_TERMINAL_API_KEY=key-readonly-2kqhcbckg7rk5mkdf6c3ldjd9hbc8ve5</span>
-<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>
-<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="gp">$ </span><span class="nb">eval</span><span class="w"> </span><span class="s2">"</span><span class="k">$(</span>make<span class="w"> </span>-s<span class="w"> </span>dev-env<span class="w"> </span><span class="nv">GUI</span><span class="o">=</span>terminal-gui<span class="k">)</span><span class="s2">"</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="gp">$ </span><span class="nb">cd</span><span class="w"> </span>deployment/docker
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="gp">$ </span>make<span class="w"> </span>-s<span class="w"> </span>dev-env<span class="w"> </span><span class="nv">GUI</span><span class="o">=</span>terminal-gui
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="gp"># </span>terminal-gui:<span class="w"> </span>web<span class="w"> </span>on<span class="w"> </span><span class="m">8190</span>,<span class="w"> </span>bridge<span class="w"> </span>on<span class="w"> </span><span class="m">5190</span><span class="w"> </span><span class="o">(</span>Vite<span class="w"> </span>proxies<span class="w"> </span>/api<span class="w"> </span>and<span class="w"> </span>/ws<span class="o">)</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="go">export API_GATEWAY_URL=http://127.0.0.1:8081</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="go">export PM_TERMINAL_API_KEY=key-readonly-2kqhcbckg7rk5mkdf6c3ldjd9hbc8ve5</span>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="gp">$ </span><span class="nb">eval</span><span class="w"> </span><span class="s2">"</span><span class="k">$(</span>make<span class="w"> </span>-s<span class="w"> </span>dev-env<span class="w"> </span><span class="nv">GUI</span><span class="o">=</span>terminal-gui<span class="k">)</span><span class="s2">"</span>
 </code></pre></div>
 <p>Warnings — a missing credential, an unpublished port, a <code>log.db</code> that does not
 exist yet — go to <strong>stderr</strong>, so they reach you on the terminal without ending
@@ -7738,11 +7805,11 @@ both can run at once.</p>
 <h2 id="part-3-per-application-recipes">Part 3 — Per-application recipes<a class="headerlink" href="#part-3-per-application-recipes" title="Permanent link">&para;</a></h2>
 <p>Each app needs <code>make install</code> once (and again after a dependency change).</p>
 <h3 id="terminal-gui">terminal-gui<a class="headerlink" href="#terminal-gui" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="nb">cd</span><span class="w"> </span>deployment/docker<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span>up-all
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="nb">eval</span><span class="w"> </span><span class="s2">"</span><span class="k">$(</span>make<span class="w"> </span>-s<span class="w"> </span>dev-env<span class="w"> </span><span class="nv">GUI</span><span class="o">=</span>terminal-gui<span class="k">)</span><span class="s2">"</span>
-<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="nb">cd</span><span class="w"> </span>../../web-apps/terminal-gui
-<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>make<span class="w"> </span>install<span class="w">          </span><span class="c1"># first time only</span>
-<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>make<span class="w"> </span>dev<span class="w">              </span><span class="c1"># bridge + web together</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="nb">cd</span><span class="w"> </span>deployment/docker<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span>up-all
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="nb">eval</span><span class="w"> </span><span class="s2">"</span><span class="k">$(</span>make<span class="w"> </span>-s<span class="w"> </span>dev-env<span class="w"> </span><span class="nv">GUI</span><span class="o">=</span>terminal-gui<span class="k">)</span><span class="s2">"</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="nb">cd</span><span class="w"> </span>../../web-apps/terminal-gui
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>make<span class="w"> </span>install<span class="w">          </span><span class="c1"># first time only</span>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>make<span class="w"> </span>dev<span class="w">              </span><span class="c1"># bridge + web together</span>
 </code></pre></div>
 <p>Open <a href="http://localhost:8190">http://localhost:8190</a>.</p>
 <p><code>make dev</code> runs both halves. <code>make dev-web</code> and <code>make dev-bridge</code> run one each,
@@ -7777,9 +7844,9 @@ All three are always published — no <code>ZMQ=1</code> needed.</p>
 <code>dashboards</code> instance. Nothing else in the system needs it, and it is never
 sent to the browser.</p>
 <h3 id="log-gui">log-gui<a class="headerlink" href="#log-gui" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="nb">cd</span><span class="w"> </span>deployment/docker<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span>up-all<span class="w"> </span><span class="nv">ZMQ</span><span class="o">=</span><span class="m">1</span>
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="nb">eval</span><span class="w"> </span><span class="s2">"</span><span class="k">$(</span>make<span class="w"> </span>-s<span class="w"> </span>dev-env<span class="w"> </span><span class="nv">GUI</span><span class="o">=</span>log-gui<span class="k">)</span><span class="s2">"</span>
-<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="nb">cd</span><span class="w"> </span>../../web-apps/log-gui<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span>install<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span>dev
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="nb">cd</span><span class="w"> </span>deployment/docker<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span>up-all<span class="w"> </span><span class="nv">ZMQ</span><span class="o">=</span><span class="m">1</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="nb">eval</span><span class="w"> </span><span class="s2">"</span><span class="k">$(</span>make<span class="w"> </span>-s<span class="w"> </span>dev-env<span class="w"> </span><span class="nv">GUI</span><span class="o">=</span>log-gui<span class="k">)</span><span class="s2">"</span>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="nb">cd</span><span class="w"> </span>../../web-apps/log-gui<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span>install<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span>dev
 </code></pre></div>
 <p>Open <a href="http://localhost:8191">http://localhost:8191</a>.</p>
 <p><strong><code>ZMQ=1</code> is required here, as for dash-gui.</strong> The log bridge subscribes
@@ -7797,8 +7864,8 @@ and says so.</p>
 <p>If <code>log.db</code> does not exist yet, the exchange has not logged anything —
 <code>pm-log-srv</code> creates it on the first entry.</p>
 <h3 id="trader-gui">trader-gui<a class="headerlink" href="#trader-gui" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="nb">cd</span><span class="w"> </span>deployment/docker<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span>up-all
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="nb">cd</span><span class="w"> </span>../../web-apps/trader-gui<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span>install<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span>dev
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="nb">cd</span><span class="w"> </span>deployment/docker<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span>up-all
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="nb">cd</span><span class="w"> </span>../../web-apps/trader-gui<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span>install<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span>dev
 </code></pre></div>
 <p>Open <a href="http://localhost:8193">http://localhost:8193</a>. <strong>No <code>dev-env</code> needed</strong>: trader-gui has no
 bridge, and <code>vite.config.ts</code> proxies <code>/api</code> — REST and the WebSocket upgrades
@@ -7808,7 +7875,7 @@ in the browser, so there is no key to inject.</p>
 <p>That also makes it the one app whose dev server is a true drop-in for the
 container: the only difference is who serves the static bundle.</p>
 <h3 id="config-gui">config-gui<a class="headerlink" href="#config-gui" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="nb">cd</span><span class="w"> </span>web-apps/config-gui<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span>install<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span>dev
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="nb">cd</span><span class="w"> </span>web-apps/config-gui<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span>install<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span>dev
 </code></pre></div>
 <p>Open <a href="http://localhost:8192">http://localhost:8192</a>. <strong>The backend does not need to be running at
 all.</strong> config-gui is a standalone authoring tool for <code>engine_config.yaml</code>; its
@@ -7818,9 +7885,9 @@ stack.</p>
 <p>Its dev server needs the Python side available on your <code>PATH</code> — <code>npm run
 verify:python</code> checks that.</p>
 <h3 id="dash-gui">dash-gui<a class="headerlink" href="#dash-gui" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="nb">cd</span><span class="w"> </span>deployment/docker<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span>up-all<span class="w"> </span><span class="nv">ZMQ</span><span class="o">=</span><span class="m">1</span>
-<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="nb">eval</span><span class="w"> </span><span class="s2">"</span><span class="k">$(</span>make<span class="w"> </span>-s<span class="w"> </span>dev-env<span class="w"> </span><span class="nv">GUI</span><span class="o">=</span>dash-gui<span class="k">)</span><span class="s2">"</span>
-<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="nb">cd</span><span class="w"> </span>../../web-apps/dash-gui<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span>install<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span>dev
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="nb">cd</span><span class="w"> </span>deployment/docker<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span>up-all<span class="w"> </span><span class="nv">ZMQ</span><span class="o">=</span><span class="m">1</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="nb">eval</span><span class="w"> </span><span class="s2">"</span><span class="k">$(</span>make<span class="w"> </span>-s<span class="w"> </span>dev-env<span class="w"> </span><span class="nv">GUI</span><span class="o">=</span>dash-gui<span class="k">)</span><span class="s2">"</span>
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="nb">cd</span><span class="w"> </span>../../web-apps/dash-gui<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span>install<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span>dev
 </code></pre></div>
 <p>Open <a href="http://localhost:8195">http://localhost:8195</a>.</p>
 <p><strong><code>ZMQ=1</code> is required</strong>, as for log-gui: the bridge subscribes to

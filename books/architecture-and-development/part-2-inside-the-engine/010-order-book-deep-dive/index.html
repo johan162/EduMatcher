@@ -8895,7 +8895,9 @@ entry is popped at most once, so <code>_peek</code> is amortised O(log n).</p>
 Without help, those entries — each keeping its <code>Order</code> alive — would
 accumulate for the life of the process (an AI swarm cancels thousands of stale
 orders a minute). <code>_compact_heaps</code> fixes that, and is called from
-<code>_purge_from_indexes</code> every time an entry is retired:</p>
+<code>_purge_from_indexes</code> every time an entry is retired, and after the two paths
+that retire an entry and push its replacement (an amend that loses priority and
+<code>_reinsert_iceberg</code>), so the heaps never exceed the bound for long:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="n">_COMPACT_FACTOR</span> <span class="o">=</span> <span class="mi">2</span>
 <a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a><span class="n">_COMPACT_SLACK</span> <span class="o">=</span> <span class="mi">64</span>
 <a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a>
@@ -8921,9 +8923,12 @@ rebuilding after every single cancel. <code>heap[:] = ...</code> replaces the li
 <p class="admonition-title"><code>len(self._bids)</code> is NOT the number of resting bids</p>
 <p>It includes dead entries. Use <code>len(book._entry_index)</code> (live entries in all
 four heaps), <code>len(book._order_index)</code> (all resting orders, including
-trailing stops) or <code>book.book_stats()</code>. <code>BookStats.heap_garbage_pct</code>
-reports the dead share, and the health beacon publishes it so an operator
-can see whether compaction keeps up. <code>tests/test_order_book_compaction.py</code>
+trailing stops) or <code>book.book_stats()</code>. <code>BookStats.heap_bloat_ratio</code>
+reports the heap size over the <code>2 × live + 64</code> that <code>_compact_heaps</code>
+tolerates (1.0 or less when healthy), and the health beacon publishes it
+so an operator can see whether compaction keeps up. The dead share itself
+is no signal: it legitimately climbs to about half the heap before each
+rebuild. <code>tests/test_order_book_compaction.py</code>
 pins this behaviour.</p>
 </div>
 <h3 id="_purge_from_indexes-the-single-exit-door"><code>_purge_from_indexes</code> — the single exit door<a class="headerlink" href="#_purge_from_indexes-the-single-exit-door" title="Permanent link">&para;</a></h3>
@@ -10330,7 +10335,7 @@ for the wire format.</p>
 </table>
 <p><code>BookStats</code> holds <code>resting_orders</code>, <code>gtc_orders</code>, <code>stop_orders</code>, <code>bid_levels</code>,
 <code>ask_levels</code>, <code>heap_entries</code> (dead ones included), <code>live_entries</code> and
-<code>recent_trades</code>; its <code>heap_garbage_pct</code> property is the dead share of the heaps.</p>
+<code>recent_trades</code>; its <code>heap_bloat_ratio</code> property is the heap size over the size <code>_compact_heaps</code> tolerates.</p>
 <p><code>checkpoint()</code> sorts each heap by key, so <code>bids</code>/<code>asks</code> come out in true
 matching priority with each order's <code>priority_seq</code>. Trailing stops carry no
 sequence (their <code>priority_seq</code> is <code>None</code>) and are listed in checking order.</p>

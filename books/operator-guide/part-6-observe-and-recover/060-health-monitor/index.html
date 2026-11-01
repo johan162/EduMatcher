@@ -7816,10 +7816,10 @@ and nothing is MISSING.</p>
 <td>&gt; 100 %</td>
 </tr>
 <tr>
-<td><code>heap_garbage_pct</code> — judged from 100 heap entries</td>
+<td><code>heap_bloat_ratio</code> — a book's heap size over the size compaction tolerates; 1 is the limit</td>
 <td>a symbol</td>
-<td>&gt; 50 %</td>
-<td>&gt; 80 %</td>
+<td>&gt; 1.5</td>
+<td>&gt; 3</td>
 </tr>
 <tr>
 <td><code>loop_age_ms</code> (fixed)</td>
@@ -7979,7 +7979,7 @@ source, metric name and label spelled out, for SQL by hand:</p>
 series — one per participant, symbol, channel or core — is kept by the minute
 only. Of the engine's, only those the dashboard reads are kept (orders,
 rejects and the other request counters, fills, trades and traded value,
-resting orders, and the books' resting orders, memory and heap garbage, plus
+resting orders, and the books' resting orders, memory and heap bloat, plus
 <code>engine.rejects_by_code</code> and <code>engine.diagnostics</code>); <code>daily_totals</code> keeps
 every counter. Besides each process's own metrics, <code>pm-monitor</code> stores every process's vitals as
 <code>proc.rss_bytes</code>, <code>proc.cpu_pct</code>, <code>proc.threads</code>, <code>proc.fds</code>,
