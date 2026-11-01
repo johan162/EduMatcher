@@ -1769,6 +1769,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../participant-guide/part-5-positions-and-results/020-your-end-of-day-statement/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Your End-of-Day Statement
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -2759,6 +2787,34 @@
     
   
     The Market Model (`pm-market-sim`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-4-run-a-market/100-closing-the-day/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Closing the Day: Settlement, Statements and Housekeeping
   
 
     
@@ -6100,6 +6156,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../training-guide/195-closing-the-day/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Closing the Day: Settlement (`pm-eod`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -7289,6 +7373,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#the-nightly-backup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The nightly backup
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#backups" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -7447,8 +7542,8 @@
 <td><code>latest</code> changes with every release; a restart would bring a different exchange</td>
 </tr>
 <tr>
-<td><strong>Free disk</strong>: at least 4 GB for 30 days</td>
-<td>See <a href="#what-grows">What grows</a></td>
+<td><strong>Free disk</strong>: at least 4 GB for 30 days, plus room for the nightly backup</td>
+<td>See <a href="#what-grows">What grows</a> and <a href="#the-nightly-backup">The nightly backup</a></td>
 </tr>
 <tr>
 <td><strong>The machine stays awake</strong></td>
@@ -7614,6 +7709,40 @@ per real day at any speed.</p>
    process restarting every day is worth a look in its log;</li>
 <li>one daily summary file per trading day in <code>data/ai_swarm/</code>.</li>
 </ol>
+<h2 id="the-nightly-backup">The nightly backup<a class="headerlink" href="#the-nightly-backup" title="Permanent link">&para;</a></h2>
+<p>After each close <code>pm-eod</code> backs up the money record into <code>data/backup/&lt;date&gt;/</code>
+(compressed; see
+<a href="../../part-3-run-it/110-the-simulation-container/#end-of-day">End of day</a>).
+In the <code>ai-sim</code> profile this is deliberately light, because the simulation's
+databases are big:</p>
+<ul>
+<li><strong>Two days are kept</strong>, not the default seven (<code>--backup-keep-days 2</code>).</li>
+<li><strong><code>stats.db</code> is not backed up</strong> (<code>--backup-skip stats.db</code>). It is the largest
+  file here — about 3 GB at the close by the table above — and most of it is
+  order events that are thrown away after 12 hours anyway. What cannot be
+  recreated is <code>clearing.db</code> (the trades) and <code>eod.db</code> (the balances), and
+  those are backed up.</li>
+</ul>
+<p>The table above was measured before the backup existed, so <strong>its totals do not
+include it</strong>. What can be said without measuring:</p>
+<ul>
+<li>To take a copy that is safe while a database is open, SQLite first writes an
+  uncompressed copy next to the backup. The biggest one is <code>clearing.db</code>, about
+  <strong>0.8 GB</strong> at the close by the table above, so the disk needs that much free
+  <em>at the close</em>, on top of the steady state. The copy is deleted as soon as it
+  is compressed.</li>
+<li>Two compressed backups of <code>clearing.db</code> and <code>eod.db</code> stay in <code>data/backup/</code>.
+  How small they compress has not been measured for this set-up. <strong>After the
+  first week run <code>du -sh data/backup</code></strong> and add it to your disk estimate.</li>
+<li><code>data/settlement/</code> grows by a few hundred kilobytes a trading day (a statement
+  for every trader) and is never pruned.</li>
+</ul>
+<p>To change this, edit the scheduler's <code>--on-close</code> in <code>emo-config.yaml</code>
+(<code>./edumatcher.sh shell pm-opctl-cli init</code> writes the file; see
+<a href="../../part-3-run-it/110-the-simulation-container/#your-own-traders-or-process-flags">Your own traders or process flags</a>).
+For example, add <code>--backup-skip clearing.db</code> to skip that backup as well, or
+remove <code>--backup-skip stats.db</code> to back up everything (and keep another 3 GB
+free).</p>
 <h2 id="backups">Backups<a class="headerlink" href="#backups" title="Permanent link">&para;</a></h2>
 <p>The whole state is the install's <code>data</code> directory. To copy it consistently,
 stop first:</p>

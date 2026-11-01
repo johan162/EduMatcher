@@ -1769,6 +1769,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../participant-guide/part-5-positions-and-results/020-your-end-of-day-statement/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Your End-of-Day Statement
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -2759,6 +2787,34 @@
     
   
     The Market Model (`pm-market-sim`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-4-run-a-market/100-closing-the-day/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Closing the Day: Settlement, Statements and Housekeeping
   
 
     
@@ -6100,6 +6156,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../training-guide/195-closing-the-day/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Closing the Day: Settlement (`pm-eod`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -7126,6 +7210,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#end-of-day" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        End of day
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#the-commands-you-will-use" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -7555,7 +7650,10 @@ simulation image is a fork: every program in it is the ordinary
 <li><strong>Sets the clock</strong>: with <code>EM_SPEED</code> other than 1, or <code>EM_START</code>, it
    passes them on to the scheduler (as <code>EDUMATCHER_SCHEDULER_SPEED</code> and
    <code>EDUMATCHER_SCHEDULER_START</code>).</li>
-<li><strong>Starts the profile</strong> with <code>pm-opctl-cli start ai-sim</code>.</li>
+<li><strong>Starts the profile</strong> with <code>pm-opctl-cli start ai-sim</code>. The profile's
+   scheduler runs <code>pm-eod run --pending</code> half a minute after every close, so
+   each simulated day is settled and written up on its own — see
+   <a href="#end-of-day">End of day</a> below.</li>
 <li>
 <p><strong>Watches it</strong>: once a minute it restarts any process of the profile that
    has died, and says so in the container log (<code>docker logs edumatcher-sim</code>):</p>
@@ -7756,6 +7854,49 @@ The reference manual's
 <a href="../../../reference-manual/part-1-command-line/010-processes-environment-and-ports/#pm-compdb-cli-company-database-cli">pm-compdb-cli</a>
 section explains where the source files are and when the entrypoint builds the
 database.</p>
+<h3 id="end-of-day">End of day<a class="headerlink" href="#end-of-day" title="Permanent link">&para;</a></h3>
+<p>After each close the scheduler starts <a href="../../../operator-guide/part-4-run-a-market/100-closing-the-day/"><code>pm-eod</code></a>,
+which turns the day's gains and losses into a <strong>statement for every trader</strong>
+(AI001–AI100, MM01 and the desks), keeps a running <strong>balance</strong> for each, and
+backs up the databases. Nothing needs configuring. The fictional currency
+means the balances are simply a scoreboard: who has made money in the
+simulated market so far.</p>
+<table>
+<thead>
+<tr>
+<th>Where</th>
+<th>What</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>data/settlement/&lt;date&gt;/leaderboard.csv</code></td>
+<td>Everyone ranked by balance, best first</td>
+</tr>
+<tr>
+<td><code>data/settlement/&lt;date&gt;/statements/AI042.md</code></td>
+<td>One trader's statement (also <code>.json</code>, <code>.csv</code>)</td>
+</tr>
+<tr>
+<td><code>data/settlement/&lt;date&gt;/summary.md</code></td>
+<td>The day in one page, including the proof that the amounts sum to zero</td>
+</tr>
+<tr>
+<td><code>data/backup/&lt;date&gt;/</code></td>
+<td>Compressed copies of <code>clearing.db</code> and <code>eod.db</code>, kept 2 days. <code>stats.db</code> is left out: it is large and mostly disposable order events</td>
+</tr>
+</tbody>
+</table>
+<p>Ask for the current standings at any time, from inside the container:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>./edumatcher.sh<span class="w"> </span>shell<span class="w"> </span>pm-eod<span class="w"> </span>balances
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>./edumatcher.sh<span class="w"> </span>shell<span class="w"> </span>pm-eod<span class="w"> </span>status
+</code></pre></div>
+<p>There is no <code>roster.yaml</code>, so statements carry the gateway names (<code>AI042</code>)
+rather than people's names. To label the desks <code>TRADER01</code>–<code>TRADER10</code> for a
+class, add a <code>ref_data/roster.yaml</code> in the data directory (see
+<a href="../../../operator-guide/part-4-run-a-market/100-closing-the-day/#the-roster-file">Closing the Day</a>).
+A day settles only when the market has actually closed, so a weekend or a
+holiday produces no statements.</p>
 <h3 id="the-commands-you-will-use">The commands you will use<a class="headerlink" href="#the-commands-you-will-use" title="Permanent link">&para;</a></h3>
 <p>From the install directory (<code>cd ~/.edumatcher-sim</code>):</p>
 <table>
@@ -7824,12 +7965,12 @@ accelerated run.</p>
 <h3 id="your-own-configuration">Your own configuration<a class="headerlink" href="#your-own-configuration" title="Permanent link">&para;</a></h3>
 <p>The container deploys a configuration of your own when <code>EM_CONFIG_FILE</code>
 names one. Start from the deployed one:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>mkdir<span class="w"> </span>-p<span class="w"> </span>my-sim
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>./edumatcher.sh<span class="w"> </span>shell<span class="w"> </span>cat<span class="w"> </span>/data/ref_data/engine_config.yaml<span class="w"> </span>&gt;<span class="w"> </span>my-sim/engine_config.yaml
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>./edumatcher.sh<span class="w"> </span>shell<span class="w"> </span>cat<span class="w"> </span>/data/ref_data/market_sim.yaml<span class="w">    </span>&gt;<span class="w"> </span>my-sim/market_sim.yaml
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="c1"># edit my-sim/market_sim.yaml (or engine_config.yaml), then:</span>
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>./edumatcher.sh<span class="w"> </span>config<span class="w"> </span>./my-sim/engine_config.yaml
-<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>./edumatcher.sh<span class="w"> </span>restart
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>mkdir<span class="w"> </span>-p<span class="w"> </span>my-sim
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>./edumatcher.sh<span class="w"> </span>shell<span class="w"> </span>cat<span class="w"> </span>/data/ref_data/engine_config.yaml<span class="w"> </span>&gt;<span class="w"> </span>my-sim/engine_config.yaml
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>./edumatcher.sh<span class="w"> </span>shell<span class="w"> </span>cat<span class="w"> </span>/data/ref_data/market_sim.yaml<span class="w">    </span>&gt;<span class="w"> </span>my-sim/market_sim.yaml
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="c1"># edit my-sim/market_sim.yaml (or engine_config.yaml), then:</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>./edumatcher.sh<span class="w"> </span>config<span class="w"> </span>./my-sim/engine_config.yaml
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>./edumatcher.sh<span class="w"> </span>restart
 </code></pre></div>
 <p><code>config</code> copies both files into the install's <code>./config</code>, which is mounted
 read-only at <code>/config</code>, and sets <code>EM_CONFIG_FILE=/config/engine_config.yaml</code>
@@ -7839,13 +7980,13 @@ says why (<code>./edumatcher.sh logs edumatcher</code>) — check it first with
 <p>A deployed configuration stays deployed: clearing <code>EM_CONFIG_FILE</code> alone does
 not bring <code>s300-sim</code> back. Clear it, then redeploy the bundled one and
 restart:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>./edumatcher.sh<span class="w"> </span>shell<span class="w"> </span>pm-setup<span class="w"> </span>--config<span class="w"> </span>s300-sim<span class="w"> </span>--force
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>./edumatcher.sh<span class="w"> </span>restart
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>./edumatcher.sh<span class="w"> </span>shell<span class="w"> </span>pm-setup<span class="w"> </span>--config<span class="w"> </span>s300-sim<span class="w"> </span>--force
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>./edumatcher.sh<span class="w"> </span>restart
 </code></pre></div>
 <h3 id="your-own-traders-or-process-flags">Your own traders or process flags<a class="headerlink" href="#your-own-traders-or-process-flags" title="Permanent link">&para;</a></h3>
 <p>The traders' mix and the processes' flags are in the process profile.
 Write the built-in profiles out once and edit the copy:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>./edumatcher.sh<span class="w"> </span>shell<span class="w"> </span>pm-opctl-cli<span class="w"> </span>init
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>./edumatcher.sh<span class="w"> </span>shell<span class="w"> </span>pm-opctl-cli<span class="w"> </span>init
 </code></pre></div>
 <p><code>init</code> writes <code>data/emo-config.yaml</code>, which from then on replaces the
 built-in profiles. To use your own <code>swarm.yaml</code>, put it in <code>./config/</code> and
@@ -7901,8 +8042,8 @@ for the details and for disk):</p>
 </table>
 <p>A laptop that runs a browser comfortably runs the simulation.</p>
 <h2 id="upgrading">Upgrading<a class="headerlink" href="#upgrading" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>./edumatcher.sh<span class="w"> </span>update<span class="w">          </span><span class="c1"># the newest release</span>
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>./edumatcher.sh<span class="w"> </span>update<span class="w"> </span><span class="m">0</span>.51.0<span class="w">   </span><span class="c1"># ...or an exact one</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>./edumatcher.sh<span class="w"> </span>update<span class="w">          </span><span class="c1"># the newest release</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>./edumatcher.sh<span class="w"> </span>update<span class="w"> </span><span class="m">0</span>.51.0<span class="w">   </span><span class="c1"># ...or an exact one</span>
 </code></pre></div>
 <p>The data directory is kept, and with it the deployed configuration and the
 market's history. The release notes say when a release changes the <code>s300-sim</code>
@@ -7911,14 +8052,14 @@ redeploy with the new example while keeping your history:
 <code>./edumatcher.sh shell pm-setup --config s300-sim --force</code>, then restart.</p>
 <h2 id="building-the-image-yourself">Building the image yourself<a class="headerlink" href="#building-the-image-yourself" title="Permanent link">&para;</a></h2>
 <p>From a clone of the repository:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="nb">cd</span><span class="w"> </span>deployment/docker
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>make<span class="w"> </span>build-sim<span class="w">          </span><span class="c1"># builds edumatcher-ai-sim:local from this checkout</span>
-<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>make<span class="w"> </span>up-sim<span class="w"> </span><span class="nv">LOCAL</span><span class="o">=</span><span class="m">1</span><span class="w">     </span><span class="c1"># runs it with the GUI images from GHCR</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="nb">cd</span><span class="w"> </span>deployment/docker
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>make<span class="w"> </span>build-sim<span class="w">          </span><span class="c1"># builds edumatcher-ai-sim:local from this checkout</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>make<span class="w"> </span>up-sim<span class="w"> </span><span class="nv">LOCAL</span><span class="o">=</span><span class="m">1</span><span class="w">     </span><span class="c1"># runs it with the GUI images from GHCR</span>
 </code></pre></div>
 <p><code>make build-sim</code> builds a wheel from the checkout (it needs <code>poetry</code>) and the
 image's <code>ai-sim</code> stage. Without <code>make</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>docker<span class="w"> </span>build<span class="w"> </span>--target<span class="w"> </span>ai-sim<span class="w"> </span>-t<span class="w"> </span>edumatcher-ai-sim:local<span class="w"> </span>deployment/docker
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="nv">AISIM_IMAGE</span><span class="o">=</span>edumatcher-ai-sim:local<span class="w"> </span>docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>deployment/docker/compose.ai-sim.yaml<span class="w"> </span>up<span class="w"> </span>-d
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>docker<span class="w"> </span>build<span class="w"> </span>--target<span class="w"> </span>ai-sim<span class="w"> </span>-t<span class="w"> </span>edumatcher-ai-sim:local<span class="w"> </span>deployment/docker
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="nv">AISIM_IMAGE</span><span class="o">=</span>edumatcher-ai-sim:local<span class="w"> </span>docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>deployment/docker/compose.ai-sim.yaml<span class="w"> </span>up<span class="w"> </span>-d
 </code></pre></div>
 <p>(Without a wheel in <code>deployment/docker/.wheel/</code>, the build installs the
 latest <code>edumatcher</code> from PyPI.)</p>

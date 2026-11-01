@@ -1769,6 +1769,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../participant-guide/part-5-positions-and-results/020-your-end-of-day-statement/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Your End-of-Day Statement
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -2776,6 +2804,34 @@
     
   
     The Market Model (`pm-market-sim`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../part-4-run-a-market/100-closing-the-day/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Closing the Day: Settlement, Statements and Housekeeping
   
 
     
@@ -6488,6 +6544,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../training-guide/195-closing-the-day/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Closing the Day: Settlement (`pm-eod`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -7842,6 +7926,27 @@ dedicated query tool.</p>
 <td><strong><code>pm-clearing-cli</code></strong> or SQL — see <a href="../../../participant-guide/part-5-positions-and-results/010-positions-and-pnl/">Positions and P&amp;L</a></td>
 </tr>
 <tr>
+<td><code>eod.db</code> (SQLite)</td>
+<td><code>pm-eod</code></td>
+<td>Once per trading date, after the close</td>
+<td>The settlement ledger: each trader's amount per trading date and the log of <code>pm-eod</code> runs</td>
+<td><strong><code>pm-eod balances</code></strong> / <strong><code>pm-eod status</code></strong> — see <a href="../../part-4-run-a-market/100-closing-the-day/">Closing the Day</a></td>
+</tr>
+<tr>
+<td><code>settlement/&lt;date&gt;/</code></td>
+<td><code>pm-eod</code></td>
+<td>Once per trading date</td>
+<td>Trader statements, <code>instructions.csv</code>, leaderboard and the exchange summary</td>
+<td>Plain files — see <a href="../../part-4-run-a-market/100-closing-the-day/#the-files-pm-eod-writes">Closing the Day</a></td>
+</tr>
+<tr>
+<td><code>backup/&lt;date&gt;/</code></td>
+<td><code>pm-eod</code></td>
+<td>Once per trading date</td>
+<td>Verified, zstd-compressed copies of <code>clearing.db</code>, <code>stats.db</code> and <code>eod.db</code></td>
+<td><code>zstd -d</code>; see <a href="../../part-4-run-a-market/100-closing-the-day/#restoring-a-backup">Restoring a backup</a></td>
+</tr>
+<tr>
 <td><code>audit.log</code>, <code>audit/</code></td>
 <td><code>pm-audit</code></td>
 <td>Continuously (buffered flush); <code>audit.log</code> holds today and is closed as <code>audit/audit-DATE.N.log</code> at midnight or 10 MB; each past day is compressed to <code>audit/audit-DATE.log.zst</code></td>
@@ -7966,6 +8071,13 @@ expired, the engine copies what it would persist — <code>gtc_orders.json</code
 regular files are rewritten by every checkpoint; the archive keeps each
 day's closing state, so the next morning's book can be compared with it
 (the simulation forensics check G3 does). Nothing is ever deleted there.</p>
+<div class="admonition note">
+<p class="admonition-title"><code>eod/</code> is not <code>settlement/</code></p>
+<p><code>&lt;DATA_DIR&gt;/eod/&lt;date&gt;/</code> is the <strong>engine's</strong> archive of its own persistence
+files. The end-of-day <em>statements</em> written by <code>pm-eod</code> go to a different
+directory, <code>&lt;DATA_DIR&gt;/settlement/&lt;date&gt;/</code>, so the two can never overwrite
+each other. See <a href="../../part-4-run-a-market/100-closing-the-day/">Closing the Day</a>.</p>
+</div>
 <h2 id="impact-of-a-business-day-change">Impact of a Business-Day Change<a class="headerlink" href="#impact-of-a-business-day-change" title="Permanent link">&para;</a></h2>
 <p>The single fact that governs everything on this page: <strong>a process restart is
 not a day boundary.</strong> The engine has no clock of its own that fires at

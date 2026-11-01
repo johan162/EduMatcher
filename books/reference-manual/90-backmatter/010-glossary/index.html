@@ -1769,6 +1769,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../participant-guide/part-5-positions-and-results/020-your-end-of-day-statement/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Your End-of-Day Statement
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -2759,6 +2787,34 @@
     
   
     The Market Model (`pm-market-sim`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-4-run-a-market/100-closing-the-day/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Closing the Day: Settlement, Statements and Housekeeping
   
 
     
@@ -6439,6 +6495,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../training-guide/195-closing-the-day/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Closing the Day: Settlement (`pm-eod`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -7652,6 +7736,8 @@ engine publishes a symbol's whole book (resting orders in matching priority,
 armed stops in trigger order, trailing stops, and the last prices) at startup
 and at other defined moments, so that a replay can start from a known state
 rather than from the first message of the day.</p>
+<p><strong>Central pool:</strong> How <code>pm-eod</code> settles. Every trader settles with the exchange itself (acting as the one counterparty to everybody) rather than with other traders: a gain is <em>owed by the exchange</em> to the trader, a loss is <em>owed by the trader to the exchange</em>. The amounts of a day sum to exactly zero. See <a href="../../../operator-guide/part-4-run-a-market/100-closing-the-day/">Closing the Day</a>.</p>
+<p><strong>Close snapshot:</strong> The copy of every position — quantity, cumulative realized and unrealized P&amp;L and the closing mark — that <code>pm-clearing</code> saves into <code>position_close_snapshot</code> when the session reaches <code>CLOSED</code> (or, if no <code>CLOSED</code> was ever announced, at the engine's graceful shutdown). Settlement is the difference between two consecutive close snapshots. View it with <code>pm-clearing-cli snapshots</code>.</p>
 <p><strong>Data directory (<code>EDUMATCHER_DATA_DIR</code>):</strong> The one directory in which an
 exchange instance keeps its deployed configuration, databases, logs and saved
 state. All processes of one exchange must use the same one. See
@@ -7667,6 +7753,8 @@ edit <code>engine_config.yaml</code> and install it with <code>pm-config-deploy<
 <code>pm-setup</code>); editing the YAML alone changes nothing.</p>
 <p><strong>Engine (<code>pm-engine</code>):</strong> EduMatcher's matching engine, the single process that
 owns every order book and decides every trade.</p>
+<p><strong>Equity (settlement sense):</strong> In the settlement documentation, a position's <em>cumulative realized plus unrealized P&amp;L</em>. Not to be confused with <em>equity</em> meaning shares; the general-terms entry below describes that sense.</p>
+<p><strong><code>EXCHANGE</code> (ledger account):</strong> The account in <code>eod.db</code> that absorbs the rounding residual of a day (a cent or two at most), so the amounts of every day sum to exactly zero. A reserved name: no gateway may use it.</p>
 <p><strong>Health beacon:</strong> The small message every long-running <code>pm-*</code> process pushes
 to <code>pm-monitor</code> every two seconds (<code>monitor.beacon_interval_sec</code>). <code>pm-monitor</code>
 judges each process from its beacons and publishes <code>health.snapshot</code> and
@@ -7681,6 +7769,7 @@ that the length of a heap is not the number of resting orders.</p>
 <p><strong>Gateway ID:</strong> The identity a participant presents when it connects, for
 example <code>TRADER01</code>. It is the participant's <code>id</code> from the configuration;
 messages and protocols call it <code>gateway_id</code>. See also <em>Gateway</em>.</p>
+<p><strong>Ledger (<code>eod.db</code>):</strong> The settlement database written by <code>pm-eod</code>: one row per account per settled trading date, plus a log of runs. Balances are never stored; they are the sum of the amounts plus the roster's opening balance.</p>
 <p><strong>Operator Dashboard (<code>pm-dash</code>):</strong> The browser view of <code>pm-monitor</code>'s
 health snapshot and history: every process's state, trading activity,
 participants, order books and events, live and over time. See
@@ -7688,6 +7777,7 @@ participants, order books and events, live and over time. See
 <p><strong>Participant:</strong> Anyone configured to connect to the exchange — a student, a
 bot or the operator — with an ID and a role. Listed under <code>participants:</code> in
 the configuration.</p>
+<p><strong><code>pm-eod</code>:</strong> The end-of-day command: settles a closed trading date, writes the statements and runs the housekeeping (audit archive, log compression, database backups). See <a href="../../../operator-guide/part-4-run-a-market/100-closing-the-day/">Closing the Day</a>.</p>
 <p><strong>Process profile:</strong> A named set of <code>pm-*</code> processes that <code>pm-opctl-cli</code> starts
 and stops together: <code>micro</code>, <code>mini</code>, <code>default</code>, <code>mm-demo</code> (the default set
 plus a market-maker bot) or <code>ai-swarm</code> (<code>mm-demo</code> with its market maker quoting around the market model's values, plus the model and twenty AI traders).</p>
@@ -7695,6 +7785,7 @@ plus a market-maker bot) or <code>ai-swarm</code> (<code>mm-demo</code> with its
 records: <code>pm-stats</code> (prices and volumes), <code>pm-clearing</code> (positions and P&amp;L) and
 <code>pm-audit</code> (the full event log). A recorder only captures what happens while
 it is running.</p>
+<p><strong>Roster:</strong> <code>ref_data/roster.yaml</code> — the optional list that connects gateway identifiers to a trader's name, email and opening balance for the statements. Never used to send anything.</p>
 <p><strong>Seed quote:</strong> A market maker's starting quote, defined per symbol under
 <code>market_maker_quotes</code> in the configuration and injected by the engine at
 startup so that a book is not empty. The <code>-nomm</code> example configurations have
@@ -7702,6 +7793,7 @@ none.</p>
 <p><strong>Session phase:</strong> Where the trading day is: <code>PRE_OPEN</code>, <code>OPENING_AUCTION</code>,
 <code>CONTINUOUS</code>, <code>CLOSING_AUCTION</code> or <code>CLOSED</code>, plus the halt-related phases.
 Also called the <em>session state</em>.</p>
+<p><strong>Statement:</strong> The per-trader file <code>pm-eod</code> writes for each trading date: the headline (what the exchange owes the trader or the trader owes it), the result by symbol, the open positions at the close and the day's trades. See <a href="../../../participant-guide/part-5-positions-and-results/020-your-end-of-day-statement/">Your End-of-Day Statement</a>.</p>
 <p><strong>TapeDeck (<code>pm-terminal</code>):</strong> The read-only browser market display. The other
 browser applications are the Trading GUI (<code>pm-trading-ui</code>), the Order Book
 Viewer (<code>pm-book</code>), the Log Operator Console (<code>pm-log-ui</code>), the Operator
@@ -7759,6 +7851,7 @@ stop-loss STOP, typically implemented as an OCO pair. See <a href="../../../part
 <p><strong>Central Limit Order Book (CLOB):</strong> The canonical order-matching mechanism used by most regulated equity exchanges. Orders are queued by price and time; the best bid and best ask are continuously matched when they overlap.</p>
 <p><strong>Circuit Breaker:</strong> An automatic trading halt triggered when price movement exceeds a threshold within a time window, designed to prevent cascading automated trading crashes.</p>
 <p><strong>Clearing:</strong> The process of confirming and recording a trade, and (via a CCP) guaranteeing its settlement.</p>
+<p><strong>Closing price:</strong> The price of the last trade of the trading day in a symbol. In EduMatcher it is the <em>mark</em> used to value open positions at the close.</p>
 <p><strong>Co-location:</strong> Placing a participant's trading servers physically inside the same data centre as the exchange's matching engine, minimising network round-trip latency to microseconds.</p>
 <p><strong>Collar Band / Price Collar:</strong> A price filter that rejects orders whose submitted price deviates too far from a reference price. Two distinct variants: the <em>static price collar</em> (compares against the last close) and the <em>dynamic price collar</em> (compares against the last trade). See those entries for details.</p>
 <p><strong>Combo Order:</strong> A single instruction to execute orders in multiple instruments simultaneously. Each component is a leg.</p>
@@ -7855,6 +7948,7 @@ rests on the book. See <a href="../../../participant-guide/part-2-orders/020-ord
 <p><strong>Latency Arbitrage:</strong> Trading that profits from the brief period between when a price changes on one venue and when that change propagates to another venue.</p>
 <p><strong>Layering:</strong> A market manipulation practice: placing large orders to create a false impression of market depth, then cancelling them once the desired price movement occurs.</p>
 <p><strong>LCH:</strong> A major international clearing house, part of the London Stock Exchange Group. Clears interest rate swaps, equities, foreign exchange, and other products.</p>
+<p><strong>Ledger:</strong> A permanent record of money movements, like a bank statement. EduMatcher's settlement ledger is <code>eod.db</code>.</p>
 <p><strong>Leg:</strong> One component order within a combo order or spread strategy.</p>
 <p><strong>Leg Risk / Legging Risk:</strong> The risk that one leg of a combo order fills while another does not, leaving an unintended single-instrument position.</p>
 <p><strong>Level 1 Data:</strong> The best bid and ask prices and quantities only.</p>
@@ -7889,6 +7983,7 @@ price formation and liquidity. EduMatcher is designed to demonstrate core micros
 <span class="arithmatex">\(\text{mid} = \frac{\text{best bid} + \text{best ask}}{2}\)</span>.
 Often used as a reference price when the spread is non-zero.</p>
 <p><strong>Midpoint Peg Order:</strong> An order whose price continuously tracks the current mid price (the average of the best bid and best ask). Executes only when a counterparty arrives whose order is also willing to trade at the midpoint. The mid is a <em>better</em> price for both parties than the quoted bid or ask, the buyer pays less than the ask, the seller receives more than the bid; the spread is shared rather than fully paid. Provides price improvement at the cost of uncertain execution timing: there is no guarantee a counterparty will appear. Common in dark pools; also supported on IEX on the lit market. Never competes in the regular price-time priority queue, maintained as a separate midpoint matching layer.</p>
+<p><strong>Minor unit:</strong> The smallest division of a currency (the cent, the penny). Amounts are kept as whole numbers of minor units — 12.34 is stored as 1234 — so sums are exact. <code>pm-eod</code> uses two decimals.</p>
 <p><strong>MMP Threshold:</strong> The fill count and time window that together trigger Market Maker Protection. For example, "5 fills within 1 second." If this threshold is exceeded, the exchange automatically cancels all of the market maker's resting quotes. The threshold is negotiated per market maker, per symbol, and finding the right value is a key parameter of market making strategy.</p>
 <p><strong>Monotonic:</strong> Strictly non-decreasing. A monotonic sequence is one where each value is equal to or greater than all previous values. A strictly monotonic sequence is one where each value is strictly greater.</p>
 <h3 id="n">N<a class="headerlink" href="#n" title="Permanent link">&para;</a></h3>
@@ -7896,6 +7991,7 @@ Often used as a reference price when the spread is non-zero.</p>
 <p><strong>Nanosecond:</strong> One billionth of a second (10⁻⁹ seconds). Modern matching engines record timestamps at nanosecond precision.</p>
 <p><strong>NBBO (National Best Bid and Offer):</strong> The best available bid and ask prices aggregated across all US exchanges, as required by Regulation NMS. Brokers must offer clients execution at or better than the NBBO.</p>
 <p><strong>NAV (Net Asset Value):</strong> The total value of a fund's holdings divided by the number of shares outstanding. For mutual funds, NAV is computed daily using the official <strong>closing price</strong> of each holding — one reason the closing price matters so much.</p>
+<p><strong>Netting:</strong> Combining many obligations into one. All of a trader's gains and losses in a day are combined into a single amount to pay or receive.</p>
 <p><strong>Novation:</strong> The legal process by which a CCP replaces the original buyer-seller relationship: the CCP becomes buyer to the seller and seller to the buyer, eliminating bilateral counterparty risk.</p>
 <p><strong>NTP (Network Time Protocol):</strong> A protocol for synchronising computer clocks over a network. Basic NTP achieves millisecond accuracy; higher-precision variants achieve sub-millisecond.</p>
 <h3 id="o">O<a class="headerlink" href="#o" title="Permanent link">&para;</a></h3>
@@ -8017,6 +8113,7 @@ $<span class="arithmatex">\(\text{VWAP} = \frac{\sum(\text{price}_i \times \text
 <p><strong>Wash Trading / Wash Trade:</strong> A transaction where the same participant is on both sides, generating artificial trading volume with no real change of ownership. Illegal in all major jurisdictions under market manipulation regulations (the EU's Market Abuse Regulation, the US SEC's Rule 10b-5, and others). Also called a wash sale. Sometimes performed accidentally, see <em>Self-Match Prevention (SMP)</em>, but when deliberate, it is a form of market abuse used to inflate trading volume figures or create false impressions of liquidity.</p>
 <p><strong>Write-Ahead Log (WAL):</strong> A persistent, append-only log of all input messages to the matching engine. Written before processing; used for recovery and replay. The source of truth from which all derived state (the in-memory order book) can be reconstructed.</p>
 <h3 id="z">Z<a class="headerlink" href="#z" title="Permanent link">&para;</a></h3>
+<p><strong>Zero-sum:</strong> A system in which one party's gain is exactly another's loss, so all results add up to zero. Trading on an exchange is zero-sum, and <code>pm-eod</code> refuses to settle a day that is not.</p>
 <p><strong>ZeroMQ (ZMQ):</strong> The high-performance messaging library used by EduMatcher for inter-process
 communication. Uses a broker-less PUSH/PULL and PUB/SUB topology. No external
 message queue server is required. See <a href="../../../architecture-and-development/part-1-architecture/010-architecture-overview/">Architecture</a>.</p>
