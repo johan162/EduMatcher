@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import sqlite3
 from collections.abc import Mapping
+from decimal import Decimal
 from pathlib import Path
 
 from edumatcher.eod.settle import EXCHANGE, Settlement
@@ -96,6 +97,19 @@ def day_amounts(conn: sqlite3.Connection, trade_date: str) -> dict[str, int]:
         (trade_date,),
     )
     return {r[0]: r[1] for r in rows}
+
+
+def day_detail(
+    conn: sqlite3.Connection, trade_date: str
+) -> dict[str, dict[str, Decimal]]:
+    """Per account, the day's result by symbol in display currency."""
+    rows = conn.execute(
+        "SELECT account, detail_json FROM eod_settlement WHERE trade_date = ?",
+        (trade_date,),
+    )
+    return {
+        r[0]: {sym: Decimal(v) for sym, v in json.loads(r[1]).items()} for r in rows
+    }
 
 
 def balances(

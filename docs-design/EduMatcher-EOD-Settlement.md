@@ -24,7 +24,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 |---|---|---|---|---|---|---|
 | 1 | E1 | Close-time snapshot: `pm-clearing` records every position, marked, when the session closes | — | 1 d | ☑ | 2026-11-01 |
 | 2 | E2 | Settlement engine and ledger: day P&L → integer cash, zero-sum, running balances (`eod.db`) | E1 | 1.5 d | ☑ | 2026-11-01 |
-| 3 | E3 | Roster and reports: per-trader statements, exchange summary, leaderboard (CSV/JSON/Markdown) | E2 | 1.5 d | ☐ | |
+| 3 | E3 | Roster and reports: per-trader statements, exchange summary, leaderboard (CSV/JSON/Markdown) | E2 | 1.5 d | ☑ | 2026-11-01 |
 | 4 | E4 | Housekeeping steps: audit-archive check, log compression, compressed DB backups, retention | — | 1 d | ☐ | |
 | 5 | E5 | `pm-eod` CLI: `run` (gates, steps, idempotency), `--pending`, `status`, `balances`, health | E2–E4 | 1.5 d | ☐ | |
 | 6 | E6 | Trigger: `pm-scheduler --on-close`, start-up catch-up, emo profile | E5 | 0.5 d | ☐ | |
@@ -437,3 +437,26 @@ documented in E7.
   every amount within 1 minor unit of exact.
 - Any gateway with a snapshot row appears in the result, with 0 if its
   equity did not change, so E3 can give every active trader a statement.
+
+**E3 (2026-11-01).**
+- Three modules in `eod/`: `roster.py` (loader), `report.py` (dataclasses,
+  all wording, renderers, atomic writer — pure, no DB), `assemble.py`
+  (`build_day`: `eod.db` + `clearing.db` + optional `stats.db` → `DayReport`;
+  writes nothing). E5 calls `build_day` then `write_day`.
+- Atomicity is per **day directory**, not per file: everything is written to
+  `.<date>.partial/` and renamed into place (an existing day is moved to
+  `.<date>.old/` first), so a failed rewrite leaves the previous day intact.
+- Deviations from §3.4: the exchange summary has **no reject counts**
+  (`stats.db` `daily_stats` has volume, trade count and close only; reject
+  counts would need the order-event tables — left out until someone asks);
+  the per-statement CSV is one row per symbol (day P&L, quantity, mark), the
+  trade list lives in the `.md`/`.json`.
+- The wording is fixed in `report.py`: "The exchange owes you X." / "You owe
+  the exchange X." / "Nothing to pay or receive today."; no currency name
+  (fictional currency). Trade times are UTC and the column says so.
+- A trader with no activity gets a zero statement and keeps their balance;
+  roster `opening_balance` is added once in `balances()`. Roster gateway ids
+  are upper-cased, as `pm-clearing-cli` does.
+- A statement's trade list comes from `trade_events`, which is pruned after
+  `--retention-days`; settling an old date by `--redo` after the prune shows
+  no trades but still the correct amounts (they come from the snapshots).
