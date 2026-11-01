@@ -97,6 +97,7 @@ from edumatcher.models.generated.system import (
 FLUSH_SIZE: int = 100
 FLUSH_INTERVAL_SEC: float = 5.0
 _TIMER_POLL_SEC: float = 0.5
+_DRAIN_POLL_MS: int = 250
 _RETENTION_DAYS: int = 90
 _DEBUG_SUMMARY_INTERVAL_SEC: float = 5.0
 # trade.executed carries `ts_ns`: integer Unix epoch NANOSECONDS, the engine's
@@ -426,11 +427,15 @@ class ClearingProcess:
             poller.register(health_rep, zmq.POLLIN)
 
         reporter = self._reporter
-        while self._running:
+        while True:
+            # After stop(), keep reading until the feed has been quiet for one
+            # poll: what the engine published before it exited is already in
+            # the socket, and dropping it leaves clearing short of the tape.
+            draining = not self._running
             if reporter is not None:
                 reporter.tick_and_publish(self.metric_samples)
             try:
-                socks = dict(poller.poll(timeout=300))
+                socks = dict(poller.poll(timeout=_DRAIN_POLL_MS if draining else 300))
             except zmq.ZMQError as exc:
                 if exc.errno != errno.EINTR:
                     raise
@@ -440,6 +445,8 @@ class ClearingProcess:
                 answer_health_ping(health_rep, log)
 
             if sub not in socks:
+                if draining:
+                    break
                 continue
 
             frames = sub.recv_multipart()

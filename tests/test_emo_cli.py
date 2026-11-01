@@ -504,11 +504,50 @@ def test_stop_signals_only_live_managed_processes(
     kill = Mock()
     monkeypatch.setattr(os, "kill", kill)
     monkeypatch.setattr(time, "sleep", lambda seconds: None)
+    monkeypatch.setattr(emo_cli, "is_alive", lambda pid: False)
 
     assert emo_cli.stop_profile() == 0
     kill.assert_called_once_with(101, signal.SIGTERM)
     assert not list(emo_cli.runtime_dir().glob("*.pid"))
     assert emo_cli.read_active_profile() is None
+
+
+def test_stop_waits_for_each_wave_before_signalling_the_next(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    processes = [
+        {"name": "log", "command": ["pm-log-srv"]},
+        {"name": "clearing", "command": ["pm-clearing"]},
+        {"name": "engine", "command": ["pm-engine"]},
+        {"name": "mm-bot", "command": ["pm-mm-bot"]},
+    ]
+    monkeypatch.setattr(emo_cli, "load_profiles", lambda: {"demo": processes})
+    emo_cli.runtime_dir().mkdir(parents=True)
+    pids = {"log": 1, "clearing": 2, "engine": 3, "mm-bot": 4}
+    for name, pid in pids.items():
+        emo_cli.pid_path(name).write_text(f"{pid}\n", encoding="ascii")
+    emo_cli.write_active_profile("demo")
+    monkeypatch.setattr(emo_cli, "read_pid", lambda name: pids[name])
+    events: list[tuple[str, int]] = []
+    monkeypatch.setattr(os, "kill", lambda pid, sig: events.append(("term", pid)))
+
+    def alive(pid: int) -> bool:
+        events.append(("poll", pid))
+        return False
+
+    monkeypatch.setattr(emo_cli, "is_alive", alive)
+
+    assert emo_cli.stop_profile() == 0
+    assert events == [
+        ("term", 4),
+        ("poll", 4),
+        ("term", 3),
+        ("poll", 3),
+        ("term", 2),
+        ("poll", 2),
+        ("term", 1),
+        ("poll", 1),
+    ]
 
 
 @pytest.mark.parametrize("returncode, expected", [(0, 0), (1, 0), (9, 9)])

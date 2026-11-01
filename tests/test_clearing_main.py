@@ -254,6 +254,31 @@ class TestClearingProcessIntegration:
         conn.close()
         assert "T-SINGLE" in ids
 
+    def test_trades_already_published_when_stopped_are_kept(
+        self, db_path: Path, zmq_addr: str
+    ) -> None:
+        pub = _InprocPublisher(zmq_addr)
+        process = ClearingProcess(
+            pub_addr=zmq_addr,
+            db_path=db_path,
+            flush_size=1000,
+            flush_interval_sec=10.0,
+            print_every=0,
+            retention_days=3650,
+        )
+        t = self._start(process)
+        time.sleep(0.2)
+
+        for i in range(200):
+            pub.publish(_make_trade(f"T-{i}"))
+        self._stop(process, t)  # no pause: most are still queued in the socket
+        pub.close()
+
+        conn = open_writer_connection(db_path)
+        count = conn.execute("SELECT COUNT(*) FROM trade_events").fetchone()[0]
+        conn.close()
+        assert count == 200
+
     def test_multiple_trades_flush_on_size(self, db_path: Path, zmq_addr: str) -> None:
         pub = _InprocPublisher(zmq_addr)
         process = ClearingProcess(
