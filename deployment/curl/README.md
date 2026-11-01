@@ -311,5 +311,5 @@ It survives stop, start and update. `uninstall --data` is what deletes it.
 ## Building from source instead
 
 If you want to change the code rather than run it, use
-[`../docker/`](../docker/), which builds the same seven images from your
+[`../docker/`](../docker/), which builds the same images from your
 checkout with `make up-all`.

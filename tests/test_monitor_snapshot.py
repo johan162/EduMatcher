@@ -90,7 +90,7 @@ def _engine(
         _g("engine.book_resting_orders", 9, "AAA"),
         _g("engine.book_bid_levels", 3, "AAA"),
         _g("engine.book_ask_levels", 2, "AAA"),
-        _g("engine.book_heap_garbage_pct", 10.0, "AAA"),
+        _g("engine.book_heap_bloat_ratio", 0.1, "AAA"),
         _g("engine.book_est_bytes", 4096, "AAA"),
         _g("engine.book_halted", 0, "AAA"),
     ]
@@ -376,23 +376,18 @@ def test_a_reject_ratio_on_a_handful_of_requests_is_not_judged(
     assert snap.thresholds == []
 
 
-@pytest.mark.parametrize(("entries", "breached"), [(3, False), (100, True)])
-def test_heap_garbage_needs_a_real_heap(
-    mon: Monitor, clocks: _Clocks, entries: int, breached: bool
+@pytest.mark.parametrize(("ratio", "breached"), [(1.0, False), (2.0, True)])
+def test_heap_bloat_is_judged_against_the_compaction_bound(
+    mon: Monitor, clocks: _Clocks, ratio: float, breached: bool
 ) -> None:
     mon.receive(
-        _beacon_frames(
-            metrics=[
-                _g("engine.book_heap_entries", entries, "AAA"),
-                _g("engine.book_heap_garbage_pct", 66.0, "AAA"),
-            ]
-        ),
+        _beacon_frames(metrics=[_g("engine.book_heap_bloat_ratio", ratio, "AAA")]),
         clocks.mono,
     )
     snaps = [_snapshot(mon) for _ in range(RAISE_AFTER)]
     snap = snaps[-1]
     rules = [(b.rule, b.subject) for b in snap.thresholds]
-    assert rules == ([("heap_garbage_pct", "AAA")] if breached else [])
+    assert rules == ([("heap_bloat_ratio", "AAA")] if breached else [])
 
 
 def test_a_stopped_engine_has_no_connections_or_latency(

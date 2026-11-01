@@ -80,7 +80,7 @@ make info
 ## Quick start
 
 ```bash
-cd container
+cd deployment/docker
 make build
 make up
 make status          # one row per process, green when healthy
@@ -483,7 +483,7 @@ curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment
 | `make config-show` | Show the deployed configuration |
 | `make ports` | List the published ports |
 | `make mounts` | Which directory on disk is behind each container path, and which image each container came from |
-| `make ghcr-push` | Push all seven images to GHCR as `:dev`. `TAG=x.y.z FORCE=1` for a release tag, `LATEST=1` to move `latest`. Needs `GITHUB_USER` and `GHCR_TOKEN` |
+| `make ghcr-push` | Push the seven non-sim images (not `edumatcher-ai-sim`) to GHCR as `:dev`. `TAG=x.y.z FORCE=1` for a release tag, `LATEST=1` to move `latest`. Needs `GITHUB_USER` and `GHCR_TOKEN` |
 | `make info` | Show the detected engine, compose command and image name |
 | `make clean` | Remove the container and the image |
 | `make clean-data` | Delete `./data` (asks first) |
@@ -564,7 +564,7 @@ someone's hands before a release exists.
 ```bash
 export GITHUB_USER=johan162 GHCR_TOKEN=<token with write:packages>
 
-make ghcr-push                              # all seven, tagged :dev
+make ghcr-push                              # the seven non-sim images, tagged :dev
 make ghcr-push TAG=0.20.6 FORCE=1           # ...as a release tag
 make ghcr-push TAG=0.20.6 FORCE=1 LATEST=1  # ...and move :latest
 ```

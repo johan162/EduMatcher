@@ -139,7 +139,7 @@ six GUIs in one file.
 Locally built images are tagged `edumatcher:local` (from `IMAGE_NAME` and
 `IMAGE_TAG` in `.env`) and `edumatcher-<app>:latest`. Released images are
 `ghcr.io/johan162/<image>:<version>`, with `latest` following the newest
-release. One version tag pins all seven images to the same release.
+release. One version tag pins all eight images to the same release.
 
 ### Why the whole exchange is one container
 

@@ -202,7 +202,7 @@ def test_engine_counters_the_monitor_differences_are_counters() -> None:
         assert emitted[name] == COUNTER, name
     for name in ("engine.participant_connected", "engine.resting_orders",
                  "engine.session_state", "engine.handle_us_p99",
-                 "engine.book_heap_garbage_pct", "engine.book_heap_entries"):  # fmt: skip
+                 "engine.book_heap_bloat_ratio", "engine.book_heap_entries"):  # fmt: skip
         assert emitted[name] == GAUGE, name
 
 

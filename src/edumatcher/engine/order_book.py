@@ -198,11 +198,14 @@ class BookStats:
     recent_trades: int
 
     @property
-    def heap_garbage_pct(self) -> float:
-        """Share of heap entries that are dead -- whether compaction keeps up."""
-        if self.heap_entries == 0:
-            return 0.0
-        return 100.0 * (self.heap_entries - self.live_entries) / self.heap_entries
+    def heap_bloat_ratio(self) -> float:
+        """Heap size over the size ``_compact_heaps`` tolerates -- whether
+        compaction keeps up.  At most 1.0 in a healthy book; the dead share
+        of the heaps is not a health signal, as compaction lets it build up
+        to about half the heap before it rebuilds."""
+        return self.heap_entries / (
+            _COMPACT_FACTOR * self.live_entries + _COMPACT_SLACK
+        )
 
 
 #: Rebuild the heaps once they hold more than this many entries per live order
@@ -857,6 +860,7 @@ class OrderBook:
             new_entry = _HeapEntry(key=key, order=order)
             heapq.heappush(heap, new_entry)
             self._entry_index[order.id] = new_entry
+            self._compact_heaps()
         else:
             # Priority preserved (pure quantity decrease at the same price):
             # the existing heap entry and its key stay exactly as they are --
@@ -2188,6 +2192,7 @@ class OrderBook:
         entry = _HeapEntry(key=key, order=order)
         heapq.heappush(heap, entry)
         self._entry_index[order.id] = entry
+        self._compact_heaps()
 
     def _peek(self, heap: list[_HeapEntry]) -> Optional[Order]:
         """

@@ -62,7 +62,6 @@ from edumatcher.monitor.store import MetricsStore
 from edumatcher.monitor.thresholds import (
     LOOP_AGE_RULE,
     LOOP_AGE_WARN_MS,
-    MIN_HEAP_ENTRIES,
     MIN_REQUESTS_5M,
     Change,
     Reading,
@@ -160,7 +159,7 @@ STORED_ENGINE_LABELLED = frozenset(
         "engine.book_resting_orders",
         "engine.book_gtc_orders",
         "engine.book_est_bytes",
-        "engine.book_heap_garbage_pct",
+        "engine.book_heap_bloat_ratio",
     }
 )
 #: How a state change is coloured in the event log.
@@ -591,10 +590,9 @@ class Monitor:
                             )
                         )
         for symbol, book in self.activity.books.items():
-            garbage = book.gauges.get("engine.book_heap_garbage_pct")
-            entries = book.gauges.get("engine.book_heap_entries", 0.0)
-            if garbage is not None and entries >= MIN_HEAP_ENTRIES:
-                out.append(band_reading(t, "heap_garbage_pct", symbol, garbage))
+            bloat = book.gauges.get("engine.book_heap_bloat_ratio")
+            if bloat is not None:
+                out.append(band_reading(t, "heap_bloat_ratio", symbol, bloat))
         for (rule, key), rate in self.activity.increases.items():
             out.append(increase_reading(rule, key, rate.last_5m(now)))
         return out

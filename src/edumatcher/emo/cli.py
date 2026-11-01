@@ -138,6 +138,7 @@ import time
 from pathlib import Path
 from typing import Any
 
+import psutil
 import yaml
 
 from edumatcher.cli_version import package_version
@@ -167,6 +168,16 @@ TCP_CHECK_TIMEOUT_SEC = 0.3
 LOG_SRV_COMMAND = "pm-log-srv"
 LOG_SRV_READY_TIMEOUT_SEC = 10.0
 LOG_SRV_READY_POLL_SEC = 0.1
+# `stop` signals in waves, each waited out before the next: everything else,
+# then the engine, then the recorders that must see its last messages, then the
+# log server that hears the others' farewells.
+STOP_WAVES: tuple[tuple[str, ...], ...] = (
+    ("pm-engine",),
+    ("pm-clearing", "pm-stats", "pm-audit", "pm-index", "pm-monitor"),
+    (LOG_SRV_COMMAND,),
+)
+STOP_WAIT_SEC = 15.0
+STOP_POLL_SEC = 0.1
 GREEN = "\033[32m"
 RED = "\033[31m"
 YELLOW = "\033[33m"
@@ -935,6 +946,22 @@ def start_profile(profile_name: str, *, debug: bool = False) -> int:
     return 0
 
 
+def stop_wave(name: str, programs: dict[str, str]) -> int:
+    """Index into STOP_WAVES for a process (0 is the first to stop)."""
+    program = programs.get(name)
+    for index, wave in enumerate(STOP_WAVES):
+        if program in wave:
+            return index + 1
+    return 0
+
+
+def is_alive(pid: int) -> bool:
+    try:
+        return psutil.Process(pid).status() != psutil.STATUS_ZOMBIE
+    except psutil.NoSuchProcess:
+        return False
+
+
 def stop_profile() -> int:
     runtime = runtime_dir()
     pid_files = sorted(runtime.glob("*.pid"))
@@ -943,19 +970,38 @@ def stop_profile() -> int:
         active_profile_path().unlink(missing_ok=True)
         return 0
 
+    active = read_active_profile()
+    programs = {
+        process["name"]: os.path.basename(process["command"][0])
+        for process in load_profiles().get(active or "", [])
+    }
+    waves: dict[int, dict[str, int]] = {}
     for path in pid_files:
         name = path.stem
         pid = read_pid(name)
         if pid is None:
             path.unlink(missing_ok=True)
             continue
-        try:
-            os.kill(pid, signal.SIGTERM)
-            print(f"  stopped {name} (pid {pid})")
-        except ProcessLookupError:
-            pass
-        path.unlink(missing_ok=True)
-    time.sleep(0.2)
+        waves.setdefault(stop_wave(name, programs), {})[name] = pid
+
+    for _, members in sorted(waves.items()):
+        for name, pid in members.items():
+            try:
+                os.kill(pid, signal.SIGTERM)
+                print(f"  stopped {name} (pid {pid})")
+            except ProcessLookupError:
+                pass
+            pid_path(name).unlink(missing_ok=True)
+        deadline = time.monotonic() + STOP_WAIT_SEC
+        while any(is_alive(pid) for pid in members.values()):
+            if time.monotonic() >= deadline:
+                print(
+                    f"  warning: {', '.join(members)} still running "
+                    f"{STOP_WAIT_SEC:g}s after SIGTERM; continuing",
+                    file=sys.stderr,
+                )
+                break
+            time.sleep(STOP_POLL_SEC)
     active_profile_path().unlink(missing_ok=True)
     return 0
 

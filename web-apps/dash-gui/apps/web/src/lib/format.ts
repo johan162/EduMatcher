@@ -93,6 +93,11 @@ export function formatPercent(pct: number): string {
 }
 
 /** A duration as HH:MM, with whole days in front past 24 h: "05:12", "3d 05:12". */
+export function formatRatio(x: number): string {
+  if (!Number.isFinite(x)) return NO_VALUE;
+  return `${noNegativeZero(Math.round(x * 100) / 100).toFixed(2)}×`;
+}
+
 export function formatDuration(seconds: number): string {
   if (!Number.isFinite(seconds)) return NO_VALUE;
   const total = Math.max(0, Math.floor(seconds / 60));

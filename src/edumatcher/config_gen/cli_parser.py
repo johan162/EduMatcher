@@ -1184,7 +1184,7 @@ def build_parser() -> argparse.ArgumentParser:
             "monitor.thresholds.<RULE> override, repeatable, e.g. "
             "host_cpu_pct:70:90. Rules: host_cpu_pct, host_mem_pct, "
             "disk_free_pct (warn above crit), engine_handle_p99_us, "
-            "reject_pct_5m, rss_growth_pct_1h, heap_garbage_pct."
+            "reject_pct_5m, rss_growth_pct_1h, heap_bloat_ratio."
         ),
     )
 

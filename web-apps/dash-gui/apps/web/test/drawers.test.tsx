@@ -149,7 +149,7 @@ describe("drawer content (D4.2)", () => {
     renderAt(drawerPath("book", "AAPL"));
     expect(facts("Book figures")["Trades today"]).toBe("8");
     await waitFor(() => expect(bridge.count("/api/rate?name=engine.trades&label=AAPL")).toBe(1));
-    expect(bridge.count("/api/series?name=engine.book_heap_garbage_pct&label=AAPL")).toBe(1);
+    expect(bridge.count("/api/series?name=engine.book_heap_bloat_ratio&label=AAPL")).toBe(1);
     await waitFor(() => expect(within(within(drawer()).getByRole("log")).getByText("HALT")).toBeTruthy());
   });
 

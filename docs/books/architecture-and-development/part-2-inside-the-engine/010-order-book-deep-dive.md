@@ -643,7 +643,9 @@ An order cancelled at a price far from the market may never reach `heap[0]`.
 Without help, those entries — each keeping its `Order` alive — would
 accumulate for the life of the process (an AI swarm cancels thousands of stale
 orders a minute). `_compact_heaps` fixes that, and is called from
-`_purge_from_indexes` every time an entry is retired:
+`_purge_from_indexes` every time an entry is retired, and after the two paths
+that retire an entry and push its replacement (an amend that loses priority and
+`_reinsert_iceberg`), so the heaps never exceed the bound for long:
 
 ```python
 _COMPACT_FACTOR = 2
@@ -672,9 +674,12 @@ rebuilding after every single cancel. `heap[:] = ...` replaces the list
 !!! warning "`len(self._bids)` is NOT the number of resting bids"
     It includes dead entries. Use `len(book._entry_index)` (live entries in all
     four heaps), `len(book._order_index)` (all resting orders, including
-    trailing stops) or `book.book_stats()`. `BookStats.heap_garbage_pct`
-    reports the dead share, and the health beacon publishes it so an operator
-    can see whether compaction keeps up. `tests/test_order_book_compaction.py`
+    trailing stops) or `book.book_stats()`. `BookStats.heap_bloat_ratio`
+    reports the heap size over the `2 × live + 64` that `_compact_heaps`
+    tolerates (1.0 or less when healthy), and the health beacon publishes it
+    so an operator can see whether compaction keeps up. The dead share itself
+    is no signal: it legitimately climbs to about half the heap before each
+    rebuild. `tests/test_order_book_compaction.py`
     pins this behaviour.
 
 ### `_purge_from_indexes` — the single exit door
@@ -1894,7 +1899,7 @@ for the wire format.
 
 `BookStats` holds `resting_orders`, `gtc_orders`, `stop_orders`, `bid_levels`,
 `ask_levels`, `heap_entries` (dead ones included), `live_entries` and
-`recent_trades`; its `heap_garbage_pct` property is the dead share of the heaps.
+`recent_trades`; its `heap_bloat_ratio` property is the heap size over the size `_compact_heaps` tolerates.
 
 `checkpoint()` sorts each heap by key, so `bids`/`asks` come out in true
 matching priority with each order's `priority_seq`. Trailing stops carry no

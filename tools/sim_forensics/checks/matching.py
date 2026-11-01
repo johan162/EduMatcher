@@ -1096,6 +1096,7 @@ class _Replay:
         self.snapshots += 1
         if (
             self.phase == "CONTINUOUS"
+            and sym not in self.halted
             and bids
             and asks
             and bids[0]["price"] >= asks[0]["price"]

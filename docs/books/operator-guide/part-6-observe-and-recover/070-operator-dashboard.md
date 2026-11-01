@@ -191,7 +191,7 @@ Each row folds away with its title; the browser remembers which are folded.
 | **Processes** | Every process: state, uptime, memory and CPU with their recent trend, loop age and lag. Participant bots are listed after the exchange's own and never affect its status. Memory per process, and CPU per process over the range |
 | **Trading activity** | Orders per minute by participant (the top eight and "other"), trades and traded value per minute, the order averages, the reject ratio as `pm-monitor` judges it, and today's rejects by reason — what the engine said no to (`ORDER_NOT_FOUND`, `MARKET_CLOSED`, `MM_MAX_SPREAD` …) |
 | **Participants** | How many participants were connected over the range, with heartbeat timeouts as red lines: a drop of many at once points at a gateway or the network. Then the table: role, connection, orders today and their rates, reject %, resting orders, connects / disconnects / heartbeat timeouts today, and the participant's own connection lane over the range (sort that column to bring the most disconnected to the top). "avg/day" shows "—" until there is a full day of history |
-| **Order books** | The number of books and their estimated memory; per symbol: resting and stop orders, price levels, memory, heap garbage, trades today, and whether it is halted |
+| **Order books** | The number of books and their estimated memory; per symbol: resting and stop orders, price levels, memory, heap bloat, trades today, and whether it is halted |
 | **Gateways & infrastructure** | Clients per gateway against its limit, API WebSocket sessions and dropped events, slow-client disconnects, log server intake, feed gaps, the data files' sizes, and the engine's internal diagnostics |
 | **Event log** | Every health event, newest first, filterable by kind: connects and disconnects, state changes, threshold breaches, session changes, halts |
 
@@ -237,7 +237,7 @@ it and press Enter) to open its **drawer** on the right:
 - **A participant**: its connection and figures, its orders, rejects and
   fills per minute, its resting orders, and its connects and disconnects.
 - **An order book**: its figures, trades and traded value per minute,
-  resting orders, memory and heap garbage, its halts and resumes, and
+  resting orders, memory and heap bloat, its halts and resumes, and
   **Book in book-gui** — the book in the
   [Order Book Viewer](../../participant-guide/part-6-front-ends/030-order-book-gui.md).
 

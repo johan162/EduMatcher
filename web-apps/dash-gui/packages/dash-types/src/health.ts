@@ -147,7 +147,7 @@ export interface BookStats {
   bid_levels: number;
   ask_levels: number;
   est_bytes: number;
-  heap_garbage_pct: number;
+  heap_bloat_ratio: number;
   trades_today: number;
   halted: boolean;
 }

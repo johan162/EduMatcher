@@ -214,14 +214,14 @@ describe("rows 3-7 (D3.4)", () => {
     expect(row("Participants").querySelector("[data-widget=state-timeline]")).toBeNull();
   });
 
-  it("books: heap garbage is coloured only where pm-monitor judges it (I118)", () => {
+  it("books: heap bloat is coloured only where pm-monitor judges it (I118)", () => {
     const socket = renderAt();
-    const books = CAPTURED.books.map((b) => ({ ...b, heap_garbage_pct: 60 }));
-    const breach = { rule: "heap_garbage_pct", subject: "MSFT", level: "WARN" as const, value: 60, threshold: 50, since: CAPTURED.ts };
+    const books = CAPTURED.books.map((b) => ({ ...b, heap_bloat_ratio: 2 }));
+    const breach = { rule: "heap_bloat_ratio", subject: "MSFT", level: "WARN" as const, value: 2, threshold: 1.5, since: CAPTURED.ts };
     socket.deliver(hello, frame(fixtureSnapshot({ books, thresholds: [breach] })));
     const garbage = (symbol: string) => [...screen.getByRole("table", { name: "Order books" }).querySelector(`[data-row="${symbol}"]`)!.querySelectorAll("td")][7]!.textContent;
-    expect(garbage("MSFT")).toBe("60.0% ◐");
-    expect(garbage("AAPL")).toBe("60.0%"); // above the band, too few entries for pm-monitor to judge
+    expect(garbage("MSFT")).toBe("2.00× ◐");
+    expect(garbage("AAPL")).toBe("2.00×"); // above the band, but pm-monitor has not judged it
   });
 
   it("books, gateways and the event log", async () => {

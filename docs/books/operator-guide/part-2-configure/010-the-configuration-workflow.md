@@ -512,7 +512,7 @@ Monitor options — health beacons and `pm-monitor`, see
 | `--monitor-book-metrics-interval-sec` | float (`> 0`) | `10` | `monitor.book_metrics_interval_sec` |
 | `--monitor-raw-hours` | int (`> 0`) | `6` | `monitor.retention.raw_hours` |
 | `--monitor-minute-days` | int (`> 0`) | `7` | `monitor.retention.minute_days` |
-| `--monitor-threshold RULE:WARN:CRIT` | repeatable | the §9.6 bands | One threshold band, e.g. `host_cpu_pct:70:90`; rules `host_cpu_pct`, `host_mem_pct`, `disk_free_pct`, `engine_handle_p99_us`, `reject_pct_5m`, `rss_growth_pct_1h`, `heap_garbage_pct` |
+| `--monitor-threshold RULE:WARN:CRIT` | repeatable | the §9.6 bands | One threshold band, e.g. `host_cpu_pct:70:90`; rules `host_cpu_pct`, `host_mem_pct`, `disk_free_pct`, `engine_handle_p99_us`, `reject_pct_5m`, `rss_growth_pct_1h`, `heap_bloat_ratio` |
 
 Passing any of these implies the `monitor` block. The emitted block lists
 every field, defaults included, so the file shows what `pm-monitor` will run

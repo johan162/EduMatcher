@@ -49,6 +49,13 @@ stdout/stderr to `<DATA-DIR>/emo/<process>.log`. PID files are kept beside them.
 does not search for or terminate unrelated processes with the same executable
 name.
 
+It stops the exchange in order, waiting for each step to exit before starting the
+next: gateways, bots and other processes first, then `pm-engine`, then the
+recorders (`pm-clearing`, `pm-stats`, `pm-audit`, `pm-index`, `pm-monitor`), and
+`pm-log-srv` last. The recorders therefore see everything the engine published
+before it exited. A process still running 15 seconds after `SIGTERM` is reported
+and the next step proceeds.
+
 `kill` is an emergency command. It runs:
 
 ```bash

@@ -171,10 +171,24 @@ def fills_equal_trades_per_order(ds: Dataset) -> Outcome:
     )
     first = ds.conn.execute("SELECT min(id) FROM clearing.trade_events").fetchone()[0]
     clearing_pruned = first is not None and not first.endswith("-000000001")
+    columns = {r[1] for r in ds.conn.execute("PRAGMA stats.table_info(order_events)")}
+    ahead: set[str] = set()
+    if "trade_ids" in columns:
+        # A fill naming a trade beyond the cut is ahead of clearing (it stops
+        # before the engine does), not missing from it.
+        ahead = {
+            r[0]
+            for r in ds.conn.execute(
+                "SELECT DISTINCT oe.order_id "
+                "FROM stats.order_events oe, json_each(oe.trade_ids) j "
+                "WHERE oe.event_type = 'FILL' AND j.value > ?",
+                (cut,),
+            )
+        }
     samples: list[Sample] = []
     missing: Counter[str] = Counter()
     for oid, gw, symbol, traded, filled, n_trades, n_fills, last_id, first_ns in rows:
-        if last_id is not None and last_id > cut:
+        if (last_id is not None and last_id > cut) or oid in ahead:
             continue  # its fills may legitimately be ahead of the cut
         if last_id is None and clearing_pruned:
             continue  # its trades may be older than clearing's retention

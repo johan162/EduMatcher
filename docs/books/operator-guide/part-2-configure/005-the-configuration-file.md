@@ -1121,7 +1121,7 @@ monitor:
     engine_handle_p99_us: {warn: 5000, crit: 20000}
     reject_pct_5m:        {warn: 10,   crit: 30}
     rss_growth_pct_1h:    {warn: 50,   crit: 100}
-    heap_garbage_pct:     {warn: 50,   crit: 80}
+    heap_bloat_ratio:     {warn: 1.5,  crit: 3}
 ```
 
 ### `log_server` — central log collector (`pm-log-srv`)
@@ -1192,7 +1192,7 @@ The seven threshold rules and their defaults:
 | `engine_handle_p99_us` | 5000 | 20000 | Engine message-handling 99th percentile, µs |
 | `reject_pct_5m` | 10 | 30 | Order rejects over five minutes, % |
 | `rss_growth_pct_1h` | 50 | 100 | Process memory growth over an hour, % |
-| `heap_garbage_pct` | 50 | 80 | Share of the heap that is collectable garbage, % |
+| `heap_bloat_ratio` | 1.5 | 3 | Book heap size over the size compaction tolerates (1 = at the limit) |
 
 A rule you leave out keeps its default. See
 [Health Monitoring](../part-6-observe-and-recover/060-health-monitor.md).
@@ -1546,7 +1546,7 @@ monitor:
     engine_handle_p99_us: {warn: 5000, crit: 20000}
     reject_pct_5m:        {warn: 10,   crit: 30}
     rss_growth_pct_1h:    {warn: 50,   crit: 100}
-    heap_garbage_pct:     {warn: 50,   crit: 80}
+    heap_bloat_ratio:     {warn: 1.5,  crit: 3}
 ```
 
 Verify, deploy and inspect it:

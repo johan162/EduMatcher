@@ -324,7 +324,7 @@ MonitorThresholdsSpec:                       # monitor.thresholds; each ? Thresh
   engine_handle_p99_us:         ? ThresholdBandSpec = {warn: 5000, crit: 20000}
   reject_pct_5m:                ? ThresholdBandSpec = {warn: 10,   crit: 30}
   rss_growth_pct_1h:            ? ThresholdBandSpec = {warn: 50,   crit: 100}
-  heap_garbage_pct:             ? ThresholdBandSpec = {warn: 50,   crit: 80}
+  heap_bloat_ratio:             ? ThresholdBandSpec = {warn: 1.5,  crit: 3}
 
 ThresholdBandSpec:
   warn:                         ! Float                       ∈ >= 0

@@ -41,6 +41,51 @@ That works because **every bridge defaults its connect targets to
 its ports. The container and the host see the same addresses.
 
 
+## Getting started: from a fresh clone
+
+Everything below assumes this has been done once.
+
+**Prerequisites**
+
+| Tool | Needed for | Notes |
+|---|---|---|
+| Podman or Docker (with Compose) | The container stack | Podman is preferred when both are installed; `make info` in `deployment/docker` shows what was detected |
+| GNU make | Every workflow | |
+| Poetry and Python | `make build` builds the backend wheel from your checkout | See [Development Practice](010-development-practice.md) |
+| Node.js **22.13 or newer**, with npm | Hybrid loop, `make install`, `make test` in `web-apps/<app>` | The images build on Node 22. Most apps accept Node 20, but `trader-gui` needs 22 and `dash-gui` 22.13, so use one version for all of them. Install it with nvm or fnm |
+
+**First run**
+
+```bash
+cd deployment/docker
+make build            # backend image, from a wheel built from your checkout
+make up-all           # the exchange and five GUIs; builds any missing GUI image
+```
+
+The first run is slow (every GUI image runs `npm ci` and a Vite build) and needs
+network access to the npm and PyPI registries. Later starts take seconds. When it
+finishes, the GUIs answer on <http://localhost:8090> to <http://localhost:8095>
+(`config-gui` on 8092 only with `CONFIG_GUI=1`). `make status` shows one row per
+backend process.
+
+**Which Makefile?** For development use `deployment/docker` (`make up-all`). The
+`make up` in `web-apps/` starts only the GUI containers against a backend that is
+already running elsewhere, such as a VM. It does not include `config-gui`.
+
+**Before you push web-app changes.** The release gate (`mkbld.sh`) runs these for
+every app, so run them in the app you touched:
+
+```bash
+cd web-apps/<app>
+make typecheck && make lint && make test
+```
+
+On Linux with Docker, GUI containers reach the host through a
+`docker-compose.linux.yml` overlay that the app Makefiles add automatically. With
+Podman, override the `*_HOST` variables to `host.containers.internal`. The hybrid
+loop below is unaffected, because it uses `127.0.0.1`.
+
+
 ## Part 1 — Why `make up-all` does not pick up your change
 
 `up-all` runs `compose up -d`, deliberately *without* `--build`. Compose only

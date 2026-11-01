@@ -59,7 +59,7 @@ class MonitorThresholds:
     engine_handle_p99_us: ThresholdBand = ThresholdBand(5000.0, 20000.0)
     reject_pct_5m: ThresholdBand = ThresholdBand(10.0, 30.0)
     rss_growth_pct_1h: ThresholdBand = ThresholdBand(50.0, 100.0)
-    heap_garbage_pct: ThresholdBand = ThresholdBand(50.0, 80.0)
+    heap_bloat_ratio: ThresholdBand = ThresholdBand(1.5, 3.0)
 
 
 @dataclass(frozen=True)

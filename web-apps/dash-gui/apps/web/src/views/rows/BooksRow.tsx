@@ -1,7 +1,7 @@
 /**
  * Row 5, ORDER BOOKS (design §12.3): how many books and their estimated
  * memory (and its share of the engine's), then one row per symbol: long (GTC),
- * resting and stop orders, price levels, memory, heap garbage against its
+ * resting and stop orders, price levels, memory, heap bloat against its
  * threshold, trades today, and whether it is halted -- in words.
  */
 
@@ -10,7 +10,7 @@ import type { ActiveBreach, BookStats } from "@edumatcher/dash-types";
 import { HealthTable, StateBadge, type Column } from "../../components/widgets/HealthTable.js";
 import { Row } from "../../components/widgets/Row.js";
 import { StatTile } from "../../components/widgets/StatTile.js";
-import { formatBytes, formatCount, formatPercent } from "../../lib/format.js";
+import { formatBytes, formatCount, formatPercent, formatRatio } from "../../lib/format.js";
 import { LEVEL, TONE } from "../../lib/status.js";
 import { useOpenDrawer } from "../../hooks/drawer.js";
 import { useDashStore } from "../../store/useDashStore.js";
@@ -20,9 +20,8 @@ const HALTED = { glyph: "■", label: "HALTED", ...TONE.warning };
 const TRADING = { glyph: "●", label: "trading", ...TONE.ok };
 
 /**
- * `breaches`: the snapshot's active ones. Heap garbage is coloured as
- * pm-monitor judges it, which ignores a book with too few heap entries for
- * the share to mean anything (I118).
+ * `breaches`: the snapshot's active ones. Heap bloat is coloured only where
+ * pm-monitor has judged it (I118).
  */
 function columns(breaches: readonly ActiveBreach[]): Column<BookStats>[] {
   return [
@@ -34,14 +33,14 @@ function columns(breaches: readonly ActiveBreach[]): Column<BookStats>[] {
     { id: "ask", header: "Ask lv", render: (b) => formatCount(b.ask_levels), sortKey: (b) => b.ask_levels, align: "right" },
     { id: "mem", header: "Est. mem", render: (b) => formatBytes(b.est_bytes), sortKey: (b) => b.est_bytes, align: "right" },
     {
-      id: "garbage",
-      header: "Heap garbage",
+      id: "bloat",
+      header: "Heap bloat",
       render: (b) => {
-        const level = breachLevel(breaches, "heap_garbage_pct", b.symbol);
+        const level = breachLevel(breaches, "heap_bloat_ratio", b.symbol);
         const alarm = level && level !== "OK" ? LEVEL[level] : null;
-        return <span className={alarm?.text}>{formatPercent(b.heap_garbage_pct)}{alarm && ` ${alarm.glyph}`}</span>;
+        return <span className={alarm?.text}>{formatRatio(b.heap_bloat_ratio)}{alarm && ` ${alarm.glyph}`}</span>;
       },
-      sortKey: (b) => b.heap_garbage_pct,
+      sortKey: (b) => b.heap_bloat_ratio,
       align: "right",
     },
     { id: "trades", header: "Trades", render: (b) => formatCount(b.trades_today), sortKey: (b) => b.trades_today, align: "right" },

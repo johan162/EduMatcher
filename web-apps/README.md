@@ -24,6 +24,9 @@ port is `819N`, and its dev backend port (where it has one) is `519N`, all
 sharing the same `N`. `trader-gui` has no dev-mode backend process — its
 `apps/serve/` server only runs in production — so it has no `519N` port.
 
+Node.js 22.13 or newer is required for local work (`make install`, `make dev`,
+`make test`); the images build on Node 22.
+
 Each app's own `README.md` is the full developer reference: project layout,
 getting started, every environment variable, startup order, and Makefile
 targets.
@@ -36,7 +39,7 @@ here.
 
 ## Starting all GUIs together
 
-A `Makefile` in this directory orchestrates `log-gui`, `terminal-gui`,
+A `Makefile` in this directory (`config-gui` is not part of the group; it needs no backend) orchestrates `log-gui`, `terminal-gui`,
 `trader-gui`, `book-gui` and `dash-gui` as a group. The key variable is `VM_BACKEND_IP`:
 set it to the IP address of the VM (or host) running the EduMatcher backend
 processes, and all five containers are pointed at that address automatically.
@@ -84,7 +87,8 @@ before each app's compose stack starts:
 When `VM_BACKEND_IP` is not set, each app's compose file falls back to
 `host.docker.internal`, which is correct for Docker Desktop on macOS/Windows.
 
-Each app can still be driven individually from its own directory (`make up`,
+For day-to-day development use `deployment/docker` (`make up-all`) and the hybrid
+loop instead; this Makefile suits a backend that runs elsewhere. Each app can still be driven individually from its own directory (`make up`,
 `make down`, etc.). The orchestration Makefile is purely additive — it
 delegates to each app's own Makefile via `$(MAKE) -C`.
 

@@ -63,8 +63,8 @@ uses to choose between PyPI and TestPyPI.
 
 ### Publishing by hand
 
-`make ghcr-push` in `deployment/docker/` builds all seven images from your
-checkout and pushes them, for when the workflow cannot run:
+`make ghcr-push` in `deployment/docker/` builds the seven images other than
+`edumatcher-ai-sim` from your checkout and pushes them, for when the workflow cannot run:
 
 ```bash
 export GITHUB_USER=<you> GHCR_TOKEN=<token with write:packages>

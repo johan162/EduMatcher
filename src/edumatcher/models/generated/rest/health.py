@@ -312,8 +312,10 @@ class BookStats(BaseModel):
     """An estimate from measured per-object constants, never an exact figure. Unit:
     bytes.
     """
-    heap_garbage_pct: float = Field(ge=0, le=100)
-    """Unit: percent."""
+    heap_bloat_ratio: float = Field(ge=0)
+    """Heap entries over the size compaction tolerates; at most 1.0 in a healthy
+    book.
+    """
     trades_today: int = Field(ge=0)
     halted: bool
 
