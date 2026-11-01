@@ -226,8 +226,9 @@ def check_config() -> list[str]:
         return ["config: PyYAML is not installed"]
 
     base_path = None
-    for cand in ("src/data/ref_data/engine_config.yaml",
-                 "docs/examples/ref_data/s3-basic-setup/engine_config.yaml"):
+    # The committed example, not a developer's deployed copy: that one can hold
+    # keys from older builds and would make every snippet fail on them.
+    for cand in ("docs/examples/ref_data/s3-basic-setup/engine_config.yaml",):
         if (ROOT / cand).exists():
             base_path = ROOT / cand
             break
@@ -259,6 +260,10 @@ def check_config() -> list[str]:
             # Market-maker files use a separate schema with gateway/logging/
             # defaults/symbols blocks; they are not engine configurations.
             if set(doc) <= {"version", "gateway", "logging", "defaults", "symbols"}:
+                continue
+            # Swarm files, market-model files and AI-trader presets also carry
+            # ``symbols``/``seed``-style keys but belong to other loaders.
+            if set(doc) & {"version", "agents", "composition", "sectors", "strategy"}:
                 continue
             merged = {**base, **doc}
             with tempfile.NamedTemporaryFile("w", suffix=".yaml", delete=False) as f:
