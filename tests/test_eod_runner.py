@@ -246,6 +246,21 @@ class TestPending:
         conn.close()
         assert pending_dates(Paths(data)) == ["2026-07-01", "2026-07-02"]
 
+    def test_a_day_that_trading_went_on_after_is_not_pending(self, data: Path) -> None:
+        # Engine restart mid-day: CLOSED re-announced, then CONTINUOUS.
+        close_day(data, "2026-07-02", 2000.0, phase="CONTINUOUS")
+        conn = open_writer_connection(data / "clearing.db")
+        record_session_event(
+            conn,
+            event_type="PHASE",
+            ts_ns=0,
+            trade_date="2026-07-02",
+            payload_json=json.dumps({"state": "CLOSED"}),
+        )
+        conn.close()
+        # ts_ns=0 is older than the CONTINUOUS row (ts_ns=1)
+        assert pending_dates(Paths(data)) == ["2026-07-01"]
+
     def test_done_days_drop_out(self, data: Path) -> None:
         close_day(data, "2026-07-02", 2000.0)
         run(data)

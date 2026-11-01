@@ -828,6 +828,26 @@ def test_the_real_non_state_paths_include_the_audit_directory() -> None:
     assert AUDIT_LOG_FILE.parent / "audit" in emo_cli.NON_STATE_PATHS
 
 
+def test_the_money_record_is_cleared_only_with_all() -> None:
+    from edumatcher.config import DATA_DIR, EOD_DB_FILE, SETTLEMENT_DIR
+
+    for path in (EOD_DB_FILE, SETTLEMENT_DIR, DATA_DIR / "backup"):
+        assert path in emo_cli.NON_STATE_PATHS
+        assert path not in emo_cli.STATE_PATHS
+
+
+def test_the_default_profiles_run_pm_eod_after_the_close() -> None:
+    schedulers = [
+        entry["command"]
+        for profile in (emo_cli.DEFAULT_PROCESSES, emo_cli.MINI_PROCESSES)
+        for entry in profile
+        if entry["name"] == "scheduler"
+    ]
+    assert len(schedulers) == 2
+    for command in schedulers:
+        assert command[command.index("--on-close") + 1] == "pm-eod run --pending"
+
+
 def test_non_state_paths_list_each_file_once() -> None:
     assert len(set(emo_cli.NON_STATE_PATHS)) == len(emo_cli.NON_STATE_PATHS)
 

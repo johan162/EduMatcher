@@ -27,7 +27,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 | 3 | E3 | Roster and reports: per-trader statements, exchange summary, leaderboard (CSV/JSON/Markdown) | E2 | 1.5 d | ☑ | 2026-11-01 |
 | 4 | E4 | Housekeeping steps: audit-archive check, log compression, compressed DB backups, retention | — | 1 d | ☑ | 2026-11-01 |
 | 5 | E5 | `pm-eod` CLI: `run` (gates, steps, idempotency), `--pending`, `status`, `balances`, health | E2–E4 | 1.5 d | ☑ | 2026-11-01 |
-| 6 | E6 | Trigger: `pm-scheduler --on-close`, start-up catch-up, emo profile | E5 | 0.5 d | ☐ | |
+| 6 | E6 | Trigger: `pm-scheduler --on-close`, start-up catch-up, emo profile | E5 | 0.5 d | ☑ | 2026-11-01 |
 | 7 | E7 | Docs: operator guide chapter, file formats, `pm-help`, completions, deployments | E1–E6 | 0.5 d | ☐ | |
 
 Total ≈ 7.5 d. E1 first because settlement is only as good as the closing
@@ -528,3 +528,37 @@ documented in E7.
 - `pm-eod` is registered in `pyproject.toml`; it is not on the PATH until
   `poetry install` is re-run. Completions and the SQLite reference were
   regenerated.
+
+**E6 (2026-11-01).**
+- `pm-scheduler --on-close COMMAND [--on-close-delay SEC=30]`. A `_CloseHook`
+  is called from `_run_transitions` right after the CLOSED step is
+  dispatched (threaded through `_run_scheduled` and `_run_forever` as
+  `on_closed`), and once at start-up before the first schedule run. It sets
+  a daemon `Timer` for the delay, then starts the command with `Popen`
+  (inheriting stdout/stderr, so its output lands in the scheduler's log) and
+  a reaper thread that logs the exit code. Nothing in the transition loop
+  waits for it.
+- **Why a delay:** the scheduler's confirmation and `pm-clearing`'s close
+  snapshot both come from the same `session.state` broadcast, so a command
+  started immediately can find the snapshot not yet written and fail its gate.
+- One child at a time: a trigger while one runs is skipped with a warning.
+  That is safe because `pm-eod run --pending` takes every missed date; the
+  next trigger (next close, or a restart) picks up what was skipped.
+- **Shutdown:** a single-shot run waits for the timer and the command
+  (otherwise the daemon timer would die with the process before it fired); a
+  `--daily` run being stopped only cancels pending timers and does not hold
+  the shutdown. `--on-close` with `--now` is ignored with a warning.
+- **`pending_dates` now uses the same rule as the gate** (latest `PHASE` row
+  of the date is `CLOSED`). Otherwise the start-up trigger, run mid-day, would
+  list today (the engine's boot-time `CLOSED` left a snapshot) and report a
+  gate failure on every start.
+- emo: `DEFAULT_PROCESSES` and `MINI_PROCESSES` start the scheduler with
+  `--on-close "pm-eod run --pending"` (the other profiles have no
+  scheduler). `eod.db`, `settlement/` and `backup/` are in `NON_STATE_PATHS`:
+  removed only by `emo clear --all`, never by `--state`, since the balances
+  must survive a reset of the working state. A caveat: after `--state`
+  (clearing.db gone, eod.db kept) a settled date cannot be settled again, so
+  re-running the same calendar date after a reset needs `pm-eod run --redo`.
+- Not run end-to-end here (needs a live engine); the hook is covered with real
+  subprocesses and `_run_transitions`. A compressed-time `--speed 600` day is
+  the manual check.

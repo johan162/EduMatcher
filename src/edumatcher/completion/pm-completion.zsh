@@ -4617,6 +4617,8 @@ _shtab_pm_scheduler_options=(
   "*"{--verbose,-v}"[Increase log verbosity (-v\: INFO, -vv\: DEBUG)]"
   {-q,--quiet}"[Reduce log output to warnings\/errors]"
   "--log-target[Where this process\'s own operational log records go\: server (default, auto-detected pm-log-srv), stdout, or file]:log_target:(server stdout file)"
+  "--on-close[Command started after each day\'s CLOSED transition (and once at start-up), e.g. \'pm-eod run --pending\'\; runs detached, one at a time]:COMMAND:"
+  "--on-close-delay[Wait this long after CLOSED before starting --on-close (default\: 30)]:SECONDS:"
   "--log-file[Operational log file path \— required when --log-target file]:PATH:"
   "--log-failover-timeout[Grace window before falling back to a local log file once pm-log-srv becomes unreachable (default\: 30, from config)]:SECONDS:"
 )

@@ -126,6 +126,9 @@ def run_lock(data: Path) -> Generator[None, None, None]:
 def pending_dates(paths: Paths) -> list[str]:
     """Dates that closed, have a close snapshot and no ``ok`` run, oldest first.
 
+    "Closed" means the date's latest session phase is CLOSED, the same rule as
+    the gate, so a day that is still trading is not pending.
+
     Dates without a snapshot (history from before snapshots existed) are not
     pending: they could never be settled and would block every later day.
     """
@@ -133,11 +136,13 @@ def pending_dates(paths: Paths) -> list[str]:
         return []
     clearing = open_readonly_connection(paths.clearing)
     try:
-        closed = {
-            r["trade_date"]
-            for r in query_session_events(clearing, event_type="PHASE", limit=1_000_000)
-            if json.loads(r["payload_json"] or "{}").get("state") == "CLOSED"
-        }
+        latest: dict[str, str] = {}
+        # Newest first: the first row seen for a date is its latest phase.
+        for r in query_session_events(clearing, event_type="PHASE", limit=1_000_000):
+            latest.setdefault(
+                r["trade_date"], json.loads(r["payload_json"] or "{}").get("state", "")
+            )
+        closed = {day for day, state in latest.items() if state == "CLOSED"}
         snapped = {
             r["trade_date"] for r in query_close_snapshots(clearing, limit=1_000_000)
         }

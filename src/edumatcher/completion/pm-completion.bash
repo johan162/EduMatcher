@@ -8205,7 +8205,7 @@ complete -o bashdefault -F _shtab_pm_ralf_spy pm-ralf-spy
 
 
 
-_shtab_pm_scheduler_option_strings=(-h --help --version --now --daily --delay --speed --start --no-confirm --log-level --verbose -v -q --quiet --log-target --log-file --log-failover-timeout)
+_shtab_pm_scheduler_option_strings=(-h --help --version --now --daily --delay --speed --start --no-confirm --log-level --verbose -v -q --quiet --log-target --on-close --on-close-delay --log-file --log-failover-timeout)
 
 
 

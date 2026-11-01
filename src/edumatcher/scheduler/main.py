@@ -19,6 +19,9 @@ Usage:
   poetry run pm-scheduler --now            # rapid-fire all transitions (for testing)
   poetry run pm-scheduler --no-confirm     # do not query/confirm via the engine
   poetry run pm-scheduler --verbose        # DEBUG-level diagnostics
+  poetry run pm-scheduler --daily --on-close "pm-eod run --pending"
+                                           # start a command 30 s after each
+                                           # CLOSED (and once at start-up)
   poetry run pm-scheduler --daily --speed 600 --start 2026-11-02T08:55
                                            # compressed: 10 simulated minutes
                                            # per second, from that local time
@@ -66,8 +69,11 @@ from __future__ import annotations
 import argparse
 import logging
 import os
+import shlex
 import signal
+import subprocess
 import sys
+import threading
 import time
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
@@ -497,6 +503,72 @@ def _wait_until(target: datetime) -> Callable[[], float]:
     return lambda: _clock.seconds_until(target)
 
 
+class _CloseHook:
+    """Start the ``--on-close`` command after the day's CLOSED transition.
+
+    The command runs ``delay_sec`` later so the services that react to the
+    close (pm-clearing writing its close snapshot) have finished, and runs in a
+    child process the scheduler does not wait for: a slow or failing command
+    never delays the next transition.  One child at a time; a trigger that
+    arrives while one is still running is skipped, which is safe for the
+    intended ``pm-eod run --pending`` because the next trigger picks up
+    whatever was missed.
+    """
+
+    def __init__(self, command: str, delay_sec: float) -> None:
+        self._argv = shlex.split(command)
+        self._delay = delay_sec
+        self._lock = threading.Lock()
+        self._child: subprocess.Popen[bytes] | None = None
+        self._timers: list[threading.Timer] = []
+        self._reapers: list[threading.Thread] = []
+
+    def __call__(self) -> None:
+        timer = threading.Timer(self._delay, self._spawn)
+        timer.daemon = True
+        with self._lock:
+            self._timers.append(timer)
+        timer.start()
+
+    def _spawn(self) -> None:
+        with self._lock:
+            if self._child is not None and self._child.poll() is None:
+                log.warning("--on-close command is still running; trigger skipped")
+                return
+            try:
+                child = subprocess.Popen(self._argv)
+            except OSError as exc:
+                log.error("could not start --on-close command %r: %s", self._argv, exc)
+                return
+            self._child = child
+            reaper = threading.Thread(target=self._reap, args=(child,), daemon=True)
+            self._reapers.append(reaper)
+        log.info("started --on-close command: %s", shlex.join(self._argv))
+        reaper.start()
+
+    def _reap(self, child: subprocess.Popen[bytes]) -> None:
+        code = child.wait()
+        if code != 0:
+            log.warning("--on-close command exited %d", code)
+        else:
+            log.info("--on-close command finished")
+
+    def wait_timers(self) -> None:
+        for timer in list(self._timers):
+            timer.join()
+
+    def wait(self) -> None:
+        """Wait for pending triggers and the command they started."""
+        self.wait_timers()
+        for reaper in list(self._reapers):
+            reaper.join()
+
+    def stop(self) -> None:
+        """Cancel triggers that have not fired; a running command is left alone."""
+        for timer in list(self._timers):
+            timer.cancel()
+
+
 def _send_transition(
     push_sock: PushSocket,
     state: str,
@@ -677,6 +749,7 @@ def _run_transitions(
     is_running: Callable[[], bool],
     steps: list[_Step],
     after: _Step | None = None,
+    on_closed: Callable[[], None] | None = None,
 ) -> bool:
     """Drive a sequence of transition steps through one interruptible loop.
 
@@ -685,7 +758,8 @@ def _run_transitions(
     if the run was interrupted.
 
     ``after`` is the transition that follows the last step -- not driven
-    here, only advertised as its countdown target.
+    here, only advertised as its countdown target.  ``on_closed`` is called
+    once the CLOSED transition has been dispatched.
     """
     for index, step in enumerate(steps):
         if not is_running():
@@ -727,6 +801,8 @@ def _run_transitions(
             next_at=next_at,
             on_wake=is_running,
         )
+        if on_closed is not None and step.state == SessionState.CLOSED.value:
+            on_closed()
 
     return True
 
@@ -763,6 +839,7 @@ def _run_scheduled(
     gateway_id: str = SCHEDULER_GATEWAY_ID,
     country: str = DEFAULT_COUNTRY,
     daily: bool = False,
+    on_closed: Callable[[], None] | None = None,
 ) -> None:
     """Run one day's schedule: catch up to the current phase, then time the rest.
 
@@ -853,7 +930,7 @@ def _run_scheduled(
         if daily
         else None
     )  # an `after` with no `at` names nothing, like a single-shot close
-    if _run_transitions(push_sock, confirm_sock, running, steps, after):
+    if _run_transitions(push_sock, confirm_sock, running, steps, after, on_closed):
         log.info("All transitions sent for today.")
 
 
@@ -863,6 +940,7 @@ def _run_forever(
     confirm_sock: zmq.Socket[bytes] | None,
     is_running: Callable[[], bool],
     country: str = DEFAULT_COUNTRY,
+    on_closed: Callable[[], None] | None = None,
 ) -> None:
     """Run the daily schedule repeatedly, once per day that has one (``--daily``).
 
@@ -884,6 +962,7 @@ def _run_forever(
             is_running=is_running,
             country=country,
             daily=True,
+            on_closed=on_closed,
         )
         if not is_running():
             break
@@ -1016,6 +1095,22 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--on-close",
+        default=None,
+        metavar="COMMAND",
+        help=(
+            "Command started after each day's CLOSED transition (and once at "
+            "start-up), e.g. 'pm-eod run --pending'; runs detached, one at a time"
+        ),
+    )
+    parser.add_argument(
+        "--on-close-delay",
+        type=float,
+        default=30.0,
+        metavar="SECONDS",
+        help="Wait this long after CLOSED before starting --on-close (default: 30)",
+    )
+    parser.add_argument(
         "--log-file",
         default=None,
         metavar="PATH",
@@ -1091,6 +1186,14 @@ def main() -> None:
             parser.error("--speed and --start need --daily")
         if speed <= 0:
             parser.error("--speed must be > 0")
+
+    if args.on_close is not None and args.now:
+        log.warning("--on-close is ignored in --now mode")
+    close_hook = (
+        _CloseHook(args.on_close, args.on_close_delay)
+        if args.on_close is not None and not args.now
+        else None
+    )
 
     running = True
 
@@ -1205,6 +1308,8 @@ def main() -> None:
                 log.debug("subscribed to %s and %s", TOPIC_SESSION_STATE, status_topic)
 
             try:
+                if close_hook is not None:
+                    close_hook()  # settle any day that closed while we were down
                 if args.daily:
                     _run_forever(
                         push_sock,
@@ -1212,6 +1317,7 @@ def main() -> None:
                         confirm_sock,
                         _is_running,
                         country=country,
+                        on_closed=close_hook,
                     )
                 else:
                     _run_scheduled(
@@ -1220,8 +1326,17 @@ def main() -> None:
                         confirm_sock=confirm_sock,
                         is_running=_is_running,
                         country=country,
+                        on_closed=close_hook,
                     )
             finally:
+                if close_hook is not None:
+                    # A single-shot run exits right after the close: let the
+                    # command finish.  A daily run is being stopped: do not hold
+                    # the shutdown for it.
+                    if args.daily:
+                        close_hook.stop()
+                    else:
+                        close_hook.wait()
                 if confirm_sock is not None:
                     confirm_sock.close()
     finally:
