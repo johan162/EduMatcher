@@ -111,6 +111,26 @@ def test_statements_for_active_listed_and_idle_traders(
     assert by["Z"].positions == ()  # flat
 
 
+def test_a_self_trade_is_one_line_and_other_days_are_left_out(
+    dbs: tuple[sqlite3.Connection, sqlite3.Connection],
+) -> None:
+    clearing, ledger = dbs
+    flush_batch(
+        clearing,
+        [
+            trade("T3", "B", "B", 3_000_000_000_000),
+            trade("T0", "A", "B", 1, date="2026-06-30"),
+        ],
+        [],
+        [],
+    )
+    by = {
+        s.gateway: s for s in build_day(clearing, ledger, "2026-07-01", {}).statements
+    }
+    assert [t.side for t in by["A"].trades] == ["BUY", "BUY"]
+    assert [t.side for t in by["B"].trades] == ["SELL", "SELL", "SELF"]
+
+
 def test_warnings_name_unlisted_gateways(
     dbs: tuple[sqlite3.Connection, sqlite3.Connection],
 ) -> None:

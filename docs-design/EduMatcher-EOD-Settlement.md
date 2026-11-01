@@ -669,3 +669,21 @@ snapshot is never replaced; any other is.
   the copy cannot freeze a date with no snapshot.
 - Not run against a live engine; covered by handler tests driving the real
   `_handle_session_state` / `_handle_eod`.
+
+**Review fixes R3 (2026-11-01).** Two reads that grew with the retained history
+instead of with the day. Measured on 1M `trade_events` (10 days), 100 gateways
+× 20 symbols and a year of close snapshots (732k rows):
+- **P1, statement trade lists.** `assemble._trades` called `query_trades` once
+  per gateway; its `(:x IS NULL OR …)` filters defeat every index, so each call
+  scanned and sorted the whole retained table. Now one `query_day_trades`
+  (plain `trade_date = ?`, uses `ix_trade_events_date`) grouped by gateway in
+  Python; a self-trade is one `SELF` line. `build_day` 10.6 s → 0.79 s, same
+  200 000 lines. A query-plan test pins the index so the pattern cannot
+  creep back.
+- **P2, `pending_dates`.** It loaded every snapshot row as a dict (and capped
+  silently at 1M rows) to get the dates; now `query_close_snapshot_dates`
+  (`SELECT DISTINCT` on the primary key). 3.0 s → 0.03 s; this also runs on
+  every `pm-eod status -q`.
+- Left alone: `query_close_snapshots(date_value=…)` has the same optional-filter
+  form and scans the snapshot table (~40 ms per call at a year of history; a
+  run makes four calls). The gate's `query_reconcile` is ~0.3 s per 1M trades.

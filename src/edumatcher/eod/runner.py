@@ -18,6 +18,7 @@ from pathlib import Path
 
 from edumatcher.clearing.store import (
     open_readonly_connection,
+    query_close_snapshot_dates,
     query_close_snapshots,
     query_reconcile,
     query_session_events,
@@ -145,9 +146,7 @@ def pending_dates(paths: Paths) -> list[str]:
                 r["trade_date"], json.loads(r["payload_json"] or "{}").get("state", "")
             )
         closed = {day for day, state in latest.items() if state == "CLOSED"}
-        snapped = {
-            r["trade_date"] for r in query_close_snapshots(clearing, limit=1_000_000)
-        }
+        snapped = set(query_close_snapshot_dates(clearing))
     finally:
         clearing.close()
     ledger = open_ledger(paths.ledger)

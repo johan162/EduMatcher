@@ -11,6 +11,7 @@ from pathlib import Path
 import pytest
 
 from edumatcher.clearing.store import (
+    DAY_TRADES_SQL,
     SCHEMA,
     DailySummaryRow,
     PositionRow,
@@ -30,7 +31,9 @@ from edumatcher.clearing.store import (
     query_positions,
     query_pnl,
     query_reconcile,
+    query_close_snapshot_dates,
     query_close_snapshots,
+    query_day_trades,
     query_session_events,
     query_sessions,
     query_symbols,
@@ -540,6 +543,52 @@ class TestQueryDaily:
     def test_filter_from_to(self, seeded_conn: sqlite3.Connection) -> None:
         rows = query_daily(seeded_conn, from_date="2026-07-02", to_date="2026-07-02")
         assert all(r["trade_date"] == "2026-07-02" for r in rows)
+
+
+class TestQueryDayTrades:
+    def test_one_date_oldest_first(self, seeded_conn: sqlite3.Connection) -> None:
+        rows = query_day_trades(seeded_conn, "2026-07-01")
+        assert [r["id"] for r in rows] == ["T1", "T2"]
+        assert [r["id"] for r in query_day_trades(seeded_conn, "2026-07-02")] == ["T3"]
+
+    def test_equal_trade_times_keep_ingest_order(
+        self, conn: sqlite3.Connection
+    ) -> None:
+        flush_batch(
+            conn,
+            [
+                _trade_row("T-late", ts_ns=5, ingest_ts_ns=9),
+                _trade_row("T-early", ts_ns=5, ingest_ts_ns=7),
+            ],
+            [],
+            [],
+        )
+        assert [r["id"] for r in query_day_trades(conn, "2026-07-01")] == [
+            "T-early",
+            "T-late",
+        ]
+
+    def test_reads_the_date_index_not_the_whole_table(
+        self, conn: sqlite3.Connection
+    ) -> None:
+        # The statements read one day of a table that keeps --retention-days
+        # of trades; a full scan per run grows with the retention, not the day.
+        plan = " ".join(
+            str(r[3])
+            for r in conn.execute(
+                "EXPLAIN QUERY PLAN " + DAY_TRADES_SQL, ("2026-07-01",)
+            )
+        )
+        assert "ix_trade_events_date" in plan
+
+
+class TestQueryCloseSnapshotDates:
+    def test_distinct_dates_oldest_first(self, conn: sqlite3.Connection) -> None:
+        assert query_close_snapshot_dates(conn) == []
+        flush_batch(conn, [], [_position_row("GW_A"), _position_row("GW_B")], [])
+        for d in ("2026-07-03", "2026-07-01"):
+            write_close_snapshot(conn, d)
+        assert query_close_snapshot_dates(conn) == ["2026-07-01", "2026-07-03"]
 
 
 class TestQueryTrades:

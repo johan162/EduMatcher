@@ -963,6 +963,21 @@ def query_trades(
     return [dict(r) for r in rows]
 
 
+# A plain ``trade_date = ?`` so the planner uses ix_trade_events_date; the
+# optional-filter form of query_trades scans the whole retained table.
+DAY_TRADES_SQL = (
+    "SELECT id, ts_ns, symbol, quantity, price, tick_decimals,"
+    " buy_gateway_id, sell_gateway_id"
+    " FROM trade_events WHERE trade_date = ?"
+    " ORDER BY ts_ns ASC, ingest_ts_ns ASC"
+)
+
+
+def query_day_trades(conn: sqlite3.Connection, trade_date: str) -> list[dict[str, Any]]:
+    """Every trade of one trading date, oldest first."""
+    return [dict(r) for r in conn.execute(DAY_TRADES_SQL, (trade_date,))]
+
+
 # Sort-field whitelists — map CLI string to ORDER BY clause.
 _EXPOSURE_SORT: dict[str, str] = {
     "gross_notional": "ABS(net_qty * mark_price) DESC, gateway_id ASC, symbol ASC",
@@ -1219,6 +1234,14 @@ def query_close_snapshots(
         },
     ).fetchall()
     return [dict(r) for r in rows]
+
+
+def query_close_snapshot_dates(conn: sqlite3.Connection) -> list[str]:
+    """Dates that have a close snapshot, oldest first (reads the primary key)."""
+    rows = conn.execute(
+        "SELECT DISTINCT trade_date FROM position_close_snapshot ORDER BY trade_date"
+    )
+    return [r[0] for r in rows]
 
 
 def query_sessions(

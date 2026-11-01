@@ -12,7 +12,7 @@ from collections.abc import Mapping
 from datetime import UTC, datetime
 from decimal import Decimal
 
-from edumatcher.clearing.store import query_close_snapshots, query_trades
+from edumatcher.clearing.store import query_close_snapshots, query_day_trades
 from edumatcher.eod.ledger import LedgerError, balances, day_amounts, day_detail
 from edumatcher.eod.report import (
     DayReport,
@@ -64,6 +64,7 @@ def build_day(
                 )
             )
 
+    trades = _trades(clearing, trade_date)
     statements = []
     for gateway in sorted(set(amounts) | set(roster)):
         person = roster.get(gateway)
@@ -78,7 +79,7 @@ def build_day(
                 balance_minor=running.get(gateway, 0),
                 symbol_pnl=detail.get(gateway, {}),
                 positions=tuple(held.get(gateway, ())),
-                trades=_trades(clearing, gateway, trade_date),
+                trades=tuple(trades.get(gateway, ())),
             )
         )
 
@@ -101,23 +102,20 @@ def build_day(
 
 
 def _trades(
-    clearing: sqlite3.Connection, gateway: str, trade_date: str
-) -> tuple[TradeLine, ...]:
-    rows = query_trades(clearing, gateway=gateway, date_value=trade_date, limit=_ALL)
-    lines = []
-    for r in reversed(rows):  # the query is newest first
-        bought = r["buy_gateway_id"] == gateway
-        sold = r["sell_gateway_id"] == gateway
-        lines.append(
-            TradeLine(
-                datetime.fromtimestamp(r["ts_ns"] / 1e9, UTC).strftime("%H:%M:%S"),
-                r["symbol"],
-                "SELF" if bought and sold else "BUY" if bought else "SELL",
-                r["quantity"],
-                _price(r["price"], r["tick_decimals"]),
+    clearing: sqlite3.Connection, trade_date: str
+) -> dict[str, list[TradeLine]]:
+    """The day's trades per gateway, oldest first, from one query for the day."""
+    lines: dict[str, list[TradeLine]] = {}
+    for r in query_day_trades(clearing, trade_date):
+        buyer, seller = r["buy_gateway_id"], r["sell_gateway_id"]
+        sides = {buyer: "SELF"} if buyer == seller else {buyer: "BUY", seller: "SELL"}
+        time_utc = datetime.fromtimestamp(r["ts_ns"] / 1e9, UTC).strftime("%H:%M:%S")
+        price = _price(r["price"], r["tick_decimals"])
+        for gateway, side in sides.items():
+            lines.setdefault(gateway, []).append(
+                TradeLine(time_utc, r["symbol"], side, r["quantity"], price)
             )
-        )
-    return tuple(lines)
+    return lines
 
 
 def _market(stats: sqlite3.Connection, trade_date: str) -> tuple[SymbolStats, ...]:
