@@ -3,13 +3,13 @@
 !!! note "Learning objectives"
     After reading this page you will understand:
 
-    - How the seven container images, the compose overlays and the three layers
+    - How the eight container images, the compose overlays and the three layers
       of Makefile fit together
     - Where networking responsibility actually sits, and which of the several
       `127.0.0.1`/`0.0.0.0` knobs controls what
     - What is baked into an image at build time versus decided at start time,
       and the precedence order between the ways of setting each
-    - How a release turns one git tag into a wheel and seven multi-architecture
+    - How a release turns one git tag into a wheel and eight multi-architecture
       images
     - What maintenance this design will demand as the system grows, and where
       it will drift first
@@ -18,8 +18,9 @@
 
 ## Summary
 
-EduMatcher ships as **seven container images**; six of them run as **one
-Compose project**:
+EduMatcher ships as **eight container images**. The backend and the five
+backend-connected GUIs run as **one Compose project** (`config-gui` is opt-in,
+and `edumatcher-ai-sim` runs in a project of its own):
 
 | Image | Built from | Serves |
 |---|---|---|
@@ -56,7 +57,7 @@ flowchart LR
         SH["install.sh\nedumatcher.sh"]
     end
 
-    GH["GHCR\nseven multi-arch images\ntagged with the release version"]
+    GH["GHCR\neight multi-arch images\ntagged with the release version"]
 
     BE --> DC
     WA --> DC
@@ -66,6 +67,32 @@ flowchart LR
     DC --- MK
     RC --- SH
 ```
+
+### Compose file map
+
+There are three families of compose files. Only the first is for development.
+
+| File | Role | Standalone? | Started by |
+|---|---|---|---|
+| `deployment/docker/compose.yaml` | Base: the one `edumatcher` backend container, ports, `./data` volume, bind hosts | Yes | `make up`, `make up-all` |
+| `deployment/docker/compose.guis.yaml` | Overlay: the five backend-connected GUIs, built from `web-apps/`, in the **same project** so they reach `edumatcher:<port>` | No, needs the base | `make up-all` |
+| `deployment/docker/compose.config-gui.yaml` | Overlay: `config-gui`, which needs no backend | No | `make up-all CONFIG_GUI=1` |
+| `deployment/docker/compose.zmq.yaml` | Overlay: publish the raw ZeroMQ bus (5555-5559, 5601/5602, 5611) | No | `ZMQ=1` |
+| `deployment/docker/compose.ssh.yaml` | Overlay: sshd on `SSH_PORT` (default 2222) | No | `SSH=1` |
+| `deployment/docker/compose.ai-sim.yaml` | The AI-trader simulation and five GUIs, images from GHCR (the backend can be built locally with `LOCAL=1`) | Yes, ignores `.env` | `make up-sim` |
+| `deployment/curl/compose.yaml`, `compose.zmq.yaml`, `compose.ai-sim.yaml` | Released twins of the files above, build-free, images from GHCR | Same as the twin; `compose.yaml` already includes the GUIs | `edumatcher.sh` |
+| `deployment/curl/compose.guis.yaml` | **Only** the six GUIs, for an exchange running on the host (pipx install). Despite the name this is *not* a twin of the docker overlay | Yes | `edumatcher.sh` with `EM_STACK=guis` |
+| `web-apps/<app>/docker-compose.yml` (+ `docker-compose.linux.yml`) | One GUI alone, talking to a backend **outside** compose via `host.docker.internal` (the Linux overlay adds the `host-gateway` mapping) | Yes | `make up` in the app, or `make up` in `web-apps/` |
+
+The decisive difference is networking. In the `deployment/` families every
+container shares one compose project, so the GUIs find the backend by service
+name. The per-app files have no such project, so they reach the backend through
+the host, which is why they need `*_HOST` overrides on Podman or in a VM.
+
+Overlays are additive `-f` arguments. The Makefile builds the list from its
+flags, so you rarely type them: `make up-all ZMQ=1 CONFIG_GUI=1` runs
+`compose -f compose.yaml -f compose.zmq.yaml -f compose.guis.yaml -f compose.config-gui.yaml up -d`.
+`make -n up-all ZMQ=1` prints the exact command.
 
 `deployment/docker/` is the one you use while changing the code: it builds
 from your working tree. `deployment/curl/` is its released twin: identical
@@ -89,7 +116,7 @@ flowchart TD
     C5["web-apps/book-gui/Makefile"]
     C6["web-apps/dash-gui/Makefile"]
 
-    A -->|"compose build/up across\nall seven contexts"| IMGS["seven images"]
+    A -->|"compose build/up across\nthe seven build contexts"| IMGS["eight images"]
     B -->|"make -C, one per app"| C1
     B --> C2
     B --> C3
@@ -417,7 +444,7 @@ from `web-apps/log-gui/.wheel/` (its Diagnostics view runs `pm-log-cli`), and
 ```bash
 cd deployment/docker
 make build          # backend image from a wheel built out of this checkout
-make up-all         # exchange + terminal-, log- and trader-gui
+make up-all         # exchange + the five backend-connected GUIs
 make down-all       # stop and remove everything
 ```
 
@@ -472,7 +499,7 @@ continues and warns. The live CALF feed needs no key; only history does.
 
 ## Part 5 — The release process
 
-One git tag produces a wheel and seven multi-architecture images, all carrying
+One git tag produces a wheel and eight multi-architecture images, all carrying
 the same version. That coupling is what lets `install.sh --version 0.66.3`
 pin an entire system with one number.
 
@@ -485,7 +512,7 @@ flowchart TD
     PY["publish-to-pypi.yml"]
     IMG["publish-images.yml"]
 
-    subgraph matrix["build job — 7 images x 2 architectures"]
+    subgraph matrix["build job — 8 images x 2 architectures"]
         AMD["ubuntu-24.04\nlinux/amd64"]
         ARM["ubuntu-24.04-arm\nlinux/arm64"]
     end
@@ -531,7 +558,7 @@ never becomes what a new user gets by default. That is the same test
 
 **`mkghrelease.sh` waits but does not push.** Its PHASE 6B polls
 `gh run view` for the image workflow — bounded by `IMAGE_WAIT_MINUTES`
-(default 30), skippable with `--skip-images` — and reports the seven image
+(default 30), skippable with `--skip-images` — and reports the eight image
 references. If the workflow fails the GitHub release still exists; only the
 images are missing, and `gh workflow run publish-images.yml -f tag=vX.Y.Z`
 re-runs just that part.
@@ -562,7 +589,7 @@ tag, and `latest` never moving unless asked.
 | GHCR packages left private | Everyone except the maintainer, who is already authenticated | Installing from a machine with no credentials |
 | A package that predates the workflow | Only that one image, and only in CI | `permission_denied: read_package` on push |
 
-A newly created GHCR package is private. Until each of the seven is made public
+A newly created GHCR package is private. Until each of the eight is made public
 in its package settings, `podman pull` fails for every user but you.
 
 ### A package the workflow did not create
@@ -656,7 +683,7 @@ PY
 ### Standing costs
 
 **Version coupling.** Every image carries the EduMatcher release version, so
-every release republishes all seven even when only the backend changed. That is
+every release republishes all eight even when only the backend changed. That is
 the price of "one tag names a coherent set" and is almost certainly the right
 trade — but it means a GUI-only fix still needs a full release.
 

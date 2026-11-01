@@ -168,7 +168,7 @@ help:
 	@echo "  make ports              List the published ports"
 	@echo "  make mounts             Which directory is behind each container path"
 	@echo ""
-	@echo "  make ghcr-push          Push all seven images to GHCR as :dev (this arch only)"
+	@echo "  make ghcr-push          Push the seven non-sim images to GHCR as :dev (this arch only)"
 	@echo "  make ghcr-push TAG=x.y.z FORCE=1   ... as a release tag (see the warning)"
 	@echo "  make clean              Remove the container and the image"
 	@echo "  make clean-data         Delete ./data (the whole exchange state)"
@@ -601,8 +601,8 @@ config-show: check
 	$(EXEC_TTY) $(CONTAINER_NAME) pm-config-show
 
 # --- Publishing ------------------------------------------------------------
-# Builds all seven images from this checkout and pushes them to GHCR under one
-# tag. Needs GITHUB_USER and GHCR_TOKEN.
+# Builds the seven images other than edumatcher-ai-sim from this checkout and
+# pushes them to GHCR under one tag. Needs GITHUB_USER and GHCR_TOKEN.
 #
 #   make ghcr-push                       -> :dev
 #   make ghcr-push TAG=0.20.6 FORCE=1    -> :0.20.6
@@ -630,7 +630,7 @@ ghcr-push: check
 			fi; \
 			echo "==> WARNING: pushing single-arch ($$(uname -m)) images as '$(TAG)'";; \
 	esac; \
-	echo "==> building all seven images from this checkout"; \
+	echo "==> building the seven non-sim images from this checkout"; \
 	$(call stage_wheel,.wheel $(LOG_GUI_WHEEL_DIR)); \
 	$(COMPOSE) $(PUBLISH_COMPOSE_FILES) build; \
 	echo "$$GHCR_TOKEN" | $(CONTAINER_ENGINE) login $(GHCR_REGISTRY) \
