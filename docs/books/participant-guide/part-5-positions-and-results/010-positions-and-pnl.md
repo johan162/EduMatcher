@@ -361,7 +361,8 @@ otherwise be invisible to the end-of-day settlement
 It is written when the session reaches `CLOSED` (after the buffered trades are
 flushed) and on `system.eod` when the engine shuts down gracefully, replacing
 that date's rows — **unless the date's snapshot is final**: the date's latest
-session phase is `CLOSED` and a snapshot exists. A final snapshot is the real
+session phase is `CLOSED`, the market was open earlier that day, and a snapshot
+exists. A final snapshot is the real
 close and may already be settled, so neither a shutdown nor the `CLOSED` an
 engine restart announces after the close replaces it. Rows are small and **are
 not pruned** with `trade_events`.

@@ -14,7 +14,73 @@ One work package (WP) at a time; each WP ends with a holistic test run
 (`make _check` + the full test suite + `make test-e2e`), a review for new
 insights, and a proposed commit message. The maintainer commits.
 
-Started: 2026-11-01
+Started: 2026-11-01 · **Closed: 2026-11-01** (see [Close-out](#close-out-2026-11-01))
+
+## Close-out (2026-11-01)
+
+**Status: closed.** All planned work packages (E1–E7) and the follow-up review
+(R1–R6) are done and committed. R6 was found after the first close-out, by
+walking the training chapter's flow through the real code. The sections below the status table are the
+design as it was planned, with the as-built deviations marked inline. The
+insights log records why each change was made.
+
+| WP | Commit | |
+|---|---|---|
+| E1 | `5cc93d84` | close snapshot in `pm-clearing` |
+| E2 | `1435d0a2` | settlement engine, `eod.db` |
+| E3 | `72dd6d96` | roster, statements, summary |
+| E4 | `f46280b5` | housekeeping steps |
+| E5 | `44ad473f` | `pm-eod` CLI and run orchestration |
+| E6 | `20afaadc` | `pm-scheduler --on-close`, emo profiles |
+| E7 | `3c609343` | beginner documentation (+ four gaps fixed) |
+| — | `49e61762` | simulation profile: shorter backup retention, `--backup-skip` |
+| R1 | `0f44f8f1` | baseline = last settled date; settle in order; atomic `--redo` |
+| R2 | `2906b48b` | a day's close snapshot is final once the day has closed |
+| R3 | `f122c4e7` | indexed reads: one day of trades, snapshot dates |
+| R4 | `26b9f4ab` | worked example re-run from real code; doc fixes; CLI nits |
+| R5 | `86bd25b3` | one backup per catch-up; statements skip long-dead symbols |
+| R6 | (next commit) | an engine boot before the open is not a close |
+
+**How it was verified.** Unit and integration tests for every WP, written
+before the fix in R1–R6. The R1 and R6 bugs were reproduced first. The operator
+guide's worked example and its outputs come from the real `pm-clearing`
+handlers and the real `pm-eod` CLI, with only the clock controlled. The R3
+timings come from a synthetic 1M-trade database.
+
+**Never verified on a live exchange.** These are the manual checks the WPs
+named. Do them on the next real simulation run; nothing here is known to be
+broken:
+1. A real session close writes a snapshot that `pm-clearing-cli snapshots`
+   shows (E1). `make test-e2e` skips the fixed-port exchange tests, so the
+   live path is covered only by handler tests.
+2. A full scheduled day ends with the `--on-close` hook settling it: either
+   `pm-scheduler --daily --speed 600` or a normal day under the `default`
+   profile (E5, E6).
+3. A statement from a busy simulation day reads well to a trader (E3, R5).
+4. Restart the engine after the close: the log says
+   `close snapshot for <date> is final; kept` and the next day settles from
+   it (R2).
+5. In the `ai-sim` profile, run `du -sh data/backup` after a week. The
+   compressed backup size was never measured (simulation default).
+
+**Deliberately not done.** Each needs a new decision if wanted:
+- fees (Q4)
+- sending mail (Q3)
+- reject counts in the summary (E3)
+- a `HealthReporter` gauge (E5: `pm-eod status -q` is the health check)
+- a daily `VACUUM` (E4)
+- trade times in the exchange timezone rather than UTC (E3)
+
+**Known small inefficiency, left alone:**
+`query_close_snapshots(date_value=…)` scans the snapshot table, about 40 ms
+per call at a year of history (R3).
+
+**Documented caveats, not bugs:**
+- `pm-scheduler --speed` puts every fast day on today's real date.
+- After `emo clear --state`, settling the same calendar date again needs
+  `--redo`.
+- Opening balances come from the roster each time they are shown, so editing
+  one changes every balance shown afterwards.
 
 ## Status
 
@@ -34,6 +100,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 | 10 | R3 | Review: read one day of trades and the snapshot dates by index | R1 | — | ☑ | 2026-11-01 |
 | 11 | R4 | Review: docs (worked example re-run), `--only`+`--dry-run`, roster `.inf` | R3 | — | ☑ | 2026-11-01 |
 | 12 | R5 | Review: one backup per catch-up; statements without long-dead symbols | R4 | — | ☑ | 2026-11-01 |
+| 13 | R6 | A day has closed only if the market was open that day (boot `CLOSED` is not a close) | R5 | — | ☑ | 2026-11-01 |
 
 Total ≈ 7.5 d. E1 first because settlement is only as good as the closing
 marks it reads. E4 is independent of the money path and can run in parallel
@@ -127,8 +194,9 @@ Q1–Q6 were decided on 2026-11-01; Q7–Q10 were built as recommended (E1–E2)
 
 At the `CLOSED` transition `pm-clearing` (E1) copies every position into a
 new table. No re-marking is needed: positions are marked to the last trade
-price on every trade (E1). Once the day's latest `PHASE` is `CLOSED` the
-snapshot is final and nothing replaces it (R2):
+price on every trade (E1). Once the day has closed (latest `PHASE` is
+`CLOSED` and the market was open earlier that day, R6) the snapshot is final
+and nothing replaces it (R2):
 
 ```sql
 CREATE TABLE position_close_snapshot (
@@ -247,7 +315,7 @@ steps whose result is recorded in `eod_runs.steps_json`:
 
 | Step | What | Failure |
 |---|---|---|
-| `gate` | the **latest** `PHASE` row of D in `session_events` is `CLOSED` (E5); a `position_close_snapshot` exists for D; `pm-clearing-cli reconcile` clean for D | stop, nothing written (`--force` skips the `CLOSED` check only) |
+| `gate` | D has closed: its **latest** `PHASE` row is `CLOSED` (E5) and the market was open earlier that day (R6); a `position_close_snapshot` exists for D; `pm-clearing-cli reconcile` clean for D | stop, nothing written (`--force` skips the `CLOSED` check only) |
 | `settle` | §3.1–3.3; refused while an earlier closed date is unsettled (R1) | stop; ledger untouched (single transaction) |
 | `report` | §3.4 | settlement stays, status `report-failed`, retried by `--pending` |
 | `audit` | archive days *before today* that `pm-audit` missed; today is `pm-audit`'s after midnight (E4) | warning, run continues |
@@ -265,7 +333,7 @@ step list drives `pm-eod run --only STEP` for manual re-runs.
 confirms `CLOSED`, the scheduler spawns the command detached (one child at a
 time, output captured to the scheduler log, exactly as `pm-audit` spawns its
 archiver) and goes on, after `--on-close-delay` (30 s, E6). `--pending` runs
-every trading date whose latest `PHASE` is `CLOSED`, that has a close snapshot
+every trading date that has closed (as for the gate), that has a close snapshot
 and no `ok` run, oldest first, so a scheduler that was down,
 a day that closed late, or a failed `report` step all heal on the next
 trigger. `pm-eod run --pending` also runs from the scheduler's start-up.
@@ -713,3 +781,30 @@ instead of with the day. Measured on 1M `trade_events` (10 days), 100 gateways
   traded that day or has a non-zero result; the ledger's `detail_json` keeps
   every symbol. The empty-table text is now "Nothing held, traded or changed
   today." (it said "No positions.", which was wrong for a trader with a result).
+
+**Review fix R6 (2026-11-01).** Found while scripting the training chapter's
+flow (a trainee's morning) through the real `pm-clearing` handlers and
+`pm-eod` CLI; no test had booted an engine before the open.
+- **The bug.** An engine announces `CLOSED` when it starts. Start the exchange
+  before the open (the normal morning) and `pm-clearing` records that phase and
+  takes a snapshot. The scheduler's start-up `pm-eod run --pending` then found
+  today "closed" (its latest `PHASE` was `CLOSED`) and settled it from that
+  snapshot, which equals yesterday's close: 0.00 for everyone, run `ok`. At the
+  real close nothing was pending, and the next day was measured from the real
+  close, so **the whole day's trading was never settled**. The zero-sum check
+  stayed green. The R1 baseline rule did not help, because that day *was*
+  settled, just too early.
+- **The fix.** One rule, `store.closed_trade_dates`: a date has closed when its
+  latest `PHASE` is `CLOSED` and an earlier `PHASE` that day is not (the market
+  was open). It is used by the gate, `pending_dates` and
+  `close_snapshot_is_final`. A boot-only date is not pending, the gate refuses
+  it ("has not closed yet"), and its provisional snapshot is not final, so a
+  second boot before the open replaces it. Unchanged: a day that opened and
+  closed, a restart after the close (`… CLOSED, CLOSED` is still closed and
+  final), a mid-day restart (latest is not `CLOSED`), and `--force` without
+  sessions (no `PHASE` rows; the check is skipped).
+- Test fixtures that recorded a lone `CLOSED` as a "day" were really recording
+  this boot case; `close_day` now opens the market first, and `boot()` models
+  the morning start. The regression test runs the scheduler's morning
+  `--pending`, then the day's close, and checks that the day's change is
+  settled.

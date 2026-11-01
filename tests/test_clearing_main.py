@@ -571,6 +571,7 @@ class TestHandleEod:
             " VALUES ('GW_A', 'AAPL', 10, 1000.0, 0.0, 0.0, 1000, 2, 0, 0, 0, 0, 1)"
         )
         process._conn.commit()
+        process._handle_session_state({"state": "CONTINUOUS", "prev_state": "X"})
         process._handle_session_state({"state": "CLOSED", "prev_state": "X"})
         process._conn.execute("UPDATE gateway_symbol_positions SET net_qty = 99")
         process._conn.commit()
@@ -902,6 +903,7 @@ class TestHandleSessionState:
         p = self._proc(db_path, zmq_addr)
         try:
             _seed_position(p, 10)
+            p._handle_session_state({"state": "CONTINUOUS", "prev_state": "X"})
             p._handle_session_state({"state": "CLOSED", "prev_state": "X"})
             p._conn.execute("UPDATE gateway_symbol_positions SET net_qty = 99")
             p._conn.commit()
@@ -910,6 +912,22 @@ class TestHandleSessionState:
         finally:
             p._conn.close()
         assert [r["net_qty"] for r in rows] == [10]
+
+    def test_a_second_boot_before_the_open_replaces_the_snapshot(
+        self, db_path: Path, zmq_addr: str
+    ) -> None:
+        # A boot-time CLOSED is not a close, so nothing about it is final.
+        p = self._proc(db_path, zmq_addr)
+        try:
+            _seed_position(p, 10)
+            p._handle_session_state({"state": "CLOSED", "prev_state": "X"})
+            p._conn.execute("UPDATE gateway_symbol_positions SET net_qty = 99")
+            p._conn.commit()
+            p._handle_session_state({"state": "CLOSED", "prev_state": "X"})
+            rows = query_close_snapshots(p._conn)
+        finally:
+            p._conn.close()
+        assert [r["net_qty"] for r in rows] == [99]
 
     def test_a_close_after_trading_resumed_replaces_the_snapshot(
         self, db_path: Path, zmq_addr: str

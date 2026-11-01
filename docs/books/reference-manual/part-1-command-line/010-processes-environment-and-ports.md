@@ -1632,15 +1632,18 @@ opening balance. The full DDL is in the generated
   there is none, or if `clearing.db` no longer has that date's snapshot), each
   converted from ticks to currency with the symbol's own `tick_decimals`. Any
   unsettled snapshot dates in between are part of the one interval.
+- A date **has closed** when its latest `session_events` `PHASE` row is
+  `CLOSED` and an earlier `PHASE` row of the same date is not, so the market
+  was open that day. The `CLOSED` an engine announces when it starts, before
+  the open, is therefore not a close.
 - Dates settle in order: a date is refused while an earlier date has closed
-  (latest `PHASE` is `CLOSED`, with a snapshot) but is not settled.
+  (with a snapshot) but is not settled.
 - Rounded to 2 decimals with the largest-remainder method; the exact total must
   be within `0.01` per position of zero, otherwise the settlement fails.
 - A position present in the earlier snapshot but missing from this date's is
   ignored.
-- The gate requires: a `session_events` `PHASE` row for the date whose **latest**
-  row is `CLOSED` (skipped by `--force`); a close snapshot; and an empty
-  `pm-clearing-cli reconcile` for the date.
+- The gate requires: the date has closed (skipped by `--force`); a close
+  snapshot; and an empty `pm-clearing-cli reconcile` for the date.
 
 See [Closing the Day](../../operator-guide/part-4-run-a-market/100-closing-the-day.md)
 for the worked example, the troubleshooting table and the housekeeping details.

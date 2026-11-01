@@ -655,22 +655,48 @@ def write_close_snapshot(conn: sqlite3.Connection, trade_date: str) -> int:
     return cur.rowcount
 
 
+def closed_trade_dates(
+    conn: sqlite3.Connection, trade_date: str | None = None
+) -> set[str]:
+    """
+    Trading dates that have closed (all, or just ``trade_date`` if it has).
+
+    A date has closed when its latest ``PHASE`` row is CLOSED **and** the
+    market was open earlier that day (some other phase was recorded).  An
+    engine announces CLOSED when it starts, so a date whose only phase is that
+    announcement (the exchange started before the open) has not closed: it has
+    not traded yet.  A CLOSED after trading resumed (a mid-day restart) is not
+    the close either, because a later phase follows it.
+    """
+    rows = conn.execute(
+        "SELECT trade_date, payload_json FROM session_events"
+        " WHERE event_type = 'PHASE' AND (:day IS NULL OR trade_date = :day)"
+        " ORDER BY ts_ns DESC",
+        {"day": trade_date},
+    )
+    latest: dict[str, str] = {}
+    opened: set[str] = set()
+    for day, payload in rows:
+        state = json.loads(payload or "{}").get("state", "")
+        latest.setdefault(day, state)  # newest first
+        if state != "CLOSED":
+            opened.add(day)
+    return {day for day, state in latest.items() if state == "CLOSED"} & opened
+
+
 def close_snapshot_is_final(conn: sqlite3.Connection, trade_date: str) -> bool:
     """
     True when ``trade_date`` has a close snapshot taken at its real close.
 
-    That is: the date's latest ``PHASE`` row is CLOSED and a snapshot exists.
-    Nothing may replace such a snapshot — not an engine restart after the
-    close (which re-announces CLOSED after the shutdown re-marked positions)
-    and not the shutdown itself — because pm-eod may already have settled it.
-    Any other snapshot is provisional: the boot-time CLOSED of a day that went
-    on trading, or a shutdown without sessions, where the last one counts.
+    That is: the date has closed (:func:`closed_trade_dates`) and a snapshot
+    exists.  Nothing may replace such a snapshot — not an engine restart after
+    the close (which re-announces CLOSED after the shutdown re-marked
+    positions) and not the shutdown itself — because pm-eod may already have
+    settled it.  Any other snapshot is provisional: the boot-time CLOSED before
+    the open or of a day that went on trading, or a shutdown without sessions,
+    where the last one counts.
     """
-    phases = query_session_events(
-        conn, event_type="PHASE", from_date=trade_date, to_date=trade_date, limit=1
-    )
-    latest = json.loads(phases[0]["payload_json"] or "{}") if phases else {}
-    if latest.get("state") != "CLOSED":
+    if not closed_trade_dates(conn, trade_date):
         return False
     return bool(query_close_snapshots(conn, date_value=trade_date, limit=1))
 

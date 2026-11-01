@@ -19,6 +19,7 @@ from edumatcher.clearing.store import (
     apply_schema,
     close_latest_gateway_session,
     close_snapshot_is_final,
+    closed_trade_dates,
     flush_batch,
     open_readonly_connection,
     open_writer_connection,
@@ -970,6 +971,55 @@ class TestQuerySessionEvents:
         assert len(rows) == 3
 
 
+class TestClosedTradeDates:
+    @pytest.mark.parametrize(
+        ("phases", "closed"),
+        [
+            (["PRE_OPEN", "CONTINUOUS", "CLOSED"], True),
+            (["CLOSED"], False),  # engine boot before the open
+            (["CLOSED", "PRE_OPEN", "CONTINUOUS", "CLOSED"], True),  # boot, day
+            (["CONTINUOUS", "CLOSED", "CLOSED"], True),  # restart after the close
+            (["CLOSED", "CONTINUOUS"], False),  # still trading
+            ([], False),
+        ],
+    )
+    def test_a_day_has_closed_only_after_it_was_open(
+        self, conn: sqlite3.Connection, phases: list[str], closed: bool
+    ) -> None:
+        for ts, state in enumerate(phases, start=1):
+            record_session_event(
+                conn,
+                event_type="PHASE",
+                ts_ns=ts,
+                trade_date="2026-07-01",
+                payload_json=json.dumps({"state": state}),
+            )
+        expected = {"2026-07-01"} if closed else set()
+        assert closed_trade_dates(conn) == expected
+        assert closed_trade_dates(conn, "2026-07-01") == expected
+
+    def test_one_date_or_all(self, conn: sqlite3.Connection) -> None:
+        for ts, (day, state) in enumerate(
+            [
+                ("2026-07-01", "CONTINUOUS"),
+                ("2026-07-01", "CLOSED"),
+                ("2026-07-02", "CONTINUOUS"),
+                ("2026-07-02", "CLOSED"),
+                ("2026-07-03", "CLOSED"),
+            ],
+            start=1,
+        ):
+            record_session_event(
+                conn,
+                event_type="PHASE",
+                ts_ns=ts,
+                trade_date=day,
+                payload_json=json.dumps({"state": state}),
+            )
+        assert closed_trade_dates(conn) == {"2026-07-01", "2026-07-02"}
+        assert closed_trade_dates(conn, "2026-07-02") == {"2026-07-02"}
+
+
 class TestCloseSnapshot:
     def test_copies_every_position_including_flat_and_untraded(
         self, conn: sqlite3.Connection
@@ -1026,9 +1076,10 @@ class TestCloseSnapshot:
     @pytest.mark.parametrize(
         ("phases", "snapshot", "final"),
         [
-            (["CLOSED"], True, True),
+            (["CONTINUOUS", "CLOSED"], True, True),
+            (["CLOSED"], True, False),  # engine boot before the open: not a close
             (["CLOSED", "CONTINUOUS"], True, False),  # boot CLOSED, trading went on
-            (["CLOSED"], False, False),  # crashed between the PHASE row and the copy
+            (["CONTINUOUS", "CLOSED"], False, False),  # crash between PHASE and copy
             ([], True, False),  # no sessions: a shutdown snapshot
         ],
     )

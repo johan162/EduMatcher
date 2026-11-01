@@ -8,7 +8,6 @@ housekeeping trouble is reported as a warning and never withholds statements.
 from __future__ import annotations
 
 import fcntl
-import json
 import sqlite3
 from collections.abc import Generator
 from contextlib import contextmanager
@@ -17,6 +16,7 @@ from datetime import datetime
 from pathlib import Path
 
 from edumatcher.clearing.store import (
+    closed_trade_dates,
     open_readonly_connection,
     query_close_snapshot_dates,
     query_close_snapshots,
@@ -132,8 +132,10 @@ def run_lock(data: Path) -> Generator[None, None, None]:
 def pending_dates(paths: Paths) -> list[str]:
     """Dates that closed, have a close snapshot and no ``ok`` run, oldest first.
 
-    "Closed" means the date's latest session phase is CLOSED, the same rule as
-    the gate, so a day that is still trading is not pending.
+    "Closed" is :func:`~edumatcher.clearing.store.closed_trade_dates`, the same
+    rule as the gate: a day that is still trading is not pending, and neither
+    is a day whose only phase is the engine's start-up CLOSED (pm-scheduler
+    runs ``--pending`` when it starts, often before the open).
 
     Dates without a snapshot (history from before snapshots existed) are not
     pending: they could never be settled and would block every later day.
@@ -142,13 +144,7 @@ def pending_dates(paths: Paths) -> list[str]:
         return []
     clearing = open_readonly_connection(paths.clearing)
     try:
-        latest: dict[str, str] = {}
-        # Newest first: the first row seen for a date is its latest phase.
-        for r in query_session_events(clearing, event_type="PHASE", limit=1_000_000):
-            latest.setdefault(
-                r["trade_date"], json.loads(r["payload_json"] or "{}").get("state", "")
-            )
-        closed = {day for day, state in latest.items() if state == "CLOSED"}
+        closed = closed_trade_dates(clearing)
         snapped = set(query_close_snapshot_dates(clearing))
     finally:
         clearing.close()
@@ -173,9 +169,10 @@ def _gate(clearing: sqlite3.Connection, trade_date: str, force: bool) -> StepRes
             return StepResult(
                 "gate", "fail", f"no session phase recorded for {trade_date}"
             )
-        # Newest first.  A mid-day restart re-announces CLOSED and trading goes
-        # on; only a CLOSED that nothing followed is the close.
-        if json.loads(events[0]["payload_json"] or "{}").get("state") != "CLOSED":
+        # A mid-day restart re-announces CLOSED and trading goes on, and an
+        # engine started before the open announces CLOSED too: neither is the
+        # close (closed_trade_dates).
+        if not closed_trade_dates(clearing, trade_date):
             return StepResult("gate", "fail", f"{trade_date} has not closed yet")
     if not query_close_snapshots(clearing, date_value=trade_date, limit=1):
         return StepResult("gate", "fail", f"no close snapshot for {trade_date}")

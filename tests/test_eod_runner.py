@@ -49,14 +49,31 @@ def pos(gw: str, qty: int, unreal: float) -> PositionRow:
 
 
 def close_day(data: Path, day: str, unreal: float, *, phase: str = "CLOSED") -> None:
+    """A trading day: the market was open (ts 0), then reached ``phase`` (ts 1)."""
+    conn = open_writer_connection(data / "clearing.db")
+    flush_batch(conn, [], [pos("A", 100, unreal), pos("B", -100, -unreal)], [])
+    for ts, state in ((0, "CONTINUOUS"), (1, phase)):
+        record_session_event(
+            conn,
+            event_type="PHASE",
+            ts_ns=ts,
+            trade_date=day,
+            payload_json=json.dumps({"state": state}),
+        )
+    write_close_snapshot(conn, day)
+    conn.close()
+
+
+def boot(data: Path, day: str, unreal: float) -> None:
+    """The engine starts before the open: it announces CLOSED, pm-clearing snapshots."""
     conn = open_writer_connection(data / "clearing.db")
     flush_batch(conn, [], [pos("A", 100, unreal), pos("B", -100, -unreal)], [])
     record_session_event(
         conn,
         event_type="PHASE",
-        ts_ns=1,
+        ts_ns=0,  # before the day's own phases (close_day uses 0 and 1)
         trade_date=day,
-        payload_json=json.dumps({"state": phase}),
+        payload_json=json.dumps({"state": "CLOSED"}),
     )
     write_close_snapshot(conn, day)
     conn.close()
@@ -138,6 +155,10 @@ class TestGate:
         )
         conn.close()
         assert run(data) == ["gate:fail"]
+
+    def test_an_engine_boot_before_the_open_is_not_a_close(self, data: Path) -> None:
+        boot(data, "2026-07-02", 5000.0)
+        assert run(data, "2026-07-02") == ["gate:fail"]
 
     def test_no_snapshot_even_with_force(self, tmp_path: Path) -> None:
         open_writer_connection(tmp_path / "clearing.db").close()
@@ -352,6 +373,26 @@ class TestPending:
         conn.close()
         # ts_ns=0 is older than the CONTINUOUS row (ts_ns=1)
         assert pending_dates(Paths(data)) == ["2026-07-01"]
+
+    def test_a_day_with_only_an_engine_boot_is_not_pending(self, data: Path) -> None:
+        boot(data, "2026-07-02", 5000.0)
+        assert pending_dates(Paths(data)) == ["2026-07-01"]
+
+    def test_a_start_up_run_before_the_open_leaves_the_day_to_its_close(
+        self, data: Path
+    ) -> None:
+        # pm-scheduler runs `pm-eod run --pending` when it starts.  Started in
+        # the morning, the only phase of the day is the engine's boot CLOSED;
+        # settling then would book 0.00 and the day's trading never.
+        run(data)
+        boot(data, "2026-07-02", 5000.0)
+        assert pending_dates(Paths(data)) == []
+        close_day(data, "2026-07-02", 2000.0)  # the day trades and closes
+        assert pending_dates(Paths(data)) == ["2026-07-02"]
+        run(data, "2026-07-02")
+        ledger = open_ledger(data / "eod.db")
+        assert balances(ledger) == {"A": 2000, "B": -2000}
+        ledger.close()
 
     def test_done_days_drop_out(self, data: Path) -> None:
         close_day(data, "2026-07-02", 2000.0)

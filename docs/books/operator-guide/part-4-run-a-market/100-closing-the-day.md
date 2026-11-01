@@ -997,8 +997,9 @@ before it.
 
 Restarting the engine announces `CLOSED` for a moment before the scheduler
 moves it back to the right phase, so `pm-clearing` saves a *provisional* close
-snapshot. `pm-eod` ignores a day until its **latest** session phase is
-`CLOSED`, so a day that is still trading is never settled early. The real close
+snapshot. `pm-eod` treats a day as closed only when its **latest** session phase
+is `CLOSED` *and the market was open earlier that day*, so a day that is still
+trading is never settled early. The real close
 overwrites the provisional snapshot. If the day never closes properly (the
 scheduler was stopped, say), it is never settled on its own: its gains and
 losses are included in the next day that is settled, because each settlement
@@ -1007,6 +1008,12 @@ counts from the close of the last day that *was* settled.
 Restarting the engine **after** the close (for maintenance, say) also announces
 `CLOSED`, but changes nothing: once a day has really closed its snapshot is
 final, and only the next trading day takes a new one.
+
+The same goes for starting the exchange **in the morning**, before the open.
+The engine announces `CLOSED` when it starts and the scheduler runs
+`pm-eod run --pending` a moment later, but a day on which the market has not yet
+opened has not closed: `pm-eod` settles only earlier days, and today waits for
+the real close.
 
 ### A trader joins or leaves mid-way
 
@@ -1066,7 +1073,7 @@ Every message below is printed on a `[FAIL]` or `[warn]` line.
 |---|---|---|
 | `<path>/clearing.db not found` | There is no clearing database in the data directory `pm-eod` is looking at | Check `--datapath` / `EDUMATCHER_DATA_DIR`; check that `pm-clearing` ran |
 | `no session phase recorded for <date>` | `pm-clearing` saw no session change on that date | Was `pm-clearing` running and the scheduler enabled? For a no-scheduler setup add `--force` |
-| `<date> has not closed yet` | The day's latest phase is not `CLOSED` (trading is still going on, or the close was never announced) | Wait for the close, or use `--force` if you have no scheduler |
+| `<date> has not closed yet` | The day has not opened *and* closed: trading is still going on, the close was never announced, or the market has not opened yet today (the `CLOSED` an engine announces when it starts is not a close) | Wait for the close, or use `--force` if you have no scheduler |
 | `no close snapshot for <date>` | The closing positions were never saved — `pm-clearing` was down at the close, or the date is from before this feature existed | `pm-clearing-cli snapshots --date <date>` shows what exists. A missing snapshot cannot be made afterwards. Nothing is lost by leaving the day unsettled: the next day that is settled includes its gains and losses. Make sure `pm-clearing` runs at the next close |
 | `clearing does not reconcile for <date> (N discrepancies; see pm-clearing-cli reconcile)` | The raw trade records and the daily totals disagree. Settling on inconsistent books would spread the error | Run `pm-clearing-cli reconcile --from <date> --to <date>` to see exactly which trader and symbol; fix the cause (a crash mid-write is the usual one) before settling |
 
