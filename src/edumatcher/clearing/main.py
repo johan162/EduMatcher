@@ -66,6 +66,7 @@ from edumatcher.clearing.store import (
     reconcile_session_timezone,
     record_gateway_connect,
     record_session_event,
+    write_close_snapshot,
 )
 from edumatcher.log_srv.config import (
     load_default_log_client_config,
@@ -791,6 +792,15 @@ class ClearingProcess:
                 # The close is the day boundary of a process that never
                 # restarts: system.eod comes only when the engine shuts down,
                 # so without this a weeks-long run never pruned at all.
+                if state == "CLOSED":
+                    # Closing-auction trades may still be buffered.  Open
+                    # positions are already marked to the last trade price
+                    # (Ledger._remark_symbol), so copying them is the close.
+                    self._flush()
+                    snapshot_rows = write_close_snapshot(
+                        self._conn, trade_date(ts_ns, self._tz)
+                    )
+                    log.info("close snapshot: %d position(s)", snapshot_rows)
                 if state == "CLOSED" and self._retention_days > 0:
                     pruned = prune_old_events(
                         self._conn, retention_days=self._retention_days

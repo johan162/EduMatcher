@@ -2684,7 +2684,7 @@ complete -o bashdefault -F _shtab_pm_clearing pm-clearing
 #    source ~/.local/share/bash_completion/pm-clearing-cli
 # See also: https://github.com/scop/bash-completion/blob/main/doc/configuration.md
 
-_shtab_pm_clearing_cli_subparsers=(gateways positions pnl daily trades exposure symbols dates health reconcile sessions eod prune)
+_shtab_pm_clearing_cli_subparsers=(gateways positions pnl daily trades exposure symbols dates snapshots health reconcile sessions eod prune)
 
 _shtab_pm_clearing_cli_gateways_option_strings=(-h --help --gateway --limit)
 _shtab_pm_clearing_cli_positions_option_strings=(-h --help --gateway --symbol --limit)
@@ -2694,6 +2694,7 @@ _shtab_pm_clearing_cli_trades_option_strings=(-h --help --gateway --symbol --dat
 _shtab_pm_clearing_cli_exposure_option_strings=(-h --help --gateway --symbol --sort --limit)
 _shtab_pm_clearing_cli_symbols_option_strings=(-h --help --date --from --to --sort --limit)
 _shtab_pm_clearing_cli_dates_option_strings=(-h --help --gateway --symbol --from --to --with-totals --limit)
+_shtab_pm_clearing_cli_snapshots_option_strings=(-h --help --gateway --symbol --date --from --to --limit)
 _shtab_pm_clearing_cli_health_option_strings=(-h --help -q --quiet --extended -v --verbose)
 _shtab_pm_clearing_cli_reconcile_option_strings=(-h --help --gateway --symbol --from --to --retention-days)
 _shtab_pm_clearing_cli_sessions_option_strings=(-h --help --gateway --from --to --connected-only --limit)
@@ -2703,7 +2704,7 @@ _shtab_pm_clearing_cli_option_strings=(-h --help --version --datapath --db-name 
 
 
 
-_shtab_pm_clearing_cli_pos_0_choices=(gateways positions pnl daily trades exposure symbols dates health reconcile sessions eod prune)
+_shtab_pm_clearing_cli_pos_0_choices=(gateways positions pnl daily trades exposure symbols dates snapshots health reconcile sessions eod prune)
 _shtab_pm_clearing_cli___format_choices=(table json csv)
 
 _shtab_pm_clearing_cli_gateways__h_nargs=0
@@ -2723,6 +2724,8 @@ _shtab_pm_clearing_cli_symbols___help_nargs=0
 _shtab_pm_clearing_cli_dates__h_nargs=0
 _shtab_pm_clearing_cli_dates___help_nargs=0
 _shtab_pm_clearing_cli_dates___with_totals_nargs=0
+_shtab_pm_clearing_cli_snapshots__h_nargs=0
+_shtab_pm_clearing_cli_snapshots___help_nargs=0
 _shtab_pm_clearing_cli_health__h_nargs=0
 _shtab_pm_clearing_cli_health___help_nargs=0
 _shtab_pm_clearing_cli_health__q_nargs=0

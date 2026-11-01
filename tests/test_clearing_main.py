@@ -27,6 +27,7 @@ from edumatcher.clearing.main import (
 )
 from edumatcher.clearing.store import (
     open_writer_connection,
+    query_close_snapshots,
     query_positions,
     query_session_events,
     query_sessions,
@@ -792,6 +793,46 @@ class TestHandleSessionState:
         finally:
             p._conn.close()
         assert sorted(ids) == left
+
+    def test_the_close_snapshots_positions_after_flushing_the_buffer(
+        self, db_path: Path, zmq_addr: str
+    ) -> None:
+        # The closing auction's trades may still be buffered when CLOSED
+        # arrives; the snapshot must include them.
+        p = self._proc(db_path, zmq_addr)
+        try:
+            p._buffer.append(
+                Trade(
+                    id="T-1",
+                    symbol="AAPL",
+                    buy_order_id="O1",
+                    sell_order_id="O2",
+                    buy_gateway_id="GW_A",
+                    sell_gateway_id="GW_B",
+                    price=15000,
+                    quantity=10,
+                    aggressor_side="BUY",
+                    ts_ns=1_000_000_000,
+                )
+            )
+            p._handle_session_state({"state": "CLOSED", "prev_state": "X"})
+            rows = query_close_snapshots(p._conn)
+        finally:
+            p._conn.close()
+        assert {(r["gateway_id"], r["net_qty"]) for r in rows} == {
+            ("GW_A", 10),
+            ("GW_B", -10),
+        }
+        assert {r["trade_date"] for r in rows} == {rows[0]["trade_date"]}
+
+    def test_other_states_take_no_snapshot(self, db_path: Path, zmq_addr: str) -> None:
+        p = self._proc(db_path, zmq_addr)
+        try:
+            p._handle_session_state({"state": "CONTINUOUS", "prev_state": "X"})
+            rows = query_close_snapshots(p._conn)
+        finally:
+            p._conn.close()
+        assert rows == []
 
 
 class TestHandleGatewayDisconnect:

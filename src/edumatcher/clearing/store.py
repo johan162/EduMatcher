@@ -220,6 +220,24 @@ CREATE TABLE IF NOT EXISTS gateway_sessions (
 CREATE INDEX IF NOT EXISTS ix_gateway_sessions_gateway
   ON gateway_sessions(gateway_id);
 
+-- One row per position at each session close, whether or not it traded that
+-- day (gateway_daily_summary only has rows for symbols that traded, so it
+-- cannot show the P&L of a position that was merely held while the price
+-- moved).  Cumulative realized + unrealized at the closing mark; the
+-- difference between two consecutive closes is a day's mark-to-market P&L.
+-- Not pruned with trade_events: the rows are small and settlement reads them.
+CREATE TABLE IF NOT EXISTS position_close_snapshot (
+  trade_date     TEXT    NOT NULL,
+  gateway_id     TEXT    NOT NULL,
+  symbol         TEXT    NOT NULL,
+  net_qty        INTEGER NOT NULL,
+  realized_pnl   REAL    NOT NULL,
+  unrealized_pnl REAL    NOT NULL,
+  mark_price     INTEGER,
+  tick_decimals  INTEGER NOT NULL DEFAULT 2,
+  PRIMARY KEY (trade_date, gateway_id, symbol)
+);
+
 CREATE TABLE IF NOT EXISTS clearing_meta (
   key   TEXT PRIMARY KEY,
   value TEXT NOT NULL
@@ -608,6 +626,32 @@ def record_session_event(
         (event_type, ts_ns, trade_date, payload_json),
     )
     conn.commit()
+
+
+def write_close_snapshot(conn: sqlite3.Connection, trade_date: str) -> int:
+    """
+    Copy every row of ``gateway_symbol_positions`` into
+    ``position_close_snapshot`` under ``trade_date`` and return the row count.
+
+    Replaces any rows already written for that date, so a second CLOSED in the
+    same trading day leaves one consistent snapshot.  Flat positions are kept:
+    their cumulative realized P&L is part of the equity series.
+    """
+    with conn:
+        conn.execute(
+            "DELETE FROM position_close_snapshot WHERE trade_date = ?",
+            (trade_date,),
+        )
+        cur = conn.execute(
+            "INSERT INTO position_close_snapshot"
+            " (trade_date, gateway_id, symbol, net_qty, realized_pnl,"
+            "  unrealized_pnl, mark_price, tick_decimals)"
+            " SELECT ?, gateway_id, symbol, net_qty, realized_pnl,"
+            "  unrealized_pnl, mark_price, tick_decimals"
+            " FROM gateway_symbol_positions",
+            (trade_date,),
+        )
+    return cur.rowcount
 
 
 def record_gateway_connect(
@@ -1112,6 +1156,42 @@ def query_session_events(
         sql,
         {
             "event_type": event_type,
+            "from_date": from_date,
+            "to_date": to_date,
+            "limit": limit,
+        },
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def query_close_snapshots(
+    conn: sqlite3.Connection,
+    *,
+    gateway: str | None = None,
+    symbol: str | None = None,
+    date_value: str | None = None,
+    from_date: str | None = None,
+    to_date: str | None = None,
+    limit: int = 10000,
+) -> list[dict[str, Any]]:
+    sql = (
+        "SELECT trade_date, gateway_id, symbol, net_qty, realized_pnl,"
+        " unrealized_pnl, mark_price, tick_decimals"
+        " FROM position_close_snapshot"
+        " WHERE (:gateway IS NULL OR gateway_id = :gateway)"
+        "   AND (:symbol IS NULL OR symbol = :symbol)"
+        "   AND (:date_value IS NULL OR trade_date = :date_value)"
+        "   AND (:from_date IS NULL OR trade_date >= :from_date)"
+        "   AND (:to_date IS NULL OR trade_date <= :to_date)"
+        " ORDER BY trade_date DESC, gateway_id ASC, symbol ASC"
+        " LIMIT :limit"
+    )
+    rows = conn.execute(
+        sql,
+        {
+            "gateway": gateway,
+            "symbol": symbol,
+            "date_value": date_value,
             "from_date": from_date,
             "to_date": to_date,
             "limit": limit,

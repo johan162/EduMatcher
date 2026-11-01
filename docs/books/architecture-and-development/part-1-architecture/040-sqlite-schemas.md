@@ -417,6 +417,14 @@ CREATE INDEX idx_tl_symbol_ts ON trade_log(symbol, ts)
 | `table: gateway_symbol_positions` | `sell_notional` | `INTEGER` | yes |  |  |
 | `table: gateway_symbol_positions` | `last_trade_ts_ns` | `INTEGER` | no |  |  |
 | `table: gateway_symbol_positions` | `updated_ts_ns` | `INTEGER` | yes |  |  |
+| `table: position_close_snapshot` | `trade_date` | `TEXT` | yes |  | 1 |
+| `table: position_close_snapshot` | `gateway_id` | `TEXT` | yes |  | 2 |
+| `table: position_close_snapshot` | `symbol` | `TEXT` | yes |  | 3 |
+| `table: position_close_snapshot` | `net_qty` | `INTEGER` | yes |  |  |
+| `table: position_close_snapshot` | `realized_pnl` | `REAL` | yes |  |  |
+| `table: position_close_snapshot` | `unrealized_pnl` | `REAL` | yes |  |  |
+| `table: position_close_snapshot` | `mark_price` | `INTEGER` | no |  |  |
+| `table: position_close_snapshot` | `tick_decimals` | `INTEGER` | yes | `2` |  |
 | `table: session_events` | `id` | `INTEGER` | no |  | 1 |
 | `table: session_events` | `event_type` | `TEXT` | yes |  |  |
 | `table: session_events` | `ts_ns` | `INTEGER` | yes |  |  |
@@ -515,6 +523,22 @@ CREATE TABLE gateway_symbol_positions (
   last_trade_ts_ns INTEGER,
   updated_ts_ns    INTEGER NOT NULL,
   PRIMARY KEY (gateway_id, symbol)
+)
+```
+
+#### `table position_close_snapshot`
+
+```sql
+CREATE TABLE position_close_snapshot (
+  trade_date     TEXT    NOT NULL,
+  gateway_id     TEXT    NOT NULL,
+  symbol         TEXT    NOT NULL,
+  net_qty        INTEGER NOT NULL,
+  realized_pnl   REAL    NOT NULL,
+  unrealized_pnl REAL    NOT NULL,
+  mark_price     INTEGER,
+  tick_decimals  INTEGER NOT NULL DEFAULT 2,
+  PRIMARY KEY (trade_date, gateway_id, symbol)
 )
 ```
 

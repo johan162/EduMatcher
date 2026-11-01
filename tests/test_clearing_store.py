@@ -28,6 +28,7 @@ from edumatcher.clearing.store import (
     query_positions,
     query_pnl,
     query_reconcile,
+    query_close_snapshots,
     query_session_events,
     query_sessions,
     query_symbols,
@@ -36,6 +37,7 @@ from edumatcher.clearing.store import (
     record_gateway_disconnect,
     record_session_event,
     validate_date,
+    write_close_snapshot,
 )
 
 # ---------------------------------------------------------------------------
@@ -915,3 +917,77 @@ class TestQuerySessionEvents:
             )
         rows = query_session_events(conn, limit=3)
         assert len(rows) == 3
+
+
+class TestCloseSnapshot:
+    def test_copies_every_position_including_flat_and_untraded(
+        self, conn: sqlite3.Connection
+    ) -> None:
+        flush_batch(
+            conn,
+            [],
+            [
+                _position_row(gateway_id="GW_A", net_qty=100, unrealized_pnl=500.0),
+                _position_row(
+                    gateway_id="GW_B",
+                    net_qty=0,
+                    realized_pnl=-250.0,
+                    unrealized_pnl=0.0,
+                ),
+            ],
+            [],
+        )
+        assert write_close_snapshot(conn, "2026-07-01") == 2
+        rows = query_close_snapshots(conn, date_value="2026-07-01")
+        assert [(r["gateway_id"], r["net_qty"]) for r in rows] == [
+            ("GW_A", 100),
+            ("GW_B", 0),
+        ]
+        assert rows[0]["unrealized_pnl"] == 500.0
+        assert rows[0]["mark_price"] == 1005
+        assert rows[1]["realized_pnl"] == -250.0
+        assert rows[0]["tick_decimals"] == 2
+
+    def test_second_close_the_same_day_replaces_the_rows(
+        self, conn: sqlite3.Connection
+    ) -> None:
+        flush_batch(conn, [], [_position_row(unrealized_pnl=500.0)], [])
+        write_close_snapshot(conn, "2026-07-01")
+        flush_batch(conn, [], [_position_row(unrealized_pnl=900.0)], [])
+        assert write_close_snapshot(conn, "2026-07-01") == 1
+        rows = query_close_snapshots(conn, date_value="2026-07-01")
+        assert len(rows) == 1
+        assert rows[0]["unrealized_pnl"] == 900.0
+
+    def test_a_later_close_does_not_touch_earlier_days(
+        self, conn: sqlite3.Connection
+    ) -> None:
+        flush_batch(conn, [], [_position_row(unrealized_pnl=500.0)], [])
+        write_close_snapshot(conn, "2026-07-01")
+        flush_batch(conn, [], [_position_row(unrealized_pnl=900.0)], [])
+        write_close_snapshot(conn, "2026-07-02")
+        rows = query_close_snapshots(conn)
+        assert [(r["trade_date"], r["unrealized_pnl"]) for r in rows] == [
+            ("2026-07-02", 900.0),
+            ("2026-07-01", 500.0),
+        ]
+
+    def test_filters_by_gateway_and_symbol(self, conn: sqlite3.Connection) -> None:
+        flush_batch(
+            conn,
+            [],
+            [
+                _position_row(gateway_id="GW_A", symbol="AAPL"),
+                _position_row(gateway_id="GW_B", symbol="MSFT"),
+            ],
+            [],
+        )
+        write_close_snapshot(conn, "2026-07-01")
+        assert len(query_close_snapshots(conn, gateway="GW_B")) == 1
+        assert len(query_close_snapshots(conn, symbol="AAPL")) == 1
+
+    def test_prune_leaves_snapshots(self, conn: sqlite3.Connection) -> None:
+        flush_batch(conn, [], [_position_row()], [])
+        write_close_snapshot(conn, "2000-01-03")
+        prune_old_events(conn, retention_days=1)
+        assert len(query_close_snapshots(conn)) == 1

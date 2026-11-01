@@ -1632,6 +1632,7 @@ _shtab_pm_clearing_cli_commands() {
     prune:'Delete trade_events rows older than N days (default: 90) and VACUUM'
     reconcile:'Compare raw trade_events against gateway_daily_summary aggregates'
     sessions:'Gateway connection and disconnection history'
+    snapshots:'Position snapshots taken at each session close (basis for settlement)'
     symbols:'Symbol-level clearing totals'
     trades:'Raw trade events'
   )
@@ -1770,6 +1771,19 @@ _shtab_pm_clearing_cli_sessions_options=(
 # guard to ensure default positional specs are added only once per session
 _shtab_pm_clearing_cli_sessions_defaults_added=0
 
+_shtab_pm_clearing_cli_snapshots_options=(
+  "(- : *)"{-h,--help}"[show this help message and exit]"
+  "--gateway[GW_ID]:GW_ID:"
+  "--symbol[SYMBOL]:SYMBOL:"
+  "--date[YYYY-MM-DD]:YYYY-MM-DD:"
+  "--from[YYYY-MM-DD]:YYYY-MM-DD:"
+  "--to[YYYY-MM-DD]:YYYY-MM-DD:"
+  "--limit[N]:N:"
+)
+
+# guard to ensure default positional specs are added only once per session
+_shtab_pm_clearing_cli_snapshots_defaults_added=0
+
 _shtab_pm_clearing_cli_symbols_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
   "--date[YYYY-MM-DD]:YYYY-MM-DD:"
@@ -1825,6 +1839,7 @@ _shtab_pm_clearing_cli() {
         prune) _arguments -C -s $_shtab_pm_clearing_cli_prune_options ;;
         reconcile) _arguments -C -s $_shtab_pm_clearing_cli_reconcile_options ;;
         sessions) _arguments -C -s $_shtab_pm_clearing_cli_sessions_options ;;
+        snapshots) _arguments -C -s $_shtab_pm_clearing_cli_snapshots_options ;;
         symbols) _arguments -C -s $_shtab_pm_clearing_cli_symbols_options ;;
         trades) _arguments -C -s $_shtab_pm_clearing_cli_trades_options ;;
       esac
