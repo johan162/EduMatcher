@@ -1,3 +1,30 @@
+## [v0.67.0] - 2026-11-01
+
+Release Type: major
+
+### 📋 Summary
+This release replaces the misleading book-heap garbage percentage with a compaction-relative health metric and improves shutdown ordering to protect final engine events. It also refreshes container deployment guidance and reduces false positives in simulation forensics.
+
+### ⚠️ Breaking Changes
+- Replaced the `monitor.thresholds.heap_garbage_pct` configuration rule with `heap_bloat_ratio`; update existing configurations and `pm-config-gen --monitor-threshold` arguments to use ratio thresholds rather than percentages. The new defaults are 1.5 for warning and 3.0 for critical
+- Renamed the engine metric `engine.book_heap_garbage_pct` to `engine.book_heap_bloat_ratio` and the book health snapshot field `heap_garbage_pct` to `heap_bloat_ratio`; update external monitoring and health API consumers to use the new names and dimensionless ratio
+
+### 🚀 Improvements
+- Improved book-heap health monitoring to measure heap size against the compaction bound instead of warning during normal accumulation of stale entries
+- Improved `pm-opctl-cli stop` to wait for gateways and other processes, then the engine, recorders and finally the log server in order
+
+### 🐛 Bug Fixes
+- Fixed book heaps growing without compaction after priority-losing amendments and iceberg replenishments
+- Fixed clearing potentially losing engine messages during shutdown by draining its feed before exiting
+- Fixed simulation forensics reporting false mismatches for fills ahead of clearing and crossed books while a symbol is halted
+
+### 📚 Documentation
+- Updated container and Compose deployment guidance, including the AI simulation image and networking layouts
+- Documented coordinated process shutdown and the new heap-health metric
+
+### 🛠 Internal
+- Added regression coverage for heap compaction and health metrics, ordered shutdown and clearing feed draining
+
 ## [v0.66.3] - 2026-11-01
 
 Release Type: minor
