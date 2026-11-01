@@ -1,3 +1,25 @@
+## [v0.66.3] - 2026-11-01
+
+Release Type: minor
+
+### 📋 Summary
+This release strengthens configuration validation and adds missing API gateway timeout controls to the configuration GUI. It also refreshes operator guidance and speeds up the build workflow.
+
+### ✨ Additions
+- Added detection of unknown configuration keys in engine settings, helping catch misspelled options before they are silently ignored
+- Added API gateway engine-authentication, engine-reply and acknowledgement timeout fields to the configuration GUI
+
+### 🐛 Bug Fixes
+- Fixed configuration verification reporting false positives and missing configuration errors, including market-maker spread checks that now use the effective gateway- and symbol-specific limits
+
+### 📚 Documentation
+- Updated operator and reference documentation for configuration, verification and exchange operations
+
+### 🛠 Internal
+- Improved build-script parallelism and added coverage for the updated build workflow and configuration-verifier behavior
+- Use top-level `data/` for configuration used by `gen_verification_set.py` to generate the empty config used by `verify_matching.sh` to do a comparison with a "paper" matching and  what the engine actually
+produces.
+
 ## [v0.66.2] - 2026-10-31
 
 Release Type: patch
