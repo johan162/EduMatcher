@@ -1381,7 +1381,7 @@ def _replay(ds: Dataset) -> _Replay:
             engine = {}
         smp = {
             gw: str(c.get("smp_action") or "NONE")
-            for gw, c in engine.get("fix_gateways", {}).items()
+            for gw, c in engine.get("participants", {}).items()
         }
         replay = _Replay(engine.get("symbols", {}), smp)
         replay.run(lines(files))

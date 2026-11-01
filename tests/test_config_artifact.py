@@ -47,7 +47,7 @@ from edumatcher.engine.circuit_breaker import CircuitBreakerConfig, CircuitBreak
 from edumatcher.engine.collar import CollarConfig
 from edumatcher.engine.config_loader import (
     EngineConfig,
-    FixGatewayConfig,
+    ParticipantConfig,
     MMQuoteSeed,
     ScheduleConfig,
     SymbolConfig,
@@ -105,8 +105,8 @@ def _engine() -> EngineConfig:
                 ),
             )
         },
-        fix_gateways={
-            "MM01": FixGatewayConfig(
+        participants={
+            "MM01": ParticipantConfig(
                 id="MM01",
                 role=ParticipantRole.MARKET_MAKER,
                 disconnect_behaviour=DisconnectBehaviour.CANCEL_QUOTES_ONLY,
@@ -171,7 +171,7 @@ class TestRoundTrip:
 
         assert isinstance(seed.tif, TIF)
         assert isinstance(
-            decode(encode(_config())).engine.fix_gateways["MM01"].role, ParticipantRole
+            decode(encode(_config())).engine.participants["MM01"].role, ParticipantRole
         )
 
     def test_keeps_an_absent_optional_absent(self) -> None:

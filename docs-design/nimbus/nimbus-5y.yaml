@@ -1,0 +1,63 @@
+pm_valuation: 1
+company:
+  name: Nimbus Cognition Inc.
+  ticker: NMBS
+  sector: b2b_saas
+  dual_class: 'yes'
+  market: us
+market:
+  tam: 1500bn
+  tam_growth: 30%
+  sam_share: 60%
+  structure: oligopoly
+customers:
+  last_fy_revenue: 65bn
+  now: 400,000
+  arpu: 162,500
+  arpu_growth: 5%
+  churn: 10%
+  growth_y1: 60%
+people:
+  headcount: 4,500
+  loaded_cost: 1.05m
+  wage_inflation: 8%
+  elasticity: '0.5'
+  growth_floor: 5%
+  split_rnd: 55%
+  split_snm: 20%
+  split_gna: 12%
+  split_ops: 13%
+costs:
+  infra_fixed: 8bn
+  infra_per_customer: 30,000
+  other_cogs_pct: 10%
+  cac_paid: 48,750
+  rnd_nonstaff_pct: 22%
+  sbc_pct: 100%
+capital:
+  capex_pct: 18%
+  useful_life: '5'
+  nol: 15bn
+  cash: 70bn
+rates:
+  beta_stage1: '1.8'
+  beta_stage2: '1.3'
+  size_premium_1: 0%
+  size_premium_2: 0%
+  execution_premium: 5%
+offering:
+  shares_pre: 1,640,000,000
+  raise: 100bn
+  gross_spread: 1.5%
+  other_expenses: 300m
+investors:
+  inst_interest: very_high
+  n_institutions: '300'
+  avg_ticket: 1bn
+  retail_interest: very_high
+  n_retail: 2,000,000
+  retail_application: 5,000
+  hype: '9'
+  comps_multiple: 12x
+management:
+  last_round: 965bn

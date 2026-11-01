@@ -6,7 +6,7 @@ import pytest
 
 from edumatcher.engine.config_loader import (
     EngineConfig,
-    FixGatewayConfig,
+    ParticipantConfig,
     SymbolConfig,
 )
 from edumatcher.engine.main import Engine
@@ -37,9 +37,9 @@ def engine_with_allowlists(monkeypatch, tmp_path) -> tuple[Engine, _DummySocket]
         symbols={
             "AAPL": SymbolConfig(name="AAPL"),
         },
-        fix_gateways={
-            "TRADER01": FixGatewayConfig(id="TRADER01", description="First trader"),
-            "TRADER02": FixGatewayConfig(id="TRADER02", description="Second trader"),
+        participants={
+            "TRADER01": ParticipantConfig(id="TRADER01", description="First trader"),
+            "TRADER02": ParticipantConfig(id="TRADER02", description="Second trader"),
         },
     )
 

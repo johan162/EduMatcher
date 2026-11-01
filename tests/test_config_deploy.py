@@ -241,7 +241,7 @@ class TestShippedSample:
         config = compile_config(source)
 
         assert config.engine.symbols, "a default with no symbols would teach nothing"
-        assert config.engine.fix_gateways
+        assert config.engine.participants
 
     def test_pm_setup_installs_the_examples_market_model(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -340,7 +340,7 @@ class TestExamples:
     )
     def test_s150_examples_carry_twenty_ai_traders(self, name: str) -> None:
         # pm-ai-swarm --count 20 must run against every s150 variant unchanged.
-        gateways = compile_config(resolve_example(name)).engine.fix_gateways
+        gateways = compile_config(resolve_example(name)).engine.participants
         ai = sorted(gw for gw in gateways if gw.startswith("AI"))
         assert ai == [f"AI{i:03d}" for i in range(1, 21)]
         assert {gateways[gw].role.value for gw in ai} == {"TRADER"}
@@ -349,7 +349,7 @@ class TestExamples:
         # The design-limit test bed for the AI traders (v3 plan WP-A3).
         engine = compile_config(resolve_example("s300-load")).engine
         assert len(engine.symbols) == 300
-        ai = sorted(gw for gw in engine.fix_gateways if gw.startswith("AI"))
+        ai = sorted(gw for gw in engine.participants if gw.startswith("AI"))
         assert ai == [f"AI{i:03d}" for i in range(1, 501)]
         assert engine.sessions_enabled is True
 
@@ -358,7 +358,7 @@ class TestExamples:
         # maker, a hundred AI traders, sessions driven by the scheduler.
         engine = compile_config(resolve_example("s300-sim")).engine
         assert len(engine.symbols) == 300
-        gateways = engine.fix_gateways
+        gateways = engine.participants
         ai = sorted(gw for gw in gateways if gw.startswith("AI"))
         assert ai == [f"AI{i:03d}" for i in range(1, 101)]
         assert [gw for gw in gateways if gateways[gw].role.value == "MARKET_MAKER"] == [

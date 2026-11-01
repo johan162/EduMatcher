@@ -1953,7 +1953,7 @@ flowchart LR
 
 | Check | Where | Why it must run synchronously |
 |---|---|---|
-| Gateway allowed, connected and authenticated | `_handle_new_order` (fast path `_connected_fix_gateways`, fallback `_gateway_status`) | A disconnected or unauthorised participant must not inject live orders; rejecting early saves matching work. |
+| Gateway allowed, connected and authenticated | `_handle_new_order` (fast path `_connected_participants`, fallback `_gateway_status`) | A disconnected or unauthorised participant must not inject live orders; rejecting early saves matching work. |
 | Symbol allow-list | `_allowed_symbols` | Prevents trading in unconfigured instruments. |
 | Field validation (M7) | `_validate_new_order` | Positive quantity and price, `visible_qty` in `(0, quantity]`, and the per-symbol order-size / notional caps. Bad values must be refused with a reason *before* the ACK, not crash inside the book. |
 | Session state | `accepts_orders(self._session_state)`; ATO only in `OPENING_AUCTION`, ATC only in `CLOSING_AUCTION` | A wrongly accepted order cannot be "un-traded". |

@@ -14,7 +14,11 @@ from dataclasses import dataclass
 
 import pytest
 
-from edumatcher.engine.config_loader import EngineConfig, FixGatewayConfig, SymbolConfig
+from edumatcher.engine.config_loader import (
+    EngineConfig,
+    ParticipantConfig,
+    SymbolConfig,
+)
 from edumatcher.engine.main import Engine
 from edumatcher.models.message import (
     decode,
@@ -51,8 +55,8 @@ def _make_engine(
 
     cfg = EngineConfig(
         symbols={sym: SymbolConfig(name=sym) for sym in symbols},
-        fix_gateways={
-            gw: FixGatewayConfig(id=gw, description=f"{gw} trader") for gw in gateways
+        participants={
+            gw: ParticipantConfig(id=gw, description=f"{gw} trader") for gw in gateways
         },
     )
 

@@ -27,7 +27,7 @@ import pytest
 from tests.engine_harness import last_ack
 from edumatcher.engine.config_loader import (
     EngineConfig,
-    FixGatewayConfig,
+    ParticipantConfig,
     SymbolConfig,
 )
 from edumatcher.engine.main import Engine
@@ -70,8 +70,8 @@ def _make_engine(
 
     cfg = EngineConfig(
         symbols={sym: SymbolConfig(name=sym) for sym in symbols},
-        fix_gateways={
-            gw: FixGatewayConfig(id=gw, description=f"{gw} trader") for gw in gateways
+        participants={
+            gw: ParticipantConfig(id=gw, description=f"{gw} trader") for gw in gateways
         },
         snapshot_interval_sec=snapshot_interval_sec,
         quote_history_maxlen=quote_history_maxlen,
@@ -821,7 +821,7 @@ class TestOCOHandlers:
     def test_oco_sibling_cancelled_when_leg_fills(self, monkeypatch, tmp_path) -> None:
         engine, pub_sock = _make_engine(monkeypatch, tmp_path)
         _connect(engine, "GW01")
-        if engine._allowed_fix_gateways and "GW02" in engine._allowed_fix_gateways:
+        if engine._allowed_participants and "GW02" in engine._allowed_participants:
             _connect(engine, "GW02")
         # Register OCO pair manually and simulate one leg getting filled
         engine._handle_oco_order(self._oco_payload())

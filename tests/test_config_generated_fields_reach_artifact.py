@@ -58,9 +58,9 @@ KEY_LANDINGS: dict[str, object] = {
     "circuit_breaker_defaults": lambda c: next(
         (s.circuit_breaker for s in c.engine.symbols.values()), None
     ),
-    "participants": lambda c: c.engine.fix_gateways or None,
-    # Resolved into each FixGatewayConfig at compile time; no field of its own.
-    "participant_defaults": lambda c: c.engine.fix_gateways or None,
+    "participants": lambda c: c.engine.participants or None,
+    # Resolved into each ParticipantConfig at compile time; no field of its own.
+    "participant_defaults": lambda c: c.engine.participants or None,
     "alf_gateway": lambda c: c.alf_gateway,
     "post_trade_gateway": lambda c: c.post_trade_gateway,
     "market_data_gateway": lambda c: c.market_data_gateway,

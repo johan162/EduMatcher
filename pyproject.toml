@@ -8,7 +8,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
 name = "edumatcher"
-version = "0.68.0"
+version = "0.69.0"
 description = "Educational multi-process trading system with order matching"
 authors = ["Johan Persson <johan162@gmail.com>"]
 readme = "README.md"
@@ -42,17 +42,17 @@ psutil = "^7.2.2"
 [tool.poetry.group.dev.dependencies]
 mkdocs = "^1.6"
 mkdocs-material = "^9.8.0"
-pytest = "^9.1.1"
+pytest = "^9.2.0"
 types-PyYAML = "^6.0.12.20260518"
 pytest-cov = "^7.1.0"
 pytest-xdist = ">=3.8.0"
 twine = ">=6.2.0"
 types-tabulate = "^0.10.0.20260308"
 pyright = "^1.1.414"
-flake8 = "^7.3.0"
+flake8 = "^7.5.0"
 black = "^26.5.1"
 shtab = "1.13.0"  # exact: the committed completion scripts are its byte-for-byte output
-mypy = "^2.3.1"
+mypy = "^2.4.1"
 types-psutil = "^7.2.2.20260906"
 
 
@@ -128,6 +128,8 @@ markers = [
     "real_health_reporter: opt out of the conftest guard that keeps processes from sending health beacons",
     "e2e: end-to-end tests on a real exchange (fixed ports, serial); deselected by default, run with 'make test-e2e'",
     "container: end-to-end tests on the deployment/docker container stack (make up-all); deselected by default, run with 'make test-container'",
+    "probabilistic: probabilistic tests",
+    "probabilistic_full: exhaustive probabilistic tests",
 ]
 addopts = [
     "--strict-markers",

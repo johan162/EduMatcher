@@ -13,7 +13,7 @@ import pytest
 
 from edumatcher.engine.config_loader import (
     EngineConfig,
-    FixGatewayConfig,
+    ParticipantConfig,
     SymbolConfig,
 )
 from edumatcher.engine.main import Engine
@@ -51,9 +51,9 @@ def combo_engine(monkeypatch, tmp_path) -> tuple[Engine, _DummySocket]:
             "MSFT": SymbolConfig(name="MSFT"),
             "GOOG": SymbolConfig(name="GOOG"),
         },
-        fix_gateways={
-            "TRADER01": FixGatewayConfig(id="TRADER01", description="Trader one"),
-            "TRADER02": FixGatewayConfig(id="TRADER02", description="Trader two"),
+        participants={
+            "TRADER01": ParticipantConfig(id="TRADER01", description="Trader one"),
+            "TRADER02": ParticipantConfig(id="TRADER02", description="Trader two"),
         },
     )
 

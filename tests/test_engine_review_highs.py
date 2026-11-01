@@ -39,7 +39,7 @@ import pytest
 from edumatcher.engine.collar import CollarConfig
 from edumatcher.engine.config_loader import (
     EngineConfig,
-    FixGatewayConfig,
+    ParticipantConfig,
     SymbolConfig,
 )
 from edumatcher.engine.main import Engine
@@ -140,8 +140,8 @@ def _make_engine(
             if symbol_configs is not None
             else {sym: SymbolConfig(name=sym) for sym in symbols}
         ),
-        fix_gateways={
-            gw: FixGatewayConfig(
+        participants={
+            gw: ParticipantConfig(
                 id=gw,
                 description=f"{gw}",
                 role=(

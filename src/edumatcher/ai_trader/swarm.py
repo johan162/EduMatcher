@@ -129,7 +129,7 @@ def missing_participants(gateway_ids: list[str], config_path: Path) -> list[str]
     The engine refuses to authenticate those, so the swarm checks up front
     instead of launching bots that all exit with "Gateway not configured".
     """
-    allowed = load_engine_config(config_path).allowed_fix_gateways
+    allowed = load_engine_config(config_path).allowed_participants
     return [gw for gw in gateway_ids if gw not in allowed]
 
 

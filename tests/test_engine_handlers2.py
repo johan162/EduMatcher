@@ -21,7 +21,7 @@ from dataclasses import dataclass
 
 from edumatcher.engine.config_loader import (
     EngineConfig,
-    FixGatewayConfig,
+    ParticipantConfig,
     MMQuoteSeed,
     SymbolConfig,
 )
@@ -74,8 +74,8 @@ def _make_engine(
 
     cfg = EngineConfig(
         symbols=sym_configs,
-        fix_gateways={
-            gw: FixGatewayConfig(id=gw, description=f"{gw} desc") for gw in gateways
+        participants={
+            gw: ParticipantConfig(id=gw, description=f"{gw} desc") for gw in gateways
         },
     )
 
@@ -546,7 +546,7 @@ class TestLoadConfigWithMMOrders:
         )
         cfg = EngineConfig(
             symbols={"EURUSD": sym_cfg},
-            fix_gateways={"GW01": FixGatewayConfig(id="GW01", description="GW01")},
+            participants={"GW01": ParticipantConfig(id="GW01", description="GW01")},
         )
         monkeypatch.setattr("edumatcher.engine.main.make_puller", lambda _: pull_sock)
         monkeypatch.setattr("edumatcher.engine.main.make_publisher", lambda _: pub_sock)

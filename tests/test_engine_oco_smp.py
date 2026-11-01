@@ -30,7 +30,7 @@ def new_order(engine: Any, **kw: Any) -> str:
 
 def gateway_default(engine: Any, gw: str, smp: SmpAction) -> None:
     assert engine._engine_config is not None
-    engine._engine_config.fix_gateways[gw].smp_action = smp
+    engine._engine_config.participants[gw].smp_action = smp
 
 
 def submit_oco(

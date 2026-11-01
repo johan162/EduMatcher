@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import sqlite3
 from collections.abc import Generator
+from contextlib import closing
 from dataclasses import replace
 from decimal import Decimal
 from pathlib import Path
@@ -188,14 +189,14 @@ def test_market_stats_are_used_when_given(
     dbs: tuple[sqlite3.Connection, sqlite3.Connection],
 ) -> None:
     clearing, ledger = dbs
-    stats = sqlite3.connect(":memory:")
-    stats.row_factory = sqlite3.Row
-    initialize_stats(stats)
-    stats.execute(
-        "INSERT INTO daily_stats (date, symbol, close_price, volume, trade_count, turnover)"
-        " VALUES ('2026-07-01', 'AAPL', 1050, 200, 2, 210000)"
-    )
-    rep = build_day(clearing, ledger, "2026-07-01", ROSTER, stats)
+    with closing(sqlite3.connect(":memory:")) as stats:
+        stats.row_factory = sqlite3.Row
+        initialize_stats(stats)
+        stats.execute(
+            "INSERT INTO daily_stats (date, symbol, close_price, volume, trade_count, turnover)"
+            " VALUES ('2026-07-01', 'AAPL', 1050, 200, 2, 210000)"
+        )
+        rep = build_day(clearing, ledger, "2026-07-01", ROSTER, stats)
     assert rep.summary.symbols is not None
     assert [
         (x.symbol, x.volume, x.trade_count, x.close) for x in rep.summary.symbols

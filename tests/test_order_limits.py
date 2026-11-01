@@ -20,7 +20,7 @@ import pytest
 
 from edumatcher.engine.config_loader import (
     EngineConfig,
-    FixGatewayConfig,
+    ParticipantConfig,
     SymbolConfig,
     load_engine_config,
 )
@@ -236,7 +236,7 @@ def engine(monkeypatch, tmp_path) -> tuple[Engine, _DummySocket]:
             ),
             "MSFT": SymbolConfig(name="MSFT", tick_decimals=2),
         },
-        fix_gateways={"TRADER01": FixGatewayConfig(id="TRADER01")},
+        participants={"TRADER01": ParticipantConfig(id="TRADER01")},
     )
 
     monkeypatch.setattr("edumatcher.engine.main.make_puller", lambda _: pull_sock)

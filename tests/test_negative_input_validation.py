@@ -35,7 +35,11 @@ from edumatcher.api_gateway.schemas import (
     OrderRequest,
     QuoteRequest,
 )
-from edumatcher.engine.config_loader import EngineConfig, FixGatewayConfig, SymbolConfig
+from edumatcher.engine.config_loader import (
+    EngineConfig,
+    ParticipantConfig,
+    SymbolConfig,
+)
 from edumatcher.engine.main import Engine
 from edumatcher.models.message import decode
 from edumatcher.models.order import Order, OrderType, Side, TIF
@@ -70,7 +74,7 @@ def _make_engine(
 
     cfg = EngineConfig(
         symbols={s: SymbolConfig(name=s) for s in symbols},
-        fix_gateways={g: FixGatewayConfig(id=g, description=g) for g in gateways},
+        participants={g: ParticipantConfig(id=g, description=g) for g in gateways},
         sessions_enabled=sessions_enabled,
     )
     monkeypatch.setattr("edumatcher.engine.main.make_puller", lambda _: pull_sock)

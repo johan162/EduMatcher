@@ -15,7 +15,7 @@ from typing import Any
 
 from edumatcher.engine.config_loader import (
     EngineConfig,
-    FixGatewayConfig,
+    ParticipantConfig,
     SymbolConfig,
 )
 from edumatcher.engine.main import Engine
@@ -147,8 +147,8 @@ def make_engine(
             if symbol_configs is not None
             else {sym: SymbolConfig(name=sym) for sym in symbols}
         ),
-        fix_gateways={
-            gw: FixGatewayConfig(id=gw, description=gw, role=_role(gw))
+        participants={
+            gw: ParticipantConfig(id=gw, description=gw, role=_role(gw))
             for gw in gateways
         },
         sessions_enabled=sessions_enabled,

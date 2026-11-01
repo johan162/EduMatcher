@@ -320,7 +320,7 @@ class IndexConfig:
 
 
 @dataclass
-class FixGatewayConfig:
+class ParticipantConfig:
     id: str
     description: str = ""
     role: ParticipantRole = ParticipantRole.TRADER
@@ -408,7 +408,7 @@ class LocaleConfig:
 @dataclass
 class EngineConfig:
     symbols: dict[str, SymbolConfig] = field(default_factory=dict)
-    fix_gateways: dict[str, FixGatewayConfig] = field(default_factory=dict)
+    participants: dict[str, ParticipantConfig] = field(default_factory=dict)
     market_maker_combos: list[ComboSeedConfig] = field(default_factory=list)
     indices: list[IndexConfig] = field(default_factory=list)
     risk_control_levels: dict[str, dict[str, dict[str, Any]]] = field(
@@ -454,8 +454,8 @@ class EngineConfig:
         return frozenset(self.symbols)
 
     @property
-    def allowed_fix_gateways(self) -> frozenset[str]:
-        return frozenset(self.fix_gateways)
+    def allowed_participants(self) -> frozenset[str]:
+        return frozenset(self.participants)
 
 
 def _parse_gateway_default(
@@ -1289,7 +1289,7 @@ def load_engine_config(path: Path) -> EngineConfig:
             )
         )
 
-    fix_gateways: dict[str, FixGatewayConfig] = {}
+    participants: dict[str, ParticipantConfig] = {}
     for i, item in enumerate(participants_raw):
         if not isinstance(item, dict):
             raise ValueError(f"participants[{i}] must be a mapping")
@@ -1405,9 +1405,9 @@ def load_engine_config(path: Path) -> EngineConfig:
                     f"participants[{i}].mm_obligations.{obl_sym} is invalid"
                 ) from exc
 
-        if gw_id in fix_gateways:
+        if gw_id in participants:
             raise ValueError(f"Duplicate participant id in participants: {gw_id}")
-        fix_gateways[gw_id] = FixGatewayConfig(
+        participants[gw_id] = ParticipantConfig(
             id=gw_id,
             description=desc,
             role=role,
@@ -1421,12 +1421,12 @@ def load_engine_config(path: Path) -> EngineConfig:
             mm_obligation_policies=mm_obligation_policies,
         )
 
-    if not fix_gateways:
+    if not participants:
         raise ValueError("Engine config must define at least one participants entry")
 
     mm_gateway_ids = {
         gw_id
-        for gw_id, gw_cfg in fix_gateways.items()
+        for gw_id, gw_cfg in participants.items()
         if gw_cfg.role == ParticipantRole.MARKET_MAKER
     }
 
@@ -1451,7 +1451,7 @@ def load_engine_config(path: Path) -> EngineConfig:
                 "allow an empty book)"
             )
         for i, quote_seed in enumerate(sym_cfg.market_maker_quotes):
-            if quote_seed.gateway_id not in fix_gateways:
+            if quote_seed.gateway_id not in participants:
                 raise ValueError(
                     f"Symbol '{sym}': market_maker_quotes[{i}].gateway_id references unknown gateway '{quote_seed.gateway_id}'"
                 )
@@ -1636,7 +1636,7 @@ def load_engine_config(path: Path) -> EngineConfig:
 
     return EngineConfig(
         symbols=symbols,
-        fix_gateways=fix_gateways,
+        participants=participants,
         market_maker_combos=market_maker_combos,
         indices=indices,
         risk_control_levels=risk_control_levels,

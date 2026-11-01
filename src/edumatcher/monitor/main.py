@@ -220,7 +220,7 @@ def main() -> None:
     roles = (
         {}
         if compiled is None
-        else {gw: cfg.role.value for gw, cfg in compiled.engine.fix_gateways.items()}
+        else {gw: cfg.role.value for gw, cfg in compiled.engine.participants.items()}
     )
     log_db = None if compiled is None else compiled.log_server.db_path
     store = open_store(METRICS_DB_FILE, session_tz_name, config)

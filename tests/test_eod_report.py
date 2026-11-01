@@ -118,7 +118,8 @@ class TestWriteDay:
 
     def test_statement_csv(self, tmp_path: Path) -> None:
         out = write_day(tmp_path, report(statement()))
-        rows = list(csv.DictReader((out / "statements" / "GW_A.csv").open()))
+        with (out / "statements" / "GW_A.csv").open(newline="", encoding="utf-8") as f:
+            rows = list(csv.DictReader(f))
         assert rows == [
             {"symbol": "AAPL", "day_pnl": "12.34", "net_qty": "100", "mark": "10.50"}
         ]
@@ -132,13 +133,15 @@ class TestWriteDay:
                 statement(0, 900, gateway="GW_C", name="Cy", email=None),
             ),
         )
-        ins = list(csv.DictReader((out / "instructions.csv").open()))
+        with (out / "instructions.csv").open(newline="", encoding="utf-8") as f:
+            ins = list(csv.DictReader(f))
         assert [(r["gateway"], r["amount"], r["direction"]) for r in ins] == [
             ("GW_A", "1.00", "receive"),
             ("GW_B", "-1.00", "pay"),
             ("GW_C", "0.00", "none"),
         ]
-        board = list(csv.DictReader((out / "leaderboard.csv").open()))
+        with (out / "leaderboard.csv").open(newline="", encoding="utf-8") as f:
+            board = list(csv.DictReader(f))
         assert [(r["rank"], r["gateway"]) for r in board] == [
             ("1", "GW_B"),
             ("1", "GW_C"),

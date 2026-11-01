@@ -36,7 +36,7 @@ def test_minimal_output_parses(
     assert out_file.exists()
     cfg = load_engine_config(out_file)
     assert "AAPL" in cfg.symbols
-    assert "TRADER01" in cfg.fix_gateways
+    assert "TRADER01" in cfg.participants
 
     stderr = capsys.readouterr().err
     assert "Wrote generated config" in stderr
@@ -134,10 +134,10 @@ def test_gateway_smp_emitted_and_parses(
     )
 
     cfg = load_engine_config(out_file)
-    assert cfg.fix_gateways["TRADER02"].smp_action.value == "CANCEL_RESTING"
+    assert cfg.participants["TRADER02"].smp_action.value == "CANCEL_RESTING"
     # TRADER01 was not given --participant-smp, so it keeps the engine's own
     # NONE default rather than pm-config-gen spelling out a no-op field.
-    assert cfg.fix_gateways["TRADER01"].smp_action.value == "NONE"
+    assert cfg.participants["TRADER01"].smp_action.value == "NONE"
     assert out_file.read_text(encoding="utf-8").count("smp_action") == 1
 
 
@@ -172,10 +172,10 @@ def test_gateway_default_flags_emitted_and_inherited(
         "disconnect_behaviour": "CANCEL_ALL",
     }
     cfg = load_engine_config(out_file)
-    assert cfg.fix_gateways["TRADER01"].smp_action.value == "CANCEL_AGGRESSOR"
-    assert cfg.fix_gateways["TRADER01"].disconnect_behaviour.value == "CANCEL_ALL"
-    assert cfg.fix_gateways["TRADER02"].smp_action.value == "NONE"
-    assert cfg.fix_gateways["OPS01"].disconnect_behaviour.value == "LEAVE_ALL"
+    assert cfg.participants["TRADER01"].smp_action.value == "CANCEL_AGGRESSOR"
+    assert cfg.participants["TRADER01"].disconnect_behaviour.value == "CANCEL_ALL"
+    assert cfg.participants["TRADER02"].smp_action.value == "NONE"
+    assert cfg.participants["OPS01"].disconnect_behaviour.value == "LEAVE_ALL"
 
 
 def test_country_emitted_and_parses(
@@ -512,7 +512,7 @@ def test_api_gateway_output_generates_keys(
     assert "gateway_id: null" in content
     assert "api_key: key-trader01-" in content
     cfg = load_engine_config(out_file)
-    assert "TRADER01" in cfg.fix_gateways
+    assert "TRADER01" in cfg.participants
 
 
 def test_api_gateway_explicit_key_output(

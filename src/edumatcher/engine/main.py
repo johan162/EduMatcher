@@ -624,7 +624,7 @@ class Engine:
         self._next_silence_check = 0.0
         # If None → no symbol restrictions (backward-compat mode)
         self._allowed_symbols: frozenset[str] | None = None
-        self._allowed_fix_gateways: frozenset[str] | None = None
+        self._allowed_participants: frozenset[str] | None = None
         self._engine_config: EngineConfig | None = None
         # Path _load_config() re-reads on POST /admin/reference/reload.
         # None when the engine was constructed from an in-memory EngineConfig
@@ -636,7 +636,7 @@ class Engine:
         self._reference_cache: dict[str, Any] | None = None
         self._reference_config_version: str | None = None
         self._gateway_descriptions: dict[str, str] = {}
-        self._connected_fix_gateways: set[str] = set()
+        self._connected_participants: set[str] = set()
         self._sessions: dict[str, ParticipantSession] = {}
         self.quote_history_maxlen: int = self.QUOTE_HISTORY_MAXLEN
         self.drop_copy_buffer_size: int = self.DROP_COPY_BUFFER_SIZE
@@ -737,8 +737,8 @@ class Engine:
                 # re-read; the artifact is a separate build step.
                 self._config_path = path if engine_config is None else None
                 self._allowed_symbols = self._engine_config.allowed_symbols
-                self._allowed_fix_gateways = self._engine_config.allowed_fix_gateways
-                self.metrics.set_known_gateways(self._allowed_fix_gateways)
+                self._allowed_participants = self._engine_config.allowed_participants
+                self.metrics.set_known_gateways(self._allowed_participants)
                 self._sessions_enabled = self._engine_config.sessions_enabled
                 self._enforce_collars = self._engine_config.enforce_collars
                 self._enforce_circuit_breakers = (
@@ -759,7 +759,7 @@ class Engine:
                 self._quote_index = QuoteIndex(self.quote_history_maxlen)
                 self._gateway_descriptions = {
                     gw_id: cfg.description
-                    for gw_id, cfg in self._engine_config.fix_gateways.items()
+                    for gw_id, cfg in self._engine_config.participants.items()
                 }
                 if self._sessions_enabled:
                     # Start CLOSED and wait for scheduler transitions.
@@ -768,7 +768,7 @@ class Engine:
                     f"Loaded config from {path}  "
                     f"({len(self._allowed_symbols)} symbol(s): "
                     f"{', '.join(sorted(self._allowed_symbols))}; "
-                    f"{len(self._allowed_fix_gateways)} gateway id(s))"
+                    f"{len(self._allowed_participants)} gateway id(s))"
                 )
                 log.info(
                     "Session handling: "
@@ -844,13 +844,13 @@ class Engine:
         error two calls away, in a generated ack constructor.
         """
         gw_id = gateway_id.upper()
-        if self._allowed_fix_gateways is None:
+        if self._allowed_participants is None:
             return True, ""
-        if gw_id not in self._allowed_fix_gateways:
+        if gw_id not in self._allowed_participants:
             return False, f"Gateway not configured: {gw_id}"
         session = self._sessions.get(gw_id)
         connected = (session is not None and session.connected) or (
-            gw_id in self._connected_fix_gateways
+            gw_id in self._connected_participants
         )
         if not connected:
             return False, f"Gateway not connected: {gw_id}"
@@ -1027,7 +1027,7 @@ class Engine:
         if smp_action is not None:
             return smp_action
         cfg = (
-            self._engine_config.fix_gateways.get(gateway_id.upper())
+            self._engine_config.participants.get(gateway_id.upper())
             if self._engine_config
             else None
         )
@@ -1853,12 +1853,12 @@ class Engine:
         order.smp_action = self._resolve_smp_action(order.gateway_id, order.smp_action)
 
         # FIX gateway allowlist + connect/auth check
-        # Fast-path: if gateway_id is already in _connected_fix_gateways it is
+        # Fast-path: if gateway_id is already in _connected_participants it is
         # known-good (allowed + connected).  Only invoke _gateway_status() on
         # first contact, disconnected gateways, or backward-compat mode.
         # [1] gateway
         _gw_id_upper = order.gateway_id.upper()
-        if _gw_id_upper not in self._connected_fix_gateways:
+        if _gw_id_upper not in self._connected_participants:
             ok, reason = self._gateway_status(order.gateway_id)
             if not ok:
                 self._dbg_count("new_order_reject_gateway")
@@ -2396,7 +2396,7 @@ class Engine:
                 mm_min_qty: int | None = None
                 enforce_mm_obligation: bool | None = None
 
-                gw_cfg = engine_cfg.fix_gateways.get(gateway_id) if engine_cfg else None
+                gw_cfg = engine_cfg.participants.get(gateway_id) if engine_cfg else None
                 if gw_cfg is not None:
                     enforce_mm_obligation = gw_cfg.enforce_mm_obligation
                     mm_max_spread_ticks = gw_cfg.mm_max_spread_ticks
@@ -2608,10 +2608,10 @@ class Engine:
         gateway_id = _clamp_wire_id(payload.get("gateway_id", ""))
         gateways: list[dict[str, Any]] = []
         if self._engine_config:
-            for gw_id, cfg in sorted(self._engine_config.fix_gateways.items()):
+            for gw_id, cfg in sorted(self._engine_config.participants.items()):
                 session = self._sessions.get(gw_id)
                 connected = (session is not None and session.connected) or (
-                    gw_id in self._connected_fix_gateways
+                    gw_id in self._connected_participants
                 )
                 gateways.append(
                     {
@@ -2674,9 +2674,9 @@ class Engine:
             log.info(f"REFUSED gateway connect (already connected): {gateway_id}")
             return
 
-        if self._allowed_fix_gateways is None:
+        if self._allowed_participants is None:
             # Backward-compat mode: no gateway restrictions
-            self._connected_fix_gateways.add(gateway_id)
+            self._connected_participants.add(gateway_id)
             session.connected = True
             self.metrics.count(self.metrics.connects, gateway_id)
             self.pub_sock.send_multipart(
@@ -2684,7 +2684,7 @@ class Engine:
             )
             return
 
-        if gateway_id not in self._allowed_fix_gateways:
+        if gateway_id not in self._allowed_participants:
             self.metrics.count(self.metrics.auth_rejects, gateway_id)
             self.pub_sock.send_multipart(
                 make_gateway_auth_msg(
@@ -2697,7 +2697,7 @@ class Engine:
             return
 
         cfg = (
-            self._engine_config.fix_gateways[gateway_id]
+            self._engine_config.participants[gateway_id]
             if self._engine_config
             else None
         )
@@ -2705,7 +2705,7 @@ class Engine:
             session.role = cfg.role
             session.disconnect_behaviour = cfg.disconnect_behaviour
 
-        self._connected_fix_gateways.add(gateway_id)
+        self._connected_participants.add(gateway_id)
         session.connected = True
         self.metrics.count(self.metrics.connects, gateway_id)
         self.pub_sock.send_multipart(
@@ -3712,7 +3712,7 @@ class Engine:
             return
 
         cfg = (
-            self._engine_config.fix_gateways.get(order.gateway_id)
+            self._engine_config.participants.get(order.gateway_id)
             if self._engine_config
             else None
         )
@@ -3923,7 +3923,7 @@ class Engine:
         # a minimum size.  The policy can be set at several levels; the most
         # specific one wins (see the precedence comment below).
         cfg = (
-            self._engine_config.fix_gateways.get(gateway_id)
+            self._engine_config.participants.get(gateway_id)
             if self._engine_config
             else None
         )
@@ -4178,7 +4178,7 @@ class Engine:
         session = self._session_for_gateway(gateway_id)
         session.connected = False
         session.heartbeat_interval_sec = 0
-        self._connected_fix_gateways.discard(gateway_id)
+        self._connected_participants.discard(gateway_id)
 
         # Republish the disconnect on the PUB feed as the lifecycle counterpart
         # to system.gateway_auth.{id}, so PUB-only subscribers (e.g. clearing)
