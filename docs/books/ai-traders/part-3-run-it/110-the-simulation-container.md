@@ -46,7 +46,10 @@ The image's entry point (`entrypoint.sh`) does five things:
 2. **Sets the clock**: with `EM_SPEED` other than 1, or `EM_START`, it
    passes them on to the scheduler (as `EDUMATCHER_SCHEDULER_SPEED` and
    `EDUMATCHER_SCHEDULER_START`).
-3. **Starts the profile** with `pm-opctl-cli start ai-sim`.
+3. **Starts the profile** with `pm-opctl-cli start ai-sim`. The profile's
+   scheduler runs `pm-eod run --pending` half a minute after every close, so
+   each simulated day is settled and written up on its own — see
+   [End of day](#end-of-day) below.
 4. **Watches it**: once a minute it restarts any process of the profile that
    has died, and says so in the container log (`docker logs edumatcher-sim`):
 
@@ -142,6 +145,36 @@ The reference manual's
 [pm-compdb-cli](../../reference-manual/part-1-command-line/010-processes-environment-and-ports.md#pm-compdb-cli-company-database-cli)
 section explains where the source files are and when the entrypoint builds the
 database.
+
+### End of day
+
+After each close the scheduler starts [`pm-eod`](../../operator-guide/part-4-run-a-market/100-closing-the-day.md),
+which turns the day's gains and losses into a **statement for every trader**
+(AI001–AI100, MM01 and the desks), keeps a running **balance** for each, and
+backs up the databases. Nothing needs configuring. The fictional currency
+means the balances are simply a scoreboard: who has made money in the
+simulated market so far.
+
+| Where | What |
+|---|---|
+| `data/settlement/<date>/leaderboard.csv` | Everyone ranked by balance, best first |
+| `data/settlement/<date>/statements/AI042.md` | One trader's statement (also `.json`, `.csv`) |
+| `data/settlement/<date>/summary.md` | The day in one page, including the proof that the amounts sum to zero |
+| `data/backup/<date>/` | Compressed copies of `clearing.db` and `eod.db`, kept 2 days. `stats.db` is left out: it is large and mostly disposable order events |
+
+Ask for the current standings at any time, from inside the container:
+
+```bash
+./edumatcher.sh shell pm-eod balances
+./edumatcher.sh shell pm-eod status
+```
+
+There is no `roster.yaml`, so statements carry the gateway names (`AI042`)
+rather than people's names. To label the desks `TRADER01`–`TRADER10` for a
+class, add a `ref_data/roster.yaml` in the data directory (see
+[Closing the Day](../../operator-guide/part-4-run-a-market/100-closing-the-day.md#the-roster-file)).
+A day settles only when the market has actually closed, so a weekend or a
+holiday produces no statements.
 
 ### The commands you will use
 

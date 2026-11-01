@@ -25,7 +25,7 @@ You will practise:
 
 ## Prerequisites
 
-- Chapters 01-26 completed.
+- Chapters 01-27 completed.
 - Engine running and configured with at least two gateway IDs.
 - `pm-balf-gwy` available in the environment (`poetry run pm-balf-gwy` or installed via `pipx`).
 - Support parser examples available in `docs/examples/balf`:
@@ -570,7 +570,7 @@ You can now:
 
 ## Reflection
 
-`pm-balf-gwy` (this chapter) and `pm-alf-gwy` (Chapter 26) both feed the same
+`pm-balf-gwy` (this chapter) and `pm-alf-gwy` (Chapter 27) both feed the same
 matching engine semantics but through different wire formats. Answer the
 following:
 

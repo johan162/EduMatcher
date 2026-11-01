@@ -122,6 +122,7 @@ venue of your own, with a checkpoint at every step.
 ## Key Features
 
 - Complete lifecycle: order entry, matching, clearing, and audit trail
+- End-of-day settlement (`pm-eod`): daily mark-to-market settlement in a fictional currency, a statement for every trader, and automatic housekeeping (audit archive, log compression, verified database backups)
 - Rich order support: MARKET, LIMIT, STOP, STOP_LIMIT, IOC/FOK, ICEBERG, combo, OCO
 - Market mechanisms: opening/closing auctions
 - Risk handling with circuit breakers and price collars
@@ -207,7 +208,7 @@ If you use this tool in teaching or courses, please cite:
   author = {Johan Persson},
   year = {2026},
   url = {https://github.com/johan162/EduMatcher},
-  version = {0.67.0}
+  version = {0.68.0}
 }
 ```
 

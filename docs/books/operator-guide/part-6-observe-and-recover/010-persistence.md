@@ -92,6 +92,9 @@ dedicated query tool.
 |------|------------|------|---------|---------------------|
 | `stats.db` (SQLite) | `pm-stats` | Per trade · a price snapshot every 15 min · at EOD · every `index.update` tick | OHLCV daily stats, intraday price snapshots, per-trade log, index level snapshots and daily OHLC | **`pm-stats-cli`** or SQL — see [Statistics & Reporting](../part-4-run-a-market/060-statistics-and-reporting.md) |
 | `clearing.db` (SQLite) | `pm-clearing` | Per trade · on gateway connect/disconnect · at EOD | Positions, VWAP cost, realized/unrealized P&L, daily summaries, trade events, sessions | **`pm-clearing-cli`** or SQL — see [Positions and P&L](../../participant-guide/part-5-positions-and-results/010-positions-and-pnl.md) |
+| `eod.db` (SQLite) | `pm-eod` | Once per trading date, after the close | The settlement ledger: each trader's amount per trading date and the log of `pm-eod` runs | **`pm-eod balances`** / **`pm-eod status`** — see [Closing the Day](../part-4-run-a-market/100-closing-the-day.md) |
+| `settlement/<date>/` | `pm-eod` | Once per trading date | Trader statements, `instructions.csv`, leaderboard and the exchange summary | Plain files — see [Closing the Day](../part-4-run-a-market/100-closing-the-day.md#the-files-pm-eod-writes) |
+| `backup/<date>/` | `pm-eod` | Once per trading date | Verified, zstd-compressed copies of `clearing.db`, `stats.db` and `eod.db` | `zstd -d`; see [Restoring a backup](../part-4-run-a-market/100-closing-the-day.md#restoring-a-backup) |
 | `audit.log`, `audit/` | `pm-audit` | Continuously (buffered flush); `audit.log` holds today and is closed as `audit/audit-DATE.N.log` at midnight or 10 MB; each past day is compressed to `audit/audit-DATE.log.zst` | Full chronological trail of every message on the bus | **`pm-audit-cli`** — see [Audit Trail](020-audit-trail.md) |
 | `audit_index.db` (SQLite) | `pm-audit-cli` | On demand, when you run an indexed query | Fast lookup index built over `audit.log` | **`pm-audit-cli`** |
 | `indexes/<ID>_history.jsonl` | `pm-index` (triggered by [`pm-index-admin-cli`](../part-4-run-a-market/080-index-administration.md) for `CORP_ACTION`/`ADD_CONSTITUENT`/`DELIST`, or the API gateway's rebalance endpoint for `REBALANCE`) | On structural events only (`INIT`, `CORP_ACTION`, `ADD_CONSTITUENT`, `DELIST`, `REBALANCE`) | Structural/corporate-action audit trail — **not** level or EOD history (that lives in `stats.db`, written by `pm-stats`) | **`pm-index-cli`** (read-only) — see [Market Index](../part-4-run-a-market/070-market-index.md) |
@@ -198,6 +201,12 @@ expired, the engine copies what it would persist — `gtc_orders.json`,
 regular files are rewritten by every checkpoint; the archive keeps each
 day's closing state, so the next morning's book can be compared with it
 (the simulation forensics check G3 does). Nothing is ever deleted there.
+
+!!! note "`eod/` is not `settlement/`"
+    `<DATA_DIR>/eod/<date>/` is the **engine's** archive of its own persistence
+    files. The end-of-day *statements* written by `pm-eod` go to a different
+    directory, `<DATA_DIR>/settlement/<date>/`, so the two can never overwrite
+    each other. See [Closing the Day](../part-4-run-a-market/100-closing-the-day.md).
 
 ## Impact of a Business-Day Change
 

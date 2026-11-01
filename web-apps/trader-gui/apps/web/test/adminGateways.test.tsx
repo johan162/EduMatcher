@@ -143,3 +143,32 @@ describe("KillSwitchPanel (§15.8)", () => {
     await waitFor(() => expect(called("/api/v1/admin/market/kill-switch")).toBe(true));
   });
 });
+
+describe("GatewayDrawer", () => {
+  it("opens on row click, shows the gateway's monitor data, and closes", async () => {
+    const { useMonitorStore } = await import("@/store/useMonitorStore");
+    useMonitorStore.setState({
+      orders: {
+        o1: { order_id: "o1", gateway_id: "GW01", status: "ACKED", symbol: "AAPL", side: "BUY", price: 150, quantity: 10 },
+        o2: { order_id: "o2", gateway_id: "GW09", status: "ACKED", symbol: "MSFT" },
+      },
+      events: [],
+    });
+    wrap(<AdminGatewaysPage />);
+    await waitFor(() => expect(screen.getByText("GW01")).toBeTruthy());
+    expect(screen.queryByRole("dialog", { name: "Gateway GW01" })).toBeNull();
+    fireEvent.click(screen.getByText("GW01"));
+    const drawer = screen.getByRole("dialog", { name: "Gateway GW01" });
+    expect(within(drawer).getByText("AAPL")).toBeTruthy();
+    expect(within(drawer).queryByText("MSFT")).toBeNull();
+    fireEvent.click(within(drawer).getByRole("button", { name: "Close" }));
+    expect(screen.queryByRole("dialog", { name: "Gateway GW01" })).toBeNull();
+  });
+
+  it("Kick in the row does not open the drawer", async () => {
+    wrap(<AdminGatewaysPage />);
+    await waitFor(() => expect(screen.getByText("GW01")).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "Kick gateway GW01" }));
+    expect(screen.queryByRole("dialog", { name: "Gateway GW01" })).toBeNull();
+  });
+});

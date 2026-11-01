@@ -50,7 +50,7 @@ people read this one, then one or two others that match their role.
 flowchart TD
     B0["How an Exchange Works\nthe concepts, no software"]
     QS["Quick Start Guide\ninstall, first trade, next steps"]
-    TG["Training Guide\nhands-on exercises, 29 chapters"]
+    TG["Training Guide\nhands-on exercises, 30 chapters"]
     PG["Participant Guide\ntrade, make markets, run bots"]
     OG["Operator's Guide\ninstall, configure, run, recover"]
     PC["Protocols and Clients\nwire protocols and client code"]

@@ -25,7 +25,7 @@ You will practise:
 
 ## Prerequisites
 
-- Chapters 01-25 completed.
+- Chapters 01-26 completed.
 - Engine running and configured with at least two gateway IDs.
 - `pm-alf-gwy` available in the environment (`poetry run pm-alf-gwy` or installed via `pipx`).
 - Support libraries and clients available in `docs/examples/alf`:
@@ -588,7 +588,7 @@ You can now:
 
 ## Reflection
 
-`pm-alf-gwy` (this chapter) and `pm-api-gwy` (Chapter 24) both allow
+`pm-alf-gwy` (this chapter) and `pm-api-gwy` (Chapter 25) both allow
 external clients to submit orders to the same matching engine. Answer the
 following:
 
@@ -609,7 +609,7 @@ following:
 
  
 
-## Handoff for Chapter 27
+## Handoff for Chapter 28
 
 This completes the external gateway protocol series. `pm-engine`,
 `pm-alf-gwy`, and any other running processes can remain up if you want to

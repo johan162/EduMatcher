@@ -35,6 +35,7 @@ analytics.
 
 from __future__ import annotations
 
+import json
 import logging
 import sqlite3
 from dataclasses import dataclass
@@ -219,6 +220,24 @@ CREATE TABLE IF NOT EXISTS gateway_sessions (
 
 CREATE INDEX IF NOT EXISTS ix_gateway_sessions_gateway
   ON gateway_sessions(gateway_id);
+
+-- One row per position at each session close, whether or not it traded that
+-- day (gateway_daily_summary only has rows for symbols that traded, so it
+-- cannot show the P&L of a position that was merely held while the price
+-- moved).  Cumulative realized + unrealized at the closing mark; the
+-- difference between two consecutive closes is a day's mark-to-market P&L.
+-- Not pruned with trade_events: the rows are small and settlement reads them.
+CREATE TABLE IF NOT EXISTS position_close_snapshot (
+  trade_date     TEXT    NOT NULL,
+  gateway_id     TEXT    NOT NULL,
+  symbol         TEXT    NOT NULL,
+  net_qty        INTEGER NOT NULL,
+  realized_pnl   REAL    NOT NULL,
+  unrealized_pnl REAL    NOT NULL,
+  mark_price     INTEGER,
+  tick_decimals  INTEGER NOT NULL DEFAULT 2,
+  PRIMARY KEY (trade_date, gateway_id, symbol)
+);
 
 CREATE TABLE IF NOT EXISTS clearing_meta (
   key   TEXT PRIMARY KEY,
@@ -610,6 +629,78 @@ def record_session_event(
     conn.commit()
 
 
+def write_close_snapshot(conn: sqlite3.Connection, trade_date: str) -> int:
+    """
+    Copy every row of ``gateway_symbol_positions`` into
+    ``position_close_snapshot`` under ``trade_date`` and return the row count.
+
+    Replaces any rows already written for that date, so a second CLOSED in the
+    same trading day leaves one consistent snapshot.  Flat positions are kept:
+    their cumulative realized P&L is part of the equity series.
+    """
+    with conn:
+        conn.execute(
+            "DELETE FROM position_close_snapshot WHERE trade_date = ?",
+            (trade_date,),
+        )
+        cur = conn.execute(
+            "INSERT INTO position_close_snapshot"
+            " (trade_date, gateway_id, symbol, net_qty, realized_pnl,"
+            "  unrealized_pnl, mark_price, tick_decimals)"
+            " SELECT ?, gateway_id, symbol, net_qty, realized_pnl,"
+            "  unrealized_pnl, mark_price, tick_decimals"
+            " FROM gateway_symbol_positions",
+            (trade_date,),
+        )
+    return cur.rowcount
+
+
+def closed_trade_dates(
+    conn: sqlite3.Connection, trade_date: str | None = None
+) -> set[str]:
+    """
+    Trading dates that have closed (all, or just ``trade_date`` if it has).
+
+    A date has closed when its latest ``PHASE`` row is CLOSED **and** the
+    market was open earlier that day (some other phase was recorded).  An
+    engine announces CLOSED when it starts, so a date whose only phase is that
+    announcement (the exchange started before the open) has not closed: it has
+    not traded yet.  A CLOSED after trading resumed (a mid-day restart) is not
+    the close either, because a later phase follows it.
+    """
+    rows = conn.execute(
+        "SELECT trade_date, payload_json FROM session_events"
+        " WHERE event_type = 'PHASE' AND (:day IS NULL OR trade_date = :day)"
+        " ORDER BY ts_ns DESC",
+        {"day": trade_date},
+    )
+    latest: dict[str, str] = {}
+    opened: set[str] = set()
+    for day, payload in rows:
+        state = json.loads(payload or "{}").get("state", "")
+        latest.setdefault(day, state)  # newest first
+        if state != "CLOSED":
+            opened.add(day)
+    return {day for day, state in latest.items() if state == "CLOSED"} & opened
+
+
+def close_snapshot_is_final(conn: sqlite3.Connection, trade_date: str) -> bool:
+    """
+    True when ``trade_date`` has a close snapshot taken at its real close.
+
+    That is: the date has closed (:func:`closed_trade_dates`) and a snapshot
+    exists.  Nothing may replace such a snapshot — not an engine restart after
+    the close (which re-announces CLOSED after the shutdown re-marked
+    positions) and not the shutdown itself — because pm-eod may already have
+    settled it.  Any other snapshot is provisional: the boot-time CLOSED before
+    the open or of a day that went on trading, or a shutdown without sessions,
+    where the last one counts.
+    """
+    if not closed_trade_dates(conn, trade_date):
+        return False
+    return bool(query_close_snapshots(conn, date_value=trade_date, limit=1))
+
+
 def record_gateway_connect(
     conn: sqlite3.Connection,
     *,
@@ -898,6 +989,21 @@ def query_trades(
     return [dict(r) for r in rows]
 
 
+# A plain ``trade_date = ?`` so the planner uses ix_trade_events_date; the
+# optional-filter form of query_trades scans the whole retained table.
+DAY_TRADES_SQL = (
+    "SELECT id, ts_ns, symbol, quantity, price, tick_decimals,"
+    " buy_gateway_id, sell_gateway_id"
+    " FROM trade_events WHERE trade_date = ?"
+    " ORDER BY ts_ns ASC, ingest_ts_ns ASC"
+)
+
+
+def query_day_trades(conn: sqlite3.Connection, trade_date: str) -> list[dict[str, Any]]:
+    """Every trade of one trading date, oldest first."""
+    return [dict(r) for r in conn.execute(DAY_TRADES_SQL, (trade_date,))]
+
+
 # Sort-field whitelists — map CLI string to ORDER BY clause.
 _EXPOSURE_SORT: dict[str, str] = {
     "gross_notional": "ABS(net_qty * mark_price) DESC, gateway_id ASC, symbol ASC",
@@ -1118,6 +1224,50 @@ def query_session_events(
         },
     ).fetchall()
     return [dict(r) for r in rows]
+
+
+def query_close_snapshots(
+    conn: sqlite3.Connection,
+    *,
+    gateway: str | None = None,
+    symbol: str | None = None,
+    date_value: str | None = None,
+    from_date: str | None = None,
+    to_date: str | None = None,
+    limit: int = 10000,
+) -> list[dict[str, Any]]:
+    sql = (
+        "SELECT trade_date, gateway_id, symbol, net_qty, realized_pnl,"
+        " unrealized_pnl, mark_price, tick_decimals"
+        " FROM position_close_snapshot"
+        " WHERE (:gateway IS NULL OR gateway_id = :gateway)"
+        "   AND (:symbol IS NULL OR symbol = :symbol)"
+        "   AND (:date_value IS NULL OR trade_date = :date_value)"
+        "   AND (:from_date IS NULL OR trade_date >= :from_date)"
+        "   AND (:to_date IS NULL OR trade_date <= :to_date)"
+        " ORDER BY trade_date DESC, gateway_id ASC, symbol ASC"
+        " LIMIT :limit"
+    )
+    rows = conn.execute(
+        sql,
+        {
+            "gateway": gateway,
+            "symbol": symbol,
+            "date_value": date_value,
+            "from_date": from_date,
+            "to_date": to_date,
+            "limit": limit,
+        },
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def query_close_snapshot_dates(conn: sqlite3.Connection) -> list[str]:
+    """Dates that have a close snapshot, oldest first (reads the primary key)."""
+    rows = conn.execute(
+        "SELECT DISTINCT trade_date FROM position_close_snapshot ORDER BY trade_date"
+    )
+    return [r[0] for r in rows]
 
 
 def query_sessions(

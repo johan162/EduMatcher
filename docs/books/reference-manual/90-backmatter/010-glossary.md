@@ -41,6 +41,10 @@ armed stops in trigger order, trailing stops, and the last prices) at startup
 and at other defined moments, so that a replay can start from a known state
 rather than from the first message of the day.
 
+**Central pool:** How `pm-eod` settles. Every trader settles with the exchange itself (acting as the one counterparty to everybody) rather than with other traders: a gain is *owed by the exchange* to the trader, a loss is *owed by the trader to the exchange*. The amounts of a day sum to exactly zero. See [Closing the Day](../../operator-guide/part-4-run-a-market/100-closing-the-day.md).
+
+**Close snapshot:** The copy of every position — quantity, cumulative realized and unrealized P&L and the closing mark — that `pm-clearing` saves into `position_close_snapshot` when the session reaches `CLOSED` (or, if no `CLOSED` was ever announced, at the engine's graceful shutdown). Settlement is the difference between two consecutive close snapshots. View it with `pm-clearing-cli snapshots`.
+
 **Data directory (`EDUMATCHER_DATA_DIR`):** The one directory in which an
 exchange instance keeps its deployed configuration, databases, logs and saved
 state. All processes of one exchange must use the same one. See
@@ -60,6 +64,10 @@ edit `engine_config.yaml` and install it with `pm-config-deploy` (or
 **Engine (`pm-engine`):** EduMatcher's matching engine, the single process that
 owns every order book and decides every trade.
 
+**Equity (settlement sense):** In the settlement documentation, a position's *cumulative realized plus unrealized P&L*. Not to be confused with *equity* meaning shares; the general-terms entry below describes that sense.
+
+**`EXCHANGE` (ledger account):** The account in `eod.db` that absorbs the rounding residual of a day (a cent or two at most), so the amounts of every day sum to exactly zero. A reserved name: no gateway may use it.
+
 **Health beacon:** The small message every long-running `pm-*` process pushes
 to `pm-monitor` every two seconds (`monitor.beacon_interval_sec`). `pm-monitor`
 judges each process from its beacons and publishes `health.snapshot` and
@@ -77,6 +85,8 @@ that the length of a heap is not the number of resting orders.
 example `TRADER01`. It is the participant's `id` from the configuration;
 messages and protocols call it `gateway_id`. See also *Gateway*.
 
+**Ledger (`eod.db`):** The settlement database written by `pm-eod`: one row per account per settled trading date, plus a log of runs. Balances are never stored; they are the sum of the amounts plus the roster's opening balance.
+
 **Operator Dashboard (`pm-dash`):** The browser view of `pm-monitor`'s
 health snapshot and history: every process's state, trading activity,
 participants, order books and events, live and over time. See
@@ -85,6 +95,8 @@ participants, order books and events, live and over time. See
 **Participant:** Anyone configured to connect to the exchange — a student, a
 bot or the operator — with an ID and a role. Listed under `participants:` in
 the configuration.
+
+**`pm-eod`:** The end-of-day command: settles a closed trading date, writes the statements and runs the housekeeping (audit archive, log compression, database backups). See [Closing the Day](../../operator-guide/part-4-run-a-market/100-closing-the-day.md).
 
 **Process profile:** A named set of `pm-*` processes that `pm-opctl-cli` starts
 and stops together: `micro`, `mini`, `default`, `mm-demo` (the default set
@@ -95,6 +107,8 @@ records: `pm-stats` (prices and volumes), `pm-clearing` (positions and P&L) and
 `pm-audit` (the full event log). A recorder only captures what happens while
 it is running.
 
+**Roster:** `ref_data/roster.yaml` — the optional list that connects gateway identifiers to a trader's name, email and opening balance for the statements. Never used to send anything.
+
 **Seed quote:** A market maker's starting quote, defined per symbol under
 `market_maker_quotes` in the configuration and injected by the engine at
 startup so that a book is not empty. The `-nomm` example configurations have
@@ -103,6 +117,8 @@ none.
 **Session phase:** Where the trading day is: `PRE_OPEN`, `OPENING_AUCTION`,
 `CONTINUOUS`, `CLOSING_AUCTION` or `CLOSED`, plus the halt-related phases.
 Also called the *session state*.
+
+**Statement:** The per-trader file `pm-eod` writes for each trading date: the headline (what the exchange owes the trader or the trader owes it), the result by symbol, the open positions at the close and the day's trades. See [Your End-of-Day Statement](../../participant-guide/part-5-positions-and-results/020-your-end-of-day-statement.md).
 
 **TapeDeck (`pm-terminal`):** The read-only browser market display. The other
 browser applications are the Trading GUI (`pm-trading-ui`), the Order Book
@@ -206,6 +222,8 @@ stop-loss STOP, typically implemented as an OCO pair. See [OCO](../../participan
 **Circuit Breaker:** An automatic trading halt triggered when price movement exceeds a threshold within a time window, designed to prevent cascading automated trading crashes.
 
 **Clearing:** The process of confirming and recording a trade, and (via a CCP) guaranteeing its settlement.
+
+**Closing price:** The price of the last trade of the trading day in a symbol. In EduMatcher it is the *mark* used to value open positions at the close.
 
 **Co-location:** Placing a participant's trading servers physically inside the same data centre as the exchange's matching engine, minimising network round-trip latency to microseconds.
 
@@ -398,6 +416,8 @@ rests on the book. See [Order Types](../../participant-guide/part-2-orders/020-o
 
 **LCH:** A major international clearing house, part of the London Stock Exchange Group. Clears interest rate swaps, equities, foreign exchange, and other products.
 
+**Ledger:** A permanent record of money movements, like a bank statement. EduMatcher's settlement ledger is `eod.db`.
+
 **Leg:** One component order within a combo order or spread strategy.
 
 **Leg Risk / Legging Risk:** The risk that one leg of a combo order fills while another does not, leaving an unintended single-instrument position.
@@ -418,7 +438,6 @@ rests on the book. See [Order Types](../../participant-guide/part-2-orders/020-o
 as a positive number in EduMatcher's P&L ledger.
 
 **Lot:** The standard unit of quantity for an instrument.
-
 
 ### M
 
@@ -464,10 +483,11 @@ Often used as a reference price when the spread is non-zero.
 
 **Midpoint Peg Order:** An order whose price continuously tracks the current mid price (the average of the best bid and best ask). Executes only when a counterparty arrives whose order is also willing to trade at the midpoint. The mid is a *better* price for both parties than the quoted bid or ask, the buyer pays less than the ask, the seller receives more than the bid; the spread is shared rather than fully paid. Provides price improvement at the cost of uncertain execution timing: there is no guarantee a counterparty will appear. Common in dark pools; also supported on IEX on the lit market. Never competes in the regular price-time priority queue, maintained as a separate midpoint matching layer.
 
+**Minor unit:** The smallest division of a currency (the cent, the penny). Amounts are kept as whole numbers of minor units — 12.34 is stored as 1234 — so sums are exact. `pm-eod` uses two decimals.
+
 **MMP Threshold:** The fill count and time window that together trigger Market Maker Protection. For example, "5 fills within 1 second." If this threshold is exceeded, the exchange automatically cancels all of the market maker's resting quotes. The threshold is negotiated per market maker, per symbol, and finding the right value is a key parameter of market making strategy.
 
 **Monotonic:** Strictly non-decreasing. A monotonic sequence is one where each value is equal to or greater than all previous values. A strictly monotonic sequence is one where each value is strictly greater.
-
 
 ### N
 
@@ -479,10 +499,11 @@ Often used as a reference price when the spread is non-zero.
 
 **NAV (Net Asset Value):** The total value of a fund's holdings divided by the number of shares outstanding. For mutual funds, NAV is computed daily using the official **closing price** of each holding — one reason the closing price matters so much.
 
+**Netting:** Combining many obligations into one. All of a trader's gains and losses in a day are combined into a single amount to pay or receive.
+
 **Novation:** The legal process by which a CCP replaces the original buyer-seller relationship: the CCP becomes buyer to the seller and seller to the buyer, eliminating bilateral counterparty risk.
 
 **NTP (Network Time Protocol):** A protocol for synchronising computer clocks over a network. Basic NTP achieves millisecond accuracy; higher-precision variants achieve sub-millisecond.
-
 
 ### O
 
@@ -718,6 +739,9 @@ $$\text{VWAP} = \frac{\sum(\text{price}_i \times \text{qty}_i)}{\sum \text{qty}_
 ### Z
 
 
+**Zero-sum:** A system in which one party's gain is exactly another's loss, so all results add up to zero. Trading on an exchange is zero-sum, and `pm-eod` refuses to settle a day that is not.
+
 **ZeroMQ (ZMQ):** The high-performance messaging library used by EduMatcher for inter-process
 communication. Uses a broker-less PUSH/PULL and PUB/SUB topology. No external
 message queue server is required. See [Architecture](../../architecture-and-development/part-1-architecture/010-architecture-overview.md).
+

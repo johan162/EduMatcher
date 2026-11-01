@@ -27,6 +27,7 @@ from edumatcher.clearing.main import (
 )
 from edumatcher.clearing.store import (
     open_writer_connection,
+    query_close_snapshots,
     query_positions,
     query_session_events,
     query_sessions,
@@ -71,6 +72,17 @@ def _encode_trade(trade: Trade) -> list[bytes]:
     topic = b"trade.executed"
     payload = json.dumps(trade.to_wire()).encode()
     return [topic, payload]
+
+
+def _seed_position(process: ClearingProcess, net_qty: int) -> None:
+    process._conn.execute(
+        "INSERT INTO gateway_symbol_positions (gateway_id, symbol, net_qty,"
+        " avg_cost, realized_pnl, unrealized_pnl, mark_price, tick_decimals,"
+        " buy_qty, sell_qty, buy_notional, sell_notional, updated_ts_ns)"
+        " VALUES ('GW_A', 'AAPL', ?, 1000.0, 0.0, 0.0, 1000, 2, 0, 0, 0, 0, 1)",
+        (net_qty,),
+    )
+    process._conn.commit()
 
 
 class _InprocPublisher:
@@ -533,6 +545,65 @@ class TestHandleEod:
         assert len(rows) == 1
         assert rows[0]["event_type"] == "EOD"
 
+    def test_eod_snapshots_positions_when_the_day_has_no_close_snapshot(
+        self, process: ClearingProcess, db_path: Path
+    ) -> None:
+        """Without a scheduler there is no CLOSED; the shutdown is the close."""
+        process._conn.execute(
+            "INSERT INTO gateway_symbol_positions (gateway_id, symbol, net_qty,"
+            " avg_cost, realized_pnl, unrealized_pnl, mark_price, tick_decimals,"
+            " buy_qty, sell_qty, buy_notional, sell_notional, updated_ts_ns)"
+            " VALUES ('GW_A', 'AAPL', 10, 1000.0, 0.0, 0.0, 1000, 2, 0, 0, 0, 0, 1)"
+        )
+        process._conn.commit()
+        process._handle_eod({"books": []})
+        rows = query_close_snapshots(process._conn)
+        assert [(r["gateway_id"], r["net_qty"]) for r in rows] == [("GW_A", 10)]
+
+    def test_eod_keeps_an_existing_close_snapshot(
+        self, process: ClearingProcess, db_path: Path
+    ) -> None:
+        """A real CLOSED snapshot is not overwritten by the later shutdown."""
+        process._conn.execute(
+            "INSERT INTO gateway_symbol_positions (gateway_id, symbol, net_qty,"
+            " avg_cost, realized_pnl, unrealized_pnl, mark_price, tick_decimals,"
+            " buy_qty, sell_qty, buy_notional, sell_notional, updated_ts_ns)"
+            " VALUES ('GW_A', 'AAPL', 10, 1000.0, 0.0, 0.0, 1000, 2, 0, 0, 0, 0, 1)"
+        )
+        process._conn.commit()
+        process._handle_session_state({"state": "CONTINUOUS", "prev_state": "X"})
+        process._handle_session_state({"state": "CLOSED", "prev_state": "X"})
+        process._conn.execute("UPDATE gateway_symbol_positions SET net_qty = 99")
+        process._conn.commit()
+        process._handle_eod({"books": []})
+        rows = query_close_snapshots(process._conn)
+        assert [(r["gateway_id"], r["net_qty"]) for r in rows] == [("GW_A", 10)]
+
+    def test_without_a_close_the_last_shutdown_of_the_day_wins(
+        self, process: ClearingProcess
+    ) -> None:
+        """No scheduler, engine stopped twice in a day: the afternoon counts."""
+        _seed_position(process, 10)
+        process._handle_eod({"books": []})
+        process._conn.execute("UPDATE gateway_symbol_positions SET net_qty = 99")
+        process._conn.commit()
+        process._handle_eod({"books": []})
+        rows = query_close_snapshots(process._conn)
+        assert [r["net_qty"] for r in rows] == [99]
+
+    def test_eod_after_trading_resumed_replaces_a_provisional_snapshot(
+        self, process: ClearingProcess
+    ) -> None:
+        """The boot-time CLOSED snapshot is not final once trading went on."""
+        _seed_position(process, 10)
+        process._handle_session_state({"state": "CLOSED", "prev_state": "X"})
+        process._handle_session_state({"state": "CONTINUOUS", "prev_state": "X"})
+        process._conn.execute("UPDATE gateway_symbol_positions SET net_qty = 99")
+        process._conn.commit()
+        process._handle_eod({"books": []})
+        rows = query_close_snapshots(process._conn)
+        assert [r["net_qty"] for r in rows] == [99]
+
     def test_eod_uses_bid_ask_mid_when_no_last_trade(
         self, process: ClearingProcess, db_path: Path
     ) -> None:
@@ -792,6 +863,97 @@ class TestHandleSessionState:
         finally:
             p._conn.close()
         assert sorted(ids) == left
+
+    def test_the_close_snapshots_positions_after_flushing_the_buffer(
+        self, db_path: Path, zmq_addr: str
+    ) -> None:
+        # The closing auction's trades may still be buffered when CLOSED
+        # arrives; the snapshot must include them.
+        p = self._proc(db_path, zmq_addr)
+        try:
+            p._buffer.append(
+                Trade(
+                    id="T-1",
+                    symbol="AAPL",
+                    buy_order_id="O1",
+                    sell_order_id="O2",
+                    buy_gateway_id="GW_A",
+                    sell_gateway_id="GW_B",
+                    price=15000,
+                    quantity=10,
+                    aggressor_side="BUY",
+                    ts_ns=1_000_000_000,
+                )
+            )
+            p._handle_session_state({"state": "CLOSED", "prev_state": "X"})
+            rows = query_close_snapshots(p._conn)
+        finally:
+            p._conn.close()
+        assert {(r["gateway_id"], r["net_qty"]) for r in rows} == {
+            ("GW_A", 10),
+            ("GW_B", -10),
+        }
+        assert {r["trade_date"] for r in rows} == {rows[0]["trade_date"]}
+
+    def test_a_close_after_a_close_keeps_the_snapshot(
+        self, db_path: Path, zmq_addr: str
+    ) -> None:
+        # An engine restart after the close re-announces CLOSED; the shutdown
+        # before it may have re-marked positions.  The day's close is final.
+        p = self._proc(db_path, zmq_addr)
+        try:
+            _seed_position(p, 10)
+            p._handle_session_state({"state": "CONTINUOUS", "prev_state": "X"})
+            p._handle_session_state({"state": "CLOSED", "prev_state": "X"})
+            p._conn.execute("UPDATE gateway_symbol_positions SET net_qty = 99")
+            p._conn.commit()
+            p._handle_session_state({"state": "CLOSED", "prev_state": "X"})
+            rows = query_close_snapshots(p._conn)
+        finally:
+            p._conn.close()
+        assert [r["net_qty"] for r in rows] == [10]
+
+    def test_a_second_boot_before_the_open_replaces_the_snapshot(
+        self, db_path: Path, zmq_addr: str
+    ) -> None:
+        # A boot-time CLOSED is not a close, so nothing about it is final.
+        p = self._proc(db_path, zmq_addr)
+        try:
+            _seed_position(p, 10)
+            p._handle_session_state({"state": "CLOSED", "prev_state": "X"})
+            p._conn.execute("UPDATE gateway_symbol_positions SET net_qty = 99")
+            p._conn.commit()
+            p._handle_session_state({"state": "CLOSED", "prev_state": "X"})
+            rows = query_close_snapshots(p._conn)
+        finally:
+            p._conn.close()
+        assert [r["net_qty"] for r in rows] == [99]
+
+    def test_a_close_after_trading_resumed_replaces_the_snapshot(
+        self, db_path: Path, zmq_addr: str
+    ) -> None:
+        # The morning boot's CLOSED is provisional; the real close replaces it.
+        p = self._proc(db_path, zmq_addr)
+        try:
+            _seed_position(p, 10)
+            p._handle_session_state({"state": "CLOSED", "prev_state": "X"})
+            p._handle_session_state({"state": "CONTINUOUS", "prev_state": "X"})
+            p._conn.execute("UPDATE gateway_symbol_positions SET net_qty = 99")
+            p._conn.commit()
+            p._handle_session_state({"state": "CLOSED", "prev_state": "X"})
+            rows = query_close_snapshots(p._conn)
+        finally:
+            p._conn.close()
+        assert [r["net_qty"] for r in rows] == [99]
+
+    def test_other_states_take_no_snapshot(self, db_path: Path, zmq_addr: str) -> None:
+        p = self._proc(db_path, zmq_addr)
+        try:
+            p._handle_session_state({"state": "CONTINUOUS", "prev_state": "X"})
+            rows = query_close_snapshots(p._conn)
+        finally:
+            p._conn.close()
+        assert rows == []
 
 
 class TestHandleGatewayDisconnect:

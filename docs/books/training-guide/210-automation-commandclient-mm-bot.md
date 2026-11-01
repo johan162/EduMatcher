@@ -12,7 +12,7 @@ practice advanced `pm-mm-bot` runtime tuning for startup and reconciliation.
 
 ## Prerequisites
 
-- Chapters 01-20 completed.
+- Chapters 01-21 completed.
 - Engine running with `GW_ADMIN` and at least one MM gateway configured.
 - Python environment able to import `edumatcher.commands`.
 
@@ -260,4 +260,4 @@ engineer reruns a non-idempotent halt/clear/resume script by mistake?
 - [02 — Setting Up Market-Maker Liquidity — one bot, multiple symbols](020-setting-up-MM-bots.md)
 - [Processes, Environment and Ports](../reference-manual/part-1-command-line/010-processes-environment-and-ports.md)
 
-You have completed the operator track. The remaining chapters (22–27) cover the external protocols — RALF, CALF, the REST/WebSocket API, the market index, and the ALF/BALF TCP gateways.
+You have completed the operator track. The remaining chapters (23–28) cover the external protocols — RALF, CALF, the REST/WebSocket API, the market index, and the ALF/BALF TCP gateways.

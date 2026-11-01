@@ -93,7 +93,15 @@ def test_ai_sim_profile_is_ai_swarm_set_up_for_long_runs() -> None:
     ai_swarm = {p["name"]: p for p in load_profiles()["ai-swarm"]}
     assert list(processes) == list(ai_swarm)
     changed = {name for name in processes if processes[name] != ai_swarm[name]}
-    assert changed == {"engine", "audit", "stats", "clearing", "ai-swarm", "mm-bot"}
+    assert changed == {
+        "engine",
+        "audit",
+        "stats",
+        "clearing",
+        "ai-swarm",
+        "mm-bot",
+        "scheduler",
+    }
     # A whole session of audit trail survives for post-run forensics.
     audit = processes["audit"]["command"]
     assert audit[audit.index("--max-file-mb") + 1] == "256"
@@ -826,6 +834,35 @@ def test_the_real_non_state_paths_include_the_audit_directory() -> None:
     from edumatcher.config import AUDIT_LOG_FILE
 
     assert AUDIT_LOG_FILE.parent / "audit" in emo_cli.NON_STATE_PATHS
+
+
+def test_the_money_record_is_cleared_only_with_all() -> None:
+    from edumatcher.config import DATA_DIR, EOD_DB_FILE, SETTLEMENT_DIR
+
+    for path in (EOD_DB_FILE, SETTLEMENT_DIR, DATA_DIR / "backup"):
+        assert path in emo_cli.NON_STATE_PATHS
+        assert path not in emo_cli.STATE_PATHS
+
+
+def test_only_profiles_with_clearing_run_pm_eod_after_the_close() -> None:
+    def scheduler(profile: list[dict[str, Any]]) -> list[str]:
+        (entry,) = (e for e in profile if e["name"] == "scheduler")
+        return list(entry["command"])
+
+    # The simulation profiles are built from DEFAULT_PROCESSES; this pins that
+    # they keep settling every simulated day.
+    for name in ("default", "mm-demo", "ai-swarm"):
+        command = scheduler(emo_cli.BUILTIN_PROFILES[name])
+        assert command[command.index("--on-close") + 1] == "pm-eod run --pending", name
+    assert "--on-close" in scheduler(emo_cli.BUILTIN_PROFILES["ai-sim"])
+    # The weeks-long simulation keeps two days of backups and leaves out stats.db
+    # (about 3 GB of mostly disposable order events).
+    sim = scheduler(emo_cli.BUILTIN_PROFILES["ai-sim"])
+    assert sim[sim.index("--on-close") + 1] == (
+        "pm-eod run --pending --backup-keep-days 2 --backup-skip stats.db"
+    )
+    # mini has no pm-clearing: pm-eod would fail its gate at every close.
+    assert "--on-close" not in scheduler(emo_cli.MINI_PROCESSES)
 
 
 def test_non_state_paths_list_each_file_once() -> None:

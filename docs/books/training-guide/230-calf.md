@@ -17,7 +17,7 @@ consumption, heartbeats, replay checkpoints, and recovery/error behavior.
 
 ## Prerequisites
 
-- Chapters 01-22 completed.
+- Chapters 01-23 completed.
 - Engine running and producing market activity.
 - `pm-md-gwy` running and reachable on TCP (default 5570).
 - `pm-calf-spy` installed (ships with the `edumatcher` package — no separate
@@ -566,7 +566,7 @@ You have now covered major CALF protocol usage patterns:
 
 ## Reflection
 
-You have now used both RALF (Chapter 22, post-trade dissemination:
+You have now used both RALF (Chapter 23, post-trade dissemination:
 CLEARING/DROP_COPY/AUDIT roles) and CALF (this chapter, market-data
 dissemination: TOP/TRADE/state channels). Before moving on, answer this
 synthesis question:

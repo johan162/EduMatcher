@@ -150,12 +150,14 @@ from edumatcher.config import (
     COMPILED_CONFIG_FILE,
     DATA_DIR,
     ENGINE_CONFIG_FILE,
+    EOD_DB_FILE,
     GTC_COMBOS_FILE,
     GTC_ORDERS_FILE,
     BOOK_STATS_FILE,
     LOG_DB_FILE,
     METRICS_DB_FILE,
     LOG_FALLBACK_DIR,
+    SETTLEMENT_DIR,
     STATS_DB_FILE,
     resolve_data_path,
 )
@@ -211,7 +213,16 @@ DEFAULT_PROCESSES: list[dict[str, Any]] = [
         "healthcheck": ["pm-clearing-cli", "health", "-q"],
     },
     {"name": "engine", "command": ["pm-engine", "--verbose"], "tcp": "127.0.0.1:5555"},
-    {"name": "scheduler", "command": ["pm-scheduler", "--daily", "--verbose"]},
+    {
+        "name": "scheduler",
+        "command": [
+            "pm-scheduler",
+            "--daily",
+            "--verbose",
+            "--on-close",
+            "pm-eod run --pending",
+        ],
+    },
     {
         "name": "market-data-gwy (md-gwy)",
         "command": ["pm-md-gwy", "--verbose"],
@@ -387,6 +398,16 @@ AI_SWARM_PROCESSES: list[dict[str, Any]] = [
 # 300 symbols was most of the exchange's messages, CPU and disk.
 _AI_SIM_COMMANDS = {
     "engine": ["pm-engine"],
+    # pm-eod settles every simulated day, but backs up less than the default:
+    # two days, and not stats.db (about 3 GB of mostly disposable order events;
+    # the money record is clearing.db and eod.db).
+    "scheduler": [
+        "pm-scheduler",
+        "--daily",
+        "--verbose",
+        "--on-close",
+        "pm-eod run --pending --backup-keep-days 2 --backup-skip stats.db",
+    ],
     "mm-bot": [
         "pm-mm-bot",
         "--gateway-id",
@@ -1079,8 +1100,10 @@ STATE_PATHS: tuple[Path, ...] = (
 )
 
 # Everything else `--all` additionally removes: logs, the audit trail,
-# pm-monitor's history (metrics.db, operational like the logs) and pm-opctl's
-# own process-tracking dir (PIDs + per-process stdout/stderr).
+# pm-monitor's history (metrics.db, operational like the logs), pm-opctl's
+# own process-tracking dir (PIDs + per-process stdout/stderr) and pm-eod's
+# money record (eod.db, settlement/, backup/) -- never cleared with --state,
+# because the balances outlive a reset of the exchange's working state.
 # Anything already listed in STATE_PATHS is skipped here to avoid double
 # work; ref_data/ is excluded — see the module note above.
 NON_STATE_PATHS: tuple[Path, ...] = (
@@ -1091,6 +1114,9 @@ NON_STATE_PATHS: tuple[Path, ...] = (
     METRICS_DB_FILE,
     LOG_FALLBACK_DIR,
     DATA_DIR / RUNTIME_DIR_NAME,
+    EOD_DB_FILE,
+    SETTLEMENT_DIR,
+    DATA_DIR / "backup",
 )
 
 

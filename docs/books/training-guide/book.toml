@@ -51,6 +51,7 @@ files = [
   "170-capstone-scenario.md",
   "180-exchange-observer-processes.md",
   "190-advanced-admin-operations.md",
+  "195-closing-the-day.md",
 ]
 
 [[parts]]

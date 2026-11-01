@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import sqlite3
 from collections.abc import Generator
 from datetime import datetime, timedelta, timezone
@@ -10,12 +11,15 @@ from pathlib import Path
 import pytest
 
 from edumatcher.clearing.store import (
+    DAY_TRADES_SQL,
     SCHEMA,
     DailySummaryRow,
     PositionRow,
     TradeEventRow,
     apply_schema,
     close_latest_gateway_session,
+    close_snapshot_is_final,
+    closed_trade_dates,
     flush_batch,
     open_readonly_connection,
     open_writer_connection,
@@ -28,6 +32,9 @@ from edumatcher.clearing.store import (
     query_positions,
     query_pnl,
     query_reconcile,
+    query_close_snapshot_dates,
+    query_close_snapshots,
+    query_day_trades,
     query_session_events,
     query_sessions,
     query_symbols,
@@ -36,6 +43,7 @@ from edumatcher.clearing.store import (
     record_gateway_disconnect,
     record_session_event,
     validate_date,
+    write_close_snapshot,
 )
 
 # ---------------------------------------------------------------------------
@@ -538,6 +546,52 @@ class TestQueryDaily:
         assert all(r["trade_date"] == "2026-07-02" for r in rows)
 
 
+class TestQueryDayTrades:
+    def test_one_date_oldest_first(self, seeded_conn: sqlite3.Connection) -> None:
+        rows = query_day_trades(seeded_conn, "2026-07-01")
+        assert [r["id"] for r in rows] == ["T1", "T2"]
+        assert [r["id"] for r in query_day_trades(seeded_conn, "2026-07-02")] == ["T3"]
+
+    def test_equal_trade_times_keep_ingest_order(
+        self, conn: sqlite3.Connection
+    ) -> None:
+        flush_batch(
+            conn,
+            [
+                _trade_row("T-late", ts_ns=5, ingest_ts_ns=9),
+                _trade_row("T-early", ts_ns=5, ingest_ts_ns=7),
+            ],
+            [],
+            [],
+        )
+        assert [r["id"] for r in query_day_trades(conn, "2026-07-01")] == [
+            "T-early",
+            "T-late",
+        ]
+
+    def test_reads_the_date_index_not_the_whole_table(
+        self, conn: sqlite3.Connection
+    ) -> None:
+        # The statements read one day of a table that keeps --retention-days
+        # of trades; a full scan per run grows with the retention, not the day.
+        plan = " ".join(
+            str(r[3])
+            for r in conn.execute(
+                "EXPLAIN QUERY PLAN " + DAY_TRADES_SQL, ("2026-07-01",)
+            )
+        )
+        assert "ix_trade_events_date" in plan
+
+
+class TestQueryCloseSnapshotDates:
+    def test_distinct_dates_oldest_first(self, conn: sqlite3.Connection) -> None:
+        assert query_close_snapshot_dates(conn) == []
+        flush_batch(conn, [], [_position_row("GW_A"), _position_row("GW_B")], [])
+        for d in ("2026-07-03", "2026-07-01"):
+            write_close_snapshot(conn, d)
+        assert query_close_snapshot_dates(conn) == ["2026-07-01", "2026-07-03"]
+
+
 class TestQueryTrades:
     def test_returns_all_trades(self, seeded_conn: sqlite3.Connection) -> None:
         rows = query_trades(seeded_conn)
@@ -915,3 +969,156 @@ class TestQuerySessionEvents:
             )
         rows = query_session_events(conn, limit=3)
         assert len(rows) == 3
+
+
+class TestClosedTradeDates:
+    @pytest.mark.parametrize(
+        ("phases", "closed"),
+        [
+            (["PRE_OPEN", "CONTINUOUS", "CLOSED"], True),
+            (["CLOSED"], False),  # engine boot before the open
+            (["CLOSED", "PRE_OPEN", "CONTINUOUS", "CLOSED"], True),  # boot, day
+            (["CONTINUOUS", "CLOSED", "CLOSED"], True),  # restart after the close
+            (["CLOSED", "CONTINUOUS"], False),  # still trading
+            ([], False),
+        ],
+    )
+    def test_a_day_has_closed_only_after_it_was_open(
+        self, conn: sqlite3.Connection, phases: list[str], closed: bool
+    ) -> None:
+        for ts, state in enumerate(phases, start=1):
+            record_session_event(
+                conn,
+                event_type="PHASE",
+                ts_ns=ts,
+                trade_date="2026-07-01",
+                payload_json=json.dumps({"state": state}),
+            )
+        expected = {"2026-07-01"} if closed else set()
+        assert closed_trade_dates(conn) == expected
+        assert closed_trade_dates(conn, "2026-07-01") == expected
+
+    def test_one_date_or_all(self, conn: sqlite3.Connection) -> None:
+        for ts, (day, state) in enumerate(
+            [
+                ("2026-07-01", "CONTINUOUS"),
+                ("2026-07-01", "CLOSED"),
+                ("2026-07-02", "CONTINUOUS"),
+                ("2026-07-02", "CLOSED"),
+                ("2026-07-03", "CLOSED"),
+            ],
+            start=1,
+        ):
+            record_session_event(
+                conn,
+                event_type="PHASE",
+                ts_ns=ts,
+                trade_date=day,
+                payload_json=json.dumps({"state": state}),
+            )
+        assert closed_trade_dates(conn) == {"2026-07-01", "2026-07-02"}
+        assert closed_trade_dates(conn, "2026-07-02") == {"2026-07-02"}
+
+
+class TestCloseSnapshot:
+    def test_copies_every_position_including_flat_and_untraded(
+        self, conn: sqlite3.Connection
+    ) -> None:
+        flush_batch(
+            conn,
+            [],
+            [
+                _position_row(gateway_id="GW_A", net_qty=100, unrealized_pnl=500.0),
+                _position_row(
+                    gateway_id="GW_B",
+                    net_qty=0,
+                    realized_pnl=-250.0,
+                    unrealized_pnl=0.0,
+                ),
+            ],
+            [],
+        )
+        assert write_close_snapshot(conn, "2026-07-01") == 2
+        rows = query_close_snapshots(conn, date_value="2026-07-01")
+        assert [(r["gateway_id"], r["net_qty"]) for r in rows] == [
+            ("GW_A", 100),
+            ("GW_B", 0),
+        ]
+        assert rows[0]["unrealized_pnl"] == 500.0
+        assert rows[0]["mark_price"] == 1005
+        assert rows[1]["realized_pnl"] == -250.0
+        assert rows[0]["tick_decimals"] == 2
+
+    def test_second_close_the_same_day_replaces_the_rows(
+        self, conn: sqlite3.Connection
+    ) -> None:
+        flush_batch(conn, [], [_position_row(unrealized_pnl=500.0)], [])
+        write_close_snapshot(conn, "2026-07-01")
+        flush_batch(conn, [], [_position_row(unrealized_pnl=900.0)], [])
+        assert write_close_snapshot(conn, "2026-07-01") == 1
+        rows = query_close_snapshots(conn, date_value="2026-07-01")
+        assert len(rows) == 1
+        assert rows[0]["unrealized_pnl"] == 900.0
+
+    def test_a_later_close_does_not_touch_earlier_days(
+        self, conn: sqlite3.Connection
+    ) -> None:
+        flush_batch(conn, [], [_position_row(unrealized_pnl=500.0)], [])
+        write_close_snapshot(conn, "2026-07-01")
+        flush_batch(conn, [], [_position_row(unrealized_pnl=900.0)], [])
+        write_close_snapshot(conn, "2026-07-02")
+        rows = query_close_snapshots(conn)
+        assert [(r["trade_date"], r["unrealized_pnl"]) for r in rows] == [
+            ("2026-07-02", 900.0),
+            ("2026-07-01", 500.0),
+        ]
+
+    @pytest.mark.parametrize(
+        ("phases", "snapshot", "final"),
+        [
+            (["CONTINUOUS", "CLOSED"], True, True),
+            (["CLOSED"], True, False),  # engine boot before the open: not a close
+            (["CLOSED", "CONTINUOUS"], True, False),  # boot CLOSED, trading went on
+            (["CONTINUOUS", "CLOSED"], False, False),  # crash between PHASE and copy
+            ([], True, False),  # no sessions: a shutdown snapshot
+        ],
+    )
+    def test_close_snapshot_is_final(
+        self,
+        conn: sqlite3.Connection,
+        phases: list[str],
+        snapshot: bool,
+        final: bool,
+    ) -> None:
+        for ts, state in enumerate(phases, start=1):
+            record_session_event(
+                conn,
+                event_type="PHASE",
+                ts_ns=ts,
+                trade_date="2026-07-01",
+                payload_json=json.dumps({"state": state}),
+            )
+        if snapshot:
+            flush_batch(conn, [], [_position_row()], [])
+            write_close_snapshot(conn, "2026-07-01")
+        assert close_snapshot_is_final(conn, "2026-07-01") is final
+
+    def test_filters_by_gateway_and_symbol(self, conn: sqlite3.Connection) -> None:
+        flush_batch(
+            conn,
+            [],
+            [
+                _position_row(gateway_id="GW_A", symbol="AAPL"),
+                _position_row(gateway_id="GW_B", symbol="MSFT"),
+            ],
+            [],
+        )
+        write_close_snapshot(conn, "2026-07-01")
+        assert len(query_close_snapshots(conn, gateway="GW_B")) == 1
+        assert len(query_close_snapshots(conn, symbol="AAPL")) == 1
+
+    def test_prune_leaves_snapshots(self, conn: sqlite3.Connection) -> None:
+        flush_batch(conn, [], [_position_row()], [])
+        write_close_snapshot(conn, "2000-01-03")
+        prune_old_events(conn, retention_days=1)
+        assert len(query_close_snapshots(conn)) == 1

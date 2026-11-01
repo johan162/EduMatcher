@@ -123,7 +123,7 @@ Because the script is read from a pipe, options need `bash -s --` so that the
 shell hands them to the script rather than consuming them itself:
 
 ```bash
-curl -fsSL .../install.sh | bash -s -- --config s10-nominal --version 0.67.0
+curl -fsSL .../install.sh | bash -s -- --config s10-nominal --version 0.68.0
 ```
 
 Two environment variables are also honoured: `REPO_OWNER` (which GitHub
@@ -597,6 +597,8 @@ One variable decides where an exchange keeps its state:
 | `<DATA_DIR>/log.db` | `pm-log-srv` | The centralized log |
 | `<DATA_DIR>/stats.db` | `pm-stats` | Statistics and history behind the REST API |
 | `<DATA_DIR>/clearing.db` | `pm-clearing` | Positions and P&L |
+| `<DATA_DIR>/eod.db`, `settlement/`, `backup/` | `pm-eod` | The settlement ledger, the per-day trader statements, and compressed database backups — see [Closing the Day](../part-4-run-a-market/100-closing-the-day.md) |
+| `<DATA_DIR>/ref_data/roster.yaml` | you (optional) | Which person is behind which gateway, for the statements |
 | `<DATA_DIR>/audit.log`, `audit_index.db` | `pm-audit` | The audit trail and its index |
 | `<DATA_DIR>/gtc_orders.json`, `gtc_combos.json`, `book_stats.json` | `pm-engine` | Resting orders and book state across restarts |
 | `<DATA_DIR>/logs/` | log clients | Failover logs written when `pm-log-srv` is unreachable |
@@ -643,7 +645,7 @@ deployed configuration and `pm-opctl-cli` ready to start the stack.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh | \
-    bash -s -- --version 0.67.0 --snapshot
+    bash -s -- --version 0.68.0 --snapshot
 
 multipass shell ems
 cd /home/ubuntu/session
@@ -666,7 +668,7 @@ To read the script before running it:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh -o curl_setup_vm.sh
 less curl_setup_vm.sh
-bash curl_setup_vm.sh --version 0.67.0 --snapshot
+bash curl_setup_vm.sh --version 0.68.0 --snapshot
 ```
 
 

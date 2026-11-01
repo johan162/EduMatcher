@@ -19,6 +19,7 @@ from edumatcher.clearing.store import (
     prune_old_events,
     query_daily,
     query_dates,
+    query_close_snapshots,
     query_exposure,
     query_gateways,
     query_health,
@@ -206,6 +207,16 @@ _SESSION_EVENTS_COLS = [
     "trade_date",
     "payload_json",
 ]
+_SNAPSHOTS_COLS = [
+    "trade_date",
+    "gateway_id",
+    "symbol",
+    "net_qty",
+    "mark_price",
+    "tick_decimals",
+    "realized_pnl",
+    "unrealized_pnl",
+]
 _SESSIONS_COLS = [
     "gateway_id",
     "connect_date",
@@ -248,6 +259,7 @@ _NORMALIZE_FIELDS: dict[str, tuple[str, ...]] = {
         "total_pnl",
     ),
     "symbols": ("traded_notional", "realized_pnl", "open_unrealized_pnl"),
+    "snapshots": ("mark_price", "realized_pnl", "unrealized_pnl"),
 }
 
 
@@ -359,6 +371,18 @@ def build_parser() -> argparse.ArgumentParser:
         help="Include per-date quantity and net-amount totals",
     )
     dates.add_argument("--limit", type=int, default=1000, metavar="N")
+
+    # snapshots
+    snaps = sub.add_parser(
+        "snapshots",
+        help="Position snapshots taken at each session close (basis for settlement)",
+    )
+    snaps.add_argument("--gateway", metavar="GW_ID")
+    snaps.add_argument("--symbol", metavar="SYMBOL")
+    snaps.add_argument("--date", metavar="YYYY-MM-DD")
+    snaps.add_argument("--from", dest="from_date", metavar="YYYY-MM-DD")
+    snaps.add_argument("--to", dest="to_date", metavar="YYYY-MM-DD")
+    snaps.add_argument("--limit", type=int, default=10000, metavar="N")
 
     # health
     health = sub.add_parser(
@@ -651,6 +675,18 @@ def _run_query(
         )
         cols = _DATES_TOTALS_COLS if args.with_totals else _DATES_COLS
         return cols, rows
+
+    if cmd == "snapshots":
+        rows = query_close_snapshots(
+            conn,
+            gateway=_upper(getattr(args, "gateway", None)),
+            symbol=_upper(getattr(args, "symbol", None)),
+            date_value=args.date,
+            from_date=args.from_date,
+            to_date=args.to_date,
+            limit=args.limit,
+        )
+        return _SNAPSHOTS_COLS, rows
 
     if cmd == "sessions":
         rows = query_sessions(

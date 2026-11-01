@@ -21,7 +21,7 @@ replay checkpoints, and recovery/error behavior.
 
 ## Prerequisites
 
-- Chapters 01-21 completed.
+- Chapters 01-22 completed.
 - Engine running and producing trades.
 - `pm-ralf-gwy` running and reachable on TCP (default 5580).
 - Support libraries and clients available in `docs/examples/ralf`:

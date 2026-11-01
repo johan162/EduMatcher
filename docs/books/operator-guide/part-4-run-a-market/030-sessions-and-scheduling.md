@@ -278,9 +278,32 @@ poetry run pm-scheduler
 | `--speed F`              | off                 | Compressed mode (needs `--daily`): simulated time runs F times faster than the wall clock; see [Compressed mode](#compressed-mode) |
 | `--start YYYY-MM-DDTHH:MM` | now               | Compressed mode: local time the simulated clock starts at                    |
 | `--no-confirm`           | off                 | Skip querying/confirming session state via the engine's `session.state` broadcast |
+| `--on-close COMMAND`     | off                 | Start `COMMAND` after each day's `CLOSED` transition and once at start-up; detached, one at a time, output in the scheduler log. Typically `"pm-eod run --pending"` — see [Closing the Day](100-closing-the-day.md) |
+| `--on-close-delay SECONDS` | `30`              | Wait this long after `CLOSED` before starting `--on-close`, so `pm-clearing` has saved its close snapshot |
 | `--log-level {CRITICAL,ERROR,WARNING,INFO,DEBUG}` | `WARNING` | Explicit logging level override                                    |
 | `--verbose` / `-v`       | off (WARNING)       | Increase log verbosity; repeatable (`-v` = INFO, `-vv` = DEBUG)              |
 | `--quiet` / `-q`         | off                 | Reduce log output to warnings/errors (this is already the default level)     |
+
+### After the close: `--on-close`
+
+When the engine reaches `CLOSED` the trading day is over, and there is work to
+do: settle the traders' gains and losses, write their statements, back things
+up. The scheduler can start that work for you. Give it a command with
+`--on-close`; it starts the command a short time after every confirmed
+`CLOSED` (and once when the scheduler itself starts, to catch a day that closed
+while it was down):
+
+```bash
+# checkdocs: ignore  (the quoted command has its own flags)
+pm-scheduler --daily --on-close "pm-eod run --pending"
+```
+
+The command runs in a separate process — the scheduler does not wait for it, so
+a slow or failing command can never delay tomorrow's timetable — and only one
+runs at a time. Its output and exit code appear in the scheduler's log. The
+30-second default pause (`--on-close-delay`) lets `pm-clearing` save its close
+snapshot first. What `pm-eod` does is explained, from scratch, in
+[Closing the Day](100-closing-the-day.md).
 
 ### Configuring the schedule
 
@@ -789,6 +812,7 @@ expired if they did *not* fill.
 - [The Configuration Workflow](../part-2-configure/010-the-configuration-workflow.md#session-schedule) — `schedule:` YAML keys, `locale.country`, and `sessions_enabled`
 - [Running the Engine](../part-3-run/010-running-the-exchange.md) — the `--now` shortcut for rapid session cycling
 - [Risk Controls](040-risk-controls.md) — circuit-breaker resumption modes that re-use the uncross algorithm
+- [Closing the Day](100-closing-the-day.md) — settlement, statements and housekeeping after `CLOSED`
 
 **Participant Guide:**
 

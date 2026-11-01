@@ -25,7 +25,7 @@ You will practice:
 
 ## Prerequisites
 
-- Chapters 01-23 completed.
+- Chapters 01-24 completed.
 - Engine and stats commands available from the current environment.
 - REST examples available in `docs/examples/REST`.
 - A terminal for `pm-engine`, one for `pm-stats`, one for `pm-api-gwy`, and one or more client terminals.
@@ -695,9 +695,9 @@ engine depending on which key you authenticate with. Where does that role
 actually come from, and what would go wrong if the API gateway instead
 trusted a role embedded directly in the key?
 
-## Handoff for Chapter 25
+## Handoff for Chapter 26
 
-Before starting [25 — Market Index (pm-index)](250-index.md), you can stop
+Before starting [26 — Market Index (pm-index)](250-index.md), you can stop
 `pm-api-gwy`; it is not required there. Keep `pm-engine` and `pm-stats`
-running if you want to reuse the same session, or start fresh — Chapter 25
+running if you want to reuse the same session, or start fresh — Chapter 26
 generates its own config with `pm-config-gen`.

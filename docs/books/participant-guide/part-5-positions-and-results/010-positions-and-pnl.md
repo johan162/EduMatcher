@@ -26,7 +26,7 @@ after they execute: confirming who owes what to whom, updating account
 balances, and recording the transaction history.
 
 In a real exchange, clearing involves counterparty risk management, margin
-calls, and settlement cycles (T+1 or T+2). EduMatcher simplifies this to
+calls, and settlement cycles (T+1 or T+2). During the day EduMatcher simplifies this to
 real-time P&L accounting with no credit risk — every trade settles instantly.
 
 EduMatcher v2 uses a **two-component clearing system**:
@@ -217,7 +217,7 @@ pm-clearing --datapath ~/trading/clearing_2026.db
 
 ## SQLite database schema
 
-`pm-clearing` creates and maintains five tables and two views in `clearing.db`.
+`pm-clearing` creates and maintains six tables and two views in `clearing.db`.
 All tables are created idempotently on startup so the same DB file can be
 re-opened safely across process restarts.
 
@@ -230,6 +230,7 @@ re-opened safely across process restarts.
 | `gateway_daily_summary` | Daily rollup aggregates; one row per `(trade_date, gateway_id, symbol)` |
 | `session_events` | Clearing-significant events (`EOD`, `PHASE` session-state transitions, plus `GAP` integrity alarms) |
 | `gateway_sessions` | Gateway connect / disconnect history |
+| `position_close_snapshot` | Every position as it stood at each session close; the input of the end-of-day settlement |
 
 ### `trade_events`
 
@@ -349,6 +350,34 @@ alarm, recorded so a dropped-trade event is visible after the fact rather than
 silently corrupting positions; query both directly from `session_events` by
 `event_type`. A trade id that is re-sent is silently ignored by the archive
 (`INSERT OR IGNORE` on the trade-id primary key); no alarm row is written.
+
+### `position_close_snapshot`
+
+One row per position at each session close, **whether or not it traded that
+day**. It exists because `gateway_daily_summary` only has rows for symbols a
+gateway *traded*, so a position that was merely held while the price moved would
+otherwise be invisible to the end-of-day settlement
+([Closing the Day](../../operator-guide/part-4-run-a-market/100-closing-the-day.md)).
+It is written when the session reaches `CLOSED` (after the buffered trades are
+flushed) and on `system.eod` when the engine shuts down gracefully, replacing
+that date's rows — **unless the date's snapshot is final**: the date's latest
+session phase is `CLOSED`, the market was open earlier that day, and a snapshot
+exists. A final snapshot is the real
+close and may already be settled, so neither a shutdown nor the `CLOSED` an
+engine restart announces after the close replaces it. Rows are small and **are
+not pruned** with `trade_events`.
+
+| Column | Type | Description |
+|---|---|---|
+| `trade_date` | TEXT | Trading date of the close (session timezone) |
+| `gateway_id`, `symbol` | TEXT | The position (primary key with `trade_date`) |
+| `net_qty` | INTEGER | Signed quantity at the close (negative = short; 0 = flat) |
+| `realized_pnl` | REAL | **Cumulative** realized P&L, in ticks |
+| `unrealized_pnl` | REAL | Unrealized P&L at `mark_price`, in ticks |
+| `mark_price` | INTEGER | The closing mark, in ticks (the last trade price) |
+| `tick_decimals` | INTEGER | Decimal places of the symbol (ticks → currency) |
+
+Query with `pm-clearing-cli snapshots`.
 
 ### `gateway_sessions`
 
@@ -765,6 +794,7 @@ themselves do not accept them.
 | `health` | `pm-clearing` process + health socket; with `--extended`, the whole DB | Liveness of `pm-clearing`; with `--extended`, DB integrity and read/write access; with `--extended -v`, row counts, last trade/flush time and journal mode | `--extended`, `-v`, `-q` |
 | `reconcile` | `trade_events` vs `gateway_daily_summary` | Discrepancies between raw facts and aggregates (both sides), including keys present only in the summaries | `--gateway`, `--symbol`, `--from`, `--to`, `--retention-days` |
 | `sessions` | `gateway_sessions` | Gateway connect and disconnect history written from the engine's `system.gateway_auth` / `system.gateway_bye` broadcasts | `--gateway`, `--from`, `--to`, `--connected-only`, `--limit` |
+| `snapshots` | `position_close_snapshot` | Every position saved at each session close (quantity, cumulative realized and unrealized P&L, closing price) | `--gateway`, `--symbol`, `--date`, `--from`, `--to`, `--limit` |
 | `eod` | `session_events` | End-of-day sentinel rows written on `system.eod`, including mark prices applied | `--from`, `--to`, `--limit` |
 | `prune` | `trade_events` | Deletes rows older than N days (default 90); write-access verb (does not VACUUM) | `--days`, `--dry-run` |
 
@@ -1198,6 +1228,35 @@ print('AAPL EOD mark:', marks.get('AAPL', 'n/a'))
     graceful engine shutdown. If the engine was killed hard (e.g. `kill -9`),
     no EOD row is written and the positions retain the last intraday mark.
 
+
+### snapshots — positions as they stood at each close
+
+Returns the rows of `position_close_snapshot`: every position at the moment the
+session closed, valued at the closing price. This is the data the end-of-day
+settlement is calculated from (see
+[Closing the Day](../../operator-guide/part-4-run-a-market/100-closing-the-day.md)),
+so it is the place to look when someone asks "which closing positions did the
+settlement use?". Values are normalised to display currency unless
+`--raw-output` is given.
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `--gateway GW_ID` | string | — | One gateway |
+| `--symbol SYMBOL` | string | — | One symbol |
+| `--date YYYY-MM-DD` | date | — | One trading date |
+| `--from` / `--to YYYY-MM-DD` | date | — | Inclusive range |
+| `--limit N` | integer | 10000 | Maximum rows returned |
+
+```bash
+# All closing positions of the last day
+pm-clearing-cli snapshots --date 2026-11-03
+
+# One trader's closing positions over time
+pm-clearing-cli snapshots --gateway GW_BOB --from 2026-11-01
+```
+
+Output fields: `trade_date`, `gateway_id`, `symbol`, `net_qty`, `mark_price`,
+`tick_decimals`, `realized_pnl`, `unrealized_pnl` (cumulative since the start).
 
 ### prune — remove old raw trade events
 

@@ -186,7 +186,7 @@ Expected for this chapter config:
 
 - Verdict is `WARN`, with one warning, `M032`: no read-only API credential is
   defined under `api_gateways`. That credential is what the browser
-  dashboards use; this configuration starts no API gateway until Chapter 24,
+  dashboards use; this configuration starts no API gateway until Chapter 25,
   so you can leave the warning alone for now. Below it you will see a few
   `INFO` advisories (`C003`, `C004`, `C007`) — suggestions, not problems.
 - Exit code is `0` when there are no warnings/errors, `1` when warnings exist, and `2` when hard errors exist. Here it is `1`, because of `M032`.

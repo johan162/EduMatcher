@@ -1,3 +1,38 @@
+## [v0.68.0] - 2026-11-01
+
+Release Type: major
+
+### 📋 Summary
+This release adds end-of-day settlement, statements and housekeeping, with automatic catch-up through the scheduler. It also adds clearing close snapshots and an administrator gateway detail view.
+
+### ⚠️ Breaking Changes
+- Expanded `pm-opctl-cli clear --all` to remove the settlement ledger, statements and backups; update reset scripts or preserve those files before using it. `clear --state` retains them
+- Enabled `pm-eod run --pending` in the built-in default and AI simulation scheduler profiles; review custom profiles and existing close automation to avoid unintended settlement or duplicate housekeeping
+
+### ✨ Additions
+- Added `pm-eod` to settle daily changes in trader equity into a zero-sum ledger, produce individual statements, an exchange summary and payment instructions, and inspect run status and balances
+- Added end-of-day audit archiving, log compression and database backups with configurable retention, plus dry-run, pending-day catch-up and recovery commands
+- Added clearing position snapshots at session close and `pm-clearing-cli snapshots` for querying them
+- Added `pm-scheduler --on-close` and `--on-close-delay` for running a command after the market closes
+- Added a trader GUI administrator gateway drawer showing live gateway figures, working orders and recent events
+
+### 🚀 Improvements
+- Improved settlement catch-up to process closed dates in order and take one backup per multi-day run; simulation profiles keep fewer backups and omit `stats.db` from them
+- Added atomic settlement recomputation with `--redo`, which replaces the selected date and removes later settlements for subsequent catch-up
+- Improved settlement performance by reading the relevant day's trades and snapshot dates through indexes
+
+### 🐛 Bug Fixes
+- Fixed engine startup before market open being mistaken for a trading-day close
+- Fixed later restarts overwriting a finalized clearing close snapshot
+- Fixed statements including symbols that had long since stopped contributing to a participant's position
+
+### 📚 Documentation
+- Added operator and participant guides to settlement, statements, housekeeping and recovery, including a worked example
+- Added a hands-on closing-the-day training chapter and updated scheduler and simulation guidance
+
+### 🛠 Internal
+- Added settlement, clearing snapshot, scheduler-hook and administrator gateway drawer tests
+
 ## [v0.67.0] - 2026-11-01
 
 Release Type: major

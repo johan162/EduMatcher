@@ -18,7 +18,7 @@ is the gentler first hour; this guide then goes deeper.
 
 ## How to use this guide
 
-The 29 chapters (00–28) form **one sequence**. Each chapter's
+The 30 chapters (00–29) form **one sequence**. Each chapter's
 *Prerequisites* section names what it needs, and for almost every chapter that
 is everything before it: later exercises reuse the configuration, the
 processes and the orders that earlier ones set up. Work through the chapters
@@ -29,9 +29,9 @@ taken early:
 - **18 — Exchange Observer Processes** needs only chapters 00–03. Taking it
   straight after chapter 03 gives you the viewers and monitors for every
   later chapter.
-- **25 — Market Index** needs only chapters 00–03 (plus `pm-stats` from
+- **26 — Market Index** needs only chapters 00–03 (plus `pm-stats` from
   chapter 15 for Exercise 9).
-- **28 — IPO Valuation** needs only chapter 00 for its first six exercises;
+- **29 — IPO Valuation** needs only chapter 00 for its first six exercises;
   the last two also need 00–03 and 07.
 
 ### What you need
@@ -60,7 +60,7 @@ else is a trader console. Commands are **not** interchangeable between them —
 a `BOOK` typed into a trader console just answers `Unknown command`.
 
 The configuration you build in chapter 01 calls the operator `GW_ADMIN`. The
-integration chapters 22–27 each generate a fresh configuration whose operator
+integration chapters 23–28 each generate a fresh configuration whose operator
 is `OPS01`, the same name the bundled example configurations and the Quick
 Start use. The role, `ADMIN`, is what matters.
 
@@ -93,10 +93,10 @@ flowchart LR
     Trader --> T1["Parts I–II\nchapters 00 → 08"]
     T1 --> TDone(["Placing, amending,\ncancelling orders;\nauctions and TIFs"])
 
-    Operator --> O1["Parts I–IV\nchapters 00 → 19"]
-    O1 --> ODone(["Liquidity, risk\ncontrols, P&L, a full\nsession, admin tools"])
+    Operator --> O1["Parts I–IV\nchapters 00 → 20"]
+    O1 --> ODone(["Liquidity, risk\ncontrols, P&L, a full\nsession, admin tools,\nsettlement"])
 
-    Everything --> E1["Parts I–V\nchapters 00 → 28"]
+    Everything --> E1["Parts I–V\nchapters 00 → 29"]
     E1 --> EDone(["Everything above, plus\nALF, BALF, CALF, RALF,\nREST/WebSocket, the index\nand IPO valuation"])
 
     style Start fill:#4a5568,stroke:#2d3748,color:#fff
@@ -108,8 +108,8 @@ flowchart LR
 | Your goal | Work through | What you'll have |
 |---|---|---|
 | **Learn to trade** — place, amend, and cancel orders; understand fills, TIFs, order types, and auctions | Parts I–II (00–08) | Everything a working trader needs day to day |
-| **Run or operate a classroom exchange** — liquidity, risk controls, P&L, a full session, admin tools | Parts I–IV (00–19) | Everything above, plus the operator's toolkit |
-| **Cover everything, including external protocols** | Parts I–V (00–28) | The full training programme |
+| **Run or operate a classroom exchange** — liquidity, risk controls, P&L, a full session, admin tools, end-of-day settlement | Parts I–IV (00–20) | Everything above, plus the operator's toolkit |
+| **Cover everything, including external protocols** | Parts I–V (00–29) | The full training programme |
 
 ## Training plan
 
@@ -155,24 +155,25 @@ is reading the chapters in order.
 | 17 | [Capstone Scenario](170-capstone-scenario.md) | Run a full session end to end, combining everything above | [Running the Exchange](../operator-guide/part-3-run/010-running-the-exchange.md) |
 | 18 | [Exchange Observer Processes](180-exchange-observer-processes.md) | Compare the book, tape, order monitor, audit trail, stats and clearing views side by side | [Processes, Environment and Ports](../reference-manual/part-1-command-line/010-processes-environment-and-ports.md) |
 | 19 | [Advanced Admin Operations](190-advanced-admin-operations.md) | Use `KICK`, `QCANCEL`, `CANCEL_SYM` and manual session overrides | [The Admin Console and Exchange Commands](../operator-guide/part-3-run/020-admin-console-and-commands.md) |
+| 20 | [Closing the Day](195-closing-the-day.md) | Settle a trading day with `pm-eod`, read the statements, and recover from a missed day, a broken roster and trading after the close | [Closing the Day](../operator-guide/part-4-run-a-market/100-closing-the-day.md) |
 
 ### Part V — Integration and advanced topics
 
-Chapters 20, 22–24, 26 and 27 connect *other software* to the exchange over
-its wire protocols and APIs; 21 automates the operator, 25 adds a market index
-and 28 prices an IPO.
+Chapters 21, 23–25, 27 and 28 connect *other software* to the exchange over
+its wire protocols and APIs; 22 automates the operator, 26 adds a market index
+and 29 prices an IPO.
 
 | # | Chapter | You will be able to | Background reading |
 |---|---------|---------------------|-------------|
-| 20 | [Drop-Copy Replay & Recovery](200-drop-copy-replay-recovery.md) | Detect sequence gaps and recover a consumer | [Drop Copy — Replay](../protocols-and-clients/part-3-session-behaviour/060-drop-copy.md#replay) |
-| 21 | [Automation & MM Bot Tuning](210-automation-commandclient-mm-bot.md) | Script operator workflows and tune `pm-mm-bot` | [The Admin Console and Exchange Commands](../operator-guide/part-3-run/020-admin-console-and-commands.md), [Market-Maker Bot](../participant-guide/part-3-market-making/030-the-market-maker-bot.md) |
-| 22 | [RALF Post-Trade Protocol](220-ralf.md) | Write a clearing, drop-copy or audit consumer | [RALF Gateway](../operator-guide/part-5-gateways/040-ralf-gateway.md), [RALF Protocol](../protocols-and-clients/part-2-specifications/040-ralf.md) |
-| 23 | [CALF Market-Data Protocol](230-calf.md) | Write a market-data consumer with snapshots and replay | [CALF Gateway](../operator-guide/part-5-gateways/030-calf-gateway.md), [CALF Protocol](../protocols-and-clients/part-2-specifications/030-calf.md) |
-| 24 | [API Gateway REST/WebSocket](240-api-gwy.md) | Trade and query over REST, and stream over WebSocket | [API Gateway](../operator-guide/part-5-gateways/050-api-gateway.md), [REST API Reference](../protocols-and-clients/part-2-specifications/060-rest-and-websocket.md) |
-| 25 | [Market Index (`pm-index`)](250-index.md) | Run an index and apply corporate actions without disturbing its level | [Market Index](../operator-guide/part-4-run-a-market/070-market-index.md), [Index Administration (`pm-index-admin-cli`)](../operator-guide/part-4-run-a-market/080-index-administration.md) |
-| 26 | [ALF TCP Gateway](260-alf-gwy.md) | Speak ALF over a raw socket | [ALF Gateway](../operator-guide/part-5-gateways/010-alf-gateway.md), [ALF Protocol](../protocols-and-clients/part-2-specifications/010-alf.md) |
-| 27 | [BALF TCP Gateway](270-balf-gwy.md) | Speak the binary order-entry protocol | [BALF Gateway](../operator-guide/part-5-gateways/020-balf-gateway.md), [BALF Protocol](../protocols-and-clients/part-2-specifications/020-balf.md) |
-| 28 | [IPO Valuation](280-ipo-valuation.md) | Price an IPO, then list it and let the opening auction judge the price | [IPO Valuation](../operator-guide/part-4-run-a-market/020-valuation.md), [Listing a New Symbol](../operator-guide/part-4-run-a-market/010-new-symbols.md) |
+| 21 | [Drop-Copy Replay & Recovery](200-drop-copy-replay-recovery.md) | Detect sequence gaps and recover a consumer | [Drop Copy — Replay](../protocols-and-clients/part-3-session-behaviour/060-drop-copy.md#replay) |
+| 22 | [Automation & MM Bot Tuning](210-automation-commandclient-mm-bot.md) | Script operator workflows and tune `pm-mm-bot` | [The Admin Console and Exchange Commands](../operator-guide/part-3-run/020-admin-console-and-commands.md), [Market-Maker Bot](../participant-guide/part-3-market-making/030-the-market-maker-bot.md) |
+| 23 | [RALF Post-Trade Protocol](220-ralf.md) | Write a clearing, drop-copy or audit consumer | [RALF Gateway](../operator-guide/part-5-gateways/040-ralf-gateway.md), [RALF Protocol](../protocols-and-clients/part-2-specifications/040-ralf.md) |
+| 24 | [CALF Market-Data Protocol](230-calf.md) | Write a market-data consumer with snapshots and replay | [CALF Gateway](../operator-guide/part-5-gateways/030-calf-gateway.md), [CALF Protocol](../protocols-and-clients/part-2-specifications/030-calf.md) |
+| 25 | [API Gateway REST/WebSocket](240-api-gwy.md) | Trade and query over REST, and stream over WebSocket | [API Gateway](../operator-guide/part-5-gateways/050-api-gateway.md), [REST API Reference](../protocols-and-clients/part-2-specifications/060-rest-and-websocket.md) |
+| 26 | [Market Index (`pm-index`)](250-index.md) | Run an index and apply corporate actions without disturbing its level | [Market Index](../operator-guide/part-4-run-a-market/070-market-index.md), [Index Administration (`pm-index-admin-cli`)](../operator-guide/part-4-run-a-market/080-index-administration.md) |
+| 27 | [ALF TCP Gateway](260-alf-gwy.md) | Speak ALF over a raw socket | [ALF Gateway](../operator-guide/part-5-gateways/010-alf-gateway.md), [ALF Protocol](../protocols-and-clients/part-2-specifications/010-alf.md) |
+| 28 | [BALF TCP Gateway](270-balf-gwy.md) | Speak the binary order-entry protocol | [BALF Gateway](../operator-guide/part-5-gateways/020-balf-gateway.md), [BALF Protocol](../protocols-and-clients/part-2-specifications/020-balf.md) |
+| 29 | [IPO Valuation](280-ipo-valuation.md) | Price an IPO, then list it and let the opening auction judge the price | [IPO Valuation](../operator-guide/part-4-run-a-market/020-valuation.md), [Listing a New Symbol](../operator-guide/part-4-run-a-market/010-new-symbols.md) |
 
 ## After the training
 

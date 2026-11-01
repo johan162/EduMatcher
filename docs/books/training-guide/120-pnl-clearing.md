@@ -755,5 +755,7 @@ run to tell them apart.
 - [Messages](../protocols-and-clients/part-5-message-reference/010-message-reference.md)
 - [Statistics and Reporting](../operator-guide/part-4-run-a-market/060-statistics-and-reporting.md)
 - [Your First Trade](../quick-start/part-1-see-it-run/030-your-first-trade.md)
+- [20 — Closing the Day](195-closing-the-day.md) — turning these numbers into a
+  daily settlement with `pm-eod`
 
 **Next:** [13 — Market Data & Drop Copy](130-market-data-drop-copy.md)

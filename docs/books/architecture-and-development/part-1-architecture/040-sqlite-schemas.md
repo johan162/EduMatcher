@@ -417,6 +417,14 @@ CREATE INDEX idx_tl_symbol_ts ON trade_log(symbol, ts)
 | `table: gateway_symbol_positions` | `sell_notional` | `INTEGER` | yes |  |  |
 | `table: gateway_symbol_positions` | `last_trade_ts_ns` | `INTEGER` | no |  |  |
 | `table: gateway_symbol_positions` | `updated_ts_ns` | `INTEGER` | yes |  |  |
+| `table: position_close_snapshot` | `trade_date` | `TEXT` | yes |  | 1 |
+| `table: position_close_snapshot` | `gateway_id` | `TEXT` | yes |  | 2 |
+| `table: position_close_snapshot` | `symbol` | `TEXT` | yes |  | 3 |
+| `table: position_close_snapshot` | `net_qty` | `INTEGER` | yes |  |  |
+| `table: position_close_snapshot` | `realized_pnl` | `REAL` | yes |  |  |
+| `table: position_close_snapshot` | `unrealized_pnl` | `REAL` | yes |  |  |
+| `table: position_close_snapshot` | `mark_price` | `INTEGER` | no |  |  |
+| `table: position_close_snapshot` | `tick_decimals` | `INTEGER` | yes | `2` |  |
 | `table: session_events` | `id` | `INTEGER` | no |  | 1 |
 | `table: session_events` | `event_type` | `TEXT` | yes |  |  |
 | `table: session_events` | `ts_ns` | `INTEGER` | yes |  |  |
@@ -515,6 +523,22 @@ CREATE TABLE gateway_symbol_positions (
   last_trade_ts_ns INTEGER,
   updated_ts_ns    INTEGER NOT NULL,
   PRIMARY KEY (gateway_id, symbol)
+)
+```
+
+#### `table position_close_snapshot`
+
+```sql
+CREATE TABLE position_close_snapshot (
+  trade_date     TEXT    NOT NULL,
+  gateway_id     TEXT    NOT NULL,
+  symbol         TEXT    NOT NULL,
+  net_qty        INTEGER NOT NULL,
+  realized_pnl   REAL    NOT NULL,
+  unrealized_pnl REAL    NOT NULL,
+  mark_price     INTEGER,
+  tick_decimals  INTEGER NOT NULL DEFAULT 2,
+  PRIMARY KEY (trade_date, gateway_id, symbol)
 )
 ```
 
@@ -683,6 +707,54 @@ CREATE INDEX ix_trade_events_sell_gw_date
 ```sql
 CREATE INDEX ix_trade_events_symbol_date
   ON trade_events(symbol, trade_date)
+```
+
+## `eod.db`
+
+**Owner:** pm-eod  
+**Purpose:** End-of-day settlement ledger: each trader's amount per trading date.  
+**Schema source:** `src/edumatcher/eod/ledger.py`
+
+### Fields
+
+| Object | Field | Declared type | Not null | Default | Primary key |
+|---|---|---|---|---|---|
+| `table: eod_runs` | `trade_date` | `TEXT` | no |  | 1 |
+| `table: eod_runs` | `status` | `TEXT` | yes |  |  |
+| `table: eod_runs` | `started_at` | `TEXT` | yes |  |  |
+| `table: eod_runs` | `finished_at` | `TEXT` | yes |  |  |
+| `table: eod_runs` | `steps_json` | `TEXT` | yes |  |  |
+| `table: eod_settlement` | `trade_date` | `TEXT` | yes |  | 1 |
+| `table: eod_settlement` | `account` | `TEXT` | yes |  | 2 |
+| `table: eod_settlement` | `amount_minor` | `INTEGER` | yes |  |  |
+| `table: eod_settlement` | `detail_json` | `TEXT` | yes |  |  |
+
+### DDL
+
+#### `table eod_runs`
+
+```sql
+CREATE TABLE eod_runs (
+  trade_date  TEXT PRIMARY KEY,
+  status      TEXT NOT NULL,   -- ok | failed | report-failed
+  started_at  TEXT NOT NULL,
+  finished_at TEXT NOT NULL,
+  steps_json  TEXT NOT NULL    -- [{"step", "status", "message"}, ...]
+)
+```
+
+#### `table eod_settlement`
+
+```sql
+CREATE TABLE eod_settlement (
+  trade_date   TEXT    NOT NULL,
+  -- A gateway id, or 'EXCHANGE' for the rounding residual.
+  account      TEXT    NOT NULL,
+  amount_minor INTEGER NOT NULL,
+  -- {symbol: day P&L in display currency} for the statement.
+  detail_json  TEXT    NOT NULL,
+  PRIMARY KEY (trade_date, account)
+)
 ```
 
 ## `log.db`

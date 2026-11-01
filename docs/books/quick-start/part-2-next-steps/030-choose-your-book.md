@@ -62,7 +62,7 @@ flowchart TD
 1. Participant Guide, Part III: [Market-Maker Quotes](../../participant-guide/part-3-market-making/010-market-maker-quotes.md),
    [Market Making](../../participant-guide/part-3-market-making/020-market-making.md)
    and [The Market-Maker Bot](../../participant-guide/part-3-market-making/030-the-market-maker-bot.md).
-2. Training Guide, chapter 09 (Market Making) and chapter 21 (bot tuning).
+2. Training Guide, chapter 09 (Market Making) and chapter 22 (bot tuning).
 
 ### Operator or supervisor
 
@@ -85,7 +85,7 @@ flowchart TD
    and WebSocket API is usually the right answer.
 2. The specification of that protocol in Part II, and the session behavior
    chapter in Part III.
-3. Training Guide, chapters 22–27, for exercises against a live gateway.
+3. Training Guide, chapters 23–28, for exercises against a live gateway.
 
 ### Contributor to EduMatcher itself
 
@@ -107,4 +107,4 @@ and [Order Flow Through the Engine](../../architecture-and-development/part-2-in
 follow one order through the code.
 
 **Everything at once.** The Training Guide covers every feature, in order,
-29 chapters.
+30 chapters.

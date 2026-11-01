@@ -14,6 +14,7 @@ from edumatcher.clearing.store import (
     TradeEventRow,
     flush_batch,
     open_writer_connection,
+    write_close_snapshot,
 )
 
 # ---------------------------------------------------------------------------
@@ -1500,3 +1501,39 @@ class TestEodVerb:
     ) -> None:
         out = _run_capture(monkeypatch, capsys, empty_db, ["eod"])
         assert "No rows" in out or out.strip() == "" or len(out.splitlines()) <= 2
+
+
+class TestSnapshotsCommand:
+    @pytest.fixture()
+    def snap_db(self, db_path: Path) -> Path:
+        conn = open_writer_connection(db_path)
+        write_close_snapshot(conn, "2026-07-01")
+        conn.close()
+        return db_path
+
+    def test_lists_snapshot_rows(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture,
+        snap_db: Path,
+    ) -> None:
+        out = _run_capture(
+            monkeypatch, capsys, snap_db, ["--format", "json", "snapshots"]
+        )
+        rows = json.loads(out)
+        assert rows
+        assert {r["trade_date"] for r in rows} == {"2026-07-01"}
+
+    def test_date_filter(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture,
+        snap_db: Path,
+    ) -> None:
+        out = _run_capture(
+            monkeypatch,
+            capsys,
+            snap_db,
+            ["--format", "json", "snapshots", "--date", "2026-07-02"],
+        )
+        assert json.loads(out) == []

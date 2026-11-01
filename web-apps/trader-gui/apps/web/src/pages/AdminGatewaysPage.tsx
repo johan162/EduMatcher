@@ -6,6 +6,7 @@ import { CancelConfirm } from "@/components/orders/CancelConfirm.js";
 import { KillSwitchPanel } from "@/components/admin/KillSwitchPanel.js";
 import { ApiError } from "@/api/apiFetch.js";
 import type { AdminGateway } from "@/types/index.js";
+import { GatewayDrawer } from "@/components/admin/GatewayDrawer.js";
 import { HeaderTip } from "@/components/shared/HeaderTip.js";
 
 /**
@@ -18,8 +19,10 @@ export function AdminGatewaysPage() {
   const gatewaysQuery = useAdminGatewaysQuery();
   const disconnect = useDisconnectGatewayMutation();
   const [kickTarget, setKickTarget] = useState<AdminGateway | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const gateways = gatewaysQuery.data?.gateways ?? [];
+  const selected = gateways.find((g) => g.id === selectedId) ?? null;
 
   const doKick = (id: string) => {
     disconnect.mutate(
@@ -67,7 +70,12 @@ export function AdminGatewaysPage() {
           </thead>
           <tbody>
             {gateways.map((g) => (
-              <tr key={g.id} className="border-b border-raised">
+              <tr
+                key={g.id}
+                onClick={() => setSelectedId(g.id)}
+                aria-selected={g.id === selectedId}
+                className={`cursor-pointer border-b border-raised hover:bg-raised ${g.id === selectedId ? "bg-raised" : ""}`}
+              >
                 <td className="px-2 py-1 font-mono font-medium">{g.id}</td>
                 <td className="px-2 py-1 text-fg-dim">{g.role}</td>
                 <td className="px-2 py-1 text-fg-dim">{g.description || "—"}</td>
@@ -80,7 +88,10 @@ export function AdminGatewaysPage() {
                 <td className="px-2 py-1 text-right">
                   <button
                     type="button"
-                    onClick={() => setKickTarget(g)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setKickTarget(g);
+                    }}
                     disabled={!g.connected || disconnect.isPending}
                     aria-label={`Kick gateway ${g.id}`}
                     className="rounded border border-line px-2 py-0.5 text-[11px] text-fg-dim hover:text-ask disabled:opacity-30"
@@ -102,6 +113,10 @@ export function AdminGatewaysPage() {
       </div>
 
       <KillSwitchPanel gateways={gateways} />
+
+      {selected && (
+        <GatewayDrawer gateway={selected} onKick={setKickTarget} onClose={() => setSelectedId(null)} />
+      )}
 
       {kickTarget && (
         <CancelConfirm
