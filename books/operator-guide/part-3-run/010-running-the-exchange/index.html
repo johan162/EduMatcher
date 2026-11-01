@@ -2222,6 +2222,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../part-2-configure/005-the-configuration-file/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Configuration File, Block by Block
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../part-2-configure/010-the-configuration-workflow/" class="md-nav__link">
         
   
@@ -8739,6 +8767,64 @@ use the default warning-level logging.</p>
 <p>Both read the session timezone from the deployed config's
 <code>locale.session_timezone</code>, so they always agree. If the exchange runs in
 UTC, set <code>session_timezone: UTC</code> under <code>locale:</code> in the config.</p>
+<p>Both recorders grow without limit unless you tell them otherwise. The options
+that matter for a long-running exchange:</p>
+<table>
+<thead>
+<tr>
+<th>Process</th>
+<th>Option</th>
+<th>Default</th>
+<th>Effect</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pm-stats</code></td>
+<td><code>--keep-days N</code></td>
+<td><code>0</code> (keep all)</td>
+<td>Keep N days of <code>trade_log</code>, <code>order_events</code>, <code>price_snapshots</code> and <code>feed_gaps</code>; daily rollups are kept for good</td>
+</tr>
+<tr>
+<td><code>pm-stats</code></td>
+<td><code>--keep-order-events-days N</code></td>
+<td>as <code>--keep-days</code></td>
+<td>Separate (shorter) retention for order events, which dominate the file under an AI swarm</td>
+</tr>
+<tr>
+<td><code>pm-stats</code></td>
+<td><code>--human-gateways GLOB,…</code> and <code>--keep-human-order-events-days N</code></td>
+<td>none</td>
+<td>Give the order events of people (e.g. <code>'TRADER*'</code>) a longer retention than bots</td>
+</tr>
+<tr>
+<td><code>pm-clearing</code></td>
+<td><code>--retention-days N</code></td>
+<td><code>90</code></td>
+<td>Delete individual <code>trade_events</code> rows older than N days at startup and at every close; <code>0</code> disables pruning. Daily summaries are kept</td>
+</tr>
+<tr>
+<td><code>pm-clearing</code></td>
+<td><code>--print-every N</code></td>
+<td><code>100</code></td>
+<td>Print a P&amp;L table every N trades; <code>0</code> never</td>
+</tr>
+<tr>
+<td><code>pm-clearing</code></td>
+<td><code>--flush-size N</code>, <code>--flush-interval SEC</code></td>
+<td><code>100</code>, <code>5.0</code></td>
+<td>Write the buffered trades to SQLite when N have accumulated (1–100) or SEC seconds (≥ 0.1) have passed</td>
+</tr>
+<tr>
+<td><code>pm-clearing</code></td>
+<td><code>--datapath PATH</code>, <code>--db-name NAME</code></td>
+<td>data directory, <code>clearing.db</code></td>
+<td>Where the database lives</td>
+</tr>
+</tbody>
+</table>
+<p>See <a href="../../part-4-run-a-market/060-statistics-and-reporting/#retention">Statistics and Reporting</a>
+for the <code>pm-stats</code> retention rules.</p>
 <h3 id="session-scheduler">Session scheduler<a class="headerlink" href="#session-scheduler" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="c1"># Normal schedule from deployed config, or built-in defaults if no config exists</span>
 <a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>pm-scheduler

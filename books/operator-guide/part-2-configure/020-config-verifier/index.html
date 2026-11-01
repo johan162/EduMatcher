@@ -2224,6 +2224,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../005-the-configuration-file/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Configuration File, Block by Block
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../010-the-configuration-workflow/" class="md-nav__link">
         
   
@@ -7666,7 +7694,7 @@ possible.</p>
 <a id="__codelineno-2-25" name="__codelineno-2-25" href="#__codelineno-2-25"></a>Sessions         disabled — always CONTINUOUS
 <a id="__codelineno-2-26" name="__codelineno-2-26" href="#__codelineno-2-26"></a>Collars          enabled — DEFAULT: static=20%, dynamic=2%
 <a id="__codelineno-2-27" name="__codelineno-2-27" href="#__codelineno-2-27"></a>Order limits     none configured
-<a id="__codelineno-2-28" name="__codelineno-2-28" href="#__codelineno-2-28"></a>Circuit breakers enabled — L1=7% (5 min), L2=13% (15 min), L3=20% (rest-of-day) (built-in defaults)
+<a id="__codelineno-2-28" name="__codelineno-2-28" href="#__codelineno-2-28"></a>Circuit breakers enabled — enabled but no circuit breaker configured ⚠
 <a id="__codelineno-2-29" name="__codelineno-2-29" href="#__codelineno-2-29"></a>MM obligations   not enforced
 <a id="__codelineno-2-30" name="__codelineno-2-30" href="#__codelineno-2-30"></a>Admin gateway    none ⚠
 <a id="__codelineno-2-31" name="__codelineno-2-31" href="#__codelineno-2-31"></a>
@@ -7945,7 +7973,7 @@ the key if it appears on a risk level.</p>
 </tr>
 <tr>
 <td><code>S121</code></td>
-<td>A key in <code>alf_gateway</code>, <code>balf_gateway</code>, <code>market_data_gateway</code>, <code>post_trade_gateway</code>, <code>dc_gateway</code>, <code>log_server</code> (or <code>log_server.client</code>), <code>monitor</code> (or <code>monitor.retention</code>, <code>monitor.thresholds</code>, or one of its <code>{warn, crit}</code> bands), or an <code>api_gateways.&lt;name&gt;</code> instance (or its <code>rate_limit</code>, <code>timeouts</code> or <code>credentials[]</code>) that no loader reads. The loaders ignore such a key, so the setting silently has no effect; the verifier reports the closest accepted name</td>
+<td>A key that no loader reads, at any level of the file: a top-level key, a key in any engine section (<code>symbols</code>, <code>participants</code>, <code>mm_obligation_defaults</code>, <code>engine_tuning</code>, <code>locale</code>, <code>risk_controls</code>, <code>circuit_breaker_defaults</code>, <code>market_maker_combos</code>, <code>indices</code>, a <code>schedule</code> day block, and their nested blocks), or a key in a gateway or service block (<code>alf_gateway</code>, <code>balf_gateway</code>, <code>market_data_gateway</code>, <code>post_trade_gateway</code>, <code>dc_gateway</code>, <code>log_server</code>, <code>monitor</code>, or an <code>api_gateways.&lt;name&gt;</code> instance and its nested blocks). The loaders ignore such a key, so the setting silently has no effect; the verifier reports the closest accepted name</td>
 </tr>
 </tbody>
 </table>
@@ -8500,7 +8528,7 @@ is validated while parsing <code>circuit_breaker_defaults</code>.</p>
 <tr>
 <td><code>M003</code></td>
 <td>WARN</td>
-<td>MM seed spread exceeds <code>mm_max_spread_ticks</code></td>
+<td>MM seed spread exceeds the <code>mm_max_spread_ticks</code> that applies to that gateway and symbol (participant <code>mm_obligations</code>, then <code>mm_obligation_defaults.symbols</code>, then the participant's own value, then <code>mm_obligation_defaults</code>, then 20)</td>
 </tr>
 <tr>
 <td><code>M004</code></td>
@@ -8683,7 +8711,7 @@ all is deliberately left quiet (confirmed by
 <tr>
 <td><code>C004</code></td>
 <td>INFO</td>
-<td><code>enforce_circuit_breakers: true</code> but no CB levels</td>
+<td><code>enforce_circuit_breakers: true</code> but no circuit breaker is configured (no <code>circuit_breaker_defaults</code>, no symbol <code>circuit_breaker</code>): no symbol will be halted</td>
 </tr>
 <tr>
 <td><code>C006</code></td>
@@ -8723,7 +8751,7 @@ all is deliberately left quiet (confirmed by
 <tr>
 <td><code>C013</code></td>
 <td>WARN</td>
-<td>Index <code>history_file</code> or <code>state_file</code> parent directory may not exist</td>
+<td>Index <code>history_file</code> or <code>state_file</code> is below a directory <code>pm-index</code> cannot create (relative paths are resolved under the data directory)</td>
 </tr>
 </tbody>
 </table>
@@ -8772,7 +8800,7 @@ actually do at runtime?"</em></p>
 </tr>
 <tr>
 <td>Circuit breakers</td>
-<td>Whether enforced and threshold summary; noted "(built-in defaults)" when no <code>circuit_breaker_defaults</code> is configured</td>
+<td>Whether enforced and threshold summary; reads "no circuit breaker configured ⚠" when neither <code>circuit_breaker_defaults</code> nor any symbol <code>circuit_breaker</code> block exists</td>
 </tr>
 <tr>
 <td>MM obligations</td>
@@ -8792,9 +8820,9 @@ actually do at runtime?"</em></p>
 subsystem configuration (for example missing ADMIN gateway or missing collar
 configuration), even if the overall verdict is <code>OK</code>.</p>
 <p>The JSON <code>risk_summary</code> object carries a few additional machine-readable
-fields not shown in the text table above, including <code>circuit_breakers_using_defaults</code>
-(<code>true</code> when no explicit <code>circuit_breaker_defaults</code> block was configured and the
-built-in L1/L2/L3 ladder is in effect).</p>
+fields not shown in the text table above, including <code>circuit_breakers_configured</code>
+(<code>false</code> when neither a <code>circuit_breaker_defaults</code> block nor a symbol
+<code>circuit_breaker</code> block exists, so no symbol will be halted).</p>
 <h2 id="relationship-to-other-tools">Relationship to Other Tools<a class="headerlink" href="#relationship-to-other-tools" title="Permanent link">&para;</a></h2>
 <table>
 <thead>

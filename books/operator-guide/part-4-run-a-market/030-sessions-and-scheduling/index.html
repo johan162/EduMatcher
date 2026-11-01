@@ -2222,6 +2222,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../part-2-configure/005-the-configuration-file/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Configuration File, Block by Block
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../part-2-configure/010-the-configuration-workflow/" class="md-nav__link">
         
   
@@ -8477,13 +8505,18 @@ auction lifecycle in seconds rather than hours.</p>
 process, <code>pm-scheduler</code> is quiet by default (<code>WARNING</code> and above only); <code>-v</code>
 raises the level to <code>INFO</code>.</p>
 <p>Output:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>2026-07-23 09:30:00,001 INFO edumatcher.scheduler.main - --now mode: sending all transitions with 2.0s delays
-<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>2026-07-23 09:30:00,001 INFO edumatcher.scheduler.main - -&gt; PRE_OPEN
-<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>2026-07-23 09:30:02,003 INFO edumatcher.scheduler.main - -&gt; OPENING_AUCTION
-<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a>2026-07-23 09:30:04,005 INFO edumatcher.scheduler.main - -&gt; CONTINUOUS
-<a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a>2026-07-23 09:30:06,007 INFO edumatcher.scheduler.main - -&gt; CLOSING_AUCTION
-<a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a>2026-07-23 09:30:08,009 INFO edumatcher.scheduler.main - -&gt; CLOSED
-<a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a>2026-07-23 09:30:08,009 INFO edumatcher.scheduler.main - Done.
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>2026-07-23 09:30:00,000 INFO edumatcher.scheduler.main - starting pm-scheduler with log level INFO
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>2026-07-23 09:30:00,001 INFO edumatcher.scheduler.main - --now mode: sending all transitions with 2.0s delays
+<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>2026-07-23 09:30:00,001 INFO edumatcher.scheduler.main - -&gt; PRE_OPEN
+<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a>2026-07-23 09:30:00,001 INFO edumatcher.scheduler.main - Waiting 2s for OPENING_AUCTION
+<a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a>2026-07-23 09:30:02,003 INFO edumatcher.scheduler.main - -&gt; OPENING_AUCTION
+<a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a>2026-07-23 09:30:02,003 INFO edumatcher.scheduler.main - Waiting 2s for CONTINUOUS
+<a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a>2026-07-23 09:30:04,005 INFO edumatcher.scheduler.main - -&gt; CONTINUOUS
+<a id="__codelineno-14-8" name="__codelineno-14-8" href="#__codelineno-14-8"></a>2026-07-23 09:30:04,005 INFO edumatcher.scheduler.main - Waiting 2s for CLOSING_AUCTION
+<a id="__codelineno-14-9" name="__codelineno-14-9" href="#__codelineno-14-9"></a>2026-07-23 09:30:06,007 INFO edumatcher.scheduler.main - -&gt; CLOSING_AUCTION
+<a id="__codelineno-14-10" name="__codelineno-14-10" href="#__codelineno-14-10"></a>2026-07-23 09:30:06,007 INFO edumatcher.scheduler.main - Waiting 2s for CLOSED
+<a id="__codelineno-14-11" name="__codelineno-14-11" href="#__codelineno-14-11"></a>2026-07-23 09:30:08,009 INFO edumatcher.scheduler.main - -&gt; CLOSED
+<a id="__codelineno-14-12" name="__codelineno-14-12" href="#__codelineno-14-12"></a>2026-07-23 09:30:08,009 INFO edumatcher.scheduler.main - Done.
 </code></pre></div>
 <h3 id="compressed-mode">Compressed mode<a class="headerlink" href="#compressed-mode" title="Permanent link">&para;</a></h3>
 <p><code>--daily --speed F</code> runs the scheduler on a simulated local clock that starts

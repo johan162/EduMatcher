@@ -2222,6 +2222,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../part-2-configure/005-the-configuration-file/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Configuration File, Block by Block
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../part-2-configure/010-the-configuration-workflow/" class="md-nav__link">
         
   
@@ -2547,6 +2575,17 @@
   
     <nav class="md-nav" aria-label="Starting it">
       <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#command-line-options" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Command-line options
+      
+    </span>
+  </a>
+  
+</li>
         
           <li class="md-nav__item">
   <a href="#swarmyaml" class="md-nav__link">
@@ -7497,6 +7536,110 @@ its own mid. Informed AI traders cannot move such a price: in a test run
 the market drifted 2–4 % from the true values within minutes, against
 under 1 % with <code>--anchor-sim 0.3</code>.</p>
 </div>
+<h3 id="command-line-options">Command-line options<a class="headerlink" href="#command-line-options" title="Permanent link">&para;</a></h3>
+<p>Every <code>swarm.yaml</code> key has a flag; a flag wins over the file.</p>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th><code>swarm.yaml</code> key</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--swarm PATH</code></td>
+<td>none</td>
+<td>—</td>
+<td>The <code>swarm.yaml</code> to read</td>
+</tr>
+<tr>
+<td><code>--count N</code></td>
+<td><code>10</code></td>
+<td><code>agents.count</code></td>
+<td>Number of agents</td>
+</tr>
+<tr>
+<td><code>--prefix P</code></td>
+<td><code>AI</code></td>
+<td><code>agents.prefix</code></td>
+<td>Gateway ID prefix</td>
+</tr>
+<tr>
+<td><code>--start-index N</code></td>
+<td><code>1</code></td>
+<td><code>agents.start</code></td>
+<td>First ID number</td>
+</tr>
+<tr>
+<td><code>--presets a:3,b:1</code></td>
+<td>every built-in, equal weights</td>
+<td><code>composition</code></td>
+<td>Preset mix; <code>a,b</code> means equal weights</td>
+</tr>
+<tr>
+<td><code>--symbols S1,S2</code></td>
+<td>every deployed symbol</td>
+<td><code>symbols.include</code></td>
+<td>Universe</td>
+</tr>
+<tr>
+<td><code>--symbols-per-agent N</code></td>
+<td>just enough to cover the universe</td>
+<td><code>symbols.per_agent</code></td>
+<td>Symbols each agent trades</td>
+</tr>
+<tr>
+<td><code>--seed-base N</code></td>
+<td><code>1000</code></td>
+<td><code>seed</code></td>
+<td>Agent <em>i</em> gets <code>N + i</code></td>
+</tr>
+<tr>
+<td><code>--duration SEC</code></td>
+<td><code>0</code></td>
+<td><code>duration</code></td>
+<td>Seconds to run; <code>0</code> runs until stopped</td>
+</tr>
+<tr>
+<td><code>--workers N</code></td>
+<td><code>min(cpus − 1, ceil(count / 100))</code></td>
+<td><code>workers</code></td>
+<td>Worker processes</td>
+</tr>
+<tr>
+<td><code>--budget N</code></td>
+<td><code>0</code></td>
+<td><code>budget</code></td>
+<td>Order actions per second for the whole swarm; <code>0</code> lets the presets decide</td>
+</tr>
+<tr>
+<td><code>--alf-host H</code></td>
+<td><code>EDUMATCHER_ENGINE_HOST</code>, else <code>127.0.0.1</code></td>
+<td><code>alf.host</code></td>
+<td>Where <code>pm-alf-gwy</code> listens</td>
+</tr>
+<tr>
+<td><code>--alf-port N</code></td>
+<td>deployed <code>alf_gateway.port</code></td>
+<td><code>alf.port</code></td>
+<td><code>pm-alf-gwy</code>'s port</td>
+</tr>
+<tr>
+<td><code>-v</code>, <code>-q</code>, <code>--log-level L</code></td>
+<td><code>WARNING</code></td>
+<td><code>logging.level</code></td>
+<td>Verbosity; applies to the workers too</td>
+</tr>
+<tr>
+<td><code>--log-target {server,stdout,file}</code>, <code>--log-file PATH</code>, <code>--log-failover-timeout SEC</code></td>
+<td><code>server</code>, —, <code>30</code></td>
+<td><code>logging.*</code></td>
+<td>Where operational log records go</td>
+</tr>
+</tbody>
+</table>
 <h3 id="swarmyaml"><code>swarm.yaml</code><a class="headerlink" href="#swarmyaml" title="Permanent link">&para;</a></h3>
 <table>
 <thead>

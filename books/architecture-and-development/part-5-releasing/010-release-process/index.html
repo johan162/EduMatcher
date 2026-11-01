@@ -2211,6 +2211,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../operator-guide/part-2-configure/005-the-configuration-file/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Configuration File, Block by Block
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../operator-guide/part-2-configure/010-the-configuration-workflow/" class="md-nav__link">
         
   
@@ -7755,7 +7783,8 @@ step 6, done as a stranger with no credentials, is what catches that.</p>
 <ol>
 <li>validates environment and required Poetry tools</li>
 <li>runs <code>black</code>, <code>flake8</code>, <code>mypy</code> (and <code>pyright</code> if available)</li>
-<li>runs all <code>npm</code> tests for the <code>web-apps/</code></li>
+<li>runs <code>npm install</code>, <code>npm run typecheck</code>, <code>npm run lint</code>, and <code>npm test</code> for each
+   app in <code>web-apps/</code>, with up to three apps in parallel</li>
 <li>runs pytyest tests with coverage threshold <strong>80%</strong></li>
 <li>updates coverage badge when <code>coverage.xml</code> changed</li>
 <li>builds and verifies Python packages</li>

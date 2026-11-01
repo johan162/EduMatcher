@@ -2222,6 +2222,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../part-2-configure/005-the-configuration-file/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Configuration File, Block by Block
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../part-2-configure/010-the-configuration-workflow/" class="md-nav__link">
         
   
@@ -8753,15 +8781,15 @@ table.</p>
 <h4 id="symbols-list-all-configured-instruments"><code>symbols</code> — List all configured instruments<a class="headerlink" href="#symbols-list-all-configured-instruments" title="Permanent link">&para;</a></h4>
 <p><div class="highlight"><pre><span></span><code><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>symbols
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-35-1" name="__codelineno-35-1" href="#__codelineno-35-1"></a>┌─────────────────────────────┐
-<a id="__codelineno-35-2" name="__codelineno-35-2" href="#__codelineno-35-2"></a>│   Configured instruments    │
-<a id="__codelineno-35-3" name="__codelineno-35-3" href="#__codelineno-35-3"></a>├────┬────────────────────────┤
-<a id="__codelineno-35-4" name="__codelineno-35-4" href="#__codelineno-35-4"></a>│ #  │ Symbol                 │
-<a id="__codelineno-35-5" name="__codelineno-35-5" href="#__codelineno-35-5"></a>├────┼────────────────────────┤
-<a id="__codelineno-35-6" name="__codelineno-35-6" href="#__codelineno-35-6"></a>│ 1  │ AAPL                   │
-<a id="__codelineno-35-7" name="__codelineno-35-7" href="#__codelineno-35-7"></a>│ 2  │ MSFT                   │
-<a id="__codelineno-35-8" name="__codelineno-35-8" href="#__codelineno-35-8"></a>│ 3  │ TSLA                   │
-<a id="__codelineno-35-9" name="__codelineno-35-9" href="#__codelineno-35-9"></a>└────┴────────────────────────┘
+<div class="highlight"><pre><span></span><code><a id="__codelineno-35-1" name="__codelineno-35-1" href="#__codelineno-35-1"></a>     Configured      
+<a id="__codelineno-35-2" name="__codelineno-35-2" href="#__codelineno-35-2"></a>     instruments     
+<a id="__codelineno-35-3" name="__codelineno-35-3" href="#__codelineno-35-3"></a>┏━━━━━━┳━━━━━━━━━━━━┓
+<a id="__codelineno-35-4" name="__codelineno-35-4" href="#__codelineno-35-4"></a>┃ #    ┃ Symbol     ┃
+<a id="__codelineno-35-5" name="__codelineno-35-5" href="#__codelineno-35-5"></a>┡━━━━━━╇━━━━━━━━━━━━┩
+<a id="__codelineno-35-6" name="__codelineno-35-6" href="#__codelineno-35-6"></a>│ 1    │ AAPL       │
+<a id="__codelineno-35-7" name="__codelineno-35-7" href="#__codelineno-35-7"></a>│ 2    │ MSFT       │
+<a id="__codelineno-35-8" name="__codelineno-35-8" href="#__codelineno-35-8"></a>│ 3    │ TSLA       │
+<a id="__codelineno-35-9" name="__codelineno-35-9" href="#__codelineno-35-9"></a>└──────┴────────────┘
 </code></pre></div></p>
 <h4 id="session-request-a-session-phase-transition"><code>session</code> — Request a session-phase transition<a class="headerlink" href="#session-request-a-session-phase-transition" title="Permanent link">&para;</a></h4>
 <p><div class="highlight"><pre><span></span><code><a id="__codelineno-36-1" name="__codelineno-36-1" href="#__codelineno-36-1"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>session<span class="w"> </span>--state<span class="w"> </span>CONTINUOUS
@@ -8800,28 +8828,33 @@ monitoring scripts that need to know the exchange state before taking action.</p
 <h4 id="schedule-show-the-session-transition-schedule"><code>schedule</code> — Show the session-transition schedule<a class="headerlink" href="#schedule-show-the-session-transition-schedule" title="Permanent link">&para;</a></h4>
 <p><div class="highlight"><pre><span></span><code><a id="__codelineno-40-1" name="__codelineno-40-1" href="#__codelineno-40-1"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>schedule
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-41-1" name="__codelineno-41-1" href="#__codelineno-41-1"></a>┌─────────────────────────────────────────┬────────────────┐
-<a id="__codelineno-41-2" name="__codelineno-41-2" href="#__codelineno-41-2"></a>│   Session schedule                        │ Time (HH:MM)  │
-<a id="__codelineno-41-3" name="__codelineno-41-3" href="#__codelineno-41-3"></a>├─────────────────────────────────────────┼────────────────┤
-<a id="__codelineno-41-4" name="__codelineno-41-4" href="#__codelineno-41-4"></a>│ Pre-Open                                │ 09:00         │
-<a id="__codelineno-41-5" name="__codelineno-41-5" href="#__codelineno-41-5"></a>│ Opening Auction Start                   │ 09:25         │
-<a id="__codelineno-41-6" name="__codelineno-41-6" href="#__codelineno-41-6"></a>│ Continuous Trading Start                │ 09:30         │
-<a id="__codelineno-41-7" name="__codelineno-41-7" href="#__codelineno-41-7"></a>│ Closing Auction Start                   │ 16:00         │
-<a id="__codelineno-41-8" name="__codelineno-41-8" href="#__codelineno-41-8"></a>│ Closing Auction End                     │ 16:05         │
-<a id="__codelineno-41-9" name="__codelineno-41-9" href="#__codelineno-41-9"></a>└─────────────────────────────────────────┴────────────────┘
+<div class="highlight"><pre><span></span><code><a id="__codelineno-41-1" name="__codelineno-41-1" href="#__codelineno-41-1"></a>                                     Session schedule                                      
+<a id="__codelineno-41-2" name="__codelineno-41-2" href="#__codelineno-41-2"></a>┏━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━┳━━━━━┳━━━━━━━━━━┓
+<a id="__codelineno-41-3" name="__codelineno-41-3" href="#__codelineno-41-3"></a>┃ Phase                    ┃   Mon ┃   Tue ┃   Wed ┃   Thu ┃   Fri ┃ Sat ┃ Sun ┃ Holidays ┃
+<a id="__codelineno-41-4" name="__codelineno-41-4" href="#__codelineno-41-4"></a>┡━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━╇━━━━━╇━━━━━━━━━━┩
+<a id="__codelineno-41-5" name="__codelineno-41-5" href="#__codelineno-41-5"></a>│ Pre-Open                 │ 09:00 │ 09:00 │ 09:00 │ 09:00 │ 09:00 │   — │   — │        — │
+<a id="__codelineno-41-6" name="__codelineno-41-6" href="#__codelineno-41-6"></a>│ Opening Auction Start    │ 09:25 │ 09:25 │ 09:25 │ 09:25 │ 09:25 │   — │   — │        — │
+<a id="__codelineno-41-7" name="__codelineno-41-7" href="#__codelineno-41-7"></a>│ Continuous Trading Start │ 09:30 │ 09:30 │ 09:30 │ 09:30 │ 09:30 │   — │   — │        — │
+<a id="__codelineno-41-8" name="__codelineno-41-8" href="#__codelineno-41-8"></a>│ Closing Auction Start    │ 16:00 │ 16:00 │ 16:00 │ 16:00 │ 16:00 │   — │   — │        — │
+<a id="__codelineno-41-9" name="__codelineno-41-9" href="#__codelineno-41-9"></a>│ Closing Auction End      │ 16:05 │ 16:05 │ 16:05 │ 16:05 │ 16:05 │   — │   — │        — │
+<a id="__codelineno-41-10" name="__codelineno-41-10" href="#__codelineno-41-10"></a>└──────────────────────────┴───────┴───────┴───────┴───────┴───────┴─────┴─────┴──────────┘
 </code></pre></div>
-If <code>sessions_enabled</code> is false in the engine config, a message is printed
-before the table explaining that automatic scheduling is disabled.</p>
+One column per weekday plus <strong>Holidays</strong>, filled from the <code>schedule</code> block;
+a dash means the exchange is <code>CLOSED</code> that day (no block resolves for it). The
+times are in <code>locale.session_timezone</code>. If <code>sessions_enabled</code> is false in the
+engine config, a message is printed before the table explaining that automatic
+scheduling is disabled.</p>
 <h4 id="gateways-list-all-configured-gateways"><code>gateways</code> — List all configured gateways<a class="headerlink" href="#gateways-list-all-configured-gateways" title="Permanent link">&para;</a></h4>
 <p><div class="highlight"><pre><span></span><code><a id="__codelineno-42-1" name="__codelineno-42-1" href="#__codelineno-42-1"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>gateways
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-43-1" name="__codelineno-43-1" href="#__codelineno-43-1"></a>┌────────────┬──────────┬──────────────────────┬────────────┐
-<a id="__codelineno-43-2" name="__codelineno-43-2" href="#__codelineno-43-2"></a>│ ID         │ Role     │ Description          │ Connected  │
-<a id="__codelineno-43-3" name="__codelineno-43-3" href="#__codelineno-43-3"></a>├────────────┼──────────┼──────────────────────┼────────────┤
-<a id="__codelineno-43-4" name="__codelineno-43-4" href="#__codelineno-43-4"></a>│ GW_ADMIN   │ ADMIN    │ Operator console     │    YES     │
-<a id="__codelineno-43-5" name="__codelineno-43-5" href="#__codelineno-43-5"></a>│ TRADER01   │ TRADER   │ Proprietary desk 1   │    YES     │
-<a id="__codelineno-43-6" name="__codelineno-43-6" href="#__codelineno-43-6"></a>│ MM01       │ MARKET_MAKER │ Market maker 1   │    no      │
-<a id="__codelineno-43-7" name="__codelineno-43-7" href="#__codelineno-43-7"></a>└────────────┴──────────┴──────────────────────┴────────────┘
+<div class="highlight"><pre><span></span><code><a id="__codelineno-43-1" name="__codelineno-43-1" href="#__codelineno-43-1"></a>                        Configured gateways                        
+<a id="__codelineno-43-2" name="__codelineno-43-2" href="#__codelineno-43-2"></a>┏━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━┓
+<a id="__codelineno-43-3" name="__codelineno-43-3" href="#__codelineno-43-3"></a>┃ ID           ┃ Role         ┃ Description          ┃ Connected  ┃
+<a id="__codelineno-43-4" name="__codelineno-43-4" href="#__codelineno-43-4"></a>┡━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━┩
+<a id="__codelineno-43-5" name="__codelineno-43-5" href="#__codelineno-43-5"></a>│ GW_ADMIN     │ ADMIN        │ Operator console     │    YES     │
+<a id="__codelineno-43-6" name="__codelineno-43-6" href="#__codelineno-43-6"></a>│ MM01         │ MARKET_MAKER │ Market maker 1       │     no     │
+<a id="__codelineno-43-7" name="__codelineno-43-7" href="#__codelineno-43-7"></a>│ TRADER01     │ TRADER       │ Proprietary desk 1   │     no     │
+<a id="__codelineno-43-8" name="__codelineno-43-8" href="#__codelineno-43-8"></a>└──────────────┴──────────────┴──────────────────────┴────────────┘
 </code></pre></div>
 Shows every gateway entry from <code>engine_config.yaml</code> with its role and
 current connection status.  A gateway not listed in the config but that
@@ -8829,15 +8862,16 @@ somehow connected will not appear (it would have been rejected during auth).</p>
 <h4 id="volume-show-daily-traded-volume"><code>volume</code> — Show daily traded volume<a class="headerlink" href="#volume-show-daily-traded-volume" title="Permanent link">&para;</a></h4>
 <p><div class="highlight"><pre><span></span><code><a id="__codelineno-44-1" name="__codelineno-44-1" href="#__codelineno-44-1"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>volume
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-45-1" name="__codelineno-45-1" href="#__codelineno-45-1"></a>┌────────────┬──────────────┬───────────────────┬────────┐
-<a id="__codelineno-45-2" name="__codelineno-45-2" href="#__codelineno-45-2"></a>│ Symbol     │        Qty   │             Value │ Trades │
-<a id="__codelineno-45-3" name="__codelineno-45-3" href="#__codelineno-45-3"></a>├────────────┼──────────────┼───────────────────┼────────┤
-<a id="__codelineno-45-4" name="__codelineno-45-4" href="#__codelineno-45-4"></a>│ AAPL       │        5,000 │      750,000.00   │     12 │
-<a id="__codelineno-45-5" name="__codelineno-45-5" href="#__codelineno-45-5"></a>│ MSFT       │        3,200 │      576,000.00   │      8 │
-<a id="__codelineno-45-6" name="__codelineno-45-6" href="#__codelineno-45-6"></a>│ TSLA       │        1,100 │      275,000.00   │      5 │
-<a id="__codelineno-45-7" name="__codelineno-45-7" href="#__codelineno-45-7"></a>├────────────┼──────────────┼───────────────────┼────────┤
-<a id="__codelineno-45-8" name="__codelineno-45-8" href="#__codelineno-45-8"></a>│ TOTAL      │        9,300 │    1,601,000.00   │     25 │
-<a id="__codelineno-45-9" name="__codelineno-45-9" href="#__codelineno-45-9"></a>└────────────┴──────────────┴───────────────────┴────────┘
+<div class="highlight"><pre><span></span><code><a id="__codelineno-45-1" name="__codelineno-45-1" href="#__codelineno-45-1"></a>                    Daily traded volume                    
+<a id="__codelineno-45-2" name="__codelineno-45-2" href="#__codelineno-45-2"></a>┏━━━━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━┓
+<a id="__codelineno-45-3" name="__codelineno-45-3" href="#__codelineno-45-3"></a>┃ Symbol     ┃          Qty ┃            Value ┃   Trades ┃
+<a id="__codelineno-45-4" name="__codelineno-45-4" href="#__codelineno-45-4"></a>┡━━━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━┩
+<a id="__codelineno-45-5" name="__codelineno-45-5" href="#__codelineno-45-5"></a>│ AAPL       │        5,000 │       750,000.00 │       12 │
+<a id="__codelineno-45-6" name="__codelineno-45-6" href="#__codelineno-45-6"></a>│ MSFT       │        3,200 │       576,000.00 │        8 │
+<a id="__codelineno-45-7" name="__codelineno-45-7" href="#__codelineno-45-7"></a>│ TSLA       │        1,100 │       275,000.00 │        5 │
+<a id="__codelineno-45-8" name="__codelineno-45-8" href="#__codelineno-45-8"></a>├────────────┼──────────────┼──────────────────┼──────────┤
+<a id="__codelineno-45-9" name="__codelineno-45-9" href="#__codelineno-45-9"></a>│ TOTAL      │        9,300 │     1,601,000.00 │       25 │
+<a id="__codelineno-45-10" name="__codelineno-45-10" href="#__codelineno-45-10"></a>└────────────┴──────────────┴──────────────────┴──────────┘
 </code></pre></div>
 Counters reset automatically at the start of each trading day — on
 the transition into <code>PRE_OPEN</code> — as well as when the engine restarts, so a

@@ -2211,6 +2211,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../operator-guide/part-2-configure/005-the-configuration-file/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Configuration File, Block by Block
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../operator-guide/part-2-configure/010-the-configuration-workflow/" class="md-nav__link">
         
   
@@ -10077,7 +10105,7 @@ symbol has <strong>no circuit breaker at all</strong>, even when
 <td style="text-align: right;">No</td>
 <td>Boolean-like value; use YAML <code>true</code>/<code>false</code></td>
 <td><code>true</code></td>
-<td>Skip injection after <code>book_stats.json</code> has symbol history</td>
+<td>Skip injection when this gateway already has a live quote on the symbol restored from the previous run</td>
 </tr>
 </tbody>
 </table>
@@ -10089,9 +10117,12 @@ symbol has <strong>no circuit breaker at all</strong>, even when
 <li>quantities must be positive</li>
 <li>if any configured gateway has <code>role: MARKET_MAKER</code>, every symbol must define at least one quote seed</li>
 </ul>
-<p>Quote legs are not persisted to <code>gtc_orders.json</code>; config seeds remain the source
-of truth. <code>seed_once: true</code> skips injection after <code>book_stats.json</code> has history
-for the symbol. <code>seed_once: false</code> injects on every startup.</p>
+<p>Live quote legs are saved with the resting orders in <code>gtc_orders.json</code> and
+restored on the next start. <code>seed_once: true</code> skips injection when the gateway
+already has a restored live quote on the symbol; a quote that was fully traded
+away or expired is not restored, so its seed fires again. <code>seed_once: false</code>
+injects on every startup, replacing any restored quote. See
+<a href="../../../operator-guide/part-6-observe-and-recover/010-persistence/">Persistence</a>.</p>
 <h2 id="startup-market-maker-combo-seeds">Startup Market-Maker Combo Seeds<a class="headerlink" href="#startup-market-maker-combo-seeds" title="Permanent link">&para;</a></h2>
 <p><code>market_maker_combos</code> inject startup combo orders through the same combo path used
 by live combo entry.</p>
@@ -10104,13 +10135,13 @@ by live combo entry.</p>
 <a id="__codelineno-31-7" name="__codelineno-31-7" href="#__codelineno-31-7"></a><span class="w">        </span><span class="nt">side</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">BUY</span>
 <a id="__codelineno-31-8" name="__codelineno-31-8" href="#__codelineno-31-8"></a><span class="w">        </span><span class="nt">order_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">LIMIT</span>
 <a id="__codelineno-31-9" name="__codelineno-31-9" href="#__codelineno-31-9"></a><span class="w">        </span><span class="nt">quantity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">100</span>
-<a id="__codelineno-31-10" name="__codelineno-31-10" href="#__codelineno-31-10"></a><span class="w">        </span><span class="nt">price</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20950</span>
+<a id="__codelineno-31-10" name="__codelineno-31-10" href="#__codelineno-31-10"></a><span class="w">        </span><span class="nt">price</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">209.50</span>
 <a id="__codelineno-31-11" name="__codelineno-31-11" href="#__codelineno-31-11"></a><span class="w">        </span><span class="nt">smp_action</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">NONE</span>
 <a id="__codelineno-31-12" name="__codelineno-31-12" href="#__codelineno-31-12"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">symbol</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MSFT</span>
 <a id="__codelineno-31-13" name="__codelineno-31-13" href="#__codelineno-31-13"></a><span class="w">        </span><span class="nt">side</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">SELL</span>
 <a id="__codelineno-31-14" name="__codelineno-31-14" href="#__codelineno-31-14"></a><span class="w">        </span><span class="nt">order_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">LIMIT</span>
 <a id="__codelineno-31-15" name="__codelineno-31-15" href="#__codelineno-31-15"></a><span class="w">        </span><span class="nt">quantity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">50</span>
-<a id="__codelineno-31-16" name="__codelineno-31-16" href="#__codelineno-31-16"></a><span class="w">        </span><span class="nt">price</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">41550</span>
+<a id="__codelineno-31-16" name="__codelineno-31-16" href="#__codelineno-31-16"></a><span class="w">        </span><span class="nt">price</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">415.50</span>
 <a id="__codelineno-31-17" name="__codelineno-31-17" href="#__codelineno-31-17"></a><span class="w">        </span><span class="nt">smp_action</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">NONE</span>
 </code></pre></div>
 <p>Combo fields:</p>
@@ -11324,7 +11355,7 @@ symbol has no breaker):</p>
 <td style="text-align: right;">No</td>
 <td><code>true</code></td>
 <td><code>true</code>, <code>false</code></td>
-<td>When <code>true</code>, skips injection if <code>book_stats.json</code> has history for this symbol</td>
+<td>When <code>true</code>, skips injection if this gateway already has a live quote on the symbol restored from the previous run</td>
 </tr>
 </tbody>
 </table>
