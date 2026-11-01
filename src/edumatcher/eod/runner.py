@@ -31,10 +31,10 @@ from edumatcher.eod.housekeeping import (
 )
 from edumatcher.eod.ledger import (
     LedgerError,
+    last_settled_before,
     open_ledger,
     record_day,
     record_run,
-    redo_from,
     runs,
     settled_dates,
 )
@@ -229,7 +229,7 @@ def run_day(
             if gate.status == "fail":
                 return finish()
             if opts.dry_run:
-                return _dry_run(clearing, trade_date, steps)
+                return _dry_run(paths, clearing, trade_date, steps)
             steps.append(_settle(paths, clearing, trade_date, opts.redo))
             if steps[-1].status == "fail":
                 return finish()
@@ -263,10 +263,17 @@ def run_day(
 
 
 def _dry_run(
-    clearing: sqlite3.Connection, trade_date: str, steps: list[StepResult]
+    paths: Paths, clearing: sqlite3.Connection, trade_date: str, steps: list[StepResult]
 ) -> RunOutcome:
+    previous = None
+    if paths.ledger.exists():  # a dry run never creates eod.db
+        ledger = open_ledger(paths.ledger)
+        try:
+            previous = last_settled_before(ledger, trade_date)
+        finally:
+            ledger.close()
     try:
-        result = settle_date(clearing, trade_date)
+        result = settle_date(clearing, trade_date, previous)
     except SettlementError as exc:
         steps.append(StepResult("settle", "fail", str(exc)))
     else:
@@ -282,18 +289,33 @@ def _settle(
 ) -> StepResult:
     ledger = open_ledger(paths.ledger)
     try:
-        if redo:
-            gone = redo_from(ledger, trade_date)
-            note = f"redone, dropped {', '.join(gone)}" if gone else "redone"
-        else:
-            note = "settled"
-            if trade_date in settled_dates(ledger):
-                return StepResult("settle", "ok", "already settled")
+        settled = set(settled_dates(ledger))
+        if not redo and trade_date in settled:
+            return StepResult("settle", "ok", "already settled")
+        # Dates settle in order: once a later date is settled an earlier one
+        # never can be, and its day would be folded into the wrong interval.
+        earlier = [
+            d for d in pending_dates(paths) if d < trade_date and d not in settled
+        ]
+        if earlier:
+            return StepResult(
+                "settle",
+                "fail",
+                f"{earlier[0]} has closed but is not settled; settle the dates "
+                "in order (pm-eod run --pending)",
+            )
         try:
-            record_day(ledger, trade_date, settle_date(clearing, trade_date))
+            result = settle_date(
+                clearing, trade_date, last_settled_before(ledger, trade_date)
+            )
+            gone = record_day(ledger, trade_date, result, redo=redo)
         except (SettlementError, LedgerError) as exc:
             return StepResult("settle", "fail", str(exc))
-        return StepResult("settle", "ok", note)
+        if not redo:
+            return StepResult("settle", "ok", "settled")
+        return StepResult(
+            "settle", "ok", f"redone, dropped {', '.join(gone)}" if gone else "redone"
+        )
     finally:
         ledger.close()
 

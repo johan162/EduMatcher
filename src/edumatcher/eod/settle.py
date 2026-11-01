@@ -1,8 +1,8 @@
 """End-of-day settlement arithmetic.
 
 A trader's settlement for a trading day is the change in its mark-to-market
-equity (cumulative realized + unrealized P&L) between two consecutive session
-closes, summed over symbols and converted to display currency.  Equity is cash
+equity (cumulative realized + unrealized P&L) since the close of the previous
+settled day, summed over symbols and converted to display currency.  Equity is cash
 plus positions at the mark, so for every symbol the changes of all gateways
 cancel; what is left over is float noise from ``avg_cost`` and the rounding to
 the minor unit.
@@ -118,21 +118,23 @@ def compute_settlement(
     return Settlement(minor, -total, detail)
 
 
-def settle_date(clearing: sqlite3.Connection, trade_date: str) -> Settlement:
+def settle_date(
+    clearing: sqlite3.Connection, trade_date: str, previous: str | None
+) -> Settlement:
     """Settle ``trade_date`` from the snapshots in ``clearing.db``.
 
-    The previous snapshot is the latest one before ``trade_date`` (a weekend or
-    holiday is just a longer interval); none means everyone starts from zero.
+    ``previous`` is the latest *settled* date before ``trade_date``, and its
+    snapshot is the baseline.  Measuring from the latest snapshot instead would
+    silently drop the equity change of any snapshot date in between that was
+    never settled.  Every unsettled day since ``previous`` (a weekend, a skipped
+    day) is part of this one interval.  No ``previous``, or no snapshot for it
+    (``clearing.db`` was reset), means everyone starts from zero.
     """
     today = _snapshots(clearing, trade_date)
     if not today:
         raise SettlementError(f"no close snapshot for {trade_date}")
-    row = clearing.execute(
-        "SELECT MAX(trade_date) FROM position_close_snapshot WHERE trade_date < ?",
-        (trade_date,),
-    ).fetchone()
-    previous = _snapshots(clearing, row[0]) if row and row[0] else []
-    return compute_settlement(today, previous)
+    baseline = _snapshots(clearing, previous) if previous else []
+    return compute_settlement(today, baseline)
 
 
 def _snapshots(clearing: sqlite3.Connection, trade_date: str) -> list[Snapshot]:

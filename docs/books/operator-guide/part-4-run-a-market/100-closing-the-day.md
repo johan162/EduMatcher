@@ -503,6 +503,10 @@ you shut down every evening, looks like this:
 0 6 * * *  pm-eod run --date "$(date -d yesterday +\%F)" --force
 ```
 
+If you skip a day (you forgot to run it, or its run failed and you moved on),
+nothing is lost: the next date you settle counts from the close of the last
+date that *was* settled, so it covers both days in one amount.
+
 !!! note "Only the first snapshot of a date is kept on shutdown"
     If the date already has a snapshot from a real `CLOSED` transition, the
     shutdown does not overwrite it; the snapshot from the market close is the
@@ -938,7 +942,10 @@ Restarting the engine announces `CLOSED` for a moment before the scheduler
 moves it back to the right phase, so `pm-clearing` saves a *provisional* close
 snapshot. `pm-eod` ignores a day until its **latest** session phase is
 `CLOSED`, so a day that is still trading is never settled early. The real close
-overwrites the provisional snapshot.
+overwrites the provisional snapshot. If the day never closes properly (the
+scheduler was stopped, say), it is never settled on its own: its gains and
+losses are included in the next day that is settled, because each settlement
+counts from the close of the last day that *was* settled.
 
 ### A trader joins or leaves mid-way
 
@@ -959,8 +966,9 @@ pm-eod run --date 2026-11-03 --redo
     after it. `--redo` therefore **deletes the settlement of that date *and every
     later date*** from the ledger, recomputes the first one, and leaves the later
     ones to the next `pm-eod run --pending`. Statement folders of the dropped
-    dates stay on disk until they are overwritten. Run `--dry-run` first and make
-    sure you have a backup (the `backup` step makes one every day).
+    dates stay on disk until they are overwritten. If the recomputation fails,
+    nothing is deleted. Run `--dry-run` first and make sure you have a backup
+    (the `backup` step makes one every day).
 
 ### After `pm-opctl-cli clear`
 
@@ -984,7 +992,8 @@ works end to end; use `--redo` to run it again on the same date.
 
 On a day with no schedule the market never opens, so there is no `CLOSED` event,
 no snapshot and nothing to settle. A Friday-to-Monday gap is simply one longer
-interval: Monday settles the change in equity since *Friday's* close.
+interval: Monday settles the change in equity since *Friday's* close. (Precisely:
+since the close of the last settled day, which is normally Friday.)
 
 ## Troubleshooting
 
@@ -1006,6 +1015,7 @@ Every message below is printed on a `[FAIL]` or `[warn]` line.
 |---|---|---|
 | `the day does not sum to zero: exact total X over N position(s)` | The amounts do not cancel out by more than rounding noise could explain — a real accounting inconsistency | Do **not** override. Check `pm-clearing-cli positions` and `reconcile`; the close snapshot may have been taken while a trade was in flight. Fix, then run with `--redo` |
 | `a gateway may not be called EXCHANGE` | A trader used the reserved name | Rename the gateway in the configuration |
+| `<date> has closed but is not settled; settle the dates in order (pm-eod run --pending)` | You asked for a date while an earlier closed day is still waiting. Days are settled oldest first, so the earlier one comes first | Run `pm-eod run --pending`, which takes them in order. If that fails on the earlier day, fix what its message says |
 | `<date> is settled, which is later than <date>` | A later date was settled before this earlier one (for example you ran Friday and then Thursday by hand) | Run `pm-eod run --date <the earlier date> --redo`: it drops the later settlements and redoes them in order with the next `--pending` |
 
 ### Report failures (exit code 1, settlement kept)

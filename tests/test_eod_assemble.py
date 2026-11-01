@@ -76,7 +76,7 @@ def dbs(
     )
     write_close_snapshot(clearing, "2026-07-01")
     ledger = open_ledger(tmp_path / "eod.db")
-    record_day(ledger, "2026-07-01", settle_date(clearing, "2026-07-01"))
+    record_day(ledger, "2026-07-01", settle_date(clearing, "2026-07-01", None))
     yield clearing, ledger
     clearing.close()
     ledger.close()

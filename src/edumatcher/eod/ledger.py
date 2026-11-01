@@ -5,7 +5,7 @@ exactly zero (the rounding residual sits on the ``EXCHANGE`` account), which
 :func:`record_day` checks before it commits and :func:`check_zero_sum` can
 re-check across all dates.  Amounts are integer minor units (2 decimals).
 Balances are never stored: they are the sum of the amounts, so correcting a
-day means :func:`redo_from` and recording again.
+day means recording it again with ``redo``, which drops every later date.
 """
 
 from __future__ import annotations
@@ -71,19 +71,41 @@ def settled_dates(conn: sqlite3.Connection) -> list[str]:
     return [r[0] for r in rows]
 
 
-def record_day(conn: sqlite3.Connection, trade_date: str, result: Settlement) -> None:
-    """Write one day's settlement in a single transaction."""
+def last_settled_before(conn: sqlite3.Connection, trade_date: str) -> str | None:
+    """The latest settled date before ``trade_date``: the next day's baseline."""
+    row = conn.execute(
+        "SELECT MAX(trade_date) FROM eod_settlement WHERE trade_date < ?",
+        (trade_date,),
+    ).fetchone()
+    return row[0] if row else None
+
+
+def record_day(
+    conn: sqlite3.Connection, trade_date: str, result: Settlement, *, redo: bool = False
+) -> list[str]:
+    """Write one day's settlement in a single transaction.
+
+    With ``redo`` the same transaction first deletes ``trade_date`` and every
+    later date (balances are cumulative, so a corrected day invalidates
+    everything after it) and their runs; the dates removed are returned.
+    """
     rows = dict(result.amounts_minor)
     if result.rounding_minor:
         rows[EXCHANGE] = result.rounding_minor
     if sum(rows.values()) != 0:
         raise LedgerError(f"{trade_date}: amounts do not sum to zero")
     dates = settled_dates(conn)
-    if trade_date in dates:
+    gone = [d for d in dates if d >= trade_date] if redo else []
+    if not redo and trade_date in dates:
         raise LedgerError(f"{trade_date} is already settled")
-    if dates and dates[-1] > trade_date:
+    if not redo and dates and dates[-1] > trade_date:
         raise LedgerError(f"{dates[-1]} is settled, which is later than {trade_date}")
     with conn:
+        if redo:
+            conn.execute(
+                "DELETE FROM eod_settlement WHERE trade_date >= ?", (trade_date,)
+            )
+            conn.execute("DELETE FROM eod_runs WHERE trade_date >= ?", (trade_date,))
         conn.executemany(
             "INSERT INTO eod_settlement (trade_date, account, amount_minor, detail_json)"
             " VALUES (?, ?, ?, ?)",
@@ -99,6 +121,7 @@ def record_day(conn: sqlite3.Connection, trade_date: str, result: Settlement) ->
                 for account, amount in rows.items()
             ],
         )
+    return gone
 
 
 def day_amounts(conn: sqlite3.Connection, trade_date: str) -> dict[str, int]:
@@ -141,18 +164,6 @@ def balances(
     for account, total in rows:
         result[account] = result.get(account, 0) + total
     return result
-
-
-def redo_from(conn: sqlite3.Connection, trade_date: str) -> list[str]:
-    """Delete ``trade_date`` and every later date; return the dates removed.
-
-    Balances are cumulative, so a corrected day invalidates everything after it.
-    """
-    gone = [d for d in settled_dates(conn) if d >= trade_date]
-    with conn:
-        conn.execute("DELETE FROM eod_settlement WHERE trade_date >= ?", (trade_date,))
-        conn.execute("DELETE FROM eod_runs WHERE trade_date >= ?", (trade_date,))
-    return gone
 
 
 def record_run(

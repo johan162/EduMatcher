@@ -254,6 +254,75 @@ class TestSteps:
         assert [r["trade_date"] for r in runs(ledger)] == ["2026-07-01"]
         ledger.close()
 
+    def test_a_failed_redo_keeps_the_ledger(self, data: Path) -> None:
+        close_day(data, "2026-07-02", 2000.0)
+        run(data)
+        run(data, "2026-07-02")
+        conn = open_writer_connection(data / "clearing.db")
+        conn.execute(
+            "UPDATE position_close_snapshot SET realized_pnl = 999999"
+            " WHERE trade_date = '2026-07-01' AND gateway_id = 'A'"
+        )
+        conn.commit()
+        conn.close()
+        assert run(data, redo=True)[:2] == ["gate:ok", "settle:fail"]
+        ledger = open_ledger(data / "eod.db")
+        assert settled_dates(ledger) == ["2026-07-01", "2026-07-02"]
+        ledger.close()
+
+
+class TestBaseline:
+    def test_a_skipped_snapshot_day_is_not_lost(self, tmp_path: Path) -> None:
+        # No scheduler: three days with snapshots, only the last one settled.
+        for day, unreal in (("2026-07-01", 1000.0), ("2026-07-02", 3000.0)):
+            close_day(tmp_path, day, unreal, phase="CONTINUOUS")
+        close_day(tmp_path, "2026-07-03", 3500.0, phase="CONTINUOUS")
+        run(tmp_path, "2026-07-03", force=True)
+        ledger = open_ledger(tmp_path / "eod.db")
+        assert balances(ledger) == {"A": 3500, "B": -3500}
+        ledger.close()
+
+    def test_the_next_day_starts_from_the_last_settled_one(
+        self, tmp_path: Path
+    ) -> None:
+        for day, unreal in (
+            ("2026-07-01", 1000.0),
+            ("2026-07-02", 3000.0),
+            ("2026-07-03", 3500.0),
+        ):
+            close_day(tmp_path, day, unreal, phase="CONTINUOUS")
+        run(tmp_path, "2026-07-01", force=True)
+        run(tmp_path, "2026-07-03", force=True)
+        ledger = open_ledger(tmp_path / "eod.db")
+        assert balances(ledger) == {"A": 3500, "B": -3500}
+        ledger.close()
+
+    def test_an_earlier_unsettled_close_blocks_a_later_date(self, data: Path) -> None:
+        close_day(data, "2026-07-02", 2000.0)
+        outcome = run_day(
+            Paths(data), "2026-07-02", Options(), today="2026-07-05", now=NOW
+        )
+        settle = next(s for s in outcome.steps if s.step == "settle")
+        assert settle.status == "fail" and "2026-07-01" in settle.message
+        ledger = open_ledger(data / "eod.db")
+        assert settled_dates(ledger) == []
+        ledger.close()
+        # In order, both settle.
+        assert run(data)[:2] == ["gate:ok", "settle:ok"]
+        assert run(data, "2026-07-02")[:2] == ["gate:ok", "settle:ok"]
+
+    def test_a_report_failed_earlier_day_does_not_block(
+        self, data: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        close_day(data, "2026-07-02", 2000.0)
+        with monkeypatch.context() as m:
+            m.setattr(
+                "edumatcher.eod.runner.write_day",
+                lambda *_a, **_k: (_ for _ in ()).throw(OSError("disk full")),
+            )
+            run(data)
+        assert run(data, "2026-07-02")[:2] == ["gate:ok", "settle:ok"]
+
 
 class TestPending:
     def test_oldest_first_and_only_dates_with_a_snapshot(self, data: Path) -> None:

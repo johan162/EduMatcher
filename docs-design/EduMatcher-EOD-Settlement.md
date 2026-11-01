@@ -144,8 +144,9 @@ that day (problem 2). A day's settlement per `(gateway, symbol)` is
 day_pnl = (realized + unrealized)[D]  −  (realized + unrealized)[previous snapshot, else 0]
 ```
 
-The previous snapshot is the latest earlier `trade_date` for that key — gaps
-for weekends and holidays are just longer intervals. A position that
+The previous snapshot is that of the latest earlier **settled** `trade_date`
+(review fix, see the insights log) — gaps for weekends, holidays and unsettled
+days are just longer intervals. A position that
 disappears (not possible while `gateway_symbol_positions` keeps flat
 positions) counts as 0 equity afterwards.
 
@@ -620,3 +621,29 @@ documented in E7.
   the simulation docs say so and ask the operator to check `du -sh data/backup`
   after a week.
 
+
+**Review fixes R1 (2026-11-01).** A holistic review after E7 found three ledger
+bugs, each reproduced before fixing; none was caught by the zero-sum check,
+because each loses or deletes a zero-sum set of amounts.
+- **Baseline = last settled date, not last snapshot.** `settle_date` measured
+  from the latest earlier *snapshot*. Any snapshot date that was never settled
+  (a skipped `--force` day, a failed gate, a mid-day restart whose day never
+  closed again) had its equity change silently dropped: three no-scheduler
+  days with only the last settled gave A 5.00 instead of 35.00. `settle_date`
+  now takes `previous` (`ledger.last_settled_before`); a missing snapshot for
+  it means zero, which keeps the `emo clear --state` case right.
+- **Dates settle in order.** `run --date D` while an earlier closed day was
+  pending settled D, after which `record_day` refused the earlier day forever
+  and `--pending` stopped on it at every close. `_settle` now refuses D while
+  an earlier date is pending *and* unsettled (a `report-failed` day does not
+  block). Without a scheduler there is no `CLOSED`, so nothing blocks and a
+  skipped day folds into the next interval.
+- **`--redo` is one transaction.** `redo_from` committed its deletes before the
+  recomputation, so a failing recompute left the history gone. `redo_from` is
+  replaced by `record_day(..., redo=True)`, which computes first and deletes +
+  inserts in one transaction.
+- Still open from the review (separate WPs): a post-close engine restart can
+  rewrite a settled date's snapshot (M1); the no-scheduler route keeps only
+  the first shutdown snapshot of a date (M2); per-gateway full scans of
+  `trade_events` in `assemble._trades` and loading every snapshot row in
+  `pending_dates` (P1, P2); the remaining doc fixes.

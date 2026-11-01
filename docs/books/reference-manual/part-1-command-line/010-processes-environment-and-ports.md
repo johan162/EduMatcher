@@ -1565,7 +1565,7 @@ pm-eod [--datapath DIR] [--format table|json|csv] balances [--date YYYY-MM-DD] [
 | `--pending` | off | Every closed date that has a close snapshot and no `ok` run, oldest first. Stops at the first failing date. |
 | `--only STEP` | all steps | Re-run just `report`, `audit`, `logs` or `backup` for an already settled date. Not recorded in the run history. |
 | `--force` | off | Do not require the `CLOSED` session event (for exchanges without a scheduler). The close snapshot and reconcile checks still apply. |
-| `--redo` | off | Recompute the date: deletes its settlement **and the settlement of every later date**, then settles it again. |
+| `--redo` | off | Recompute the date: deletes its settlement **and the settlement of every later date**, then settles it again, all in one transaction (if the recomputation fails, nothing is deleted). |
 | `--dry-run` | off | Run the gate and compute the amounts, print them, write nothing. |
 | `--log-keep-days N` | `14` | Delete compressed fallback logs older than N days |
 | `--backup-keep-days N` | `7` | Delete backup folders older than N days |
@@ -1628,8 +1628,12 @@ opening balance. The full DDL is in the generated
 
 - A date's amount for a gateway is the sum over its symbols of
   `(realized_pnl + unrealized_pnl)` at this date's `position_close_snapshot`
-  minus the same at the latest earlier snapshot (0 if none), each converted
-  from ticks to currency with the symbol's own `tick_decimals`.
+  minus the same at the snapshot of the latest earlier **settled** date (0 if
+  there is none, or if `clearing.db` no longer has that date's snapshot), each
+  converted from ticks to currency with the symbol's own `tick_decimals`. Any
+  unsettled snapshot dates in between are part of the one interval.
+- Dates settle in order: a date is refused while an earlier date has closed
+  (latest `PHASE` is `CLOSED`, with a snapshot) but is not settled.
 - Rounded to 2 decimals with the largest-remainder method; the exact total must
   be within `0.01` per position of zero, otherwise the settlement fails.
 - A position present in the earlier snapshot but missing from this date's is

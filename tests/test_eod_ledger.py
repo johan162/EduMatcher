@@ -16,8 +16,8 @@ from edumatcher.eod.ledger import (
     day_amounts,
     open_ledger,
     record_day,
+    last_settled_before,
     record_run,
-    redo_from,
     runs,
     settled_dates,
 )
@@ -91,9 +91,24 @@ class TestRedoAndCheck:
     def test_redo_deletes_that_day_and_later(self, conn: sqlite3.Connection) -> None:
         for d in ("2026-07-01", "2026-07-02", "2026-07-03"):
             record_day(conn, d, day(100, -100))
-        assert redo_from(conn, "2026-07-02") == ["2026-07-02", "2026-07-03"]
-        assert settled_dates(conn) == ["2026-07-01"]
-        record_day(conn, "2026-07-02", day(1, -1))
+        gone = record_day(conn, "2026-07-02", day(1, -1), redo=True)
+        assert gone == ["2026-07-02", "2026-07-03"]
+        assert settled_dates(conn) == ["2026-07-01", "2026-07-02"]
+        assert balances(conn) == {"A": 101, "B": -101}
+
+    def test_a_refused_redo_changes_nothing(self, conn: sqlite3.Connection) -> None:
+        for d in ("2026-07-01", "2026-07-02"):
+            record_day(conn, d, day(100, -100))
+        with pytest.raises(LedgerError, match="sum to zero"):
+            record_day(conn, "2026-07-01", day(100, -1), redo=True)
+        assert settled_dates(conn) == ["2026-07-01", "2026-07-02"]
+
+    def test_last_settled_before(self, conn: sqlite3.Connection) -> None:
+        assert last_settled_before(conn, "2026-07-03") is None
+        for d in ("2026-07-01", "2026-07-02"):
+            record_day(conn, d, day(100, -100))
+        assert last_settled_before(conn, "2026-07-02") == "2026-07-01"
+        assert last_settled_before(conn, "2026-07-09") == "2026-07-02"
 
     def test_check_finds_a_corrupt_day(self, conn: sqlite3.Connection) -> None:
         record_day(conn, "2026-07-01", day(500, -500))
@@ -127,5 +142,5 @@ class TestRuns:
         for d in ("2026-07-01", "2026-07-02"):
             record_day(conn, d, day(100, -100))
             record_run(conn, d, "ok", "a", "b", [])
-        redo_from(conn, "2026-07-02")
+        record_day(conn, "2026-07-02", day(1, -1), redo=True)
         assert [r["trade_date"] for r in runs(conn)] == ["2026-07-01"]

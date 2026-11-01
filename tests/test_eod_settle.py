@@ -181,19 +181,34 @@ class TestSettleDate:
         write_close_snapshot(conn, "2026-07-03")  # weekend gap
         conn.close()
 
-    def test_previous_is_the_latest_earlier_snapshot(self, tmp_path: Path) -> None:
+    def test_the_baseline_is_the_previous_settled_date(self, tmp_path: Path) -> None:
         path = tmp_path / "clearing.db"
         self._seed(path)
         conn = open_writer_connection(path)
         try:
-            assert settle_date(conn, "2026-07-01").amounts_minor == {
+            assert settle_date(conn, "2026-07-01", None).amounts_minor == {
                 "A": 5000,
                 "B": -5000,
             }
-            assert settle_date(conn, "2026-07-03").amounts_minor == {
+            assert settle_date(conn, "2026-07-03", "2026-07-01").amounts_minor == {
                 "A": -3000,
                 "B": 3000,
             }
+        finally:
+            conn.close()
+
+    def test_no_baseline_starts_from_zero(self, tmp_path: Path) -> None:
+        # Never settled, or the previous settled date has no snapshot any more
+        # (clearing.db was reset): the earlier snapshot is not used.
+        path = tmp_path / "clearing.db"
+        self._seed(path)
+        conn = open_writer_connection(path)
+        try:
+            for previous in (None, "2026-06-30"):
+                assert settle_date(conn, "2026-07-03", previous).amounts_minor == {
+                    "A": 2000,
+                    "B": -2000,
+                }
         finally:
             conn.close()
 
@@ -203,6 +218,6 @@ class TestSettleDate:
         conn = open_writer_connection(path)
         try:
             with pytest.raises(SettlementError, match="no close snapshot"):
-                settle_date(conn, "2026-07-02")
+                settle_date(conn, "2026-07-02", "2026-07-01")
         finally:
             conn.close()
