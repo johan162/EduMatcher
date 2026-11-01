@@ -2718,7 +2718,7 @@ _shtab_pm_eod_run_options=(
   "--only[Run just this step of an already settled date]:only:(report audit logs backup)"
   "--force[Do not require the CLOSED session event (no scheduler)]"
   "--redo[Recompute this date\; drops its settlement and every later date\'s]"
-  "--dry-run[Gate and compute, print the amounts, write nothing]"
+  "--dry-run[Gate and compute, print the amounts, write nothing (not with --only)]"
   "--log-keep-days[N]:N:"
   "--backup-keep-days[N]:N:"
   "*--backup-skip[Leave this database out of the backup (repeatable)\: clearing.db, stats.db or eod.db]:NAME:(clearing.db stats.db eod.db)"

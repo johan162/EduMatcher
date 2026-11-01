@@ -46,7 +46,7 @@ seconds, prints what it did and exits. It is not a long-running process.
 !!! warning "The money is fictional"
     Everything in this chapter uses EduMatcher's **fictional currency**. No
     real money moves anywhere. `pm-eod` produces *numbers and files*:
-    "Alice owes the exchange 30.00". What those numbers mean in your class —
+    "Bob owes the exchange 20.00". What those numbers mean in your class —
     points, pretend dollars, a prize for the top of the leaderboard — is up to
     you. If you ever do attach real value to them, that is entirely outside
     EduMatcher; read [What `pm-eod` does not do](#what-pm-eod-does-not-do).
@@ -292,59 +292,75 @@ The symbol is `AAPL`.
 
 ### Day 1 — Monday 2026-11-02
 
-Alice buys 100 `AAPL` from Bob at **10.00**. The last trade of the day sets the
-closing price at **10.50**.
+Alice buys 100 `AAPL` from Bob at **10.00**. It is the only trade of the day, so
+it is also the last one: the closing price is **10.00**.
 
-| Trader | Position at close | Average cost | Unrealized P&L at 10.50 | Equity today | Equity yesterday | **Settlement** |
+| Trader | Position at close | Average cost | Unrealized P&L at 10.00 | Equity today | Equity yesterday | **Settlement** |
 |---|---:|---:|---:|---:|---:|---:|
-| Alice | +100 | 10.00 | 100 × (10.50 − 10.00) = +50.00 | +50.00 | 0 | **+50.00** (exchange owes her) |
-| Bob | −100 | 10.00 | −100 × (10.50 − 10.00) = −50.00 | −50.00 | 0 | **−50.00** (he owes the exchange) |
+| Alice | +100 | 10.00 | 100 × (10.00 − 10.00) = 0.00 | 0.00 | 0 | **0.00** |
+| Bob | −100 | 10.00 | −100 × (10.00 − 10.00) = 0.00 | 0.00 | 0 | **0.00** |
 | Carol | 0 | – | – | 0 | 0 | **0.00** |
 
-Zero-sum check: +50.00 − 50.00 + 0.00 = **0.00**. ✔
+Zero-sum check: 0.00 + 0.00 + 0.00 = **0.00**. ✔
 
-Running balances: Alice 100.00 + 50.00 = **150.00**, Bob **−50.00**, Carol **0.00**.
+Nobody gained or lost: a trade on its own is not a profit. Alice paid 10.00 for
+shares that are worth 10.00 at the close. What matters is what the price does
+*next*.
+
+Running balances: Alice **100.00** (her opening balance), Bob **0.00**, Carol
+**0.00**.
 
 ### Day 2 — Tuesday 2026-11-03
 
-The price falls. Carol buys 50 `AAPL` from Bob at **10.20**, which is also the
-last trade, so the closing price is **10.20**.
+Carol buys 50 `AAPL` from Bob at **10.20**. That is the last trade of the day, so
+the closing price is **10.20**: the price has risen by 0.20.
 
 | Trader | Position at close | Average cost | Unrealized P&L at 10.20 | Equity today | Equity yesterday | **Settlement** |
 |---|---:|---:|---:|---:|---:|---:|
-| Alice | +100 | 10.00 | 100 × (10.20 − 10.00) = +20.00 | +20.00 | +50.00 | **−30.00** |
-| Bob | −150 | 10.0667 | −150 × (10.20 − 10.0667) = −20.00 | −20.00 | −50.00 | **+30.00** |
+| Alice | +100 | 10.00 | 100 × (10.20 − 10.00) = +20.00 | +20.00 | 0.00 | **+20.00** (exchange owes her) |
+| Bob | −150 | 10.0667 | −150 × (10.20 − 10.0667) = −20.00 | −20.00 | 0.00 | **−20.00** (he owes the exchange) |
 | Carol | +50 | 10.20 | 50 × (10.20 − 10.20) = 0.00 | 0.00 | 0 | **0.00** |
 
-Zero-sum check: −30.00 + 30.00 + 0.00 = **0.00**. ✔
+Zero-sum check: +20.00 − 20.00 + 0.00 = **0.00**. ✔
 
-Notice Bob: his position got *bigger* (he sold 50 more), but the price fell in
-his favour, so his paper loss shrank from 50.00 to 20.00 and the exchange pays
-him 30.00 for the improvement. Settlement is about the *change in value*, not
-about trading activity — Carol traded but her settlement is zero, because she
-bought at the closing price itself.
+Alice did not trade today, yet she is owed 20.00: she *holds* 100 shares and
+their price rose (that is *marking to market*). Bob is short, so the same rise
+costs him. His average sale price is (100 × 10.00 + 50 × 10.20) ÷ 150 =
+**10.0667**, and with 150 shares short at a closing price of 10.20 he is
+20.00 down on paper. Carol traded but her settlement is zero, because she bought
+at the closing price itself. Settlement follows the *change in value*, not
+trading activity.
 
-Running balances: Alice 150.00 − 30.00 = **120.00**, Bob −50.00 + 30.00 =
-**−20.00**, Carol **0.00**. These are exactly the numbers `pm-eod balances`
-printed when this example was run (see below).
+Running balances: Alice 100.00 + 20.00 = **120.00**, Bob **−20.00**, Carol
+**0.00**. These are exactly the numbers `pm-eod balances` printed when this
+example was run (see below).
 
 ### Day 3 — Wednesday 2026-11-04 (Alice cashes in)
 
-Alice sells all 100 `AAPL` at **10.30**. She is flat now, so she has no
-unrealized P&L left; the profit is **realized**: 100 × (10.30 − 10.00) = +30.00.
-Her equity is +30.00 (it was +20.00 yesterday), so today's settlement is
-**+10.00** and her balance becomes 120.00 + 10.00 = **130.00**.
+Alice sells all her 100 `AAPL` to Carol at **10.30**, the last trade of the day,
+so the closing price is **10.30**.
 
-Look at the arithmetic over her three days: +50.00, −30.00, +10.00 = **+30.00**,
-which is exactly her locked-in profit. *This is the reassuring property of
-settling changes:* once you are flat, the sum of everything settled equals
-the profit you actually made. (Her 130.00 balance is that 30.00 plus the 100.00
-she started with.)
+| Trader | Position at close | Average cost | P&L at 10.30 | Equity today | Equity yesterday | **Settlement** |
+|---|---:|---:|---:|---:|---:|---:|
+| Alice | 0 | – | realized 100 × (10.30 − 10.00) = +30.00 | +30.00 | +20.00 | **+10.00** |
+| Bob | −150 | 10.0667 | −150 × (10.30 − 10.0667) = −35.00 | −35.00 | −20.00 | **−15.00** |
+| Carol | +150 | 10.2667 | 150 × (10.30 − 10.2667) = +5.00 | +5.00 | 0.00 | **+5.00** |
+
+Zero-sum check: +10.00 − 15.00 + 5.00 = **0.00**. ✔ Running balances: Alice
+**130.00**, Bob **−35.00**, Carol **5.00**. (Carol's average cost is
+(50 × 10.20 + 100 × 10.30) ÷ 150 = 10.2667.)
+
+Alice is flat now, so she has no unrealized P&L left; her profit is
+**realized**. Look at her amounts over the three days: 0.00, +20.00, +10.00 =
+**+30.00**, which is exactly her locked-in profit. *This is the reassuring
+property of settling changes:* once you are flat, the sum of everything settled
+equals the profit you actually made. (Her 130.00 balance is that 30.00 plus the
+100.00 she started with.)
 
 ### The same example, run for real
 
 This is the actual output of `pm-eod` for days 1 and 2 above (with a roster
-giving Alice an opening balance of 100.00):
+giving Alice an opening balance of 100.00), run after each day's close:
 
 ```text
 2026-11-02:
@@ -353,14 +369,14 @@ giving Alice an opening balance of 100.00):
   [ok] report: wrote /srv/exchange/data/settlement/2026-11-02
   [ok] audit: nothing pending
   [ok] logs: no log directory
-  [ok] backup: backed up clearing.db, eod.db (132.0 KB -> 3.5 KB); not present: stats.db
+  [ok] backup: backed up clearing.db, eod.db (132.0 KB -> 3.3 KB); not present: stats.db
 2026-11-03:
   [ok] gate: closed, snapshot present, reconciled
   [ok] settle: settled
   [ok] report: wrote /srv/exchange/data/settlement/2026-11-03
   [ok] audit: nothing pending
   [ok] logs: no log directory
-  [ok] backup: backed up clearing.db, eod.db (132.0 KB -> 3.9 KB); not present: stats.db
+  [ok] backup: backed up clearing.db, eod.db (132.0 KB -> 4.1 KB); not present: stats.db
 ```
 
 ```text
@@ -370,6 +386,8 @@ GW_ALICE | 120.00
 GW_BOB   | -20.00
 GW_CAROL | 0.00
 ```
+
+Running day 3 as well gives 130.00, −35.00 and 5.00, as in the table above.
 
 The "not present: stats.db" part is normal in this demonstration, which ran
 without `pm-stats`; on a real exchange `stats.db` is backed up too.
@@ -430,8 +448,10 @@ What happens in the corner cases:
   (`gateway GW_X is not in the roster`), so you notice and add them.
 - **A mistake in the file** stops the *report* step with a message that names the
   line, for example `roster.yaml: line 7: opening_balance has more than 2 decimals`.
-  The settlement itself is kept; fix the file and run
-  `pm-eod run --date <date> --only report`.
+  The settlement itself is kept (the day's status is `report-failed`); fix the
+  file and run `pm-eod run --date <date>` again — *without* `--only`, so that
+  the day is recorded as `ok` (a run with `--only` is never recorded). The next
+  `pm-eod run --pending` does the same by itself.
 
 !!! warning "Opening balances are applied when displaying, not when settling"
     The ledger stores only each day's *amounts*. Opening balances come from the
@@ -497,11 +517,15 @@ only on the end-of-day message or on `CLOSED`, so a market that is simply
 left running has nothing to settle from.
 
 A crontab line that settles yesterday every morning at 06:00, for an exchange
-you shut down every evening, looks like this:
+you shut down every weekday evening, looks like this:
 
 ```text
-0 6 * * *  pm-eod run --date "$(date -d yesterday +\%F)" --force
+0 6 * * 2-6  pm-eod run --date "$(date -d yesterday +\%F)" --force
 ```
+
+`2-6` means Tuesday to Saturday, so it settles Monday to Friday. Run it on a
+morning after a day without trading and it fails with `no close snapshot for
+<date>` (exit code 1): harmless, but cron mails you about it.
 
 If you skip a day (you forgot to run it, or its run failed and you moved on),
 nothing is lost: the next date you settle counts from the close of the last
@@ -553,9 +577,12 @@ pm-eod status
 ```text
 trade_date | status | started_at                       | finished_at                      | steps
 -----------+--------+----------------------------------+----------------------------------+-------------------------------------------------------
-2026-11-03 | ok     | 2026-11-01T18:41:06.688468+00:00 | 2026-11-01T18:41:06.696180+00:00 | gate:ok settle:ok report:ok audit:ok logs:ok backup:ok
-2026-11-02 | ok     | 2026-11-01T18:41:06.669631+00:00 | 2026-11-01T18:41:06.683017+00:00 | gate:ok settle:ok report:ok audit:ok logs:ok backup:ok
+2026-11-03 | ok     | 2026-11-03T16:30:30.007000+00:00 | 2026-11-03T16:30:30.014000+00:00 | gate:ok settle:ok report:ok audit:ok logs:ok backup:ok
+2026-11-02 | ok     | 2026-11-02T16:30:30.007000+00:00 | 2026-11-02T16:30:30.014000+00:00 | gate:ok settle:ok report:ok audit:ok logs:ok backup:ok
 ```
+
+The times are in UTC: 16:30:30 UTC is 17:30:30 in Stockholm, thirty seconds
+after the close.
 
 The `status` column is one of:
 
@@ -639,16 +666,16 @@ which explains it line by line to the trader):
 
 Bob Berg (GW_BOB) <bob@example.org>
 
-**The exchange owes you 30.00.**
+**You owe the exchange 20.00.**
 
-- Today's result: 30.00
+- Today's result: -20.00
 - Balance after today: -20.00
 
 ## Result by symbol
 
 | Symbol | Result |
 |---|---:|
-| AAPL | 30.00 |
+| AAPL | -20.00 |
 
 ## Open positions at the close
 
@@ -671,8 +698,11 @@ The headline sentence is always one of three:
 | *You owe the exchange X.* | Today's amount is negative |
 | *Nothing to pay or receive today.* | The amount is zero |
 
-Two details worth knowing: **trade times are in UTC**, not the exchange's
-timezone, and the **trade list comes from `trade_events`**, which `pm-clearing`
+Three details worth knowing. **Each line of "Result by symbol" is rounded on
+its own**, so with several symbols the lines can add up to 0.01 more or less
+than "Today's result"; the total is the amount that counts (it is rounded so
+that all traders together sum to exactly zero). **Trade times are in UTC**, not
+the exchange's timezone. And the **trade list comes from `trade_events`**, which `pm-clearing`
 prunes after 90 days by default. Settling a very old date later still gives the
 correct amounts (those come from the close snapshots, which are never pruned)
 but the trade list may be empty.
@@ -680,8 +710,8 @@ but the trade list may be empty.
 ### The same statement as JSON and CSV
 
 `statements/GW_BOB.json` carries the same information for programs. Amounts
-appear twice: as whole minor units (`amount_minor`: `3000`) for exact
-arithmetic, and as text (`amount`: `"30.00"`) for display.
+appear twice: as whole minor units (`amount_minor`: `-2000`) for exact
+arithmetic, and as text (`amount`: `"-20.00"`) for display.
 
 | JSON field | Meaning |
 |---|---|
@@ -697,7 +727,7 @@ arithmetic, and as text (`amount`: `"30.00"`) for display.
 
 ```text
 symbol,day_pnl,net_qty,mark
-AAPL,30.00,-150,10.20
+AAPL,-20.00,-150,10.20
 ```
 
 ### `instructions.csv` — the payment instructions
@@ -707,8 +737,8 @@ a classroom "who pays whom" board:
 
 ```text
 gateway,name,email,amount,direction,balance
-GW_ALICE,Alice Andersson,alice@example.org,-30.00,pay,120.00
-GW_BOB,Bob Berg,bob@example.org,30.00,receive,-20.00
+GW_ALICE,Alice Andersson,alice@example.org,20.00,receive,120.00
+GW_BOB,Bob Berg,bob@example.org,-20.00,pay,-20.00
 GW_CAROL,Carol Carlsson,carol@example.org,0.00,none,0.00
 ```
 
@@ -749,11 +779,11 @@ rank,gateway,name,balance
 
 ## Biggest winners
 
-- GW_BOB: 30.00
+- GW_ALICE: 20.00
 
 ## Biggest losers
 
-- GW_ALICE: -30.00
+- GW_BOB: -20.00
 
 ## Market
 
@@ -856,7 +886,7 @@ If the backup fails, the *previous* backup of that date is left untouched. A
 database that does not exist is simply listed (`not present: stats.db`).
 
 Compression typically makes these databases many times smaller (the small
-demonstration above went from 132 KB to 3.5 KB; a real one shrinks less, because
+demonstration above went from 132 KB to 3.3 KB; a real one shrinks less, because
 real data is less repetitive).
 
 #### Restoring a backup
@@ -928,7 +958,7 @@ at all:
 ```text
 2026-11-03:
   [ok] gate: closed, snapshot present, reconciled
-  [ok] settle: would settle: GW_ALICE -30.00, GW_BOB +30.00, GW_CAROL +0.00
+  [ok] settle: would settle: GW_ALICE +20.00, GW_BOB -20.00, GW_CAROL +0.00
 ```
 
 ### The scheduler was down, or the machine was off
@@ -1012,14 +1042,14 @@ Every message below is printed on a `[FAIL]` or `[warn]` line.
 | `<path>/clearing.db not found` | There is no clearing database in the data directory `pm-eod` is looking at | Check `--datapath` / `EDUMATCHER_DATA_DIR`; check that `pm-clearing` ran |
 | `no session phase recorded for <date>` | `pm-clearing` saw no session change on that date | Was `pm-clearing` running and the scheduler enabled? For a no-scheduler setup add `--force` |
 | `<date> has not closed yet` | The day's latest phase is not `CLOSED` (trading is still going on, or the close was never announced) | Wait for the close, or use `--force` if you have no scheduler |
-| `no close snapshot for <date>` | The closing positions were never saved — `pm-clearing` was down at the close, or the date is from before this feature existed | Dates before the feature cannot be settled; for other dates restart `pm-clearing` and re-run the session close, or use `pm-clearing-cli snapshots --date <date>` to see what exists |
+| `no close snapshot for <date>` | The closing positions were never saved — `pm-clearing` was down at the close, or the date is from before this feature existed | `pm-clearing-cli snapshots --date <date>` shows what exists. A missing snapshot cannot be made afterwards. Nothing is lost by leaving the day unsettled: the next day that is settled includes its gains and losses. Make sure `pm-clearing` runs at the next close |
 | `clearing does not reconcile for <date> (N discrepancies; see pm-clearing-cli reconcile)` | The raw trade records and the daily totals disagree. Settling on inconsistent books would spread the error | Run `pm-clearing-cli reconcile --from <date> --to <date>` to see exactly which trader and symbol; fix the cause (a crash mid-write is the usual one) before settling |
 
 ### Settlement failures (exit code 1)
 
 | Message | What it means | What to do |
 |---|---|---|
-| `the day does not sum to zero: exact total X over N position(s)` | The amounts do not cancel out by more than rounding noise could explain — a real accounting inconsistency | Do **not** override. Check `pm-clearing-cli positions` and `reconcile`; the close snapshot may have been taken while a trade was in flight. Fix, then run with `--redo` |
+| `the day does not sum to zero: exact total X over N position(s)` | The amounts do not cancel out by more than rounding noise could explain — a real accounting inconsistency | Nothing was written; do **not** try to force it. Run `pm-clearing-cli reconcile --from <date> --to <date>` and look at `pm-clearing-cli snapshots --date <date>` for a trader whose numbers are far off. This points at a bug or a damaged `clearing.db`: keep the files (the daily backup has a copy) and report it |
 | `a gateway may not be called EXCHANGE` | A trader used the reserved name | Rename the gateway in the configuration |
 | `<date> has closed but is not settled; settle the dates in order (pm-eod run --pending)` | You asked for a date while an earlier closed day is still waiting. Days are settled oldest first, so the earlier one comes first | Run `pm-eod run --pending`, which takes them in order. If that fails on the earlier day, fix what its message says |
 | `<date> is settled, which is later than <date>` | A later date was settled before this earlier one (for example you ran Friday and then Thursday by hand) | Run `pm-eod run --date <the earlier date> --redo`: it drops the later settlements and redoes them in order with the next `--pending` |
@@ -1029,7 +1059,7 @@ Every message below is printed on a `[FAIL]` or `[warn]` line.
 | Message | What it means | What to do |
 |---|---|---|
 | `<date> is not settled` | You ran `--only report` for a date that has no settlement | Run the date without `--only` first |
-| `roster.yaml: line N: …` | The roster file has an error on that line | Fix it; run `--only report` |
+| `roster.yaml: line N: …` | The roster file has an error on that line | Fix it; run the date again without `--only` (or wait for the next `--pending`) |
 | An `OSError` (disk full, permission denied) | The folder could not be written | Free space or fix permissions; the next run retries |
 
 ### Other

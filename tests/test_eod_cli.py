@@ -70,6 +70,15 @@ def test_run_needs_a_date_or_pending(data: Path) -> None:
     assert cli(data, "run") == 2
 
 
+def test_dry_run_with_only_is_refused_and_writes_nothing(data: Path) -> None:
+    # --only skips the gate and settle steps that --dry-run stops before, so
+    # together they would really run the step.
+    assert (
+        cli(data, "run", "--date", "2026-07-01", "--only", "backup", "--dry-run") == 2
+    )
+    assert not (data / "backup").exists()
+
+
 def test_bad_date_is_rejected(data: Path) -> None:
     assert cli(data, "run", "--date", "tomorrow") != 0
 

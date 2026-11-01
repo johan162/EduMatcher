@@ -1799,7 +1799,7 @@ _ADMIN_AND_OPS: tuple[CommandInfo, ...] = (
             Option(
                 "--dry-run",
                 "off",
-                "run: gate and compute, print the amounts, write nothing",
+                "run: gate and compute, print the amounts, write nothing (not with --only)",
                 "run",
             ),
             Option(

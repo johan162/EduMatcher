@@ -29,6 +29,10 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 | 5 | E5 | `pm-eod` CLI: `run` (gates, steps, idempotency), `--pending`, `status`, `balances`, health | E2–E4 | 1.5 d | ☑ | 2026-11-01 |
 | 6 | E6 | Trigger: `pm-scheduler --on-close`, start-up catch-up, emo profile | E5 | 0.5 d | ☑ | 2026-11-01 |
 | 7 | E7 | Docs: operator guide chapter, file formats, `pm-help`, completions, deployments | E1–E6 | 0.5 d | ☑ | 2026-11-01 |
+| 8 | R1 | Review: baseline = last settled date, settle in order, atomic `--redo` | E7 | — | ☑ | 2026-11-01 |
+| 9 | R2 | Review: a day's close snapshot is final once the day has closed | R1 | — | ☑ | 2026-11-01 |
+| 10 | R3 | Review: read one day of trades and the snapshot dates by index | R1 | — | ☑ | 2026-11-01 |
+| 11 | R4 | Review: docs (worked example re-run), `--only`+`--dry-run`, roster `.inf` | R3 | — | ☑ | 2026-11-01 |
 
 Total ≈ 7.5 d. E1 first because settlement is only as good as the closing
 marks it reads. E4 is independent of the money path and can run in parallel
@@ -47,7 +51,7 @@ with E2/E3 if wanted.
 ## Open decisions
 
 Recommended answers in **bold**; the WPs below assume them until decided.
-Q1–Q6 were decided on 2026-11-01.
+Q1–Q6 were decided on 2026-11-01; Q7–Q10 were built as recommended (E1–E2).
 
 | # | Question | Options | Affects | Decided |
 |---|---|---|---|---|
@@ -57,10 +61,10 @@ Q1–Q6 were decided on 2026-11-01.
 | Q4 | Fees | **None** · flat per trade · bps of notional | E2 | ✔ none |
 | Q5 | Negative balance | **Informational** (statement + leaderboard) · warn below a floor · enforce in the engine | E3 | ✔ info |
 | Q6 | Roster location | **`<data>/ref_data/roster.yaml`** · inside `engine_config.yaml` · flag only | E3 | ✔ ref_data |
-| Q7 | What is settled | **The day's change in mark-to-market equity** (realized + unrealized, per symbol, between two close snapshots) · realized P&L only | E1, E2 | |
-| Q8 | Currency unit | **Display currency, rounded to the minor unit (2 decimals)** with a largest-remainder fix-up so the day sums to exactly 0 · raw ticks | E2 | |
-| Q9 | Where the ledger lives | **A new `<data>/eod.db`** (SQLite, same conventions as `clearing.db`) · inside `clearing.db` | E2 | |
-| Q10 | Starting balance | **0 for everyone**; an optional `opening_balance` per roster entry · fixed stake | E2, E3 | |
+| Q7 | What is settled | **The day's change in mark-to-market equity** (realized + unrealized, per symbol, between two close snapshots) · realized P&L only | E1, E2 | ✔ as built |
+| Q8 | Currency unit | **Display currency, rounded to the minor unit (2 decimals)** with a largest-remainder fix-up so the day sums to exactly 0 · raw ticks | E2 | ✔ as built |
+| Q9 | Where the ledger lives | **A new `<data>/eod.db`** (SQLite, same conventions as `clearing.db`) · inside `clearing.db` | E2 | ✔ as built |
+| Q10 | Starting balance | **0 for everyone**; an optional `opening_balance` per roster entry · fixed stake | E2, E3 | ✔ as built |
 
 ---
 
@@ -120,8 +124,10 @@ Q1–Q6 were decided on 2026-11-01.
 
 ### 3.1 What is settled (Q7) — close snapshots
 
-At the `CLOSED` transition `pm-clearing` (E1) marks every open position to
-the day's closing price and copies the result into a new table:
+At the `CLOSED` transition `pm-clearing` (E1) copies every position into a
+new table. No re-marking is needed: positions are marked to the last trade
+price on every trade (E1). Once the day's latest `PHASE` is `CLOSED` the
+snapshot is final and nothing replaces it (R2):
 
 ```sql
 CREATE TABLE position_close_snapshot (
@@ -148,7 +154,8 @@ The previous snapshot is that of the latest earlier **settled** `trade_date`
 (review fix, see the insights log) — gaps for weekends, holidays and unsettled
 days are just longer intervals. A position that
 disappears (not possible while `gateway_symbol_positions` keeps flat
-positions) counts as 0 equity afterwards.
+positions) is ignored (E2): counting it as 0 equity would book a loss from
+nothing and break the zero sum.
 
 *Why equity differences, not realized P&L:* equity is cash plus positions
 at the mark, so for each symbol the sum over all gateways is zero by
@@ -164,8 +171,8 @@ leave open positions unsettled and the exchange would never converge.
    residues are ranked and the ±0.01 steps handed out so the rounded
    amounts sum to exactly the rounded total of all gateways.
 3. The rounded total of all gateways should be 0. The float `avg_cost`
-   makes it drift by far less than one minor unit per position; the run
-   **fails the gate** if `|Σ| > 0.01 × number of position keys` (a real
+   makes it drift by far less than one minor unit per position; the
+   `settle` step **fails** if `|Σ| > 0.01 × number of position keys` (a real
    accounting error looks far bigger), otherwise the residual is booked to
    the `EXCHANGE` account as a `rounding` line so the ledger sums to exactly
    0 and the statements can say so.
@@ -178,19 +185,21 @@ positive number is credited, a negative one is owed. `<data>/eod.db`
 
 ```sql
 eod_runs      (trade_date PK, status, started_at, finished_at, steps_json)
-eod_settlement(trade_date, account, symbol_detail_json, amount_minor,
+eod_settlement(trade_date, account, amount_minor, detail_json,
                PRIMARY KEY (trade_date, account))      -- account = gateway id or 'EXCHANGE'
-eod_balance   VIEW: account, balance_minor = opening + Σ amount_minor up to a date
 ```
+
+Balances are not stored and there is no view: `ledger.balances()` sums
+`amount_minor` up to a date and adds the roster's opening balances (E2).
 
 - `amount_minor` is the integer from §3.2. `Σ amount_minor` per
   `trade_date` is exactly 0 — an invariant the writer checks before commit
   and `pm-eod balances --check` re-checks across all days.
 - **Idempotent.** Re-running a settled date is a no-op reporting the
-  stored result; `--redo DATE` deletes that date and every later one in a
-  transaction and recomputes, because balances are cumulative. It is the
-  only way to correct history, and it refuses once `--keep-days` has pruned
-  a snapshot it needs.
+  stored result; `--redo DATE` recomputes it, then deletes that date and
+  every later one and inserts the new day in one transaction (R1), because
+  balances are cumulative. It is the only way to correct history. Snapshots
+  are never pruned, so there is no "snapshot gone" refusal (E2).
 - No fees (Q4): no `EXCHANGE` amounts other than the rounding line. The
   ledger has the account column so fees can be added later without a schema
   change, but nothing in the code anticipates them.
@@ -220,14 +229,14 @@ Per trading day, in `<data>/settlement/<date>/`:
 ```
 statements/<gateway>.md|.json|.csv   per-trader: trades, positions at the close, day amount,
                                       new balance, "pay / receive" sentence
-summary.md|.json                      exchange: volume, trade count, top winners/losers,
-                                      reject counts, sum-zero proof, run times
+summary.md|.json                      exchange: volume, trade count, close, top winners/losers,
+                                      sum-zero proof, warnings (no reject counts, E3)
 instructions.csv                      one line per account: gateway, name, email, amount, balance
 leaderboard.csv                       balance ranking (informational, Q5)
 ```
 
-Files are written to a temp name and renamed, so a half-written day is
-never visible. Statements are the deliverable; sending them is the
+The day is written to a hidden work directory that is renamed into place
+(E3), so a half-written day is never visible. Statements are the deliverable; sending them is the
 instructor's job (Q3), and `instructions.csv` is the mail-merge input.
 
 ### 3.5 The run: gates, steps, idempotency
@@ -237,13 +246,13 @@ steps whose result is recorded in `eod_runs.steps_json`:
 
 | Step | What | Failure |
 |---|---|---|
-| `gate` | `PHASE→CLOSED` row exists for D in `session_events`; a `position_close_snapshot` exists for D; `pm-clearing-cli reconcile` clean for D | stop, nothing written (`--force` skips the `CLOSED` check only) |
-| `settle` | §3.1–3.3 | stop; ledger untouched (single transaction) |
+| `gate` | the **latest** `PHASE` row of D in `session_events` is `CLOSED` (E5); a `position_close_snapshot` exists for D; `pm-clearing-cli reconcile` clean for D | stop, nothing written (`--force` skips the `CLOSED` check only) |
+| `settle` | §3.1–3.3; refused while an earlier closed date is unsettled (R1) | stop; ledger untouched (single transaction) |
 | `report` | §3.4 | settlement stays, status `report-failed`, retried by `--pending` |
-| `audit` | `pm-audit-cli archive --pending`; verify `audit-D.log.zst` exists and no parts of D remain | warning, run continues |
-| `logs` | gzip fallback logs older than 1 day; delete after `--log-keep-days` | warning |
+| `audit` | archive days *before today* that `pm-audit` missed; today is `pm-audit`'s after midnight (E4) | warning, run continues |
+| `logs` | zstd-compress fallback logs idle for an hour, then truncate them in place (they are held open); delete archives after `--log-keep-days` (E4) | warning |
 | `backup` | `sqlite3 .backup` of `clearing.db`, `stats.db`, `eod.db` into `<data>/backup/D/`, zstd-compressed; delete after `--backup-keep-days` | warning |
-| `done` | summary line in the log, health gauge, `eod_runs.status = ok` | — |
+| `done` | `eod_runs` row (`ok`, `report-failed` or `failed`); no health gauge — `pm-eod status -q` is the health check (E5) | — |
 
 Only the money path (`gate`, `settle`) can fail the day; housekeeping
 trouble is reported and retried but never withholds statements. The same
@@ -254,8 +263,9 @@ step list drives `pm-eod run --only STEP` for manual re-runs.
 `pm-scheduler --on-close "pm-eod run --pending"` — after the engine
 confirms `CLOSED`, the scheduler spawns the command detached (one child at a
 time, output captured to the scheduler log, exactly as `pm-audit` spawns its
-archiver) and goes on. `--pending` runs every trading date that has a
-`CLOSED` event but no `ok` run, oldest first, so a scheduler that was down,
+archiver) and goes on, after `--on-close-delay` (30 s, E6). `--pending` runs
+every trading date whose latest `PHASE` is `CLOSED`, that has a close snapshot
+and no `ok` run, oldest first, so a scheduler that was down,
 a day that closed late, or a failed `report` step all heal on the next
 trigger. `pm-eod run --pending` also runs from the scheduler's start-up.
 

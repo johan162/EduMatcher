@@ -1566,7 +1566,7 @@ pm-eod [--datapath DIR] [--format table|json|csv] balances [--date YYYY-MM-DD] [
 | `--only STEP` | all steps | Re-run just `report`, `audit`, `logs` or `backup` for an already settled date. Not recorded in the run history. |
 | `--force` | off | Do not require the `CLOSED` session event (for exchanges without a scheduler). The close snapshot and reconcile checks still apply. |
 | `--redo` | off | Recompute the date: deletes its settlement **and the settlement of every later date**, then settles it again, all in one transaction (if the recomputation fails, nothing is deleted). |
-| `--dry-run` | off | Run the gate and compute the amounts, print them, write nothing. |
+| `--dry-run` | off | Run the gate and compute the amounts, print them, write nothing. Cannot be combined with `--only`. |
 | `--log-keep-days N` | `14` | Delete compressed fallback logs older than N days |
 | `--backup-keep-days N` | `7` | Delete backup folders older than N days |
 | `--backup-skip NAME` | none | Leave one database out of the backup: `clearing.db`, `stats.db` or `eod.db`. Repeatable. The `backup` step's message says what was skipped. |

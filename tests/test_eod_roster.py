@@ -46,6 +46,8 @@ def test_empty_file_is_an_empty_roster(tmp_path: Path) -> None:
         ("traders:\n  - gateway: A\n  - gateway: a\n", 3, "duplicate"),
         ("traders:\n  - gateway: A\n    opening_balance: 1.234\n", 2, "2 decimals"),
         ("traders:\n  - gateway: A\n    opening_balance: lots\n", 2, "opening_balance"),
+        ("traders:\n  - gateway: A\n    opening_balance: .inf\n", 2, "a number"),
+        ("traders:\n  - gateway: A\n    opening_balance: .nan\n", 2, "a number"),
         ("traders:\n  - gateway: A\n    colour: red\n", 2, "colour"),
         ("traders:\n  - gateway: EXCHANGE\n", 2, "EXCHANGE"),
         ("traders: 5\n", 1, "list"),

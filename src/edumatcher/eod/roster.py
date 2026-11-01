@@ -99,6 +99,8 @@ def _opening(where: str, value: Any) -> int:
         amount = Decimal(str(value))
     except InvalidOperation:
         raise RosterError(f"{where}: opening_balance must be a number") from None
+    if not amount.is_finite():  # YAML .inf / .nan
+        raise RosterError(f"{where}: opening_balance must be a number")
     minor = amount * 100
     if minor != minor.to_integral_value():
         raise RosterError(f"{where}: opening_balance has more than 2 decimals")

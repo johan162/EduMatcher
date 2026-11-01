@@ -36,16 +36,16 @@ Here is the statement of a trader called Bob for Tuesday 3 November 2026:
 
 Bob Berg (GW_BOB) <bob@example.org>
 
-**The exchange owes you 30.00.**
+**You owe the exchange 20.00.**
 
-- Today's result: 30.00
+- Today's result: -20.00
 - Balance after today: -20.00
 
 ## Result by symbol
 
 | Symbol | Result |
 |---|---:|
-| AAPL | 30.00 |
+| AAPL | -20.00 |
 
 ## Open positions at the close
 
@@ -88,8 +88,10 @@ There are exactly three possible sentences:
 
 ### Result by symbol
 
-A **symbol** is the short code of one company's shares (`AAPL`). If you traded
-several, this table shows how much of today's result came from each.
+A **symbol** is the short code of one company's shares (`AAPL`). If you hold or
+traded several, this table shows how much of today's result came from each.
+Each line is rounded to two decimals on its own, so the lines can add up to
+0.01 more or less than *Today's result*; the result is the number that counts.
 
 ### Open positions at the close
 
@@ -115,8 +117,8 @@ how many shares, and at what price.
 
 ## Where today's number comes from
 
-Your result is **the change in the value of your account since yesterday's
-close**. Two kinds of profit go into it:
+Your result is **the change in the value of your account since the previous
+trading day's close** (on a Monday, that is usually Friday's). Two kinds of profit go into it:
 
 - **Unrealized profit or loss** — on paper, for shares you still hold. If you
   bought 100 shares at 10.00 and the closing price is 10.50, you are 100 × 0.50 =
@@ -128,21 +130,20 @@ Add both together and subtract what the total was at the previous close. That
 difference is today's result.
 
 !!! example "Check Bob's number yourself"
-    Bob has been short since day 1 at an average price of 10.00 for 100 shares,
-    then sold 50 more at 10.20, so his average sale price is
-    (100 × 10.00 + 50 × 10.20) ÷ 150 = **10.0667**.
+    On Monday Bob sold 100 shares he did not own at 10.00, and the day closed at
+    10.00, so he was neither up nor down. Today he sold 50 more at 10.20, so his
+    average sale price is (100 × 10.00 + 50 × 10.20) ÷ 150 = **10.0667**.
 
-    - At the closing price of 10.20 he is short 150, so on paper he has
+    - At today's closing price of 10.20 he is short 150, so on paper he has
       lost 150 × (10.20 − 10.0667) = **20.00**. (A short position *loses* when
       the price is above what you sold at.)
-    - At yesterday's close the price was 10.50 and he was short 100 at 10.00, so
-      he was **50.00** down on paper.
-    - Today he is 20.00 down instead of 50.00 down — an improvement of
-      **30.00**. That is exactly the 30.00 the statement says the exchange owes
-      him.
+    - At the previous close he was **0.00** down.
+    - Today he is 20.00 down instead of 0.00 — a change of **−20.00**. That is
+      exactly the 20.00 the statement says he owes the exchange.
 
-    Notice Bob is still *down* overall (his balance is −20.00): he is owed 30.00
-    for the improvement, but he had already paid 50.00 on day 1.
+    His balance is −20.00 because this is his first non-zero day. If the price
+    falls back tomorrow, tomorrow's result is positive and gives some of it
+    back.
 
 Everyone's results add up to exactly zero: whatever one trader gains, another
 loses. If a statement says you gained, someone else's says they lost the same

@@ -90,7 +90,7 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument(
         "--dry-run",
         action="store_true",
-        help="Gate and compute, print the amounts, write nothing",
+        help="Gate and compute, print the amounts, write nothing (not with --only)",
     )
     run.add_argument("--log-keep-days", type=int, default=14, metavar="N")
     run.add_argument("--backup-keep-days", type=int, default=7, metavar="N")
@@ -142,6 +142,11 @@ def _cmd_run(args: argparse.Namespace, paths: Paths) -> int:
     )
     if not args.date and not args.pending:
         print("pm-eod run: give --date or --pending", file=sys.stderr)
+        return 2
+    if args.only and args.dry_run:
+        # --only skips the gate and settle steps --dry-run stops before, so the
+        # step would really run.
+        print("pm-eod run: --dry-run cannot be combined with --only", file=sys.stderr)
         return 2
     try:
         with run_lock(paths.data):
