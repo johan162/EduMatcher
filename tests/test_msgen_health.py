@@ -167,7 +167,7 @@ def _snapshot(**overrides: Any) -> dict[str, Any]:
                 "bid_levels": 84,
                 "ask_levels": 91,
                 "est_bytes": 4_100_000,
-                "heap_garbage_pct": 12.0,
+                "heap_bloat_ratio": 0.12,
                 "trades_today": 8102,
                 "halted": False,
             }
@@ -324,7 +324,7 @@ class TestValidationRejects:
             (("exchange", "status"), "FINE"),
             (("thresholds", 0, "level"), "INFO"),
             (("gateways", 0, "kind"), "CALF"),
-            (("books", 0, "heap_garbage_pct"), 100.5),
+            (("books", 0, "heap_bloat_ratio"), -0.5),
         ],
     )
     def test_a_bad_snapshot_leaf(self, path: tuple[Any, ...], value: Any) -> None:

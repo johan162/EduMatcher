@@ -51,10 +51,10 @@ const RULE_INFO: Record<
     unit: "%",
     text: "Growth of one process's resident memory over the last hour -- a leak. Judged once the process has been watched for 10 minutes.",
   },
-  heap_garbage_pct: {
-    label: "Book heap garbage",
-    unit: "%",
-    text: "Share of stale, lazily deleted entries in one symbol's order-book heaps, judged from 100 entries.",
+  heap_bloat_ratio: {
+    label: "Book heap bloat",
+    unit: "x",
+    text: "One symbol's order-book heap size over the size compaction tolerates. At most 1 when healthy; above it, compaction is not keeping up.",
   },
 };
 

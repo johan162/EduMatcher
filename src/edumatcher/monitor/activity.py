@@ -498,8 +498,8 @@ class Activity:
                     "bid_levels": int(g.get("engine.book_bid_levels", 0)),
                     "ask_levels": int(g.get("engine.book_ask_levels", 0)),
                     "est_bytes": int(g.get("engine.book_est_bytes", 0)),
-                    "heap_garbage_pct": min(
-                        100.0, max(0.0, g.get("engine.book_heap_garbage_pct", 0.0))
+                    "heap_bloat_ratio": max(
+                        0.0, g.get("engine.book_heap_bloat_ratio", 0.0)
                     ),
                     "trades_today": int(b.trades),
                     "halted": g.get("engine.book_halted", 0.0) >= 1,

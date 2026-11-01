@@ -494,7 +494,7 @@ def book_samples(books: Iterable[OrderBook]) -> list[MetricSample]:
                 gauge("engine.book_bid_levels", stats.bid_levels, sym),
                 gauge("engine.book_ask_levels", stats.ask_levels, sym),
                 gauge("engine.book_heap_entries", stats.heap_entries, sym),
-                gauge("engine.book_heap_garbage_pct", stats.heap_garbage_pct, sym),
+                gauge("engine.book_heap_bloat_ratio", stats.heap_bloat_ratio, sym),
                 gauge("engine.book_est_bytes", memory_estimate(book, stats), sym),
             )
         )

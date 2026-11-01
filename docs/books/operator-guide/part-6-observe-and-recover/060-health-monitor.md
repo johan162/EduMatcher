@@ -178,7 +178,7 @@ and nothing is MISSING.
 | `engine_handle_p99_us` | the engine | > 5 000 µs | > 20 000 µs |
 | `reject_pct_5m` — rejected over all inbound requests (orders, cancels, amends, quotes), judged from 20 requests in 5 min | `exchange` | > 10 % | > 30 % |
 | `rss_growth_pct_1h` — judged once a process has been watched for 10 min | a process | > 50 % | > 100 % |
-| `heap_garbage_pct` — judged from 100 heap entries | a symbol | > 50 % | > 80 % |
+| `heap_bloat_ratio` — a book's heap size over the size compaction tolerates; 1 is the limit | a symbol | > 1.5 | > 3 |
 | `loop_age_ms` (fixed) | a process | > 1 000 ms | (HUNG) |
 | `slow_client_disconnects`, `api_dropped_events`, `stats_feed_gaps` (fixed) | a process | any increase in 5 min | — |
 | `audit_archive_errors` (fixed) — `pm-audit`'s archiver exited with an error | `pm-audit` | any increase in 5 min | — |
@@ -253,7 +253,7 @@ Sources are process keys (`pm-api-gwy/desk@host`) or `host`. A labelled
 series — one per participant, symbol, channel or core — is kept by the minute
 only. Of the engine's, only those the dashboard reads are kept (orders,
 rejects and the other request counters, fills, trades and traded value,
-resting orders, and the books' resting orders, memory and heap garbage, plus
+resting orders, and the books' resting orders, memory and heap bloat, plus
 `engine.rejects_by_code` and `engine.diagnostics`); `daily_totals` keeps
 every counter. Besides each process's own metrics, `pm-monitor` stores every process's vitals as
 `proc.rss_bytes`, `proc.cpu_pct`, `proc.threads`, `proc.fds`,

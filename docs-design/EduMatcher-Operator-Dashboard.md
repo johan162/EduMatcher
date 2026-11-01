@@ -545,7 +545,7 @@ not every beacon: all of it is O(number of books), none of it O(orders).
 | `engine.book_stop_orders` | G | symbol | `len(_buy_stops) + len(_sell_stops) + len(_trailing_stops)` |
 | `engine.book_bid_levels` / `engine.book_ask_levels` | G | symbol | `len(_bid_qty)`, `len(_ask_qty)` |
 | `engine.book_heap_entries` | G | symbol | `len(_bids) + len(_asks)` — includes lazily-invalidated entries |
-| `engine.book_heap_garbage_pct` | G | symbol | `100 × (heap_entries − live entries) / heap_entries` — shows whether `_compact_heaps` is keeping up |
+| `engine.book_heap_bloat_ratio` | G | symbol | `heap_entries / (2 × live entries + 64)` — the heap over the size `_compact_heaps` tolerates; ≤ 1 when healthy. (Replaced the dead share `heap_garbage_pct`, which a healthy book drives to 50–80 % between rebuilds; WP-HB01) |
 | `engine.book_est_bytes` | G | symbol | `OrderBook.memory_estimate()` below |
 | `engine.book_halted` | G | symbol | 0/1 from `_halted_symbols` (a `dict[str, bool]`) |
 
@@ -844,7 +844,7 @@ Static, from configuration (§14), evaluated every second in `pm-monitor`:
 | Engine `handle_us_p99` | > 5 000 µs | > 20 000 µs |
 | Process RSS growth | > 50 % over 1 h | > 100 % over 1 h |
 | Reject ratio (exchange) | > 10 % / 5 min | > 30 % / 5 min |
-| `engine.book_heap_garbage_pct` | > 50 % | > 80 % |
+| `engine.book_heap_bloat_ratio` | > 1.5 | > 3 |
 | `md.disconnects{slow_client}`, `gwy.slow_client_disconnects`, `api.dropped_events`, `stats.feed_gaps` | any increase in 5 min | — |
 
 A breach or clear produces a `THRESHOLD` event and a single `WARNING` /
@@ -863,7 +863,7 @@ key makes that process DEGRADED; one on anything else (`host`,
 `exchange`, a symbol) makes the exchange DEGRADED. The reject ratio is
 rejected acks over **all** inbound requests (orders, combos, OCOs,
 cancels, amends, quotes — the set `engine.rejects` counts) and is judged
-from 20 requests in 5 min; heap garbage from 100 heap entries (I67–I68).
+from 20 requests in 5 min; heap bloat needs no minimum sample (WP-HB01; I67–I68 judged the former garbage share from 100 heap entries).
 "Memory used" is
 `total − available`. A process recovering from HUNG passes through
 DEGRADED for thirty seconds while its `loop_age_ms` warning clears.
@@ -950,7 +950,7 @@ never re-derives a figure. Summary of the generated records:
 | `RateStats` | `today`, `per_sec_now`, `avg_per_min`, `avg_per_hour`, `avg_per_day` (null before a full day) — §9.4 |
 | `TradingStats` | `orders: RateStats`, `trades: RateStats`, `traded_value_today`, `reject_pct_5m`, `handle_p50_us`, `handle_p99_us`, `busy_pct` |
 | `ParticipantStats` | `id`, `role`, `connected`, `connected_since` (null), `orders: RateStats`, `reject_pct`, `fills_today`, `resting_orders`, `connects_today`, `disconnects_today`, `heartbeat_timeouts_today` |
-| `BookStats` | `symbol`, `resting_orders`, `gtc_orders`, `stop_orders`, `bid_levels`, `ask_levels`, `est_bytes`, `heap_garbage_pct`, `trades_today`, `halted` |
+| `BookStats` | `symbol`, `resting_orders`, `gtc_orders`, `stop_orders`, `bid_levels`, `ask_levels`, `est_bytes`, `heap_bloat_ratio`, `trades_today`, `halted` |
 | `GatewayStats` | `key`, `kind` (ALF/BALF/MD/RALF/DC/API/LOG), `clients`, `clients_max` (null), `msgs_per_sec`, `disconnects_today`, `slow_disconnects_today` |
 | `ActiveBreach` | `rule`, `subject`, `level` (WARN/CRIT), `value`, `threshold`, `since` |
 | `health.event` | `seq` (= `metrics.db` `events.seq`), `ts`, `kind` (§9.2 kinds + PROCESS_STATUS/THRESHOLD), `severity` (INFO/WARN/CRIT), `subject`, `detail` |
@@ -1104,9 +1104,9 @@ Row 4 — PARTICIPANTS
 
 Row 5 — ORDER BOOKS
 ┌──────────────────┬────────────────────────────────────────────────────────────────────────┐
-│ BOOKS   20       │ Symbol Resting Stops BidLv AskLv  Est. mem   Heap garbage  Trades  State │
-│ BOOK MEM ≈ 61 MB │ AAA    1 204   12    84    91     4.1 MB ▇   12 %  ▂       8 102   ●    │
-│ (15 % of engine) │ BBB    88      0     12    14     0.3 MB ▁   71 %  ▇ ⚠     214     HALT │
+│ BOOKS   20       │ Symbol Resting Stops BidLv AskLv  Est. mem   Heap bloat    Trades  State │
+│ BOOK MEM ≈ 61 MB │ AAA    1 204   12    84    91     4.1 MB ▇   0.30×  ▂      8 102   ●    │
+│ (15 % of engine) │ BBB    88      0     12    14     0.3 MB ▁   2.10× ▇ ⚠     214     HALT │
 └──────────────────┴────────────────────────────────────────────────────────────────────────┘
 
 Row 6 — GATEWAYS & INFRASTRUCTURE
@@ -1253,7 +1253,7 @@ monitor:
     engine_handle_p99_us: { warn: 5000, crit: 20000 }
     reject_pct_5m: { warn: 10, crit: 30 }
     rss_growth_pct_1h: { warn: 50, crit: 100 }
-    heap_garbage_pct: { warn: 50, crit: 80 }
+    heap_bloat_ratio: { warn: 1.5, crit: 3 }
 ```
 
 - **Follows the existing `log_server` convention exactly** (corrected in
@@ -2804,7 +2804,7 @@ As built (WP-D4, I117):
 - **Content:**
   - **Process:** its six stored vitals (`/api/series?source=<key>`), its application metrics as last sent, its events, and the log-gui link.
   - **Participant:** orders, rejects and fills per minute (`/api/rate?label=<id>`), its resting orders, and its events.
-  - **Book:** trades and traded value per minute, resting orders, estimated memory, heap garbage against its rule, its events, and the book-gui link.
+  - **Book:** trades and traded value per minute, resting orders, estimated memory, heap bloat against its rule, its events, and the book-gui link.
 - **Shared charts:** `views/charts.tsx` holds `CounterBars` and `SeriesChart`, one request per chart.
 - **States:** before the first snapshot the drawer waits. A subject the snapshot does not hold is "not found". A process that has never beaconed shows no charts.
 - **Bridge:** `LOG_GUI_URL` and `BOOK_GUI_URL` are read as http(s) base URLs; anything else means no link. They are served as `links` in `/api/bridge/status`. `/api/events` takes `subject=`.
@@ -2813,7 +2813,7 @@ As built (WP-D4, I117):
 WP-D review (I118):
 - **Colours are pm-monitor's verdict.** Every coloured figure takes its level from the snapshot (`useBreachLevel(rule, subject)`, `breachLevel`):
   - the processes tile from `exchange.status`;
-  - the gauges, the p99 tile, loop age per process and heap garbage per book from active breaches.
+  - the gauges, the p99 tile, loop age per process and heap bloat per book from active breaches.
 
   pm-monitor applies hysteresis and minimum samples, and judges only some subjects (books with enough heap entries, live processes), so the dashboard's own reading of a value against its band could disagree with it. The thresholds still draw the bands and the hover text, and the rules and links are reloaded every refresh interval.
 - **Live values only while beacons arrive.** A SILENT, DEAD or STOPPED process's record keeps its last figures, so a chart appends a live point only for HEALTHY, DEGRADED or HUNG processes (`beaconing`). "Memory per process" lists only those.

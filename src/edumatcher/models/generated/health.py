@@ -836,7 +836,7 @@ class BookStats:
     bid_levels: int  # unit: dimensionless
     ask_levels: int  # unit: dimensionless
     est_bytes: int  # unit: bytes
-    heap_garbage_pct: float  # unit: percent
+    heap_bloat_ratio: float  # unit: dimensionless
     trades_today: int  # unit: dimensionless
     halted: bool
 
@@ -873,13 +873,9 @@ class BookStats:
             )
         if self.est_bytes < 0:
             raise MessageValidationError(f"est_bytes: {self.est_bytes!r} must be >= 0")
-        if self.heap_garbage_pct < 0:
+        if self.heap_bloat_ratio < 0:
             raise MessageValidationError(
-                f"heap_garbage_pct: {self.heap_garbage_pct!r} must be >= 0"
-            )
-        if self.heap_garbage_pct > 100:
-            raise MessageValidationError(
-                f"heap_garbage_pct: {self.heap_garbage_pct!r} must be <= 100"
+                f"heap_bloat_ratio: {self.heap_bloat_ratio!r} must be >= 0"
             )
         if self.trades_today < 0:
             raise MessageValidationError(
@@ -902,7 +898,7 @@ class BookStats:
             bid_levels=int(p["bid_levels"]),
             ask_levels=int(p["ask_levels"]),
             est_bytes=int(p["est_bytes"]),
-            heap_garbage_pct=float(p["heap_garbage_pct"]),
+            heap_bloat_ratio=float(p["heap_bloat_ratio"]),
             trades_today=int(p["trades_today"]),
             halted=bool(p["halted"]),
         )
@@ -917,7 +913,7 @@ class BookStats:
             "bid_levels": self.bid_levels,
             "ask_levels": self.ask_levels,
             "est_bytes": self.est_bytes,
-            "heap_garbage_pct": self.heap_garbage_pct,
+            "heap_bloat_ratio": self.heap_bloat_ratio,
             "trades_today": self.trades_today,
             "halted": self.halted,
         }

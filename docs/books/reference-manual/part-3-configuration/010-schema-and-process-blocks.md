@@ -620,7 +620,7 @@ monitor:
     engine_handle_p99_us: {warn: 5000, crit: 20000}
     reject_pct_5m:        {warn: 10,   crit: 30}
     rss_growth_pct_1h:    {warn: 50,   crit: 100}
-    heap_garbage_pct:     {warn: 50,   crit: 80}
+    heap_bloat_ratio:     {warn: 1.5,  crit: 3}
 ```
 
 | Field | Default | Description |

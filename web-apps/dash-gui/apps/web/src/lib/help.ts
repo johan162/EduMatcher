@@ -39,8 +39,8 @@ const COLUMN: Record<string, Record<string, string>> = {
     bid: "Distinct buy price levels in the book. Orders at the same price share a level.",
     ask: "Distinct sell price levels in the book.",
     mem: "Estimated memory the book's data structures take in the matching engine.",
-    garbage:
-      "Share of the book's internal price-priority heap entries that belong to orders already gone (cancelled or filled) and are waiting to be cleaned up. It shows whether compaction keeps up; a high value on a busy book is a sign of trouble.",
+    bloat:
+      "Size of the book's internal price-priority heaps compared with the size the engine tolerates before it cleans out entries of orders already gone (cancelled or filled). 1.00× or less is normal; above it, cleaning is not keeping up.",
     trades: "Trades executed in this symbol today.",
     state: "TRADING: matching normally. HALTED: trading in this symbol is stopped (for example by a circuit breaker) until it is reopened.",
   },

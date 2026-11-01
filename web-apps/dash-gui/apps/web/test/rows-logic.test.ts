@@ -180,10 +180,10 @@ describe("live figures only while beacons arrive (I118)", () => {
 describe("breach levels", () => {
   const breach = (rule: string, subject: string, level: "WARN" | "CRIT") => ({ rule, subject, level, value: 0, threshold: 0, since: "" });
   it("the worst for the rule, on the subject when one is named; OK without", () => {
-    const all = [breach("heap_garbage_pct", "AAPL", "WARN"), breach("heap_garbage_pct", "MSFT", "CRIT"), breach("host_cpu_pct", "host", "WARN")];
-    expect(breachLevel(all, "heap_garbage_pct")).toBe("CRIT");
-    expect(breachLevel(all, "heap_garbage_pct", "AAPL")).toBe("WARN");
-    expect(breachLevel(all, "heap_garbage_pct", "GOOGL")).toBe("OK");
+    const all = [breach("heap_bloat_ratio", "AAPL", "WARN"), breach("heap_bloat_ratio", "MSFT", "CRIT"), breach("host_cpu_pct", "host", "WARN")];
+    expect(breachLevel(all, "heap_bloat_ratio")).toBe("CRIT");
+    expect(breachLevel(all, "heap_bloat_ratio", "AAPL")).toBe("WARN");
+    expect(breachLevel(all, "heap_bloat_ratio", "GOOGL")).toBe("OK");
     expect(breachLevel([], "host_cpu_pct", "host")).toBe("OK");
   });
 });

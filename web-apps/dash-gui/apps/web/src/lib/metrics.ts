@@ -42,7 +42,7 @@ export const GAUGE = {
   participantResting: "engine.resting_orders",
   bookResting: "engine.book_resting_orders",
   bookEstBytes: "engine.book_est_bytes",
-  bookHeapGarbage: "engine.book_heap_garbage_pct",
+  bookHeapBloat: "engine.book_heap_bloat_ratio",
 } as const;
 
 /** The engine's latency gauges in metrics.db, unlabelled, read through /api/series/multi?names=. */

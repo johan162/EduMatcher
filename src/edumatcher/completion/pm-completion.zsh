@@ -2233,7 +2233,7 @@ _shtab_pm_config_gen_options=(
   "--monitor-book-metrics-interval-sec[monitor.book_metrics_interval_sec override (\> 0, default 10).]:SEC:"
   "--monitor-raw-hours[monitor.retention.raw_hours override (\> 0, default 6).]:N:"
   "--monitor-minute-days[monitor.retention.minute_days override (\> 0, default 7).]:N:"
-  "*--monitor-threshold[monitor.thresholds.\<RULE\> override, repeatable, e.g. host_cpu_pct\:70\:90. Rules\: host_cpu_pct, host_mem_pct, disk_free_pct (warn above crit), engine_handle_p99_us, reject_pct_5m, rss_growth_pct_1h, heap_garbage_pct.]:RULE:WARN:CRIT:"
+  "*--monitor-threshold[monitor.thresholds.\<RULE\> override, repeatable, e.g. host_cpu_pct\:70\:90. Rules\: host_cpu_pct, host_mem_pct, disk_free_pct (warn above crit), engine_handle_p99_us, reject_pct_5m, rss_growth_pct_1h, heap_bloat_ratio.]:RULE:WARN:CRIT:"
   "--schedule[Force emit schedule section.]"
   "--no-schedule[Suppress schedule section.]"
   "--pre-open[HH\:MM]:HH:MM:"

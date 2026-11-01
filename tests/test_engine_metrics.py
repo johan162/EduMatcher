@@ -388,7 +388,9 @@ class TestBooks:
         assert _value(samples, "engine.book_ask_levels", "AAPL") == 1
         assert _value(samples, "engine.book_stop_orders", "AAPL") == 1
         assert _value(samples, "engine.book_resting_orders", "AAPL") == 5
-        assert _value(samples, "engine.book_heap_garbage_pct", "AAPL") == 0
+        assert _value(samples, "engine.book_heap_bloat_ratio", "AAPL") == pytest.approx(
+            5 / 74
+        )
         assert _value(samples, "engine.book_est_bytes", "AAPL") > 5 * ORDER_BYTES
         assert _value(samples, "engine.book_halted", "AAPL") == 0
 
@@ -401,7 +403,41 @@ class TestBooks:
             book.cancel_order(order.id)
         stats = book.book_stats()
         assert (stats.heap_entries, stats.live_entries) == (10, 6)
-        assert stats.heap_garbage_pct == pytest.approx(40.0)
+        assert stats.heap_bloat_ratio == pytest.approx(10 / (2 * 6 + 64))
+
+    def test_heap_stays_within_the_compaction_bound(self) -> None:
+        """Amends that lose priority and iceberg refills retire a heap entry
+        and push a new one; they must compact like a cancel does."""
+        book = OrderBook("AAPL")
+        order = _limit(Side.BUY, 9900)
+        iceberg = Order.create(
+            symbol="AAPL",
+            side=Side.SELL,
+            order_type=OrderType.ICEBERG,
+            quantity=100_000,
+            gateway_id="GW01",
+            tif=TIF.DAY,
+            price_ticks=10100,
+            visible_qty=1,
+        )
+        book.process(order, now=1)
+        book.process(iceberg, now=1)
+        for i in range(300):
+            book.amend_order(order.id, new_price=9900 - (i % 2), now=2 + i)
+            book.process(_limit(Side.BUY, 10100), now=1000 + i)  # takes one slice
+            assert book.book_stats().heap_bloat_ratio <= 1.0
+        assert book.book_stats().live_entries == 2
+
+    def test_a_healthy_book_with_much_garbage_is_not_bloated(self) -> None:
+        book = OrderBook("AAPL")
+        orders = [_limit(Side.BUY, 9900 - i) for i in range(30)]
+        for order in orders:
+            book.process(order, now=1)
+        for order in orders[:20]:
+            book.cancel_order(order.id)
+        stats = book.book_stats()
+        assert stats.heap_entries - stats.live_entries >= 20  # garbage not yet swept
+        assert stats.heap_bloat_ratio < 1.0
 
     def test_book_gauges_refresh_only_every_interval(self, engine: Any) -> None:
         connect(engine, "GW01")
@@ -808,7 +844,7 @@ def test_the_beacon_carries_every_metric_of_the_design(engine: Any) -> None:
         "engine.book_bid_levels",
         "engine.book_ask_levels",
         "engine.book_heap_entries",
-        "engine.book_heap_garbage_pct",
+        "engine.book_heap_bloat_ratio",
         "engine.book_est_bytes",
         "engine.book_halted",
     }

@@ -1241,7 +1241,7 @@ One order book (design section 8.3); refreshed every book_metrics_interval_sec.
 | `bid_levels` | `int` | required | ge 0, unit `dimensionless` |  |
 | `ask_levels` | `int` | required | ge 0, unit `dimensionless` |  |
 | `est_bytes` | `int` | required | ge 0, unit `bytes` | An estimate from measured per-object constants, never an exact figure. |
-| `heap_garbage_pct` | `float` | required | ge 0, le 100, unit `percent` |  |
+| `heap_bloat_ratio` | `float` | required | ge 0, unit `dimensionless` | Heap entries over the size compaction tolerates; at most 1.0 in a healthy book. |
 | `trades_today` | `int` | required | ge 0, unit `dimensionless` |  |
 | `halted` | `bool` | required | — |  |
 

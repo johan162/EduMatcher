@@ -9,6 +9,7 @@ import {
   formatMicros,
   formatMillis,
   formatPercent,
+  formatRatio,
   formatRate,
 } from "../src/lib/format.js";
 
@@ -67,6 +68,12 @@ describe("rates, percent, durations", () => {
     expect(formatRate(4.2, "min")).toBe("4.20 /min");
     expect(formatRate(3071, "min")).toBe(`3${T}071 /min`);
     expect(formatRate(0, "h")).toBe("0 /h");
+  });
+
+  it("ratio: two decimals and a multiplication sign", () => {
+    expect(formatRatio(0)).toBe("0.00×");
+    expect(formatRatio(0.054)).toBe("0.05×");
+    expect(formatRatio(1.5)).toBe("1.50×");
   });
 
   it("percent: one decimal below 100", () => {

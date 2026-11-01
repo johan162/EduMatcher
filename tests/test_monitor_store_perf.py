@@ -51,7 +51,7 @@ def _series(gateways: int, symbols: int) -> list[tuple[SeriesKey, bool]]:
         ("book_bid_levels", False),
         ("book_ask_levels", False),
         ("book_heap_entries", False),
-        ("book_heap_garbage_pct", False),
+        ("book_heap_bloat_ratio", False),
         ("book_est_bytes", False),
     ):
         out += [((eng, f"engine.{name}", f"S{s}"), counter) for s in range(symbols)]

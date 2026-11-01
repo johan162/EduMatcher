@@ -74,7 +74,7 @@ export const MONITOR_THRESHOLD_RULES = [
   "engine_handle_p99_us",
   "reject_pct_5m",
   "rss_growth_pct_1h",
-  "heap_garbage_pct",
+  "heap_bloat_ratio",
 ] as const;
 export type MonitorThresholdRule = (typeof MONITOR_THRESHOLD_RULES)[number];
 

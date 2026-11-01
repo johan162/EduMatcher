@@ -217,7 +217,8 @@ types:
       - { name: ask_levels, type: int, unit: dimensionless, validate: { ge: 0 } }
       - { name: est_bytes, type: int, unit: bytes, validate: { ge: 0 },
           doc: "An estimate from measured per-object constants, never an exact figure." }
-      - { name: heap_garbage_pct, type: float, unit: percent, validate: { ge: 0, le: 100 } }
+      - { name: heap_bloat_ratio, type: float, unit: dimensionless, validate: { ge: 0 },
+          doc: "Heap entries over the size compaction tolerates; at most 1.0 in a healthy book." }
       - { name: trades_today, type: int, unit: dimensionless, validate: { ge: 0 } }
       - { name: halted, type: bool }
 

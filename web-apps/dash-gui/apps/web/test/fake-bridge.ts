@@ -39,7 +39,7 @@ export function fakeBridge(links: CrossAppLinks = { logGui: null, bookGui: null 
             disk_free_pct: rule(15, 5, true),
             engine_handle_p99_us: rule(2000, 10000),
             reject_pct_5m: rule(10, 30),
-            heap_garbage_pct: rule(50, 80),
+            heap_bloat_ratio: rule(1.5, 3),
             loop_age_ms: rule(1000, null),
           },
         });

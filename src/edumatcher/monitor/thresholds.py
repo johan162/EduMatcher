@@ -46,10 +46,8 @@ LOOP_AGE_RULE = "loop_age_ms"
 LOOP_AGE_WARN_MS = 1000.0
 
 #: Ratios judged only above a minimum sample (I68): two refused requests out
-#: of three is not an exchange in trouble, and a book of three heap entries
-#: with one stale is not a compaction problem.
+#: of three is not an exchange in trouble.
 MIN_REQUESTS_5M = 20
-MIN_HEAP_ENTRIES = 100
 
 _LEVELS = ("OK", "WARN", "CRIT")
 
