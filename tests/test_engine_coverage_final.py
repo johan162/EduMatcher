@@ -7,7 +7,7 @@ verbose paths, no-config init, and board/viewer/audit/stats helpers.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -747,3 +747,60 @@ class TestEngineConfigLoadError:
         cfg_path.write_text("bad yaml: {{{{")
         with pytest.raises(SystemExit):
             Engine(config_path=str(cfg_path))
+
+
+class TestRestoreGtcSessionTimezone:
+    """TIF=DAY staleness is judged on the session-timezone calendar date."""
+
+    def test_session_tz_defaults_without_config(self, monkeypatch, tmp_path) -> None:
+        engine, _ = _make_engine(monkeypatch, tmp_path, gtc_orders=[], verbose=False)
+        engine._engine_config = None
+        assert str(engine._session_tz()) == "Europe/Stockholm"
+
+    def test_session_tz_follows_locale(self, monkeypatch, tmp_path) -> None:
+        engine, _ = _make_engine(monkeypatch, tmp_path, gtc_orders=[], verbose=False)
+        assert engine._engine_config is not None
+        engine._engine_config.locale.session_timezone = "Asia/Tokyo"
+        assert str(engine._session_tz()) == "Asia/Tokyo"
+        engine._engine_config.locale.session_timezone = "UTC"
+        assert engine._session_tz() is timezone.utc
+
+    def test_day_order_judged_in_session_timezone(self, monkeypatch, tmp_path) -> None:
+        """An order placed at 23:30 UTC yesterday is already 'today' in Tokyo
+        (08:30 JST) when 'now' is 00:30 UTC: it survives a restart there but
+        is stale on the UTC calendar."""
+        import edumatcher.engine.main as engine_main
+
+        now = datetime(2026, 11, 1, 0, 30, tzinfo=timezone.utc)
+        placed = datetime(2026, 10, 31, 23, 30, tzinfo=timezone.utc)
+
+        class _Clock(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return now.astimezone(tz) if tz else now.replace(tzinfo=None)
+
+        monkeypatch.setattr(engine_main, "datetime", _Clock)
+
+        survived = {}
+        for tz_name in ("Asia/Tokyo", "UTC"):
+            order = Order.create(
+                symbol="AAPL",
+                side=Side.BUY,
+                order_type=OrderType.LIMIT,
+                quantity=100,
+                gateway_id="GW01",
+                tif=TIF.DAY,
+                price_ticks=10000,
+            )
+            order.status = OrderStatus.NEW
+            order.ts_ns = int(placed.timestamp() * 1e9)
+            engine, _ = _make_engine(
+                monkeypatch, tmp_path, gtc_orders=[order], verbose=False
+            )
+            assert engine._engine_config is not None
+            engine._engine_config.locale.session_timezone = tz_name
+            engine._restore_gtc()
+            survived[tz_name] = "AAPL" in engine.books and bool(
+                engine.books["AAPL"].resting_orders()
+            )
+        assert survived == {"Asia/Tokyo": True, "UTC": False}

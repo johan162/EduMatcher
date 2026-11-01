@@ -2255,7 +2255,7 @@ _shtab_pm_config_gen_options=(
   "--holidays-closing-auction[HH\:MM]:HH:MM:"
   "--holidays-closing-end[HH\:MM]:HH:MM:"
   "--country[Country pm-scheduler uses for its bank-holiday\/weekend calendar (name, e.g. \"Sweden\", or ISO 3166-1 alpha-2 code, e.g. \"SE\"). Defaults to \"Sweden\" when omitted.]:COUNTRY:"
-  "--session-timezone[IANA timezone every process bucketing events into a trading day (pm-stats, pm-clearing, ...) uses, e.g. America\/New_York. Defaults to \"UTC\" when omitted.]:TZ:"
+  "--session-timezone[IANA timezone every process bucketing events into a trading day (pm-stats, pm-clearing, ...) uses, e.g. America\/New_York. Defaults to \"Europe\/Stockholm\" when omitted.]:TZ:"
   "*--index[Define an index (repeatable, up to 5). ID is letters and digits only\; DESCRIPTION is optional text after the first colon.]:ID[:DESCRIPTION]:"
   "*--index-constituents[Constituent symbols for an index, all in one flag\; once per index. Each needs --outstanding-shares and a reference price (--seed-mm-mid-range with --seed-last-prices-from-mm).]:ID:SYM[,SYM,...]:"
   "*--index-base-value[Override base_value for an index (default\: 1000.0). Once per index.]:ID:VALUE:"

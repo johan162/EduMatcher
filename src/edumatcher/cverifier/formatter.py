@@ -264,7 +264,7 @@ def format_json(report: VerificationReport) -> str:
             "collars_configured": rs.collars_configured,
             "order_limits_configured": rs.order_limits_configured,
             "circuit_breakers_enforced": rs.circuit_breakers_enforced,
-            "circuit_breakers_using_defaults": not rs.circuit_breakers_configured,
+            "circuit_breakers_configured": rs.circuit_breakers_configured,
             "mm_obligations_enforced": rs.mm_obligations_enforced,
             "admin_gateway": rs.admin_gateway,
             "indices": rs.indices,

@@ -96,6 +96,62 @@ def check(raw: dict[str, Any], path: Path) -> list[CheckResult]:  # noqa: ARG001
 # ---------------------------------------------------------------------------
 
 
+def _positive_int(value: object) -> int | None:
+    """``value`` as a positive int, or ``None`` when it is absent or unusable."""
+    if isinstance(value, bool) or value is None:
+        return None
+    try:
+        number = int(value)  # type: ignore[call-overload]
+    except TypeError, ValueError:
+        return None
+    return number if number > 0 else None
+
+
+def _effective_max_spread(
+    raw: dict[str, Any], gateway_id: str, symbol: str
+) -> int | None:
+    """The spread limit, in ticks, that applies to one gateway on one symbol.
+
+    Most specific source first, as the engine resolves it: the participant's
+    ``mm_obligations.<SYMBOL>``, ``mm_obligation_defaults.symbols.<SYMBOL>``,
+    the participant's flat ``mm_max_spread_ticks``, the
+    ``mm_obligation_defaults`` flat value, then the built-in 20.
+    """
+    defaults = raw.get("mm_obligation_defaults")
+    defaults = defaults if isinstance(defaults, dict) else {}
+    participant: dict[str, Any] = {}
+    participants = raw.get("participants")
+    if isinstance(participants, list):
+        for gw in participants:
+            if (
+                isinstance(gw, dict)
+                and str(gw.get("id", "")).strip().upper() == gateway_id
+            ):
+                participant = gw
+                break
+
+    per_gateway = participant.get("mm_obligations")
+    per_gateway = per_gateway if isinstance(per_gateway, dict) else {}
+    per_symbol = defaults.get("symbols")
+    per_symbol = per_symbol if isinstance(per_symbol, dict) else {}
+
+    def entry(mapping: dict[Any, Any]) -> dict[str, Any]:
+        for key, value in mapping.items():
+            if str(key).upper() == symbol and isinstance(value, dict):
+                return value
+        return {}
+
+    for found in (
+        _positive_int(entry(per_gateway).get("max_spread_ticks")),
+        _positive_int(entry(per_symbol).get("mm_max_spread_ticks")),
+        _positive_int(participant.get("mm_max_spread_ticks")),
+        _positive_int(defaults.get("mm_max_spread_ticks")),
+    ):
+        if found is not None:
+            return found
+    return 20
+
+
 def _check_mm_seeds(raw: dict[str, Any], results: list[CheckResult]) -> None:
     mm_gateways = gateway_ids_by_role(raw, "MARKET_MAKER")
     all_ids = all_gateway_ids(raw)
@@ -119,12 +175,9 @@ def _check_mm_seeds(raw: dict[str, Any], results: list[CheckResult]) -> None:
 
     # M003 only applies when MM obligations are actually configured.
     mm_obligation_defaults = raw.get("mm_obligation_defaults")
-    mm_max_spread: int | None = None
-    if isinstance(mm_obligation_defaults, dict) and mm_obligation_defaults:
-        try:
-            mm_max_spread = int(mm_obligation_defaults.get("mm_max_spread_ticks", 20))
-        except TypeError, ValueError:
-            mm_max_spread = 10
+    check_spread = isinstance(mm_obligation_defaults, dict) and bool(
+        mm_obligation_defaults
+    )
 
     for sym_raw, cfg in symbols.items():
         sym = str(sym_raw).upper()
@@ -195,8 +248,11 @@ def _check_mm_seeds(raw: dict[str, Any], results: list[CheckResult]) -> None:
                         )
                     )
 
-            # M003: spread exceeds MM max spread ticks
-            if mm_max_spread is not None:
+            # M003: spread exceeds the limit that applies to this gateway/symbol
+            if check_spread:
+                mm_max_spread = _effective_max_spread(
+                    raw, str(gw_id_raw or "").strip().upper(), sym
+                )
                 bid = quote.get("bid_price")
                 ask = quote.get("ask_price")
                 tick_decimals = cfg.get("tick_decimals", 2)

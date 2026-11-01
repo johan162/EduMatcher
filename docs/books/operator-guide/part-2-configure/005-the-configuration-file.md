@@ -122,6 +122,11 @@ Three facts about the file explain most of the surprises operators meet:
   `alf_gateway`; `pm-alf-gwy` never looks at `risk_controls`. A mistake in a
   gateway block cannot be seen by the engine — `pm-cverifier` is what looks at
   the whole file.
+- **A misspelled key is an error.** The loaders themselves ignore a key they do
+  not know, so `hartbeat_interval_sec` would silently leave the default in
+  force. `pm-cverifier` closes that gap: `S121` reports any key that no loader
+  reads, at any level, and names the closest accepted spelling. The verifier
+  runs inside `pm-config-deploy`, so an unrecognised key stops a deploy.
 
 ### Conventions used by every block
 
@@ -131,7 +136,7 @@ Three facts about the file explain most of the surprises operators meet:
 | **IDs and names** | Symbols, participant IDs, level names and index IDs are upper-cased by the loader. Write them upper-case anyway. |
 | **Durations** | Suffix tells the unit: `_sec`, `_ms`, `_days`, `_hours` are what they say. Circuit-breaker fields end in `_ns` — **nanoseconds**: `300000000000` is five minutes. |
 | **Fractions** | Percentages are fractions: `0.20` means 20 %. |
-| **Wall-clock times** | `"HH:MM"` strings in 24-hour local time. Quote them; unquoted `09:30` is read by YAML as a number. |
+| **Wall-clock times** | `"HH:MM"` strings, 24-hour, in `locale.session_timezone`. Quote them; an unquoted `9:30` is read by YAML as a number of minutes. |
 | **`null`** | An empty value (`halt_duration_ns:`) is `null`. Where a field allows it, `null` means "no limit". |
 | **Bind addresses** | `bind_address` / `host` default to `0.0.0.0` (all interfaces). The environment variable `EDUMATCHER_GATEWAY_BIND_HOST`, when set, overrides every one of them. |
 | **Ports** | Every listener in the file must use a different port — see [Ports at a glance](#ports-at-a-glance). `pm-cverifier` reports a clash as `M018`. |
@@ -183,7 +188,7 @@ pm-cverifier engine_config.yaml
 [M032] WARN  No read-only API credential (gateway_id: null) is defined under api_gateways.
 [C001] WARN  No symbol has a reference price (last_buy_price / last_sell_price).
 [C003] INFO  enforce_collars is true but no symbol has an effective collar ...
-[C004] INFO  enforce_circuit_breakers is true but circuit_breaker_defaults is absent ...
+[C004] INFO  enforce_circuit_breakers is true but no circuit breaker is configured ...
 [C007] INFO  snapshot_interval_sec is at the default of 0.5 seconds.
 [C009] INFO  sessions_enabled is false and no schedule is configured. ...
 
@@ -733,8 +738,7 @@ and MM01 is further held to a 300-share minimum there; every other symbol uses
     A seed quote is a real quote. Keep each one inside its effective
     `mm_max_spread_ticks` and `mm_min_qty`; the spread in ticks is
     `(ask − bid) ÷ tick size`. `pm-cverifier` warns about a wide seed (`M003`),
-    but it compares against the **global** `mm_max_spread_ticks` only — it does
-    not see per-symbol or per-participant values, so check those by hand.
+    comparing it with the limit that applies to that gateway on that symbol.
 
 ### `symbols.<SYMBOL>.market_maker_quotes`
 
@@ -824,9 +828,8 @@ indices:
 | `constituents` | non-empty list of symbols, **required** | — | Each must exist in `symbols` **and** have `outstanding_shares`. |
 
 `pm-index` creates the history and state directories on start. Leave both paths
-out unless you have a reason to move them. (`pm-cverifier` may warn about a
-missing parent directory, `C013`, for a path you do give; it checks relative to
-the shell's current directory, not the data directory.)
+out unless you have a reason to move them. (`pm-cverifier` warns, `C013`, only
+when a path you give is below a directory `pm-index` could not create.)
 
 ## Step 8: the access points
 

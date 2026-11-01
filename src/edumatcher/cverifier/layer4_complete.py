@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import math
+import os
 from pathlib import Path
 from typing import Any
 
+from edumatcher.config import resolve_data_path
 from edumatcher.cverifier.helpers import gateway_ids_by_role
 from edumatcher.cverifier.models import CheckResult, Severity
 
@@ -137,20 +139,36 @@ def _check_cb_completeness(raw: dict[str, Any], results: list[CheckResult]) -> N
     if not enforce_cb:
         return
 
+    # A symbol gets a breaker only from circuit_breaker_defaults or from its own
+    # circuit_breaker block; with neither anywhere, no symbol is protected.
     cb_defaults = raw.get("circuit_breaker_defaults")
-    has_cb = isinstance(cb_defaults, dict) and bool(cb_defaults.get("levels"))
+    symbols = raw.get("symbols")
+    symbol_blocks = (
+        [
+            cfg.get("circuit_breaker")
+            for cfg in symbols.values()
+            if isinstance(cfg, dict)
+        ]
+        if isinstance(symbols, dict)
+        else []
+    )
+    has_cb = isinstance(cb_defaults, dict) or any(
+        isinstance(block, dict) for block in symbol_blocks
+    )
     if not has_cb:
         results.append(
             CheckResult(
                 code="C004",
                 severity=Severity.INFO,
                 message=(
-                    "enforce_circuit_breakers is true but circuit_breaker_defaults is "
-                    "absent and no circuit breaker levels are defined."
+                    "enforce_circuit_breakers is true but no circuit breaker is "
+                    "configured (no circuit_breaker_defaults and no symbol "
+                    "circuit_breaker block), so no symbol will ever be halted."
                 ),
                 suggestion=(
-                    "The built-in defaults (L1=7%, L2=13%, L3=20%) will be used. "
-                    "Explicitly add circuit_breaker_defaults if you want different thresholds."
+                    "Add circuit_breaker_defaults to protect every symbol (without "
+                    "levels it uses the built-in ladder L1=7%, L2=13%, L3=20%), or "
+                    "set enforce_circuit_breakers: false."
                 ),
                 path="circuit_breaker_defaults",
             )
@@ -373,6 +391,17 @@ def _check_unused_risk_levels(raw: dict[str, Any], results: list[CheckResult]) -
 # ---------------------------------------------------------------------------
 
 
+def _can_create_parent(path: Path) -> bool:
+    """Whether ``pm-index`` can make ``path``'s directory (it uses ``mkdir -p``).
+
+    That holds when the nearest existing ancestor is a writable directory.
+    """
+    ancestor = path.parent
+    while not ancestor.exists() and ancestor != ancestor.parent:
+        ancestor = ancestor.parent
+    return ancestor.is_dir() and os.access(ancestor, os.W_OK | os.X_OK)
+
+
 def _check_index_paths(raw: dict[str, Any], results: list[CheckResult]) -> None:
     indices = raw.get("indices")
     if not isinstance(indices, list):
@@ -386,19 +415,19 @@ def _check_index_paths(raw: dict[str, Any], results: list[CheckResult]) -> None:
             val = idx.get(path_field)
             if not val or not isinstance(val, str):
                 continue
-            parent = Path(val).parent
-            if not parent.exists() and str(parent) not in (".", ""):
+            if not _can_create_parent(resolve_data_path(val)):
                 results.append(
                     CheckResult(
                         code="C013",
                         severity=Severity.WARN,
                         message=(
                             f"Index '{idx_id}': {path_field} path '{val}' is under "
-                            f"a directory that may not exist at startup."
+                            f"a directory that pm-index cannot create."
                         ),
                         suggestion=(
-                            "Create the directory before starting pm-index or "
-                            "use an existing path."
+                            "pm-index creates missing directories itself, but not "
+                            "below one it may not write to. Use a path under the "
+                            "data directory or create the directory beforehand."
                         ),
                         path=f"indices[id={idx_id}].{path_field}",
                     )

@@ -150,7 +150,7 @@ Gateways         2  (TRADER01: TRADER, MM01: MARKET_MAKER)
 Sessions         disabled — always CONTINUOUS
 Collars          enabled — DEFAULT: static=20%, dynamic=2%
 Order limits     none configured
-Circuit breakers enabled — L1=7% (5 min), L2=13% (15 min), L3=20% (rest-of-day) (built-in defaults)
+Circuit breakers enabled — enabled but no circuit breaker configured ⚠
 MM obligations   not enforced
 Admin gateway    none ⚠
 
@@ -506,7 +506,7 @@ is validated while parsing `circuit_breaker_defaults`.
 |--------|----------|---------------------------------------------------------------|
 | `M001` | ERROR    | MM gateway present but a symbol has no seed quotes (skipped when `require_mm_seed_quotes: false`) |
 | `M002` | ERROR    | MM seed references a gateway ID not in `participants`         |
-| `M003` | WARN     | MM seed spread exceeds `mm_max_spread_ticks`                  |
+| `M003` | WARN     | MM seed spread exceeds the `mm_max_spread_ticks` that applies to that gateway and symbol (participant `mm_obligations`, then `mm_obligation_defaults.symbols`, then the participant's own value, then `mm_obligation_defaults`, then 20) |
 | `M004` | INFO     | Sessions enabled (the default) but no `schedule`: the built-in weekday timetable is used |
 | `M005` | WARN     | `sessions_enabled: false` but a `schedule` is present         |
 | `M006` | WARN     | Schedule times not in chronological order                     |
@@ -551,7 +551,7 @@ all is deliberately left quiet (confirmed by
 | `C001` | WARN     | No symbol has a reference price                                     |
 | `C002` | INFO     | Symbol has only one of `last_buy_price` / `last_sell_price`         |
 | `C003` | INFO     | `enforce_collars: true` but no collar configured                    |
-| `C004` | INFO     | `enforce_circuit_breakers: true` but no CB levels                   |
+| `C004` | INFO     | `enforce_circuit_breakers: true` but no circuit breaker is configured (no `circuit_breaker_defaults`, no symbol `circuit_breaker`): no symbol will be halted |
 | `C006` | WARN     | `enforce_mm_obligation: false`                                      |
 | `C007` | INFO     | `engine_tuning.snapshot_interval_sec` is at the default `0.5`                   |
 | `C008` | WARN     | Index constituent has no reference price                            |
@@ -559,25 +559,7 @@ all is deliberately left quiet (confirmed by
 | `C010` | WARN     | `disconnect_behaviour: LEAVE_ALL` on a non-ADMIN gateway            |
 | `C011` | INFO     | Risk level defined but no symbol uses it                            |
 | `C012` | WARN     | More than 20 symbols with `snapshot_interval_sec < 0.2`             |
-| `C013` | WARN     | Index `history_file` or `state_file` parent directory may not exist |
-
-!!! warning "Three messages that say more than the engine does"
-    - **`C004` and the *(built-in defaults)* note in the Risk Summary** say that
-      the built-in ladder (L1 7 %, L2 13 %, L3 20 %) "will be used" when
-      `circuit_breaker_defaults` is absent. It is not: with no
-      `circuit_breaker_defaults` and no per-symbol `circuit_breaker` block, the
-      engine creates **no** breaker for the symbol. The built-in ladder only
-      fills in `levels` when a circuit-breaker block exists but names none. To get
-      breakers, write `circuit_breaker_defaults` (see
-      [Step 4](005-the-configuration-file.md#step-4-price-protection)).
-    - **`M003`** compares each seed quote's spread with the *global*
-      `mm_obligation_defaults.mm_max_spread_ticks` (or 20) only. A wider
-      per-symbol or per-participant limit is not considered, so a seed that is
-      within its own limit can still be reported.
-    - **`C013`** tests whether the index file's parent directory exists relative
-      to your shell's current directory. `pm-index` creates the directory itself,
-      under the data directory, so the warning can be ignored for the default
-      `data/indexes/…` paths.
+| `C013` | WARN     | Index `history_file` or `state_file` is below a directory `pm-index` cannot create (relative paths are resolved under the data directory) |
 
 
 ## Using in CI
@@ -609,7 +591,7 @@ actually do at runtime?"*
 | Sessions         | Enabled/disabled, schedule summary               |
 | Collars          | Whether enforced and which levels are configured |
 | Order limits     | Per-symbol max order qty/value, or "none configured" |
-| Circuit breakers | Whether enforced and threshold summary; noted "(built-in defaults)" when no `circuit_breaker_defaults` is configured |
+| Circuit breakers | Whether enforced and threshold summary; reads "no circuit breaker configured ⚠" when neither `circuit_breaker_defaults` nor any symbol `circuit_breaker` block exists |
 | MM obligations   | Whether enforcement is active                    |
 | Admin gateway    | Which gateway (if any) has role `ADMIN`          |
 | Indices          | Index IDs if any are configured                  |
@@ -619,9 +601,9 @@ subsystem configuration (for example missing ADMIN gateway or missing collar
 configuration), even if the overall verdict is `OK`.
 
 The JSON `risk_summary` object carries a few additional machine-readable
-fields not shown in the text table above, including `circuit_breakers_using_defaults`
-(`true` when no explicit `circuit_breaker_defaults` block was configured and the
-built-in L1/L2/L3 ladder is in effect).
+fields not shown in the text table above, including `circuit_breakers_configured`
+(`false` when neither a `circuit_breaker_defaults` block nor a symbol
+`circuit_breaker` block exists, so no symbol will be halted).
 
 
 ## Relationship to Other Tools
