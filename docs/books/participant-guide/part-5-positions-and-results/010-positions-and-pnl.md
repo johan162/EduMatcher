@@ -359,9 +359,12 @@ gateway *traded*, so a position that was merely held while the price moved would
 otherwise be invisible to the end-of-day settlement
 ([Closing the Day](../../operator-guide/part-4-run-a-market/100-closing-the-day.md)).
 It is written when the session reaches `CLOSED` (after the buffered trades are
-flushed), and — only if that date has none yet — on `system.eod` when the engine
-shuts down gracefully. A second `CLOSED` on the same date replaces the date's
-rows. Rows are small and **are not pruned** with `trade_events`.
+flushed) and on `system.eod` when the engine shuts down gracefully, replacing
+that date's rows — **unless the date's snapshot is final**: the date's latest
+session phase is `CLOSED` and a snapshot exists. A final snapshot is the real
+close and may already be settled, so neither a shutdown nor the `CLOSED` an
+engine restart announces after the close replaces it. Rows are small and **are
+not pruned** with `trade_events`.
 
 | Column | Type | Description |
 |---|---|---|

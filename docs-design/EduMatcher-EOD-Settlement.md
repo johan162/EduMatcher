@@ -647,3 +647,25 @@ because each loses or deletes a zero-sum set of amounts.
   the first shutdown snapshot of a date (M2); per-gateway full scans of
   `trade_events` in `assemble._trades` and loading every snapshot row in
   `pending_dates` (P1, P2); the remaining doc fixes.
+
+**Review fixes R2 (2026-11-01).** When `pm-clearing` writes or keeps the close
+snapshot, now one rule for both handlers: `store.close_snapshot_is_final` —
+the date's latest `PHASE` row is `CLOSED` and a snapshot exists. A final
+snapshot is never replaced; any other is.
+- **M1, post-close restart.** The graceful shutdown re-marks positions
+  (bid/ask mid where the book has no last price) and the next boot announces
+  `CLOSED` again, which rewrote the date's snapshot after `pm-eod` may have
+  settled it; the next day was then measured from different numbers. The
+  `CLOSED` handler judges finality *before* recording its own `PHASE` row, so a
+  `CLOSED` that follows the day's `CLOSED` keeps the snapshot. A `CLOSED` after
+  trading resumed (morning boot, mid-day restart) still replaces it.
+- **M2, no scheduler.** The shutdown wrote a snapshot only if the date had
+  none, so a second graceful stop the same day was ignored and the afternoon
+  went into the next settled day. With no `PHASE` rows nothing is final, so the
+  last shutdown of the day wins. With sessions, a shutdown after the real close
+  keeps it (as before); a mid-day shutdown replaces a provisional one, which
+  the gate refuses to settle anyway.
+- "Snapshot exists" is part of the rule so a crash between the `PHASE` row and
+  the copy cannot freeze a date with no snapshot.
+- Not run against a live engine; covered by handler tests driving the real
+  `_handle_session_state` / `_handle_eod`.

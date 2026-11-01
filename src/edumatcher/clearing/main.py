@@ -59,11 +59,11 @@ from edumatcher.clearing.ledger import Ledger, trade_date
 from edumatcher.clearing.store import (
     TradeEventRow,
     close_latest_gateway_session,
+    close_snapshot_is_final,
     fetch_all_positions,
     flush_batch,
     open_writer_connection,
     prune_old_events,
-    query_close_snapshots,
     reconcile_session_timezone,
     record_gateway_connect,
     record_session_event,
@@ -728,10 +728,9 @@ class ClearingProcess:
 
                 # Without a scheduler no CLOSED is ever announced, so the
                 # shutdown is the only close there is: take the close snapshot
-                # now.  A date that already has one (the real CLOSED) keeps it.
-                if not query_close_snapshots(
-                    self._conn, date_value=eod_trade_date, limit=1
-                ):
+                # now, replacing an earlier shutdown's of the same day.  A
+                # snapshot from the day's real CLOSED is final and kept.
+                if not close_snapshot_is_final(self._conn, eod_trade_date):
                     write_close_snapshot(self._conn, eod_trade_date)
 
                 # 3. Write EOD sentinel row.
@@ -784,13 +783,18 @@ class ClearingProcess:
             if not state:
                 return
             ts_ns = now_ns()
+            day = trade_date(ts_ns, self._tz)
             pruned = 0
             with self._lock:
+                # Judged before this row is recorded: a CLOSED that follows the
+                # day's CLOSED (an engine restart after the close) must not
+                # replace a snapshot pm-eod may already have settled.
+                final = state == "CLOSED" and close_snapshot_is_final(self._conn, day)
                 record_session_event(
                     self._conn,
                     event_type="PHASE",
                     ts_ns=ts_ns,
-                    trade_date=trade_date(ts_ns, self._tz),
+                    trade_date=day,
                     payload_json=json.dumps(
                         {
                             "state": state,
@@ -806,10 +810,11 @@ class ClearingProcess:
                     # positions are already marked to the last trade price
                     # (Ledger._remark_symbol), so copying them is the close.
                     self._flush()
-                    snapshot_rows = write_close_snapshot(
-                        self._conn, trade_date(ts_ns, self._tz)
-                    )
-                    log.info("close snapshot: %d position(s)", snapshot_rows)
+                    if final:
+                        log.info("close snapshot for %s is final; kept", day)
+                    else:
+                        snapshot_rows = write_close_snapshot(self._conn, day)
+                        log.info("close snapshot: %d position(s)", snapshot_rows)
                 if state == "CLOSED" and self._retention_days > 0:
                     pruned = prune_old_events(
                         self._conn, retention_days=self._retention_days

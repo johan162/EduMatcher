@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import sqlite3
 from collections.abc import Generator
 from datetime import datetime, timedelta, timezone
@@ -16,6 +17,7 @@ from edumatcher.clearing.store import (
     TradeEventRow,
     apply_schema,
     close_latest_gateway_session,
+    close_snapshot_is_final,
     flush_batch,
     open_readonly_connection,
     open_writer_connection,
@@ -971,6 +973,35 @@ class TestCloseSnapshot:
             ("2026-07-02", 900.0),
             ("2026-07-01", 500.0),
         ]
+
+    @pytest.mark.parametrize(
+        ("phases", "snapshot", "final"),
+        [
+            (["CLOSED"], True, True),
+            (["CLOSED", "CONTINUOUS"], True, False),  # boot CLOSED, trading went on
+            (["CLOSED"], False, False),  # crashed between the PHASE row and the copy
+            ([], True, False),  # no sessions: a shutdown snapshot
+        ],
+    )
+    def test_close_snapshot_is_final(
+        self,
+        conn: sqlite3.Connection,
+        phases: list[str],
+        snapshot: bool,
+        final: bool,
+    ) -> None:
+        for ts, state in enumerate(phases, start=1):
+            record_session_event(
+                conn,
+                event_type="PHASE",
+                ts_ns=ts,
+                trade_date="2026-07-01",
+                payload_json=json.dumps({"state": state}),
+            )
+        if snapshot:
+            flush_batch(conn, [], [_position_row()], [])
+            write_close_snapshot(conn, "2026-07-01")
+        assert close_snapshot_is_final(conn, "2026-07-01") is final
 
     def test_filters_by_gateway_and_symbol(self, conn: sqlite3.Connection) -> None:
         flush_batch(

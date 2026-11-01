@@ -507,10 +507,12 @@ If you skip a day (you forgot to run it, or its run failed and you moved on),
 nothing is lost: the next date you settle counts from the close of the last
 date that *was* settled, so it covers both days in one amount.
 
-!!! note "Only the first snapshot of a date is kept on shutdown"
-    If the date already has a snapshot from a real `CLOSED` transition, the
-    shutdown does not overwrite it; the snapshot from the market close is the
-    one that is settled.
+!!! note "Stopping the engine more than once a day"
+    Each graceful shutdown replaces that date's snapshot, so if you stop the
+    engine at lunch and again in the evening, the evening one is settled and
+    the afternoon's trading counts for that day. (On an exchange *with* a
+    scheduler, the snapshot taken at the real market close is final: a later
+    shutdown or restart that day never replaces it.)
 
 ### Where everything lives
 
@@ -946,6 +948,10 @@ overwrites the provisional snapshot. If the day never closes properly (the
 scheduler was stopped, say), it is never settled on its own: its gains and
 losses are included in the next day that is settled, because each settlement
 counts from the close of the last day that *was* settled.
+
+Restarting the engine **after** the close (for maintenance, say) also announces
+`CLOSED`, but changes nothing: once a day has really closed its snapshot is
+final, and only the next trading day takes a new one.
 
 ### A trader joins or leaves mid-way
 

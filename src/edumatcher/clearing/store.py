@@ -35,6 +35,7 @@ analytics.
 
 from __future__ import annotations
 
+import json
 import logging
 import sqlite3
 from dataclasses import dataclass
@@ -652,6 +653,26 @@ def write_close_snapshot(conn: sqlite3.Connection, trade_date: str) -> int:
             (trade_date,),
         )
     return cur.rowcount
+
+
+def close_snapshot_is_final(conn: sqlite3.Connection, trade_date: str) -> bool:
+    """
+    True when ``trade_date`` has a close snapshot taken at its real close.
+
+    That is: the date's latest ``PHASE`` row is CLOSED and a snapshot exists.
+    Nothing may replace such a snapshot — not an engine restart after the
+    close (which re-announces CLOSED after the shutdown re-marked positions)
+    and not the shutdown itself — because pm-eod may already have settled it.
+    Any other snapshot is provisional: the boot-time CLOSED of a day that went
+    on trading, or a shutdown without sessions, where the last one counts.
+    """
+    phases = query_session_events(
+        conn, event_type="PHASE", from_date=trade_date, to_date=trade_date, limit=1
+    )
+    latest = json.loads(phases[0]["payload_json"] or "{}") if phases else {}
+    if latest.get("state") != "CLOSED":
+        return False
+    return bool(query_close_snapshots(conn, date_value=trade_date, limit=1))
 
 
 def record_gateway_connect(
