@@ -25,7 +25,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 | 1 | E1 | Close-time snapshot: `pm-clearing` records every position, marked, when the session closes | — | 1 d | ☑ | 2026-11-01 |
 | 2 | E2 | Settlement engine and ledger: day P&L → integer cash, zero-sum, running balances (`eod.db`) | E1 | 1.5 d | ☑ | 2026-11-01 |
 | 3 | E3 | Roster and reports: per-trader statements, exchange summary, leaderboard (CSV/JSON/Markdown) | E2 | 1.5 d | ☑ | 2026-11-01 |
-| 4 | E4 | Housekeeping steps: audit-archive check, log compression, compressed DB backups, retention | — | 1 d | ☐ | |
+| 4 | E4 | Housekeeping steps: audit-archive check, log compression, compressed DB backups, retention | — | 1 d | ☑ | 2026-11-01 |
 | 5 | E5 | `pm-eod` CLI: `run` (gates, steps, idempotency), `--pending`, `status`, `balances`, health | E2–E4 | 1.5 d | ☐ | |
 | 6 | E6 | Trigger: `pm-scheduler --on-close`, start-up catch-up, emo profile | E5 | 0.5 d | ☐ | |
 | 7 | E7 | Docs: operator guide chapter, file formats, `pm-help`, completions, deployments | E1–E6 | 0.5 d | ☐ | |
@@ -460,3 +460,34 @@ documented in E7.
 - A statement's trade list comes from `trade_events`, which is pruned after
   `--retention-days`; settling an old date by `--redo` after the prune shows
   no trades but still the correct amounts (they come from the snapshots).
+
+**E4 (2026-11-01).**
+- `eod/housekeeping.py`: `archive_audit`, `compress_logs`, `backup_databases`,
+  each returning `StepResult(step, ok|warn, message)`. Foreseeable failures
+  (busy lock, full disk, unreadable database) are `warn` results, not
+  exceptions, so one chore never stops the others. E5 only has to call them.
+- **`audit` step archives days before today only.** `archive_day` refuses the
+  current day, so right after `CLOSED` the day that just closed cannot be
+  archived; `pm-audit` does it after midnight. The step is therefore a
+  safety net for earlier days that were missed, and its message says
+  "nothing pending" in the normal case. Audit `--keep-days` retention stays
+  with `pm-audit`.
+- **`log.db` is not touched**: `pm-log-srv` already prunes it
+  (`retention_days`). `compress_logs` handles only `data/logs/*.log`, the
+  client failover files.
+- **Failover logs are copy-truncated, not deleted.** `logging.FileHandler`
+  keeps the file open for the life of the process, so deleting it would
+  silently lose every later line. The step compresses the bytes it saw to
+  `<name>.<YYYYMMDD of mtime>.log.zst` (with a counter if that exists),
+  verifies, and only then truncates the original in place if its size and
+  mtime are unchanged; otherwise it removes the archive and warns. Files
+  modified in the last hour are skipped. The window between the final stat
+  and `truncate` is not zero but is microseconds on a file that has been idle
+  for an hour.
+- **Backups** use `sqlite3.Connection.backup` (consistent under WAL), an
+  `integrity_check` of the copy, zstd with a decompress-and-compare, fsync,
+  then rename over the earlier backup of the same date. A failed backup keeps
+  the previous one. Missing databases (e.g. no `stats.db` yet) are listed in
+  the message, not warned. Which databases to back up is the caller's list
+  (E5: `clearing.db`, `stats.db`, `eod.db`).
+- Not done: `VACUUM` (decided against daily in the proposal).
