@@ -40,7 +40,7 @@ class _Readable(Protocol):
 @dataclass(frozen=True)
 class StepResult:
     step: str
-    status: Literal["ok", "warn"]
+    status: Literal["ok", "warn", "fail"]
     message: str
 
 

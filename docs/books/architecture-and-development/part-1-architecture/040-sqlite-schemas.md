@@ -719,12 +719,29 @@ CREATE INDEX ix_trade_events_symbol_date
 
 | Object | Field | Declared type | Not null | Default | Primary key |
 |---|---|---|---|---|---|
+| `table: eod_runs` | `trade_date` | `TEXT` | no |  | 1 |
+| `table: eod_runs` | `status` | `TEXT` | yes |  |  |
+| `table: eod_runs` | `started_at` | `TEXT` | yes |  |  |
+| `table: eod_runs` | `finished_at` | `TEXT` | yes |  |  |
+| `table: eod_runs` | `steps_json` | `TEXT` | yes |  |  |
 | `table: eod_settlement` | `trade_date` | `TEXT` | yes |  | 1 |
 | `table: eod_settlement` | `account` | `TEXT` | yes |  | 2 |
 | `table: eod_settlement` | `amount_minor` | `INTEGER` | yes |  |  |
 | `table: eod_settlement` | `detail_json` | `TEXT` | yes |  |  |
 
 ### DDL
+
+#### `table eod_runs`
+
+```sql
+CREATE TABLE eod_runs (
+  trade_date  TEXT PRIMARY KEY,
+  status      TEXT NOT NULL,   -- ok | failed | report-failed
+  started_at  TEXT NOT NULL,
+  finished_at TEXT NOT NULL,
+  steps_json  TEXT NOT NULL    -- [{"step", "status", "message"}, ...]
+)
+```
 
 #### `table eod_settlement`
 

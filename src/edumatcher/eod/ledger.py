@@ -28,6 +28,16 @@ CREATE TABLE IF NOT EXISTS eod_settlement (
   detail_json  TEXT    NOT NULL,
   PRIMARY KEY (trade_date, account)
 );
+
+-- One row per trading date pm-eod has run.  'ok' means settled and reported;
+-- housekeeping warnings do not change it (they are in steps_json).
+CREATE TABLE IF NOT EXISTS eod_runs (
+  trade_date  TEXT PRIMARY KEY,
+  status      TEXT NOT NULL,   -- ok | failed | report-failed
+  started_at  TEXT NOT NULL,
+  finished_at TEXT NOT NULL,
+  steps_json  TEXT NOT NULL    -- [{"step", "status", "message"}, ...]
+);
 """
 
 _PRAGMAS = """
@@ -141,7 +151,35 @@ def redo_from(conn: sqlite3.Connection, trade_date: str) -> list[str]:
     gone = [d for d in settled_dates(conn) if d >= trade_date]
     with conn:
         conn.execute("DELETE FROM eod_settlement WHERE trade_date >= ?", (trade_date,))
+        conn.execute("DELETE FROM eod_runs WHERE trade_date >= ?", (trade_date,))
     return gone
+
+
+def record_run(
+    conn: sqlite3.Connection,
+    trade_date: str,
+    status: str,
+    started_at: str,
+    finished_at: str,
+    steps: list[dict[str, str]],
+) -> None:
+    with conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO eod_runs"
+            " (trade_date, status, started_at, finished_at, steps_json)"
+            " VALUES (?, ?, ?, ?, ?)",
+            (trade_date, status, started_at, finished_at, json.dumps(steps)),
+        )
+
+
+def runs(conn: sqlite3.Connection, limit: int = 30) -> list[dict[str, str]]:
+    """Recorded runs, newest date first."""
+    rows = conn.execute(
+        "SELECT trade_date, status, started_at, finished_at, steps_json"
+        " FROM eod_runs ORDER BY trade_date DESC LIMIT ?",
+        (limit,),
+    )
+    return [dict(r) for r in rows]
 
 
 def check_zero_sum(conn: sqlite3.Connection) -> list[str]:

@@ -16,7 +16,9 @@ from edumatcher.eod.ledger import (
     day_amounts,
     open_ledger,
     record_day,
+    record_run,
     redo_from,
+    runs,
     settled_dates,
 )
 from edumatcher.eod.settle import EXCHANGE, Settlement
@@ -99,3 +101,31 @@ class TestRedoAndCheck:
         conn.execute("UPDATE eod_settlement SET amount_minor = 1 WHERE account = 'A'")
         conn.commit()
         assert check_zero_sum(conn) == ["2026-07-01"]
+
+
+class TestRuns:
+    def test_record_and_list_newest_first(self, conn: sqlite3.Connection) -> None:
+        record_run(
+            conn,
+            "2026-07-01",
+            "ok",
+            "a",
+            "b",
+            [{"step": "gate", "status": "ok", "message": ""}],
+        )
+        record_run(conn, "2026-07-02", "failed", "c", "d", [])
+        assert [r["trade_date"] for r in runs(conn)] == ["2026-07-02", "2026-07-01"]
+
+    def test_rerecording_replaces(self, conn: sqlite3.Connection) -> None:
+        record_run(conn, "2026-07-01", "failed", "a", "b", [])
+        record_run(conn, "2026-07-01", "ok", "c", "d", [])
+        assert [r["status"] for r in runs(conn)] == ["ok"]
+
+    def test_redo_forgets_the_runs_of_those_dates(
+        self, conn: sqlite3.Connection
+    ) -> None:
+        for d in ("2026-07-01", "2026-07-02"):
+            record_day(conn, d, day(100, -100))
+            record_run(conn, d, "ok", "a", "b", [])
+        redo_from(conn, "2026-07-02")
+        assert [r["trade_date"] for r in runs(conn)] == ["2026-07-01"]

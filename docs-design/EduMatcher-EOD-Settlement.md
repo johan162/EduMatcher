@@ -4,7 +4,7 @@
 When a trading day closes, one command — `pm-eod run` — turns the day's
 clearing data into **settlement**: every trader's net amount against the
 exchange, a running cash balance, one statement per trader and one exchange
-summary, all written as files under `<data>/eod/<date>/`. The same run does
+summary, all written as files under `<data>/settlement/<date>/`. The same run does
 the day's housekeeping: it confirms the audit archive, compresses stale
 logs and takes compressed backups of the SQLite stores. `pm-scheduler`
 starts it after the `CLOSED` transition (`--on-close`), and
@@ -26,7 +26,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 | 2 | E2 | Settlement engine and ledger: day P&L → integer cash, zero-sum, running balances (`eod.db`) | E1 | 1.5 d | ☑ | 2026-11-01 |
 | 3 | E3 | Roster and reports: per-trader statements, exchange summary, leaderboard (CSV/JSON/Markdown) | E2 | 1.5 d | ☑ | 2026-11-01 |
 | 4 | E4 | Housekeeping steps: audit-archive check, log compression, compressed DB backups, retention | — | 1 d | ☑ | 2026-11-01 |
-| 5 | E5 | `pm-eod` CLI: `run` (gates, steps, idempotency), `--pending`, `status`, `balances`, health | E2–E4 | 1.5 d | ☐ | |
+| 5 | E5 | `pm-eod` CLI: `run` (gates, steps, idempotency), `--pending`, `status`, `balances`, health | E2–E4 | 1.5 d | ☑ | 2026-11-01 |
 | 6 | E6 | Trigger: `pm-scheduler --on-close`, start-up catch-up, emo profile | E5 | 0.5 d | ☐ | |
 | 7 | E7 | Docs: operator guide chapter, file formats, `pm-help`, completions, deployments | E1–E6 | 0.5 d | ☐ | |
 
@@ -53,7 +53,7 @@ Q1–Q6 were decided on 2026-11-01.
 |---|---|---|---|---|
 | Q1 | Kind of money | **Simulated cash settlement** (fictional currency, real owes/receives instructions, balances carry over) · classroom score only · real money | E2, E3 | ✔ simulated |
 | Q2 | Netting | **Central pool**: each trader pays/receives its net amount against the exchange · bilateral minimised transfers | E2, E3 | ✔ pool |
-| Q3 | Delivery | **Files only** under `<data>/eod/<date>/`; the instructor sends them · SMTP in `pm-eod` | E3 | ✔ files |
+| Q3 | Delivery | **Files only** under `<data>/settlement/<date>/`; the instructor sends them · SMTP in `pm-eod` | E3 | ✔ files |
 | Q4 | Fees | **None** · flat per trade · bps of notional | E2 | ✔ none |
 | Q5 | Negative balance | **Informational** (statement + leaderboard) · warn below a floor · enforce in the engine | E3 | ✔ info |
 | Q6 | Roster location | **`<data>/ref_data/roster.yaml`** · inside `engine_config.yaml` · flag only | E3 | ✔ ref_data |
@@ -214,7 +214,7 @@ traders:
   number, in the style of the other YAML loaders; there is no schema
   migration and no legacy format.
 
-Per trading day, in `<data>/eod/<date>/`:
+Per trading day, in `<data>/settlement/<date>/`:
 
 ```
 statements/<gateway>.md|.json|.csv   per-trader: trades, positions at the close, day amount,
@@ -363,7 +363,7 @@ documented in E7.
   day's schedule. Also runs it once at start-up after state alignment.
 - emo: the `pm-eod` entry in the profiles that run the scheduler (command
   `pm-scheduler --daily --on-close "pm-eod run --pending"`); `emo clean`
-  must **not** delete `<data>/eod/` or `eod.db` without `--all`, since they
+  must **not** delete `<data>/settlement/` or `eod.db` without `--all`, since they
   are the exchange's money history — check what `clean` removes today and
   add the exclusion to its listing.
 - Tests: hook spawn/reap with a stub command, non-trading day does nothing,
@@ -491,3 +491,40 @@ documented in E7.
   the message, not warned. Which databases to back up is the caller's list
   (E5: `clearing.db`, `stats.db`, `eod.db`).
 - Not done: `VACUUM` (decided against daily in the proposal).
+
+**E5 (2026-11-01).**
+- **Output directory renamed to `<data>/settlement/<date>/`** (`SETTLEMENT_DIR`
+  in `config.py`). `<data>/eod/<date>/` is already the **engine's**
+  (`Engine._archive_eod` writes the GTC orders/combos and book stats there,
+  and `tools/sim_forensics` reads them), and `write_day` replaces a whole date
+  directory — it would have destroyed them. A test asserts the engine's files
+  survive a run. The plan text above was changed to match.
+- Modules: `runner.py` (`Paths`, `Options`, `run_day`, `pending_dates`,
+  `run_lock`, `exit_code`) and `main.py` (argparse; `run`, `status`,
+  `balances`). `eod_runs` is created in `ledger.py` (deferred from E2);
+  `redo_from` also forgets the runs of the dropped dates, so a later
+  `--pending` re-settles them in order.
+- **Gate rule is "the latest `PHASE` row of the date is `CLOSED`"**, not
+  "a `CLOSED` row exists". A mid-day engine restart re-announces `CLOSED` and
+  trading goes on, so the E1 snapshot of that moment is provisional; this
+  rule refuses to settle it. `--force` skips only this check (for runs
+  without the scheduler); a missing snapshot or a reconcile discrepancy still
+  fails.
+- **`--pending` only considers dates that have a close snapshot.** Before E1
+  there are `CLOSED` rows without snapshots; counting them would fail on the
+  first day and, because later days must wait for earlier ones, block
+  everything forever. It stops at the first failing date.
+- `--only STEP` (`report|audit|logs|backup`) re-runs one step of an already
+  settled date and records nothing, so it cannot downgrade an `ok` run.
+  `--dry-run` runs the gate and prints the amounts; it creates no file.
+- Exit codes: 0 clean, 1 gate/settle/report failed, 2 housekeeping warnings
+  only. `run_lock` is a `flock` on `<data>/.pm-eod.lock`.
+- **No `HealthReporter` gauge** (the plan mentioned one): `pm-eod` is not a
+  long-lived process, so `pm-eod status -q` (exit 0 when nothing is pending
+  and the last run is `ok`) is the health check emo can call in E6.
+- The CLI has its own 15-line table/JSON/CSV renderer: `pm-clearing-cli`'s
+  are private (pyright rejects importing them) and the audit ones print
+  "No matching events found.".
+- `pm-eod` is registered in `pyproject.toml`; it is not on the PATH until
+  `poetry install` is re-run. Completions and the SQLite reference were
+  regenerated.
