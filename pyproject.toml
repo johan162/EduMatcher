@@ -128,6 +128,8 @@ markers = [
     "real_health_reporter: opt out of the conftest guard that keeps processes from sending health beacons",
     "e2e: end-to-end tests on a real exchange (fixed ports, serial); deselected by default, run with 'make test-e2e'",
     "container: end-to-end tests on the deployment/docker container stack (make up-all); deselected by default, run with 'make test-container'",
+    "probabilistic: probabilistic tests",
+    "probabilistic_full: exhaustive probabilistic tests",
 ]
 addopts = [
     "--strict-markers",
