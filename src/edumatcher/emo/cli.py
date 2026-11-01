@@ -289,16 +289,7 @@ MINI_PROCESSES: list[dict[str, Any]] = [
         "healthcheck": ["pm-stats-cli", "health", "-q"],
     },
     {"name": "engine", "command": ["pm-engine", "--verbose"], "tcp": "127.0.0.1:5555"},
-    {
-        "name": "scheduler",
-        "command": [
-            "pm-scheduler",
-            "--daily",
-            "--verbose",
-            "--on-close",
-            "pm-eod run --pending",
-        ],
-    },
+    {"name": "scheduler", "command": ["pm-scheduler", "--daily", "--verbose"]},
     {
         "name": "market-data-gwy",
         "command": ["pm-md-gwy", "--verbose"],

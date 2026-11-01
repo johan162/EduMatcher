@@ -18,7 +18,7 @@ including recovering from a crash.
 | **I. Install and deploy** | Every installation mode, the container networking, every directory the system uses, and the VM runtime image |
 | **II. Configure** | Writing, verifying, deploying and inspecting a configuration, the form-based Configuration GUI, and ready-made examples |
 | **III. Run** | Starting, monitoring, restarting and shutting down the process set, and the operator console |
-| **IV. Run a market** | Listing symbols, valuation, sessions and auctions, risk controls, statistics, and the market index |
+| **IV. Run a market** | Listing symbols, valuation, sessions and auctions, risk controls, statistics, the market index, and closing the day (settlement and statements) |
 | **V. Gateways** | Starting, configuring and troubleshooting each external gateway |
 | **VI. Observe and recover** | Persistence, the audit trail and replay, and the central log server |
 

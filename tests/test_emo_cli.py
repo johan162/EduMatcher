@@ -836,16 +836,15 @@ def test_the_money_record_is_cleared_only_with_all() -> None:
         assert path not in emo_cli.STATE_PATHS
 
 
-def test_the_default_profiles_run_pm_eod_after_the_close() -> None:
-    schedulers = [
-        entry["command"]
-        for profile in (emo_cli.DEFAULT_PROCESSES, emo_cli.MINI_PROCESSES)
-        for entry in profile
-        if entry["name"] == "scheduler"
-    ]
-    assert len(schedulers) == 2
-    for command in schedulers:
-        assert command[command.index("--on-close") + 1] == "pm-eod run --pending"
+def test_only_profiles_with_clearing_run_pm_eod_after_the_close() -> None:
+    def scheduler(profile: list[dict[str, Any]]) -> list[str]:
+        (entry,) = (e for e in profile if e["name"] == "scheduler")
+        return list(entry["command"])
+
+    command = scheduler(emo_cli.DEFAULT_PROCESSES)
+    assert command[command.index("--on-close") + 1] == "pm-eod run --pending"
+    # mini has no pm-clearing: pm-eod would fail its gate at every close.
+    assert "--on-close" not in scheduler(emo_cli.MINI_PROCESSES)
 
 
 def test_non_state_paths_list_each_file_once() -> None:

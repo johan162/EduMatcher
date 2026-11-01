@@ -29,8 +29,9 @@ from edumatcher.stats.query import query_daily
 _ALL = 1_000_000
 
 
-def _scale(tick_decimals: int) -> Decimal:
-    return Decimal(10) ** tick_decimals
+def _price(ticks: int, tick_decimals: int) -> Decimal:
+    """Ticks as a price with the symbol's own number of decimals (10.20, not 10.2)."""
+    return Decimal(ticks).scaleb(-tick_decimals)
 
 
 def build_day(
@@ -59,11 +60,7 @@ def build_day(
                 PositionLine(
                     r["symbol"],
                     r["net_qty"],
-                    (
-                        None
-                        if mark is None
-                        else Decimal(mark) / _scale(r["tick_decimals"])
-                    ),
+                    (None if mark is None else _price(mark, r["tick_decimals"])),
                 )
             )
 
@@ -117,7 +114,7 @@ def _trades(
                 r["symbol"],
                 "SELF" if bought and sold else "BUY" if bought else "SELL",
                 r["quantity"],
-                Decimal(r["price"]) / _scale(r["tick_decimals"]),
+                _price(r["price"], r["tick_decimals"]),
             )
         )
     return tuple(lines)
@@ -133,7 +130,7 @@ def _market(stats: sqlite3.Connection, trade_date: str) -> tuple[SymbolStats, ..
             (
                 None
                 if r["close_price"] is None
-                else Decimal(r["close_price"]) / _scale(r["tick_decimals"])
+                else _price(r["close_price"], r["tick_decimals"])
             ),
         )
         for r in rows

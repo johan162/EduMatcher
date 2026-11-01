@@ -28,7 +28,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 | 4 | E4 | Housekeeping steps: audit-archive check, log compression, compressed DB backups, retention | — | 1 d | ☑ | 2026-11-01 |
 | 5 | E5 | `pm-eod` CLI: `run` (gates, steps, idempotency), `--pending`, `status`, `balances`, health | E2–E4 | 1.5 d | ☑ | 2026-11-01 |
 | 6 | E6 | Trigger: `pm-scheduler --on-close`, start-up catch-up, emo profile | E5 | 0.5 d | ☑ | 2026-11-01 |
-| 7 | E7 | Docs: operator guide chapter, file formats, `pm-help`, completions, deployments | E1–E6 | 0.5 d | ☐ | |
+| 7 | E7 | Docs: operator guide chapter, file formats, `pm-help`, completions, deployments | E1–E6 | 0.5 d | ☑ | 2026-11-01 |
 
 Total ≈ 7.5 d. E1 first because settlement is only as good as the closing
 marks it reads. E4 is independent of the money path and can run in parallel
@@ -520,8 +520,8 @@ documented in E7.
 - Exit codes: 0 clean, 1 gate/settle/report failed, 2 housekeeping warnings
   only. `run_lock` is a `flock` on `<data>/.pm-eod.lock`.
 - **No `HealthReporter` gauge** (the plan mentioned one): `pm-eod` is not a
-  long-lived process, so `pm-eod status -q` (exit 0 when nothing is pending
-  and the last run is `ok`) is the health check emo can call in E6.
+  long-lived process, so `pm-eod status -q` is the health check (exit 0 when
+  no closed date is waiting; corrected in E7, see below).
 - The CLI has its own 15-line table/JSON/CSV renderer: `pm-clearing-cli`'s
   are private (pyright rejects importing them) and the audit ones print
   "No matching events found.".
@@ -562,3 +562,45 @@ documented in E7.
 - Not run end-to-end here (needs a live engine); the hook is covered with real
   subprocesses and `_run_transitions`. A compressed-time `--speed 600` day is
   the manual check.
+
+**E7 (2026-11-01).**
+- Documentation, written for an absolute beginner with every financial term
+  defined before use and every number taken from a real run of `pm-eod` on the
+  Alice/Bob/Carol example (not invented):
+  - `operator-guide/part-4-run-a-market/100-closing-the-day.md` — the chapter:
+    big picture, the ideas from scratch (share, trade, long/short, average cost,
+    closing price, marking to market, unrealized/realized P&L, equity,
+    settlement, central pool, netting, zero-sum, balance, minor units and
+    rounding, trading date), a 3-day worked example, setup (roster, hook, no
+    scheduler), a normal day, every output file, the three housekeeping steps
+    with a restore procedure, corrections (`--redo`, `--only`, `--dry-run`),
+    a troubleshooting table covering every message, FAQ and a first-day checklist.
+  - `participant-guide/part-5-positions-and-results/020-your-end-of-day-statement.md`
+    — the trader's page: the statement line by line, with a hand-checkable example.
+  - Reference manual: `pm-eod` section (options, `roster.yaml`, files, ledger
+    tables, settlement rules), scheduler `--on-close`, the command table, and
+    glossary entries for the new terms.
+  - Existing pages touched: positions page (`position_close_snapshot`,
+    `snapshots` verb, "settles instantly" wording), persistence (new files, and
+    a note that `eod/` is the engine's), sessions (`--on-close`), installation
+    (data directory table), the book index, the README.
+  - `pm-help`/`pm-man` registry: `pm-eod`, `pm-scheduler --on-close`,
+    `pm-clearing-cli snapshots`.
+- **Found while documenting, and fixed:**
+  - With `sessions_enabled: false` no `CLOSED` is ever announced, so no close
+    snapshot existed and `pm-eod` could never settle. `pm-clearing` now also
+    takes the snapshot on `system.eod` (the engine's graceful shutdown) **if
+    the date has none yet**, so a real `CLOSED` snapshot is never overwritten.
+    This is what makes the documented `--force` / cron route work.
+  - Prices printed as `10.2` instead of `10.20`; they now keep the symbol's
+    decimals.
+  - A mistyped `--date` was recorded as a failed run and kept `status -q`
+    unhealthy forever (it judged the newest row). Health is now "no closed
+    date is waiting" — a failed run on a real closed day still counts as
+    waiting.
+  - The `mini` emo profile has no `pm-clearing`; the E6 change had added the
+    hook to its scheduler too, where `pm-eod` would fail its gate at every
+    close. The hook is now only in the `default` profile.
+- Rehearsal caveat (documented): `pm-scheduler --speed` compresses the
+  timetable but trading dates come from the real clock, so several fast days
+  share one date and one settlement.

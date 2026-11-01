@@ -63,6 +63,7 @@ from edumatcher.clearing.store import (
     flush_batch,
     open_writer_connection,
     prune_old_events,
+    query_close_snapshots,
     reconcile_session_timezone,
     record_gateway_connect,
     record_session_event,
@@ -724,6 +725,14 @@ class ClearingProcess:
                             len(position_rows),
                         )
                     self._ledger.clear_batch()
+
+                # Without a scheduler no CLOSED is ever announced, so the
+                # shutdown is the only close there is: take the close snapshot
+                # now.  A date that already has one (the real CLOSED) keeps it.
+                if not query_close_snapshots(
+                    self._conn, date_value=eod_trade_date, limit=1
+                ):
+                    write_close_snapshot(self._conn, eod_trade_date)
 
                 # 3. Write EOD sentinel row.
                 record_session_event(

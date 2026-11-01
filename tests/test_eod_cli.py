@@ -80,6 +80,20 @@ def test_status_lists_runs_and_quiet_reports_health(
     assert rows[0]["trade_date"] == "2026-07-01" and rows[0]["status"] == "ok"
 
 
+def test_a_failed_run_for_a_date_that_never_closed_is_not_unhealthy(
+    data: Path,
+) -> None:
+    cli(data, "run", "--date", "2026-07-01")
+    assert cli(data, "run", "--date", "2026-07-09") == 1  # a typo
+    assert cli(data, "status", "-q") == 0
+
+
+def test_a_closed_day_that_is_waiting_keeps_status_unhealthy(data: Path) -> None:
+    cli(data, "run", "--date", "2026-07-01")
+    close_day(data, "2026-07-02", 2000.0)
+    assert cli(data, "status", "-q") == 1
+
+
 def test_balances_include_roster_openings(
     data: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:

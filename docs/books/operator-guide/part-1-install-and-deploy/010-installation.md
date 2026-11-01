@@ -597,6 +597,8 @@ One variable decides where an exchange keeps its state:
 | `<DATA_DIR>/log.db` | `pm-log-srv` | The centralized log |
 | `<DATA_DIR>/stats.db` | `pm-stats` | Statistics and history behind the REST API |
 | `<DATA_DIR>/clearing.db` | `pm-clearing` | Positions and P&L |
+| `<DATA_DIR>/eod.db`, `settlement/`, `backup/` | `pm-eod` | The settlement ledger, the per-day trader statements, and compressed database backups — see [Closing the Day](../part-4-run-a-market/100-closing-the-day.md) |
+| `<DATA_DIR>/ref_data/roster.yaml` | you (optional) | Which person is behind which gateway, for the statements |
 | `<DATA_DIR>/audit.log`, `audit_index.db` | `pm-audit` | The audit trail and its index |
 | `<DATA_DIR>/gtc_orders.json`, `gtc_combos.json`, `book_stats.json` | `pm-engine` | Resting orders and book state across restarts |
 | `<DATA_DIR>/logs/` | log clients | Failover logs written when `pm-log-srv` is unreachable |

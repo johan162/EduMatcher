@@ -100,7 +100,7 @@ def build_parser() -> argparse.ArgumentParser:
         "-q",
         "--quiet",
         action="store_true",
-        help="Print nothing; exit 0 when no date is pending and the last run is ok",
+        help="Print nothing; exit 0 when no closed date is waiting, 1 otherwise",
     )
     status.add_argument("--limit", type=int, default=30, metavar="N")
 
@@ -189,8 +189,9 @@ def _cmd_status(args: argparse.Namespace, paths: Paths) -> int:
         ledger.close()
     waiting = pending_dates(paths)
     if args.quiet:
-        healthy = not waiting and (not recent or recent[0]["status"] == "ok")
-        return 0 if healthy else 1
+        # A closed day whose run failed is still waiting, so it counts here; a
+        # failed run for a date that never closed (a typo) does not.
+        return 1 if waiting else 0
     rows = [
         {
             **r,

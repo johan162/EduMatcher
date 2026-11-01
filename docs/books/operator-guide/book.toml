@@ -46,6 +46,7 @@ files = [
   "070-market-index.md",
   "080-index-administration.md",
   "090-market-model.md",
+  "100-closing-the-day.md",
 ]
 
 [[parts]]

@@ -534,6 +534,39 @@ class TestHandleEod:
         assert len(rows) == 1
         assert rows[0]["event_type"] == "EOD"
 
+    def test_eod_snapshots_positions_when_the_day_has_no_close_snapshot(
+        self, process: ClearingProcess, db_path: Path
+    ) -> None:
+        """Without a scheduler there is no CLOSED; the shutdown is the close."""
+        process._conn.execute(
+            "INSERT INTO gateway_symbol_positions (gateway_id, symbol, net_qty,"
+            " avg_cost, realized_pnl, unrealized_pnl, mark_price, tick_decimals,"
+            " buy_qty, sell_qty, buy_notional, sell_notional, updated_ts_ns)"
+            " VALUES ('GW_A', 'AAPL', 10, 1000.0, 0.0, 0.0, 1000, 2, 0, 0, 0, 0, 1)"
+        )
+        process._conn.commit()
+        process._handle_eod({"books": []})
+        rows = query_close_snapshots(process._conn)
+        assert [(r["gateway_id"], r["net_qty"]) for r in rows] == [("GW_A", 10)]
+
+    def test_eod_keeps_an_existing_close_snapshot(
+        self, process: ClearingProcess, db_path: Path
+    ) -> None:
+        """A real CLOSED snapshot is not overwritten by the later shutdown."""
+        process._conn.execute(
+            "INSERT INTO gateway_symbol_positions (gateway_id, symbol, net_qty,"
+            " avg_cost, realized_pnl, unrealized_pnl, mark_price, tick_decimals,"
+            " buy_qty, sell_qty, buy_notional, sell_notional, updated_ts_ns)"
+            " VALUES ('GW_A', 'AAPL', 10, 1000.0, 0.0, 0.0, 1000, 2, 0, 0, 0, 0, 1)"
+        )
+        process._conn.commit()
+        process._handle_session_state({"state": "CLOSED", "prev_state": "X"})
+        process._conn.execute("UPDATE gateway_symbol_positions SET net_qty = 99")
+        process._conn.commit()
+        process._handle_eod({"books": []})
+        rows = query_close_snapshots(process._conn)
+        assert [(r["gateway_id"], r["net_qty"]) for r in rows] == [("GW_A", 10)]
+
     def test_eod_uses_bid_ask_mid_when_no_last_trade(
         self, process: ClearingProcess, db_path: Path
     ) -> None:

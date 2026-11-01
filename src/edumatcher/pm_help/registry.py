@@ -544,6 +544,7 @@ _CORE_RUNTIME: tuple[CommandInfo, ...] = (
         synopsis=(
             "pm-scheduler [--now] [--delay 3] [--daily] [--no-confirm]",
             "pm-scheduler --daily --speed F [--start YYYY-MM-DDTHH:MM]",
+            "pm-scheduler --daily --on-close COMMAND [--on-close-delay SEC]",
         ),
         description=(
             "Sends session.transition to the engine to advance "
@@ -582,9 +583,21 @@ _CORE_RUNTIME: tuple[CommandInfo, ...] = (
                 "off",
                 "Do not query/confirm session state via the engine before transitioning",
             ),
+            Option(
+                "--on-close COMMAND",
+                "off",
+                "Start COMMAND (for example 'pm-eod run --pending') after each CLOSED "
+                "transition and once at start-up; runs detached, one at a time",
+            ),
+            Option(
+                "--on-close-delay SEC",
+                "30",
+                "Wait this long after CLOSED before starting --on-close, so pm-clearing "
+                "can save its close snapshot first",
+            ),
         ),
         has_common_log_options=True,
-        related=("pm-engine", "pm-admin"),
+        related=("pm-engine", "pm-admin", "pm-eod"),
         doc_anchor="pm-scheduler-session-scheduler",
         doc_page="../../../docs/books/operator-guide/part-4-run-a-market/030-sessions-and-scheduling.md",
     ),
@@ -1506,6 +1519,11 @@ _QUERY_CLIS: tuple[CommandInfo, ...] = (
                 purpose="Gateway connection/disconnection history (limit 500)",
             ),
             Subcommand(
+                "snapshots",
+                args="[--date D] [--gateway G] [--symbol S]",
+                purpose="Position snapshots taken at each session close; the basis of pm-eod's settlement",
+            ),
+            Subcommand(
                 "eod",
                 purpose="End-of-day sentinel events written by pm-clearing (limit 100)",
             ),
@@ -1515,7 +1533,7 @@ _QUERY_CLIS: tuple[CommandInfo, ...] = (
                 purpose="Delete old trade_events rows by retention window",
             ),
         ),
-        related=("pm-clearing", "pm-stats-cli", "pm-audit-cli"),
+        related=("pm-clearing", "pm-stats-cli", "pm-audit-cli", "pm-eod"),
         doc_anchor="pm-clearing-cli-clearing-query-cli",
         doc_page="../../../docs/books/participant-guide/part-5-positions-and-results/010-positions-and-pnl.md",
         examples=(
@@ -1712,6 +1730,131 @@ _QUERY_CLIS: tuple[CommandInfo, ...] = (
 # ---------------------------------------------------------------------------
 
 _ADMIN_AND_OPS: tuple[CommandInfo, ...] = (
+    CommandInfo(
+        name="pm-eod",
+        category="Admin & Operations",
+        title="End-of-Day Settlement",
+        summary="Settles a closed trading day, writes statements, and does the daily housekeeping.",
+        synopsis=(
+            "pm-eod [--datapath DIR] [--format table|json|csv] run (--date D | --pending)",
+            "       [--only STEP] [--force] [--redo] [--dry-run]",
+            "       [--log-keep-days 14] [--backup-keep-days 7]",
+            "pm-eod [--datapath DIR] [--format table|json|csv] status [-q]",
+            "pm-eod [--datapath DIR] [--format table|json|csv] balances [--date D] [--gateway G] [--check]",
+        ),
+        description=(
+            "A one-shot command, normally started by 'pm-scheduler --on-close' after the "
+            "market closes. For each trading date it checks that the day really closed and "
+            "that the books reconcile (gate), converts each trader's change in mark-to-market "
+            "equity since the previous close into an amount the trader pays or receives "
+            "against the exchange (settle), writes one statement per trader plus an exchange "
+            "summary (report), and runs the housekeeping: audit-archive safety net, "
+            "log compression and verified database backups.",
+            "The currency is fictional and nothing is sent: statements are files under "
+            "<data>/settlement/<date>/, with instructions.csv as the mail-merge input. "
+            "Traders are identified by gateway; ref_data/roster.yaml adds names, emails and "
+            "opening balances. The ledger is <data>/eod.db.",
+            "Exit codes of 'run': 0 clean, 1 the gate, settlement or report failed, "
+            "2 only housekeeping warnings. 'status -q' exits 0 when no closed date is waiting.",
+        ),
+        options=(
+            Option(
+                "--datapath DIR",
+                "resolved from $EDUMATCHER_DATA_DIR",
+                "Data directory (global option: put it before the subcommand)",
+            ),
+            Option(
+                "--format table|json|csv",
+                "table",
+                "Output format for status and balances",
+            ),
+            Option("--no-header", "off", "Suppress the header row"),
+            Option(
+                "--date D", "", "run: the trading date to close (YYYY-MM-DD)", "run"
+            ),
+            Option(
+                "--pending",
+                "off",
+                "run: every closed date without an ok run, oldest first; stops at the first failure",
+                "run",
+            ),
+            Option(
+                "--only STEP",
+                "all steps",
+                "run: re-run just report, audit, logs or backup for a settled date",
+                "run",
+            ),
+            Option(
+                "--force",
+                "off",
+                "run: do not require the CLOSED session event (exchanges without a scheduler)",
+                "run",
+            ),
+            Option(
+                "--redo",
+                "off",
+                "run: recompute the date; drops its settlement and every later date's",
+                "run",
+            ),
+            Option(
+                "--dry-run",
+                "off",
+                "run: gate and compute, print the amounts, write nothing",
+                "run",
+            ),
+            Option(
+                "--log-keep-days N",
+                "14",
+                "run: delete compressed fallback logs older than N days",
+                "run",
+            ),
+            Option(
+                "--backup-keep-days N",
+                "7",
+                "run: delete backup folders older than N days",
+                "run",
+            ),
+            Option(
+                "-q, --quiet",
+                "off",
+                "status: print nothing; exit 0 if healthy, 1 otherwise",
+                "status",
+            ),
+            Option("--limit N", "30", "status: number of runs shown", "status"),
+            Option("--date D", "", "balances: balances as of this date", "balances"),
+            Option("--gateway G", "", "balances: only this trader", "balances"),
+            Option(
+                "--check",
+                "off",
+                "balances: verify every settled date sums to zero",
+                "balances",
+            ),
+        ),
+        subcommands=(
+            Subcommand(
+                "run",
+                args="(--date D | --pending)",
+                purpose="Settle, report and tidy up trading date(s)",
+            ),
+            Subcommand("status", args="[-q]", purpose="Recent runs and pending dates"),
+            Subcommand(
+                "balances", args="[--check]", purpose="Running balance per account"
+            ),
+        ),
+        related=("pm-scheduler", "pm-clearing", "pm-clearing-cli", "pm-audit-cli"),
+        doc_anchor="pm-eod-end-of-day-settlement",
+        doc_page="../../../docs/books/operator-guide/part-4-run-a-market/100-closing-the-day.md",
+        examples=(
+            "pm-eod run --date 2026-11-02 --dry-run",
+            "pm-eod run --pending",
+            "pm-eod status",
+            "pm-eod balances --check",
+        ),
+        notes=(
+            "Design: docs-design/EduMatcher-EOD-Settlement.md",
+            "Statements: <data>/settlement/<date>/statements/<gateway>.md",
+        ),
+    ),
     CommandInfo(
         name="pm-admin",
         category="Admin & Operations",

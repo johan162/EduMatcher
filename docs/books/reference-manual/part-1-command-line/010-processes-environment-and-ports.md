@@ -320,6 +320,7 @@ must be run from `~/.edumatcher`, where rule 4 finds `./data`.
 | **pm-help** / **pm-man** | `pm-help [pm-command]`            | Command index and man-page reference for every pm-* command | No        |
 | **pm-cverifier** | `pm-cverifier [options] <config>` | Validate `engine_config.yaml` (YAML, schema, semantic, completeness checks) | No        |
 | **pm-clearing-cli** | `pm-clearing-cli <command> [options]` | Read/query interface for `clearing.db` (includes prune) | Optional           |
+| **pm-eod**        | `pm-eod run \| status \| balances` | Close a trading day: settlement, statements, housekeeping | Optional |
 | **pm-stats-cli**  | `pm-stats-cli <command> [options]` | Read-only query interface for `stats.db`                | Optional              |
 | **pm-audit-cli**  | `pm-audit-cli <command> [options]` | Read-only query interface for audit JSONL log files     | Optional              |
 | **pm-audit-replay** | `pm-audit-replay [options] <command>` | Read-only reconstruction of the audit trail into causal episodes and stories | Optional |
@@ -1488,7 +1489,7 @@ CLOSING_AUCTION → CLOSED) by sending `session.transition` messages to the
 engine at configured wall-clock times.
 
 ```bash
-pm-scheduler [--now] [--delay 3] [--daily] [--speed F] [--start YYYY-MM-DDTHH:MM] [--no-confirm] [--log-level LEVEL] [-v|-vv] [-q] \
+pm-scheduler [--now] [--delay 3] [--daily] [--speed F] [--start YYYY-MM-DDTHH:MM] [--no-confirm] [--on-close COMMAND] [--on-close-delay SEC] [--log-level LEVEL] [-v|-vv] [-q] \
   [--log-target TARGET] [--log-file PATH] [--log-failover-timeout SEC]
 ```
 
@@ -1502,6 +1503,8 @@ pm-scheduler [--now] [--delay 3] [--daily] [--speed F] [--start YYYY-MM-DDTHH:MM
 | `--speed F`           | `$EDUMATCHER_SCHEDULER_SPEED`, else off | Compressed mode (with `--daily`): simulated time runs *F* times faster than the wall clock, so a whole trading day fits in minutes |
 | `--start YYYY-MM-DDTHH:MM` | `$EDUMATCHER_SCHEDULER_START`, else now | Compressed mode: the session-local time the simulated clock starts at |
 | `--no-confirm`        | off                  | Do not query/confirm session state via the engine before sending a transition       |
+| `--on-close COMMAND`  | off                  | Start this command after each day's `CLOSED` transition and once at start-up (for example `pm-eod run --pending`). It runs detached, one at a time, with its output in the scheduler's log; ignored in `--now` mode. See [Closing the Day](../../operator-guide/part-4-run-a-market/100-closing-the-day.md) |
+| `--on-close-delay SEC` | `30`                | Seconds to wait after `CLOSED` before starting `--on-close`, so `pm-clearing` can save its close snapshot first |
 | `--log-level`         | `WARNING`            | Explicit log level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG`                 |
 | `--verbose` / `-v`    | off                  | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`)                                 |
 | `-q` / `--quiet`      | off                  | Reduce output to warnings/errors                                                     |
@@ -1525,6 +1528,117 @@ The scheduler does not subscribe to any PUB messages — it is fire-and-forget.
 See [Auctions & Scheduling](../../operator-guide/part-4-run-a-market/030-sessions-and-scheduling.md) for the full schedule configuration
 and session-phase documentation.
 
+
+
+## pm-eod — End-of-Day Settlement
+
+Settles a closed trading day and tidies up after it. A **one-shot** command: it
+runs, prints what it did and exits. For each trading date it checks that the day
+really closed and the books reconcile (**gate**), turns each trader's change in
+mark-to-market equity into a cash amount against the exchange (**settle**),
+writes statements and a summary (**report**), and runs the housekeeping steps
+(**audit**, **logs**, **backup**). The concepts, setup and troubleshooting are
+in [Closing the Day](../../operator-guide/part-4-run-a-market/100-closing-the-day.md).
+
+```bash
+pm-eod [--datapath DIR] [--format table|json|csv] [--no-header] run \
+  (--date YYYY-MM-DD | --pending) [--only STEP] [--force] [--redo] [--dry-run] \
+  [--log-keep-days N] [--backup-keep-days N]
+pm-eod [--datapath DIR] [--format table|json|csv] status [-q] [--limit N]
+pm-eod [--datapath DIR] [--format table|json|csv] balances [--date YYYY-MM-DD] [--gateway GW_ID] [--check]
+```
+
+**Global options** (must come *before* the subcommand):
+
+| Flag | Default | Description |
+|---|---|---|
+| `--datapath DIR` | the configured data directory | Data directory holding `clearing.db`, `eod.db`, `ref_data/roster.yaml` and the output folders |
+| `--format` | `table` | Output format for `status` and `balances`: `table`, `json` or `csv` |
+| `--no-header` | off | Omit the header row (table and csv) |
+| `--version` | — | Print version and exit |
+
+**`run` options:**
+
+| Flag | Default | Description |
+|---|---|---|
+| `--date YYYY-MM-DD` | — | The trading date to close. Exactly one of `--date` and `--pending` is required. |
+| `--pending` | off | Every closed date that has a close snapshot and no `ok` run, oldest first. Stops at the first failing date. |
+| `--only STEP` | all steps | Re-run just `report`, `audit`, `logs` or `backup` for an already settled date. Not recorded in the run history. |
+| `--force` | off | Do not require the `CLOSED` session event (for exchanges without a scheduler). The close snapshot and reconcile checks still apply. |
+| `--redo` | off | Recompute the date: deletes its settlement **and the settlement of every later date**, then settles it again. |
+| `--dry-run` | off | Run the gate and compute the amounts, print them, write nothing. |
+| `--log-keep-days N` | `14` | Delete compressed fallback logs older than N days |
+| `--backup-keep-days N` | `7` | Delete backup folders older than N days |
+
+**`status` options:** `-q` / `--quiet` prints nothing and exits 0 when no closed
+date is waiting (a closed date whose run failed counts as waiting) and 1
+otherwise; `--limit N` (default 30) caps the number of runs shown.
+
+**`balances` options:** `--date` shows balances as of that date; `--gateway`
+filters to one trader (case-insensitive); `--check` verifies that every settled
+date sums to exactly zero and exits 1 if one does not.
+
+**Exit codes of `run`:** `0` clean · `1` the gate, the settlement or the report
+failed · `2` only housekeeping warnings. A second `pm-eod` started while one is
+running exits 1 (lock file `<data>/.pm-eod.lock`).
+
+**Reads:** `clearing.db` (trades, positions, `position_close_snapshot`,
+`session_events`), `stats.db` (optional, for the summary's market table),
+`ref_data/roster.yaml` (optional).
+**Writes:** `eod.db` (the ledger), `settlement/<date>/`, `backup/<date>/`,
+compressed audit days under `audit/`, and compressed fallback logs under `logs/`.
+It binds no port and sends no message.
+
+### `roster.yaml`
+
+| Key | Required | Description |
+|---|---|---|
+| `traders` | yes | List of trader entries |
+| `traders[].gateway` | yes | Gateway identifier; upper-cased on load; unique; not `EXCHANGE` |
+| `traders[].name` | no | Display name (default: the gateway identifier) |
+| `traders[].email` | no | Printed on the statement and in `instructions.csv`; never used to send mail |
+| `traders[].opening_balance` | no | Starting balance, at most 2 decimals (default 0) |
+
+A missing file is an empty roster. Errors name the line (`roster.yaml: line 7: …`).
+
+### Files written to `settlement/<date>/`
+
+| File | Content |
+|---|---|
+| `statements/<gateway>.md` | The trader's statement (the headline, result by symbol, open positions at the close, trades) |
+| `statements/<gateway>.json` | The same, with `amount_minor` / `balance_minor` as integers in minor units |
+| `statements/<gateway>.csv` | One row per symbol: `symbol,day_pnl,net_qty,mark` |
+| `instructions.csv` | `gateway,name,email,amount,direction,balance`; `direction` is `receive`, `pay` or `none` |
+| `leaderboard.csv` | `rank,gateway,name,balance`; equal balances share a rank |
+| `summary.md`, `summary.json` | Accounts settled, the zero-sum proof, rounding, biggest winners and losers, market table, warnings |
+
+### The settlement ledger `eod.db`
+
+| Table | Columns | Description |
+|---|---|---|
+| `eod_settlement` | `trade_date`, `account`, `amount_minor`, `detail_json` | One row per account per settled date. `account` is a gateway identifier or `EXCHANGE` (the rounding line). The amounts of a date sum to exactly 0. |
+| `eod_runs` | `trade_date`, `status`, `started_at`, `finished_at`, `steps_json` | One row per date run. `status` is `ok`, `failed` or `report-failed`. |
+
+Balances are not stored: they are the sum of `amount_minor` plus the roster's
+opening balance. The full DDL is in the generated
+[SQLite schema reference](../../architecture-and-development/part-1-architecture/040-sqlite-schemas.md).
+
+### Settlement rules (reference)
+
+- A date's amount for a gateway is the sum over its symbols of
+  `(realized_pnl + unrealized_pnl)` at this date's `position_close_snapshot`
+  minus the same at the latest earlier snapshot (0 if none), each converted
+  from ticks to currency with the symbol's own `tick_decimals`.
+- Rounded to 2 decimals with the largest-remainder method; the exact total must
+  be within `0.01` per position of zero, otherwise the settlement fails.
+- A position present in the earlier snapshot but missing from this date's is
+  ignored.
+- The gate requires: a `session_events` `PHASE` row for the date whose **latest**
+  row is `CLOSED` (skipped by `--force`); a close snapshot; and an empty
+  `pm-clearing-cli reconcile` for the date.
+
+See [Closing the Day](../../operator-guide/part-4-run-a-market/100-closing-the-day.md)
+for the worked example, the troubleshooting table and the housekeeping details.
 
 
 ## pm-ticker — Scrolling Market Ticker

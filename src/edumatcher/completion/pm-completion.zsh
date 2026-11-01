@@ -2728,7 +2728,7 @@ _shtab_pm_eod_run_defaults_added=0
 
 _shtab_pm_eod_status_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
-  {-q,--quiet}"[Print nothing\; exit 0 when no date is pending and the last run is ok]"
+  {-q,--quiet}"[Print nothing\; exit 0 when no closed date is waiting, 1 otherwise]"
   "--limit[N]:N:"
 )
 

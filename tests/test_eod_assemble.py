@@ -104,6 +104,7 @@ def test_statements_for_active_listed_and_idle_traders(
     ]
     assert [t.time_utc for t in a.trades] == ["00:16:40", "00:33:20"]
     assert (a.trades[0].side, a.trades[0].price) == ("BUY", Decimal("10.00"))
+    assert str(a.positions[0].mark) == "10.50" and str(a.trades[0].price) == "10.00"
     assert by["B"].trades[0].side == "SELL" and by["B"].listed is False
     q = by["Q"]
     assert (q.amount_minor, q.balance_minor, q.trades, q.positions) == (0, 500, (), ())

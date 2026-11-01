@@ -44,7 +44,7 @@ files = [
 [[parts]]
 title = "Part V: Positions and results"
 dir = "part-5-positions-and-results"
-files = ["010-positions-and-pnl.md"]
+files = ["010-positions-and-pnl.md", "020-your-end-of-day-statement.md"]
 
 [[parts]]
 title = "Part VI: Front-ends"
