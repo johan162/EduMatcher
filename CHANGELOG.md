@@ -1,3 +1,22 @@
+## [v0.69.0] - 2026-11-02
+
+Release Type: major
+
+### 📋 Summary
+This release aligns compiled engine configuration and Python names with the existing participant terminology. It also adds valuation examples and updates development tooling.
+
+### ⚠️ Breaking Changes
+- Renamed the compiled engine configuration field `fix_gateways` to `participants`; recompile and deploy existing configurations with `pm-config-deploy` before restarting upgraded processes. Authored YAML continues to use `participants`
+- Renamed the Python configuration class `FixGatewayConfig` to `ParticipantConfig`, `EngineConfig.fix_gateways` to `participants`, and `allowed_fix_gateways` to `allowed_participants`; update Python integrations using these names
+
+### 📚 Documentation
+- Added Nimbus valuation examples and reorganized the existing Verisure examples into their own directory
+- Updated engine architecture documentation and refreshed generated configuration examples
+
+### 🛠 Internal
+- Updated pytest to 9.2, flake8 to 7.5 and mypy to 2.4, and registered the probabilistic test markers required by strict marker selection
+- Fixed unclosed SQLite and CSV resources in end-of-day tests
+
 ## [v0.68.0] - 2026-11-01
 
 Release Type: major
