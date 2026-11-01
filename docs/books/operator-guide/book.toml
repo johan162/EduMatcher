@@ -18,6 +18,7 @@ files = [
 title = "Part II: Configure"
 dir = "part-2-configure"
 files = [
+  "005-the-configuration-file.md",
   "010-the-configuration-workflow.md",
   "020-config-verifier.md",
   "030-config-gui.md",

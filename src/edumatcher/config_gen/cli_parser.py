@@ -1327,7 +1327,7 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "IANA timezone every process bucketing events into a trading day "
             "(pm-stats, pm-clearing, ...) uses, e.g. America/New_York. "
-            'Defaults to "UTC" when omitted.'
+            'Defaults to "Europe/Stockholm" when omitted.'
         ),
     )
 
@@ -1388,8 +1388,8 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="COMBO_SPEC",
         help=(
             "Seed a market-maker combo order: ID:TYPE:TIF:SYM/SIDE/TYPE/QTY[/PRICE[/STOP[/SMP]]],...\n"
-            "PRICE and STOP accept either a raw integer tick count (e.g. 20950) or a\n"
-            "decimal display price (e.g. 209.50), converted using the symbol's tick_decimals.\n"
+            "PRICE and STOP are display prices (e.g. 209.50), written to the file as given and\n"
+            "checked against the leg symbol's tick grid. They are not tick counts: 20950 means 20950.00.\n"
             "Example: SEED-PAIR:AON:DAY:AAPL/BUY/LIMIT/100/209.50,MSFT/SELL/LIMIT/50/415.50\n"
             "Can be repeated."
         ),

@@ -57,7 +57,8 @@ from __future__ import annotations
 
 import argparse
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timezone, tzinfo
+from zoneinfo import ZoneInfo
 import hashlib
 import json
 import platform
@@ -97,6 +98,7 @@ from edumatcher.engine.order_limits import (
 )
 from edumatcher.engine.config_loader import (
     DAY_KEYS,
+    DEFAULT_SESSION_TIMEZONE,
     DaySchedule,
     EngineConfig,
     ScheduleConfig,
@@ -1503,6 +1505,22 @@ class Engine:
             )
         )
 
+    def _session_tz(self) -> tzinfo:
+        """The exchange's session timezone (``locale.session_timezone``).
+
+        Defines the business day for the TIF=DAY staleness check, the same
+        day pm-scheduler, pm-stats and pm-clearing use, whatever the host
+        clock says.
+        """
+        name = (
+            self._engine_config.locale.session_timezone
+            if self._engine_config
+            else DEFAULT_SESSION_TIMEZONE
+        )
+        if name.upper() == "UTC":
+            return timezone.utc
+        return ZoneInfo(name)
+
     def _restore_gtc(self) -> None:
         # M4: register tick decimals BEFORE restoring and publishing snapshots.
         # run() calls _restore_gtc() before _load_config(), so without this the
@@ -1519,12 +1537,12 @@ class Engine:
         # priority) moved an order to the back of its level with a new
         # arrival_seq; restoring in file order would give it its old place.
         orders.sort(key=lambda o: (o.symbol, o.arrival_seq))
-        # Business day for the TIF=DAY staleness check below: machine-local
-        # calendar date, matching pm-scheduler's own notion of "today" (see
-        # docs-design/EduMatcher-Revised-Quote-Persistence.md §13.3 — the
-        # engine has no separate session-timezone config, so local date is
-        # the deliberate simplification for this check).
-        today = datetime.now().date()
+        # Business day for the TIF=DAY staleness check below: the calendar
+        # date in the session timezone, matching pm-scheduler's own notion of
+        # "today" (see docs-design/EduMatcher-Revised-Quote-Persistence.md
+        # §13.3), not the host's local date.
+        session_tz = self._session_tz()
+        today = datetime.now(session_tz).date()
         restored_count = 0
         # Real, always-on counters for system.startup_recovery below --
         # unlike _dbg_count(), which only increments under DEBUG logging and
@@ -1552,7 +1570,7 @@ class Engine:
             # still ends its validity, same as it always has for TIF=DAY.
             # TIF=GTC orders are never date-gated. See §13.4.
             if order.tif == TIF.DAY:
-                order_day = datetime.fromtimestamp(order.ts_ns / 1e9).date()
+                order_day = datetime.fromtimestamp(order.ts_ns / 1e9, session_tz).date()
                 if order_day < today:
                     log.info(
                         f"Discarding stale TIF=DAY order {order.id[:8]} "

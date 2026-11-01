@@ -80,6 +80,28 @@ run for weeks; it is what the `edumatcher-ai-sim` container image starts — see
     the market drifted 2–4 % from the true values within minutes, against
     under 1 % with `--anchor-sim 0.3`.
 
+### Command-line options
+
+Every `swarm.yaml` key has a flag; a flag wins over the file.
+
+| Flag | Default | `swarm.yaml` key | Meaning |
+|---|---|---|---|
+| `--swarm PATH` | none | — | The `swarm.yaml` to read |
+| `--count N` | `10` | `agents.count` | Number of agents |
+| `--prefix P` | `AI` | `agents.prefix` | Gateway ID prefix |
+| `--start-index N` | `1` | `agents.start` | First ID number |
+| `--presets a:3,b:1` | every built-in, equal weights | `composition` | Preset mix; `a,b` means equal weights |
+| `--symbols S1,S2` | every deployed symbol | `symbols.include` | Universe |
+| `--symbols-per-agent N` | just enough to cover the universe | `symbols.per_agent` | Symbols each agent trades |
+| `--seed-base N` | `1000` | `seed` | Agent *i* gets `N + i` |
+| `--duration SEC` | `0` | `duration` | Seconds to run; `0` runs until stopped |
+| `--workers N` | `min(cpus − 1, ceil(count / 100))` | `workers` | Worker processes |
+| `--budget N` | `0` | `budget` | Order actions per second for the whole swarm; `0` lets the presets decide |
+| `--alf-host H` | `EDUMATCHER_ENGINE_HOST`, else `127.0.0.1` | `alf.host` | Where `pm-alf-gwy` listens |
+| `--alf-port N` | deployed `alf_gateway.port` | `alf.port` | `pm-alf-gwy`'s port |
+| `-v`, `-q`, `--log-level L` | `WARNING` | `logging.level` | Verbosity; applies to the workers too |
+| `--log-target {server,stdout,file}`, `--log-file PATH`, `--log-failover-timeout SEC` | `server`, —, `30` | `logging.*` | Where operational log records go |
+
 ### `swarm.yaml`
 
 | Key | Default | Meaning |

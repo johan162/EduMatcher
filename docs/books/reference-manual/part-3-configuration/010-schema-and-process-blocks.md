@@ -1272,7 +1272,7 @@ symbols:
 | `bid_qty`    |      Yes | Positive integer                            | None      | Bid-side quantity                                         |
 | `ask_qty`    |      Yes | Positive integer                            | None      | Ask-side quantity                                         |
 | `tif`        |       No | `DAY`, `GTC`                                | `DAY`     | Time in force (`pm-cverifier` rejects any other value, `S016`) |
-| `seed_once`  |       No | Boolean-like value; use YAML `true`/`false` | `true`    | Skip injection after `book_stats.json` has symbol history |
+| `seed_once`  |       No | Boolean-like value; use YAML `true`/`false` | `true`    | Skip injection when this gateway already has a live quote on the symbol restored from the previous run |
 
 Validation rules:
 
@@ -1282,9 +1282,12 @@ Validation rules:
 - quantities must be positive
 - if any configured gateway has `role: MARKET_MAKER`, every symbol must define at least one quote seed
 
-Quote legs are not persisted to `gtc_orders.json`; config seeds remain the source
-of truth. `seed_once: true` skips injection after `book_stats.json` has history
-for the symbol. `seed_once: false` injects on every startup.
+Live quote legs are saved with the resting orders in `gtc_orders.json` and
+restored on the next start. `seed_once: true` skips injection when the gateway
+already has a restored live quote on the symbol; a quote that was fully traded
+away or expired is not restored, so its seed fires again. `seed_once: false`
+injects on every startup, replacing any restored quote. See
+[Persistence](../../operator-guide/part-6-observe-and-recover/010-persistence.md).
 
 
 ## Startup Market-Maker Combo Seeds
@@ -1302,13 +1305,13 @@ market_maker_combos:
         side: BUY
         order_type: LIMIT
         quantity: 100
-        price: 20950
+        price: 209.50
         smp_action: NONE
       - symbol: MSFT
         side: SELL
         order_type: LIMIT
         quantity: 50
-        price: 41550
+        price: 415.50
         smp_action: NONE
 ```
 
@@ -1649,7 +1652,7 @@ symbol has no breaker):
 | `bid_qty` | int | Yes | — | Positive integer | Must be `> 0` |
 | `ask_qty` | int | Yes | — | Positive integer | Must be `> 0` |
 | `tif` | Enum | No | `DAY` | `DAY`, `GTC` | Case-insensitive; `pm-cverifier` rejects any other value (`S016`) |
-| `seed_once` | bool | No | `true` | `true`, `false` | When `true`, skips injection if `book_stats.json` has history for this symbol |
+| `seed_once` | bool | No | `true` | `true`, `false` | When `true`, skips injection if this gateway already has a live quote on the symbol restored from the previous run |
 
 ---
 

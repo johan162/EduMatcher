@@ -457,6 +457,11 @@ function ApiPanel() {
             <NumField label="Rate limit writes/sec" value={gw.rateLimitWritesPerSecond} onChange={(v) => update((d) => (d.apiGateways[i]!.rateLimitWritesPerSecond = v ?? gw.rateLimitWritesPerSecond))} help={{ text: "Sustained per-key limit on order-entry write requests per second.", cliFlag: "--api-gateway-rate-limit-writes-per-second" }} />
             <NumField label="Rate limit burst" value={gw.rateLimitBurst} onChange={(v) => update((d) => (d.apiGateways[i]!.rateLimitBurst = v ?? gw.rateLimitBurst))} help={{ text: "Short-term burst allowance above the sustained write rate limit, per key.", cliFlag: "--api-gateway-rate-limit-burst" }} />
           </div>
+          <div className="flex flex-wrap gap-4">
+            <NumField label="Engine auth timeout (s)" value={gw.engineAuthSec} onChange={(v) => update((d) => (d.apiGateways[i]!.engineAuthSec = v ?? gw.engineAuthSec))} help={{ text: "Seconds to wait for the engine to answer this instance's authentication request.", cliFlag: "--api-gateway-engine-auth-sec" }} />
+            <NumField label="Engine reply timeout (s)" value={gw.engineReplySec} onChange={(v) => update((d) => (d.apiGateways[i]!.engineReplySec = v ?? gw.engineReplySec))} help={{ text: "Seconds to wait for the engine to reply to a request made on behalf of a client.", cliFlag: "--api-gateway-engine-reply-sec" }} />
+            <NumField label="Wait-for-ack timeout (s)" value={gw.waitAckSec} onChange={(v) => update((d) => (d.apiGateways[i]!.waitAckSec = v ?? gw.waitAckSec))} help={{ text: "Seconds an order-entry request waits for the engine's acknowledgement before the API call returns.", cliFlag: "--api-gateway-wait-ack-sec" }} />
+          </div>
         </div>
       ))}
     </div>

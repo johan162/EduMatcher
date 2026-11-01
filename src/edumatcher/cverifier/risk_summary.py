@@ -132,12 +132,18 @@ def build(raw: dict[str, Any]) -> RiskSummary:
     # Circuit breakers
     summary.circuit_breakers_enforced = bool(raw.get("enforce_circuit_breakers", True))
     cb_defaults = raw.get("circuit_breaker_defaults")
-    cb_levels: dict[str, Any] = {}
+    raw_symbols = raw.get("symbols")
+    has_symbol_cb = isinstance(raw_symbols, dict) and any(
+        isinstance(cfg, dict) and isinstance(cfg.get("circuit_breaker"), dict)
+        for cfg in raw_symbols.values()
+    )
+    # The engine creates a breaker only from circuit_breaker_defaults or a
+    # symbol's own circuit_breaker block; a block without levels gets the
+    # built-in ladder.
+    summary.circuit_breakers_configured = isinstance(cb_defaults, dict) or has_symbol_cb
+    cb_levels: dict[str, Any] = _DEFAULT_CB_LEVELS
     if isinstance(cb_defaults, dict) and isinstance(cb_defaults.get("levels"), dict):
         cb_levels = cb_defaults["levels"]
-        summary.circuit_breakers_configured = True
-    else:
-        cb_levels = _DEFAULT_CB_LEVELS
 
     cb_parts = []
     for level_name, level_cfg in sorted(cb_levels.items()):
@@ -159,9 +165,10 @@ def build(raw: dict[str, Any]) -> RiskSummary:
                 dur_str = str(hd)
         cb_parts.append(f"{level_name}={psp_str} ({dur_str})")
 
-    if summary.circuit_breakers_enforced:
-        using = "" if summary.circuit_breakers_configured else " (built-in defaults)"
-        summary.cb_description = ", ".join(cb_parts) + using
+    if summary.circuit_breakers_enforced and summary.circuit_breakers_configured:
+        summary.cb_description = ", ".join(cb_parts)
+    elif summary.circuit_breakers_enforced:
+        summary.cb_description = "enabled but no circuit breaker configured ⚠"
     else:
         summary.cb_description = "disabled"
 

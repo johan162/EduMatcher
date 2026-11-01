@@ -654,13 +654,9 @@ participants:
 
 symbols:
   AAPL:
-    reference_price: 150.00
   AMAZ:
-    reference_price: 180.00
   MSFT:
-    reference_price: 420.00
   GOOG:
-    reference_price: 160.00
 ```
 
 Key decisions:

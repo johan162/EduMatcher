@@ -430,6 +430,22 @@ Both read the session timezone from the deployed config's
 `locale.session_timezone`, so they always agree. If the exchange runs in
 UTC, set `session_timezone: UTC` under `locale:` in the config.
 
+Both recorders grow without limit unless you tell them otherwise. The options
+that matter for a long-running exchange:
+
+| Process | Option | Default | Effect |
+|---|---|---|---|
+| `pm-stats` | `--keep-days N` | `0` (keep all) | Keep N days of `trade_log`, `order_events`, `price_snapshots` and `feed_gaps`; daily rollups are kept for good |
+| `pm-stats` | `--keep-order-events-days N` | as `--keep-days` | Separate (shorter) retention for order events, which dominate the file under an AI swarm |
+| `pm-stats` | `--human-gateways GLOB,…` and `--keep-human-order-events-days N` | none | Give the order events of people (e.g. `'TRADER*'`) a longer retention than bots |
+| `pm-clearing` | `--retention-days N` | `90` | Delete individual `trade_events` rows older than N days at startup and at every close; `0` disables pruning. Daily summaries are kept |
+| `pm-clearing` | `--print-every N` | `100` | Print a P&L table every N trades; `0` never |
+| `pm-clearing` | `--flush-size N`, `--flush-interval SEC` | `100`, `5.0` | Write the buffered trades to SQLite when N have accumulated (1–100) or SEC seconds (≥ 0.1) have passed |
+| `pm-clearing` | `--datapath PATH`, `--db-name NAME` | data directory, `clearing.db` | Where the database lives |
+
+See [Statistics and Reporting](../part-4-run-a-market/060-statistics-and-reporting.md#retention)
+for the `pm-stats` retention rules.
+
 ### Session scheduler
 
 ```bash

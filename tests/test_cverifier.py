@@ -839,6 +839,137 @@ class TestLayer2ApiGatewaySchema:
         assert "S080" not in codes
 
 
+class TestLayer2UnknownEngineKeys:
+    """S121 for the engine sections, whose loader silently ignores a typo."""
+
+    _BASE = "symbols:\n  AAPL: {}\nparticipants:\n    - id: GW01\n"
+
+    def _s121(self, content: str) -> list[str]:
+        results = layer2_schema.check(_raw(content), Path("x.yaml"))
+        return [r.path for r in results if r.code == "S121"]
+
+    @pytest.mark.parametrize(
+        ("content", "path"),
+        [
+            ("sesions_enabled: true\n", "sesions_enabled"),
+            ("engine_tunning: {}\n", "engine_tunning"),
+            ("symbols:\n  AAPL: {tick_decimal: 2}\n", "symbols.AAPL.tick_decimal"),
+            (
+                "symbols:\n  AAPL:\n    collar: {static_band: 0.1}\n",
+                "symbols.AAPL.collar.static_band",
+            ),
+            (
+                "symbols:\n  AAPL:\n    order_limits: {max_qty: 5}\n",
+                "symbols.AAPL.order_limits.max_qty",
+            ),
+            (
+                "symbols:\n  AAPL:\n    market_maker_quotes:\n"
+                "      - {gateway_id: MM, bid_prise: 1}\n",
+                "symbols.AAPL.market_maker_quotes[0].bid_prise",
+            ),
+            (
+                "symbols:\n  AAPL:\n    circuit_breaker:\n      levels:\n"
+                "        L1: {price_shift: 0.1}\n",
+                "symbols.AAPL.circuit_breaker.levels.L1.price_shift",
+            ),
+            (
+                "participants:\n  - {id: GW01, disconect_behaviour: LEAVE_ALL}\n",
+                "participants[0].disconect_behaviour",
+            ),
+            (
+                "participants:\n  - id: GW01\n    mm_obligations:\n"
+                "      AAPL: {mm_min_qty: 5}\n",
+                "participants[0].mm_obligations.AAPL.mm_min_qty",
+            ),
+            (
+                "mm_obligation_defaults: {mm_min_quantity: 5}\n",
+                "mm_obligation_defaults.mm_min_quantity",
+            ),
+            (
+                "mm_obligation_defaults:\n  symbols:\n    AAPL: {min_qty: 5}\n",
+                "mm_obligation_defaults.symbols.AAPL.min_qty",
+            ),
+            (
+                "engine_tuning: {snapshot_interval: 1}\n",
+                "engine_tuning.snapshot_interval",
+            ),
+            ("locale: {contry: Sweden}\n", "locale.contry"),
+            (
+                "risk_controls:\n  levels:\n    A:\n      colar: {}\n",
+                "risk_controls.levels.A.colar",
+            ),
+            (
+                "risk_controls:\n  levels:\n    A:\n      collar: {static: 0.1}\n",
+                "risk_controls.levels.A.collar.static",
+            ),
+            (
+                "circuit_breaker_defaults:\n  reopening: {initial_band: 0.1}\n",
+                "circuit_breaker_defaults.reopening.initial_band",
+            ),
+            (
+                "circuit_breaker_defaults:\n  reopening:\n    expansions:\n"
+                "      - {widen: 0.1, min_duration_ns: 1}\n",
+                "circuit_breaker_defaults.reopening.expansions[0].widen",
+            ),
+            (
+                "market_maker_combos:\n  - {combo_id: C, legs: [], tiff: DAY}\n",
+                "market_maker_combos[0].tiff",
+            ),
+            (
+                "market_maker_combos:\n  - combo_id: C\n    legs:\n"
+                "      - {symbol: AAPL, qty: 1}\n",
+                "market_maker_combos[0].legs[0].qty",
+            ),
+            (
+                "indices:\n  - {id: X, publish_interval: 1}\n",
+                "indices[0].publish_interval",
+            ),
+            (
+                "schedule:\n  weekdays: {pre_opne: '08:00'}\n",
+                "schedule.weekdays.pre_opne",
+            ),
+        ],
+    )
+    def test_unknown_key_at_each_level(self, content: str, path: str) -> None:
+        assert path in self._s121(self._BASE + content)
+
+    def test_top_level_message_has_no_leading_dot(self) -> None:
+        results = layer2_schema.check(
+            _raw(self._BASE + "sesions_enabled: true\n"), Path("x.yaml")
+        )
+        (hit,) = [r for r in results if r.code == "S121"]
+        assert hit.message.startswith("'sesions_enabled'")
+        assert "Did you mean 'sessions_enabled'?" in hit.suggestion
+
+    def test_valid_engine_sections_report_nothing(self) -> None:
+        assert not self._s121(
+            "symbols:\n  AAPL:\n    tick_decimals: 2\n    level: A\n"
+            "    collar: {static_band_pct: 0.1}\n"
+            "    order_limits: {max_order_qty: 5}\n"
+            "    circuit_breaker:\n      reference_window_ns: 1\n"
+            "      levels: {L1: {price_shift_pct: 0.1, halt_duration_ns: 1}}\n"
+            "      reopening: {enabled: true}\n"
+            "participants:\n  - id: GW01\n    smp_action: NONE\n"
+            "    mm_obligations: {AAPL: {max_spread_ticks: 1}}\n"
+            "risk_controls:\n  default_level: A\n"
+            "  levels: {A: {collar: {static_band_pct: 0.1}}}\n"
+            "schedule:\n  weekdays: {pre_open: '08:00'}\n"
+            "locale: {country: Sweden}\n"
+        )
+
+    def test_non_mapping_sections_are_left_to_their_own_checks(self) -> None:
+        assert not self._s121(
+            self._BASE + "locale: bad\nengine_tuning: [1]\nindices: 5\n"
+        )
+
+    def test_level_scoped_circuit_breaker_is_not_reported_twice(self) -> None:
+        content = (
+            self._BASE
+            + "risk_controls:\n  levels:\n    A:\n      circuit_breaker: {}\n"
+        )
+        assert not self._s121(content)
+
+
 class TestLayer2UnknownProcessKeys:
     _BASE = "symbols:\n  AAPL: {}\nparticipants:\n    - id: GW01\n"
 
@@ -1271,13 +1402,13 @@ class TestLayer3MMSeeds:
         results = layer3_semantic.check(raw, Path("x.yaml"))
         assert isinstance(results, list)
 
-    def test_mm_max_spread_invalid_type_uses_default_limit(self) -> None:
+    def test_mm_max_spread_invalid_type_falls_back_to_builtin_limit(self) -> None:
         raw = _raw(
             "symbols:\n"
             "  AAPL:\n"
             "    tick_decimals: 2\n"
             "    market_maker_quotes:\n"
-            "      - gateway_id: MM01\n        bid_price: 100\n        ask_price: 100.2\n"
+            "      - gateway_id: MM01\n        bid_price: 100\n        ask_price: 100.3\n"
             "participants:\n"
             "    - id: MM01\n      role: MARKET_MAKER\n"
             "mm_obligation_defaults:\n"
@@ -1713,6 +1844,22 @@ class TestLayer4:
         results = layer4_complete.check(raw, Path("x.yaml"))
         assert "C004" in _codes(results)
 
+    def test_c004_silent_when_defaults_block_present(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL:\n    tick_decimals: 2\n"
+            "participants:\n    - id: GW01\n"
+            "circuit_breaker_defaults:\n  reference_window_ns: 300000000000\n"
+        )
+        assert "C004" not in _codes(layer4_complete.check(raw, Path("x.yaml")))
+
+    def test_c004_silent_when_only_a_symbol_has_a_breaker(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL:\n    circuit_breaker:\n      levels:\n"
+            "        L1:\n          price_shift_pct: 0.05\n"
+            "participants:\n    - id: GW01\n"
+        )
+        assert "C004" not in _codes(layer4_complete.check(raw, Path("x.yaml")))
+
     def test_c005_mm_gw_no_obligation_defaults_is_quiet(self) -> None:
         raw = _raw(
             "symbols:\n  AAPL:\n    tick_decimals: 2\n"
@@ -1802,6 +1949,23 @@ class TestLayer4:
         )
         results = layer4_complete.check(raw, Path("x.yaml"))
         assert "C013" in _codes(results)
+
+    def test_c013_silent_for_creatable_data_dir_path(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """pm-index mkdirs below the data directory, wherever the shell is."""
+        import edumatcher.cverifier.layer4_complete as l4
+
+        monkeypatch.setattr(
+            l4, "resolve_data_path", lambda p: tmp_path / "indexes" / "x.jsonl"
+        )
+        raw = _raw(
+            "symbols:\n  AAPL:\n    tick_decimals: 2\n"
+            "participants:\n    - id: GW01\n"
+            "indices:\n  - id: IDX1\n    description: Test\n    constituents: []\n"
+            "    history_file: data/indexes/x.jsonl\n"
+        )
+        assert "C013" not in _codes(layer4_complete.check(raw, Path("x.yaml")))
 
 
 class TestLayer4EdgeCases:
@@ -1897,7 +2061,27 @@ class TestRiskSummary:
             "enforce_circuit_breakers: true\n"
         )
         rs = risk_summary_mod.build(raw)
-        assert "built-in defaults" in rs.cb_description
+        assert rs.circuit_breakers_configured is False
+        assert "no circuit breaker configured" in rs.cb_description
+
+    def test_cb_defaults_block_without_levels_uses_builtin_ladder(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL:\n    tick_decimals: 2\n"
+            "participants:\n    - id: GW01\n"
+            "circuit_breaker_defaults:\n  reference_window_ns: 300000000000\n"
+        )
+        rs = risk_summary_mod.build(raw)
+        assert rs.circuit_breakers_configured is True
+        assert "L1=7%" in rs.cb_description
+
+    def test_symbol_circuit_breaker_block_counts_as_configured(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL:\n    circuit_breaker:\n      levels:\n"
+            "        L1:\n          price_shift_pct: 0.05\n"
+            "participants:\n    - id: GW01\n"
+        )
+        rs = risk_summary_mod.build(raw)
+        assert rs.circuit_breakers_configured is True
 
     def test_cb_disabled(self) -> None:
         raw = _raw(
@@ -1936,7 +2120,7 @@ class TestRiskSummary:
         )
         rs = risk_summary_mod.build(raw)
         assert "L1" in rs.cb_description
-        assert "built-in defaults" not in rs.cb_description
+        assert "no circuit breaker configured" not in rs.cb_description
 
     def test_handles_invalid_collar_values(self) -> None:
         raw = _raw(
@@ -2529,6 +2713,61 @@ class TestM001RequireMmSeedQuotesGate:
         assert "M001" in _codes(results)
 
 
+class TestM003EffectiveLimit:
+    """M003 compares a seed with the limit that applies to its gateway/symbol."""
+
+    BASE = (
+        "symbols:\n  AAPL:\n    tick_decimals: 2\n"
+        "    market_maker_quotes:\n"
+        "      - gateway_id: MM01\n        bid_price: 100.00\n"
+        "        ask_price: 101.00\n        bid_qty: 100\n        ask_qty: 100\n"
+    )  # 100 ticks wide
+
+    def _codes_for(self, extra: str) -> list[str]:
+        raw = _raw(
+            self.BASE
+            + "participants:\n    - id: MM01\n      role: MARKET_MAKER\n"
+            + extra
+        )
+        return _codes(layer3_semantic.check(raw, Path("x.yaml")))
+
+    def test_global_limit_still_applies(self) -> None:
+        assert "M003" in self._codes_for(
+            "mm_obligation_defaults:\n  mm_max_spread_ticks: 20\n"
+        )
+
+    def test_per_symbol_default_widens_the_limit(self) -> None:
+        extra = (
+            "mm_obligation_defaults:\n  mm_max_spread_ticks: 20\n"
+            "  symbols:\n    AAPL:\n      mm_max_spread_ticks: 120\n"
+        )
+        assert "M003" not in self._codes_for(extra)
+
+    def test_participant_flat_limit_widens_the_limit(self) -> None:
+        raw = _raw(
+            self.BASE + "participants:\n    - id: MM01\n      role: MARKET_MAKER\n"
+            "      mm_max_spread_ticks: 150\n"
+            "mm_obligation_defaults:\n  mm_max_spread_ticks: 20\n"
+        )
+        assert "M003" not in _codes(layer3_semantic.check(raw, Path("x.yaml")))
+
+    def test_participant_per_symbol_obligation_wins(self) -> None:
+        raw = _raw(
+            self.BASE + "participants:\n    - id: MM01\n      role: MARKET_MAKER\n"
+            "      mm_obligations:\n        AAPL:\n          max_spread_ticks: 120\n"
+            "mm_obligation_defaults:\n  mm_max_spread_ticks: 20\n"
+            "  symbols:\n    AAPL:\n      mm_max_spread_ticks: 10\n"
+        )
+        assert "M003" not in _codes(layer3_semantic.check(raw, Path("x.yaml")))
+
+    def test_narrower_per_symbol_limit_is_enforced(self) -> None:
+        extra = (
+            "mm_obligation_defaults:\n  mm_max_spread_ticks: 500\n"
+            "  symbols:\n    AAPL:\n      mm_max_spread_ticks: 10\n"
+        )
+        assert "M003" in self._codes_for(extra)
+
+
 class TestM003Gating:
     def test_m003_not_raised_without_mm_defaults(self) -> None:
         raw = _raw(
@@ -2606,7 +2845,7 @@ class TestStrictVerdictMessage:
 
 
 class TestJsonCBKey:
-    def test_circuit_breakers_using_defaults_key(self) -> None:
+    def test_circuit_breakers_configured_key(self) -> None:
         rs = RiskSummary(circuit_breakers_configured=False)
         report = VerificationReport(
             file="x.yaml",
@@ -2616,8 +2855,8 @@ class TestJsonCBKey:
             verdict="OK",
         )
         data = json.loads(format_json(report))
-        assert data["risk_summary"]["circuit_breakers_using_defaults"] is True
-        assert "circuit_breakers_configured" not in data["risk_summary"]
+        assert data["risk_summary"]["circuit_breakers_configured"] is False
+        assert "circuit_breakers_using_defaults" not in data["risk_summary"]
 
 
 class TestHelpers:

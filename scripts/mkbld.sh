@@ -55,6 +55,25 @@ NO_DOCS=false
 # For both Linux and macOS
 NUM_CORES=$(nproc --all 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 1)
 
+# The documentation build (Phase 5) is started in the background once pytest reports
+# 99% progress, since the tail of the test run is sequential and leaves most cores idle.
+# DOCS_START_DELAY is the number of seconds to wait after that before the docs build
+# actually starts. Tune it to the build machine (override from environment).
+DOCS_START_DELAY="${DOCS_START_DELAY:-3}"
+DOCS_PID=""
+DOCS_LOG=""
+PYTEST_LOG=""
+PYTEST_DONE=""
+
+# Kill the background docs build if the script exits early (e.g. pytest failure)
+cleanup_docs() {
+    if [ -n "$DOCS_PID" ]; then
+        pkill -P "$DOCS_PID" 2>/dev/null || true
+        kill "$DOCS_PID" 2>/dev/null || true
+    fi
+}
+trap cleanup_docs EXIT
+
 # =====================================
 # Functions to print colored output
 # =====================================
@@ -198,7 +217,7 @@ run_parallel_commands3() {
         return 0
     fi
 
-    print_sub_step "Running PDF bundle builds in parallel"
+    print_sub_step "Running three commands in parallel"
     echo -e "${YELLOW}  ->Executing (background): $cmd1${NC}"
     eval "$cmd1" &
     local pid1=$!
@@ -242,6 +261,74 @@ run_parallel_commands3() {
     fi
 }
 
+
+# Build all documentation (Phase 5). Runs in a background subshell alongside the tail
+# of pytest, see DOCS_START_DELAY above.
+build_docs() {
+    BUILD_EXCHANGE_INTRO_PDF=false
+    BUILD_EXCHANGE_INTRO_EPUB=false
+    if [ "$BUILD_INTRO" = true ]; then
+        if [ -d "docs-exchange-intro" ]; then
+            if [ -f "docs-exchange-intro/version.toml" ]; then
+                EXCHANGE_INTRO_VERSION=$(awk -F'=' '/version/ { gsub(/[ "]/, "", $2); print $2; exit }' docs-exchange-intro/version.toml)
+                print_sub_step "Detected Exchange Intro version: ${EXCHANGE_INTRO_VERSION}"
+                BUILD_EXCHANGE_INTRO_PDF=true
+                BUILD_EXCHANGE_INTRO_EPUB=true
+            else
+                print_warning "docs-exchange-intro/version.toml not found; skipping Exchange Intro PDF build"
+                EXCHANGE_INTRO_VERSION="unknown"
+                exit 1;
+            fi
+        else
+            print_warning "docs-exchange-intro directory not found; skipping Exchange Intro PDF build"
+        fi
+    else
+        print_info_colored "Skipping Exchange Intro PDF build (use --intro to enable)"
+    fi
+
+    # Step 5.2: Build User Guide PDF bundle 
+    BUILD_USER_GUIDE_PDF=false
+    if [ -d "docs" ]; then
+        print_sub_step "Generating PDF version of User Guide for release assets..."
+        BUILD_USER_GUIDE_PDF=true
+    else
+        print_warning "docs directory not found; skipping User Guide PDF build"
+    fi
+
+    # Clean up any previous PDF artifacts
+    if [ "$BUILD_EXCHANGE_INTRO_PDF" = true ] && [ "$BUILD_USER_GUIDE_PDF" = true ]; then
+        
+        run_command "make -C docs-exchange-intro clean" "Cleaning previous PDF artifacts"
+        print_sub_step "Building Exchange Intro Booklet"
+        run_command "make -C docs-exchange-intro -j${NUM_CORES} all" "Building Exchange Intro Booklet" 
+
+        run_command "make -C docs clean" "Cleaning previous PDF artifacts"
+        print_sub_step "Building User Guide Omnibus"
+        run_command "make -C docs -j${NUM_CORES} covers" "Building Books Covers" 
+        run_command "make -C docs -j${NUM_CORES} omnibus" "Building Books" 
+
+    else
+        if [ "$BUILD_EXCHANGE_INTRO_PDF" = true ]; then
+            print_sub_step "Building Exchange Intro Booklet"
+            run_command "make -C docs-exchange-intro -j${NUM_CORES} all" "Building Exchange Intro Booklet" 
+
+        fi
+
+        if [ "$BUILD_USER_GUIDE_PDF" = true ]; then
+            print_sub_step "Building User Guide Omnibus"
+            run_command "make -C docs -j${NUM_CORES} covers" "Building Books Covers" 
+            run_command "make -C docs -j${NUM_CORES} omnibus" "Building Books" 
+        fi
+    fi
+
+    # Step 5.3: Build HTML docs site/
+    print_sub_step "Generating HTML version of User Guide for site/ ..."
+    run_command "make -C docs -j${NUM_CORES} docs" "Building HTML docs with Makefile"
+
+    # Step 5.4: Bump the multipass bootstrap script version in the docs to match the current project version
+    print_sub_step "Bumping multipass bootstrap script version in docs to match project version ${VERSION}"
+    run_command "make -C docs mp-bump" "Bumping multipass bootstrap script version in docs"
+}
 
 # Help function
 show_help() {
@@ -443,10 +530,12 @@ else
 fi
 
 print_sub_step "Running npm tests for web applications"
-# Step 3.1: Run npm verification and tests for two web applications at a time
+# Step 3.1: Run npm verification and tests for up to three web applications at a time
 if [ -d "web-apps" ]; then
     pending_command=""
     pending_description=""
+    pending_command2=""
+    pending_description2=""
     for app_dir in web-apps/*; do
         if [ -d "$app_dir" ]; then
             printf -v app_command '(cd %q && npm install && npm run typecheck && npm run lint && npm test)' "$app_dir"
@@ -454,22 +543,50 @@ if [ -d "web-apps" ]; then
             if [ -z "$pending_command" ]; then
                 pending_command="$app_command"
                 pending_description="$app_description"
+            elif [ -z "$pending_command2" ]; then
+                pending_command2="$app_command"
+                pending_description2="$app_description"
             else
-                run_parallel_commands2 "$pending_command" "$pending_description" "$app_command" "$app_description"
+                run_parallel_commands3 "$pending_command" "$pending_description" \
+                    "$pending_command2" "$pending_description2" "$app_command" "$app_description"
                 pending_command=""
+                pending_command2=""
             fi
         fi
     done
-    if [ -n "$pending_command" ]; then
+    if [ -n "$pending_command2" ]; then
+        run_parallel_commands2 "$pending_command" "$pending_description" "$pending_command2" "$pending_description2"
+    elif [ -n "$pending_command" ]; then
         run_command "$pending_command" "$pending_description"
     fi
 else
     print_warning "web-apps directory not found; skipping npm tests for web applications"
 fi
 
+# Start a watcher that launches the documentation build when pytest reaches 99%
+# (or when pytest has finished, if it never printed 99%/100%)
+if [ "$NO_DOCS" = false ] && [ "$DRY_RUN" = false ]; then
+    DOCS_LOG="$(mktemp)"
+    PYTEST_LOG="$(mktemp)"
+    PYTEST_DONE="$(mktemp -u)"
+    print_sub_step "Documentation build starts ${DOCS_START_DELAY}s after pytest reaches 99% (log: ${DOCS_LOG})"
+    (
+        until grep -qE '\[ *(99|100)%\]' "$PYTEST_LOG" || [ -e "$PYTEST_DONE" ]; do sleep 1; done
+        sleep "$DOCS_START_DELAY"
+        build_docs
+    ) > "$DOCS_LOG" 2>&1 &
+    DOCS_PID=$!
+    # Pipe through tee so the watcher can see progress; stdout is no longer a tty so force colors
+    PYTEST_TEE=" 2>&1 | tee ${PYTEST_LOG}"
+    [ "$CI_MODE" = true ] || PYTEST_TEE=" --color=yes${PYTEST_TEE}"
+else
+    PYTEST_TEE=""
+fi
+
 print_sub_step "Running pytest with coverage"
 # Step 3.2: Run tests with coverage
-run_command "poetry run pytest -n logical tests/ ${PYTEST_QUIET} --cov-fail-under=${COVERAGE}" "Running tests with coverage"
+run_command "poetry run pytest -n logical tests/ ${PYTEST_QUIET} --cov-fail-under=${COVERAGE}${PYTEST_TEE}" "Running tests with coverage"
+[ -z "$PYTEST_DONE" ] || touch "$PYTEST_DONE"
 
 # Step 3.3: Update coverage badge in README
 if [ "$CI_MODE" = false ] && [ "$DRY_RUN" = false ]; then
@@ -505,7 +622,7 @@ print_step_colored "📦 PHASE 4: PACKAGE BUILD & VALIDATION"
 print_step_colored ""
 
 # Step 4.1: Clean previous builds
-run_command "rm -rf dist/ build/ site/ src/*.egg-info/" "Cleaning previous builds"
+run_command "rm -rf dist/ build/ src/*.egg-info/" "Cleaning previous builds"
 
 # Step 4.2: Build package
 run_command "poetry build" "Building package"
@@ -513,80 +630,36 @@ run_command "poetry build" "Building package"
 # Step 4.3: Check package with twine
 run_command "poetry run twine check dist/*" "Validating package with twine"
 
-# Step 4.4: Build Exchange Intro PDF (optional — requires --intro flag)
-if [ "$NO_DOCS" = false ]; then
-    BUILD_EXCHANGE_INTRO_PDF=false
-    BUILD_EXCHANGE_INTRO_EPUB=false
-    if [ "$BUILD_INTRO" = true ]; then
-        if [ -d "docs-exchange-intro" ]; then
-            if [ -f "docs-exchange-intro/version.toml" ]; then
-                EXCHANGE_INTRO_VERSION=$(awk -F'=' '/version/ { gsub(/[ "]/, "", $2); print $2; exit }' docs-exchange-intro/version.toml)
-                print_sub_step "Detected Exchange Intro version: ${EXCHANGE_INTRO_VERSION}"
-                BUILD_EXCHANGE_INTRO_PDF=true
-                BUILD_EXCHANGE_INTRO_EPUB=true
-            else
-                print_warning "docs-exchange-intro/version.toml not found; skipping Exchange Intro PDF build"
-                EXCHANGE_INTRO_VERSION="unknown"
-                exit 1;
-            fi
-        else
-            print_warning "docs-exchange-intro directory not found; skipping Exchange Intro PDF build"
-        fi
-    else
-        print_info_colored "Skipping Exchange Intro PDF build (use --intro to enable)"
-    fi
-    
-    # Step 4.5: Build User Guide PDF bundle 
-    BUILD_USER_GUIDE_PDF=false
-    if [ -d "docs" ]; then
-        print_sub_step "Generating PDF version of User Guide for release assets..."
-        BUILD_USER_GUIDE_PDF=true
-    else
-        print_warning "docs directory not found; skipping User Guide PDF build"
-    fi
-    
-    # Clean up any previous PDF artifacts
-   
-    
-    if [ "$BUILD_EXCHANGE_INTRO_PDF" = true ] && [ "$BUILD_USER_GUIDE_PDF" = true ]; then
-        
-        run_command "make -C docs-exchange-intro clean" "Cleaning previous PDF artifacts"
-        print_sub_step "Building Exchange Intro Booklet"
-        run_command "make -C docs-exchange-intro -j${NUM_CORES} all" "Building Exchange Intro Booklet" 
 
-        run_command "make -C docs clean" "Cleaning previous PDF artifacts"
-        print_sub_step "Building User Guide Omnibus"
-        run_command "make -C docs -j${NUM_CORES} covers" "Building Books Covers" 
-        run_command "make -C docs -j${NUM_CORES} omnibus" "Building Books" 
+# =======================================
+# PHASE 5: BUILD DOCUMENTATION
+# =======================================
 
-    else
-        if [ "$BUILD_EXCHANGE_INTRO_PDF" = true ]; then
-            print_sub_step "Building Exchange Intro Booklet"
-            run_command "make -C docs-exchange-intro -j${NUM_CORES} all" "Building Exchange Intro Booklet" 
+echo ""
+print_step_colored ""
+print_step_colored "📦 PHASE 5: BUILD DOCUMENTATION"
+print_step_colored ""
 
-        fi
-    
-        if [ "$BUILD_USER_GUIDE_PDF" = true ]; then
-            print_sub_step "Building User Guide Omnibus"
-            run_command "make -C docs -j${NUM_CORES} covers" "Building Books Covers" 
-            run_command "make -C docs -j${NUM_CORES} omnibus" "Building Books" 
-        fi
-    fi
-    
-    # Step 4.6: Build HTML docs site/
-    print_sub_step "Generating HTML version of User Guide for site/ ..."
-    run_command "make -C docs -j${NUM_CORES} docs" "Building HTML docs with Makefile"
-    
-    # Step 4.7: Bump the multipass bootstrap script version in the docs to match the current project version
-    print_sub_step "Bumping multipass bootstrap script version in docs to match project version ${VERSION}"
-    run_command "make -C docs mp-bump" "Bumping multipass bootstrap script version in docs"
-else
+if [ "$NO_DOCS" = true ]; then
     print_info_colored "Skipping all documentation builds (--no-docs)"
-fi # end NO_DOCS guard
+elif [ "$DRY_RUN" = true ]; then
+    build_docs
+elif [ -n "$DOCS_PID" ]; then
+    print_sub_step "Waiting for documentation build started in parallel with pytest"
+    docs_status=0
+    wait "$DOCS_PID" || docs_status=$?
+    DOCS_PID=""
+    cat "$DOCS_LOG"
+    rm -f "$DOCS_LOG" "$PYTEST_LOG" "$PYTEST_DONE"
+    if [ "$docs_status" -ne 0 ]; then
+        print_error_colored "Documentation build failed"
+        exit 1
+    fi
+fi
 
 
 # =======================================
-# PHASE 5: BUILD SUMMARY
+# PHASE 6: BUILD SUMMARY
 # =======================================
 
 if [ "$DRY_RUN" = false ]; then

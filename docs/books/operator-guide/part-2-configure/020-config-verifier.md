@@ -150,7 +150,7 @@ Gateways         2  (TRADER01: TRADER, MM01: MARKET_MAKER)
 Sessions         disabled — always CONTINUOUS
 Collars          enabled — DEFAULT: static=20%, dynamic=2%
 Order limits     none configured
-Circuit breakers enabled — L1=7% (5 min), L2=13% (15 min), L3=20% (rest-of-day) (built-in defaults)
+Circuit breakers enabled — enabled but no circuit breaker configured ⚠
 MM obligations   not enforced
 Admin gateway    none ⚠
 
@@ -272,7 +272,7 @@ the key if it appears on a risk level.
 | `S118` | `participant_defaults` is not a mapping, or has a key other than `smp_action` / `disconnect_behaviour` |
 | `S119` | `participant_defaults.disconnect_behaviour` is not a recognised value |
 | `S120` | `participant_defaults.smp_action` is not a recognised value |
-| `S121` | A key in `alf_gateway`, `balf_gateway`, `market_data_gateway`, `post_trade_gateway`, `dc_gateway`, `log_server` (or `log_server.client`), `monitor` (or `monitor.retention`, `monitor.thresholds`, or one of its `{warn, crit}` bands), or an `api_gateways.<name>` instance (or its `rate_limit`, `timeouts` or `credentials[]`) that no loader reads. The loaders ignore such a key, so the setting silently has no effect; the verifier reports the closest accepted name |
+| `S121` | A key that no loader reads, at any level of the file: a top-level key, a key in any engine section (`symbols`, `participants`, `mm_obligation_defaults`, `engine_tuning`, `locale`, `risk_controls`, `circuit_breaker_defaults`, `market_maker_combos`, `indices`, a `schedule` day block, and their nested blocks), or a key in a gateway or service block (`alf_gateway`, `balf_gateway`, `market_data_gateway`, `post_trade_gateway`, `dc_gateway`, `log_server`, `monitor`, or an `api_gateways.<name>` instance and its nested blocks). The loaders ignore such a key, so the setting silently has no effect; the verifier reports the closest accepted name |
 
 **Circuit breaker fields**
 
@@ -506,7 +506,7 @@ is validated while parsing `circuit_breaker_defaults`.
 |--------|----------|---------------------------------------------------------------|
 | `M001` | ERROR    | MM gateway present but a symbol has no seed quotes (skipped when `require_mm_seed_quotes: false`) |
 | `M002` | ERROR    | MM seed references a gateway ID not in `participants`         |
-| `M003` | WARN     | MM seed spread exceeds `mm_max_spread_ticks`                  |
+| `M003` | WARN     | MM seed spread exceeds the `mm_max_spread_ticks` that applies to that gateway and symbol (participant `mm_obligations`, then `mm_obligation_defaults.symbols`, then the participant's own value, then `mm_obligation_defaults`, then 20) |
 | `M004` | INFO     | Sessions enabled (the default) but no `schedule`: the built-in weekday timetable is used |
 | `M005` | WARN     | `sessions_enabled: false` but a `schedule` is present         |
 | `M006` | WARN     | Schedule times not in chronological order                     |
@@ -551,7 +551,7 @@ all is deliberately left quiet (confirmed by
 | `C001` | WARN     | No symbol has a reference price                                     |
 | `C002` | INFO     | Symbol has only one of `last_buy_price` / `last_sell_price`         |
 | `C003` | INFO     | `enforce_collars: true` but no collar configured                    |
-| `C004` | INFO     | `enforce_circuit_breakers: true` but no CB levels                   |
+| `C004` | INFO     | `enforce_circuit_breakers: true` but no circuit breaker is configured (no `circuit_breaker_defaults`, no symbol `circuit_breaker`): no symbol will be halted |
 | `C006` | WARN     | `enforce_mm_obligation: false`                                      |
 | `C007` | INFO     | `engine_tuning.snapshot_interval_sec` is at the default `0.5`                   |
 | `C008` | WARN     | Index constituent has no reference price                            |
@@ -559,7 +559,7 @@ all is deliberately left quiet (confirmed by
 | `C010` | WARN     | `disconnect_behaviour: LEAVE_ALL` on a non-ADMIN gateway            |
 | `C011` | INFO     | Risk level defined but no symbol uses it                            |
 | `C012` | WARN     | More than 20 symbols with `snapshot_interval_sec < 0.2`             |
-| `C013` | WARN     | Index `history_file` or `state_file` parent directory may not exist |
+| `C013` | WARN     | Index `history_file` or `state_file` is below a directory `pm-index` cannot create (relative paths are resolved under the data directory) |
 
 
 ## Using in CI
@@ -591,7 +591,7 @@ actually do at runtime?"*
 | Sessions         | Enabled/disabled, schedule summary               |
 | Collars          | Whether enforced and which levels are configured |
 | Order limits     | Per-symbol max order qty/value, or "none configured" |
-| Circuit breakers | Whether enforced and threshold summary; noted "(built-in defaults)" when no `circuit_breaker_defaults` is configured |
+| Circuit breakers | Whether enforced and threshold summary; reads "no circuit breaker configured ⚠" when neither `circuit_breaker_defaults` nor any symbol `circuit_breaker` block exists |
 | MM obligations   | Whether enforcement is active                    |
 | Admin gateway    | Which gateway (if any) has role `ADMIN`          |
 | Indices          | Index IDs if any are configured                  |
@@ -601,9 +601,9 @@ subsystem configuration (for example missing ADMIN gateway or missing collar
 configuration), even if the overall verdict is `OK`.
 
 The JSON `risk_summary` object carries a few additional machine-readable
-fields not shown in the text table above, including `circuit_breakers_using_defaults`
-(`true` when no explicit `circuit_breaker_defaults` block was configured and the
-built-in L1/L2/L3 ladder is in effect).
+fields not shown in the text table above, including `circuit_breakers_configured`
+(`false` when neither a `circuit_breaker_defaults` block nor a symbol
+`circuit_breaker` block exists, so no symbol will be halted).
 
 
 ## Relationship to Other Tools
