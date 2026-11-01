@@ -221,7 +221,7 @@ def test_x3_quote_kept_live_by_policy_still_trades_with_the_stop(
         mm_gateways=("MM01",),
     )
     assert engine._engine_config is not None
-    engine._engine_config.fix_gateways["MM01"].quote_refresh_policy = (
+    engine._engine_config.participants["MM01"].quote_refresh_policy = (
         QuoteRefreshPolicy.INACTIVATE_ON_FULL_FILL
     )
     connect(engine, "GW02", "GW03", "MM01")

@@ -325,7 +325,7 @@ class TestEngineCancelOCO:
         from dataclasses import dataclass
         from edumatcher.engine.config_loader import (
             EngineConfig,
-            FixGatewayConfig,
+            ParticipantConfig,
             SymbolConfig,
         )
         from edumatcher.engine.main import Engine
@@ -345,7 +345,7 @@ class TestEngineCancelOCO:
         pub_sock = _Sock(sent=[])
         cfg = EngineConfig(
             symbols={"AAPL": SymbolConfig(name="AAPL")},
-            fix_gateways={"GW01": FixGatewayConfig(id="GW01", description="")},
+            participants={"GW01": ParticipantConfig(id="GW01", description="")},
             sessions_enabled=True,
         )
         monkeypatch.setattr("edumatcher.engine.main.make_puller", lambda _: pull_sock)
@@ -401,7 +401,7 @@ class TestEngineSessionTransitions:
         from dataclasses import dataclass
         from edumatcher.engine.config_loader import (
             EngineConfig,
-            FixGatewayConfig,
+            ParticipantConfig,
             SymbolConfig,
         )
         from edumatcher.engine.main import Engine
@@ -420,7 +420,7 @@ class TestEngineSessionTransitions:
         pub_sock = _Sock(sent=[])
         cfg = EngineConfig(
             symbols={"AAPL": SymbolConfig(name="AAPL")},
-            fix_gateways={"GW01": FixGatewayConfig(id="GW01", description="")},
+            participants={"GW01": ParticipantConfig(id="GW01", description="")},
             sessions_enabled=True,
         )
         monkeypatch.setattr("edumatcher.engine.main.make_puller", lambda _: pull_sock)

@@ -321,7 +321,7 @@ participants:
 class TestMMObligationsParsing:
     def test_no_mm_obligations_section_gives_empty_dict(self, tmp_path) -> None:
         cfg = load_engine_config(_write_yaml(tmp_path, _MM_BASE))
-        assert cfg.fix_gateways["MM01"].mm_obligations == {}
+        assert cfg.participants["MM01"].mm_obligations == {}
 
     def test_mm_obligations_parsed(self, tmp_path) -> None:
         yaml_text = (
@@ -329,7 +329,7 @@ class TestMMObligationsParsing:
             + "\n      mm_obligations:\n        AAPL:\n          max_spread_ticks: 5\n          min_qty: 200\n"
         )
         cfg = load_engine_config(_write_yaml(tmp_path, yaml_text))
-        obligations = cfg.fix_gateways["MM01"].mm_obligations
+        obligations = cfg.participants["MM01"].mm_obligations
         assert "AAPL" in obligations
         obl = obligations["AAPL"]
         assert isinstance(obl, MarketMakerObligation)
@@ -343,7 +343,7 @@ class TestMMObligationsParsing:
             + "      mm_obligations:\n        AAPL: {}\n"
         )
         cfg = load_engine_config(_write_yaml(tmp_path, yaml_text))
-        obl = cfg.fix_gateways["MM01"].mm_obligations["AAPL"]
+        obl = cfg.participants["MM01"].mm_obligations["AAPL"]
         assert obl.max_spread_ticks == 7
         assert obl.min_qty == 150
 
@@ -608,7 +608,7 @@ class TestGlobalMMObligationPolicies:
                 """,
             )
         )
-        gw = cfg.fix_gateways["MM01"]
+        gw = cfg.participants["MM01"]
         assert gw.enforce_mm_obligation is True
         assert gw.mm_max_spread_ticks == 7
         assert gw.mm_min_qty == 150
@@ -675,7 +675,7 @@ class TestGlobalMMObligationPolicies:
                 """,
             )
         )
-        policy = cfg.fix_gateways["MM01"].mm_obligation_policies["AAPL"]
+        policy = cfg.participants["MM01"].mm_obligation_policies["AAPL"]
         assert policy.enforce_mm_obligation is True
         assert policy.mm_max_spread_ticks == 5
         assert policy.mm_min_qty == 200

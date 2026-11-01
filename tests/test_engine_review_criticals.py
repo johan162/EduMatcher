@@ -31,7 +31,7 @@ from typing import Any
 from edumatcher.engine.auction import compute_equilibrium, execute_uncross
 from edumatcher.engine.config_loader import (
     EngineConfig,
-    FixGatewayConfig,
+    ParticipantConfig,
     SymbolConfig,
 )
 from edumatcher.engine.main import Engine
@@ -79,8 +79,8 @@ def _make_engine(
 
     cfg = EngineConfig(
         symbols={sym: SymbolConfig(name=sym) for sym in symbols},
-        fix_gateways={
-            gw: FixGatewayConfig(id=gw, description=f"{gw} trader") for gw in gateways
+        participants={
+            gw: ParticipantConfig(id=gw, description=f"{gw} trader") for gw in gateways
         },
     )
 

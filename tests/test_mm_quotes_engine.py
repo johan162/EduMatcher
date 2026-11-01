@@ -4,7 +4,11 @@ from dataclasses import dataclass
 
 import pytest
 
-from edumatcher.engine.config_loader import EngineConfig, FixGatewayConfig, SymbolConfig
+from edumatcher.engine.config_loader import (
+    EngineConfig,
+    ParticipantConfig,
+    SymbolConfig,
+)
 from edumatcher.engine.main import Engine
 from edumatcher.models.message import decode
 from edumatcher.models.order import Order, OrderType, OrderStatus, Side, SmpAction, TIF
@@ -41,8 +45,8 @@ def _make_engine(
 
     cfg = EngineConfig(
         symbols={"AAPL": SymbolConfig(name="AAPL")},
-        fix_gateways={
-            "GW01": FixGatewayConfig(
+        participants={
+            "GW01": ParticipantConfig(
                 id="GW01",
                 description="MM",
                 role=role,
@@ -437,8 +441,8 @@ def test_global_circuit_breaker_halt_all_accepts_admin(monkeypatch, tmp_path) ->
             "AAPL": SymbolConfig(name="AAPL"),
             "MSFT": SymbolConfig(name="MSFT"),
         },
-        fix_gateways={
-            "GW01": FixGatewayConfig(
+        participants={
+            "GW01": ParticipantConfig(
                 id="GW01",
                 description="Admin",
                 role=ParticipantRole.ADMIN,
@@ -502,8 +506,8 @@ def test_global_circuit_breaker_halt_then_resume_all(monkeypatch, tmp_path) -> N
             "AAPL": SymbolConfig(name="AAPL"),
             "MSFT": SymbolConfig(name="MSFT"),
         },
-        fix_gateways={
-            "GW01": FixGatewayConfig(
+        participants={
+            "GW01": ParticipantConfig(
                 id="GW01",
                 description="Admin",
                 role=ParticipantRole.ADMIN,
@@ -993,23 +997,23 @@ def test_orphaned_leg_cleanup_does_not_affect_other_gateways_index_entries(
 
     Builds its own two-gateway engine (rather than extending the shared
     single-gateway _make_engine fixture used by every other test in this
-    file) since _allowed_fix_gateways is a frozenset snapshot taken once at
+    file) since _allowed_participants is a frozenset snapshot taken once at
     Engine construction from the config passed in -- adding a gateway to
-    engine._engine_config.fix_gateways afterwards would not be recognised
+    engine._engine_config.participants afterwards would not be recognised
     by _handle_gateway_connect.
     """
     pull_sock = _FakeSock(sent=[])
     pub_sock = _FakeSock(sent=[])
     cfg = EngineConfig(
         symbols={"AAPL": SymbolConfig(name="AAPL")},
-        fix_gateways={
-            "GW01": FixGatewayConfig(
+        participants={
+            "GW01": ParticipantConfig(
                 id="GW01",
                 role=ParticipantRole.MARKET_MAKER,
                 disconnect_behaviour=DisconnectBehaviour.CANCEL_QUOTES_ONLY,
                 quote_refresh_policy=QuoteRefreshPolicy.INACTIVATE_ON_ANY_FILL,
             ),
-            "GW02": FixGatewayConfig(
+            "GW02": ParticipantConfig(
                 id="GW02",
                 role=ParticipantRole.MARKET_MAKER,
                 disconnect_behaviour=DisconnectBehaviour.CANCEL_QUOTES_ONLY,
@@ -1129,7 +1133,7 @@ def test_smp_cancel_of_stale_quote_remainder_does_not_crash_reissue(
     ordinary trader) rather than extending the shared single-gateway
     _make_engine fixture, for the same reason as
     test_orphaned_leg_cleanup_does_not_affect_other_gateways_index_entries:
-    _allowed_fix_gateways is a frozenset snapshot taken once at Engine
+    _allowed_participants is a frozenset snapshot taken once at Engine
     construction, so a second gateway must be present in the config passed
     to Engine(), not added afterwards.
     """
@@ -1137,15 +1141,15 @@ def test_smp_cancel_of_stale_quote_remainder_does_not_crash_reissue(
     pub_sock = _FakeSock(sent=[])
     cfg = EngineConfig(
         symbols={"AAPL": SymbolConfig(name="AAPL")},
-        fix_gateways={
-            "GW01": FixGatewayConfig(
+        participants={
+            "GW01": ParticipantConfig(
                 id="GW01",
                 role=ParticipantRole.MARKET_MAKER,
                 disconnect_behaviour=DisconnectBehaviour.CANCEL_QUOTES_ONLY,
                 quote_refresh_policy=QuoteRefreshPolicy.INACTIVATE_ON_ANY_FILL,
                 smp_action=SmpAction.CANCEL_RESTING,
             ),
-            "GW03": FixGatewayConfig(
+            "GW03": ParticipantConfig(
                 id="GW03",
                 role=ParticipantRole.TRADER,
             ),

@@ -57,7 +57,7 @@ import pytest
 
 from edumatcher.engine.config_loader import (
     EngineConfig,
-    FixGatewayConfig,
+    ParticipantConfig,
     SymbolConfig,
 )
 from edumatcher.engine.main import Engine
@@ -169,7 +169,7 @@ def _build_engine(
     """
     cfg = EngineConfig(
         symbols={_SYMBOL: SymbolConfig(name=_SYMBOL)},
-        fix_gateways={_GW: FixGatewayConfig(id=_GW, description="perf gw")},
+        participants={_GW: ParticipantConfig(id=_GW, description="perf gw")},
     )
     pub_sock = _DummySocket(keep=keep)
 

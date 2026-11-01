@@ -11,7 +11,7 @@ from unittest.mock import MagicMock, patch
 from tests.engine_harness import last_ack
 from edumatcher.engine.config_loader import (
     EngineConfig,
-    FixGatewayConfig,
+    ParticipantConfig,
     SymbolConfig,
 )
 from edumatcher.engine.main import Engine
@@ -130,7 +130,7 @@ def _make_engine(
     pub_sock = _Sock(sent=[])
     cfg = EngineConfig(
         symbols={sym: SymbolConfig(name=sym) for sym in symbols},
-        fix_gateways={gw: FixGatewayConfig(id=gw, description="") for gw in gateways},
+        participants={gw: ParticipantConfig(id=gw, description="") for gw in gateways},
     )
     monkeypatch.setattr("edumatcher.engine.main.make_puller", lambda _: pull_sock)
     monkeypatch.setattr("edumatcher.engine.main.make_publisher", lambda _: pub_sock)

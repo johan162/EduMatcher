@@ -122,7 +122,7 @@ class TestSwarmHelpers:
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
         class _Cfg:
-            allowed_fix_gateways = frozenset({"AI001", "TRADER01"})
+            allowed_participants = frozenset({"AI001", "TRADER01"})
 
         monkeypatch.setattr(swarm_main, "load_engine_config", lambda _p: _Cfg())
         missing = missing_participants(["AI001", "AI002"], tmp_path / "cfg.yaml")

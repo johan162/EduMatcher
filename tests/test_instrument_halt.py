@@ -19,7 +19,11 @@ from edumatcher.engine.circuit_breaker import (
     CircuitBreakerState,
 )
 from edumatcher.engine.collar import CollarConfig
-from edumatcher.engine.config_loader import EngineConfig, FixGatewayConfig, SymbolConfig
+from edumatcher.engine.config_loader import (
+    EngineConfig,
+    ParticipantConfig,
+    SymbolConfig,
+)
 from edumatcher.engine.main import Engine
 from edumatcher.models.message import decode
 from edumatcher.models.order import Order, OrderType, Side, TIF
@@ -55,9 +59,9 @@ def engine(monkeypatch, tmp_path) -> tuple[Engine, _DummySocket]:
 
     cfg = EngineConfig(
         symbols={"AAPL": SymbolConfig(name="AAPL", tick_decimals=2)},
-        fix_gateways={
-            "TRADER01": FixGatewayConfig(id="TRADER01"),
-            "TRADER02": FixGatewayConfig(id="TRADER02"),
+        participants={
+            "TRADER01": ParticipantConfig(id="TRADER01"),
+            "TRADER02": ParticipantConfig(id="TRADER02"),
         },
     )
 
@@ -520,11 +524,11 @@ class TestARejectedAdminHaltLeavesTheSymbolTrading:
         from edumatcher.models.participant import ParticipantRole
 
         assert eng._engine_config is not None
-        eng._engine_config.fix_gateways["OPS01"] = FixGatewayConfig(
+        eng._engine_config.participants["OPS01"] = ParticipantConfig(
             id="OPS01", role=ParticipantRole.ADMIN
         )
-        assert eng._allowed_fix_gateways is not None
-        eng._allowed_fix_gateways = eng._allowed_fix_gateways | {"OPS01"}
+        assert eng._allowed_participants is not None
+        eng._allowed_participants = eng._allowed_participants | {"OPS01"}
         eng._handle_gateway_connect({"gateway_id": "OPS01"})
         assert eng._session_for_gateway("OPS01").role == ParticipantRole.ADMIN
 

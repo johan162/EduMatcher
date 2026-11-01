@@ -148,7 +148,7 @@ def _compiled(monitor_cfg: MonitorConfig, tz: str = "Europe/Stockholm") -> Any:
     return SimpleNamespace(
         monitor=monitor_cfg,
         engine=SimpleNamespace(
-            locale=SimpleNamespace(session_timezone=tz), fix_gateways={}
+            locale=SimpleNamespace(session_timezone=tz), participants={}
         ),
         log_client=LogClientConfig(),
         log_server=LogServerConfig(),

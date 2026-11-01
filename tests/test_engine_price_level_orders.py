@@ -11,7 +11,11 @@ from dataclasses import dataclass
 
 import pytest
 
-from edumatcher.engine.config_loader import EngineConfig, FixGatewayConfig, SymbolConfig
+from edumatcher.engine.config_loader import (
+    EngineConfig,
+    ParticipantConfig,
+    SymbolConfig,
+)
 from edumatcher.engine.main import Engine
 from edumatcher.models.message import decode
 from edumatcher.models.order import Order, OrderType, Side, TIF
@@ -40,20 +44,20 @@ def _make_engine(monkeypatch, tmp_path) -> tuple[Engine, _FakeSock]:
             "AAPL": SymbolConfig(name="AAPL", tick_decimals=2),
             "MSFT": SymbolConfig(name="MSFT", tick_decimals=2),
         },
-        fix_gateways={
-            "ADMIN01": FixGatewayConfig(
+        participants={
+            "ADMIN01": ParticipantConfig(
                 id="ADMIN01",
                 description="Admin",
                 role=ParticipantRole.ADMIN,
                 disconnect_behaviour=DisconnectBehaviour.CANCEL_QUOTES_ONLY,
             ),
-            "GW01": FixGatewayConfig(
+            "GW01": ParticipantConfig(
                 id="GW01",
                 description="Trader 1",
                 role=ParticipantRole.TRADER,
                 disconnect_behaviour=DisconnectBehaviour.CANCEL_QUOTES_ONLY,
             ),
-            "GW02": FixGatewayConfig(
+            "GW02": ParticipantConfig(
                 id="GW02",
                 description="Trader 2",
                 role=ParticipantRole.TRADER,

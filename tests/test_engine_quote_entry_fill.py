@@ -30,7 +30,7 @@ def setup(monkeypatch: Any, tmp_path: Any, policy: QuoteRefreshPolicy) -> Any:
     engine, pub = make_engine(monkeypatch, tmp_path, mm_gateways=(MM,))
     connect(engine)
     assert engine._engine_config is not None
-    engine._engine_config.fix_gateways[MM].quote_refresh_policy = policy
+    engine._engine_config.participants[MM].quote_refresh_policy = policy
     return engine, pub
 
 

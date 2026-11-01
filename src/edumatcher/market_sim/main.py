@@ -775,7 +775,7 @@ def main() -> None:
     except SimConfigError as exc:
         raise SystemExit(f"pm-market-sim: {exc}") from exc
     admins = frozenset(
-        gw for gw, c in engine.fix_gateways.items() if c.role == ParticipantRole.ADMIN
+        gw for gw, c in engine.participants.items() if c.role == ParticipantRole.ADMIN
     )
     sim = MarketSim(
         cfg,

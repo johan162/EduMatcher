@@ -16,7 +16,7 @@ import pytest
 
 from edumatcher.engine.config_loader import (
     EngineConfig,
-    FixGatewayConfig,
+    ParticipantConfig,
     SymbolConfig,
 )
 from edumatcher.engine.main import Engine
@@ -54,8 +54,8 @@ def stress_engine(monkeypatch, tmp_path) -> tuple[Engine, _DummySocket]:
 
     cfg = EngineConfig(
         symbols=_make_symbols(20),
-        fix_gateways={
-            f"GW{i:02d}": FixGatewayConfig(id=f"GW{i:02d}", description=f"Gateway {i}")
+        participants={
+            f"GW{i:02d}": ParticipantConfig(id=f"GW{i:02d}", description=f"Gateway {i}")
             for i in range(4)
         },
     )

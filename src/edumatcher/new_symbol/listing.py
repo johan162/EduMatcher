@@ -33,7 +33,7 @@ def _seed_quote(
 ) -> dict[str, Any] | None:
     mm_ids = [
         gw.id
-        for gw in engine.fix_gateways.values()
+        for gw in engine.participants.values()
         if gw.role == ParticipantRole.MARKET_MAKER
     ]
     if (args.mm_bid_price is None) != (args.mm_ask_price is None):
@@ -60,7 +60,7 @@ def _seed_quote(
     # The engine's precedence for a quote's obligation is gateway+symbol, then
     # global symbol, then gateway (whose fields default to the global ones).
     # A global per-symbol policy cannot name a symbol that is not listed yet.
-    gateway = engine.fix_gateways[gateway_id]
+    gateway = engine.participants[gateway_id]
     policy = gateway.mm_obligation_policies.get(symbol)
     enforce = policy.enforce_mm_obligation if policy else gateway.enforce_mm_obligation
     max_spread = policy.mm_max_spread_ticks if policy else gateway.mm_max_spread_ticks

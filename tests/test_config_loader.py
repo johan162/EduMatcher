@@ -105,9 +105,9 @@ class TestConfigLoaderHappyPath:
           - id: GW02
         """
         cfg = load_engine_config(_write_yaml(tmp_path, yaml))
-        assert "GW01" in cfg.fix_gateways
-        assert "GW02" in cfg.fix_gateways
-        assert cfg.fix_gateways["GW01"].description == "First gateway"
+        assert "GW01" in cfg.participants
+        assert "GW02" in cfg.participants
+        assert cfg.participants["GW01"].description == "First gateway"
 
     def test_gateway_mm_fields(self, tmp_path: Path) -> None:
         yaml = """
@@ -130,7 +130,7 @@ class TestConfigLoaderHappyPath:
             smp_action: CANCEL_RESTING
         """
         cfg = load_engine_config(_write_yaml(tmp_path, yaml))
-        gw = cfg.fix_gateways["MM01"]
+        gw = cfg.participants["MM01"]
         assert gw.role == ParticipantRole.MARKET_MAKER
         assert gw.disconnect_behaviour == DisconnectBehaviour.CANCEL_ALL
         assert gw.quote_refresh_policy == QuoteRefreshPolicy.NEVER_INACTIVATE
@@ -147,7 +147,7 @@ class TestConfigLoaderHappyPath:
           - id: GW01
         """
         cfg = load_engine_config(_write_yaml(tmp_path, yaml))
-        assert cfg.fix_gateways["GW01"].smp_action == SmpAction.NONE
+        assert cfg.participants["GW01"].smp_action == SmpAction.NONE
 
     def test_gateway_smp_action_case_insensitive(self, tmp_path: Path) -> None:
         yaml = """
@@ -158,7 +158,7 @@ class TestConfigLoaderHappyPath:
             smp_action: cancel_both
         """
         cfg = load_engine_config(_write_yaml(tmp_path, yaml))
-        assert cfg.fix_gateways["GW01"].smp_action == SmpAction.CANCEL_BOTH
+        assert cfg.participants["GW01"].smp_action == SmpAction.CANCEL_BOTH
 
     def test_gateway_default_applies_to_gateways_that_omit_fields(
         self, tmp_path: Path
@@ -176,10 +176,10 @@ class TestConfigLoaderHappyPath:
             disconnect_behaviour: LEAVE_ALL
         """
         cfg = load_engine_config(_write_yaml(tmp_path, yaml))
-        inherits = cfg.fix_gateways["GW01"]
+        inherits = cfg.participants["GW01"]
         assert inherits.smp_action == SmpAction.CANCEL_AGGRESSOR
         assert inherits.disconnect_behaviour == DisconnectBehaviour.CANCEL_ALL
-        overrides = cfg.fix_gateways["GW02"]
+        overrides = cfg.participants["GW02"]
         assert overrides.smp_action == SmpAction.NONE
         assert overrides.disconnect_behaviour == DisconnectBehaviour.LEAVE_ALL
 
@@ -194,7 +194,7 @@ class TestConfigLoaderHappyPath:
         participants:
           - id: GW01
         """
-        gw = load_engine_config(_write_yaml(tmp_path, yaml)).fix_gateways["GW01"]
+        gw = load_engine_config(_write_yaml(tmp_path, yaml)).participants["GW01"]
         assert gw.smp_action == SmpAction.CANCEL_BOTH
         assert gw.disconnect_behaviour == DisconnectBehaviour.CANCEL_QUOTES_ONLY
 
@@ -237,15 +237,15 @@ class TestConfigLoaderHappyPath:
           - id: trader01
         """
         cfg = load_engine_config(_write_yaml(tmp_path, yaml))
-        assert "TRADER01" in cfg.fix_gateways
+        assert "TRADER01" in cfg.participants
 
     def test_allowed_symbols_property(self, tmp_path: Path) -> None:
         cfg = load_engine_config(_write_yaml(tmp_path, MINIMAL_YAML))
         assert cfg.allowed_symbols == frozenset({"AAPL"})
 
-    def test_allowed_fix_gateways_property(self, tmp_path: Path) -> None:
+    def test_allowed_participants_property(self, tmp_path: Path) -> None:
         cfg = load_engine_config(_write_yaml(tmp_path, MINIMAL_YAML))
-        assert cfg.allowed_fix_gateways == frozenset({"TRADER01"})
+        assert cfg.allowed_participants == frozenset({"TRADER01"})
 
     def test_schedule_section_parsed(self, tmp_path: Path) -> None:
         yaml = """
@@ -401,7 +401,7 @@ class TestConfigLoaderHappyPath:
             description:
         """
         cfg = load_engine_config(_write_yaml(tmp_path, yaml))
-        assert cfg.fix_gateways["GW01"].description == ""
+        assert cfg.participants["GW01"].description == ""
 
     def test_tick_decimals_defaults_to_2(self, tmp_path: Path) -> None:
         cfg = load_engine_config(_write_yaml(tmp_path, MINIMAL_YAML))

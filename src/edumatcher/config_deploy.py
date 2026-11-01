@@ -349,7 +349,7 @@ def main() -> None:
         sys.exit(1)
 
     symbols = len(config.engine.symbols)
-    gateways = len(config.engine.fix_gateways)
+    gateways = len(config.engine.participants)
     if args.check:
         print(f"OK — {source} compiles ({symbols} symbol(s), {gateways} gateway(s))")
         return

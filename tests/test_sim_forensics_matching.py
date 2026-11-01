@@ -25,7 +25,7 @@ SYM = "AAPL"
 CONFIG = {
     "engine": {
         "symbols": {SYM: {"tick_decimals": 2}},
-        "fix_gateways": {
+        "participants": {
             gw: {"smp_action": "CANCEL_AGGRESSOR"} for gw in ("GW1", "GW2")
         },
     }

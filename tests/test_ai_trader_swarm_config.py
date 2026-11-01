@@ -151,7 +151,7 @@ def test_shipped_swarm_files_match_their_participants(example: str) -> None:
         cfg.values["prefix"], cfg.values["start_index"], cfg.values["count"]
     )
     allowed = load_engine_config(EXAMPLES / example / "engine_config.yaml")
-    assert set(ids) <= set(allowed.allowed_fix_gateways)
+    assert set(ids) <= set(allowed.allowed_participants)
 
 
 def test_every_example_ships_a_swarm_file() -> None:

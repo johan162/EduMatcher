@@ -1,6 +1,10 @@
 from __future__ import annotations
 
-from edumatcher.engine.config_loader import EngineConfig, FixGatewayConfig, SymbolConfig
+from edumatcher.engine.config_loader import (
+    EngineConfig,
+    ParticipantConfig,
+    SymbolConfig,
+)
 from edumatcher.engine.main import Engine
 from edumatcher.models.order import Order, OrderType, Side, TIF
 from edumatcher.models.participant import DisconnectBehaviour, ParticipantRole
@@ -9,7 +13,7 @@ from edumatcher.models.quote import QuoteRefreshPolicy
 
 from tests.test_mm_quotes_engine import _FakeSock
 
-# NOTE: _allowed_fix_gateways is a frozenset snapshot taken once at Engine
+# NOTE: _allowed_participants is a frozenset snapshot taken once at Engine
 # construction, so every gateway used below must be present in the config
 # passed to Engine() and then connected via _handle_gateway_connect.
 
@@ -19,14 +23,14 @@ def test_repro_stale_ask_leg_crosses_new_bid(monkeypatch, tmp_path) -> None:
     pub_sock = _FakeSock(sent=[])
     cfg = EngineConfig(
         symbols={"AAPL": SymbolConfig(name="AAPL")},
-        fix_gateways={
-            "MM01": FixGatewayConfig(
+        participants={
+            "MM01": ParticipantConfig(
                 id="MM01",
                 role=ParticipantRole.MARKET_MAKER,
                 disconnect_behaviour=DisconnectBehaviour.CANCEL_QUOTES_ONLY,
                 quote_refresh_policy=QuoteRefreshPolicy.INACTIVATE_ON_ANY_FILL,
             ),
-            "TRADER01": FixGatewayConfig(
+            "TRADER01": ParticipantConfig(
                 id="TRADER01",
                 role=ParticipantRole.TRADER,
             ),

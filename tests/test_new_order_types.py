@@ -16,7 +16,7 @@ import pytest
 
 from edumatcher.engine.config_loader import (
     EngineConfig,
-    FixGatewayConfig,
+    ParticipantConfig,
     SymbolConfig,
 )
 from edumatcher.engine.main import Engine
@@ -101,9 +101,9 @@ def eng(monkeypatch, tmp_path):
             "AAPL": SymbolConfig(name="AAPL"),
             "MSFT": SymbolConfig(name="MSFT"),
         },
-        fix_gateways={
-            "TRADER01": FixGatewayConfig(id="TRADER01", description="t1"),
-            "TRADER02": FixGatewayConfig(id="TRADER02", description="t2"),
+        participants={
+            "TRADER01": ParticipantConfig(id="TRADER01", description="t1"),
+            "TRADER02": ParticipantConfig(id="TRADER02", description="t2"),
         },
         sessions_enabled=True,
     )
@@ -1140,13 +1140,13 @@ def eng_with_smp_default(monkeypatch, tmp_path):
             "AAPL": SymbolConfig(name="AAPL"),
             "MSFT": SymbolConfig(name="MSFT"),
         },
-        fix_gateways={
-            "TRADER01": FixGatewayConfig(
+        participants={
+            "TRADER01": ParticipantConfig(
                 id="TRADER01",
                 description="t1",
                 smp_action=SmpAction.CANCEL_RESTING,
             ),
-            "TRADER02": FixGatewayConfig(id="TRADER02", description="t2"),
+            "TRADER02": ParticipantConfig(id="TRADER02", description="t2"),
         },
         sessions_enabled=True,
     )

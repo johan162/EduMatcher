@@ -31,7 +31,11 @@ from pathlib import Path
 
 import pytest
 
-from edumatcher.engine.config_loader import EngineConfig, FixGatewayConfig, SymbolConfig
+from edumatcher.engine.config_loader import (
+    EngineConfig,
+    ParticipantConfig,
+    SymbolConfig,
+)
 from edumatcher.engine.main import Engine
 from edumatcher.engine.persistence import load_gtc_orders
 from edumatcher.models.message import decode
@@ -69,7 +73,7 @@ def _make_engine(
 
     cfg = EngineConfig(
         symbols={s: SymbolConfig(name=s) for s in symbols},
-        fix_gateways={g: FixGatewayConfig(id=g, description=g) for g in gateways},
+        participants={g: ParticipantConfig(id=g, description=g) for g in gateways},
         sessions_enabled=sessions_enabled,
     )
 
@@ -410,7 +414,7 @@ def _make_engine_with_gtc_file(
 
     cfg = EngineConfig(
         symbols={s: SymbolConfig(name=s) for s in symbols},
-        fix_gateways={g: FixGatewayConfig(id=g, description=g) for g in gateways},
+        participants={g: ParticipantConfig(id=g, description=g) for g in gateways},
     )
     monkeypatch.setattr("edumatcher.engine.main.make_puller", lambda _: pull_sock)
     monkeypatch.setattr("edumatcher.engine.main.make_publisher", lambda _: pub_sock)
@@ -678,7 +682,7 @@ class TestEngineStartupWithoutConfig:
     def test_starts_without_error(self, monkeypatch) -> None:
         engine, _ = self._make_no_config_engine(monkeypatch)
         assert engine._allowed_symbols is None
-        assert engine._allowed_fix_gateways is None
+        assert engine._allowed_participants is None
 
     def test_accepts_any_gateway(self, monkeypatch) -> None:
         engine, _ = self._make_no_config_engine(monkeypatch)

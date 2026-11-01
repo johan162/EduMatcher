@@ -22,7 +22,7 @@ from edumatcher.engine.auction import (
 )
 from edumatcher.engine.config_loader import (
     EngineConfig,
-    FixGatewayConfig,
+    ParticipantConfig,
     SymbolConfig,
 )
 from edumatcher.engine.main import Engine
@@ -83,9 +83,9 @@ def session_engine(monkeypatch, tmp_path) -> tuple[Engine, _DummySocket]:
             "AAPL": SymbolConfig(name="AAPL"),
             "MSFT": SymbolConfig(name="MSFT"),
         },
-        fix_gateways={
-            "TRADER01": FixGatewayConfig(id="TRADER01", description="Trader one"),
-            "TRADER02": FixGatewayConfig(id="TRADER02", description="Trader two"),
+        participants={
+            "TRADER01": ParticipantConfig(id="TRADER01", description="Trader one"),
+            "TRADER02": ParticipantConfig(id="TRADER02", description="Trader two"),
         },
         sessions_enabled=True,
     )

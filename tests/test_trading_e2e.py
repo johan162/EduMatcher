@@ -41,7 +41,7 @@ from edumatcher.alf_gwy.gateway import AlfGateway
 from edumatcher.clearing.main import ClearingProcess
 from edumatcher.engine.config_loader import (
     EngineConfig,
-    FixGatewayConfig,
+    ParticipantConfig,
     SymbolConfig,
 )
 from edumatcher.engine.main import Engine
@@ -229,7 +229,7 @@ def _patch_engine(mp: pytest.MonkeyPatch, tmp: Path, pull: int, pub: int) -> Non
     )
     cfg = EngineConfig(
         symbols={s: SymbolConfig(name=s) for s in SYMBOLS},
-        fix_gateways={g: FixGatewayConfig(id=g, description=g) for g in (T1, T2)},
+        participants={g: ParticipantConfig(id=g, description=g) for g in (T1, T2)},
     )
     mp.setattr(f"{em}.load_engine_config", lambda _: cfg)
 

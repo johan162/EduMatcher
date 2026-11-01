@@ -84,7 +84,7 @@ def test_it_acts_on_a_disconnected_target(monkeypatch, tmp_path):
     """Pulling a disconnected participant's resting orders is exactly when an
     operator needs this; only the ADMIN caller must be connected."""
     engine, pub_sock = _engine(monkeypatch, tmp_path)
-    engine._connected_fix_gateways.discard(MM)
+    engine._connected_participants.discard(MM)
     session = engine._sessions.get(MM)
     if session is not None:
         session.connected = False

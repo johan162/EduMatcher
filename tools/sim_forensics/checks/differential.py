@@ -380,7 +380,7 @@ class _Recovery:
             if topic.startswith("order.ack.") and p.get("is_seed")
         }
         self.reseeded += len(reseeded)
-        for gw in sorted(ref._connected_fix_gateways):
+        for gw in sorted(ref._connected_participants):
             if gw in self.connects:
                 engine._dispatch_pull_message("system.gateway_connect", self.connects[gw])  # fmt: skip
         sink.take()
@@ -441,7 +441,7 @@ class _Rename(_Transform):
 
     def __init__(self, config: EngineConfig) -> None:
         groups: dict[str, list[str]] = defaultdict(list)
-        for gw, cfg in config.fix_gateways.items():
+        for gw, cfg in config.participants.items():
             fields = {k: v for k, v in asdict(cfg).items() if k not in ("id", "description")}  # fmt: skip
             groups[json.dumps(fields, sort_keys=True, default=str)].append(gw)
         rng = random.Random(7)
