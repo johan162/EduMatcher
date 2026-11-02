@@ -208,6 +208,9 @@ class TestHealthRecord:
         assert record["uptime_sec"] == 0.0
 
 
+MB = 1024 * 1024
+
+
 class TestRssGrowth:
     """The rss_growth_pct_1h threshold's input (design §9.6, review R4)."""
 
@@ -217,27 +220,50 @@ class TestRssGrowth:
 
     def test_no_figure_before_an_hour_after_warm_up(self) -> None:
         table = ProcessTable()
-        self._run(table, 60, lambda m: 100)
+        self._run(table, 60, lambda m: 100 * MB)
         state = table.get("pm-stats", None, "box")
         assert state is not None
         assert state.rss_growth_pct(60 * 60.0) is None
 
     def test_start_up_growth_is_not_a_leak(self) -> None:
         """Growing from 100 to 300 in the first 10 minutes, then flat: the
-        baseline is taken after the warm-up, so growth over the hour is 0."""
+        baseline is taken after the warm-up, so the hour added nothing."""
         table = ProcessTable()
-        self._run(table, 80, lambda m: 100 + 20 * min(m, 10))
+        self._run(table, 80, lambda m: (100 + 20 * min(m, 10)) * MB)
         state = table.get("pm-stats", None, "box")
         assert state is not None
-        assert state.rss_growth_pct(80 * 60.0) == pytest.approx(0.0)
+        assert state.rss_growth_pct(80 * 60.0) is None
 
     def test_a_leak_after_warm_up(self) -> None:
         table = ProcessTable()
-        self._run(table, 80, lambda m: 100 if m < 10 else 100 + 2 * (m - 10))
+        self._run(table, 80, lambda m: (100 if m < 10 else 100 + 2 * (m - 10)) * MB)
         state = table.get("pm-stats", None, "box")
         assert state is not None
         # 80 min: 240; an hour earlier (20 min): 120 -> +100 %
         assert state.rss_growth_pct(80 * 60.0) == pytest.approx(100.0)
+
+    def test_a_step_that_levelled_off_is_not_a_leak(self) -> None:
+        """Idle for 70 minutes, a 5x step at minute 65, flat since: the hour
+        shows +400 % but RSS has not risen in the last 15 minutes."""
+        table = ProcessTable()
+        self._run(table, 80, lambda m: (100 if m < 65 else 500) * MB)
+        state = table.get("pm-stats", None, "box")
+        assert state is not None
+        assert state.rss_growth_pct(80 * 60.0) is None
+
+    def test_a_step_still_rising_is_reported(self) -> None:
+        table = ProcessTable()
+        self._run(table, 80, lambda m: (100 if m < 65 else 500 + m) * MB)
+        state = table.get("pm-stats", None, "box")
+        assert state is not None
+        assert state.rss_growth_pct(80 * 60.0) is not None
+
+    def test_a_small_process_doubling_is_not_a_leak(self) -> None:
+        table = ProcessTable()
+        self._run(table, 80, lambda m: (10 if m < 20 else 10 + (m - 20) // 3) * MB)
+        state = table.get("pm-stats", None, "box")
+        assert state is not None
+        assert state.rss_growth_pct(80 * 60.0) is None
 
     def test_not_while_starting(self) -> None:
         table = ProcessTable()

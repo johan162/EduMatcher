@@ -88,6 +88,14 @@ RSS_GROWTH_WINDOW_SEC = 3600.0
 #: configuration, books or caches grows by design, and judging that against a
 #: just-started baseline would read every start-up as a leak (review R4).
 RSS_WARMUP_SEC = 600.0
+#: RSS growth is only a leak suspect when it also adds at least this many
+#: bytes: a small process doubling at the market open is not one.
+RSS_GROWTH_MIN_BYTES = 100 * 1024 * 1024
+#: ... and when RSS is still rising: it must exceed its value this long ago by
+#: ``RSS_RISING_MIN_PCT``. Growth that has levelled off (caches and books
+#: filled at the open, then flat) is a step, not a leak.
+RSS_RISING_WINDOW_SEC = 900.0
+RSS_RISING_MIN_PCT = 1.0
 
 #: Participant bots: clients of the exchange, shown in their own group and
 #: never counted in the exchange status (design Q2).
@@ -369,17 +377,33 @@ class ProcessState:
             and now - self.received_at <= rules.silent_after_beacons * b.interval_sec
         )
 
-    def rss_growth_pct(self, now: float) -> float | None:
-        """RSS growth over the last hour in percent; ``None`` before an hour
-        of history (or after a restart, which clears it)."""
+    def _rss_at(self, t: float) -> int | None:
+        """The last RSS recorded at or before ``t``; ``None`` if none."""
         base: int | None = None
-        for t, rss in self.rss_history:
-            if t > now - RSS_GROWTH_WINDOW_SEC:
+        for when, rss in self.rss_history:
+            if when > t:
                 break
             base = rss
+        return base
+
+    def rss_growth_pct(self, now: float) -> float | None:
+        """RSS growth over the last hour in percent, if it looks like a leak.
+
+        ``None`` before an hour of history (or after a restart, which clears
+        it), when the hour added less than ``RSS_GROWTH_MIN_BYTES``, and when
+        RSS has not risen ``RSS_RISING_MIN_PCT`` in the last
+        ``RSS_RISING_WINDOW_SEC``: a step that has levelled off is not a leak.
+        """
+        base = self._rss_at(now - RSS_GROWTH_WINDOW_SEC)
         if not base:
             return None
-        return 100.0 * (self.beacon.rss_bytes - base) / base
+        rss = self.beacon.rss_bytes
+        if rss - base < RSS_GROWTH_MIN_BYTES:
+            return None
+        recent = self._rss_at(now - RSS_RISING_WINDOW_SEC)
+        if recent and 100.0 * (rss - recent) / recent < RSS_RISING_MIN_PCT:
+            return None
+        return 100.0 * (rss - base) / base
 
     def restarted_recently(self, now: float) -> bool:
         return (
