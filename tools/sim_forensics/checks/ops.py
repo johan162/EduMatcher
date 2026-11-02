@@ -207,7 +207,7 @@ def _gateway_figures(ds: Dataset) -> dict[str, dict[str, float]]:
     counts: dict[str, dict[str, float]] = defaultdict(lambda: defaultdict(float))
     for gw, et, n, qty, filled in ds.conn.execute(
         "SELECT gateway_id, event_type, count(*), sum(quantity), sum(fill_qty) "
-        "FROM stats.order_events GROUP BY gateway_id, event_type"
+        "FROM stats.order_events NOT INDEXED GROUP BY gateway_id, event_type"
     ):
         c = counts[gw]
         c[et] = n

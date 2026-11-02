@@ -53,7 +53,7 @@ _OCO_RULE_CANCELS = (
 )
 
 
-@dataclass
+@dataclass(slots=True)
 class _Order:
     gw: str
     state: str | None = None
@@ -61,7 +61,6 @@ class _Order:
     remaining: int | None = None
     oco: str | None = None
     combo: str | None = None
-    shape: list[str] = field(default_factory=list)
     after_terminal: bool = False  # C2 reported once per order
 
 
@@ -141,25 +140,29 @@ def _scan(ds: Dataset) -> _Scan:
         )
     }
     scan.oco_rule = {seq for (seq,) in ds.conn.execute(_OCO_RULE_CANCELS)}
+    # Streamed in seq order, one table scan, the orders interleaved: an order's
+    # own events stay in seq order, and sorting 4M rows by order_id first costs
+    # several times the scan. NOT INDEXED, as the type index would fetch every
+    # row at random.
     rows = ds.conn.execute(
         "SELECT order_id, seq, event_type, gateway_id, quantity, remaining_qty, "
-        "status, fill_qty, oco_group_id, combo_parent_id FROM stats.order_events "
-        "WHERE event_type IN ('ACK', 'REJECT', 'FILL', 'AMEND', 'CANCEL', 'EXPIRE') "
-        "ORDER BY order_id, seq"
+        "status, fill_qty, oco_group_id, combo_parent_id "
+        "FROM stats.order_events NOT INDEXED "
+        "WHERE event_type IN ('ACK', 'REJECT', 'FILL', 'AMEND', 'CANCEL', 'EXPIRE')"
     )
-    current: str | None = None
-    order = _Order("")
+    orders: dict[str, _Order] = {}
     for oid, seq, et, gw, qty, remaining, status, fill_qty, oco, combo in rows:
-        if oid != current:
-            if current is not None:
-                _finish(scan, current, order, book)
-            current, order = oid, _Order(gw)
-        order.shape.append(et)
+        order = orders.get(oid)
+        if order is None:
+            order = orders[oid] = _Order(gw)
         order.oco = order.oco or oco
         order.combo = order.combo or combo
         _step(scan, oid, order, seq, et, qty, remaining, status, fill_qty, quoting)
-    if current is not None:
-        _finish(scan, current, order, book)
+    for oid, order in orders.items():
+        _finish(scan, oid, order, book)
+    # Reported by order id, as when the scan went order by order.
+    for found in (scan.c1, scan.c2, scan.c3):
+        found.sort(key=lambda s: str(s["order_id"]))
     ds.cache["lifecycle.scan"] = scan
     return scan
 
