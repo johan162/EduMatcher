@@ -11,7 +11,7 @@ import uuid
 from contextlib import closing
 from datetime import datetime, tzinfo
 from collections.abc import Callable
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
@@ -69,6 +69,16 @@ _After = Annotated[
         description=(
             "Pagination cursor: the previous page's `next_cursor`. Opaque -- "
             "pass it back unchanged with the same filters."
+        )
+    ),
+]
+_TradeOrder = Annotated[
+    Literal["asc", "desc"],
+    Query(
+        description=(
+            "Row order: `asc` (default) is oldest first; `desc` is newest "
+            "first, so `limit` returns the most recent trades. The cursor "
+            "continues in the chosen direction."
         )
     ),
 ]
@@ -391,7 +401,7 @@ async def history_fills(
     responses=docs.merge(
         docs.ok(
             docs.HISTORY_TRADES_REPLY,
-            "One page of executed trades, oldest first. Prices are display prices.",
+            "One page of executed trades, oldest first (newest first with `order=desc`). Prices are display prices.",
         ),
         docs.errors(
             *docs.ANY_KEY,
@@ -410,6 +420,7 @@ async def history_trades(
     to_ts: _ToTs = None,
     limit: _Limit = 500,
     after: _After = None,
+    order: _TradeOrder = "asc",
 ) -> dict[str, object]:
     """Executed trades — public market data.
 
@@ -430,6 +441,7 @@ async def history_trades(
                 to_ts=to_ts,
                 limit=limit,
                 after=after,
+                newest_first=order == "desc",
             )
         except InvalidCursorError as exc:
             raise _invalid("after", str(exc)) from exc

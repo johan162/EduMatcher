@@ -204,10 +204,16 @@ export const getHistoryFills = async (params?: Record<string, string>) => {
   };
 };
 
-export const getHistoryTrades = (symbol: string, limit = 50) =>
-  apiFetch<HistoryTradesResponse>(
-    `/api/v1/history/trades?symbol=${encodeURIComponent(symbol)}&limit=${limit}`,
-  );
+export const getHistoryTrades = (
+  symbol: string,
+  limit = 50,
+  opts?: { order?: "asc" | "desc"; after?: string },
+) => {
+  const qs = new URLSearchParams({ symbol, limit: String(limit) });
+  if (opts?.order) qs.set("order", opts.order);
+  if (opts?.after) qs.set("after", opts.after);
+  return apiFetch<HistoryTradesResponse>(`/api/v1/history/trades?${qs.toString()}`);
+};
 
 /**
  * Daily OHLC rollup. Omitting `date` returns the latest available date, which

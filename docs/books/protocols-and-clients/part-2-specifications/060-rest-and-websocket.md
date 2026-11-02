@@ -1735,6 +1735,7 @@ Purpose: return public trade tape rows.
 | `to` | `DateTime` | no | Range end |
 | `limit` | `Int` | no | Page size |
 | `after` | `Cursor` | no | Opaque page cursor |
+| `order` | `asc` \| `desc` | no | `asc` (default) is oldest first; `desc` is newest first, so `limit` returns the most recent trades. The cursor continues in the chosen direction |
 
 **Reply**
 

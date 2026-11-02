@@ -6971,11 +6971,27 @@
               "title": "After"
             },
             "description": "Pagination cursor: the previous page's `next_cursor`. Opaque -- pass it back unchanged with the same filters."
+          },
+          {
+            "name": "order",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "type": "string",
+              "description": "Row order: `asc` (default) is oldest first; `desc` is newest first, so `limit` returns the most recent trades. The cursor continues in the chosen direction.",
+              "default": "asc",
+              "title": "Order"
+            },
+            "description": "Row order: `asc` (default) is oldest first; `desc` is newest first, so `limit` returns the most recent trades. The cursor continues in the chosen direction."
           }
         ],
         "responses": {
           "200": {
-            "description": "One page of executed trades, oldest first. Prices are display prices.",
+            "description": "One page of executed trades, oldest first (newest first with `order=desc`). Prices are display prices.",
             "content": {
               "application/json": {
                 "schema": {

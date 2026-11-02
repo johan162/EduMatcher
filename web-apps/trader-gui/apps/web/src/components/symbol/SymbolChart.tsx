@@ -10,7 +10,7 @@ import {
   type SeriesType,
   type UTCTimestamp,
 } from "lightweight-charts";
-import { useHistoryTradesQuery, useHistoryDailyChartQuery } from "@/queries/index.js";
+import { useHistoryDayTradesQuery, useHistoryDailyChartQuery } from "@/queries/index.js";
 import { useWsEvent } from "@/hooks/useWsEvent.js";
 import {
   candlesToLine,
@@ -24,17 +24,18 @@ import {
 } from "@/lib/candles.js";
 import type { HistoryTrade } from "@/types/index.js";
 import { nsToEpochSec } from "@/lib/time.js";
+import { timeFormatters } from "@/lib/chartTime.js";
+import { useSessionStore } from "@/store/useSessionStore.js";
 import { CHART_COLORS } from "@/lib/chartTheme.js";
 import { useThemeStore, type ThemePreference } from "@/store/useThemeStore.js";
 
-/** How many prints to pull for the intraday timeframes (§16.2.1). */
-const CHART_TRADE_LIMIT = 1000;
-
 const TIMEFRAMES: Timeframe[] = ["1m", "5m", "1h", "1D", "All"];
 
-function chartOptions(theme: ThemePreference) {
+function chartOptions(theme: ThemePreference, timezone: string | null) {
   const c = CHART_COLORS[theme];
+  const { crosshair, tick } = timeFormatters(timezone);
   return {
+    localization: { timeFormatter: crosshair },
     layout: {
       background: { type: ColorType.Solid, color: c.background },
       textColor: c.text,
@@ -46,7 +47,12 @@ function chartOptions(theme: ThemePreference) {
     },
     crosshair: { mode: CrosshairMode.Normal },
     rightPriceScale: { borderColor: c.border },
-    timeScale: { borderColor: c.border, timeVisible: true, secondsVisible: false },
+    timeScale: {
+      borderColor: c.border,
+      timeVisible: true,
+      secondsVisible: false,
+      tickMarkFormatter: tick,
+    },
   } as const;
 }
 
@@ -89,9 +95,10 @@ export function SymbolChart({ symbol }: SymbolChartProps) {
   const [timeframe, setTimeframe] = useState<Timeframe>("5m");
   const [chartType, setChartType] = useState<"candlestick" | "line">("candlestick");
   const theme = useThemeStore((s) => s.theme);
+  const timezone = useSessionStore((s) => s.timezone);
 
   const intraday = isIntraday(timeframe);
-  const tradesQuery = useHistoryTradesQuery(intraday ? symbol : null, CHART_TRADE_LIMIT);
+  const tradesQuery = useHistoryDayTradesQuery(intraday ? symbol : null, timezone);
   const dailyQuery = useHistoryDailyChartQuery(intraday ? null : symbol);
 
   const candles = useMemo<Candle[]>(() => {
@@ -113,8 +120,10 @@ export function SymbolChart({ symbol }: SymbolChartProps) {
   const chartTypeRef = useRef<"candlestick" | "line">(chartType);
   const candlesRef = useRef<Candle[]>(candles);
   const themeRef = useRef(theme);
+  const timezoneRef = useRef(timezone);
 
   themeRef.current = theme;
+  timezoneRef.current = timezone;
   symbolRef.current = symbol;
   timeframeRef.current = timeframe;
   chartTypeRef.current = chartType;
@@ -125,7 +134,7 @@ export function SymbolChart({ symbol }: SymbolChartProps) {
     const el = containerRef.current;
     if (!el) return;
     const chart = createChart(el, {
-      ...chartOptions(themeRef.current),
+      ...chartOptions(themeRef.current, timezoneRef.current),
       width: el.clientWidth,
       height: 320,
     });
@@ -179,7 +188,7 @@ export function SymbolChart({ symbol }: SymbolChartProps) {
   // Recolour the live chart and its series when the theme flips.
   useEffect(() => {
     const colors = CHART_COLORS[theme];
-    chartRef.current?.applyOptions(chartOptions(theme));
+    chartRef.current?.applyOptions(chartOptions(theme, timezone));
     if (chartTypeRef.current === "candlestick") {
       seriesRef.current?.applyOptions({
         upColor: colors.up,
@@ -190,7 +199,7 @@ export function SymbolChart({ symbol }: SymbolChartProps) {
     } else {
       seriesRef.current?.applyOptions({ color: colors.line } as never);
     }
-  }, [theme]);
+  }, [theme, timezone]);
 
   // Replace the data when the candle set changes (new timeframe / refetch).
   useEffect(() => {

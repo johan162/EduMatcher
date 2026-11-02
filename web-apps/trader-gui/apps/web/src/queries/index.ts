@@ -7,7 +7,15 @@ import * as api from "@/api/endpoints.js";
 import { ApiError } from "@/api/apiFetch.js";
 import { normalizeOrder } from "@/types/index.js";
 import { normalizeQuoteLegRows } from "@/lib/quotes.js";
-import type { ActiveQuote, DailyStat, Order, Position, QuoteLeg } from "@/types/index.js";
+import type {
+  ActiveQuote,
+  DailyStat,
+  HistoryTrade,
+  Order,
+  Position,
+  QuoteLeg,
+} from "@/types/index.js";
+import { sessionDay } from "@/lib/chartTime.js";
 
 const newOrderRequestTag = (kind: "amend" | "cancel") => {
   const random = globalThis.crypto?.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
@@ -180,10 +188,49 @@ export function useHistoryFillsQuery(params?: Record<string, string>) {
   });
 }
 
+/** The most recent `limit` prints (the gateway's default order is oldest-first). */
 export function useHistoryTradesQuery(symbol: string | null, limit = 50) {
   return useQuery({
     queryKey: ["history/trades", symbol, limit],
-    queryFn: () => api.getHistoryTrades(symbol!, limit),
+    queryFn: () => api.getHistoryTrades(symbol!, limit, { order: "desc" }),
+    enabled: symbol !== null,
+    staleTime: 60_000,
+  });
+}
+
+/** Rows per page and page cap when walking back through the latest trading day. */
+const DAY_TRADES_PAGE = 5000;
+const DAY_TRADES_MAX_PAGES = 20;
+
+/**
+ * Every print of the symbol's latest trading day (in the exchange timezone),
+ * for the chart's intraday timeframes. Pages newest-first and stops at the
+ * first print from an earlier day, so the whole session is covered rather than
+ * just the first or last N prints.
+ */
+export function useHistoryDayTradesQuery(symbol: string | null, timezone: string | null) {
+  return useQuery({
+    queryKey: ["history/trades", "day", symbol, timezone],
+    queryFn: async () => {
+      const trades: HistoryTrade[] = [];
+      let day: string | null = null;
+      let after: string | undefined;
+      for (let page = 0; page < DAY_TRADES_MAX_PAGES; page++) {
+        const res = await api.getHistoryTrades(symbol!, DAY_TRADES_PAGE, {
+          order: "desc",
+          after,
+        });
+        for (const t of res.trades) {
+          const d = sessionDay(Date.parse(t.ts) / 1000, timezone);
+          day ??= d;
+          if (d !== day) return { trades: trades.reverse() };
+          trades.push(t);
+        }
+        if (!res.next_cursor) break;
+        after = res.next_cursor;
+      }
+      return { trades: trades.reverse() };
+    },
     enabled: symbol !== null,
     staleTime: 60_000,
   });
