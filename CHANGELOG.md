@@ -1,3 +1,18 @@
+## [v0.69.3] - 2026-11-02
+
+Release Type: patch
+
+### 📋 Summary
+This patch improves recovery after intraday restarts and reduces false positives in simulation forensics.
+
+### 🐛 Bug Fixes
+- Fixed startup book snapshots missing restored last prices after order recovery
+- Fixed restarted AI traders reusing order tags and OCO or combo identifiers from earlier runs
+- Fixed simulation forensics reporting false mismatches after restarts or when completed OCO group identifiers are reused
+
+### 🛠 Internal
+- Added regression coverage for startup snapshots, AI trader tags and restart-aware forensic checks
+
 ## [v0.69.2] - 2026-11-02
 
 Release Type: patch
