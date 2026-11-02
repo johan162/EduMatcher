@@ -66,9 +66,13 @@ symbols=(
 
 trader_gateways=()
 trader_ids=()
+# Descriptions go through --participant-desc, one quoted "ID:TEXT" each; the
+# --participants specs themselves carry no free text.
+desc_args=()
 for n in $(seq 1 10); do
   trader_id=$(printf 'TRADER%02d' "$n")
-  trader_gateways+=("${trader_id}:TRADER:CANCEL_ALL:Student desk ${n}")
+  trader_gateways+=("${trader_id}:TRADER:CANCEL_ALL")
+  desc_args+=(--participant-desc "${trader_id}:Student desk ${n}")
   trader_ids+=("$trader_id")
 done
 trader_list=$(IFS=,; echo "${trader_ids[*]}")
@@ -77,24 +81,31 @@ trader_list=$(IFS=,; echo "${trader_ids[*]}")
 # trade through the ALF gateway, so they are not in the API gateway desk list.
 ai_gateways=()
 for n in $(seq 1 20); do
-  ai_gateways+=("$(printf 'AI%03d' "$n"):TRADER:CANCEL_ALL:AI trader ${n}")
+  ai_id=$(printf 'AI%03d' "$n")
+  ai_gateways+=("${ai_id}:TRADER:CANCEL_ALL")
+  desc_args+=(--participant-desc "${ai_id}:AI trader ${n}")
 done
 
 gateways=(
   "${trader_gateways[@]}"
-  "OPS01:ADMIN:LEAVE_ALL:Instructor console"
-  "MM01:MARKET_MAKER:CANCEL_QUOTES_ONLY:Primary market maker"
+  "OPS01:ADMIN:LEAVE_ALL"
+  "MM01:MARKET_MAKER:CANCEL_QUOTES_ONLY"
   "${ai_gateways[@]}"
+)
+desc_args+=(
+  --participant-desc "OPS01:Instructor console"
+  --participant-desc "MM01:Primary market maker"
 )
 desk_gateways="${trader_list},MM01,OPS01"
 if [[ "$profile" == complex ]]; then
   gateways=(
     "${trader_gateways[@]}"
-    "OPS01:ADMIN:LEAVE_ALL:Instructor console"
-    "MM01:MARKET_MAKER:CANCEL_QUOTES_ONLY:Primary market maker"
-    "MM02:MARKET_MAKER:CANCEL_QUOTES_ONLY:Backup market maker"
+    "OPS01:ADMIN:LEAVE_ALL"
+    "MM01:MARKET_MAKER:CANCEL_QUOTES_ONLY"
+    "MM02:MARKET_MAKER:CANCEL_QUOTES_ONLY"
     "${ai_gateways[@]}"
   )
+  desc_args+=(--participant-desc "MM02:Backup market maker")
   desk_gateways="${trader_list},MM01,MM02,OPS01"
 fi
 
@@ -112,6 +123,7 @@ done
 common_args=(
   --symbols "${symbols[@]}"
   --participants "${gateways[@]}"
+  "${desc_args[@]}"
   "${gateway_smp_args[@]}"
   --output engine_config.yaml
   --force

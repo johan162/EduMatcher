@@ -47,7 +47,17 @@ def build_parser() -> argparse.ArgumentParser:
         nargs="+",
         required=True,
         metavar="GW_SPEC",
-        help="One or more participant specs (ID[:ROLE[:DISCONNECT]]).",
+        help="One or more participant specs (ID[:ROLE[:DISCONNECT]]). ID is "
+        "uppercase letters, digits and _, starting with a letter.",
+    )
+    parser.add_argument(
+        "--participant-desc",
+        action="append",
+        default=[],
+        metavar="GW_ID:TEXT",
+        help="Free-text description for one participant, written as "
+        "participants[].description. GW_ID must be one of the IDs given to "
+        "--participants. Quote it when TEXT has spaces. Can be repeated.",
     )
     parser.add_argument(
         "--participant-smp",

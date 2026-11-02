@@ -598,7 +598,10 @@ def test_builder_gateway_description_emitted() -> None:
     spec = ConfigSpec(
         symbols=["AAPL"],
         gateways=[
-            parse_gateway_spec("MM01:MARKET_MAKER:CANCEL_QUOTES_ONLY:Primary MM")
+            replace(
+                parse_gateway_spec("MM01:MARKET_MAKER:CANCEL_QUOTES_ONLY"),
+                description="Primary MM",
+            )
         ],
         emit_mm_defaults=True,
     )

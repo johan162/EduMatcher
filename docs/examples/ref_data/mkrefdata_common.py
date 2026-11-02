@@ -214,23 +214,26 @@ def resolve_config_gen() -> list[str]:
     sys.exit("Error: neither pm-config-gen nor poetry is available in PATH")
 
 
-def build_gateways(profile: str) -> tuple[list[str], list[str], list[str]]:
+def build_gateways(
+    profile: str,
+) -> tuple[list[tuple[str, str]], list[str], list[str]]:
+    """Return ((--participants spec, description) pairs, trader ids, MM ids)."""
     trader_count = 2 if profile in ("basic", "nominal") else 5
     trader_ids = [f"TRADER{n:02d}" for n in range(1, trader_count + 1)]
     gateways = [
-        f"{tid}:TRADER:CANCEL_ALL:Student desk {n}"
+        (f"{tid}:TRADER:CANCEL_ALL", f"Student desk {n}")
         for n, tid in enumerate(trader_ids, 1)
     ]
-    gateways.append("OPS01:ADMIN:LEAVE_ALL:Instructor console")
+    gateways.append(("OPS01:ADMIN:LEAVE_ALL", "Instructor console"))
     if profile == "complex":
         mm_ids = ["MM01", "MM02"]
         gateways += [
-            "MM01:MARKET_MAKER:CANCEL_QUOTES_ONLY:Primary market maker",
-            "MM02:MARKET_MAKER:CANCEL_QUOTES_ONLY:Backup market maker",
+            ("MM01:MARKET_MAKER:CANCEL_QUOTES_ONLY", "Primary market maker"),
+            ("MM02:MARKET_MAKER:CANCEL_QUOTES_ONLY", "Backup market maker"),
         ]
     else:
         mm_ids = ["MM01"]
-        gateways.append("MM01:MARKET_MAKER:CANCEL_QUOTES_ONLY:Market maker")
+        gateways.append(("MM01:MARKET_MAKER:CANCEL_QUOTES_ONLY", "Market maker"))
     return gateways, trader_ids, mm_ids
 
 
@@ -402,10 +405,16 @@ def main() -> None:
 
     config_gen = resolve_config_gen()
     gateways, trader_ids, mm_ids = build_gateways(profile)
+    specs = [spec for spec, _ in gateways]
     smp_args = [
         a
-        for gw in gateways
-        for a in ("--participant-smp", f"{gw.split(':')[0]}:CANCEL_AGGRESSOR")
+        for spec in specs
+        for a in ("--participant-smp", f"{spec.split(':')[0]}:CANCEL_AGGRESSOR")
+    ]
+    desc_args = [
+        a
+        for spec, desc in gateways
+        for a in ("--participant-desc", f"{spec.split(':')[0]}:{desc}")
     ]
     outstanding_args = [
         a
@@ -415,7 +424,7 @@ def main() -> None:
     desk_list = ",".join(trader_ids + mm_ids + ["OPS01"])
 
     common = (
-        ["--symbols", *symbols, "--participants", *gateways, *smp_args]
+        ["--symbols", *symbols, "--participants", *specs, *smp_args, *desc_args]
         + outstanding_args
         + [
             "--output",

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import shlex
+
 import yaml
 
 from edumatcher.config_gen.renderer import _COMMAND_WRAP_WIDTH, render_yaml
@@ -246,6 +248,32 @@ def test_long_command_wraps_between_options_near_target_width() -> None:
     # Wrapping must not corrupt the YAML that follows.
     parsed = yaml.safe_load(rendered)
     assert parsed["symbols"]["AAPL"]["tick_decimals"] == 2
+
+
+def test_long_command_never_wraps_inside_a_quoted_argument() -> None:
+    argv = ["--symbols", "AAPL", "--participants", "TRADER01", "TRADER02"]
+    for n in (1, 2):
+        argv += ["--participant-desc", f"TRADER0{n}:Student desk {n} in the front row"]
+    command = "pm-config-gen " + shlex.join(argv)
+
+    rendered = render_yaml(
+        config=_MINIMAL_PAYLOAD,
+        command=command,
+        generated_version="1.1.0",
+        generated_date="2026-08-16",
+    )
+
+    command_lines = [
+        line
+        for line in rendered.splitlines()
+        if line.startswith("# Command:") or line.startswith("#          ")
+    ]
+    assert len(command_lines) > 1
+    rejoined = " ".join(
+        line.removeprefix("# Command:").removeprefix("#").removesuffix("\\")
+        for line in command_lines
+    )
+    assert shlex.split(rejoined) == ["pm-config-gen", *argv]
 
 
 def test_empty_command_renders_a_bare_label() -> None:

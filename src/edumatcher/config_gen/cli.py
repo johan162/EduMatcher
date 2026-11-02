@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import math
+import shlex
 import sys
 from collections.abc import Callable
 from datetime import date
@@ -707,6 +708,31 @@ def _parse_gateway_smp_specs(
     return result
 
 
+def _parse_gateway_desc_specs(
+    specs: list[str],
+    allowed_gateways: set[str],
+) -> dict[str, str]:
+    result: dict[str, str] = {}
+    for raw in specs:
+        if ":" not in raw:
+            raise ValueError(f"Invalid --participant-desc '{raw}': expected GW_ID:TEXT")
+        gw_raw, text_raw = raw.split(":", 1)
+        gateway_id = gw_raw.strip()
+        if gateway_id not in allowed_gateways:
+            raise ValueError(
+                f"--participant-desc references unknown gateway_id '{gateway_id}'"
+            )
+        if gateway_id in result:
+            raise ValueError(f"Duplicate --participant-desc for gateway '{gateway_id}'")
+        text = text_raw.strip()
+        if not text:
+            raise ValueError(
+                f"Invalid --participant-desc '{raw}': description cannot be empty"
+            )
+        result[gateway_id] = text
+    return result
+
+
 def _parse_api_credentials(
     specs: list[str], allowed_gateways: set[str]
 ) -> tuple[ApiCredentialSpec, ...]:
@@ -811,6 +837,14 @@ def _parse_specs(args: argparse.Namespace) -> tuple[
             )
             for gw in gateways
         ]
+
+    gateway_desc = _parse_gateway_desc_specs(
+        specs=args.participant_desc,
+        allowed_gateways={gw.gateway_id for gw in gateways},
+    )
+    gateways = [
+        replace(gw, description=gateway_desc.get(gw.gateway_id, "")) for gw in gateways
+    ]
 
     risk_levels: dict[str, tuple[float, float | None]] = {}
     for raw in args.risk_level:
@@ -2212,7 +2246,6 @@ def main() -> None:
         spec=spec,
         parsed_symbol_option_warnings=symbol_opt_warnings,
         raw_symbols=args.symbols,
-        raw_gateways=args.participants,
         output_exists=output_exists,
     )
 
@@ -2227,7 +2260,9 @@ def main() -> None:
     except ValueError as exc:
         print(f"[ERROR] {exc}", file=sys.stderr)
         raise SystemExit(2) from exc
-    cmd_line = "pm-config-gen " + " ".join(sys.argv[1:])
+    # shlex.join, not " ".join: the header is meant to be copy-pasted and
+    # re-run, so an argument with spaces must keep its quotes.
+    cmd_line = "pm-config-gen " + shlex.join(sys.argv[1:])
     default_config_field_comment_lines = (
         build_default_engine_field_comment_lines(config)
         if args.comment_default_config_fields

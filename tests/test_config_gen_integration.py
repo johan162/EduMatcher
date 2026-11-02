@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import shlex
 from pathlib import Path
 
 import pytest
@@ -285,6 +286,127 @@ def test_gateway_smp_invalid_action_errors(
                 "TRADER01",
                 "--participant-smp",
                 "TRADER01:NOT_A_VALUE",
+                "--dry-run",
+            ],
+        )
+
+    assert exc_info.value.code == 2
+
+
+def test_gateway_desc_emitted_and_command_header_keeps_quotes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    out_file = tmp_path / "engine_config.yaml"
+    _run_main(
+        monkeypatch,
+        [
+            "--symbols",
+            "AAPL",
+            "--participants",
+            "TRADER01",
+            "TRADER02",
+            "--participant-desc",
+            "TRADER01:Student desk 1: front row",
+            "--output",
+            str(out_file),
+        ],
+    )
+
+    cfg = load_engine_config(out_file)
+    assert sorted(cfg.participants) == ["TRADER01", "TRADER02"]
+    raw = yaml.safe_load(out_file.read_text(encoding="utf-8"))
+    descs = {p["id"]: p.get("description") for p in raw["participants"]}
+    assert descs == {"TRADER01": "Student desk 1: front row", "TRADER02": None}
+
+    # The recorded command must re-split into exactly the argv it came from,
+    # so copy-pasting the header cannot turn "desk" and "1" into participants.
+    header: list[str] = []
+    for line in out_file.read_text(encoding="utf-8").splitlines():
+        if line.startswith("# Command:") or (header and line.startswith("#   ")):
+            header.append(
+                line.removeprefix("# Command:").removeprefix("#").removesuffix("\\")
+            )
+        elif header:
+            break
+    assert shlex.split(" ".join(header))[1:] == [
+        "--symbols",
+        "AAPL",
+        "--participants",
+        "TRADER01",
+        "TRADER02",
+        "--participant-desc",
+        "TRADER01:Student desk 1: front row",
+        "--output",
+        str(out_file),
+    ]
+
+
+@pytest.mark.parametrize(
+    "desc",
+    [
+        "NOPE:Somebody",  # unknown gateway
+        "TRADER01",  # no colon
+        "TRADER01:   ",  # empty text
+    ],
+)
+def test_gateway_desc_invalid_errors(
+    monkeypatch: pytest.MonkeyPatch, desc: str
+) -> None:
+    with pytest.raises(SystemExit) as exc_info:
+        _run_main(
+            monkeypatch,
+            [
+                "--symbols",
+                "AAPL",
+                "--participants",
+                "TRADER01",
+                "--participant-desc",
+                desc,
+                "--dry-run",
+            ],
+        )
+
+    assert exc_info.value.code == 2
+
+
+def test_gateway_desc_duplicate_errors(monkeypatch: pytest.MonkeyPatch) -> None:
+    with pytest.raises(SystemExit) as exc_info:
+        _run_main(
+            monkeypatch,
+            [
+                "--symbols",
+                "AAPL",
+                "--participants",
+                "TRADER01",
+                "--participant-desc",
+                "TRADER01:One",
+                "--participant-desc",
+                "TRADER01:Two",
+                "--dry-run",
+            ],
+        )
+
+    assert exc_info.value.code == 2
+
+
+def test_unquoted_desc_is_rejected_not_turned_into_participants(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The original bug: an unquoted description with spaces reaches us as
+    several argv words. It must fail, not create participants DESK and 1."""
+    with pytest.raises(SystemExit) as exc_info:
+        _run_main(
+            monkeypatch,
+            [
+                "--symbols",
+                "AAPL",
+                "--participants",
+                "TRADER01",
+                "--participant-desc",
+                "TRADER01:Student",
+                "desk",
+                "1",
                 "--dry-run",
             ],
         )

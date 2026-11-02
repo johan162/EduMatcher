@@ -23,7 +23,6 @@ def test_warnings_for_market_maker_and_sessions() -> None:
         spec=spec,
         parsed_symbol_option_warnings=[],
         raw_symbols=["aapl"],
-        raw_gateways=["mm01:MARKET_MAKER"],
         output_exists=False,
     )
 
@@ -43,7 +42,6 @@ def test_warning_for_undefined_symbol_level() -> None:
         spec=spec,
         parsed_symbol_option_warnings=[],
         raw_symbols=["AAPL"],
-        raw_gateways=["TRADER01"],
         output_exists=False,
     )
 
@@ -59,7 +57,6 @@ def test_error_for_existing_output() -> None:
         spec=spec,
         parsed_symbol_option_warnings=[],
         raw_symbols=["AAPL"],
-        raw_gateways=["TRADER01"],
         output_exists=True,
     )
     assert any(line.startswith("[ERROR]") for line in lines)
@@ -77,7 +74,6 @@ def test_port_collision_across_auxiliary_gateways() -> None:
         spec=spec,
         parsed_symbol_option_warnings=[],
         raw_symbols=["AAPL"],
-        raw_gateways=["TRADER01"],
         output_exists=False,
     )
 
@@ -97,7 +93,6 @@ def test_no_port_collision_when_ports_distinct() -> None:
         spec=spec,
         parsed_symbol_option_warnings=[],
         raw_symbols=["AAPL"],
-        raw_gateways=["TRADER01"],
         output_exists=False,
     )
 
