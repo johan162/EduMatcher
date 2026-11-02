@@ -178,3 +178,18 @@ def test_c10_finds_an_earlier_leg_left_live_and_a_replaced_leg_trading(
         ("an earlier leg still live when a new quote was accepted", "A1"),
         ("a replaced leg traded", "B1"),
     ]
+
+
+def test_c8_accepts_the_same_seed_quote_after_an_engine_restart(
+    open_ds: OpenDataset, tmp_path: Path
+) -> None:
+    """A restart seeds its quotes again under the same ids (2026-11-02)."""
+    out = run(
+        open_ds,
+        tmp_path,
+        [ack("SEED-1"), status("SEED-1", "ACTIVE")],
+        [status("SEED-1", "CANCELLED")],
+        [("system.startup", {"run_seq": 2})],
+        [status("SEED-1", "ACTIVE")],
+    )
+    assert out.violations == 0, out.samples
