@@ -75,3 +75,21 @@ def test_it_comes_before_everything_the_restore_publishes(
     assert topics[0] != "system.startup_recovery"
     assert engine._config_text is None  # an engine on a YAML file: config null
     assert all_msgs(pub)[0][1]["config"] is None
+
+
+def test_the_startup_book_messages_carry_the_restored_last_prices(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """2026-11-02: the snapshot _restore_gtc published came before the
+    persisted book statistics were applied, so it showed last_price null."""
+    _files(monkeypatch, tmp_path)
+    resting = Order.create(
+        symbol=SYMBOL, side=Side.BUY, order_type=OrderType.LIMIT,
+        quantity=5, gateway_id="GW01", price_ticks=9900,
+    )  # fmt: skip
+    stats = {SYMBOL: {"last_buy_price": 99.0, "last_sell_price": 98.5, "prev_close": 99.0}}  # fmt: skip
+    engine, pub = make_engine(monkeypatch, tmp_path, gtc_orders=[resting], book_stats=stats)  # fmt: skip
+    engine._startup(1)
+    books = [p for t, p in all_msgs(pub) if t == f"book.{SYMBOL}"]
+    assert books
+    assert {(b["last_price"], b["last_buy_price"]) for b in books} == {(99.0, 99.0)}

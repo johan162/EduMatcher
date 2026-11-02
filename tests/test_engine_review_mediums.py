@@ -245,8 +245,8 @@ class TestM4RestoreSnapshotTickDecimals:
             gtc_orders=[gtc],
         )
 
-        # Mimic run(): _restore_gtc() runs first and publishes snapshots.
-        engine._restore_gtc()
+        # Mimic run(): the restore, then the startup snapshots.
+        engine._startup(1)
 
         books = msgs(pub, f"book.{sym}")
         assert books and books[0]["bids"], "precondition: snapshot published"

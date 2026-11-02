@@ -1397,8 +1397,12 @@ class Engine:
         """Everything ``run`` does before serving: announce, restore, seed,
         then publish what that left in the books' trace and the collars."""
         self._announce_startup(run_seq)
-        self._restore_gtc()
+        restored = self._restore_gtc()
         self._load_config()  # seed stats + MM orders (after GTC restore)
+        if restored:
+            # Only now: the books' last prices are restored by _load_config.
+            for symbol, book in self.books.items():
+                self.pub_sock.send_multipart(make_book_msg(symbol, book.snapshot()))
         self._flush_trace()
         self._publish_bands()
         self._publish_checkpoints("STARTUP")
@@ -1521,7 +1525,8 @@ class Engine:
             return timezone.utc
         return ZoneInfo(name)
 
-    def _restore_gtc(self) -> None:
+    def _restore_gtc(self) -> bool:
+        """Restore the resting orders; True if any came back."""
         # M4: register tick decimals BEFORE restoring and publishing snapshots.
         # run() calls _restore_gtc() before _load_config(), so without this the
         # startup snapshots format prices with the default 2 decimals — 100x
@@ -1652,9 +1657,6 @@ class Engine:
             if is_matching_enabled(self._session_state):
                 for symbol in list(self.books.keys()):
                     self._run_uncross(symbol_filter=symbol, reason="RECOVERY")
-            # Publish initial book snapshots immediately on startup
-            for symbol, book in self.books.items():
-                self.pub_sock.send_multipart(make_book_msg(symbol, book.snapshot()))
 
         # Rebuild QuoteIndex from restored quote-origin orders (GTC
         # unconditionally, same-day DAY per the staleness check above — a
@@ -1748,6 +1750,7 @@ class Engine:
                 restored_combos=len(combos),
             )
         )
+        return restored_count > 0
 
     # ------------------------------------------------------------------
     # Message handlers

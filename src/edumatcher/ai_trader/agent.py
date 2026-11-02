@@ -31,7 +31,7 @@ from edumatcher.ai_trader.actions import (
     NewOrder,
     OcoLegSpec,
 )
-from edumatcher.ai_trader.execution import Executor, TagFactory
+from edumatcher.ai_trader.execution import RUN_TOKEN, Executor, TagFactory
 from edumatcher.ai_trader.market_state import MarketState, SymbolState
 from edumatcher.ai_trader.orders import LiveOrder, OrderManager, OrderState, Purpose
 from edumatcher.ai_trader.preset import Preset
@@ -105,7 +105,7 @@ class Agent:
         self.executor = Executor(preset.execution)
         self.orders = OrderManager()
         self.breaker = RejectBreaker()
-        self.new_tag = TagFactory(self.gateway_id)
+        self.new_tag = TagFactory(self.gateway_id, RUN_TOKEN)
         self.stats = AgentStats()
         #: Set by the worker to share an aggregate rate budget.
         self.rate_scale = 1.0

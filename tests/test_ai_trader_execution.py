@@ -9,6 +9,7 @@ import pytest
 from edumatcher.ai_trader.execution import (
     ExecutionSpec,
     Executor,
+    RUN_TOKEN,
     TagFactory,
     clamp_qty,
 )
@@ -360,3 +361,11 @@ def test_tags_fit_alf_charset() -> None:
     for _ in range(5000):
         t = tags()
     assert set(t) <= allowed and len(t) <= 64 and t == "AI001-1388"
+
+
+def test_tags_differ_between_starts() -> None:
+    """2026-11-02: a restarted swarm began at 1 again and reused OCO ids."""
+    allowed = set("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_.")
+    first, second = TagFactory("AI001", "AAA"), TagFactory("AI001", "AAB")
+    assert first() == "AI001-AAA-1" and first() != second()
+    assert set(TagFactory("AI001", RUN_TOKEN)()) <= allowed
