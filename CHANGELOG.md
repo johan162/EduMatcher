@@ -1,3 +1,27 @@
+## [v0.70.0] - 2026-11-02
+
+Release Type: major
+
+### 📋 Summary
+This release makes participant configuration generation stricter and improves simulation forensic scan performance. It also updates configuration examples and documentation.
+
+### ⚠️ Breaking Changes
+- Removed the description field from `pm-config-gen --participants` specifications; move descriptions to repeatable `--participant-desc "ID:TEXT"` arguments
+- Required participant IDs passed to `pm-config-gen` to start with an uppercase letter and contain only uppercase letters, digits and underscores, with a maximum of 32 characters; update IDs previously accepted or automatically uppercased
+
+### 🚀 Improvements
+- Improved simulation forensics performance when scanning order events
+
+### 🐛 Bug Fixes
+- Fixed generated configuration command comments losing quotes around arguments containing spaces
+- Fixed unquoted participant descriptions being silently interpreted as additional participant IDs
+
+### 📚 Documentation
+- Updated configuration-generation guidance and examples, clarified participant terminology and added a clearing GUI design proposal
+
+### 🛠 Internal
+- Updated generated reference configurations and added regression tests for participant parsing and command rendering
+
 ## [v0.69.3] - 2026-11-02
 
 Release Type: patch
