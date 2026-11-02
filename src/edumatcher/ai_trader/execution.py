@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import math
 import random
+import time
 from dataclasses import dataclass, field
 
 from edumatcher.ai_trader.actions import NewOrder
@@ -320,13 +321,30 @@ def clamp_qty(st: SymbolState, qty: int, price_ticks: int | None) -> int:
     return max(0, qty)
 
 
-class TagFactory:
-    """Client tags: ``<GW>-<hex seq>``, within ALF's TAG charset (A-Z0-9-_.)."""
+def _run_token() -> str:
+    """Base-36 millisecond clock at import: tells this start's tags from an
+    earlier start's, whose counters began at 1 as well."""
+    n, digits = int(time.time() * 1000), []
+    while n:
+        n, d = divmod(n, 36)
+        digits.append("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"[d])
+    return "".join(reversed(digits))
 
-    def __init__(self, gateway_id: str) -> None:
-        self._prefix = gateway_id.upper()
+
+RUN_TOKEN = _run_token()
+
+
+class TagFactory:
+    """Client tags: ``<GW>-<run>-<hex seq>`` (``<GW>-<hex seq>`` without a run
+    token), within ALF's TAG charset (A-Z0-9-_.). The run token keeps a
+    restarted swarm from reusing a tag, an OCO id or a combo id."""
+
+    def __init__(self, gateway_id: str, run: str = "") -> None:
+        self._prefix = (
+            f"{gateway_id.upper()}-{run}-" if run else f"{gateway_id.upper()}-"
+        )
         self._seq = 0
 
     def __call__(self) -> str:
         self._seq += 1
-        return f"{self._prefix}-{self._seq:X}"
+        return f"{self._prefix}{self._seq:X}"

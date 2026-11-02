@@ -28,7 +28,7 @@ from __future__ import annotations
 import json
 import re
 from collections import Counter
-from collections.abc import Container
+from collections.abc import Container, Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import get_args
@@ -380,6 +380,17 @@ def live_orders_are_the_book(ds: Dataset) -> Outcome:
     return Outcome(len(samples), samples, note)
 
 
+def _oco_instances(scan: _Scan) -> Iterator[tuple[str, dict[str, list[tuple[int, str, str | None]]]]]:  # fmt: skip
+    """Each OCO group, one pair of legs at a time. A client may reuse an id
+    once its group has ended (the AI traders' tags start over when the swarm
+    restarts), so an id with more than two legs holds sequential groups,
+    told apart by their legs' first event."""
+    for group, legs in sorted(scan.oco.items()):
+        ordered = sorted(legs.items(), key=lambda leg: leg[1][0][0])
+        for i in range(0, len(ordered), 2):
+            yield group, dict(ordered[i : i + 2])
+
+
 @check(
     "C5",
     "lifecycle",
@@ -396,7 +407,7 @@ def oco_pairs(ds: Dataset) -> Outcome:
     scan = _scan(ds)
     samples: list[Sample] = []
     both_partial = inferred = 0
-    for group, legs in sorted(scan.oco.items()):
+    for group, legs in _oco_instances(scan):
         if len(legs) != 2:
             samples.append({"oco_group_id": group, "error": f"{len(legs)} legs"})
             continue

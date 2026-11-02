@@ -18,7 +18,7 @@ from collections import Counter
 from dataclasses import dataclass, field
 from typing import Any
 
-from sim_forensics.audit import audit_files, lines
+from sim_forensics.audit import STARTUP, audit_files, lines
 from sim_forensics.dataset import Dataset
 from sim_forensics.registry import Outcome, Sample, Skipped, check
 
@@ -164,7 +164,10 @@ def _quote_pass(ds: Dataset) -> _Pass:
         if ln.chain != qp.chain:
             qp.end_chain()
             qp.chain = ln.chain
-        if topic.startswith("quote.ack."):
+        if topic == STARTUP:
+            # A restart seeds its quotes again, under the same ids.
+            qp.quotes.clear()
+        elif topic.startswith("quote.ack."):
             qp.ack(topic[10:], json.loads(ln.body))
         elif topic.startswith("quote.status."):
             qp.status(topic[13:], json.loads(ln.body))

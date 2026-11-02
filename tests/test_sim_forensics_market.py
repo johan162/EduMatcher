@@ -224,6 +224,37 @@ def test_f3_finds_a_book_message_that_disagrees_with_the_trades(
     assert sorted(diffs) == wrong
 
 
+def restarted(data: Path) -> None:
+    """The engine restarts after the trades: its books keep last buy/sell and
+    the last price (book_stats.json) but not the last qty or recent trades,
+    and pm-stats's first row has no pct_change baseline."""
+    write_audit(
+        data,
+        tape()
+        + [
+            ("09:00:00.000", "system.startup", {"run_seq": 2}),
+            ("09:00:00.100", "book.AAPL", book("09:00:00.100", 99.5, 101.0, last_buy_price=100.5)),  # fmt: skip
+            ("09:00:01.000", "book.AAPL", book("09:00:01.000", 99.5, 101.0, last_price=100.5, last_buy_price=100.5)),  # fmt: skip
+        ],
+    )
+    conn = sqlite3.connect(data / "stats.db")
+    conn.execute(
+        "INSERT INTO price_snapshots VALUES ('2026-06-15T09:00:01+00:00', "
+        "'AAPL', 10025.0, 9950, 10100, NULL, 2)"
+    )
+    conn.commit()
+    conn.close()
+
+
+def test_f2_f3_accept_what_a_restart_does_not_carry_over(
+    data: Path, open_ds: OpenDataset
+) -> None:
+    restarted(data)
+    for check_id in ("F2", "F3"):
+        out = run(open_ds, data, check_id)
+        assert out.violations == 0, out.samples
+
+
 def test_f3_takes_the_first_snapshot_as_given_when_the_audit_starts_mid_run(
     data: Path, open_ds: OpenDataset
 ) -> None:

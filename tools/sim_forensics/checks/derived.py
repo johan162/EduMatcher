@@ -173,6 +173,10 @@ class _Tape:
     dirty: bool = True
     #: The trade fields of the last checked snapshot, unparsed.
     tail: str = ""
+    #: An engine restart wiped what the book remembers of the trades (it
+    #: restores only last buy/sell/close): until the next trade the
+    #: snapshots are taken as given.
+    blind: bool = False
 
 
 class _Market:
@@ -197,11 +201,13 @@ class _Market:
         self.f6: list[Sample] = []
         self.f6_count = self.depths = self.depths_unpaired = 0
         self._days: dict[str, str] = {}
+        #: price_snapshots rows, checked against their own symbol's previous
+        #: row once the engine starts are known.
+        self._raw: list[tuple[str, str, float | None, int | None, int | None, float | None]] = []  # fmt: skip
         if "stats" in ds.stores:
             self._load_rows()
 
     def _load_rows(self) -> None:
-        prev: dict[str, float | None] = {}
         for ts, symbol, mid, bid, ask, pct in self.ds.conn.execute(
             "SELECT ts, symbol, mid_price, best_bid, best_ask, pct_change "
             "FROM stats.price_snapshots ORDER BY symbol, ts"
@@ -221,7 +227,7 @@ class _Market:
                     ask,
                 )
             )
-            self._row_itself(symbol, ts, mid, bid, ask, pct, prev)
+            self._raw.append((symbol, ts, mid, bid, ask, pct))
 
     def _row_itself(
         self,
@@ -279,8 +285,30 @@ class _Market:
                 self.eod, self.eod_ts = json.loads(ln.body), ln.ts
             elif topic == STARTUP:
                 self.starts.append(ln.ts)
+                for tape in self.tapes.values():
+                    tape.last, tape.buy, tape.sell = None, _UNSET, _UNSET
+                    tape.recent.clear()
+                    tape.traded, tape.blind, tape.dirty = False, True, True
         for symbol in self.rows:
             self._close_rows(symbol, "~")
+        self._check_rows()
+
+    def _check_rows(self) -> None:
+        """A row's baseline is the symbol's previous row, except the first one
+        after an engine start: pm-stats keeps it in memory only, so a
+        restarted pm-stats writes no pct_change there."""
+        prev: dict[str, float | None] = {}
+        starts = iter(self.starts)
+        start = next(starts, None)
+        fresh: set[str] = set()
+        for symbol, ts, mid, bid, ask, pct in sorted(self._raw, key=lambda r: r[1]):
+            while start is not None and start[:19] <= ts[:19]:
+                fresh = set(self.rows)
+                start = next(starts, None)
+            if symbol in fresh:
+                fresh.discard(symbol)
+                prev.pop(symbol, None)
+            self._row_itself(symbol, ts, mid, bid, ask, pct, prev)
 
     def _trade(self, p: dict[str, Any]) -> None:
         tape = self.tapes[p["symbol"]]
@@ -389,8 +417,9 @@ class _Market:
             # Restored at startup (book_stats.json or the config), so only
             # the first snapshot can say what they were.
             tape.buy, tape.sell = p["last_buy_price"], p["last_sell_price"]
-        if not tape.traded and not self.from_start:
-            # The audit starts mid-run: the trades before it are unknown.
+        if not tape.traded and (tape.blind or not self.from_start):
+            # The audit starts mid-run or the engine restarted: the trades
+            # before are unknown.
             self._adopt(tape, p)
             return
         expected = {

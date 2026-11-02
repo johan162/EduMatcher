@@ -373,8 +373,23 @@ def test_c5_finds_a_combo_leg_filling_after_the_combo_failed(
 def test_c5_finds_a_group_without_two_legs(world: Path, open_ds: OpenDataset) -> None:
     oco(world, "A", "B", "C")
     assert run(open_ds, world, "C5").samples == [
-        {"oco_group_id": "G", "error": "3 legs"}
+        {"oco_group_id": "G", "error": "1 legs"}
     ]
+
+
+def test_c5_accepts_an_oco_id_reused_after_its_group_ended(
+    world: Path, open_ds: OpenDataset
+) -> None:
+    """2026-11-02: the AI swarm restarted and its tag counter started over, so
+    9 525 OCO ids named a second group later in the day."""
+    oco(world, "A", "B")
+    fill(world, "A", 10, 0)
+    oco_rule_cancel(world, "B", "OCO sibling A reached FILLED")
+    oco(world, "C", "D")
+    fill(world, "D", 10, 0)
+    oco_rule_cancel(world, "C", "OCO sibling D reached FILLED")
+    out = run(open_ds, world, "C5")
+    assert out.violations == 0, out.samples
 
 
 # --- C6: reasons and reject counts -------------------------------------------

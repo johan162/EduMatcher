@@ -221,8 +221,8 @@ class TestRestoreGTCWithOrders:
         engine, pub_sock = _make_engine(
             monkeypatch, tmp_path, gtc_orders=[order], verbose=False
         )
-        engine._restore_gtc()
-        # After _restore_gtc, orders list is non-empty
+        engine._startup(1)
+        # After the restore, orders list is non-empty
         assert "AAPL" in engine.books
         # Snapshots were published for each book
         topics = [decode(f)[0] for f in pub_sock.sent]
