@@ -19,6 +19,9 @@ import type {
 /** Largest page the history endpoints allow. */
 const MAX_LIMIT = 5000;
 
+/** Page cap for `trades`: 100k prints, far beyond what a chart window holds. */
+const MAX_TRADE_PAGES = 20;
+
 /** A non-2xx answer, with its status for callers that tell the cases apart. */
 export class HttpError extends Error {
   constructor(
@@ -82,11 +85,29 @@ export const api = {
     return getJson<{ daily: DailyBar[] }>(`/api/history/daily?${params}`);
   },
 
-  /** Raw prints for intraday bar bucketing. */
-  trades: (symbol: string, from?: string) => {
-    const params = new URLSearchParams({ symbol, limit: String(MAX_LIMIT) });
-    if (from) params.set("from", from);
-    return getJson<{ trades: TradeRow[] }>(`/api/history/trades?${params}`);
+  /**
+   * Raw prints for intraday bar bucketing, oldest-first.
+   *
+   * The endpoint pages oldest-first from the window's start, so a single
+   * request on a busy day returns only its opening minutes. Walk newest-first
+   * instead and flip the result: whatever the page cap cuts off is then the
+   * window's oldest prints, never the latest ones.
+   */
+  trades: async (symbol: string, from?: string) => {
+    const trades: TradeRow[] = [];
+    let after: string | undefined;
+    for (let page = 0; page < MAX_TRADE_PAGES; page++) {
+      const params = new URLSearchParams({ symbol, limit: String(MAX_LIMIT), order: "desc" });
+      if (from) params.set("from", from);
+      if (after) params.set("after", after);
+      const res = await getJson<{ trades: TradeRow[]; next_cursor?: string | null }>(
+        `/api/history/trades?${params}`,
+      );
+      trades.push(...res.trades);
+      if (!res.next_cursor) break;
+      after = res.next_cursor;
+    }
+    return { trades: trades.reverse() };
   },
 
   /** Recorded bid/ask midpoint, 15-minute cadence (design §9.3). */
