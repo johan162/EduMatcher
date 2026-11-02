@@ -1,4 +1,4 @@
-## [v0.69.0] - 2026-11-02
+## [v0.69.1] - 2026-11-02
 
 Release Type: major
 
@@ -16,6 +16,7 @@ This release aligns compiled engine configuration and Python names with the exis
 ### 🛠 Internal
 - Updated pytest to 9.2, flake8 to 7.5 and mypy to 2.4, and registered the probabilistic test markers required by strict marker selection
 - Fixed unclosed SQLite and CSV resources in end-of-day tests
+- Fixed a test that depended on host date but calculated deadline using exchage timezone
 
 ## [v0.68.0] - 2026-11-01
 

@@ -10,11 +10,13 @@
 
 from __future__ import annotations
 
-from datetime import date
+import time
+from datetime import UTC, date, datetime, tzinfo
 from unittest.mock import MagicMock, patch
 
 import pytest
 
+import edumatcher.scheduler.main as sched
 from edumatcher.engine.config_loader import DaySchedule, DEFAULT_COUNTRY, ScheduleConfig
 from edumatcher.models.message import make_session_state_msg
 from edumatcher.scheduler.main import (
@@ -109,18 +111,49 @@ class TestM1ValidateSchedule:
 
 
 class TestM2DailyRollover:
-    def test_seconds_until_next_working_day_is_bounded(self) -> None:
-        from datetime import datetime as _datetime
-        from edumatcher.scheduler.main import _next_scheduled_day, _seconds_until_local
+    @pytest.mark.parametrize(
+        ("now_utc", "timezone", "next_day", "seconds"),
+        [
+            ("2026-11-01T23:55:00+00:00", "Europe/Stockholm", date(2026, 11, 3), 83100),
+            ("2026-11-01T23:55:00+00:00", "Asia/Tokyo", date(2026, 11, 3), 54300),
+            (
+                "2026-03-27T17:00:00+00:00",
+                "Europe/Stockholm",
+                date(2026, 3, 30),
+                190800,
+            ),
+            (
+                "2026-10-23T16:00:00+00:00",
+                "Europe/Stockholm",
+                date(2026, 10, 26),
+                198000,
+            ),
+        ],
+    )
+    def test_seconds_until_next_working_day_is_bounded(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        now_utc: str,
+        timezone: str,
+        next_day: date,
+        seconds: int,
+    ) -> None:
+        epoch = datetime.fromisoformat(now_utc).timestamp()
 
-        today = _datetime.now().date()
-        next_day = _next_scheduled_day(DEFAULT_SCHEDULE, today, "Sweden")
-        target_midnight = _datetime.combine(next_day, _datetime.min.time())
-        secs = _seconds_until_local(target_midnight)
-        # Upper bound allows for a run of a few non-working days (a long
-        # holiday weekend) plus a 25-hour day on a DST "fall back" boundary,
-        # since the wait is computed DST-aware (review finding L1).
-        assert 0 < secs <= 8 * 24 * 60 * 60
+        class FrozenDatetime(datetime):
+            @classmethod
+            def now(cls, tz: tzinfo | None = None) -> FrozenDatetime:
+                return cls.fromtimestamp(epoch, tz or UTC)
+
+        monkeypatch.setattr(sched, "datetime", FrozenDatetime)
+        monkeypatch.setattr(time, "time", lambda: epoch)
+        monkeypatch.setattr(sched, "_clock", sched._Clock(session_timezone=timezone))
+
+        today = sched._clock.now().date()
+        target_day = sched._next_scheduled_day(DEFAULT_SCHEDULE, today, "Sweden")
+        target_midnight = datetime.combine(target_day, datetime.min.time())
+        assert target_day == next_day
+        assert sched._seconds_until_local(target_midnight) == seconds
 
     @patch(
         "edumatcher.scheduler.main._next_scheduled_day",
