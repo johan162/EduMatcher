@@ -28,7 +28,7 @@ export function AdminGatewaysPage() {
     disconnect.mutate(
       { id },
       {
-        onSuccess: () => toast.success(`Gateway ${id} disconnected`),
+        onSuccess: () => toast.success(`Participant ${id} disconnected`),
         onError: (err) =>
           toast.error(err instanceof ApiError ? `${err.code}: ${err.message}` : "Disconnect failed"),
       },
@@ -39,7 +39,7 @@ export function AdminGatewaysPage() {
   return (
     <div className="flex flex-col gap-4 p-4">
       <div className="flex items-center gap-3">
-        <h1 className="text-lg font-semibold text-fg">Gateway Management</h1>
+        <h1 className="text-lg font-semibold text-fg">Participants</h1>
         <span className="text-[11px] text-fg-faint">
           {gateways.filter((g) => g.connected).length} / {gateways.length} connected
         </span>
@@ -54,14 +54,14 @@ export function AdminGatewaysPage() {
       </div>
 
       {gatewaysQuery.isError && (
-        <p className="text-xs text-ask">Could not load the gateway roster.</p>
+        <p className="text-xs text-ask">Could not load the participant roster.</p>
       )}
 
       <div className="overflow-auto rounded border border-line">
         <table className="w-full border-collapse text-xs">
           <thead className="bg-panel text-fg-dim">
             <tr>
-              <th className="px-2 py-1.5 text-left font-medium">Gateway ID <HeaderTip table="admin-gateways" col="Gateway ID" /></th>
+              <th className="px-2 py-1.5 text-left font-medium">Participant ID <HeaderTip table="admin-gateways" col="Participant ID" /></th>
               <th className="px-2 py-1.5 text-left font-medium">Role <HeaderTip table="admin-gateways" col="Role" /></th>
               <th className="px-2 py-1.5 text-left font-medium">Description <HeaderTip table="admin-gateways" col="Description" /></th>
               <th className="px-2 py-1.5 text-left font-medium">Connected <HeaderTip table="admin-gateways" col="Connected" /></th>
@@ -93,7 +93,7 @@ export function AdminGatewaysPage() {
                       setKickTarget(g);
                     }}
                     disabled={!g.connected || disconnect.isPending}
-                    aria-label={`Kick gateway ${g.id}`}
+                    aria-label={`Kick participant ${g.id}`}
                     className="rounded border border-line px-2 py-0.5 text-[11px] text-fg-dim hover:text-ask disabled:opacity-30"
                   >
                     Kick
@@ -104,7 +104,7 @@ export function AdminGatewaysPage() {
             {gateways.length === 0 && !gatewaysQuery.isLoading && (
               <tr>
                 <td colSpan={5} className="px-2 py-6 text-center text-fg-faint">
-                  No gateways configured.
+                  No participants configured.
                 </td>
               </tr>
             )}
@@ -120,8 +120,8 @@ export function AdminGatewaysPage() {
 
       {kickTarget && (
         <CancelConfirm
-          title="Disconnect gateway?"
-          message={`Disconnect gateway ${kickTarget.id}? This will cancel all their active orders and quotes.`}
+          title="Disconnect participant?"
+          message={`Disconnect participant ${kickTarget.id}? This will cancel all their active orders and quotes.`}
           confirmLabel="Disconnect"
           busy={disconnect.isPending}
           onConfirm={() => doKick(kickTarget.id)}

@@ -54,7 +54,7 @@ const ADMIN_ITEMS: NavItem[] = [
   { to: "/admin/session", label: "Session Control", Icon: Timer },
   { to: "/admin/risk", label: "Risk Controls", Icon: Sliders },
   { to: "/admin/circuit-breakers", label: "Circuit Breakers", Icon: ShieldAlert },
-  { to: "/admin/gateways", label: "Gateways", Icon: Network },
+  { to: "/admin/gateways", label: "Participants", Icon: Network },
   { to: "/admin/monitor", label: "Monitor Log", Icon: ScrollText },
 ];
 

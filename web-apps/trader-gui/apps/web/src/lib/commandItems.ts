@@ -41,7 +41,7 @@ const MM_NAV: ActionCommand[] = [
 const ADMIN_NAV: ActionCommand[] = [
   { id: "nav-admin-dashboard", label: "System Dashboard", kind: "navigate", to: "/admin/dashboard" },
   { id: "nav-admin-session", label: "Session Control", kind: "navigate", to: "/admin/session" },
-  { id: "nav-admin-gateways", label: "Gateway Management", kind: "navigate", to: "/admin/gateways" },
+  { id: "nav-admin-gateways", label: "Participants", kind: "navigate", to: "/admin/gateways" },
   { id: "nav-admin-risk", label: "Risk Controls", kind: "navigate", to: "/admin/risk" },
   { id: "nav-admin-cb", label: "Circuit Breakers", kind: "navigate", to: "/admin/circuit-breakers" },
   { id: "nav-admin-indexes", label: "Index Administration", kind: "navigate", to: "/admin/indexes" },

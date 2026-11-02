@@ -67,15 +67,15 @@ describe("AdminGatewaysPage (§15.7)", () => {
   it("renders the roster and disables Kick for an offline gateway", async () => {
     wrap(<AdminGatewaysPage />);
     await waitFor(() => expect(screen.getByText("GW01")).toBeTruthy());
-    expect(screen.getByRole("button", { name: "Kick gateway GW01" })).toHaveProperty("disabled", false);
-    expect(screen.getByRole("button", { name: "Kick gateway GW09" })).toHaveProperty("disabled", true);
+    expect(screen.getByRole("button", { name: "Kick participant GW01" })).toHaveProperty("disabled", false);
+    expect(screen.getByRole("button", { name: "Kick participant GW09" })).toHaveProperty("disabled", true);
   });
 
   it("kicks a connected gateway after confirmation", async () => {
     wrap(<AdminGatewaysPage />);
     await waitFor(() => expect(screen.getByText("GW01")).toBeTruthy());
-    fireEvent.click(screen.getByRole("button", { name: "Kick gateway GW01" }));
-    expect(screen.getByText(/Disconnect gateway GW01\?/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Kick participant GW01" }));
+    expect(screen.getByText(/Disconnect participant GW01\?/)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Disconnect" }));
     await waitFor(() => expect(called("/api/v1/admin/gateways/GW01/disconnect")).toBe(true));
   });
@@ -119,10 +119,10 @@ describe("KillSwitchPanel (§15.8)", () => {
   it("cancels by gateway after confirmation", async () => {
     wrap(<AdminGatewaysPage />);
     await waitFor(() => expect(screen.getByText("GW01")).toBeTruthy());
-    fireEvent.change(screen.getByLabelText("Kill switch gateway"), { target: { value: "GW01" } });
-    fireEvent.click(screen.getByRole("button", { name: "Cancel gateway" }));
-    const dialog = screen.getByRole("dialog", { name: "Kill switch — gateway?" });
-    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel gateway" }));
+    fireEvent.change(screen.getByLabelText("Kill switch participant"), { target: { value: "GW01" } });
+    fireEvent.click(screen.getByRole("button", { name: "Cancel participant" }));
+    const dialog = screen.getByRole("dialog", { name: "Kill switch — participant?" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel participant" }));
     // D1: the target gateway is the path segment, not a body field.
     await waitFor(() => expect(called("/api/v1/admin/gateways/GW01/kill-switch")).toBe(true));
     const body = JSON.parse(
@@ -156,19 +156,19 @@ describe("GatewayDrawer", () => {
     });
     wrap(<AdminGatewaysPage />);
     await waitFor(() => expect(screen.getByText("GW01")).toBeTruthy());
-    expect(screen.queryByRole("dialog", { name: "Gateway GW01" })).toBeNull();
+    expect(screen.queryByRole("dialog", { name: "Participant GW01" })).toBeNull();
     fireEvent.click(screen.getByText("GW01"));
-    const drawer = screen.getByRole("dialog", { name: "Gateway GW01" });
+    const drawer = screen.getByRole("dialog", { name: "Participant GW01" });
     expect(within(drawer).getByText("AAPL")).toBeTruthy();
     expect(within(drawer).queryByText("MSFT")).toBeNull();
     fireEvent.click(within(drawer).getByRole("button", { name: "Close" }));
-    expect(screen.queryByRole("dialog", { name: "Gateway GW01" })).toBeNull();
+    expect(screen.queryByRole("dialog", { name: "Participant GW01" })).toBeNull();
   });
 
   it("Kick in the row does not open the drawer", async () => {
     wrap(<AdminGatewaysPage />);
     await waitFor(() => expect(screen.getByText("GW01")).toBeTruthy());
-    fireEvent.click(screen.getByRole("button", { name: "Kick gateway GW01" }));
-    expect(screen.queryByRole("dialog", { name: "Gateway GW01" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Kick participant GW01" }));
+    expect(screen.queryByRole("dialog", { name: "Participant GW01" })).toBeNull();
   });
 });
