@@ -59,11 +59,11 @@ export const COLUMN_HELP: Record<HelpTable, Record<string, string[]>> = {
     "Order ID": ["The order this fill belongs to."],
   },
   "admin-gateways": {
-    "Gateway ID": ["The identifier a participant connects with. It appears on every order and fill."],
-    Role: ["What the gateway may do: TRADER sends orders, MARKET_MAKER also quotes, ADMIN may operate the venue."],
+    "Participant ID": ["The identifier a participant connects with. It appears on every order and fill."],
+    Role: ["What the participant may do: TRADER sends orders, MARKET_MAKER also quotes, ADMIN may operate the venue."],
     Description: ["The description from the configuration."],
-    Connected: ["Whether the gateway is connected to the engine right now."],
-    Action: ["Kick disconnects the gateway; the engine cancels its resting orders and quotes. It can reconnect."],
+    Connected: ["Whether the participant is connected to the engine right now."],
+    Action: ["Kick disconnects the participant; the engine cancels its resting orders and quotes. It can reconnect."],
   },
   "admin-risk": {
     Level: ["The name of a risk profile, or of a circuit breaker level in a symbol's ladder."],

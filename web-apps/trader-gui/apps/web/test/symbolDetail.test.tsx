@@ -28,6 +28,7 @@ vi.mock("lightweight-charts", () => {
     LineSeries: "Line",
     ColorType: { Solid: "solid" },
     CrosshairMode: { Normal: 0 },
+    TickMarkType: { Year: 0, Month: 1, DayOfMonth: 2, Time: 3, TimeWithSeconds: 4 },
   };
 });
 

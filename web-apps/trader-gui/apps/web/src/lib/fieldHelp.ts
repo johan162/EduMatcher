@@ -68,7 +68,7 @@ export const FIELD_HELP: Record<HelpForm, Record<string, string[]>> = {
   },
   "kill-switch": {
     "By Symbol": ["Cancels every resting order and quote in this symbol, for all participants. Trading is not halted; participants can submit again."],
-    "By Gateway": ["Cancels every resting order and quote of this one gateway, in every symbol. The gateway stays connected."],
+    "By Participant": ["Cancels every resting order and quote of this one participant, in every symbol. The participant stays connected."],
   },
   halt: {
     Symbol: ["The instrument to halt. Trading stops; resuming reopens with a call auction."],

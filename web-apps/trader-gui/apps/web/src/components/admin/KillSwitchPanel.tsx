@@ -40,7 +40,7 @@ function killSwitchError(err: unknown): void {
  * verified against the current gateway. Each scope always confirms regardless of
  * power-user mode; the market-wide Global scope requires typing CONFIRM (§20.3).
  *
- * NOTE: an earlier design revision treated By Gateway / Global as disabled
+ * NOTE: an earlier design revision treated By Participant / Global as disabled
  * placeholders pending a backend endpoint. Those endpoints
  * (`/admin/gateways/{gateway_id}/kill-switch`, `/admin/market/kill-switch`) now exist, so they
  * are implemented and working here.
@@ -90,7 +90,7 @@ export function KillSwitchPanel({ gateways }: KillSwitchPanelProps) {
     globalKs.mutate(undefined, {
       onSuccess: (r) =>
         toast.success(
-          `Global kill switch: ${r.cancelled_orders} orders, ${r.cancelled_quotes} quotes across ${r.affected_gateways} gateways`,
+          `Global kill switch: ${r.cancelled_orders} orders, ${r.cancelled_quotes} quotes across ${r.affected_gateways} participants`,
         ),
       onError: killSwitchError,
     });
@@ -134,17 +134,17 @@ export function KillSwitchPanel({ gateways }: KillSwitchPanelProps) {
         </button>
       </div>
 
-      {/* By Gateway */}
+      {/* By Participant */}
       <div className="flex items-end gap-2">
         <div className="flex flex-col gap-0.5">
-          <span className="flex items-center gap-1 text-[10px] text-fg-faint">By Gateway <FieldHelp form="kill-switch" field="By Gateway" /></span>
+          <span className="flex items-center gap-1 text-[10px] text-fg-faint">By Participant <FieldHelp form="kill-switch" field="By Participant" /></span>
           <select
             value={gatewayId}
             onChange={(e) => setGatewayId(e.target.value)}
-            aria-label="Kill switch gateway"
+            aria-label="Kill switch participant"
             className={`${fieldCls} w-40`}
           >
-            <option value="">Select gateway…</option>
+            <option value="">Select participant…</option>
             {gateways.map((g) => (
               <option key={g.id} value={g.id}>
                 {g.id} ({g.role})
@@ -158,14 +158,14 @@ export function KillSwitchPanel({ gateways }: KillSwitchPanelProps) {
           disabled={!gatewayId || gatewayKs.isPending}
           className="rounded border border-line px-2 py-1 text-[11px] text-fg-dim hover:text-ask disabled:opacity-40"
         >
-          Cancel gateway
+          Cancel participant
         </button>
       </div>
 
       {/* Global */}
       <div className="flex items-end gap-2 border-t border-line pt-3">
         <div className="flex flex-col">
-          <span className="text-[10px] text-ask">Global (all gateways)</span>
+          <span className="text-[10px] text-ask">Global (all participants)</span>
           <span className="text-[10px] text-fg-faint">Full-market emergency stop.</span>
         </div>
         <button
@@ -181,7 +181,7 @@ export function KillSwitchPanel({ gateways }: KillSwitchPanelProps) {
       {confirmSymbol && (
         <CancelConfirm
           title="Kill switch — symbol?"
-          message={`Cancel all resting orders and quotes for ${symbol.trim().toUpperCase()} across every gateway?`}
+          message={`Cancel all resting orders and quotes for ${symbol.trim().toUpperCase()} across every participant?`}
           confirmLabel="Cancel symbol"
           busy={symbolKs.isPending}
           onConfirm={runSymbol}
@@ -191,9 +191,9 @@ export function KillSwitchPanel({ gateways }: KillSwitchPanelProps) {
 
       {confirmGateway && (
         <CancelConfirm
-          title="Kill switch — gateway?"
-          message={`Cancel all resting orders and quotes belonging to ${gatewayId}? The gateway stays connected and may re-submit.`}
-          confirmLabel="Cancel gateway"
+          title="Kill switch — participant?"
+          message={`Cancel all resting orders and quotes belonging to ${gatewayId}? The participant stays connected and may re-submit.`}
+          confirmLabel="Cancel participant"
           busy={gatewayKs.isPending}
           onConfirm={runGateway}
           onClose={() => setConfirmGateway(false)}
@@ -203,7 +203,7 @@ export function KillSwitchPanel({ gateways }: KillSwitchPanelProps) {
       {confirmGlobal && (
         <ConfirmTypedDialog
           title="Global kill switch?"
-          message="Cancel every resting order and quote for every gateway. This is a full-market emergency stop and affects all participants."
+          message="Cancel every resting order and quote for every participant. This is a full-market emergency stop and affects all participants."
           confirmLabel="Execute global kill"
           busy={globalKs.isPending}
           onConfirm={runGlobal}

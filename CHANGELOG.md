@@ -1,3 +1,21 @@
+## [v0.69.2] - 2026-11-02
+
+Release Type: patch
+
+### 📋 Summary
+This patch reduces false memory-growth alerts and fixes the trader GUI administrator drawer.
+
+### 🚀 Improvements
+- Updated trader GUI administrator labels and help text to use participant terminology
+
+### 🐛 Bug Fixes
+- Fixed the administrator participant drawer being partially hidden, making its close button inaccessible
+- Reduced false degraded-status alerts from small memory increases and growth that has levelled off
+- Fix a OHLC graph error that on busy days could limit the graph to only the start of the day
+
+### 🛠 Internal
+- Added regression coverage for memory-growth detection and updated administrator GUI tests
+
 ## [v0.69.1] - 2026-11-02
 
 Release Type: major

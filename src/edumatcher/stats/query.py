@@ -543,14 +543,17 @@ def query_trades(
     limit: int,
     tz: tzinfo,
     after: str | None = None,
+    newest_first: bool = False,
 ) -> tuple[list[dict[str, Any]], str | None]:
     """Return up to *limit* trades plus a next-page cursor (or ``None``).
 
     ``trade_log`` rows are ordered by event time; SQLite's implicit ``rowid``
     (insertion order) is used as the tiebreaker for same-``ts`` rows, exposed
     as ``_rowid`` in each result row and consumed via the opaque ``after``
-    cursor on the next call.
+    cursor on the next call. With *newest_first* the order (and the cursor's
+    direction) is reversed, so ``limit`` selects the most recent trades.
     """
+    op, direction = ("<", "DESC") if newest_first else (">", "ASC")
     sql = (
         "SELECT rowid AS _rowid, ts, trade_id, symbol, price, quantity, "
         "tick_decimals, buy_gateway_id, sell_gateway_id, aggressor_side "
@@ -566,10 +569,10 @@ def query_trades(
     )
     if after is not None:
         after_ts, after_rowid = _decode_two_field_cursor(after, "ts", "rowid")
-        sql += " AND (ts > ? OR (ts = ? AND rowid > ?))"
+        sql += f" AND (ts {op} ? OR (ts = ? AND rowid {op} ?))"
         params.extend([after_ts, after_ts, after_rowid])
 
-    sql += " ORDER BY ts ASC, rowid ASC LIMIT ?"
+    sql += f" ORDER BY ts {direction}, rowid {direction} LIMIT ?"
     params.append(limit)
 
     rows = _execute_fetchall(conn, sql, params)

@@ -77,8 +77,8 @@ export function AdminDashboardPage() {
           value={phaseMeta.label}
           tone={`self-start rounded px-2 ${phaseMeta.bgClass} ${phaseMeta.textClass}`}
         />
-        <KpiCard label="Active Orders (all gateways)" value={formatQty(activeOrders)} />
-        <KpiCard label="Connected Gateways" value={formatQty(connectedGateways)} />
+        <KpiCard label="Active Orders (all participants)" value={formatQty(activeOrders)} />
+        <KpiCard label="Connected Participants" value={formatQty(connectedGateways)} />
         <KpiCard
           label="Active CB Halts"
           value={formatQty(haltCount)}

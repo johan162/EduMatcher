@@ -51,18 +51,18 @@ export function GatewayDrawer({ gateway, onKick, onClose }: GatewayDrawerProps) 
     <aside
       role="dialog"
       aria-modal="false"
-      aria-label={`Gateway ${id}`}
+      aria-label={`Participant ${id}`}
       onKeyDown={(e) => {
         if (e.key === "Escape") {
           e.stopPropagation();
           onClose();
         }
       }}
-      className="fixed inset-y-0 right-0 z-30 flex w-full max-w-[32rem] flex-col border-l border-line bg-panel shadow-2xl"
+      className="fixed bottom-0 right-0 top-10 z-30 flex w-full max-w-[32rem] flex-col border-l border-line bg-panel shadow-2xl"
     >
       <header className="flex items-start gap-3 border-b border-line px-4 py-3">
         <div className="min-w-0 flex-1">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-fg-faint">Gateway</p>
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-fg-faint">Participant</p>
           <h2 ref={heading} tabIndex={-1} className="truncate font-mono text-base font-semibold text-fg focus:outline-none">
             {id}
           </h2>
@@ -75,7 +75,7 @@ export function GatewayDrawer({ gateway, onKick, onClose }: GatewayDrawerProps) 
           type="button"
           onClick={() => onKick(gateway)}
           disabled={!gateway.connected}
-          aria-label={`Kick gateway ${id} from drawer`}
+          aria-label={`Kick participant ${id} from drawer`}
           className="rounded border border-line px-2 py-0.5 text-[11px] text-fg-dim hover:text-ask disabled:opacity-30"
         >
           Kick
@@ -86,7 +86,7 @@ export function GatewayDrawer({ gateway, onKick, onClose }: GatewayDrawerProps) 
       </header>
 
       <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto p-4">
-        <dl aria-label="Gateway figures" className="m-0 grid grid-cols-2 gap-x-6 gap-y-2 text-xs sm:grid-cols-3">
+        <dl aria-label="Participant figures" className="m-0 grid grid-cols-2 gap-x-6 gap-y-2 text-xs sm:grid-cols-3">
           {facts.map(([name, value]) => (
             <div key={name} className="min-w-0">
               <dt className="truncate text-[11px] uppercase tracking-wide text-fg-faint">{name}</dt>
@@ -122,7 +122,7 @@ export function GatewayDrawer({ gateway, onKick, onClose }: GatewayDrawerProps) 
           </div>
         </section>
 
-        <section aria-label="Gateway events" className="flex flex-col gap-1">
+        <section aria-label="Participant events" className="flex flex-col gap-1">
           <h3 className="text-[11px] font-semibold uppercase tracking-wide text-fg-dim">Recent events</h3>
           <div className="max-h-72 overflow-auto rounded border border-line">
             {events.length === 0 ? (

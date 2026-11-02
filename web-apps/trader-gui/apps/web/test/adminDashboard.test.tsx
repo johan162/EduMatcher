@@ -77,8 +77,8 @@ beforeEach(() => {
 describe("AdminDashboardPage (§15.1)", () => {
   it("renders the KPI cards", async () => {
     wrap(<AdminDashboardPage />);
-    expect(screen.getByText("Active Orders (all gateways)")).toBeTruthy();
-    expect(screen.getByText("Connected Gateways")).toBeTruthy();
+    expect(screen.getByText("Active Orders (all participants)")).toBeTruthy();
+    expect(screen.getByText("Connected Participants")).toBeTruthy();
     expect(screen.getByText("Active CB Halts")).toBeTruthy();
     // Connected gateways from /admin/gateways = 2 (GW01, MM; GW09 disconnected).
     await waitFor(() => expect(screen.getByText("2")).toBeTruthy());

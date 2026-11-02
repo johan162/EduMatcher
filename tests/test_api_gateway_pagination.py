@@ -70,6 +70,7 @@ async def _call_trades(
     date: str | None = None,
     limit: int = 500,
     after: str | None = None,
+    order: str = "asc",
 ) -> dict[str, Any]:
     result = await history.history_trades(
         request,
@@ -80,6 +81,7 @@ async def _call_trades(
         to_ts=None,
         limit=limit,
         after=after,
+        order=order,  # type: ignore[arg-type]
     )
     check_contract(history.history_trades, result)
     return result
@@ -211,6 +213,29 @@ async def test_history_trades_pagination_reproduces_full_result_set(
 
     assert paged_ids == [t["trade_id"] for t in full["trades"]]
     assert len(paged_ids) == len(set(paged_ids))
+
+
+@pytest.mark.anyio
+async def test_history_trades_order_desc_pages_newest_first(trades_db: Path) -> None:
+    request = _request_for(trades_db)
+    session = _readonly_session()
+
+    oldest_first = await _call_trades(request, session, limit=500)
+    expected = [t["trade_id"] for t in reversed(oldest_first["trades"])]
+
+    newest = await _call_trades(request, session, limit=2, order="desc")
+    assert [t["trade_id"] for t in newest["trades"]] == expected[:2]
+
+    paged_ids: list[str] = []
+    after = None
+    for _ in range(10):
+        page = await _call_trades(request, session, limit=2, after=after, order="desc")
+        paged_ids.extend(t["trade_id"] for t in page["trades"])
+        if not page["has_more"]:
+            break
+        after = page["next_cursor"]
+
+    assert paged_ids == expected
 
 
 @pytest.mark.anyio
