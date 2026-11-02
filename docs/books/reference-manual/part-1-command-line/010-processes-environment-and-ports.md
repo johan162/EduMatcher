@@ -3459,13 +3459,14 @@ pm-config-gen --symbols AAPL MSFT --participants TRADER01 TRADER02 OPS01:ADMIN -
 | Flag | Description |
 |---|---|
 | `--symbols SYM [SYM ...]` | One or more symbols |
-| `--participants GW_SPEC [...]` | One or more gateway specs (`ID[:ROLE[:DISCONNECT]]`) |
+| `--participants GW_SPEC [...]` | One or more gateway specs (`ID[:ROLE[:DISCONNECT]]`); `ID` is `A-Z`, `0-9`, `_`, starting with a letter |
 
 #### Gateway / symbol overrides
 
 | Flag | Description |
 |---|---|
 | `--participant-smp GW_ID:SMP_ACTION` | Per-gateway self-match-prevention default (`NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH`); repeatable |
+| `--participant-desc GW_ID:TEXT` | Per-gateway `description`; quote it when `TEXT` has spaces; repeatable |
 | `--participant-default-smp SMP_ACTION` | Writes `participant_defaults.smp_action`, inherited by gateways without their own |
 | `--participant-default-disconnect DISCONNECT` | Writes `participant_defaults.disconnect_behaviour`, inherited by gateways whose spec names no disconnect behaviour |
 | `--symbol-opts SYMBOL:KEY=VALUE[,...]` | Per-symbol overrides; repeatable |

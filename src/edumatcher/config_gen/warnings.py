@@ -86,7 +86,6 @@ def evaluate_diagnostics(
     spec: ConfigSpec,
     parsed_symbol_option_warnings: list[str],
     raw_symbols: list[str],
-    raw_gateways: list[str],
     output_exists: bool,
 ) -> list[str]:
     messages: list[str] = list(parsed_symbol_option_warnings)
@@ -185,17 +184,6 @@ def evaluate_diagnostics(
                     "INFO",
                     f"Symbol names are uppercased by the engine loader; '{symbol}' will "
                     f"become '{symbol.upper()}'.",
-                ).format()
-            )
-
-    for raw_gateway in raw_gateways:
-        gateway_id = raw_gateway.split(":", 1)[0]
-        if gateway_id != gateway_id.upper():
-            messages.append(
-                Diagnostic(
-                    "INFO",
-                    f"Gateway IDs are uppercased by the engine loader; '{gateway_id}' "
-                    f"will become '{gateway_id.upper()}'.",
                 ).format()
             )
 

@@ -8,7 +8,7 @@ from edumatcher.models.participant import DisconnectBehaviour, ParticipantRole
 
 
 def test_parse_gateway_spec_defaults() -> None:
-    parsed = parse_gateway_spec("trader01")
+    parsed = parse_gateway_spec("TRADER01")
     assert parsed.gateway_id == "TRADER01"
     assert parsed.role == ParticipantRole.TRADER
     assert parsed.disconnect_behaviour == DisconnectBehaviour.CANCEL_ALL
@@ -18,7 +18,7 @@ def test_parse_gateway_spec_smp_action_defaults_none() -> None:
     """smp_action is not part of the colon-delimited spec syntax -- it is
     always SmpAction.NONE from parse_gateway_spec() and is only set
     afterwards via the separate --participant-smp flag (see cli.py)."""
-    parsed = parse_gateway_spec("TRADER01:TRADER:CANCEL_ALL:Some desc")
+    parsed = parse_gateway_spec("TRADER01:TRADER:CANCEL_ALL")
     assert parsed.smp_action == SmpAction.NONE
 
 
@@ -44,17 +44,32 @@ def test_parse_gateway_spec_invalid_disconnect() -> None:
         parse_gateway_spec("GW1:TRADER:WHATEVER")
 
 
-def test_parse_gateway_spec_description() -> None:
-    parsed = parse_gateway_spec("MM01:MARKET_MAKER:CANCEL_QUOTES_ONLY:Primary MM")
-    assert parsed.description == "Primary MM"
-    assert parsed.role == ParticipantRole.MARKET_MAKER
-
-
 def test_parse_gateway_spec_description_defaults_empty() -> None:
     parsed = parse_gateway_spec("TRADER01")
     assert parsed.description == ""
 
 
 def test_parse_gateway_spec_too_many_parts() -> None:
-    with pytest.raises(ValueError, match="expected ID"):
-        parse_gateway_spec("A:B:C:D:E")
+    with pytest.raises(ValueError, match="--participant-desc"):
+        parse_gateway_spec("MM01:MARKET_MAKER:CANCEL_QUOTES_ONLY:Primary MM")
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        "desk",  # stray word of an unquoted "Student desk 1"
+        "1",
+        "trader01",
+        "1TRADER",
+        "TRADER-01",
+        "TRADER 01",
+        "A" * 33,
+    ],
+)
+def test_parse_gateway_spec_rejects_invalid_id(raw: str) -> None:
+    with pytest.raises(ValueError, match="Invalid gateway ID"):
+        parse_gateway_spec(raw)
+
+
+def test_parse_gateway_spec_accepts_max_length_id() -> None:
+    assert parse_gateway_spec("A" * 32).gateway_id == "A" * 32

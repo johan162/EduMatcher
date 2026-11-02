@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import textwrap
+import shlex
 from typing import Any
 
 import yaml
@@ -21,21 +21,25 @@ def _render_command_comment(command: str) -> list[str]:
     word after "Command: ", so it still reads as one flowing command. All
     but the last line end in a shell continuation "\\", matching the
     "Validate with" block below, so the whole thing can be copy-pasted and
-    run as-is.
+    run as-is. Breaks fall only between shell words, never inside a quoted
+    argument such as 'TRADER01:Student desk 1'.
     """
     label = "Command: "
     indent = " " * len(label)
-    wrapped = textwrap.wrap(
-        command,
-        # Leave room for the "# " comment marker and the trailing " \".
-        width=_COMMAND_WRAP_WIDTH - 4,
-        initial_indent=label,
-        subsequent_indent=indent,
-        break_long_words=False,
-        break_on_hyphens=False,
-    )
-    if not wrapped:
+    words = [shlex.quote(word) for word in shlex.split(command)]
+    if not words:
         return [f"# {label.rstrip()}"]
+    # Leave room for the "# " comment marker and the trailing " \".
+    width = _COMMAND_WRAP_WIDTH - 4
+    wrapped: list[str] = []
+    line = label + words[0]
+    for word in words[1:]:
+        if len(line) + 1 + len(word) > width:
+            wrapped.append(line)
+            line = indent + word
+        else:
+            line += " " + word
+    wrapped.append(line)
     return [
         f"# {line} \\" if i < len(wrapped) - 1 else f"# {line}"
         for i, line in enumerate(wrapped)

@@ -269,7 +269,8 @@ Required inputs:
 | Option                             | Type              | Description                               |
 |------------------------------------|-------------------|-------------------------------------------|
 | `--symbols SYM [SYM ...]`          | Repeatable tokens | Symbol universe (uppercased on parse)     |
-| `--participants GW_SPEC [GW_SPEC ...]` | Repeatable tokens | Gateway specs as `ID[:ROLE[:DISCONNECT[:DESCRIPTION]]]` |
+| `--participants GW_SPEC [GW_SPEC ...]` | Repeatable tokens | Gateway specs as `ID[:ROLE[:DISCONNECT]]`; see the `--participants` format below |
+| `--participant-desc GW_ID:TEXT`        | Repeatable        | Sets `participants[<GW_ID>].description`; `GW_ID` must be one of `--participants`. Quote it when `TEXT` has spaces |
 | `--participant-smp GW_ID:SMP_ACTION`   | Repeatable        | Sets `participants[<GW_ID>].smp_action` (`NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH`); `GW_ID` must be one of `--participants`; omitted gateways inherit `--participant-default-smp`, else `NONE`. `GW_ID:NONE` is written when it overrides a non-`NONE` default. See [Risk Controls — Self-Match Prevention](../part-4-run-a-market/040-risk-controls.md#self-match-prevention-smp) |
 | `--participant-default-smp SMP_ACTION` | Choice            | Writes `participant_defaults.smp_action`, inherited by every gateway without its own `smp_action`. See [Participant Defaults](../../reference-manual/part-3-configuration/010-schema-and-process-blocks.md#participant-defaults) |
 | `--participant-default-disconnect DISCONNECT` | Choice     | Writes `participant_defaults.disconnect_behaviour` (`CANCEL_ALL`, `CANCEL_QUOTES_ONLY`, `LEAVE_ALL`). Gateways whose `--participants` spec does not name a disconnect behaviour inherit it instead of the per-role default; this includes `ADMIN` and `MARKET_MAKER` gateways. See [Participant Defaults](../../reference-manual/part-3-configuration/010-schema-and-process-blocks.md#participant-defaults) |
@@ -639,7 +640,7 @@ connect from other machines.
 Each gateway token is:
 
 ```text
-ID[:ROLE[:DISCONNECT[:DESCRIPTION]]]
+ID[:ROLE[:DISCONNECT]]
 ```
 
 Examples:
@@ -647,10 +648,23 @@ Examples:
 - `TRADER01`
 - `MM01:MARKET_MAKER`
 - `OPS01:ADMIN:LEAVE_ALL`
-- `MM01:MARKET_MAKER:CANCEL_QUOTES_ONLY:Primary market maker`
 
-The optional fourth field sets `description` on the generated gateway entry.
-It may contain spaces; the entire string after the third colon is used as-is.
+`ID` must start with an uppercase letter and contain only `A-Z`, `0-9` and
+`_`, at most 32 characters. Anything else is an error, including lowercase:
+`pm-config-gen` does not uppercase IDs for you.
+
+A description is not part of the spec. Set it with the separate, repeatable
+`--participant-desc GW_ID:TEXT`, and quote it when the text has spaces:
+
+```bash
+--participant-desc "MM01:Primary market maker"
+```
+
+The split is deliberate. A description inside the spec would have to be
+quoted too, and when the quotes are forgotten the shell turns
+`Student desk 1` into three words, which used to be accepted silently as
+participants `DESK` and `1`. Now the stray words are rejected, either as
+invalid IDs or as unrecognised arguments.
 
 Role defaults for disconnect behavior:
 
@@ -1115,11 +1129,12 @@ Gateway description labels and per-symbol MM obligation override:
 ```bash
 pm-config-gen \
   --symbols AAPL MSFT \
-  --participants \
-    "TRADER01:TRADER:CANCEL_ALL:Student desk 1" \
-    "TRADER02:TRADER:CANCEL_ALL:Student desk 2" \
-    "MM01:MARKET_MAKER:CANCEL_QUOTES_ONLY:Primary market maker" \
-    "OPS01:ADMIN:LEAVE_ALL:Instructor console" \
+  --participants TRADER01:TRADER:CANCEL_ALL TRADER02:TRADER:CANCEL_ALL \
+    MM01:MARKET_MAKER:CANCEL_QUOTES_ONLY OPS01:ADMIN:LEAVE_ALL \
+  --participant-desc "TRADER01:Student desk 1" \
+  --participant-desc "TRADER02:Student desk 2" \
+  --participant-desc "MM01:Primary market maker" \
+  --participant-desc "OPS01:Instructor console" \
   --enforce-mm-obligations \
   --symbol-opts AAPL:enforce_mm_obligation=true,mm_spread_ticks=8 \
   --symbol-opts MSFT:enforce_mm_obligation=false \
