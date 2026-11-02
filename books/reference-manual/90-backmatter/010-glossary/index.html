@@ -7769,14 +7769,18 @@ that the length of a heap is not the number of resting orders.</p>
 <p><strong>Gateway ID:</strong> The identity a participant presents when it connects, for
 example <code>TRADER01</code>. It is the participant's <code>id</code> from the configuration;
 messages and protocols call it <code>gateway_id</code>. See also <em>Gateway</em>.</p>
-<p><strong>Ledger (<code>eod.db</code>):</strong> The settlement database written by <code>pm-eod</code>: one row per account per settled trading date, plus a log of runs. Balances are never stored; they are the sum of the amounts plus the roster's opening balance.</p>
+<p><strong>Ledger (<code>eod.db</code>):</strong> The settlement database written by <code>pm-eod</code>: one row per participant per settled trading date (plus an <code>EXCHANGE</code> row that absorbs the rounding residual), plus a log of runs. Balances are never stored; they are the sum of the amounts plus the roster's opening balance.</p>
 <p><strong>Operator Dashboard (<code>pm-dash</code>):</strong> The browser view of <code>pm-monitor</code>'s
 health snapshot and history: every process's state, trading activity,
 participants, order books and events, live and over time. See
 <a href="../../../operator-guide/part-6-observe-and-recover/070-operator-dashboard/">Operator Dashboard</a>.</p>
 <p><strong>Participant:</strong> Anyone configured to connect to the exchange — a student, a
 bot or the operator — with an ID and a role. Listed under <code>participants:</code> in
-the configuration.</p>
+the configuration. A participant is deliberately one combined gateway, session
+and user login. Real exchanges usually split this into several levels (member,
+then trader or user, with connectivity as a separate session layer, and
+clients or accounts for clearing); EduMatcher keeps a single level to stay
+simple for teaching.</p>
 <p><strong><code>pm-eod</code>:</strong> The end-of-day command: settles a closed trading date, writes the statements and runs the housekeeping (audit archive, log compression, database backups). See <a href="../../../operator-guide/part-4-run-a-market/100-closing-the-day/">Closing the Day</a>.</p>
 <p><strong>Process profile:</strong> A named set of <code>pm-*</code> processes that <code>pm-opctl-cli</code> starts
 and stops together: <code>micro</code>, <code>mini</code>, <code>default</code>, <code>mm-demo</code> (the default set

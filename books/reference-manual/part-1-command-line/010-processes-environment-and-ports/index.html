@@ -15662,7 +15662,7 @@ can be recreated without manual YAML editing.</p>
 </tr>
 <tr>
 <td><code>--participants GW_SPEC [...]</code></td>
-<td>One or more gateway specs (<code>ID[:ROLE[:DISCONNECT]]</code>)</td>
+<td>One or more gateway specs (<code>ID[:ROLE[:DISCONNECT]]</code>); <code>ID</code> is <code>A-Z</code>, <code>0-9</code>, <code>_</code>, starting with a letter</td>
 </tr>
 </tbody>
 </table>
@@ -15678,6 +15678,10 @@ can be recreated without manual YAML editing.</p>
 <tr>
 <td><code>--participant-smp GW_ID:SMP_ACTION</code></td>
 <td>Per-gateway self-match-prevention default (<code>NONE</code>, <code>CANCEL_AGGRESSOR</code>, <code>CANCEL_RESTING</code>, <code>CANCEL_BOTH</code>); repeatable</td>
+</tr>
+<tr>
+<td><code>--participant-desc GW_ID:TEXT</code></td>
+<td>Per-gateway <code>description</code>; quote it when <code>TEXT</code> has spaces; repeatable</td>
 </tr>
 <tr>
 <td><code>--participant-default-smp SMP_ACTION</code></td>
