@@ -85,7 +85,7 @@ that the length of a heap is not the number of resting orders.
 example `TRADER01`. It is the participant's `id` from the configuration;
 messages and protocols call it `gateway_id`. See also *Gateway*.
 
-**Ledger (`eod.db`):** The settlement database written by `pm-eod`: one row per account per settled trading date, plus a log of runs. Balances are never stored; they are the sum of the amounts plus the roster's opening balance.
+**Ledger (`eod.db`):** The settlement database written by `pm-eod`: one row per participant per settled trading date (plus an `EXCHANGE` row that absorbs the rounding residual), plus a log of runs. Balances are never stored; they are the sum of the amounts plus the roster's opening balance.
 
 **Operator Dashboard (`pm-dash`):** The browser view of `pm-monitor`'s
 health snapshot and history: every process's state, trading activity,
@@ -94,7 +94,11 @@ participants, order books and events, live and over time. See
 
 **Participant:** Anyone configured to connect to the exchange — a student, a
 bot or the operator — with an ID and a role. Listed under `participants:` in
-the configuration.
+the configuration. A participant is deliberately one combined gateway, session
+and user login. Real exchanges usually split this into several levels (member,
+then trader or user, with connectivity as a separate session layer, and
+clients or accounts for clearing); EduMatcher keeps a single level to stay
+simple for teaching.
 
 **`pm-eod`:** The end-of-day command: settles a closed trading date, writes the statements and runs the housekeeping (audit archive, log compression, database backups). See [Closing the Day](../../operator-guide/part-4-run-a-market/100-closing-the-day.md).
 
