@@ -5,6 +5,7 @@ from collections import defaultdict
 import errno
 import json
 import logging
+import math
 import signal
 import sys
 import time
@@ -93,6 +94,44 @@ def _clamp_id(value: object, limit: int = _MAX_ID_LEN) -> str:
     same lookup and produces the same rejection.
     """
     return str(value).upper()[:limit]
+
+
+def _int_field(payload: dict[str, Any], key: str, default: int) -> int:
+    """An integer command field; a bad value is a ValueError the caller rejects.
+
+    ``default`` applies only when the key is absent. A present but wrong value
+    (None, bool, NaN, a fraction, text) is refused rather than truncated or
+    coerced: ``int(None)`` raising TypeError out of a handler was K8 / I3.
+    """
+    if key not in payload:
+        return default
+    value = payload[key]
+    if isinstance(value, bool) or value is None:
+        raise ValueError(f"{key} must be an integer")
+    if isinstance(value, float):
+        if not math.isfinite(value) or not value.is_integer():
+            raise ValueError(f"{key} must be an integer")
+        return int(value)
+    try:
+        return int(value)
+    except TypeError, ValueError:
+        raise ValueError(f"{key} must be an integer") from None
+
+
+def _float_field(payload: dict[str, Any], key: str, default: float) -> float:
+    """A finite numeric command field; a bad value is a ValueError."""
+    if key not in payload:
+        return default
+    value = payload[key]
+    if isinstance(value, bool) or value is None:
+        raise ValueError(f"{key} must be a number")
+    try:
+        number = float(value)
+    except TypeError, ValueError:
+        raise ValueError(f"{key} must be a number") from None
+    if not math.isfinite(number):
+        raise ValueError(f"{key} must be a finite number")
+    return number
 
 
 _CLIENT_NAME = "pm-index"
@@ -434,6 +473,9 @@ class IndexProcess:
             price = float(price_raw)
         except TypeError, ValueError:
             return
+        if not (math.isfinite(price) and price > 0.0):
+            self._dbg_count("trade_price_rejected")
+            return
         symbol = symbol_raw.upper()
         target_indices = self._constituent_to_indices.get(symbol, set())
         if not target_indices:
@@ -490,8 +532,13 @@ class IndexProcess:
             return
 
         default_from_ns = time.time_ns() - 30 * 86400 * 1_000_000_000
-        from_ts_ns = int(payload.get("from_ts_ns", default_from_ns))
-        to_ts_ns = int(payload.get("to_ts_ns", time.time_ns()))
+        try:
+            from_ts_ns = _int_field(payload, "from_ts_ns", default_from_ns)
+            to_ts_ns = _int_field(payload, "to_ts_ns", time.time_ns())
+            max_records = _int_field(payload, "max_records", 10_000)
+        except ValueError as exc:
+            self._pub_sock.send_multipart(make_index_error_msg(gateway_id, str(exc)))
+            return
         if to_ts_ns < from_ts_ns:
             self._pub_sock.send_multipart(
                 make_index_error_msg(gateway_id, "to_ts_ns must be >= from_ts_ns")
@@ -503,7 +550,6 @@ class IndexProcess:
         if not isinstance(types_raw, list):
             types_raw = default_types
         record_types = {str(t).upper() for t in types_raw}
-        max_records = int(payload.get("max_records", 10_000))
 
         try:
             records, warnings = idx.history.query(
@@ -549,26 +595,24 @@ class IndexProcess:
         try:
             old_divisor = idx.calc.divisor
             if action == "SPLIT":
+                numerator = _int_field(payload, "ratio_numerator", 0)
+                denominator = _int_field(payload, "ratio_denominator", 0)
                 idx.calc.apply_split(
                     symbol,
-                    ratio_numerator=int(payload.get("ratio_numerator", 0)),
-                    ratio_denominator=int(payload.get("ratio_denominator", 0)),
+                    ratio_numerator=numerator,
+                    ratio_denominator=denominator,
                 )
-                detail = f"{int(payload.get('ratio_numerator', 0))}:{int(payload.get('ratio_denominator', 0))}"
+                detail = f"{numerator}:{denominator}"
             elif action == "CASH_DIVIDEND":
-                idx.calc.apply_cash_dividend(
-                    symbol,
-                    dividend_per_share=float(payload.get("dividend_per_share", 0.0)),
-                )
-                detail = f"div={float(payload.get('dividend_per_share', 0.0))}"
+                dividend = _float_field(payload, "dividend_per_share", 0.0)
+                idx.calc.apply_cash_dividend(symbol, dividend_per_share=dividend)
+                detail = f"div={dividend}"
             elif action == "SHARES_ISSUANCE":
+                new_shares = _int_field(payload, "new_shares_outstanding", 0)
                 idx.calc.apply_shares_issuance(
-                    symbol,
-                    new_shares_outstanding=int(
-                        payload.get("new_shares_outstanding", 0)
-                    ),
+                    symbol, new_shares_outstanding=new_shares
                 )
-                detail = f"shares={int(payload.get('new_shares_outstanding', 0))}"
+                detail = f"shares={new_shares}"
             else:
                 raise ValueError(f"Unsupported corporate action '{action}'")
         except (KeyError, ValueError) as exc:
@@ -648,8 +692,8 @@ class IndexProcess:
                     "new_divisor": idx.calc.divisor,
                 }
             elif change_type == "ADD":
-                shares = int(payload.get("shares_outstanding", 0))
-                initial_price = float(payload.get("initial_price", 0.0))
+                shares = _int_field(payload, "shares_outstanding", 0)
+                initial_price = _float_field(payload, "initial_price", 0.0)
                 idx.calc.add_constituent(symbol, shares, initial_price)
                 self._constituent_to_indices.setdefault(symbol, set()).add(index_id)
                 event_type = "ADD_CONSTITUENT"
@@ -826,6 +870,44 @@ class IndexProcess:
             )
         )
 
+    def _handle_sub_message(self, frames: list[bytes]) -> None:
+        """One message from the engine feed; a bad one is logged, never fatal."""
+        try:
+            topic, payload = decode(frames)
+        except Exception as exc:
+            log.warning("malformed sub frame: %s", exc)
+            return
+        self._dbg_count("sub_messages")
+        try:
+            if topic == TOPIC_TRADE_EXECUTED:
+                self._handle_trade(payload)
+            elif topic == TOPIC_SESSION_STATE:
+                self._handle_session_state(payload)
+            elif topic == TOPIC_EOD:
+                self._finalize_eod()
+        except Exception as exc:
+            log.warning("error handling %s: %s", topic, exc)
+
+    def _handle_pull_message(self, frames: list[bytes]) -> None:
+        """One command to this process; a bad one is logged, never fatal."""
+        try:
+            topic, payload = decode(frames)
+        except Exception as exc:
+            log.warning("malformed pull frame: %s", exc)
+            return
+        self._dbg_count("pull_messages")
+        try:
+            if topic == TOPIC_INDEX_HISTORY_REQUEST:
+                self._handle_history_request(payload)
+            elif topic == TOPIC_INDEX_CORP_ACTION:
+                self._handle_corp_action(payload)
+            elif topic == TOPIC_INDEX_CONSTITUENT_CHANGE:
+                self._handle_constituent_change(payload)
+            elif topic == TOPIC_INDEX_REBALANCE:
+                self._handle_rebalance(payload)
+        except Exception as exc:
+            log.warning("error handling %s: %s", topic, exc)
+
     def _checkpoint(self, now: float | None = None, force: bool = False) -> None:
         """Write the state of every index whose prices moved since its last write.
 
@@ -864,36 +946,10 @@ class IndexProcess:
                 answer_health_ping(self._health_rep, log)
 
             if self._sub_sock in socks:
-                frames = self._sub_sock.recv_multipart()
-                try:
-                    topic, payload = decode(frames)
-                except Exception as exc:
-                    log.warning("malformed sub frame: %s", exc)
-                else:
-                    self._dbg_count("sub_messages")
-                    if topic == TOPIC_TRADE_EXECUTED:
-                        self._handle_trade(payload)
-                    elif topic == TOPIC_SESSION_STATE:
-                        self._handle_session_state(payload)
-                    elif topic == TOPIC_EOD:
-                        self._finalize_eod()
+                self._handle_sub_message(self._sub_sock.recv_multipart())
 
             if self._pull_sock in socks:
-                frames = self._pull_sock.recv_multipart()
-                try:
-                    topic, payload = decode(frames)
-                except Exception as exc:
-                    log.warning("malformed pull frame: %s", exc)
-                else:
-                    self._dbg_count("pull_messages")
-                    if topic == TOPIC_INDEX_HISTORY_REQUEST:
-                        self._handle_history_request(payload)
-                    elif topic == TOPIC_INDEX_CORP_ACTION:
-                        self._handle_corp_action(payload)
-                    elif topic == TOPIC_INDEX_CONSTITUENT_CHANGE:
-                        self._handle_constituent_change(payload)
-                    elif topic == TOPIC_INDEX_REBALANCE:
-                        self._handle_rebalance(payload)
+                self._handle_pull_message(self._pull_sock.recv_multipart())
 
             self._checkpoint()
             for idx in self._indices.values():
