@@ -392,8 +392,10 @@ as a `CORP_ACTION`, `ADD_CONSTITUENT`, or `DELIST` record — queryable with
 ### State file
 
 `pm-index` writes a small JSON checkpoint file at startup (right after
-computing the initial level), after every EOD finalization, and after any
-corporate action or constituent change (add/delist):
+computing the initial level), after every EOD finalization, on every session
+phase change, on shutdown, after any corporate action, rebalance or constituent
+change (add/delist), and — while trading — at most every 30 seconds if prices
+have moved since the last write. A trade does not write the file by itself.
 
 ```json
 {
@@ -401,6 +403,11 @@ corporate action or constituent change (add/delist):
   "description": "EduMatcher broad index",
   "divisor": 7007100000.0,
   "constituents": ["AAPL", "MSFT", "TSLA"],
+  "outstanding_shares": {
+    "AAPL": 15500000000,
+    "MSFT": 7430000000,
+    "TSLA": 3180000000
+  },
   "last_prices": {
     "AAPL": 211.3,
     "MSFT": 418.5,
@@ -414,14 +421,18 @@ corporate action or constituent change (add/delist):
 }
 ```
 
-On restart, this file is loaded to restore the divisor and last prices.
-If the `index_id` in the file does not match, or the persisted constituent list
-differs from the configured one, `pm-index` exits with an error telling you to
-use `--reset`. The persisted list is stored **sorted alphabetically** and is
-compared in order with the configured `constituents`, so list constituents
-alphabetically in the config. After an `add` or `delist` made through
-`pm-index-admin-cli`, update the config to match, deploy it, and start with
-`--reset` (the change is otherwise lost or trips this check on the next start).
+On restart, this file is the authority for the **live** index: the divisor,
+the constituent list, each constituent's share count and its last price. The
+configuration only supplies a fresh start. So an `add`, `delist`, split,
+issuance or rebalance made through `pm-index-admin-cli` survives a restart
+without touching the config; if the persisted constituents differ from the
+configured ones, `pm-index` logs a warning and keeps the persisted set. If the
+`index_id` in the file does not match, `pm-index` exits with an error telling
+you to use `--reset`, which discards the file and returns to the configuration
+(including a new divisor). A crash can lose at most the price moves of the last
+30 seconds; they are replaced by the next trade in each constituent.
+`day_open`, `day_high` and `day_low` are diagnostics only: the session's
+open/high/low starts afresh in a new process.
 
 ### History file
 

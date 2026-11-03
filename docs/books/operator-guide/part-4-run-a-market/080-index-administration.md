@@ -286,9 +286,9 @@ pm-index-admin-cli --id OPS01 add --index TECH10 --sym NVDA --shares 2470000000 
     will be added to the index but never receive live price updates. The
     confirmation prompt states this requirement, but `pm-index-admin-cli`
     has no `--config` flag and cannot verify it for you. A change made this
-    way also lives only in `pm-index`'s state and history — see
-    [Market Index — State file](070-market-index.md#state-file) for what to do
-    to the config afterwards.
+    way lives in `pm-index`'s state file and survives restarts, but not
+    `--reset` — see [Market Index — State file](070-market-index.md#state-file)
+    for keeping the config in step.
 
 ### `delist` — Remove a constituent
 

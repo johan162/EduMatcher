@@ -8,7 +8,7 @@ import logging
 import signal
 import sys
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -67,6 +67,11 @@ from edumatcher.models.generated.system import (
 log = logging.getLogger(__name__)
 _DEBUG_SUMMARY_INTERVAL_SEC = 5.0
 
+#: Longest a trade-driven price change stays unwritten while trading. Writing
+#: the state file on every trade would cost a file write per print; every
+#: phase change and shutdown checkpoints as well (K7).
+CHECKPOINT_INTERVAL_SEC = 30.0
+
 #: Longest identifier this process will echo back into a reply, matching the
 #: `max_len` the index spec declares for gateway_id / index_id / symbol.
 _MAX_ID_LEN = 32
@@ -109,6 +114,21 @@ class _ManagedIndex:
     #: could actually arise (design section 16.2).
     day: DaySummary | None = None
     day_close: float | None = None
+    #: Prices moved since the state file was last written (K7 checkpoint).
+    dirty: bool = False
+    last_checkpoint: float = 0.0
+
+
+@dataclass(frozen=True)
+class _RestoredState:
+    """What the state file says about one index; all None/empty on a fresh start."""
+
+    divisor: float | None = None
+    last_prices: dict[str, float] = field(default_factory=dict)
+    #: The live constituent set and its share counts, which may differ from
+    #: the static config after a runtime ADD / DELIST / share change.
+    constituents: list[str] | None = None
+    shares: dict[str, int] = field(default_factory=dict)
 
 
 class IndexProcess:
@@ -206,9 +226,7 @@ class IndexProcess:
     def _state_path(self, cfg: IndexRuntimeConfig) -> Path:
         return Path(cfg.state_file)
 
-    def _load_state(
-        self, cfg: IndexRuntimeConfig
-    ) -> tuple[float | None, dict[str, float]]:
+    def _load_state(self, cfg: IndexRuntimeConfig) -> _RestoredState:
         state_path = self._state_path(cfg)
         log.debug("loading index state index_id=%s path=%s", cfg.id, state_path)
         if self._reset and state_path.exists():
@@ -218,10 +236,10 @@ class IndexProcess:
                 cfg.id,
                 state_path,
             )
-            return None, {}
+            return _RestoredState()
 
         if not state_path.exists():
-            return None, {}
+            return _RestoredState()
 
         payload = json.loads(state_path.read_text(encoding="utf-8"))
         state_id = str(payload.get("index_id", "")).upper()
@@ -231,9 +249,14 @@ class IndexProcess:
             )
 
         constituents = [str(sym).upper() for sym in payload.get("constituents", [])]
-        if constituents and constituents != cfg.constituents:
-            raise ValueError(
-                f"State/config constituent mismatch for index '{cfg.id}'. Use --reset."
+        if constituents and constituents != sorted(cfg.constituents):
+            log.warning(
+                "index %s: the persisted constituent set %s differs from the "
+                "configured %s (runtime ADD/DELIST); keeping the persisted one. "
+                "Use --reset to return to the configuration.",
+                cfg.id,
+                constituents,
+                sorted(cfg.constituents),
             )
 
         divisor_raw = payload.get("divisor")
@@ -247,7 +270,21 @@ class IndexProcess:
                     last_prices[str(symbol).upper()] = float(price)
                 except TypeError, ValueError:
                     continue
-        return divisor, last_prices
+
+        shares_raw = payload.get("outstanding_shares", {})
+        shares: dict[str, int] = {}
+        if isinstance(shares_raw, dict):
+            for symbol, count in shares_raw.items():
+                try:
+                    shares[str(symbol).upper()] = int(count)
+                except TypeError, ValueError:
+                    continue
+        return _RestoredState(
+            divisor=divisor,
+            last_prices=last_prices,
+            constituents=constituents or None,
+            shares=shares,
+        )
 
     def _persist_state(self, idx: _ManagedIndex, last_level: float) -> None:
         state_path = self._state_path(idx.cfg)
@@ -257,12 +294,16 @@ class IndexProcess:
             "description": idx.cfg.description,
             "divisor": idx.calc.divisor,
             "constituents": idx.calc.constituent_symbols(),
+            "outstanding_shares": {
+                symbol: idx.calc.shares_outstanding(symbol)
+                for symbol in idx.calc.constituent_symbols()
+            },
             "last_prices": {
                 symbol: idx.calc.last_price(symbol)
                 for symbol in idx.calc.constituent_symbols()
             },
-            # The state file keeps three flat keys: it is a persisted
-            # diagnostic, not the wire, and nothing reads them back.
+            # The day_* keys are a persisted diagnostic, not the wire, and
+            # nothing reads them back; everything above them is restored.
             "day_open": idx.day.open if idx.day else None,
             "day_high": idx.day.high if idx.day else None,
             "day_low": idx.day.low if idx.day else None,
@@ -270,6 +311,8 @@ class IndexProcess:
             "last_updated": time.time(),
         }
         state_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        idx.dirty = False
+        idx.last_checkpoint = time.monotonic()
         log.debug(
             "persisted index state index_id=%s level=%s path=%s",
             idx.cfg.id,
@@ -281,26 +324,32 @@ class IndexProcess:
         configs = self._runtime_configs()
         log.info("loaded %d index runtime config(s)", len(configs))
         for cfg in configs:
-            divisor, last_prices = self._load_state(cfg)
+            restored = self._load_state(cfg)
+            divisor = restored.divisor
             is_fresh_start = divisor is None
+            live_symbols = restored.constituents or list(cfg.constituents)
             constituents = [
                 ConstituentConfig(
                     symbol=symbol,
-                    shares_outstanding=cfg.outstanding_shares[symbol],
-                    initial_price=cfg.reference_prices[symbol],
+                    shares_outstanding=restored.shares.get(
+                        symbol, cfg.outstanding_shares.get(symbol, 0)
+                    ),
+                    initial_price=cfg.reference_prices.get(
+                        symbol, restored.last_prices.get(symbol, 0.0)
+                    ),
                 )
-                for symbol in cfg.constituents
+                for symbol in live_symbols
             ]
             calc = IndexCalculator(
                 constituents=constituents,
                 base_value=cfg.base_value,
                 divisor=divisor,
-                last_prices=last_prices,
+                last_prices=restored.last_prices,
             )
             history = IndexHistory(cfg.history_file)
             managed = _ManagedIndex(cfg=cfg, calc=calc, history=history)
             self._indices[cfg.id] = managed
-            for symbol in cfg.constituents:
+            for symbol in live_symbols:
                 self._constituent_to_indices.setdefault(symbol, set()).add(cfg.id)
 
             level = calc.recalculate()
@@ -312,7 +361,7 @@ class IndexProcess:
                         "index_id": cfg.id,
                         "base_value": cfg.base_value,
                         "divisor": calc.divisor,
-                        "constituents": cfg.constituents,
+                        "constituents": live_symbols,
                         "level": level,
                     }
                 )
@@ -321,7 +370,7 @@ class IndexProcess:
             log.info(
                 "index ready index_id=%s constituents=%d level=%s",
                 cfg.id,
-                len(cfg.constituents),
+                len(live_symbols),
                 level,
             )
 
@@ -395,6 +444,7 @@ class IndexProcess:
         for index_id in target_indices:
             idx = self._indices[index_id]
             idx.calc.update_price(symbol, price)
+            idx.dirty = True
             level = idx.calc.recalculate()
             log.debug(
                 "trade applied index_id=%s symbol=%s price=%.6f level=%.6f divisor=%.6f cap=%.6f",
@@ -423,6 +473,7 @@ class IndexProcess:
             self._reset_for_new_session()
         if state == "CLOSED":
             self._finalize_eod()
+        self._checkpoint(force=True)
 
     def _handle_history_request(self, payload: dict[str, Any]) -> None:
         gateway_id = _clamp_id(payload.get("gateway_id", ""))
@@ -775,6 +826,20 @@ class IndexProcess:
             )
         )
 
+    def _checkpoint(self, now: float | None = None, force: bool = False) -> None:
+        """Write the state of every index whose prices moved since its last write.
+
+        ``force`` ignores the interval (phase change, shutdown); otherwise an
+        index is written only once ``CHECKPOINT_INTERVAL_SEC`` has passed.
+        """
+        now = time.monotonic() if now is None else now
+        for idx in self._indices.values():
+            if not idx.dirty:
+                continue
+            if not force and now - idx.last_checkpoint < CHECKPOINT_INTERVAL_SEC:
+                continue
+            self._persist_state(idx, idx.calc.recalculate())
+
     def run(self) -> None:
         self._initialise()
         log.info("index process entering main poll loop")
@@ -830,6 +895,7 @@ class IndexProcess:
                     elif topic == TOPIC_INDEX_REBALANCE:
                         self._handle_rebalance(payload)
 
+            self._checkpoint()
             for idx in self._indices.values():
                 idx.history.flush()
 
@@ -848,6 +914,7 @@ class IndexProcess:
             self._reporter.stop()
         self._flush_debug_summary(force=True)
         log.info("closing index process")
+        self._checkpoint(force=True)
         for idx in self._indices.values():
             idx.history.flush()
             idx.history.close()
