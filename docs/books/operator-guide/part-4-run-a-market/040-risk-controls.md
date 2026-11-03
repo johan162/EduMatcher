@@ -545,8 +545,10 @@ until trades accumulate:
   `last_buy_price`, then `last_sell_price`).
 - **Circuit-breaker reference** — the breaker's rolling history is pre-seeded
   with a single synthetic baseline point at that **same** resolved opening
-  price.  The first executed trade is therefore evaluated against the IPO
-  reference, so a violent opening print can trip the breaker on day one.
+  price.  The first continuous trade is therefore evaluated against the IPO
+  reference, so a violent first print can trip the breaker on day one. Auction
+  prints (opening, closing, reopening, recovery) enter the history but never
+  trip the breaker themselves.
 
 Because both controls draw their reference from the same source, the collar and
 the circuit breaker agree at the open.

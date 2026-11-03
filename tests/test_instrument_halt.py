@@ -447,6 +447,10 @@ class TestCircuitBreakerEngineIntegration:
             print_at(mt)
             assert not eng._halted_symbols.get("AAPL"), mt
             assert cb.trade_history[-1] == (1_000_000_010, 10600)
+        cb.trade_history.clear()
+        cb._trade_price_sum = 0
+        for i in range(10):
+            cb.trade_history.append((1_000_000_000 + i, 10000))
         print_at("CONTINUOUS")
         assert eng._halted_symbols.get("AAPL")
 
