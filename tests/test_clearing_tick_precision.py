@@ -14,6 +14,7 @@ See docs-design/EduMatcher-Key-Component-Fixes-Workplan.md K6.
 from __future__ import annotations
 
 import sqlite3
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -25,6 +26,7 @@ from edumatcher.clearing.store import (
     query_exposure,
     query_symbols,
 )
+from tests.conftest import opened
 
 _TS = 1_700_000_000_000_000_000
 
@@ -92,7 +94,7 @@ def test_holders_not_in_the_trade_are_converted_when_remarked() -> None:
 
 
 def test_daily_row_accumulates_in_one_scale_across_a_precision_change() -> None:
-    conn = sqlite3.connect(":memory:")
+    conn = opened(sqlite3.connect(":memory:"))
     conn.row_factory = sqlite3.Row
     apply_schema(conn)
     ledger = Ledger()
@@ -168,11 +170,12 @@ def _daily(
 
 
 @pytest.fixture()
-def conn(tmp_path: Path) -> sqlite3.Connection:
+def conn(tmp_path: Path) -> Iterator[sqlite3.Connection]:
     c = sqlite3.connect(tmp_path / "q.db")
     c.row_factory = sqlite3.Row
     apply_schema(c)
-    return c
+    yield c
+    c.close()
 
 
 def test_exposure_ranks_by_currency_not_raw_ticks(conn: sqlite3.Connection) -> None:
