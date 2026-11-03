@@ -32,7 +32,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 | 1 | K1 | Auction: OCO sibling must not fill in the same uncross; auction honours SMP | A1, A2 | High | K0 | 1.5 d | ☑ | 2026-11-03 |
 | 2 | K2 | Engine: AON combo preflight must account for SMP | E1 | High | K0 | 1 d | ☑ | 2026-11-03 |
 | 3 | K3 | Engine: `displayed_qty` omitted on the direct order path | E2 | Med | K0 | 0.5 d | ☑ | 2026-11-03 |
-| 4 | K4 | Clearing: commit before ledger mutation; durable duplicate protection | C1, C2 | High | K0 | 1.5 d | ☐ | |
+| 4 | K4 | Clearing: commit before ledger mutation; durable duplicate protection | C1, C2 | High | K0 | 1.5 d | ☑ | 2026-11-03 |
 | 5 | K5 | Clearing: warm-start must fail loudly; malformed auth/bye must not kill the receive loop | C3, C7 | Med | K4 | 0.5 d | ☑ | 2026-11-03 |
 | 6 | K6 | Clearing: tick-precision changes and precision-aware query normalisation | C4, C5 | Med | K4 | 1 d | ☐ | |
 | 7 | K7 | Index: state must be sufficient to restore the live calculator | I1 | High | K0 | 1.5 d | ☐ | |
