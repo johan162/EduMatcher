@@ -405,6 +405,51 @@ class TestCircuitBreakerEngineIntegration:
         ]
         assert [a["reason"] for a in auctions] == ["REOPEN"]
 
+    def test_an_auction_print_far_from_the_window_does_not_halt(self, engine) -> None:
+        """An auction price is where the market (re)starts: it joins the
+        reference window but can not trip a breaker, while the same print in
+        continuous trading does."""
+        from edumatcher.models.trade import Trade
+
+        eng, pub = engine
+        self._wire_cb(eng)
+        cb = eng._circuit_breakers["AAPL"]
+        for i in range(10):
+            cb.trade_history.append((1_000_000_000 + i, 10000))
+        pub.sent.clear()
+
+        def print_at(match_type: str) -> None:
+            eng._publish_trade(
+                Trade(
+                    id="t",
+                    symbol="AAPL",
+                    buy_order_id="b",
+                    sell_order_id="s",
+                    buy_gateway_id="GW1",
+                    sell_gateway_id="GW2",
+                    price=10600,
+                    quantity=1,
+                    aggressor_side="AUCTION",
+                    ts_ns=1_000_000_010,
+                    run_seq=1,
+                    match_type=match_type,
+                )
+            )
+
+        for mt in (
+            "OPENING_AUCTION",
+            "CLOSING_AUCTION",
+            "REOPEN_AUCTION",
+            "RECOVERY_AUCTION",
+            "BACKSTOP",
+            "FORCE_UNCROSS",
+        ):
+            print_at(mt)
+            assert not eng._halted_symbols.get("AAPL"), mt
+            assert cb.trade_history[-1] == (1_000_000_010, 10600)
+        print_at("CONTINUOUS")
+        assert eng._halted_symbols.get("AAPL")
+
     def test_resume_reports_what_caused_the_halt(self, engine) -> None:
         eng, pub = engine
         self._wire_cb(eng)

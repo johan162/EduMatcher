@@ -1155,6 +1155,7 @@ class _Replay:
                     self._flag("D9", error=f"replayed {key} differ from the engine's checkpoint", symbol=sym, reason=p.get("reason"), engine=str(theirs[key])[:300], replay=str(ours[key])[:300])  # fmt: skip
                     break
         book = self.books[sym] = _Book(sym, self.td.get(sym, 2))
+        self._uncross_at.pop(sym, None)  # a new book restarts its version
         top = self.seq
         for side, key in ((BUY, "bids"), (SELL, "asks")):
             for r in p.get(key) or []:

@@ -3278,7 +3278,12 @@ class Engine:
         if self._enforce_circuit_breakers:
             _cb = self._circuit_breakers.get(trade.symbol)
             if _cb is not None:
-                self._check_circuit_breaker(trade.symbol, trade.price, trade.ts_ns)
+                self._check_circuit_breaker(
+                    trade.symbol,
+                    trade.price,
+                    trade.ts_ns,
+                    may_trigger=trade.match_type == "CONTINUOUS",
+                )
 
     @staticmethod
     def _executions(trades: list[Trade]) -> dict[str, _Execution]:
@@ -3466,9 +3471,16 @@ class Engine:
             cum_notional_ticks=order.cum_notional_ticks,
         )
 
-    def _check_circuit_breaker(self, symbol: str, trade_price: int, now: int) -> None:
+    def _check_circuit_breaker(
+        self, symbol: str, trade_price: int, now: int, *, may_trigger: bool = True
+    ) -> None:
         """
         Called after every fill to check whether a circuit breaker halt should fire.
+
+        An auction print (``may_trigger=False``) enters the reference window
+        but never halts: a reopening print would otherwise restart the halt it
+        ends, right after its ``resume``, and an opening or closing print is
+        itself the price discovery a halt would be waiting for.
 
         If the rolling-window average has moved more than ``dynamic_band_pct``
         from the trigger price, the symbol is halted:
@@ -3482,7 +3494,7 @@ class Engine:
         cb = self._circuit_breakers.get(symbol)
         if cb is None:
             return
-        triggered_level = cb.record_trade(trade_price, now)
+        triggered_level = cb.record_trade(trade_price, now, may_trigger=may_trigger)
         if triggered_level is None:
             return
 
