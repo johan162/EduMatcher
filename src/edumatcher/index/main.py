@@ -23,6 +23,7 @@ from edumatcher.config import (
     INDEX_PUB_ADDR,
     INDEX_PULL_ADDR,
 )
+from edumatcher.engine.persistence import atomic_write_text
 from edumatcher.healthcheck import answer_health_ping
 from edumatcher.index.calculator import ConstituentConfig, IndexCalculator
 from edumatcher.index.config_loader import (
@@ -349,7 +350,10 @@ class IndexProcess:
             "last_level": last_level,
             "last_updated": time.time(),
         }
-        state_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        # Staged and renamed: the file is the restore authority (K7) and is
+        # written every checkpoint, so a kill mid-write must leave the
+        # previous one whole -- a truncated file would stop startup.
+        atomic_write_text(state_path, json.dumps(payload, indent=2))
         idx.dirty = False
         idx.last_checkpoint = time.monotonic()
         log.debug(
@@ -810,8 +814,10 @@ class IndexProcess:
                 _reject(f"updates[{i}]: duplicate symbol {symbol}")
                 return
             try:
-                new_shares = int(entry["new_shares_outstanding"])
-            except KeyError, TypeError, ValueError:
+                if "new_shares_outstanding" not in entry:
+                    raise ValueError("missing")
+                new_shares = _int_field(entry, "new_shares_outstanding", 0)
+            except ValueError:
                 _reject(f"updates[{i}].new_shares_outstanding must be an integer")
                 return
             if new_shares <= 0:
@@ -831,7 +837,9 @@ class IndexProcess:
             # apply_shares_issuance can still fail here — everything
             # pre-validated above. Whatever already applied in this batch
             # stays applied; the corp-action handlers accept the same
-            # limitation for a single mutation, and this is no worse.
+            # limitation for a single mutation, and this is no worse. It is
+            # persisted like any applied change, or a restart would revert it.
+            self._persist_state(idx, idx.calc.recalculate())
             log.error(
                 "rebalance partially applied before failure index_id=%s applied=%s: %s",
                 index_id,

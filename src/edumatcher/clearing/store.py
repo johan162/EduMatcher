@@ -504,7 +504,30 @@ ON CONFLICT(gateway_id, symbol) DO UPDATE SET
   updated_ts_ns    = excluded.updated_ts_ns
 """
 
-_UPSERT_DAILY = """
+
+def _pow10(column: str) -> str:
+    """``10.0 ** column`` for a ``tick_decimals`` column, in plain SQL.
+
+    SQLite's POWER() exists only in builds compiled with math functions; on
+    any other build every daily upsert -- every clearing flush -- would fail.
+    ``tick_decimals`` is 0..8 (``models/price.py``), so the scale is spelled
+    out instead.
+    """
+    whens = " ".join(f"WHEN {d} THEN {10**d}.0" for d in range(9))
+    return f"(CASE {column} {whens} END)"
+
+
+def _rescaled(value: str, to_decimals: str, from_decimals: str) -> str:
+    """*value*, in ticks of *from_decimals*, as ticks of *to_decimals*."""
+    return f"{value} * {_pow10(to_decimals)} / {_pow10(from_decimals)}"
+
+
+def _to_incoming(column: str) -> str:
+    """A stored daily-row money *column* in the incoming row's precision."""
+    return _rescaled(column, "excluded.tick_decimals", "tick_decimals")
+
+
+_UPSERT_DAILY = f"""
 INSERT INTO gateway_daily_summary (
   trade_date, gateway_id, symbol,
   traded_qty, traded_notional,
@@ -528,19 +551,19 @@ ON CONFLICT(trade_date, gateway_id, symbol) DO UPDATE SET
   -- Money columns are ticks of the row's tick_decimals; a symbol whose
   -- precision changed since the row was last written is converted to the
   -- incoming precision before the increment is added (K6).
-  traded_notional    = ROUND(traded_notional * POWER(10.0, excluded.tick_decimals - tick_decimals))
+  traded_notional    = ROUND({_to_incoming("traded_notional")})
                        + excluded.traded_notional,
   buy_qty            = buy_qty            + excluded.buy_qty,
   sell_qty           = sell_qty           + excluded.sell_qty,
-  buy_notional       = ROUND(buy_notional * POWER(10.0, excluded.tick_decimals - tick_decimals))
+  buy_notional       = ROUND({_to_incoming("buy_notional")})
                        + excluded.buy_notional,
-  sell_notional      = ROUND(sell_notional * POWER(10.0, excluded.tick_decimals - tick_decimals))
+  sell_notional      = ROUND({_to_incoming("sell_notional")})
                        + excluded.sell_notional,
-  net_amount         = (ROUND(buy_notional * POWER(10.0, excluded.tick_decimals - tick_decimals))
+  net_amount         = (ROUND({_to_incoming("buy_notional")})
                         + excluded.buy_notional)
-                       - (ROUND(sell_notional * POWER(10.0, excluded.tick_decimals - tick_decimals))
+                       - (ROUND({_to_incoming("sell_notional")})
                           + excluded.sell_notional),
-  realized_pnl       = realized_pnl * POWER(10.0, excluded.tick_decimals - tick_decimals)
+  realized_pnl       = {_to_incoming("realized_pnl")}
                        + excluded.realized_pnl,
   end_net_qty        = excluded.end_net_qty,
   end_avg_cost       = excluded.end_avg_cost,
@@ -1016,7 +1039,7 @@ def query_day_trades(conn: sqlite3.Connection, trade_date: str) -> list[dict[str
 # Sort-field whitelists — map CLI string to ORDER BY clause.
 # Ranked in currency: a position's money columns are ticks of its own
 # tick_decimals, so raw values of symbols with different precision do not compare.
-_CCY = "POWER(10.0, tick_decimals)"
+_CCY = _pow10("tick_decimals")
 _EXPOSURE_SORT: dict[str, str] = {
     "gross_notional": f"ABS(net_qty * mark_price) / {_CCY} DESC, gateway_id ASC, symbol ASC",
     "net_notional": f"(net_qty * mark_price) / {_CCY} DESC, gateway_id ASC, symbol ASC",
@@ -1028,8 +1051,8 @@ _EXPOSURE_SORT: dict[str, str] = {
 _SYMBOLS_SORT: dict[str, str] = {
     "symbol": "d.symbol ASC",
     "traded_qty": "d.traded_qty DESC, d.symbol ASC",
-    "traded_notional": "d.traded_notional / POWER(10.0, d.tick_decimals) DESC, d.symbol ASC",
-    "realized_pnl": "d.realized_pnl / POWER(10.0, d.tick_decimals) DESC, d.symbol ASC",
+    "traded_notional": f"d.traded_notional / {_pow10('d.tick_decimals')} DESC, d.symbol ASC",
+    "realized_pnl": f"d.realized_pnl / {_pow10('d.tick_decimals')} DESC, d.symbol ASC",
     "open_net_qty": "o.open_net_qty DESC, d.symbol ASC",
 }
 
@@ -1093,9 +1116,9 @@ def query_symbols(
         "daily_totals AS ("
         "  SELECT g.symbol,"
         "    SUM(g.traded_qty) AS traded_qty,"
-        "    SUM(g.traded_notional * POWER(10.0, s.tick_decimals - g.tick_decimals))"
+        f"    SUM({_rescaled('g.traded_notional', 's.tick_decimals', 'g.tick_decimals')})"
         "      AS traded_notional,"
-        "    SUM(g.realized_pnl * POWER(10.0, s.tick_decimals - g.tick_decimals))"
+        f"    SUM({_rescaled('g.realized_pnl', 's.tick_decimals', 'g.tick_decimals')})"
         "      AS realized_pnl,"
         "    s.tick_decimals AS tick_decimals"
         "  FROM gateway_daily_summary g"
@@ -1108,7 +1131,7 @@ def query_symbols(
         "open_totals AS ("
         "  SELECT p.symbol,"
         "    SUM(p.net_qty) AS open_net_qty,"
-        "    SUM(p.unrealized_pnl * POWER(10.0, s.tick_decimals - p.tick_decimals))"
+        f"    SUM({_rescaled('p.unrealized_pnl', 's.tick_decimals', 'p.tick_decimals')})"
         "      AS open_unrealized_pnl"
         "  FROM gateway_symbol_positions p"
         "  JOIN symbol_scale s ON s.symbol = p.symbol"

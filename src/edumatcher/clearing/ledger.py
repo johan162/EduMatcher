@@ -335,11 +335,22 @@ class Ledger:
         self._remark_symbol(symbol, price, tick_decimals)
 
     def _remark_symbol(self, symbol: str, price: int, tick_decimals: int) -> None:
-        """Mark every open position in ``symbol`` to the latest traded price."""
+        """Mark every open position in ``symbol`` to the latest traded price.
+
+        Every position and pending daily delta of the symbol -- flat ones and
+        those of gateways not in this trade included -- is first converted to
+        the trade's precision, so a daily row's money and its end_* snapshot
+        never mix two scales.
+        """
+        for delta_key, delta in self._batch_deltas.items():
+            if delta_key[2] == symbol:
+                _rescale_delta(delta, tick_decimals)
         for key, pos in self._positions.items():
-            if key[1] != symbol or pos.net_qty == 0:
+            if key[1] != symbol:
                 continue
             _rescale_position(pos, tick_decimals)
+            if pos.net_qty == 0:
+                continue
             pos.mark_price = price
             pos.unrealized_pnl = pos.net_qty * (float(price) - pos.avg_cost)
             self._remarked_keys.add(key)

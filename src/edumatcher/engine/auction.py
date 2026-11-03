@@ -43,6 +43,7 @@ and only a strictly better one replaces the current best.
 from __future__ import annotations
 
 import logging
+from collections import deque
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -99,57 +100,94 @@ class _CandidateOrder:
     order: Order
     remaining: int
     shown: int
+    #: Cancelled or filled; skipped when it reaches the head of its level.
+    dead: bool = False
 
 
-def _candidate_orders(
-    book: "OrderBook", eq_price: int
-) -> tuple[list[_CandidateOrder], list[_CandidateOrder]]:
-    sides: list[list[_CandidateOrder]] = []
-    for heap, is_bid in ((book._bids, True), (book._asks, False)):
+#: Live resting bids and asks, each in price-time priority (best first).
+_LiveOrders = tuple[list[Order], list[Order]]
+
+
+def _live_orders(book: "OrderBook") -> _LiveOrders:
+    """Sorted once per calculation: every simulated price walks a prefix of it."""
+    sides: list[list[Order]] = []
+    for heap in (book._bids, book._asks):
         sides.append(
             [
-                _CandidateOrder(
-                    entry.order, entry.order.remaining_qty, _shown_qty(entry.order)
-                )
+                entry.order
                 for entry in sorted(heap)
                 if entry.valid
                 and entry.order.status not in _DEAD_STATUSES
                 and entry.order.price_ticks is not None
-                and (
-                    entry.order.price_ticks >= eq_price
-                    if is_bid
-                    else entry.order.price_ticks <= eq_price
-                )
             ]
         )
     return sides[0], sides[1]
 
 
-def _simulated_quantity(book: "OrderBook", eq_price: int) -> tuple[int, int, str]:
-    """Dry-run the price-time walk, including SMP and OCO, without generating trades."""
-    bids, asks = _candidate_orders(book, eq_price)
-    all_orders = bids + asks
+def _candidate_levels(
+    orders: list[Order], eq_price: int, is_bid: bool
+) -> list[deque[_CandidateOrder]]:
+    """The prefix of *orders* that crosses *eq_price*, one queue per price level."""
+    levels: list[deque[_CandidateOrder]] = []
+    level_price: int | None = None
+    for order in orders:
+        price = order.price_ticks
+        assert price is not None  # _live_orders keeps priced orders only
+        if (price < eq_price) if is_bid else (price > eq_price):
+            break
+        if price != level_price:
+            levels.append(deque())
+            level_price = price
+        levels[-1].append(
+            _CandidateOrder(order, order.remaining_qty, _shown_qty(order))
+        )
+    return levels
+
+
+def _head(
+    levels: list[deque[_CandidateOrder]], start: int
+) -> tuple[int, _CandidateOrder | None]:
+    """The first live candidate at or after level *start*, dropping dead ones."""
+    for i in range(start, len(levels)):
+        level = levels[i]
+        while level and level[0].dead:
+            level.popleft()
+        if level:
+            return i, level[0]
+    return len(levels), None
+
+
+def _simulated_quantity(
+    book: "OrderBook", eq_price: int, live: _LiveOrders | None = None
+) -> tuple[int, int, str]:
+    """Dry-run the price-time walk, including SMP and OCO, without generating trades.
+
+    O(n) in the crossing orders: a cancelled order is only flagged, and
+    dropped once it reaches the head of its level.
+    """
+    bid_orders, ask_orders = live if live is not None else _live_orders(book)
+    bid_levels = _candidate_levels(bid_orders, eq_price, is_bid=True)
+    ask_levels = _candidate_levels(ask_orders, eq_price, is_bid=False)
+    all_orders = [c for side in (bid_levels, ask_levels) for lvl in side for c in lvl]
     # ``execute_uncross`` only cascades an OCO sibling when the engine has
     # wired up the callback; a bare OrderBook resolves the pair in place.
-    oco_cascades = book.on_oco_leg_done is not None
+    groups: dict[tuple[str, str], list[_CandidateOrder]] = {}
+    if book.on_oco_leg_done is not None:
+        for candidate in all_orders:
+            if candidate.order.oco_group_id is not None:
+                key = (candidate.order.gateway_id, candidate.order.oco_group_id)
+                groups.setdefault(key, []).append(candidate)
 
     def _kill(candidate: _CandidateOrder) -> None:
         candidate.remaining = candidate.shown = 0
-        for side in (bids, asks):
-            for i, other in enumerate(side):
-                if other is candidate:
-                    del side[i]
-                    break
+        candidate.dead = True
 
     def _kill_siblings(candidate: _CandidateOrder) -> None:
-        if not oco_cascades or candidate.order.oco_group_id is None:
+        if candidate.order.oco_group_id is None:
             return
-        for sibling in all_orders:
-            if (
-                sibling.order.id != candidate.order.id
-                and sibling.order.gateway_id == candidate.order.gateway_id
-                and sibling.order.oco_group_id == candidate.order.oco_group_id
-            ):
+        key = (candidate.order.gateway_id, candidate.order.oco_group_id)
+        for sibling in groups.get(key, ()):
+            if sibling is not candidate:
                 _kill(sibling)
 
     def _cancel(candidate: _CandidateOrder) -> None:
@@ -158,8 +196,12 @@ def _simulated_quantity(book: "OrderBook", eq_price: int) -> tuple[int, int, str
         _kill_siblings(candidate)
 
     traded = 0
-    while bids and asks:
-        bid, ask = bids[0], asks[0]
+    bid_at = ask_at = 0
+    while True:
+        bid_at, bid = _head(bid_levels, bid_at)
+        ask_at, ask = _head(ask_levels, ask_at)
+        if bid is None or ask is None:
+            break
         if (
             bid.order.oco_group_id is not None
             and bid.order.gateway_id == ask.order.gateway_id
@@ -177,24 +219,20 @@ def _simulated_quantity(book: "OrderBook", eq_price: int) -> tuple[int, int, str
             continue
         fill = min(bid.shown, ask.shown)
         traded += fill
-        for side, candidate in ((bids, bid), (asks, ask)):
+        for level, candidate in ((bid_levels[bid_at], bid), (ask_levels[ask_at], ask)):
             candidate.remaining -= fill
             candidate.shown -= fill
             if candidate.remaining == 0:
-                side.pop(0)
+                level.popleft()
+                candidate.dead = True
                 _kill_siblings(candidate)
             elif candidate.shown == 0:
+                # A replenished iceberg slice queues at the back of its level.
                 candidate.shown = min(
                     candidate.order.visible_qty or 0, candidate.remaining
                 )
-                side.pop(0)
-                insert_at = 0
-                while (
-                    insert_at < len(side)
-                    and side[insert_at].order.price_ticks == candidate.order.price_ticks
-                ):
-                    insert_at += 1
-                side.insert(insert_at, candidate)
+                level.popleft()
+                level.append(candidate)
     buy_total = traded + sum(
         candidate.remaining
         for candidate in all_orders
@@ -220,16 +258,42 @@ def _auction_smp_action(bid: Order, ask: Order) -> tuple[SmpAction, bool]:
 
 
 def _needs_simulation(book: "OrderBook") -> bool:
-    return any(
-        entry.valid
-        and entry.order.status not in _DEAD_STATUSES
-        and (
-            entry.order.smp_action not in (None, SmpAction.NONE)
-            or entry.order.oco_group_id is not None
-        )
-        for heap in (book._bids, book._asks)
-        for entry in heap
-    )
+    """Whether SMP or an OCO could make the uncross trade differently from
+    the plain demand and supply curves.
+
+    SMP fires only when the walk meets a bid and an ask of one gateway at the
+    head together, which needs that bid at or above that ask, with either one
+    carrying a policy. An OCO matters only once two legs of one group rest in
+    the book. Anything else is exactly the plain curves, so the (much dearer)
+    walk is skipped.
+    """
+    # gateway -> [best price of any order, best price of an order with SMP]
+    bid_best: dict[str, list[int | None]] = {}
+    ask_best: dict[str, list[int | None]] = {}
+    oco_legs: set[tuple[str, str]] = set()
+    for heap, side_best, better in ((book._bids, bid_best, max), (book._asks, ask_best, min)):  # fmt: skip
+        for entry in heap:
+            o = entry.order
+            price = o.price_ticks
+            if not entry.valid or o.status in _DEAD_STATUSES or price is None:
+                continue
+            if o.oco_group_id is not None:
+                key = (o.gateway_id, o.oco_group_id)
+                if key in oco_legs:
+                    return True
+                oco_legs.add(key)
+            prices = side_best.setdefault(o.gateway_id, [None, None])
+            slots = (0, 1) if o.smp_action not in (None, SmpAction.NONE) else (0,)
+            for slot in slots:
+                current = prices[slot]
+                prices[slot] = price if current is None else better(current, price)
+    for gateway, (bid_any, bid_smp) in bid_best.items():
+        ask_any, ask_smp = ask_best.get(gateway, (None, None))
+        if bid_smp is not None and ask_any is not None and bid_smp >= ask_any:
+            return True
+        if ask_smp is not None and bid_any is not None and bid_any >= ask_smp:
+            return True
+    return False
 
 
 def compute_equilibrium(book: "OrderBook") -> AuctionResult:  # noqa: F821
@@ -248,8 +312,12 @@ def compute_equilibrium(book: "OrderBook") -> AuctionResult:  # noqa: F821
       surplus  = |buy_qty − sell_qty|
 
     Pick P that maximises exec_qty; break ties by minimising surplus.
-    If still tied, the LOWEST such price wins (candidates are scanned in
-    ascending order and a later one must be strictly better to replace it).
+    If still tied, the LOWEST such price wins.
+
+    When SMP or an OCO can change what trades (``_needs_simulation``),
+    exec_qty is a dry run of the uncross walk at P instead, and only the
+    prices whose min(buy_qty, sell_qty) could still beat the best walk found
+    are walked.
 
     Complexity is O(P^2) in the number of distinct price levels because the
     cumulative lookups below rescan the price lists; that is fine for an
@@ -284,12 +352,9 @@ def compute_equilibrium(book: "OrderBook") -> AuctionResult:  # noqa: F821
     # Candidate prices = union of all bid and ask price levels, sorted
     all_prices = sorted(set(bid_prices) | set(ask_prices))
 
-    best_price: int | None = None
-    best_qty = 0
-    best_surplus = float("inf")
-    simulate = _needs_simulation(book)
-
-    for price in all_prices:
+    # (index in all_prices, price, buy_qty, sell_qty) of every crossing price
+    candidates: list[tuple[int, int, int, int]] = []
+    for index, price in enumerate(all_prices):
         # Buy qty: sum of bids at prices >= candidate
         # cum_buy is keyed by descending bid prices; we want the lowest bp >= price
         buy_qty = 0
@@ -312,62 +377,51 @@ def compute_equilibrium(book: "OrderBook") -> AuctionResult:  # noqa: F821
             else:
                 break
 
-        if not min(buy_qty, sell_qty):
-            continue
-        exec_qty, surplus, _ = (
-            _simulated_quantity(book, price)
-            if simulate
-            else (min(buy_qty, sell_qty), abs(buy_qty - sell_qty), "")
-        )
+        if min(buy_qty, sell_qty):
+            candidates.append((index, price, buy_qty, sell_qty))
 
-        if (
-            best_price is None
-            or exec_qty > best_qty
-            or (exec_qty == best_qty and surplus < best_surplus)
-        ):
-            best_price = price
-            best_qty = exec_qty
-            best_surplus = int(surplus)
-
-    if best_price is None:
+    if not candidates:
         return AuctionResult(eq_price=None, eq_qty=0, surplus=0, imbalance_side="")
 
-    # Determine imbalance side at equilibrium
-    buy_at_eq = 0
-    for bp in bid_prices:
-        if bp >= best_price:
-            buy_at_eq = cum_buy[bp]
-        else:
+    # With SMP or an OCO in play the quantity at a price is a walk of the
+    # book, not min(buy, sell) -- but never more than min(buy, sell). So the
+    # prices are tried best bound first, and once a bound falls below the
+    # best quantity found nothing after it can win. The winner is the same
+    # as a full scan's: most quantity, then least surplus, then lowest price.
+    simulate = _needs_simulation(book)
+    live = _live_orders(book) if simulate else None
+    best: tuple[int, int, int] | None = None  # (-qty, surplus, index): least wins
+    best_price = 0
+    imbalance_side = ""
+    for index, price, buy_qty, sell_qty in sorted(
+        candidates, key=lambda c: -min(c[2], c[3])
+    ):
+        if best is not None and min(buy_qty, sell_qty) < -best[0]:
             break
-    sell_at_eq = 0
-    for ap in ask_prices:
-        if ap <= best_price:
-            sell_at_eq = cum_sell[ap]
+        if simulate:
+            exec_qty, surplus, side = _simulated_quantity(book, price, live)
         else:
-            break
-
-    if simulate:
-        _, _, imbalance_side = _simulated_quantity(book, best_price)
-    elif buy_at_eq > sell_at_eq:
-        imbalance_side = "BUY"
-    elif sell_at_eq > buy_at_eq:
-        imbalance_side = "SELL"
-    else:
-        imbalance_side = ""
+            exec_qty, surplus = min(buy_qty, sell_qty), abs(buy_qty - sell_qty)
+            side = "BUY" if buy_qty > sell_qty else "SELL" if sell_qty > buy_qty else ""
+        key = (-exec_qty, surplus, index)
+        if best is None or key < best:
+            best, best_price, imbalance_side = key, price, side
+    assert best is not None  # candidates is not empty
+    best_qty, best_surplus = -best[0], best[1]
 
     log.debug(
         "uncross calc symbol=%s eq_price=%s eq_qty=%s surplus=%s imbalance_side=%s candidates=%d",
         book.symbol,
         best_price,
         best_qty,
-        int(best_surplus),
+        best_surplus,
         imbalance_side,
         len(all_prices),
     )
     return AuctionResult(
         eq_price=best_price if best_qty > 0 else None,
         eq_qty=best_qty,
-        surplus=int(best_surplus),
+        surplus=best_surplus,
         imbalance_side=imbalance_side,
         resolve_price=best_price,
     )
@@ -458,11 +512,15 @@ def execute_uncross(
             and best_bid.gateway_id == best_ask.gateway_id
             and best_bid.oco_group_id == best_ask.oco_group_id
         ):
-            book._smp_cancel_resting(best_bid, events)
+            # Two legs of one OCO crossing each other: only one may stand, as
+            # if the other had ended. Not SMP -- the gateway may allow
+            # self-trades -- so the cancel carries no classified reason, like
+            # any OCO sibling cancel.
+            book._smp_cancel_resting(best_bid, events, reason=None)
             if book.on_oco_leg_done is not None:
                 book.on_oco_leg_done(best_bid)
             else:
-                book._smp_cancel_resting(best_ask, events)
+                book._smp_cancel_resting(best_ask, events, reason=None)
             continue
 
         action, from_ask = _auction_smp_action(best_bid, best_ask)

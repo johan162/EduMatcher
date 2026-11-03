@@ -228,3 +228,42 @@ def test_restart_equivalence_over_a_full_scenario(make_process: Any) -> None:
         snapshot=_observed,
         durable=durable,
     )
+
+
+@pytest.mark.parametrize("crash_in", ["write", "rename"])
+def test_a_crash_while_writing_leaves_the_previous_state_loadable(
+    make_process: Any, monkeypatch: pytest.MonkeyPatch, crash_in: str
+) -> None:
+    """The state file is now the restore authority and is written every
+    checkpoint. A process killed mid-write must leave the previous file whole,
+    not a truncated one that ``json.loads`` -- and so startup -- rejects
+    (K1-K10 review #4)."""
+    import os
+
+    first = make_process()
+    _corp(first, "SHARES_ISSUANCE", "MSFT", new_shares_outstanding=40_000)
+    before = _observed(first)
+
+    def killed_mid_write(self: Path, data: str, *_a: Any, **_k: Any) -> int:
+        with open(self, "w", encoding="utf-8") as handle:
+            handle.write(data[: len(data) // 2])
+        raise KeyboardInterrupt("killed")
+
+    def killed(*_a: Any, **_k: Any) -> None:
+        raise KeyboardInterrupt("killed")
+
+    with monkeypatch.context() as patch:
+        # An in-place write dies half-way; a staged one dies before its data
+        # is durable, or before the rename.
+        patch.setattr(Path, "write_text", killed_mid_write)
+        patch.setattr(os, "fsync" if crash_in == "write" else "replace", killed)
+        first._handle_trade({"symbol": "AAPL", "price": 120.0})
+        with pytest.raises(KeyboardInterrupt):
+            first._checkpoint(force=True)
+
+    second = make_process()
+
+    assert _observed(second)["shares"] == before["shares"]
+    assert _observed(second)["divisor"] == before["divisor"]
+    state_dir = Path(first._indices["EDU100"].cfg.state_file).parent
+    assert not list(state_dir.glob(".state.json.*.tmp"))

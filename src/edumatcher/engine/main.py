@@ -3615,6 +3615,11 @@ class Engine:
                     f"CLOSING BACKSTOP {symbol}: no crossing interest, "
                     f"halt cleared after {expansions} ACE extension(s)"
                 )
+                if indicative.resolve_price is not None:
+                    # The book crosses, but SMP or an OCO pair consumes all of
+                    # it: nothing prints, yet that interest must still be
+                    # cancelled, as the REOPEN path's uncross does (K1).
+                    self._run_uncross(symbol_filter=symbol, reason="BACKSTOP")
             else:
                 log.info(
                     f"CLOSING BACKSTOP {symbol}: "
@@ -5333,6 +5338,9 @@ class Engine:
         # instead (its first leg, INSUFFICIENT_LIQUIDITY, so the combo fails
         # with nothing posted): resting that leg unmatched would leave its
         # book crossed in continuous trading. A seeded combo rests regardless.
+        # "Would trade" counts the gateway's own resting orders too: SMP takes
+        # them out of what is fillable, but a leg resting against them crosses
+        # the book just the same.
         aon_blocked = aon_rejected = False
         if combo.combo_type == ComboType.AON:
             fillable = [
@@ -5352,8 +5360,15 @@ class Engine:
                 and not is_seed
                 and is_matching_enabled(self._session_state)
                 and any(
-                    f > 0 and not self._halted_symbols.get(leg.symbol)
-                    for f, leg in zip(fillable, combo.legs)
+                    not self._halted_symbols.get(leg.symbol)
+                    and self._book(leg.symbol).fillable_quantity(
+                        leg.side,
+                        leg.price_ticks,
+                        gateway_id=combo.gateway_id,
+                        smp_action=SmpAction.NONE,
+                    )
+                    > 0
+                    for leg in combo.legs
                 )
             )
 
@@ -5980,10 +5995,12 @@ class Engine:
 
                 for t in trades:
                     t.match_type, t.auction_id = match_type, auction_id
-                # X8b: the book's quote and OCO hooks are not called inside
+                # X8b: the book's quote hook is not called inside
                 # execute_uncross (its two-sided walk must not be mutated
-                # mid-way), so their follow-ups run here -- before the stops
-                # below, which must not trade with a leg they pull.
+                # mid-way), so its follow-ups run here -- before the stops
+                # below, which must not trade with a leg they pull. The OCO
+                # hook does run inside the walk (K1): a filled leg's sibling
+                # must not fill in the same uncross.
                 self._publish_dispatch(trades, events)
 
             # Trigger stop and trailing-stop orders whose stop price is now

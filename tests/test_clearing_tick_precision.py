@@ -231,3 +231,76 @@ def test_symbols_open_unrealized_is_in_the_row_scale(conn: sqlite3.Connection) -
     (row,) = query_symbols(conn)
 
     assert row["open_unrealized_pnl"] == pytest.approx(30_000 + 20_000)
+
+
+# --- K1-K10 review follow-ups -------------------------------------------------
+
+
+def test_bystanders_daily_row_is_converted_within_one_batch() -> None:
+    """A trades at 2 decimals; C and D then trade at 4 in the same batch. A's
+    position is converted by the re-mark, and A's pending daily delta must be
+    too: its row's money and its end_* snapshot share one tick_decimals
+    (review #7)."""
+    ledger = Ledger()
+    _trade(ledger, buyer="A", seller="B", price=1000, qty=10, decimals=2)
+    _trade(ledger, buyer="C", seller="D", price=110_000, qty=1, decimals=4)
+
+    _pos, daily = ledger.get_flush_rows(updated_ts_ns=1)
+    a = next(d for d in daily if d.gateway_id == "A")
+    assert a.tick_decimals == 4
+    assert a.delta_traded_notional == 10 * 1000 * 100
+    assert a.delta_buy_notional == 10 * 1000 * 100
+    assert a.end_avg_cost == pytest.approx(100_000)
+    assert a.end_unrealized_pnl == pytest.approx(10 * 10_000)
+
+
+def test_flat_holder_is_converted_with_its_symbol() -> None:
+    """A flat position carries realized P&L in the old scale too; it is
+    converted with the rest of the symbol, not left behind (review #7)."""
+    ledger = Ledger()
+    _trade(ledger, buyer="A", seller="B", price=1000, qty=10, decimals=2)
+    _trade(ledger, buyer="B", seller="A", price=1100, qty=10, decimals=2)
+    _trade(ledger, buyer="C", seller="D", price=110_000, qty=1, decimals=4)
+
+    pos = ledger.position("A", "AAPL")
+    assert pos is not None and pos.net_qty == 0
+    assert pos.tick_decimals == 4
+    assert pos.realized_pnl == pytest.approx(100_000)
+
+
+def test_no_sqlite_math_functions_are_needed(conn: sqlite3.Connection) -> None:
+    """POWER() exists only in SQLite builds compiled with math functions.
+    Without it every daily upsert -- every clearing flush -- would fail, so
+    neither the writes nor the queries may use it (review #6)."""
+
+    def missing(*_args: object) -> float:
+        raise sqlite3.OperationalError("no such function: POWER")
+
+    conn.create_function("POWER", 2, missing)
+    ledger = Ledger()
+    _trade(ledger, buyer="A", seller="B", price=1000, qty=10, decimals=2)
+    pos_rows, daily_rows = ledger.get_flush_rows(updated_ts_ns=1)
+    flush_batch(conn, [], pos_rows, daily_rows)
+    ledger.clear_batch()
+    _trade(ledger, buyer="B", seller="A", price=110_000, qty=10, decimals=4)
+    pos_rows, daily_rows = ledger.get_flush_rows(updated_ts_ns=2)
+    flush_batch(conn, [], pos_rows, daily_rows)
+
+    for sort in (
+        "gross_notional",
+        "net_notional",
+        "realized_pnl",
+        "unrealized_pnl",
+        "total_pnl",
+    ):
+        query_exposure(conn, sort=sort)
+    for sort in ("symbol", "traded_qty", "traded_notional", "realized_pnl"):
+        query_symbols(conn, sort=sort)
+    row = conn.execute(
+        "SELECT traded_notional, tick_decimals FROM gateway_daily_summary"
+        " WHERE gateway_id = 'A'"
+    ).fetchone()
+    assert (row["traded_notional"], row["tick_decimals"]) == (
+        10 * 1000 * 100 + 10 * 110_000,
+        4,
+    )

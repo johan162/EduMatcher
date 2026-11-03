@@ -119,3 +119,39 @@ def test_loop_keeps_processing_trades_after_a_malformed_gateway_message(
     conn = open_writer_connection(db)
     assert [r["id"] for r in query_trades(conn)] == ["1-1"]
     conn.close()
+
+
+def test_timer_flush_survives_a_failed_flush(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A failed timer flush keeps the buffer for a retry (K4); the timer
+    thread must live to make that retry (K1-K10 review #5)."""
+    import sqlite3
+
+    from tests.support.faults import fail_once
+
+    monkeypatch.setattr(clearing_main, "_TIMER_POLL_SEC", 0.01)
+    process = ClearingProcess(
+        pub_addr="inproc://k5-unused",
+        db_path=tmp_path / "c.db",
+        flush_size=1_000,
+        flush_interval_sec=0.0,
+        print_every=0,
+        retention_days=3650,
+    )
+    with process._lock:
+        process._buffer.append(_make_trade("1-1"))
+    process._running = True
+    error = sqlite3.OperationalError("disk I/O error")
+    with fail_once(monkeypatch, clearing_main, "flush_batch", error):
+        thread = threading.Thread(target=process._timer_loop, daemon=True)
+        thread.start()
+        deadline = time.monotonic() + 3.0
+        while process._buffer and time.monotonic() < deadline:
+            time.sleep(0.01)
+    process._running = False
+    thread.join(timeout=3.0)
+
+    assert process._buffer == []
+    assert [r["id"] for r in query_trades(process._conn)] == ["1-1"]
+    process._conn.close()

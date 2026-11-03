@@ -232,6 +232,26 @@ def test_aon_preflight_uses_gateway_default_smp(monkeypatch, tmp_path) -> None:
     assert msgs(pub, "trade.executed") == []
 
 
+@pytest.mark.parametrize("smp", ["CANCEL_AGGRESSOR", "CANCEL_RESTING"])
+def test_aon_combo_blocked_by_own_liquidity_alone_is_rejected(
+    monkeypatch, tmp_path, smp: str
+) -> None:
+    """MSFT's only seller is the combo's own gateway, AAPL has none. SMP
+    leaves nothing fillable, but the MSFT leg still crosses that seller:
+    resting it unmatched would leave the book crossed (X28), so the combo
+    fails instead of resting (K1-K10 review #1)."""
+    engine, pub = make_engine(monkeypatch, tmp_path, symbols=("AAPL", "MSFT"))
+    connect(engine)
+    sell(engine, "MSFT", "GW01")
+
+    c = combo(engine, [{**MSFT_LIMIT, "smp_action": smp}, AAPL_LIMIT])
+
+    assert c.status is ComboStatus.FAILED
+    assert msgs(pub, "trade.executed") == []
+    assert {o.side for o in engine.books["MSFT"].resting_orders()} == {Side.SELL}
+    assert engine.books["AAPL"].resting_orders() == []
+
+
 def test_aon_acceptance_invariant_rejects_partial_execution() -> None:
     c = ComboOrder.from_submission_dict(
         {

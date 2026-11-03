@@ -226,6 +226,8 @@ class ClearingProcess:
         #: The audit message id of each buffered trade (trade_events.msg_id).
         self._msg_ids: dict[str, str] = {}
         self._ledger = Ledger(tz=session_tz)
+        #: A failed flush could not rebuild the ledger; see _rollback_ledger.
+        self._ledger_stale = False
         self._trade_count = 0
 
         # Idempotency, decided ONCE for both the ledger and the archive
@@ -547,7 +549,12 @@ class ClearingProcess:
                 elapsed = time.monotonic() - self._last_flush_mono
                 if elapsed >= self._flush_interval_sec and self._buffer:
                     self._dbg_count("timer_flushes")
-                    self._flush()
+                    # A failed flush keeps its buffer for the next tick; the
+                    # thread must survive to make that retry.
+                    try:
+                        self._flush()
+                    except Exception as exc:
+                        log.warning("timer flush failed, will retry: %s", exc)
 
     # ------------------------------------------------------------------
     # Flush (must be called with self._lock held)
@@ -608,9 +615,17 @@ class ClearingProcess:
         A failed flush has already mutated the ledger; the database did not
         commit. Starting over from what *is* committed makes the retry apply
         each buffered trade exactly once.
+
+        The ledger stays marked stale until the rebuild succeeds, and
+        ``_flush`` rebuilds a stale ledger before using it: if the re-read
+        fails too, neither the half-applied ledger nor an empty one may ever
+        be written over the persisted positions.
         """
-        self._ledger = Ledger(tz=self._tz)
-        self._ledger.restore(fetch_all_positions(self._conn))
+        self._ledger_stale = True
+        ledger = Ledger(tz=self._tz)
+        ledger.restore(fetch_all_positions(self._conn))
+        self._ledger = ledger
+        self._ledger_stale = False
 
     def _check_sequence_gap(self, trade: Trade) -> None:
         """
@@ -665,6 +680,8 @@ class ClearingProcess:
 
     def _flush(self) -> int:
         """Flush the buffer to SQLite. Returns the number of trades written."""
+        if self._ledger_stale:
+            self._rollback_ledger()
         if not self._buffer:
             return 0
 

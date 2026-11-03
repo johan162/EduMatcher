@@ -1698,8 +1698,14 @@ class OrderBook:
     # Sweep helpers
     # ------------------------------------------------------------------
 
-    def _smp_cancel_resting(self, order: Order, events: list[Order]) -> None:
-        """Mark a resting order as CANCELLED (SMP), remove from index."""
+    def _smp_cancel_resting(
+        self,
+        order: Order,
+        events: list[Order],
+        reason: str | None = "SELF_MATCH_PREVENTED",
+    ) -> None:
+        """Mark a resting order as CANCELLED (SMP unless *reason* says
+        otherwise), remove from index."""
         log.debug(
             "SMP cancel resting order_id=%s symbol=%s side=%s price=%s qty=%s gateway=%s",
             order.id,
@@ -1710,7 +1716,7 @@ class OrderBook:
             order.gateway_id,
         )
         order.status = OrderStatus.CANCELLED
-        order.cancel_reason = "SELF_MATCH_PREVENTED"
+        order.cancel_reason = reason
         entry = self._entry_index.get(order.id)
         if entry and order.price_ticks is not None:
             qty = (

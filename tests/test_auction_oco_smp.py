@@ -238,3 +238,159 @@ def test_fully_self_matched_auction_publishes_no_equilibrium_price(
     assert result["eq_price"] is None and result["eq_qty"] == 0
     # The uncross still ran: the self-matched interest is gone from the book.
     assert book.resting_orders() == []
+
+
+# ---------------------------------------------------------------------------
+# K1-K10 review follow-ups (#3 cost, #8 closing backstop, #10 cancel reason)
+# ---------------------------------------------------------------------------
+
+
+def _random_book(
+    rng: random.Random, n: int, gateways: tuple[str, ...], smp: SmpAction
+) -> OrderBook:
+    book = OrderBook(SYMBOL)
+    for i in range(n):
+        _rest(
+            book,
+            Side.BUY if i % 2 else Side.SELL,
+            rng.randint(9950, 10050) / 100,
+            rng.choice(gateways),
+            qty=rng.randint(1, 50),
+            smp=smp,
+        )
+    return book
+
+
+def test_no_simulation_when_no_gateway_crosses_itself(monkeypatch) -> None:
+    """Every order carries SMP, but no gateway has a bid at or above its own
+    ask: SMP can never fire, so the plain curves are exact (review #3)."""
+    from edumatcher.engine import auction
+    from tests.support.counting import CallCounter
+
+    book = OrderBook(SYMBOL)
+    for i in range(40):
+        _rest(book, Side.BUY, 100 + i % 3, "GW01", smp=SmpAction.CANCEL_BOTH)
+        _rest(book, Side.SELL, 99 + i % 3, "GW02", smp=SmpAction.CANCEL_BOTH)
+    _rest(book, Side.SELL, 103, "GW01", smp=SmpAction.CANCEL_BOTH)
+    counter = CallCounter(auction._simulated_quantity)
+    monkeypatch.setattr(auction, "_simulated_quantity", counter)
+
+    result = compute_equilibrium(book)
+
+    assert result.eq_qty > 0
+    assert counter.calls == 0
+
+
+def test_simulation_runs_at_few_prices_on_a_large_book(monkeypatch) -> None:
+    """A large multi-gateway book where SMP does fire: only the prices whose
+    plain quantity could still beat the best simulated one are walked, not
+    every price level (review #3; A3 was O(P) walks)."""
+    from edumatcher.engine import auction
+    from tests.support.counting import CallCounter
+
+    book = _random_book(
+        random.Random(1), 1000, tuple(f"GW{i:02d}" for i in range(20)),
+        SmpAction.CANCEL_AGGRESSOR,
+    )  # fmt: skip
+    counter = CallCounter(auction._simulated_quantity)
+    monkeypatch.setattr(auction, "_simulated_quantity", counter)
+
+    compute_equilibrium(book)
+
+    levels = len({o.price_ticks for o in book.resting_orders()})
+    assert levels > 50
+    assert counter.calls <= 10
+
+
+@pytest.mark.parametrize("seed", range(30))
+def test_equilibrium_maximises_executed_quantity(seed: int) -> None:
+    """Brute force: run a real uncross on a copy of the book at every price.
+    The published equilibrium must trade the most any price can (review #3:
+    pruning prices must never lose the best one)."""
+    import copy
+
+    rng = random.Random(seed)
+    book = _random_book(rng, 30, ("GW01", "GW02", "GW03"), rng.choice(list(SmpAction)))
+    prices = sorted({o.price_ticks for o in book.resting_orders() if o.price_ticks})
+    executed = {}
+    for price in prices:
+        trial = copy.deepcopy(book)
+        trades, _ = execute_uncross(trial, price)
+        executed[price] = sum(t.quantity for t in trades)
+
+    result = compute_equilibrium(book)
+
+    assert result.eq_qty == max(executed.values())
+    if result.eq_price is not None:
+        assert executed[result.eq_price] == result.eq_qty
+
+
+def test_closing_backstop_resolves_a_fully_self_matched_book(
+    monkeypatch, tmp_path
+) -> None:
+    """A halted symbol whose only crossing interest is one gateway's own: the
+    backstop has no price to print, but must still cancel that interest, as
+    the REOPEN path does, rather than resume continuous trading on a crossed
+    book (review #8)."""
+    from edumatcher.engine.circuit_breaker import (
+        CircuitBreakerConfig,
+        CircuitBreakerLevel,
+        CircuitBreakerState,
+    )
+
+    engine, pub = make_engine(monkeypatch, tmp_path)
+    connect(engine)
+    book = engine._book(SYMBOL)
+    bid = _rest(book, Side.BUY, 101, "GW01", smp=SmpAction.CANCEL_BOTH)
+    ask = _rest(book, Side.SELL, 100, "GW01")
+    cb = CircuitBreakerState(
+        symbol=SYMBOL,
+        config=CircuitBreakerConfig(
+            symbol=SYMBOL,
+            reference_window_ns=300_000_000_000,
+            levels=[
+                CircuitBreakerLevel(
+                    name="L1", price_shift_pct=0.05, halt_duration_ns=60_000_000_000
+                )
+            ],
+        ),
+    )
+    cb.halted = True
+    cb.halt_source = "CB"
+    engine._circuit_breakers[SYMBOL] = cb
+    engine._halted_symbols[SYMBOL] = True
+
+    engine._run_closing_backstop()
+
+    assert msgs(pub, "trade.executed") == []
+    assert bid.status == ask.status == OrderStatus.CANCELLED
+    assert book.resting_orders() == []
+    (resume,) = msgs(pub, f"circuit_breaker.resume.{SYMBOL}")
+    assert resume.get("print_price") is None
+
+
+def test_opposing_oco_legs_are_not_reported_as_self_match_prevention(
+    monkeypatch, tmp_path
+) -> None:
+    """Two legs of one OCO crossing each other is not SMP -- the gateway's
+    policy may well be NONE. The leg is cancelled as its sibling would be,
+    with no classified reason (review #10)."""
+    engine, pub = make_engine(monkeypatch, tmp_path)
+    connect(engine)
+    engine._session_state = SessionState.OPENING_AUCTION
+    engine._handle_oco_order(
+        {
+            "oco_id": "OPPOSING",
+            "gateway_id": "GW01",
+            "symbol": SYMBOL,
+            "quantity": 10,
+            "tif": "DAY",
+            "leg1": {"side": "BUY", "order_type": "LIMIT", "price_ticks": 10100},
+            "leg2": {"side": "SELL", "order_type": "LIMIT", "price_ticks": 10000},
+            "smp_action": "NONE",
+        }
+    )
+    engine._run_uncross(reason="SCHEDULED")
+    cancels = msgs(pub, "order.cancelled.GW01")
+    assert cancels
+    assert all(c.get("cancel_reason") != "SELF_MATCH_PREVENTED" for c in cancels)

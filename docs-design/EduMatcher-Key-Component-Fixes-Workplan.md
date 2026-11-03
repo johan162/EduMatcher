@@ -901,3 +901,23 @@ Done when:
   implementing.
 - **K19 item 5 will churn many existing tests.** Expect a large, mostly
   mechanical diff; land it alone, after all fixes.
+
+---
+
+## 7. Post-commit review of K1–K10 (2026-11-03)
+
+A holistic review of the committed K1–K10 fixes found ten issues, all fixed
+with a test that fails before and passes after:
+
+| # | WP | Issue | Fix |
+|---|----|-------|-----|
+| 1 | K2 | An AON combo whose only crossing liquidity was its own gateway's had `fillable == 0`, so it was held back instead of rejected and rested crossed against its own order (X28 regression). | The X28 "would trade" check counts all crossing liquidity, own orders included; the SMP-aware figure still decides `aon_blocked`. |
+| 2 | K4 | `_rollback_ledger` installed an empty ledger before re-reading positions; if that read failed too, the next flush wrote positions rebuilt from zero. | The ledger is rebuilt into a local and marked stale until that succeeds; `_flush` rebuilds a stale ledger before anything else. |
+| 3 | K1 | The SMP/OCO dry run ran at every candidate price with O(n²) list work, and whenever any order had SMP: 0.7 → 103 ms (1 000 orders), 1.5 → 439 ms (3 000), per symbol per indicative tick. | Simulate only when a gateway's own bid ≥ its own ask with a policy, or two legs of one OCO rest; sort once; lazy kills and per-level queues (O(n) walk); try prices best bound first and stop when no bound can beat the best walk. Same results; 3 000 orders now ~15 ms. A3 itself stays in K18. |
+| 4 | K7 | The state file, now the restore authority and written every checkpoint, was written in place; a kill mid-write made the index unstartable. | Staged write + fsync + rename (`engine.persistence.atomic_write_text`, now public). |
+| 5 | K4/K5 | A failed timer flush killed the clearing timer thread, so the retry K4 relies on never came in a quiet market. | The timer catches, logs and retries next tick. |
+| 6 | K6 | `POWER()` needs SQLite compiled with math functions; without it every daily upsert would fail. | Scales spelled out as `CASE tick_decimals …` (0..8) in the upsert and the queries. |
+| 7 | K6 | The re-mark converted other gateways' positions but not their pending daily deltas (nor flat positions), so one daily row mixed two scales. | `_remark_symbol` converts every position and pending delta of the symbol. |
+| 8 | K1 | The closing backstop skipped the uncross when SMP/OCO consumed the whole overlap, leaving that interest crossed. | It runs the uncross at `resolve_price` (cancels only, no print). |
+| 9 | K8 | Rebalance still did `int(...)` (9000.5 → 9000, True → 1), and a partly applied rebalance was neither persisted nor marked dirty. | `_int_field`; a partial apply is persisted. |
+| 10 | K1 | Opposing OCO legs were cancelled as `SELF_MATCH_PREVENTED` even under SMP `NONE`; the X8b comment still said no OCO hook runs inside the uncross. | No classified reason (as any OCO sibling cancel); comment corrected. |

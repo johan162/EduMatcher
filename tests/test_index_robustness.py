@@ -229,3 +229,50 @@ def test_a_handler_that_raises_does_not_end_the_loop(
     proc._handle_sub_message(encode("trade.executed", {"symbol": "AAPL"}))
 
     assert calls == ["trade"]
+
+
+# --- K1-K10 review #9 ---------------------------------------------------------
+
+
+def _rebalance(proc: index_main.IndexProcess, *updates: dict[str, Any]) -> None:
+    proc._handle_rebalance({**_BASE["_handle_rebalance"], "updates": list(updates)})
+
+
+@pytest.mark.parametrize("bad", [9_000.5, True, float("nan"), "9000.0"])
+def test_rebalance_rejects_a_non_integral_share_count(
+    proc: index_main.IndexProcess, bad: Any
+) -> None:
+    """Same strictness as the other commands' typed parse (K8): truncating
+    9000.5 to 9000, or reading True as 1, is not a share count."""
+    _rebalance(proc, {"symbol": "AAPL", "new_shares_outstanding": bad})
+
+    assert proc._indices["EDU100"].calc.shares_outstanding("AAPL") == 10_000
+    (ack,) = [p for t, p in _published(proc) if t.startswith("index.rebalance_ack")]
+    assert ack["accepted"] is False
+
+
+def test_partly_applied_rebalance_is_persisted(
+    proc: index_main.IndexProcess, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A rebalance that fails half-way keeps what it applied (documented);
+    the state file must say so too, or a restart silently reverts it (K7)."""
+    import json
+
+    idx = proc._indices["EDU100"]
+    original = idx.calc.apply_shares_issuance
+
+    def fail_on_msft(symbol: str, new_shares_outstanding: int) -> None:
+        if symbol == "MSFT":
+            raise ValueError("aggregate cap would be non-positive")
+        original(symbol, new_shares_outstanding)
+
+    monkeypatch.setattr(idx.calc, "apply_shares_issuance", fail_on_msft)
+    _rebalance(
+        proc,
+        {"symbol": "AAPL", "new_shares_outstanding": 9_000},
+        {"symbol": "MSFT", "new_shares_outstanding": 1},
+    )
+
+    state = json.loads(Path(idx.cfg.state_file).read_text(encoding="utf-8"))
+    assert state["outstanding_shares"]["AAPL"] == 9_000
+    assert state["divisor"] == idx.calc.divisor

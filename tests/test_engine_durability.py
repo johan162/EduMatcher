@@ -16,7 +16,7 @@ import pytest
 
 from edumatcher.engine.order_book import OrderBook
 from edumatcher.engine.persistence import (
-    _atomic_write_text,
+    atomic_write_text,
     load_and_bump_run_seq,
     load_gtc_orders,
     save_gtc_orders,
@@ -303,7 +303,7 @@ def test_writes_are_atomic_so_a_crash_cannot_truncate_the_book(
 
 def test_atomic_write_leaves_no_temp_file_on_success(tmp_path: Path) -> None:
     target = tmp_path / "x.json"
-    _atomic_write_text(target, '{"a": 1}')
+    atomic_write_text(target, '{"a": 1}')
     assert target.read_text() == '{"a": 1}'
     assert [p.name for p in tmp_path.iterdir()] == ["x.json"]
 
