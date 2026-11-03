@@ -23,6 +23,11 @@ Design notes
 Prices are integers throughout (matching the engine representation).
 ``avg_cost``, ``realized_pnl``, and ``unrealized_pnl`` are floats because
 they involve division and subtraction that can produce non-integer results.
+
+Money values are ticks of the position's ``tick_decimals``. If a symbol's
+precision changes, the next trade converts the position (and the pending daily
+deltas) to the new precision before applying the fill: exact when precision
+grows, rounded to the nearest tick when it shrinks (K6).
 """
 
 from __future__ import annotations
@@ -104,6 +109,43 @@ def trade_date(ts_ns: int, tz: tzinfo = timezone.utc) -> str:
 def trade_date_utc(ts_ns: int) -> str:
     """Return the UTC trade-date string (YYYY-MM-DD) for a nanosecond timestamp."""
     return trade_date(ts_ns, timezone.utc)
+
+
+def _rescale_int(value: int, factor: float) -> int:
+    """*value* in ticks of another precision: exact when growing, rounded when not."""
+    return round(value * factor)
+
+
+def _rescale_position(pos: _Position, tick_decimals: int) -> None:
+    """
+    Convert every stored value of *pos* to ``tick_decimals`` (K6 / C4).
+
+    Prices and P&L are counts of ticks, so a symbol whose precision changes
+    would otherwise mix 2-decimal and 4-decimal ticks in one position.
+    """
+    if pos.tick_decimals == tick_decimals:
+        return
+    factor = 10.0 ** (tick_decimals - pos.tick_decimals)
+    pos.avg_cost *= factor
+    pos.realized_pnl *= factor
+    pos.unrealized_pnl *= factor
+    if pos.mark_price is not None:
+        pos.mark_price = _rescale_int(pos.mark_price, factor)
+    pos.buy_notional = _rescale_int(pos.buy_notional, factor)
+    pos.sell_notional = _rescale_int(pos.sell_notional, factor)
+    pos.tick_decimals = tick_decimals
+
+
+def _rescale_delta(delta: _BatchDelta, tick_decimals: int) -> None:
+    """The same conversion for a pending daily increment."""
+    if delta.tick_decimals == tick_decimals:
+        return
+    factor = 10.0 ** (tick_decimals - delta.tick_decimals)
+    delta.traded_notional = _rescale_int(delta.traded_notional, factor)
+    delta.buy_notional = _rescale_int(delta.buy_notional, factor)
+    delta.sell_notional = _rescale_int(delta.sell_notional, factor)
+    delta.realized_pnl *= factor
+    delta.tick_decimals = tick_decimals
 
 
 def _apply_fill_to_position(
@@ -290,13 +332,14 @@ class Ledger:
                 trade_date=bucket_date,
             )
 
-        self._remark_symbol(symbol, price)
+        self._remark_symbol(symbol, price, tick_decimals)
 
-    def _remark_symbol(self, symbol: str, price: int) -> None:
+    def _remark_symbol(self, symbol: str, price: int, tick_decimals: int) -> None:
         """Mark every open position in ``symbol`` to the latest traded price."""
         for key, pos in self._positions.items():
             if key[1] != symbol or pos.net_qty == 0:
                 continue
+            _rescale_position(pos, tick_decimals)
             pos.mark_price = price
             pos.unrealized_pnl = pos.net_qty * (float(price) - pos.avg_cost)
             self._remarked_keys.add(key)
@@ -373,7 +416,7 @@ class Ledger:
         if pos_key not in self._positions:
             self._positions[pos_key] = _Position(gateway_id=gateway_id, symbol=symbol)
         pos = self._positions[pos_key]
-        pos.tick_decimals = tick_decimals
+        _rescale_position(pos, tick_decimals)
 
         before_net_qty = pos.net_qty
         before_avg_cost = pos.avg_cost
@@ -395,7 +438,7 @@ class Ledger:
         if delta_key not in self._batch_deltas:
             self._batch_deltas[delta_key] = _BatchDelta()
         delta = self._batch_deltas[delta_key]
-        delta.tick_decimals = tick_decimals
+        _rescale_delta(delta, tick_decimals)
         delta.traded_qty += quantity
         delta.traded_notional += quantity * price
         if is_buy:
