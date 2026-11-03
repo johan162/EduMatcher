@@ -8904,8 +8904,10 @@ until trades accumulate:</p>
   <code>last_buy_price</code>, then <code>last_sell_price</code>).</li>
 <li><strong>Circuit-breaker reference</strong> — the breaker's rolling history is pre-seeded
   with a single synthetic baseline point at that <strong>same</strong> resolved opening
-  price.  The first executed trade is therefore evaluated against the IPO
-  reference, so a violent opening print can trip the breaker on day one.</li>
+  price.  The first continuous trade is therefore evaluated against the IPO
+  reference, so a violent first print can trip the breaker on day one. Auction
+  prints (opening, closing, reopening, recovery) enter the history but never
+  trip the breaker themselves.</li>
 </ul>
 <p>Because both controls draw their reference from the same source, the collar and
 the circuit breaker agree at the open.</p>
@@ -9892,9 +9894,11 @@ check rather than a pre-trade validation:</p>
   <code>CANCEL_RESTING</code>/<code>CANCEL_BOTH</code> then cancel the <strong>whole</strong> iceberg — peak and
   hidden reserve — as one order with one <code>order.cancelled</code> message; the
   hidden reserve is not replenished into a new peak.</li>
-<li><strong>SMP does not apply in an auction uncross.</strong> The uncross matches resting
-  interest at a single price with no aggressor, so a gateway's crossing bid
-  and ask in the same auction trade with each other.</li>
+<li><strong>SMP applies in an auction uncross and its indicative quantity.</strong> Both
+  orders are resting, so the bid is treated as the aggressor for policy
+  selection; if its policy is <code>NONE</code>, the ask's policy applies instead.
+  <code>CANCEL_AGGRESSOR</code>, <code>CANCEL_RESTING</code>, and <code>CANCEL_BOTH</code> cancel the
+  corresponding orders before they can trade with their own gateway.</li>
 </ul>
 <h3 id="fok-self-match-liquidity-is-excluded-before-the-pre-check"><code>FOK</code> — self-match liquidity is excluded before the pre-check<a class="headerlink" href="#fok-self-match-liquidity-is-excluded-before-the-pre-check" title="Permanent link">&para;</a></h3>
 <p><code>FOK</code> (Fill-Or-Kill) is the one order type that resolves SMP <em>before</em> the

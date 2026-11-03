@@ -8352,33 +8352,44 @@ as a <code>CORP_ACTION</code>, <code>ADD_CONSTITUENT</code>, or <code>DELIST</co
 <h2 id="state-and-history">State and History<a class="headerlink" href="#state-and-history" title="Permanent link">&para;</a></h2>
 <h3 id="state-file">State file<a class="headerlink" href="#state-file" title="Permanent link">&para;</a></h3>
 <p><code>pm-index</code> writes a small JSON checkpoint file at startup (right after
-computing the initial level), after every EOD finalization, and after any
-corporate action or constituent change (add/delist):</p>
+computing the initial level), after every EOD finalization, on every session
+phase change, on shutdown, after any corporate action, rebalance or constituent
+change (add/delist), and — while trading — at most every 30 seconds if prices
+have moved since the last write. A trade does not write the file by itself.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="p">{</span>
 <a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="w">  </span><span class="nt">"index_id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"EDU100"</span><span class="p">,</span>
 <a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="w">  </span><span class="nt">"description"</span><span class="p">:</span><span class="w"> </span><span class="s2">"EduMatcher broad index"</span><span class="p">,</span>
 <a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="w">  </span><span class="nt">"divisor"</span><span class="p">:</span><span class="w"> </span><span class="mf">7007100000.0</span><span class="p">,</span>
 <a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="w">  </span><span class="nt">"constituents"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"AAPL"</span><span class="p">,</span><span class="w"> </span><span class="s2">"MSFT"</span><span class="p">,</span><span class="w"> </span><span class="s2">"TSLA"</span><span class="p">],</span>
-<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="w">  </span><span class="nt">"last_prices"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="w">    </span><span class="nt">"AAPL"</span><span class="p">:</span><span class="w"> </span><span class="mf">211.3</span><span class="p">,</span>
-<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a><span class="w">    </span><span class="nt">"MSFT"</span><span class="p">:</span><span class="w"> </span><span class="mf">418.5</span><span class="p">,</span>
-<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a><span class="w">    </span><span class="nt">"TSLA"</span><span class="p">:</span><span class="w"> </span><span class="mf">251.0</span>
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="w">  </span><span class="nt">"outstanding_shares"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="w">    </span><span class="nt">"AAPL"</span><span class="p">:</span><span class="w"> </span><span class="mi">15500000000</span><span class="p">,</span>
+<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a><span class="w">    </span><span class="nt">"MSFT"</span><span class="p">:</span><span class="w"> </span><span class="mi">7430000000</span><span class="p">,</span>
+<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a><span class="w">    </span><span class="nt">"TSLA"</span><span class="p">:</span><span class="w"> </span><span class="mi">3180000000</span>
 <a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a><span class="w">  </span><span class="p">},</span>
-<a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a><span class="w">  </span><span class="nt">"day_open"</span><span class="p">:</span><span class="w"> </span><span class="mf">1002.45</span><span class="p">,</span>
-<a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a><span class="w">  </span><span class="nt">"day_high"</span><span class="p">:</span><span class="w"> </span><span class="mf">1012.35</span><span class="p">,</span>
-<a id="__codelineno-8-13" name="__codelineno-8-13" href="#__codelineno-8-13"></a><span class="w">  </span><span class="nt">"day_low"</span><span class="p">:</span><span class="w"> </span><span class="mf">998.4</span><span class="p">,</span>
-<a id="__codelineno-8-14" name="__codelineno-8-14" href="#__codelineno-8-14"></a><span class="w">  </span><span class="nt">"last_level"</span><span class="p">:</span><span class="w"> </span><span class="mf">1008.9195</span><span class="p">,</span>
-<a id="__codelineno-8-15" name="__codelineno-8-15" href="#__codelineno-8-15"></a><span class="w">  </span><span class="nt">"last_updated"</span><span class="p">:</span><span class="w"> </span><span class="mf">1749760800.0</span>
-<a id="__codelineno-8-16" name="__codelineno-8-16" href="#__codelineno-8-16"></a><span class="p">}</span>
+<a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a><span class="w">  </span><span class="nt">"last_prices"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a><span class="w">    </span><span class="nt">"AAPL"</span><span class="p">:</span><span class="w"> </span><span class="mf">211.3</span><span class="p">,</span>
+<a id="__codelineno-8-13" name="__codelineno-8-13" href="#__codelineno-8-13"></a><span class="w">    </span><span class="nt">"MSFT"</span><span class="p">:</span><span class="w"> </span><span class="mf">418.5</span><span class="p">,</span>
+<a id="__codelineno-8-14" name="__codelineno-8-14" href="#__codelineno-8-14"></a><span class="w">    </span><span class="nt">"TSLA"</span><span class="p">:</span><span class="w"> </span><span class="mf">251.0</span>
+<a id="__codelineno-8-15" name="__codelineno-8-15" href="#__codelineno-8-15"></a><span class="w">  </span><span class="p">},</span>
+<a id="__codelineno-8-16" name="__codelineno-8-16" href="#__codelineno-8-16"></a><span class="w">  </span><span class="nt">"day_open"</span><span class="p">:</span><span class="w"> </span><span class="mf">1002.45</span><span class="p">,</span>
+<a id="__codelineno-8-17" name="__codelineno-8-17" href="#__codelineno-8-17"></a><span class="w">  </span><span class="nt">"day_high"</span><span class="p">:</span><span class="w"> </span><span class="mf">1012.35</span><span class="p">,</span>
+<a id="__codelineno-8-18" name="__codelineno-8-18" href="#__codelineno-8-18"></a><span class="w">  </span><span class="nt">"day_low"</span><span class="p">:</span><span class="w"> </span><span class="mf">998.4</span><span class="p">,</span>
+<a id="__codelineno-8-19" name="__codelineno-8-19" href="#__codelineno-8-19"></a><span class="w">  </span><span class="nt">"last_level"</span><span class="p">:</span><span class="w"> </span><span class="mf">1008.9195</span><span class="p">,</span>
+<a id="__codelineno-8-20" name="__codelineno-8-20" href="#__codelineno-8-20"></a><span class="w">  </span><span class="nt">"last_updated"</span><span class="p">:</span><span class="w"> </span><span class="mf">1749760800.0</span>
+<a id="__codelineno-8-21" name="__codelineno-8-21" href="#__codelineno-8-21"></a><span class="p">}</span>
 </code></pre></div>
-<p>On restart, this file is loaded to restore the divisor and last prices.
-If the <code>index_id</code> in the file does not match, or the persisted constituent list
-differs from the configured one, <code>pm-index</code> exits with an error telling you to
-use <code>--reset</code>. The persisted list is stored <strong>sorted alphabetically</strong> and is
-compared in order with the configured <code>constituents</code>, so list constituents
-alphabetically in the config. After an <code>add</code> or <code>delist</code> made through
-<code>pm-index-admin-cli</code>, update the config to match, deploy it, and start with
-<code>--reset</code> (the change is otherwise lost or trips this check on the next start).</p>
+<p>On restart, this file is the authority for the <strong>live</strong> index: the divisor,
+the constituent list, each constituent's share count and its last price. The
+configuration only supplies a fresh start. So an <code>add</code>, <code>delist</code>, split,
+issuance or rebalance made through <code>pm-index-admin-cli</code> survives a restart
+without touching the config; if the persisted constituents differ from the
+configured ones, <code>pm-index</code> logs a warning and keeps the persisted set. If the
+<code>index_id</code> in the file does not match, <code>pm-index</code> exits with an error telling
+you to use <code>--reset</code>, which discards the file and returns to the configuration
+(including a new divisor). A crash can lose at most the price moves of the last
+30 seconds; they are replaced by the next trade in each constituent.
+<code>day_open</code>, <code>day_high</code> and <code>day_low</code> are diagnostics only: the session's
+open/high/low starts afresh in a new process.</p>
 <h3 id="history-file">History file<a class="headerlink" href="#history-file" title="Permanent link">&para;</a></h3>
 <p>The JSONL history file is a <strong>structural/corporate-action audit log</strong>, not a
 level-history store. Only events that change an index's composition or

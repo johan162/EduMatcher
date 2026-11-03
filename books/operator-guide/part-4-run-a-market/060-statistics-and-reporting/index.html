@@ -8452,7 +8452,7 @@ this applies.</p>
 </code></pre></div>
 <p>The schema version is in <code>PRAGMA user_version</code>:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="gp">$ </span>sqlite3<span class="w"> </span>data/stats.db<span class="w"> </span><span class="s2">"PRAGMA user_version"</span>
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="go">9</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="go">11</span>
 </code></pre></div>
 <p>The version is bumped both when the table definitions change and when the
 <em>meaning</em> of stored values changes — version 2 introduced the distinct combo,
@@ -8464,7 +8464,10 @@ version 6 renamed <code>order_events.client_order_id</code> to <code>client_tag<
 version 7 made the durable <code>trade_id</code> the sole primary key of <code>trade_log</code>,
 version 8 replaced <code>order_events.trade_id</code> (always empty) with <code>trade_ids</code>, and
 version 9 added <code>order_events.reject_code</code>, the rejection's machine-readable
-code (until then only the reason text was kept).</p>
+code (until then only the reason text was kept), version 10 added the order
+ids, <code>match_type</code> and <code>msg_id</code> to <code>trade_log</code> and <code>msg_id</code> to <code>order_events</code>,
+and version 11 keyed <code>index_level_snapshots</code> on an arrival <code>seq</code>, so that two
+updates in one millisecond are both kept.</p>
 <p><code>pm-stats</code> refuses to open a database whose <code>user_version</code> does not match the
 build, rather than writing new-format rows into an old-format file. If you hit
 that, move or delete the file and let <code>pm-stats</code> create a fresh one.</p>
@@ -9643,7 +9646,7 @@ log for the topic that produced them.</p>
 </div>
 <h3 id="index_level_snapshots"><code>index_level_snapshots</code><a class="headerlink" href="#index_level_snapshots" title="Permanent link">&para;</a></h3>
 <p>Time series of every index level update received from <code>pm-index</code>, one row per <code>index.update</code> event (no additional throttling in <code>pm-stats</code> — <code>pm-index</code> already rate-limits its own publications via <code>publish_interval_sec</code> before it ever sends one).</p>
-<p><strong>Primary key</strong>: <code>(ts, index_id)</code>. Inserts are <code>OR IGNORE</code>, so two updates for one index landing in the same millisecond retain only the first.
+<p><strong>Primary key</strong>: <code>seq</code>, the arrival order. Every update is its own row, including several for one index in the same millisecond.
 <strong>Index</strong>: <code>(index_id, ts)</code>.</p>
 <table>
 <thead>
@@ -9654,6 +9657,11 @@ log for the topic that produced them.</p>
 </tr>
 </thead>
 <tbody>
+<tr>
+<td><code>seq</code></td>
+<td>INTEGER</td>
+<td>Arrival order (primary key)</td>
+</tr>
 <tr>
 <td><code>ts</code></td>
 <td>TEXT</td>

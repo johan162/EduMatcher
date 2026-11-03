@@ -7983,9 +7983,9 @@ constituent. If the symbol doesn't exist elsewhere in the config, it
 will be added to the index but never receive live price updates. The
 confirmation prompt states this requirement, but <code>pm-index-admin-cli</code>
 has no <code>--config</code> flag and cannot verify it for you. A change made this
-way also lives only in <code>pm-index</code>'s state and history — see
-<a href="../070-market-index/#state-file">Market Index — State file</a> for what to do
-to the config afterwards.</p>
+way lives in <code>pm-index</code>'s state file and survives restarts, but not
+<code>--reset</code> — see <a href="../070-market-index/#state-file">Market Index — State file</a>
+for keeping the config in step.</p>
 </div>
 <h3 id="delist-remove-a-constituent"><code>delist</code> — Remove a constituent<a class="headerlink" href="#delist-remove-a-constituent" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>pm-index-admin-cli<span class="w"> </span>--id<span class="w"> </span>OPS01<span class="w"> </span>delist<span class="w"> </span>--index<span class="w"> </span>TECH10<span class="w"> </span>--sym<span class="w"> </span>XYZ
