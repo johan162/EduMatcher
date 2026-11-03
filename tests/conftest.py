@@ -12,6 +12,8 @@ from pathlib import Path
 
 import pytest
 
+pytest_plugins = ["tests.support.actors"]
+
 #: A data directory of the suite's own, so that what the suite reads and
 #: writes does not depend on what happens to be deployed on the machine
 #: running it. A leftover ``ref_data/engine_config.json`` from an older schema
@@ -30,6 +32,7 @@ from edumatcher.config import DATA_DIR  # noqa: E402
 from edumatcher.logclient import discovery as log_discovery  # noqa: E402
 from edumatcher.models.order import Order, OrderType, Side, TIF  # noqa: E402
 from edumatcher.models.trade import (  # noqa: E402
+    Trade,
     reset_trade_ids_for_tests,
     set_run_seq,
 )
@@ -229,13 +232,16 @@ def _engine_reject_count_invariant(
         yield
         return
     from edumatcher.engine.main import Engine
+    from edumatcher.models.combo import ComboOrder
     from tests.engine_invariants import (
+        assert_aon_combo_atomic_at_acceptance,
         assert_reject_count_matches,
         install_reject_tally,
     )
 
     engines: list[Engine] = []
     original_init = Engine.__init__
+    original_accept_combo = Engine._accept_combo
 
     def init(self: Engine, *args: Any, **kwargs: Any) -> None:
         original_init(self, *args, **kwargs)
@@ -243,9 +249,65 @@ def _engine_reject_count_invariant(
         engines.append(self)
 
     monkeypatch.setattr(Engine, "__init__", init)
+
+    def checked_accept_combo(
+        self: Engine,
+        combo: ComboOrder,
+        *,
+        publish_ack: bool = True,
+        is_seed: bool = False,
+    ) -> bool:
+        accepted = original_accept_combo(
+            self, combo, publish_ack=publish_ack, is_seed=is_seed
+        )
+        if accepted:
+            assert_aon_combo_atomic_at_acceptance(combo)
+        return accepted
+
+    monkeypatch.setattr(Engine, "_accept_combo", checked_accept_combo)
     yield
     for engine in engines:
         assert_reject_count_matches(engine)
+
+
+@pytest.fixture(autouse=True)
+def _auction_fill_invariant(
+    monkeypatch: pytest.MonkeyPatch,
+) -> Generator[None, None, None]:
+    from edumatcher.engine.order_book import OrderBook
+    from tests.engine_invariants import assert_auction_invariants
+
+    fills: list[tuple[Trade, Order, Order]] = []
+    original = OrderBook._apply_fill
+
+    def checked(
+        book: OrderBook,
+        aggressor: Order,
+        passive: Order,
+        fill_qty: int,
+        fill_price: int,
+        trades: list[Trade],
+        events: list[Order],
+        now: int,
+        both_resting: bool = False,
+    ) -> None:
+        original(
+            book,
+            aggressor,
+            passive,
+            fill_qty,
+            fill_price,
+            trades,
+            events,
+            now,
+            both_resting=both_resting,
+        )
+        if both_resting:
+            fills.append((trades[-1], aggressor, passive))
+
+    monkeypatch.setattr(OrderBook, "_apply_fill", checked)
+    yield
+    assert_auction_invariants(fills)
 
 
 @pytest.fixture(autouse=True)

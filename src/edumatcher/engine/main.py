@@ -5318,7 +5318,14 @@ class Engine:
         aon_blocked = aon_rejected = False
         if combo.combo_type == ComboType.AON:
             fillable = [
-                self._book(leg.symbol).fillable_quantity(leg.side, leg.price_ticks)
+                self._book(leg.symbol).fillable_quantity(
+                    leg.side,
+                    leg.price_ticks,
+                    gateway_id=combo.gateway_id,
+                    smp_action=self._resolve_smp_action(
+                        combo.gateway_id, leg.smp_action
+                    ),
+                )
                 for leg in combo.legs
             ]
             aon_blocked = any(f < leg.quantity for f, leg in zip(fillable, combo.legs))
@@ -5931,10 +5938,17 @@ class Engine:
                     imbalance_side=result.imbalance_side,
                 )
             trades: list[Any] = []
-            if result.eq_price is not None and result.eq_qty > 0:
+            # SMP or an OCO pair can consume the whole overlap, so the book
+            # crosses but nothing prints. The uncross still has to run at that
+            # price to cancel the interest -- without publishing it as an
+            # equilibrium (K1).
+            uncross_price = (
+                result.eq_price if result.eq_price is not None else result.resolve_price
+            )
+            if uncross_price is not None:
                 # Bind before any reassignment of `result` below, which would
                 # otherwise discard the `is not None` narrowing.
-                fill_px = result.eq_price
+                fill_px = uncross_price
                 trades, events = execute_uncross(book, fill_px)
                 if price_override is not None:
                     # Fewer shares trade at a clamped price than at the true

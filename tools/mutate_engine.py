@@ -163,7 +163,7 @@ MUTANTS: tuple[Mutant, ...] = (
         "M12",
         "FOK pre-check counts its own SMP-excluded liquidity",
         OB,
-        "if smp != SmpAction.NONE and o.gateway_id == gw:",
+        "if _smp_policy(gateway_id, smp, o) != SmpAction.NONE:",
         "if False:",
     ),
     Mutant(
@@ -240,10 +240,10 @@ MUTANTS: tuple[Mutant, ...] = (
         "M22",
         "SMP CANCEL_RESTING self-trades instead of cancelling the resting order",
         OB,
-        "                elif _smp_action == SmpAction.CANCEL_RESTING:\n"
+        "                elif smp_action == SmpAction.CANCEL_RESTING:\n"
         "                    self._smp_cancel_resting(best, events)\n"
         "                    continue  # skip this resting order; try next",
-        "                elif _smp_action == SmpAction.CANCEL_RESTING:\n"
+        "                elif smp_action == SmpAction.CANCEL_RESTING:\n"
         "                    pass",
     ),
     Mutant(

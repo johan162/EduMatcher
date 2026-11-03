@@ -575,12 +575,13 @@ def test_uncross_counts_hidden_iceberg_quantity_behind_visible() -> None:
     ]
 
 
-def test_no_smp_in_the_uncross() -> None:
-    """Rule G6."""
+def test_smp_cancels_both_in_the_uncross() -> None:
     m = ReferenceMatcher()
     for side in ("BUY", "SELL"):
         m.submit(limit(side, 10, 100, "SAME", smp="CANCEL_BOTH"), matching=False)
-    assert [t.qty for t in m.uncross()] == [10]
+    assert m.equilibrium()[1] == 0
+    assert m.uncross() == []
+    assert all(o.status == "CANCELLED" for o in m.orders.values())
 
 
 def test_stops_are_evaluated_after_the_uncross_print() -> None:

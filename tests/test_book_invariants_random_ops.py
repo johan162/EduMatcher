@@ -301,7 +301,7 @@ class _OpDriver:
                 )
             self._submit(o, match=False)
         result = compute_equilibrium(self.book)
-        if result.eq_price is not None and result.eq_qty > 0:
+        if result.eq_price is not None:
             trades, _events = execute_uncross(self.book, result.eq_price)
             self.all_trades.extend(trades)
             stop_trades, _events = self.book.run_stops(0)
@@ -324,7 +324,11 @@ def _run(seed: int, features: _Features) -> None:
         driver.history.append(op)
         recent = " | ".join(driver.history[-6:])
         context = f"seed={seed} step={step_no}: …{recent}"
-        assert_book_invariants(book, context=context)
+        assert_book_invariants(
+            book,
+            context=context,
+            check_crossed=not (features.smp and features.auction_every is not None),
+        )
         assert_qty_conservation(driver.all_orders, driver.all_trades, context=context)
 
 

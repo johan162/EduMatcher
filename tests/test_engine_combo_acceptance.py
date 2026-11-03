@@ -13,9 +13,12 @@ from __future__ import annotations
 
 from typing import Any
 
-from edumatcher.models.combo import ComboStatus
-from edumatcher.models.order import OrderType, Side
+import pytest
+
+from edumatcher.models.combo import ComboOrder, ComboStatus
+from edumatcher.models.order import OrderType, Side, SmpAction
 from tests.engine_harness import all_msgs, connect, make_engine, msgs, order_payload
+from tests.engine_invariants import assert_aon_combo_atomic_at_acceptance
 
 AAPL_IOC = {"symbol": "AAPL", "side": "BUY", "order_type": "IOC", "quantity": 5, "price_ticks": 10000}  # fmt: skip
 MSFT_LIMIT = {"symbol": "MSFT", "side": "BUY", "order_type": "LIMIT", "quantity": 5, "price_ticks": 10000}  # fmt: skip
@@ -156,6 +159,92 @@ def test_a_combo_that_fills_on_entry_is_acked_first_and_matched_once(
 # --- X28: an all-or-none combo is accepted only if it can fill in full ------
 
 AAPL_LIMIT = {**AAPL_IOC, "order_type": "LIMIT"}
+
+
+@pytest.mark.parametrize("smp", ["CANCEL_AGGRESSOR", "CANCEL_RESTING"])
+def test_aon_preflight_excludes_own_liquidity(monkeypatch, tmp_path, smp: str) -> None:
+    engine, pub = make_engine(monkeypatch, tmp_path, symbols=("AAPL", "MSFT"))
+    connect(engine)
+    sell(engine, "AAPL", "GW02")
+    sell(engine, "MSFT", "GW01")
+
+    c = combo(
+        engine,
+        [AAPL_LIMIT, {**MSFT_LIMIT, "smp_action": smp}],
+    )
+
+    assert c.status is ComboStatus.FAILED
+    assert c.leg_fill_qty.get(0, 0) == 0
+    assert msgs(pub, "trade.executed") == []
+    assert len(c.child_order_ids) == 1
+    assert {o.gateway_id for o in engine.books["AAPL"].resting_orders()} == {"GW02"}
+    assert {o.gateway_id for o in engine.books["MSFT"].resting_orders()} == {"GW01"}
+
+
+def test_aon_preflight_stops_at_own_order_for_cancel_aggressor(
+    monkeypatch, tmp_path
+) -> None:
+    engine, pub = make_engine(monkeypatch, tmp_path, symbols=("AAPL", "MSFT"))
+    connect(engine)
+    sell(engine, "AAPL", "GW02")
+    sell(engine, "MSFT", "GW01")
+    sell(engine, "MSFT", "GW03")
+
+    c = combo(
+        engine,
+        [AAPL_LIMIT, {**MSFT_LIMIT, "smp_action": "CANCEL_AGGRESSOR"}],
+    )
+
+    assert c.status is ComboStatus.FAILED
+    assert msgs(pub, "trade.executed") == []
+
+
+def test_aon_preflight_can_skip_own_order_for_cancel_resting(
+    monkeypatch, tmp_path
+) -> None:
+    engine, pub = make_engine(monkeypatch, tmp_path, symbols=("AAPL", "MSFT"))
+    connect(engine)
+    sell(engine, "AAPL", "GW02")
+    sell(engine, "MSFT", "GW01")
+    sell(engine, "MSFT", "GW03")
+
+    c = combo(
+        engine,
+        [AAPL_LIMIT, {**MSFT_LIMIT, "smp_action": "CANCEL_RESTING"}],
+    )
+
+    assert c.status is ComboStatus.MATCHED
+    assert len(msgs(pub, "trade.executed")) == 2
+    assert {o.gateway_id for o in engine.books["MSFT"].resting_orders()} == set()
+
+
+def test_aon_preflight_uses_gateway_default_smp(monkeypatch, tmp_path) -> None:
+    engine, pub = make_engine(monkeypatch, tmp_path, symbols=("AAPL", "MSFT"))
+    connect(engine)
+    assert engine._engine_config is not None
+    engine._engine_config.participants["GW01"].smp_action = SmpAction.CANCEL_AGGRESSOR
+    sell(engine, "AAPL", "GW02")
+    sell(engine, "MSFT", "GW01")
+
+    c = combo(engine, [AAPL_LIMIT, MSFT_LIMIT])
+
+    assert c.status is ComboStatus.FAILED
+    assert msgs(pub, "trade.executed") == []
+
+
+def test_aon_acceptance_invariant_rejects_partial_execution() -> None:
+    c = ComboOrder.from_submission_dict(
+        {
+            "combo_id": "partial",
+            "gateway_id": "GW01",
+            "combo_type": "AON",
+            "tif": "DAY",
+            "legs": [AAPL_LIMIT, MSFT_LIMIT],
+        }
+    )
+    c.leg_fill_qty[0] = 5
+    with pytest.raises(AssertionError, match="partially executed"):
+        assert_aon_combo_atomic_at_acceptance(c)
 
 
 def test_an_aon_combo_that_cannot_fill_in_full_fails_on_entry(monkeypatch, tmp_path) -> None:  # fmt: skip

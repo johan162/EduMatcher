@@ -46,10 +46,10 @@ import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from edumatcher.engine.order_book import _DEAD_STATUSES
+from edumatcher.engine.order_book import _DEAD_STATUSES, _self_match_action
 from edumatcher.models.clock import now_ns
 
-from edumatcher.models.order import Order, OrderType
+from edumatcher.models.order import Order, OrderType, Side, SmpAction
 from edumatcher.models.trade import Trade
 
 if TYPE_CHECKING:
@@ -62,10 +62,15 @@ log = logging.getLogger(__name__)
 class AuctionResult:
     """Outcome of an equilibrium price calculation."""
 
-    eq_price: int | None  # None when no crossable interest
+    eq_price: int | None  # None when nothing would print
     eq_qty: int  # total executable quantity
     surplus: int  # |buy_qty - sell_qty| at eq_price
     imbalance_side: str  # "BUY", "SELL", or "" if balanced
+    # Price the book crosses at even when nothing prints there, because SMP
+    # or an OCO pair consumes the whole overlap.  ``execute_uncross`` must
+    # still run at this price to cancel that interest, but it is NOT an
+    # equilibrium and is never published.  Set by ``compute_equilibrium``.
+    resolve_price: int | None = None
 
 
 def _auction_levels(book: "OrderBook") -> tuple[dict[int, int], dict[int, int]]:
@@ -87,6 +92,144 @@ def _auction_levels(book: "OrderBook") -> tuple[dict[int, int], dict[int, int]]:
             qty[o.price_ticks] = qty.get(o.price_ticks, 0) + o.remaining_qty
         levels.append(qty)
     return levels[0], levels[1]
+
+
+@dataclass
+class _CandidateOrder:
+    order: Order
+    remaining: int
+    shown: int
+
+
+def _candidate_orders(
+    book: "OrderBook", eq_price: int
+) -> tuple[list[_CandidateOrder], list[_CandidateOrder]]:
+    sides: list[list[_CandidateOrder]] = []
+    for heap, is_bid in ((book._bids, True), (book._asks, False)):
+        sides.append(
+            [
+                _CandidateOrder(
+                    entry.order, entry.order.remaining_qty, _shown_qty(entry.order)
+                )
+                for entry in sorted(heap)
+                if entry.valid
+                and entry.order.status not in _DEAD_STATUSES
+                and entry.order.price_ticks is not None
+                and (
+                    entry.order.price_ticks >= eq_price
+                    if is_bid
+                    else entry.order.price_ticks <= eq_price
+                )
+            ]
+        )
+    return sides[0], sides[1]
+
+
+def _simulated_quantity(book: "OrderBook", eq_price: int) -> tuple[int, int, str]:
+    """Dry-run the price-time walk, including SMP and OCO, without generating trades."""
+    bids, asks = _candidate_orders(book, eq_price)
+    all_orders = bids + asks
+    # ``execute_uncross`` only cascades an OCO sibling when the engine has
+    # wired up the callback; a bare OrderBook resolves the pair in place.
+    oco_cascades = book.on_oco_leg_done is not None
+
+    def _kill(candidate: _CandidateOrder) -> None:
+        candidate.remaining = candidate.shown = 0
+        for side in (bids, asks):
+            for i, other in enumerate(side):
+                if other is candidate:
+                    del side[i]
+                    break
+
+    def _kill_siblings(candidate: _CandidateOrder) -> None:
+        if not oco_cascades or candidate.order.oco_group_id is None:
+            return
+        for sibling in all_orders:
+            if (
+                sibling.order.id != candidate.order.id
+                and sibling.order.gateway_id == candidate.order.gateway_id
+                and sibling.order.oco_group_id == candidate.order.oco_group_id
+            ):
+                _kill(sibling)
+
+    def _cancel(candidate: _CandidateOrder) -> None:
+        """Mirror a book-side cancel: the order dies, and so does its sibling."""
+        _kill(candidate)
+        _kill_siblings(candidate)
+
+    traded = 0
+    while bids and asks:
+        bid, ask = bids[0], asks[0]
+        if (
+            bid.order.oco_group_id is not None
+            and bid.order.gateway_id == ask.order.gateway_id
+            and bid.order.oco_group_id == ask.order.oco_group_id
+        ):
+            _cancel(bid)
+            _kill(ask)
+            continue
+        action, from_ask = _auction_smp_action(bid.order, ask.order)
+        if action != SmpAction.NONE:
+            if action in (SmpAction.CANCEL_AGGRESSOR, SmpAction.CANCEL_BOTH):
+                _cancel(ask if from_ask else bid)
+            if action in (SmpAction.CANCEL_RESTING, SmpAction.CANCEL_BOTH):
+                _cancel(bid if from_ask else ask)
+            continue
+        fill = min(bid.shown, ask.shown)
+        traded += fill
+        for side, candidate in ((bids, bid), (asks, ask)):
+            candidate.remaining -= fill
+            candidate.shown -= fill
+            if candidate.remaining == 0:
+                side.pop(0)
+                _kill_siblings(candidate)
+            elif candidate.shown == 0:
+                candidate.shown = min(
+                    candidate.order.visible_qty or 0, candidate.remaining
+                )
+                side.pop(0)
+                insert_at = 0
+                while (
+                    insert_at < len(side)
+                    and side[insert_at].order.price_ticks == candidate.order.price_ticks
+                ):
+                    insert_at += 1
+                side.insert(insert_at, candidate)
+    buy_total = traded + sum(
+        candidate.remaining
+        for candidate in all_orders
+        if candidate.order.side == Side.BUY
+    )
+    sell_total = traded + sum(
+        candidate.remaining
+        for candidate in all_orders
+        if candidate.order.side == Side.SELL
+    )
+    imbalance = (
+        "BUY" if buy_total > sell_total else "SELL" if sell_total > buy_total else ""
+    )
+    return traded, abs(buy_total - sell_total), imbalance
+
+
+def _auction_smp_action(bid: Order, ask: Order) -> tuple[SmpAction, bool]:
+    """Bid policy wins when both specify SMP; otherwise honour the ask's."""
+    action = _self_match_action(bid, ask)
+    if action != SmpAction.NONE:
+        return action, False
+    return _self_match_action(ask, bid), True
+
+
+def _needs_simulation(book: "OrderBook") -> bool:
+    return any(
+        entry.valid
+        and entry.order.status not in _DEAD_STATUSES
+        and (
+            entry.order.smp_action not in (None, SmpAction.NONE)
+            or entry.order.oco_group_id is not None
+        )
+        for heap in (book._bids, book._asks)
+        for entry in heap
+    )
 
 
 def compute_equilibrium(book: "OrderBook") -> AuctionResult:  # noqa: F821
@@ -144,6 +287,7 @@ def compute_equilibrium(book: "OrderBook") -> AuctionResult:  # noqa: F821
     best_price: int | None = None
     best_qty = 0
     best_surplus = float("inf")
+    simulate = _needs_simulation(book)
 
     for price in all_prices:
         # Buy qty: sum of bids at prices >= candidate
@@ -168,15 +312,24 @@ def compute_equilibrium(book: "OrderBook") -> AuctionResult:  # noqa: F821
             else:
                 break
 
-        exec_qty = min(buy_qty, sell_qty)
-        surplus = abs(buy_qty - sell_qty)
+        if not min(buy_qty, sell_qty):
+            continue
+        exec_qty, surplus, _ = (
+            _simulated_quantity(book, price)
+            if simulate
+            else (min(buy_qty, sell_qty), abs(buy_qty - sell_qty), "")
+        )
 
-        if exec_qty > best_qty or (exec_qty == best_qty and surplus < best_surplus):
+        if (
+            best_price is None
+            or exec_qty > best_qty
+            or (exec_qty == best_qty and surplus < best_surplus)
+        ):
             best_price = price
             best_qty = exec_qty
             best_surplus = int(surplus)
 
-    if best_price is None or best_qty == 0:
+    if best_price is None:
         return AuctionResult(eq_price=None, eq_qty=0, surplus=0, imbalance_side="")
 
     # Determine imbalance side at equilibrium
@@ -193,7 +346,9 @@ def compute_equilibrium(book: "OrderBook") -> AuctionResult:  # noqa: F821
         else:
             break
 
-    if buy_at_eq > sell_at_eq:
+    if simulate:
+        _, _, imbalance_side = _simulated_quantity(book, best_price)
+    elif buy_at_eq > sell_at_eq:
         imbalance_side = "BUY"
     elif sell_at_eq > buy_at_eq:
         imbalance_side = "SELL"
@@ -210,10 +365,11 @@ def compute_equilibrium(book: "OrderBook") -> AuctionResult:  # noqa: F821
         len(all_prices),
     )
     return AuctionResult(
-        eq_price=best_price,
+        eq_price=best_price if best_qty > 0 else None,
         eq_qty=best_qty,
         surplus=int(best_surplus),
         imbalance_side=imbalance_side,
+        resolve_price=best_price,
     )
 
 
@@ -229,9 +385,15 @@ def executable_at(book: "OrderBook", eq_price: int) -> AuctionResult:  # noqa: F
     bid_qty, ask_qty = _auction_levels(book)
     buy_qty = sum(q for p, q in bid_qty.items() if p >= eq_price)
     sell_qty = sum(q for p, q in ask_qty.items() if p <= eq_price)
-    exec_qty = min(buy_qty, sell_qty)
-    surplus = abs(buy_qty - sell_qty)
-    if buy_qty > sell_qty:
+    simulate = _needs_simulation(book)
+    exec_qty, surplus, simulated_side = (
+        _simulated_quantity(book, eq_price)
+        if simulate
+        else (min(buy_qty, sell_qty), abs(buy_qty - sell_qty), "")
+    )
+    if simulate:
+        imbalance_side = simulated_side
+    elif buy_qty > sell_qty:
         imbalance_side = "BUY"
     elif sell_qty > buy_qty:
         imbalance_side = "SELL"
@@ -290,6 +452,32 @@ def execute_uncross(
             break  # remaining bids below equilibrium
         if best_ask.price_ticks > eq_price:  # type: ignore[operator]
             break  # remaining asks above equilibrium
+
+        if (
+            best_bid.oco_group_id is not None
+            and best_bid.gateway_id == best_ask.gateway_id
+            and best_bid.oco_group_id == best_ask.oco_group_id
+        ):
+            book._smp_cancel_resting(best_bid, events)
+            if book.on_oco_leg_done is not None:
+                book.on_oco_leg_done(best_bid)
+            else:
+                book._smp_cancel_resting(best_ask, events)
+            continue
+
+        action, from_ask = _auction_smp_action(best_bid, best_ask)
+        if action != SmpAction.NONE:
+            aggressor = best_ask if from_ask else best_bid
+            passive = best_bid if from_ask else best_ask
+            if action in (SmpAction.CANCEL_AGGRESSOR, SmpAction.CANCEL_BOTH):
+                book._smp_cancel_resting(aggressor, events)
+                if aggressor.oco_group_id and book.on_oco_leg_done is not None:
+                    book.on_oco_leg_done(aggressor)
+            if action in (SmpAction.CANCEL_RESTING, SmpAction.CANCEL_BOTH):
+                book._smp_cancel_resting(passive, events)
+                if passive.oco_group_id and book.on_oco_leg_done is not None:
+                    book.on_oco_leg_done(passive)
+            continue
 
         # Cap an iceberg at its shown slice, as _sweep does for a passive one
         # (finding #17): _apply_fill replenishes a used-up slice at the back of

@@ -32,7 +32,8 @@ from typing import Any
 from unittest import mock
 
 from edumatcher.engine.order_book import OrderBook
-from edumatcher.models.order import Order, OrderStatus, OrderType
+from edumatcher.models.combo import ComboOrder, ComboType
+from edumatcher.models.order import Order, OrderStatus, OrderType, SmpAction
 from edumatcher.models.trade import Trade
 
 _DEAD = frozenset(
@@ -74,7 +75,11 @@ def _live_level_qty(book: OrderBook, side_heap) -> dict[int, int]:
 
 
 def assert_book_invariants(
-    book: OrderBook, *, include_hygiene: bool = False, context: str = ""
+    book: OrderBook,
+    *,
+    include_hygiene: bool = False,
+    check_crossed: bool = True,
+    context: str = "",
 ) -> None:
     """Assert every structural invariant of *book*.  See module docstring."""
     ctx = f" [{context}]" if context else ""
@@ -103,7 +108,7 @@ def assert_book_invariants(
     # ------------------------------------------------------------------
     live_bids = _live_level_qty(book, book._bids)
     live_asks = _live_level_qty(book, book._asks)
-    if live_bids and live_asks:
+    if check_crossed and live_bids and live_asks:
         best_bid, best_ask = max(live_bids), min(live_asks)
         assert best_bid < best_ask, (
             f"I2{ctx}: book is crossed — best bid {best_bid} >= best ask "
@@ -205,6 +210,35 @@ def assert_qty_conservation(
             f"shows {expected} filled on the order but {executed.get(o.id, 0)} "
             f"in the trade stream"
         )
+
+
+def assert_auction_invariants(fills: list[tuple[Trade, Order, Order]]) -> None:
+    """No SMP-protected self-trade or second filled leg of an OCO pair."""
+    filled_groups: dict[tuple[str, str], str] = {}
+    for trade, bid, ask in fills:
+        assert not (
+            bid.gateway_id == ask.gateway_id
+            and (
+                bid.smp_action not in (None, SmpAction.NONE)
+                or ask.smp_action not in (None, SmpAction.NONE)
+            )
+        ), f"auction self-match bypassed SMP: {trade.id}"
+        for order in (bid, ask):
+            if order.oco_group_id is None:
+                continue
+            key = (order.gateway_id, order.oco_group_id)
+            assert (
+                filled_groups.setdefault(key, order.id) == order.id
+            ), f"both legs of OCO group {key} filled in an auction"
+
+
+def assert_aon_combo_atomic_at_acceptance(combo: ComboOrder) -> None:
+    """An AON submission must never execute some but not all legs on entry."""
+    if combo.combo_type != ComboType.AON or not any(combo.leg_fill_qty.values()):
+        return
+    assert all(
+        combo.leg_fill_qty.get(i, 0) == leg.quantity for i, leg in enumerate(combo.legs)
+    ), f"AON combo {combo.combo_id} partially executed during acceptance"
 
 
 # ---------------------------------------------------------------------------
