@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import sqlite3
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 from zoneinfo import ZoneInfo
@@ -455,29 +455,23 @@ def test_subsequent_snapshots_still_respect_the_interval(
     clock = {"now": 12.0}
     epoch = datetime(2026, 6, 14, 9, 0, 0, tzinfo=timezone.utc)
 
-    class _FakeDatetime:
-        @staticmethod
-        def now(tz=None):
-            return epoch + timedelta(seconds=clock["now"])
-
-        @staticmethod
-        def fromtimestamp(value, tz=None):
-            return datetime.fromtimestamp(value, tz)
+    def at(book: dict) -> dict:
+        """The book as the engine stamps it: with the event time ``ts_ns``."""
+        return {**book, "ts_ns": int((epoch.timestamp() + clock["now"]) * 1e9)}
 
     monkeypatch.setattr(
         "edumatcher.stats.main.time.monotonic", lambda: clock["now"], raising=True
     )
-    monkeypatch.setattr("edumatcher.stats.main.datetime", _FakeDatetime)
     book = {"bids": [{"price": 99.0}], "asks": [{"price": 101.0}]}
 
-    sp._on_book("AAPL", book)  # first — always written
+    sp._on_book("AAPL", at(book))  # first — always written
     clock["now"] += 10.0
-    sp._on_book("AAPL", book)  # inside the interval — skipped
+    sp._on_book("AAPL", at(book))  # inside the interval — skipped
     count = sp._conn.execute("SELECT COUNT(*) FROM price_snapshots").fetchone()[0]
     assert count == 1
 
     clock["now"] += sp._snapshot_interval_sec
-    sp._on_book("AAPL", book)  # interval elapsed — written
+    sp._on_book("AAPL", at(book))  # interval elapsed — written
     count = sp._conn.execute("SELECT COUNT(*) FROM price_snapshots").fetchone()[0]
     assert count == 2
 
@@ -687,29 +681,23 @@ def test_pct_change_is_reproducible_from_consecutive_rows(
     clock = {"now": 12.0}
     epoch = datetime(2026, 6, 14, 9, 0, 0, tzinfo=timezone.utc)
 
-    class _FakeDatetime:
-        @staticmethod
-        def now(tz=None):
-            return epoch + timedelta(seconds=clock["now"])
-
-        @staticmethod
-        def fromtimestamp(value, tz=None):
-            return datetime.fromtimestamp(value, tz)
+    def at(book: dict) -> dict:
+        """The book as the engine stamps it: with the event time ``ts_ns``."""
+        return {**book, "ts_ns": int((epoch.timestamp() + clock["now"]) * 1e9)}
 
     monkeypatch.setattr(
         "edumatcher.stats.main.time.monotonic", lambda: clock["now"], raising=True
     )
-    monkeypatch.setattr("edumatcher.stats.main.datetime", _FakeDatetime)
 
     def advance() -> None:
         clock["now"] += sp._snapshot_interval_sec
 
-    sp._on_book("AAPL", {"bids": [{"price": 99.0}], "asks": [{"price": 101.0}]})
+    sp._on_book("AAPL", at({"bids": [{"price": 99.0}], "asks": [{"price": 101.0}]}))
     advance()
     # Empty book and no last price — this row has no usable mid.
-    sp._on_book("AAPL", {"bids": [], "asks": []})
+    sp._on_book("AAPL", at({"bids": [], "asks": []}))
     advance()
-    sp._on_book("AAPL", {"bids": [{"price": 109.0}], "asks": [{"price": 111.0}]})
+    sp._on_book("AAPL", at({"bids": [{"price": 109.0}], "asks": [{"price": 111.0}]}))
 
     rows = sp._conn.execute(
         "SELECT mid_price, pct_change FROM price_snapshots ORDER BY ts"
@@ -726,23 +714,17 @@ def test_pct_change_is_computed_between_adjacent_rows(
     clock = {"now": 12.0}
     epoch = datetime(2026, 6, 14, 9, 0, 0, tzinfo=timezone.utc)
 
-    class _FakeDatetime:
-        @staticmethod
-        def now(tz=None):
-            return epoch + timedelta(seconds=clock["now"])
-
-        @staticmethod
-        def fromtimestamp(value, tz=None):
-            return datetime.fromtimestamp(value, tz)
+    def at(book: dict) -> dict:
+        """The book as the engine stamps it: with the event time ``ts_ns``."""
+        return {**book, "ts_ns": int((epoch.timestamp() + clock["now"]) * 1e9)}
 
     monkeypatch.setattr(
         "edumatcher.stats.main.time.monotonic", lambda: clock["now"], raising=True
     )
-    monkeypatch.setattr("edumatcher.stats.main.datetime", _FakeDatetime)
 
-    sp._on_book("AAPL", {"bids": [{"price": 99.0}], "asks": [{"price": 101.0}]})
+    sp._on_book("AAPL", at({"bids": [{"price": 99.0}], "asks": [{"price": 101.0}]}))
     clock["now"] += sp._snapshot_interval_sec
-    sp._on_book("AAPL", {"bids": [{"price": 109.0}], "asks": [{"price": 111.0}]})
+    sp._on_book("AAPL", at({"bids": [{"price": 109.0}], "asks": [{"price": 111.0}]}))
 
     rows = sp._conn.execute(
         "SELECT mid_price, pct_change FROM price_snapshots ORDER BY ts"

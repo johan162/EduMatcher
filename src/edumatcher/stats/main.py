@@ -1526,10 +1526,37 @@ class StatsProcess:
             self._accum[symbol] = acc
         self._dbg_count("trades_persisted")
 
+    def _snapshot_baseline(self, symbol: str) -> Optional[float]:
+        """The mid of the last persisted snapshot for *symbol*, or None.
+
+        After a restart the in-memory baseline is empty, and starting from
+        nothing would leave the first ``pct_change`` NULL although the table
+        holds the row it should be measured from. So the first time a symbol is
+        asked about, the latest stored row is the baseline — including a row
+        whose mid is NULL, which is the baseline like any other.
+        """
+        if symbol not in self._last_snap_mid:
+            row = self._conn.execute(
+                "SELECT mid_price FROM price_snapshots WHERE symbol = ? "
+                "ORDER BY ts DESC LIMIT 1",
+                (symbol,),
+            ).fetchone()
+            if row is None:
+                return None
+            self._last_snap_mid[symbol] = row[0]
+        return self._last_snap_mid[symbol]
+
     def _on_book(self, symbol: str, payload: dict[str, Any]) -> None:
-        # A book message is a snapshot of "now" and carries no timestamp of
-        # its own, so receipt time is the event time.
-        now_epoch = time.time()
+        # Event time, not receipt time: book.{symbol} carries the instant the
+        # snapshot was produced (ts_ns), and a book handled just after the
+        # trading day rolls over still belongs to the day it describes. Receipt
+        # time is only the fallback for a message that lacks one.
+        ts_ns = payload.get("ts_ns")
+        if isinstance(ts_ns, int) and not isinstance(ts_ns, bool) and ts_ns > 0:
+            now_epoch = ts_ns / 1_000_000_000
+        else:
+            now_epoch = time.time()
+            log.warning("book %s has no engine timestamp; using receipt time", symbol)
         with self._lock:
             # Record opening bid/ask once per day
             acc = self._accum_for(symbol, self._trading_date(now_epoch))
@@ -1574,12 +1601,14 @@ class StatsProcess:
                 # is NULL becomes the new baseline rather than being skipped
                 # over — otherwise a percentage silently spans several
                 # intervals while still looking like a one-interval move.
-                prev = self._last_snap_mid.get(symbol)
+                prev = self._snapshot_baseline(symbol)
                 pct = None
                 if mid is not None and prev is not None and prev != 0:
                     pct = round((mid - prev) / prev * 100, 4)
 
-                snap_ts = datetime.now(tz=timezone.utc).isoformat(timespec="seconds")
+                snap_ts = datetime.fromtimestamp(now_epoch, tz=timezone.utc).isoformat(
+                    timespec="seconds"
+                )
                 with self._conn:
                     cursor = self._conn.execute(
                         INSERT_SNAPSHOT,
