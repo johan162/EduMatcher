@@ -436,6 +436,39 @@ def test_d10_finds_an_indicative_the_book_does_not_make(
     assert sample["replay"] == [10000, 60, 20, "BUY"]
 
 
+def test_d10_does_not_reuse_an_uncross_cached_for_a_book_a_checkpoint_replaced(
+    tmp_path: Path, open_ds: OpenDataset
+) -> None:
+    """A checkpoint builds a new book whose version restarts: the uncross
+    cached for the old book at the same version must not answer for it."""
+    t = auction_with_indicatives((100.0, 60, 20, "BUY"))
+    rec = {"gateway_id": "GW1", "order_type": "LIMIT", "tif": "DAY", "quantity": 10, "remaining_qty": 10}  # fmt: skip
+    t.put(
+        f"system.book_checkpoint.{SYM}",
+        {
+            "symbol": SYM,
+            "reason": "PHASE",
+            "phase": "OPENING_AUCTION",
+            "bids": [
+                {**rec, "order_id": f"C{i}", "side": "BUY", "price_ticks": 9900 - i}
+                for i in range(2)
+            ],
+            "asks": [
+                {**rec, "order_id": f"C{i}", "side": "SELL", "price_ticks": 10100 + i}
+                for i in range(2, 4)
+            ],
+            "buy_stops": [],
+            "sell_stops": [],
+            "trailing_stops": [],
+        },
+        new_chain=True,
+    )
+    indicative(t, None, 0, 0, "")
+    data = t.write(tmp_path / "data")
+    out = run(open_ds, data, "D10")
+    assert out.violations == 0, out.samples
+
+
 def test_the_linear_uncross_is_the_definition() -> None:
     """``_uncross_of`` against the definition, summed price by price."""
     import random

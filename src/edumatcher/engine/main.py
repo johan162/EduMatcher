@@ -1849,6 +1849,12 @@ class Engine:
         # Wire dict -> Order object.  Prices arrive already as integer ticks.
         order = Order.from_dict(payload)
         self._dbg_count("new_order_requests")
+        # K3: displayed_qty is the engine's own bookkeeping of the slice now
+        # showing, not client input. Whatever arrived on the wire is replaced
+        # by the first slice, derived from the client's visible_qty (which
+        # _validate_new_order checks below).
+        if order.order_type == OrderType.ICEBERG and order.visible_qty is not None:
+            order.displayed_qty = min(order.visible_qty, order.remaining_qty)
 
         # SMP=None means the client omitted it -- fall back to the gateway's
         # configured default (participants[].smp_action). An explicit value
@@ -3278,7 +3284,12 @@ class Engine:
         if self._enforce_circuit_breakers:
             _cb = self._circuit_breakers.get(trade.symbol)
             if _cb is not None:
-                self._check_circuit_breaker(trade.symbol, trade.price, trade.ts_ns)
+                self._check_circuit_breaker(
+                    trade.symbol,
+                    trade.price,
+                    trade.ts_ns,
+                    may_trigger=trade.match_type == "CONTINUOUS",
+                )
 
     @staticmethod
     def _executions(trades: list[Trade]) -> dict[str, _Execution]:
@@ -3466,9 +3477,16 @@ class Engine:
             cum_notional_ticks=order.cum_notional_ticks,
         )
 
-    def _check_circuit_breaker(self, symbol: str, trade_price: int, now: int) -> None:
+    def _check_circuit_breaker(
+        self, symbol: str, trade_price: int, now: int, *, may_trigger: bool = True
+    ) -> None:
         """
         Called after every fill to check whether a circuit breaker halt should fire.
+
+        An auction print (``may_trigger=False``) enters the reference window
+        but never halts: a reopening print would otherwise restart the halt it
+        ends, right after its ``resume``, and an opening or closing print is
+        itself the price discovery a halt would be waiting for.
 
         If the rolling-window average has moved more than ``dynamic_band_pct``
         from the trigger price, the symbol is halted:
@@ -3482,7 +3500,7 @@ class Engine:
         cb = self._circuit_breakers.get(symbol)
         if cb is None:
             return
-        triggered_level = cb.record_trade(trade_price, now)
+        triggered_level = cb.record_trade(trade_price, now, may_trigger=may_trigger)
         if triggered_level is None:
             return
 
@@ -3597,6 +3615,11 @@ class Engine:
                     f"CLOSING BACKSTOP {symbol}: no crossing interest, "
                     f"halt cleared after {expansions} ACE extension(s)"
                 )
+                if indicative.resolve_price is not None:
+                    # The book crosses, but SMP or an OCO pair consumes all of
+                    # it: nothing prints, yet that interest must still be
+                    # cancelled, as the REOPEN path's uncross does (K1).
+                    self._run_uncross(symbol_filter=symbol, reason="BACKSTOP")
             else:
                 log.info(
                     f"CLOSING BACKSTOP {symbol}: "
@@ -5315,10 +5338,20 @@ class Engine:
         # instead (its first leg, INSUFFICIENT_LIQUIDITY, so the combo fails
         # with nothing posted): resting that leg unmatched would leave its
         # book crossed in continuous trading. A seeded combo rests regardless.
+        # "Would trade" counts the gateway's own resting orders too: SMP takes
+        # them out of what is fillable, but a leg resting against them crosses
+        # the book just the same.
         aon_blocked = aon_rejected = False
         if combo.combo_type == ComboType.AON:
             fillable = [
-                self._book(leg.symbol).fillable_quantity(leg.side, leg.price_ticks)
+                self._book(leg.symbol).fillable_quantity(
+                    leg.side,
+                    leg.price_ticks,
+                    gateway_id=combo.gateway_id,
+                    smp_action=self._resolve_smp_action(
+                        combo.gateway_id, leg.smp_action
+                    ),
+                )
                 for leg in combo.legs
             ]
             aon_blocked = any(f < leg.quantity for f, leg in zip(fillable, combo.legs))
@@ -5327,8 +5360,15 @@ class Engine:
                 and not is_seed
                 and is_matching_enabled(self._session_state)
                 and any(
-                    f > 0 and not self._halted_symbols.get(leg.symbol)
-                    for f, leg in zip(fillable, combo.legs)
+                    not self._halted_symbols.get(leg.symbol)
+                    and self._book(leg.symbol).fillable_quantity(
+                        leg.side,
+                        leg.price_ticks,
+                        gateway_id=combo.gateway_id,
+                        smp_action=SmpAction.NONE,
+                    )
+                    > 0
+                    for leg in combo.legs
                 )
             )
 
@@ -5931,10 +5971,17 @@ class Engine:
                     imbalance_side=result.imbalance_side,
                 )
             trades: list[Any] = []
-            if result.eq_price is not None and result.eq_qty > 0:
+            # SMP or an OCO pair can consume the whole overlap, so the book
+            # crosses but nothing prints. The uncross still has to run at that
+            # price to cancel the interest -- without publishing it as an
+            # equilibrium (K1).
+            uncross_price = (
+                result.eq_price if result.eq_price is not None else result.resolve_price
+            )
+            if uncross_price is not None:
                 # Bind before any reassignment of `result` below, which would
                 # otherwise discard the `is not None` narrowing.
-                fill_px = result.eq_price
+                fill_px = uncross_price
                 trades, events = execute_uncross(book, fill_px)
                 if price_override is not None:
                     # Fewer shares trade at a clamped price than at the true
@@ -5948,10 +5995,12 @@ class Engine:
 
                 for t in trades:
                     t.match_type, t.auction_id = match_type, auction_id
-                # X8b: the book's quote and OCO hooks are not called inside
+                # X8b: the book's quote hook is not called inside
                 # execute_uncross (its two-sided walk must not be mutated
-                # mid-way), so their follow-ups run here -- before the stops
-                # below, which must not trade with a leg they pull.
+                # mid-way), so its follow-ups run here -- before the stops
+                # below, which must not trade with a leg they pull. The OCO
+                # hook does run inside the walk (K1): a filled leg's sibling
+                # must not fill in the same uncross.
                 self._publish_dispatch(trades, events)
 
             # Trigger stop and trailing-stop orders whose stop price is now

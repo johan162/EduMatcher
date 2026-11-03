@@ -97,6 +97,7 @@ SQLite tables
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import logging
 import signal
@@ -380,7 +381,10 @@ class _IndexDayAccum:
 #: 10 — EduMatcher 1.0 (sim forensics S26): ``trade_log`` gains the order ids,
 #:     ``match_type`` and ``msg_id``; ``order_events`` gains ``msg_id`` -- the
 #:     audit message each row records, so a row joins its audit line.
-SCHEMA_VERSION = 10
+#: 11 — ``index_level_snapshots`` is keyed on an arrival ``seq`` instead of
+#:     ``(ts, index_id)``: two updates in one millisecond used to collapse into
+#:     one row, so a rehydrated rollup under-counted them.
+SCHEMA_VERSION = 11
 
 #: How long pm-stats keeps recording already-queued engine messages after it
 #: is told to stop (see StatsProcess._drain).
@@ -594,6 +598,9 @@ CREATE TABLE IF NOT EXISTS index_daily_stats (
 );
 
 CREATE TABLE IF NOT EXISTS index_level_snapshots (
+    -- Arrival order. ts has millisecond resolution, so it cannot identify an
+    -- update: two in one millisecond are two rows (K9 / S4).
+    seq             INTEGER PRIMARY KEY AUTOINCREMENT,
     ts              TEXT NOT NULL,
     index_id        TEXT NOT NULL,
     level           REAL NOT NULL,
@@ -602,8 +609,7 @@ CREATE TABLE IF NOT EXISTS index_level_snapshots (
     session_state   TEXT,
     day_open        REAL,
     day_high        REAL,
-    day_low         REAL,
-    PRIMARY KEY (ts, index_id)
+    day_low         REAL
 );
 
 CREATE INDEX IF NOT EXISTS idx_ids_index_ts ON index_level_snapshots(index_id, ts);
@@ -701,7 +707,7 @@ ON CONFLICT(date, index_id) DO UPDATE SET
 """
 
 INSERT_INDEX_SNAPSHOT = """
-INSERT OR IGNORE INTO index_level_snapshots
+INSERT INTO index_level_snapshots
     (ts, index_id, level, aggregate_cap, divisor, session_state, day_open, day_high, day_low)
 VALUES (?,?,?,?,?,?,?,?,?)
 """
@@ -1379,11 +1385,8 @@ class StatsProcess:
     def _rehydrate_index_daily(self, index_id: str, day: str) -> _IndexDayAccum:
         """Rebuild one index's accumulator for *day* from persisted snapshots.
 
-        ``update_count`` is recovered as the number of retained snapshot rows.
-        ``index_level_snapshots`` inserts are ``OR IGNORE`` on ``(ts,
-        index_id)``, so two updates landing in the same millisecond leave only
-        one row and the recovered count can be a shade lower than the number
-        of updates originally received.
+        ``update_count`` is recovered as the number of snapshot rows; every
+        update is its own row (``seq``), so it equals the live count.
         """
         acc = _IndexDayAccum(date=day, index_id=index_id)
         day_start, day_end = trading_day_bounds(day, self._tz)
@@ -1472,7 +1475,12 @@ class StatsProcess:
             # the moment of processing: a trade printed just before the
             # trading day rolls over must not be booked into the next day
             # because it happened to be handled a few milliseconds late.
-            acc = self._accum_for(symbol, self._trading_date(epoch_sec))
+            current = self._accum_for(symbol, self._trading_date(epoch_sec))
+            # Work on a copy and install it only once the transaction has
+            # committed: the live rollup then never gets ahead of (or differs
+            # from) the database, whether the write fails or the trade turns
+            # out to be a duplicate.
+            acc = copy.copy(current)
             self._note_tick_decimals(acc, _payload_tick_decimals(payload))
             # Convert with the accumulator's scale, not the payload's, so the
             # integer written and the tick_decimals written beside it always
@@ -1480,17 +1488,14 @@ class StatsProcess:
             tick_decimals = acc.tick_decimals
             price_ticks = _to_ticks(price, tick_decimals)
             assert price_ticks is not None  # price is not None, checked above
-            acc.on_trade(price_ticks, qty)
             # One transaction for both writes. The rollup is reconstructed
             # from trade_log on restart, so committing them separately would
             # let a crash in between leave the two permanently disagreeing.
             with self._conn:
-                # Inside the same transaction as the trade itself, so a
-                # recorded gap can never survive without the trade that
-                # revealed it, or vice versa.
-                self._check_trade_sequence(str(payload.get("id", "")), ts)
-                self._write_daily(acc)
-                self._conn.execute(
+                # The insert decides first whether this is a new trade (K9 /
+                # S1): a repeated trade_id is dropped before it can touch the
+                # rollup or the gap tracker.
+                inserted = self._conn.execute(
                     INSERT_TRADE,
                     (
                         ts,
@@ -1507,13 +1512,51 @@ class StatsProcess:
                         payload.get("match_type"),
                         msg_id,
                     ),
-                )
+                ).rowcount
+                if inserted:
+                    # Inside the same transaction as the trade itself, so a
+                    # recorded gap can never survive without the trade that
+                    # revealed it, or vice versa.
+                    self._check_trade_sequence(str(payload.get("id", "")), ts)
+                    acc.on_trade(price_ticks, qty)
+                    self._write_daily(acc)
+            if not inserted:
+                self._dbg_count("duplicate_trades")
+                return
+            self._accum[symbol] = acc
         self._dbg_count("trades_persisted")
 
+    def _snapshot_baseline(self, symbol: str) -> Optional[float]:
+        """The mid of the last persisted snapshot for *symbol*, or None.
+
+        After a restart the in-memory baseline is empty, and starting from
+        nothing would leave the first ``pct_change`` NULL although the table
+        holds the row it should be measured from. So the first time a symbol is
+        asked about, the latest stored row is the baseline — including a row
+        whose mid is NULL, which is the baseline like any other.
+        """
+        if symbol not in self._last_snap_mid:
+            row = self._conn.execute(
+                "SELECT mid_price FROM price_snapshots WHERE symbol = ? "
+                "ORDER BY ts DESC LIMIT 1",
+                (symbol,),
+            ).fetchone()
+            if row is None:
+                return None
+            self._last_snap_mid[symbol] = row[0]
+        return self._last_snap_mid[symbol]
+
     def _on_book(self, symbol: str, payload: dict[str, Any]) -> None:
-        # A book message is a snapshot of "now" and carries no timestamp of
-        # its own, so receipt time is the event time.
-        now_epoch = time.time()
+        # Event time, not receipt time: book.{symbol} carries the instant the
+        # snapshot was produced (ts_ns), and a book handled just after the
+        # trading day rolls over still belongs to the day it describes. Receipt
+        # time is only the fallback for a message that lacks one.
+        ts_ns = payload.get("ts_ns")
+        if isinstance(ts_ns, int) and not isinstance(ts_ns, bool) and ts_ns > 0:
+            now_epoch = ts_ns / 1_000_000_000
+        else:
+            now_epoch = time.time()
+            log.warning("book %s has no engine timestamp; using receipt time", symbol)
         with self._lock:
             # Record opening bid/ask once per day
             acc = self._accum_for(symbol, self._trading_date(now_epoch))
@@ -1558,12 +1601,14 @@ class StatsProcess:
                 # is NULL becomes the new baseline rather than being skipped
                 # over — otherwise a percentage silently spans several
                 # intervals while still looking like a one-interval move.
-                prev = self._last_snap_mid.get(symbol)
+                prev = self._snapshot_baseline(symbol)
                 pct = None
                 if mid is not None and prev is not None and prev != 0:
                     pct = round((mid - prev) / prev * 100, 4)
 
-                snap_ts = datetime.now(tz=timezone.utc).isoformat(timespec="seconds")
+                snap_ts = datetime.fromtimestamp(now_epoch, tz=timezone.utc).isoformat(
+                    timespec="seconds"
+                )
                 with self._conn:
                     cursor = self._conn.execute(
                         INSERT_SNAPSHOT,
@@ -1646,7 +1691,8 @@ class StatsProcess:
         )
 
         with self._lock:
-            acc = self._index_accum_for(index_id, self._trading_date(epoch_sec))
+            current = self._index_accum_for(index_id, self._trading_date(epoch_sec))
+            acc = copy.copy(current)  # installed only after the commit, as for trades
             acc.on_update(level, aggregate_cap, session_state)
             # Single transaction — the rollup is reconstructed from these
             # snapshot rows on restart, so the two must not diverge.
@@ -1666,6 +1712,7 @@ class StatsProcess:
                         day_low,
                     ),
                 )
+            self._index_accum[index_id] = acc
         log.debug(
             "recorded index update index_id=%s level=%s session_state=%s ts=%s",
             index_id,

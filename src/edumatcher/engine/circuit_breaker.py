@@ -167,8 +167,13 @@ class CircuitBreakerState:
         self._history_len_synced += 1
         self.reference_price = price
 
-    def record_trade(self, price: int, now: int) -> CircuitBreakerLevel | None:
-        """Record a fill and return the triggered breaker level, if any."""
+    def record_trade(
+        self, price: int, now: int, *, may_trigger: bool = True
+    ) -> CircuitBreakerLevel | None:
+        """Record a fill and return the triggered breaker level, if any.
+
+        With ``may_trigger=False`` the price joins the reference window but
+        can not fire a level (an auction's print)."""
         if self.halted:
             return None  # don't double-trigger an active halt
 
@@ -182,7 +187,7 @@ class CircuitBreakerState:
             self._history_len_synced -= 1
 
         fired_level: CircuitBreakerLevel | None = None
-        if self.trade_history:
+        if self.trade_history and may_trigger:
             ref = self._trade_price_sum // len(self.trade_history)
             self.reference_price = ref
             shift = abs(price - ref) / ref if ref > 0 else 0.0

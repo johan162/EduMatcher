@@ -177,6 +177,19 @@ _DEAD_STATUSES: frozenset[OrderStatus] = frozenset(
 )
 
 
+def _smp_policy(
+    gateway_id: str, smp_action: SmpAction | None, passive: Order
+) -> SmpAction:
+    if gateway_id != passive.gateway_id:
+        return SmpAction.NONE
+    return smp_action or SmpAction.NONE
+
+
+def _self_match_action(aggressor: Order, passive: Order) -> SmpAction:
+    """Return the aggressor's SMP policy only for a same-gateway match."""
+    return _smp_policy(aggressor.gateway_id, aggressor.smp_action, passive)
+
+
 @dataclass(frozen=True, slots=True)
 class BookStats:
     """Sizes of one book, for the health beacon (operator dashboard §8.3).
@@ -1341,7 +1354,12 @@ class OrderBook:
         violation).  Rejecting before any fill keeps FOK all-or-nothing.
         """
         opposite = self._asks if order.side == Side.BUY else self._bids
-        available = self._fok_available_qty(order, opposite)
+        available = self.fillable_quantity(
+            order.side,
+            order.price_ticks,
+            gateway_id=order.gateway_id,
+            smp_action=order.smp_action,
+        )
         if available < order.quantity:
             # The FOK cannot fully fill.  Resolve SMP the same way a sweep
             # would, then finalise a terminal status WITHOUT any partial fill.
@@ -1413,33 +1431,17 @@ class OrderBook:
                 order.cancel_reason = "SELF_MATCH_PREVENTED"
             events.append(order)
 
-    def fillable_quantity(self, side: Side, price_limit: Optional[int]) -> int:
-        """Resting quantity an incoming order of *side* could execute against
-        at or within *price_limit*, counting hidden iceberg quantity.
+    def fillable_quantity(
+        self,
+        side: Side,
+        price_limit: Optional[int],
+        *,
+        gateway_id: str,
+        smp_action: SmpAction | None,
+    ) -> int:
+        """Liquidity an incoming FOK or AON child could actually execute against.
 
-        Used by the AON combo pre-check (M5) to decide whether every leg can
-        fill before any leg is allowed to execute.
-        """
-        heap = self._asks if side == Side.BUY else self._bids
-        total = 0
-        for entry in heap:
-            if not entry.valid:
-                continue
-            o = entry.order
-            if o.status in _DEAD_STATUSES or o.price_ticks is None:
-                continue
-            if price_limit is not None:
-                if side == Side.BUY and o.price_ticks > price_limit:
-                    continue
-                if side == Side.SELL and o.price_ticks < price_limit:
-                    continue
-            total += o.remaining_qty
-        return total
-
-    def _fok_available_qty(self, order: Order, heap: list[_HeapEntry]) -> int:
-        """Liquidity a FOK could actually execute against.
-
-        Walks live resting orders on *heap* in priority order up to the FOK's
+        Walks live resting orders in priority order up to the order's
         price limit, the way the sweep will meet them (H8):
 
         - Resting iceberg hidden quantity counts, but -- as a replenished peak
@@ -1448,17 +1450,11 @@ class OrderBook:
         - Same-gateway orders are skipped when SMP is active: the sweep skips
           or cancels them.
         - Under CANCEL_AGGRESSOR / CANCEL_BOTH the sweep *stops* at the first
-          same-gateway order it meets, so nothing behind it counts. Summing
-          past it let a FOK trade part of its size and then cancel (workplan
-          T2, bug C).
+          same-gateway order it meets, so nothing behind it counts.
         """
-        price_limit = order.price_ticks
-        side = order.side
-        # See _match_fok's comment: None should never reach here, but treat
-        # it as "no SMP" rather than raising if it somehow does.
-        smp = order.smp_action or SmpAction.NONE
+        heap = self._asks if side == Side.BUY else self._bids
+        smp = smp_action or SmpAction.NONE
         stops_sweep = smp in (SmpAction.CANCEL_AGGRESSOR, SmpAction.CANCEL_BOTH)
-        gw = order.gateway_id
         # A heap list is only partially ordered (heap[0] is best, the rest is
         # not sorted), and popping would destroy the book.  sorted() on a COPY
         # uses _HeapEntry.__lt__ (the key) to give true price-time order
@@ -1489,7 +1485,7 @@ class OrderBook:
                 level_price, level_hidden = price, 0
             # SMP: same-gateway resting liquidity is skipped/cancelled by the
             # sweep, so it cannot be used to fill this FOK.
-            if smp != SmpAction.NONE and o.gateway_id == gw:
+            if _smp_policy(gateway_id, smp, o) != SmpAction.NONE:
                 if stops_sweep:
                     return total
                 continue
@@ -1702,8 +1698,14 @@ class OrderBook:
     # Sweep helpers
     # ------------------------------------------------------------------
 
-    def _smp_cancel_resting(self, order: Order, events: list[Order]) -> None:
-        """Mark a resting order as CANCELLED (SMP), remove from index."""
+    def _smp_cancel_resting(
+        self,
+        order: Order,
+        events: list[Order],
+        reason: str | None = "SELF_MATCH_PREVENTED",
+    ) -> None:
+        """Mark a resting order as CANCELLED (SMP unless *reason* says
+        otherwise), remove from index."""
         log.debug(
             "SMP cancel resting order_id=%s symbol=%s side=%s price=%s qty=%s gateway=%s",
             order.id,
@@ -1714,7 +1716,7 @@ class OrderBook:
             order.gateway_id,
         )
         order.status = OrderStatus.CANCELLED
-        order.cancel_reason = "SELF_MATCH_PREVENTED"
+        order.cancel_reason = reason
         entry = self._entry_index.get(order.id)
         if entry and order.price_ticks is not None:
             qty = (
@@ -1771,9 +1773,6 @@ class OrderBook:
         # Cache immutable aggressor attributes / bound methods as locals for the
         # tight sweep loop (see docs-design/perf-notes.md).
         _side = aggressor.side
-        # None should never reach here (see SmpAction's docstring) but treat
-        # it as "no SMP" defensively rather than raising.
-        _smp_action = aggressor.smp_action or SmpAction.NONE
         _gw_id = aggressor.gateway_id
         _peek = self._peek  # method lookup once
         _apply_fill = self._apply_fill
@@ -1802,8 +1801,9 @@ class OrderBook:
             # (3) Self-match prevention: the same gateway on both sides would
             # be trading with itself (a "wash trade").  What happens depends
             # on the policy the order (or its gateway) carries.
-            if _smp_action != SmpAction.NONE and _gw_id == best.gateway_id:
-                if _smp_action == SmpAction.CANCEL_AGGRESSOR:
+            smp_action = _self_match_action(aggressor, best)
+            if smp_action != SmpAction.NONE:
+                if smp_action == SmpAction.CANCEL_AGGRESSOR:
                     log.debug(
                         "SMP cancel aggressor order_id=%s symbol=%s vs resting_id=%s gateway=%s",
                         aggressor.id,
@@ -1818,10 +1818,10 @@ class OrderBook:
                     aggressor.cancel_reason = "SELF_MATCH_PREVENTED"
                     events.append(aggressor)
                     return
-                elif _smp_action == SmpAction.CANCEL_RESTING:
+                elif smp_action == SmpAction.CANCEL_RESTING:
                     self._smp_cancel_resting(best, events)
                     continue  # skip this resting order; try next
-                elif _smp_action == SmpAction.CANCEL_BOTH:
+                elif smp_action == SmpAction.CANCEL_BOTH:
                     log.debug(
                         "SMP cancel both aggressor_id=%s resting_id=%s symbol=%s gateway=%s",
                         aggressor.id,
@@ -2014,7 +2014,7 @@ class OrderBook:
             self._purge_from_indexes(passive)
         events.append(passive)
 
-        # --- Callbacks into the engine (continuous matching only) -----------
+        # --- Callbacks into the engine ---------------------------------------
         # A market maker's quote is a bid leg + an ask leg; when one leg
         # trades the engine may need to pull the other, and an OCO pair needs
         # its sibling cancelled.  This must happen NOW, between fills of one
@@ -2026,7 +2026,7 @@ class OrderBook:
                 self.on_quote_leg_fill(passive)
             if aggressor.quote_id is not None:
                 self.on_quote_leg_fill(aggressor)
-        if not both_resting and self.on_oco_leg_done is not None:
+        if self.on_oco_leg_done is not None:
             if (
                 passive.oco_group_id is not None
                 and passive.status == OrderStatus.FILLED

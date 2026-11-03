@@ -925,10 +925,9 @@ def query_index_snapshots(
 ) -> tuple[list[dict[str, Any]], str | None]:
     """Return up to *limit* index snapshots plus a next-page cursor.
 
-    ``index_level_snapshots``' primary key is ``(ts, index_id)``, but
-    multiple indexes can share a ``ts`` — since this query is already
-    scoped to one ``index_id``, ``rowid`` (insertion order) still serves as
-    the tiebreaker for any same-``ts`` rows within that single index.
+    Several updates, of one index or of different ones, can share a ``ts``
+    (millisecond resolution), so ``rowid`` (the arrival ``seq``) is the
+    tiebreaker for same-``ts`` rows.
     """
     sql = (
         "SELECT rowid AS _rowid, ts, index_id, level, aggregate_cap, divisor, "

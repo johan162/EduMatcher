@@ -326,10 +326,16 @@ class TestOnBook:
 
     def test_pct_change_computed_when_prev_mid_exists(self, sp: StatsProcess) -> None:
         sp._last_snap_ts["AAPL"] = time.monotonic() - SNAPSHOT_INTERVAL_SEC - 1
-        sp._last_snap_mid["AAPL"] = 100.0  # previous mid
+        # The previous mid is a persisted row, as it is in production.
+        sp._conn.execute(
+            "INSERT INTO price_snapshots (ts, symbol, mid_price, tick_decimals)"
+            " VALUES ('2000-01-01T00:00:00+00:00', 'AAPL', 100.0, 2)"
+        )
         # new mid = (150 + 151) / 2 = 150.5
         sp._on_book("AAPL", self._book_payload(bid=150.0, ask=151.0))
-        rows = sp._conn.execute("SELECT pct_change FROM price_snapshots").fetchall()
+        rows = sp._conn.execute(
+            "SELECT pct_change FROM price_snapshots ORDER BY ts DESC"
+        ).fetchall()
         assert rows[0][0] is not None
 
 

@@ -100,6 +100,8 @@ FLUSH_SIZE: int = 100
 FLUSH_INTERVAL_SEC: float = 5.0
 _TIMER_POLL_SEC: float = 0.5
 _DRAIN_POLL_MS: int = 250
+#: Ids per ``trade_events`` lookup (SQLite's bound-variable limit is 999 on old builds).
+_ID_LOOKUP_CHUNK: int = 500
 _RETENTION_DAYS: int = 90
 _DEBUG_SUMMARY_INTERVAL_SEC: float = 5.0
 # trade.executed carries `ts_ns`: integer Unix epoch NANOSECONDS, the engine's
@@ -224,15 +226,17 @@ class ClearingProcess:
         #: The audit message id of each buffered trade (trade_events.msg_id).
         self._msg_ids: dict[str, str] = {}
         self._ledger = Ledger(tz=session_tz)
+        #: A failed flush could not rebuild the ledger; see _rollback_ledger.
+        self._ledger_stale = False
         self._trade_count = 0
 
         # Idempotency, decided ONCE for both the ledger and the archive
-        # (finding CL-M1).  A trade is keyed by (id, ts_ns) — the same key the
-        # archive dedups on — so a duplicate delivery (retransmit / replay) is
-        # dropped before it can double-count a position.  Bounded LRU of recent
-        # keys; the archive's UNIQUE(id, ts_ns) constraint is the durable
-        # backstop for anything evicted.
-        self._seen_keys: OrderedDict[tuple[str, int], None] = OrderedDict()
+        # (finding CL-M1).  A trade is keyed by its id alone — the archive's
+        # primary key — so a duplicate delivery (retransmit / replay, whatever
+        # its timestamp) never double-counts a position.  The bounded LRU of
+        # recent ids is only a fast path; ``_flush`` checks ``trade_events``
+        # (K4), which survives restarts and eviction.
+        self._seen_keys: OrderedDict[str, None] = OrderedDict()
         self._seen_cap = 200_000
         self._dup_count = 0
 
@@ -297,17 +301,23 @@ class ClearingProcess:
     # ------------------------------------------------------------------
 
     def _hydrate_ledger(self) -> None:
-        """Restore in-memory positions from ``gateway_symbol_positions``."""
+        """
+        Restore in-memory positions from ``gateway_symbol_positions``.
+
+        A failure is fatal (K5): carrying on with an empty ledger would make
+        the next flush UPSERT flat positions over the persisted ones. The
+        constructor raises, and ``main()`` exits non-zero.
+        """
         try:
             rows = fetch_all_positions(self._conn)
             self._ledger.restore(rows)
-            if rows:
-                log.info(
-                    "warm start: restored %d position(s) from the database", len(rows)
-                )
-            log.debug("warm start restored positions=%d", len(rows))
         except Exception as exc:
-            log.warning("warm-start hydration failed: %s", exc)
+            log.error("warm-start hydration failed, refusing to start: %s", exc)
+            self._conn.close()
+            raise
+        if rows:
+            log.info("warm start: restored %d position(s) from the database", len(rows))
+        log.debug("warm start restored positions=%d", len(rows))
 
     def run(self) -> None:
         """Start the clearing process; blocks until stop() is called."""
@@ -451,69 +461,82 @@ class ClearingProcess:
                     break
                 continue
 
-            frames = sub.recv_multipart()
+            self._handle_message(sub.recv_multipart())
+
+    def _handle_message(self, frames: list[bytes]) -> None:
+        """Decode and act on one message from the feed."""
+        try:
+            topic, payload = decode(frames)
+        except Exception as exc:
+            log.warning("failed to decode frame: %s", exc)
+            return
+
+        self._dbg_count("messages_received")
+
+        # One bad message, whatever its topic, must not take the loop down:
+        # a decodable payload can still hold a value a handler rejects.
+        try:
+            self._dispatch(topic, payload, frames)
+        except Exception as exc:
+            log.warning("error handling %s: %s", topic, exc)
+
+    def _dispatch(
+        self, topic: str, payload: dict[str, Any], frames: list[bytes]
+    ) -> None:
+        if topic == TOPIC_TRADE_EXECUTED:
             try:
-                topic, payload = decode(frames)
+                trade = _trade_from_payload(payload)
             except Exception as exc:
-                log.warning("failed to decode frame: %s", exc)
-                continue
+                log.warning("failed to parse trade: %s", exc)
+                return
 
-            self._dbg_count("messages_received")
+            with self._lock:
+                # Count every observed trade message (used for progress /
+                # print cadence), then dedup before buffering so a replay
+                # is neither re-applied to the ledger nor re-archived.
+                self._trade_count += 1
+                if self._is_duplicate(trade):
+                    self._dup_count += 1
+                    self._dbg_count("duplicates")
+                else:
+                    self._check_sequence_gap(trade)
+                    self._buffer.append(trade)
+                    env = decode_envelope(frames)
+                    if env is not None:
+                        self._msg_ids[trade.id] = env.msg_id
+                    self._dbg_count("trades_buffered")
+                    if len(self._buffer) >= self._flush_size:
+                        self._flush()
 
-            if topic == TOPIC_TRADE_EXECUTED:
-                try:
-                    trade = _trade_from_payload(payload)
-                except Exception as exc:
-                    log.warning("failed to parse trade: %s", exc)
-                    continue
+            # CL-L6: read _trade_count outside the lock intentionally.
+            # Worst-case effect is a skipped or duplicated print cadence,
+            # never a data-integrity issue.
+            if self._print_every > 0 and self._trade_count % self._print_every == 0:
+                self._print_pnl_table()
 
-                with self._lock:
-                    # Count every observed trade message (used for progress /
-                    # print cadence), then dedup before buffering so a replay
-                    # is neither re-applied to the ledger nor re-archived.
-                    self._trade_count += 1
-                    if self._is_duplicate(trade):
-                        self._dup_count += 1
-                        self._dbg_count("duplicates")
-                    else:
-                        self._check_sequence_gap(trade)
-                        self._buffer.append(trade)
-                        env = decode_envelope(frames)
-                        if env is not None:
-                            self._msg_ids[trade.id] = env.msg_id
-                        self._dbg_count("trades_buffered")
-                        if len(self._buffer) >= self._flush_size:
-                            self._flush()
+        elif topic == TOPIC_EOD:
+            self._dbg_count("eod_topics")
+            self._handle_eod(payload)
 
-                # CL-L6: read _trade_count outside the lock intentionally.
-                # Worst-case effect is a skipped or duplicated print cadence,
-                # never a data-integrity issue.
-                if self._print_every > 0 and self._trade_count % self._print_every == 0:
-                    self._print_pnl_table()
+        elif topic == TOPIC_SESSION_STATE:
+            self._dbg_count("phase_topics")
+            self._handle_session_state(payload)
 
-            elif topic == TOPIC_EOD:
-                self._dbg_count("eod_topics")
-                self._handle_eod(payload)
+        elif topic.startswith(PREFIX_GATEWAY_AUTH):
+            self._dbg_count("gateway_auth_topics")
+            self._handle_gateway_auth(payload)
 
-            elif topic == TOPIC_SESSION_STATE:
-                self._dbg_count("phase_topics")
-                self._handle_session_state(payload)
+        elif topic.startswith(PREFIX_GATEWAY_BYE):
+            self._dbg_count("gateway_bye_topics")
+            self._handle_gateway_bye(payload)
 
-            elif topic.startswith(PREFIX_GATEWAY_AUTH):
-                self._dbg_count("gateway_auth_topics")
-                self._handle_gateway_auth(payload)
+        elif topic == TOPIC_GATEWAY_CONNECT:
+            self._dbg_count("gateway_connect_topics")
+            self._handle_gateway_connect(payload)
 
-            elif topic.startswith(PREFIX_GATEWAY_BYE):
-                self._dbg_count("gateway_bye_topics")
-                self._handle_gateway_bye(payload)
-
-            elif topic == TOPIC_GATEWAY_CONNECT:
-                self._dbg_count("gateway_connect_topics")
-                self._handle_gateway_connect(payload)
-
-            elif topic == TOPIC_GATEWAY_DISCONNECT:
-                self._dbg_count("gateway_disconnect_topics")
-                self._handle_gateway_disconnect(payload)
+        elif topic == TOPIC_GATEWAY_DISCONNECT:
+            self._dbg_count("gateway_disconnect_topics")
+            self._handle_gateway_disconnect(payload)
 
     # ------------------------------------------------------------------
     # Timer loop
@@ -526,7 +549,12 @@ class ClearingProcess:
                 elapsed = time.monotonic() - self._last_flush_mono
                 if elapsed >= self._flush_interval_sec and self._buffer:
                     self._dbg_count("timer_flushes")
-                    self._flush()
+                    # A failed flush keeps its buffer for the next tick; the
+                    # thread must survive to make that retry.
+                    try:
+                        self._flush()
+                    except Exception as exc:
+                        log.warning("timer flush failed, will retry: %s", exc)
 
     # ------------------------------------------------------------------
     # Flush (must be called with self._lock held)
@@ -534,11 +562,15 @@ class ClearingProcess:
 
     def _is_duplicate(self, trade: Trade) -> bool:
         """
-        Return True if this (id, ts_ns) has already been seen (must be called
-        with ``self._lock`` held).  First sightings are recorded in a bounded
-        LRU; the oldest key is evicted once the cap is reached.
+        Fast-path duplicate filter (must be called with ``self._lock`` held).
+
+        Keyed on the trade id alone, the archive's identity: a replay that
+        carries a different ``ts_ns`` is still the same execution. First
+        sightings are recorded in a bounded LRU, so this only catches *recent*
+        repeats; the authority is ``trade_events``, consulted at flush time by
+        ``_unarchived``.
         """
-        key = (trade.id, trade.ts_ns)
+        key = trade.id
         if key in self._seen_keys:
             self._seen_keys.move_to_end(key)
             return True
@@ -546,6 +578,54 @@ class ClearingProcess:
         if len(self._seen_keys) > self._seen_cap:
             self._seen_keys.popitem(last=False)
         return False
+
+    def _unarchived(self, trades: list[Trade]) -> list[Trade]:
+        """
+        The trades of *trades* that are not yet in ``trade_events``, each id
+        once (must be called with ``self._lock`` held).
+
+        This is the durable duplicate check: the ledger is applied only to
+        what this returns, so a trade replayed after a restart, after LRU
+        eviction, or with a changed timestamp can never be counted twice.
+        One indexed lookup per chunk, not per trade.
+        """
+        archived: set[str] = set()
+        ids = list({t.id for t in trades})
+        for start in range(0, len(ids), _ID_LOOKUP_CHUNK):
+            chunk = ids[start : start + _ID_LOOKUP_CHUNK]
+            marks = ",".join("?" * len(chunk))
+            archived.update(
+                row[0]
+                for row in self._conn.execute(
+                    f"SELECT id FROM trade_events WHERE id IN ({marks})", chunk
+                )
+            )
+        fresh: list[Trade] = []
+        for trade in trades:
+            if trade.id in archived:
+                continue
+            archived.add(trade.id)
+            fresh.append(trade)
+        return fresh
+
+    def _rollback_ledger(self) -> None:
+        """
+        Rebuild the in-memory ledger from the committed positions.
+
+        A failed flush has already mutated the ledger; the database did not
+        commit. Starting over from what *is* committed makes the retry apply
+        each buffered trade exactly once.
+
+        The ledger stays marked stale until the rebuild succeeds, and
+        ``_flush`` rebuilds a stale ledger before using it: if the re-read
+        fails too, neither the half-applied ledger nor an empty one may ever
+        be written over the persisted positions.
+        """
+        self._ledger_stale = True
+        ledger = Ledger(tz=self._tz)
+        ledger.restore(fetch_all_positions(self._conn))
+        self._ledger = ledger
+        self._ledger_stale = False
 
     def _check_sequence_gap(self, trade: Trade) -> None:
         """
@@ -600,6 +680,8 @@ class ClearingProcess:
 
     def _flush(self) -> int:
         """Flush the buffer to SQLite. Returns the number of trades written."""
+        if self._ledger_stale:
+            self._rollback_ledger()
         if not self._buffer:
             return 0
 
@@ -607,30 +689,39 @@ class ClearingProcess:
 
         updated_ts = now_ns()
 
-        trade_rows = [
-            _to_trade_event_row(t, updated_ts, self._tz, self._msg_ids.get(t.id))
-            for t in self._buffer
-        ]
+        fresh = self._unarchived(self._buffer)
+        self._dup_count += len(self._buffer) - len(fresh)
 
-        for trade in self._buffer:
-            self._ledger.apply_trade(
-                symbol=trade.symbol,
-                buy_gateway_id=trade.buy_gateway_id,
-                sell_gateway_id=trade.sell_gateway_id,
-                price=trade.price,
-                tick_decimals=trade.tick_decimals,
-                quantity=trade.quantity,
-                ts_ns=trade.ts_ns,
-                ingest_ts_ns=updated_ts,
+        try:
+            trade_rows = [
+                _to_trade_event_row(t, updated_ts, self._tz, self._msg_ids.get(t.id))
+                for t in fresh
+            ]
+
+            for trade in fresh:
+                self._ledger.apply_trade(
+                    symbol=trade.symbol,
+                    buy_gateway_id=trade.buy_gateway_id,
+                    sell_gateway_id=trade.sell_gateway_id,
+                    price=trade.price,
+                    tick_decimals=trade.tick_decimals,
+                    quantity=trade.quantity,
+                    ts_ns=trade.ts_ns,
+                    ingest_ts_ns=updated_ts,
+                )
+
+            position_rows, daily_rows = self._ledger.get_flush_rows(
+                updated_ts_ns=updated_ts
             )
 
-        position_rows, daily_rows = self._ledger.get_flush_rows(
-            updated_ts_ns=updated_ts
-        )
+            flush_batch(self._conn, trade_rows, position_rows, daily_rows)
+        except Exception:
+            # The buffer is kept for the retry; the ledger must not keep what
+            # the database refused.
+            self._rollback_ledger()
+            raise
 
-        flush_batch(self._conn, trade_rows, position_rows, daily_rows)
-
-        count = len(self._buffer)
+        count = len(fresh)
         self._trades_settled += count
         self._buffer.clear()
         self._msg_ids.clear()

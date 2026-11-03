@@ -282,7 +282,9 @@ def _ref_keys(trades: list[Any]) -> list[TradeKey]:
 
 def _ref_eq(ref: ReferenceMatcher) -> Equilibrium:
     price, qty, surplus, side = ref.equilibrium()
-    return (price, qty, surplus, side) if price is not None else (None, 0, 0, "")
+    return (
+        (price, qty, surplus, side) if price is not None and qty else (None, 0, 0, "")
+    )
 
 
 # ----------------------------------------------------------------------
@@ -315,14 +317,18 @@ class _BookDriver:
     def uncross(self) -> tuple[Equilibrium, list[TradeKey]]:
         result = compute_equilibrium(self.book)
         eq = (result.eq_price, result.eq_qty, result.surplus, result.imbalance_side)
-        if result.eq_price is None or result.eq_qty == 0:
+        # Mirrors Engine._run_uncross: a crossing price that prints nothing
+        # (SMP or an OCO pair consumed the overlap) still runs the uncross so
+        # that interest is resolved.
+        price = result.eq_price if result.eq_price is not None else result.resolve_price
+        if price is None:
             return (None, 0, 0, ""), []
-        trades, _ = execute_uncross(self.book, result.eq_price)
+        trades, _ = execute_uncross(self.book, price)
         out = _trade_keys(trades)
         if trades:
             sub, _ = self.book.run_stops(0)
             out += _trade_keys(sub)
-        return eq, out
+        return eq if result.eq_qty else (None, 0, 0, ""), out
 
     def statuses(self) -> dict[str, tuple[str, int]]:
         return {i: (o.status.value, o.remaining_qty) for i, o in self.orders.items()}
@@ -469,8 +475,10 @@ def _run(driver: Any, seed: int, *, crossing_amends: bool) -> None:
     ref = ReferenceMatcher()
     gen = _Gen(rng, ref, crossing=crossing_amends)
     history: list[str] = []
+    auction_seen = False
     for step in range(STEPS):
         op = gen.step()
+        auction_seen |= op[0] == "auction"
         history.append(_describe(op))
         where = f"seed={seed} step={step}\n  " + "\n  ".join(history[-8:])
 
@@ -491,7 +499,9 @@ def _run(driver: Any, seed: int, *, crossing_amends: bool) -> None:
             assert (
                 statuses == ref_statuses
             ), f"{where}\nstatus differs: {_first_diff(statuses, ref_statuses)}"
-        assert_book_invariants(driver.book, context=where)
+        assert_book_invariants(
+            driver.book, context=where, check_crossed=not auction_seen
+        )
 
 
 @pytest.mark.parametrize("seed", SEEDS)

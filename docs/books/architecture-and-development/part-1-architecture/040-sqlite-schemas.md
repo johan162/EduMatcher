@@ -53,8 +53,9 @@ constraints, keys, defaults, indexes, and views where defined.
 | `table: index_daily_stats` | `open_aggregate_cap` | `REAL` | no |  |  |
 | `table: index_daily_stats` | `close_aggregate_cap` | `REAL` | no |  |  |
 | `table: index_daily_stats` | `update_count` | `INTEGER` | yes | `0` |  |
-| `table: index_level_snapshots` | `ts` | `TEXT` | yes |  | 1 |
-| `table: index_level_snapshots` | `index_id` | `TEXT` | yes |  | 2 |
+| `table: index_level_snapshots` | `seq` | `INTEGER` | no |  | 1 |
+| `table: index_level_snapshots` | `ts` | `TEXT` | yes |  |  |
+| `table: index_level_snapshots` | `index_id` | `TEXT` | yes |  |  |
 | `table: index_level_snapshots` | `level` | `REAL` | yes |  |  |
 | `table: index_level_snapshots` | `aggregate_cap` | `REAL` | no |  |  |
 | `table: index_level_snapshots` | `divisor` | `REAL` | no |  |  |
@@ -188,6 +189,9 @@ CREATE TABLE index_daily_stats (
 
 ```sql
 CREATE TABLE index_level_snapshots (
+    -- Arrival order. ts has millisecond resolution, so it cannot identify an
+    -- update: two in one millisecond are two rows (K9 / S4).
+    seq             INTEGER PRIMARY KEY AUTOINCREMENT,
     ts              TEXT NOT NULL,
     index_id        TEXT NOT NULL,
     level           REAL NOT NULL,
@@ -196,8 +200,7 @@ CREATE TABLE index_level_snapshots (
     session_state   TEXT,
     day_open        REAL,
     day_high        REAL,
-    day_low         REAL,
-    PRIMARY KEY (ts, index_id)
+    day_low         REAL
 )
 ```
 

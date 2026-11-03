@@ -214,7 +214,7 @@ def eod_archive_continues(ds: Dataset) -> Outcome:
 def _seed_ids(ds: Dataset) -> set[str]:
     """Order ids of seeded quote legs (their acks say is_seed)."""
     out: set[str] = set()
-    for ln in lines(audit_files(ds.data_dir)):
-        if ln.topic.startswith("order.ack.") and '"is_seed": true' in ln.body:
+    for ln in lines(audit_files(ds.data_dir), ("order.ack.",)):
+        if '"is_seed": true' in ln.body:
             out.add(str(json.loads(ln.body)["order_id"]))
     return out

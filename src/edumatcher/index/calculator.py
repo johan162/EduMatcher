@@ -1,9 +1,15 @@
 from __future__ import annotations
 
 import logging
+import math
 from dataclasses import dataclass
 
 log = logging.getLogger(__name__)
+
+
+def _is_price(value: float) -> bool:
+    """A usable price: finite and positive (``nan <= 0`` and ``inf <= 0`` are both False)."""
+    return math.isfinite(value) and value > 0.0
 
 
 @dataclass(frozen=True)
@@ -23,8 +29,8 @@ class IndexCalculator:
         divisor: float | None = None,
         last_prices: dict[str, float] | None = None,
     ) -> None:
-        if base_value <= 0.0:
-            raise ValueError("base_value must be > 0")
+        if not _is_price(base_value):
+            raise ValueError("base_value must be a finite number > 0")
         if not constituents:
             raise ValueError("at least one constituent is required")
 
@@ -38,8 +44,10 @@ class IndexCalculator:
             symbol = cfg.symbol.upper()
             if cfg.shares_outstanding <= 0:
                 raise ValueError(f"shares_outstanding must be > 0 for {symbol}")
-            if cfg.initial_price <= 0.0:
-                raise ValueError(f"initial_price must be > 0 for {symbol}")
+            if not _is_price(cfg.initial_price):
+                raise ValueError(
+                    f"initial_price must be a finite number > 0 for {symbol}"
+                )
             if symbol in self._constituents:
                 raise ValueError(f"duplicate constituent: {symbol}")
             self._constituents[symbol] = symbol
@@ -49,15 +57,15 @@ class IndexCalculator:
         if last_prices:
             for symbol, price in last_prices.items():
                 sym = symbol.upper()
-                if sym in self._constituents and price > 0.0:
+                if sym in self._constituents and _is_price(price):
                     self._last_prices[sym] = float(price)
 
         initial_cap = self._aggregate_cap()
         if divisor is None:
             self._divisor = initial_cap / self._base_value
         else:
-            if divisor <= 0.0:
-                raise ValueError("divisor must be > 0")
+            if not _is_price(divisor):
+                raise ValueError("divisor must be a finite number > 0")
             self._divisor = float(divisor)
 
         log.info(
@@ -119,8 +127,8 @@ class IndexCalculator:
         if sym not in self._constituents:
             log.debug("ignoring price update for non-constituent symbol=%s", sym)
             return
-        if price <= 0.0:
-            raise ValueError("price must be > 0")
+        if not _is_price(price):
+            raise ValueError("price must be a finite number > 0")
         old_price = self._last_prices.get(sym, self._reference_prices[sym])
         self._last_prices[sym] = float(price)
         log.debug(
@@ -172,8 +180,8 @@ class IndexCalculator:
         sym = symbol.upper()
         if sym not in self._constituents:
             raise KeyError(f"unknown constituent: {sym}")
-        if dividend_per_share <= 0.0:
-            raise ValueError("dividend_per_share must be > 0")
+        if not _is_price(dividend_per_share):
+            raise ValueError("dividend_per_share must be a finite number > 0")
 
         old_cap = self._aggregate_cap()
         old_price = self._last_prices.get(sym, self._reference_prices[sym])
@@ -231,14 +239,17 @@ class IndexCalculator:
         old_cap = self._aggregate_cap()
         old_shares = self._outstanding_shares[sym]
         old_price = self._last_prices.get(sym, self._reference_prices[sym])
+        # Decided before anything is removed: a refused delist leaves the
+        # index exactly as it was (K8 / I2).
+        new_cap = old_cap - old_price * old_shares
+        if len(self._constituents) == 1 or new_cap <= 0.0:
+            raise ValueError("Delisting last constituent would make aggregate cap zero")
         del self._constituents[sym]
         self._outstanding_shares.pop(sym, None)
         self._reference_prices.pop(sym, None)
         self._last_prices.pop(sym, None)
         new_cap = self._aggregate_cap()
 
-        if new_cap == 0.0:
-            raise ValueError("Delisting last constituent would make aggregate cap zero")
         self._divisor = self._divisor * (new_cap / old_cap)
         log.info(
             "delisted constituent symbol=%s shares=%d last_price=%.6f cap=%.6f->%.6f divisor=%.6f",
@@ -258,8 +269,8 @@ class IndexCalculator:
             raise KeyError(f"Symbol {sym!r} is already a constituent")
         if shares_outstanding <= 0:
             raise ValueError("shares_outstanding must be positive")
-        if initial_price <= 0.0:
-            raise ValueError("initial_price must be positive")
+        if not _is_price(initial_price):
+            raise ValueError("initial_price must be a finite number > 0")
 
         old_cap = self._aggregate_cap()
         self._constituents[sym] = sym

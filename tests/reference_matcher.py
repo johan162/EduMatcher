@@ -166,6 +166,7 @@ class ReferenceMatcher:
         every resting price (operator guide, Equilibrium price). An iceberg's
         hidden quantity counts (participant guide, Icebergs in the uncross)."""
         best: tuple[int, int, int] | None = None  # (exec, -surplus, -price)
+        best_side = ""
         for p in sorted(
             {o.price for o in self.bids + self.asks if o.price is not None}
         ):
@@ -175,20 +176,43 @@ class ReferenceMatcher:
             sell = sum(
                 o.remaining for o in self.asks if o.price is not None and o.price <= p
             )
-            key = (min(buy, sell), -abs(buy - sell), -p)
+            if not min(buy, sell):
+                continue
+            needs_smp = any(
+                b.gw == a.gw and (b.smp != "NONE" or a.smp != "NONE")
+                for b in self.bids
+                if b.price is not None and b.price >= p
+                for a in self.asks
+                if a.price is not None and a.price <= p
+            )
+            if needs_smp:
+                trial = copy.deepcopy(self)
+                trial._uncross_at(p)
+                executable = sum(t.qty for t in trial.trades[len(self.trades) :])
+                surviving_buy = executable + sum(
+                    o.remaining
+                    for o in trial.bids
+                    if o.price is not None and o.price >= p
+                )
+                surviving_sell = executable + sum(
+                    o.remaining
+                    for o in trial.asks
+                    if o.price is not None and o.price <= p
+                )
+            else:
+                executable, surviving_buy, surviving_sell = min(buy, sell), buy, sell
+            key = (executable, -abs(surviving_buy - surviving_sell), -p)
             if best is None or key > best:
                 best = key
-        if best is None or best[0] == 0:
+                best_side = (
+                    "BUY"
+                    if surviving_buy > surviving_sell
+                    else "SELL" if surviving_sell > surviving_buy else ""
+                )
+        if best is None:
             return None, 0, 0, ""
         price, executable, surplus = -best[2], best[0], -best[1]
-        buy = sum(
-            o.remaining for o in self.bids if o.price is not None and o.price >= price
-        )
-        sell = sum(
-            o.remaining for o in self.asks if o.price is not None and o.price <= price
-        )
-        side = "BUY" if buy > sell else "SELL" if sell > buy else ""
-        return price, executable, surplus, side
+        return price, executable, surplus, best_side
 
     def uncross(self) -> list[RTrade]:
         """Execute all crossable interest at the equilibrium price, then
@@ -197,6 +221,12 @@ class ReferenceMatcher:
         start = len(self.trades)
         if price is None:
             return []
+        self._uncross_at(price)
+        if len(self.trades) > start:
+            self._run_stops()
+        return self.trades[start:]
+
+    def _uncross_at(self, price: int) -> None:
         while True:
             bid, ask = self._best(self.bids), self._best(self.asks)
             if bid is None or ask is None:
@@ -204,11 +234,19 @@ class ReferenceMatcher:
             assert bid.price is not None and ask.price is not None
             if bid.price < price or ask.price > price:
                 break
-            # No SMP in the uncross (rule G6); icebergs one peak at a time.
+            if bid.gw == ask.gw:
+                policy = bid.smp if bid.smp != "NONE" else ask.smp
+                if policy != "NONE":
+                    aggressor = bid if bid.smp != "NONE" else ask
+                    passive = ask if aggressor is bid else bid
+                    if policy in ("CANCEL_AGGRESSOR", "CANCEL_BOTH"):
+                        self.cancel(aggressor.id)
+                        aggressor.cancel_reason = "SELF_MATCH_PREVENTED"
+                    if policy in ("CANCEL_RESTING", "CANCEL_BOTH"):
+                        self.cancel(passive.id)
+                        passive.cancel_reason = "SELF_MATCH_PREVENTED"
+                    continue
             self._fill(bid, ask, min(bid.available, ask.available), price, "AUCTION")
-        if len(self.trades) > start:
-            self._run_stops()
-        return self.trades[start:]
 
     def book(self) -> dict[str, list[tuple[str, int, int, int]]]:
         """Resting orders in priority order: (id, price, remaining, available)."""

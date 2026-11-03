@@ -1123,7 +1123,7 @@ messages:
       - { name: visible_qty, type: int, unit: shares, required: false,
           nullable: true, doc: "ICEBERG: fixed peak size." }
       - { name: displayed_qty, type: int, unit: shares, required: false,
-          nullable: true, doc: "ICEBERG: current visible slice on the book." }
+          nullable: true, doc: "ICEBERG: ignored on input; the engine sets the first slice from visible_qty." }
       - name: smp_action
         type: enum
         values: [NONE, CANCEL_AGGRESSOR, CANCEL_RESTING, CANCEL_BOTH]

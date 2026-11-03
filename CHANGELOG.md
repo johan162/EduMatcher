@@ -1,3 +1,50 @@
+## [v0.71.0] - 2026-11-04
+
+Release Type: major
+
+### 📋 Summary
+This release fixes the high- and medium-severity findings K1–K10 from the key-component review across the auction, engine, clearing, index and statistics services. It also prevents auction prints from tripping circuit breakers and makes index state survive restarts. The statistics database moves to schema version 11, so `pm-stats` needs a new database file.
+
+### ⚠️ Breaking Changes
+- Raised the `pm-stats` database schema to version 11, keying `index_level_snapshots` on an arrival sequence; `pm-stats` refuses an existing version 10 `stats.db`, so move or delete it and let `pm-stats` create a new one
+- Made `pm-clearing` exit with an error at startup when it cannot restore stored positions instead of continuing with an empty ledger that would overwrite them on the next flush
+
+### 🚀 Improvements
+- Made the `pm-index` state file the authority for the live index: runtime `add`, `delist`, split, issuance and rebalance changes now survive a restart without `--reset` or a configuration change, and a differing configured constituent list only logs a warning
+- Persisted index state on every phase change, on shutdown and at most every 30 seconds while prices move, using an atomic staged write so a crash cannot leave an unreadable state file
+- Made `pm-clearing` duplicate-trade protection durable and keyed on the trade ID, so a replayed trade is not applied twice after a restart, cache eviction or a changed timestamp
+- Converted stored positions, average costs, marks and pending daily totals when a symbol's tick precision changes, so one position or daily row never mixes two price scales
+- Ranked and summed clearing exposure and symbol queries in currency rather than raw ticks, without requiring SQLite math functions
+- Added the `--jobs N` option to simulation forensics to run checks in parallel processes, defaulting to one per CPU
+- Reduced auction self-match and OCO simulation cost from about 439 ms to about 15 ms per indicative calculation for 3,000 resting orders
+
+### 🐛 Bug Fixes
+- Fixed auction uncrosses filling both legs of an OCO order and matching orders from the same gateway despite self-match prevention; the published indicative quantity now matches the uncross
+- Fixed the closing auction leaving crossed interest when self-match prevention or OCO cancellation consumed the whole overlap
+- Fixed OCO siblings cancelled in an auction being reported as `SELF_MATCH_PREVENTED` when self-match prevention was off
+- Fixed all-or-none combo orders being partially executed when part of the available liquidity was blocked by self-match prevention, and resting crossed against their own gateway's orders
+- Fixed iceberg orders sent without `displayed_qty` resting with no visible quantity; the engine now derives the displayed slice and ignores any client-supplied value
+- Fixed auction prints tripping a circuit breaker, which could halt a symbol again immediately after the reopening that ended a halt; auction prints now only join the reference window
+- Fixed the halt resume message being sent in an order that could tell clients a symbol had resumed while it was still halted
+- Fixed a failed clearing database flush applying trades to the in-memory ledger twice on retry, and a failed timer flush stopping all later retries
+- Fixed malformed gateway authentication or disconnect messages stopping the clearing receive loop
+- Fixed a runtime `add` or `delist` making `pm-index` unable to start, and fixed restarts losing constituent share counts and last prices
+- Fixed delisting the last index constituent emptying the calculator, `NaN` or infinite prices reaching the published index level, and malformed admin commands stopping the index command handler
+- Fixed rebalance commands silently truncating fractional or boolean share counts, and partly applied rebalances not being persisted
+- Fixed duplicate trades being counted in `pm-stats` daily volume, turnover and VWAP before the duplicate was discarded
+- Fixed index updates in the same millisecond being lost from statistics snapshots and from the rollup rebuilt after a restart
+- Fixed book snapshots near a trading-day boundary being filed under the receipt day instead of the event day, and the first price change after a `pm-stats` restart being empty
+
+### 📚 Documentation
+- Updated the operator guide on market-index state files, index administration and circuit-breaker behaviour for auction prints
+- Updated the statistics and SQLite schema documentation for schema version 11
+- Added the key-component review findings and the K0–K19 fix workplan with a post-commit review of K1–K10
+
+### 🛠 Internal
+- Added a shared test harness for restarts, failure injection, multiple actors and malformed values, with new engine invariants for OCO, self-match prevention and visible iceberg quantities
+- Added regression tests for every K1–K10 finding and for the post-commit review fixes
+- Fixed SQLite connection leaks in the support-harness and clearing tick-precision tests
+
 ## [v0.70.0] - 2026-11-02
 
 Release Type: major

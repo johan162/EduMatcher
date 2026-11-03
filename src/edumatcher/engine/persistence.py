@@ -30,7 +30,7 @@ from edumatcher.models.price import from_ticks
 log = logging.getLogger(__name__)
 
 
-def _atomic_write_text(path: Path, text: str) -> None:
+def atomic_write_text(path: Path, text: str) -> None:
     """Write *text* to *path* so a crash can never leave it truncated.
 
     ``Path.write_text`` truncates the target before writing, so an interrupted
@@ -78,7 +78,7 @@ def load_and_bump_run_seq(path: Path) -> int:
     next_seq = current + 1
     if next_seq > 999_999:
         raise RuntimeError(f"Engine run sequence exhausted at {next_seq}")
-    _atomic_write_text(path, json.dumps({"run_seq": next_seq}, indent=2))
+    atomic_write_text(path, json.dumps({"run_seq": next_seq}, indent=2))
     return next_seq
 
 
@@ -96,7 +96,7 @@ def save_gtc_orders(orders: list[Order], path: Path) -> None:
         if o.tif in (TIF.GTC, TIF.DAY)
         and o.status in (OrderStatus.NEW, OrderStatus.PARTIAL)
     ]
-    _atomic_write_text(path, json.dumps(gtc, indent=2))
+    atomic_write_text(path, json.dumps(gtc, indent=2))
 
 
 def load_gtc_orders(path: Path) -> list[Order]:
@@ -177,7 +177,7 @@ def save_book_stats(
             "prev_close": prev_close,
         }
     path.parent.mkdir(parents=True, exist_ok=True)
-    _atomic_write_text(path, json.dumps(stats, indent=2))
+    atomic_write_text(path, json.dumps(stats, indent=2))
 
 
 def load_book_stats(path: Path) -> dict[str, dict[str, Any]]:
@@ -212,7 +212,7 @@ def save_gtc_combos(combos: list[ComboOrder], path: Path) -> None:
         )
     ]
     path.parent.mkdir(parents=True, exist_ok=True)
-    _atomic_write_text(path, json.dumps(active, indent=2))
+    atomic_write_text(path, json.dumps(active, indent=2))
 
 
 def load_gtc_combos(path: Path) -> list[ComboOrder]:

@@ -545,8 +545,10 @@ until trades accumulate:
   `last_buy_price`, then `last_sell_price`).
 - **Circuit-breaker reference** — the breaker's rolling history is pre-seeded
   with a single synthetic baseline point at that **same** resolved opening
-  price.  The first executed trade is therefore evaluated against the IPO
-  reference, so a violent opening print can trip the breaker on day one.
+  price.  The first continuous trade is therefore evaluated against the IPO
+  reference, so a violent first print can trip the breaker on day one. Auction
+  prints (opening, closing, reopening, recovery) enter the history but never
+  trip the breaker themselves.
 
 Because both controls draw their reference from the same source, the collar and
 the circuit breaker agree at the open.
@@ -1486,9 +1488,11 @@ check rather than a pre-trade validation:
   `CANCEL_RESTING`/`CANCEL_BOTH` then cancel the **whole** iceberg — peak and
   hidden reserve — as one order with one `order.cancelled` message; the
   hidden reserve is not replenished into a new peak.
-- **SMP does not apply in an auction uncross.** The uncross matches resting
-  interest at a single price with no aggressor, so a gateway's crossing bid
-  and ask in the same auction trade with each other.
+- **SMP applies in an auction uncross and its indicative quantity.** Both
+  orders are resting, so the bid is treated as the aggressor for policy
+  selection; if its policy is `NONE`, the ask's policy applies instead.
+  `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, and `CANCEL_BOTH` cancel the
+  corresponding orders before they can trade with their own gateway.
 
 ### `FOK` — self-match liquidity is excluded before the pre-check
 

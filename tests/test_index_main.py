@@ -481,9 +481,10 @@ def test_load_state_reset_deletes_file(
     monkeypatch.setattr(index_main, "make_replier", lambda *_a, **_k: _FakeSocket())
 
     proc = index_main.IndexProcess(config_path=tmp_path / "x.yaml", reset=True)
-    divisor, last_prices = proc._load_state(cfg)
-    assert divisor is None
-    assert last_prices == {}
+    restored = proc._load_state(cfg)
+    assert restored.divisor is None
+    assert restored.last_prices == {}
+    assert restored.constituents is None
     assert Path(cfg.state_file).exists() is False
     proc.close()
 
@@ -508,12 +509,13 @@ def test_load_state_mismatch_validations(
     with pytest.raises(ValueError):
         proc._load_state(cfg)
 
+    # A different constituent set is a runtime ADD/DELIST (K7): the persisted
+    # one wins instead of making the process unstartable.
     Path(cfg.state_file).write_text(
         '{"index_id":"EDU100","constituents":["MSFT"]}',
         encoding="utf-8",
     )
-    with pytest.raises(ValueError):
-        proc._load_state(cfg)
+    assert proc._load_state(cfg).constituents == ["MSFT"]
 
 
 def test_publish_level_respects_interval(

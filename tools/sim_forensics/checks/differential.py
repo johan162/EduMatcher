@@ -526,8 +526,8 @@ class _ShiftedBreaker:
     def seed_reference(self, price: int, now: int) -> None:
         self._inner.seed_reference(price - self._k, now)
 
-    def record_trade(self, price: int, now: int) -> Any:
-        return self._inner.record_trade(price - self._k, now)
+    def record_trade(self, price: int, now: int, **kwargs: Any) -> Any:
+        return self._inner.record_trade(price - self._k, now, **kwargs)
 
     def within_corridor(self, price: int) -> bool:
         return bool(self._inner.within_corridor(price - self._k))
