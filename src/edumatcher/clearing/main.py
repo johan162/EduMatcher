@@ -299,17 +299,23 @@ class ClearingProcess:
     # ------------------------------------------------------------------
 
     def _hydrate_ledger(self) -> None:
-        """Restore in-memory positions from ``gateway_symbol_positions``."""
+        """
+        Restore in-memory positions from ``gateway_symbol_positions``.
+
+        A failure is fatal (K5): carrying on with an empty ledger would make
+        the next flush UPSERT flat positions over the persisted ones. The
+        constructor raises, and ``main()`` exits non-zero.
+        """
         try:
             rows = fetch_all_positions(self._conn)
             self._ledger.restore(rows)
-            if rows:
-                log.info(
-                    "warm start: restored %d position(s) from the database", len(rows)
-                )
-            log.debug("warm start restored positions=%d", len(rows))
         except Exception as exc:
-            log.warning("warm-start hydration failed: %s", exc)
+            log.error("warm-start hydration failed, refusing to start: %s", exc)
+            self._conn.close()
+            raise
+        if rows:
+            log.info("warm start: restored %d position(s) from the database", len(rows))
+        log.debug("warm start restored positions=%d", len(rows))
 
     def run(self) -> None:
         """Start the clearing process; blocks until stop() is called."""
@@ -453,69 +459,82 @@ class ClearingProcess:
                     break
                 continue
 
-            frames = sub.recv_multipart()
+            self._handle_message(sub.recv_multipart())
+
+    def _handle_message(self, frames: list[bytes]) -> None:
+        """Decode and act on one message from the feed."""
+        try:
+            topic, payload = decode(frames)
+        except Exception as exc:
+            log.warning("failed to decode frame: %s", exc)
+            return
+
+        self._dbg_count("messages_received")
+
+        # One bad message, whatever its topic, must not take the loop down:
+        # a decodable payload can still hold a value a handler rejects.
+        try:
+            self._dispatch(topic, payload, frames)
+        except Exception as exc:
+            log.warning("error handling %s: %s", topic, exc)
+
+    def _dispatch(
+        self, topic: str, payload: dict[str, Any], frames: list[bytes]
+    ) -> None:
+        if topic == TOPIC_TRADE_EXECUTED:
             try:
-                topic, payload = decode(frames)
+                trade = _trade_from_payload(payload)
             except Exception as exc:
-                log.warning("failed to decode frame: %s", exc)
-                continue
+                log.warning("failed to parse trade: %s", exc)
+                return
 
-            self._dbg_count("messages_received")
+            with self._lock:
+                # Count every observed trade message (used for progress /
+                # print cadence), then dedup before buffering so a replay
+                # is neither re-applied to the ledger nor re-archived.
+                self._trade_count += 1
+                if self._is_duplicate(trade):
+                    self._dup_count += 1
+                    self._dbg_count("duplicates")
+                else:
+                    self._check_sequence_gap(trade)
+                    self._buffer.append(trade)
+                    env = decode_envelope(frames)
+                    if env is not None:
+                        self._msg_ids[trade.id] = env.msg_id
+                    self._dbg_count("trades_buffered")
+                    if len(self._buffer) >= self._flush_size:
+                        self._flush()
 
-            if topic == TOPIC_TRADE_EXECUTED:
-                try:
-                    trade = _trade_from_payload(payload)
-                except Exception as exc:
-                    log.warning("failed to parse trade: %s", exc)
-                    continue
+            # CL-L6: read _trade_count outside the lock intentionally.
+            # Worst-case effect is a skipped or duplicated print cadence,
+            # never a data-integrity issue.
+            if self._print_every > 0 and self._trade_count % self._print_every == 0:
+                self._print_pnl_table()
 
-                with self._lock:
-                    # Count every observed trade message (used for progress /
-                    # print cadence), then dedup before buffering so a replay
-                    # is neither re-applied to the ledger nor re-archived.
-                    self._trade_count += 1
-                    if self._is_duplicate(trade):
-                        self._dup_count += 1
-                        self._dbg_count("duplicates")
-                    else:
-                        self._check_sequence_gap(trade)
-                        self._buffer.append(trade)
-                        env = decode_envelope(frames)
-                        if env is not None:
-                            self._msg_ids[trade.id] = env.msg_id
-                        self._dbg_count("trades_buffered")
-                        if len(self._buffer) >= self._flush_size:
-                            self._flush()
+        elif topic == TOPIC_EOD:
+            self._dbg_count("eod_topics")
+            self._handle_eod(payload)
 
-                # CL-L6: read _trade_count outside the lock intentionally.
-                # Worst-case effect is a skipped or duplicated print cadence,
-                # never a data-integrity issue.
-                if self._print_every > 0 and self._trade_count % self._print_every == 0:
-                    self._print_pnl_table()
+        elif topic == TOPIC_SESSION_STATE:
+            self._dbg_count("phase_topics")
+            self._handle_session_state(payload)
 
-            elif topic == TOPIC_EOD:
-                self._dbg_count("eod_topics")
-                self._handle_eod(payload)
+        elif topic.startswith(PREFIX_GATEWAY_AUTH):
+            self._dbg_count("gateway_auth_topics")
+            self._handle_gateway_auth(payload)
 
-            elif topic == TOPIC_SESSION_STATE:
-                self._dbg_count("phase_topics")
-                self._handle_session_state(payload)
+        elif topic.startswith(PREFIX_GATEWAY_BYE):
+            self._dbg_count("gateway_bye_topics")
+            self._handle_gateway_bye(payload)
 
-            elif topic.startswith(PREFIX_GATEWAY_AUTH):
-                self._dbg_count("gateway_auth_topics")
-                self._handle_gateway_auth(payload)
+        elif topic == TOPIC_GATEWAY_CONNECT:
+            self._dbg_count("gateway_connect_topics")
+            self._handle_gateway_connect(payload)
 
-            elif topic.startswith(PREFIX_GATEWAY_BYE):
-                self._dbg_count("gateway_bye_topics")
-                self._handle_gateway_bye(payload)
-
-            elif topic == TOPIC_GATEWAY_CONNECT:
-                self._dbg_count("gateway_connect_topics")
-                self._handle_gateway_connect(payload)
-
-            elif topic == TOPIC_GATEWAY_DISCONNECT:
-                self._dbg_count("gateway_disconnect_topics")
-                self._handle_gateway_disconnect(payload)
+        elif topic == TOPIC_GATEWAY_DISCONNECT:
+            self._dbg_count("gateway_disconnect_topics")
+            self._handle_gateway_disconnect(payload)
 
     # ------------------------------------------------------------------
     # Timer loop
