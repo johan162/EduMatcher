@@ -2500,7 +2500,7 @@ Submit a new order to the matching engine. Sent over PUSH/PULL rather than the p
 | `price_ticks` | `ticks` | `null` when unset | unit `ticks` | Limit price in ticks. Null for MARKET, which has none. |
 | `stop_price_ticks` | `ticks` | `null` when unset | unit `ticks` | STOP / STOP_LIMIT / TRAILING_STOP trigger. |
 | `visible_qty` | `int` | `null` when unset | unit `shares` | ICEBERG: fixed peak size. |
-| `displayed_qty` | `int` | `null` when unset | unit `shares` | ICEBERG: current visible slice on the book. |
+| `displayed_qty` | `int` | `null` when unset | unit `shares` | ICEBERG: ignored on input; the engine sets the first slice from visible_qty. |
 | `smp_action` | enum: `NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH` | `null` when unset | — | Self-match prevention. Null means the client did not specify SMP at all, which is distinct from an explicit NONE: the engine resolves null to the gateway's configured default. See SmpAction's docstring. |
 | `combo_parent_id` | `string` | `null` when unset | max_len 64 |  |
 | `leg_index` | `int` | `null` when unset | unit `dimensionless` | Position in the parent combo's legs, 0-based. |

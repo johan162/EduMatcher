@@ -131,6 +131,12 @@ def assert_book_invariants(
                 f"I3{ctx}: iceberg {o.id[:8]} displayed_qty={displayed} "
                 f"exceeds remaining_qty={o.remaining_qty}"
             )
+            # K3: a resting iceberg always shows a slice; None/0 would make
+            # the level index (shows 0) and an uncross (shows all) disagree.
+            assert o.remaining_qty == 0 or displayed > 0, (
+                f"I3{ctx}: resting iceberg {o.id[:8]} shows no slice "
+                f"(displayed_qty={o.displayed_qty}, remaining={o.remaining_qty})"
+            )
 
     # ------------------------------------------------------------------
     # I4 — every live bid/ask heap entry agrees with _entry_index.

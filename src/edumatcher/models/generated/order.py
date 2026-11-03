@@ -4081,7 +4081,7 @@ _ORDER_NEW_FIELDS: tuple[dict[str, Any], ...] = (
         "type": "int",
         "unit": "shares",
         "required": False,
-        "doc": "ICEBERG: current visible slice on the book.",
+        "doc": "ICEBERG: ignored on input; the engine sets the first slice from visible_qty.",
     },
     {
         "name": "smp_action",

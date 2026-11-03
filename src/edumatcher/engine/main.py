@@ -1849,6 +1849,12 @@ class Engine:
         # Wire dict -> Order object.  Prices arrive already as integer ticks.
         order = Order.from_dict(payload)
         self._dbg_count("new_order_requests")
+        # K3: displayed_qty is the engine's own bookkeeping of the slice now
+        # showing, not client input. Whatever arrived on the wire is replaced
+        # by the first slice, derived from the client's visible_qty (which
+        # _validate_new_order checks below).
+        if order.order_type == OrderType.ICEBERG and order.visible_qty is not None:
+            order.displayed_qty = min(order.visible_qty, order.remaining_qty)
 
         # SMP=None means the client omitted it -- fall back to the gateway's
         # configured default (participants[].smp_action). An explicit value

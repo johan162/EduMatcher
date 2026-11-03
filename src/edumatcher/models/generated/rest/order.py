@@ -786,7 +786,9 @@ class OrderNew(BaseModel):
     visible_qty: int | None
     """ICEBERG: fixed peak size. Unit: shares."""
     displayed_qty: int | None
-    """ICEBERG: current visible slice on the book. Unit: shares."""
+    """ICEBERG: ignored on input; the engine sets the first slice from visible_qty.
+    Unit: shares.
+    """
     smp_action: OrderNewSmpAction | None
     """Self-match prevention. Null means the client did not specify SMP at all, which
     is distinct from an explicit NONE: the engine resolves null to the gateway's
