@@ -3,6 +3,7 @@ from __future__ import annotations
 import errno
 import math
 import sqlite3
+from contextlib import closing
 from pathlib import Path
 
 import pytest
@@ -144,7 +145,7 @@ def test_counting_helpers_on_index_history(tmp_path: Path) -> None:
 
 
 def test_query_plan_guard(tmp_path: Path) -> None:
-    with sqlite3.connect(tmp_path / "plan.db") as conn:
+    with closing(sqlite3.connect(tmp_path / "plan.db")) as conn, conn:
         conn.execute("CREATE TABLE items (id INTEGER PRIMARY KEY, label TEXT)")
         conn.executemany("INSERT INTO items (label) VALUES (?)", [("b",), ("a",)])
         assert_query_plan_has_no_temp_btree(
