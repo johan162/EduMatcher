@@ -97,6 +97,7 @@ SQLite tables
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import logging
 import signal
@@ -380,7 +381,10 @@ class _IndexDayAccum:
 #: 10 — EduMatcher 1.0 (sim forensics S26): ``trade_log`` gains the order ids,
 #:     ``match_type`` and ``msg_id``; ``order_events`` gains ``msg_id`` -- the
 #:     audit message each row records, so a row joins its audit line.
-SCHEMA_VERSION = 10
+#: 11 — ``index_level_snapshots`` is keyed on an arrival ``seq`` instead of
+#:     ``(ts, index_id)``: two updates in one millisecond used to collapse into
+#:     one row, so a rehydrated rollup under-counted them.
+SCHEMA_VERSION = 11
 
 #: How long pm-stats keeps recording already-queued engine messages after it
 #: is told to stop (see StatsProcess._drain).
@@ -594,6 +598,9 @@ CREATE TABLE IF NOT EXISTS index_daily_stats (
 );
 
 CREATE TABLE IF NOT EXISTS index_level_snapshots (
+    -- Arrival order. ts has millisecond resolution, so it cannot identify an
+    -- update: two in one millisecond are two rows (K9 / S4).
+    seq             INTEGER PRIMARY KEY AUTOINCREMENT,
     ts              TEXT NOT NULL,
     index_id        TEXT NOT NULL,
     level           REAL NOT NULL,
@@ -602,8 +609,7 @@ CREATE TABLE IF NOT EXISTS index_level_snapshots (
     session_state   TEXT,
     day_open        REAL,
     day_high        REAL,
-    day_low         REAL,
-    PRIMARY KEY (ts, index_id)
+    day_low         REAL
 );
 
 CREATE INDEX IF NOT EXISTS idx_ids_index_ts ON index_level_snapshots(index_id, ts);
@@ -701,7 +707,7 @@ ON CONFLICT(date, index_id) DO UPDATE SET
 """
 
 INSERT_INDEX_SNAPSHOT = """
-INSERT OR IGNORE INTO index_level_snapshots
+INSERT INTO index_level_snapshots
     (ts, index_id, level, aggregate_cap, divisor, session_state, day_open, day_high, day_low)
 VALUES (?,?,?,?,?,?,?,?,?)
 """
@@ -1379,11 +1385,8 @@ class StatsProcess:
     def _rehydrate_index_daily(self, index_id: str, day: str) -> _IndexDayAccum:
         """Rebuild one index's accumulator for *day* from persisted snapshots.
 
-        ``update_count`` is recovered as the number of retained snapshot rows.
-        ``index_level_snapshots`` inserts are ``OR IGNORE`` on ``(ts,
-        index_id)``, so two updates landing in the same millisecond leave only
-        one row and the recovered count can be a shade lower than the number
-        of updates originally received.
+        ``update_count`` is recovered as the number of snapshot rows; every
+        update is its own row (``seq``), so it equals the live count.
         """
         acc = _IndexDayAccum(date=day, index_id=index_id)
         day_start, day_end = trading_day_bounds(day, self._tz)
@@ -1472,7 +1475,12 @@ class StatsProcess:
             # the moment of processing: a trade printed just before the
             # trading day rolls over must not be booked into the next day
             # because it happened to be handled a few milliseconds late.
-            acc = self._accum_for(symbol, self._trading_date(epoch_sec))
+            current = self._accum_for(symbol, self._trading_date(epoch_sec))
+            # Work on a copy and install it only once the transaction has
+            # committed: the live rollup then never gets ahead of (or differs
+            # from) the database, whether the write fails or the trade turns
+            # out to be a duplicate.
+            acc = copy.copy(current)
             self._note_tick_decimals(acc, _payload_tick_decimals(payload))
             # Convert with the accumulator's scale, not the payload's, so the
             # integer written and the tick_decimals written beside it always
@@ -1480,17 +1488,14 @@ class StatsProcess:
             tick_decimals = acc.tick_decimals
             price_ticks = _to_ticks(price, tick_decimals)
             assert price_ticks is not None  # price is not None, checked above
-            acc.on_trade(price_ticks, qty)
             # One transaction for both writes. The rollup is reconstructed
             # from trade_log on restart, so committing them separately would
             # let a crash in between leave the two permanently disagreeing.
             with self._conn:
-                # Inside the same transaction as the trade itself, so a
-                # recorded gap can never survive without the trade that
-                # revealed it, or vice versa.
-                self._check_trade_sequence(str(payload.get("id", "")), ts)
-                self._write_daily(acc)
-                self._conn.execute(
+                # The insert decides first whether this is a new trade (K9 /
+                # S1): a repeated trade_id is dropped before it can touch the
+                # rollup or the gap tracker.
+                inserted = self._conn.execute(
                     INSERT_TRADE,
                     (
                         ts,
@@ -1507,7 +1512,18 @@ class StatsProcess:
                         payload.get("match_type"),
                         msg_id,
                     ),
-                )
+                ).rowcount
+                if inserted:
+                    # Inside the same transaction as the trade itself, so a
+                    # recorded gap can never survive without the trade that
+                    # revealed it, or vice versa.
+                    self._check_trade_sequence(str(payload.get("id", "")), ts)
+                    acc.on_trade(price_ticks, qty)
+                    self._write_daily(acc)
+            if not inserted:
+                self._dbg_count("duplicate_trades")
+                return
+            self._accum[symbol] = acc
         self._dbg_count("trades_persisted")
 
     def _on_book(self, symbol: str, payload: dict[str, Any]) -> None:
@@ -1646,7 +1662,8 @@ class StatsProcess:
         )
 
         with self._lock:
-            acc = self._index_accum_for(index_id, self._trading_date(epoch_sec))
+            current = self._index_accum_for(index_id, self._trading_date(epoch_sec))
+            acc = copy.copy(current)  # installed only after the commit, as for trades
             acc.on_update(level, aggregate_cap, session_state)
             # Single transaction — the rollup is reconstructed from these
             # snapshot rows on restart, so the two must not diverge.
@@ -1666,6 +1683,7 @@ class StatsProcess:
                         day_low,
                     ),
                 )
+            self._index_accum[index_id] = acc
         log.debug(
             "recorded index update index_id=%s level=%s session_state=%s ts=%s",
             index_id,

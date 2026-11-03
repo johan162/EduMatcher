@@ -114,7 +114,7 @@ The schema version is in `PRAGMA user_version`:
 
 ```console
 $ sqlite3 data/stats.db "PRAGMA user_version"
-9
+11
 ```
 
 The version is bumped both when the table definitions change and when the
@@ -127,7 +127,10 @@ version 6 renamed `order_events.client_order_id` to `client_tag`,
 version 7 made the durable `trade_id` the sole primary key of `trade_log`,
 version 8 replaced `order_events.trade_id` (always empty) with `trade_ids`, and
 version 9 added `order_events.reject_code`, the rejection's machine-readable
-code (until then only the reason text was kept).
+code (until then only the reason text was kept), version 10 added the order
+ids, `match_type` and `msg_id` to `trade_log` and `msg_id` to `order_events`,
+and version 11 keyed `index_level_snapshots` on an arrival `seq`, so that two
+updates in one millisecond are both kept.
 
 `pm-stats` refuses to open a database whose `user_version` does not match the
 build, rather than writing new-format rows into an old-format file. If you hit
@@ -736,11 +739,12 @@ Aggregated daily OHLC (open, high, low, close) for each configured exchange inde
 
 Time series of every index level update received from `pm-index`, one row per `index.update` event (no additional throttling in `pm-stats` — `pm-index` already rate-limits its own publications via `publish_interval_sec` before it ever sends one).
 
-**Primary key**: `(ts, index_id)`. Inserts are `OR IGNORE`, so two updates for one index landing in the same millisecond retain only the first.
+**Primary key**: `seq`, the arrival order. Every update is its own row, including several for one index in the same millisecond.
 **Index**: `(index_id, ts)`.
 
 | Column          | Type | Description                                                          |
 |-----------------|------|------------------------------------------------------------------------|
+| `seq`           | INTEGER | Arrival order (primary key)                                          |
 | `ts`            | TEXT | ISO-8601 UTC instant, millisecond precision                            |
 | `index_id`      | TEXT | Index identifier                                                        |
 | `level`         | REAL | Current index level at this update. Dimensionless — an index level is a computed number, not a price, so it is neither in ticks nor in money |
