@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
@@ -32,6 +33,14 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Also run the slow checks (E5-E7: several engine re-runs)",
     )
+    parser.add_argument(
+        "--jobs",
+        type=int,
+        default=0,
+        metavar="N",
+        help="Processes to run checks in, one module's checks together "
+        "(default: one per CPU; 1 = in this process)",
+    )
     parser.add_argument("--list", action="store_true", help="List checks and exit")
     args = parser.parse_args(argv)
 
@@ -52,7 +61,13 @@ def main(argv: list[str] | None = None) -> int:
     ]
     with Dataset.open(args.data.expanduser()) as ds:
         # A check named with --check runs even if slow.
-        results = run_checks(ds, selected, args.samples, args.slow or bool(args.check))
+        results = run_checks(
+            ds,
+            selected,
+            args.samples,
+            args.slow or bool(args.check),
+            args.jobs or os.cpu_count() or 1,
+        )
         report.write(ds, results, args.out.expanduser())
     for r in results:
         print(f"{r.check.id:5} {r.status:8} {r.violations:>8}  {r.check.title}")

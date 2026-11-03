@@ -4,8 +4,11 @@ from __future__ import annotations
 
 import time
 import traceback
+from concurrent.futures import ProcessPoolExecutor
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
+from multiprocessing import get_context
+from pathlib import Path
 from typing import Literal
 
 from sim_forensics.dataset import Dataset
@@ -49,6 +52,9 @@ class Check:
     fn: Callable[[Dataset], Outcome]
     #: Costs several engine re-runs: only run when asked for (``--slow``).
     slow: bool = False
+    #: Reads the outcomes of the checks that failed (``failed_outcomes``), so
+    #: it runs after every other check has.
+    needs_findings: bool = False
 
 
 @dataclass
@@ -65,7 +71,12 @@ REGISTRY: dict[str, Check] = {}
 
 
 def check(
-    id: str, oracle: str, title: str, needs: tuple[str, ...], slow: bool = False
+    id: str,
+    oracle: str,
+    title: str,
+    needs: tuple[str, ...],
+    slow: bool = False,
+    needs_findings: bool = False,
 ) -> Callable[[Callable[[Dataset], Outcome]], Callable[[Dataset], Outcome]]:
     """Register a check function under *id*."""
     if oracle not in ORACLES:
@@ -74,24 +85,77 @@ def check(
     def register(fn: Callable[[Dataset], Outcome]) -> Callable[[Dataset], Outcome]:
         if id in REGISTRY:
             raise ValueError(f"duplicate check id {id}")
-        REGISTRY[id] = Check(id, oracle, title, needs, fn, slow)
+        REGISTRY[id] = Check(id, oracle, title, needs, fn, slow, needs_findings)
         return fn
 
     return register
 
 
 def run_checks(
-    ds: Dataset, checks: Iterable[Check], max_samples: int, slow: bool = False
+    ds: Dataset,
+    checks: Iterable[Check],
+    max_samples: int,
+    slow: bool = False,
+    jobs: int = 1,
 ) -> list[Result]:
-    """Run *checks*; a slow one only if *slow*."""
-    return [
-        (
-            _run_one(ds, c, max_samples)
-            if slow or not c.slow
-            else Result(c, "SKIPPED", 0, [], "slow: run with --slow, or name it with --check", 0.0)  # fmt: skip
-        )
-        for c in checks
-    ]
+    """Run *checks*; a slow one only if *slow*. With *jobs* > 1 the checks
+    run in that many processes, one module's checks together (they share the
+    results of their expensive passes), and come back in the order given."""
+    chosen = list(checks)
+    runnable = [c for c in chosen if slow or not c.slow]
+    done: dict[str, Result] = {}
+    if jobs > 1:
+        done = _run_parallel(ds, runnable, max_samples, jobs)
+    else:
+        for c in runnable:
+            done[c.id] = _run_one(ds, c, max_samples)
+    skipped = "slow: run with --slow, or name it with --check"
+    return [done.get(c.id) or Result(c, "SKIPPED", 0, [], skipped, 0.0) for c in chosen]
+
+
+def _run_group(
+    data_dir: Path, ids: list[str], max_samples: int, keep_failed: bool
+) -> tuple[list[tuple[str, Status, int, list[Sample], str, float]], dict[str, Outcome]]:
+    """Worker: run the checks *ids* on their own opening of the data dir."""
+    import sim_forensics.checks  # noqa: F401  (registers the checks)
+
+    with Dataset.open(data_dir) as ds:
+        out = []
+        for i in ids:
+            r = _run_one(ds, REGISTRY[i], max_samples)
+            out.append((i, r.status, r.violations, r.samples, r.note, r.seconds))
+        return out, dict(failed_outcomes(ds)) if keep_failed else {}
+
+
+def _run_parallel(
+    ds: Dataset, checks: list[Check], max_samples: int, jobs: int
+) -> dict[str, Result]:
+    groups: dict[str, list[Check]] = {}
+    for c in checks:
+        if not c.needs_findings:
+            groups.setdefault(c.fn.__module__, []).append(c)
+    last = [c for c in checks if c.needs_findings]
+    done: dict[str, Result] = {}
+    findings = failed_outcomes(ds)
+    with ProcessPoolExecutor(
+        min(jobs, len(groups) or 1), mp_context=get_context("spawn")
+    ) as pool:
+        futures = [
+            pool.submit(
+                _run_group, ds.data_dir, [c.id for c in g], max_samples, bool(last)
+            )
+            for g in groups.values()
+        ]
+        for future in futures:
+            rows, failed = future.result()
+            findings.update(failed)
+            for i, status, violations, samples, note, seconds in rows:
+                done[i] = Result(
+                    REGISTRY[i], status, violations, samples, note, seconds
+                )
+    for c in last:
+        done[c.id] = _run_one(ds, c, max_samples)
+    return done
 
 
 def failed_outcomes(ds: Dataset) -> dict[str, Outcome]:

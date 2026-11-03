@@ -46,7 +46,10 @@ def audit_files(data_dir: Path) -> list[Path]:
     return archives + discover_log_files(data_dir / "audit.log")
 
 
-def lines(files: list[Path]) -> Iterator[Line]:
+def lines(files: list[Path], topics: tuple[str, ...] | None = None) -> Iterator[Line]:
+    """The audit's lines; with *topics*, only those whose topic starts with
+    one of them (skipped lines are not split further). Not for a reader that
+    tells where a message chain ends by the next line, whatever its topic."""
     for path in files:
         for raw in open_log_file(path):
             if not raw.startswith("["):
@@ -55,6 +58,8 @@ def lines(files: list[Path]) -> Iterator[Line]:
             b = raw.find("] [", a + 3)
             c = raw.find("] ", b + 3)
             if a < 0 or b < 0 or c < 0:
+                continue
+            if topics is not None and not raw.startswith(topics, a + 3):
                 continue
             meta = raw[b + 3 : c]
             chain = meta[meta.rfind("chain=") + 6 :]

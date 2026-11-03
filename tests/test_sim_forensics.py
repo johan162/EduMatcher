@@ -280,3 +280,14 @@ def test_cli_writes_report_and_findings_and_exit_code_reflects_failures(
 def test_cli_rejects_unknown_check_ids(data: Path, tmp_path: Path) -> None:
     with pytest.raises(SystemExit):
         main(["--data", str(data), "--out", str(tmp_path), "--check", "Z9"])
+
+
+def test_parallel_run_gives_the_serial_results_in_the_order_given(
+    data: Path, open_ds: OpenDataset
+) -> None:
+    ids = ["F1", "A1", "H1"]
+    serial = run_checks(open_ds(data), [REGISTRY[i] for i in ids], 10)
+    parallel = run_checks(open_ds(data), [REGISTRY[i] for i in ids], 10, jobs=2)
+    assert [(r.check.id, r.status, r.violations, r.note) for r in parallel] == [
+        (r.check.id, r.status, r.violations, r.note) for r in serial
+    ]

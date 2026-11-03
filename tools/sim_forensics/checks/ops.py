@@ -120,6 +120,7 @@ def _covered(events: list[tuple[int, str]], lo: int, hi: int) -> float:
     "statistical",
     "Ops events (thresholds, process status, disconnects, log warnings) near findings",
     needs=(),
+    needs_findings=True,
 )
 def ops_events_near_findings(ds: Dataset) -> Outcome:
     """For each failed check's samples, the ops events within ±30 s. Counts
