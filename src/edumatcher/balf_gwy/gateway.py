@@ -104,7 +104,6 @@ from edumatcher.models.message import (
     make_symbols_request_msg,
 )
 from edumatcher.models.price import register_tick_decimals
-from edumatcher.models.generated.trade import TOPIC_TRADE_EXECUTED
 from edumatcher.models.generated.order import (
     PREFIX_ORDER_ACK,
     PREFIX_ORDER_AMENDED,
@@ -121,7 +120,6 @@ from edumatcher.models.generated.order import (
     topic_order_fill,
     topic_order_triggered,
 )
-from edumatcher.models.generated.session import TOPIC_SESSION_STATE
 from edumatcher.models.generated.system import (
     PREFIX_GATEWAY_AUTH,
     PREFIX_SYMBOLS,
@@ -131,6 +129,11 @@ from edumatcher.models.generated.system import (
 )
 
 log = logging.getLogger(__name__)
+
+#: Engine events handled per loop iteration. Large enough that a normal
+#: burst clears in one pass, small enough that a flood still leaves time
+#: for heartbeats and idle-timeout checks.
+_ENGINE_DRAIN_BUDGET = 256
 
 # Gateway-process-wide, so a tag can never be mistaken for one of a previous
 # session on the same socket.
@@ -325,10 +328,11 @@ class BalfGateway:
 
         # ZMQ sockets
         self._push: PushSocket = make_pusher(config.engine_pull_addr)
+        # Only venue-wide topic this gateway acts on; everything else it
+        # needs is subscribed per gateway ID at logon. Subscribing to a topic
+        # _dispatch_engine_event ignores just burns the drain budget.
         self._sub: zmq.Socket[bytes] = make_subscriber(
             config.engine_pub_addr,
-            TOPIC_SESSION_STATE,
-            TOPIC_TRADE_EXECUTED,
             TOPIC_STARTUP_RECOVERY,
         )
 
@@ -1023,7 +1027,15 @@ class BalfGateway:
     # ------------------------------------------------------------------
 
     def _poll_engine_events(self) -> None:
-        while self._sub.poll(timeout=0):
+        """Drain at most ``_ENGINE_DRAIN_BUDGET`` events, then return.
+
+        A publisher faster than this loop would otherwise keep ``poll()``
+        readable forever, so heartbeats, idle timeouts and client writes were
+        never reached and every connected client eventually timed out.
+        """
+        for _ in range(_ENGINE_DRAIN_BUDGET):
+            if not self._sub.poll(timeout=0):
+                break
             try:
                 topic, payload = decode(self._sub.recv_multipart())
             except zmq.ZMQError as exc:

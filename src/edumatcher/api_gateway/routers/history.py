@@ -4,6 +4,7 @@ over ZMQ for its structural/audit log."""
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import sqlite3
 import time
@@ -155,6 +156,24 @@ def _open_stats(request: Request) -> sqlite3.Connection:
         ) from exc
 
 
+async def _in_stats_db(
+    request: Request, work: Callable[[sqlite3.Connection], Any]
+) -> Any:
+    """Run *work* against the statistics database on a worker thread.
+
+    SQLite is synchronous, so querying it straight from an ``async def``
+    handler stalls everything else sharing the event loop -- including the
+    engine round-trips the write endpoints are blocked on. Opening the
+    connection inside the thread also keeps it on the thread that uses it.
+    """
+
+    def _run() -> Any:
+        with closing(_open_stats(request)) as conn:
+            return work(conn)
+
+    return await asyncio.to_thread(_run)
+
+
 def _invalid(field: str, message: str) -> HTTPException:
     """``400 VALIDATION`` naming *field* -- the same answer FastAPI's own query
     validation gives, so a client handles both alike."""
@@ -283,7 +302,8 @@ async def history_orders(
     gateway_id = require_trading(session)
     _validate_time_filters(date, from_ts, to_ts)
     normalized_event_type = _validate_event_type(event_type)
-    with closing(_open_stats(request)) as conn:
+
+    def _query(conn: sqlite3.Connection) -> Any:
         try:
             events, next_cursor = query_order_events(
                 conn,
@@ -300,6 +320,9 @@ async def history_orders(
         except InvalidCursorError as exc:
             raise _invalid("after", str(exc)) from exc
         retained_from = query_order_events_retained_from(conn, gateway_id=gateway_id)
+        return events, next_cursor, retained_from
+
+    events, next_cursor, retained_from = await _in_stats_db(request, _query)
     envelope = _paginated_envelope("events", events, next_cursor)
     envelope["retained_from"] = retained_from
     return envelope
@@ -328,9 +351,13 @@ async def history_order_lifecycle(
     placed before that point may show a partial timeline, or none.
     """
     gateway_id = require_trading(session)
-    with closing(_open_stats(request)) as conn:
+
+    def _query(conn: sqlite3.Connection) -> Any:
         events = query_order_lifecycle(conn, gateway_id=gateway_id, order_id=order_id)
         retained_from = query_order_events_retained_from(conn, gateway_id=gateway_id)
+        return events, retained_from
+
+    events, retained_from = await _in_stats_db(request, _query)
     return {
         "events": events,
         "count": len(events),
@@ -377,7 +404,8 @@ async def history_fills(
     """
     gateway_id = require_trading(session)
     _validate_time_filters(date, from_ts, to_ts)
-    with closing(_open_stats(request)) as conn:
+
+    def _query(conn: sqlite3.Connection) -> Any:
         try:
             events, next_cursor = query_order_events(
                 conn,
@@ -394,6 +422,9 @@ async def history_fills(
         except InvalidCursorError as exc:
             raise _invalid("after", str(exc)) from exc
         retained_from = query_order_events_retained_from(conn, gateway_id=gateway_id)
+        return events, next_cursor, retained_from
+
+    events, next_cursor, retained_from = await _in_stats_db(request, _query)
     envelope = _paginated_envelope("events", events, next_cursor)
     envelope["retained_from"] = retained_from
     return envelope
@@ -435,7 +466,8 @@ async def history_trades(
     """
     _ = session
     _validate_time_filters(date, from_ts, to_ts)
-    with closing(_open_stats(request)) as conn:
+
+    def _query(conn: sqlite3.Connection) -> Any:
         try:
             trades, next_cursor = query_trades(
                 conn,
@@ -450,6 +482,9 @@ async def history_trades(
             )
         except InvalidCursorError as exc:
             raise _invalid("after", str(exc)) from exc
+        return trades, next_cursor
+
+    trades, next_cursor = await _in_stats_db(request, _query)
     return _paginated_envelope(
         "trades", to_display_prices(trades, "trades"), next_cursor
     )
@@ -497,7 +532,8 @@ async def history_daily(
     _check("date", date, validate_date)
     _check("from", from_date, validate_date)
     _check("to", to_date, validate_date)
-    with closing(_open_stats(request)) as conn:
+
+    def _query(conn: sqlite3.Connection) -> Any:
         try:
             rows, next_cursor = query_daily(
                 conn,
@@ -510,6 +546,9 @@ async def history_daily(
             )
         except InvalidCursorError as exc:
             raise _invalid("after", str(exc)) from exc
+        return rows, next_cursor
+
+    rows, next_cursor = await _in_stats_db(request, _query)
     return _paginated_envelope("daily", to_display_prices(rows, "daily"), next_cursor)
 
 
@@ -555,7 +594,8 @@ async def history_price_snapshots(
     """
     _ = session
     _validate_time_filters(date, from_ts, to_ts)
-    with closing(_open_stats(request)) as conn:
+
+    def _query(conn: sqlite3.Connection) -> Any:
         try:
             rows, next_cursor = query_price_snapshots(
                 conn,
@@ -569,6 +609,9 @@ async def history_price_snapshots(
             )
         except InvalidCursorError as exc:
             raise _invalid("after", str(exc)) from exc
+        return rows, next_cursor
+
+    rows, next_cursor = await _in_stats_db(request, _query)
     return _paginated_envelope(
         "snapshots", to_display_prices(rows, "snapshots"), next_cursor
     )
@@ -618,7 +661,8 @@ async def history_index_daily(
     _check("date", date, validate_date)
     _check("from", from_date, validate_date)
     _check("to", to_date, validate_date)
-    with closing(_open_stats(request)) as conn:
+
+    def _query(conn: sqlite3.Connection) -> Any:
         try:
             rows, next_cursor = query_index_daily(
                 conn,
@@ -631,6 +675,9 @@ async def history_index_daily(
             )
         except InvalidCursorError as exc:
             raise _invalid("after", str(exc)) from exc
+        return rows, next_cursor
+
+    rows, next_cursor = await _in_stats_db(request, _query)
     # No tick conversion: index levels are computed, dimensionless numbers,
     # not prices on a tick grid.
     return _paginated_envelope("daily", rows, next_cursor)
@@ -678,7 +725,8 @@ async def history_index_snapshots(
     """
     _ = session
     _validate_time_filters(date, from_ts, to_ts)
-    with closing(_open_stats(request)) as conn:
+
+    def _query(conn: sqlite3.Connection) -> Any:
         try:
             rows, next_cursor = query_index_snapshots(
                 conn,
@@ -692,6 +740,9 @@ async def history_index_snapshots(
             )
         except InvalidCursorError as exc:
             raise _invalid("after", str(exc)) from exc
+        return rows, next_cursor
+
+    rows, next_cursor = await _in_stats_db(request, _query)
     return _paginated_envelope("snapshots", rows, next_cursor)
 
 
@@ -724,8 +775,12 @@ async def history_index_ids(
     """
     _ = session
     _check("date", date, validate_date)
-    with closing(_open_stats(request)) as conn:
+
+    def _query(conn: sqlite3.Connection) -> Any:
         rows = query_index_ids(conn, date_value=date, tz=_session_tz(request, conn))
+        return rows
+
+    rows = await _in_stats_db(request, _query)
     index_ids = [row["index_id"] for row in rows]
     return {"index_ids": index_ids, "count": len(index_ids)}
 

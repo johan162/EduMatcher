@@ -14,6 +14,7 @@ from edumatcher.config import (
     ENGINE_PULL_ADDR,
     resolve_gateway_bind_host,
 )
+from edumatcher.config_coerce import as_int
 
 
 @dataclass(frozen=True)
@@ -39,14 +40,7 @@ class AlfGatewayConfig:
 
 
 def _as_int(raw: object, field: str) -> int:
-    if isinstance(raw, bool):
-        raise ValueError(f"alf_gateway.{field} must be an integer")
-    if not isinstance(raw, (int, float, str, bytes, bytearray)):
-        raise ValueError(f"alf_gateway.{field} must be an integer")
-    try:
-        return int(raw)
-    except (TypeError, ValueError) as exc:
-        raise ValueError(f"alf_gateway.{field} must be an integer") from exc
+    return as_int(raw, f"alf_gateway.{field}")
 
 
 def _parse_gateway_roles(raw: Any) -> tuple[tuple[str, str], ...]:

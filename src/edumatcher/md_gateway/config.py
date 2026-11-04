@@ -14,6 +14,7 @@ from edumatcher.config import (
     INDEX_PUB_CONNECT_ADDR,
     resolve_gateway_bind_host,
 )
+from edumatcher.config_coerce import as_int
 
 
 @dataclass(frozen=True)
@@ -45,14 +46,7 @@ class MarketDataGatewayConfig:
 
 
 def _as_int(raw: object, field: str) -> int:
-    if isinstance(raw, bool):
-        raise ValueError(f"market_data_gateway.{field} must be an integer")
-    if not isinstance(raw, (int, str, float)):
-        raise ValueError(f"market_data_gateway.{field} must be an integer")
-    try:
-        return int(raw)
-    except (TypeError, ValueError) as exc:
-        raise ValueError(f"market_data_gateway.{field} must be an integer") from exc
+    return as_int(raw, f"market_data_gateway.{field}")
 
 
 def _load_market_data_gateway_config_from_raw(

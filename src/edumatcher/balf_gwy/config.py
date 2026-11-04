@@ -18,6 +18,7 @@ import yaml
 
 from edumatcher.config import ENGINE_PULL_ADDR, ENGINE_PUB_ADDR
 from edumatcher.config import resolve_gateway_bind_host
+from edumatcher.config_coerce import as_float, as_int
 
 
 @dataclass(frozen=True)
@@ -54,24 +55,11 @@ class BalfGatewayConfig:
 
 
 def _as_int(raw: object, field: str) -> int:
-    if isinstance(raw, bool):
-        raise ValueError(f"balf_gateway.{field} must be an integer")
-    if not isinstance(raw, (int, float, str)):
-        raise ValueError(f"balf_gateway.{field} must be an integer")
-    try:
-        return int(raw)
-    except (TypeError, ValueError) as exc:
-        raise ValueError(f"balf_gateway.{field} must be an integer") from exc
+    return as_int(raw, f"balf_gateway.{field}")
 
 
 def _as_float(raw: object, field: str) -> float:
-    try:
-        val = float(raw)  # type: ignore[arg-type]
-    except (TypeError, ValueError) as exc:
-        raise ValueError(f"balf_gateway.{field} must be numeric") from exc
-    if val <= 0:
-        raise ValueError(f"balf_gateway.{field} must be > 0")
-    return val
+    return as_float(raw, f"balf_gateway.{field}", positive=True)
 
 
 def _parse_gateway_roles(raw: Any) -> tuple[tuple[str, str], ...]:

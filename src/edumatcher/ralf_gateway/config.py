@@ -10,6 +10,7 @@ import yaml
 
 from edumatcher.config import ENGINE_PUB_ADDR
 from edumatcher.config import resolve_gateway_bind_host
+from edumatcher.config_coerce import as_int
 
 
 @dataclass(frozen=True)
@@ -26,15 +27,7 @@ class RalfGatewayConfig:
 
 
 def _as_int(raw: object, field: str) -> int:
-    if isinstance(raw, bool):
-        raise ValueError(f"post_trade_gateway.{field} must be an integer")
-    if not isinstance(raw, (int, float, str, bytes, bytearray)):
-        raise ValueError(f"post_trade_gateway.{field} must be an integer")
-    try:
-        val = int(raw)
-    except (TypeError, ValueError) as exc:
-        raise ValueError(f"post_trade_gateway.{field} must be an integer") from exc
-    return val
+    return as_int(raw, f"post_trade_gateway.{field}")
 
 
 def _load_ralf_gateway_config_from_raw(raw: dict[str, Any]) -> RalfGatewayConfig:
