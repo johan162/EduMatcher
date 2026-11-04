@@ -339,6 +339,22 @@ close those gaps:
 | Amendments show the prior price/qty | `order.amended.{GW_ID}` carries `old_price`/`old_qty` alongside the new values, so a post-mortem does not need the preceding `order.new`/`order.amended` to know what changed. |
 | Index corporate actions show the prior divisor | `index.corp_action_ack`, `index.constituent_change_ack`, and `index.rebalance_ack` all carry `old_divisor` alongside `divisor`, mirroring `HistoryRecord.old_divisor` in pm-index's own local archive — a post-mortem no longer needs that archive to see what changed. |
 
+### Commands the trail may not hold
+
+The engine echoes every inbound command into the trail before it acts on it,
+which is what lets a command that had no effect still be found. A command that
+reaches the engine **without an envelope frame** (a client that built its own
+PUSH socket instead of using the project's client library) cannot be echoed, and
+a failed echo is the other way one goes missing. Both are counted in
+`engine.diagnostics{component="UNRECORDED_COMMAND"}` in the engine's health
+beacon, and the first of each thousand is logged at WARNING. On a healthy
+exchange the counter stays at 0; any other value means the trail is not a
+complete record of what the exchange was asked to do.
+
+An audited run must also be started from a deployed config artifact
+(`pm-config-deploy`). With none, `system.startup` carries no config and
+`pm-audit-replay anomalies` reports `CONFIG_NOT_RECORDED`.
+
 ### Signal handling and graceful shutdown
 
 ```

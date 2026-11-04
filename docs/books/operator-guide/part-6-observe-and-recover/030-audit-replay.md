@@ -458,6 +458,7 @@ reader should look at, **info** is something expected at a window edge.
 | `TICK_SCALE_UNKNOWN` | warn | A tick-scaled price with no `tick_decimals` for its symbol anywhere in the window. The price is reported **in ticks and labelled as ticks** rather than guessed |
 | `UNKNOWN_ENUM` | warn | An enum value with no lexicon entry. The value is printed verbatim in backticks rather than guessed at or dropped. It is a renderer annotation, not a finding in the `anomalies` report or an NDJSON `anomaly` object |
 | `ORPHAN_EVENT` | info | A fact the resolver could not attach to anything |
+| `CONFIG_NOT_RECORDED` | warn | A `system.startup` with no compiled config: the engine ran from a YAML file, so the trail does not hold the limits, collars and tick sizes it ran on. Deploy with `pm-config-deploy` for any run that must stand as evidence |
 
 ### What a clean run does not prove
 

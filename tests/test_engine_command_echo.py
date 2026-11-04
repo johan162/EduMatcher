@@ -155,6 +155,37 @@ class TestEngineEchoesCommands:
         engine._echo_command("order.new", [b"order.new", b'{"id":"O1"}'])
         assert len(pub.sent) == before
 
+    def test_a_command_with_no_envelope_is_counted(self, engine_and_sock: Any) -> None:
+        """The trail's completeness rests on every client enveloping its
+        commands; one that does not leaves a command the trail never held."""
+        engine, _pub = engine_and_sock
+        assert engine._unrecorded_command_count == 0
+        engine._echo_command("order.new", [b"order.new", b'{"id":"O1"}'])
+        engine._echo_command("order.cancel", [b"order.cancel", b'{"id":"O1"}'])
+        assert engine._unrecorded_command_count == 2
+
+    def test_queries_and_heartbeats_are_not_counted(self, engine_and_sock: Any) -> None:
+        engine, _pub = engine_and_sock
+        engine._echo_command("book.snapshot_request", [b"x", b"{}"])
+        engine._echo_command("system.gateway_heartbeat", [b"x", b"{}"])
+        assert engine._unrecorded_command_count == 0
+
+    def test_a_failed_echo_is_counted(self, engine_and_sock: Any) -> None:
+        engine, _pub = engine_and_sock
+
+        class Exploding:
+            def send_with_envelope(self, frames: Any, envelope_frame: Any) -> None:
+                raise RuntimeError("socket is gone")
+
+        engine.pub_sock = Exploding()
+        engine._echo_command("order.new", submission(b"order.new"))
+        assert engine._unrecorded_command_count == 1
+
+    def test_a_recorded_command_is_not_counted(self, engine_and_sock: Any) -> None:
+        engine, _pub = engine_and_sock
+        engine._echo_command("order.new", submission(b"order.new"))
+        assert engine._unrecorded_command_count == 0
+
     def test_a_transport_failure_cannot_stop_the_exchange(
         self, engine_and_sock: Any
     ) -> None:

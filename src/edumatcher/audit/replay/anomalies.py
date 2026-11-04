@@ -76,6 +76,12 @@ REMAINING_NOT_MONOTONIC = "REMAINING_NOT_MONOTONIC"
 #: the boundary (section 5.1.3).
 RUN_SEQ_CHANGE = "RUN_SEQ_CHANGE"
 
+#: A ``system.startup`` that carries no compiled config: the engine ran from a
+#: YAML file, so the trail does not hold what it ran on (limits, collars, tick
+#: sizes) and the run cannot be re-executed from it. Audited runs deploy an
+#: artifact with ``pm-config-deploy``.
+CONFIG_NOT_RECORDED = "CONFIG_NOT_RECORDED"
+
 #: A resume for a symbol with no halt on record. Section 12.4.
 RESUME_WITHOUT_HALT = "RESUME_WITHOUT_HALT"
 

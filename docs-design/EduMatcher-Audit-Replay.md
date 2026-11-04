@@ -1507,6 +1507,7 @@ failing loudly if it reappears.
 | `UNKNOWN_TOPIC` | warn | A topic with no Fact mapping — the message spec has grown and the tool has not |
 | `TICK_SCALE_UNKNOWN` | warn | A message declaring a tick price but no `tick_decimals` for it. The price is left in ticks and labelled as ticks (§5.3.1) |
 | `UNKNOWN_ENUM` | warn | An enum value with no lexicon entry |
+| `CONFIG_NOT_RECORDED` | warn | A `system.startup` carrying no compiled config (engine ran from YAML): the trail does not hold what the run was configured with |
 | `ORPHAN_EVENT` | info | An event the link resolver could not attach to any episode |
 | `PARSE_FAILURE` | error | A line that does not match the audit line format |
 

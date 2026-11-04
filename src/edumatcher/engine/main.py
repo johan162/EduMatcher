@@ -607,6 +607,9 @@ class Engine:
         self._running = False
         self._error_count = 0
         self._unknown_topic_count = 0
+        # Commands the audit trail never received: no envelope to echo, or the
+        # echo failed. Each is a hole in "the trail holds every input".
+        self._unrecorded_command_count = 0
         # A fourth failure mode, distinct from the two above: the message
         # could not be decoded at all, so it has no topic to route and no
         # gateway to reject to.
@@ -7024,23 +7027,32 @@ class Engine:
         Best-effort regardless: a raise here would escape the receive loop and
         end it. Recording must never be able to stop the exchange.
         """
-        if (
-            len(frames) < 3
-            or topic.endswith(self._QUERY_SUFFIX)
-            or topic == TOPIC_GATEWAY_HEARTBEAT
-        ):
+        if topic.endswith(self._QUERY_SUFFIX) or topic == TOPIC_GATEWAY_HEARTBEAT:
+            return False
+        if len(frames) < 3:
             # Fewer than three frames means no envelope: a client that builds
             # its own PUSH socket instead of going through `make_pusher`.
             # There is no id to preserve, and minting one would invent a
             # causal root that nothing cites.
+            self._count_unrecorded(topic, "carried no envelope")
             return False
         try:
             self.pub_sock.send_with_envelope(frames[:2], frames[2])
         except Exception as exc:  # pragma: no cover - transport failure
             self._dbg_count("command_echo_failures")
-            log.warning("Command echo failed for %s: %s", topic, exc)
+            self._count_unrecorded(topic, f"echo failed: {exc}")
             return False
         return True
+
+    def _count_unrecorded(self, topic: str, why: str) -> None:
+        """A command is not in the audit trail. Logged on the first and every
+        thousandth so a misbehaving client cannot flood the log."""
+        self._unrecorded_command_count += 1
+        n = self._unrecorded_command_count
+        if n == 1 or n % 1000 == 0:
+            log.warning(
+                "Command %s not recorded in the audit trail (%s) (#%d)", topic, why, n
+            )
 
     def _dispatch_pull_message(self, topic: str, payload: dict[str, Any]) -> None:
         """Route one decoded PULL-socket message to its handler.
@@ -7314,6 +7326,7 @@ class Engine:
             ("UNROUTED_TOPIC", self._unknown_topic_count),
             ("UNDECODABLE_MESSAGE", self._undecodable_count),
             ("MAINTENANCE_FLUSH", self._flush_error_count),
+            ("UNRECORDED_COMMAND", self._unrecorded_command_count),
         ):
             out.append(counter("engine.diagnostics", n, component))
 

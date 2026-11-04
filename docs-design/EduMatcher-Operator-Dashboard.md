@@ -582,7 +582,7 @@ engine memory", which is the operationally useful number.
 | `engine.gc_time_pct` | G | | Share of the beacon interval spent in GC |
 | `engine.gc_collections` | C | | Collections since process start |
 | `engine.busy_pct` | G | | Share of wall time in the interval spent inside `_dispatch_pull_message` + `_run_maintenance`. The engine receives **exactly one** message per poll iteration (`run()`), so a "batch size" does not exist; ZeroMQ does not expose PULL-queue depth either. Busy % approaching 100 is the saturation signal: messages are arriving faster than they are handled (F3) |
-| `engine.diagnostics` | C | component | The existing `_error_count`, `_unknown_topic_count`, `_undecodable_count`, `_flush_error_count` — published even when zero (G17) |
+| `engine.diagnostics` | C | component | The existing `_error_count`, `_unknown_topic_count`, `_undecodable_count`, `_flush_error_count`, and `UNRECORDED_COMMAND` (a command the audit trail never received: no envelope, or the echo failed) — published even when zero (G17) |
 | `engine.session_state` | G | | Enum ordinal of `_session_state`; `pm-monitor` maps it back to the name |
 | `engine.halted_symbols` | G | | `len(_halted_symbols)` |
 | `engine.gtc_flush_ms` | G | | Duration of the last `_flush_persistence` call that actually wrote |

@@ -48,7 +48,7 @@ The matching record is strong; the evidential record is not yet.
 | # | Gap | Severity | WP |
 |---|-----|----------|----|
 | G1 | No tamper evidence: no hash chain, signature or anchored digest; archive SHA-256 is internal only; `--keep-days` deletes; docs call the trail "immutable" | High | A1 |
-| G2 | `reference_reload_ack` carries only `config_version`; effective tick/lot/collar/risk after a mid-day reload is not recoverable from the trail | Med | A2 |
+| G2 | **Revised.** Reload is accepted only when the engine runs from YAML (no deployed artifact); then `system.startup` carries no config at all. With an artifact the config is fully recorded and reload is rejected | Low | A2 |
 | G3 | Gateway-local rejects (rate limit, auth, malformed, role) never reach the bus, so the exchange can neither show nor disprove "I sent it" | Med | A3 |
 | G4 | Re-execution lives in `tools/sim_forensics`, not in the shipped replay; its E1 lists inputs the trail does not hold (silent-gateway expiry, wall-clock timers other than the breaker's) | Med | A4 |
 | G5 | A command without an envelope frame is not echoed; nothing alerts | Low | A5 |
@@ -64,17 +64,16 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 | # | WP | Content | Gap | Depends on | Est. | Status | Done on |
 |---|----|---------|-----|------------|------|--------|---------|
 | 1 | A1 | Daily evidence manifest: hash chain across days, `pm-audit-cli verify` | G1 | — | 2 d | ◐ | 2026-11-04 (code + docs done, uncommitted) |
-| 2 | A2 | Reload records the effective config (content, not just hash) | G2 | — | 0.75 d | ☐ | |
+| 2 | A2 | Decision: option 3. Audited runs must use a deployed artifact; replay flags `CONFIG_NOT_RECORDED` | G2 | — | 0.25 d | ◐ | 2026-11-04 (uncommitted) |
 | 3 | A3 | Gateway-local rejects: record to the trail, or document as out of scope (decision D1) | G3 | D1 | 1.5 d / 0.25 d | ☐ | |
 | 4 | A4 | Promote the re-run to a supported verification command; close or document the hidden inputs | G4 | A2 | 2.5 d | ☐ | |
-| 5 | A5 | Unenveloped command: count it and surface it | G5 | — | 0.5 d | ☐ | |
+| 5 | A5 | Unenveloped command: count it and surface it | G5 | — | 0.5 d | ◐ | 2026-11-04 (uncommitted) |
 | 6 | A6 | Recorder durability: fsync policy, gap-on-restart marker, documented loss window | G6 | A1 | 1.5 d | ☐ | |
 | 7 | A7 | Engine clock on ack and fill (decision D2) | G7 | D2 | 1 d | ☐ | |
 | 8 | A8 | `story --queue`: book/queue view from checkpoint plus echoed commands (decision D3) | G8 | A4 | 2 d | ☐ | |
 | 9 | A9 | Close out: tick §17, evidence/dispute chapter in the operator guide | G9 | A1–A6 | 1 d | ☐ | |
 
-Order: A1, A2, A5 are independent and cheap; do A1 first. A4 needs A2 so a
-re-run after a reload uses the right config.
+Order: A1, A2, A5 are independent and cheap; do A1 first. A4 re-runs only artifact runs (reload is rejected on those, so the config never changes mid-run).
 
 ## 3. Decisions (answered 2026-11-04)
 
