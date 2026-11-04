@@ -4187,7 +4187,7 @@ Gateway to engine: I refused a participant's request myself, before the engine s
 
 !!! note
 
-    A gateway reports at most one record per peer and reject code per second and carries the number it folded in as `count`, so a client flooding refused commands cannot flood the engine through this message.
+    A gateway reports at most one record per peer host and reject code per second and carries the number it folded in as `count`, so a client flooding refused commands cannot flood the engine through this message, even with a new connection (source port) per request.
 
 **See also:** `system.gateway_connect`, `order.ack.{GW_ID}`
 

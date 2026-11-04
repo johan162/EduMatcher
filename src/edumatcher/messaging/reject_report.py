@@ -6,8 +6,11 @@ sends ``system.gateway_reject`` over its PUSH socket; the engine echoes it onto
 the bus like any command.
 
 A client can provoke these at the speed it can send, and each one costs the
-engine a receive, so a reporter sends at most one record per peer and code per
-``interval`` seconds and carries the number it folded in as ``count``.  The
+engine a receive, so a reporter sends at most one record per peer host and code
+per ``interval`` seconds and carries the number it folded in as ``count``.  The
+host, not ``host:port``: a client that opens a new connection per request (any
+plain HTTP client against the REST gateway) comes from a new source port each
+time.  The record still names the full peer of the refusal that sent it.  The
 count of the final burst is lost if the peer then goes quiet; the first record
 of the burst, with its time, is not.
 """
@@ -45,7 +48,7 @@ class RejectReporter:
         self._send = send
         self._interval = interval
         self._clock = clock
-        #: (peer, code) -> (time of last record, refusals folded in since)
+        #: (peer host, code) -> (time of last record, refusals folded in since)
         self._state: dict[tuple[str, str], tuple[float, int]] = {}
 
     @property
@@ -57,7 +60,7 @@ class RejectReporter:
         if code not in REPORTED_CODES:
             return
         now = self._clock()
-        key = (peer, code)
+        key = (_host(peer), code)
         last, folded = self._state.get(key, (None, 0))
         if last is not None and now - last < self._interval:
             self._state[key] = (last, folded + 1)
@@ -79,3 +82,9 @@ class RejectReporter:
             )
         except Exception as exc:  # recording must never stop a gateway
             log.warning("cannot report %s from %s to the engine: %s", code, peer, exc)
+
+
+def _host(peer: str) -> str:
+    """The address of a ``host:port`` peer (the whole of one without a port)."""
+    host, sep, _port = peer.rpartition(":")
+    return host if sep else peer

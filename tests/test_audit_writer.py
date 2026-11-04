@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 import threading
 import time
+from typing import Any
 from datetime import datetime, timedelta, timezone, tzinfo
 from pathlib import Path
 from unittest.mock import patch
@@ -298,6 +299,34 @@ class TestDurability:
             f.write("2026-10-24", ["c"])
             assert fsync.call_count == 2
 
+    def test_a_quiet_tail_is_synced_once_due_without_another_write(
+        self, tmp_path: Path
+    ) -> None:
+        """Synced only on a write, the last lines before a quiet spell (the
+        close of the day before an idle night) stayed in the page cache until
+        the next write, however long that took (review 2026-11-05)."""
+        clock = [100.0]
+        f = AuditFile(
+            tmp_path / "audit.log",
+            1 << 20,
+            timezone.utc,
+            fsync_interval=1.0,
+            clock=lambda: clock[0],
+        )
+        with patch("edumatcher.audit.writer.os.fsync") as fsync:
+            f.write("2026-10-24", ["a"])  # synced: the first
+            clock[0] += 0.5
+            f.write("2026-10-24", ["b"])  # not yet due
+            assert not f.sync_due()
+            clock[0] += 0.6
+            assert f.sync_due()
+            f.sync_if_due()
+            assert fsync.call_count == 2
+            clock[0] += 10
+            assert not f.sync_due()  # nothing written since
+            f.sync_if_due()
+            assert fsync.call_count == 2
+
     def test_a_zero_interval_syncs_every_flush(self, tmp_path: Path) -> None:
         f = AuditFile(tmp_path / "audit.log", 1 << 20, timezone.utc, fsync_interval=0)
         with patch("edumatcher.audit.writer.os.fsync") as fsync:
@@ -337,3 +366,37 @@ class TestDurability:
         f.write("2026-10-24", ["a"])
         f.close()
         assert _lines(tmp_path / "audit.log") == ["a"]
+
+
+def test_the_receive_loop_syncs_a_quiet_tail(tmp_path: Path) -> None:
+    """With no line arriving, the loop's poll timeout is the only thing that
+    runs: it must sync what an earlier flush left unsynced."""
+    clock = [datetime(2026, 10, 24, 12, 0, tzinfo=timezone.utc)]
+    proc = _process(tmp_path, timezone.utc, clock)
+    mono = [100.0]
+    proc._file._clock = lambda: mono[0]
+    _record(proc, 1)
+    proc._flush_buffer()  # the first write: synced
+    mono[0] += 0.5
+    _record(proc, 2)
+    proc._flush_buffer()  # not yet due
+
+    polls = [0]
+
+    def idle_poll(timeout: int) -> list[Any]:
+        polls[0] += 1
+        mono[0] += timeout / 1000
+        if polls[0] == 5:
+            proc._running = False
+        return []
+
+    with (
+        patch("edumatcher.audit.main.zmq.Poller") as poller,
+        patch("edumatcher.audit.writer.os.fsync") as fsync,
+    ):
+        poller.return_value.poll.side_effect = idle_poll
+        proc._eod_seen = True  # nothing to drain after the loop
+        proc._running = True
+        proc._receive()
+    assert fsync.call_count >= 1
+    proc._file.close()

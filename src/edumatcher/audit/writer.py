@@ -97,6 +97,8 @@ class AuditFile:
         self._fsync_interval = fsync_interval
         self._clock = clock
         self._last_sync: float | None = None
+        #: Written since the last fsync (the page cache holds it, not the disk).
+        self._unsynced = False
         #: The next write begins with a recorder-start marker.
         self._announce_start = announce_start
         #: Called when a roll closes a day that has ended (not on a size roll).
@@ -126,16 +128,29 @@ class AuditFile:
         data = ("\n".join(lines) + "\n").encode("utf-8")
         self._fh.write(data)
         self._fh.flush()
-        self._sync_if_due()
+        self._unsynced = True
+        self.sync_if_due()
         self._size += len(data)
         if self._size >= self._max_bytes:
             self._try_roll()
 
-    def _sync_if_due(self) -> None:
-        now = self._clock()
-        if self._last_sync is None or now - self._last_sync >= self._fsync_interval:
+    def sync_due(self) -> bool:
+        """Whether written lines wait for an fsync that is due.  Reads two
+        fields and the clock only, so a caller may ask it without the lock that
+        serialises ``write`` and take the lock only to ``sync_if_due``."""
+        return self._unsynced and (
+            self._last_sync is None
+            or self._clock() - self._last_sync >= self._fsync_interval
+        )
+
+    def sync_if_due(self) -> None:
+        """fsync what was written, at most once per ``fsync_interval``.  Called
+        on every write, and by the recorder's loop while no line arrives, so a
+        quiet tail is not left unsynced until the next write."""
+        if self.sync_due():
             os.fsync(self._fh.fileno())
-            self._last_sync = now
+            self._last_sync = self._clock()
+            self._unsynced = False
 
     def close_days_before(self, today: str) -> None:
         """Close ``audit.log`` if it holds a day before ``today`` (idle midnight)."""
@@ -161,6 +176,7 @@ class AuditFile:
             return
         self._fh.flush()
         os.fsync(self._fh.fileno())
+        self._unsynced = False
         self._parts_dir.mkdir(parents=True, exist_ok=True)
         part = self._parts_dir / f"audit-{self._day}.{self._next_part_number()}.log"
         self._fh.close()

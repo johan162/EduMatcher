@@ -150,7 +150,7 @@ sit between an engine publication and the disk, and each has a bound:
 | `pm-audit` is not running | Everything the engine publishes meanwhile | Unbounded. The next line shows a jump in `eseq` (replay: `ESEQ_GAP`), and a `# recorder-start` marker before it (replay: `RECORDER_RESTART`) says why |
 | The receive queue overflows (a burst faster than the writer) | The messages past the queue's 200 000 | Counted by `audit.missed_messages` when the next message shows the jump |
 | `pm-audit` is killed (`kill -9`) | Lines buffered but not yet written | At most `--buffer-size` messages or `--flush-interval` seconds, whichever comes first |
-| The host loses power or the kernel crashes | Lines written but not yet synced | At most `--fsync-interval` seconds (default 1) plus the line above |
+| The host loses power or the kernel crashes | Lines written but not yet synced | About `--fsync-interval` seconds (default 1) plus the line above. A write syncs when one is due, and while no line arrives the receive loop does (it wakes at least every 0.3 s), so a quiet tail is not left in the page cache |
 
 A stopped-and-started `pm-audit` writes one comment line, `# edumatcher-audit
 recorder-start pm-audit=<version> started=<time>`, before its first line, so the
@@ -383,9 +383,11 @@ gateway (`source`), the participant it believed it was talking to
 (`gateway_id`, claimed and empty before login), the remote address, the reject
 code, the reason and the gateway's clock. It never carries an API key.
 
-A gateway sends at most one record per peer and code per second and puts the
-number it folded in as `count`, so a flood of refused commands is one line a
-second, not a flood. The count of the last burst is lost if the peer then goes
+A gateway sends at most one record per peer host and code per second and puts
+the number it folded in as `count`, so a flood of refused commands is one line a
+second, not a flood. The host, not the host and port: a client that opens a new
+connection per request comes from a new port each time. The record names the
+full `peer` of the refusal that sent it. The count of the last burst is lost if the peer then goes
 quiet, and the first record of the burst is not.
 
 Not recorded, on purpose: malformed frames and field-validation refusals

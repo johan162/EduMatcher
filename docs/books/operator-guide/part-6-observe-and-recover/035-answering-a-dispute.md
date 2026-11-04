@@ -94,7 +94,7 @@ Say these before someone else does.
 - **Refusals the gateways do not report.** Login, role and rate-limit refusals are
   recorded. Malformed frames, field-validation refusals and a read-only REST key
   attempting a write are counted by the gateway and are not in the trail. A burst
-  of repeated refusals is one record per second per peer with a `count`; the count
+  of repeated refusals is one record per second per peer host with a `count`; the count
   of the final burst is lost if the peer then goes quiet.
 - **Commands that bypassed the envelope.** A client that does not use the project's
   client library cannot be echoed. `engine.diagnostics{component="UNRECORDED_COMMAND"}`

@@ -555,6 +555,10 @@ class AuditProcess:
                 answer_health_ping(self.health_rep, log)
             if self.sub in socks:
                 self._receive_one_message()
+            if self._file.sync_due():
+                # A quiet spell: no write comes to sync the last lines.
+                with self._buffer_lock:
+                    self._file.sync_if_due()
         self._drain()
 
     def _receive_one_message(self) -> None:

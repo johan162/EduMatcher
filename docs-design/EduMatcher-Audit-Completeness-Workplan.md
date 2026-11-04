@@ -319,6 +319,14 @@ queue view, fixed with tests that failed first:
    marker between `system.eod` and the next start, or one after which `eseq`
    continues, is accepted: nothing was lost (`TestAnIncompleteTrail`).
 
-Not fixed (low): REST refusal folding keyed by `host:port`; fsync only on a write, so
-an idle tail stays unsynced longer than `--fsync-interval`; a torn manifest line
-merges with the next append.
+Then fixed (4, 5), also test-first:
+
+4. **Refusal folding was keyed by `host:port`**, so a client opening a connection
+   per request (any plain HTTP client against REST) sent one record per refusal.
+   `RejectReporter` now folds by peer host; the record still names the full peer
+   (`tests/test_gateway_reject_reporter.py`).
+5. **fsync ran only on a write**, so the last lines before a quiet spell stayed
+   unsynced until the next write. `AuditFile.sync_due`/`sync_if_due`, and the
+   recorder's receive loop syncs a due tail on its poll timeout (`tests/test_audit_writer.py`).
+
+Not fixed (low): a torn manifest line merges with the next append.
