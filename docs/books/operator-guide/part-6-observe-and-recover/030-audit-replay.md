@@ -449,7 +449,7 @@ reader should look at, **info** is something expected at a window edge.
 |---|---|---|
 | `EFFECT_COUNT_MISMATCH` | warn | An ack's list of affected entities disagrees with what was observed. The finding names which are missing |
 | `COMMAND_UNACKED` | warn | A risk or admin command with no ack carrying its `command_id` |
-| `ACK_WITHOUT_COMMAND` | warn | An ack whose `command_id` matches no request in the window. **Not currently raised** — the code exists and nothing produces it |
+| `ACK_WITHOUT_COMMAND` | warn | An ack whose `command_id` matches no request in the window: the window starts after the command, or its echo was lost |
 | `RESUME_WITHOUT_HALT` | warn | A resume for a symbol with no halt on record |
 | `HALT_UNRESUMED` | info | A halt with no resume by the time its episode retired |
 
