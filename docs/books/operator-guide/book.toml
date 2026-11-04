@@ -68,6 +68,7 @@ files = [
   "010-persistence.md",
   "020-audit-trail.md",
   "030-audit-replay.md",
+  "035-answering-a-dispute.md",
   "040-log-server.md",
   "050-log-console.md",
   "060-health-monitor.md",

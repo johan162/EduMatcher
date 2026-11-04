@@ -39,12 +39,15 @@ from edumatcher.audit.query import (
 )
 from edumatcher.audit.replay.anomalies import (
     PARSE_FAILURE,
+    RECORDER_RESTART,
     SEVERITY_ERROR,
+    SEVERITY_INFO,
     SEVERITY_WARN,
     TICK_SCALE_UNKNOWN,
     UNKNOWN_TOPIC,
     Anomaly,
 )
+from edumatcher.audit.writer import RECORDER_START_PREFIX
 from edumatcher.models.generated.order import TOPIC_ORDER_NEW
 from edumatcher.models.generated.system import TOPIC_STARTUP
 
@@ -424,7 +427,9 @@ def normalise(entries: Iterable[AuditEntry]) -> Iterator[Fact]:
         fact = replace(fact, publisher_run=publisher_run)
         seen_fact = True
         if previous is not None and previous[0] == entry.file:
-            unread = entry.line_no - previous[1] - 1
+            # Comment lines (the header, a recorder-start marker) are not lost
+            # lines: only what is neither a record nor a comment is.
+            unread = entry.line_no - previous[1] - 1 - len(entry.marks)
             if unread > 0:
                 fact = replace(
                     fact,
@@ -444,4 +449,23 @@ def normalise(entries: Iterable[AuditEntry]) -> Iterator[Fact]:
                     ),
                 )
         previous = (entry.file, entry.line_no)
+        for mark in entry.marks:
+            if mark.startswith(RECORDER_START_PREFIX):
+                fact = replace(
+                    fact,
+                    anomalies=fact.anomalies
+                    + (
+                        Anomaly(
+                            code=RECORDER_RESTART,
+                            severity=SEVERITY_INFO,
+                            detail=(
+                                "pm-audit was (re)started before this line: "
+                                "nothing was recorded while it was down"
+                            ),
+                            receipt_ts=entry.timestamp,
+                            file=entry.file,
+                            line_no=entry.line_no,
+                        ),
+                    ),
+                )
         yield fact

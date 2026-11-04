@@ -41,18 +41,31 @@ _MARKET: dict[str, Any] = {
 }
 
 
+@pytest.fixture(autouse=True)
+def _pinned_ack_clock(monkeypatch: pytest.MonkeyPatch) -> None:
+    """``make_ack_msg`` stamps the engine clock; pin it so bytes compare."""
+    monkeypatch.setattr(M, "now_ns", lambda: _CLOCK)
+
+
+_CLOCK = 1_700_000_000_000_000_000
+
+
 class TestByteIdenticalToTheHandWrittenBuilders:
     """The acceptance bar every family adoption has met."""
 
     def test_ack_without_order_detail(self) -> None:
         assert M.make_ack_msg("GW1", "O1", True, "") == G.make_order_ack_unchecked(
-            gateway_id="GW1", order_id="O1", accepted=True, reason=""
+            ts_ns=_CLOCK, gateway_id="GW1", order_id="O1", accepted=True, reason=""
         )
 
     def test_ack_rejected_carries_the_reason(self) -> None:
         assert M.make_ack_msg("GW1", "O1", False, "bad symbol") == (
             G.make_order_ack_unchecked(
-                gateway_id="GW1", order_id="O1", accepted=False, reason="bad symbol"
+                ts_ns=_CLOCK,
+                gateway_id="GW1",
+                order_id="O1",
+                accepted=False,
+                reason="bad symbol",
             )
         )
 
@@ -64,6 +77,7 @@ class TestByteIdenticalToTheHandWrittenBuilders:
             "bad symbol",
             reject_code="UNKNOWN_SYMBOL",
         ) == G.make_order_ack_unchecked(
+            ts_ns=_CLOCK,
             gateway_id="GW1",
             order_id="O1",
             accepted=False,
@@ -87,6 +101,7 @@ class TestByteIdenticalToTheHandWrittenBuilders:
     def test_ack_with_a_limit_order_tag_and_group(self) -> None:
         assert M.make_ack_msg("GW1", "O1", True, "", order=_LIMIT) == (
             G.make_order_ack_unchecked(
+                ts_ns=_CLOCK,
                 gateway_id="GW1",
                 order_id="O1",
                 accepted=True,
@@ -100,6 +115,7 @@ class TestByteIdenticalToTheHandWrittenBuilders:
                 client_tag="t1",
                 oco_group_id="G1",
                 leg_index=2,
+                tick_decimals=2,
             )
         )
 

@@ -83,6 +83,14 @@ _AUCTION_INDICATIVE_FIELDS: tuple[dict[str, Any], ...] = (
         "constraints": {"ge": 0},
     },
     {
+        "name": "tick_decimals",
+        "type": "int",
+        "unit": "dimensionless",
+        "required": False,
+        "doc": "Decimal scale of the `*_ticks` prices in this message (1 tick = 10^-tick_decimals) -- the symbol's. Every message that carries a tick price carries its scale, so a reader of one line can turn it into money without guessing.",
+        "constraints": {"ge": 0, "le": 9},
+    },
+    {
         "name": "eq_price_ticks",
         "type": "ticks",
         "unit": "ticks",
@@ -114,6 +122,7 @@ class AuctionIndicative:
     imbalance_qty: int  # unit: shares
     eq_price: float | None = None  # unit: display_price
     imbalance_side: AuctionIndicativeImbalanceSide | None = None
+    tick_decimals: int | None = None  # unit: dimensionless
     eq_price_ticks: int | None = None  # unit: ticks
 
     def validate(self) -> None:
@@ -145,6 +154,15 @@ class AuctionIndicative:
             raise MessageValidationError(
                 f"imbalance_qty: {self.imbalance_qty!r} must be >= 0"
             )
+        if self.tick_decimals is not None:
+            if self.tick_decimals < 0:
+                raise MessageValidationError(
+                    f"tick_decimals: {self.tick_decimals!r} must be >= 0"
+                )
+            if self.tick_decimals > 9:
+                raise MessageValidationError(
+                    f"tick_decimals: {self.tick_decimals!r} must be <= 9"
+                )
 
     @classmethod
     def from_dict(cls, p: Mapping[str, Any]) -> "AuctionIndicative":
@@ -165,6 +183,9 @@ class AuctionIndicative:
                 else cast(AuctionIndicativeImbalanceSide, str(p["imbalance_side"]))
             ),
             imbalance_qty=int(p["imbalance_qty"]),
+            tick_decimals=(
+                None if p.get("tick_decimals") is None else int(p["tick_decimals"])
+            ),
             eq_price_ticks=(
                 None if p.get("eq_price_ticks") is None else int(p["eq_price_ticks"])
             ),
@@ -181,6 +202,8 @@ class AuctionIndicative:
         }
         if self.imbalance_side is not None:
             payload["imbalance_side"] = self.imbalance_side
+        if self.tick_decimals is not None:
+            payload["tick_decimals"] = self.tick_decimals
         if self.eq_price_ticks is not None:
             payload["eq_price_ticks"] = self.eq_price_ticks
         return payload
@@ -220,6 +243,7 @@ def make_auction_indicative_unchecked(
     imbalance_qty: int,
     eq_price: float | None = None,
     imbalance_side: AuctionIndicativeImbalanceSide | None = None,
+    tick_decimals: int | None = None,
     eq_price_ticks: int | None = None,
 ) -> list[bytes]:
     """Identical frames to ``make_auction_indicative``, without ``validate()``.
@@ -241,6 +265,8 @@ def make_auction_indicative_unchecked(
     }
     if imbalance_side is not None:
         payload["imbalance_side"] = str(imbalance_side)
+    if tick_decimals is not None:
+        payload["tick_decimals"] = int(tick_decimals)
     if eq_price_ticks is not None:
         payload["eq_price_ticks"] = int(eq_price_ticks)
     return [
@@ -351,6 +377,14 @@ _AUCTION_RESULT_FIELDS: tuple[dict[str, Any], ...] = (
         "values": _AUCTION_RESULT_REASON_VALUES,
     },
     {
+        "name": "tick_decimals",
+        "type": "int",
+        "unit": "dimensionless",
+        "required": False,
+        "doc": "Decimal scale of the `*_ticks` prices in this message (1 tick = 10^-tick_decimals) -- the symbol's. Every message that carries a tick price carries its scale, so a reader of one line can turn it into money without guessing.",
+        "constraints": {"ge": 0, "le": 9},
+    },
+    {
         "name": "eq_price_ticks",
         "type": "ticks",
         "unit": "ticks",
@@ -392,6 +426,7 @@ class AuctionResult:
     reason: AuctionResultReason
     eq_price: float | None = None  # unit: display_price
     imbalance_side: AuctionResultImbalanceSide | None = None
+    tick_decimals: int | None = None  # unit: dimensionless
     eq_price_ticks: int | None = None  # unit: ticks
     auction_id: str | None = None
 
@@ -428,6 +463,15 @@ class AuctionResult:
             raise MessageValidationError(
                 f"reason: {self.reason!r} is not one of {_AUCTION_RESULT_REASON_VALUES!r}"
             )
+        if self.tick_decimals is not None:
+            if self.tick_decimals < 0:
+                raise MessageValidationError(
+                    f"tick_decimals: {self.tick_decimals!r} must be >= 0"
+                )
+            if self.tick_decimals > 9:
+                raise MessageValidationError(
+                    f"tick_decimals: {self.tick_decimals!r} must be <= 9"
+                )
         if self.auction_id is not None:
             if len(self.auction_id) > 32:
                 raise MessageValidationError(
@@ -454,6 +498,9 @@ class AuctionResult:
             ),
             imbalance_qty=int(p["imbalance_qty"]),
             reason=cast(AuctionResultReason, str(p["reason"])),
+            tick_decimals=(
+                None if p.get("tick_decimals") is None else int(p["tick_decimals"])
+            ),
             eq_price_ticks=(
                 None if p.get("eq_price_ticks") is None else int(p["eq_price_ticks"])
             ),
@@ -472,6 +519,8 @@ class AuctionResult:
         }
         if self.imbalance_side is not None:
             payload["imbalance_side"] = self.imbalance_side
+        if self.tick_decimals is not None:
+            payload["tick_decimals"] = self.tick_decimals
         if self.eq_price_ticks is not None:
             payload["eq_price_ticks"] = self.eq_price_ticks
         if self.auction_id is not None:
@@ -514,6 +563,7 @@ def make_auction_result_unchecked(
     reason: AuctionResultReason,
     eq_price: float | None = None,
     imbalance_side: AuctionResultImbalanceSide | None = None,
+    tick_decimals: int | None = None,
     eq_price_ticks: int | None = None,
     auction_id: str | None = None,
 ) -> list[bytes]:
@@ -537,6 +587,8 @@ def make_auction_result_unchecked(
     }
     if imbalance_side is not None:
         payload["imbalance_side"] = str(imbalance_side)
+    if tick_decimals is not None:
+        payload["tick_decimals"] = int(tick_decimals)
     if eq_price_ticks is not None:
         payload["eq_price_ticks"] = int(eq_price_ticks)
     if auction_id is not None:

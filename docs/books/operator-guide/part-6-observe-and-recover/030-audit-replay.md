@@ -175,6 +175,8 @@ required to produce identical output either way.
 | `episodes` | The index as a table, one row per episode | No |
 | `anomalies` | Every finding, worst first, each with the `story` command to run next | No |
 | `stats` | Link confidence, envelope coverage and anomaly counts over the window | No |
+| `rerun` | Feeds the trail's commands to a fresh engine and compares what it publishes | No |
+| `queue` | Follows one resting order, or one price level, through the queue (observes the re-run) | No |
 | `index` | Builds or refreshes the episode index; `--stats` reports what it holds | — |
 
 ### `story` selectors
@@ -363,6 +365,7 @@ produced it.
 | `0` | Success |
 | `1` | Nothing to narrate, or no audit log at the given path |
 | `2` | Argument error, including a format a subcommand cannot produce |
+| `3` | `rerun` or `queue`: the trail cannot be re-run (see [Re-executing the trail](#re-executing-the-trail)) |
 
 
 
@@ -437,6 +440,7 @@ reader should look at, **info** is something expected at a window edge.
 | `ARRIVAL_SEQ_REUSED` | error | A repeated or decreasing `arrival_seq` within one run: two orders claiming one queue position. Always reported, unlike the gap below |
 | `ARRIVAL_SEQ_GAP` | info | A gap in `arrival_seq` within one run. Expected whenever the window omits another gateway's orders, so `--strict` only |
 | `RUN_SEQ_CHANGE` | info | An engine restart observed mid-window. Not a fault, but nothing may be compared across it |
+| `RECORDER_RESTART` | info | `pm-audit` was (re)started just before this line, so nothing was recorded while it was down. See [What can be lost](020-audit-trail.md#what-can-be-lost) |
 | `ENVELOPE_MISSING` | info | An engine-published message with no envelope. Expected on archived lines; on a current log, a publisher is bypassing `CausalPublisher` |
 
 ### Command reconciliation
@@ -445,7 +449,7 @@ reader should look at, **info** is something expected at a window edge.
 |---|---|---|
 | `EFFECT_COUNT_MISMATCH` | warn | An ack's list of affected entities disagrees with what was observed. The finding names which are missing |
 | `COMMAND_UNACKED` | warn | A risk or admin command with no ack carrying its `command_id` |
-| `ACK_WITHOUT_COMMAND` | warn | An ack whose `command_id` matches no request in the window. **Not currently raised** — the code exists and nothing produces it |
+| `ACK_WITHOUT_COMMAND` | warn | An ack whose `command_id` matches no request in the window: the window starts after the command, or its echo was lost |
 | `RESUME_WITHOUT_HALT` | warn | A resume for a symbol with no halt on record |
 | `HALT_UNRESUMED` | info | A halt with no resume by the time its episode retired |
 
@@ -458,6 +462,7 @@ reader should look at, **info** is something expected at a window edge.
 | `TICK_SCALE_UNKNOWN` | warn | A tick-scaled price with no `tick_decimals` for its symbol anywhere in the window. The price is reported **in ticks and labelled as ticks** rather than guessed |
 | `UNKNOWN_ENUM` | warn | An enum value with no lexicon entry. The value is printed verbatim in backticks rather than guessed at or dropped. It is a renderer annotation, not a finding in the `anomalies` report or an NDJSON `anomaly` object |
 | `ORPHAN_EVENT` | info | A fact the resolver could not attach to anything |
+| `CONFIG_NOT_RECORDED` | warn | A `system.startup` with no compiled config: the engine ran from a YAML file, so the trail does not hold the limits, collars and tick sizes it ran on. Deploy with `pm-config-deploy` for any run that must stand as evidence |
 
 ### What a clean run does not prove
 
@@ -597,6 +602,109 @@ Link confidence
 Low envelope coverage on a current log means a publisher is bypassing
 `CausalPublisher`. A high `HEURISTIC` share means the narrative is more
 inference than record, and should be read as such.
+
+### Re-executing the trail
+
+Everything above reads what the trail *says*. `rerun` checks it against the
+engine:
+
+```bash
+pm-audit-replay --log-file data/audit.log rerun
+```
+
+The engine echoes every command it is asked to perform into the trail before it
+acts, so the trail is the engine's complete input. `rerun` builds a fresh engine
+from the configuration in `system.startup`, feeds it each command in order, and
+compares what it publishes with what the live engine published for that
+command. It also fires the engine's own timers where the trail names them: a
+circuit breaker reopening, and a gateway disconnected for missed heartbeats.
+
+```text
+re-ran 8 commands (order.new 2, system.gateway_connect 3, ...)
+hidden inputs: 0
+outputs: 0 differing episodes; run made with 0.72.1, re-run with 0.72.1; ...
+final book: 0 differences
+```
+
+| Line | Means |
+|---|---|
+| `hidden inputs` | State changes the live engine published with no command or named timer behind them. The trail does not hold what caused them, so the re-run cannot reproduce them |
+| `outputs` | Commands after which the fresh engine published something different. A difference is non-determinism, a hidden input, or a change in the engine since the run, so re-run with the engine version the run used; the line names both versions |
+| `final book` | The re-run's resting book against `gtc_orders.json` beside the trail. Said plainly when the file is not there |
+
+`rerun` reads every file in the data directory, archived days included, from the
+first line on. An engine restart in the trail is re-run as a restart: the fresh
+engine persists its book as the live one did on its way down, and the next run's
+engine starts from those files, on that run's own configuration and run
+sequence. Each start's book is compared with the live engine's `STARTUP`
+checkpoint, so a restart that came back with a different book (after `kill -9`
+the engine restores its last periodic checkpoint, not the book it had) is
+counted under `outputs`, and the note says how many restarts were re-run.
+
+Exit `0` is clean, `1` a difference, `3` the trail cannot be re-run. That is
+when:
+
+- the first line is not an engine start, or that start restored orders from
+  files the trail does not hold (retention removed the day it began empty);
+- a run carries no config (the engine ran from a YAML file; see
+  `CONFIG_NOT_RECORDED`);
+- the trail provably misses engine output: the engine-wide sequence (`eseq`)
+  jumps, or `pm-audit` restarted while the engine ran. A recorder restart
+  between an engine's `system.eod` and its next start loses nothing, and
+  neither does one after which `eseq` simply continues.
+
+It reads the whole trail in one pass, so allow minutes for a full simulated day.
+
+### Where was my order in the queue?
+
+`story` shows an order's own events. `queue` shows its *level*: where it stood
+among the orders at its price, what traded or was cancelled ahead of it, and
+whether the market ever reached it. It observes the re-run, so the positions are
+the engine's own, with its rules for time priority, iceberg slices and amends.
+
+```bash
+pm-audit-replay --log-file data/audit.log queue --order 2b153da6
+pm-audit-replay --log-file data/audit.log queue --symbol AAPL --price 264.15
+```
+
+```text
+order 2b153da6  BUY 50 AAPL @ 264.15  (TRADER01)
+07:00:00.118  rested at 264.15: 4 of 4 in its level, 1,300 shares ahead (3 orders); ahead of it: MM01 1,000, TRADER02 100, TRADER02 200
+07:00:09.402  TRADER02's order ahead (100 shares) was cancelled by its owner -> now 3 of 3 in its level, 1,200 shares ahead (2 orders)
+07:00:31.870  1,150 shares traded ahead of it (MM01, TRADER02) (trade 000001-000000001, 000001-000000002) -> now 2 of 2 in its level, 50 shares ahead (1 order)
+07:00:44.015  50 shares traded ahead of it (TRADER02) (trade 000001-000000003); filled 10 of 50 (trade 000001-000000004), 40 left -> now 1 of 1 in its level, 0 shares ahead (0 orders)
+07:01:12.560  cancelled by its owner
+verdict: cancelled by its owner with 40 of 50 shares unfilled; 4 trades at its price (1,210 shares) while it rested; at the last look 0 shares stood ahead of it
+```
+
+The order view ends in a **verdict**: filled in full, cancelled or expired with
+quantity left (and how much stood ahead), never queued, or still resting at the
+end of the trail. A stop waits outside the level until a trade fires it: the
+timeline says when it was armed, which trade triggered it and what it became, and
+then follows it into its level. One never triggered ends in "still armed" or
+"never triggered" with its stop price. For a resting order the verdict also says whether the market
+ever traded at its price; if not, it gives the best opposite price against the
+order's limit, which is usually the whole answer to "why did it not fill". The
+level view lists each change at one price (`--side` narrows it) with what the
+level held after it.
+
+Quantity *ahead* is what is displayed. An iceberg's reserve joins the back of
+the level when its slice refills, so it stands ahead of nothing. The reserve is
+shown only when the output is not anonymised.
+
+`--anonymise` names every other gateway `gateway A`, `gateway B`, … in order of
+first appearance (the inspected order's own gateway keeps its name) and leaves
+iceberg reserve out, so the output can be quoted to a participant without
+naming their counterparties.
+
+Two warnings can appear in the timeline. One says the re-run and the live engine
+differ on the symbol from that point, so the positions after it are the re-run's.
+The other says the live engine's own `engine.trace` queued the order at a
+different priority than the re-run did; a clean trail never shows either. Like
+`rerun`, `queue` needs a trail it can re-run (see above), and reads the whole
+trail per query. Exit codes: `0`
+answered, `1` the order is not in the trail, `2` bad arguments, `3` the trail
+cannot be re-run.
 
 ### Feed it to something else
 

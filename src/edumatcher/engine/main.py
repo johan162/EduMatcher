@@ -291,6 +291,7 @@ from edumatcher.models.generated.system import (
     TOPIC_GATEWAY_CONNECT,
     TOPIC_GATEWAY_DISCONNECT,
     TOPIC_GATEWAY_HEARTBEAT,
+    TOPIC_GATEWAY_REJECT,
     TOPIC_HALT_STATUS_REQUEST,
     TOPIC_POSITION_REQUEST,
     TOPIC_QUOTE_BOOTSTRAP_REQUEST,
@@ -385,13 +386,14 @@ class _Execution:
     none, so the first trade settles the flag.
     """
 
-    __slots__ = ("qty", "notional", "trade_ids", "flag")
+    __slots__ = ("qty", "notional", "trade_ids", "flag", "ts_ns")
 
     def __init__(self, flag: OrderFillLiquidityFlag) -> None:
         self.qty = 0
         self.notional = 0  # ticks x shares, divided once (H6)
         self.trade_ids: list[str] = []
         self.flag: OrderFillLiquidityFlag = flag
+        self.ts_ns = 0  # the last trade's time: a fill carries its print's clock
 
 
 #: The topics timed as order entry (engine.handle_us_*); every other PULL
@@ -607,6 +609,9 @@ class Engine:
         self._running = False
         self._error_count = 0
         self._unknown_topic_count = 0
+        # Commands the audit trail never received: no envelope to echo, or the
+        # echo failed. Each is a hole in "the trail holds every input".
+        self._unrecorded_command_count = 0
         # A fourth failure mode, distinct from the two above: the message
         # could not be decoded at all, so it has no topic to route and no
         # gateway to reject to.
@@ -1428,7 +1433,10 @@ class Engine:
         for symbol in sorted(self.books):
             self.pub_sock.send_multipart(
                 make_book_checkpoint(
-                    **self.books[symbol].checkpoint(), reason=reason, phase=phase
+                    **self.books[symbol].checkpoint(),
+                    reason=reason,
+                    phase=phase,
+                    tick_decimals=get_tick_decimals(symbol),
                 )
             )
 
@@ -1451,6 +1459,7 @@ class Engine:
                         trigger_price_ticks=trade_price,
                         becomes=becomes,
                         client_tag=order.client_tag,
+                        tick_decimals=get_tick_decimals(symbol),
                     )
                 )
             elif kind == "RESTED":
@@ -1458,7 +1467,7 @@ class Engine:
             elif kind == "ICEBERG_REFILL":
                 send(make_engine_trace_unchecked(symbol=rec[1], kind=kind, order_id=rec[2], priority_seq=rec[3], displayed_qty=rec[4]))  # fmt: skip
             else:  # TRAILING_RATCHET
-                send(make_engine_trace_unchecked(symbol=rec[1], kind=kind, order_id=rec[2], stop_price_ticks=rec[3], last_price_ticks=rec[4]))  # fmt: skip
+                send(make_engine_trace_unchecked(symbol=rec[1], kind=kind, order_id=rec[2], stop_price_ticks=rec[3], last_price_ticks=rec[4], tick_decimals=get_tick_decimals(rec[1])))  # fmt: skip
         self._trace.clear()
 
     def _publish_bands(self) -> None:
@@ -1474,6 +1483,7 @@ class Engine:
                     static_low_ticks=int(ref * (1 - c.static_band_pct)),
                     static_high_ticks=int(ref * (1 + c.static_band_pct)),
                     dynamic_band_pct=c.dynamic_band_pct,
+                    tick_decimals=get_tick_decimals(symbol),
                 )
             )
 
@@ -2162,6 +2172,8 @@ class Engine:
                     "trail_offset_ticks": order.trail_offset_ticks,
                     "smp_action": _ack_smp_action,
                     "client_tag": order.client_tag,
+                    "tick_decimals": get_tick_decimals(order.symbol),
+                    "ts_ns": now,
                 }
             ),
         ]
@@ -2332,6 +2344,20 @@ class Engine:
                     reason=(
                         "No reloadable config file "
                         "(engine started from a compiled artifact)"
+                    ),
+                )
+            )
+            return
+
+        if self._config_text is None:
+            self.pub_sock.send_multipart(
+                make_reference_reload_ack_msg(
+                    gateway_id,
+                    command_id,
+                    accepted=False,
+                    reason=(
+                        "Reference reload requires a compiled config recorded "
+                        "in the audit trail"
                     ),
                 )
             )
@@ -3316,6 +3342,7 @@ class Engine:
                 ex.qty += t.quantity
                 ex.notional += t.price * t.quantity
                 ex.trade_ids.append(t.id)
+                ex.ts_ns = t.ts_ns
         return out
 
     def _book_reject(self, symbol: str, do_match: bool) -> tuple[RejectCode, str]:
@@ -3471,6 +3498,7 @@ class Engine:
             leg_index=order.leg_index,
             is_seed=order.is_seed,
             trade_ids=ex.trade_ids,
+            ts_ns=ex.ts_ns,
             liquidity_flag=ex.flag,
             fill_notional_ticks=ex.notional,
             cum_qty=order.quantity - order.remaining_qty,
@@ -4282,9 +4310,16 @@ class Engine:
                 session.heartbeat_interval_sec,
             )
             self.metrics.count(self.metrics.heartbeat_timeouts, session.gateway_id)
-            self._handle_gateway_disconnect(
-                {"gateway_id": session.gateway_id, "reason": "heartbeat_timeout"}
-            )
+            # No command caused this, but it is one piece of work: the bye and
+            # the cancels it brings share a chain, so the audit re-run can
+            # tell one timeout from unrelated roots (pm-audit-replay rerun).
+            self.pub_sock.begin_unit()
+            try:
+                self._handle_gateway_disconnect(
+                    {"gateway_id": session.gateway_id, "reason": "heartbeat_timeout"}
+                )
+            finally:
+                self.pub_sock.end_unit()
 
     def _handle_kill_switch(self, payload: dict[str, Any]) -> None:
         gateway_id = _clamp_wire_id(payload.get("gateway_id", ""))
@@ -6809,6 +6844,7 @@ class Engine:
                 old_qty=old_qty,
                 symbol=amended.symbol,
                 price_ticks=amended.price_ticks,
+                tick_decimals=get_tick_decimals(amended.symbol),
                 priority_seq=amended.arrival_seq,
             )
         )
@@ -7024,23 +7060,32 @@ class Engine:
         Best-effort regardless: a raise here would escape the receive loop and
         end it. Recording must never be able to stop the exchange.
         """
-        if (
-            len(frames) < 3
-            or topic.endswith(self._QUERY_SUFFIX)
-            or topic == TOPIC_GATEWAY_HEARTBEAT
-        ):
+        if topic.endswith(self._QUERY_SUFFIX) or topic == TOPIC_GATEWAY_HEARTBEAT:
+            return False
+        if len(frames) < 3:
             # Fewer than three frames means no envelope: a client that builds
             # its own PUSH socket instead of going through `make_pusher`.
             # There is no id to preserve, and minting one would invent a
             # causal root that nothing cites.
+            self._count_unrecorded(topic, "carried no envelope")
             return False
         try:
             self.pub_sock.send_with_envelope(frames[:2], frames[2])
         except Exception as exc:  # pragma: no cover - transport failure
             self._dbg_count("command_echo_failures")
-            log.warning("Command echo failed for %s: %s", topic, exc)
+            self._count_unrecorded(topic, f"echo failed: {exc}")
             return False
         return True
+
+    def _count_unrecorded(self, topic: str, why: str) -> None:
+        """A command is not in the audit trail. Logged on the first and every
+        thousandth so a misbehaving client cannot flood the log."""
+        self._unrecorded_command_count += 1
+        n = self._unrecorded_command_count
+        if n == 1 or n % 1000 == 0:
+            log.warning(
+                "Command %s not recorded in the audit trail (%s) (#%d)", topic, why, n
+            )
 
     def _dispatch_pull_message(self, topic: str, payload: dict[str, Any]) -> None:
         """Route one decoded PULL-socket message to its handler.
@@ -7086,6 +7131,10 @@ class Engine:
                 self._handle_gateway_disconnect(payload)
             elif topic == TOPIC_GATEWAY_HEARTBEAT:
                 self._handle_gateway_heartbeat(payload)
+            elif topic == TOPIC_GATEWAY_REJECT:
+                # A gateway refused a request itself. Recording it is the whole
+                # job and `_echo_command` already did that, before dispatch.
+                self._dbg_count("gateway_rejects")
             elif topic == TOPIC_SYMBOLS_REQUEST:
                 self._handle_symbols_request(payload)
             elif topic == TOPIC_REFERENCE_REQUEST:
@@ -7314,6 +7363,7 @@ class Engine:
             ("UNROUTED_TOPIC", self._unknown_topic_count),
             ("UNDECODABLE_MESSAGE", self._undecodable_count),
             ("MAINTENANCE_FLUSH", self._flush_error_count),
+            ("UNRECORDED_COMMAND", self._unrecorded_command_count),
         ):
             out.append(counter("engine.diagnostics", n, component))
 

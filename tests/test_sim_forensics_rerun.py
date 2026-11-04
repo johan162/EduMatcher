@@ -9,6 +9,7 @@ that recording consistent; each failure test then edits one line of it.
 from __future__ import annotations
 
 import json
+import time
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -22,6 +23,7 @@ from edumatcher.config_deploy import deploy, resolve_example
 from edumatcher.models.message import decode
 from edumatcher.models.order import OrderType, Side
 from edumatcher.models.trade import reset_trade_ids_for_tests, set_run_seq
+from edumatcher.models.participant import DisconnectBehaviour
 from tests.engine_harness import order_payload
 from tests.sim_forensics_world import OpenDataset, opener
 from sim_forensics import checks  # noqa: F401,E402  (registers the checks)
@@ -98,9 +100,15 @@ class Recorder:
         self.chain = None
 
 
-def record(data: Path) -> Path:
+def record(
+    data: Path, silent: str | None = None, run_seq: int = 1, restart: bool = False
+) -> Path:
     """A short run on the s1-basic example: seeds, connects, a crossing buy
     against the seed ask, a resting sell, a cancel, an MM quote, an OCO.
+
+    With *restart*, the engine then shuts down (persisting its book), a new
+    one starts from those files as the next run, the gateways reconnect and
+    the crossing buy is sent again.
 
     The config is deployed outside *data*: the checks take it from the
     audit's system.startup, as a run's own ref_data/ may be gone."""
@@ -109,28 +117,36 @@ def record(data: Path) -> Path:
     compiled = deploy(resolve_example("s1-basic"), artifact)
     seed = compiled.engine.symbols["AAPL"].market_maker_quotes[0]
     ask = seed.ask_price_ticks / 100
-    reset_trade_ids_for_tests()
-    set_run_seq(1)
     rec = Recorder()
-    with (
-        mock.patch.object(
-            engine_main,
-            "_deployed_config",
-            lambda: (compiled.engine, artifact.read_text(encoding="utf-8")),
-        ),
-        mock.patch.object(engine_main, "make_puller", lambda _: Recorder()),
-        mock.patch.object(engine_main, "make_publisher", lambda _: rec),
-        mock.patch.multiple(
+
+    def files() -> Any:
+        return mock.patch.multiple(
             engine_main,
             GTC_ORDERS_FILE=data / "gtc_orders.json",
             GTC_COMBOS_FILE=data / "gtc_combos.json",
             BOOK_STATS_FILE=data / "book_stats.json",
-        ),
-    ):
-        engine = engine_main.Engine(config_path=None)
-        engine._startup(1)
-    for gw in ("TRADER01", "TRADER02", "MM01"):
-        rec.command(engine, "system.gateway_connect", {"gateway_id": gw})
+        )
+
+    def start(run: int) -> engine_main.Engine:
+        reset_trade_ids_for_tests()
+        set_run_seq(run)
+        with (
+            mock.patch.object(
+                engine_main,
+                "_deployed_config",
+                lambda: (compiled.engine, artifact.read_text(encoding="utf-8")),
+            ),
+            mock.patch.object(engine_main, "make_puller", lambda _: Recorder()),
+            mock.patch.object(engine_main, "make_publisher", lambda _: rec),
+            files(),
+        ):
+            engine = engine_main.Engine(config_path=None)
+            engine._startup(run)
+        for gw in ("TRADER01", "TRADER02", "MM01"):
+            rec.command(engine, "system.gateway_connect", {"gateway_id": gw})
+        return engine
+
+    engine = start(run_seq)
     buy = order_payload(Side.BUY, OrderType.LIMIT, 10, "TRADER01", price=ask)
     rec.command(engine, "order.new", buy)
     rest = order_payload(Side.SELL, OrderType.LIMIT, 5, "TRADER02", price=ask + 5)
@@ -175,6 +191,21 @@ def record(data: Path) -> Path:
             },
         },
     )
+    if silent is not None:
+        # The gateway stopped sending heartbeats: the engine disconnects it by
+        # its own timer, with no command behind it.
+        session = engine._sessions[silent]
+        session.disconnect_behaviour = DisconnectBehaviour.CANCEL_ALL
+        session.heartbeat_interval_sec = 1
+        session.last_heartbeat = time.monotonic() - 100
+        engine._next_silence_check = 0.0
+        engine._expire_silent_gateways()
+    if restart:
+        with files():
+            engine._shutdown()
+        engine = start(run_seq + 1)
+        buy = order_payload(Side.BUY, OrderType.LIMIT, 10, "TRADER01", price=ask)
+        rec.command(engine, "order.new", buy)
     (data / "audit.log").write_text("".join(rec.lines))
     resting = [o.to_dict() for b in engine.books.values() for o in b.resting_orders()]
     (data / "gtc_orders.json").write_text(json.dumps(resting))
@@ -205,6 +236,26 @@ def test_every_e_check_passes_on_a_recorded_run(
     assert statuses(open_ds, data) == {i: ("PASS", 0) for i in E}
     note = REGISTRY["E1"].fn(open_ds(data)).note
     assert note.startswith("8 commands (")
+
+
+def test_a_silent_gateway_expiry_is_reproduced_not_hidden(
+    tmp_path: Path, open_ds: OpenDataset
+) -> None:
+    from sim_forensics.checks.rerun import HEARTBEAT_TIMER, _rerun
+
+    data = record(tmp_path / "data", silent="TRADER02")
+    ds = open_ds(data)
+    assert statuses(open_ds, data) == {i: ("PASS", 0) for i in E}
+    assert _rerun(ds).commands[HEARTBEAT_TIMER] == 1
+
+
+def test_e2_finds_a_cancel_the_timeout_would_not_publish(
+    tmp_path: Path, open_ds: OpenDataset
+) -> None:
+    data = record(tmp_path / "data", silent="TRADER01")
+    edit(data, "[order.cancelled.TRADER01]", lambda ln: [])
+    results = {r.check.id: r for r in run_checks(open_ds(data), [REGISTRY["E2"]], 10)}
+    assert results["E2"].violations >= 1
 
 
 def test_e2_finds_an_output_the_engine_would_not_publish(

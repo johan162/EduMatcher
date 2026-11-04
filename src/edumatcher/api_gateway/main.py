@@ -37,6 +37,7 @@ from edumatcher.api_gateway.sim_client import SimClient
 from edumatcher.config import REF_DATA_DIR, SIM_PUB_ADDR
 from edumatcher.market_sim.config import FILE_NAME as SIM_FILE_NAME, load_sectors
 from edumatcher.api_gateway.rate_limit import RateLimiter
+from edumatcher.messaging.reject_report import RejectReporter
 from edumatcher.api_gateway.routers import (
     admin,
     bootstrap,
@@ -150,6 +151,7 @@ def create_app(config: ApiGatewayConfig, *, instance: str | None = None) -> Fast
         app.state.sim = sim
         app.state.config = config
         app.state.engine = engine
+        app.state.rejects = RejectReporter("REST", lambda frames: engine.report(frames))
         app.state.index_client = index_client
         app.state.sessions = SessionRegistry.from_config(config)
         app.state.rate_limiter = RateLimiter(

@@ -14,8 +14,8 @@
 
 ## Overview
 
-EduMatcher maintains a complete, immutable record of every message that passes
-through the ZeroMQ bus. This is the **audit trail** — a chronological log of
+EduMatcher maintains a complete, append-only, tamper-evident record of every
+message that passes through the ZeroMQ bus. This is the **audit trail** — a chronological log of
 every order, fill, trade, cancellation, session transition, and system event
 that occurred during a trading session.
 
@@ -100,6 +100,7 @@ pm-audit [options]
 | `--flush-interval SECONDS` | `10.0` | Maximum seconds to wait before flushing buffer regardless of size |
 | `--max-file-mb MB` | `10` | Close the audit log as a day part when it reaches this size — see [Day parts and archives](#day-parts-and-archives) |
 | `--keep-days N` | `0` | Delete daily archives older than N days; `0` keeps them all |
+| `--fsync-interval SECONDS` | `1.0` | Sync the active file to disk at most this often; `0` syncs every flush — see [What can be lost](#what-can-be-lost) |
 | `--log-level` | `WARNING` | Explicit level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
 | `-v` / `--verbose` | off | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`) |
 | `-q` / `--quiet` | off | No-op — the default level is already `WARNING`, so `--quiet` currently sets the same level and has no observable effect |
@@ -120,7 +121,8 @@ group when either limit is reached:
 - **Shutdown**: Ctrl-C, SIGINT, or SIGTERM always flushes remaining messages before exit
 
 No messages are lost on clean shutdown. A hard kill (`kill -9`) may lose up
-to `--buffer-size` messages that had not yet been flushed.
+to `--buffer-size` messages that had not yet been flushed. See
+[What can be lost](#what-can-be-lost) for the whole picture.
 
 **Tuning examples:**
 
@@ -137,6 +139,37 @@ pm-audit --buffer-size 1 --flush-interval 1
 # Demo mode: see every event on the terminal as well
 pm-audit --terminal
 ```
+
+### What can be lost
+
+`pm-audit` is a subscriber, so the trail holds what it *received*. Four things
+sit between an engine publication and the disk, and each has a bound:
+
+| Where | What is lost | Bound |
+|---|---|---|
+| `pm-audit` is not running | Everything the engine publishes meanwhile | Unbounded. The next line shows a jump in `eseq` (replay: `ESEQ_GAP`), and a `# recorder-start` marker before it (replay: `RECORDER_RESTART`) says why |
+| The receive queue overflows (a burst faster than the writer) | The messages past the queue's 200 000 | Counted by `audit.missed_messages` when the next message shows the jump |
+| `pm-audit` is killed (`kill -9`) | Lines buffered but not yet written | At most `--buffer-size` messages or `--flush-interval` seconds, whichever comes first |
+| The host loses power or the kernel crashes | Lines written but not yet synced | About `--fsync-interval` seconds (default 1) plus the line above. A write syncs when one is due, and while no line arrives the receive loop does (it wakes at least every 0.3 s), so a quiet tail is not left in the page cache |
+
+A stopped-and-started `pm-audit` writes one comment line, `# edumatcher-audit
+recorder-start pm-audit=<version> started=<time>`, before its first line, so the
+restart is visible in the file itself and not only as a hole in the numbering.
+`pm-audit-replay` reports it as `RECORDER_RESTART` (info) and does not count it
+as an unreadable line.
+
+The health beacon carries `audit.missed_messages`: the number of engine messages
+`pm-audit` can prove it missed from forward sequence gaps. It stays 0 on a
+healthy exchange. An engine restart is not a miss (the sequence begins again at
+`system.startup`). The counter sees only a jump it observes, so messages lost
+after the last one received, because `pm-audit` was stopped, appear in the
+*next* run's trail as the gap, not in this counter.
+
+The separate `audit.sequence_discontinuities` counter records a repeated or
+decreasing `eseq` without an observed `system.startup`. Such a discontinuity
+can indicate a missed restart marker or duplicate/out-of-order publication; it
+does not reveal an exact number of missing messages. Check the trail and
+recorder health before treating the run as complete.
 
 ### Log format
 
@@ -273,6 +306,36 @@ If the archive itself cannot be decompressed, the run refuses that day and
 leaves both: check it with `zstd -t audit-D.log.zst`, and only if it is
 damaged and the parts are known to be the whole day, move it aside and re-run.
 
+### Proving a day is unchanged: the evidence manifest
+
+Each archive appends one line to `data/audit/manifest.jsonl`: the day, its
+line and byte counts, and the SHA-256 of its uncompressed content. Every line
+also carries the SHA-256 of the line before it, so changing or removing any
+entry breaks every entry after it. Retention writes a `retired` line before it
+deletes an archive, so the chain survives `--keep-days`. A day reopened after
+it was archived appends a second entry, and the newest is current.
+
+```bash
+pm-audit-cli verify                     # the whole chain, and every archive against it
+pm-audit-cli verify --date 2026-10-24   # the chain, and that day's archive
+```
+
+`verify` exits 1 and names the day when an archive's content differs from its
+entry, an entry is missing, an archive is missing without being retired, or the
+chain is broken. It ends with the **head hash**, the hash of the newest line.
+
+A crash while a line was being appended leaves it torn (no newline, invalid
+JSON). `verify` reports it on every run from then on, as it should: the record
+of that moment is damaged. The next entry starts on a line of its own and
+chains to the torn line, so everything after it still verifies; the archive
+whose entry was torn is recorded again when the archiver finishes it.
+
+This makes an edit *evident*; it does not prevent one. Someone who can
+rewrite the files can rewrite the whole chain, or cut off its newest entries.
+To rule that out, copy the head hash somewhere the recorder host cannot write
+(a ticket, an email, a separate system) after each close, and compare it with
+the one `verify` prints when a day is disputed.
+
 ### Subscribed topics
 
 `pm-audit` subscribes with an **empty topic filter**, which causes ZeroMQ to
@@ -304,7 +367,7 @@ close those gaps:
 |---|---|
 | Every engine-initiated cancel now states why | `order.cancelled.{GW_ID}`'s `cancel_reason` covers a kill switch (self or admin), a circuit-breaker halt, a gateway disconnect, an admin symbol-level mass cancel, a quote being replaced, and a quote leg cancelled because its sibling filled — in addition to the original `SELF_MATCH_PREVENTED` / `INSUFFICIENT_LIQUIDITY`. Still `null` for a client-requested cancel, which is not the exchange's decision to explain. |
 | Cancels and quote removals join back to the command that caused them | `order.cancelled.{GW_ID}` and `quote.status.{GW_ID}` both carry `command_id` when an admin/kill-switch command caused the event — the same `command_id` echoed on that command's ack and on `admin.action`. `null` when there is no such command (self-match prevention, a participant's own quote cancel, and so on). |
-| A resting order can be told apart from a config-seeded one | `order.ack.{GW_ID}` and `order.fill.{GW_ID}` carry `is_seed` — `true` for an order or quote leg created by `market_maker_quotes`/`market_maker_combos` at startup rather than a live gateway submission (the ack, not `order.new`, is the first audit-visible event for any order, since `order.new` is a PUSH-only submission the engine never re-publishes on `:5556`). The on-demand `order.orders`/`order.price_level_orders` snapshot rows carry it too. Purely observational: nothing in the engine branches on it. |
+| A resting order can be told apart from a config-seeded one | `order.ack.{GW_ID}` and `order.fill.{GW_ID}` carry `is_seed` — `true` for an order or quote leg created by `market_maker_quotes`/`market_maker_combos` at startup rather than a live gateway submission (an order's acknowledgement carries it too, and `order.new` itself is in the trail, since the engine echoes every command it is asked to perform before acting on it). The on-demand `order.orders`/`order.price_level_orders` snapshot rows carry it too. Purely observational: nothing in the engine branches on it. |
 | Every combo leg gets an acknowledgement | `order.ack.{GW_ID}` now fires once per child leg when a combo is accepted — live or config-seeded. Previously no combo leg published an ack at all; a subscriber that started after acceptance had no way to learn a leg's symbol, side, price, or qty until it was cancelled, and `order.cancelled`'s minimal shape cannot supply them either. |
 | Startup recovery is on the record | `system.startup_recovery`, published once right after `_restore_gtc()`, reports how many orders were restored, discarded as stale `TIF=DAY`, or failed to restore; how many single-leg quote remnants and rebuilt `QuoteIndex` entries resulted; and how many GTC combos came back. Previously these counts reached only `log.info`/`log.error`. `system.recovery_item` now accompanies it with one line per entity — `entity_id`, `kind` (`ORDER`/`COMBO`) and `outcome` (`RESTORED`/`DISCARDED_STALE_DAY`/`FAILED`/`QUOTE_REMNANT`), plus `detail` carrying the exception text for a `FAILED` order — so a single bad GTC record is a wire fact with a reason attached, not just a decremented count. |
 | Kill-switch and admin sweeps say which ids they hit, not just how many | `risk.kill_switch_ack`, `kill_switch_gateway_ack`, `kill_switch_global_ack`, `symbol_halt_ack`, `cancel_symbol_ack`, `circuit_breaker_halt_all_ack`, `circuit_breaker_resume_all_ack`, and `admin.action`'s `scope` all carry an id list beside every count they already reported — `cancelled_order_ids`, `cancelled_quote_order_ids`, `halted_symbol_ids`, `resumed_symbol_ids`, `affected_gateway_ids`. Previously undoing or auditing the effect of a mass cancel meant re-deriving the affected set from `order.cancelled` lines by `command_id`; the ack now says it directly, and a length mismatch against the count is itself a detectable defect. |
@@ -314,6 +377,57 @@ close those gaps:
 | Absorbed internal failures are on the record | `system.diagnostic` fires for a maintenance-flush exception, a dispatch-handler crash, an undecodable inbound message, or a message on a topic with no handler — cases the engine deliberately survives so trading is not interrupted, but which previously reached only the process log. Carries `component`, `detail` (the flush name or topic, when there is one), `error` (the exception text, when there is one), and `count` (that component's running occurrence count). The client-facing reject for a crashed order handler still stays generic — see `order.ack`'s `INTERNAL_ERROR` — so `system.diagnostic` is the only wire-visible place the real exception text appears. |
 | Amendments show the prior price/qty | `order.amended.{GW_ID}` carries `old_price`/`old_qty` alongside the new values, so a post-mortem does not need the preceding `order.new`/`order.amended` to know what changed. |
 | Index corporate actions show the prior divisor | `index.corp_action_ack`, `index.constituent_change_ack`, and `index.rebalance_ack` all carry `old_divisor` alongside `divisor`, mirroring `HistoryRecord.old_divisor` in pm-index's own local archive — a post-mortem no longer needs that archive to see what changed. |
+
+### Refusals made at a gateway
+
+The ALF, BALF and REST gateways refuse some requests themselves, before the
+engine sees them: a command before login, a failed authentication, a request
+the key's role does not permit, and a client over its rate limit. Each is sent
+to the engine as `system.gateway_reject` and echoed into the trail, so "I sent
+it and you ignored it" can be answered either way. A record carries the
+gateway (`source`), the participant it believed it was talking to
+(`gateway_id`, claimed and empty before login), the remote address, the reject
+code, the reason and the gateway's clock. It never carries an API key.
+
+A gateway sends at most one record per peer host and code per second and puts
+the number it folded in as `count`, so a flood of refused commands is one line a
+second, not a flood. The host, not the host and port: a client that opens a new
+connection per request comes from a new port each time. The record names the
+full `peer` of the refusal that sent it. The count of the last burst is lost if the peer then goes
+quiet, and the first record of the burst is not.
+
+Not recorded, on purpose: malformed frames and field-validation refusals
+(missing field, bad value), which the gateways count, and a read-only REST key
+attempting a write. `pm-audit-replay story` narrates a record as *"A request
+from GW01 (10.0.0.5:4411) was refused at the ALF gateway — rate limiting"*.
+
+### Which clock a line is stamped with
+
+Every audit line starts with the time `pm-audit` *received* it, which is the
+only clock present on every line. Three messages also carry the **engine's**
+clock, in Unix epoch nanoseconds: `trade.executed.ts_ns` (the match),
+`order.fill.ts_ns` (the same value as the trade it reports, so a fill and its
+print share one reading) and `order.ack.ts_ns` (when the engine accepted or
+refused the order, from the same strictly increasing source). For "when did the
+exchange accept this order", use the ack's `ts_ns`; the receipt time can lag it
+under load. Ordering between messages is by the engine's `eseq`, not by either
+clock. Lines recorded before this field existed carry the receipt time only.
+
+### Commands the trail may not hold
+
+The engine echoes every inbound command into the trail before it acts on it,
+which is what lets a command that had no effect still be found. A command that
+reaches the engine **without an envelope frame** (a client that built its own
+PUSH socket instead of using the project's client library) cannot be echoed, and
+a failed echo is the other way one goes missing. Both are counted in
+`engine.diagnostics{component="UNRECORDED_COMMAND"}` in the engine's health
+beacon, and the first of each thousand is logged at WARNING. On a healthy
+exchange the counter stays at 0; any other value means the trail is not a
+complete record of what the exchange was asked to do.
+
+An audited run must also be started from a deployed config artifact
+(`pm-config-deploy`). With none, `system.startup` carries no config and
+`pm-audit-replay anomalies` reports `CONFIG_NOT_RECORDED`.
 
 ### Signal handling and graceful shutdown
 

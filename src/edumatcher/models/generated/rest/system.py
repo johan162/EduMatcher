@@ -26,6 +26,13 @@ CheckpointOrderOrderType = Literal[
 ]
 CheckpointOrderTif = Literal["DAY", "GTC", "ATO", "ATC"]
 QuoteLegLegSide = Literal["BUY", "SELL"]
+GatewayRejectSource = Literal["ALF", "BALF", "REST"]
+GatewayRejectRejectCode = Literal[
+    "AUTH_REQUIRED",
+    "AUTH_FAILED",
+    "ROLE_DENIED",
+    "RATE_LIMITED",
+]
 BookCheckpointReason = Literal["STARTUP", "PHASE", "EOD"]
 RecoveryItemKind = Literal["ORDER", "COMBO"]
 RecoveryItemOutcome = Literal[
@@ -660,6 +667,39 @@ class GatewayAuth(BaseModel):
     """The gateway's configured display name. Regime 1, as above."""
 
 
+class GatewayReject(BaseModel):
+    """Gateway to engine: I refused a participant's request myself, before the engine
+    saw it. Authentication, role and rate-limit refusals are decided in the ALF,
+    BALF and REST gateways and never reach the engine, so without this the
+    exchange could neither show nor disprove "I sent it and you ignored it".
+    PUSH/PULL like `gateway_connect`; the engine echoes it onto the bus like any
+    command, which is how the audit trail comes to hold it. Malformed frames and
+    field-validation refusals are deliberately not reported: they are counted by
+    the gateway, and any one of them is unfalsifiable noise rather than a
+    disputable decision.
+    """
+
+    model_config = ConfigDict(use_attribute_docstrings=True)
+
+    source: GatewayRejectSource
+    """Which gateway refused the request."""
+    gateway_id: str = Field(max_length=32)
+    """The participant the gateway believed it was talking to; "" before
+    authentication. Claimed, not proven. Never an API key.
+    """
+    peer: str = Field(max_length=64)
+    """Remote address of the connection (host:port)."""
+    reject_code: GatewayRejectRejectCode
+    """The same codes `order.ack` uses for these refusals."""
+    reason: str = Field(max_length=256)
+    count: int = Field(ge=1)
+    """Refusals this record stands for: itself plus those folded in since the last
+    record for the same peer and code.
+    """
+    ts_ns: int = Field(ge=0)
+    """The gateway's clock when it refused. Unit: epoch_nanos."""
+
+
 class GatewayDisconnect(BaseModel):
     """Gateway to engine: I am leaving cleanly. PUSH/PULL, like `gateway_connect`;
     the engine republishes it as `gateway_bye` so PUB subscribers hear about it at
@@ -747,6 +787,13 @@ class BookCheckpoint(BaseModel):
     """Unit: ticks."""
     last_trade_id: str | None = Field(default=None)
     """The trade that set the last trade price."""
+    tick_decimals: int | None = Field(default=None, ge=0, le=9)
+    """Decimal scale of the `*_ticks` prices in this message (1 tick =
+    10^-tick_decimals) -- the symbol's. Every message that carries a tick price
+    carries its scale, so a reader of one line, or of a window of the trail that
+    begins long after the book snapshot that declared it, can turn it into money
+    without guessing. Absent when the message carries no tick price.
+    """
 
 
 class Startup(BaseModel):
@@ -947,7 +994,11 @@ class ReferenceReload(BaseModel):
     """ADMIN to engine: re-read static reference data from disk. Deliberately
     narrower than a startup load -- it never re-seeds quotes, creates or removes
     books, or touches session and halt state, so a reload that changed the symbol
-    set is rejected rather than partially applied.
+    set is rejected rather than partially applied. The engine also rejects reloads
+    when the active config cannot be reconstructed from the audit trail: compiled
+    artifacts have no reloadable source file, and YAML fallback config is not
+    recorded in system.startup. Deploy a compiled artifact and restart to apply
+    config changes without making the audit trail ambiguous.
     """
 
     model_config = ConfigDict(use_attribute_docstrings=True)

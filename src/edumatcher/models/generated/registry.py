@@ -824,6 +824,14 @@ TOPIC_REGISTRY: Mapping[str, Mapping[str, Any]] = {
         "params": ("gateway_id",),
         "fields": _system.describe_gateway_auth(),
     },
+    _system.TOPIC_GATEWAY_REJECT: {
+        "family": "system",
+        "message": "gateway_reject",
+        "prefix": _system.TOPIC_GATEWAY_REJECT,
+        "transport": ("engine_pub", "engine_push"),
+        "params": (),
+        "fields": _system.describe_gateway_reject(),
+    },
     _system.TOPIC_GATEWAY_DISCONNECT: {
         "family": "system",
         "message": "gateway_disconnect",

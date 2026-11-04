@@ -309,7 +309,7 @@ For strict endpoint-by-endpoint access rules, see
 | `UNKNOWN_ORDER` | `404` | Order id unknown to this gateway (`GET /orders/{id}`), or no audited events for it (`GET /admin/orders/{id}`) |
 | `METHOD_NOT_ALLOWED` | `405` | The path exists, but not for this method |
 | `TRANSITION_REJECTED` | `409` | The engine will not perform the requested session transition |
-| `RELOAD_REJECTED` | `409` | `POST /admin/reference/reload` was rejected — usually because the file's symbol/index set changed |
+| `RELOAD_REJECTED` | `409` | `POST /admin/reference/reload` was rejected because the active config cannot be reloaded and reconstructed from the audit trail |
 | `HALT_REJECTED` / `RESUME_REJECTED` | `409` | The engine refused a circuit-breaker trigger or resume (unknown symbol, not halted, ...); `message` is the engine's reason |
 | `KILL_SWITCH_REJECTED` | `409` | The engine refused a symbol, gateway or global kill switch; `message` is the engine's reason |
 | `REBALANCE_REJECTED` | `409` | `POST /admin/indexes/{id}/rebalance` was rejected by `pm-index`; `message` is its reason |
@@ -409,20 +409,14 @@ reference data changes, so a client can cache the bundle and poll
 
 #### Reloading reference data
 
-`POST /api/v1/admin/reference/reload` (ADMIN) re-reads the `engine_config.yaml`
-the engine started from and applies changes to tick sizes, collars, breaker
-ladders, the schedule and index descriptions. It is deliberately **narrower**
-than a restart:
+`POST /api/v1/admin/reference/reload` (ADMIN) is currently rejected:
 
-- It never creates or removes an order book, re-seeds market-maker quotes, or
-  touches session or halt state.
-- A changed **symbol set or index-id set** is refused (`409 RELOAD_REJECTED`)
-  and nothing is applied: adding or removing an instrument needs a restart.
-- An engine started from a compiled config artifact refuses it: there is no
-  file to re-read.
+- A compiled config artifact has no editable source file to re-read.
+- A YAML fallback's active config is not recorded in `system.startup`, so
+  accepting a reload would make the audit trail ambiguous.
 
-It is meant for tuning a band or threshold between classroom drills, not for
-live production changes.
+Use `pm-config-deploy` to compile and deploy the changed configuration, then
+restart the engine. This keeps the effective config tied to the audited run.
 
 ### History endpoints
 

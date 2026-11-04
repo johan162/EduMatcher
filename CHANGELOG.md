@@ -1,3 +1,35 @@
+## [v0.73.0] - 2026-11-05
+
+Release Type: major
+
+### 📋 Summary
+This release strengthens audit evidence and replay so operators can verify the integrity of recorded sessions, investigate queue position, and reproduce engine behavior. It also closes audit-trail completeness gaps and documents an evidence-focused testing methodology.
+
+### ⚠️ Breaking Changes
+- Added `ts_ns` to `order.ack` and `order.fill`, and `tick_decimals` to messages carrying tick prices; update strict message schemas and consumers
+- Rejected reference reloads when the active startup config is not recorded in the audit trail; deploy a compiled config and restart to apply changes
+
+### ✨ Additions
+- Added `pm-audit-cli verify` to check daily audit data against an append-only, hash-chained evidence manifest
+- Added `pm-audit-replay rerun` for replaying recorded engine inputs and `queue` views for order- and level-level queue analysis
+- Added `system.gateway_reject` audit events for gateway-local authentication, role and rate-limit refusals
+
+### 🚀 Improvements
+- Improved recorder durability with periodic fsync, recorder-start markers and missed-message tracking
+- Improved replay handling of engine restarts, silent-gateway timeouts, sequence gaps and missing startup configuration
+- Improved queue reconstruction to account for stop orders and strengthened audit-manifest recovery after torn writes
+
+### 🐛 Bug Fixes
+- Fixed gateway refusals being combined across peer hosts and audit tails not being synchronized when the recorder was otherwise quiet
+- Fixed replay accepting runs with a proven sequence hole and corrected reruns across engine restarts
+
+### 📚 Documentation
+- Added audit-trail completeness and test-methodology workplans, an “Answering a Dispute” guide and an Audit-Replay acceptance checklist
+- Updated audit-trail, replay and message-reference documentation for the new evidence and analysis capabilities
+
+### 🛠 Internal
+- Added regression tests for evidence manifests, recorder durability, gateway refusals, reruns, queue views and sequence-gap handling
+
 ## [v0.72.0] - 2026-11-04
 
 Release Type: major

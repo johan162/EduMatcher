@@ -313,6 +313,7 @@ class AuditEntry:
         "correlation_id",
         "file",
         "line_no",
+        "marks",
     )
 
     def __init__(
@@ -335,6 +336,9 @@ class AuditEntry:
         #: from a file.
         self.file = file
         self.line_no = line_no
+        #: Comment lines (``# ...``) directly before this one: the file
+        #: header, or a recorder-start marker (``writer.RECORDER_START_PREFIX``).
+        self.marks: tuple[str, ...] = ()
         meta = meta or {}
         raw_seq = meta.get("seq")
         self.seq: int | None = int(raw_seq) if raw_seq and raw_seq.isdigit() else None
@@ -422,11 +426,16 @@ def iter_entries(
         file_name = str(path)
         # Counted over raw lines, not parsed ones: the ordinal has to be what
         # `sed -n 118423p` would show, or it is no use for tracing back.
+        marks: list[str] = []
         for line_no, raw in enumerate(open_log_file(path), start=1):
             parsed = parse_line(raw)
             if parsed is None:
+                if raw.startswith("# "):
+                    marks.append(raw.rstrip("\n"))
                 continue
             ts_str, topic, payload, meta = parsed
+            line_marks = tuple(marks)
+            marks.clear()
 
             if after_ts is not None:
                 if ts_str < after_ts:
@@ -456,6 +465,7 @@ def iter_entries(
             entry = AuditEntry(
                 ts_str, topic, payload, meta, file=file_name, line_no=line_no
             )
+            entry.marks = line_marks
 
             # Gateway filter
             if gateway is not None and entry.gateway_id != gateway:

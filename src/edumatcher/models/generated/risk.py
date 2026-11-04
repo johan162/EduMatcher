@@ -1396,6 +1396,14 @@ _BAND_FIELDS: tuple[dict[str, Any], ...] = (
         "values": _BAND_KIND_VALUES,
     },
     {
+        "name": "tick_decimals",
+        "type": "int",
+        "unit": "dimensionless",
+        "required": False,
+        "doc": "Decimal scale of the `*_ticks` prices in this message (1 tick = 10^-tick_decimals) -- the symbol's. Every message that carries a tick price carries its scale, so a reader of one line can turn it into money without guessing.",
+        "constraints": {"ge": 0, "le": 9},
+    },
+    {
         "name": "reference_price_ticks",
         "type": "ticks",
         "unit": "ticks",
@@ -1443,6 +1451,7 @@ class Band:
     static_low_ticks: int  # unit: ticks
     static_high_ticks: int  # unit: ticks
     dynamic_band_pct: float  # unit: dimensionless
+    tick_decimals: int | None = None  # unit: dimensionless
 
     def validate(self) -> None:
         """Raise MessageValidationError if any declared rule fails.
@@ -1459,6 +1468,15 @@ class Band:
             raise MessageValidationError(
                 f"kind: {self.kind!r} is not one of {_BAND_KIND_VALUES!r}"
             )
+        if self.tick_decimals is not None:
+            if self.tick_decimals < 0:
+                raise MessageValidationError(
+                    f"tick_decimals: {self.tick_decimals!r} must be >= 0"
+                )
+            if self.tick_decimals > 9:
+                raise MessageValidationError(
+                    f"tick_decimals: {self.tick_decimals!r} must be <= 9"
+                )
         if self.dynamic_band_pct < 0:
             raise MessageValidationError(
                 f"dynamic_band_pct: {self.dynamic_band_pct!r} must be >= 0"
@@ -1475,6 +1493,9 @@ class Band:
         return cls(
             symbol=str(p["symbol"]),
             kind=cast(BandKind, str(p["kind"])),
+            tick_decimals=(
+                None if p.get("tick_decimals") is None else int(p["tick_decimals"])
+            ),
             reference_price_ticks=int(p["reference_price_ticks"]),
             static_low_ticks=int(p["static_low_ticks"]),
             static_high_ticks=int(p["static_high_ticks"]),
@@ -1483,7 +1504,7 @@ class Band:
 
     def to_dict(self) -> dict[str, Any]:
         """Return the bus payload, in the spec's declared field order."""
-        return {
+        payload: dict[str, Any] = {
             "symbol": self.symbol,
             "kind": self.kind,
             "reference_price_ticks": self.reference_price_ticks,
@@ -1491,6 +1512,9 @@ class Band:
             "static_high_ticks": self.static_high_ticks,
             "dynamic_band_pct": self.dynamic_band_pct,
         }
+        if self.tick_decimals is not None:
+            payload["tick_decimals"] = self.tick_decimals
+        return payload
 
 
 def topic_band(symbol: str) -> str:
@@ -1527,6 +1551,7 @@ def make_band_unchecked(
     static_low_ticks: int,
     static_high_ticks: int,
     dynamic_band_pct: float,
+    tick_decimals: int | None = None,
 ) -> list[bytes]:
     """Identical frames to ``make_band``, without ``validate()``.
 
@@ -1538,18 +1563,19 @@ def make_band_unchecked(
     Coerces exactly as ``make_*`` does, so for any input the two emit byte-identical
     frames.
     """
+    payload: dict[str, Any] = {
+        "symbol": str(symbol),
+        "kind": str(kind),
+        "reference_price_ticks": int(reference_price_ticks),
+        "static_low_ticks": int(static_low_ticks),
+        "static_high_ticks": int(static_high_ticks),
+        "dynamic_band_pct": float(dynamic_band_pct),
+    }
+    if tick_decimals is not None:
+        payload["tick_decimals"] = int(tick_decimals)
     return [
         topic_band(symbol).encode(),
-        _msg.dumps(
-            {
-                "symbol": str(symbol),
-                "kind": str(kind),
-                "reference_price_ticks": int(reference_price_ticks),
-                "static_low_ticks": int(static_low_ticks),
-                "static_high_ticks": int(static_high_ticks),
-                "dynamic_band_pct": float(dynamic_band_pct),
-            }
-        ),
+        _msg.dumps(payload),
     ]
 
 

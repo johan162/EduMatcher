@@ -46,6 +46,8 @@ from edumatcher.models.generated import session as _gen_session
 from edumatcher.models.generated import structure as _gen_structure
 from edumatcher.models.generated import system as _gen_system
 from edumatcher.models.generated import trade as _gen_trade
+from edumatcher.models.clock import now_ns
+from edumatcher.models.price import get_tick_decimals
 from edumatcher.models.envelope import Envelope
 
 # PERF improvement #6: Use orjson instead of stdlib json.
@@ -218,6 +220,27 @@ def make_gateway_connect_msg(gateway_id: str) -> list[bytes]:
     return _gen_system.make_gateway_connect(gateway_id=gateway_id)
 
 
+def make_gateway_reject_msg(
+    source: str,
+    reject_code: str,
+    ts_ns: int,
+    gateway_id: str = "",
+    peer: str = "",
+    reason: str = "",
+    count: int = 1,
+) -> list[bytes]:
+    """Gateway → engine: a participant's request was refused at the gateway."""
+    return _gen_system.make_gateway_reject(
+        source=source,
+        reject_code=reject_code,
+        ts_ns=ts_ns,
+        gateway_id=gateway_id,
+        peer=peer,
+        reason=reason,
+        count=count,
+    )
+
+
 def make_gateway_auth_msg(
     gateway_id: str,
     accepted: bool,
@@ -281,6 +304,7 @@ def make_amended_msg(
     symbol: str | None = None,
     price_ticks: int | None = None,
     priority_seq: int | None = None,
+    tick_decimals: int | None = None,
 ) -> list[bytes]:
     """Generated from ``spec/messages/order.yaml``.
 
@@ -308,6 +332,7 @@ def make_amended_msg(
         old_qty=old_qty,
         price_ticks=price_ticks,
         priority_seq=priority_seq,
+        tick_decimals=tick_decimals,
     )
 
 
@@ -425,6 +450,10 @@ def make_ack_msg(
         client_tag=order_client_tag(client_tag, order),
         request_tag=request_tag,
         is_seed=bool(detail.get("is_seed", False)),
+        tick_decimals=(
+            get_tick_decimals(detail["symbol"]) if detail.get("symbol") else None
+        ),
+        ts_ns=now_ns(),
         **group_ids(order),
     )
 
@@ -1109,6 +1138,7 @@ def make_auction_indicative_msg(
         imbalance_side=imbalance_side or None,
         imbalance_qty=imbalance_qty,
         eq_price_ticks=eq_price_ticks,
+        tick_decimals=get_tick_decimals(symbol),
     )
 
 
@@ -1147,6 +1177,7 @@ def make_auction_result_msg(
         reason=reason,
         eq_price_ticks=eq_price_ticks,
         auction_id=auction_id,
+        tick_decimals=get_tick_decimals(symbol),
     )
 
 

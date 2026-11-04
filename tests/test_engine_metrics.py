@@ -107,6 +107,7 @@ class TestAFreshEngine:
             "UNROUTED_TOPIC",
             "UNDECODABLE_MESSAGE",
             "MAINTENANCE_FLUSH",
+            "UNRECORDED_COMMAND",
         }
 
     def test_every_sample_validates(self, engine: Any) -> None:

@@ -533,6 +533,54 @@ def _add_commands(
     )
 
     commands.add_parser(
+        "rerun",
+        parents=[inherited],
+        formatter_class=argparse.RawTextHelpFormatter,
+        help="Feed the audit's commands to a fresh engine and compare",
+        description=(
+            "Re-execute the trail (design: Audit-Completeness-Workplan A4).\n"
+            "Builds an engine from the config in system.startup, feeds it every\n"
+            "echoed command in order and compares what it publishes with what\n"
+            "the live engine did; an engine restart is re-run as a restart.\n"
+            "Needs a trail that begins at an engine start with an empty book,\n"
+            "carries each run's config, and has no proven hole (eseq gap,\n"
+            "recorder restart while the engine ran). Exit 0 clean, 1 on a\n"
+            "difference, 3 when the trail cannot be re-run."
+        ),
+    )
+    queue = commands.add_parser(
+        "queue",
+        parents=[inherited],
+        formatter_class=argparse.RawTextHelpFormatter,
+        help="Where an order stood in its level, or what a price level did",
+        description=(
+            "Follow a resting order or a price level through the day by\n"
+            "observing the re-run (Audit-Completeness-Workplan A8). Needs a\n"
+            "trail `rerun` can re-run. Exit 0 answered, 1 order not in the\n"
+            "trail, 2 bad arguments, 3 the trail cannot be re-run."
+        ),
+    )
+    queue.add_argument(
+        "--order", metavar="ID", help="Order view: the order id, or a prefix of it"
+    )
+    queue.add_argument(
+        "--price",
+        type=float,
+        metavar="P",
+        help="Level view: the display price (with the global --symbol)",
+    )
+    queue.add_argument(
+        "--side", choices=("BUY", "SELL"), help="Level view: one side of the level"
+    )
+    queue.add_argument(
+        "--anonymise",
+        action="store_true",
+        help=(
+            "Name other gateways A, B, C and leave out iceberg reserve, so the\n"
+            "output can be quoted to a participant"
+        ),
+    )
+    commands.add_parser(
         "stats",
         parents=[inherited],
         formatter_class=argparse.RawTextHelpFormatter,
@@ -1118,6 +1166,72 @@ def validate_args(args: argparse.Namespace) -> str | None:
     return None
 
 
+def _run_rerun(args: argparse.Namespace) -> int:
+    from edumatcher.audit.rawlines import Unavailable
+    from edumatcher.audit.replay.rerun import rerun
+
+    try:
+        result = rerun(Path(args.log_file).expanduser().parent)
+    except Unavailable as exc:
+        print(f"pm-audit-replay: cannot re-run: {exc}", file=sys.stderr)
+        return 3
+    total = sum(result.commands.values())
+    top = ", ".join(f"{t} {n}" for t, n in result.commands.most_common(6))
+    print(f"re-ran {total} commands ({top}, ...)")
+    print(f"hidden inputs: {result.counts['E1']}")
+    print(f"outputs: {result.counts['E2']} differing episodes; {result.note()}")
+    if result.book_checked:
+        print(f"final book: {result.counts['E4']} differences")
+    else:
+        print("final book: not checked (no gtc_orders.json beside the trail)")
+    for label, key in (
+        ("hidden input", "E1"),
+        ("difference", "E2"),
+        ("book", "E4"),
+    ):
+        for sample in result.samples[key][:5]:
+            print(f"  {label}: {sample}")
+    return 1 if any(result.counts[k] for k in ("E1", "E2", "E4")) else 0
+
+
+def _run_queue(args: argparse.Namespace) -> int:
+    from edumatcher.audit.rawlines import Unavailable
+    from edumatcher.audit.replay.queue import LevelQueue, OrderQueue
+    from edumatcher.audit.replay.rerun import Rerun
+
+    symbols = args.symbol or []
+    level = args.price is not None or bool(symbols)
+    if (args.order is None) == (not level):
+        print(
+            "pm-audit-replay: queue needs --order ID, or --symbol SYM and "
+            "--price P (not both)",
+            file=sys.stderr,
+        )
+        return 2
+    view: OrderQueue | LevelQueue
+    if args.order is not None:
+        view = OrderQueue(args.order, anonymise=args.anonymise)
+    elif args.price is None or len(symbols) != 1:
+        print(
+            "pm-audit-replay: a level view needs one --symbol and a --price",
+            file=sys.stderr,
+        )
+        return 2
+    else:
+        view = LevelQueue(
+            symbols[0], args.price, side=args.side, anonymise=args.anonymise
+        )
+    run = Rerun(Path(args.log_file).expanduser().parent)
+    run.observers.append(view)
+    try:
+        run.run()
+    except Unavailable as exc:
+        print(f"pm-audit-replay: cannot re-run: {exc}", file=sys.stderr)
+        return 3
+    print(view.render(), end="")
+    return 1 if isinstance(view, OrderQueue) and view.rid is None else 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     try:
@@ -1142,6 +1256,10 @@ def main(argv: list[str] | None = None) -> int:
         return _run_index(args)
     if args.command == "stats":
         return _run_stats(args)
+    if args.command == "rerun":
+        return _run_rerun(args)
+    if args.command == "queue":
+        return _run_queue(args)
     return 0
 
 

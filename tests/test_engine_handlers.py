@@ -49,6 +49,12 @@ class _FakeSock:
     def send_multipart(self, frames: list[bytes]) -> None:
         self.sent.append(frames)
 
+    def begin_unit(self) -> None:
+        pass
+
+    def end_unit(self) -> None:
+        pass
+
     def close(self) -> None:
         self.closed = True
 
@@ -146,6 +152,24 @@ class TestHandleSymbolsRequest:
         # `symbol_meta` map keyed by the same symbol, and the tick scale is the
         # integer exponent the engine holds rather than 10 ** -n of it.
         assert by_symbol["AAPL"]["tick_decimals"] == 2
+
+
+class TestReferenceReload:
+    def test_reload_is_rejected_when_startup_config_was_not_recorded(
+        self, monkeypatch, tmp_path
+    ) -> None:
+        engine, pub_sock = _make_engine(monkeypatch, tmp_path)
+        original_config = engine._engine_config
+
+        engine._handle_reference_reload(
+            {"gateway_id": "GW01", "command_id": "CMD-RELOAD"}
+        )
+
+        topic, msg = decode(pub_sock.sent[-1])
+        assert topic == "system.reference_reload_ack.GW01"
+        assert msg["accepted"] is False
+        assert "compiled config" in msg["reason"]
+        assert engine._engine_config is original_config
 
 
 # ---------------------------------------------------------------------------

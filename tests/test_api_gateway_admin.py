@@ -60,6 +60,15 @@ class AdminFakeEngine:
             "reason": "" if self.ack_accepted else "Sessions are not enabled",
         }
 
+    async def send_and_await_reference_reload(
+        self, gateway_id: str, timeout: float
+    ) -> dict[str, Any]:
+        self.calls.append(("send_and_await_reference_reload", gateway_id))
+        return {
+            "accepted": self.ack_accepted,
+            "reason": "" if self.ack_accepted else "nope",
+        }
+
     async def await_topic(self, topic: str, timeout: float) -> dict[str, Any]:
         return await self.await_event(topic, match=None, timeout=timeout)
 
@@ -247,6 +256,7 @@ async def test_halt_without_a_body_is_indefinite() -> None:
     [
         (lambda r, s: admin.halt_symbol("AAPL", r, s), "HALT_REJECTED"),
         (lambda r, s: admin.resume_symbol("AAPL", r, s), "RESUME_REJECTED"),
+        (lambda r, s: admin.reference_reload(r, s), "RELOAD_REJECTED"),
         (lambda r, s: admin.cancel_symbol_orders("AAPL", r, s), "KILL_SWITCH_REJECTED"),
         (lambda r, s: admin.kill_switch_gateway("GW02", r, s), "KILL_SWITCH_REJECTED"),
         (lambda r, s: admin.kill_switch_market(r, s), "KILL_SWITCH_REJECTED"),

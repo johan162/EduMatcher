@@ -20,7 +20,12 @@ from typing import Any
 import pytest
 
 from edumatcher.audit.query import AuditEntry, iter_entries
-from edumatcher.audit.replay.anomalies import TICK_SCALE_UNKNOWN, UNKNOWN_TOPIC
+from edumatcher.audit.replay.anomalies import (
+    PARSE_FAILURE,
+    RECORDER_RESTART,
+    TICK_SCALE_UNKNOWN,
+    UNKNOWN_TOPIC,
+)
 from edumatcher.audit.replay.facts import (
     CLOCK_CLIENT,
     CLOCK_ENGINE,
@@ -316,3 +321,34 @@ class TestNormaliseStream:
         assert len(facts) == 1
         assert facts[0].prices["price_ticks"].display == pytest.approx(75.69)
         assert facts[0].anomalies == ()
+
+
+class TestRecorderRestartMarker:
+    """``pm-audit`` writes a comment line where it (re)started (A6).  It is not
+    a message, so it must not read as unparseable lines, but a reader should
+    be told that the recorder was not running just before it."""
+
+    def _entries(self, tmp_path: Any, middle: str) -> list[Any]:
+        from edumatcher.audit.query import iter_entries
+
+        log = tmp_path / "audit.log"
+        log.write_text(
+            "# edumatcher-audit format=1 pm-audit=1 started=x\n"
+            "[2026-09-08T09:31:00.000+00:00] [trade.executed] [seq=1 eseq=1] {}\n"
+            f"{middle}"
+            "[2026-09-08T09:35:00.000+00:00] [trade.executed] [seq=2 eseq=90] {}\n"
+        )
+        return list(iter_entries([log]))
+
+    def test_the_marker_is_not_a_parse_failure(self, tmp_path: Any) -> None:
+        marker = "# edumatcher-audit recorder-start pm-audit=1 started=y\n"
+        facts = list(normalise(self._entries(tmp_path, marker)))
+        codes = [a.code for f in facts for a in f.anomalies]
+        assert PARSE_FAILURE not in codes
+        assert RECORDER_RESTART in codes
+
+    def test_a_real_hole_is_still_a_parse_failure(self, tmp_path: Any) -> None:
+        facts = list(normalise(self._entries(tmp_path, "garbage\n")))
+        codes = [a.code for f in facts for a in f.anomalies]
+        assert PARSE_FAILURE in codes
+        assert RECORDER_RESTART not in codes

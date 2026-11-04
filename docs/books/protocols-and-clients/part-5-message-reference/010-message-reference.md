@@ -642,6 +642,7 @@ Every topic in the system, and which process puts it on the wire.
 | `system.gateway_connect` | `system` | `admin`, `api_gateway`, `gateway` |
 | `system.gateway_disconnect` | `system` | `admin`, `api_gateway`, `gateway` |
 | `system.gateway_heartbeat` | `system` | `api_gateway`, `gateway` |
+| `system.gateway_reject` | `system` | `api_gateway`, `gateway` |
 | `system.gateways.{gateway_id}` | `system` | `engine` |
 | `system.gateways_request` | `system` | `admin`, `api_gateway` |
 | `system.halt_status.{gateway_id}` | `system` | `engine` |
@@ -747,6 +748,7 @@ Engine to all: where one symbol would uncross if the call phase ended now. Publi
 | `eq_qty` | `int` | required | ge 0, unit `shares` | Quantity that would execute. Zero is a true reading and is always emitted, unlike `eq_price`, which has no zero. |
 | `imbalance_side` | enum: `BUY`, `SELL` | omitted when unset | — | Which side would be left unfilled. Absent when the book is balanced at the indicative price. |
 | `imbalance_qty` | `int` | required | ge 0, unit `shares` | Surplus on `imbalance_side`; zero when balanced. |
+| `tick_decimals` | `int` | omitted when unset | ge 0, le 9, unit `dimensionless` | Decimal scale of the `*_ticks` prices in this message (1 tick = 10^-tick_decimals) -- the symbol's. Every message that carries a tick price carries its scale, so a reader of one line can turn it into money without guessing. |
 | `eq_price_ticks` | `ticks` | omitted when unset | unit `ticks` | `eq_price` in engine ticks. Canonical; the float beside it is for display. Scale: the symbol's tick_decimals. |
 
 !!! note
@@ -784,6 +786,7 @@ Engine to all: one symbol's uncross has completed. Published for every uncross, 
 | `imbalance_side` | enum: `BUY`, `SELL` | omitted when unset | — | Which side was left unfilled. Absent when the book was balanced at the uncross price. |
 | `imbalance_qty` | `int` | required | ge 0, unit `shares` | Surplus on `imbalance_side`; zero when balanced. |
 | `reason` | enum: `SCHEDULED`, `REOPEN`, `RECOVERY`, `BACKSTOP`, `ADMIN_MANUAL` | required | — | Which of the five uncross paths produced this event. |
+| `tick_decimals` | `int` | omitted when unset | ge 0, le 9, unit `dimensionless` | Decimal scale of the `*_ticks` prices in this message (1 tick = 10^-tick_decimals) -- the symbol's. Every message that carries a tick price carries its scale, so a reader of one line can turn it into money without guessing. |
 | `eq_price_ticks` | `ticks` | omitted when unset | unit `ticks` | `eq_price` in engine ticks. Canonical; the float beside it is for display. Scale: the symbol's tick_decimals. |
 | `auction_id` | `string` | omitted when unset | max_len 32 | This uncross, `AUC-<run_seq>-<n>`: every print it made carries it as `trade.executed.auction_id`. |
 
@@ -2272,6 +2275,7 @@ Acknowledge acceptance or rejection of a new order, addressed to the gateway tha
 | `accepted` | `bool` | required | — |  |
 | `reason` | `string` | defaults to `''` | max_len 256 | Rejection detail; empty when accepted. |
 | `reject_code` | enum: `MALFORMED_MESSAGE`, `MISSING_FIELD`, `INVALID_VALUE`, `UNSUPPORTED_FIELD`, `AUTH_REQUIRED`, `AUTH_FAILED`, `ROLE_DENIED`, `NOT_OWNER`, `RATE_LIMITED`, `GATEWAY_NOT_CONFIGURED`, `UNKNOWN_SYMBOL`, `SYMBOL_NOT_READY`, `TICK_VIOLATION`, `LOT_VIOLATION`, `PRICE_OUT_OF_RANGE`, `QTY_OUT_OF_RANGE`, `COLLAR_BREACH`, `MAX_ORDER_QTY`, `MAX_ORDER_VALUE`, `POSITION_LIMIT`, `KILL_SWITCH_ACTIVE`, `MARKET_CLOSED`, `SESSION_NOT_PERMITTED`, `INSTRUMENT_HALTED`, `CIRCUIT_BREAKER_ACTIVE`, `ORDER_NOT_FOUND`, `ORDER_ALREADY_TERMINAL`, `AMEND_NOT_PERMITTED`, `DUPLICATE_ORDER`, `INSUFFICIENT_LIQUIDITY`, `SELF_MATCH_PREVENTED`, `INTERNAL_ERROR`, `UNKNOWN` | omitted when unset | — | Machine-readable rejection classification, stable across every order-entry transport (ALF, BALF, REST) and every layer (gateway-local validation and engine-side business rules). Absent when accepted; present on every rejection. The human-readable detail rides in reason; this field never carries data values. New members may be added; existing members are never removed or renamed. A client must treat an unrecognised code as UNKNOWN. |
+| `ts_ns` | `int` | omitted when unset | ge 0, unit `epoch_nanos` | The engine's clock when it decided this order's fate (accepted or refused), in Unix epoch nanoseconds from the same strictly increasing source as trade.executed.ts_ns, so an ack sorts against the prints around it. Absent on a record written before the field existed. |
 | `symbol` | `string` | omitted when unset | max_len 16 |  |
 | `side` | `string` | omitted when unset | max_len 8 |  |
 | `order_type` | `string` | omitted when unset | max_len 16 |  |
@@ -2288,7 +2292,8 @@ Acknowledge acceptance or rejection of a new order, addressed to the gateway tha
 | `combo_parent_id` | `string` | omitted when unset | max_len 64 |  |
 | `quote_id` | `string` | omitted when unset | max_len 64 |  |
 | `leg_index` | `int` | omitted when unset | unit `dimensionless` |  |
-| `is_seed` | `bool` | defaults to `False` | — | True when this order was created by config-driven startup seeding rather than a live gateway submission. See OrderDisplay.is_seed (above) for the full rationale; this is the ack-time echo of the same fact, since order.ack — not order.new, which never reaches the engine's PUB feed — is the first audit-visible event for any order, seeded or live. |
+| `is_seed` | `bool` | defaults to `False` | — | True when this order was created by config-driven startup seeding rather than a live gateway submission. See OrderDisplay.is_seed (above) for the full rationale; this is the ack-time echo of the same fact. A seeded order has no order.new (the engine made it, no gateway sent it), so its order.ack is the first audit-visible event for it; a live order's order.new is echoed into the trail first. |
+| `tick_decimals` | `int` | omitted when unset | ge 0, le 9, unit `dimensionless` | Decimal scale of the `*_ticks` prices in this message (1 tick = 10^-tick_decimals) -- the symbol's. Every message that carries a tick price carries its scale, so a reader of one line, or of a window of the trail that begins long after the book snapshot that declared it, can turn it into money without guessing. Absent when the message carries no tick price. |
 | `price_ticks` | `ticks` | omitted when unset | unit `ticks` | `price` in engine ticks. Canonical; the float beside it is for display. Scale: the symbol's tick_decimals. |
 | `stop_price_ticks` | `ticks` | omitted when unset | unit `ticks` | `stop_price` in engine ticks. Canonical; the float beside it is for display. Scale: the symbol's tick_decimals. |
 | `trail_offset_ticks` | `ticks` | omitted when unset | unit `ticks` | `trail_offset` in engine ticks. Canonical; the float beside it is for display. Scale: the symbol's tick_decimals. |
@@ -2331,6 +2336,7 @@ Private fill notification for one order, addressed to the gateway that owns it. 
 | `quote_id` | `string` | omitted when unset | max_len 64 |  |
 | `leg_index` | `int` | omitted when unset | unit `dimensionless` |  |
 | `is_seed` | `bool` | defaults to `False` | — | True when this order was created by config-driven startup seeding rather than a live gateway submission. See OrderDisplay.is_seed for the full rationale; carried here too so a fill reached after the originating order.ack has rotated out of the audit log still says whether the filled order was a config seed. |
+| `ts_ns` | `int` | omitted when unset | ge 0, unit `epoch_nanos` | The match time of the trade behind this fill, in Unix epoch nanoseconds: identical to trade.executed.ts_ns (the last trade, when a sweep was coalesced into one fill). A fill and the print it reports carry one clock read. Absent on a record written before the field existed. |
 | `trade_ids` | list of `string` | defaults to `[]` | — | The public trade.executed id(s) that composed this fill event. Usually one; more than one when an aggressor swept several resting orders and the engine coalesced them into a single VWAP fill (H5/H6). Every current call site only publishes order_fill from a real trade, so in practice this is never empty; it is typed as a list (not required) defensively, for a fill notification that might one day exist without one. Lets a reader link a private fill to the public trade tape without re-deriving the join. |
 | `liquidity_flag` | enum: `MAKER`, `TAKER` | omitted when unset | — | Derived from the trade's aggressor side: the aggressor is the TAKER and the resting side the MAKER (same derivation as drop_copy.yaml::liquidity_flag). Nullable/omit_when_none for the same reason trade_ids is typed as an empty-able list: every current call site only publishes order_fill from a real trade, so this is never actually absent today, but nothing enforces that a future fill notification always has a trade behind it. |
 | `fill_notional_ticks` | `int` | omitted when unset | ge 0, unit `notional_ticks` | Σ price_ticks × quantity of the trades in `trade_ids`: the fill's money exactly (`fill_price` is its VWAP, rounded for display). |
@@ -2404,6 +2410,7 @@ A stop, stop-limit or trailing stop has fired: the trade that reached its trigge
 | `order_id` | `string` | required | max_len 64 |  |
 | `symbol` | `string` | required | max_len 16 |  |
 | `order_type` | enum: `STOP`, `STOP_LIMIT`, `TRAILING_STOP` | required | — | The order as it was armed. |
+| `tick_decimals` | `int` | omitted when unset | ge 0, le 9, unit `dimensionless` | Decimal scale of the `*_ticks` prices in this message (1 tick = 10^-tick_decimals) -- the symbol's. Every message that carries a tick price carries its scale, so a reader of one line, or of a window of the trail that begins long after the book snapshot that declared it, can turn it into money without guessing. Absent when the message carries no tick price. |
 | `stop_price_ticks` | `ticks` | required | unit `ticks` | The trigger price it fired at (a trailing stop's ratcheted one). |
 | `trigger_trade_id` | `string` | omitted when unset | max_len 64 | The trade that reached the trigger; absent when the last price came from a restart. |
 | `trigger_price_ticks` | `ticks` | omitted when unset | unit `ticks` | That trade's price. |
@@ -2429,6 +2436,7 @@ What the book did that no trade or order message shows, for the audit trail (no 
 | `order_id` | `string` | required | max_len 64 |  |
 | `priority_seq` | `int` | omitted when unset | ge 0, unit `dimensionless` |  |
 | `displayed_qty` | `int` | omitted when unset | ge 0, unit `shares` | ICEBERG_REFILL: the new visible slice. |
+| `tick_decimals` | `int` | omitted when unset | ge 0, le 9, unit `dimensionless` | Decimal scale of the `*_ticks` prices in this message (1 tick = 10^-tick_decimals) -- the symbol's. Every message that carries a tick price carries its scale, so a reader of one line, or of a window of the trail that begins long after the book snapshot that declared it, can turn it into money without guessing. Absent when the message carries no tick price. |
 | `stop_price_ticks` | `ticks` | omitted when unset | unit `ticks` | TRAILING_RATCHET: the new trigger. |
 | `last_price_ticks` | `ticks` | omitted when unset | unit `ticks` | TRAILING_RATCHET: the trade price that moved it. |
 
@@ -2463,6 +2471,7 @@ Confirm an accepted amendment and report the resulting order.
 | `old_qty` | `int` | omitted when unset | unit `shares` | The order's qty immediately before this amendment. Same replay rationale as old_price; absent on records written before this field existed. |
 | `client_tag` | `string` | omitted when unset | max_len 64 | Client correlation tag for the amended order. |
 | `request_tag` | `string` | omitted when unset | max_len 64 | Client correlation tag for this amend request. Engine-initiated cancels publish with request_tag=null. |
+| `tick_decimals` | `int` | omitted when unset | ge 0, le 9, unit `dimensionless` | Decimal scale of the `*_ticks` prices in this message (1 tick = 10^-tick_decimals) -- the symbol's. Every message that carries a tick price carries its scale, so a reader of one line, or of a window of the trail that begins long after the book snapshot that declared it, can turn it into money without guessing. Absent when the message carries no tick price. |
 | `price_ticks` | `ticks` | omitted when unset | unit `ticks` | `price` in engine ticks. Canonical; the float beside it is for display. Scale: the symbol's tick_decimals. |
 | `priority_seq` | `int` | omitted when unset | ge 0, unit `dimensionless` | The order's place in its book after the amendment (the book's arrival sequence): changed when `priority_reset`. |
 
@@ -3062,6 +3071,7 @@ A symbol's collar, as the engine will apply it: published once per collared symb
 |---|---|---|---|---|
 | `symbol` | `string` | required | max_len 16 |  |
 | `kind` | enum: `COLLAR` | required | — |  |
+| `tick_decimals` | `int` | omitted when unset | ge 0, le 9, unit `dimensionless` | Decimal scale of the `*_ticks` prices in this message (1 tick = 10^-tick_decimals) -- the symbol's. Every message that carries a tick price carries its scale, so a reader of one line can turn it into money without guessing. |
 | `reference_price_ticks` | `ticks` | required | unit `ticks` | The static band's reference (last close or the config seed). |
 | `static_low_ticks` | `ticks` | required | unit `ticks` |  |
 | `static_high_ticks` | `ticks` | required | unit `ticks` |  |
@@ -4155,6 +4165,32 @@ Engine to all subscribers: a participant's connection was accepted or rejected. 
 
 **See also:** `system.gateway_connect`, `system.gateway_bye.{GW_ID}`
 
+### `system.gateway_reject`
+
+**Published by:** `api_gateway`, `gateway`
+
+**Transport:** `engine_pub`, `engine_push`
+
+**Since:** 1.0
+
+Gateway to engine: I refused a participant's request myself, before the engine saw it. Authentication, role and rate-limit refusals are decided in the ALF, BALF and REST gateways and never reach the engine, so without this the exchange could neither show nor disprove "I sent it and you ignored it". PUSH/PULL like `gateway_connect`; the engine echoes it onto the bus like any command, which is how the audit trail comes to hold it. Malformed frames and field-validation refusals are deliberately not reported: they are counted by the gateway, and any one of them is unfalsifiable noise rather than a disputable decision.
+
+| Field | Type | Presence | Rules | Description |
+|---|---|---|---|---|
+| `source` | enum: `ALF`, `BALF`, `REST` | required | — | Which gateway refused the request. |
+| `gateway_id` | `string` | defaults to `''` | max_len 32 | The participant the gateway believed it was talking to; "" before authentication. Claimed, not proven. Never an API key. |
+| `peer` | `string` | defaults to `''` | max_len 64 | Remote address of the connection (host:port). |
+| `reject_code` | enum: `AUTH_REQUIRED`, `AUTH_FAILED`, `ROLE_DENIED`, `RATE_LIMITED` | required | — | The same codes `order.ack` uses for these refusals. |
+| `reason` | `string` | defaults to `''` | max_len 256 |  |
+| `count` | `int` | defaults to `1` | ge 1, unit `dimensionless` | Refusals this record stands for: itself plus those folded in since the last record for the same peer and code. |
+| `ts_ns` | `int` | required | ge 0, unit `epoch_nanos` | The gateway's clock when it refused. |
+
+!!! note
+
+    A gateway reports at most one record per peer host and reject code per second and carries the number it folded in as `count`, so a client flooding refused commands cannot flood the engine through this message, even with a new connection (source port) per request.
+
+**See also:** `system.gateway_connect`, `order.ack.{GW_ID}`
+
 ### `system.gateway_disconnect`
 
 **Published by:** `admin`, `api_gateway`, `gateway`
@@ -4258,6 +4294,7 @@ One symbol's whole book, for the audit: every resting order in priority order wi
 | `last_buy_price_ticks` | `ticks` | omitted when unset | unit `ticks` |  |
 | `last_sell_price_ticks` | `ticks` | omitted when unset | unit `ticks` |  |
 | `last_trade_id` | `string` | omitted when unset | — | The trade that set the last trade price. |
+| `tick_decimals` | `int` | omitted when unset | ge 0, le 9, unit `dimensionless` | Decimal scale of the `*_ticks` prices in this message (1 tick = 10^-tick_decimals) -- the symbol's. Every message that carries a tick price carries its scale, so a reader of one line, or of a window of the trail that begins long after the book snapshot that declared it, can turn it into money without guessing. Absent when the message carries no tick price. |
 
 !!! note
 
@@ -4478,7 +4515,7 @@ Engine to caller: every piece of static venue configuration in one round trip --
 
 **Since:** 1.0
 
-ADMIN to engine: re-read static reference data from disk. Deliberately narrower than a startup load -- it never re-seeds quotes, creates or removes books, or touches session and halt state, so a reload that changed the symbol set is rejected rather than partially applied.
+ADMIN to engine: re-read static reference data from disk. Deliberately narrower than a startup load -- it never re-seeds quotes, creates or removes books, or touches session and halt state, so a reload that changed the symbol set is rejected rather than partially applied. The engine also rejects reloads when the active config cannot be reconstructed from the audit trail: compiled artifacts have no reloadable source file, and YAML fallback config is not recorded in system.startup. Deploy a compiled artifact and restart to apply config changes without making the audit trail ambiguous.
 
 | Field | Type | Presence | Rules | Description |
 |---|---|---|---|---|

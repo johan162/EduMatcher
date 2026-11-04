@@ -59,6 +59,7 @@ from edumatcher.audit.archive import (
     session_timezone,
     today_in,
 )
+from edumatcher.audit.manifest import head_hash, read_entries, verify
 from edumatcher.audit.formatters import render, render_stats
 from edumatcher.audit.writer import file_day
 from edumatcher.audit.indexer import (
@@ -486,6 +487,17 @@ def build_parser() -> argparse.ArgumentParser:
         default=0,
         metavar="N",
         help="Afterwards delete archives older than N days (default: 0 = keep all)",
+    )
+
+    # ------------------------------------------------------------------ verify
+    vf = sub.add_parser(
+        "verify",
+        help="Check the archived days against the evidence manifest's hash chain",
+    )
+    vf.add_argument(
+        "--date",
+        metavar="YYYY-MM-DD",
+        help="Check only this day's archive (the chain is always checked whole)",
     )
 
     # ------------------------------------------------------------------ health
@@ -1132,6 +1144,20 @@ def _handle_archive(args: argparse.Namespace, log_file: Path, audit_dir: Path) -
     return 1 if failed else 0
 
 
+def _handle_verify(args: argparse.Namespace, audit_dir: Path) -> int:
+    """Run ``verify``; the exit code is 1 when anything fails the check."""
+    problems = verify(audit_dir, args.date)
+    for p in problems:
+        print(f"[FAIL] {p.day or 'manifest'}: {p.message}")
+    entries = read_entries(audit_dir)
+    days = {e["day"] for e in entries if e.get("kind") == "day"}
+    print(
+        f"{'FAILED' if problems else 'OK'}: {len(days)} day(s) in the manifest, "
+        f"{len(problems)} problem(s); head {head_hash(audit_dir)}"
+    )
+    return 1 if problems else 0
+
+
 def main() -> None:
     parser = build_parser()
     args = parser.parse_args()
@@ -1148,6 +1174,10 @@ def main() -> None:
     if args.command == "archive":
         search_dir = log_dir if log_dir is not None else log_file.parent
         raise SystemExit(_handle_archive(args, log_file, search_dir / "audit"))
+
+    if args.command == "verify":
+        search_dir = log_dir if log_dir is not None else log_file.parent
+        raise SystemExit(_handle_verify(args, search_dir / "audit"))
 
     # health reports a missing log file itself (under --extended) rather than
     # refusing to run, and needs none of the log discovery below.

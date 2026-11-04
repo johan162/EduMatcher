@@ -55,9 +55,11 @@ from sim_forensics.audit import audit_files, run_config_text
 from sim_forensics.checks.rerun import (
     _ID_PREFIX,
     _ORDER_ID,
+    RESTART,
     _compare,
     _Ids,
     _Sink,
+    _state_files,
     apply,
     fresh_engine,
     inputs,
@@ -217,7 +219,13 @@ class _Run:
             self.e6 = _Recovery(self)
             self.e7 = _Metamorphic(self, empty)
             for topic, chain, payload, live, ts in inputs(files):
-                if topic is None or topic == "startup" or topic.startswith("book."):
+                # A live restart is not re-made here: the reference and its
+                # lanes run on through it alike (E6 restarts them itself).
+                if (
+                    topic is None
+                    or topic in ("startup", RESTART)
+                    or topic.startswith("book.")
+                ):
                     continue
                 clock.follow(live)
                 self.n += 1
@@ -401,16 +409,6 @@ class _Recovery:
                     self.run.flag("E6", restart=self.restarts, symbol=symbol, error=f"restored {key} differ", reference=str(theirs[key])[:300], restored=str(mine.get(key))[:300])  # fmt: skip
                     break
         self.lane, self.left = lane, _E6_SPAN
-
-
-def _state_files(state: Path) -> Any:
-    """The engine's persistence files, pointed into *state*."""
-    return mock.patch.multiple(
-        engine_main,
-        GTC_ORDERS_FILE=state / "gtc_orders.json",
-        GTC_COMBOS_FILE=state / "gtc_combos.json",
-        BOOK_STATS_FILE=state / "book_stats.json",
-    )
 
 
 # --- E7 ----------------------------------------------------------------------

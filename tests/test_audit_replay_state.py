@@ -23,6 +23,7 @@ import pytest
 from edumatcher.audit.query import AuditEntry
 from edumatcher.audit.replay.anomalies import (
     ACK_DUPLICATE,
+    CONFIG_NOT_RECORDED,
     FILL_AFTER_TERMINAL,
     ILLEGAL_STATUS_TRANSITION,
     QTY_MISMATCH,
@@ -595,6 +596,30 @@ class TestTheRunModel:
         )
         assert model.run.recovery_seen is False
         assert model.run.recovery_counts == {}
+
+
+class TestStartupConfig:
+    """A run whose ``system.startup`` carries no config cannot be re-executed
+    or audited for its limits: the trail does not hold what the engine ran on."""
+
+    def test_a_startup_without_a_config_is_a_finding(self) -> None:
+        model = StateModel()
+        found = model.apply(
+            fact(
+                "system.startup", {"run_seq": 7, "config": None, "config_sha256": None}
+            )
+        )
+        assert codes(found) == [CONFIG_NOT_RECORDED]
+        assert "run 7" in found[0].detail
+
+    def test_a_startup_with_a_config_is_clean(self) -> None:
+        model = StateModel()
+        found = model.apply(
+            fact(
+                "system.startup", {"run_seq": 7, "config": "{}", "config_sha256": "ab"}
+            )
+        )
+        assert found == ()
 
 
 class TestNothingUnknownCrashes:

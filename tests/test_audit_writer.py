@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 import threading
 import time
+from typing import Any
 from datetime import datetime, timedelta, timezone, tzinfo
 from pathlib import Path
 from unittest.mock import patch
@@ -12,17 +13,23 @@ from zoneinfo import ZoneInfo
 
 from edumatcher.audit.main import AuditProcess
 from edumatcher.audit.query import discover_log_files
-from edumatcher.audit.writer import AuditFile, file_day, header_line
+from edumatcher.audit.writer import (
+    RECORDER_START_PREFIX,
+    AuditFile,
+    file_day,
+    header_line,
+)
 
 STOCKHOLM = ZoneInfo("Europe/Stockholm")
 
 
 def _lines(path: Path) -> list[str]:
-    """A file's records; every non-empty file starts with the header."""
+    """A file's records; every non-empty file starts with the header.  A
+    recorder-start marker (A6) is not a record."""
     lines = path.read_text(encoding="utf-8").splitlines()
     if lines:
         assert lines[0].startswith("# edumatcher-audit format=1 pm-audit="), lines[0]
-    return lines[1:]
+    return [ln for ln in lines[1:] if not ln.startswith(RECORDER_START_PREFIX)]
 
 
 def _parts(root: Path) -> list[str]:
@@ -267,3 +274,129 @@ def test_each_file_starts_with_a_header_its_day_reads_past(tmp_path: Path) -> No
     assert file_day(path, STOCKHOLM) == "2026-03-30"  # 00:30 local, not the header's
     assert parse_line(header) is None
     assert parse_line(first) is not None
+
+
+class TestDurability:
+    """How much of what was received survives a crash, and what the trail says
+    about the recorder itself (A6)."""
+
+    def test_fsync_runs_on_the_first_flush_then_at_most_once_per_interval(
+        self, tmp_path: Path
+    ) -> None:
+        clock = [100.0]
+        f = AuditFile(
+            tmp_path / "audit.log",
+            1 << 20,
+            timezone.utc,
+            fsync_interval=1.0,
+            clock=lambda: clock[0],
+        )
+        with patch("edumatcher.audit.writer.os.fsync") as fsync:
+            f.write("2026-10-24", ["a"])
+            f.write("2026-10-24", ["b"])
+            assert fsync.call_count == 1
+            clock[0] += 1.5
+            f.write("2026-10-24", ["c"])
+            assert fsync.call_count == 2
+
+    def test_a_quiet_tail_is_synced_once_due_without_another_write(
+        self, tmp_path: Path
+    ) -> None:
+        """Synced only on a write, the last lines before a quiet spell (the
+        close of the day before an idle night) stayed in the page cache until
+        the next write, however long that took (review 2026-11-05)."""
+        clock = [100.0]
+        f = AuditFile(
+            tmp_path / "audit.log",
+            1 << 20,
+            timezone.utc,
+            fsync_interval=1.0,
+            clock=lambda: clock[0],
+        )
+        with patch("edumatcher.audit.writer.os.fsync") as fsync:
+            f.write("2026-10-24", ["a"])  # synced: the first
+            clock[0] += 0.5
+            f.write("2026-10-24", ["b"])  # not yet due
+            assert not f.sync_due()
+            clock[0] += 0.6
+            assert f.sync_due()
+            f.sync_if_due()
+            assert fsync.call_count == 2
+            clock[0] += 10
+            assert not f.sync_due()  # nothing written since
+            f.sync_if_due()
+            assert fsync.call_count == 2
+
+    def test_a_zero_interval_syncs_every_flush(self, tmp_path: Path) -> None:
+        f = AuditFile(tmp_path / "audit.log", 1 << 20, timezone.utc, fsync_interval=0)
+        with patch("edumatcher.audit.writer.os.fsync") as fsync:
+            for line in ("a", "b", "c"):
+                f.write("2026-10-24", [line])
+            assert fsync.call_count == 3
+
+    def test_a_started_recorder_marks_where_it_began_once(self, tmp_path: Path) -> None:
+        f = AuditFile(
+            tmp_path / "audit.log", 1 << 20, timezone.utc, announce_start=True
+        )
+        f.write("2026-10-24", ["a"])
+        f.write("2026-10-24", ["b"])
+        f.close()
+        lines = (tmp_path / "audit.log").read_text().splitlines()
+        assert lines[0].startswith("# edumatcher-audit format=1")
+        assert lines[1].startswith("# edumatcher-audit recorder-start ")
+        assert lines[2:] == ["a", "b"]
+
+    def test_a_restart_into_a_non_empty_file_is_marked_too(
+        self, tmp_path: Path
+    ) -> None:
+        first = AuditFile(tmp_path / "audit.log", 1 << 20, timezone.utc)
+        first.write("2026-10-24", ["a"])
+        first.close()
+        second = AuditFile(
+            tmp_path / "audit.log", 1 << 20, timezone.utc, announce_start=True
+        )
+        second.write("2026-10-24", ["b"])
+        second.close()
+        lines = (tmp_path / "audit.log").read_text().splitlines()
+        assert lines[-2].startswith("# edumatcher-audit recorder-start ")
+        assert lines[-1] == "b"
+
+    def test_a_plain_file_writes_no_marker(self, tmp_path: Path) -> None:
+        f = AuditFile(tmp_path / "audit.log", 1 << 20, timezone.utc)
+        f.write("2026-10-24", ["a"])
+        f.close()
+        assert _lines(tmp_path / "audit.log") == ["a"]
+
+
+def test_the_receive_loop_syncs_a_quiet_tail(tmp_path: Path) -> None:
+    """With no line arriving, the loop's poll timeout is the only thing that
+    runs: it must sync what an earlier flush left unsynced."""
+    clock = [datetime(2026, 10, 24, 12, 0, tzinfo=timezone.utc)]
+    proc = _process(tmp_path, timezone.utc, clock)
+    mono = [100.0]
+    proc._file._clock = lambda: mono[0]
+    _record(proc, 1)
+    proc._flush_buffer()  # the first write: synced
+    mono[0] += 0.5
+    _record(proc, 2)
+    proc._flush_buffer()  # not yet due
+
+    polls = [0]
+
+    def idle_poll(timeout: int) -> list[Any]:
+        polls[0] += 1
+        mono[0] += timeout / 1000
+        if polls[0] == 5:
+            proc._running = False
+        return []
+
+    with (
+        patch("edumatcher.audit.main.zmq.Poller") as poller,
+        patch("edumatcher.audit.writer.os.fsync") as fsync,
+    ):
+        poller.return_value.poll.side_effect = idle_poll
+        proc._eod_seen = True  # nothing to drain after the loop
+        proc._running = True
+        proc._receive()
+    assert fsync.call_count >= 1
+    proc._file.close()

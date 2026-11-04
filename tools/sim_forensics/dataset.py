@@ -8,6 +8,10 @@ from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+from edumatcher.audit.rawlines import iso_ns
+
+__all__ = ["Dataset", "STORES", "iso_ns"]
+
 #: Stores the checks may need, ATTACHed under these schema names.
 STORES = ("stats", "clearing", "metrics", "log", "market_sim_news")
 
@@ -58,12 +62,6 @@ def _session_timezone(conn: sqlite3.Connection, stores: frozenset[str]) -> str:
             if row is not None:
                 return str(row[0])
     return "UTC"
-
-
-def iso_ns(ts: str) -> int:
-    """Nanoseconds since the epoch of an ISO timestamp ("Z" or an offset)."""
-    moment = datetime.fromisoformat(ts.replace("Z", "+00:00"))
-    return int(moment.timestamp()) * 1_000_000_000 + moment.microsecond * 1000
 
 
 def _session_date(ts: str, tz: ZoneInfo) -> str:

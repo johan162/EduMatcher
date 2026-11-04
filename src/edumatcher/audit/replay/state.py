@@ -32,6 +32,7 @@ from edumatcher.audit.replay.anomalies import (
     QTY_MISMATCH,
     REMAINING_NOT_MONOTONIC,
     RESUME_WITHOUT_HALT,
+    CONFIG_NOT_RECORDED,
     RUN_SEQ_CHANGE,
     SEVERITY_ERROR,
     SEVERITY_INFO,
@@ -644,6 +645,19 @@ class StateModel:
 
     # -- run ----------------------------------------------------------------
 
+    def _on_startup(self, fact: Fact, found: list[Anomaly]) -> None:
+        if not _str(fact.payload, "config"):
+            found.append(
+                _anomaly(
+                    CONFIG_NOT_RECORDED,
+                    SEVERITY_WARN,
+                    f"run {_int(fact.payload, 'run_seq')} started without a compiled "
+                    "config in the trail; its limits cannot be recovered or "
+                    "re-executed (deploy with pm-config-deploy)",
+                    fact,
+                )
+            )
+
     def _on_startup_recovery(self, fact: Fact, found: list[Anomaly]) -> None:
         self.run.recovery_seen = True
         for name in (
@@ -712,6 +726,7 @@ class StateModel:
         kinds.GATEWAY_CONNECT: _on_gateway_connect,
         kinds.GATEWAY_DISCONNECT: _on_gateway_gone,
         kinds.GATEWAY_BYE: _on_gateway_gone,
+        kinds.STARTUP: _on_startup,
         kinds.STARTUP_RECOVERY: _on_startup_recovery,
         kinds.RECOVERY_ITEM: _on_recovery_item,
     }

@@ -23,6 +23,7 @@ import pytest
 from edumatcher.audit.query import AuditEntry, iter_entries
 from edumatcher.audit.replay.anomalies import (
     ACK_DUPLICATE,
+    ACK_WITHOUT_COMMAND,
     ACK_MISSING,
     ARRIVAL_SEQ_GAP,
     CANCEL_UNMATCHED,
@@ -517,6 +518,28 @@ class TestCommands:
         )
 
         assert COMMAND_UNACKED in log.codes()
+
+    def test_an_ack_whose_command_is_not_in_the_window_is_reported(self) -> None:
+        log = Log().line(
+            "risk.kill_switch_ack.RISK01",
+            {"gateway_id": "RISK01", "command_id": "8812", "accepted": True},
+        )
+
+        assert ACK_WITHOUT_COMMAND in log.codes()
+        assert "8812" in log.detail(ACK_WITHOUT_COMMAND)
+
+    def test_an_ack_beside_its_command_is_not(self) -> None:
+        log = Log().line(
+            "risk.kill_switch",
+            {"gateway_id": "RISK01", "symbol": "AAPL", "command_id": "8812"},
+        )
+        log.line(
+            "risk.kill_switch_ack.RISK01",
+            {"gateway_id": "RISK01", "command_id": "8812", "accepted": True},
+        )
+
+        assert ACK_WITHOUT_COMMAND not in log.codes()
+        assert COMMAND_UNACKED not in log.codes()
 
     def test_an_acked_command_is_not(self) -> None:
         log = Log().line(
@@ -1172,3 +1195,55 @@ class TestTheDropCopyFeed:
         log.line("order.fill.TRADER09", _fill(order_id=OTHER))
 
         assert DROP_COPY_MISSING not in log.codes()
+
+
+class TestUnknownEnum:
+    """A value with no lexicon entry is printed as it stands and flagged, never
+    dropped or guessed at (design 8.3).  It is a renderer annotation."""
+
+    def test_an_unknown_value_is_flagged_and_printed_verbatim(
+        self, tmp_path: Path
+    ) -> None:
+        from edumatcher.audit.replay.anomalies import UNKNOWN_ENUM
+        from edumatcher.audit.replay.render_text import Options, Renderer
+
+        log = tmp_path / "audit.log"
+        log.write_text(
+            "[2026-09-08T09:31:02.118+00:00] [order.ack.GW01] [seq=1 eseq=1] "
+            '{"order_id": "O1", "accepted": false, "reason": "x", '
+            '"reject_code": "MARTIAN_INVASION"}\n'
+        )
+        run, steps = reconstruct(iter_entries([log]))
+        episodes = list(assemble(steps, run.state, run.links))
+        renderer = Renderer(episodes, run.state, Options())
+        lines = [
+            r
+            for episode in episodes
+            for event in episode.events
+            if (r := renderer.line(episode, event)) is not None
+        ]
+
+        assert any("MARTIAN_INVASION" in ln for r in lines for ln in r.lines())
+        assert UNKNOWN_ENUM in {a.code for r in lines for a in r.anomalies}
+
+
+def test_every_anomaly_code_is_exercised_by_a_test() -> None:
+    """Acceptance (design 17): no code exists that nothing fires.  Two did --
+    ACK_WITHOUT_COMMAND and UNKNOWN_ENUM -- until this was written."""
+    import re
+
+    from edumatcher.audit.replay import anomalies
+
+    codes = [
+        n
+        for n, v in vars(anomalies).items()
+        if n.isupper() and v == n and not n.startswith("SEVERITY")
+    ]
+    here = Path(__file__).parent
+    tests = "\n".join(
+        p.read_text() for p in here.glob("test_*.py") if p != Path(__file__)
+    )
+    own = Path(__file__).read_text().split("def test_every_anomaly_code")[0]
+    corpus = tests + own
+    untested = [c for c in codes if not re.search(rf"\b{c}\b", corpus)]
+    assert untested == []

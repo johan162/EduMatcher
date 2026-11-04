@@ -523,7 +523,7 @@ class TestTheFourFieldsNamedSymbols:
 
 
 class TestTheFamilyIsComplete:
-    def test_all_thirty_five_topics_are_declared(self) -> None:
+    def test_all_thirty_six_topics_are_declared(self) -> None:
         """29 -> 31 -> 32: startup_recovery and diagnostic (see
         ../docs/books/operator-guide/part-6-observe-and-recover/020-audit-trail.md) — the GTC-restore summary and the
         absorbed-internal-failure marker, both broadcasts with no request
@@ -533,9 +533,10 @@ class TestTheFamilyIsComplete:
         process died without a gateway_disconnect. 33 -> 34: startup, the
         first message of every engine start, which makes an audit trail
         self-describing (sim forensics S21). 34 -> 35: book_checkpoint, a
-        symbol's whole book for a replay to start from (S25)."""
+        symbol's whole book for a replay to start from (S25). 35 -> 36:
+        gateway_reject, a refusal made at a gateway (audit A3)."""
         topics = {getattr(G, n) for n in dir(G) if n.startswith("TOPIC_")}
-        assert len(topics) == 35, sorted(topics)
+        assert len(topics) == 36, sorted(topics)
 
 
 class TestQuoteLegSnapshotPrice:
@@ -586,3 +587,23 @@ class TestQuoteLegSnapshotPrice:
             G.QuoteLegSnapshot.__annotations__["price"]
             == G.QuoteLeg.__annotations__["price"]
         )
+
+
+def test_every_message_with_a_tick_price_declares_its_scale() -> None:
+    """The replay refuses to guess a tick price's scale, so a message that
+    carries `*_ticks` without `tick_decimals` makes every audit of it a warning
+    (order.ack, order.amended, order.triggered, engine.trace, risk.band,
+    auction.* and system.book_checkpoint did, until audit A9)."""
+    from pathlib import Path
+
+    from edumatcher.msgen.spec import load_all
+
+    _registry, families = load_all(Path(__file__).resolve().parents[1] / "spec")
+    missing = [
+        f"{family.family}.{message.name}"
+        for family in families
+        for message in family.messages
+        if any(getattr(f, "unit", None) == "ticks" for f in message.fields)
+        and "tick_decimals" not in {f.name for f in message.fields}
+    ]
+    assert missing == []

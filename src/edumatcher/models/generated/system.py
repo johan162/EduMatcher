@@ -2290,6 +2290,246 @@ def describe_gateway_auth() -> tuple[dict[str, Any], ...]:
     return _GATEWAY_AUTH_FIELDS
 
 
+TOPIC_GATEWAY_REJECT = "system.gateway_reject"
+_TOPIC_GATEWAY_REJECT_BYTES = "system.gateway_reject".encode()
+_GATEWAY_REJECT_SOURCE_VALUES = ("ALF", "BALF", "REST")
+GatewayRejectSource = Literal["ALF", "BALF", "REST"]
+_GATEWAY_REJECT_REJECT_CODE_VALUES = (
+    "AUTH_REQUIRED",
+    "AUTH_FAILED",
+    "ROLE_DENIED",
+    "RATE_LIMITED",
+)
+GatewayRejectRejectCode = Literal[
+    "AUTH_REQUIRED",
+    "AUTH_FAILED",
+    "ROLE_DENIED",
+    "RATE_LIMITED",
+]
+
+
+_GATEWAY_REJECT_FIELDS: tuple[dict[str, Any], ...] = (
+    {
+        "name": "source",
+        "type": "enum",
+        "unit": None,
+        "required": True,
+        "doc": "Which gateway refused the request.",
+        "values": _GATEWAY_REJECT_SOURCE_VALUES,
+    },
+    {
+        "name": "gateway_id",
+        "type": "string",
+        "unit": None,
+        "required": False,
+        "doc": 'The participant the gateway believed it was talking to; "" before authentication. Claimed, not proven. Never an API key.',
+        "constraints": {"max_len": 32},
+    },
+    {
+        "name": "peer",
+        "type": "string",
+        "unit": None,
+        "required": False,
+        "doc": "Remote address of the connection (host:port).",
+        "constraints": {"max_len": 64},
+    },
+    {
+        "name": "reject_code",
+        "type": "enum",
+        "unit": None,
+        "required": True,
+        "doc": "The same codes `order.ack` uses for these refusals.",
+        "values": _GATEWAY_REJECT_REJECT_CODE_VALUES,
+    },
+    {
+        "name": "reason",
+        "type": "string",
+        "unit": None,
+        "required": False,
+        "doc": "",
+        "constraints": {"max_len": 256},
+    },
+    {
+        "name": "count",
+        "type": "int",
+        "unit": "dimensionless",
+        "required": False,
+        "doc": "Refusals this record stands for: itself plus those folded in since the last record for the same peer and code.",
+        "constraints": {"ge": 1},
+    },
+    {
+        "name": "ts_ns",
+        "type": "int",
+        "unit": "epoch_nanos",
+        "required": True,
+        "doc": "The gateway's clock when it refused.",
+        "constraints": {"ge": 0},
+    },
+)
+
+
+@dataclass(frozen=True, slots=True)
+class GatewayReject:
+    """Gateway to engine: I refused a participant's request myself, before the engine
+    saw it. Authentication, role and rate-limit refusals are decided in the ALF,
+    BALF and REST gateways and never reach the engine, so without this the
+    exchange could neither show nor disprove "I sent it and you ignored it".
+    PUSH/PULL like `gateway_connect`; the engine echoes it onto the bus like any
+    command, which is how the audit trail comes to hold it. Malformed frames and
+    field-validation refusals are deliberately not reported: they are counted by
+    the gateway, and any one of them is unfalsifiable noise rather than a
+    disputable decision.
+
+    A gateway reports at most one record per peer host and reject code per second and
+    carries the number it folded in as `count`, so a client flooding refused commands
+    cannot flood the engine through this message, even with a new connection (source
+    port) per request.
+    """
+
+    source: GatewayRejectSource
+    reject_code: GatewayRejectRejectCode
+    ts_ns: int  # unit: epoch_nanos
+    gateway_id: str = ""
+    peer: str = ""
+    reason: str = ""
+    count: int = 1  # unit: dimensionless
+
+    def validate(self) -> None:
+        """Raise MessageValidationError if any declared rule fails.
+
+        The only strictness gate: ``from_dict`` coerces but never validates, so a reader
+        of historical data can opt out of the rules by calling ``from_dict`` alone
+        (design section 5.1.1).
+        """
+        if self.source not in _GATEWAY_REJECT_SOURCE_VALUES:
+            raise MessageValidationError(
+                f"source: {self.source!r} is not one of {_GATEWAY_REJECT_SOURCE_VALUES!r}"
+            )
+        if len(self.gateway_id) > 32:
+            raise MessageValidationError(
+                f"gateway_id: length {len(self.gateway_id)} exceeds max_len 32"
+            )
+        if len(self.peer) > 64:
+            raise MessageValidationError(
+                f"peer: length {len(self.peer)} exceeds max_len 64"
+            )
+        if self.reject_code not in _GATEWAY_REJECT_REJECT_CODE_VALUES:
+            raise MessageValidationError(
+                f"reject_code: {self.reject_code!r} is not one of {_GATEWAY_REJECT_REJECT_CODE_VALUES!r}"
+            )
+        if len(self.reason) > 256:
+            raise MessageValidationError(
+                f"reason: length {len(self.reason)} exceeds max_len 256"
+            )
+        if self.count < 1:
+            raise MessageValidationError(f"count: {self.count!r} must be >= 1")
+        if self.ts_ns < 0:
+            raise MessageValidationError(f"ts_ns: {self.ts_ns!r} must be >= 0")
+
+    @classmethod
+    def from_dict(cls, p: Mapping[str, Any]) -> "GatewayReject":
+        """Coerce a payload mapping into this message. Does NOT validate.
+
+        Mirrors the hand-written payload's coercion exactly, including its lenient
+        fallbacks, so it is a drop-in replacement for readers of already-published data
+        (design section 5.1.1).
+        """
+        return cls(
+            source=cast(GatewayRejectSource, str(p["source"])),
+            gateway_id=str(p.get("gateway_id", "")),
+            peer=str(p.get("peer", "")),
+            reject_code=cast(GatewayRejectRejectCode, str(p["reject_code"])),
+            reason=str(p.get("reason", "")),
+            count=int(p.get("count", 1)),
+            ts_ns=int(p["ts_ns"]),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return the bus payload, in the spec's declared field order."""
+        return {
+            "source": self.source,
+            "gateway_id": self.gateway_id,
+            "peer": self.peer,
+            "reject_code": self.reject_code,
+            "reason": self.reason,
+            "count": self.count,
+            "ts_ns": self.ts_ns,
+        }
+
+
+def is_gateway_reject(topic: str) -> bool:
+    """True when ``topic`` is this message's topic."""
+    return topic == TOPIC_GATEWAY_REJECT
+
+
+def make_gateway_reject(**kw: Any) -> list[bytes]:
+    """Coerce, validate, and return the TWO bus frames [topic, payload].
+
+    The per-topic sequence third frame is NOT added here; it is appended by
+    SequencedPublisher.send_multipart() at publish time (edumatcher/messaging/bus.py).
+
+    Routes through ``from_dict`` rather than the dataclass constructor, so a caller
+    passing ``price=100`` puts a float on the wire rather than an int (design section
+    5.1.1).
+    """
+    obj = GatewayReject.from_dict(kw)
+    obj.validate()
+    return _msg.encode(TOPIC_GATEWAY_REJECT, obj.to_dict())
+
+
+def make_gateway_reject_unchecked(
+    *,
+    source: GatewayRejectSource,
+    reject_code: GatewayRejectRejectCode,
+    ts_ns: int,
+    gateway_id: str = "",
+    peer: str = "",
+    reason: str = "",
+    count: int = 1,
+) -> list[bytes]:
+    """Identical frames to ``make_gateway_reject``, without ``validate()``.
+
+    For measured hot paths only; every other caller should use the validating
+    constructor. Builds the payload directly rather than via the dataclass, which is
+    what makes it cheap enough to be worth having — see the generator's _unchecked_block
+    docstring for the measurements.
+
+    Coerces exactly as ``make_*`` does, so for any input the two emit byte-identical
+    frames.
+    """
+    return [
+        _TOPIC_GATEWAY_REJECT_BYTES,
+        _msg.dumps(
+            {
+                "source": str(source),
+                "gateway_id": str(gateway_id),
+                "peer": str(peer),
+                "reject_code": str(reject_code),
+                "reason": str(reason),
+                "count": int(count),
+                "ts_ns": int(ts_ns),
+            }
+        ),
+    ]
+
+
+def parse_gateway_reject(frames: list[bytes]) -> "GatewayReject":
+    """Decode bus frames into a validated message.
+
+    Raises MessageValidationError if the payload breaks a declared rule. Call
+    ``from_dict`` on a decoded payload instead to read without validating.
+    """
+    _topic, payload = _msg.decode(frames)
+    obj = GatewayReject.from_dict(payload)
+    obj.validate()
+    return obj
+
+
+def describe_gateway_reject() -> tuple[dict[str, Any], ...]:
+    """Return field metadata, for spy tools and runtime pretty-printing."""
+    return _GATEWAY_REJECT_FIELDS
+
+
 TOPIC_GATEWAY_DISCONNECT = "system.gateway_disconnect"
 _TOPIC_GATEWAY_DISCONNECT_BYTES = "system.gateway_disconnect".encode()
 
@@ -2905,6 +3145,14 @@ _BOOK_CHECKPOINT_FIELDS: tuple[dict[str, Any], ...] = (
         "required": False,
         "doc": "The trade that set the last trade price.",
     },
+    {
+        "name": "tick_decimals",
+        "type": "int",
+        "unit": "dimensionless",
+        "required": False,
+        "doc": "Decimal scale of the `*_ticks` prices in this message (1 tick = 10^-tick_decimals) -- the symbol's. Every message that carries a tick price carries its scale, so a reader of one line, or of a window of the trail that begins long after the book snapshot that declared it, can turn it into money without guessing. Absent when the message carries no tick price.",
+        "constraints": {"ge": 0, "le": 9},
+    },
 )
 
 
@@ -2935,6 +3183,7 @@ class BookCheckpoint:
     last_buy_price_ticks: int | None = None  # unit: ticks
     last_sell_price_ticks: int | None = None  # unit: ticks
     last_trade_id: str | None = None
+    tick_decimals: int | None = None  # unit: dimensionless
 
     def validate(self) -> None:
         """Raise MessageValidationError if any declared rule fails.
@@ -2965,6 +3214,15 @@ class BookCheckpoint:
             sell_stops_item.validate()
         for trailing_stops_item in self.trailing_stops:
             trailing_stops_item.validate()
+        if self.tick_decimals is not None:
+            if self.tick_decimals < 0:
+                raise MessageValidationError(
+                    f"tick_decimals: {self.tick_decimals!r} must be >= 0"
+                )
+            if self.tick_decimals > 9:
+                raise MessageValidationError(
+                    f"tick_decimals: {self.tick_decimals!r} must be <= 9"
+                )
 
     @classmethod
     def from_dict(cls, p: Mapping[str, Any]) -> "BookCheckpoint":
@@ -3003,6 +3261,9 @@ class BookCheckpoint:
             last_trade_id=(
                 None if p.get("last_trade_id") is None else str(p["last_trade_id"])
             ),
+            tick_decimals=(
+                None if p.get("tick_decimals") is None else int(p["tick_decimals"])
+            ),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -3025,6 +3286,8 @@ class BookCheckpoint:
             payload["last_sell_price_ticks"] = self.last_sell_price_ticks
         if self.last_trade_id is not None:
             payload["last_trade_id"] = self.last_trade_id
+        if self.tick_decimals is not None:
+            payload["tick_decimals"] = self.tick_decimals
         return payload
 
 
@@ -4466,7 +4729,11 @@ class ReferenceReload:
     """ADMIN to engine: re-read static reference data from disk. Deliberately
     narrower than a startup load -- it never re-seeds quotes, creates or removes
     books, or touches session and halt state, so a reload that changed the symbol
-    set is rejected rather than partially applied.
+    set is rejected rather than partially applied. The engine also rejects reloads
+    when the active config cannot be reconstructed from the audit trail: compiled
+    artifacts have no reloadable source file, and YAML fallback config is not
+    recorded in system.startup. Deploy a compiled artifact and restart to apply
+    config changes without making the audit trail ambiguous.
     """
 
     gateway_id: str
@@ -7071,6 +7338,7 @@ def describe_volume() -> tuple[dict[str, Any], ...]:
 FAMILY_TOPICS: tuple[str, ...] = (
     TOPIC_GATEWAY_CONNECT,
     TOPIC_GATEWAY_AUTH,
+    TOPIC_GATEWAY_REJECT,
     TOPIC_GATEWAY_DISCONNECT,
     TOPIC_GATEWAY_HEARTBEAT,
     TOPIC_GATEWAY_BYE,

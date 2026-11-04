@@ -166,6 +166,8 @@ PHRASES: Mapping[str, Mapping[str, str]] = {
         "INSUFFICIENT_LIQUIDITY": "insufficient liquidity",
         "INTERNAL_ERROR": "an internal error",
     },
+    # `system.gateway_reject.source`: which gateway refused the request.
+    "source": {"ALF": "ALF", "BALF": "BALF", "REST": "REST"},
     # -- market structure --------------------------------------------------
     "halt_source": {"CB": "the circuit breaker", "ADMIN": "an admin halt"},
     "phase": {

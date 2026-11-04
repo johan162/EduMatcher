@@ -25,6 +25,7 @@ outside the requested window.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import tzinfo
 
 import json
@@ -353,6 +354,7 @@ class Renderer:
             "state": _str(payload, "state") or "-",
             "from_clause": _clause(", from ", _str(payload, "prev_state"), ""),
             "auth_clause": self._auth(fact),
+            "refusal": self._refusal(episode, fact, word),
             "restored": _plural(_int(payload, "restored_orders"), "order"),
             "recovery_failure_clause": self._recovery_failures(fact),
             "entity_kind": word("kind", payload.get("kind")).title() or "Entity",
@@ -577,6 +579,20 @@ class Renderer:
             return f" — refused{_clause(': ', reason, '')}"
         description = _str(fact.payload, "description")
         return f" ({description})" if description else ""
+
+    def _refusal(
+        self, episode: Episode, fact: Fact, word: Callable[[str, Any], str]
+    ) -> str:
+        """A request a gateway refused before the engine saw it."""
+        who = self._actor(episode, fact)
+        peer = _str(fact.payload, "peer")
+        if who:
+            who = f"A request from {who}{_clause(' (', peer, ')')}"
+        else:
+            who = f"A request from {peer or 'an unidentified peer'}"
+        text = f"{who} was refused at the {word('source', fact.payload.get('source'))} gateway"
+        count = _int(fact.payload, "count")
+        return f"{text} ({count} times)" if count and count > 1 else text
 
     def _recovery_failures(self, fact: Fact) -> str:
         failed = _int(fact.payload, "failed_orders")

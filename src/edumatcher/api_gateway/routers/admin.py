@@ -63,7 +63,7 @@ from edumatcher.api_gateway.schemas import (
     SessionTransitionRequest,
     SymbolHaltRequest,
 )
-from edumatcher.api_gateway.sessions import Session, auth, require_admin
+from edumatcher.api_gateway.sessions import Session, auth, report_refusal, require_admin
 from edumatcher.models.generated.order import topic_orders, topic_price_level_orders
 from edumatcher.models.generated.risk import (
     topic_cancel_symbol_ack,
@@ -89,6 +89,9 @@ router = APIRouter(prefix="/api/v1/admin", tags=["admin"], route_class=ContractR
 def _check_rate_limit(request: Request, session: Session) -> None:
     """Raise 429 if the per-key write rate is exceeded."""
     if not request.app.state.rate_limiter.allow(session.api_key):
+        report_refusal(
+            request, "RATE_LIMITED", "write rate exceeded", session.gateway_id
+        )
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail={"error": {"code": "RATE_LIMIT", "message": "Write rate exceeded"}},
@@ -232,7 +235,12 @@ async def session_transition(  # pyright: ignore[reportUnusedFunction]
             "RELOAD_REJECTED",
             "ROLE_DENIED",
             examples={
-                "RELOAD_REJECTED": {"message": "Symbol set changed; restart required"}
+                "RELOAD_REJECTED": {
+                    "message": (
+                        "Reference reload requires a compiled config recorded "
+                        "in the audit trail"
+                    )
+                }
             },
         ),
     ),
@@ -244,12 +252,10 @@ async def reference_reload(  # pyright: ignore[reportUnusedFunction]
     """Reload static reference data (tick sizes, risk bands, circuit-breaker
     ladders, schedule, index definitions) from the engine's config file.
 
-    For controlled reloads in development/classroom mode. Deliberately
-    narrower than a full engine config reload: it never touches order
-    books, market-maker seeding, or session state, and is rejected outright
-    (409) if the file's symbol or index set no longer matches the running
-    engine's — adding or removing an instrument mid-session isn't safe and
-    still requires a restart.
+    The engine currently rejects reloads: a compiled artifact has no editable
+    source file, while a YAML fallback's active config is not recorded in
+    system.startup. Deploy a compiled config and restart to apply changes
+    without making the audit trail ambiguous.
     """
     gateway_id = await require_admin(request, session)
     _check_rate_limit(request, session)

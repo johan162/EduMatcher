@@ -333,6 +333,18 @@ messages:
       - name: kind
         type: enum
         values: [COLLAR]
+      - name: tick_decimals
+        type: int
+        required: false
+        nullable: true
+        omit_when_none: true
+        unit: dimensionless
+        validate: { ge: 0, le: 9 }
+        doc: >
+          Decimal scale of the `*_ticks` prices in this message (1 tick =
+          10^-tick_decimals) -- the symbol's. Every message that carries a tick
+          price carries its scale, so a reader of one line can turn it into
+          money without guessing.
       - { name: reference_price_ticks, type: ticks, unit: ticks,
           doc: "The static band's reference (last close or the config seed)." }
       - { name: static_low_ticks, type: ticks, unit: ticks }
@@ -344,7 +356,7 @@ messages:
       engine_pub:
         frames: [topic, json_payload]
         include: [symbol, kind, reference_price_ticks, static_low_ticks,
-                  static_high_ticks, dynamic_band_pct]
+                  static_high_ticks, dynamic_band_pct, tick_decimals]
 
   - name: symbol_halt
     topic: "risk.symbol_halt"

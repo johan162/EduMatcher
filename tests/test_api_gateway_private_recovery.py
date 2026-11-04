@@ -131,7 +131,9 @@ def test_events_without_an_order_are_unchanged() -> None:
     # is_seed is always present (default false, not omit_when_none) -- see
     # ../docs/books/operator-guide/part-6-observe-and-recover/020-audit-trail.md's audit-completeness section -- so it
     # rides along even when no order detail was supplied.
-    assert _payload(make_ack_msg("GW01", "ORD-1", True)) == {
+    ack = _payload(make_ack_msg("GW01", "ORD-1", True))
+    assert isinstance(ack.pop("ts_ns"), int)  # the engine clock, A7
+    assert ack == {
         "order_id": "ORD-1",
         "accepted": True,
         "reason": "",

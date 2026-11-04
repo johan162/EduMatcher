@@ -78,7 +78,7 @@ from edumatcher.models.message import (
     decode_sequence,
 )
 from edumatcher.models.generated.book import PREFIX_BOOK_SNAPSHOT
-from edumatcher.models.generated.system import TOPIC_EOD
+from edumatcher.models.generated.system import TOPIC_EOD, TOPIC_STARTUP
 
 _CLIENT_NAME = "pm-audit"
 
@@ -97,6 +97,7 @@ _SUB_RCVHWM = 200_000
 _DEFAULT_BUFFER_SIZE = 100
 _DEFAULT_FLUSH_INTERVAL = 10.0
 _DEFAULT_MAX_FILE_MB = 10
+_DEFAULT_FSYNC_INTERVAL = 1.0
 _DEBUG_SUMMARY_INTERVAL_SEC = 5.0
 #: How often the receive loop looks for a day that ended without a line.
 _DAY_CHECK_INTERVAL_SEC = 1.0
@@ -178,6 +179,16 @@ def build_parser() -> argparse.ArgumentParser:
         default=0,
         metavar="N",
         help="Delete archives older than N days (default: 0 = keep all)",
+    )
+    parser.add_argument(
+        "--fsync-interval",
+        type=float,
+        default=_DEFAULT_FSYNC_INTERVAL,
+        metavar="SECONDS",
+        help=(
+            "Sync the active file to disk at most this often; 0 syncs every "
+            f"flush (default: {_DEFAULT_FSYNC_INTERVAL})"
+        ),
     )
     parser.add_argument(
         "--log-level",
@@ -274,6 +285,7 @@ class AuditProcess:
         max_file_mb: int = _DEFAULT_MAX_FILE_MB,
         session_tz: tzinfo = timezone.utc,
         keep_days: int = 0,
+        fsync_interval: float = 1.0,
     ) -> None:
         self._session_tz = session_tz
         self._keep_days = keep_days
@@ -294,6 +306,8 @@ class AuditProcess:
             max_file_mb * 1024 * 1024,
             session_tz,
             on_day_closed=self._want_archive,
+            fsync_interval=fsync_interval,
+            announce_start=True,
         )
         self._log_path = log_path
         self._to_terminal = to_terminal
@@ -307,6 +321,14 @@ class AuditProcess:
         self._records = 0
         self._bytes = 0
         self._decode_errors = 0
+        #: Engine messages the recorder can prove it missed: the jumps in the
+        #: socket-wide sequence (``eseq``).  A restarted engine begins again
+        #: at 1 and is not a miss; a drop at the high-water mark is.
+        self._missed = 0
+        #: Repeated or decreasing sequences without a startup boundary cannot
+        #: prove how many messages were lost, but do prove a discontinuity.
+        self._sequence_discontinuities = 0
+        self._last_eseq: int | None = None
         # Subscribe to everything, with a deep receive buffer. Past the
         # high-water mark a SUB socket drops *silently*, and this is the one
         # process in the system whose whole job is to miss nothing: a hole in
@@ -533,6 +555,10 @@ class AuditProcess:
                 answer_health_ping(self.health_rep, log)
             if self.sub in socks:
                 self._receive_one_message()
+            if self._file.sync_due():
+                # A quiet spell: no write comes to sync the last lines.
+                with self._buffer_lock:
+                    self._file.sync_if_due()
         self._drain()
 
     def _receive_one_message(self) -> None:
@@ -546,6 +572,7 @@ class AuditProcess:
             now = self._now()
             ts = now.isoformat(timespec="milliseconds")
             day = now.astimezone(self._session_tz).date().isoformat()
+            self._note_eseq(topic, decode_publisher_sequence(frames))
             meta = _meta_section(frames)
             if meta is None:
                 self._dbg_count("messages_without_envelope")
@@ -560,6 +587,17 @@ class AuditProcess:
             self._dbg_count("decode_errors")
             self._decode_errors += 1
             log.warning("failed to decode/log message: %s", exc)
+
+    def _note_eseq(self, topic: str, eseq: int | None) -> None:
+        if eseq is None:
+            return
+        last = self._last_eseq
+        if topic != TOPIC_STARTUP and last is not None:
+            if eseq > last + 1:
+                self._missed += eseq - last - 1
+            elif eseq <= last:
+                self._sequence_discontinuities += 1
+        self._last_eseq = eseq
 
     def _drain(self) -> None:
         """After a stop, keep recording until the engine's ``system.eod``.
@@ -629,6 +667,8 @@ class AuditProcess:
             counter("audit.records", self._records),
             counter("audit.bytes", self._bytes),
             counter("audit.decode_errors", self._decode_errors),
+            counter("audit.missed_messages", self._missed),
+            counter("audit.sequence_discontinuities", self._sequence_discontinuities),
             counter("audit.archives", self._archives),
             counter("audit.archive_errors", self._archive_errors),
             gauge("audit.archive_ratio", self._archive_ratio),
@@ -659,6 +699,8 @@ def main() -> None:
         parser.error("--max-file-mb must be at least 1")
     if args.keep_days < 0:
         parser.error("--keep-days must be >= 0")
+    if args.fsync_interval < 0:
+        parser.error("--fsync-interval must be >= 0")
 
     try:
         session_tz = session_timezone()
@@ -673,6 +715,7 @@ def main() -> None:
             max_file_mb=args.max_file_mb,
             session_tz=session_tz,
             keep_days=args.keep_days,
+            fsync_interval=args.fsync_interval,
         )
     except Exception as exc:
         log.error("fatal startup error: %s", exc)

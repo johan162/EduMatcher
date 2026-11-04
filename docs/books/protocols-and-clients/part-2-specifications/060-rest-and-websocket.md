@@ -108,7 +108,7 @@ optional parameters.
 | [DELETE /api/v1/admin/gateways/{gateway_id}/quotes/{symbol}](#delete-apiv1admingatewaysgateway_idquotessymbol) | Admin role | Withdraw one gateway's quote on one symbol |
 | [POST /api/v1/admin/market/kill-switch](#post-apiv1adminmarketkill-switch) | Admin role | Cancel all resting exposure across every gateway and symbol |
 | [POST /api/v1/admin/indexes/{index_id}/rebalance](#post-apiv1adminindexesindex_idrebalance) | Admin role | Rebalance one configured index |
-| [POST /api/v1/admin/reference/reload](#post-apiv1adminreferencereload) | Admin role | Reload the compiled reference bundle in place |
+| [POST /api/v1/admin/reference/reload](#post-apiv1adminreferencereload) | Admin role | Request a reference-data reload (currently refused by the engine) |
 
 ### Auth and roles
 
@@ -2514,7 +2514,10 @@ Purpose: rebalance one configured index through `pm-index`.
 
 ### `POST /api/v1/admin/reference/reload`
 
-Purpose: reload the compiled reference bundle in place.
+Purpose: request a reference-data reload. The current engine rejects this
+request because the active configuration cannot be both reloaded and
+reconstructed from the audit trail. Deploy a compiled config artifact and
+restart the engine to apply configuration changes.
 
 **Arguments**
 
@@ -2522,11 +2525,12 @@ Purpose: reload the compiled reference bundle in place.
 |---|---|---|---|
 | none | — | — | No request body |
 
-**Reply**
+**Reply** (if an engine accepts the request)
 
 | Status | Shape | Meaning |
 |---|---|---|
-| `200 OK` | `{ "status": "RELOADED", "config_version": "..." }` | Reference bundle reloaded |
+| `200 OK` | `{ "status": "RELOADED", "config_version": "..." }` | Reload accepted by an engine that supports it |
+| `409 Conflict` | error envelope | `RELOAD_REJECTED`: the current engine rejects reloads that cannot be recorded |
 
 **Errors**
 

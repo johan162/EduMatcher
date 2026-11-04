@@ -243,6 +243,10 @@ class EngineClient:
             },
         )
 
+    def report(self, frames: list[bytes]) -> None:
+        """Forward a best-effort notice (a refusal made here) to the engine."""
+        self._send(frames, require_engine=False)
+
     def send_heartbeat(self, gateway_id: str) -> None:
         log.debug("engine heartbeat sent gateway_id=%s", gateway_id)
         self._send(make_gateway_heartbeat_msg(gateway_id), require_engine=False)

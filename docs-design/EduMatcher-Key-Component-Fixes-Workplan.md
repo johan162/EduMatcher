@@ -47,11 +47,11 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 | 16 | K16 | Event-loop fairness: ALF writability/backpressure, permanent socket errors, BALF drain budget, blocking SQLite in async routes | G1, G2, B5, P6 | Med | K0 | 1.5 d | ☑ | 2026-11-04 |
 | 17 | K17 | Input strictness: integer/NaN config validation, ALF stale symbol set after restart | G3, G4, B6 | Low | — | 0.5 d | ☑ | 2026-11-04 |
 | 18 | K18 | Complexity and hot-path cost | A3, C6, E3, I5, P7, S5 | Low | K1–K16 | 1.5 d | ☑ | 2026-11-04 |
-| 19 | K19 | Retrospective: close the systemic test-suite gaps that let all 35 findings through | — | — | K1–K18 | 2 d | ☐ | |
+| 19 | K19 | Retrospective: close the systemic test-suite gaps that let all 35 findings through | — | — | K1–K18 | TBD after T0 | ☐ | |
 
-Total ≈ 21 d. Execution order is the table order; K0 is a prerequisite for
-almost everything and K19 must come last so it can generalise from the concrete
-defects.
+K0–K18 total ≈ 20 d; K19 will be estimated after T0 baselines the work.
+Execution order is the table order; K0 is a prerequisite for almost everything
+and K19 must come last so it can generalise from the concrete defects.
 
 ### 1.1 Finding → WP index
 
@@ -846,6 +846,12 @@ changes; suite green.
 The point of this WP is that fixing 35 defects changes nothing if the suite that
 missed them stays the same.
 
+Execution is staged in the
+[test methodology and efficiency workplan](./EduMatcher-Test-Methodology-and-Efficiency-Plan.md).
+The shared helpers and testing-guidelines document already exist; the
+systematic matrices, demonstrated defect detection, mutation baseline, and
+measured efficiency work remain open.
+
 Steps:
 1. **Mutation testing on the hot modules.** Add `mutmut` (or `cosmic-ray`) over
    `engine/auction.py`, `engine/order_book.py`, `clearing/ledger.py`,
@@ -861,9 +867,11 @@ Steps:
 4. **Value-domain fuzzing.** Run K0's bad-value parametrisation against every
    topic handler in every process. A handler that raises out of its loop is a
    failure.
-5. **Multi-actor defaults.** Change the shared fixtures so the *default*
-   scenario has two gateways, two symbols with different precisions, and two
-   index constituents. Single-actor fixtures become the explicit exception.
+5. **Multi-actor scenarios.** Use two gateways, symbols with different
+   precisions, and multiple constituents by default in scenarios whose
+   business rule involves those interactions. Keep intentionally single-actor
+   or single-constituent scenarios focused; do not make every test pay for
+   irrelevant fixture complexity.
 6. **Invariant library.** Consolidate the invariants added in K1–K3 (OCO
    exclusivity, no self-match, AON atomicity, visible-quantity consistency,
    finite index level, ledger idempotence) into one module asserted by the
@@ -874,8 +882,8 @@ Steps:
 8. **Retire the vanity metric.** Replace "10,000+ tests" in the README/docs with
    the metrics that matter: mutation score, restart-equivalence coverage,
    fault-injection coverage, invariant count.
-9. Write up §4 as a permanent testing-guidelines document under `docs-design/`
-   and link it from the contributor docs.
+9. [x] Write up §4 as a permanent testing-guidelines document under
+   `docs-design/` and link it from the contributor docs.
 
 Done when:
 - Mutation baseline recorded and gated in CI.
@@ -903,8 +911,9 @@ Done when:
   `auth_timeout_sec` so a silent engine fails the logon instead of hanging it;
   and, once ready, reject a `NEW_ORDER` naming a symbol the engine never
   listed with `0x03` rather than pricing it at the default scale.*
-- **K19 item 5 will churn many existing tests.** Expect a large, mostly
-  mechanical diff; land it alone, after all fixes.
+- **K19 item 5 may affect shared scenarios.** Add multi-actor fixture defaults
+  only where the business rule depends on interaction; keep legitimate
+  single-entity tests focused.
 
 ---
 

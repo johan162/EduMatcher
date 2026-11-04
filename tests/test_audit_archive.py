@@ -30,7 +30,7 @@ class _Usage(NamedTuple):
 
 DAY = "2026-10-24"
 TODAY = "2026-10-25"
-STEPS = ["compressed", "verified", "renamed", "deleted"]
+STEPS = ["compressed", "verified", "renamed", "recorded", "deleted"]
 
 
 def _line(n: int, day: str = DAY) -> str:
@@ -56,7 +56,11 @@ def _archive_bytes(audit_dir: Path, day: str = DAY) -> bytes:
 
 
 def _names(audit_dir: Path) -> list[str]:
-    return sorted(p.name for p in audit_dir.iterdir() if p.name != ".archive.lock")
+    return sorted(
+        p.name
+        for p in audit_dir.iterdir()
+        if p.name not in (".archive.lock", "manifest.jsonl")
+    )
 
 
 class TestArchiveDay:

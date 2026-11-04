@@ -269,7 +269,13 @@ def claim(fact: Fact) -> tuple[str, str] | None:
     if fact.family in (kinds.FAMILY_CIRCUIT_BREAKER, kinds.FAMILY_AUCTION):
         return _anchored(KIND_MARKET_PHASE, fact.symbol)
     if kind in _GATEWAY_KINDS:
-        return _anchored(KIND_GATEWAY, _str(payload, "gateway_id") or fact.actor)
+        # A refusal before authentication names no participant, only a peer.
+        return _anchored(
+            KIND_GATEWAY,
+            _str(payload, "gateway_id")
+            or fact.actor
+            or (_str(payload, "peer") if kind == kinds.GATEWAY_REJECT else None),
+        )
     if kind in (kinds.STARTUP_RECOVERY, kinds.RECOVERY_ITEM):
         run_seq = _int(payload, "run_seq")
         return (KIND_RECOVERY, str(run_seq) if run_seq is not None else CURRENT)
@@ -341,6 +347,7 @@ _GATEWAY_KINDS = frozenset(
         kinds.GATEWAY_AUTH,
         kinds.GATEWAY_DISCONNECT,
         kinds.GATEWAY_BYE,
+        kinds.GATEWAY_REJECT,
     }
 )
 

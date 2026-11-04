@@ -52,6 +52,22 @@ class SessionRegistry:
         return self._credentials.get(api_key)
 
 
+def report_refusal(
+    request: Request, code: str, reason: str, gateway_id: str | None = None
+) -> None:
+    """Tell the engine this gateway refused a request, for the audit trail.
+
+    Never the API key: it is the bearer credential itself.  A gateway built
+    without a reporter (a test double) records nothing.
+    """
+    reporter = getattr(request.app.state, "rejects", None)
+    if reporter is None:
+        return
+    client = getattr(request, "client", None)
+    peer = f"{client.host}:{client.port}" if client is not None else ""
+    reporter.report(code, gateway_id or "", peer, reason)
+
+
 def _unauthorized(message: str) -> HTTPException:
     return HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -67,10 +83,12 @@ async def auth(
     """Authenticate an API key and ensure engine auth for trading sessions."""
     token = credentials.credentials.strip() if credentials is not None else ""
     if not token:
+        report_refusal(request, "AUTH_REQUIRED", "no bearer token")
         raise _unauthorized("Expected Authorization: Bearer <api_key>")
     registry: SessionRegistry = request.app.state.sessions
     credential = registry.get(token)
     if credential is None:
+        report_refusal(request, "AUTH_FAILED", "unknown API key")
         raise _unauthorized("Unknown API key")
 
     session = Session(
@@ -84,6 +102,7 @@ async def auth(
             session.gateway_id, timeout=timeout
         )
         if not accepted:
+            report_refusal(request, "AUTH_FAILED", reason, session.gateway_id)
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail={"error": {"code": "ENGINE_AUTH", "message": reason}},
@@ -128,6 +147,7 @@ async def require_admin(request: Request, session: Session) -> str:
         gateway_id, request.app.state.config.timeouts.engine_reply_sec
     )
     if role != "ADMIN":
+        report_refusal(request, "ROLE_DENIED", "ADMIN role required", gateway_id)
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail={"error": {"code": "ROLE_DENIED", "message": "ADMIN role required"}},

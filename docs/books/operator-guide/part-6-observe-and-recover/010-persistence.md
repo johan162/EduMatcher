@@ -90,15 +90,28 @@ dedicated query tool.
 
 | File | Written by | When | Purpose | Read / extract with |
 |------|------------|------|---------|---------------------|
-| `stats.db` (SQLite) | `pm-stats` | Per trade · a price snapshot every 15 min · at EOD · every `index.update` tick | OHLCV daily stats, intraday price snapshots, per-trade log, index level snapshots and daily OHLC | **`pm-stats-cli`** or SQL — see [Statistics & Reporting](../part-4-run-a-market/060-statistics-and-reporting.md) |
-| `clearing.db` (SQLite) | `pm-clearing` | Per trade · on gateway connect/disconnect · at EOD | Positions, VWAP cost, realized/unrealized P&L, daily summaries, trade events, sessions | **`pm-clearing-cli`** or SQL — see [Positions and P&L](../../participant-guide/part-5-positions-and-results/010-positions-and-pnl.md) |
-| `eod.db` (SQLite) | `pm-eod` | Once per trading date, after the close | The settlement ledger: each trader's amount per trading date and the log of `pm-eod` runs | **`pm-eod balances`** / **`pm-eod status`** — see [Closing the Day](../part-4-run-a-market/100-closing-the-day.md) |
+| `stats.db` (SQLite) | `pm-stats` | Per trade · a price snapshot every 15 min · at EOD · every `index.update` tick | OHLCV daily stats, intraday price snapshots, per-trade log, index level snapshots and daily OHLC | **`pm-stats-cli`** or SQL — see [Statistics & Reporting](../part-4-run-a-market/060-statistics-and-reporting.md) · [schema](../../architecture-and-development/part-1-architecture/040-sqlite-schemas.md#statsdb) |
+| `clearing.db` (SQLite) | `pm-clearing` | Per trade · on gateway connect/disconnect · at EOD | Positions, VWAP cost, realized/unrealized P&L, daily summaries, trade events, sessions | **`pm-clearing-cli`** or SQL — see [Positions and P&L](../../participant-guide/part-5-positions-and-results/010-positions-and-pnl.md) · [schema](../../architecture-and-development/part-1-architecture/040-sqlite-schemas.md#clearingdb) |
+| `eod.db` (SQLite) | `pm-eod` | Once per trading date, after the close | The settlement ledger: each trader's amount per trading date and the log of `pm-eod` runs | **`pm-eod balances`** / **`status`** / **`show`** — see [Closing the Day](../part-4-run-a-market/100-closing-the-day.md) · [schema](../../architecture-and-development/part-1-architecture/040-sqlite-schemas.md#eoddb) |
 | `settlement/<date>/` | `pm-eod` | Once per trading date | Trader statements, `instructions.csv`, leaderboard and the exchange summary | Plain files — see [Closing the Day](../part-4-run-a-market/100-closing-the-day.md#the-files-pm-eod-writes) |
 | `backup/<date>/` | `pm-eod` | Once per trading date | Verified, zstd-compressed copies of `clearing.db`, `stats.db` and `eod.db` | `zstd -d`; see [Restoring a backup](../part-4-run-a-market/100-closing-the-day.md#restoring-a-backup) |
 | `audit.log`, `audit/` | `pm-audit` | Continuously (buffered flush); `audit.log` holds today and is closed as `audit/audit-DATE.N.log` at midnight or 10 MB; each past day is compressed to `audit/audit-DATE.log.zst` | Full chronological trail of every message on the bus | **`pm-audit-cli`** — see [Audit Trail](020-audit-trail.md) |
-| `audit_index.db` (SQLite) | `pm-audit-cli` | On demand, when you run an indexed query | Fast lookup index built over `audit.log` | **`pm-audit-cli`** |
+| `audit_index.db` (SQLite) | `pm-audit-cli` | On demand, when you run an indexed query | Fast lookup index built over the audit trail; rebuildable | **`pm-audit-cli`** — see [Audit Trail](020-audit-trail.md) · [schema](../../architecture-and-development/part-1-architecture/040-sqlite-schemas.md#audit_indexdb) |
 | `indexes/<ID>_history.jsonl` | `pm-index` (triggered by [`pm-index-admin-cli`](../part-4-run-a-market/080-index-administration.md) for `CORP_ACTION`/`ADD_CONSTITUENT`/`DELIST`, or the API gateway's rebalance endpoint for `REBALANCE`) | On structural events only (`INIT`, `CORP_ACTION`, `ADD_CONSTITUENT`, `DELIST`, `REBALANCE`) | Structural/corporate-action audit trail — **not** level or EOD history (that lives in `stats.db`, written by `pm-stats`) | **`pm-index-cli`** (read-only) — see [Market Index](../part-4-run-a-market/070-market-index.md) |
 | `indexes/<ID>_state.json` | `pm-index` | On startup, every trade update, EOD finalization, and every corporate action/constituent change (EOD does **not** also append to `_history.jsonl`) | Divisor, constituent list, per-symbol last prices, day OHLC and last level, so the index resumes correctly after a restart | JSON; loaded by `pm-index` at startup — rejects a mismatched constituent list (use `--reset`); see [Market Index — State file](../part-4-run-a-market/070-market-index.md#state-file) |
+| `audit_replay.db` (SQLite) | `pm-audit-replay` | On demand, when an episode index is built or refreshed | Derived episodes, causal links, anomalies and actors reconstructed from the audit trail; rebuildable | **`pm-audit-replay`** — see [Audit Replay](030-audit-replay.md) · [schema](../../architecture-and-development/part-1-architecture/040-sqlite-schemas.md#audit_replaydb) |
+| `log.db` (SQLite) | `pm-log-srv` | Continuously, one row per log event, connection and counter sample; old events pruned per `log_server.retention_days` (default 30) | Log events from every process, their connection sessions and server counters | **`pm-log-cli`** or SQL — see [Log Server](040-log-server.md) · [schema](../../architecture-and-development/part-1-architecture/040-sqlite-schemas.md#logdb) |
+| `logs/<name>.log`, `*.log.zst` | every `pm-*` process; compressed by `pm-eod` | Only while a process cannot reach the log server | Fallback log files; `pm-eod` compresses idle ones and removes old archives | Plain text, `zstd -d` — see [Log Server](040-log-server.md) and [Closing the Day](../part-4-run-a-market/100-closing-the-day.md#logs-compressing-and-tidying-the-fallback-logs) |
+| `metrics.db` (SQLite) | `pm-monitor` | Continuously: raw samples and 1-minute rollups, daily totals, health events | History behind the operator dashboard | **`pm-monitor-cli`** or SQL — see [Health Monitoring](060-health-monitor.md#metricsdb) · [schema](../../architecture-and-development/part-1-architecture/040-sqlite-schemas.md#metricsdb) |
+| `log-ui-acks.db` (SQLite) | the log-gui bridge | When an operator acknowledges an issue | Acknowledgements and acknowledgement history of the log console | The log console — see [Log Console](050-log-console.md) · [schema](../../architecture-and-development/part-1-architecture/040-sqlite-schemas.md#log-ui-acksdb) |
+| `market_sim_state.json` | `pm-market-sim` | Periodically while running | Value-model state, so a restart continues where the simulation left off | JSON; loaded by `pm-market-sim` at startup — see [Market Model](../part-4-run-a-market/090-market-model.md) |
+| `market_sim_news.db` (SQLite) | `pm-market-sim` | Per published news event and value jump; never pruned | History of the simulated market's news and jumps | SQL — see [Market Model](../part-4-run-a-market/090-market-model.md) · [schema](../../architecture-and-development/part-1-architecture/040-sqlite-schemas.md#market_sim_newsdb) |
+| `companies.db` (SQLite) | `pm-compdb-cli` | When you run `pm-compdb-cli init` / `build` / `add` / `update` | Made-up company profiles of the simulated tickers | **`pm-compdb-cli`**, the REST API — see [REST and WebSocket](../../protocols-and-clients/part-2-specifications/060-rest-and-websocket.md) · [schema](../../architecture-and-development/part-1-architecture/040-sqlite-schemas.md#companiesdb) |
+| `eod/<date>/` | `pm-engine` | At each close | Copies of `gtc_orders.json`, `gtc_combos.json` and `book_stats.json` — **not** `settlement/` | Plain JSON — see [At the Close](#at-the-close-every-trading-day) |
+| `ai_swarm/<date>-<name>.jsonl` | the AI traders | At each session close | One summary file per trader and trading day | JSON Lines — see [Running It for Weeks](../../ai-traders/part-4-watch-and-teach/150-running-it-for-weeks.md) |
+| `ref_data/` | `pm-setup`, `pm-config-gen`, you | When configuration is deployed or edited | `engine_config.yaml`/`.json`, the simulation file and `roster.yaml` — configuration, never cleared by `pm-opctl clear` | See [The Configuration Workflow](../part-2-configure/010-the-configuration-workflow.md) and [The roster file](../part-4-run-a-market/100-closing-the-day.md#the-roster-file) |
+| `emo/` | `pm-opctl` | While it starts and stops processes | Per-process stdout/stderr (`<name>.log`) and the active profile name | Plain text |
+| `.container-config` | the container entrypoint | At container start | Name of the example the data directory was set up for | Plain text — see [Container Deployment Walkthrough](../part-1-install-and-deploy/030-container-deployment-walkthrough.md) |
 
 !!! note "Reading the *When* column for accumulating stores"
     **Per trade** = on every `trade.executed` event. **EOD** (end of day) = when
@@ -106,14 +119,13 @@ dedicated query tool.
     the engine caught `Ctrl-C`/`SIGINT` or `SIGTERM` and finished its shutdown sequence — a hard
     kill (`SIGKILL`) skips these writes.
 
-!!! note "Files intentionally out of scope for this page"
-    Two other named constants under the data directory exist but are not
-    persistence in the sense of this page: `log.db` / `logs/` belong to the
-    separate `pm-log-srv` (LALF) subsystem, documented in
-    `docs-design/EduMatcher-log-srv.md`, not to the matching engine covered
-    here. `clearing_report.csv` was v1's CSV mechanism, before clearing moved
-    to SQLite-first persistence; the path has since been removed — use
-    `pm-clearing-cli ... --format csv` for an ad-hoc export instead.
+!!! note "Not persistence"
+    `clearing_report.csv` was v1's CSV mechanism, before clearing moved to
+    SQLite-first persistence; the path has since been removed — use
+    `pm-clearing-cli ... --format csv` for an ad-hoc export instead. Lock files
+    (`.pm-eod.lock`, `audit/.archive.lock`, `stats.db.lock`, `metrics.db.lock`) only stop two
+    runs overlapping and hold no data. `-wal` and `-shm` files next to a SQLite database
+    are its write-ahead log and shared memory; they belong to the database and go with it.
 
 The engine state files are described in detail in
 [Engine State Files In Detail](#engine-state-files-in-detail) below; the

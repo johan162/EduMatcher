@@ -188,7 +188,7 @@ async def reference_bundle(
     summary="Reference config version",
     description=(
         "Just the `config_version` hash of the reference bundle -- a cheap way to "
-        "detect that the configuration was reloaded (`POST /admin/reference/reload`)."
+        "detect that the configuration changed after an engine restart."
     ),
     responses=docs.merge(
         docs.ok(docs.REFERENCE_CONFIG_VERSION, "The current hash."),

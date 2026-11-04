@@ -627,6 +627,30 @@ pm-eod balances --check                            # verify the books
 `--check` re-adds every settled day and reports any day that does not sum to
 zero. Healthy output is `OK - every settled date sums to zero`.
 
+### One day in detail
+
+`pm-eod show` reads one date straight from the ledger (`eod.db`):
+
+```bash
+pm-eod show --date 2026-11-02                # every account's amount and per-symbol P&L
+pm-eod show --date 2026-11-02 --gateway gw_alice
+pm-eod show --date 2026-11-02 --steps        # the run's steps with their full messages
+```
+
+```text
+trade_date | account  | amount  | detail
+-----------+----------+---------+-----------------------
+2026-11-02 | GW_ALICE | 120.00  | ACME=100.00 BOLT=20.00
+2026-11-02 | GW_BOB   | -20.00  | ACME=-20.00
+2026-11-02 | GW_CAROL | -100.00 | ACME=-80.00 BOLT=-20.00
+```
+
+`amount` is the day's settlement in display-currency units: **positive means the
+exchange owes the trader, negative means the trader owes the exchange**. The
+`detail` column is the same result split by symbol before rounding. The amounts of
+one date always add up to zero; a rounding residual, if any, sits on the
+`EXCHANGE` account. With `--steps`, a date with no recorded run shows no rows.
+
 ### Exit codes of `pm-eod run`
 
 | Code | Meaning | What to do |

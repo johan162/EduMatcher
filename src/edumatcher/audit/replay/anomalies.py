@@ -68,6 +68,12 @@ ACK_DUPLICATE = "ACK_DUPLICATE"
 #: the engine's, which is why the model keeps both.
 QTY_MISMATCH = "QTY_MISMATCH"
 
+#: ``pm-audit`` (re)started just before this line.  The recorder was not
+#: running until then, so whatever the engine published while it was down is
+#: absent from the trail; an ``ESEQ_GAP`` beside it, if the engine kept
+#: running, says how much.  Not a fault in itself.
+RECORDER_RESTART = "RECORDER_RESTART"
+
 #: ``remaining_qty`` rose across fills of one order.
 REMAINING_NOT_MONOTONIC = "REMAINING_NOT_MONOTONIC"
 
@@ -75,6 +81,12 @@ REMAINING_NOT_MONOTONIC = "REMAINING_NOT_MONOTONIC"
 #: and the trade counter restart with it, so nothing may be compared across
 #: the boundary (section 5.1.3).
 RUN_SEQ_CHANGE = "RUN_SEQ_CHANGE"
+
+#: A ``system.startup`` that carries no compiled config: the engine ran from a
+#: YAML file, so the trail does not hold what it ran on (limits, collars, tick
+#: sizes) and the run cannot be re-executed from it. Audited runs deploy an
+#: artifact with ``pm-config-deploy``.
+CONFIG_NOT_RECORDED = "CONFIG_NOT_RECORDED"
 
 #: A resume for a symbol with no halt on record. Section 12.4.
 RESUME_WITHOUT_HALT = "RESUME_WITHOUT_HALT"
