@@ -12,7 +12,7 @@ import uuid
 from contextlib import closing
 from datetime import datetime, tzinfo
 from collections.abc import Callable
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, Literal, TypeVar
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
@@ -146,6 +146,9 @@ def _session_tz(request: Request, conn: sqlite3.Connection) -> tzinfo:
     return resolved
 
 
+_T = TypeVar("_T")
+
+
 def _open_stats(request: Request) -> sqlite3.Connection:
     try:
         return open_readonly_connection(request.app.state.config.stats_db)
@@ -157,8 +160,8 @@ def _open_stats(request: Request) -> sqlite3.Connection:
 
 
 async def _in_stats_db(
-    request: Request, work: Callable[[sqlite3.Connection], Any]
-) -> Any:
+    request: Request, work: Callable[[sqlite3.Connection], _T]
+) -> _T:
     """Run *work* against the statistics database on a worker thread.
 
     SQLite is synchronous, so querying it straight from an ``async def``
@@ -167,7 +170,7 @@ async def _in_stats_db(
     connection inside the thread also keeps it on the thread that uses it.
     """
 
-    def _run() -> Any:
+    def _run() -> _T:
         with closing(_open_stats(request)) as conn:
             return work(conn)
 
@@ -303,7 +306,9 @@ async def history_orders(
     _validate_time_filters(date, from_ts, to_ts)
     normalized_event_type = _validate_event_type(event_type)
 
-    def _query(conn: sqlite3.Connection) -> Any:
+    def _query(
+        conn: sqlite3.Connection,
+    ) -> tuple[list[dict[str, Any]], str | None, str | None]:
         try:
             events, next_cursor = query_order_events(
                 conn,
@@ -352,7 +357,7 @@ async def history_order_lifecycle(
     """
     gateway_id = require_trading(session)
 
-    def _query(conn: sqlite3.Connection) -> Any:
+    def _query(conn: sqlite3.Connection) -> tuple[list[dict[str, Any]], str | None]:
         events = query_order_lifecycle(conn, gateway_id=gateway_id, order_id=order_id)
         retained_from = query_order_events_retained_from(conn, gateway_id=gateway_id)
         return events, retained_from
@@ -405,7 +410,9 @@ async def history_fills(
     gateway_id = require_trading(session)
     _validate_time_filters(date, from_ts, to_ts)
 
-    def _query(conn: sqlite3.Connection) -> Any:
+    def _query(
+        conn: sqlite3.Connection,
+    ) -> tuple[list[dict[str, Any]], str | None, str | None]:
         try:
             events, next_cursor = query_order_events(
                 conn,
@@ -467,7 +474,7 @@ async def history_trades(
     _ = session
     _validate_time_filters(date, from_ts, to_ts)
 
-    def _query(conn: sqlite3.Connection) -> Any:
+    def _query(conn: sqlite3.Connection) -> tuple[list[dict[str, Any]], str | None]:
         try:
             trades, next_cursor = query_trades(
                 conn,
@@ -533,7 +540,7 @@ async def history_daily(
     _check("from", from_date, validate_date)
     _check("to", to_date, validate_date)
 
-    def _query(conn: sqlite3.Connection) -> Any:
+    def _query(conn: sqlite3.Connection) -> tuple[list[dict[str, Any]], str | None]:
         try:
             rows, next_cursor = query_daily(
                 conn,
@@ -595,7 +602,7 @@ async def history_price_snapshots(
     _ = session
     _validate_time_filters(date, from_ts, to_ts)
 
-    def _query(conn: sqlite3.Connection) -> Any:
+    def _query(conn: sqlite3.Connection) -> tuple[list[dict[str, Any]], str | None]:
         try:
             rows, next_cursor = query_price_snapshots(
                 conn,
@@ -662,7 +669,7 @@ async def history_index_daily(
     _check("from", from_date, validate_date)
     _check("to", to_date, validate_date)
 
-    def _query(conn: sqlite3.Connection) -> Any:
+    def _query(conn: sqlite3.Connection) -> tuple[list[dict[str, Any]], str | None]:
         try:
             rows, next_cursor = query_index_daily(
                 conn,
@@ -726,7 +733,7 @@ async def history_index_snapshots(
     _ = session
     _validate_time_filters(date, from_ts, to_ts)
 
-    def _query(conn: sqlite3.Connection) -> Any:
+    def _query(conn: sqlite3.Connection) -> tuple[list[dict[str, Any]], str | None]:
         try:
             rows, next_cursor = query_index_snapshots(
                 conn,
@@ -776,7 +783,7 @@ async def history_index_ids(
     _ = session
     _check("date", date, validate_date)
 
-    def _query(conn: sqlite3.Connection) -> Any:
+    def _query(conn: sqlite3.Connection) -> list[dict[str, Any]]:
         rows = query_index_ids(conn, date_value=date, tz=_session_tz(request, conn))
         return rows
 

@@ -22,6 +22,13 @@ def as_int(raw: object, label: str) -> int:
         raise ValueError(f"{label} must be an integer")
     if isinstance(raw, int):
         return int(raw)
+    if isinstance(raw, (str, bytes, bytearray)):
+        try:
+            # Exactly first: float() rounds anything past 2**53, so
+            # "9007199254740993" would be accepted as a different number.
+            return int(raw)
+        except ValueError:
+            pass  # not a plain integer literal; "1e3" still goes via float
     try:
         value = float(raw)
     except (TypeError, ValueError) as exc:

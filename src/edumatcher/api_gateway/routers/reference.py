@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+
 import logging
 import sqlite3
 import time
@@ -615,7 +617,9 @@ async def fetch_positions(request: Request, gateway_id: str) -> list[dict[str, A
     """
     engine = request.app.state.engine
     cache = engine.get_caches(gateway_id)
-    realized = _period_realized_pnl(request, gateway_id)
+    # Synchronous SQLite: off the loop, or it stalls every other request
+    # sharing it -- including the engine round-trip just below (P6).
+    realized = await asyncio.to_thread(_period_realized_pnl, request, gateway_id)
     engine.request_position(gateway_id)
     reply = cast(
         dict[str, Any],

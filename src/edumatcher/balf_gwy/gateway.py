@@ -1129,13 +1129,37 @@ class BalfGateway:
         # Refresh the tick registry on every logon; hold the LOGON_ACK back
         # until the first answer, because an order accepted before it would be
         # priced against the shared two-decimal default (B1).
-        self._send_to_engine(make_symbols_request_msg(gw_id), count_as_command=False)
+        # Marked before the send, not after it: _send_to_engine raises when
+        # the engine PUSH queue is full, and a session that is neither
+        # authenticated nor pending is invisible to both the symbols sweep
+        # and the auth timeout (R3).
+        session.symbols_pending = True
+        session.symbols_requested_at = time.monotonic()
+        try:
+            self._send_to_engine(
+                make_symbols_request_msg(gw_id), count_as_command=False
+            )
+        except BalfValidationError:
+            # The request never left, so no metadata can answer it. Fail the
+            # logon now rather than holding the client for the full timeout.
+            log.warning("BALF symbol request for %s refused by the engine", gw_id)
+            session.symbols_pending = False
+            self._queue_frame(
+                session,
+                build_logon_ack(
+                    gw_id,
+                    accepted=False,
+                    reject_code=LOGON_REJECT_OTHER,
+                    msg="ENGINE_UNAVAILABLE",
+                ),
+            )
+            self._close_after_flush(session)
+            return
+
         if self._symbols_ready:
             self._complete_logon(session, gw_id)
             return
 
-        session.symbols_pending = True
-        session.symbols_requested_at = time.monotonic()
         log.info(
             "BALF gateway %s authenticated; LOGON_ACK held for symbol metadata", gw_id
         )

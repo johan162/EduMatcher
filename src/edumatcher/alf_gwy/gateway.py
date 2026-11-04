@@ -135,6 +135,9 @@ _PEER_GONE_ERRNOS = frozenset(
 )
 
 
+_MAX_EINTR_RETRIES = 3
+
+
 def _is_peer_gone(exc: OSError) -> bool:
     return exc.errno in _PEER_GONE_ERRNOS
 
@@ -617,6 +620,7 @@ class AlfGateway:
             if fileno in self._write_blocked and not (writable and fileno in writable):
                 continue  # still waiting for the peer to drain its window
             disconnected = False
+            eintr_retries = 0
             while session.out_queue:
                 payload = session.out_queue[0]
                 unsent = payload[session.out_offset :]
@@ -629,11 +633,25 @@ class AlfGateway:
                     if _is_peer_gone(exc):
                         self._disconnect(session, reason="peer_reset")
                         disconnected = True
+                        break
+                    if exc.errno == errno.EINTR and eintr_retries < _MAX_EINTR_RETRIES:
+                        # Interrupted, not refused: retry rather than wait for
+                        # a writability edge that has already passed. Bounded,
+                        # so a socket that only ever raises EINTR still parks.
+                        eintr_retries += 1
+                        continue
+                    # Retryable (ENOBUFS, ENOMEM, ...). Park it exactly like
+                    # EAGAIN: breaking without registering write interest
+                    # leaves it dirty-but-not-blocked, which is the busy-spin
+                    # G1 removed (R4).
+                    self._set_write_interest(session, True)
                     break
 
                 if sent <= 0:
+                    self._set_write_interest(session, True)
                     break
 
+                eintr_retries = 0
                 session.out_offset += sent
                 if session.out_offset >= len(payload):
                     session.out_queue.popleft()

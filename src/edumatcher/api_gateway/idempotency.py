@@ -67,8 +67,16 @@ class IdempotencyStore:
     def _prune(self, now: float) -> None:
         while self._entries:
             first = next(iter(self._entries.values()))
-            if not first.future.done() or now - first.created < self._ttl:
+            # Entries are inserted in creation order, so the first one still
+            # inside its TTL means every entry behind it is too.
+            if now - first.created < self._ttl:
                 return
+            if first.owned and not first.future.done():
+                return  # an attempt is genuinely still running; keep waiting
+            # Expired, and either answered or released by a failed attempt.
+            # A released entry's future stays pending for ever if the client
+            # never retries, so waiting for it to finish would pin the cursor
+            # here and hide every entry behind it (R1).
             self._entries.popitem(last=False)
 
     def claim(self, scope: str, key: str, fingerprint: str) -> tuple[_Entry, bool]:
