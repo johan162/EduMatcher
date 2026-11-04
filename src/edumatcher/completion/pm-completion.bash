@@ -4383,18 +4383,19 @@ complete -o bashdefault -F _shtab_pm_engine pm-engine
 #    source ~/.local/share/bash_completion/pm-eod
 # See also: https://github.com/scop/bash-completion/blob/main/doc/configuration.md
 
-_shtab_pm_eod_subparsers=(run status balances)
+_shtab_pm_eod_subparsers=(run status balances show)
 
 _shtab_pm_eod_run_option_strings=(-h --help --date --pending --only --force --redo --dry-run --log-keep-days --backup-keep-days --backup-skip)
 _shtab_pm_eod_status_option_strings=(-h --help -q --quiet --limit)
 _shtab_pm_eod_balances_option_strings=(-h --help --date --gateway --check)
+_shtab_pm_eod_show_option_strings=(-h --help --date --gateway --steps)
 _shtab_pm_eod_option_strings=(-h --help --version --datapath --format --no-header)
 
 
 
 _shtab_pm_eod_run___only_choices=(report audit logs backup)
 _shtab_pm_eod_run___backup_skip_choices=(clearing.db stats.db eod.db)
-_shtab_pm_eod_pos_0_choices=(run status balances)
+_shtab_pm_eod_pos_0_choices=(run status balances show)
 _shtab_pm_eod___format_choices=(table json csv)
 
 _shtab_pm_eod_run__h_nargs=0
@@ -4410,6 +4411,9 @@ _shtab_pm_eod_status___quiet_nargs=0
 _shtab_pm_eod_balances__h_nargs=0
 _shtab_pm_eod_balances___help_nargs=0
 _shtab_pm_eod_balances___check_nargs=0
+_shtab_pm_eod_show__h_nargs=0
+_shtab_pm_eod_show___help_nargs=0
+_shtab_pm_eod_show___steps_nargs=0
 _shtab_pm_eod_pos_0_nargs=A...
 _shtab_pm_eod__h_nargs=0
 _shtab_pm_eod___help_nargs=0

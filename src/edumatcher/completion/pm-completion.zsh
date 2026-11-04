@@ -2686,6 +2686,7 @@ _shtab_pm_eod_commands() {
   local _commands=(
     balances:'Running balance per account'
     run:'Settle and close a trading date'
+    show:'One date'"'"'s ledger rows or run steps'
     status:'Recent runs'
   )
   _describe 'pm-eod commands' _commands
@@ -2728,6 +2729,16 @@ _shtab_pm_eod_run_options=(
 # guard to ensure default positional specs are added only once per session
 _shtab_pm_eod_run_defaults_added=0
 
+_shtab_pm_eod_show_options=(
+  "(- : *)"{-h,--help}"[show this help message and exit]"
+  "--date[YYYY-MM-DD]:YYYY-MM-DD:"
+  "--gateway[GW_ID]:GW_ID:"
+  "--steps[Show the run\'s steps with their full messages instead of the amounts]"
+)
+
+# guard to ensure default positional specs are added only once per session
+_shtab_pm_eod_show_defaults_added=0
+
 _shtab_pm_eod_status_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
   {-q,--quiet}"[Print nothing\; exit 0 when no closed date is waiting, 1 otherwise]"
@@ -2758,6 +2769,7 @@ _shtab_pm_eod() {
       case $line[1] in
         balances) _arguments -C -s $_shtab_pm_eod_balances_options ;;
         run) _arguments -C -s $_shtab_pm_eod_run_options ;;
+        show) _arguments -C -s $_shtab_pm_eod_show_options ;;
         status) _arguments -C -s $_shtab_pm_eod_status_options ;;
       esac
   esac
