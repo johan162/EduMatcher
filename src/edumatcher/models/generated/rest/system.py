@@ -987,7 +987,11 @@ class ReferenceReload(BaseModel):
     """ADMIN to engine: re-read static reference data from disk. Deliberately
     narrower than a startup load -- it never re-seeds quotes, creates or removes
     books, or touches session and halt state, so a reload that changed the symbol
-    set is rejected rather than partially applied.
+    set is rejected rather than partially applied. The engine also rejects reloads
+    when the active config cannot be reconstructed from the audit trail: compiled
+    artifacts have no reloadable source file, and YAML fallback config is not
+    recorded in system.startup. Deploy a compiled artifact and restart to apply
+    config changes without making the audit trail ambiguous.
     """
 
     model_config = ConfigDict(use_attribute_docstrings=True)

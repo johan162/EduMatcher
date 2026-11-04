@@ -48,7 +48,7 @@ The matching record is strong; the evidential record is not yet.
 | # | Gap | Severity | WP |
 |---|-----|----------|----|
 | G1 | No tamper evidence: no hash chain, signature or anchored digest; archive SHA-256 is internal only; `--keep-days` deletes; docs call the trail "immutable" | High | A1 |
-| G2 | **Revised.** Reload is accepted only when the engine runs from YAML (no deployed artifact); then `system.startup` carries no config at all. With an artifact the config is fully recorded and reload is rejected | Low | A2 |
+| G2 | **Revised.** Reload is rejected when startup config is not recorded. Audited runs must use a deployed artifact; replay flags YAML-started runs as `CONFIG_NOT_RECORDED` | Low | A2 |
 | G3 | Gateway-local rejects (rate limit, auth, malformed, role) never reach the bus, so the exchange can neither show nor disprove "I sent it" | Med | A3 |
 | G4 | Re-execution lives in `tools/sim_forensics`, not in the shipped replay; its E1 lists inputs the trail does not hold (silent-gateway expiry, wall-clock timers other than the breaker's) | Med | A4 |
 | G5 | A command without an envelope frame is not echoed; nothing alerts | Low | A5 |
@@ -64,7 +64,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 | # | WP | Content | Gap | Depends on | Est. | Status | Done on |
 |---|----|---------|-----|------------|------|--------|---------|
 | 1 | A1 | Daily evidence manifest: hash chain across days, `pm-audit-cli verify` | G1 | — | 2 d | ◐ | 2026-11-04 (code + docs done, uncommitted) |
-| 2 | A2 | Decision: option 3. Audited runs must use a deployed artifact; replay flags `CONFIG_NOT_RECORDED` | G2 | — | 0.25 d | ◐ | 2026-11-04 (uncommitted) |
+| 2 | A2 | Require a recorded compiled config before accepting a reference reload | G2 | — | 0.25 d | ◐ | 2026-11-04 (uncommitted) |
 | 3 | A3 | Gateway-local rejects: `system.gateway_reject` for auth, role and rate-limit refusals (D1 = record) | G3 | D1 | 1.5 d | ◐ | 2026-11-04 (uncommitted) |
 | 4 | A4 | Promote the re-run to `pm-audit-replay rerun`; heartbeat timeouts become one chain and a reproducible input | G4 | A2 | 2.5 d | ◐ | 2026-11-04 (uncommitted) |
 | 5 | A5 | Unenveloped command: count it and surface it | G5 | — | 0.5 d | ◐ | 2026-11-04 (uncommitted) |
@@ -73,7 +73,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 | 8 | A8 | `pm-audit-replay queue`: order and level views, observing the re-run (D3, Q1-Q4 decided) | G8 | A4 | 3 d | ☐ | |
 | 9 | A9 | Close out: tick §17, evidence/dispute chapter in the operator guide | G9 | A1–A6 | 1 d | ☐ | |
 
-Order: A1, A2, A5 are independent and cheap; do A1 first. A4 re-runs only artifact runs (reload is rejected on those, so the config never changes mid-run).
+Order: A1, A2, A5 are independent and cheap; do A1 first. A4 re-runs only artifact runs; accepted reloads cannot change the config during an auditable run.
 
 ## 3. Decisions (answered 2026-11-04)
 
@@ -123,16 +123,18 @@ verifiable; crash between close and manifest write → next start regenerates
 **Done when** `verify` passes on a fresh multi-day fixture and fails on each
 tamper case above.
 
-### A2 — Reload records the effective config
+### A2 — Reject reloads when startup config is not recorded
 
-**Change.** On an accepted `system.reference_reload`, the engine publishes the
-new compiled config the same way `system.startup` does (new
-`system.config_applied` message: `config_sha256`, `config`, `command_id`,
-`run_seq`). Replay and the re-run apply it at that point in the stream.
+**Decision.** Audited runs must start from a deployed compiled artifact. A
+YAML-started engine has no compiled config in `system.startup`, so it must not
+accept a reference reload that changes the active configuration without an
+auditable record. Reject the reload and direct the operator to deploy the
+artifact with `pm-config-deploy`.
 
-**Tests.** Reload changing a tick size and a collar → trail holds both
-contents; `rerun` after the reload matches the live engine. Rejected reload
-publishes nothing new.
+**Tests.** A reload request on the YAML fallback path is rejected and leaves
+the active config unchanged. A compiled-artifact startup continues to reject
+reload because there is no reloadable YAML source. Replay reports
+`CONFIG_NOT_RECORDED` for YAML-started runs.
 
 ### A3 — Gateway-local rejects
 

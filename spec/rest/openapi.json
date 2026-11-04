@@ -3962,7 +3962,7 @@
           "reference"
         ],
         "summary": "Reference config version",
-        "description": "Just the `config_version` hash of the reference bundle -- a cheap way to detect that the configuration was reloaded (`POST /admin/reference/reload`).",
+        "description": "Just the `config_version` hash of the reference bundle -- a cheap way to detect that the configuration changed after an engine restart.",
         "operationId": "reference_config_version",
         "responses": {
           "200": {
@@ -8911,7 +8911,7 @@
           "admin"
         ],
         "summary": "Reload reference data",
-        "description": "Reload static reference data (tick sizes, risk bands, circuit-breaker\nladders, schedule, index definitions) from the engine's config file.\n\nFor controlled reloads in development/classroom mode. Deliberately\nnarrower than a full engine config reload: it never touches order\nbooks, market-maker seeding, or session state, and is rejected outright\n(409) if the file's symbol or index set no longer matches the running\nengine's — adding or removing an instrument mid-session isn't safe and\nstill requires a restart.",
+        "description": "Reload static reference data (tick sizes, risk bands, circuit-breaker\nladders, schedule, index definitions) from the engine's config file.\n\nThe engine currently rejects reloads: a compiled artifact has no editable\nsource file, while a YAML fallback's active config is not recorded in\nsystem.startup. Deploy a compiled config and restart to apply changes\nwithout making the audit trail ambiguous.",
         "operationId": "reference_reload",
         "responses": {
           "200": {
@@ -9027,7 +9027,7 @@
                     "value": {
                       "error": {
                         "code": "RELOAD_REJECTED",
-                        "message": "Symbol set changed; restart required",
+                        "message": "Reference reload requires a compiled config recorded in the audit trail",
                         "reject_code": "UNKNOWN"
                       }
                     }

@@ -635,6 +635,8 @@ stop the circuit-breaker timers behind it.
 | | `stats.feed_gaps` | C | | Same place that inserts into `feed_gaps` |
 | `pm-audit` | `audit.records` / `audit.bytes` | C | | Writer path (lines accepted into the write buffer) |
 | | `audit.decode_errors` | C | | Added in A6: frames that could not be decoded and so are missing from the trail |
+| | `audit.missed_messages` | C | | Proven forward gaps in the engine's socket-wide sequence |
+| | `audit.sequence_discontinuities` | C | | Repeated or decreasing engine sequence without an observed startup; exact loss count is unknown |
 | `pm-clearing` | `clearing.trades_settled` | C | | Settlement path |
 | `pm-scheduler` | `sched.next_transition_in_s` | G | | Seconds until next scheduled transition |
 | `pm-mm-bot` (B5.4) | `mmbot.msgs_out` / `mmbot.msgs_in` | C | | Messages sent to and received from the engine bus |

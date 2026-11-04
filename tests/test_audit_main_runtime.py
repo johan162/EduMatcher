@@ -417,6 +417,7 @@ class TestMissedMessages:
         _record(proc, "system.startup", 1)
         _record(proc, "trade.executed", 2)
         assert _samples(proc)["audit.missed_messages"] == 0
+        assert _samples(proc)["audit.sequence_discontinuities"] == 0
 
     def test_a_line_without_eseq_is_ignored(self, tmp_path: Path) -> None:
         proc = self._proc(tmp_path)
@@ -424,3 +425,15 @@ class TestMissedMessages:
         _record(proc, "trade.executed", None)
         _record(proc, "trade.executed", 6)
         assert _samples(proc)["audit.missed_messages"] == 0
+
+    @pytest.mark.parametrize("next_eseq", [2, 100], ids=["decrease", "repeat"])
+    def test_unannounced_sequence_discontinuity_is_reported(
+        self, tmp_path: Path, next_eseq: int
+    ) -> None:
+        proc = self._proc(tmp_path)
+        _record(proc, "trade.executed", 100)
+        _record(proc, "trade.executed", next_eseq)
+
+        samples = _samples(proc)
+        assert samples["audit.missed_messages"] == 0
+        assert samples["audit.sequence_discontinuities"] == 1

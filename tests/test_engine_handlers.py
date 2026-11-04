@@ -154,6 +154,24 @@ class TestHandleSymbolsRequest:
         assert by_symbol["AAPL"]["tick_decimals"] == 2
 
 
+class TestReferenceReload:
+    def test_reload_is_rejected_when_startup_config_was_not_recorded(
+        self, monkeypatch, tmp_path
+    ) -> None:
+        engine, pub_sock = _make_engine(monkeypatch, tmp_path)
+        original_config = engine._engine_config
+
+        engine._handle_reference_reload(
+            {"gateway_id": "GW01", "command_id": "CMD-RELOAD"}
+        )
+
+        topic, msg = decode(pub_sock.sent[-1])
+        assert topic == "system.reference_reload_ack.GW01"
+        assert msg["accepted"] is False
+        assert "compiled config" in msg["reason"]
+        assert engine._engine_config is original_config
+
+
 # ---------------------------------------------------------------------------
 # _handle_book_snapshot_request
 # ---------------------------------------------------------------------------

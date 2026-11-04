@@ -2343,6 +2343,20 @@ class Engine:
             )
             return
 
+        if self._config_text is None:
+            self.pub_sock.send_multipart(
+                make_reference_reload_ack_msg(
+                    gateway_id,
+                    command_id,
+                    accepted=False,
+                    reason=(
+                        "Reference reload requires a compiled config recorded "
+                        "in the audit trail"
+                    ),
+                )
+            )
+            return
+
         try:
             new_config = load_engine_config(self._config_path)
         except Exception as exc:

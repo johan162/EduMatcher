@@ -325,6 +325,9 @@ class AuditProcess:
         #: socket-wide sequence (``eseq``).  A restarted engine begins again
         #: at 1 and is not a miss; a drop at the high-water mark is.
         self._missed = 0
+        #: Repeated or decreasing sequences without a startup boundary cannot
+        #: prove how many messages were lost, but do prove a discontinuity.
+        self._sequence_discontinuities = 0
         self._last_eseq: int | None = None
         # Subscribe to everything, with a deep receive buffer. Past the
         # high-water mark a SUB socket drops *silently*, and this is the one
@@ -585,8 +588,11 @@ class AuditProcess:
         if eseq is None:
             return
         last = self._last_eseq
-        if topic != TOPIC_STARTUP and last is not None and eseq > last + 1:
-            self._missed += eseq - last - 1
+        if topic != TOPIC_STARTUP and last is not None:
+            if eseq > last + 1:
+                self._missed += eseq - last - 1
+            elif eseq <= last:
+                self._sequence_discontinuities += 1
         self._last_eseq = eseq
 
     def _drain(self) -> None:
@@ -658,6 +664,7 @@ class AuditProcess:
             counter("audit.bytes", self._bytes),
             counter("audit.decode_errors", self._decode_errors),
             counter("audit.missed_messages", self._missed),
+            counter("audit.sequence_discontinuities", self._sequence_discontinuities),
             counter("audit.archives", self._archives),
             counter("audit.archive_errors", self._archive_errors),
             gauge("audit.archive_ratio", self._archive_ratio),

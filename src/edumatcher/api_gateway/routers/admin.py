@@ -235,7 +235,12 @@ async def session_transition(  # pyright: ignore[reportUnusedFunction]
             "RELOAD_REJECTED",
             "ROLE_DENIED",
             examples={
-                "RELOAD_REJECTED": {"message": "Symbol set changed; restart required"}
+                "RELOAD_REJECTED": {
+                    "message": (
+                        "Reference reload requires a compiled config recorded "
+                        "in the audit trail"
+                    )
+                }
             },
         ),
     ),
@@ -247,12 +252,10 @@ async def reference_reload(  # pyright: ignore[reportUnusedFunction]
     """Reload static reference data (tick sizes, risk bands, circuit-breaker
     ladders, schedule, index definitions) from the engine's config file.
 
-    For controlled reloads in development/classroom mode. Deliberately
-    narrower than a full engine config reload: it never touches order
-    books, market-maker seeding, or session state, and is rejected outright
-    (409) if the file's symbol or index set no longer matches the running
-    engine's — adding or removing an instrument mid-session isn't safe and
-    still requires a restart.
+    The engine currently rejects reloads: a compiled artifact has no editable
+    source file, while a YAML fallback's active config is not recorded in
+    system.startup. Deploy a compiled config and restart to apply changes
+    without making the audit trail ambiguous.
     """
     gateway_id = await require_admin(request, session)
     _check_rate_limit(request, session)

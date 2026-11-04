@@ -159,11 +159,17 @@ restart is visible in the file itself and not only as a hole in the numbering.
 as an unreadable line.
 
 The health beacon carries `audit.missed_messages`: the number of engine messages
-`pm-audit` can prove it missed. It stays 0 on a healthy exchange. An engine
-restart is not a miss (the sequence begins again at `system.startup`). The
-counter sees only a jump it observes, so messages lost after the last one
-received, because `pm-audit` was stopped, appear in the *next* run's trail as the
-gap, not in this counter.
+`pm-audit` can prove it missed from forward sequence gaps. It stays 0 on a
+healthy exchange. An engine restart is not a miss (the sequence begins again at
+`system.startup`). The counter sees only a jump it observes, so messages lost
+after the last one received, because `pm-audit` was stopped, appear in the
+*next* run's trail as the gap, not in this counter.
+
+The separate `audit.sequence_discontinuities` counter records a repeated or
+decreasing `eseq` without an observed `system.startup`. Such a discontinuity
+can indicate a missed restart marker or duplicate/out-of-order publication; it
+does not reveal an exact number of missing messages. Check the trail and
+recorder health before treating the run as complete.
 
 ### Log format
 
