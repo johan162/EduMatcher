@@ -642,6 +642,7 @@ Every topic in the system, and which process puts it on the wire.
 | `system.gateway_connect` | `system` | `admin`, `api_gateway`, `gateway` |
 | `system.gateway_disconnect` | `system` | `admin`, `api_gateway`, `gateway` |
 | `system.gateway_heartbeat` | `system` | `api_gateway`, `gateway` |
+| `system.gateway_reject` | `system` | `api_gateway`, `gateway` |
 | `system.gateways.{gateway_id}` | `system` | `engine` |
 | `system.gateways_request` | `system` | `admin`, `api_gateway` |
 | `system.halt_status.{gateway_id}` | `system` | `engine` |
@@ -4154,6 +4155,32 @@ Engine to all subscribers: a participant's connection was accepted or rejected. 
     Section 26.4: `include: all` means "every field except the topic parameters", and taking the default here would have dropped the key from the wire with `pm-msgen check` still passing.
 
 **See also:** `system.gateway_connect`, `system.gateway_bye.{GW_ID}`
+
+### `system.gateway_reject`
+
+**Published by:** `api_gateway`, `gateway`
+
+**Transport:** `engine_pub`, `engine_push`
+
+**Since:** 1.0
+
+Gateway to engine: I refused a participant's request myself, before the engine saw it. Authentication, role and rate-limit refusals are decided in the ALF, BALF and REST gateways and never reach the engine, so without this the exchange could neither show nor disprove "I sent it and you ignored it". PUSH/PULL like `gateway_connect`; the engine echoes it onto the bus like any command, which is how the audit trail comes to hold it. Malformed frames and field-validation refusals are deliberately not reported: they are counted by the gateway, and any one of them is unfalsifiable noise rather than a disputable decision.
+
+| Field | Type | Presence | Rules | Description |
+|---|---|---|---|---|
+| `source` | enum: `ALF`, `BALF`, `REST` | required | — | Which gateway refused the request. |
+| `gateway_id` | `string` | defaults to `''` | max_len 32 | The participant the gateway believed it was talking to; "" before authentication. Claimed, not proven. Never an API key. |
+| `peer` | `string` | defaults to `''` | max_len 64 | Remote address of the connection (host:port). |
+| `reject_code` | enum: `AUTH_REQUIRED`, `AUTH_FAILED`, `ROLE_DENIED`, `RATE_LIMITED` | required | — | The same codes `order.ack` uses for these refusals. |
+| `reason` | `string` | defaults to `''` | max_len 256 |  |
+| `count` | `int` | defaults to `1` | ge 1, unit `dimensionless` | Refusals this record stands for: itself plus those folded in since the last record for the same peer and code. |
+| `ts_ns` | `int` | required | ge 0, unit `epoch_nanos` | The gateway's clock when it refused. |
+
+!!! note
+
+    A gateway reports at most one record per peer and reject code per second and carries the number it folded in as `count`, so a client flooding refused commands cannot flood the engine through this message.
+
+**See also:** `system.gateway_connect`, `order.ack.{GW_ID}`
 
 ### `system.gateway_disconnect`
 

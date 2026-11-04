@@ -201,6 +201,42 @@ class TestEngineEchoesCommands:
         engine._echo_command("order.new", submission(b"order.new"))
 
 
+class TestGatewayRejectIsRecorded:
+    """A refusal made at a gateway is in the trail, and is not an unrouted topic."""
+
+    def _reject_frames(self) -> list[bytes]:
+        from edumatcher.models.message import make_gateway_reject_msg
+
+        push = FakeSock()
+        CausalPusher(push).send_multipart(
+            make_gateway_reject_msg(
+                source="ALF",
+                reject_code="RATE_LIMITED",
+                ts_ns=1,
+                gateway_id="GW01",
+                peer="10.0.0.5:4411",
+                reason="Too many commands per second",
+                count=3,
+            )
+        )
+        return push.sent[0]
+
+    def test_it_is_echoed_into_the_stream(self, engine_and_sock: Any) -> None:
+        engine, pub = engine_and_sock
+        engine._echo_command("system.gateway_reject", self._reject_frames())
+        assert "system.gateway_reject" in [decode(f)[0] for f in pub.sent]
+
+    def test_dispatching_it_is_not_an_unrouted_topic(
+        self, engine_and_sock: Any
+    ) -> None:
+        engine, pub = engine_and_sock
+        topic, payload = decode(self._reject_frames())
+        engine._dispatch_pull_message(topic, payload)
+        assert engine._unknown_topic_count == 0
+        assert engine._error_count == 0
+        assert all(decode(f)[0] != "system.diagnostic" for f in pub.sent)
+
+
 class TestEchoOrdersBeforeItsEffects:
     def test_file_order_and_id_order_agree(
         self, engine_and_sock: Any, monkeypatch: pytest.MonkeyPatch

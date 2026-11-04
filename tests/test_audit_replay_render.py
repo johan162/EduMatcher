@@ -383,3 +383,42 @@ class TestLevelFour:
         assert suppressed(stray, 3) is True
         assert suppressed(stray, 4) is False
         assert [a.code for a in stray.anomalies] == [UNKNOWN_TOPIC]
+
+
+# ---------------------------------------------------------------------------
+# A3 — a request refused at a gateway is narrated, with or without a participant
+# ---------------------------------------------------------------------------
+
+
+def _gateway_reject_text(tmp_path: Any, payload: str) -> str:
+    log = tmp_path / "audit.log"
+    log.write_text(
+        "[2026-09-08T09:31:02.118+00:00] [system.gateway_reject] "
+        f"[seq=1 eseq=1] {payload}\n"
+    )
+    reconstruction, steps = reconstruct(iter_entries([log]))
+    found = list(assemble(steps, reconstruction.state, reconstruction.links))
+    return "\n".join(narrate(found, reconstruction.state, Options()))
+
+
+class TestGatewayReject:
+    def test_a_refused_participant_is_named_with_its_peer(self, tmp_path: Any) -> None:
+        out = _gateway_reject_text(
+            tmp_path,
+            '{"source": "ALF", "gateway_id": "GW01", "peer": "10.0.0.5:4411", '
+            '"reject_code": "RATE_LIMITED", "reason": "x", "count": 3, "ts_ns": 1}',
+        )
+        assert (
+            "A request from GW01 (10.0.0.5:4411) was refused at the ALF gateway" in out
+        )
+        assert "(3 times)" in out
+        assert "rate limiting" in out
+
+    def test_a_peer_with_no_participant_is_still_narrated(self, tmp_path: Any) -> None:
+        out = _gateway_reject_text(
+            tmp_path,
+            '{"source": "REST", "gateway_id": "", "peer": "10.0.0.9:1", '
+            '"reject_code": "AUTH_FAILED", "reason": "x", "count": 1, "ts_ns": 1}',
+        )
+        assert "A request from 10.0.0.9:1 was refused at the REST gateway" in out
+        assert "failed authentication" in out

@@ -35,6 +35,7 @@ from edumatcher.alf_gwy.protocol import (
     validate_hello_fields,
 )
 from edumatcher.messaging.bus import PushSocket, make_pusher, make_subscriber
+from edumatcher.messaging.reject_report import RejectReporter
 from edumatcher.models.combo import ComboLeg, ComboOrder, ComboType
 from edumatcher.models.message import (
     decode,
@@ -282,6 +283,10 @@ class AlfGateway:
         self._symbols_reply: list[bytes] | None = None
 
         self._push: PushSocket = make_pusher(config.engine_pull_addr)
+        #: Refusals made here, told to the engine so the audit trail holds them.
+        self._rejects = RejectReporter(
+            "ALF", lambda frames: self._push.send_multipart(frames)
+        )
         self._sub: zmq.Socket[bytes] = make_subscriber(
             config.engine_pub_addr,
             TOPIC_SESSION_STATE,
@@ -2309,6 +2314,12 @@ class AlfGateway:
         if tag:
             fields["TAG"] = tag
         self._queue_line(session, "ERR", fields)
+        self._rejects.report(
+            fields["REJECT_CODE"],
+            session.gateway_id or "",
+            f"{session.addr[0]}:{session.addr[1]}",
+            detail,
+        )
         log.debug(
             "[%s] rejected code=%s reject_code=%s detail=%s",
             session.gateway_id or session.addr,

@@ -339,6 +339,27 @@ close those gaps:
 | Amendments show the prior price/qty | `order.amended.{GW_ID}` carries `old_price`/`old_qty` alongside the new values, so a post-mortem does not need the preceding `order.new`/`order.amended` to know what changed. |
 | Index corporate actions show the prior divisor | `index.corp_action_ack`, `index.constituent_change_ack`, and `index.rebalance_ack` all carry `old_divisor` alongside `divisor`, mirroring `HistoryRecord.old_divisor` in pm-index's own local archive — a post-mortem no longer needs that archive to see what changed. |
 
+### Refusals made at a gateway
+
+The ALF, BALF and REST gateways refuse some requests themselves, before the
+engine sees them: a command before login, a failed authentication, a request
+the key's role does not permit, and a client over its rate limit. Each is sent
+to the engine as `system.gateway_reject` and echoed into the trail, so "I sent
+it and you ignored it" can be answered either way. A record carries the
+gateway (`source`), the participant it believed it was talking to
+(`gateway_id`, claimed and empty before login), the remote address, the reject
+code, the reason and the gateway's clock. It never carries an API key.
+
+A gateway sends at most one record per peer and code per second and puts the
+number it folded in as `count`, so a flood of refused commands is one line a
+second, not a flood. The count of the last burst is lost if the peer then goes
+quiet, and the first record of the burst is not.
+
+Not recorded, on purpose: malformed frames and field-validation refusals
+(missing field, bad value), which the gateways count, and a read-only REST key
+attempting a write. `pm-audit-replay story` narrates a record as *"A request
+from GW01 (10.0.0.5:4411) was refused at the ALF gateway — rate limiting"*.
+
 ### Commands the trail may not hold
 
 The engine echoes every inbound command into the trail before it acts on it,

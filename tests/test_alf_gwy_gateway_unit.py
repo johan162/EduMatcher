@@ -1695,3 +1695,34 @@ def test_the_ai_swarms_amend_combo_and_smp_lines_reach_the_engine(
     assert (t2, amend["order_id"], amend["price"], amend["request_tag"]) == ("order.amend", "OID1", 100.05, "AMD-T1")  # fmt: skip
     assert t3 == "order.combo" and [leg["symbol"] for leg in combo["legs"]] == ["AAPL", "MSFT"]  # fmt: skip
     peer.close()
+
+
+def _gateway_rejects(gateway: AlfGateway) -> list[dict[str, object]]:
+    push = gateway._push
+    assert isinstance(push, _FakePush)
+    out = []
+    for frames in push.sent:
+        topic, payload = decode(frames)
+        if topic == "system.gateway_reject":
+            out.append(payload)
+    return out
+
+
+def test_a_refusal_before_hello_is_reported_to_the_engine(gateway: AlfGateway) -> None:
+    session, peer = _make_session()
+    session.addr = ("10.0.0.5", 4411)
+    gateway._handle_client_line(session, "SYMBOLS")
+
+    (sent,) = _gateway_rejects(gateway)
+    assert sent["source"] == "ALF"
+    assert sent["reject_code"] == "AUTH_REQUIRED"
+    assert sent["peer"] == "10.0.0.5:4411"
+    peer.close()
+
+
+def test_a_field_validation_refusal_is_not_reported(gateway: AlfGateway) -> None:
+    """Only the disputable classes go to the engine; the rest is counted here."""
+    session, peer = _make_session()
+    gateway._handle_client_line(session, "NOT A VALID LINE")
+    assert _gateway_rejects(gateway) == []
+    peer.close()

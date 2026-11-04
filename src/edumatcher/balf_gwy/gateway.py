@@ -92,6 +92,7 @@ from edumatcher.balf_gwy.translate import (
     new_engine_order_id,
 )
 from edumatcher.messaging.bus import PushSocket, make_pusher, make_subscriber
+from edumatcher.messaging.reject_report import RejectReporter
 from edumatcher.models.message import (
     decode,
     make_gateway_connect_msg,
@@ -328,6 +329,10 @@ class BalfGateway:
 
         # ZMQ sockets
         self._push: PushSocket = make_pusher(config.engine_pull_addr)
+        #: Refusals made here, told to the engine so the audit trail holds them.
+        self._rejects = RejectReporter(
+            "BALF", lambda frames: self._push.send_multipart(frames)
+        )
         # Only venue-wide topic this gateway acts on; everything else it
         # needs is subscribed per gateway ID at logon. Subscribing to a topic
         # _dispatch_engine_event ignores just burns the drain budget.
@@ -584,6 +589,7 @@ class BalfGateway:
 
                 if not self._allow_message_now(session):
                     self._global_stats["frames_rejected_total"] += 1
+                    self._report_reject(session, "RATE_LIMITED", "LOGON rate limited")
                     self._queue_frame(
                         session,
                         build_logon_ack(
@@ -602,6 +608,9 @@ class BalfGateway:
                     session.addr,
                 )
                 self._global_stats["protocol_errors_total"] += 1
+                self._report_reject(
+                    session, "AUTH_REQUIRED", f"msg_type 0x{msg_type:02X} before LOGON"
+                )
                 self._hard_close(session)
             return
 
@@ -619,6 +628,7 @@ class BalfGateway:
 
         if not self._allow_message_now(session):
             self._global_stats["frames_rejected_total"] += 1
+            self._report_reject(session, "RATE_LIMITED", "message rate limited")
             log.debug("BALF rate-limited %s", session.addr)
             return
 
@@ -1101,6 +1111,9 @@ class BalfGateway:
             # The engine refused this connect, so it holds no session for it;
             # a disconnect sent on close would tear down the one that does.
             session.connect_emitted = False
+            self._report_reject(
+                session, "AUTH_FAILED", reason or f"Gateway not configured: {gw_id}"
+            )
             self._queue_frame(
                 session,
                 build_logon_ack(
@@ -1539,6 +1552,15 @@ class BalfGateway:
             return False
         session.rate_tokens -= 1.0
         return True
+
+    def _report_reject(self, session: ClientSession, code: str, reason: str) -> None:
+        """Tell the engine this gateway refused ``session``, for the audit trail."""
+        self._rejects.report(
+            code,
+            session.gateway_id or "",
+            f"{session.addr[0]}:{session.addr[1]}",
+            reason,
+        )
 
     def _register_error(self, session: ClientSession, exc: BalfValidationError) -> None:
         session.errors += 1

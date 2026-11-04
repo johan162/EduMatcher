@@ -218,6 +218,27 @@ def make_gateway_connect_msg(gateway_id: str) -> list[bytes]:
     return _gen_system.make_gateway_connect(gateway_id=gateway_id)
 
 
+def make_gateway_reject_msg(
+    source: str,
+    reject_code: str,
+    ts_ns: int,
+    gateway_id: str = "",
+    peer: str = "",
+    reason: str = "",
+    count: int = 1,
+) -> list[bytes]:
+    """Gateway → engine: a participant's request was refused at the gateway."""
+    return _gen_system.make_gateway_reject(
+        source=source,
+        reject_code=reject_code,
+        ts_ns=ts_ns,
+        gateway_id=gateway_id,
+        peer=peer,
+        reason=reason,
+        count=count,
+    )
+
+
 def make_gateway_auth_msg(
     gateway_id: str,
     accepted: bool,

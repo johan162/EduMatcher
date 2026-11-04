@@ -186,6 +186,7 @@ TEMPLATES: Mapping[str, Mapping[int, str]] = {
     # -- participants and commands -----------------------------------------
     kinds.GATEWAY_AUTH: {1: "{actor} connected{auth_clause}"},
     kinds.GATEWAY_CONNECT: {1: "{actor} is connecting"},
+    kinds.GATEWAY_REJECT: {1: "{refusal}{reject_clause}"},
     kinds.GATEWAY_DISCONNECT: {1: "{actor} disconnected{because_clause}"},
     kinds.GATEWAY_BYE: {1: "{actor} disconnected{because_clause}"},
     kinds.STARTUP_RECOVERY: {

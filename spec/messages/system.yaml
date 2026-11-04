@@ -749,6 +749,54 @@ messages:
         frames: [topic, json_payload]
         include: [gateway_id, accepted, reason, description]
 
+  - name: gateway_reject
+    topic: "system.gateway_reject"
+    transport: [engine_pub, engine_push]
+    doc:
+      motivation: >
+        Gateway to engine: I refused a participant's request myself, before the
+        engine saw it. Authentication, role and rate-limit refusals are decided
+        in the ALF, BALF and REST gateways and never reach the engine, so
+        without this the exchange could neither show nor disprove "I sent it
+        and you ignored it". PUSH/PULL like `gateway_connect`; the engine
+        echoes it onto the bus like any command, which is how the audit trail
+        comes to hold it. Malformed frames and field-validation refusals are
+        deliberately not reported: they are counted by the gateway, and any one
+        of them is unfalsifiable noise rather than a disputable decision.
+      published_by: [api_gateway, gateway]
+      since: "1.0"
+      see_also: ["system.gateway_connect", "order.ack.{GW_ID}"]
+      example_note: >
+        A gateway reports at most one record per peer and reject code per
+        second and carries the number it folded in as `count`, so a client
+        flooding refused commands cannot flood the engine through this message.
+    fields:
+      - name: source
+        type: enum
+        values: [ALF, BALF, REST]
+        doc: "Which gateway refused the request."
+      - { name: gateway_id, type: string, required: false, default: "",
+          validate: { max_len: 32 },
+          doc: "The participant the gateway believed it was talking to; \"\"
+                before authentication. Claimed, not proven. Never an API key." }
+      - { name: peer, type: string, required: false, default: "",
+          validate: { max_len: 64 },
+          doc: "Remote address of the connection (host:port)." }
+      - name: reject_code
+        type: enum
+        values: [AUTH_REQUIRED, AUTH_FAILED, ROLE_DENIED, RATE_LIMITED]
+        doc: "The same codes `order.ack` uses for these refusals."
+      - { name: reason, type: string, required: false, default: "",
+          validate: { max_len: 256 } }
+      - { name: count, type: int, unit: dimensionless, required: false,
+          default: 1, validate: { ge: 1 },
+          doc: "Refusals this record stands for: itself plus those folded in
+                since the last record for the same peer and code." }
+      - { name: ts_ns, type: int, unit: epoch_nanos, validate: { ge: 0 },
+          doc: "The gateway's clock when it refused." }
+    encoding:
+      engine_pub: { frames: [topic, json_payload] }
+
   - name: gateway_disconnect
     topic: "system.gateway_disconnect"
     transport: [engine_pub, engine_push]

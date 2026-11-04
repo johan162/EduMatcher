@@ -63,7 +63,7 @@ from edumatcher.api_gateway.schemas import (
     SessionTransitionRequest,
     SymbolHaltRequest,
 )
-from edumatcher.api_gateway.sessions import Session, auth, require_admin
+from edumatcher.api_gateway.sessions import Session, auth, report_refusal, require_admin
 from edumatcher.models.generated.order import topic_orders, topic_price_level_orders
 from edumatcher.models.generated.risk import (
     topic_cancel_symbol_ack,
@@ -89,6 +89,9 @@ router = APIRouter(prefix="/api/v1/admin", tags=["admin"], route_class=ContractR
 def _check_rate_limit(request: Request, session: Session) -> None:
     """Raise 429 if the per-key write rate is exceeded."""
     if not request.app.state.rate_limiter.allow(session.api_key):
+        report_refusal(
+            request, "RATE_LIMITED", "write rate exceeded", session.gateway_id
+        )
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail={"error": {"code": "RATE_LIMIT", "message": "Write rate exceeded"}},

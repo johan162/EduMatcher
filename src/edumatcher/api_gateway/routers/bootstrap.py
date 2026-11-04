@@ -40,6 +40,7 @@ from edumatcher.api_gateway.sessions import (
     Session,
     auth,
     correlation_id,
+    report_refusal,
     require_admin,
     require_trading,
 )
@@ -435,6 +436,7 @@ async def bootstrap_mm(
     gateway_id = require_trading(session)
     role = await engine.resolve_role(gateway_id, timeout)
     if role != "MARKET_MAKER":
+        report_refusal(request, "ROLE_DENIED", "MARKET_MAKER role required", gateway_id)
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail={

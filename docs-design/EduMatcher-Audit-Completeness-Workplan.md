@@ -65,7 +65,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 |---|----|---------|-----|------------|------|--------|---------|
 | 1 | A1 | Daily evidence manifest: hash chain across days, `pm-audit-cli verify` | G1 | — | 2 d | ◐ | 2026-11-04 (code + docs done, uncommitted) |
 | 2 | A2 | Decision: option 3. Audited runs must use a deployed artifact; replay flags `CONFIG_NOT_RECORDED` | G2 | — | 0.25 d | ◐ | 2026-11-04 (uncommitted) |
-| 3 | A3 | Gateway-local rejects: record to the trail, or document as out of scope (decision D1) | G3 | D1 | 1.5 d / 0.25 d | ☐ | |
+| 3 | A3 | Gateway-local rejects: `system.gateway_reject` for auth, role and rate-limit refusals (D1 = record) | G3 | D1 | 1.5 d | ◐ | 2026-11-04 (uncommitted) |
 | 4 | A4 | Promote the re-run to a supported verification command; close or document the hidden inputs | G4 | A2 | 2.5 d | ☐ | |
 | 5 | A5 | Unenveloped command: count it and surface it | G5 | — | 0.5 d | ◐ | 2026-11-04 (uncommitted) |
 | 6 | A6 | Recorder durability: fsync policy, gap-on-restart marker, documented loss window | G6 | A1 | 1.5 d | ☐ | |

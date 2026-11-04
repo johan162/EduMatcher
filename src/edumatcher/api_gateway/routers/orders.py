@@ -49,7 +49,12 @@ from edumatcher.api_gateway.schemas import (
     QuoteRequest,
     ReplaceResponse,
 )
-from edumatcher.api_gateway.sessions import Session, auth, require_trading
+from edumatcher.api_gateway.sessions import (
+    Session,
+    auth,
+    report_refusal,
+    require_trading,
+)
 from edumatcher.api_gateway.translate import (
     wire_value,
     build_combo_payload,
@@ -83,6 +88,9 @@ def _check_rate_limit(request: Request, session: Session) -> None:
     if not request.app.state.rate_limiter.allow(session.api_key):
         # Never the api_key: it is the bearer credential itself.
         log.debug("rate limit exceeded gateway_id=%s", session.gateway_id)
+        report_refusal(
+            request, "RATE_LIMITED", "write rate exceeded", session.gateway_id
+        )
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail={"error": {"code": "RATE_LIMIT", "message": "Write rate exceeded"}},

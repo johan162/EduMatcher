@@ -291,6 +291,7 @@ from edumatcher.models.generated.system import (
     TOPIC_GATEWAY_CONNECT,
     TOPIC_GATEWAY_DISCONNECT,
     TOPIC_GATEWAY_HEARTBEAT,
+    TOPIC_GATEWAY_REJECT,
     TOPIC_HALT_STATUS_REQUEST,
     TOPIC_POSITION_REQUEST,
     TOPIC_QUOTE_BOOTSTRAP_REQUEST,
@@ -7098,6 +7099,10 @@ class Engine:
                 self._handle_gateway_disconnect(payload)
             elif topic == TOPIC_GATEWAY_HEARTBEAT:
                 self._handle_gateway_heartbeat(payload)
+            elif topic == TOPIC_GATEWAY_REJECT:
+                # A gateway refused a request itself. Recording it is the whole
+                # job and `_echo_command` already did that, before dispatch.
+                self._dbg_count("gateway_rejects")
             elif topic == TOPIC_SYMBOLS_REQUEST:
                 self._handle_symbols_request(payload)
             elif topic == TOPIC_REFERENCE_REQUEST:
