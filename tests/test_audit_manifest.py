@@ -137,6 +137,22 @@ class TestVerify:
             fh.write('{"kind": "day", "da')
         assert verify(tmp_path)
 
+    def test_an_entry_after_a_torn_line_stays_whole_and_chained(
+        self, tmp_path: Path
+    ) -> None:
+        """A crash mid-append leaves a line without its newline; the next entry
+        was written onto it, so both read as one invalid line and the new day
+        lost its entry (review 2026-11-05)."""
+        _archived(tmp_path, D1)
+        with (tmp_path / MANIFEST_NAME).open("a") as fh:
+            fh.write('{"kind": "day", "da')
+        _archived(tmp_path, D2)
+        assert [e["day"] for e in read_entries(tmp_path)] == [D1, D2]
+        problems = verify(tmp_path)
+        assert [(p.day, p.message) for p in problems] == [
+            (None, "manifest line 2 is not valid JSON (torn or edited)")
+        ]
+
     def test_no_manifest_and_no_archives_is_clean(self, tmp_path: Path) -> None:
         assert verify(tmp_path) == []
 

@@ -329,4 +329,10 @@ Then fixed (4, 5), also test-first:
    unsynced until the next write. `AuditFile.sync_due`/`sync_if_due`, and the
    recorder's receive loop syncs a due tail on its poll timeout (`tests/test_audit_writer.py`).
 
-Not fixed (low): a torn manifest line merges with the next append.
+6. **A torn manifest line swallowed the next entry.** A crash mid-append left a
+   line without its newline, and the next append was written onto it, so both
+   read as one invalid line and that day lost its entry. `_append` now ends a torn
+   line first; the torn line stays (verify reports it) and the new entry chains to
+   it (`tests/test_audit_manifest.py`).
+
+All six review findings are fixed.

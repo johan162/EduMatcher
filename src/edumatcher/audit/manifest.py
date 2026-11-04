@@ -78,7 +78,14 @@ def _append(audit_dir: Path, entry: dict[str, Any]) -> None:
     entry["pm_audit"] = package_version()
     line = json.dumps(entry, sort_keys=True, separators=(",", ":"))
     audit_dir.mkdir(parents=True, exist_ok=True)
-    with (audit_dir / MANIFEST_NAME).open("ab") as fh:
+    with (audit_dir / MANIFEST_NAME).open("ab+") as fh:
+        # A crash mid-append left a line without its newline: end it, or this
+        # entry joins it and both read as one invalid line.  The torn line
+        # stays (verify reports it) and is what ``prev`` above chains to.
+        if fh.seek(0, os.SEEK_END) > 0:
+            fh.seek(-1, os.SEEK_END)
+            if fh.read(1) != b"\n":
+                fh.write(b"\n")
         fh.write(line.encode("utf-8") + b"\n")
         fh.flush()
         os.fsync(fh.fileno())

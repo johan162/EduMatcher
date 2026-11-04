@@ -324,6 +324,12 @@ pm-audit-cli verify --date 2026-10-24   # the chain, and that day's archive
 entry, an entry is missing, an archive is missing without being retired, or the
 chain is broken. It ends with the **head hash**, the hash of the newest line.
 
+A crash while a line was being appended leaves it torn (no newline, invalid
+JSON). `verify` reports it on every run from then on, as it should: the record
+of that moment is damaged. The next entry starts on a line of its own and
+chains to the torn line, so everything after it still verifies; the archive
+whose entry was torn is recorded again when the archiver finishes it.
+
 This makes an edit *evident*; it does not prevent one. Someone who can
 rewrite the files can rewrite the whole chain, or cut off its newest entries.
 To rule that out, copy the head hash somewhere the recorder host cannot write
