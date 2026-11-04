@@ -492,15 +492,19 @@ class IndexProcess:
             idx.calc.update_price(symbol, price)
             idx.dirty = True
             level = idx.calc.recalculate()
-            log.debug(
-                "trade applied index_id=%s symbol=%s price=%.6f level=%.6f divisor=%.6f cap=%.6f",
-                index_id,
-                symbol,
-                price,
-                level,
-                idx.calc.divisor,
-                idx.calc.aggregate_cap(),
-            )
+            # Guarded: the arguments are evaluated whether or not the record
+            # is emitted, and aggregate_cap() walks every constituent.
+            if log.isEnabledFor(logging.DEBUG):
+                log.debug(
+                    "trade applied index_id=%s symbol=%s price=%.6f level=%.6f "
+                    "divisor=%.6f cap=%.6f",
+                    index_id,
+                    symbol,
+                    price,
+                    level,
+                    idx.calc.divisor,
+                    idx.calc.aggregate_cap(),
+                )
             self._update_day_ohlc(idx, level)
             self._publish_level(idx, level)
 

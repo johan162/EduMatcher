@@ -52,6 +52,19 @@ _RESET = "\033[0m" if _USE_COLOR else ""
 
 HISTORY_FILE = Path.home() / ".alf_client_history"
 
+# What a client should do about the ERR codes that end or interrupt a session.
+_ERR_HINTS = {
+    "SESSION_LOST": "the exchange no longer holds this session (engine restart "
+    "or expiry); the connection is closed - log on again",
+    "SYMBOLS_NOT_READY": "the gateway has no symbol list yet - retry shortly",
+    "ENGINE_UNAVAILABLE": "the command did not reach the engine - retry shortly",
+    "RATE_LIMITED": "too many commands per second - slow down",
+    "AUTH_TIMEOUT": "no HELLO in time; the connection is closed",
+    "IDLE_TIMEOUT": "silent for too long; the connection is closed",
+    "SLOW_CLIENT": "outbound queue full; the connection is closed",
+    "MAX_ERRORS": "too many errors; the connection is closed",
+}
+
 _HELP_TEXT = f"""
 {_BOLD}ALF Gateway Client{_RESET} — external client for pm-alf-gwy
 
@@ -430,8 +443,9 @@ class AlfClient:
             detail = f.get("DETAIL", "")
             reject_text = f" reject_code={reject_code}" if reject_code else ""
             tag_text = f" tag={tag}" if tag else ""
+            hint = f"  ({_ERR_HINTS[code]})" if code in _ERR_HINTS else ""
             self._pr(
-                f"[{ts}] {_RED}ERR{_RESET}  [{code}]{reject_text}{tag_text}  {detail}"
+                f"[{ts}] {_RED}ERR{_RESET}  [{code}]{reject_text}{tag_text}  {detail}{hint}"
             )
             return
 
@@ -523,7 +537,10 @@ class AlfClient:
             oid = f.get("ORDER_ID", "?")
             tag = f"  tag={f.get('TAG')}" if f.get("TAG") else ""
             rtag = f"  rtag={f.get('RTAG')}" if f.get("RTAG") else ""
-            self._pr(f"[{ts}] {_YELLOW}CANCELLED{_RESET} {oid}{tag}{rtag}")
+            # CANCEL_REASON is present only when the exchange decided (SMP,
+            # IOC remainder, kill switch, ...); a cancel you asked for has none.
+            why = f"  reason={f['CANCEL_REASON']}" if f.get("CANCEL_REASON") else ""
+            self._pr(f"[{ts}] {_YELLOW}CANCELLED{_RESET} {oid}{tag}{rtag}{why}")
             if oid in self._orders:
                 self._orders[oid]["status"] = "CANCELLED"
             return
@@ -544,7 +561,12 @@ class AlfClient:
             # keep its own book of outstanding quotes and match by send
             # order — which breaks the moment one ack is missed.
             sym = f.get("SYM") or "?"
-            if f.get("ACCEPTED", "FALSE") == "TRUE":
+            if f.get("ACCEPTED", "FALSE") == "TRUE" and not (
+                f.get("BID_ID") or f.get("ASK_ID")
+            ):
+                # No leg ids: the answer to QUOTE_CANCEL, not to a QUOTE.
+                self._pr(f"[{ts}] {_YELLOW}QUOTE CXL{_RESET}  {sym}  {qid}  cancelled")
+            elif f.get("ACCEPTED", "FALSE") == "TRUE":
                 bid = f.get("BID_ID", "?")
                 ask = f.get("ASK_ID", "?")
                 self._pr(

@@ -27,6 +27,7 @@ All inbound data from external clients is treated as untrusted.
 from __future__ import annotations
 
 import errno
+import itertools
 import logging
 import select
 import signal
@@ -65,6 +66,7 @@ from edumatcher.balf_gwy.codec import (
     build_heartbeat,
     build_heartbeat_ack,
     build_logon_ack,
+    build_logout,
     build_order_ack,
     now_ns,
     parse_amend_order,
@@ -78,6 +80,7 @@ from edumatcher.balf_gwy.protocol import (
     BalfValidationError,
     RC_INVALID_FIELD,
     RC_OTHER,
+    RC_SYMBOL_NOT_CONFIGURED,
     classify_engine_reason,
     validate_amend_flags,
 )
@@ -101,7 +104,6 @@ from edumatcher.models.message import (
     make_symbols_request_msg,
 )
 from edumatcher.models.price import register_tick_decimals
-from edumatcher.models.generated.trade import TOPIC_TRADE_EXECUTED
 from edumatcher.models.generated.order import (
     PREFIX_ORDER_ACK,
     PREFIX_ORDER_AMENDED,
@@ -118,15 +120,67 @@ from edumatcher.models.generated.order import (
     topic_order_fill,
     topic_order_triggered,
 )
-from edumatcher.models.generated.session import TOPIC_SESSION_STATE
 from edumatcher.models.generated.system import (
     PREFIX_GATEWAY_AUTH,
     PREFIX_SYMBOLS,
+    TOPIC_STARTUP_RECOVERY,
     topic_gateway_auth,
     topic_symbols,
 )
 
 log = logging.getLogger(__name__)
+
+#: Engine events handled per loop iteration. Large enough that a normal
+#: burst clears in one pass, small enough that a flood still leaves time
+#: for heartbeats and idle-timeout checks.
+_ENGINE_DRAIN_BUDGET = 256
+
+# Gateway-process-wide, so a tag can never be mistaken for one of a previous
+# session on the same socket.
+_request_tags = itertools.count(1)
+
+
+def _next_request_tag() -> str:
+    return f"BALF-{next(_request_tags)}"
+
+
+def _drop_pending(
+    pending: dict[str, "_PendingRequest"],
+    by_uuid: dict[str, list[str]],
+    request_tag: str,
+) -> "_PendingRequest | None":
+    """Remove *request_tag* from both the tag map and its per-order index."""
+    req = pending.pop(request_tag, None)
+    if req is not None:
+        tags = by_uuid.get(req.engine_uuid)
+        if tags is not None:
+            if request_tag in tags:
+                tags.remove(request_tag)
+            if not tags:
+                by_uuid.pop(req.engine_uuid, None)
+    return req
+
+
+def _take_pending(
+    pending: dict[str, "_PendingRequest"],
+    by_uuid: dict[str, list[str]],
+    engine_uuid: str,
+    request_tag: str,
+) -> "_PendingRequest | None":
+    """Resolve an engine result to the request that caused it.
+
+    The tag is authoritative. Without one — an engine build that does not echo
+    it, or a system-originated event — the oldest in-flight request for the
+    order is the only defensible answer.
+    """
+    if request_tag and request_tag in pending:
+        return _drop_pending(pending, by_uuid, request_tag)
+    if request_tag:
+        return None
+    tags = by_uuid.get(engine_uuid)
+    if not tags:
+        return None
+    return _drop_pending(pending, by_uuid, tags[0])
 
 
 # ---------------------------------------------------------------------------
@@ -140,6 +194,7 @@ class _PendingRequest:
 
     balf_client_order_id: int
     balf_order_id: int
+    engine_uuid: str
 
 
 @dataclass
@@ -151,6 +206,12 @@ class ClientSession:
     gateway_id: str | None = None
     authenticated: bool = False
     auth_pending: bool = False
+    # Engine accepted the connect; waiting for the symbol metadata that the
+    # LOGON_ACK is withheld for.
+    symbols_pending: bool = False
+    symbols_requested_at: float = 0.0
+    # LOGON_ACK text, held from acceptance until metadata makes it sendable.
+    logon_ack_msg: str = ""
     role: str = "TRADER"
 
     # Buffers
@@ -173,10 +234,14 @@ class ClientSession:
     engine_to_balf: dict[str, tuple[int, int]] = field(default_factory=dict)
     # balf_order_id -> engine UUID for cancel/amend lookup
     balf_to_engine: dict[int, str] = field(default_factory=dict)
-    # engine UUID -> _PendingRequest for in-flight cancels
+    # request_tag -> _PendingRequest for in-flight cancels
     pending_cancel: dict[str, _PendingRequest] = field(default_factory=dict)
-    # engine UUID -> _PendingRequest for in-flight amends
+    # request_tag -> _PendingRequest for in-flight amends
     pending_amend: dict[str, _PendingRequest] = field(default_factory=dict)
+    # engine UUID -> request tags still in flight, oldest first. An engine that
+    # does not echo the tag is correlated against the oldest request.
+    cancel_tags: dict[str, list[str]] = field(default_factory=dict)
+    amend_tags: dict[str, list[str]] = field(default_factory=dict)
     # engine UUID -> symbol (for amend ack price conversion)
     order_symbol: dict[str, str] = field(default_factory=dict)
 
@@ -217,6 +282,11 @@ class ClientSession:
         self.outbound_seq += 1
         return self.outbound_seq
 
+    @property
+    def logon_in_progress(self) -> bool:
+        """The gateway ID is claimed but the LOGON_ACK has not gone out yet."""
+        return self.auth_pending or self.symbols_pending
+
     def close(self) -> None:
         try:
             self.sock.close()
@@ -252,13 +322,18 @@ class BalfGateway:
 
         # Known symbols (populated from system.symbols response)
         self._known_symbols: set[str] = set()
+        # True once the engine has answered system.symbols_request at least
+        # once. Until then no order can be priced, so no logon completes.
+        self._symbols_ready = False
 
         # ZMQ sockets
         self._push: PushSocket = make_pusher(config.engine_pull_addr)
+        # Only venue-wide topic this gateway acts on; everything else it
+        # needs is subscribed per gateway ID at logon. Subscribing to a topic
+        # _dispatch_engine_event ignores just burns the drain budget.
         self._sub: zmq.Socket[bytes] = make_subscriber(
             config.engine_pub_addr,
-            TOPIC_SESSION_STATE,
-            TOPIC_TRADE_EXECUTED,
+            TOPIC_STARTUP_RECOVERY,
         )
 
         self._global_stats: dict[str, int] = {
@@ -614,12 +689,11 @@ class BalfGateway:
         # Duplicate session policy
         if self._gateway_in_use(gw_id):
             if self.config.duplicate_session_policy == "EVICT_OLD":
-                old_fd = self._active_gateway_sessions.get(gw_id)
-                if old_fd is not None:
-                    old_session = self._clients.get(old_fd)
-                    if old_session is not None:
-                        log.info("BALF evicting old session for %s", gw_id)
-                        self._disconnect(old_session, reason="duplicate_login_eviction")
+                # Pending sessions hold the ID too (B4): leaving one in place
+                # would make the auth reply ambiguous between two sessions.
+                for old_session in self._sessions_holding(gw_id, exclude=session):
+                    log.info("BALF evicting old session for %s", gw_id)
+                    self._disconnect(old_session, reason="duplicate_login_eviction")
             else:  # REJECT_NEW
                 self._queue_frame(
                     session,
@@ -637,10 +711,15 @@ class BalfGateway:
         session.auth_pending = True
         session.connect_emitted = False
 
-        # Subscribe to the auth reply topic and send gateway_connect to engine
+        # Subscribe to the auth reply and the symbols reply, then send
+        # gateway_connect. The symbols topic is subscribed here rather than on
+        # acceptance so the subscription is in place well before the reply the
+        # LOGON_ACK now waits for.
         auth_topic = topic_gateway_auth(gw_id)
-        self._subscribe_topic(auth_topic)
-        session.subscriptions.add(auth_topic)
+        symbols_topic = topic_symbols(gw_id)
+        for t in (auth_topic, symbols_topic):
+            self._subscribe_topic(t)
+            session.subscriptions.add(t)
         try:
             self._send_to_engine(
                 make_gateway_connect_msg(gw_id),
@@ -652,9 +731,10 @@ class BalfGateway:
             # instead of waiting on a handshake that will never complete.
             session.auth_pending = False
             session.gateway_id = None
-            if auth_topic in session.subscriptions:
-                session.subscriptions.remove(auth_topic)
-            self._unsubscribe_topic(auth_topic)
+            for t in (auth_topic, symbols_topic):
+                if t in session.subscriptions:
+                    session.subscriptions.remove(t)
+                    self._unsubscribe_topic(t)
             self._queue_frame(
                 session,
                 build_logon_ack(
@@ -682,6 +762,28 @@ class BalfGateway:
         engine_uuid = new_engine_order_id()
         balf_id = session.next_balf_id()
         client_order_id = int(parsed["client_order_id"])
+
+        symbol = str(parsed["symbol"])
+        if symbol not in self._known_symbols:
+            # The engine never listed it, so its tick scale is unknown and the
+            # price cannot be converted — never fall back to the default (B1).
+            unknown = BalfValidationError(
+                RC_SYMBOL_NOT_CONFIGURED, f"unknown symbol {symbol}"
+            )
+            self._queue_frame(
+                session,
+                build_order_ack(
+                    client_order_id=client_order_id,
+                    balf_order_id=0,
+                    seq_no=session.next_seq(),
+                    accepted=False,
+                    reject_code=unknown.reject_code,
+                    reason=unknown.reason,
+                ),
+            )
+            self._global_stats["frames_rejected_total"] += 1
+            self._register_error(session, unknown)
+            return
 
         try:
             order_dict = build_engine_new_order(parsed, gw_id, engine_uuid)
@@ -764,16 +866,22 @@ class BalfGateway:
             )
             return
 
-        # Track the pending cancel for correlation when ack arrives
-        session.pending_cancel[engine_uuid] = _PendingRequest(
+        # Track the pending cancel for correlation when the result arrives. A
+        # pipelined second cancel of the same order gets its own tag (B3).
+        request_tag = _next_request_tag()
+        session.pending_cancel[request_tag] = _PendingRequest(
             balf_client_order_id=balf_cancel_clordid,
             balf_order_id=balf_order_id,
+            engine_uuid=engine_uuid,
         )
+        session.cancel_tags.setdefault(engine_uuid, []).append(request_tag)
 
         try:
-            self._send_to_engine(make_order_cancel_msg(engine_uuid, gw_id))
+            self._send_to_engine(
+                make_order_cancel_msg(engine_uuid, gw_id, request_tag=request_tag)
+            )
         except BalfValidationError as exc:
-            session.pending_cancel.pop(engine_uuid, None)
+            _drop_pending(session.pending_cancel, session.cancel_tags, request_tag)
             self._queue_frame(
                 session,
                 build_cancel_ack(
@@ -871,17 +979,26 @@ class BalfGateway:
             self._register_error(session, no_field_exc)
             return
 
-        session.pending_amend[engine_uuid] = _PendingRequest(
+        request_tag = _next_request_tag()
+        session.pending_amend[request_tag] = _PendingRequest(
             balf_client_order_id=balf_amend_clordid,
             balf_order_id=balf_order_id,
+            engine_uuid=engine_uuid,
         )
+        session.amend_tags.setdefault(engine_uuid, []).append(request_tag)
 
         try:
             self._send_to_engine(
-                make_order_amend_msg(engine_uuid, gw_id, price=price_display, qty=qty)
+                make_order_amend_msg(
+                    engine_uuid,
+                    gw_id,
+                    price=price_display,
+                    qty=qty,
+                    request_tag=request_tag,
+                )
             )
         except BalfValidationError as exc:
-            session.pending_amend.pop(engine_uuid, None)
+            _drop_pending(session.pending_amend, session.amend_tags, request_tag)
             self._queue_frame(
                 session,
                 build_amend_ack(
@@ -910,7 +1027,15 @@ class BalfGateway:
     # ------------------------------------------------------------------
 
     def _poll_engine_events(self) -> None:
-        while self._sub.poll(timeout=0):
+        """Drain at most ``_ENGINE_DRAIN_BUDGET`` events, then return.
+
+        A publisher faster than this loop would otherwise keep ``poll()``
+        readable forever, so heartbeats, idle timeouts and client writes were
+        never reached and every connected client eventually timed out.
+        """
+        for _ in range(_ENGINE_DRAIN_BUDGET):
+            if not self._sub.poll(timeout=0):
+                break
             try:
                 topic, payload = decode(self._sub.recv_multipart())
             except zmq.ZMQError as exc:
@@ -926,6 +1051,10 @@ class BalfGateway:
                 log.exception("BALF error dispatching engine event %s: %s", topic, exc)
 
     def _dispatch_engine_event(self, topic: str, payload: dict[str, Any]) -> None:
+        if topic == TOPIC_STARTUP_RECOVERY:
+            self._handle_engine_restart()
+            return
+
         if topic.startswith(PREFIX_GATEWAY_AUTH):
             gw_id = topic.rsplit(".", 1)[-1].upper()
             self._handle_gateway_auth(gw_id, payload)
@@ -985,30 +1114,65 @@ class BalfGateway:
             return
 
         session.auth_pending = False
-        session.authenticated = True
         session.role = self._gateway_roles.get(gw_id, "TRADER")
-        self._active_gateway_sessions[gw_id] = session.sock.fileno()
 
         for t in self._gateway_topics(gw_id):
             if t not in session.subscriptions:
                 self._subscribe_topic(t)
                 session.subscriptions.add(t)
 
-        msg = (
+        session.logon_ack_msg = (
             description
             or f"gateway={self.config.name} hbint={self.config.heartbeat_interval_sec:.0f}s"
         )
-        self._queue_frame(
-            session,
-            build_logon_ack(
-                gw_id,
-                accepted=True,
-                msg=msg,
-            ),
+
+        # Refresh the tick registry on every logon; hold the LOGON_ACK back
+        # until the first answer, because an order accepted before it would be
+        # priced against the shared two-decimal default (B1).
+        # Marked before the send, not after it: _send_to_engine raises when
+        # the engine PUSH queue is full, and a session that is neither
+        # authenticated nor pending is invisible to both the symbols sweep
+        # and the auth timeout (R3).
+        session.symbols_pending = True
+        session.symbols_requested_at = time.monotonic()
+        try:
+            self._send_to_engine(
+                make_symbols_request_msg(gw_id), count_as_command=False
+            )
+        except BalfValidationError:
+            # The request never left, so no metadata can answer it. Fail the
+            # logon now rather than holding the client for the full timeout.
+            log.warning("BALF symbol request for %s refused by the engine", gw_id)
+            session.symbols_pending = False
+            self._queue_frame(
+                session,
+                build_logon_ack(
+                    gw_id,
+                    accepted=False,
+                    reject_code=LOGON_REJECT_OTHER,
+                    msg="ENGINE_UNAVAILABLE",
+                ),
+            )
+            self._close_after_flush(session)
+            return
+
+        if self._symbols_ready:
+            self._complete_logon(session, gw_id)
+            return
+
+        log.info(
+            "BALF gateway %s authenticated; LOGON_ACK held for symbol metadata", gw_id
         )
 
-        # Request symbol metadata to populate tick registry
-        self._send_to_engine(make_symbols_request_msg(gw_id), count_as_command=False)
+    def _complete_logon(self, session: ClientSession, gw_id: str) -> None:
+        """Symbol metadata is in: the session may now trade."""
+        session.symbols_pending = False
+        session.authenticated = True
+        self._active_gateway_sessions[gw_id] = session.sock.fileno()
+        self._queue_frame(
+            session,
+            build_logon_ack(gw_id, accepted=True, msg=session.logon_ack_msg),
+        )
         log.info("BALF gateway authenticated: %s from %s", gw_id, session.addr)
 
     def _handle_symbols_response(self, gw_id: str, payload: dict[str, Any]) -> None:
@@ -1026,42 +1190,88 @@ class BalfGateway:
             if isinstance(tick_decimals, int):
                 register_tick_decimals(sym, tick_decimals)
 
+        self._symbols_ready = True
+        for session in list(self._clients.values()):
+            if session.symbols_pending and session.gateway_id:
+                self._complete_logon(session, session.gateway_id)
+
+    def _handle_engine_restart(self) -> None:
+        """A restarted engine holds no sessions: every one here is dead."""
+        lost = [
+            s for s in self._clients.values() if s.authenticated or s.logon_in_progress
+        ]
+        log.warning(
+            "engine restarted; closing %d BALF session(s) so their clients log on again",
+            len(lost),
+        )
+        # Its symbol configuration may have changed with it.
+        self._known_symbols.clear()
+        self._symbols_ready = False
+
+        for session in lost:
+            gw_id = session.gateway_id or ""
+            if session.authenticated:
+                self._queue_frame(session, build_logout(session.next_seq()))
+            else:
+                self._queue_frame(
+                    session,
+                    build_logon_ack(
+                        gw_id,
+                        accepted=False,
+                        reject_code=LOGON_REJECT_OTHER,
+                        msg="ENGINE_RESTARTED",
+                    ),
+                )
+            session.authenticated = False
+            session.auth_pending = False
+            session.symbols_pending = False
+            # The restarted engine never had this session: a disconnect sent
+            # on close would name a gateway it has already forgotten.
+            session.connect_emitted = False
+            if self._active_gateway_sessions.get(gw_id) == session.sock.fileno():
+                self._active_gateway_sessions.pop(gw_id, None)
+            self._close_after_flush(session)
+
     def _handle_order_ack_event(
         self, session: ClientSession, payload: dict[str, Any]
     ) -> None:
         engine_uuid = str(payload.get("order_id", ""))
         accepted = bool(payload.get("accepted", False))
         reason = str(payload.get("reason", ""))
+        request_tag = str(payload.get("request_tag") or "")
 
-        # Determine whether this ack is for a cancel, amend, or new order
-        pending_cancel = session.pending_cancel.get(engine_uuid)
-        pending_amend = session.pending_amend.get(engine_uuid)
-
-        if pending_cancel and not accepted:
-            del session.pending_cancel[engine_uuid]
-            self._queue_frame(
-                session,
-                build_cancel_ack(
-                    client_order_id=pending_cancel.balf_client_order_id,
-                    balf_order_id=pending_cancel.balf_order_id,
-                    seq_no=session.next_seq(),
-                    accepted=False,
-                ),
+        # A refusal may belong to an in-flight cancel or amend; correlate it by
+        # the tag that request carried (B3).
+        if not accepted:
+            pending = _take_pending(
+                session.pending_cancel, session.cancel_tags, engine_uuid, request_tag
             )
-            return
+            if pending is not None:
+                self._queue_frame(
+                    session,
+                    build_cancel_ack(
+                        client_order_id=pending.balf_client_order_id,
+                        balf_order_id=pending.balf_order_id,
+                        seq_no=session.next_seq(),
+                        accepted=False,
+                    ),
+                )
+                return
 
-        if pending_amend and not accepted:
-            del session.pending_amend[engine_uuid]
-            self._queue_frame(
-                session,
-                build_amend_ack(
-                    client_order_id=pending_amend.balf_client_order_id,
-                    balf_order_id=pending_amend.balf_order_id,
-                    seq_no=session.next_seq(),
-                    accepted=False,
-                ),
+            pending = _take_pending(
+                session.pending_amend, session.amend_tags, engine_uuid, request_tag
             )
-            return
+            if pending is not None:
+                self._queue_frame(
+                    session,
+                    build_amend_ack(
+                        client_order_id=pending.balf_client_order_id,
+                        balf_order_id=pending.balf_order_id,
+                        seq_no=session.next_seq(),
+                        accepted=False,
+                    ),
+                )
+                return
 
         # New order ack
         mapping = session.engine_to_balf.get(engine_uuid)
@@ -1131,7 +1341,12 @@ class BalfGateway:
     ) -> None:
         engine_uuid = str(payload.get("order_id", ""))
 
-        pending = session.pending_cancel.pop(engine_uuid, None)
+        pending = _take_pending(
+            session.pending_cancel,
+            session.cancel_tags,
+            engine_uuid,
+            str(payload.get("request_tag") or ""),
+        )
         if pending is not None:
             self._queue_frame(
                 session,
@@ -1170,7 +1385,12 @@ class BalfGateway:
     ) -> None:
         engine_uuid = str(payload.get("order_id", ""))
 
-        pending = session.pending_amend.pop(engine_uuid, None)
+        pending = _take_pending(
+            session.pending_amend,
+            session.amend_tags,
+            engine_uuid,
+            str(payload.get("request_tag") or ""),
+        )
         if pending is None:
             return
 
@@ -1261,6 +1481,29 @@ class BalfGateway:
             if session.closing:
                 continue
             if not session.authenticated:
+                if session.symbols_pending:
+                    # Engine accepted the connect but never sent its symbols;
+                    # fail the logon with a reason instead of hanging it.
+                    if (
+                        now - session.symbols_requested_at
+                        > self.config.auth_timeout_sec
+                    ):
+                        log.warning(
+                            "BALF no symbol metadata for %s — rejecting logon",
+                            session.gateway_id,
+                        )
+                        session.symbols_pending = False
+                        self._queue_frame(
+                            session,
+                            build_logon_ack(
+                                session.gateway_id or "",
+                                accepted=False,
+                                reject_code=LOGON_REJECT_OTHER,
+                                msg="SYMBOLS_UNAVAILABLE",
+                            ),
+                        )
+                        self._close_after_flush(session)
+                    continue
                 # Unauthenticated sessions must send LOGON within auth_timeout
                 if now - session.connected_at > self.config.auth_timeout_sec:
                     log.warning(
@@ -1418,12 +1661,19 @@ class BalfGateway:
     def _gateway_in_use(self, gw_id: str) -> bool:
         if gw_id in self._active_gateway_sessions:
             return True
-        for session in self._clients.values():
-            if session.gateway_id == gw_id and (
-                session.auth_pending or session.authenticated
-            ):
-                return True
-        return False
+        return bool(self._sessions_holding(gw_id))
+
+    def _sessions_holding(
+        self, gw_id: str, *, exclude: ClientSession | None = None
+    ) -> list[ClientSession]:
+        """Every session that claims *gw_id*, authenticated or still logging on."""
+        return [
+            s
+            for s in self._clients.values()
+            if s is not exclude
+            and s.gateway_id == gw_id
+            and (s.authenticated or s.logon_in_progress)
+        ]
 
     def _session_for_gateway(self, gw_id: str) -> ClientSession | None:
         fd = self._active_gateway_sessions.get(gw_id)

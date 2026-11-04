@@ -117,6 +117,11 @@ class MarketDataCache:
         # later than from_seq has no gap, even though its own buffer's
         # oldest entry is newer than from_seq + 1.
         self._trades_evicted_watermark: int = 0
+        # Per symbol, the highest seq ever aged out of *its own* buffer. This
+        # is what resume_trades checks: seq is venue-wide, so one symbol's
+        # buffer is naturally sparse, and "oldest buffered seq" would read
+        # another symbol's prints as a gap in this one (P5).
+        self._evicted_by_symbol: dict[str, int] = {}
 
     # ------------------------------------------------------------------
     # Ingest
@@ -162,6 +167,8 @@ class MarketDataCache:
             evicted = buf.popleft()
             if evicted.seq > self._trades_evicted_watermark:
                 self._trades_evicted_watermark = evicted.seq
+            if evicted.seq > self._evicted_by_symbol.get(symbol, 0):
+                self._evicted_by_symbol[symbol] = evicted.seq
 
     # ------------------------------------------------------------------
     # Serve
@@ -197,22 +204,29 @@ class MarketDataCache:
         return out
 
     def resume_trades(self, symbol: str, from_seq: int) -> list[dict[str, Any]]:
-        """Replay ``trade`` envelopes with ``seq > from_seq``.
+        """Replay this symbol's ``trade`` envelopes with ``seq > from_seq``.
 
-        Raises ``ReplayMiss`` when ``from_seq`` precedes the oldest retained
-        print (the window has rolled past it), so the caller can fall back to a
-        reset + fresh snapshot.
+        Raises ``ReplayMiss`` when one of *this symbol's* prints after
+        ``from_seq`` has already aged out of the window, so the caller can
+        fall back to a reset + fresh snapshot.
+
+        The check is against the symbol's own eviction watermark, not its
+        oldest buffered seq: ``seq`` is the venue-wide engine sequence, so a
+        symbol's buffer skips every seq spent on another symbol's prints.
+        Treating that sparseness as eviction rejected perfectly serviceable
+        resumes on any venue with more than one active symbol (P5).
         """
         symbol = symbol.upper()
         self._prune(symbol)
+        evicted = self._evicted_by_symbol.get(symbol, 0)
+        if from_seq < evicted:
+            raise ReplayMiss(
+                f"from_seq={from_seq} precedes {symbol}'s oldest "
+                f"guaranteed seq={evicted}"
+            )
         buf = self._trades.get(symbol)
         if not buf:
             return []
-        oldest = buf[0].seq
-        if from_seq < oldest - 1:
-            raise ReplayMiss(
-                f"from_seq={from_seq} precedes oldest retained seq={oldest}"
-            )
         return [b.event for b in buf if b.seq > from_seq]
 
     def resume_trades_venue_wide(self, from_seq: int) -> list[dict[str, Any]]:

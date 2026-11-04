@@ -35,7 +35,7 @@ from __future__ import annotations
 
 import heapq
 import json
-from collections import Counter, defaultdict
+from collections import Counter, defaultdict, deque
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import Any
@@ -1069,7 +1069,11 @@ class _Replay:
         if not prints:
             return
         book.last = price
-        bid, ask = book.best(BUY), book.best(SELL)
+        # Orders the dispatch cancels (SMP resolves the pairs the walk left
+        # crossed) are not part of the book that remains.
+        top_bid, top_ask = book.top(BUY, dying, _NOBODY), book.top(SELL, dying, _NOBODY)
+        bid = top_bid.price if top_bid is not None else None
+        ask = top_ask.price if top_ask is not None else None
         if bid is not None and ask is not None and bid >= ask:
             self._flag(
                 "D6",
@@ -1323,12 +1327,88 @@ def _breached(o: _Order, last: int) -> bool:
 
 
 #: (price, executable qty, surplus, imbalance side "BUY"/"SELL"/"").
-_Uncross = tuple[int, int, int, str]
+_Uncross = tuple[int | None, int, int, str]
+
+
+def _smp_action(bid: _Order, ask: _Order) -> tuple[str, bool]:
+    """The SMP policy of a crossing bid and ask of one gateway, and whether
+    it is the ask's: both are resting, so the bid's policy wins and the ask's
+    applies only when the bid's is NONE."""
+    if bid.gw != ask.gw:
+        return "NONE", False
+    if bid.smp != "NONE":
+        return bid.smp, False
+    return ask.smp, True
+
+
+def _walk(book: _Book, price: int) -> tuple[int, int, int]:
+    """The uncross walk at *price*, SMP included, without trading anything:
+    (executed, buy total, sell total), the totals being what traded plus what
+    survives of the orders that cross *price*. An iceberg trades its shown
+    slice and refills at the back of its level."""
+
+    def queues(side: str) -> list[deque[list[Any]]]:
+        prices = sorted(book.levels[side], reverse=side == BUY)
+        return [
+            deque([o, o.remaining, o.shown] for o in book.levels[side][p].values())
+            for p in prices
+            if (p >= price if side == BUY else p <= price)
+        ]
+
+    bids, asks = queues(BUY), queues(SELL)
+    everyone = [c for qs in (bids, asks) for q in qs for c in q]
+    gone: set[int] = set()  # ids of cancelled or used-up candidates
+
+    def head(
+        levels: list[deque[list[Any]]],
+    ) -> tuple[deque[list[Any]], list[Any]] | None:
+        for level in levels:
+            while level and id(level[0]) in gone:
+                level.popleft()
+            if level:
+                return level, level[0]
+        return None
+
+    def cancel(c: list[Any]) -> None:
+        c[1] = c[2] = 0
+        gone.add(id(c))
+
+    traded = 0
+    while True:
+        top_bid, top_ask = head(bids), head(asks)
+        if top_bid is None or top_ask is None:
+            break
+        bid, ask = top_bid[1], top_ask[1]
+        action, from_ask = _smp_action(bid[0], ask[0])
+        if action != "NONE":
+            aggressor, passive = (ask, bid) if from_ask else (bid, ask)
+            if action in ("CANCEL_AGGRESSOR", "CANCEL_BOTH"):
+                cancel(aggressor)
+            if action in ("CANCEL_RESTING", "CANCEL_BOTH"):
+                cancel(passive)
+            continue
+        fill = min(bid[2], ask[2])
+        traded += fill
+        for level, c in (top_bid, top_ask):
+            c[1] -= fill
+            c[2] -= fill
+            if c[1] == 0:
+                level.popleft()
+                gone.add(id(c))
+            elif c[2] == 0:
+                c[2] = min(c[0].peak or 0, c[1])
+                level.popleft()
+                level.append(c)
+    buy = traded + sum(c[1] for c in everyone if c[0].side == BUY)
+    sell = traded + sum(c[1] for c in everyone if c[0].side == SELL)
+    return traded, buy, sell
 
 
 def _uncross_of(book: _Book) -> _Uncross | None:
     """The uncross the book makes: the most executable quantity, then the
-    least surplus, then the lowest price; hidden iceberg quantity counts."""
+    least surplus, then the lowest price; hidden iceberg quantity counts, and
+    so does SMP -- an order that would trade its own gateway's is cancelled in
+    the walk, so the quantity at a price is the walk's, not the curves'."""
     bids: dict[int, int] = defaultdict(int)
     asks: dict[int, int] = defaultdict(int)
     for o in book.orders.values():
@@ -1347,21 +1427,39 @@ def _uncross_of(book: _Book) -> _Uncross | None:
     for i, price in enumerate(prices):
         running += asks.get(price, 0)
         sell[i] = running
-    i = min(
-        range(len(prices)),
-        key=lambda j: (-min(buy[j], sell[j]), abs(buy[j] - sell[j]), prices[j]),
-    )
-    qty = min(buy[i], sell[i])
-    if qty == 0:
+    candidates = [i for i in range(len(prices)) if min(buy[i], sell[i])]
+    if not candidates:
         return None
-    side = "BUY" if buy[i] > sell[i] else "SELL" if sell[i] > buy[i] else ""
-    return prices[i], qty, abs(buy[i] - sell[i]), side
+    # A gateway on both sides with a policy is the only way the walk can
+    # differ from the curves.
+    policy = {o.gw for o in book.orders.values() if o.smp != "NONE"}
+    sides = {BUY: set[str](), SELL: set[str]()}
+    for o in book.orders.values():
+        sides[o.side].add(o.gw)
+    simulate = bool(policy & sides[BUY] & sides[SELL])
+    best: tuple[int, int, int] | None = None  # (-qty, surplus, price): least wins
+    side = ""
+    # Best bound first; nothing after a bound below the best found can win.
+    for i in sorted(candidates, key=lambda j: -min(buy[j], sell[j])):
+        bound = min(buy[i], sell[i])
+        if best is not None and bound < -best[0]:
+            break
+        if simulate:
+            qty, b, a = _walk(book, prices[i])
+        else:
+            qty, b, a = bound, buy[i], sell[i]
+        key = (-qty, abs(b - a), prices[i])
+        if best is None or key < best:
+            best, side = key, "BUY" if b > a else "SELL" if a > b else ""
+    assert best is not None
+    qty = -best[0]
+    return (best[2] if qty else None), qty, best[1], side
 
 
 def _equilibrium(book: _Book) -> tuple[int, int] | None:
     """(price, qty) an uncross must print."""
     u = _uncross_of(book)
-    return None if u is None else (u[0], u[1])
+    return None if u is None or u[0] is None else (u[0], u[1])
 
 
 def _replay(ds: Dataset) -> _Replay:

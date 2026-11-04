@@ -36,6 +36,19 @@ Worked example -- bids: 100 @ 10.2, 100 @ 10.0;  asks: 50 @ 9.9, 100 @ 10.1
 The tie at 10.1 / 10.2 is broken by the smaller surplus (equal here), and
 then by the lower price, because candidates are scanned in ascending order
 and only a strictly better one replaces the current best.
+
+Self-match prevention
+---------------------
+Both sides are resting, so there is no aggressor: the bid is treated as one
+(``_auction_smp_action``). Where a gateway with a policy sits on both sides the
+curves overstate the volume, so ``_simulated_quantity`` dry-runs the uncross
+walk at each candidate price (cancelling self-matching pairs as
+``execute_uncross`` will) and ``compute_equilibrium`` picks the price by that.
+The walk only meets orders that can trade at the chosen price, so
+``execute_uncross`` finishes by cancelling, without trading, any same-gateway
+bid and ask that SMP left crossed beyond it (``_resolve_self_match``).
+Participant-facing explanation and worked examples: order book deep dive,
+"Self-Match Prevention in an Auction Uncross".
 """
 
 # pyright: reportPrivateUsage=false
@@ -319,9 +332,10 @@ def compute_equilibrium(book: "OrderBook") -> AuctionResult:  # noqa: F821
     prices whose min(buy_qty, sell_qty) could still beat the best walk found
     are walked.
 
-    Complexity is O(P^2) in the number of distinct price levels because the
-    cumulative lookups below rescan the price lists; that is fine for an
-    auction, which runs once per phase, and keeps the code obvious.
+    Complexity is O(P log P) in the number of distinct price levels -- the
+    sort -- because both cumulative curves are built in a single pass. That
+    matters: this runs per symbol on every indicative tick during a call
+    auction, not once per phase.
     """
     bid_qty, ask_qty = _auction_levels(book)
     bid_prices = sorted(bid_qty.keys(), reverse=True)  # highest first
@@ -333,52 +347,32 @@ def compute_equilibrium(book: "OrderBook") -> AuctionResult:  # noqa: F821
         )
         return AuctionResult(eq_price=None, eq_qty=0, surplus=0, imbalance_side="")
 
-    # Build cumulative buy qty from highest price downward:
-    # cum_buy[price] = total bid qty at prices >= price
-    cum_buy: dict[int, int] = {}
-    running = 0
-    for p in bid_prices:
-        running += bid_qty[p]
-        cum_buy[p] = running
-
-    # Build cumulative sell qty from lowest price upward:
-    # cum_sell[price] = total ask qty at prices <= price
-    cum_sell: dict[int, int] = {}
-    running = 0
-    for p in ask_prices:
-        running += ask_qty[p]
-        cum_sell[p] = running
-
     # Candidate prices = union of all bid and ask price levels, sorted
     all_prices = sorted(set(bid_prices) | set(ask_prices))
 
+    # Both cumulative curves in one pass each, indexed by position in
+    # all_prices: buy accumulates downward (bids at prices >= this one),
+    # sell upward (asks at prices <= this one). Looking them up per
+    # candidate used to rescan the price lists, which is what made the
+    # whole function quadratic.
+    buy_at = [0] * len(all_prices)
+    running = 0
+    for i in range(len(all_prices) - 1, -1, -1):
+        running += bid_qty.get(all_prices[i], 0)
+        buy_at[i] = running
+
+    sell_at = [0] * len(all_prices)
+    running = 0
+    for i, price in enumerate(all_prices):
+        running += ask_qty.get(price, 0)
+        sell_at[i] = running
+
     # (index in all_prices, price, buy_qty, sell_qty) of every crossing price
-    candidates: list[tuple[int, int, int, int]] = []
-    for index, price in enumerate(all_prices):
-        # Buy qty: sum of bids at prices >= candidate
-        # cum_buy is keyed by descending bid prices; we want the lowest bp >= price
-        buy_qty = 0
-        for bp in bid_prices:  # highest first
-            if bp >= price:
-                buy_qty = cum_buy[
-                    bp
-                ]  # keep updating — last match is the lowest bp >= price
-            else:
-                break
-
-        # Sell qty: sum of asks at prices <= candidate
-        # cum_sell is keyed by ascending ask prices; we want the highest ap <= price
-        sell_qty = 0
-        for ap in ask_prices:  # lowest first
-            if ap <= price:
-                sell_qty = cum_sell[
-                    ap
-                ]  # keep updating — last match is the highest ap <= price
-            else:
-                break
-
-        if min(buy_qty, sell_qty):
-            candidates.append((index, price, buy_qty, sell_qty))
+    candidates: list[tuple[int, int, int, int]] = [
+        (index, price, buy_at[index], sell_at[index])
+        for index, price in enumerate(all_prices)
+        if min(buy_at[index], sell_at[index])
+    ]
 
     if not candidates:
         return AuctionResult(eq_price=None, eq_qty=0, surplus=0, imbalance_side="")
@@ -468,6 +462,43 @@ def _shown_qty(order: Order) -> int:
     return order.remaining_qty
 
 
+def _resolve_self_match(
+    book: "OrderBook", best_bid: Order, best_ask: Order, events: list[Order]
+) -> bool:
+    """Cancel what one gateway's crossing bid and ask may not trade, per its
+    OCO link or SMP policy. False when the pair is free to trade."""
+    if (
+        best_bid.oco_group_id is not None
+        and best_bid.gateway_id == best_ask.gateway_id
+        and best_bid.oco_group_id == best_ask.oco_group_id
+    ):
+        # Two legs of one OCO crossing each other: only one may stand, as
+        # if the other had ended. Not SMP -- the gateway may allow
+        # self-trades -- so the cancel carries no classified reason, like
+        # any OCO sibling cancel.
+        book._smp_cancel_resting(best_bid, events, reason=None)
+        if book.on_oco_leg_done is not None:
+            book.on_oco_leg_done(best_bid)
+        else:
+            book._smp_cancel_resting(best_ask, events, reason=None)
+        return True
+
+    action, from_ask = _auction_smp_action(best_bid, best_ask)
+    if action == SmpAction.NONE:
+        return False
+    aggressor = best_ask if from_ask else best_bid
+    passive = best_bid if from_ask else best_ask
+    if action in (SmpAction.CANCEL_AGGRESSOR, SmpAction.CANCEL_BOTH):
+        book._smp_cancel_resting(aggressor, events)
+        if aggressor.oco_group_id and book.on_oco_leg_done is not None:
+            book.on_oco_leg_done(aggressor)
+    if action in (SmpAction.CANCEL_RESTING, SmpAction.CANCEL_BOTH):
+        book._smp_cancel_resting(passive, events)
+        if passive.oco_group_id and book.on_oco_leg_done is not None:
+            book.on_oco_leg_done(passive)
+    return True
+
+
 def execute_uncross(
     book: "OrderBook", eq_price: int
 ) -> tuple[list[Trade], list[Order]]:
@@ -507,34 +538,7 @@ def execute_uncross(
         if best_ask.price_ticks > eq_price:  # type: ignore[operator]
             break  # remaining asks above equilibrium
 
-        if (
-            best_bid.oco_group_id is not None
-            and best_bid.gateway_id == best_ask.gateway_id
-            and best_bid.oco_group_id == best_ask.oco_group_id
-        ):
-            # Two legs of one OCO crossing each other: only one may stand, as
-            # if the other had ended. Not SMP -- the gateway may allow
-            # self-trades -- so the cancel carries no classified reason, like
-            # any OCO sibling cancel.
-            book._smp_cancel_resting(best_bid, events, reason=None)
-            if book.on_oco_leg_done is not None:
-                book.on_oco_leg_done(best_bid)
-            else:
-                book._smp_cancel_resting(best_ask, events, reason=None)
-            continue
-
-        action, from_ask = _auction_smp_action(best_bid, best_ask)
-        if action != SmpAction.NONE:
-            aggressor = best_ask if from_ask else best_bid
-            passive = best_bid if from_ask else best_ask
-            if action in (SmpAction.CANCEL_AGGRESSOR, SmpAction.CANCEL_BOTH):
-                book._smp_cancel_resting(aggressor, events)
-                if aggressor.oco_group_id and book.on_oco_leg_done is not None:
-                    book.on_oco_leg_done(aggressor)
-            if action in (SmpAction.CANCEL_RESTING, SmpAction.CANCEL_BOTH):
-                book._smp_cancel_resting(passive, events)
-                if passive.oco_group_id and book.on_oco_leg_done is not None:
-                    book.on_oco_leg_done(passive)
+        if _resolve_self_match(book, best_bid, best_ask, events):
             continue
 
         # Cap an iceberg at its shown slice, as _sweep does for a passive one
@@ -564,6 +568,21 @@ def execute_uncross(
             now,
             both_resting=True,
         )
+
+    # The walk above only meets orders priced at eq_price or better, so a
+    # same-gateway pair lying beyond it (a bid above, an ask below) can be
+    # left crossed when SMP kept it from trading. Resolve it the way
+    # continuous matching would, by SMP, so the book opens uncrossed.
+    while True:
+        best_bid = book._peek(book._bids)
+        best_ask = book._peek(book._asks)
+        if (
+            best_bid is None
+            or best_ask is None
+            or best_bid.price_ticks < best_ask.price_ticks  # type: ignore[operator]
+            or not _resolve_self_match(book, best_bid, best_ask, events)
+        ):
+            break
 
     # Update book state.  _apply_fill already set last_trade_price after
     # each print; setting it again makes the intent explicit: the auction

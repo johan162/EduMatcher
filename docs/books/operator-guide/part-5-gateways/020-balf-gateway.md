@@ -256,6 +256,8 @@ sequenceDiagram
     C->>G: LOGON (seq=0)<br/>gateway_id="TRADER01"
     G->>E: system.gateway_connect {gateway_id: "TRADER01"}
     E-->>G: system.gateway_auth.TRADER01 {accepted: true}
+    G->>E: system.symbols_request {gateway_id: "TRADER01"}
+    E-->>G: system.symbols.TRADER01 {symbols: [...]}
     G-->>C: LOGON_ACK (seq=0, accepted=1)
     Note over C,G: Session active — order messages accepted
 
@@ -294,8 +296,11 @@ the protocol reference.
 
 ### Step 2 — Receive LOGON_ACK
 
-The gateway authenticates with the engine and replies with `LOGON_ACK` (msg_type
-`0x02`, 92 bytes):
+The gateway authenticates with the engine, asks it for the symbol list, and
+only then replies with `LOGON_ACK` (msg_type `0x02`, 92 bytes). The accepted
+ack is deliberately withheld until the symbol metadata is in: a price is
+meaningless without its symbol's tick scale, so no order may be accepted
+before the gateway knows it.
 
 - `accepted = 1`: session is open; order messages may be sent
 - `accepted = 0`: session rejected; close the TCP connection
@@ -306,6 +311,10 @@ The gateway authenticates with the engine and replies with `LOGON_ACK` (msg_type
 | `0x02` | Gateway ID already connected |
 | `0x03` | Protocol version mismatch |
 | `0xFF` | Other — see `msg` field |
+
+`0xFF` with `msg = SYMBOLS_UNAVAILABLE` means the engine accepted the
+connection but never answered `system.symbols_request` within
+`auth_timeout_sec`. Retry the logon; if it repeats, the engine is unhealthy.
 
 The `msg` field carries a human-readable description on success (e.g. the
 gateway name and configured heartbeat interval) and the engine rejection reason
@@ -857,6 +866,8 @@ EOF
 | `LOGON_ACK accepted=0, code=0x01` | Gateway ID not in `participants` — or, when the message reads `Gateway already connected`, another process holds the ID at the engine | Add the ID under `participants` and restart engine; or stop the other process (if it was killed, the engine frees the ID within 3 minutes) |
 | `LOGON_ACK accepted=0, code=0x02` | Same gateway ID already connected | Disconnect the other session, or use `duplicate_session_policy: EVICT_OLD` |
 | `LOGON_ACK accepted=0, code=0x03` | `proto_version` byte is not `1` | Fix the LOGON frame builder |
+| `LOGON_ACK accepted=0, code=0xFF, msg=SYMBOLS_UNAVAILABLE` | Engine accepted the connection but never answered `system.symbols_request` | Check `pm-engine` health, then log on again |
+| Session receives `LOGOUT` and the TCP connection closes | `pm-engine` restarted, so it no longer holds this session | Log on again; the gateway re-requests symbol metadata |
 | Connection closes ~5 s after last message | `heartbeat_timeout_sec` elapsed | Send `HEARTBEAT` frames and reply to server `HEARTBEAT` with `HEARTBEAT_ACK` |
 | `ORDER_ACK accepted=0` | Field validation failure or engine rejection | Inspect `reason` field; check reject code table above |
 | Unknown `msg_type` → connection closed | Client sent a server-direction frame | Only send client-direction frames: `LOGON`, `NEW_ORDER`, `CANCEL_ORDER`, `AMEND_ORDER`, `HEARTBEAT`, `HEARTBEAT_ACK`, `LOGOUT` |

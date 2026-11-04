@@ -32,7 +32,7 @@ from fastapi import HTTPException
 
 from edumatcher.api_gateway.index_client import IndexClient, IndexHistoryError
 from edumatcher.api_gateway.routers import history
-from edumatcher.api_gateway.sessions import Session
+from edumatcher.api_gateway.sessions import Session, correlation_id
 from edumatcher.models.message import (
     decode,
     make_index_error_msg,
@@ -331,9 +331,12 @@ async def test_history_index_events_readonly_key_gets_synthesized_request_id() -
     # non-empty, caller-unique string so pm-index's reply topic is
     # addressable, and must be upper-cased (pm-index upper-cases the
     # gateway_id it receives before using it in the reply topic name, so a
-    # mixed-case api_key-derived value must already match that).
+    # mixed-case derived value must already match that). The id is derived by
+    # hashing the key, never the key itself -- pm-index echoes it into a
+    # reply topic every subscriber sees (P1).
     request_id = fake.calls[0]["request_id"]
-    assert request_id.startswith("RO-KEY-")
+    assert request_id.startswith(correlation_id(_readonly_session()))
+    assert "RO-KEY" not in request_id
     assert request_id == request_id.upper()
 
 

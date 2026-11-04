@@ -28,6 +28,7 @@ from edumatcher.config import (
     resolve_data_path,
     resolve_gateway_bind_host,
 )
+from edumatcher.config_coerce import as_float, as_int
 
 
 @dataclass(frozen=True)
@@ -110,25 +111,11 @@ class ApiGatewayConfig:
 
 
 def _as_int(raw: object, section: str, field: str) -> int:
-    if isinstance(raw, bool):
-        raise ValueError(f"{section}.{field} must be an integer")
-    if not isinstance(raw, (int, float, str, bytes, bytearray)):
-        raise ValueError(f"{section}.{field} must be an integer")
-    try:
-        return int(raw)
-    except (TypeError, ValueError) as exc:
-        raise ValueError(f"{section}.{field} must be an integer") from exc
+    return as_int(raw, f"{section}.{field}")
 
 
 def _as_float(raw: object, section: str, field: str) -> float:
-    if isinstance(raw, bool):
-        raise ValueError(f"{section}.{field} must be a number")
-    if not isinstance(raw, (int, float, str, bytes, bytearray)):
-        raise ValueError(f"{section}.{field} must be a number")
-    try:
-        return float(raw)
-    except (TypeError, ValueError) as exc:
-        raise ValueError(f"{section}.{field} must be a number") from exc
+    return as_float(raw, f"{section}.{field}")
 
 
 def _load_credentials(raw: Any, section_name: str) -> tuple[ApiCredential, ...]:

@@ -436,6 +436,40 @@ def test_d10_finds_an_indicative_the_book_does_not_make(
     assert sample["replay"] == [10000, 60, 20, "BUY"]
 
 
+def smp_auction() -> Tape:
+    """GW1 bids 20 at 101.00 and offers 10 at 100.50; GW2 offers 10 at 100.00.
+    SMP keeps GW1's bid and ask apart, so the uncross is 10 at 100.00 (GW1's
+    bid trades the GW2 ask, then meets its own ask and is cancelled), where
+    the plain curves say 20 at 100.50."""
+    t = Tape()
+    t.phase("OPENING_AUCTION")
+    t.order("B", "BUY", 20, 10100, gw="GW1")
+    t.order("SA", "SELL", 10, 10050, gw="GW1")
+    t.order("SB", "SELL", 10, 10000, gw="GW2")
+    indicative(t, 100.0, 10, 10, "BUY")
+    return t
+
+
+def test_d10_indicative_follows_the_smp_walk(
+    tmp_path: Path, open_ds: OpenDataset
+) -> None:
+    out = run(open_ds, smp_auction().write(tmp_path / "data"), "D10")
+    assert out.violations == 0, out.samples
+
+
+def test_d6_an_uncross_applies_smp_and_resolves_the_residual_cross(
+    tmp_path: Path, open_ds: OpenDataset
+) -> None:
+    t = smp_auction()
+    t.put("session.transition", {"to_state": "CONTINUOUS"}, new_chain=True)
+    t.trade("B", "SB", 10, 10000, agg_side="AUCTION", gws=("GW1", "GW2"))
+    t.cancelled("B", "SELF_MATCH_PREVENTED")
+    t.put(f"auction.result.{SYM}", {"symbol": SYM, "eq_price": 100.0, "eq_qty": 10})
+    t.put("session.state", {"state": "CONTINUOUS"})
+    t.snapshot()
+    assert violations(open_ds, t.write(tmp_path / "data")) == {}
+
+
 def test_d10_does_not_reuse_an_uncross_cached_for_a_book_a_checkpoint_replaced(
     tmp_path: Path, open_ds: OpenDataset
 ) -> None:
@@ -495,6 +529,45 @@ def test_the_linear_uncross_is_the_definition() -> None:
             best = min(keys)
             want = None if best[0] == 0 else (best[2], -best[0], best[1], best[3])
         assert _uncross_of(book) == want
+
+
+def test_the_smp_uncross_agrees_with_the_engines() -> None:
+    """On random books with SMP policies and icebergs, across gateways,
+    ``_uncross_of`` makes the uncross ``compute_equilibrium`` does."""
+    import random
+
+    from edumatcher.engine.auction import compute_equilibrium
+    from edumatcher.engine.order_book import OrderBook
+    from edumatcher.models.order import Order, OrderType, Side, SmpAction
+    from sim_forensics.checks.matching import _Book, _Order, _uncross_of
+
+    rng = random.Random(11)
+    for _ in range(400):
+        engine, replay = OrderBook(SYM), _Book(SYM, 2)
+        for i in range(rng.randint(2, 14)):
+            side = rng.choice(("BUY", "SELL"))
+            price, qty = rng.randint(98, 102), rng.randint(1, 40)
+            gw = rng.choice(("GW1", "GW2", "GW3"))
+            smp = rng.choice(("NONE", "CANCEL_AGGRESSOR", "CANCEL_RESTING", "CANCEL_BOTH"))  # fmt: skip
+            peak = rng.choice((None, None, 3)) if qty > 3 else None
+            order = Order.create(
+                symbol=SYM,
+                side=Side[side],
+                order_type=OrderType.ICEBERG if peak else OrderType.LIMIT,
+                quantity=qty,
+                gateway_id=gw,
+                price_ticks=price,
+                visible_qty=peak,
+                smp_action=SmpAction[smp],
+            )
+            engine.process(order, match=False)
+            kind = "ICEBERG" if peak else "LIMIT"
+            replay.rest(_Order(f"O{i}", side, kind, price, qty, gw, smp, peak=peak), i)
+        want = compute_equilibrium(engine)
+        got = _uncross_of(replay)
+        assert got is not None or want.eq_qty == 0 and want.surplus == 0
+        if got is not None:
+            assert got == (want.eq_price, want.eq_qty, want.surplus, want.imbalance_side)  # fmt: skip
 
 
 def test_d7_finds_a_continuous_self_trade(tmp_path: Path, open_ds: OpenDataset) -> None:

@@ -1493,6 +1493,13 @@ check rather than a pre-trade validation:
   selection; if its policy is `NONE`, the ask's policy applies instead.
   `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, and `CANCEL_BOTH` cancel the
   corresponding orders before they can trade with their own gateway.
+  The same rule then runs once more over whatever is still crossed after the
+  uncross prints: a bid above the equilibrium price and an ask below it that
+  belong to one gateway never traded, and are cancelled by their SMP policy
+  (no trade), so the book always opens uncrossed.
+  The architecture book explains the walk and works two auctions through
+  step by step: *Order Book Deep Dive*, "Self-Match Prevention in an Auction
+  Uncross".
 
 ### `FOK` — self-match liquidity is excluded before the pre-check
 

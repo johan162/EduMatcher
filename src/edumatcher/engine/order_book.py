@@ -2486,9 +2486,11 @@ class OrderBook:
         events: list[Order] = []
         if not self._has_stops:
             return trades, events
-        pending = self._check_stops(now) + self._check_trailing_stops(now)
+        # A deque, not a list: a wide cascade pops hundreds of orders off the
+        # front, and list.pop(0) shifts the whole tail every time.
+        pending = deque(self._check_stops(now) + self._check_trailing_stops(now))
         while pending:
-            t_order = pending.pop(0)
+            t_order = pending.popleft()
             sub_trades, sub_events = self.process(
                 t_order, now=now, _cascade_stops=False
             )

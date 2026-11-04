@@ -222,9 +222,32 @@ class ReferenceMatcher:
         if price is None:
             return []
         self._uncross_at(price)
+        self._resolve_crossed()
         if len(self.trades) > start:
             self._run_stops()
         return self.trades[start:]
+
+    def _resolve_crossed(self) -> None:
+        """A same-gateway pair beyond the equilibrium price (a bid above it,
+        an ask below) that SMP kept from trading is still crossed: apply its
+        SMP policy so the book opens uncrossed (operator guide, SMP in an
+        auction uncross)."""
+        while True:
+            bid, ask = self._best(self.bids), self._best(self.asks)
+            if bid is None or ask is None:
+                return
+            assert bid.price is not None and ask.price is not None
+            policy = bid.smp if bid.smp != "NONE" else ask.smp
+            if bid.price < ask.price or bid.gw != ask.gw or policy == "NONE":
+                return
+            aggressor = bid if bid.smp != "NONE" else ask
+            passive = ask if aggressor is bid else bid
+            if policy in ("CANCEL_AGGRESSOR", "CANCEL_BOTH"):
+                self.cancel(aggressor.id)
+                aggressor.cancel_reason = "SELF_MATCH_PREVENTED"
+            if policy in ("CANCEL_RESTING", "CANCEL_BOTH"):
+                self.cancel(passive.id)
+                passive.cancel_reason = "SELF_MATCH_PREVENTED"
 
     def _uncross_at(self, price: int) -> None:
         while True:

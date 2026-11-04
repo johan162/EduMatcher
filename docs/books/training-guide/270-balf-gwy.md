@@ -474,7 +474,9 @@ C parser:
 
 ```bash
 cd docs/examples/balf
-cc -std=c11 -Wall -Wextra -pedantic -O2 balf_parser.c -o balf_parser
+cc -std=c11 -Wall -Wextra -pedantic -O2 -I../generated \
+   balf_parser.c ../generated/edumatcher_order.c \
+   ../generated/edumatcher_msg.c -o balf_parser
 ./balf_parser
 ```
 
@@ -482,8 +484,18 @@ Expected output includes:
 
 ```text
 LOGON_ACK gateway_id=TRADER01 accepted=1 reject_code=0 msg=ok
+EXECUTION_REPORT order_id=4242 AAPL 25 @ 150.00000000 (FILLED, remaining 0)
+LOGON_ACK gateway_id=TRADER01 accepted=0 reject_code=255 msg=SYMBOLS_UNAVAILABLE
+  -> SYMBOLS_UNAVAILABLE: engine did not send its symbols in time; reconnect and log on again (check the engine if it repeats)
+CANCEL_ACK ...
+AMEND_ACK ...
+STOP_TRIGGERED order_id=42 AAPL TRAILING_STOP stop=148.00000000 -> MARKET
 balf_parser.c self-test: OK
 ```
+
+The second `LOGON_ACK` is the one to know: `SYMBOLS_UNAVAILABLE` means the
+engine accepted the connection but never sent its symbol list in time. The
+gateway closes the connection after it, so retry with a new connection.
 
 :material-checkbox-blank-outline: Checkpoint: both parser examples run successfully.
 

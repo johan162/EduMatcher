@@ -367,6 +367,12 @@ CREATE INDEX idx_oe_type_ts ON order_events(event_type, ts)
 CREATE INDEX idx_ps_symbol_ts ON price_snapshots(symbol, ts)
 ```
 
+#### `index idx_tl_symbol_qty`
+
+```sql
+CREATE INDEX idx_tl_symbol_qty ON trade_log(symbol, quantity DESC, ts)
+```
+
 #### `index idx_tl_symbol_ts`
 
 ```sql

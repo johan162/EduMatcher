@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+
 import logging
 import sqlite3
 import time
@@ -134,19 +136,20 @@ async def fetch_reference_bundle(request: Request, session: Session) -> dict[str
 
     Open to any valid key, including read-only (``gateway_id is None``)
     credentials — this is metadata, not account data. The reply topic is
-    keyed on the caller's identity (falling back to the API key for
-    read-only callers, same as history.py's cursor tokens) purely to give
-    concurrent callers distinct correlation keys; the payload itself does
-    not vary by caller.
+    keyed on ``correlation_id(session)`` purely to give concurrent callers
+    distinct correlation keys; the payload itself does not vary by caller.
+    A read-only session has no gateway id, so that id is derived by hashing
+    the API key — the raw key must never travel on the bus, where the reply
+    topic is visible to every subscriber (P1).
     """
-    correlation_id = session.gateway_id or session.api_key
+    correlation = correlation_id(session)
     engine = request.app.state.engine
-    engine.request_reference(correlation_id)
+    engine.request_reference(correlation)
     try:
         return cast(
             dict[str, Any],
             await engine.await_topic(
-                topic_reference(correlation_id),
+                topic_reference(correlation),
                 request.app.state.config.timeouts.engine_reply_sec,
             ),
         )
@@ -614,7 +617,9 @@ async def fetch_positions(request: Request, gateway_id: str) -> list[dict[str, A
     """
     engine = request.app.state.engine
     cache = engine.get_caches(gateway_id)
-    realized = _period_realized_pnl(request, gateway_id)
+    # Synchronous SQLite: off the loop, or it stalls every other request
+    # sharing it -- including the engine round-trip just below (P6).
+    realized = await asyncio.to_thread(_period_realized_pnl, request, gateway_id)
     engine.request_position(gateway_id)
     reply = cast(
         dict[str, Any],

@@ -39,6 +39,11 @@ class IndexCalculator:
         self._outstanding_shares: dict[str, int] = {}
         self._reference_prices: dict[str, float] = {}
         self._last_prices: dict[str, float] = {}
+        # Memoised aggregate cap. One trade used to rescan every
+        # constituent three times for the same number; every method below
+        # that changes a price, a share count or the constituent set calls
+        # _invalidate_cap().
+        self._cap: float | None = None
 
         for cfg in constituents:
             symbol = cfg.symbol.upper()
@@ -99,12 +104,20 @@ class IndexCalculator:
             raise KeyError(f"unknown constituent: {sym}")
         return self._outstanding_shares[sym]
 
-    def _aggregate_cap(self) -> float:
+    def _invalidate_cap(self) -> None:
+        self._cap = None
+
+    def _compute_cap(self) -> float:
         total = 0.0
         for symbol in self._constituents:
             price = self._last_prices.get(symbol, self._reference_prices[symbol])
             total += price * self._outstanding_shares[symbol]
         return total
+
+    def _aggregate_cap(self) -> float:
+        if self._cap is None:
+            self._cap = self._compute_cap()
+        return self._cap
 
     def aggregate_cap(self) -> float:
         return self._aggregate_cap()
@@ -131,6 +144,7 @@ class IndexCalculator:
             raise ValueError("price must be a finite number > 0")
         old_price = self._last_prices.get(sym, self._reference_prices[sym])
         self._last_prices[sym] = float(price)
+        self._invalidate_cap()
         log.debug(
             "price update symbol=%s old_price=%.6f new_price=%.6f",
             sym,
@@ -158,6 +172,7 @@ class IndexCalculator:
         old_price = self._last_prices.get(sym, self._reference_prices[sym])
         new_price = old_price * ratio_denominator / ratio_numerator
         self._last_prices[sym] = new_price
+        self._invalidate_cap()
 
         new_cap = self._aggregate_cap()
         if new_cap != old_cap:
@@ -189,6 +204,7 @@ class IndexCalculator:
         if new_price <= 0.0:
             raise ValueError("Dividend would make price non-positive")
         self._last_prices[sym] = new_price
+        self._invalidate_cap()
         new_cap = self._aggregate_cap()
 
         if old_cap <= 0.0:
@@ -219,6 +235,7 @@ class IndexCalculator:
             )
         old_shares = self._outstanding_shares[sym]
         self._outstanding_shares[sym] = new_shares_outstanding
+        self._invalidate_cap()
         new_cap = self._aggregate_cap()
         self._divisor = self._divisor * (new_cap / old_cap)
         log.info(
@@ -248,6 +265,7 @@ class IndexCalculator:
         self._outstanding_shares.pop(sym, None)
         self._reference_prices.pop(sym, None)
         self._last_prices.pop(sym, None)
+        self._invalidate_cap()
         new_cap = self._aggregate_cap()
 
         self._divisor = self._divisor * (new_cap / old_cap)
@@ -277,6 +295,7 @@ class IndexCalculator:
         self._outstanding_shares[sym] = shares_outstanding
         self._reference_prices[sym] = initial_price
         self._last_prices[sym] = initial_price
+        self._invalidate_cap()
         new_cap = self._aggregate_cap()
 
         if old_cap <= 0.0:

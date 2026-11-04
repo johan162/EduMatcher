@@ -297,7 +297,7 @@ async def submit_order(
     _check_rate_limit(request, session)
     _check_symbol_ready(body.symbol)
 
-    async def run() -> OrderAccepted:
+    async def run(_saga: dict[str, Any]) -> OrderAccepted:
         log.debug(
             "[%s] submit_order symbol=%s side=%s order_type=%s qty=%s",
             gateway_id,
@@ -541,50 +541,61 @@ async def replace_order(
             },
         )
 
-    async def run() -> ReplaceResponse:
+    async def run(saga: dict[str, Any]) -> ReplaceResponse:
         engine = request.app.state.engine
-        # A request_tag of our own lets the cancel's refusal be raced, so a
-        # replace of an already-filled order is a 409, not a timeout.
-        tag = f"replace-{uuid.uuid4().hex}"
-        engine.send_cancel(order_id, gateway_id, request_tag=tag)
-        try:
-            outcome = cast(
-                dict[str, Any],
-                await engine.await_cancel_or_amend_outcome(
-                    success_topic=topic_order_cancelled(gateway_id),
-                    gateway_id=gateway_id,
-                    order_id=order_id,
-                    request_tag=tag,
-                    timeout=request.app.state.config.timeouts.wait_ack_sec,
-                ),
-            )
-        except TimeoutError as exc:
-            # The cancel's fate is unknown, so no replacement is sent.
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail={"error": {"code": "ENGINE_TIMEOUT", "message": str(exc)}},
-            ) from exc
-        if outcome.get("accepted") is False:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail={
-                    "error": {
-                        "code": "REPLACE_REJECTED",
-                        "message": str(outcome.get("reason") or "Cancel refused"),
-                        "reject_code": str(outcome.get("reject_code") or "UNKNOWN"),
-                    }
-                },
-            )
-        replacement = build_order(body, gateway_id)
-        _cache_submitted(request, gateway_id, replacement.id, body)
-        engine.send_new_order(replacement)
+        # Two steps, each recorded as it completes: a retry after the cancel
+        # succeeded must not cancel again (the order is already gone), and a
+        # retry after the replacement went out must not submit a second one
+        # (P2). Nothing is recorded until the engine has confirmed the step,
+        # so an attempt that fails before that is simply retried whole.
+        if not saga.get("cancelled"):
+            # A request_tag of our own lets the cancel's refusal be raced, so
+            # a replace of an already-filled order is a 409, not a timeout.
+            tag = f"replace-{uuid.uuid4().hex}"
+            engine.send_cancel(order_id, gateway_id, request_tag=tag)
+            try:
+                outcome = cast(
+                    dict[str, Any],
+                    await engine.await_cancel_or_amend_outcome(
+                        success_topic=topic_order_cancelled(gateway_id),
+                        gateway_id=gateway_id,
+                        order_id=order_id,
+                        request_tag=tag,
+                        timeout=request.app.state.config.timeouts.wait_ack_sec,
+                    ),
+                )
+            except TimeoutError as exc:
+                # The cancel's fate is unknown, so no replacement is sent and
+                # nothing is recorded: a retry starts the saga over.
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail={"error": {"code": "ENGINE_TIMEOUT", "message": str(exc)}},
+                ) from exc
+            if outcome.get("accepted") is False:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail={
+                        "error": {
+                            "code": "REPLACE_REJECTED",
+                            "message": str(outcome.get("reason") or "Cancel refused"),
+                            "reject_code": str(outcome.get("reject_code") or "UNKNOWN"),
+                        }
+                    },
+                )
+            saga["cancelled"] = True
+        replacement_id = saga.get("replacement_order_id")
+        if replacement_id is None:
+            replacement = build_order(body, gateway_id)
+            _cache_submitted(request, gateway_id, replacement.id, body)
+            engine.send_new_order(replacement)
+            replacement_id = saga["replacement_order_id"] = replacement.id
         event, timed_out = await _await_ack(
-            request, topic_order_ack(gateway_id), {"order_id": replacement.id}, wait
+            request, topic_order_ack(gateway_id), {"order_id": replacement_id}, wait
         )
         _ok_when_answered(response, event)
         return ReplaceResponse(
             cancelled_order_id=order_id,
-            replacement_order_id=replacement.id,
+            replacement_order_id=replacement_id,
             status="PENDING" if event is None else "ACKED",
             accepted=None if event is None else bool(event.get("accepted")),
             reject_code=None if event is None else event.get("reject_code"),
@@ -730,7 +741,7 @@ async def submit_oco(
     _check_rate_limit(request, session)
     _check_symbol_ready(body.symbol)
 
-    async def run() -> OcoAccepted:
+    async def run(_saga: dict[str, Any]) -> OcoAccepted:
         request.app.state.engine.send_oco(build_oco_payload(body, gateway_id))
         event, timed_out = await _await_ack(
             request, topic_oco_ack(gateway_id), {"oco_id": body.oco_id}, wait
@@ -837,7 +848,7 @@ async def submit_combo(
     for leg in body.legs:
         _check_symbol_ready(leg.symbol)
 
-    async def run() -> ComboAccepted:
+    async def run(_saga: dict[str, Any]) -> ComboAccepted:
         request.app.state.engine.send_combo(build_combo_payload(body, gateway_id))
         event, timed_out = await _await_ack(
             request, topic_combo_ack(gateway_id), {"combo_id": body.combo_id}, wait
@@ -944,7 +955,7 @@ async def submit_quote(
     _check_rate_limit(request, session)
     _check_symbol_ready(body.symbol)
 
-    async def run() -> QuoteAccepted:
+    async def run(_saga: dict[str, Any]) -> QuoteAccepted:
         request.app.state.engine.send_quote(build_quote_payload(body, gateway_id))
         # The ack always names the symbol; quote_id is optional on the request.
         event, timed_out = await _await_ack(

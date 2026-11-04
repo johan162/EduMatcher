@@ -118,6 +118,30 @@ from edumatcher.models.generated.system import (
 )
 
 _MAX_LINE_BYTES = 4096
+
+#: ``errno`` values that mean this socket will never work again. Anything
+#: else (``EINTR``, ``ENOBUFS``, ...) is transient and worth retrying, so the
+#: two are kept apart rather than both being swallowed by a bare ``OSError``.
+_PEER_GONE_ERRNOS = frozenset(
+    {
+        errno.ECONNRESET,
+        errno.ECONNABORTED,
+        errno.EPIPE,
+        errno.ENOTCONN,
+        errno.EBADF,
+        errno.ESHUTDOWN,
+        errno.ETIMEDOUT,
+    }
+)
+
+
+_MAX_EINTR_RETRIES = 3
+
+
+def _is_peer_gone(exc: OSError) -> bool:
+    return exc.errno in _PEER_GONE_ERRNOS
+
+
 #: Seconds between the engine heartbeats sent for each session. Shorter than
 #: the 60 s other processes use: one gateway holds hundreds of IDs, and if it
 #: dies they must be free again within ~3x this so the clients can log back
@@ -306,6 +330,10 @@ class AlfGateway:
         # Sessions with queued output. Flushing only these keeps the loop
         # O(active) instead of O(connected).
         self._dirty: set[int] = set()
+        # Sessions whose kernel send buffer filled up. They stay in _dirty but
+        # are only retried when the selector says the socket is writable, so a
+        # stalled peer cannot pin the loop at a zero select() timeout.
+        self._write_blocked: set[int] = set()
         self._probe_seq = 0
         self._probes: dict[str, float] = {}
         self._next_probe = 0.0
@@ -386,17 +414,21 @@ class AlfGateway:
                     reporter.tick_and_publish(self.metric_samples)
                 # Wait for work instead of sleeping a fixed 10 ms. (The old
                 # select() also broke once a descriptor passed 1024.)
-                busy = bool(self._dirty) or any(
+                busy = self._has_pending_writes() or any(
                     cast(int, z.getsockopt(zmq.EVENTS)) & zmq.POLLIN
                     for z in (self._sub, self._dc_sub)
                 )
                 ready: list[ClientSession] = []
+                writable: set[int] = set()
                 accept = False
-                for key, _mask in self._selector.select(
+                for key, mask in self._selector.select(
                     0 if busy else _LOOP_WAIT_MS / 1000
                 ):
                     if isinstance(key.data, ClientSession):
-                        ready.append(key.data)
+                        if mask & selectors.EVENT_READ:
+                            ready.append(key.data)
+                        if mask & selectors.EVENT_WRITE:
+                            writable.add(key.data.sock.fileno())
                     elif key.fileobj is self._server:
                         accept = True
                 if accept:
@@ -411,7 +443,7 @@ class AlfGateway:
                     self._send_engine_heartbeats_if_due()
                     self._probe_engine_sessions_if_due(now)
                     self._drop_idle_clients()
-                self._flush_client_writes()
+                self._flush_client_writes(writable=writable)
         finally:
             self.close()
 
@@ -486,7 +518,11 @@ class AlfGateway:
 
             try:
                 chunk = session.sock.recv(4096)
-            except BlockingIOError, OSError:
+            except BlockingIOError:
+                continue
+            except OSError as exc:
+                if _is_peer_gone(exc):
+                    self._disconnect(session, reason="peer_reset")
                 continue
 
             if not chunk:
@@ -552,23 +588,70 @@ class AlfGateway:
                     close_connection=False,
                 )
 
-    def _flush_client_writes(self) -> None:
+    def _has_pending_writes(self) -> bool:
+        """Output is waiting on this gateway, not on the peer's receive window.
+
+        A write-blocked session is excluded: retrying it before the selector
+        reports writability is the busy-spin, not progress.
+        """
+        return bool(self._dirty - self._write_blocked)
+
+    def _set_write_interest(self, session: ClientSession, want: bool) -> None:
+        fileno = session.sock.fileno()
+        if want == (fileno in self._write_blocked):
+            return
+        events = selectors.EVENT_READ | (selectors.EVENT_WRITE if want else 0)
+        try:
+            self._selector.modify(session.sock, events, session)
+        except KeyError, ValueError:
+            return
+        if want:
+            self._write_blocked.add(fileno)
+        else:
+            self._write_blocked.discard(fileno)
+
+    def _flush_client_writes(self, writable: set[int] | None = None) -> None:
         for fileno in list(self._dirty):
             session = self._clients.get(fileno)
             if session is None:
                 self._dirty.discard(fileno)
+                self._write_blocked.discard(fileno)
                 continue
+            if fileno in self._write_blocked and not (writable and fileno in writable):
+                continue  # still waiting for the peer to drain its window
+            disconnected = False
+            eintr_retries = 0
             while session.out_queue:
                 payload = session.out_queue[0]
                 unsent = payload[session.out_offset :]
                 try:
                     sent = session.sock.send(unsent)
-                except BlockingIOError, OSError:
+                except BlockingIOError:
+                    self._set_write_interest(session, True)
+                    break
+                except OSError as exc:
+                    if _is_peer_gone(exc):
+                        self._disconnect(session, reason="peer_reset")
+                        disconnected = True
+                        break
+                    if exc.errno == errno.EINTR and eintr_retries < _MAX_EINTR_RETRIES:
+                        # Interrupted, not refused: retry rather than wait for
+                        # a writability edge that has already passed. Bounded,
+                        # so a socket that only ever raises EINTR still parks.
+                        eintr_retries += 1
+                        continue
+                    # Retryable (ENOBUFS, ENOMEM, ...). Park it exactly like
+                    # EAGAIN: breaking without registering write interest
+                    # leaves it dirty-but-not-blocked, which is the busy-spin
+                    # G1 removed (R4).
+                    self._set_write_interest(session, True)
                     break
 
                 if sent <= 0:
+                    self._set_write_interest(session, True)
                     break
 
+                eintr_retries = 0
                 session.out_offset += sent
                 if session.out_offset >= len(payload):
                     session.out_queue.popleft()
@@ -576,7 +659,11 @@ class AlfGateway:
                     session.lines_sent += 1
                     session.last_outbound = time.monotonic()
 
+            if disconnected:
+                continue
+
             if not session.out_queue:
+                self._set_write_interest(session, False)
                 self._dirty.discard(fileno)
                 if session.closing:
                     self._disconnect(session, reason="session_closed")
@@ -1490,8 +1577,10 @@ class AlfGateway:
             )
         symbols = [sym for sym in symbols if len(sym) <= _MAX_SYMBOL_LEN]
 
+        # Replace, never union: a symbol the engine has stopped listing must
+        # stop being tradable with this snapshot, not linger until restart.
         self._symbols_snapshot_loaded = True
-        self._known_symbols.update(symbols)
+        self._known_symbols = set(symbols)
 
         reply = [build_line("SYMBOLS", {"COUNT": str(len(symbols))})]
         for sym in symbols:
@@ -1953,8 +2042,11 @@ class AlfGateway:
             "engine restarted; closing %d session(s) so their clients log on again",
             len(lost),
         )
-        # Its configuration may have changed with it.
+        # Its configuration may have changed with it, so the symbol set this
+        # gateway validates against is stale until a fresh snapshot arrives.
         self._symbols_reply = None
+        self._symbols_snapshot_loaded = False
+        self._known_symbols = set()
         for session in lost:
             self._drop_lost_session(session, "The exchange engine restarted")
 
@@ -2279,6 +2371,7 @@ class AlfGateway:
         except KeyError, ValueError:
             pass
         self._dirty.discard(fileno)
+        self._write_blocked.discard(fileno)
         session.close()
         self._clients.pop(fileno, None)
         self._global_stats["connected_clients"] = len(self._clients)

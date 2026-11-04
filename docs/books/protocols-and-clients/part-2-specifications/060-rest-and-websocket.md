@@ -335,6 +335,11 @@ those replies it missed. The submit writes (`POST /orders`, `/oco`, `/combos`,
   `409 IDEMPOTENCY_KEY_REUSED`.
 - A request that failed before the engine was reached is not remembered, so it
   may be retried with the same key.
+- `replace` is two writes — cancel, then submit the replacement — and the key
+  records which of them succeeded. If the cancel is confirmed but the
+  replacement fails, a retry with the same key resumes at the replacement: it
+  does not cancel again, and it does not leave you with no order. A retry
+  after both steps succeeded replays the first reply as usual.
 - Keys are kept for `order_retention_sec` and are lost when the gateway
   restarts.
 

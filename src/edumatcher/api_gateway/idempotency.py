@@ -12,6 +12,11 @@ and nothing is sent twice.
   else.
 * Only a reply is remembered. A request that failed before reaching the engine
   (engine unavailable, validation) leaves nothing behind and may be retried.
+* A multi-step write records the steps it completed. ``POST
+  /orders/{id}/replace`` is a two-step saga (cancel, then submit the
+  replacement); if the replacement fails the entry is *kept* with the cancel
+  recorded, so the retry resumes at the replacement rather than cancelling an
+  already-cancelled order and never submitting anything (P2).
 * Keys live in this process for ``order_retention_sec`` and are lost on a
   gateway restart, like the gateway's order cache. One process per gateway id
   (enforced by config), so per-process is per-gateway.
@@ -46,6 +51,10 @@ class _Entry:
     future: asyncio.Future[Reply] = field(
         default_factory=lambda: asyncio.get_running_loop().create_future()
     )
+    #: Steps the handler has completed, carried across retries of this key.
+    state: dict[str, Any] = field(default_factory=dict)
+    #: False once a failed attempt released it, so a retry may run it again.
+    owned: bool = True
 
 
 class IdempotencyStore:
@@ -58,8 +67,16 @@ class IdempotencyStore:
     def _prune(self, now: float) -> None:
         while self._entries:
             first = next(iter(self._entries.values()))
-            if not first.future.done() or now - first.created < self._ttl:
+            # Entries are inserted in creation order, so the first one still
+            # inside its TTL means every entry behind it is too.
+            if now - first.created < self._ttl:
                 return
+            if first.owned and not first.future.done():
+                return  # an attempt is genuinely still running; keep waiting
+            # Expired, and either answered or released by a failed attempt.
+            # A released entry's future stays pending for ever if the client
+            # never retries, so waiting for it to finish would pin the cursor
+            # here and hide every entry behind it (R1).
             self._entries.popitem(last=False)
 
     def claim(self, scope: str, key: str, fingerprint: str) -> tuple[_Entry, bool]:
@@ -70,6 +87,12 @@ class IdempotencyStore:
         if entry is None:
             entry = _Entry(fingerprint=fingerprint, created=now)
             self._entries[(scope, key)] = entry
+            return entry, True
+        if entry.fingerprint == fingerprint and not entry.owned:
+            # A previous attempt failed part-way and left recorded steps.
+            # This caller takes it over and resumes from entry.state.
+            entry.owned = True
+            entry.future = asyncio.get_running_loop().create_future()
             return entry, True
         if entry.fingerprint != fingerprint:
             raise HTTPException(
@@ -104,26 +127,34 @@ async def idempotent(
     response: Response,
     scope: str,
     key: str | None,
-    run: Callable[[], Awaitable[Any]],
+    run: Callable[[dict[str, Any]], Awaitable[Any]],
 ) -> Any:
     """Run *run* once per *key*; replay its reply (status and body) after.
 
     The route's handler calls this around everything that sends to the engine.
     A duplicate waits on the first attempt; if that attempt fails, the
     duplicate makes its own attempt instead of inheriting the failure.
+
+    *run* is given the key's saga state: a dict that survives a failed attempt
+    and is handed to the retry, so a handler whose first engine write
+    succeeded can record that and resume rather than repeat it.
     """
     if key is None:
-        return await run()
+        return await run({})
     store: IdempotencyStore = request.app.state.idempotency
     fingerprint = await _fingerprint(request)
     while True:
         entry, owner = store.claim(scope, key, fingerprint)
         if owner:
             break
+        # Bound to the future we actually awaited: a failed saga attempt
+        # swaps a fresh one onto the entry, and asking the entry afterwards
+        # would miss the cancellation we were woken by.
+        waited = entry.future
         try:
-            code, result = await asyncio.shield(entry.future)
+            code, result = await asyncio.shield(waited)
         except asyncio.CancelledError:
-            if entry.future.cancelled():
+            if waited.cancelled():
                 continue  # the first attempt failed: try again ourselves
             raise
         if code is not None:
@@ -133,12 +164,20 @@ async def idempotent(
     # Its own task, so a client that disconnects mid-wait cannot cancel an
     # attempt whose write has already gone out: the reply is still recorded
     # and the client's retry gets it instead of sending a second order.
-    attempt = asyncio.ensure_future(run())
+    attempt = asyncio.ensure_future(run(entry.state))
 
     def record(done: asyncio.Future[Any]) -> None:
         if done.cancelled() or done.exception() is not None:
-            store.forget(scope, key)
-            entry.future.cancel()
+            waited = entry.future
+            if entry.state:
+                # Part of this write reached the engine. Keep the entry so the
+                # retry resumes from the recorded step; release it so the
+                # retry (or a waiter below) may own it.
+                entry.owned = False
+                entry.future = asyncio.get_running_loop().create_future()
+            else:
+                store.forget(scope, key)
+            waited.cancel()
         else:
             entry.future.set_result((response.status_code, done.result()))
 

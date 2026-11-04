@@ -4,6 +4,7 @@ over ZMQ for its structural/audit log."""
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import sqlite3
 import time
@@ -11,7 +12,7 @@ import uuid
 from contextlib import closing
 from datetime import datetime, tzinfo
 from collections.abc import Callable
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, Literal, TypeVar
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
@@ -30,7 +31,12 @@ from edumatcher.api_gateway.responses import (
 )
 from edumatcher.api_gateway.routing import ContractRoute
 from edumatcher.api_gateway.params import OrderIdPath
-from edumatcher.api_gateway.sessions import Session, auth, require_trading
+from edumatcher.api_gateway.sessions import (
+    Session,
+    auth,
+    correlation_id,
+    require_trading,
+)
 from edumatcher.index.history import STRUCTURAL_RECORD_TYPES
 from edumatcher.audit.archive import session_timezone
 from edumatcher.stats.event_types import EVENT_TYPES
@@ -140,6 +146,9 @@ def _session_tz(request: Request, conn: sqlite3.Connection) -> tzinfo:
     return resolved
 
 
+_T = TypeVar("_T")
+
+
 def _open_stats(request: Request) -> sqlite3.Connection:
     try:
         return open_readonly_connection(request.app.state.config.stats_db)
@@ -148,6 +157,24 @@ def _open_stats(request: Request) -> sqlite3.Connection:
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail={"error": {"code": "STATS_DB", "message": str(exc)}},
         ) from exc
+
+
+async def _in_stats_db(
+    request: Request, work: Callable[[sqlite3.Connection], _T]
+) -> _T:
+    """Run *work* against the statistics database on a worker thread.
+
+    SQLite is synchronous, so querying it straight from an ``async def``
+    handler stalls everything else sharing the event loop -- including the
+    engine round-trips the write endpoints are blocked on. Opening the
+    connection inside the thread also keeps it on the thread that uses it.
+    """
+
+    def _run() -> _T:
+        with closing(_open_stats(request)) as conn:
+            return work(conn)
+
+    return await asyncio.to_thread(_run)
 
 
 def _invalid(field: str, message: str) -> HTTPException:
@@ -278,7 +305,10 @@ async def history_orders(
     gateway_id = require_trading(session)
     _validate_time_filters(date, from_ts, to_ts)
     normalized_event_type = _validate_event_type(event_type)
-    with closing(_open_stats(request)) as conn:
+
+    def _query(
+        conn: sqlite3.Connection,
+    ) -> tuple[list[dict[str, Any]], str | None, str | None]:
         try:
             events, next_cursor = query_order_events(
                 conn,
@@ -295,6 +325,9 @@ async def history_orders(
         except InvalidCursorError as exc:
             raise _invalid("after", str(exc)) from exc
         retained_from = query_order_events_retained_from(conn, gateway_id=gateway_id)
+        return events, next_cursor, retained_from
+
+    events, next_cursor, retained_from = await _in_stats_db(request, _query)
     envelope = _paginated_envelope("events", events, next_cursor)
     envelope["retained_from"] = retained_from
     return envelope
@@ -323,9 +356,13 @@ async def history_order_lifecycle(
     placed before that point may show a partial timeline, or none.
     """
     gateway_id = require_trading(session)
-    with closing(_open_stats(request)) as conn:
+
+    def _query(conn: sqlite3.Connection) -> tuple[list[dict[str, Any]], str | None]:
         events = query_order_lifecycle(conn, gateway_id=gateway_id, order_id=order_id)
         retained_from = query_order_events_retained_from(conn, gateway_id=gateway_id)
+        return events, retained_from
+
+    events, retained_from = await _in_stats_db(request, _query)
     return {
         "events": events,
         "count": len(events),
@@ -372,7 +409,10 @@ async def history_fills(
     """
     gateway_id = require_trading(session)
     _validate_time_filters(date, from_ts, to_ts)
-    with closing(_open_stats(request)) as conn:
+
+    def _query(
+        conn: sqlite3.Connection,
+    ) -> tuple[list[dict[str, Any]], str | None, str | None]:
         try:
             events, next_cursor = query_order_events(
                 conn,
@@ -389,6 +429,9 @@ async def history_fills(
         except InvalidCursorError as exc:
             raise _invalid("after", str(exc)) from exc
         retained_from = query_order_events_retained_from(conn, gateway_id=gateway_id)
+        return events, next_cursor, retained_from
+
+    events, next_cursor, retained_from = await _in_stats_db(request, _query)
     envelope = _paginated_envelope("events", events, next_cursor)
     envelope["retained_from"] = retained_from
     return envelope
@@ -430,7 +473,8 @@ async def history_trades(
     """
     _ = session
     _validate_time_filters(date, from_ts, to_ts)
-    with closing(_open_stats(request)) as conn:
+
+    def _query(conn: sqlite3.Connection) -> tuple[list[dict[str, Any]], str | None]:
         try:
             trades, next_cursor = query_trades(
                 conn,
@@ -445,6 +489,9 @@ async def history_trades(
             )
         except InvalidCursorError as exc:
             raise _invalid("after", str(exc)) from exc
+        return trades, next_cursor
+
+    trades, next_cursor = await _in_stats_db(request, _query)
     return _paginated_envelope(
         "trades", to_display_prices(trades, "trades"), next_cursor
     )
@@ -492,7 +539,8 @@ async def history_daily(
     _check("date", date, validate_date)
     _check("from", from_date, validate_date)
     _check("to", to_date, validate_date)
-    with closing(_open_stats(request)) as conn:
+
+    def _query(conn: sqlite3.Connection) -> tuple[list[dict[str, Any]], str | None]:
         try:
             rows, next_cursor = query_daily(
                 conn,
@@ -505,6 +553,9 @@ async def history_daily(
             )
         except InvalidCursorError as exc:
             raise _invalid("after", str(exc)) from exc
+        return rows, next_cursor
+
+    rows, next_cursor = await _in_stats_db(request, _query)
     return _paginated_envelope("daily", to_display_prices(rows, "daily"), next_cursor)
 
 
@@ -550,7 +601,8 @@ async def history_price_snapshots(
     """
     _ = session
     _validate_time_filters(date, from_ts, to_ts)
-    with closing(_open_stats(request)) as conn:
+
+    def _query(conn: sqlite3.Connection) -> tuple[list[dict[str, Any]], str | None]:
         try:
             rows, next_cursor = query_price_snapshots(
                 conn,
@@ -564,6 +616,9 @@ async def history_price_snapshots(
             )
         except InvalidCursorError as exc:
             raise _invalid("after", str(exc)) from exc
+        return rows, next_cursor
+
+    rows, next_cursor = await _in_stats_db(request, _query)
     return _paginated_envelope(
         "snapshots", to_display_prices(rows, "snapshots"), next_cursor
     )
@@ -613,7 +668,8 @@ async def history_index_daily(
     _check("date", date, validate_date)
     _check("from", from_date, validate_date)
     _check("to", to_date, validate_date)
-    with closing(_open_stats(request)) as conn:
+
+    def _query(conn: sqlite3.Connection) -> tuple[list[dict[str, Any]], str | None]:
         try:
             rows, next_cursor = query_index_daily(
                 conn,
@@ -626,6 +682,9 @@ async def history_index_daily(
             )
         except InvalidCursorError as exc:
             raise _invalid("after", str(exc)) from exc
+        return rows, next_cursor
+
+    rows, next_cursor = await _in_stats_db(request, _query)
     # No tick conversion: index levels are computed, dimensionless numbers,
     # not prices on a tick grid.
     return _paginated_envelope("daily", rows, next_cursor)
@@ -673,7 +732,8 @@ async def history_index_snapshots(
     """
     _ = session
     _validate_time_filters(date, from_ts, to_ts)
-    with closing(_open_stats(request)) as conn:
+
+    def _query(conn: sqlite3.Connection) -> tuple[list[dict[str, Any]], str | None]:
         try:
             rows, next_cursor = query_index_snapshots(
                 conn,
@@ -687,6 +747,9 @@ async def history_index_snapshots(
             )
         except InvalidCursorError as exc:
             raise _invalid("after", str(exc)) from exc
+        return rows, next_cursor
+
+    rows, next_cursor = await _in_stats_db(request, _query)
     return _paginated_envelope("snapshots", rows, next_cursor)
 
 
@@ -719,8 +782,12 @@ async def history_index_ids(
     """
     _ = session
     _check("date", date, validate_date)
-    with closing(_open_stats(request)) as conn:
+
+    def _query(conn: sqlite3.Connection) -> list[dict[str, Any]]:
         rows = query_index_ids(conn, date_value=date, tz=_session_tz(request, conn))
+        return rows
+
+    rows = await _in_stats_db(request, _query)
     index_ids = [row["index_id"] for row in rows]
     return {"index_ids": index_ids, "count": len(index_ids)}
 
@@ -809,16 +876,17 @@ async def history_index_events(
     # pm-index echoes request_id back (upper-cased) as the reply-topic
     # suffix, and IndexClient keys its pending futures by that same string.
     # Two fixes are needed here:
-    #  - a per-call UUID suffix, since a bare gateway_id/api_key is stable
+    #  - a per-call UUID suffix, since a bare correlation id is stable
     #    across a session, so two concurrent calls from the same session
     #    would otherwise both listen on (and resolve from) the same topic;
     #  - upper-casing the whole value ourselves, since pm-index upper-cases
     #    whatever it receives before using it in the reply topic name — a
-    #    mixed-case read-only api_key would otherwise never match what
-    #    IndexClient is actually listening for, timing out on every call.
-    request_id = (
-        f"{session.gateway_id or session.api_key}-{uuid.uuid4().hex[:10]}"
-    ).upper()
+    #    mixed-case id would otherwise never match what IndexClient is
+    #    actually listening for, timing out on every call.
+    # correlation_id() rather than the raw API key: pm-index publishes the
+    # reply topic to every subscriber, so a read-only session's key would be
+    # on the wire (P1).
+    request_id = f"{correlation_id(session)}-{uuid.uuid4().hex[:10]}".upper()
     try:
         reply = await index_client.request_history(
             request_id=request_id,

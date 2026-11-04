@@ -1161,6 +1161,14 @@ function UNCROSS(book):
 fills happen at the same computed equilibrium price — neither the bid's limit nor the ask's
 limit is used directly.
 
+**Self-match prevention.** The pseudo-code shows the plain curves. When a gateway
+has a policy and both a bid and an ask in the crossing range, the executable
+quantity at a price is that of the walk itself: a pair of one gateway is
+cancelled by the bid's SMP policy (the ask's when the bid's is `NONE`) instead of
+trading. After the fills, the same rule is applied once more to any bid and ask
+still crossed (a pair lying beyond the equilibrium price that SMP kept apart), so
+no auction ends with a crossed book.
+
 #### Complexity
 
 | Operation | Complexity | Notes |

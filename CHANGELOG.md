@@ -1,3 +1,44 @@
+## [v0.72.0] - 2026-11-04
+
+Release Type: major
+
+### 📋 Summary
+This release completes fixes K11–K18 from the key-component review for the gateways and hot paths. The BALF and API gateways now handle engine restarts and request correlation correctly. Gateway configuration parsing is stricter, and the engine, clearing, index, statistics and API gateway avoid several quadratic or full-scan costs. Auction uncrosses now apply self-match prevention when choosing the price, so the book never opens crossed.
+
+### ⚠️ Breaking Changes
+- Made the ALF, BALF, API, drop-copy, market-data, RALF gateway and log-server configurations reject fractional values for integer settings (for example `port: 5565.9`), as well as `NaN`, infinite and boolean numeric values, instead of silently truncating or accepting them; fix any such values in `engine_config.yaml` before upgrading
+- Changed the BALF gateway to send `LOGON_ACK` only after the engine returns symbol metadata; a logon can now be rejected with `SYMBOLS_UNAVAILABLE`, so BALF clients must handle that rejection and retry
+- Changed the BALF and API gateways to log out or de-authenticate sessions when `pm-engine` restarts, so clients must log on again instead of continuing on a session the engine no longer holds
+
+### 🚀 Improvements
+- Made auction price selection and the uncross apply self-match prevention in one shared walk, so the published indicative matches the uncross, and cancelled a gateway's still-crossed pairs after the uncross so no auction leaves a crossed book
+- Made the ALF gateway wait for socket write readiness under backpressure instead of busy-spinning, and drop sessions on permanent socket errors
+- Limited how many engine events the BALF gateway drains per loop iteration, so heartbeats and idle timeouts still run during a flood, and removed unused subscriptions
+- Moved API gateway history SQLite queries off the event loop, so a slow query no longer stalls other requests
+- Reduced hot-path cost with a single-pass auction equilibrium scan, a symbol-indexed clearing re-mark, a deque-based stop-order cascade, a cached index aggregate capitalisation, a shared API gateway last price and a covering `trade_log(symbol, quantity DESC, ts)` index for `pm-stats` rehydration
+
+### 🐛 Bug Fixes
+- Fixed BALF orders received before symbol metadata arrived being priced with the default two-decimal tick scale
+- Fixed pipelined BALF cancels and amends overwriting each other's pending request, so only one received a correlated reply; requests now carry a per-request tag
+- Fixed BALF `EVICT_OLD` not evicting a session that was still waiting for engine authentication
+- Fixed the API gateway sending a read-only session's raw API key on the engine bus as a correlation ID; it now uses a hashed `RO<16 hex>` ID
+- Fixed an API gateway `replace` whose replacement failed after a successful cancel; a retry with the same idempotency key now resumes at the replacement instead of cancelling again and leaving no order
+- Fixed concurrent index rebalances receiving each other's acknowledgements, and false `ReplayMiss` errors when replaying one symbol's trades interleaved with other symbols
+- Fixed the ALF gateway keeping symbols from before an engine restart after a new symbol snapshot arrived
+- Fixed idempotency entries released by a failed attempt blocking expiry of all later entries, and a full engine queue during BALF logon leaving the session waiting until timeout
+- Fixed integer configuration strings longer than 2^53 being rounded to a different number
+
+### 📚 Documentation
+- Added a detailed explanation of self-match prevention in an auction uncross to the order book deep dive, and updated the risk-controls and architecture overview pages
+- Updated the BALF gateway guide with the delayed `LOGON_ACK`, `SYMBOLS_UNAVAILABLE` and engine-restart logout behaviour
+- Updated the API gateway and REST documentation on API-key handling and resumable `replace` operations
+- Documented the new `trade_log` covering index in the SQLite schema reference
+
+### 🛠 Internal
+- Added regression tests for K11–K18 and the post-review fixes, a cross-gateway engine-restart contract test, a guard that fails if `session.api_key` is used outside its allowed places, and cost assertions for the hot paths
+- Added a shared strict numeric coercion module for configuration parsing
+- Extended the reference matcher and simulation forensics matching checks to model self-match prevention in auctions
+
 ## [v0.71.0] - 2026-11-04
 
 Release Type: major

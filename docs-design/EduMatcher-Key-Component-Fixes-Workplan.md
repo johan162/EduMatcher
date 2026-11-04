@@ -39,14 +39,14 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 | 8 | K8 | Index: non-finite prices, last-constituent delist atomicity, handler isolation | I2, I3, I4 | Med | K7 | 1 d | ☑ | 2026-11-03 |
 | 9 | K9 | Stats: duplicate trades and same-millisecond index updates | S1, S4 | Med | K0 | 1 d | ☑ | 2026-11-03 |
 | 10 | K10 | Stats: book snapshots use event time; snapshot baseline survives restart | S2, S3 | Med | K9 | 0.75 d | ☑ | 2026-11-03 |
-| 11 | K11 | BALF: symbol-metadata readiness gate; engine-restart session reconciliation | B1, B2 | High | K0 | 1.5 d | ☐ | |
-| 12 | K12 | BALF: per-request correlation tags; `EVICT_OLD` covers pending sessions | B3, B4 | Med | K11 | 1 d | ☐ | |
-| 13 | K13 | API gateway: API key must never be used as a bus correlation id | P1 | High (sec) | K0 | 0.5 d | ☑ | 2026-11-03 |
-| 14 | K14 | API gateway: recoverable replace (cancel succeeded, replacement failed) | P2 | High | K0 | 1 d | ☐ | |
-| 15 | K15 | API gateway: rebalance `command_id` matching, restart de-auth, per-symbol replay | P3, P4, P5 | Med | K13 | 1 d | ☐ | |
-| 16 | K16 | Event-loop fairness: ALF writability/backpressure, permanent socket errors, BALF drain budget, blocking SQLite in async routes | G1, G2, B5, P6 | Med | K0 | 1.5 d | ☐ | |
-| 17 | K17 | Input strictness: integer/NaN config validation, ALF stale symbol set after restart | G3, G4, B6 | Low | — | 0.5 d | ☑ | 2026-11-03 |
-| 18 | K18 | Complexity and hot-path cost | A3, C6, E3, I5, P7, S5 | Low | K1–K16 | 1.5 d | ☐ | |
+| 11 | K11 | BALF: symbol-metadata readiness gate; engine-restart session reconciliation | B1, B2 | High | K0 | 1.5 d | ☑ | 2026-11-04 |
+| 12 | K12 | BALF: per-request correlation tags; `EVICT_OLD` covers pending sessions | B3, B4 | Med | K11 | 1 d | ☑ | 2026-11-04 |
+| 13 | K13 | API gateway: API key must never be used as a bus correlation id | P1 | High (sec) | K0 | 0.5 d | ☑ | 2026-11-04 |
+| 14 | K14 | API gateway: recoverable replace (cancel succeeded, replacement failed) | P2 | High | K0 | 1 d | ☑ | 2026-11-04 |
+| 15 | K15 | API gateway: rebalance `command_id` matching, restart de-auth, per-symbol replay | P3, P4, P5 | Med | K13 | 1 d | ☑ | 2026-11-04 |
+| 16 | K16 | Event-loop fairness: ALF writability/backpressure, permanent socket errors, BALF drain budget, blocking SQLite in async routes | G1, G2, B5, P6 | Med | K0 | 1.5 d | ☑ | 2026-11-04 |
+| 17 | K17 | Input strictness: integer/NaN config validation, ALF stale symbol set after restart | G3, G4, B6 | Low | — | 0.5 d | ☑ | 2026-11-04 |
+| 18 | K18 | Complexity and hot-path cost | A3, C6, E3, I5, P7, S5 | Low | K1–K16 | 1.5 d | ☑ | 2026-11-04 |
 | 19 | K19 | Retrospective: close the systemic test-suite gaps that let all 35 findings through | — | — | K1–K18 | 2 d | ☐ | |
 
 Total ≈ 21 d. Execution order is the table order; K0 is a prerequisite for
@@ -898,7 +898,11 @@ Done when:
 - **K11's readiness gate changes client-visible logon timing.** Delaying
   `LOGON_ACK` is the cleanest fix but is a protocol-behaviour change; the
   reject-until-ready alternative is less invasive. Decide explicitly before
-  implementing.
+  implementing. *Decided 2026-11-04: delay the accepted `LOGON_ACK` until
+  `system.symbols` is processed, with a `SYMBOLS_UNAVAILABLE` rejection after
+  `auth_timeout_sec` so a silent engine fails the logon instead of hanging it;
+  and, once ready, reject a `NEW_ORDER` naming a symbol the engine never
+  listed with `0x03` rather than pricing it at the default scale.*
 - **K19 item 5 will churn many existing tests.** Expect a large, mostly
   mechanical diff; land it alone, after all fixes.
 

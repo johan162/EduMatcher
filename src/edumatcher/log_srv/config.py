@@ -30,6 +30,7 @@ from edumatcher.config import (
     resolve_data_path,
     resolve_gateway_bind_host,
 )
+from edumatcher.config_coerce import as_float, as_int
 from edumatcher.logclient.protocol import DEFAULT_MAX_MESSAGE_BYTES
 
 DEFAULT_RETENTION_DAYS = 30  # §6.5 — null/0 opts back into unbounded retention
@@ -111,14 +112,7 @@ class LogClientConfig:
 
 
 def _as_float(raw: object, field: str) -> float:
-    if isinstance(raw, bool):
-        raise ValueError(f"log_server.client.{field} must be a number")
-    if not isinstance(raw, (int, str, float)):
-        raise ValueError(f"log_server.client.{field} must be a number")
-    try:
-        return float(raw)
-    except (TypeError, ValueError) as exc:
-        raise ValueError(f"log_server.client.{field} must be a number") from exc
+    return as_float(raw, f"log_server.client.{field}")
 
 
 def _load_log_client_config_from_raw(raw: dict[str, Any]) -> LogClientConfig:
@@ -186,14 +180,7 @@ def load_default_log_client_config() -> LogClientConfig:
 
 
 def _as_int(raw: object, field: str) -> int:
-    if isinstance(raw, bool):
-        raise ValueError(f"log_server.{field} must be an integer")
-    if not isinstance(raw, (int, str, float)):
-        raise ValueError(f"log_server.{field} must be an integer")
-    try:
-        return int(raw)
-    except (TypeError, ValueError) as exc:
-        raise ValueError(f"log_server.{field} must be an integer") from exc
+    return as_int(raw, f"log_server.{field}")
 
 
 def _as_optional_int(raw: object, field: str) -> int | None:
