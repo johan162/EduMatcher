@@ -70,7 +70,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 | 5 | A5 | Unenveloped command: count it and surface it | G5 | — | 0.5 d | ◐ | 2026-11-04 (uncommitted) |
 | 6 | A6 | Recorder durability: fsync policy, gap-on-restart marker, documented loss window | G6 | A1 | 1.5 d | ◐ | 2026-11-04 (uncommitted) |
 | 7 | A7 | Engine clock on ack and fill (decision D2) | G7 | D2 | 1 d | ◐ | 2026-11-04 (uncommitted) |
-| 8 | A8 | `story --queue`: book/queue view from checkpoint plus echoed commands (decision D3) | G8 | A4 | 2 d | ☐ | |
+| 8 | A8 | `pm-audit-replay queue`: order and level views, observing the re-run (D3, Q1-Q4 decided) | G8 | A4 | 3 d | ☐ | |
 | 9 | A9 | Close out: tick §17, evidence/dispute chapter in the operator guide | G9 | A1–A6 | 1 d | ☐ | |
 
 Order: A1, A2, A5 are independent and cheap; do A1 first. A4 re-runs only artifact runs (reload is rejected on those, so the config never changes mid-run).
@@ -188,12 +188,73 @@ to `order.ack` and `order.fill` in the spec, regenerate, and have replay show
 it at `-vv` as it does for trades. Existing logs stay readable (field absent).
 No backwards-compat code beyond the optional field.
 
-### A8 — Queue view
+### A8 — Queue view (design decided 2026-11-04)
 
-Depends on D3 and A4. `story --queue --order ID`: from the latest
-`book_checkpoint` plus `engine.trace` and echoed commands, show the order's
-place in its level over time and what traded ahead of it. Out of scope if D3 =
-document.
+**Decisions:** Q1 = observe the re-run (no trail-only model in 1.0); Q2 = operator tool with `--anonymise`; Q3 = **both** the order view and the level view are in A8 (about +1 day, so 3 d); Q4 = no cache. The text below is the design as proposed; where it calls the level view a follow-up, it is now in scope.
+
+**The question it answers.** "My resting order did not fill. Where was it in the
+queue, what traded ahead of it, and did the market ever reach its price?" Today
+`story` shows the order's own events and `rerun` shows the engine agrees, but
+nothing shows the *level*: the replay's state model deliberately keeps no book.
+
+**Approach: observe the re-run, do not build a second book.** A4's `rerun`
+already holds an engine whose book is exactly the live one after every command.
+A8 adds an observer hook to `Rerun` (called after each input with the engine and
+the ids bound live <-> re-run) and a `queue` module that, for one order, reads
+the engine's own book after each input:
+
+- its symbol, side, price, and **place in its level** (k of n, shares ahead,
+  the orders ahead with gateway and arrival_seq), from `book.resting_orders()`
+  sorted by the engine's own priority key;
+- the event that changed it: a trade ahead (id, qty, which resting order), a
+  cancel or expiry ahead, an amend that lost priority, an iceberg refill sent to
+  the back, a stop that armed or fired;
+- the market around it: best opposite price against its limit, the prices that
+  traded, and any halt, session phase or SMP event in the window.
+
+Using the engine means iceberg hidden size, stop triggers, trailing ratchets and
+amend-priority rules are the engine's, not a replay re-implementation that could
+disagree with it. The trail cross-check is free: the re-run is already compared
+with the live output, and `engine.trace` `RESTED.priority_seq` is compared with
+the re-run's position at the moment the order rested.
+
+**Command.** `pm-audit-replay queue --order ID [--symbol S] [--format text|ndjson]`.
+Text is a timeline, one line per change in position, ending in a verdict:
+"filled in full at 10:41:07", "cancelled by its owner with 3 orders and 1 200
+shares still ahead", or "still resting: its price was never reached (best
+opposite 10.05, its limit 10.00)". Exit codes as `rerun`.
+
+**What it cannot do.** It inherits `rerun`'s conditions: the trail begins at an
+engine start, holds one run, carries its config; it reads the whole trail per
+query. A mid-day window or a multi-run day is not answerable (see Q1).
+
+**Tests.** A scripted book with a known queue (three orders at a level, a trade
+that takes the first two, a cancel of one ahead, an amend that loses priority,
+an iceberg refill) asserts the exact position at each step; the verdict wording
+for filled, cancelled-with-queue-ahead and price-never-reached; and a planted
+disagreement between `engine.trace` and the re-run is reported.
+
+**Open questions (decide before building).**
+
+- **Q1. Re-run only, or also a trail-only model from `book_checkpoint`?** The
+  checkpoint holds the whole book in priority order at startup, each phase change
+  and EOD, so a model seeded from it plus echoed commands and `engine.trace`
+  could answer a mid-day window or a multi-run day without the engine. It would
+  also be a second matching implementation (amend priority, iceberg refill, SMP,
+  stops) that must be kept in step. Recommendation: re-run only for 1.0; seed
+  the re-run from a checkpoint in 1.x to lift the "begins at engine start" limit.
+- **Q2. Who may see it?** The view names the other gateways and quantities ahead
+  of the order, and an iceberg's hidden size. That is right for an operator and
+  wrong to hand a participant as it stands. Recommendation: operator tool only
+  for 1.0, with `--anonymise` that replaces other gateways by stable labels
+  (A, B, C) and hides iceberg reserve, so an excerpt can go in a dispute reply.
+- **Q3. Order-centred only, or also a level timeline** (`queue --symbol S --price P`:
+  the queue at one price over time)? The level view answers "what happened at
+  10.00 between 10:30 and 10:45" without choosing an order. Recommendation: order
+  view first; the level view reuses the observer hook and is a second small WP.
+- **Q4. Cost.** One whole-trail pass per query (minutes on a full simulated
+  day). Acceptable for a dispute tool; if not, cache the per-symbol position
+  series in the episode index. Recommendation: no cache for 1.0.
 
 ### A9 — Close-out
 
