@@ -176,6 +176,7 @@ required to produce identical output either way.
 | `anomalies` | Every finding, worst first, each with the `story` command to run next | No |
 | `stats` | Link confidence, envelope coverage and anomaly counts over the window | No |
 | `rerun` | Feeds the trail's commands to a fresh engine and compares what it publishes | No |
+| `queue` | Follows one resting order, or one price level, through the queue (observes the re-run) | No |
 | `index` | Builds or refreshes the episode index; `--stats` reports what it holds | — |
 
 ### `story` selectors
@@ -364,7 +365,7 @@ produced it.
 | `0` | Success |
 | `1` | Nothing to narrate, or no audit log at the given path |
 | `2` | Argument error, including a format a subcommand cannot produce |
-| `3` | `rerun` only: the trail cannot be re-run (see [Re-executing the trail](#re-executing-the-trail)) |
+| `3` | `rerun` or `queue`: the trail cannot be re-run (see [Re-executing the trail](#re-executing-the-trail)) |
 
 
 
@@ -635,6 +636,54 @@ Exit `0` is clean, `1` a difference, `3` the trail cannot be re-run: it does
 not begin at an engine start, holds more than one engine run, or carries no
 config (the engine ran from a YAML file; see `CONFIG_NOT_RECORDED`). It reads
 the whole trail in one pass, so allow minutes for a full simulated day.
+
+### Where was my order in the queue?
+
+`story` shows an order's own events. `queue` shows its *level*: where it stood
+among the orders at its price, what traded or was cancelled ahead of it, and
+whether the market ever reached it. It observes the re-run, so the positions are
+the engine's own, with its rules for time priority, iceberg slices and amends.
+
+```bash
+pm-audit-replay --log-file data/audit.log queue --order 2b153da6
+pm-audit-replay --log-file data/audit.log queue --symbol AAPL --price 264.15
+```
+
+```text
+order 2b153da6  BUY 50 AAPL @ 264.15  (TRADER01)
+07:00:00.118  rested at 264.15: 4 of 4 in its level, 1,300 shares ahead (3 orders); ahead of it: MM01 1,000, TRADER02 100, TRADER02 200
+07:00:09.402  TRADER02's order ahead (100 shares) was cancelled by its owner -> now 3 of 3 in its level, 1,200 shares ahead (2 orders)
+07:00:31.870  1,150 shares traded ahead of it (MM01, TRADER02) (trade 000001-000000001, 000001-000000002) -> now 2 of 2 in its level, 50 shares ahead (1 order)
+07:00:44.015  50 shares traded ahead of it (TRADER02) (trade 000001-000000003); filled 10 of 50 (trade 000001-000000004), 40 left -> now 1 of 1 in its level, 0 shares ahead (0 orders)
+07:01:12.560  cancelled by its owner
+verdict: cancelled by its owner with 40 of 50 shares unfilled; 4 trades at its price (1,210 shares) while it rested; at the last look 0 shares stood ahead of it
+```
+
+The order view ends in a **verdict**: filled in full, cancelled or expired with
+quantity left (and how much stood ahead), never queued, or still resting at the
+end of the trail. For a resting order the verdict also says whether the market
+ever traded at its price; if not, it gives the best opposite price against the
+order's limit, which is usually the whole answer to "why did it not fill". The
+level view lists each change at one price (`--side` narrows it) with what the
+level held after it.
+
+Quantity *ahead* is what is displayed. An iceberg's reserve joins the back of
+the level when its slice refills, so it stands ahead of nothing. The reserve is
+shown only when the output is not anonymised.
+
+`--anonymise` names every other gateway `gateway A`, `gateway B`, … in order of
+first appearance (the inspected order's own gateway keeps its name) and leaves
+iceberg reserve out, so the output can be quoted to a participant without
+naming their counterparties.
+
+Two warnings can appear in the timeline. One says the re-run and the live engine
+differ on the symbol from that point, so the positions after it are the re-run's.
+The other says the live engine's own `engine.trace` queued the order at a
+different priority than the re-run did; a clean trail never shows either. Like
+`rerun`, `queue` needs a trail that begins at an engine start, holds one run and
+carries its config, and reads the whole trail per query. Exit codes: `0`
+answered, `1` the order is not in the trail, `2` bad arguments, `3` the trail
+cannot be re-run.
 
 ### Feed it to something else
 

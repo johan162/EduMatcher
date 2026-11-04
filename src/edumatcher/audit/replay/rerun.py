@@ -50,8 +50,9 @@ import json
 import re
 import tempfile
 from collections import Counter
-from collections.abc import Generator, Iterator
+from collections.abc import Callable, Generator, Iterator
 from contextlib import contextmanager
+from dataclasses import dataclass
 from datetime import date, datetime, tzinfo
 from importlib.metadata import version
 from pathlib import Path
@@ -352,6 +353,28 @@ def _symbols(*outputs: list[tuple[str, dict[str, Any]]]) -> set[str]:
     return {str(p["symbol"]) for out in outputs for _, p in out if p.get("symbol")}
 
 
+@dataclass(frozen=True)
+class Step:
+    """One input the re-run has just fed the engine, for an observer.
+
+    ``rerun`` is what the fresh engine published for it, ``live`` what the live
+    engine did; ``engine`` is the fresh engine *after* the input, so an observer
+    reads the book the live engine had at that moment.  ``ids`` binds the
+    re-run's engine-made ids to the live ones, ``diverged`` says whether the two
+    engines are known to disagree on a symbol (an observer's reading of that
+    symbol is then the re-run's, not necessarily the live engine's).
+    """
+
+    ts: str
+    topic: str
+    payload: dict[str, Any]
+    rerun: list[tuple[str, dict[str, Any]]]
+    live: list[tuple[str, dict[str, Any]]]
+    engine: engine_main.Engine
+    ids: _Ids
+    diverged: frozenset[str]
+
+
 class Rerun:
     """One pass of the audit's commands through a fresh engine."""
 
@@ -365,6 +388,10 @@ class Rerun:
         self.reordered = 0
         self.kinds: Counter[str] = Counter()  # episodes by first difference
         self.ids = _Ids()
+        #: Called after every input with a :class:`Step` (the queue view).
+        self.observers: list[Callable[[Step], None]] = []
+        #: The audit time of the input being handled.
+        self.ts = ""
         #: Whether the persisted book was there to compare with.
         self.book_checked = False
 
@@ -400,7 +427,8 @@ class Rerun:
         with live_clock(files) as clock:
             with tempfile.TemporaryDirectory() as empty:
                 self.engine = fresh_engine(compiled.engine, sink, Path(empty))
-            for topic, chain, payload, live, _ts in inputs(files):
+            for topic, chain, payload, live, ts in inputs(files):
+                self.ts = ts
                 if topic == "startup":
                     self.step("startup", "", {}, sink.take(), live)
                     continue
@@ -438,6 +466,19 @@ class Rerun:
     ) -> None:
         diffs, reordered = _compare(self.ids, rerun, live)
         self.reordered += reordered
+        if self.observers:
+            seen = Step(
+                self.ts,
+                topic,
+                payload,
+                rerun,
+                live,
+                self.engine,
+                self.ids,
+                frozenset(self.diverged),
+            )
+            for observer in self.observers:
+                observer(seen)
         if not diffs:
             return
         symbols = _symbols(rerun, live) or {str(payload.get("symbol", ""))}
