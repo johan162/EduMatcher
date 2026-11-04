@@ -18,7 +18,7 @@
         <link rel="prev" href="../020-audit-trail/">
       
       
-        <link rel="next" href="../040-log-server/">
+        <link rel="next" href="../035-answering-a-dispute/">
       
       
         
@@ -3680,6 +3680,28 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#re-executing-the-trail" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Re-executing the trail
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#where-was-my-order-in-the-queue" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where was my order in the queue?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#feed-it-to-something-else" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3826,6 +3848,34 @@
   
 </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../035-answering-a-dispute/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Answering a Dispute
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -8247,6 +8297,16 @@ trail.</p>
 <td>No</td>
 </tr>
 <tr>
+<td><code>rerun</code></td>
+<td>Feeds the trail's commands to a fresh engine and compares what it publishes</td>
+<td>No</td>
+</tr>
+<tr>
+<td><code>queue</code></td>
+<td>Follows one resting order, or one price level, through the queue (observes the re-run)</td>
+<td>No</td>
+</tr>
+<tr>
 <td><code>index</code></td>
 <td>Builds or refreshes the episode index; <code>--stats</code> reports what it holds</td>
 <td>—</td>
@@ -8657,6 +8717,10 @@ produced it.</p>
 <td><code>2</code></td>
 <td>Argument error, including a format a subcommand cannot produce</td>
 </tr>
+<tr>
+<td><code>3</code></td>
+<td><code>rerun</code> or <code>queue</code>: the trail cannot be re-run (see <a href="#re-executing-the-trail">Re-executing the trail</a>)</td>
+</tr>
 </tbody>
 </table>
 <h2 id="what-it-can-catch">What it can catch<a class="headerlink" href="#what-it-can-catch" title="Permanent link">&para;</a></h2>
@@ -8896,6 +8960,11 @@ was over-counting.</p>
 <td>An engine restart observed mid-window. Not a fault, but nothing may be compared across it</td>
 </tr>
 <tr>
+<td><code>RECORDER_RESTART</code></td>
+<td>info</td>
+<td><code>pm-audit</code> was (re)started just before this line, so nothing was recorded while it was down. See <a href="../020-audit-trail/#what-can-be-lost">What can be lost</a></td>
+</tr>
+<tr>
 <td><code>ENVELOPE_MISSING</code></td>
 <td>info</td>
 <td>An engine-published message with no envelope. Expected on archived lines; on a current log, a publisher is bypassing <code>CausalPublisher</code></td>
@@ -8925,7 +8994,7 @@ was over-counting.</p>
 <tr>
 <td><code>ACK_WITHOUT_COMMAND</code></td>
 <td>warn</td>
-<td>An ack whose <code>command_id</code> matches no request in the window. <strong>Not currently raised</strong> — the code exists and nothing produces it</td>
+<td>An ack whose <code>command_id</code> matches no request in the window: the window starts after the command, or its echo was lost</td>
 </tr>
 <tr>
 <td><code>RESUME_WITHOUT_HALT</code></td>
@@ -8973,6 +9042,11 @@ was over-counting.</p>
 <td><code>ORPHAN_EVENT</code></td>
 <td>info</td>
 <td>A fact the resolver could not attach to anything</td>
+</tr>
+<tr>
+<td><code>CONFIG_NOT_RECORDED</code></td>
+<td>warn</td>
+<td>A <code>system.startup</code> with no compiled config: the engine ran from a YAML file, so the trail does not hold the limits, collars and tick sizes it ran on. Deploy with <code>pm-config-deploy</code> for any run that must stand as evidence</td>
 </tr>
 </tbody>
 </table>
@@ -9084,13 +9158,113 @@ indexed read rather than a graph walk.</p>
 <p>Low envelope coverage on a current log means a publisher is bypassing
 <code>CausalPublisher</code>. A high <code>HEURISTIC</code> share means the narrative is more
 inference than record, and should be read as such.</p>
+<h3 id="re-executing-the-trail">Re-executing the trail<a class="headerlink" href="#re-executing-the-trail" title="Permanent link">&para;</a></h3>
+<p>Everything above reads what the trail <em>says</em>. <code>rerun</code> checks it against the
+engine:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>pm-audit-replay<span class="w"> </span>--log-file<span class="w"> </span>data/audit.log<span class="w"> </span>rerun
+</code></pre></div>
+<p>The engine echoes every command it is asked to perform into the trail before it
+acts, so the trail is the engine's complete input. <code>rerun</code> builds a fresh engine
+from the configuration in <code>system.startup</code>, feeds it each command in order, and
+compares what it publishes with what the live engine published for that
+command. It also fires the engine's own timers where the trail names them: a
+circuit breaker reopening, and a gateway disconnected for missed heartbeats.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>re-ran 8 commands (order.new 2, system.gateway_connect 3, ...)
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>hidden inputs: 0
+<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a>outputs: 0 differing episodes; run made with 0.72.1, re-run with 0.72.1; ...
+<a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a>final book: 0 differences
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Line</th>
+<th>Means</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>hidden inputs</code></td>
+<td>State changes the live engine published with no command or named timer behind them. The trail does not hold what caused them, so the re-run cannot reproduce them</td>
+</tr>
+<tr>
+<td><code>outputs</code></td>
+<td>Commands after which the fresh engine published something different. A difference is non-determinism, a hidden input, or a change in the engine since the run, so re-run with the engine version the run used; the line names both versions</td>
+</tr>
+<tr>
+<td><code>final book</code></td>
+<td>The re-run's resting book against <code>gtc_orders.json</code> beside the trail. Said plainly when the file is not there</td>
+</tr>
+</tbody>
+</table>
+<p><code>rerun</code> reads every file in the data directory, archived days included, from the
+first line on. An engine restart in the trail is re-run as a restart: the fresh
+engine persists its book as the live one did on its way down, and the next run's
+engine starts from those files, on that run's own configuration and run
+sequence. Each start's book is compared with the live engine's <code>STARTUP</code>
+checkpoint, so a restart that came back with a different book (after <code>kill -9</code>
+the engine restores its last periodic checkpoint, not the book it had) is
+counted under <code>outputs</code>, and the note says how many restarts were re-run.</p>
+<p>Exit <code>0</code> is clean, <code>1</code> a difference, <code>3</code> the trail cannot be re-run. That is
+when:</p>
+<ul>
+<li>the first line is not an engine start, or that start restored orders from
+  files the trail does not hold (retention removed the day it began empty);</li>
+<li>a run carries no config (the engine ran from a YAML file; see
+  <code>CONFIG_NOT_RECORDED</code>);</li>
+<li>the trail provably misses engine output: the engine-wide sequence (<code>eseq</code>)
+  jumps, or <code>pm-audit</code> restarted while the engine ran. A recorder restart
+  between an engine's <code>system.eod</code> and its next start loses nothing, and
+  neither does one after which <code>eseq</code> simply continues.</li>
+</ul>
+<p>It reads the whole trail in one pass, so allow minutes for a full simulated day.</p>
+<h3 id="where-was-my-order-in-the-queue">Where was my order in the queue?<a class="headerlink" href="#where-was-my-order-in-the-queue" title="Permanent link">&para;</a></h3>
+<p><code>story</code> shows an order's own events. <code>queue</code> shows its <em>level</em>: where it stood
+among the orders at its price, what traded or was cancelled ahead of it, and
+whether the market ever reached it. It observes the re-run, so the positions are
+the engine's own, with its rules for time priority, iceberg slices and amends.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>pm-audit-replay<span class="w"> </span>--log-file<span class="w"> </span>data/audit.log<span class="w"> </span>queue<span class="w"> </span>--order<span class="w"> </span>2b153da6
+<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>pm-audit-replay<span class="w"> </span>--log-file<span class="w"> </span>data/audit.log<span class="w"> </span>queue<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--price<span class="w"> </span><span class="m">264</span>.15
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>order 2b153da6  BUY 50 AAPL @ 264.15  (TRADER01)
+<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>07:00:00.118  rested at 264.15: 4 of 4 in its level, 1,300 shares ahead (3 orders); ahead of it: MM01 1,000, TRADER02 100, TRADER02 200
+<a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a>07:00:09.402  TRADER02's order ahead (100 shares) was cancelled by its owner -&gt; now 3 of 3 in its level, 1,200 shares ahead (2 orders)
+<a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a>07:00:31.870  1,150 shares traded ahead of it (MM01, TRADER02) (trade 000001-000000001, 000001-000000002) -&gt; now 2 of 2 in its level, 50 shares ahead (1 order)
+<a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a>07:00:44.015  50 shares traded ahead of it (TRADER02) (trade 000001-000000003); filled 10 of 50 (trade 000001-000000004), 40 left -&gt; now 1 of 1 in its level, 0 shares ahead (0 orders)
+<a id="__codelineno-18-6" name="__codelineno-18-6" href="#__codelineno-18-6"></a>07:01:12.560  cancelled by its owner
+<a id="__codelineno-18-7" name="__codelineno-18-7" href="#__codelineno-18-7"></a>verdict: cancelled by its owner with 40 of 50 shares unfilled; 4 trades at its price (1,210 shares) while it rested; at the last look 0 shares stood ahead of it
+</code></pre></div>
+<p>The order view ends in a <strong>verdict</strong>: filled in full, cancelled or expired with
+quantity left (and how much stood ahead), never queued, or still resting at the
+end of the trail. A stop waits outside the level until a trade fires it: the
+timeline says when it was armed, which trade triggered it and what it became, and
+then follows it into its level. One never triggered ends in "still armed" or
+"never triggered" with its stop price. For a resting order the verdict also says whether the market
+ever traded at its price; if not, it gives the best opposite price against the
+order's limit, which is usually the whole answer to "why did it not fill". The
+level view lists each change at one price (<code>--side</code> narrows it) with what the
+level held after it.</p>
+<p>Quantity <em>ahead</em> is what is displayed. An iceberg's reserve joins the back of
+the level when its slice refills, so it stands ahead of nothing. The reserve is
+shown only when the output is not anonymised.</p>
+<p><code>--anonymise</code> names every other gateway <code>gateway A</code>, <code>gateway B</code>, … in order of
+first appearance (the inspected order's own gateway keeps its name) and leaves
+iceberg reserve out, so the output can be quoted to a participant without
+naming their counterparties.</p>
+<p>Two warnings can appear in the timeline. One says the re-run and the live engine
+differ on the symbol from that point, so the positions after it are the re-run's.
+The other says the live engine's own <code>engine.trace</code> queued the order at a
+different priority than the re-run did; a clean trail never shows either. Like
+<code>rerun</code>, <code>queue</code> needs a trail it can re-run (see above), and reads the whole
+trail per query. Exit codes: <code>0</code>
+answered, <code>1</code> the order is not in the trail, <code>2</code> bad arguments, <code>3</code> the trail
+cannot be re-run.</p>
 <h3 id="feed-it-to-something-else">Feed it to something else<a class="headerlink" href="#feed-it-to-something-else" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>pm-audit-replay<span class="w"> </span>stream<span class="w"> </span>--last<span class="w"> </span>1h<span class="w"> </span>--format<span class="w"> </span>ndjson<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span>-c<span class="w"> </span><span class="s1">'select(.type=="beat")'</span>
-<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>pm-audit-replay<span class="w"> </span>anomalies<span class="w"> </span>--severity<span class="w"> </span>error<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span>&gt;<span class="w"> </span>findings.json
-<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>pm-audit-replay<span class="w"> </span>story<span class="w"> </span>--order<span class="w"> </span>4f2c9a<span class="w"> </span>--format<span class="w"> </span>markdown<span class="w"> </span>&gt;&gt;<span class="w"> </span>incident.md
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>pm-audit-replay<span class="w"> </span>stream<span class="w"> </span>--last<span class="w"> </span>1h<span class="w"> </span>--format<span class="w"> </span>ndjson<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span>-c<span class="w"> </span><span class="s1">'select(.type=="beat")'</span>
+<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>pm-audit-replay<span class="w"> </span>anomalies<span class="w"> </span>--severity<span class="w"> </span>error<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span>&gt;<span class="w"> </span>findings.json
+<a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a>pm-audit-replay<span class="w"> </span>story<span class="w"> </span>--order<span class="w"> </span>4f2c9a<span class="w"> </span>--format<span class="w"> </span>markdown<span class="w"> </span>&gt;&gt;<span class="w"> </span>incident.md
 </code></pre></div>
 <h3 id="read-a-log-with-no-index-at-all">Read a log with no index at all<a class="headerlink" href="#read-a-log-with-no-index-at-all" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>pm-audit-replay<span class="w"> </span>stream<span class="w"> </span>--no-index<span class="w"> </span>--log-file<span class="w"> </span>/tmp/captured.log
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>pm-audit-replay<span class="w"> </span>stream<span class="w"> </span>--no-index<span class="w"> </span>--log-file<span class="w"> </span>/tmp/captured.log
 </code></pre></div>
 <p>Useful for a one-off trail that would only leave a database behind. <code>story</code>
 is the one subcommand this cannot serve.</p>
@@ -9135,9 +9309,9 @@ lower level disappears at a higher one.</p>
 </tbody>
 </table>
 <p>Level 0 is a different shape rather than a quieter level 1:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>09:31:02.120  order 4f2c9a1e6d… is still working at the end of the window — 150 of 200 filled
-<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>09:31:02.122  trade 000042-000… — AAPL 150 @ 74.80
-<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a>09:31:02.122  order 9ab1c47f2e… filled — 150 of 150 filled
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>09:31:02.120  order 4f2c9a1e6d… is still working at the end of the window — 150 of 200 filled
+<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a>09:31:02.122  trade 000042-000… — AAPL 150 @ 74.80
+<a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a>09:31:02.122  order 9ab1c47f2e… filled — 150 of 150 filled
 </code></pre></div>
 <h3 id="-format-text"><code>--format text</code><a class="headerlink" href="#-format-text" title="Permanent link">&para;</a></h3>
 <p>The default. One sentence per narrated fact, with any annotations the
@@ -9178,29 +9352,29 @@ object types:</p>
 </table>
 <p>One beat, pretty-printed (it is one line on the wire, and <code>fields</code> is shown
 abridged):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="p">{</span>
-<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a><span class="w">  </span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"beat"</span><span class="p">,</span>
-<a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a><span class="w">  </span><span class="nt">"episode"</span><span class="p">:</span><span class="w"> </span><span class="mi">4</span><span class="p">,</span>
-<a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a><span class="w">  </span><span class="nt">"seq"</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span>
-<a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a><span class="w">  </span><span class="nt">"sort_key"</span><span class="p">:</span><span class="w"> </span><span class="s2">"000000000000\u001f0\u001f00000000000000000019\u001f2026-09-08T09:31:02.122000+00:00\u001f000000000006"</span><span class="p">,</span>
-<a id="__codelineno-18-6" name="__codelineno-18-6" href="#__codelineno-18-6"></a><span class="w">  </span><span class="nt">"msg_id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"01M205PK3A0000000000000019"</span><span class="p">,</span>
-<a id="__codelineno-18-7" name="__codelineno-18-7" href="#__codelineno-18-7"></a><span class="w">  </span><span class="nt">"causation_id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"01M205PK330000000000000001"</span><span class="p">,</span>
-<a id="__codelineno-18-8" name="__codelineno-18-8" href="#__codelineno-18-8"></a><span class="w">  </span><span class="nt">"correlation_id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"01M205PK330000000000000001"</span><span class="p">,</span>
-<a id="__codelineno-18-9" name="__codelineno-18-9" href="#__codelineno-18-9"></a><span class="w">  </span><span class="nt">"topic_seq"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span>
-<a id="__codelineno-18-10" name="__codelineno-18-10" href="#__codelineno-18-10"></a><span class="w">  </span><span class="nt">"eseq"</span><span class="p">:</span><span class="w"> </span><span class="mi">19</span><span class="p">,</span>
-<a id="__codelineno-18-11" name="__codelineno-18-11" href="#__codelineno-18-11"></a><span class="w">  </span><span class="nt">"publisher_run"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
-<a id="__codelineno-18-12" name="__codelineno-18-12" href="#__codelineno-18-12"></a><span class="w">  </span><span class="nt">"receipt_ts"</span><span class="p">:</span><span class="w"> </span><span class="s2">"2026-09-08T09:31:02.122+00:00"</span><span class="p">,</span>
-<a id="__codelineno-18-13" name="__codelineno-18-13" href="#__codelineno-18-13"></a><span class="w">  </span><span class="nt">"topic"</span><span class="p">:</span><span class="w"> </span><span class="s2">"order.fill.TRADER01"</span><span class="p">,</span>
-<a id="__codelineno-18-14" name="__codelineno-18-14" href="#__codelineno-18-14"></a><span class="w">  </span><span class="nt">"kind"</span><span class="p">:</span><span class="w"> </span><span class="s2">"order.fill"</span><span class="p">,</span>
-<a id="__codelineno-18-15" name="__codelineno-18-15" href="#__codelineno-18-15"></a><span class="w">  </span><span class="nt">"role"</span><span class="p">:</span><span class="w"> </span><span class="s2">"progress"</span><span class="p">,</span>
-<a id="__codelineno-18-16" name="__codelineno-18-16" href="#__codelineno-18-16"></a><span class="w">  </span><span class="nt">"late"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
-<a id="__codelineno-18-17" name="__codelineno-18-17" href="#__codelineno-18-17"></a><span class="w">  </span><span class="nt">"text"</span><span class="p">:</span><span class="w"> </span><span class="s2">"4f2c9a1e6d… took 150 @ 74.80 from TRADER02's sell 9ab1c47f2e…"</span><span class="p">,</span>
-<a id="__codelineno-18-18" name="__codelineno-18-18" href="#__codelineno-18-18"></a><span class="w">  </span><span class="nt">"source"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">"file"</span><span class="p">:</span><span class="w"> </span><span class="s2">"audit.log"</span><span class="p">,</span><span class="w"> </span><span class="nt">"line"</span><span class="p">:</span><span class="w"> </span><span class="mi">7</span><span class="p">},</span>
-<a id="__codelineno-18-19" name="__codelineno-18-19" href="#__codelineno-18-19"></a><span class="w">  </span><span class="nt">"fields"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">"order_id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"4f2c9a1e6d8b47c3a5f09e21b7d4c6a8"</span><span class="p">,</span><span class="w"> </span><span class="nt">"fill_qty"</span><span class="p">:</span><span class="w"> </span><span class="mi">150</span><span class="p">,</span>
-<a id="__codelineno-18-20" name="__codelineno-18-20" href="#__codelineno-18-20"></a><span class="w">             </span><span class="nt">"fill_price"</span><span class="p">:</span><span class="w"> </span><span class="mf">74.8</span><span class="p">,</span><span class="w"> </span><span class="nt">"remaining_qty"</span><span class="p">:</span><span class="w"> </span><span class="mi">50</span><span class="p">,</span><span class="w"> </span><span class="nt">"liquidity_flag"</span><span class="p">:</span><span class="w"> </span><span class="s2">"TAKER"</span><span class="p">,</span>
-<a id="__codelineno-18-21" name="__codelineno-18-21" href="#__codelineno-18-21"></a><span class="w">             </span><span class="nt">"trade_ids"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"000042-000001873"</span><span class="p">]},</span>
-<a id="__codelineno-18-22" name="__codelineno-18-22" href="#__codelineno-18-22"></a><span class="w">  </span><span class="nt">"prices"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">"fill_price"</span><span class="p">:</span><span class="w"> </span><span class="mf">74.8</span><span class="p">,</span><span class="w"> </span><span class="nt">"price"</span><span class="p">:</span><span class="w"> </span><span class="mf">75.69</span><span class="p">}</span>
-<a id="__codelineno-18-23" name="__codelineno-18-23" href="#__codelineno-18-23"></a><span class="p">}</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a><span class="p">{</span>
+<a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a><span class="w">  </span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"beat"</span><span class="p">,</span>
+<a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a><span class="w">  </span><span class="nt">"episode"</span><span class="p">:</span><span class="w"> </span><span class="mi">4</span><span class="p">,</span>
+<a id="__codelineno-22-4" name="__codelineno-22-4" href="#__codelineno-22-4"></a><span class="w">  </span><span class="nt">"seq"</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span>
+<a id="__codelineno-22-5" name="__codelineno-22-5" href="#__codelineno-22-5"></a><span class="w">  </span><span class="nt">"sort_key"</span><span class="p">:</span><span class="w"> </span><span class="s2">"000000000000\u001f0\u001f00000000000000000019\u001f2026-09-08T09:31:02.122000+00:00\u001f000000000006"</span><span class="p">,</span>
+<a id="__codelineno-22-6" name="__codelineno-22-6" href="#__codelineno-22-6"></a><span class="w">  </span><span class="nt">"msg_id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"01M205PK3A0000000000000019"</span><span class="p">,</span>
+<a id="__codelineno-22-7" name="__codelineno-22-7" href="#__codelineno-22-7"></a><span class="w">  </span><span class="nt">"causation_id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"01M205PK330000000000000001"</span><span class="p">,</span>
+<a id="__codelineno-22-8" name="__codelineno-22-8" href="#__codelineno-22-8"></a><span class="w">  </span><span class="nt">"correlation_id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"01M205PK330000000000000001"</span><span class="p">,</span>
+<a id="__codelineno-22-9" name="__codelineno-22-9" href="#__codelineno-22-9"></a><span class="w">  </span><span class="nt">"topic_seq"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span>
+<a id="__codelineno-22-10" name="__codelineno-22-10" href="#__codelineno-22-10"></a><span class="w">  </span><span class="nt">"eseq"</span><span class="p">:</span><span class="w"> </span><span class="mi">19</span><span class="p">,</span>
+<a id="__codelineno-22-11" name="__codelineno-22-11" href="#__codelineno-22-11"></a><span class="w">  </span><span class="nt">"publisher_run"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
+<a id="__codelineno-22-12" name="__codelineno-22-12" href="#__codelineno-22-12"></a><span class="w">  </span><span class="nt">"receipt_ts"</span><span class="p">:</span><span class="w"> </span><span class="s2">"2026-09-08T09:31:02.122+00:00"</span><span class="p">,</span>
+<a id="__codelineno-22-13" name="__codelineno-22-13" href="#__codelineno-22-13"></a><span class="w">  </span><span class="nt">"topic"</span><span class="p">:</span><span class="w"> </span><span class="s2">"order.fill.TRADER01"</span><span class="p">,</span>
+<a id="__codelineno-22-14" name="__codelineno-22-14" href="#__codelineno-22-14"></a><span class="w">  </span><span class="nt">"kind"</span><span class="p">:</span><span class="w"> </span><span class="s2">"order.fill"</span><span class="p">,</span>
+<a id="__codelineno-22-15" name="__codelineno-22-15" href="#__codelineno-22-15"></a><span class="w">  </span><span class="nt">"role"</span><span class="p">:</span><span class="w"> </span><span class="s2">"progress"</span><span class="p">,</span>
+<a id="__codelineno-22-16" name="__codelineno-22-16" href="#__codelineno-22-16"></a><span class="w">  </span><span class="nt">"late"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+<a id="__codelineno-22-17" name="__codelineno-22-17" href="#__codelineno-22-17"></a><span class="w">  </span><span class="nt">"text"</span><span class="p">:</span><span class="w"> </span><span class="s2">"4f2c9a1e6d… took 150 @ 74.80 from TRADER02's sell 9ab1c47f2e…"</span><span class="p">,</span>
+<a id="__codelineno-22-18" name="__codelineno-22-18" href="#__codelineno-22-18"></a><span class="w">  </span><span class="nt">"source"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">"file"</span><span class="p">:</span><span class="w"> </span><span class="s2">"audit.log"</span><span class="p">,</span><span class="w"> </span><span class="nt">"line"</span><span class="p">:</span><span class="w"> </span><span class="mi">7</span><span class="p">},</span>
+<a id="__codelineno-22-19" name="__codelineno-22-19" href="#__codelineno-22-19"></a><span class="w">  </span><span class="nt">"fields"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">"order_id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"4f2c9a1e6d8b47c3a5f09e21b7d4c6a8"</span><span class="p">,</span><span class="w"> </span><span class="nt">"fill_qty"</span><span class="p">:</span><span class="w"> </span><span class="mi">150</span><span class="p">,</span>
+<a id="__codelineno-22-20" name="__codelineno-22-20" href="#__codelineno-22-20"></a><span class="w">             </span><span class="nt">"fill_price"</span><span class="p">:</span><span class="w"> </span><span class="mf">74.8</span><span class="p">,</span><span class="w"> </span><span class="nt">"remaining_qty"</span><span class="p">:</span><span class="w"> </span><span class="mi">50</span><span class="p">,</span><span class="w"> </span><span class="nt">"liquidity_flag"</span><span class="p">:</span><span class="w"> </span><span class="s2">"TAKER"</span><span class="p">,</span>
+<a id="__codelineno-22-21" name="__codelineno-22-21" href="#__codelineno-22-21"></a><span class="w">             </span><span class="nt">"trade_ids"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"000042-000001873"</span><span class="p">]},</span>
+<a id="__codelineno-22-22" name="__codelineno-22-22" href="#__codelineno-22-22"></a><span class="w">  </span><span class="nt">"prices"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">"fill_price"</span><span class="p">:</span><span class="w"> </span><span class="mf">74.8</span><span class="p">,</span><span class="w"> </span><span class="nt">"price"</span><span class="p">:</span><span class="w"> </span><span class="mf">75.69</span><span class="p">}</span>
+<a id="__codelineno-22-23" name="__codelineno-22-23" href="#__codelineno-22-23"></a><span class="p">}</span>
 </code></pre></div>
 <p><code>fields</code> is the recorded payload <strong>whole</strong>, so a consumer needing something
 the prose does not mention never has to go back to the log for it. <code>prices</code>

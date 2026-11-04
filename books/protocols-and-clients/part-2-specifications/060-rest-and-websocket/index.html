@@ -3207,6 +3207,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../operator-guide/part-6-observe-and-recover/035-answering-a-dispute/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Answering a Dispute
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../operator-guide/part-6-observe-and-recover/040-log-server/" class="md-nav__link">
         
   
@@ -8902,7 +8930,7 @@ optional parameters.</p>
 <tr>
 <td><a href="#post-apiv1adminreferencereload">POST /api/v1/admin/reference/reload</a></td>
 <td>Admin role</td>
-<td>Reload the compiled reference bundle in place</td>
+<td>Request a reference-data reload (currently refused by the engine)</td>
 </tr>
 </tbody>
 </table>
@@ -14756,7 +14784,10 @@ print without changing anything.</p>
 </tbody>
 </table>
 <h3 id="post-apiv1adminreferencereload"><code>POST /api/v1/admin/reference/reload</code><a class="headerlink" href="#post-apiv1adminreferencereload" title="Permanent link">&para;</a></h3>
-<p>Purpose: reload the compiled reference bundle in place.</p>
+<p>Purpose: request a reference-data reload. The current engine rejects this
+request because the active configuration cannot be both reloaded and
+reconstructed from the audit trail. Deploy a compiled config artifact and
+restart the engine to apply configuration changes.</p>
 <p><strong>Arguments</strong></p>
 <table>
 <thead>
@@ -14776,7 +14807,7 @@ print without changing anything.</p>
 </tr>
 </tbody>
 </table>
-<p><strong>Reply</strong></p>
+<p><strong>Reply</strong> (if an engine accepts the request)</p>
 <table>
 <thead>
 <tr>
@@ -14789,7 +14820,12 @@ print without changing anything.</p>
 <tr>
 <td><code>200 OK</code></td>
 <td><code>{ "status": "RELOADED", "config_version": "..." }</code></td>
-<td>Reference bundle reloaded</td>
+<td>Reload accepted by an engine that supports it</td>
+</tr>
+<tr>
+<td><code>409 Conflict</code></td>
+<td>error envelope</td>
+<td><code>RELOAD_REJECTED</code>: the current engine rejects reloads that cannot be recorded</td>
 </tr>
 </tbody>
 </table>

@@ -3640,6 +3640,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../part-6-observe-and-recover/035-answering-a-dispute/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Answering a Dispute
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../part-6-observe-and-recover/040-log-server/" class="md-nav__link">
         
   
@@ -8204,7 +8232,7 @@ surfaces but cannot submit, cancel, or inspect private orders.</p>
 <tr>
 <td><code>RELOAD_REJECTED</code></td>
 <td><code>409</code></td>
-<td><code>POST /admin/reference/reload</code> was rejected — usually because the file's symbol/index set changed</td>
+<td><code>POST /admin/reference/reload</code> was rejected because the active config cannot be reloaded and reconstructed from the audit trail</td>
 </tr>
 <tr>
 <td><code>HALT_REJECTED</code> / <code>RESUME_REJECTED</code></td>
@@ -8357,20 +8385,14 @@ when the engine loads or reloads its config. It changes if and only if the
 reference data changes, so a client can cache the bundle and poll
 <code>GET /reference/config-version</code> to know when to refetch. Treat it as opaque.</p>
 <h4 id="reloading-reference-data">Reloading reference data<a class="headerlink" href="#reloading-reference-data" title="Permanent link">&para;</a></h4>
-<p><code>POST /api/v1/admin/reference/reload</code> (ADMIN) re-reads the <code>engine_config.yaml</code>
-the engine started from and applies changes to tick sizes, collars, breaker
-ladders, the schedule and index descriptions. It is deliberately <strong>narrower</strong>
-than a restart:</p>
+<p><code>POST /api/v1/admin/reference/reload</code> (ADMIN) is currently rejected:</p>
 <ul>
-<li>It never creates or removes an order book, re-seeds market-maker quotes, or
-  touches session or halt state.</li>
-<li>A changed <strong>symbol set or index-id set</strong> is refused (<code>409 RELOAD_REJECTED</code>)
-  and nothing is applied: adding or removing an instrument needs a restart.</li>
-<li>An engine started from a compiled config artifact refuses it: there is no
-  file to re-read.</li>
+<li>A compiled config artifact has no editable source file to re-read.</li>
+<li>A YAML fallback's active config is not recorded in <code>system.startup</code>, so
+  accepting a reload would make the audit trail ambiguous.</li>
 </ul>
-<p>It is meant for tuning a band or threshold between classroom drills, not for
-live production changes.</p>
+<p>Use <code>pm-config-deploy</code> to compile and deploy the changed configuration, then
+restart the engine. This keeps the effective config tied to the audited run.</p>
 <h3 id="history-endpoints">History endpoints<a class="headerlink" href="#history-endpoints" title="Permanent link">&para;</a></h3>
 <p>Every <code>/history/*</code> endpoint except <code>/history/index-events</code> reads <code>pm-stats</code>'
 SQLite database (<code>--stats-db PATH</code>, default <code>data/stats.db</code>). Until <code>pm-stats</code>

@@ -3207,6 +3207,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../operator-guide/part-6-observe-and-recover/035-answering-a-dispute/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Answering a Dispute
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../operator-guide/part-6-observe-and-recover/040-log-server/" class="md-nav__link">
         
   
@@ -6910,6 +6938,17 @@
     <span class="md-ellipsis">
       
         system.gateway_auth.{gateway_id}
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#systemgateway_reject" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        system.gateway_reject
       
     </span>
   </a>
@@ -11729,6 +11768,11 @@ wire-format specification in the
 <td><code>api_gateway</code>, <code>gateway</code></td>
 </tr>
 <tr>
+<td><code>system.gateway_reject</code></td>
+<td><code>system</code></td>
+<td><code>api_gateway</code>, <code>gateway</code></td>
+</tr>
+<tr>
 <td><code>system.gateways.{gateway_id}</code></td>
 <td><code>system</code></td>
 <td><code>engine</code></td>
@@ -12100,6 +12144,13 @@ wire-format specification in the
 <td>Surplus on <code>imbalance_side</code>; zero when balanced.</td>
 </tr>
 <tr>
+<td><code>tick_decimals</code></td>
+<td><code>int</code></td>
+<td>omitted when unset</td>
+<td>ge 0, le 9, unit <code>dimensionless</code></td>
+<td>Decimal scale of the <code>*_ticks</code> prices in this message (1 tick = 10^-tick_decimals) -- the symbol's. Every message that carries a tick price carries its scale, so a reader of one line can turn it into money without guessing.</td>
+</tr>
+<tr>
 <td><code>eq_price_ticks</code></td>
 <td><code>ticks</code></td>
 <td>omitted when unset</td>
@@ -12182,6 +12233,13 @@ wire-format specification in the
 <td>required</td>
 <td>—</td>
 <td>Which of the five uncross paths produced this event.</td>
+</tr>
+<tr>
+<td><code>tick_decimals</code></td>
+<td><code>int</code></td>
+<td>omitted when unset</td>
+<td>ge 0, le 9, unit <code>dimensionless</code></td>
+<td>Decimal scale of the <code>*_ticks</code> prices in this message (1 tick = 10^-tick_decimals) -- the symbol's. Every message that carries a tick price carries its scale, so a reader of one line can turn it into money without guessing.</td>
 </tr>
 <tr>
 <td><code>eq_price_ticks</code></td>
@@ -17097,6 +17155,13 @@ wire-format specification in the
 <td>Machine-readable rejection classification, stable across every order-entry transport (ALF, BALF, REST) and every layer (gateway-local validation and engine-side business rules). Absent when accepted; present on every rejection. The human-readable detail rides in reason; this field never carries data values. New members may be added; existing members are never removed or renamed. A client must treat an unrecognised code as UNKNOWN.</td>
 </tr>
 <tr>
+<td><code>ts_ns</code></td>
+<td><code>int</code></td>
+<td>omitted when unset</td>
+<td>ge 0, unit <code>epoch_nanos</code></td>
+<td>The engine's clock when it decided this order's fate (accepted or refused), in Unix epoch nanoseconds from the same strictly increasing source as trade.executed.ts_ns, so an ack sorts against the prints around it. Absent on a record written before the field existed.</td>
+</tr>
+<tr>
 <td><code>symbol</code></td>
 <td><code>string</code></td>
 <td>omitted when unset</td>
@@ -17213,7 +17278,14 @@ wire-format specification in the
 <td><code>bool</code></td>
 <td>defaults to <code>False</code></td>
 <td>—</td>
-<td>True when this order was created by config-driven startup seeding rather than a live gateway submission. See OrderDisplay.is_seed (above) for the full rationale; this is the ack-time echo of the same fact, since order.ack — not order.new, which never reaches the engine's PUB feed — is the first audit-visible event for any order, seeded or live.</td>
+<td>True when this order was created by config-driven startup seeding rather than a live gateway submission. See OrderDisplay.is_seed (above) for the full rationale; this is the ack-time echo of the same fact. A seeded order has no order.new (the engine made it, no gateway sent it), so its order.ack is the first audit-visible event for it; a live order's order.new is echoed into the trail first.</td>
+</tr>
+<tr>
+<td><code>tick_decimals</code></td>
+<td><code>int</code></td>
+<td>omitted when unset</td>
+<td>ge 0, le 9, unit <code>dimensionless</code></td>
+<td>Decimal scale of the <code>*_ticks</code> prices in this message (1 tick = 10^-tick_decimals) -- the symbol's. Every message that carries a tick price carries its scale, so a reader of one line, or of a window of the trail that begins long after the book snapshot that declared it, can turn it into money without guessing. Absent when the message carries no tick price.</td>
 </tr>
 <tr>
 <td><code>price_ticks</code></td>
@@ -17385,6 +17457,13 @@ wire-format specification in the
 <td>defaults to <code>False</code></td>
 <td>—</td>
 <td>True when this order was created by config-driven startup seeding rather than a live gateway submission. See OrderDisplay.is_seed for the full rationale; carried here too so a fill reached after the originating order.ack has rotated out of the audit log still says whether the filled order was a config seed.</td>
+</tr>
+<tr>
+<td><code>ts_ns</code></td>
+<td><code>int</code></td>
+<td>omitted when unset</td>
+<td>ge 0, unit <code>epoch_nanos</code></td>
+<td>The match time of the trade behind this fill, in Unix epoch nanoseconds: identical to trade.executed.ts_ns (the last trade, when a sweep was coalesced into one fill). A fill and the print it reports carry one clock read. Absent on a record written before the field existed.</td>
 </tr>
 <tr>
 <td><code>trade_ids</code></td>
@@ -17666,6 +17745,13 @@ wire-format specification in the
 <td>The order as it was armed.</td>
 </tr>
 <tr>
+<td><code>tick_decimals</code></td>
+<td><code>int</code></td>
+<td>omitted when unset</td>
+<td>ge 0, le 9, unit <code>dimensionless</code></td>
+<td>Decimal scale of the <code>*_ticks</code> prices in this message (1 tick = 10^-tick_decimals) -- the symbol's. Every message that carries a tick price carries its scale, so a reader of one line, or of a window of the trail that begins long after the book snapshot that declared it, can turn it into money without guessing. Absent when the message carries no tick price.</td>
+</tr>
+<tr>
 <td><code>stop_price_ticks</code></td>
 <td><code>ticks</code></td>
 <td>required</td>
@@ -17753,6 +17839,13 @@ wire-format specification in the
 <td>omitted when unset</td>
 <td>ge 0, unit <code>shares</code></td>
 <td>ICEBERG_REFILL: the new visible slice.</td>
+</tr>
+<tr>
+<td><code>tick_decimals</code></td>
+<td><code>int</code></td>
+<td>omitted when unset</td>
+<td>ge 0, le 9, unit <code>dimensionless</code></td>
+<td>Decimal scale of the <code>*_ticks</code> prices in this message (1 tick = 10^-tick_decimals) -- the symbol's. Every message that carries a tick price carries its scale, so a reader of one line, or of a window of the trail that begins long after the book snapshot that declared it, can turn it into money without guessing. Absent when the message carries no tick price.</td>
 </tr>
 <tr>
 <td><code>stop_price_ticks</code></td>
@@ -17868,6 +17961,13 @@ wire-format specification in the
 <td>omitted when unset</td>
 <td>max_len 64</td>
 <td>Client correlation tag for this amend request. Engine-initiated cancels publish with request_tag=null.</td>
+</tr>
+<tr>
+<td><code>tick_decimals</code></td>
+<td><code>int</code></td>
+<td>omitted when unset</td>
+<td>ge 0, le 9, unit <code>dimensionless</code></td>
+<td>Decimal scale of the <code>*_ticks</code> prices in this message (1 tick = 10^-tick_decimals) -- the symbol's. Every message that carries a tick price carries its scale, so a reader of one line, or of a window of the trail that begins long after the book snapshot that declared it, can turn it into money without guessing. Absent when the message carries no tick price.</td>
 </tr>
 <tr>
 <td><code>price_ticks</code></td>
@@ -19402,6 +19502,13 @@ wire-format specification in the
 <td>required</td>
 <td>—</td>
 <td></td>
+</tr>
+<tr>
+<td><code>tick_decimals</code></td>
+<td><code>int</code></td>
+<td>omitted when unset</td>
+<td>ge 0, le 9, unit <code>dimensionless</code></td>
+<td>Decimal scale of the <code>*_ticks</code> prices in this message (1 tick = 10^-tick_decimals) -- the symbol's. Every message that carries a tick price carries its scale, so a reader of one line can turn it into money without guessing.</td>
 </tr>
 <tr>
 <td><code>reference_price_ticks</code></td>
@@ -22633,6 +22740,78 @@ wire-format specification in the
 <p>Section 26.4: <code>include: all</code> means "every field except the topic parameters", and taking the default here would have dropped the key from the wire with <code>pm-msgen check</code> still passing.</p>
 </div>
 <p><strong>See also:</strong> <code>system.gateway_connect</code>, <code>system.gateway_bye.{GW_ID}</code></p>
+<h3 id="systemgateway_reject"><code>system.gateway_reject</code><a class="headerlink" href="#systemgateway_reject" title="Permanent link">&para;</a></h3>
+<p><strong>Published by:</strong> <code>api_gateway</code>, <code>gateway</code></p>
+<p><strong>Transport:</strong> <code>engine_pub</code>, <code>engine_push</code></p>
+<p><strong>Since:</strong> 1.0</p>
+<p>Gateway to engine: I refused a participant's request myself, before the engine saw it. Authentication, role and rate-limit refusals are decided in the ALF, BALF and REST gateways and never reach the engine, so without this the exchange could neither show nor disprove "I sent it and you ignored it". PUSH/PULL like <code>gateway_connect</code>; the engine echoes it onto the bus like any command, which is how the audit trail comes to hold it. Malformed frames and field-validation refusals are deliberately not reported: they are counted by the gateway, and any one of them is unfalsifiable noise rather than a disputable decision.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Presence</th>
+<th>Rules</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>source</code></td>
+<td>enum: <code>ALF</code>, <code>BALF</code>, <code>REST</code></td>
+<td>required</td>
+<td>—</td>
+<td>Which gateway refused the request.</td>
+</tr>
+<tr>
+<td><code>gateway_id</code></td>
+<td><code>string</code></td>
+<td>defaults to <code>''</code></td>
+<td>max_len 32</td>
+<td>The participant the gateway believed it was talking to; "" before authentication. Claimed, not proven. Never an API key.</td>
+</tr>
+<tr>
+<td><code>peer</code></td>
+<td><code>string</code></td>
+<td>defaults to <code>''</code></td>
+<td>max_len 64</td>
+<td>Remote address of the connection (host:port).</td>
+</tr>
+<tr>
+<td><code>reject_code</code></td>
+<td>enum: <code>AUTH_REQUIRED</code>, <code>AUTH_FAILED</code>, <code>ROLE_DENIED</code>, <code>RATE_LIMITED</code></td>
+<td>required</td>
+<td>—</td>
+<td>The same codes <code>order.ack</code> uses for these refusals.</td>
+</tr>
+<tr>
+<td><code>reason</code></td>
+<td><code>string</code></td>
+<td>defaults to <code>''</code></td>
+<td>max_len 256</td>
+<td></td>
+</tr>
+<tr>
+<td><code>count</code></td>
+<td><code>int</code></td>
+<td>defaults to <code>1</code></td>
+<td>ge 1, unit <code>dimensionless</code></td>
+<td>Refusals this record stands for: itself plus those folded in since the last record for the same peer and code.</td>
+</tr>
+<tr>
+<td><code>ts_ns</code></td>
+<td><code>int</code></td>
+<td>required</td>
+<td>ge 0, unit <code>epoch_nanos</code></td>
+<td>The gateway's clock when it refused.</td>
+</tr>
+</tbody>
+</table>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>A gateway reports at most one record per peer host and reject code per second and carries the number it folded in as <code>count</code>, so a client flooding refused commands cannot flood the engine through this message, even with a new connection (source port) per request.</p>
+</div>
+<p><strong>See also:</strong> <code>system.gateway_connect</code>, <code>order.ack.{GW_ID}</code></p>
 <h3 id="systemgateway_disconnect"><code>system.gateway_disconnect</code><a class="headerlink" href="#systemgateway_disconnect" title="Permanent link">&para;</a></h3>
 <p><strong>Published by:</strong> <code>admin</code>, <code>api_gateway</code>, <code>gateway</code></p>
 <p><strong>Transport:</strong> <code>engine_pub</code>, <code>engine_push</code></p>
@@ -22867,6 +23046,13 @@ wire-format specification in the
 <td>omitted when unset</td>
 <td>—</td>
 <td>The trade that set the last trade price.</td>
+</tr>
+<tr>
+<td><code>tick_decimals</code></td>
+<td><code>int</code></td>
+<td>omitted when unset</td>
+<td>ge 0, le 9, unit <code>dimensionless</code></td>
+<td>Decimal scale of the <code>*_ticks</code> prices in this message (1 tick = 10^-tick_decimals) -- the symbol's. Every message that carries a tick price carries its scale, so a reader of one line, or of a window of the trail that begins long after the book snapshot that declared it, can turn it into money without guessing. Absent when the message carries no tick price.</td>
 </tr>
 </tbody>
 </table>
@@ -23300,7 +23486,7 @@ wire-format specification in the
 <p><strong>Published by:</strong> <code>api_gateway</code></p>
 <p><strong>Transport:</strong> <code>engine_pub</code>, <code>engine_push</code></p>
 <p><strong>Since:</strong> 1.0</p>
-<p>ADMIN to engine: re-read static reference data from disk. Deliberately narrower than a startup load -- it never re-seeds quotes, creates or removes books, or touches session and halt state, so a reload that changed the symbol set is rejected rather than partially applied.</p>
+<p>ADMIN to engine: re-read static reference data from disk. Deliberately narrower than a startup load -- it never re-seeds quotes, creates or removes books, or touches session and halt state, so a reload that changed the symbol set is rejected rather than partially applied. The engine also rejects reloads when the active config cannot be reconstructed from the audit trail: compiled artifacts have no reloadable source file, and YAML fallback config is not recorded in system.startup. Deploy a compiled artifact and restart to apply config changes without making the audit trail ambiguous.</p>
 <table>
 <thead>
 <tr>

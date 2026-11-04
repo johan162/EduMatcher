@@ -3230,6 +3230,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#one-day-in-detail" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        One day in detail
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#exit-codes-of-pm-eod-run" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4012,6 +4023,34 @@
     
   
     Audit Replay (pm-audit-replay)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../part-6-observe-and-recover/035-answering-a-dispute/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Answering a Dispute
   
 
     
@@ -9026,6 +9065,23 @@ word <code>balances</code>):</p>
 </code></pre></div>
 <p><code>--check</code> re-adds every settled day and reports any day that does not sum to
 zero. Healthy output is <code>OK - every settled date sums to zero</code>.</p>
+<h3 id="one-day-in-detail">One day in detail<a class="headerlink" href="#one-day-in-detail" title="Permanent link">&para;</a></h3>
+<p><code>pm-eod show</code> reads one date straight from the ledger (<code>eod.db</code>):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>pm-eod<span class="w"> </span>show<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-11-02<span class="w">                </span><span class="c1"># every account's amount and per-symbol P&amp;L</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>pm-eod<span class="w"> </span>show<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-11-02<span class="w"> </span>--gateway<span class="w"> </span>gw_alice
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>pm-eod<span class="w"> </span>show<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-11-02<span class="w"> </span>--steps<span class="w">        </span><span class="c1"># the run's steps with their full messages</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>trade_date | account  | amount  | detail
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>-----------+----------+---------+-----------------------
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>2026-11-02 | GW_ALICE | 120.00  | ACME=100.00 BOLT=20.00
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>2026-11-02 | GW_BOB   | -20.00  | ACME=-20.00
+<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>2026-11-02 | GW_CAROL | -100.00 | ACME=-80.00 BOLT=-20.00
+</code></pre></div>
+<p><code>amount</code> is the day's settlement in display-currency units: <strong>positive means the
+exchange owes the trader, negative means the trader owes the exchange</strong>. The
+<code>detail</code> column is the same result split by symbol before rounding. The amounts of
+one date always add up to zero; a rounding residual, if any, sits on the
+<code>EXCHANGE</code> account. With <code>--steps</code>, a date with no recorded run shows no rows.</p>
 <h3 id="exit-codes-of-pm-eod-run">Exit codes of <code>pm-eod run</code><a class="headerlink" href="#exit-codes-of-pm-eod-run" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
@@ -9055,15 +9111,15 @@ zero. Healthy output is <code>OK - every settled date sums to zero</code>.</p>
 </table>
 <h2 id="the-files-pm-eod-writes">The files <code>pm-eod</code> writes<a class="headerlink" href="#the-files-pm-eod-writes" title="Permanent link">&para;</a></h2>
 <p>For each settled date a folder <code>settlement/&lt;date&gt;/</code> is created:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>settlement/2026-11-03/
-<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>├── instructions.csv        who pays / receives what (for mail-merge)
-<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>├── leaderboard.csv         traders ranked by balance
-<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>├── summary.md              the instructor's one-page summary
-<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>├── summary.json            the same, machine-readable
-<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a>└── statements/
-<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a>    ├── GW_ALICE.md  GW_ALICE.json  GW_ALICE.csv
-<a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a>    ├── GW_BOB.md    GW_BOB.json    GW_BOB.csv
-<a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a>    └── GW_CAROL.md  GW_CAROL.json  GW_CAROL.csv
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>settlement/2026-11-03/
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>├── instructions.csv        who pays / receives what (for mail-merge)
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>├── leaderboard.csv         traders ranked by balance
+<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a>├── summary.md              the instructor's one-page summary
+<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a>├── summary.json            the same, machine-readable
+<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a>└── statements/
+<a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a>    ├── GW_ALICE.md  GW_ALICE.json  GW_ALICE.csv
+<a id="__codelineno-13-8" name="__codelineno-13-8" href="#__codelineno-13-8"></a>    ├── GW_BOB.md    GW_BOB.json    GW_BOB.csv
+<a id="__codelineno-13-9" name="__codelineno-13-9" href="#__codelineno-13-9"></a>    └── GW_CAROL.md  GW_CAROL.json  GW_CAROL.csv
 </code></pre></div>
 <p>The folder is built in a hidden work directory and renamed into place when
 complete. You never see a half-written day, and re-running a date replaces it
@@ -9072,32 +9128,32 @@ cleanly.</p>
 <p>This is what a trader reads. Here is Bob's statement for day 2 of the example
 (see also <a href="../../../participant-guide/part-5-positions-and-results/020-your-end-of-day-statement/">Your End-of-Day Statement</a>,
 which explains it line by line to the trader):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a># Statement for 2026-11-03
-<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>
-<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>Bob Berg (GW_BOB) &lt;bob@example.org&gt;
-<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>
-<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>**You owe the exchange 20.00.**
-<a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a>
-<a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a>- Today's result: -20.00
-<a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a>- Balance after today: -20.00
-<a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a>
-<a id="__codelineno-12-10" name="__codelineno-12-10" href="#__codelineno-12-10"></a>## Result by symbol
-<a id="__codelineno-12-11" name="__codelineno-12-11" href="#__codelineno-12-11"></a>
-<a id="__codelineno-12-12" name="__codelineno-12-12" href="#__codelineno-12-12"></a>| Symbol | Result |
-<a id="__codelineno-12-13" name="__codelineno-12-13" href="#__codelineno-12-13"></a>|---|---:|
-<a id="__codelineno-12-14" name="__codelineno-12-14" href="#__codelineno-12-14"></a>| AAPL | -20.00 |
-<a id="__codelineno-12-15" name="__codelineno-12-15" href="#__codelineno-12-15"></a>
-<a id="__codelineno-12-16" name="__codelineno-12-16" href="#__codelineno-12-16"></a>## Open positions at the close
-<a id="__codelineno-12-17" name="__codelineno-12-17" href="#__codelineno-12-17"></a>
-<a id="__codelineno-12-18" name="__codelineno-12-18" href="#__codelineno-12-18"></a>| Symbol | Quantity | Closing price |
-<a id="__codelineno-12-19" name="__codelineno-12-19" href="#__codelineno-12-19"></a>|---|---:|---:|
-<a id="__codelineno-12-20" name="__codelineno-12-20" href="#__codelineno-12-20"></a>| AAPL | -150 | 10.20 |
-<a id="__codelineno-12-21" name="__codelineno-12-21" href="#__codelineno-12-21"></a>
-<a id="__codelineno-12-22" name="__codelineno-12-22" href="#__codelineno-12-22"></a>## Trades
-<a id="__codelineno-12-23" name="__codelineno-12-23" href="#__codelineno-12-23"></a>
-<a id="__codelineno-12-24" name="__codelineno-12-24" href="#__codelineno-12-24"></a>| Time (UTC) | Symbol | Side | Quantity | Price |
-<a id="__codelineno-12-25" name="__codelineno-12-25" href="#__codelineno-12-25"></a>|---|---|---|---:|---:|
-<a id="__codelineno-12-26" name="__codelineno-12-26" href="#__codelineno-12-26"></a>| 10:30:01 | AAPL | SELL | 50 | 10.20 |
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a># Statement for 2026-11-03
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>
+<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>Bob Berg (GW_BOB) &lt;bob@example.org&gt;
+<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a>
+<a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a>**You owe the exchange 20.00.**
+<a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a>
+<a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a>- Today's result: -20.00
+<a id="__codelineno-14-8" name="__codelineno-14-8" href="#__codelineno-14-8"></a>- Balance after today: -20.00
+<a id="__codelineno-14-9" name="__codelineno-14-9" href="#__codelineno-14-9"></a>
+<a id="__codelineno-14-10" name="__codelineno-14-10" href="#__codelineno-14-10"></a>## Result by symbol
+<a id="__codelineno-14-11" name="__codelineno-14-11" href="#__codelineno-14-11"></a>
+<a id="__codelineno-14-12" name="__codelineno-14-12" href="#__codelineno-14-12"></a>| Symbol | Result |
+<a id="__codelineno-14-13" name="__codelineno-14-13" href="#__codelineno-14-13"></a>|---|---:|
+<a id="__codelineno-14-14" name="__codelineno-14-14" href="#__codelineno-14-14"></a>| AAPL | -20.00 |
+<a id="__codelineno-14-15" name="__codelineno-14-15" href="#__codelineno-14-15"></a>
+<a id="__codelineno-14-16" name="__codelineno-14-16" href="#__codelineno-14-16"></a>## Open positions at the close
+<a id="__codelineno-14-17" name="__codelineno-14-17" href="#__codelineno-14-17"></a>
+<a id="__codelineno-14-18" name="__codelineno-14-18" href="#__codelineno-14-18"></a>| Symbol | Quantity | Closing price |
+<a id="__codelineno-14-19" name="__codelineno-14-19" href="#__codelineno-14-19"></a>|---|---:|---:|
+<a id="__codelineno-14-20" name="__codelineno-14-20" href="#__codelineno-14-20"></a>| AAPL | -150 | 10.20 |
+<a id="__codelineno-14-21" name="__codelineno-14-21" href="#__codelineno-14-21"></a>
+<a id="__codelineno-14-22" name="__codelineno-14-22" href="#__codelineno-14-22"></a>## Trades
+<a id="__codelineno-14-23" name="__codelineno-14-23" href="#__codelineno-14-23"></a>
+<a id="__codelineno-14-24" name="__codelineno-14-24" href="#__codelineno-14-24"></a>| Time (UTC) | Symbol | Side | Quantity | Price |
+<a id="__codelineno-14-25" name="__codelineno-14-25" href="#__codelineno-14-25"></a>|---|---|---|---:|---:|
+<a id="__codelineno-14-26" name="__codelineno-14-26" href="#__codelineno-14-26"></a>| 10:30:01 | AAPL | SELL | 50 | 10.20 |
 </code></pre></div>
 <p>The headline sentence is always one of three:</p>
 <table>
@@ -9173,16 +9229,16 @@ arithmetic, and as text (<code>amount</code>: <code>"-20.00"</code>) for display
 </tbody>
 </table>
 <p><code>statements/GW_BOB.csv</code> has one row per symbol, handy for a spreadsheet:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>symbol,day_pnl,net_qty,mark
-<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>AAPL,-20.00,-150,10.20
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>symbol,day_pnl,net_qty,mark
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>AAPL,-20.00,-150,10.20
 </code></pre></div>
 <h3 id="instructionscsv-the-payment-instructions"><code>instructions.csv</code> — the payment instructions<a class="headerlink" href="#instructionscsv-the-payment-instructions" title="Permanent link">&para;</a></h3>
 <p>One line per trader. This is the file to use for sending the statements or for
 a classroom "who pays whom" board:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>gateway,name,email,amount,direction,balance
-<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>GW_ALICE,Alice Andersson,alice@example.org,20.00,receive,120.00
-<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>GW_BOB,Bob Berg,bob@example.org,-20.00,pay,-20.00
-<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a>GW_CAROL,Carol Carlsson,carol@example.org,0.00,none,0.00
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>gateway,name,email,amount,direction,balance
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>GW_ALICE,Alice Andersson,alice@example.org,20.00,receive,120.00
+<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a>GW_BOB,Bob Berg,bob@example.org,-20.00,pay,-20.00
+<a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a>GW_CAROL,Carol Carlsson,carol@example.org,0.00,none,0.00
 </code></pre></div>
 <table>
 <thead>
@@ -9211,10 +9267,10 @@ trader pays the exchange</em>.</p>
 <h3 id="leaderboardcsv"><code>leaderboard.csv</code><a class="headerlink" href="#leaderboardcsv" title="Permanent link">&para;</a></h3>
 <p>Traders ranked by running balance, highest first. Traders with an equal balance
 share a rank (and the next rank is skipped, as in sports tables):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>rank,gateway,name,balance
-<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>1,GW_ALICE,Alice Andersson,120.00
-<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>2,GW_CAROL,Carol Carlsson,0.00
-<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a>3,GW_BOB,Bob Berg,-20.00
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>rank,gateway,name,balance
+<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>1,GW_ALICE,Alice Andersson,120.00
+<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a>2,GW_CAROL,Carol Carlsson,0.00
+<a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a>3,GW_BOB,Bob Berg,-20.00
 </code></pre></div>
 <div class="admonition note">
 <p class="admonition-title">The leaderboard includes opening balances</p>
@@ -9223,23 +9279,23 @@ includes it. For a fair competition give everyone the same opening balance
 (or none).</p>
 </div>
 <h3 id="summarymd-summaryjson-for-the-instructor"><code>summary.md</code> / <code>summary.json</code> — for the instructor<a class="headerlink" href="#summarymd-summaryjson-for-the-instructor" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a># Exchange summary for 2026-11-03
-<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>
-<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a>- Accounts settled: 3
-<a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a>- Sum of all accounts: 0.00
-<a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a>- Rounding booked to the exchange: 0.00
-<a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a>
-<a id="__codelineno-16-7" name="__codelineno-16-7" href="#__codelineno-16-7"></a>## Biggest winners
-<a id="__codelineno-16-8" name="__codelineno-16-8" href="#__codelineno-16-8"></a>
-<a id="__codelineno-16-9" name="__codelineno-16-9" href="#__codelineno-16-9"></a>- GW_ALICE: 20.00
-<a id="__codelineno-16-10" name="__codelineno-16-10" href="#__codelineno-16-10"></a>
-<a id="__codelineno-16-11" name="__codelineno-16-11" href="#__codelineno-16-11"></a>## Biggest losers
-<a id="__codelineno-16-12" name="__codelineno-16-12" href="#__codelineno-16-12"></a>
-<a id="__codelineno-16-13" name="__codelineno-16-13" href="#__codelineno-16-13"></a>- GW_BOB: -20.00
-<a id="__codelineno-16-14" name="__codelineno-16-14" href="#__codelineno-16-14"></a>
-<a id="__codelineno-16-15" name="__codelineno-16-15" href="#__codelineno-16-15"></a>## Market
-<a id="__codelineno-16-16" name="__codelineno-16-16" href="#__codelineno-16-16"></a>
-<a id="__codelineno-16-17" name="__codelineno-16-17" href="#__codelineno-16-17"></a>Market statistics unavailable.
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a># Exchange summary for 2026-11-03
+<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>
+<a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a>- Accounts settled: 3
+<a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a>- Sum of all accounts: 0.00
+<a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a>- Rounding booked to the exchange: 0.00
+<a id="__codelineno-18-6" name="__codelineno-18-6" href="#__codelineno-18-6"></a>
+<a id="__codelineno-18-7" name="__codelineno-18-7" href="#__codelineno-18-7"></a>## Biggest winners
+<a id="__codelineno-18-8" name="__codelineno-18-8" href="#__codelineno-18-8"></a>
+<a id="__codelineno-18-9" name="__codelineno-18-9" href="#__codelineno-18-9"></a>- GW_ALICE: 20.00
+<a id="__codelineno-18-10" name="__codelineno-18-10" href="#__codelineno-18-10"></a>
+<a id="__codelineno-18-11" name="__codelineno-18-11" href="#__codelineno-18-11"></a>## Biggest losers
+<a id="__codelineno-18-12" name="__codelineno-18-12" href="#__codelineno-18-12"></a>
+<a id="__codelineno-18-13" name="__codelineno-18-13" href="#__codelineno-18-13"></a>- GW_BOB: -20.00
+<a id="__codelineno-18-14" name="__codelineno-18-14" href="#__codelineno-18-14"></a>
+<a id="__codelineno-18-15" name="__codelineno-18-15" href="#__codelineno-18-15"></a>## Market
+<a id="__codelineno-18-16" name="__codelineno-18-16" href="#__codelineno-18-16"></a>
+<a id="__codelineno-18-17" name="__codelineno-18-17" href="#__codelineno-18-17"></a>Market statistics unavailable.
 </code></pre></div>
 <ul>
 <li><strong>Sum of all accounts</strong> is the zero-sum proof. It should always read <code>0.00</code>.</li>
@@ -9256,22 +9312,22 @@ includes it. For a fair competition give everyone the same opening balance
 decision about wording that belong to you. <code>instructions.csv</code> is the
 ready-made input. A minimal script that prints one draft message per trader
 (replace the <code>print</code> with <code>smtplib</code> or your mail tool when you are ready):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">csv</span>
-<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a><span class="kn">import</span><span class="w"> </span><span class="nn">sys</span>
-<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
-<a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a>
-<a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a><span class="n">day</span> <span class="o">=</span> <span class="n">sys</span><span class="o">.</span><span class="n">argv</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>  <span class="c1"># for example 2026-11-03</span>
-<a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a><span class="n">base</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="s2">"settlement"</span><span class="p">)</span> <span class="o">/</span> <span class="n">day</span>
-<a id="__codelineno-17-7" name="__codelineno-17-7" href="#__codelineno-17-7"></a><span class="k">with</span> <span class="p">(</span><span class="n">base</span> <span class="o">/</span> <span class="s2">"instructions.csv"</span><span class="p">)</span><span class="o">.</span><span class="n">open</span><span class="p">()</span> <span class="k">as</span> <span class="n">fh</span><span class="p">:</span>
-<a id="__codelineno-17-8" name="__codelineno-17-8" href="#__codelineno-17-8"></a>    <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">csv</span><span class="o">.</span><span class="n">DictReader</span><span class="p">(</span><span class="n">fh</span><span class="p">):</span>
-<a id="__codelineno-17-9" name="__codelineno-17-9" href="#__codelineno-17-9"></a>        <span class="k">if</span> <span class="ow">not</span> <span class="n">row</span><span class="p">[</span><span class="s2">"email"</span><span class="p">]:</span>
-<a id="__codelineno-17-10" name="__codelineno-17-10" href="#__codelineno-17-10"></a>            <span class="k">continue</span>
-<a id="__codelineno-17-11" name="__codelineno-17-11" href="#__codelineno-17-11"></a>        <span class="n">statement</span> <span class="o">=</span> <span class="p">(</span><span class="n">base</span> <span class="o">/</span> <span class="s2">"statements"</span> <span class="o">/</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">row</span><span class="p">[</span><span class="s1">'gateway'</span><span class="p">]</span><span class="si">}</span><span class="s2">.md"</span><span class="p">)</span><span class="o">.</span><span class="n">read_text</span><span class="p">()</span>
-<a id="__codelineno-17-12" name="__codelineno-17-12" href="#__codelineno-17-12"></a>        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"To: </span><span class="si">{</span><span class="n">row</span><span class="p">[</span><span class="s1">'email'</span><span class="p">]</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
-<a id="__codelineno-17-13" name="__codelineno-17-13" href="#__codelineno-17-13"></a>        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Subject: Exchange statement </span><span class="si">{</span><span class="n">day</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
-<a id="__codelineno-17-14" name="__codelineno-17-14" href="#__codelineno-17-14"></a>        <span class="nb">print</span><span class="p">()</span>
-<a id="__codelineno-17-15" name="__codelineno-17-15" href="#__codelineno-17-15"></a>        <span class="nb">print</span><span class="p">(</span><span class="n">statement</span><span class="p">)</span>
-<a id="__codelineno-17-16" name="__codelineno-17-16" href="#__codelineno-17-16"></a>        <span class="nb">print</span><span class="p">(</span><span class="s2">"-"</span> <span class="o">*</span> <span class="mi">40</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">csv</span>
+<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a><span class="kn">import</span><span class="w"> </span><span class="nn">sys</span>
+<a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+<a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a>
+<a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a><span class="n">day</span> <span class="o">=</span> <span class="n">sys</span><span class="o">.</span><span class="n">argv</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>  <span class="c1"># for example 2026-11-03</span>
+<a id="__codelineno-19-6" name="__codelineno-19-6" href="#__codelineno-19-6"></a><span class="n">base</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="s2">"settlement"</span><span class="p">)</span> <span class="o">/</span> <span class="n">day</span>
+<a id="__codelineno-19-7" name="__codelineno-19-7" href="#__codelineno-19-7"></a><span class="k">with</span> <span class="p">(</span><span class="n">base</span> <span class="o">/</span> <span class="s2">"instructions.csv"</span><span class="p">)</span><span class="o">.</span><span class="n">open</span><span class="p">()</span> <span class="k">as</span> <span class="n">fh</span><span class="p">:</span>
+<a id="__codelineno-19-8" name="__codelineno-19-8" href="#__codelineno-19-8"></a>    <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">csv</span><span class="o">.</span><span class="n">DictReader</span><span class="p">(</span><span class="n">fh</span><span class="p">):</span>
+<a id="__codelineno-19-9" name="__codelineno-19-9" href="#__codelineno-19-9"></a>        <span class="k">if</span> <span class="ow">not</span> <span class="n">row</span><span class="p">[</span><span class="s2">"email"</span><span class="p">]:</span>
+<a id="__codelineno-19-10" name="__codelineno-19-10" href="#__codelineno-19-10"></a>            <span class="k">continue</span>
+<a id="__codelineno-19-11" name="__codelineno-19-11" href="#__codelineno-19-11"></a>        <span class="n">statement</span> <span class="o">=</span> <span class="p">(</span><span class="n">base</span> <span class="o">/</span> <span class="s2">"statements"</span> <span class="o">/</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">row</span><span class="p">[</span><span class="s1">'gateway'</span><span class="p">]</span><span class="si">}</span><span class="s2">.md"</span><span class="p">)</span><span class="o">.</span><span class="n">read_text</span><span class="p">()</span>
+<a id="__codelineno-19-12" name="__codelineno-19-12" href="#__codelineno-19-12"></a>        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"To: </span><span class="si">{</span><span class="n">row</span><span class="p">[</span><span class="s1">'email'</span><span class="p">]</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+<a id="__codelineno-19-13" name="__codelineno-19-13" href="#__codelineno-19-13"></a>        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Subject: Exchange statement </span><span class="si">{</span><span class="n">day</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+<a id="__codelineno-19-14" name="__codelineno-19-14" href="#__codelineno-19-14"></a>        <span class="nb">print</span><span class="p">()</span>
+<a id="__codelineno-19-15" name="__codelineno-19-15" href="#__codelineno-19-15"></a>        <span class="nb">print</span><span class="p">(</span><span class="n">statement</span><span class="p">)</span>
+<a id="__codelineno-19-16" name="__codelineno-19-16" href="#__codelineno-19-16"></a>        <span class="nb">print</span><span class="p">(</span><span class="s2">"-"</span> <span class="o">*</span> <span class="mi">40</span><span class="p">)</span>
 </code></pre></div>
 <p>Or simply hand each trader their own <code>statements/&lt;gateway&gt;.md</code> file, or post
 <code>leaderboard.csv</code> on the classroom screen.</p>
@@ -9331,23 +9387,23 @@ real data is less repetitive).</p>
 <h4 id="restoring-a-backup">Restoring a backup<a class="headerlink" href="#restoring-a-backup" title="Permanent link">&para;</a></h4>
 <p>You need the <code>zstd</code> command (or Python 3.14, which has <code>compression.zstd</code>
 built in). <strong>Stop the processes that use the database first</strong>, then:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="c1"># 1. Decompress the backup to a new file</span>
-<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>zstd<span class="w"> </span>-d<span class="w"> </span>backup/2026-11-03/clearing.db.zst<span class="w"> </span>-o<span class="w"> </span>/tmp/clearing-restored.db
-<a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a>
-<a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a><span class="c1"># 2. Look at it before trusting it</span>
-<a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a>sqlite3<span class="w"> </span>/tmp/clearing-restored.db<span class="w"> </span><span class="s2">"PRAGMA integrity_check; SELECT COUNT(*) FROM trade_events;"</span>
-<a id="__codelineno-18-6" name="__codelineno-18-6" href="#__codelineno-18-6"></a>
-<a id="__codelineno-18-7" name="__codelineno-18-7" href="#__codelineno-18-7"></a><span class="c1"># 3. Move the broken files aside and put the restored one in place</span>
-<a id="__codelineno-18-8" name="__codelineno-18-8" href="#__codelineno-18-8"></a>mv<span class="w"> </span>clearing.db<span class="w"> </span>clearing.db.broken
-<a id="__codelineno-18-9" name="__codelineno-18-9" href="#__codelineno-18-9"></a>rm<span class="w"> </span>-f<span class="w"> </span>clearing.db-wal<span class="w"> </span>clearing.db-shm
-<a id="__codelineno-18-10" name="__codelineno-18-10" href="#__codelineno-18-10"></a>cp<span class="w"> </span>/tmp/clearing-restored.db<span class="w"> </span>clearing.db
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a><span class="c1"># 1. Decompress the backup to a new file</span>
+<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a>zstd<span class="w"> </span>-d<span class="w"> </span>backup/2026-11-03/clearing.db.zst<span class="w"> </span>-o<span class="w"> </span>/tmp/clearing-restored.db
+<a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a>
+<a id="__codelineno-20-4" name="__codelineno-20-4" href="#__codelineno-20-4"></a><span class="c1"># 2. Look at it before trusting it</span>
+<a id="__codelineno-20-5" name="__codelineno-20-5" href="#__codelineno-20-5"></a>sqlite3<span class="w"> </span>/tmp/clearing-restored.db<span class="w"> </span><span class="s2">"PRAGMA integrity_check; SELECT COUNT(*) FROM trade_events;"</span>
+<a id="__codelineno-20-6" name="__codelineno-20-6" href="#__codelineno-20-6"></a>
+<a id="__codelineno-20-7" name="__codelineno-20-7" href="#__codelineno-20-7"></a><span class="c1"># 3. Move the broken files aside and put the restored one in place</span>
+<a id="__codelineno-20-8" name="__codelineno-20-8" href="#__codelineno-20-8"></a>mv<span class="w"> </span>clearing.db<span class="w"> </span>clearing.db.broken
+<a id="__codelineno-20-9" name="__codelineno-20-9" href="#__codelineno-20-9"></a>rm<span class="w"> </span>-f<span class="w"> </span>clearing.db-wal<span class="w"> </span>clearing.db-shm
+<a id="__codelineno-20-10" name="__codelineno-20-10" href="#__codelineno-20-10"></a>cp<span class="w"> </span>/tmp/clearing-restored.db<span class="w"> </span>clearing.db
 </code></pre></div>
 <p>Without the <code>zstd</code> tool, Python can do step 1:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">compression</span><span class="w"> </span><span class="kn">import</span> <span class="n">zstd</span>
-<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
-<a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a>
-<a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a><span class="n">src</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="s2">"backup/2026-11-03/clearing.db.zst"</span><span class="p">)</span>
-<a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a><span class="n">Path</span><span class="p">(</span><span class="s2">"/tmp/clearing-restored.db"</span><span class="p">)</span><span class="o">.</span><span class="n">write_bytes</span><span class="p">(</span><span class="n">zstd</span><span class="o">.</span><span class="n">decompress</span><span class="p">(</span><span class="n">src</span><span class="o">.</span><span class="n">read_bytes</span><span class="p">()))</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">compression</span><span class="w"> </span><span class="kn">import</span> <span class="n">zstd</span>
+<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+<a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a>
+<a id="__codelineno-21-4" name="__codelineno-21-4" href="#__codelineno-21-4"></a><span class="n">src</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="s2">"backup/2026-11-03/clearing.db.zst"</span><span class="p">)</span>
+<a id="__codelineno-21-5" name="__codelineno-21-5" href="#__codelineno-21-5"></a><span class="n">Path</span><span class="p">(</span><span class="s2">"/tmp/clearing-restored.db"</span><span class="p">)</span><span class="o">.</span><span class="n">write_bytes</span><span class="p">(</span><span class="n">zstd</span><span class="o">.</span><span class="n">decompress</span><span class="p">(</span><span class="n">src</span><span class="o">.</span><span class="n">read_bytes</span><span class="p">()))</span>
 </code></pre></div>
 <p>Delete the old <code>-wal</code> and <code>-shm</code> files (step 3). They belong to the broken
 database and SQLite would otherwise try to apply them to the restored one.</p>
@@ -9364,19 +9420,19 @@ write it into the command: <code>--on-close "pm-eod run --pending --backup-keep-
 <p><code>pm-eod run --date 2026-11-03</code> is always safe. A day that is already settled
 says <code>already settled</code> and is not counted twice; the report and housekeeping run
 again (replacing the folder). To run only one step of a settled day:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>pm-eod<span class="w"> </span>run<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-11-03<span class="w"> </span>--only<span class="w"> </span>report<span class="w">     </span><span class="c1"># rewrite the statements</span>
-<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a>pm-eod<span class="w"> </span>run<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-11-03<span class="w"> </span>--only<span class="w"> </span>backup<span class="w">     </span><span class="c1"># take the backup again</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a>pm-eod<span class="w"> </span>run<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-11-03<span class="w"> </span>--only<span class="w"> </span>report<span class="w">     </span><span class="c1"># rewrite the statements</span>
+<a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a>pm-eod<span class="w"> </span>run<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-11-03<span class="w"> </span>--only<span class="w"> </span>backup<span class="w">     </span><span class="c1"># take the backup again</span>
 </code></pre></div>
 <p><code>--only</code> accepts <code>report</code>, <code>audit</code>, <code>logs</code> or <code>backup</code>. A step run with <code>--only</code>
 is not recorded in <code>pm-eod status</code>, so it can never mark a good day as bad.</p>
 <h3 id="look-before-you-leap-dry-run">Look before you leap: <code>--dry-run</code><a class="headerlink" href="#look-before-you-leap-dry-run" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>pm-eod<span class="w"> </span>run<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-11-03<span class="w"> </span>--dry-run
+<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>pm-eod<span class="w"> </span>run<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-11-03<span class="w"> </span>--dry-run
 </code></pre></div>
 <p>runs the checks and prints the amounts that <em>would</em> be settled, writing nothing
 at all:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a>2026-11-03:
-<a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a>  [ok] gate: closed, snapshot present, reconciled
-<a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a>  [ok] settle: would settle: GW_ALICE +20.00, GW_BOB -20.00, GW_CAROL +0.00
+<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>2026-11-03:
+<a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a>  [ok] gate: closed, snapshot present, reconciled
+<a id="__codelineno-24-3" name="__codelineno-24-3" href="#__codelineno-24-3"></a>  [ok] settle: would settle: GW_ALICE +20.00, GW_BOB -20.00, GW_CAROL +0.00
 </code></pre></div>
 <h3 id="the-scheduler-was-down-or-the-machine-was-off">The scheduler was down, or the machine was off<a class="headerlink" href="#the-scheduler-was-down-or-the-machine-was-off" title="Permanent link">&para;</a></h3>
 <p>Nothing special: the next <code>pm-eod run --pending</code> (the scheduler runs it when it
@@ -9389,15 +9445,15 @@ line says <code>deferred: one backup after the run's last date</code>, and the r
 the backup itself, filed under the last day it got through. The worked example,
 with the scheduler down for all three days and <code>--pending</code> run once afterwards,
 ends like this:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>2026-11-04:
-<a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a>  [ok] gate: closed, snapshot present, reconciled
-<a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a>  [ok] settle: settled
-<a id="__codelineno-23-4" name="__codelineno-23-4" href="#__codelineno-23-4"></a>  [ok] report: wrote /srv/exchange/data/settlement/2026-11-04
-<a id="__codelineno-23-5" name="__codelineno-23-5" href="#__codelineno-23-5"></a>  [ok] audit: nothing pending
-<a id="__codelineno-23-6" name="__codelineno-23-6" href="#__codelineno-23-6"></a>  [ok] logs: no log directory
-<a id="__codelineno-23-7" name="__codelineno-23-7" href="#__codelineno-23-7"></a>  [ok] backup: deferred: one backup after the run's last date
-<a id="__codelineno-23-8" name="__codelineno-23-8" href="#__codelineno-23-8"></a>2026-11-04:
-<a id="__codelineno-23-9" name="__codelineno-23-9" href="#__codelineno-23-9"></a>  [ok] backup: backed up clearing.db, eod.db (132.0 KB -&gt; 4.5 KB); not present: stats.db
+<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>2026-11-04:
+<a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a>  [ok] gate: closed, snapshot present, reconciled
+<a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a>  [ok] settle: settled
+<a id="__codelineno-25-4" name="__codelineno-25-4" href="#__codelineno-25-4"></a>  [ok] report: wrote /srv/exchange/data/settlement/2026-11-04
+<a id="__codelineno-25-5" name="__codelineno-25-5" href="#__codelineno-25-5"></a>  [ok] audit: nothing pending
+<a id="__codelineno-25-6" name="__codelineno-25-6" href="#__codelineno-25-6"></a>  [ok] logs: no log directory
+<a id="__codelineno-25-7" name="__codelineno-25-7" href="#__codelineno-25-7"></a>  [ok] backup: deferred: one backup after the run's last date
+<a id="__codelineno-25-8" name="__codelineno-25-8" href="#__codelineno-25-8"></a>2026-11-04:
+<a id="__codelineno-25-9" name="__codelineno-25-9" href="#__codelineno-25-9"></a>  [ok] backup: backed up clearing.db, eod.db (132.0 KB -&gt; 4.5 KB); not present: stats.db
 </code></pre></div>
 <p>If a day fails and the run stops, the backup is still taken, under the last day
 before it.</p>
@@ -9425,7 +9481,7 @@ settle normally even before you add them (they just appear without a name until
 you do). To fix up earlier statements run <code>--only report</code> for those dates.</p>
 <h3 id="recomputing-a-day-redo">Recomputing a day (<code>--redo</code>)<a class="headerlink" href="#recomputing-a-day-redo" title="Permanent link">&para;</a></h3>
 <p>If something upstream was wrong and you want to recompute, use <code>--redo</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>pm-eod<span class="w"> </span>run<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-11-03<span class="w"> </span>--redo
+<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a>pm-eod<span class="w"> </span>run<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-11-03<span class="w"> </span>--redo
 </code></pre></div>
 <div class="admonition danger">
 <p class="admonition-title"><code>--redo</code> drops later days too</p>

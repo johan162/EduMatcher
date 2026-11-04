@@ -3595,6 +3595,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../035-answering-a-dispute/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Answering a Dispute
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../040-log-server/" class="md-nav__link">
         
   
@@ -7916,21 +7944,21 @@ dedicated query tool.</p>
 <td><code>pm-stats</code></td>
 <td>Per trade · a price snapshot every 15 min · at EOD · every <code>index.update</code> tick</td>
 <td>OHLCV daily stats, intraday price snapshots, per-trade log, index level snapshots and daily OHLC</td>
-<td><strong><code>pm-stats-cli</code></strong> or SQL — see <a href="../../part-4-run-a-market/060-statistics-and-reporting/">Statistics &amp; Reporting</a></td>
+<td><strong><code>pm-stats-cli</code></strong> or SQL — see <a href="../../part-4-run-a-market/060-statistics-and-reporting/">Statistics &amp; Reporting</a> · <a href="../../../architecture-and-development/part-1-architecture/040-sqlite-schemas/#statsdb">schema</a></td>
 </tr>
 <tr>
 <td><code>clearing.db</code> (SQLite)</td>
 <td><code>pm-clearing</code></td>
 <td>Per trade · on gateway connect/disconnect · at EOD</td>
 <td>Positions, VWAP cost, realized/unrealized P&amp;L, daily summaries, trade events, sessions</td>
-<td><strong><code>pm-clearing-cli</code></strong> or SQL — see <a href="../../../participant-guide/part-5-positions-and-results/010-positions-and-pnl/">Positions and P&amp;L</a></td>
+<td><strong><code>pm-clearing-cli</code></strong> or SQL — see <a href="../../../participant-guide/part-5-positions-and-results/010-positions-and-pnl/">Positions and P&amp;L</a> · <a href="../../../architecture-and-development/part-1-architecture/040-sqlite-schemas/#clearingdb">schema</a></td>
 </tr>
 <tr>
 <td><code>eod.db</code> (SQLite)</td>
 <td><code>pm-eod</code></td>
 <td>Once per trading date, after the close</td>
 <td>The settlement ledger: each trader's amount per trading date and the log of <code>pm-eod</code> runs</td>
-<td><strong><code>pm-eod balances</code></strong> / <strong><code>pm-eod status</code></strong> — see <a href="../../part-4-run-a-market/100-closing-the-day/">Closing the Day</a></td>
+<td><strong><code>pm-eod balances</code></strong> / <strong><code>status</code></strong> / <strong><code>show</code></strong> — see <a href="../../part-4-run-a-market/100-closing-the-day/">Closing the Day</a> · <a href="../../../architecture-and-development/part-1-architecture/040-sqlite-schemas/#eoddb">schema</a></td>
 </tr>
 <tr>
 <td><code>settlement/&lt;date&gt;/</code></td>
@@ -7957,8 +7985,8 @@ dedicated query tool.</p>
 <td><code>audit_index.db</code> (SQLite)</td>
 <td><code>pm-audit-cli</code></td>
 <td>On demand, when you run an indexed query</td>
-<td>Fast lookup index built over <code>audit.log</code></td>
-<td><strong><code>pm-audit-cli</code></strong></td>
+<td>Fast lookup index built over the audit trail; rebuildable</td>
+<td><strong><code>pm-audit-cli</code></strong> — see <a href="../020-audit-trail/">Audit Trail</a> · <a href="../../../architecture-and-development/part-1-architecture/040-sqlite-schemas/#audit_indexdb">schema</a></td>
 </tr>
 <tr>
 <td><code>indexes/&lt;ID&gt;_history.jsonl</code></td>
@@ -7974,6 +8002,97 @@ dedicated query tool.</p>
 <td>Divisor, constituent list, per-symbol last prices, day OHLC and last level, so the index resumes correctly after a restart</td>
 <td>JSON; loaded by <code>pm-index</code> at startup — rejects a mismatched constituent list (use <code>--reset</code>); see <a href="../../part-4-run-a-market/070-market-index/#state-file">Market Index — State file</a></td>
 </tr>
+<tr>
+<td><code>audit_replay.db</code> (SQLite)</td>
+<td><code>pm-audit-replay</code></td>
+<td>On demand, when an episode index is built or refreshed</td>
+<td>Derived episodes, causal links, anomalies and actors reconstructed from the audit trail; rebuildable</td>
+<td><strong><code>pm-audit-replay</code></strong> — see <a href="../030-audit-replay/">Audit Replay</a> · <a href="../../../architecture-and-development/part-1-architecture/040-sqlite-schemas/#audit_replaydb">schema</a></td>
+</tr>
+<tr>
+<td><code>log.db</code> (SQLite)</td>
+<td><code>pm-log-srv</code></td>
+<td>Continuously, one row per log event, connection and counter sample; old events pruned per <code>log_server.retention_days</code> (default 30)</td>
+<td>Log events from every process, their connection sessions and server counters</td>
+<td><strong><code>pm-log-cli</code></strong> or SQL — see <a href="../040-log-server/">Log Server</a> · <a href="../../../architecture-and-development/part-1-architecture/040-sqlite-schemas/#logdb">schema</a></td>
+</tr>
+<tr>
+<td><code>logs/&lt;name&gt;.log</code>, <code>*.log.zst</code></td>
+<td>every <code>pm-*</code> process; compressed by <code>pm-eod</code></td>
+<td>Only while a process cannot reach the log server</td>
+<td>Fallback log files; <code>pm-eod</code> compresses idle ones and removes old archives</td>
+<td>Plain text, <code>zstd -d</code> — see <a href="../040-log-server/">Log Server</a> and <a href="../../part-4-run-a-market/100-closing-the-day/#logs-compressing-and-tidying-the-fallback-logs">Closing the Day</a></td>
+</tr>
+<tr>
+<td><code>metrics.db</code> (SQLite)</td>
+<td><code>pm-monitor</code></td>
+<td>Continuously: raw samples and 1-minute rollups, daily totals, health events</td>
+<td>History behind the operator dashboard</td>
+<td><strong><code>pm-monitor-cli</code></strong> or SQL — see <a href="../060-health-monitor/#metricsdb">Health Monitoring</a> · <a href="../../../architecture-and-development/part-1-architecture/040-sqlite-schemas/#metricsdb">schema</a></td>
+</tr>
+<tr>
+<td><code>log-ui-acks.db</code> (SQLite)</td>
+<td>the log-gui bridge</td>
+<td>When an operator acknowledges an issue</td>
+<td>Acknowledgements and acknowledgement history of the log console</td>
+<td>The log console — see <a href="../050-log-console/">Log Console</a> · <a href="../../../architecture-and-development/part-1-architecture/040-sqlite-schemas/#log-ui-acksdb">schema</a></td>
+</tr>
+<tr>
+<td><code>market_sim_state.json</code></td>
+<td><code>pm-market-sim</code></td>
+<td>Periodically while running</td>
+<td>Value-model state, so a restart continues where the simulation left off</td>
+<td>JSON; loaded by <code>pm-market-sim</code> at startup — see <a href="../../part-4-run-a-market/090-market-model/">Market Model</a></td>
+</tr>
+<tr>
+<td><code>market_sim_news.db</code> (SQLite)</td>
+<td><code>pm-market-sim</code></td>
+<td>Per published news event and value jump; never pruned</td>
+<td>History of the simulated market's news and jumps</td>
+<td>SQL — see <a href="../../part-4-run-a-market/090-market-model/">Market Model</a> · <a href="../../../architecture-and-development/part-1-architecture/040-sqlite-schemas/#market_sim_newsdb">schema</a></td>
+</tr>
+<tr>
+<td><code>companies.db</code> (SQLite)</td>
+<td><code>pm-compdb-cli</code></td>
+<td>When you run <code>pm-compdb-cli init</code> / <code>build</code> / <code>add</code> / <code>update</code></td>
+<td>Made-up company profiles of the simulated tickers</td>
+<td><strong><code>pm-compdb-cli</code></strong>, the REST API — see <a href="../../../protocols-and-clients/part-2-specifications/060-rest-and-websocket/">REST and WebSocket</a> · <a href="../../../architecture-and-development/part-1-architecture/040-sqlite-schemas/#companiesdb">schema</a></td>
+</tr>
+<tr>
+<td><code>eod/&lt;date&gt;/</code></td>
+<td><code>pm-engine</code></td>
+<td>At each close</td>
+<td>Copies of <code>gtc_orders.json</code>, <code>gtc_combos.json</code> and <code>book_stats.json</code> — <strong>not</strong> <code>settlement/</code></td>
+<td>Plain JSON — see <a href="#at-the-close-every-trading-day">At the Close</a></td>
+</tr>
+<tr>
+<td><code>ai_swarm/&lt;date&gt;-&lt;name&gt;.jsonl</code></td>
+<td>the AI traders</td>
+<td>At each session close</td>
+<td>One summary file per trader and trading day</td>
+<td>JSON Lines — see <a href="../../../ai-traders/part-4-watch-and-teach/150-running-it-for-weeks/">Running It for Weeks</a></td>
+</tr>
+<tr>
+<td><code>ref_data/</code></td>
+<td><code>pm-setup</code>, <code>pm-config-gen</code>, you</td>
+<td>When configuration is deployed or edited</td>
+<td><code>engine_config.yaml</code>/<code>.json</code>, the simulation file and <code>roster.yaml</code> — configuration, never cleared by <code>pm-opctl clear</code></td>
+<td>See <a href="../../part-2-configure/010-the-configuration-workflow/">The Configuration Workflow</a> and <a href="../../part-4-run-a-market/100-closing-the-day/#the-roster-file">The roster file</a></td>
+</tr>
+<tr>
+<td><code>emo/</code></td>
+<td><code>pm-opctl</code></td>
+<td>While it starts and stops processes</td>
+<td>Per-process stdout/stderr (<code>&lt;name&gt;.log</code>) and the active profile name</td>
+<td>Plain text</td>
+</tr>
+<tr>
+<td><code>.container-config</code></td>
+<td>the container entrypoint</td>
+<td>At container start</td>
+<td>Name of the example the data directory was set up for</td>
+<td>Plain text — see <a href="../../part-1-install-and-deploy/030-container-deployment-walkthrough/">Container Deployment Walkthrough</a></td>
+</tr>
 </tbody>
 </table>
 <div class="admonition note">
@@ -7984,14 +8103,13 @@ the engine caught <code>Ctrl-C</code>/<code>SIGINT</code> or <code>SIGTERM</code
 kill (<code>SIGKILL</code>) skips these writes.</p>
 </div>
 <div class="admonition note">
-<p class="admonition-title">Files intentionally out of scope for this page</p>
-<p>Two other named constants under the data directory exist but are not
-persistence in the sense of this page: <code>log.db</code> / <code>logs/</code> belong to the
-separate <code>pm-log-srv</code> (LALF) subsystem, documented in
-<code>docs-design/EduMatcher-log-srv.md</code>, not to the matching engine covered
-here. <code>clearing_report.csv</code> was v1's CSV mechanism, before clearing moved
-to SQLite-first persistence; the path has since been removed — use
-<code>pm-clearing-cli ... --format csv</code> for an ad-hoc export instead.</p>
+<p class="admonition-title">Not persistence</p>
+<p><code>clearing_report.csv</code> was v1's CSV mechanism, before clearing moved to
+SQLite-first persistence; the path has since been removed — use
+<code>pm-clearing-cli ... --format csv</code> for an ad-hoc export instead. Lock files
+(<code>.pm-eod.lock</code>, <code>audit/.archive.lock</code>, <code>stats.db.lock</code>, <code>metrics.db.lock</code>) only stop two
+runs overlapping and hold no data. <code>-wal</code> and <code>-shm</code> files next to a SQLite database
+are its write-ahead log and shared memory; they belong to the database and go with it.</p>
 </div>
 <p>The engine state files are described in detail in
 <a href="#engine-state-files-in-detail">Engine State Files In Detail</a> below; the
