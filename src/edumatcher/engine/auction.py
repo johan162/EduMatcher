@@ -36,6 +36,19 @@ Worked example -- bids: 100 @ 10.2, 100 @ 10.0;  asks: 50 @ 9.9, 100 @ 10.1
 The tie at 10.1 / 10.2 is broken by the smaller surplus (equal here), and
 then by the lower price, because candidates are scanned in ascending order
 and only a strictly better one replaces the current best.
+
+Self-match prevention
+---------------------
+Both sides are resting, so there is no aggressor: the bid is treated as one
+(``_auction_smp_action``). Where a gateway with a policy sits on both sides the
+curves overstate the volume, so ``_simulated_quantity`` dry-runs the uncross
+walk at each candidate price (cancelling self-matching pairs as
+``execute_uncross`` will) and ``compute_equilibrium`` picks the price by that.
+The walk only meets orders that can trade at the chosen price, so
+``execute_uncross`` finishes by cancelling, without trading, any same-gateway
+bid and ask that SMP left crossed beyond it (``_resolve_self_match``).
+Participant-facing explanation and worked examples: order book deep dive,
+"Self-Match Prevention in an Auction Uncross".
 """
 
 # pyright: reportPrivateUsage=false

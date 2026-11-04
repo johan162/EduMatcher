@@ -1497,6 +1497,9 @@ check rather than a pre-trade validation:
   uncross prints: a bid above the equilibrium price and an ask below it that
   belong to one gateway never traded, and are cancelled by their SMP policy
   (no trade), so the book always opens uncrossed.
+  The architecture book explains the walk and works two auctions through
+  step by step: *Order Book Deep Dive*, "Self-Match Prevention in an Auction
+  Uncross".
 
 ### `FOK` — self-match liquidity is excluded before the pre-check
 

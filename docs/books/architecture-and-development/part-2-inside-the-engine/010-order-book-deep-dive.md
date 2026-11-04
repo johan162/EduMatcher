@@ -1613,6 +1613,9 @@ price before the hidden part existed for anyone. That was finding #17.
 
 ## Self-Match Prevention (SMP)
 
+> In an auction uncross there is no aggressor; see
+> [Self-Match Prevention in an Auction Uncross](#self-match-prevention-in-an-auction-uncross).
+
 An order from gateway G may not trade with a resting order from the same G
 (a *wash trade*). The policy travels on the order as `Order.smp_action`. If the
 client did not specify one, the engine resolves it to the gateway's configured
@@ -1853,6 +1856,254 @@ visible quantity is deducted from the level index (both were resting), the
 trade's `aggressor_side` is `"AUCTION"`, and the quote/OCO callbacks are
 skipped (the engine runs those follow-ups after the uncross).
 
+
+## Self-Match Prevention in an Auction Uncross
+
+[Self-Match Prevention](#self-match-prevention-smp) is easy to state for
+continuous trading: the incoming order is the *aggressor*, it meets one resting
+order at a time, and the policy says which of the two dies. An auction has no
+aggressor and no arrival order. Every order is already resting, the book is
+allowed to be crossed, and one price will be chosen for all of them. This
+section explains what the engine does about a gateway that is on both sides of
+that crossed book, why that is harder than it looks, and how the code does it.
+
+### What the SMP walk is for
+
+Two requirements pull in opposite directions:
+
+1. **No wash trade.** A bid and an ask of one gateway must not trade with each
+   other, in an auction either. The gateway's `smp_action` decides which order
+   is cancelled instead.
+2. **The price must be honest.** The auction prints the price that executes the
+   most volume. If a pair that will be cancelled still counts as volume when the
+   price is chosen, the exchange publishes (and prints) a price that is based on
+   trades that never happen.
+
+The textbook equilibrium uses two *curves*: demand at price P is every bid at or
+above P, supply is every ask at or below P, and the executable quantity is
+`min(demand, supply)`. That arithmetic ignores who owns the orders. With SMP the
+quantity that can really trade at P is whatever is left after the pairs of one
+gateway have been removed, and that depends on *which* orders meet *which*,
+which the curves do not know. The **SMP walk** is the answer: instead of
+adding up the curves, act out the uncross at P order by order, apply the SMP
+rules where a gateway meets itself, and count what trades.
+
+The same walk is used twice, in two modes:
+
+| Mode | Function | Mutates the book? | Used for |
+|---|---|---|---|
+| **Dry run** | `_simulated_quantity(book, P)` | No: works on copies (`_CandidateOrder`) | Choosing the price: `compute_equilibrium`, hence the indicative published every interval during a call phase |
+| **Execution** | `execute_uncross(book, P)` | Yes: real fills, real cancels | The uncross itself, when the phase ends, a halt reopens, or an operator runs `reopen` |
+
+The two loops follow the same rules by construction and a randomised test
+(`test_indicative_matches_random_multi_gateway_uncross`) checks that the dry-run
+quantity equals what the execution trades.
+
+### The rules, exactly
+
+At a candidate price P the walk takes the **candidate orders**: bids priced at P
+or above and asks priced at P or below, each side in price-time priority (best
+price first, then arrival order; an iceberg counts its hidden quantity but trades
+only its shown slice). It repeatedly looks at the head of each side, the best
+bid and the best ask:
+
+1. **Same OCO group?** If the two are the two legs of one OCO pair, the pair can
+   only be left standing as one order: the bid is cancelled and its sibling, the
+   ask, ends with it (no SMP reason is recorded, since the gateway may well allow
+   self-trades).
+2. **Same gateway with a policy?** Both orders are resting, so neither is the
+   aggressor. The convention (`_auction_smp_action`) is: **the bid is treated as
+   the aggressor and the ask as the resting order.** The bid's policy applies; if
+   the bid's policy is `NONE`, the ask's policy applies, with the ask as the
+   aggressor. Then:
+
+   | Policy | Cancelled | Survives and meets the next order |
+   |---|---|---|
+   | `CANCEL_AGGRESSOR` | the aggressor (the bid; the ask only when the ask's policy is the one used) | the passive order |
+   | `CANCEL_RESTING` | the passive order | the aggressor |
+   | `CANCEL_BOTH` | both | neither: the walk moves on to the next pair |
+   | `NONE` on both | nobody: the pair is free to trade (step 3) | |
+
+3. **Otherwise they trade.** `fill = min(shown bid, shown ask)`, both reduce, a
+   finished order leaves its level, a used-up iceberg slice refills at the back
+   of its level.
+
+The loop ends when one side has no candidate left. A cancel in step 1 or 2 takes
+the whole order away, an iceberg's hidden reserve included, as one cancel.
+
+The dry run adds up `traded`, and the totals needed for the indicative: *buy
+total* = traded + what survives of the candidate bids, *sell total* likewise;
+the surplus is `|buy total - sell total|` and the imbalance side is the larger
+total's. Cancelled orders count as zero, so the imbalance the engine publishes is
+the imbalance **after** SMP.
+
+### How the price is chosen with the walk
+
+`compute_equilibrium` still starts from the curves, because they give a cheap
+**upper bound**: SMP can only remove volume, so the walk at P can never exceed
+`min(demand(P), supply(P))`. The steps are:
+
+1. Build the curves in one pass each (O(P log P)).
+2. `_needs_simulation(book)`: if no gateway has an SMP-capable bid at or above one
+   of its own asks (and no OCO pair has both legs in the book), the curves are
+   exact and the walk is skipped. This is the usual case, and the reason the
+   indicative stays cheap.
+3. Otherwise try the candidate prices **best bound first**. Walk each one; stop as
+   soon as the next bound is smaller than the best walk found, because nothing
+   after it can win.
+4. The winner is the price with the most executed quantity, then the smallest
+   surplus, then the lowest price (the same tie-break as without SMP).
+
+### Executing the uncross
+
+`Engine._run_uncross` (end of phase, halt reopen, circuit-breaker reopen,
+operator `reopen`) does, per symbol:
+
+```
+result = compute_equilibrium(book)
+price  = result.eq_price, or result.resolve_price when nothing prints
+trades, events = execute_uncross(book, price)      # real fills and cancels
+publish trades and events; run the stops the print triggers; publish auction.result
+```
+
+`resolve_price` exists for the case where SMP (or an OCO pair) consumes the whole
+overlap: the book is crossed, **nothing trades**, but the offending orders must
+still be cancelled. The price is used to run the walk; it is never published as
+an equilibrium (`eq_price` stays `None`). An operator- or breaker-asserted price
+(`price_override`) replaces the discovered price and the walk is run at that
+price instead.
+
+`execute_uncross(book, P)` then does the walk of the rules above for real, and
+**ends with a resolve pass** (next section).
+
+### Why a resolve pass is needed: the pair the walk never meets
+
+The walk at P only sees orders that can trade *at P*. A bid at 101.00 and an ask
+at 100.50 of the same gateway, with P = 100.00, are both outside it: the ask is
+above P and so is not a candidate, and the bid trades with whatever is at or
+below 100.00 and then has quantity left. After the uncross the book holds a bid
+**above** an ask: a crossed book, and in the continuous session that follows it is
+exactly the situation SMP exists to prevent.
+
+This is not a rare corner. Two prices can execute the same volume once SMP has
+cancelled something, and the tie-break (least surplus, then lowest price) may
+pick the one at which the self-matching pair is *not* in range. It was seen in
+the full-day simulation of 2026-11-04: five symbols opened with crossed or
+locked books.
+
+The resolve pass is the fix. After the walk, while best bid >= best ask:
+
+* if the pair is an OCO pair, or a same-gateway pair with an SMP policy, apply the
+  same rules as in the walk (cancel, **no trade**) and look again;
+* otherwise stop. A crossed pair that is free to trade would have been found by the
+  equilibrium, so it cannot be left; nothing further is done.
+
+The pass cancels only and never prints, so it cannot change the equilibrium
+price, the executed quantity or the indicative. It does change the book, and the
+cancels are published (`order.cancelled`, reason `SELF_MATCH_PREVENTED`) in the
+same dispatch as the print, followed by the normal book snapshot.
+
+### A full walk-through (no price conflict)
+
+Three orders, no other interest. `GW1` has `CANCEL_AGGRESSOR`; the numbers are
+prices and quantities:
+
+| Order | Side | Gateway | Price | Qty | SMP |
+|---|---|---|---|---|---|
+| B | BUY | GW1 | 101.00 | 20 | `CANCEL_AGGRESSOR` |
+| SA | SELL | GW1 | 100.50 | 10 | `NONE` |
+| SB | SELL | GW2 | 100.00 | 10 | `NONE` |
+
+**The curves** say 20 at 100.50 or 101.00 (demand 20, supply 20) and 10 at 100.00.
+
+**The walk** at each candidate price:
+
+| Price | Curve | Walk | Why |
+|---|---|---|---|
+| 100.00 | 10 | **10** | Candidates: B, SB. B trades SB for 10. B has 10 left, no ask: end. Surplus 10 (BUY side). |
+| 100.50 | 20 | **10** | Candidates: B, SB, SA. B trades SB for 10. B (10 left) meets SA: same gateway, B's policy `CANCEL_AGGRESSOR`: B is cancelled. Traded 10. Surplus 10. |
+| 101.00 | 20 | **10** | Same as 100.50. |
+
+Result: 10 executed at all three prices, surplus 10 at all three, so the **lowest
+price, 100.00**, wins. `eq_price = 100.00`, `eq_qty = 10`.
+
+**Execution at 100.00:** B trades SB for 10 at 100.00 (SB is filled). The walk
+ends because SA (100.50) is above P. Book now: B 10 @ 101.00 against SA 10 @
+100.50: **crossed**. The resolve pass compares B and SA: same gateway, B's policy
+`CANCEL_AGGRESSOR`, so B is cancelled (`SELF_MATCH_PREVENTED`, 10 left). SA stays.
+The book opens with one ask, uncrossed.
+
+(This is `test_uncross_leaves_no_self_match_cross_above_the_equilibrium` in
+`tests/test_auction_oco_smp.py`.)
+
+### A harder walk-through: the curves overstate by a factor of ten
+
+This one is taken, simplified, from a real opening in the simulation. Four
+gateways; GW1 and GW4 are on both sides.
+
+| Order | Side | Gateway | Price | Qty | SMP |
+|---|---|---|---|---|---|
+| b1 | BUY | GW3 | 101.00 | 10 | `NONE` |
+| b2 | BUY | GW1 | 101.00 | 40 | `CANCEL_AGGRESSOR` |
+| b3 | BUY | GW2 | 100.50 | 50 | `CANCEL_RESTING` |
+| b4 | BUY | GW4 | 100.50 | 500 | `CANCEL_AGGRESSOR` |
+| a1 | SELL | GW1 | 100.00 | 30 | `NONE` |
+| a2 | SELL | GW4 | 100.20 | 700 | `NONE` |
+
+**Per price:**
+
+| Price | Curve `min(demand, supply)` | Walk | Surplus after SMP |
+|---|---|---|---|
+| 100.00 | 30 | 30 | 530 |
+| 100.20 | **600** | **60** | 670 |
+| 100.50 | 600 | 60 | 670 |
+| 101.00 | 50 | 10 | 720 |
+
+The curves would print 600 at 100.20. The walk at 100.20 (candidates: b1, b2, b3,
+b4 against a1, a2):
+
+1. b1 (GW3) vs a1 (GW1): different gateways, **trade 10**. a1 has 20 left.
+2. b2 (GW1) vs a1 (GW1): same gateway, b2's `CANCEL_AGGRESSOR`: **b2 is cancelled**
+   (40 gone). a1 stays.
+3. b3 (GW2) vs a1 (GW1): **trade 20**. a1 is done. b3 has 30 left.
+4. b3 (GW2) vs a2 (GW4): **trade 30**. b3 is done. a2 has 670 left.
+5. b4 (GW4) vs a2 (GW4): same gateway, b4's `CANCEL_AGGRESSOR`: **b4 is cancelled**
+   (500 gone). No bids remain: end.
+
+Traded 10 + 20 + 30 = **60**. 100.20 and 100.50 both give 60 with surplus 670, so
+the lower price, **100.20**, is chosen. 540 of the 600 shares the curves counted
+belonged to one gateway trading against itself (b4 vs a2) or were cancelled
+before they could meet anyone. Without the walk the indicative would have
+advertised 600 and the print would have been 60.
+
+### Complications this adds
+
+| Complication | What goes wrong without care | How it is handled |
+|---|---|---|
+| **No aggressor.** | `CANCEL_AGGRESSOR` and `CANCEL_RESTING` have no natural meaning. | A convention: the bid is the aggressor, unless its policy is `NONE`, then the ask's policy applies with the ask as aggressor. It is documented for participants, so one gateway's outcome is predictable from its own policy. |
+| **Volume is not a curve.** | `min(demand, supply)` overstates; the quantity at P depends on who meets whom. | The walk replaces the formula; the curves remain as an upper bound for pruning. |
+| **Cost.** | A walk per candidate price on every indicative interval, for every symbol, is O(prices x orders). | `_needs_simulation` skips the walk when SMP cannot bite; the bound lets most candidates be skipped; the candidate prefix is sorted once per calculation (`_live_orders`). |
+| **Order dependence.** | Which order is cancelled depends on priority: an earlier same-gateway pair in the queue shields a later one. | The walk follows price-time priority exactly as execution does; a cancelled order is flagged dead and dropped when it reaches the head of its level, preserving the queue. |
+| **Cancels change the volume of others.** | Cancelling b2 above changed what a1 could trade with b3. | Within the walk, a cancel is applied immediately; a cancelled order's OCO sibling is killed in the same walk. |
+| **Equal-volume prices leave different books.** | The tie-break can choose a price where a self-matching pair is out of range and stays crossed. | The resolve pass after the walk. |
+| **Nothing trades but orders die.** | A book where SMP consumes the whole overlap has `eq_qty = 0`, so a naive "no equilibrium: skip" would leave it crossed. | `resolve_price`: the uncross still runs, to cancel; `auction.result` carries `eq_price: null`. |
+| **Imbalance is post-SMP.** | Publishing an imbalance that counts doomed orders misleads participants. | Totals are taken from the survivors. |
+| **Icebergs.** | The hidden reserve counts toward volume but trades only slice by slice, and a SMP cancel kills the reserve too. | Volume uses the full quantity; a fill is the shown slice, refilling at the back of the level; a cancel removes the whole order. |
+| **Overridden price.** | An operator or breaker can assert a price that the walk did not pick. | The walk and the resolve pass run at that price; the reported `eq_qty` is what actually executed. |
+| **Verification.** | An independent check has to model the same rules or it reports every SMP auction as wrong. | The simulation forensics replay (`tools/sim_forensics/checks/matching.py`, `_walk`) is a second, independent implementation of the walk; D6 and D10 compare the engine's prints and indicatives with it, and a randomised test checks the replay against `compute_equilibrium`. |
+
+### Where this lives in the code
+
+| Piece | Location |
+|---|---|
+| Dry-run walk | `auction._simulated_quantity` (`_candidate_levels`, `_head`) |
+| When the walk is needed | `auction._needs_simulation` |
+| Price selection | `auction.compute_equilibrium` |
+| Policy rule for a resting pair | `auction._auction_smp_action`, `order_book._self_match_action` |
+| One pair, shared by walk and resolve pass | `auction._resolve_self_match` |
+| Execution and resolve pass | `auction.execute_uncross` |
+| Caller | `Engine._run_uncross` |
+| Participant-facing description | Operator guide, *Risk controls*, SMP |
 
 ## Trace Records: What the Book Reports Besides Trades
 
