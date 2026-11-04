@@ -8015,13 +8015,24 @@ AAPL's book empty (the configuration from Exercise 1 has no seed quotes).</p>
 <p>Expected output: <code>balf_parser.py self-test: OK</code></p>
 <p>C parser:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="nb">cd</span><span class="w"> </span>docs/examples/balf
-<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>cc<span class="w"> </span>-std<span class="o">=</span>c11<span class="w"> </span>-Wall<span class="w"> </span>-Wextra<span class="w"> </span>-pedantic<span class="w"> </span>-O2<span class="w"> </span>balf_parser.c<span class="w"> </span>-o<span class="w"> </span>balf_parser
-<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>./balf_parser
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>cc<span class="w"> </span>-std<span class="o">=</span>c11<span class="w"> </span>-Wall<span class="w"> </span>-Wextra<span class="w"> </span>-pedantic<span class="w"> </span>-O2<span class="w"> </span>-I../generated<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="w">   </span>balf_parser.c<span class="w"> </span>../generated/edumatcher_order.c<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="w">   </span>../generated/edumatcher_msg.c<span class="w"> </span>-o<span class="w"> </span>balf_parser
+<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a>./balf_parser
 </code></pre></div>
 <p>Expected output includes:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>LOGON_ACK gateway_id=TRADER01 accepted=1 reject_code=0 msg=ok
-<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>balf_parser.c self-test: OK
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>EXECUTION_REPORT order_id=4242 AAPL 25 @ 150.00000000 (FILLED, remaining 0)
+<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>LOGON_ACK gateway_id=TRADER01 accepted=0 reject_code=255 msg=SYMBOLS_UNAVAILABLE
+<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a>  -&gt; SYMBOLS_UNAVAILABLE: engine did not send its symbols in time; reconnect and log on again (check the engine if it repeats)
+<a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a>CANCEL_ACK ...
+<a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a>AMEND_ACK ...
+<a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a>STOP_TRIGGERED order_id=42 AAPL TRAILING_STOP stop=148.00000000 -&gt; MARKET
+<a id="__codelineno-14-8" name="__codelineno-14-8" href="#__codelineno-14-8"></a>balf_parser.c self-test: OK
 </code></pre></div>
+<p>The second <code>LOGON_ACK</code> is the one to know: <code>SYMBOLS_UNAVAILABLE</code> means the
+engine accepted the connection but never sent its symbol list in time. The
+gateway closes the connection after it, so retry with a new connection.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: both parser examples run successfully.</p>
 <h2 id="exercise-6-duplicate-session-policy-and-heartbeat-behaviour">Exercise 6: Duplicate Session Policy and Heartbeat Behaviour<a class="headerlink" href="#exercise-6-duplicate-session-policy-and-heartbeat-behaviour" title="Permanent link">&para;</a></h2>
 <p>Set <code>duplicate_session_policy</code> in <code>balf_gateway:</code> and observe behaviour by

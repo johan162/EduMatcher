@@ -8259,6 +8259,8 @@ exactly the expected byte count using a loop, as shown above.</p>
     C-&gt;&gt;G: LOGON (seq=0)&lt;br/&gt;gateway_id="TRADER01"
     G-&gt;&gt;E: system.gateway_connect {gateway_id: "TRADER01"}
     E--&gt;&gt;G: system.gateway_auth.TRADER01 {accepted: true}
+    G-&gt;&gt;E: system.symbols_request {gateway_id: "TRADER01"}
+    E--&gt;&gt;G: system.symbols.TRADER01 {symbols: [...]}
     G--&gt;&gt;C: LOGON_ACK (seq=0, accepted=1)
     Note over C,G: Session active — order messages accepted
 
@@ -8292,8 +8294,11 @@ case-sensitively.</p>
 <p>See <a href="../../../protocols-and-clients/part-2-specifications/020-balf/#logon-0x01-client-server">LOGON frame layout</a> in
 the protocol reference.</p>
 <h3 id="step-2-receive-logon_ack">Step 2 — Receive LOGON_ACK<a class="headerlink" href="#step-2-receive-logon_ack" title="Permanent link">&para;</a></h3>
-<p>The gateway authenticates with the engine and replies with <code>LOGON_ACK</code> (msg_type
-<code>0x02</code>, 92 bytes):</p>
+<p>The gateway authenticates with the engine, asks it for the symbol list, and
+only then replies with <code>LOGON_ACK</code> (msg_type <code>0x02</code>, 92 bytes). The accepted
+ack is deliberately withheld until the symbol metadata is in: a price is
+meaningless without its symbol's tick scale, so no order may be accepted
+before the gateway knows it.</p>
 <ul>
 <li><code>accepted = 1</code>: session is open; order messages may be sent</li>
 <li><code>accepted = 0</code>: session rejected; close the TCP connection</li>
@@ -8324,6 +8329,9 @@ the protocol reference.</p>
 </tr>
 </tbody>
 </table>
+<p><code>0xFF</code> with <code>msg = SYMBOLS_UNAVAILABLE</code> means the engine accepted the
+connection but never answered <code>system.symbols_request</code> within
+<code>auth_timeout_sec</code>. Retry the logon; if it repeats, the engine is unhealthy.</p>
 <p>The <code>msg</code> field carries a human-readable description on success (e.g. the
 gateway name and configured heartbeat interval) and the engine rejection reason
 on failure.</p>
@@ -9078,6 +9086,16 @@ section above, or send a minimal LOGON with a one-liner:</p>
 <td><code>LOGON_ACK accepted=0, code=0x03</code></td>
 <td><code>proto_version</code> byte is not <code>1</code></td>
 <td>Fix the LOGON frame builder</td>
+</tr>
+<tr>
+<td><code>LOGON_ACK accepted=0, code=0xFF, msg=SYMBOLS_UNAVAILABLE</code></td>
+<td>Engine accepted the connection but never answered <code>system.symbols_request</code></td>
+<td>Check <code>pm-engine</code> health, then log on again</td>
+</tr>
+<tr>
+<td>Session receives <code>LOGOUT</code> and the TCP connection closes</td>
+<td><code>pm-engine</code> restarted, so it no longer holds this session</td>
+<td>Log on again; the gateway re-requests symbol metadata</td>
 </tr>
 <tr>
 <td>Connection closes ~5 s after last message</td>

@@ -8047,6 +8047,16 @@ values. Use the <strong>Authorize</strong> button with:</p>
 <p>WebSocket clients send the API key as their first JSON message:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="p">{</span><span class="w"> </span><span class="nt">"api_key"</span><span class="p">:</span><span class="w"> </span><span class="s2">"key-trader-demo"</span><span class="w"> </span><span class="p">}</span>
 </code></pre></div>
+<div class="admonition warning">
+<p class="admonition-title">The API key never leaves the gateway</p>
+<p>Engine and <code>pm-index</code> replies are addressed by a correlation id that
+becomes a topic suffix on the ZMQ PUB bus, where every subscriber can
+read it. A trading key's correlation id is its <code>gateway_id</code>; a read-only
+key has none, so the gateway derives one by hashing the key
+(<code>RO&lt;16 hex&gt;</code>). The raw key is used only for the in-process rate-limiter
+bucket. A test guard (<code>test_api_gateway_k13_k15.py</code>) scans the gateway
+package and fails the build if <code>session.api_key</code> is read anywhere else.</p>
+</div>
 <h3 id="auth-and-roles">Auth and roles<a class="headerlink" href="#auth-and-roles" title="Permanent link">&para;</a></h3>
 <p>The gateway checks auth in two steps:</p>
 <ol>

@@ -5502,6 +5502,122 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#self-match-prevention-in-an-auction-uncross" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Self-Match Prevention in an Auction Uncross
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Self-Match Prevention in an Auction Uncross">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-the-smp-walk-is-for" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the SMP walk is for
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-rules-exactly" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The rules, exactly
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#how-the-price-is-chosen-with-the-walk" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How the price is chosen with the walk
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#executing-the-uncross" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Executing the uncross
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-a-resolve-pass-is-needed-the-pair-the-walk-never-meets" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why a resolve pass is needed: the pair the walk never meets
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#a-full-walk-through-no-price-conflict" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A full walk-through (no price conflict)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#a-harder-walk-through-the-curves-overstate-by-a-factor-of-ten" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A harder walk-through: the curves overstate by a factor of ten
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#complications-this-adds" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Complications this adds
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#where-this-lives-in-the-code" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where this lives in the code
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#trace-records-what-the-book-reports-besides-trades" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -10022,6 +10138,10 @@ LIMIT SELL of 200 at the same price (GW2). A BUY of 150 arrives (GW3).</p>
 quantity would have traded ahead of <code>lim</code>, which was visibly waiting at that
 price before the hidden part existed for anyone. That was finding #17.</p>
 <h2 id="self-match-prevention-smp">Self-Match Prevention (SMP)<a class="headerlink" href="#self-match-prevention-smp" title="Permanent link">&para;</a></h2>
+<blockquote>
+<p>In an auction uncross there is no aggressor; see
+<a href="#self-match-prevention-in-an-auction-uncross">Self-Match Prevention in an Auction Uncross</a>.</p>
+</blockquote>
 <p>An order from gateway G may not trade with a resting order from the same G
 (a <em>wash trade</em>). The policy travels on the order as <code>Order.smp_action</code>. If the
 client did not specify one, the engine resolves it to the gateway's configured
@@ -10281,6 +10401,486 @@ without trading, and the book may become crossed. When the call phase ends,
 visible quantity is deducted from the level index (both were resting), the
 trade's <code>aggressor_side</code> is <code>"AUCTION"</code>, and the quote/OCO callbacks are
 skipped (the engine runs those follow-ups after the uncross).</p>
+<h2 id="self-match-prevention-in-an-auction-uncross">Self-Match Prevention in an Auction Uncross<a class="headerlink" href="#self-match-prevention-in-an-auction-uncross" title="Permanent link">&para;</a></h2>
+<p><a href="#self-match-prevention-smp">Self-Match Prevention</a> is easy to state for
+continuous trading: the incoming order is the <em>aggressor</em>, it meets one resting
+order at a time, and the policy says which of the two dies. An auction has no
+aggressor and no arrival order. Every order is already resting, the book is
+allowed to be crossed, and one price will be chosen for all of them. This
+section explains what the engine does about a gateway that is on both sides of
+that crossed book, why that is harder than it looks, and how the code does it.</p>
+<h3 id="what-the-smp-walk-is-for">What the SMP walk is for<a class="headerlink" href="#what-the-smp-walk-is-for" title="Permanent link">&para;</a></h3>
+<p>Two requirements pull in opposite directions:</p>
+<ol>
+<li><strong>No wash trade.</strong> A bid and an ask of one gateway must not trade with each
+   other, in an auction either. The gateway's <code>smp_action</code> decides which order
+   is cancelled instead.</li>
+<li><strong>The price must be honest.</strong> The auction prints the price that executes the
+   most volume. If a pair that will be cancelled still counts as volume when the
+   price is chosen, the exchange publishes (and prints) a price that is based on
+   trades that never happen.</li>
+</ol>
+<p>The textbook equilibrium uses two <em>curves</em>: demand at price P is every bid at or
+above P, supply is every ask at or below P, and the executable quantity is
+<code>min(demand, supply)</code>. That arithmetic ignores who owns the orders. With SMP the
+quantity that can really trade at P is whatever is left after the pairs of one
+gateway have been removed, and that depends on <em>which</em> orders meet <em>which</em>,
+which the curves do not know. The <strong>SMP walk</strong> is the answer: instead of
+adding up the curves, act out the uncross at P order by order, apply the SMP
+rules where a gateway meets itself, and count what trades.</p>
+<p>The same walk is used twice, in two modes:</p>
+<table>
+<thead>
+<tr>
+<th>Mode</th>
+<th>Function</th>
+<th>Mutates the book?</th>
+<th>Used for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Dry run</strong></td>
+<td><code>_simulated_quantity(book, P)</code></td>
+<td>No: works on copies (<code>_CandidateOrder</code>)</td>
+<td>Choosing the price: <code>compute_equilibrium</code>, hence the indicative published every interval during a call phase</td>
+</tr>
+<tr>
+<td><strong>Execution</strong></td>
+<td><code>execute_uncross(book, P)</code></td>
+<td>Yes: real fills, real cancels</td>
+<td>The uncross itself, when the phase ends, a halt reopens, or an operator runs <code>reopen</code></td>
+</tr>
+</tbody>
+</table>
+<p>The two loops follow the same rules by construction and a randomised test
+(<code>test_indicative_matches_random_multi_gateway_uncross</code>) checks that the dry-run
+quantity equals what the execution trades.</p>
+<h3 id="the-rules-exactly">The rules, exactly<a class="headerlink" href="#the-rules-exactly" title="Permanent link">&para;</a></h3>
+<p>At a candidate price P the walk takes the <strong>candidate orders</strong>: bids priced at P
+or above and asks priced at P or below, each side in price-time priority (best
+price first, then arrival order; an iceberg counts its hidden quantity but trades
+only its shown slice). It repeatedly looks at the head of each side, the best
+bid and the best ask:</p>
+<ol>
+<li><strong>Same OCO group?</strong> If the two are the two legs of one OCO pair, the pair can
+   only be left standing as one order: the bid is cancelled and its sibling, the
+   ask, ends with it (no SMP reason is recorded, since the gateway may well allow
+   self-trades).</li>
+<li><strong>Same gateway with a policy?</strong> Both orders are resting, so neither is the
+   aggressor. The convention (<code>_auction_smp_action</code>) is: <strong>the bid is treated as
+   the aggressor and the ask as the resting order.</strong> The bid's policy applies; if
+   the bid's policy is <code>NONE</code>, the ask's policy applies, with the ask as the
+   aggressor. Then:</li>
+</ol>
+<table>
+<thead>
+<tr>
+<th>Policy</th>
+<th>Cancelled</th>
+<th>Survives and meets the next order</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>CANCEL_AGGRESSOR</code></td>
+<td>the aggressor (the bid; the ask only when the ask's policy is the one used)</td>
+<td>the passive order</td>
+</tr>
+<tr>
+<td><code>CANCEL_RESTING</code></td>
+<td>the passive order</td>
+<td>the aggressor</td>
+</tr>
+<tr>
+<td><code>CANCEL_BOTH</code></td>
+<td>both</td>
+<td>neither: the walk moves on to the next pair</td>
+</tr>
+<tr>
+<td><code>NONE</code> on both</td>
+<td>nobody: the pair is free to trade (step 3)</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<ol>
+<li><strong>Otherwise they trade.</strong> <code>fill = min(shown bid, shown ask)</code>, both reduce, a
+   finished order leaves its level, a used-up iceberg slice refills at the back
+   of its level.</li>
+</ol>
+<p>The loop ends when one side has no candidate left. A cancel in step 1 or 2 takes
+the whole order away, an iceberg's hidden reserve included, as one cancel.</p>
+<p>The dry run adds up <code>traded</code>, and the totals needed for the indicative: <em>buy
+total</em> = traded + what survives of the candidate bids, <em>sell total</em> likewise;
+the surplus is <code>|buy total - sell total|</code> and the imbalance side is the larger
+total's. Cancelled orders count as zero, so the imbalance the engine publishes is
+the imbalance <strong>after</strong> SMP.</p>
+<h3 id="how-the-price-is-chosen-with-the-walk">How the price is chosen with the walk<a class="headerlink" href="#how-the-price-is-chosen-with-the-walk" title="Permanent link">&para;</a></h3>
+<p><code>compute_equilibrium</code> still starts from the curves, because they give a cheap
+<strong>upper bound</strong>: SMP can only remove volume, so the walk at P can never exceed
+<code>min(demand(P), supply(P))</code>. The steps are:</p>
+<ol>
+<li>Build the curves in one pass each (O(P log P)).</li>
+<li><code>_needs_simulation(book)</code>: if no gateway has an SMP-capable bid at or above one
+   of its own asks (and no OCO pair has both legs in the book), the curves are
+   exact and the walk is skipped. This is the usual case, and the reason the
+   indicative stays cheap.</li>
+<li>Otherwise try the candidate prices <strong>best bound first</strong>. Walk each one; stop as
+   soon as the next bound is smaller than the best walk found, because nothing
+   after it can win.</li>
+<li>The winner is the price with the most executed quantity, then the smallest
+   surplus, then the lowest price (the same tie-break as without SMP).</li>
+</ol>
+<h3 id="executing-the-uncross">Executing the uncross<a class="headerlink" href="#executing-the-uncross" title="Permanent link">&para;</a></h3>
+<p><code>Engine._run_uncross</code> (end of phase, halt reopen, circuit-breaker reopen,
+operator <code>reopen</code>) does, per symbol:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-47-1" name="__codelineno-47-1" href="#__codelineno-47-1"></a>result = compute_equilibrium(book)
+<a id="__codelineno-47-2" name="__codelineno-47-2" href="#__codelineno-47-2"></a>price  = result.eq_price, or result.resolve_price when nothing prints
+<a id="__codelineno-47-3" name="__codelineno-47-3" href="#__codelineno-47-3"></a>trades, events = execute_uncross(book, price)      # real fills and cancels
+<a id="__codelineno-47-4" name="__codelineno-47-4" href="#__codelineno-47-4"></a>publish trades and events; run the stops the print triggers; publish auction.result
+</code></pre></div>
+<p><code>resolve_price</code> exists for the case where SMP (or an OCO pair) consumes the whole
+overlap: the book is crossed, <strong>nothing trades</strong>, but the offending orders must
+still be cancelled. The price is used to run the walk; it is never published as
+an equilibrium (<code>eq_price</code> stays <code>None</code>). An operator- or breaker-asserted price
+(<code>price_override</code>) replaces the discovered price and the walk is run at that
+price instead.</p>
+<p><code>execute_uncross(book, P)</code> then does the walk of the rules above for real, and
+<strong>ends with a resolve pass</strong> (next section).</p>
+<h3 id="why-a-resolve-pass-is-needed-the-pair-the-walk-never-meets">Why a resolve pass is needed: the pair the walk never meets<a class="headerlink" href="#why-a-resolve-pass-is-needed-the-pair-the-walk-never-meets" title="Permanent link">&para;</a></h3>
+<p>The walk at P only sees orders that can trade <em>at P</em>. A bid at 101.00 and an ask
+at 100.50 of the same gateway, with P = 100.00, are both outside it: the ask is
+above P and so is not a candidate, and the bid trades with whatever is at or
+below 100.00 and then has quantity left. After the uncross the book holds a bid
+<strong>above</strong> an ask: a crossed book, and in the continuous session that follows it is
+exactly the situation SMP exists to prevent.</p>
+<p>This is not a rare corner. Two prices can execute the same volume once SMP has
+cancelled something, and the tie-break (least surplus, then lowest price) may
+pick the one at which the self-matching pair is <em>not</em> in range. It was seen in
+the full-day simulation of 2026-11-04: five symbols opened with crossed or
+locked books.</p>
+<p>The resolve pass is the fix. After the walk, while best bid &gt;= best ask:</p>
+<ul>
+<li>if the pair is an OCO pair, or a same-gateway pair with an SMP policy, apply the
+  same rules as in the walk (cancel, <strong>no trade</strong>) and look again;</li>
+<li>otherwise stop. A crossed pair that is free to trade would have been found by the
+  equilibrium, so it cannot be left; nothing further is done.</li>
+</ul>
+<p>The pass cancels only and never prints, so it cannot change the equilibrium
+price, the executed quantity or the indicative. It does change the book, and the
+cancels are published (<code>order.cancelled</code>, reason <code>SELF_MATCH_PREVENTED</code>) in the
+same dispatch as the print, followed by the normal book snapshot.</p>
+<h3 id="a-full-walk-through-no-price-conflict">A full walk-through (no price conflict)<a class="headerlink" href="#a-full-walk-through-no-price-conflict" title="Permanent link">&para;</a></h3>
+<p>Three orders, no other interest. <code>GW1</code> has <code>CANCEL_AGGRESSOR</code>; the numbers are
+prices and quantities:</p>
+<table>
+<thead>
+<tr>
+<th>Order</th>
+<th>Side</th>
+<th>Gateway</th>
+<th>Price</th>
+<th>Qty</th>
+<th>SMP</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>B</td>
+<td>BUY</td>
+<td>GW1</td>
+<td>101.00</td>
+<td>20</td>
+<td><code>CANCEL_AGGRESSOR</code></td>
+</tr>
+<tr>
+<td>SA</td>
+<td>SELL</td>
+<td>GW1</td>
+<td>100.50</td>
+<td>10</td>
+<td><code>NONE</code></td>
+</tr>
+<tr>
+<td>SB</td>
+<td>SELL</td>
+<td>GW2</td>
+<td>100.00</td>
+<td>10</td>
+<td><code>NONE</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>The curves</strong> say 20 at 100.50 or 101.00 (demand 20, supply 20) and 10 at 100.00.</p>
+<p><strong>The walk</strong> at each candidate price:</p>
+<table>
+<thead>
+<tr>
+<th>Price</th>
+<th>Curve</th>
+<th>Walk</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>100.00</td>
+<td>10</td>
+<td><strong>10</strong></td>
+<td>Candidates: B, SB. B trades SB for 10. B has 10 left, no ask: end. Surplus 10 (BUY side).</td>
+</tr>
+<tr>
+<td>100.50</td>
+<td>20</td>
+<td><strong>10</strong></td>
+<td>Candidates: B, SB, SA. B trades SB for 10. B (10 left) meets SA: same gateway, B's policy <code>CANCEL_AGGRESSOR</code>: B is cancelled. Traded 10. Surplus 10.</td>
+</tr>
+<tr>
+<td>101.00</td>
+<td>20</td>
+<td><strong>10</strong></td>
+<td>Same as 100.50.</td>
+</tr>
+</tbody>
+</table>
+<p>Result: 10 executed at all three prices, surplus 10 at all three, so the <strong>lowest
+price, 100.00</strong>, wins. <code>eq_price = 100.00</code>, <code>eq_qty = 10</code>.</p>
+<p><strong>Execution at 100.00:</strong> B trades SB for 10 at 100.00 (SB is filled). The walk
+ends because SA (100.50) is above P. Book now: B 10 @ 101.00 against SA 10 @
+100.50: <strong>crossed</strong>. The resolve pass compares B and SA: same gateway, B's policy
+<code>CANCEL_AGGRESSOR</code>, so B is cancelled (<code>SELF_MATCH_PREVENTED</code>, 10 left). SA stays.
+The book opens with one ask, uncrossed.</p>
+<p>(This is <code>test_uncross_leaves_no_self_match_cross_above_the_equilibrium</code> in
+<code>tests/test_auction_oco_smp.py</code>.)</p>
+<h3 id="a-harder-walk-through-the-curves-overstate-by-a-factor-of-ten">A harder walk-through: the curves overstate by a factor of ten<a class="headerlink" href="#a-harder-walk-through-the-curves-overstate-by-a-factor-of-ten" title="Permanent link">&para;</a></h3>
+<p>This one is taken, simplified, from a real opening in the simulation. Four
+gateways; GW1 and GW4 are on both sides.</p>
+<table>
+<thead>
+<tr>
+<th>Order</th>
+<th>Side</th>
+<th>Gateway</th>
+<th>Price</th>
+<th>Qty</th>
+<th>SMP</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>b1</td>
+<td>BUY</td>
+<td>GW3</td>
+<td>101.00</td>
+<td>10</td>
+<td><code>NONE</code></td>
+</tr>
+<tr>
+<td>b2</td>
+<td>BUY</td>
+<td>GW1</td>
+<td>101.00</td>
+<td>40</td>
+<td><code>CANCEL_AGGRESSOR</code></td>
+</tr>
+<tr>
+<td>b3</td>
+<td>BUY</td>
+<td>GW2</td>
+<td>100.50</td>
+<td>50</td>
+<td><code>CANCEL_RESTING</code></td>
+</tr>
+<tr>
+<td>b4</td>
+<td>BUY</td>
+<td>GW4</td>
+<td>100.50</td>
+<td>500</td>
+<td><code>CANCEL_AGGRESSOR</code></td>
+</tr>
+<tr>
+<td>a1</td>
+<td>SELL</td>
+<td>GW1</td>
+<td>100.00</td>
+<td>30</td>
+<td><code>NONE</code></td>
+</tr>
+<tr>
+<td>a2</td>
+<td>SELL</td>
+<td>GW4</td>
+<td>100.20</td>
+<td>700</td>
+<td><code>NONE</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Per price:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Price</th>
+<th>Curve <code>min(demand, supply)</code></th>
+<th>Walk</th>
+<th>Surplus after SMP</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>100.00</td>
+<td>30</td>
+<td>30</td>
+<td>530</td>
+</tr>
+<tr>
+<td>100.20</td>
+<td><strong>600</strong></td>
+<td><strong>60</strong></td>
+<td>670</td>
+</tr>
+<tr>
+<td>100.50</td>
+<td>600</td>
+<td>60</td>
+<td>670</td>
+</tr>
+<tr>
+<td>101.00</td>
+<td>50</td>
+<td>10</td>
+<td>720</td>
+</tr>
+</tbody>
+</table>
+<p>The curves would print 600 at 100.20. The walk at 100.20 (candidates: b1, b2, b3,
+b4 against a1, a2):</p>
+<ol>
+<li>b1 (GW3) vs a1 (GW1): different gateways, <strong>trade 10</strong>. a1 has 20 left.</li>
+<li>b2 (GW1) vs a1 (GW1): same gateway, b2's <code>CANCEL_AGGRESSOR</code>: <strong>b2 is cancelled</strong>
+   (40 gone). a1 stays.</li>
+<li>b3 (GW2) vs a1 (GW1): <strong>trade 20</strong>. a1 is done. b3 has 30 left.</li>
+<li>b3 (GW2) vs a2 (GW4): <strong>trade 30</strong>. b3 is done. a2 has 670 left.</li>
+<li>b4 (GW4) vs a2 (GW4): same gateway, b4's <code>CANCEL_AGGRESSOR</code>: <strong>b4 is cancelled</strong>
+   (500 gone). No bids remain: end.</li>
+</ol>
+<p>Traded 10 + 20 + 30 = <strong>60</strong>. 100.20 and 100.50 both give 60 with surplus 670, so
+the lower price, <strong>100.20</strong>, is chosen. 540 of the 600 shares the curves counted
+belonged to one gateway trading against itself (b4 vs a2) or were cancelled
+before they could meet anyone. Without the walk the indicative would have
+advertised 600 and the print would have been 60.</p>
+<h3 id="complications-this-adds">Complications this adds<a class="headerlink" href="#complications-this-adds" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Complication</th>
+<th>What goes wrong without care</th>
+<th>How it is handled</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>No aggressor.</strong></td>
+<td><code>CANCEL_AGGRESSOR</code> and <code>CANCEL_RESTING</code> have no natural meaning.</td>
+<td>A convention: the bid is the aggressor, unless its policy is <code>NONE</code>, then the ask's policy applies with the ask as aggressor. It is documented for participants, so one gateway's outcome is predictable from its own policy.</td>
+</tr>
+<tr>
+<td><strong>Volume is not a curve.</strong></td>
+<td><code>min(demand, supply)</code> overstates; the quantity at P depends on who meets whom.</td>
+<td>The walk replaces the formula; the curves remain as an upper bound for pruning.</td>
+</tr>
+<tr>
+<td><strong>Cost.</strong></td>
+<td>A walk per candidate price on every indicative interval, for every symbol, is O(prices x orders).</td>
+<td><code>_needs_simulation</code> skips the walk when SMP cannot bite; the bound lets most candidates be skipped; the candidate prefix is sorted once per calculation (<code>_live_orders</code>).</td>
+</tr>
+<tr>
+<td><strong>Order dependence.</strong></td>
+<td>Which order is cancelled depends on priority: an earlier same-gateway pair in the queue shields a later one.</td>
+<td>The walk follows price-time priority exactly as execution does; a cancelled order is flagged dead and dropped when it reaches the head of its level, preserving the queue.</td>
+</tr>
+<tr>
+<td><strong>Cancels change the volume of others.</strong></td>
+<td>Cancelling b2 above changed what a1 could trade with b3.</td>
+<td>Within the walk, a cancel is applied immediately; a cancelled order's OCO sibling is killed in the same walk.</td>
+</tr>
+<tr>
+<td><strong>Equal-volume prices leave different books.</strong></td>
+<td>The tie-break can choose a price where a self-matching pair is out of range and stays crossed.</td>
+<td>The resolve pass after the walk.</td>
+</tr>
+<tr>
+<td><strong>Nothing trades but orders die.</strong></td>
+<td>A book where SMP consumes the whole overlap has <code>eq_qty = 0</code>, so a naive "no equilibrium: skip" would leave it crossed.</td>
+<td><code>resolve_price</code>: the uncross still runs, to cancel; <code>auction.result</code> carries <code>eq_price: null</code>.</td>
+</tr>
+<tr>
+<td><strong>Imbalance is post-SMP.</strong></td>
+<td>Publishing an imbalance that counts doomed orders misleads participants.</td>
+<td>Totals are taken from the survivors.</td>
+</tr>
+<tr>
+<td><strong>Icebergs.</strong></td>
+<td>The hidden reserve counts toward volume but trades only slice by slice, and a SMP cancel kills the reserve too.</td>
+<td>Volume uses the full quantity; a fill is the shown slice, refilling at the back of the level; a cancel removes the whole order.</td>
+</tr>
+<tr>
+<td><strong>Overridden price.</strong></td>
+<td>An operator or breaker can assert a price that the walk did not pick.</td>
+<td>The walk and the resolve pass run at that price; the reported <code>eq_qty</code> is what actually executed.</td>
+</tr>
+<tr>
+<td><strong>Verification.</strong></td>
+<td>An independent check has to model the same rules or it reports every SMP auction as wrong.</td>
+<td>The simulation forensics replay (<code>tools/sim_forensics/checks/matching.py</code>, <code>_walk</code>) is a second, independent implementation of the walk; D6 and D10 compare the engine's prints and indicatives with it, and a randomised test checks the replay against <code>compute_equilibrium</code>.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="where-this-lives-in-the-code">Where this lives in the code<a class="headerlink" href="#where-this-lives-in-the-code" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Piece</th>
+<th>Location</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Dry-run walk</td>
+<td><code>auction._simulated_quantity</code> (<code>_candidate_levels</code>, <code>_head</code>)</td>
+</tr>
+<tr>
+<td>When the walk is needed</td>
+<td><code>auction._needs_simulation</code></td>
+</tr>
+<tr>
+<td>Price selection</td>
+<td><code>auction.compute_equilibrium</code></td>
+</tr>
+<tr>
+<td>Policy rule for a resting pair</td>
+<td><code>auction._auction_smp_action</code>, <code>order_book._self_match_action</code></td>
+</tr>
+<tr>
+<td>One pair, shared by walk and resolve pass</td>
+<td><code>auction._resolve_self_match</code></td>
+</tr>
+<tr>
+<td>Execution and resolve pass</td>
+<td><code>auction.execute_uncross</code></td>
+</tr>
+<tr>
+<td>Caller</td>
+<td><code>Engine._run_uncross</code></td>
+</tr>
+<tr>
+<td>Participant-facing description</td>
+<td>Operator guide, <em>Risk controls</em>, SMP</td>
+</tr>
+</tbody>
+</table>
 <h2 id="trace-records-what-the-book-reports-besides-trades">Trace Records: What the Book Reports Besides Trades<a class="headerlink" href="#trace-records-what-the-book-reports-besides-trades" title="Permanent link">&para;</a></h2>
 <p>Trades and order events do not show everything that happens inside a book. An
 order that <em>rests</em> gets a queue position nobody is told about; an iceberg
@@ -10543,116 +11143,116 @@ through every function in this chapter.</p>
 <h3 id="1-a-book-lab-script">1. A book lab script<a class="headerlink" href="#1-a-book-lab-script" title="Permanent link">&para;</a></h3>
 <p>Save this as <code>book_lab.py</code> in the <strong>repository root</strong> (do not commit it) and
 run it with <code>poetry run python book_lab.py</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-47-1" name="__codelineno-47-1" href="#__codelineno-47-1"></a><span class="sd">"""book_lab.py -- drive one OrderBook by hand and look inside it."""</span>
-<a id="__codelineno-47-2" name="__codelineno-47-2" href="#__codelineno-47-2"></a>
-<a id="__codelineno-47-3" name="__codelineno-47-3" href="#__codelineno-47-3"></a><span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
-<a id="__codelineno-47-4" name="__codelineno-47-4" href="#__codelineno-47-4"></a>
-<a id="__codelineno-47-5" name="__codelineno-47-5" href="#__codelineno-47-5"></a><span class="kn">from</span><span class="w"> </span><span class="nn">edumatcher.engine.order_book</span><span class="w"> </span><span class="kn">import</span> <span class="n">OrderBook</span>
-<a id="__codelineno-47-6" name="__codelineno-47-6" href="#__codelineno-47-6"></a><span class="kn">from</span><span class="w"> </span><span class="nn">edumatcher.models.order</span><span class="w"> </span><span class="kn">import</span> <span class="n">Order</span><span class="p">,</span> <span class="n">OrderType</span><span class="p">,</span> <span class="n">Side</span><span class="p">,</span> <span class="n">SmpAction</span>
-<a id="__codelineno-47-7" name="__codelineno-47-7" href="#__codelineno-47-7"></a><span class="kn">from</span><span class="w"> </span><span class="nn">edumatcher.models.trade</span><span class="w"> </span><span class="kn">import</span> <span class="n">set_run_seq</span>
-<a id="__codelineno-47-8" name="__codelineno-47-8" href="#__codelineno-47-8"></a>
-<a id="__codelineno-47-9" name="__codelineno-47-9" href="#__codelineno-47-9"></a><span class="n">logging</span><span class="o">.</span><span class="n">basicConfig</span><span class="p">(</span><span class="n">level</span><span class="o">=</span><span class="n">logging</span><span class="o">.</span><span class="n">DEBUG</span><span class="p">,</span> <span class="nb">format</span><span class="o">=</span><span class="s2">"</span><span class="si">%(name)s</span><span class="s2">: </span><span class="si">%(message)s</span><span class="s2">"</span><span class="p">)</span>
-<a id="__codelineno-47-10" name="__codelineno-47-10" href="#__codelineno-47-10"></a><span class="n">set_run_seq</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>  <span class="c1"># Trade ids need a run sequence; the engine sets it at startup.</span>
-<a id="__codelineno-47-11" name="__codelineno-47-11" href="#__codelineno-47-11"></a><span class="n">book</span> <span class="o">=</span> <span class="n">OrderBook</span><span class="p">(</span><span class="s2">"DEMO"</span><span class="p">)</span>
-<a id="__codelineno-47-12" name="__codelineno-47-12" href="#__codelineno-47-12"></a>
-<a id="__codelineno-47-13" name="__codelineno-47-13" href="#__codelineno-47-13"></a>
-<a id="__codelineno-47-14" name="__codelineno-47-14" href="#__codelineno-47-14"></a><span class="k">def</span><span class="w"> </span><span class="nf">order</span><span class="p">(</span><span class="n">side</span><span class="p">,</span> <span class="n">qty</span><span class="p">,</span> <span class="n">price</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">gw</span><span class="o">=</span><span class="s2">"GW1"</span><span class="p">,</span> <span class="n">otype</span><span class="o">=</span><span class="n">OrderType</span><span class="o">.</span><span class="n">LIMIT</span><span class="p">,</span> <span class="o">**</span><span class="n">kw</span><span class="p">):</span>
-<a id="__codelineno-47-15" name="__codelineno-47-15" href="#__codelineno-47-15"></a>    <span class="k">return</span> <span class="n">Order</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
-<a id="__codelineno-47-16" name="__codelineno-47-16" href="#__codelineno-47-16"></a>        <span class="n">symbol</span><span class="o">=</span><span class="s2">"DEMO"</span><span class="p">,</span> <span class="n">side</span><span class="o">=</span><span class="n">side</span><span class="p">,</span> <span class="n">order_type</span><span class="o">=</span><span class="n">otype</span><span class="p">,</span> <span class="n">quantity</span><span class="o">=</span><span class="n">qty</span><span class="p">,</span>
-<a id="__codelineno-47-17" name="__codelineno-47-17" href="#__codelineno-47-17"></a>        <span class="n">gateway_id</span><span class="o">=</span><span class="n">gw</span><span class="p">,</span> <span class="n">price_ticks</span><span class="o">=</span><span class="n">price</span><span class="p">,</span> <span class="n">smp_action</span><span class="o">=</span><span class="n">SmpAction</span><span class="o">.</span><span class="n">NONE</span><span class="p">,</span>
-<a id="__codelineno-47-18" name="__codelineno-47-18" href="#__codelineno-47-18"></a>        <span class="n">tick_decimals</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="o">**</span><span class="n">kw</span><span class="p">,</span>
-<a id="__codelineno-47-19" name="__codelineno-47-19" href="#__codelineno-47-19"></a>    <span class="p">)</span>
-<a id="__codelineno-47-20" name="__codelineno-47-20" href="#__codelineno-47-20"></a>
-<a id="__codelineno-47-21" name="__codelineno-47-21" href="#__codelineno-47-21"></a>
-<a id="__codelineno-47-22" name="__codelineno-47-22" href="#__codelineno-47-22"></a><span class="k">def</span><span class="w"> </span><span class="nf">show</span><span class="p">(</span><span class="n">label</span><span class="p">):</span>
-<a id="__codelineno-47-23" name="__codelineno-47-23" href="#__codelineno-47-23"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"--- </span><span class="si">{</span><span class="n">label</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
-<a id="__codelineno-47-24" name="__codelineno-47-24" href="#__codelineno-47-24"></a>    <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">"_asks"</span><span class="p">,</span> <span class="s2">"_bids"</span><span class="p">):</span>
-<a id="__codelineno-47-25" name="__codelineno-47-25" href="#__codelineno-47-25"></a>        <span class="n">heap</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">book</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span>
-<a id="__codelineno-47-26" name="__codelineno-47-26" href="#__codelineno-47-26"></a>        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"  </span><span class="si">{</span><span class="n">name</span><span class="si">:</span><span class="s2">6</span><span class="si">}</span><span class="s2">:"</span><span class="p">,</span> <span class="p">[(</span><span class="n">e</span><span class="o">.</span><span class="n">key</span><span class="p">,</span> <span class="n">e</span><span class="o">.</span><span class="n">order</span><span class="o">.</span><span class="n">id</span><span class="p">[:</span><span class="mi">4</span><span class="p">],</span> <span class="n">e</span><span class="o">.</span><span class="n">valid</span><span class="p">)</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">heap</span><span class="p">])</span>
-<a id="__codelineno-47-27" name="__codelineno-47-27" href="#__codelineno-47-27"></a>    <span class="nb">print</span><span class="p">(</span><span class="s2">"  _ask_qty:"</span><span class="p">,</span> <span class="n">book</span><span class="o">.</span><span class="n">_ask_qty</span><span class="p">,</span> <span class="s2">" _bid_qty:"</span><span class="p">,</span> <span class="n">book</span><span class="o">.</span><span class="n">_bid_qty</span><span class="p">)</span>
-<a id="__codelineno-47-28" name="__codelineno-47-28" href="#__codelineno-47-28"></a>    <span class="nb">print</span><span class="p">(</span><span class="s2">"  by gw  :"</span><span class="p">,</span> <span class="p">{</span><span class="n">g</span><span class="p">:</span> <span class="p">[</span><span class="n">i</span><span class="p">[:</span><span class="mi">4</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">ids</span><span class="p">]</span>
-<a id="__codelineno-47-29" name="__codelineno-47-29" href="#__codelineno-47-29"></a>                         <span class="k">for</span> <span class="n">g</span><span class="p">,</span> <span class="n">ids</span> <span class="ow">in</span> <span class="n">book</span><span class="o">.</span><span class="n">_orders_by_gateway</span><span class="o">.</span><span class="n">items</span><span class="p">()})</span>
-<a id="__codelineno-47-30" name="__codelineno-47-30" href="#__codelineno-47-30"></a>
-<a id="__codelineno-47-31" name="__codelineno-47-31" href="#__codelineno-47-31"></a>
-<a id="__codelineno-47-32" name="__codelineno-47-32" href="#__codelineno-47-32"></a><span class="n">a1</span> <span class="o">=</span> <span class="n">order</span><span class="p">(</span><span class="n">Side</span><span class="o">.</span><span class="n">SELL</span><span class="p">,</span> <span class="mi">300</span><span class="p">,</span> <span class="mi">10010</span><span class="p">,</span> <span class="n">gw</span><span class="o">=</span><span class="s2">"GW1"</span><span class="p">);</span> <span class="n">book</span><span class="o">.</span><span class="n">process</span><span class="p">(</span><span class="n">a1</span><span class="p">)</span>
-<a id="__codelineno-47-33" name="__codelineno-47-33" href="#__codelineno-47-33"></a><span class="n">a2</span> <span class="o">=</span> <span class="n">order</span><span class="p">(</span><span class="n">Side</span><span class="o">.</span><span class="n">SELL</span><span class="p">,</span> <span class="mi">200</span><span class="p">,</span> <span class="mi">10010</span><span class="p">,</span> <span class="n">gw</span><span class="o">=</span><span class="s2">"GW2"</span><span class="p">);</span> <span class="n">book</span><span class="o">.</span><span class="n">process</span><span class="p">(</span><span class="n">a2</span><span class="p">)</span>
-<a id="__codelineno-47-34" name="__codelineno-47-34" href="#__codelineno-47-34"></a><span class="n">a3</span> <span class="o">=</span> <span class="n">order</span><span class="p">(</span><span class="n">Side</span><span class="o">.</span><span class="n">SELL</span><span class="p">,</span> <span class="mi">500</span><span class="p">,</span> <span class="mi">10020</span><span class="p">,</span> <span class="n">gw</span><span class="o">=</span><span class="s2">"GW2"</span><span class="p">);</span> <span class="n">book</span><span class="o">.</span><span class="n">process</span><span class="p">(</span><span class="n">a3</span><span class="p">)</span>
-<a id="__codelineno-47-35" name="__codelineno-47-35" href="#__codelineno-47-35"></a><span class="n">b1</span> <span class="o">=</span> <span class="n">order</span><span class="p">(</span><span class="n">Side</span><span class="o">.</span><span class="n">BUY</span><span class="p">,</span> <span class="mi">400</span><span class="p">,</span> <span class="mi">10000</span><span class="p">,</span> <span class="n">gw</span><span class="o">=</span><span class="s2">"GW3"</span><span class="p">);</span> <span class="n">book</span><span class="o">.</span><span class="n">process</span><span class="p">(</span><span class="n">b1</span><span class="p">)</span>
-<a id="__codelineno-47-36" name="__codelineno-47-36" href="#__codelineno-47-36"></a><span class="n">show</span><span class="p">(</span><span class="s2">"starting book"</span><span class="p">)</span>
-<a id="__codelineno-47-37" name="__codelineno-47-37" href="#__codelineno-47-37"></a>
-<a id="__codelineno-47-38" name="__codelineno-47-38" href="#__codelineno-47-38"></a><span class="n">buy</span> <span class="o">=</span> <span class="n">order</span><span class="p">(</span><span class="n">Side</span><span class="o">.</span><span class="n">BUY</span><span class="p">,</span> <span class="mi">400</span><span class="p">,</span> <span class="mi">10010</span><span class="p">,</span> <span class="n">gw</span><span class="o">=</span><span class="s2">"GW3"</span><span class="p">)</span>
-<a id="__codelineno-47-39" name="__codelineno-47-39" href="#__codelineno-47-39"></a><span class="n">trades</span><span class="p">,</span> <span class="n">events</span> <span class="o">=</span> <span class="n">book</span><span class="o">.</span><span class="n">process</span><span class="p">(</span><span class="n">buy</span><span class="p">)</span>  <span class="c1"># &lt;-- set a breakpoint here, then Step Into</span>
-<a id="__codelineno-47-40" name="__codelineno-47-40" href="#__codelineno-47-40"></a><span class="nb">print</span><span class="p">(</span><span class="s2">"trades:"</span><span class="p">,</span> <span class="p">[(</span><span class="n">t</span><span class="o">.</span><span class="n">price</span><span class="p">,</span> <span class="n">t</span><span class="o">.</span><span class="n">quantity</span><span class="p">,</span> <span class="n">t</span><span class="o">.</span><span class="n">aggressor_side</span><span class="p">)</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">trades</span><span class="p">])</span>
-<a id="__codelineno-47-41" name="__codelineno-47-41" href="#__codelineno-47-41"></a><span class="nb">print</span><span class="p">(</span><span class="s2">"events:"</span><span class="p">,</span> <span class="p">[(</span><span class="n">o</span><span class="o">.</span><span class="n">id</span><span class="p">[:</span><span class="mi">4</span><span class="p">],</span> <span class="n">o</span><span class="o">.</span><span class="n">status</span><span class="o">.</span><span class="n">value</span><span class="p">,</span> <span class="n">o</span><span class="o">.</span><span class="n">remaining_qty</span><span class="p">)</span> <span class="k">for</span> <span class="n">o</span> <span class="ow">in</span> <span class="n">events</span><span class="p">])</span>
-<a id="__codelineno-47-42" name="__codelineno-47-42" href="#__codelineno-47-42"></a><span class="n">show</span><span class="p">(</span><span class="s2">"after BUY 400 @ 100.10"</span><span class="p">)</span>
-<a id="__codelineno-47-43" name="__codelineno-47-43" href="#__codelineno-47-43"></a>
-<a id="__codelineno-47-44" name="__codelineno-47-44" href="#__codelineno-47-44"></a><span class="n">book</span><span class="o">.</span><span class="n">cancel_order</span><span class="p">(</span><span class="n">a3</span><span class="o">.</span><span class="n">id</span><span class="p">)</span>
-<a id="__codelineno-47-45" name="__codelineno-47-45" href="#__codelineno-47-45"></a><span class="n">show</span><span class="p">(</span><span class="s2">"after cancel a3"</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-48-1" name="__codelineno-48-1" href="#__codelineno-48-1"></a><span class="sd">"""book_lab.py -- drive one OrderBook by hand and look inside it."""</span>
+<a id="__codelineno-48-2" name="__codelineno-48-2" href="#__codelineno-48-2"></a>
+<a id="__codelineno-48-3" name="__codelineno-48-3" href="#__codelineno-48-3"></a><span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+<a id="__codelineno-48-4" name="__codelineno-48-4" href="#__codelineno-48-4"></a>
+<a id="__codelineno-48-5" name="__codelineno-48-5" href="#__codelineno-48-5"></a><span class="kn">from</span><span class="w"> </span><span class="nn">edumatcher.engine.order_book</span><span class="w"> </span><span class="kn">import</span> <span class="n">OrderBook</span>
+<a id="__codelineno-48-6" name="__codelineno-48-6" href="#__codelineno-48-6"></a><span class="kn">from</span><span class="w"> </span><span class="nn">edumatcher.models.order</span><span class="w"> </span><span class="kn">import</span> <span class="n">Order</span><span class="p">,</span> <span class="n">OrderType</span><span class="p">,</span> <span class="n">Side</span><span class="p">,</span> <span class="n">SmpAction</span>
+<a id="__codelineno-48-7" name="__codelineno-48-7" href="#__codelineno-48-7"></a><span class="kn">from</span><span class="w"> </span><span class="nn">edumatcher.models.trade</span><span class="w"> </span><span class="kn">import</span> <span class="n">set_run_seq</span>
+<a id="__codelineno-48-8" name="__codelineno-48-8" href="#__codelineno-48-8"></a>
+<a id="__codelineno-48-9" name="__codelineno-48-9" href="#__codelineno-48-9"></a><span class="n">logging</span><span class="o">.</span><span class="n">basicConfig</span><span class="p">(</span><span class="n">level</span><span class="o">=</span><span class="n">logging</span><span class="o">.</span><span class="n">DEBUG</span><span class="p">,</span> <span class="nb">format</span><span class="o">=</span><span class="s2">"</span><span class="si">%(name)s</span><span class="s2">: </span><span class="si">%(message)s</span><span class="s2">"</span><span class="p">)</span>
+<a id="__codelineno-48-10" name="__codelineno-48-10" href="#__codelineno-48-10"></a><span class="n">set_run_seq</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>  <span class="c1"># Trade ids need a run sequence; the engine sets it at startup.</span>
+<a id="__codelineno-48-11" name="__codelineno-48-11" href="#__codelineno-48-11"></a><span class="n">book</span> <span class="o">=</span> <span class="n">OrderBook</span><span class="p">(</span><span class="s2">"DEMO"</span><span class="p">)</span>
+<a id="__codelineno-48-12" name="__codelineno-48-12" href="#__codelineno-48-12"></a>
+<a id="__codelineno-48-13" name="__codelineno-48-13" href="#__codelineno-48-13"></a>
+<a id="__codelineno-48-14" name="__codelineno-48-14" href="#__codelineno-48-14"></a><span class="k">def</span><span class="w"> </span><span class="nf">order</span><span class="p">(</span><span class="n">side</span><span class="p">,</span> <span class="n">qty</span><span class="p">,</span> <span class="n">price</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">gw</span><span class="o">=</span><span class="s2">"GW1"</span><span class="p">,</span> <span class="n">otype</span><span class="o">=</span><span class="n">OrderType</span><span class="o">.</span><span class="n">LIMIT</span><span class="p">,</span> <span class="o">**</span><span class="n">kw</span><span class="p">):</span>
+<a id="__codelineno-48-15" name="__codelineno-48-15" href="#__codelineno-48-15"></a>    <span class="k">return</span> <span class="n">Order</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+<a id="__codelineno-48-16" name="__codelineno-48-16" href="#__codelineno-48-16"></a>        <span class="n">symbol</span><span class="o">=</span><span class="s2">"DEMO"</span><span class="p">,</span> <span class="n">side</span><span class="o">=</span><span class="n">side</span><span class="p">,</span> <span class="n">order_type</span><span class="o">=</span><span class="n">otype</span><span class="p">,</span> <span class="n">quantity</span><span class="o">=</span><span class="n">qty</span><span class="p">,</span>
+<a id="__codelineno-48-17" name="__codelineno-48-17" href="#__codelineno-48-17"></a>        <span class="n">gateway_id</span><span class="o">=</span><span class="n">gw</span><span class="p">,</span> <span class="n">price_ticks</span><span class="o">=</span><span class="n">price</span><span class="p">,</span> <span class="n">smp_action</span><span class="o">=</span><span class="n">SmpAction</span><span class="o">.</span><span class="n">NONE</span><span class="p">,</span>
+<a id="__codelineno-48-18" name="__codelineno-48-18" href="#__codelineno-48-18"></a>        <span class="n">tick_decimals</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="o">**</span><span class="n">kw</span><span class="p">,</span>
+<a id="__codelineno-48-19" name="__codelineno-48-19" href="#__codelineno-48-19"></a>    <span class="p">)</span>
+<a id="__codelineno-48-20" name="__codelineno-48-20" href="#__codelineno-48-20"></a>
+<a id="__codelineno-48-21" name="__codelineno-48-21" href="#__codelineno-48-21"></a>
+<a id="__codelineno-48-22" name="__codelineno-48-22" href="#__codelineno-48-22"></a><span class="k">def</span><span class="w"> </span><span class="nf">show</span><span class="p">(</span><span class="n">label</span><span class="p">):</span>
+<a id="__codelineno-48-23" name="__codelineno-48-23" href="#__codelineno-48-23"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"--- </span><span class="si">{</span><span class="n">label</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+<a id="__codelineno-48-24" name="__codelineno-48-24" href="#__codelineno-48-24"></a>    <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">"_asks"</span><span class="p">,</span> <span class="s2">"_bids"</span><span class="p">):</span>
+<a id="__codelineno-48-25" name="__codelineno-48-25" href="#__codelineno-48-25"></a>        <span class="n">heap</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">book</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span>
+<a id="__codelineno-48-26" name="__codelineno-48-26" href="#__codelineno-48-26"></a>        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"  </span><span class="si">{</span><span class="n">name</span><span class="si">:</span><span class="s2">6</span><span class="si">}</span><span class="s2">:"</span><span class="p">,</span> <span class="p">[(</span><span class="n">e</span><span class="o">.</span><span class="n">key</span><span class="p">,</span> <span class="n">e</span><span class="o">.</span><span class="n">order</span><span class="o">.</span><span class="n">id</span><span class="p">[:</span><span class="mi">4</span><span class="p">],</span> <span class="n">e</span><span class="o">.</span><span class="n">valid</span><span class="p">)</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">heap</span><span class="p">])</span>
+<a id="__codelineno-48-27" name="__codelineno-48-27" href="#__codelineno-48-27"></a>    <span class="nb">print</span><span class="p">(</span><span class="s2">"  _ask_qty:"</span><span class="p">,</span> <span class="n">book</span><span class="o">.</span><span class="n">_ask_qty</span><span class="p">,</span> <span class="s2">" _bid_qty:"</span><span class="p">,</span> <span class="n">book</span><span class="o">.</span><span class="n">_bid_qty</span><span class="p">)</span>
+<a id="__codelineno-48-28" name="__codelineno-48-28" href="#__codelineno-48-28"></a>    <span class="nb">print</span><span class="p">(</span><span class="s2">"  by gw  :"</span><span class="p">,</span> <span class="p">{</span><span class="n">g</span><span class="p">:</span> <span class="p">[</span><span class="n">i</span><span class="p">[:</span><span class="mi">4</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">ids</span><span class="p">]</span>
+<a id="__codelineno-48-29" name="__codelineno-48-29" href="#__codelineno-48-29"></a>                         <span class="k">for</span> <span class="n">g</span><span class="p">,</span> <span class="n">ids</span> <span class="ow">in</span> <span class="n">book</span><span class="o">.</span><span class="n">_orders_by_gateway</span><span class="o">.</span><span class="n">items</span><span class="p">()})</span>
+<a id="__codelineno-48-30" name="__codelineno-48-30" href="#__codelineno-48-30"></a>
+<a id="__codelineno-48-31" name="__codelineno-48-31" href="#__codelineno-48-31"></a>
+<a id="__codelineno-48-32" name="__codelineno-48-32" href="#__codelineno-48-32"></a><span class="n">a1</span> <span class="o">=</span> <span class="n">order</span><span class="p">(</span><span class="n">Side</span><span class="o">.</span><span class="n">SELL</span><span class="p">,</span> <span class="mi">300</span><span class="p">,</span> <span class="mi">10010</span><span class="p">,</span> <span class="n">gw</span><span class="o">=</span><span class="s2">"GW1"</span><span class="p">);</span> <span class="n">book</span><span class="o">.</span><span class="n">process</span><span class="p">(</span><span class="n">a1</span><span class="p">)</span>
+<a id="__codelineno-48-33" name="__codelineno-48-33" href="#__codelineno-48-33"></a><span class="n">a2</span> <span class="o">=</span> <span class="n">order</span><span class="p">(</span><span class="n">Side</span><span class="o">.</span><span class="n">SELL</span><span class="p">,</span> <span class="mi">200</span><span class="p">,</span> <span class="mi">10010</span><span class="p">,</span> <span class="n">gw</span><span class="o">=</span><span class="s2">"GW2"</span><span class="p">);</span> <span class="n">book</span><span class="o">.</span><span class="n">process</span><span class="p">(</span><span class="n">a2</span><span class="p">)</span>
+<a id="__codelineno-48-34" name="__codelineno-48-34" href="#__codelineno-48-34"></a><span class="n">a3</span> <span class="o">=</span> <span class="n">order</span><span class="p">(</span><span class="n">Side</span><span class="o">.</span><span class="n">SELL</span><span class="p">,</span> <span class="mi">500</span><span class="p">,</span> <span class="mi">10020</span><span class="p">,</span> <span class="n">gw</span><span class="o">=</span><span class="s2">"GW2"</span><span class="p">);</span> <span class="n">book</span><span class="o">.</span><span class="n">process</span><span class="p">(</span><span class="n">a3</span><span class="p">)</span>
+<a id="__codelineno-48-35" name="__codelineno-48-35" href="#__codelineno-48-35"></a><span class="n">b1</span> <span class="o">=</span> <span class="n">order</span><span class="p">(</span><span class="n">Side</span><span class="o">.</span><span class="n">BUY</span><span class="p">,</span> <span class="mi">400</span><span class="p">,</span> <span class="mi">10000</span><span class="p">,</span> <span class="n">gw</span><span class="o">=</span><span class="s2">"GW3"</span><span class="p">);</span> <span class="n">book</span><span class="o">.</span><span class="n">process</span><span class="p">(</span><span class="n">b1</span><span class="p">)</span>
+<a id="__codelineno-48-36" name="__codelineno-48-36" href="#__codelineno-48-36"></a><span class="n">show</span><span class="p">(</span><span class="s2">"starting book"</span><span class="p">)</span>
+<a id="__codelineno-48-37" name="__codelineno-48-37" href="#__codelineno-48-37"></a>
+<a id="__codelineno-48-38" name="__codelineno-48-38" href="#__codelineno-48-38"></a><span class="n">buy</span> <span class="o">=</span> <span class="n">order</span><span class="p">(</span><span class="n">Side</span><span class="o">.</span><span class="n">BUY</span><span class="p">,</span> <span class="mi">400</span><span class="p">,</span> <span class="mi">10010</span><span class="p">,</span> <span class="n">gw</span><span class="o">=</span><span class="s2">"GW3"</span><span class="p">)</span>
+<a id="__codelineno-48-39" name="__codelineno-48-39" href="#__codelineno-48-39"></a><span class="n">trades</span><span class="p">,</span> <span class="n">events</span> <span class="o">=</span> <span class="n">book</span><span class="o">.</span><span class="n">process</span><span class="p">(</span><span class="n">buy</span><span class="p">)</span>  <span class="c1"># &lt;-- set a breakpoint here, then Step Into</span>
+<a id="__codelineno-48-40" name="__codelineno-48-40" href="#__codelineno-48-40"></a><span class="nb">print</span><span class="p">(</span><span class="s2">"trades:"</span><span class="p">,</span> <span class="p">[(</span><span class="n">t</span><span class="o">.</span><span class="n">price</span><span class="p">,</span> <span class="n">t</span><span class="o">.</span><span class="n">quantity</span><span class="p">,</span> <span class="n">t</span><span class="o">.</span><span class="n">aggressor_side</span><span class="p">)</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">trades</span><span class="p">])</span>
+<a id="__codelineno-48-41" name="__codelineno-48-41" href="#__codelineno-48-41"></a><span class="nb">print</span><span class="p">(</span><span class="s2">"events:"</span><span class="p">,</span> <span class="p">[(</span><span class="n">o</span><span class="o">.</span><span class="n">id</span><span class="p">[:</span><span class="mi">4</span><span class="p">],</span> <span class="n">o</span><span class="o">.</span><span class="n">status</span><span class="o">.</span><span class="n">value</span><span class="p">,</span> <span class="n">o</span><span class="o">.</span><span class="n">remaining_qty</span><span class="p">)</span> <span class="k">for</span> <span class="n">o</span> <span class="ow">in</span> <span class="n">events</span><span class="p">])</span>
+<a id="__codelineno-48-42" name="__codelineno-48-42" href="#__codelineno-48-42"></a><span class="n">show</span><span class="p">(</span><span class="s2">"after BUY 400 @ 100.10"</span><span class="p">)</span>
+<a id="__codelineno-48-43" name="__codelineno-48-43" href="#__codelineno-48-43"></a>
+<a id="__codelineno-48-44" name="__codelineno-48-44" href="#__codelineno-48-44"></a><span class="n">book</span><span class="o">.</span><span class="n">cancel_order</span><span class="p">(</span><span class="n">a3</span><span class="o">.</span><span class="n">id</span><span class="p">)</span>
+<a id="__codelineno-48-45" name="__codelineno-48-45" href="#__codelineno-48-45"></a><span class="n">show</span><span class="p">(</span><span class="s2">"after cancel a3"</span><span class="p">)</span>
 </code></pre></div>
 <p>Two details make a standalone script work: <code>set_run_seq(0)</code> (without it
 <code>Trade.create</code> raises "trade id requested before set_run_seq()"), and
 <code>tick_decimals=2</code> (the symbol <code>DEMO</code> is not registered in any config). Order
 ids are random, so yours will differ. The output (ids shortened, log lines
 abbreviated):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-48-1" name="__codelineno-48-1" href="#__codelineno-48-1"></a>edumatcher.engine.order_book: LIMIT order resting after sweep ... side=SELL price=10010 remaining_qty=300
-<a id="__codelineno-48-2" name="__codelineno-48-2" href="#__codelineno-48-2"></a>...
-<a id="__codelineno-48-3" name="__codelineno-48-3" href="#__codelineno-48-3"></a>--- starting book
-<a id="__codelineno-48-4" name="__codelineno-48-4" href="#__codelineno-48-4"></a>  _asks : [((10010, 1), 'e12b', True), ((10010, 2), '3ed6', True), ((10020, 3), 'eddb', True)]
-<a id="__codelineno-48-5" name="__codelineno-48-5" href="#__codelineno-48-5"></a>  _bids : [((-10000, 4), '0661', True)]
-<a id="__codelineno-48-6" name="__codelineno-48-6" href="#__codelineno-48-6"></a>  _ask_qty: {10010: 500, 10020: 500}  _bid_qty: {10000: 400}
-<a id="__codelineno-48-7" name="__codelineno-48-7" href="#__codelineno-48-7"></a>  by gw  : {'GW1': ['e12b'], 'GW2': ['3ed6', 'eddb'], 'GW3': ['0661']}
-<a id="__codelineno-48-8" name="__codelineno-48-8" href="#__codelineno-48-8"></a>edumatcher.engine.order_book: sweep fill ... passive_id=e12b... side=BUY price=10010 qty=300 aggressor_remaining_after=100
-<a id="__codelineno-48-9" name="__codelineno-48-9" href="#__codelineno-48-9"></a>edumatcher.engine.order_book: sweep fill ... passive_id=3ed6... side=BUY price=10010 qty=100 aggressor_remaining_after=0
-<a id="__codelineno-48-10" name="__codelineno-48-10" href="#__codelineno-48-10"></a>trades: [(10010, 300, 'BUY'), (10010, 100, 'BUY')]
-<a id="__codelineno-48-11" name="__codelineno-48-11" href="#__codelineno-48-11"></a>events: [('b1cf', 'FILLED', 0), ('e12b', 'FILLED', 0), ('b1cf', 'FILLED', 0), ('3ed6', 'PARTIAL', 100)]
-<a id="__codelineno-48-12" name="__codelineno-48-12" href="#__codelineno-48-12"></a>--- after BUY 400 @ 100.10
-<a id="__codelineno-48-13" name="__codelineno-48-13" href="#__codelineno-48-13"></a>  _asks : [((10010, 2), '3ed6', True), ((10020, 3), 'eddb', True)]
-<a id="__codelineno-48-14" name="__codelineno-48-14" href="#__codelineno-48-14"></a>  ...
-<a id="__codelineno-48-15" name="__codelineno-48-15" href="#__codelineno-48-15"></a>--- after cancel a3
-<a id="__codelineno-48-16" name="__codelineno-48-16" href="#__codelineno-48-16"></a>  _asks : [((10010, 2), '3ed6', True), ((10020, 3), 'eddb', False)]
-<a id="__codelineno-48-17" name="__codelineno-48-17" href="#__codelineno-48-17"></a>  _ask_qty: {10010: 100}  _bid_qty: {10000: 400}
-<a id="__codelineno-48-18" name="__codelineno-48-18" href="#__codelineno-48-18"></a>  by gw  : {'GW2': ['3ed6'], 'GW3': ['0661']}
+<div class="highlight"><pre><span></span><code><a id="__codelineno-49-1" name="__codelineno-49-1" href="#__codelineno-49-1"></a>edumatcher.engine.order_book: LIMIT order resting after sweep ... side=SELL price=10010 remaining_qty=300
+<a id="__codelineno-49-2" name="__codelineno-49-2" href="#__codelineno-49-2"></a>...
+<a id="__codelineno-49-3" name="__codelineno-49-3" href="#__codelineno-49-3"></a>--- starting book
+<a id="__codelineno-49-4" name="__codelineno-49-4" href="#__codelineno-49-4"></a>  _asks : [((10010, 1), 'e12b', True), ((10010, 2), '3ed6', True), ((10020, 3), 'eddb', True)]
+<a id="__codelineno-49-5" name="__codelineno-49-5" href="#__codelineno-49-5"></a>  _bids : [((-10000, 4), '0661', True)]
+<a id="__codelineno-49-6" name="__codelineno-49-6" href="#__codelineno-49-6"></a>  _ask_qty: {10010: 500, 10020: 500}  _bid_qty: {10000: 400}
+<a id="__codelineno-49-7" name="__codelineno-49-7" href="#__codelineno-49-7"></a>  by gw  : {'GW1': ['e12b'], 'GW2': ['3ed6', 'eddb'], 'GW3': ['0661']}
+<a id="__codelineno-49-8" name="__codelineno-49-8" href="#__codelineno-49-8"></a>edumatcher.engine.order_book: sweep fill ... passive_id=e12b... side=BUY price=10010 qty=300 aggressor_remaining_after=100
+<a id="__codelineno-49-9" name="__codelineno-49-9" href="#__codelineno-49-9"></a>edumatcher.engine.order_book: sweep fill ... passive_id=3ed6... side=BUY price=10010 qty=100 aggressor_remaining_after=0
+<a id="__codelineno-49-10" name="__codelineno-49-10" href="#__codelineno-49-10"></a>trades: [(10010, 300, 'BUY'), (10010, 100, 'BUY')]
+<a id="__codelineno-49-11" name="__codelineno-49-11" href="#__codelineno-49-11"></a>events: [('b1cf', 'FILLED', 0), ('e12b', 'FILLED', 0), ('b1cf', 'FILLED', 0), ('3ed6', 'PARTIAL', 100)]
+<a id="__codelineno-49-12" name="__codelineno-49-12" href="#__codelineno-49-12"></a>--- after BUY 400 @ 100.10
+<a id="__codelineno-49-13" name="__codelineno-49-13" href="#__codelineno-49-13"></a>  _asks : [((10010, 2), '3ed6', True), ((10020, 3), 'eddb', True)]
+<a id="__codelineno-49-14" name="__codelineno-49-14" href="#__codelineno-49-14"></a>  ...
+<a id="__codelineno-49-15" name="__codelineno-49-15" href="#__codelineno-49-15"></a>--- after cancel a3
+<a id="__codelineno-49-16" name="__codelineno-49-16" href="#__codelineno-49-16"></a>  _asks : [((10010, 2), '3ed6', True), ((10020, 3), 'eddb', False)]
+<a id="__codelineno-49-17" name="__codelineno-49-17" href="#__codelineno-49-17"></a>  _ask_qty: {10010: 100}  _bid_qty: {10000: 400}
+<a id="__codelineno-49-18" name="__codelineno-49-18" href="#__codelineno-49-18"></a>  by gw  : {'GW2': ['3ed6'], 'GW3': ['0661']}
 </code></pre></div>
 <p>Every worked example in this chapter came from a variation of this script.
 Change the orders and predict the output <em>before</em> you run it.</p>
 <h3 id="2-debugger-configurations">2. Debugger configurations<a class="headerlink" href="#2-debugger-configurations" title="Permanent link">&para;</a></h3>
 <p>The repository does not ship a <code>.vscode/launch.json</code>. Create one with these
 three configurations (you need the Python and Python Debugger extensions):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-49-1" name="__codelineno-49-1" href="#__codelineno-49-1"></a><span class="p">{</span>
-<a id="__codelineno-49-2" name="__codelineno-49-2" href="#__codelineno-49-2"></a><span class="w">  </span><span class="nt">"version"</span><span class="p">:</span><span class="w"> </span><span class="s2">"0.2.0"</span><span class="p">,</span>
-<a id="__codelineno-49-3" name="__codelineno-49-3" href="#__codelineno-49-3"></a><span class="w">  </span><span class="nt">"configurations"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
-<a id="__codelineno-49-4" name="__codelineno-49-4" href="#__codelineno-49-4"></a><span class="w">    </span><span class="p">{</span>
-<a id="__codelineno-49-5" name="__codelineno-49-5" href="#__codelineno-49-5"></a><span class="w">      </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Book lab (current file)"</span><span class="p">,</span>
-<a id="__codelineno-49-6" name="__codelineno-49-6" href="#__codelineno-49-6"></a><span class="w">      </span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"debugpy"</span><span class="p">,</span>
-<a id="__codelineno-49-7" name="__codelineno-49-7" href="#__codelineno-49-7"></a><span class="w">      </span><span class="nt">"request"</span><span class="p">:</span><span class="w"> </span><span class="s2">"launch"</span><span class="p">,</span>
-<a id="__codelineno-49-8" name="__codelineno-49-8" href="#__codelineno-49-8"></a><span class="w">      </span><span class="nt">"program"</span><span class="p">:</span><span class="w"> </span><span class="s2">"${file}"</span><span class="p">,</span>
-<a id="__codelineno-49-9" name="__codelineno-49-9" href="#__codelineno-49-9"></a><span class="w">      </span><span class="nt">"cwd"</span><span class="p">:</span><span class="w"> </span><span class="s2">"${workspaceFolder}"</span><span class="p">,</span>
-<a id="__codelineno-49-10" name="__codelineno-49-10" href="#__codelineno-49-10"></a><span class="w">      </span><span class="nt">"console"</span><span class="p">:</span><span class="w"> </span><span class="s2">"integratedTerminal"</span><span class="p">,</span>
-<a id="__codelineno-49-11" name="__codelineno-49-11" href="#__codelineno-49-11"></a><span class="w">      </span><span class="nt">"justMyCode"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span>
-<a id="__codelineno-49-12" name="__codelineno-49-12" href="#__codelineno-49-12"></a><span class="w">    </span><span class="p">},</span>
-<a id="__codelineno-49-13" name="__codelineno-49-13" href="#__codelineno-49-13"></a><span class="w">    </span><span class="p">{</span>
-<a id="__codelineno-49-14" name="__codelineno-49-14" href="#__codelineno-49-14"></a><span class="w">      </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"One order-book test"</span><span class="p">,</span>
-<a id="__codelineno-49-15" name="__codelineno-49-15" href="#__codelineno-49-15"></a><span class="w">      </span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"debugpy"</span><span class="p">,</span>
-<a id="__codelineno-49-16" name="__codelineno-49-16" href="#__codelineno-49-16"></a><span class="w">      </span><span class="nt">"request"</span><span class="p">:</span><span class="w"> </span><span class="s2">"launch"</span><span class="p">,</span>
-<a id="__codelineno-49-17" name="__codelineno-49-17" href="#__codelineno-49-17"></a><span class="w">      </span><span class="nt">"module"</span><span class="p">:</span><span class="w"> </span><span class="s2">"pytest"</span><span class="p">,</span>
-<a id="__codelineno-49-18" name="__codelineno-49-18" href="#__codelineno-49-18"></a><span class="w">      </span><span class="nt">"args"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
-<a id="__codelineno-49-19" name="__codelineno-49-19" href="#__codelineno-49-19"></a><span class="w">        </span><span class="s2">"tests/test_order_flow.py::test_stop_order_triggers_into_market_after_trigger_trade"</span><span class="p">,</span>
-<a id="__codelineno-49-20" name="__codelineno-49-20" href="#__codelineno-49-20"></a><span class="w">        </span><span class="s2">"--no-cov"</span><span class="p">,</span><span class="w"> </span><span class="s2">"-q"</span>
-<a id="__codelineno-49-21" name="__codelineno-49-21" href="#__codelineno-49-21"></a><span class="w">      </span><span class="p">],</span>
-<a id="__codelineno-49-22" name="__codelineno-49-22" href="#__codelineno-49-22"></a><span class="w">      </span><span class="nt">"cwd"</span><span class="p">:</span><span class="w"> </span><span class="s2">"${workspaceFolder}"</span><span class="p">,</span>
-<a id="__codelineno-49-23" name="__codelineno-49-23" href="#__codelineno-49-23"></a><span class="w">      </span><span class="nt">"justMyCode"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span>
-<a id="__codelineno-49-24" name="__codelineno-49-24" href="#__codelineno-49-24"></a><span class="w">    </span><span class="p">},</span>
-<a id="__codelineno-49-25" name="__codelineno-49-25" href="#__codelineno-49-25"></a><span class="w">    </span><span class="p">{</span>
-<a id="__codelineno-49-26" name="__codelineno-49-26" href="#__codelineno-49-26"></a><span class="w">      </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"pm-engine (DEBUG log to stdout)"</span><span class="p">,</span>
-<a id="__codelineno-49-27" name="__codelineno-49-27" href="#__codelineno-49-27"></a><span class="w">      </span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"debugpy"</span><span class="p">,</span>
-<a id="__codelineno-49-28" name="__codelineno-49-28" href="#__codelineno-49-28"></a><span class="w">      </span><span class="nt">"request"</span><span class="p">:</span><span class="w"> </span><span class="s2">"launch"</span><span class="p">,</span>
-<a id="__codelineno-49-29" name="__codelineno-49-29" href="#__codelineno-49-29"></a><span class="w">      </span><span class="nt">"module"</span><span class="p">:</span><span class="w"> </span><span class="s2">"edumatcher.engine.main"</span><span class="p">,</span>
-<a id="__codelineno-49-30" name="__codelineno-49-30" href="#__codelineno-49-30"></a><span class="w">      </span><span class="nt">"args"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"-vv"</span><span class="p">,</span><span class="w"> </span><span class="s2">"--log-target"</span><span class="p">,</span><span class="w"> </span><span class="s2">"stdout"</span><span class="p">],</span>
-<a id="__codelineno-49-31" name="__codelineno-49-31" href="#__codelineno-49-31"></a><span class="w">      </span><span class="nt">"cwd"</span><span class="p">:</span><span class="w"> </span><span class="s2">"${workspaceFolder}"</span><span class="p">,</span>
-<a id="__codelineno-49-32" name="__codelineno-49-32" href="#__codelineno-49-32"></a><span class="w">      </span><span class="nt">"justMyCode"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span>
-<a id="__codelineno-49-33" name="__codelineno-49-33" href="#__codelineno-49-33"></a><span class="w">    </span><span class="p">}</span>
-<a id="__codelineno-49-34" name="__codelineno-49-34" href="#__codelineno-49-34"></a><span class="w">  </span><span class="p">]</span>
-<a id="__codelineno-49-35" name="__codelineno-49-35" href="#__codelineno-49-35"></a><span class="p">}</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-50-1" name="__codelineno-50-1" href="#__codelineno-50-1"></a><span class="p">{</span>
+<a id="__codelineno-50-2" name="__codelineno-50-2" href="#__codelineno-50-2"></a><span class="w">  </span><span class="nt">"version"</span><span class="p">:</span><span class="w"> </span><span class="s2">"0.2.0"</span><span class="p">,</span>
+<a id="__codelineno-50-3" name="__codelineno-50-3" href="#__codelineno-50-3"></a><span class="w">  </span><span class="nt">"configurations"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-50-4" name="__codelineno-50-4" href="#__codelineno-50-4"></a><span class="w">    </span><span class="p">{</span>
+<a id="__codelineno-50-5" name="__codelineno-50-5" href="#__codelineno-50-5"></a><span class="w">      </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Book lab (current file)"</span><span class="p">,</span>
+<a id="__codelineno-50-6" name="__codelineno-50-6" href="#__codelineno-50-6"></a><span class="w">      </span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"debugpy"</span><span class="p">,</span>
+<a id="__codelineno-50-7" name="__codelineno-50-7" href="#__codelineno-50-7"></a><span class="w">      </span><span class="nt">"request"</span><span class="p">:</span><span class="w"> </span><span class="s2">"launch"</span><span class="p">,</span>
+<a id="__codelineno-50-8" name="__codelineno-50-8" href="#__codelineno-50-8"></a><span class="w">      </span><span class="nt">"program"</span><span class="p">:</span><span class="w"> </span><span class="s2">"${file}"</span><span class="p">,</span>
+<a id="__codelineno-50-9" name="__codelineno-50-9" href="#__codelineno-50-9"></a><span class="w">      </span><span class="nt">"cwd"</span><span class="p">:</span><span class="w"> </span><span class="s2">"${workspaceFolder}"</span><span class="p">,</span>
+<a id="__codelineno-50-10" name="__codelineno-50-10" href="#__codelineno-50-10"></a><span class="w">      </span><span class="nt">"console"</span><span class="p">:</span><span class="w"> </span><span class="s2">"integratedTerminal"</span><span class="p">,</span>
+<a id="__codelineno-50-11" name="__codelineno-50-11" href="#__codelineno-50-11"></a><span class="w">      </span><span class="nt">"justMyCode"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span>
+<a id="__codelineno-50-12" name="__codelineno-50-12" href="#__codelineno-50-12"></a><span class="w">    </span><span class="p">},</span>
+<a id="__codelineno-50-13" name="__codelineno-50-13" href="#__codelineno-50-13"></a><span class="w">    </span><span class="p">{</span>
+<a id="__codelineno-50-14" name="__codelineno-50-14" href="#__codelineno-50-14"></a><span class="w">      </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"One order-book test"</span><span class="p">,</span>
+<a id="__codelineno-50-15" name="__codelineno-50-15" href="#__codelineno-50-15"></a><span class="w">      </span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"debugpy"</span><span class="p">,</span>
+<a id="__codelineno-50-16" name="__codelineno-50-16" href="#__codelineno-50-16"></a><span class="w">      </span><span class="nt">"request"</span><span class="p">:</span><span class="w"> </span><span class="s2">"launch"</span><span class="p">,</span>
+<a id="__codelineno-50-17" name="__codelineno-50-17" href="#__codelineno-50-17"></a><span class="w">      </span><span class="nt">"module"</span><span class="p">:</span><span class="w"> </span><span class="s2">"pytest"</span><span class="p">,</span>
+<a id="__codelineno-50-18" name="__codelineno-50-18" href="#__codelineno-50-18"></a><span class="w">      </span><span class="nt">"args"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-50-19" name="__codelineno-50-19" href="#__codelineno-50-19"></a><span class="w">        </span><span class="s2">"tests/test_order_flow.py::test_stop_order_triggers_into_market_after_trigger_trade"</span><span class="p">,</span>
+<a id="__codelineno-50-20" name="__codelineno-50-20" href="#__codelineno-50-20"></a><span class="w">        </span><span class="s2">"--no-cov"</span><span class="p">,</span><span class="w"> </span><span class="s2">"-q"</span>
+<a id="__codelineno-50-21" name="__codelineno-50-21" href="#__codelineno-50-21"></a><span class="w">      </span><span class="p">],</span>
+<a id="__codelineno-50-22" name="__codelineno-50-22" href="#__codelineno-50-22"></a><span class="w">      </span><span class="nt">"cwd"</span><span class="p">:</span><span class="w"> </span><span class="s2">"${workspaceFolder}"</span><span class="p">,</span>
+<a id="__codelineno-50-23" name="__codelineno-50-23" href="#__codelineno-50-23"></a><span class="w">      </span><span class="nt">"justMyCode"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span>
+<a id="__codelineno-50-24" name="__codelineno-50-24" href="#__codelineno-50-24"></a><span class="w">    </span><span class="p">},</span>
+<a id="__codelineno-50-25" name="__codelineno-50-25" href="#__codelineno-50-25"></a><span class="w">    </span><span class="p">{</span>
+<a id="__codelineno-50-26" name="__codelineno-50-26" href="#__codelineno-50-26"></a><span class="w">      </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"pm-engine (DEBUG log to stdout)"</span><span class="p">,</span>
+<a id="__codelineno-50-27" name="__codelineno-50-27" href="#__codelineno-50-27"></a><span class="w">      </span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"debugpy"</span><span class="p">,</span>
+<a id="__codelineno-50-28" name="__codelineno-50-28" href="#__codelineno-50-28"></a><span class="w">      </span><span class="nt">"request"</span><span class="p">:</span><span class="w"> </span><span class="s2">"launch"</span><span class="p">,</span>
+<a id="__codelineno-50-29" name="__codelineno-50-29" href="#__codelineno-50-29"></a><span class="w">      </span><span class="nt">"module"</span><span class="p">:</span><span class="w"> </span><span class="s2">"edumatcher.engine.main"</span><span class="p">,</span>
+<a id="__codelineno-50-30" name="__codelineno-50-30" href="#__codelineno-50-30"></a><span class="w">      </span><span class="nt">"args"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"-vv"</span><span class="p">,</span><span class="w"> </span><span class="s2">"--log-target"</span><span class="p">,</span><span class="w"> </span><span class="s2">"stdout"</span><span class="p">],</span>
+<a id="__codelineno-50-31" name="__codelineno-50-31" href="#__codelineno-50-31"></a><span class="w">      </span><span class="nt">"cwd"</span><span class="p">:</span><span class="w"> </span><span class="s2">"${workspaceFolder}"</span><span class="p">,</span>
+<a id="__codelineno-50-32" name="__codelineno-50-32" href="#__codelineno-50-32"></a><span class="w">      </span><span class="nt">"justMyCode"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span>
+<a id="__codelineno-50-33" name="__codelineno-50-33" href="#__codelineno-50-33"></a><span class="w">    </span><span class="p">}</span>
+<a id="__codelineno-50-34" name="__codelineno-50-34" href="#__codelineno-50-34"></a><span class="w">  </span><span class="p">]</span>
+<a id="__codelineno-50-35" name="__codelineno-50-35" href="#__codelineno-50-35"></a><span class="p">}</span>
 </code></pre></div>
 <ul>
 <li><strong>Book lab</strong> — open <code>book_lab.py</code>, set a breakpoint on the
@@ -10750,12 +11350,12 @@ in <code>_sweep</code>, or <code>order.order_type.value == "STOP"</code> in <cod
 <strong>logpoint</strong> prints without stopping, which is ideal inside the sweep loop:
 <code>fill {fill_qty} @ {best_price} vs {best.id[:4]}</code>.</p>
 <h3 id="4-watch-expressions-that-do-not-change-the-book">4. Watch expressions that do not change the book<a class="headerlink" href="#4-watch-expressions-that-do-not-change-the-book" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-50-1" name="__codelineno-50-1" href="#__codelineno-50-1"></a>sorted((e.key, e.order.id[:4], e.valid) for e in self._asks)   # true priority order
-<a id="__codelineno-50-2" name="__codelineno-50-2" href="#__codelineno-50-2"></a>self._ask_qty, self._bid_qty
-<a id="__codelineno-50-3" name="__codelineno-50-3" href="#__codelineno-50-3"></a>{k[:4]: v.status.value for k, v in self._order_index.items()}
-<a id="__codelineno-50-4" name="__codelineno-50-4" href="#__codelineno-50-4"></a>len(self._entry_index), len(self._bids) + len(self._asks)      # live vs. with garbage
-<a id="__codelineno-50-5" name="__codelineno-50-5" href="#__codelineno-50-5"></a>[(t.price, t.quantity) for t in trades]
-<a id="__codelineno-50-6" name="__codelineno-50-6" href="#__codelineno-50-6"></a>self.book_stats()
+<div class="highlight"><pre><span></span><code><a id="__codelineno-51-1" name="__codelineno-51-1" href="#__codelineno-51-1"></a>sorted((e.key, e.order.id[:4], e.valid) for e in self._asks)   # true priority order
+<a id="__codelineno-51-2" name="__codelineno-51-2" href="#__codelineno-51-2"></a>self._ask_qty, self._bid_qty
+<a id="__codelineno-51-3" name="__codelineno-51-3" href="#__codelineno-51-3"></a>{k[:4]: v.status.value for k, v in self._order_index.items()}
+<a id="__codelineno-51-4" name="__codelineno-51-4" href="#__codelineno-51-4"></a>len(self._entry_index), len(self._bids) + len(self._asks)      # live vs. with garbage
+<a id="__codelineno-51-5" name="__codelineno-51-5" href="#__codelineno-51-5"></a>[(t.price, t.quantity) for t in trades]
+<a id="__codelineno-51-6" name="__codelineno-51-6" href="#__codelineno-51-6"></a>self.book_stats()
 </code></pre></div>
 <div class="admonition warning">
 <p class="admonition-title">Some methods mutate the book — never call them from a watch</p>
@@ -10767,8 +11367,8 @@ trying to observe. Read-only views (<code>snapshot()</code>, <code>depth_snapsho
 <code>sorted(...)</code> on a heap, which copies it.</p>
 </div>
 <p>From the debug console you can also check the whole book at any point:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-51-1" name="__codelineno-51-1" href="#__codelineno-51-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">tests.engine_invariants</span><span class="w"> </span><span class="kn">import</span> <span class="n">assert_book_invariants</span>
-<a id="__codelineno-51-2" name="__codelineno-51-2" href="#__codelineno-51-2"></a><span class="n">assert_book_invariants</span><span class="p">(</span><span class="n">book</span><span class="p">,</span> <span class="n">include_hygiene</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>   <span class="c1"># use `self` inside OrderBook methods</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-52-1" name="__codelineno-52-1" href="#__codelineno-52-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">tests.engine_invariants</span><span class="w"> </span><span class="kn">import</span> <span class="n">assert_book_invariants</span>
+<a id="__codelineno-52-2" name="__codelineno-52-2" href="#__codelineno-52-2"></a><span class="n">assert_book_invariants</span><span class="p">(</span><span class="n">book</span><span class="p">,</span> <span class="n">include_hygiene</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>   <span class="c1"># use `self` inside OrderBook methods</span>
 </code></pre></div>
 <p>If that raises, the message says which invariant (I1–I5) broke. This is the
 fastest way to find the exact step at which an edit to <code>order_book.py</code> breaks

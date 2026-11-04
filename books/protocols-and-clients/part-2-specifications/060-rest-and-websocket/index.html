@@ -9332,6 +9332,11 @@ those replies it missed. The submit writes (<code>POST /orders</code>, <code>/oc
   <code>409 IDEMPOTENCY_KEY_REUSED</code>.</li>
 <li>A request that failed before the engine was reached is not remembered, so it
   may be retried with the same key.</li>
+<li><code>replace</code> is two writes — cancel, then submit the replacement — and the key
+  records which of them succeeded. If the cancel is confirmed but the
+  replacement fails, a retry with the same key resumes at the replacement: it
+  does not cancel again, and it does not leave you with no order. A retry
+  after both steps succeeded replays the first reply as usual.</li>
 <li>Keys are kept for <code>order_retention_sec</code> and are lost when the gateway
   restarts.</li>
 </ul>
