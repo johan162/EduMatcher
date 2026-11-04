@@ -5,8 +5,11 @@ clients as authenticated leaves them trading against a session that no longer
 exists, so each one must subscribe to ``system.startup_recovery``, tell every
 client, close it, and forget the engine-side state it cached.
 
-The API gateway joins this contract in K15 (finding P4), which is where its
-restart de-auth lands.
+The API gateway honours the same contract (K15, finding P4) but has no TCP
+sessions of its own to drop: it forgets the gateway ids it believes the engine
+has authenticated, so the next request re-runs ``gateway_connect``. That half
+is asserted in ``test_api_gateway_k13_k15.py`` rather than duplicated here,
+because none of the session machinery below applies to it.
 """
 
 from __future__ import annotations

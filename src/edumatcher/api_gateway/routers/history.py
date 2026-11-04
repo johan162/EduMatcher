@@ -30,7 +30,12 @@ from edumatcher.api_gateway.responses import (
 )
 from edumatcher.api_gateway.routing import ContractRoute
 from edumatcher.api_gateway.params import OrderIdPath
-from edumatcher.api_gateway.sessions import Session, auth, require_trading
+from edumatcher.api_gateway.sessions import (
+    Session,
+    auth,
+    correlation_id,
+    require_trading,
+)
 from edumatcher.index.history import STRUCTURAL_RECORD_TYPES
 from edumatcher.audit.archive import session_timezone
 from edumatcher.stats.event_types import EVENT_TYPES
@@ -809,16 +814,17 @@ async def history_index_events(
     # pm-index echoes request_id back (upper-cased) as the reply-topic
     # suffix, and IndexClient keys its pending futures by that same string.
     # Two fixes are needed here:
-    #  - a per-call UUID suffix, since a bare gateway_id/api_key is stable
+    #  - a per-call UUID suffix, since a bare correlation id is stable
     #    across a session, so two concurrent calls from the same session
     #    would otherwise both listen on (and resolve from) the same topic;
     #  - upper-casing the whole value ourselves, since pm-index upper-cases
     #    whatever it receives before using it in the reply topic name — a
-    #    mixed-case read-only api_key would otherwise never match what
-    #    IndexClient is actually listening for, timing out on every call.
-    request_id = (
-        f"{session.gateway_id or session.api_key}-{uuid.uuid4().hex[:10]}"
-    ).upper()
+    #    mixed-case id would otherwise never match what IndexClient is
+    #    actually listening for, timing out on every call.
+    # correlation_id() rather than the raw API key: pm-index publishes the
+    # reply topic to every subscriber, so a read-only session's key would be
+    # on the wire (P1).
+    request_id = f"{correlation_id(session)}-{uuid.uuid4().hex[:10]}".upper()
     try:
         reply = await index_client.request_history(
             request_id=request_id,

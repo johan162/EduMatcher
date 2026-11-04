@@ -16,6 +16,7 @@ import errno
 import logging
 import threading
 from collections import defaultdict
+from dataclasses import dataclass
 from typing import Any
 
 import zmq
@@ -39,6 +40,14 @@ class IndexHistoryError(RuntimeError):
     """Raised when pm-index replies with ``index.error.<gateway_id>``."""
 
 
+@dataclass
+class _PendingWait:
+    """One registered waiter, optionally filtered on payload fields."""
+
+    future: asyncio.Future[dict[str, Any]]
+    match: dict[str, str] | None = None
+
+
 class IndexClient:
     """Owns the gateway's sockets to pm-index and bridges replies to asyncio."""
 
@@ -56,15 +65,13 @@ class IndexClient:
         self._sub = make_subscriber(pub_addr, "")
         self._running = False
         self._thread: threading.Thread | None = None
-        # A list per topic, not a single future: every caller here already
-        # addresses its own reply topic with a unique id (request_id /
-        # command_id), so two calls should never collide in practice — but a
-        # single-future-per-key map would silently drop an earlier waiter's
-        # registration if one ever did (e.g. a retried request reusing an
-        # id), rather than resolving both. Mirrors EngineClient._pending.
-        self._pending: dict[str, list[asyncio.Future[dict[str, Any]]]] = defaultdict(
-            list
-        )
+        # A list per topic, not a single future. ``index.history.<request_id>``
+        # is addressed per call, but ``index.rebalance_ack.<gateway_id>`` is
+        # shared by every rebalance that gateway issues, so concurrent calls
+        # genuinely do collide there — each waiter carries the ``command_id``
+        # it is waiting for and only consumes the reply echoing it (P3).
+        # Mirrors EngineClient._pending.
+        self._pending: dict[str, list[_PendingWait]] = defaultdict(list)
 
     def start_listener(self) -> None:
         """Start the daemon thread that receives pm-index PUB events."""
@@ -166,7 +173,7 @@ class IndexClient:
         future to race against.
         """
         topic = topic_index_rebalance_ack(gateway_id)
-        future = self._register_future(topic)
+        future = self._register_future(topic, match={"command_id": command_id})
         self._push.send_multipart(
             make_index_rebalance_msg(index_id, gateway_id, updates, command_id)
         )
@@ -177,9 +184,11 @@ class IndexClient:
         finally:
             self._drop_pending(topic, future)
 
-    def _register_future(self, key: str) -> asyncio.Future[dict[str, Any]]:
+    def _register_future(
+        self, key: str, match: dict[str, str] | None = None
+    ) -> asyncio.Future[dict[str, Any]]:
         future: asyncio.Future[dict[str, Any]] = self._loop.create_future()
-        self._pending[key].append(future)
+        self._pending[key].append(_PendingWait(future=future, match=match))
         return future
 
     def _drop_pending(self, key: str, future: asyncio.Future[dict[str, Any]]) -> None:
@@ -187,7 +196,7 @@ class IndexClient:
         pending = self._pending.get(key)
         if pending is None:
             return
-        self._pending[key] = [w for w in pending if w is not future]
+        self._pending[key] = [w for w in pending if w.future is not future]
         if not self._pending[key]:
             del self._pending[key]
 
@@ -217,10 +226,17 @@ class IndexClient:
         pending = self._pending.get(topic)
         if not pending:
             return
-        # Resolve the oldest waiter first (FIFO) — reply order should match
-        # request order for one topic, and this keeps a topic with more than
-        # one waiter from resolving them out of order.
-        for future in pending:
-            if not future.done():
-                future.set_result(payload)
-                break
+        # A filtered waiter only ever consumes the reply echoing its own id,
+        # so replies arriving out of request order still reach the right
+        # caller. Unfiltered waiters fall back to FIFO, which is correct for
+        # the per-call history topics where only one waiter can exist.
+        for waiter in pending:
+            if waiter.future.done():
+                continue
+            if waiter.match is not None and not all(
+                str(payload.get(key, "")) == value
+                for key, value in waiter.match.items()
+            ):
+                continue
+            waiter.future.set_result(payload)
+            break

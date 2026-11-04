@@ -195,6 +195,15 @@ WebSocket clients send the API key as their first JSON message:
 { "api_key": "key-trader-demo" }
 ```
 
+!!! warning "The API key never leaves the gateway"
+    Engine and `pm-index` replies are addressed by a correlation id that
+    becomes a topic suffix on the ZMQ PUB bus, where every subscriber can
+    read it. A trading key's correlation id is its `gateway_id`; a read-only
+    key has none, so the gateway derives one by hashing the key
+    (`RO<16 hex>`). The raw key is used only for the in-process rate-limiter
+    bucket. A test guard (`test_api_gateway_k13_k15.py`) scans the gateway
+    package and fails the build if `session.api_key` is read anywhere else.
+
 ### Auth and roles
 
 The gateway checks auth in two steps:

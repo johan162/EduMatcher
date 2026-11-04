@@ -71,6 +71,7 @@ from edumatcher.models.generated.session import (
     topic_session_transition_ack,
 )
 from edumatcher.models.generated.system import (
+    TOPIC_STARTUP_RECOVERY,
     match_gateway_bye,
     topic_gateway_auth,
     topic_gateways,
@@ -480,6 +481,19 @@ class EngineClient:
     def _handle_event(self, topic: str, payload: dict[str, Any]) -> None:
         self._dbg_count("events_handled")
         self._resolve_pending(topic, payload)
+        if topic == TOPIC_STARTUP_RECOVERY:
+            # The engine restarted and rebuilt its session table from its
+            # journal, which does not include live gateway connections. Every
+            # id we believe is connected is stale: forget them all, so the
+            # next request re-runs gateway_connect instead of being refused
+            # as "not connected" for the rest of this process's life (P4).
+            # Same contract as the ALF and BALF gateways (K11).
+            if self._authenticated:
+                log.warning(
+                    "engine restart: de-authenticating %s",
+                    ", ".join(sorted(self._authenticated)),
+                )
+            self._authenticated.clear()
         bye_gateway = match_gateway_bye(topic)
         if bye_gateway is not None:
             # The engine closed this session (an admin disconnect, or a missed
