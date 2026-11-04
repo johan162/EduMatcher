@@ -24,6 +24,8 @@ from typing import BinaryIO, cast
 
 from compression import zstd
 
+from edumatcher.audit.manifest import record_day, record_retired
+
 DEFAULT_LEVEL = 9
 #: Free space required next to the parts, as a share of their total size.
 #: zstd on this JSON is ~13:1 (docs-design §Insights, Z3); this leaves a wide margin.
@@ -227,7 +229,9 @@ def archive_day(
                 "are left for an operator"
             ) from exc
         if leftover:
-            # A crash while deleting the parts: finish the deletion.
+            # A crash while deleting the parts: finish the deletion, and the
+            # manifest entry if the crash came before it.
+            record_day(audit_dir, day, *_digest([archive]))
             _delete(parts)
             on_step("deleted")
             return ArchiveResult(day, len(parts), parts_size, archive.stat().st_size)
@@ -268,6 +272,9 @@ def archive_day(
     _fsync_dir(audit_dir)
     on_step("renamed")
 
+    record_day(audit_dir, day, sha, lines, size)
+    on_step("recorded")
+
     _delete(parts)
     on_step("deleted")
     return ArchiveResult(day, len(parts), size, out)
@@ -294,6 +301,7 @@ def apply_retention(audit_dir: Path, keep_days: int, today: str) -> list[Path]:
     removed: list[Path] = []
     for p in sorted(audit_dir.glob("audit-*.log.zst")):
         if (m := _ARCHIVE_RE.match(p.name)) and m.group(1) < cutoff:
+            record_retired(audit_dir, m.group(1))
             p.unlink()
             removed.append(p)
     return removed

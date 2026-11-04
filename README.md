@@ -193,7 +193,10 @@ for every match. They are required for realistic risk control and add measurable
 Contributions are welcome. Start with the
 **[Developer Guide](https://johan162.github.io/EduMatcher/books/architecture-and-development/part-4-developing/010-development-practice/)**,
 which covers the development environment, testing and the conventions this
-project follows, then open an issue or pull request on
+project follows. For business-focused assertions and test-design expectations,
+see the [testing guidelines](docs-design/EduMatcher-Testing-Guidelines.md) and
+the [test methodology and efficiency workplan](docs-design/EduMatcher-Test-Methodology-and-Efficiency-Plan.md).
+Then open an issue or pull request on
 [GitHub](https://github.com/johan162/EduMatcher/issues).
 
 Release notes for every version are in [CHANGELOG.md](CHANGELOG.md).

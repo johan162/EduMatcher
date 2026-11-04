@@ -51,6 +51,12 @@ For multi-step tasks, state a brief plan:
 3. [Step] → verify: [check]
 Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
 
+For behavior tests, derive expectations from exchange rules or message
+contracts—not solely from current implementation. Prefer per-order and
+durable/wire assertions, multi-actor scenarios where interactions matter,
+and explicit recovery checks for partial failures. See the
+[business-contract testing guidelines](../docs-design/EduMatcher-Testing-Guidelines.md).
+
 
 ## Build, test, and lint commands
 
@@ -86,5 +92,4 @@ poetry build
 poetry run twine check dist/*
 
 ```
-
 

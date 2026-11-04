@@ -14,8 +14,8 @@
 
 ## Overview
 
-EduMatcher maintains a complete, immutable record of every message that passes
-through the ZeroMQ bus. This is the **audit trail** — a chronological log of
+EduMatcher maintains a complete, append-only, tamper-evident record of every
+message that passes through the ZeroMQ bus. This is the **audit trail** — a chronological log of
 every order, fill, trade, cancellation, session transition, and system event
 that occurred during a trading session.
 
@@ -272,6 +272,30 @@ or lines of that day written after it was archived (they are appended to it).
 If the archive itself cannot be decompressed, the run refuses that day and
 leaves both: check it with `zstd -t audit-D.log.zst`, and only if it is
 damaged and the parts are known to be the whole day, move it aside and re-run.
+
+### Proving a day is unchanged: the evidence manifest
+
+Each archive appends one line to `data/audit/manifest.jsonl`: the day, its
+line and byte counts, and the SHA-256 of its uncompressed content. Every line
+also carries the SHA-256 of the line before it, so changing or removing any
+entry breaks every entry after it. Retention writes a `retired` line before it
+deletes an archive, so the chain survives `--keep-days`. A day reopened after
+it was archived appends a second entry, and the newest is current.
+
+```bash
+pm-audit-cli verify                     # the whole chain, and every archive against it
+pm-audit-cli verify --date 2026-10-24   # the chain, and that day's archive
+```
+
+`verify` exits 1 and names the day when an archive's content differs from its
+entry, an entry is missing, an archive is missing without being retired, or the
+chain is broken. It ends with the **head hash**, the hash of the newest line.
+
+This makes an edit *evident*; it does not prevent one. Someone who can
+rewrite the files can rewrite the whole chain, or cut off its newest entries.
+To rule that out, copy the head hash somewhere the recorder host cannot write
+(a ticket, an email, a separate system) after each close, and compare it with
+the one `verify` prints when a day is disputed.
 
 ### Subscribed topics
 

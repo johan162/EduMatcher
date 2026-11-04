@@ -164,10 +164,7 @@ def test_a_real_archiver_replaces_the_closed_day_with_one_zst(
     proc._service_archiver()
     _wait(proc)
     names = sorted(p.name for p in (tmp_path / "audit").iterdir())
-    assert names == ["audit-2026-10-24.log.zst", ".archive.lock"] or names == [
-        ".archive.lock",
-        "audit-2026-10-24.log.zst",
-    ]
+    assert names == [".archive.lock", "audit-2026-10-24.log.zst", "manifest.jsonl"]
     assert _sample(proc, "audit.archives") == 1
     assert _sample(proc, "audit.archive_errors") == 0
     proc._file.close()

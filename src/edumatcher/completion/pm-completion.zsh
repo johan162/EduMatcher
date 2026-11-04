@@ -787,6 +787,7 @@ _shtab_pm_audit_cli_commands() {
     timeline:'Show raw chronological event stream for session replay'
     topics:'List topics present in logs with event counts'
     trades:'Find trade executions with filters'
+    verify:'Check the archived days against the evidence manifest'"'"'s hash chain'
   )
   _describe 'pm-audit-cli commands' _commands
 }
@@ -934,6 +935,14 @@ _shtab_pm_audit_cli_trades_options=(
 # guard to ensure default positional specs are added only once per session
 _shtab_pm_audit_cli_trades_defaults_added=0
 
+_shtab_pm_audit_cli_verify_options=(
+  "(- : *)"{-h,--help}"[show this help message and exit]"
+  "--date[Check only this day\'s archive (the chain is always checked whole)]:YYYY-MM-DD:"
+)
+
+# guard to ensure default positional specs are added only once per session
+_shtab_pm_audit_cli_verify_defaults_added=0
+
 
 _shtab_pm_audit_cli() {
   local context state line curcontext="$curcontext" one_or_more='(*)' remainder='(-)*:' default='*::: :->pm-audit-cli'
@@ -963,6 +972,7 @@ _shtab_pm_audit_cli() {
         timeline) _arguments -C -s $_shtab_pm_audit_cli_timeline_options ;;
         topics) _arguments -C -s $_shtab_pm_audit_cli_topics_options ;;
         trades) _arguments -C -s $_shtab_pm_audit_cli_trades_options ;;
+        verify) _arguments -C -s $_shtab_pm_audit_cli_verify_options ;;
       esac
   esac
 }
