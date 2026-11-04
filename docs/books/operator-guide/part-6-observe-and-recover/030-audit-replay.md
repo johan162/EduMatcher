@@ -632,10 +632,28 @@ final book: 0 differences
 | `outputs` | Commands after which the fresh engine published something different. A difference is non-determinism, a hidden input, or a change in the engine since the run, so re-run with the engine version the run used; the line names both versions |
 | `final book` | The re-run's resting book against `gtc_orders.json` beside the trail. Said plainly when the file is not there |
 
-Exit `0` is clean, `1` a difference, `3` the trail cannot be re-run: it does
-not begin at an engine start, holds more than one engine run, or carries no
-config (the engine ran from a YAML file; see `CONFIG_NOT_RECORDED`). It reads
-the whole trail in one pass, so allow minutes for a full simulated day.
+`rerun` reads every file in the data directory, archived days included, from the
+first line on. An engine restart in the trail is re-run as a restart: the fresh
+engine persists its book as the live one did on its way down, and the next run's
+engine starts from those files, on that run's own configuration and run
+sequence. Each start's book is compared with the live engine's `STARTUP`
+checkpoint, so a restart that came back with a different book (after `kill -9`
+the engine restores its last periodic checkpoint, not the book it had) is
+counted under `outputs`, and the note says how many restarts were re-run.
+
+Exit `0` is clean, `1` a difference, `3` the trail cannot be re-run. That is
+when:
+
+- the first line is not an engine start, or that start restored orders from
+  files the trail does not hold (retention removed the day it began empty);
+- a run carries no config (the engine ran from a YAML file; see
+  `CONFIG_NOT_RECORDED`);
+- the trail provably misses engine output: the engine-wide sequence (`eseq`)
+  jumps, or `pm-audit` restarted while the engine ran. A recorder restart
+  between an engine's `system.eod` and its next start loses nothing, and
+  neither does one after which `eseq` simply continues.
+
+It reads the whole trail in one pass, so allow minutes for a full simulated day.
 
 ### Where was my order in the queue?
 
@@ -661,7 +679,10 @@ verdict: cancelled by its owner with 40 of 50 shares unfilled; 4 trades at its p
 
 The order view ends in a **verdict**: filled in full, cancelled or expired with
 quantity left (and how much stood ahead), never queued, or still resting at the
-end of the trail. For a resting order the verdict also says whether the market
+end of the trail. A stop waits outside the level until a trade fires it: the
+timeline says when it was armed, which trade triggered it and what it became, and
+then follows it into its level. One never triggered ends in "still armed" or
+"never triggered" with its stop price. For a resting order the verdict also says whether the market
 ever traded at its price; if not, it gives the best opposite price against the
 order's limit, which is usually the whole answer to "why did it not fill". The
 level view lists each change at one price (`--side` narrows it) with what the
@@ -680,8 +701,8 @@ Two warnings can appear in the timeline. One says the re-run and the live engine
 differ on the symbol from that point, so the positions after it are the re-run's.
 The other says the live engine's own `engine.trace` queued the order at a
 different priority than the re-run did; a clean trail never shows either. Like
-`rerun`, `queue` needs a trail that begins at an engine start, holds one run and
-carries its config, and reads the whole trail per query. Exit codes: `0`
+`rerun`, `queue` needs a trail it can re-run (see above), and reads the whole
+trail per query. Exit codes: `0`
 answered, `1` the order is not in the trail, `2` bad arguments, `3` the trail
 cannot be re-run.
 

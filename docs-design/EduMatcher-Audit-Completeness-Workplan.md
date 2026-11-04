@@ -63,15 +63,15 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 
 | # | WP | Content | Gap | Depends on | Est. | Status | Done on |
 |---|----|---------|-----|------------|------|--------|---------|
-| 1 | A1 | Daily evidence manifest: hash chain across days, `pm-audit-cli verify` | G1 | — | 2 d | ◐ | 2026-11-04 (code + docs done, uncommitted) |
-| 2 | A2 | Require a recorded compiled config before accepting a reference reload | G2 | — | 0.25 d | ◐ | 2026-11-04 (uncommitted) |
-| 3 | A3 | Gateway-local rejects: `system.gateway_reject` for auth, role and rate-limit refusals (D1 = record) | G3 | D1 | 1.5 d | ◐ | 2026-11-04 (uncommitted) |
-| 4 | A4 | Promote the re-run to `pm-audit-replay rerun`; heartbeat timeouts become one chain and a reproducible input | G4 | A2 | 2.5 d | ◐ | 2026-11-04 (uncommitted) |
-| 5 | A5 | Unenveloped command: count it and surface it | G5 | — | 0.5 d | ◐ | 2026-11-04 (uncommitted) |
-| 6 | A6 | Recorder durability: fsync policy, gap-on-restart marker, documented loss window | G6 | A1 | 1.5 d | ◐ | 2026-11-04 (uncommitted) |
-| 7 | A7 | Engine clock on ack and fill (decision D2) | G7 | D2 | 1 d | ◐ | 2026-11-04 (uncommitted) |
-| 8 | A8 | `pm-audit-replay queue`: order and level views, observing the re-run (D3, Q1-Q4 decided) | G8 | A4 | 3 d | ☑ | 2026-11-04 (uncommitted) |
-| 9 | A9 | Close out: tick §17, "Answering a Dispute" chapter, and what the real-capture acceptance run found | G9 | A1–A8 | 1 d | ☑ | 2026-11-04 (uncommitted) |
+| 1 | A1 | Daily evidence manifest: hash chain across days, `pm-audit-cli verify` | G1 | — | 2 d | ☑ | 2026-11-04 |
+| 2 | A2 | Require a recorded compiled config before accepting a reference reload | G2 | — | 0.25 d | ☑ | 2026-11-04 |
+| 3 | A3 | Gateway-local rejects: `system.gateway_reject` for auth, role and rate-limit refusals (D1 = record) | G3 | D1 | 1.5 d | ☑ | 2026-11-04 |
+| 4 | A4 | Promote the re-run to `pm-audit-replay rerun`; heartbeat timeouts become one chain and a reproducible input | G4 | A2 | 2.5 d | ☑ | 2026-11-04 |
+| 5 | A5 | Unenveloped command: count it and surface it | G5 | — | 0.5 d | ☑ | 2026-11-04 |
+| 6 | A6 | Recorder durability: fsync policy, gap-on-restart marker, documented loss window | G6 | A1 | 1.5 d | ☑ | 2026-11-04 |
+| 7 | A7 | Engine clock on ack and fill (decision D2) | G7 | D2 | 1 d | ☑ | 2026-11-04 |
+| 8 | A8 | `pm-audit-replay queue`: order and level views, observing the re-run (D3, Q1-Q4 decided) | G8 | A4 | 3 d | ☑ | 2026-11-04 |
+| 9 | A9 | Close out: tick §17, "Answering a Dispute" chapter, and what the real-capture acceptance run found | G9 | A1–A8 | 1 d | ☑ | 2026-11-04 |
 
 Order: A1, A2, A5 are independent and cheap; do A1 first. A4 re-runs only artifact runs; accepted reloads cannot change the config during an auditable run.
 
@@ -227,8 +227,9 @@ shares still ahead", or "still resting: its price was never reached (best
 opposite 10.05, its limit 10.00)". Exit codes as `rerun`.
 
 **What it cannot do.** It inherits `rerun`'s conditions: the trail begins at an
-engine start, holds one run, carries its config; it reads the whole trail per
-query. A mid-day window or a multi-run day is not answerable (see Q1).
+engine start with an empty book and carries each run's config (restarts are
+re-run since the review in §6); it reads the whole trail per query. A trail whose
+empty start was removed by retention is not answerable (see Q1).
 
 **Tests.** A scripted book with a known queue (three orders at a level, a trade
 that takes the first two, a cancel of one ahead, an amend that loses priority,
@@ -293,3 +294,31 @@ Not done: the 200 MB performance target (§17), and `pm-monitor` alert rules on
 - `verify --rerun` shows E2 PASS on a multi-session sim run including a
   reload, an expiry and a breaker.
 - Full suite, black, flake8, mypy, pyright per the project workflow.
+
+## 6. Review 2026-11-05 and its fixes
+
+A code review of A1-A9 after commit found three defects in the shipped re-run and
+queue view, fixed with tests that failed first:
+
+1. **`queue --order` on a stop said "never queued".** An armed stop sits in the
+   checkpoint's stop lists, not its level, so the view gave up at entry even when
+   the stop later fired and rested. It now says when the stop was armed, which trade
+   fired it and what it became, follows it into its level, and ends in "still armed"
+   or "never triggered" for one never reached (`tests/test_audit_replay_queue.py`
+   `TestStops`).
+2. **A trail with more than one engine start could not be re-run**, and `rerun`
+   reads every archive in the data dir, so almost no real data dir qualified (the
+   sim's scripted restart made E1/E2/E4 skip). A restart is now re-run as one: the
+   re-run engine persists its book and the next run's engine starts from those files
+   on that run's config and run sequence; each start's book is compared with the live
+   `STARTUP` checkpoint (a kill -9 restore differs there). A first start that restored
+   orders the trail does not hold is refused with the count. E5-E7 run on through a
+   restart (E6 makes its own). (`tests/test_audit_replay_rerun_cli.py` `TestRestarts`)
+3. **`rerun` gave a verdict on a trail with a proven hole.** An `eseq` jump, or a
+   recorder-start marker while the engine ran, now makes it unavailable (exit 3). A
+   marker between `system.eod` and the next start, or one after which `eseq`
+   continues, is accepted: nothing was lost (`TestAnIncompleteTrail`).
+
+Not fixed (low): REST refusal folding keyed by `host:port`; fsync only on a write, so
+an idle tail stays unsynced longer than `--fsync-interval`; a torn manifest line
+merges with the next append.

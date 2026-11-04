@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import NamedTuple
 
 from edumatcher.audit.query import discover_log_files, open_log_file
+from edumatcher.audit.writer import RECORDER_START_PREFIX
 from edumatcher.models.generated.system import TOPIC_STARTUP
 
 
@@ -37,6 +38,9 @@ def iso_ns(ts: str) -> int:
 
 #: The engine's first message on every start (it carries the run's config).
 STARTUP = TOPIC_STARTUP
+#: The topic ``lines(..., marks=True)`` gives a recorder-start marker (no
+#: engine message has it: topics never begin with "#").
+RECORDER_START = "#recorder-start"
 
 
 class Line(NamedTuple):
@@ -60,13 +64,19 @@ def audit_files(data_dir: Path) -> list[Path]:
     return archives + discover_log_files(data_dir / "audit.log")
 
 
-def lines(files: list[Path], topics: tuple[str, ...] | None = None) -> Iterator[Line]:
+def lines(
+    files: list[Path], topics: tuple[str, ...] | None = None, *, marks: bool = False
+) -> Iterator[Line]:
     """The audit's lines; with *topics*, only those whose topic starts with
     one of them (skipped lines are not split further). Not for a reader that
-    tells where a message chain ends by the next line, whatever its topic."""
+    tells where a message chain ends by the next line, whatever its topic.
+    With *marks*, a recorder-start marker comes as a line whose topic is
+    ``RECORDER_START`` and whose body is the marker."""
     for path in files:
         for raw in open_log_file(path):
             if not raw.startswith("["):
+                if marks and raw.startswith(RECORDER_START_PREFIX):
+                    yield Line(RECORDER_START, "", raw.rstrip("\n"), "")
                 continue
             a = raw.find("] [", 1)
             b = raw.find("] [", a + 3)

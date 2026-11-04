@@ -34,10 +34,19 @@ ends when the re-run's book and last price equal the next live
 ``book.<SYM>`` snapshot (armed stops are not in a snapshot, so an episode
 can end early and recur).
 
+An engine restart in the trail is re-run as a restart: the re-run engine
+persists its book, as the live one did on its way down, and the next run's
+engine starts from those files on the run's own config and run sequence. Each
+start's restored book is compared with the live engine's ``STARTUP``
+checkpoint, so a restart that came back with another book (a kill -9 restores
+the last periodic checkpoint, not the book at the stop) is a difference.
+
 The engine is driven through the handlers its receive loop calls, minus the
 sockets, with its clock and persistence files patched (``unittest.mock``).
-Only an audit that reaches back to the engine's start, holds one engine run,
-and carries its config can be re-run; otherwise :class:`Unavailable` says why.
+Only a trail that reaches back to an engine start with nothing restored, and
+carries each run's config, can be re-run; and only while it is provably whole:
+an engine-wide sequence (``eseq``) that jumps, or pm-audit restarting while the
+engine ran, ends it.  Otherwise :class:`Unavailable` says why.
 """
 
 # The re-run drives the engine the way its receive loop does, minus the
@@ -60,6 +69,7 @@ from typing import Any
 from unittest import mock
 
 from edumatcher.audit.rawlines import (
+    RECORDER_START,
     STARTUP,
     Unavailable,
     audit_files,
@@ -93,9 +103,12 @@ from edumatcher.models.generated.quote import PREFIX_QUOTE_ACK, PREFIX_QUOTE_STA
 from edumatcher.models.generated.session import TOPIC_SESSION_STATE
 from edumatcher.models.generated.structure import PREFIX_OCO_ACK
 from edumatcher.models.generated.system import (
+    PREFIX_BOOK_CHECKPOINT,
     PREFIX_GATEWAY_BYE,
+    TOPIC_EOD,
     TOPIC_GATEWAY_HEARTBEAT,
     TOPIC_STARTUP,
+    TOPIC_STARTUP_RECOVERY,
 )
 from edumatcher.models.generated.trade import TOPIC_TRADE_EXECUTED
 from edumatcher.models.message import decode
@@ -142,6 +155,13 @@ _TIMER_ENDS = (PREFIX_CIRCUIT_BREAKER_RESUME, PREFIX_CIRCUIT_BREAKER_EXTEND)
 #: sending heartbeats (``Engine._expire_silent_gateways``).
 HEARTBEAT_TIMER = "gateway.heartbeat_timeout"
 _HEARTBEAT_REASON = "heartbeat_timeout"
+#: The input for an engine start after the first: its payload is that
+#: start's ``system.startup``.
+RESTART = "engine.restart"
+#: A checkpoint's order lists, and what of each order a restart must keep
+#: (not ``priority_seq``: a restored book numbers its queue afresh).
+_BOOK_LISTS = ("bids", "asks", "buy_stops", "sell_stops", "trailing_stops")
+_KEPT = ("order_id", "remaining_qty", "price_ticks", "stop_price_ticks")
 _ORDER_ID = re.compile(r"^[0-9a-f]{32}$")
 _TRADE_ID = re.compile(r"^\d{6}-\d{9}$")
 #: An order id's 8-character prefix, as messages quote it in reason text.
@@ -354,6 +374,21 @@ def _symbols(*outputs: list[tuple[str, dict[str, Any]]]) -> set[str]:
     return {str(p["symbol"]) for out in outputs for _, p in out if p.get("symbol")}
 
 
+def _kept(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """A checkpoint's order list, in its order, as a restart must keep it."""
+    return [{k: r.get(k) for k in _KEPT} for r in records]
+
+
+def _state_files(state: Path) -> Any:
+    """The engine's persistence files, pointed into *state*."""
+    return mock.patch.multiple(
+        engine_main,
+        GTC_ORDERS_FILE=state / "gtc_orders.json",
+        GTC_COMBOS_FILE=state / "gtc_combos.json",
+        BOOK_STATS_FILE=state / "book_stats.json",
+    )
+
+
 @dataclass(frozen=True)
 class Step:
     """One input the re-run has just fed the engine, for an observer.
@@ -395,6 +430,8 @@ class Rerun:
         self.ts = ""
         #: Whether the persisted book was there to compare with.
         self.book_checked = False
+        #: Engine starts after the first, re-run as restarts.
+        self.restarts = 0
 
     def note(self) -> str:
         """The versions and episode tallies that qualify an outputs verdict."""
@@ -405,6 +442,11 @@ class Rerun:
             f"{len(self.diverged)} symbols still diverged at the end; "
             f"{self.reordered} cancel batches in another order (X11)"
         )
+        if self.restarts:
+            note += (
+                f"; {self.restarts} engine restart"
+                f"{'s' if self.restarts > 1 else ''} re-run"
+            )
         if self.kinds:
             note += "; episodes by first difference: " + ", ".join(
                 f"{k} {n}" for k, n in self.kinds.most_common(5)
@@ -427,13 +469,21 @@ class Rerun:
         # trade id: the run being re-run began at the number it announced.
         set_run_seq(int(str(startup_message(files).get("run_seq", 1))))
         sink = _Sink()
-        with live_clock(files) as clock:
-            with tempfile.TemporaryDirectory() as empty:
-                self.engine = fresh_engine(compiled.engine, sink, Path(empty))
+        with live_clock(files) as clock, tempfile.TemporaryDirectory() as tmp:
+            self._state = Path(tmp)
+            empty = self._state / "empty"
+            empty.mkdir()
+            self.engine = fresh_engine(compiled.engine, sink, empty)
             for topic, chain, payload, live, ts in inputs(files):
                 self.ts = ts
+                if topic == RESTART:
+                    self.restart(payload, ts, clock, sink)
+                    continue
                 if topic == "startup":
+                    self.started(payload)
                     self.step("startup", "", {}, sink.take(), live)
+                    # After the step: its acks bind the seeds' ids.
+                    self.restored(payload["checkpoints"])
                     continue
                 if topic is None:
                     for t, body in live:
@@ -446,6 +496,66 @@ class Rerun:
                 clock.follow(live)
                 self.dispatch(sink, topic, chain, payload, live)
         self.final_book()
+
+    def restart(
+        self, startup: dict[str, Any], ts: str, clock: LiveClock, sink: _Sink
+    ) -> None:
+        """Stop the re-run engine as the live one stopped, and start the next
+        run's from what it persisted."""
+        run_seq = int(str(startup.get("run_seq", 0)))
+        text = startup.get("config")
+        if not text:
+            raise Unavailable(
+                f"run {run_seq} carries no config in its {STARTUP} "
+                "(the engine restarted on a YAML file)"
+            )
+        self.restarts += 1
+        state = self._state / f"run-{self.restarts}"
+        state.mkdir()
+        with _state_files(state):
+            self.engine._flush_persistence(force=True)
+        clock.ns = iso_ns(ts)
+        # The restore drops TIF=DAY orders of an earlier business day.
+        today = datetime.fromtimestamp(clock.ns / 1e9, self.engine._session_tz()).date()
+        reset_trade_ids_for_tests()
+        set_run_seq(run_seq)
+        self.engine = fresh_engine(
+            decode_artifact(str(text)).engine, sink, state, today
+        )
+
+    def started(self, told: dict[str, Any]) -> None:
+        """The first run must begin as the re-run does: with an empty book."""
+        recovery = told["recovery"] or {}
+        restored = int(recovery.get("restored_orders") or 0)
+        combos = int(recovery.get("restored_combos") or 0)
+        if self.restarts == 0 and (restored or combos):
+            raise Unavailable(
+                f"the trail's first engine start began from persisted state "
+                f"({restored} orders restored, {combos} combos) that is not in "
+                "the trail; the re-run starts from an empty book"
+            )
+
+    def restored(self, live: dict[str, dict[str, Any]]) -> None:
+        """Each book as the start left it, against the live ``STARTUP``
+        checkpoint: a restart that came back with another book differs here."""
+        for symbol, cp in sorted(live.items()):
+            book = self.engine.books.get(symbol)
+            mine = book.checkpoint() if book is not None else {}
+            diffs = [
+                d
+                for key in _BOOK_LISTS
+                for d in _diff(
+                    self.ids,
+                    _kept(mine.get(key, [])),
+                    _kept(cp.get(key, [])),
+                    f"{PREFIX_BOOK_CHECKPOINT}{symbol}.{key}",
+                )
+            ]
+            if not diffs or symbol in self.diverged:
+                continue
+            self.diverged[symbol] = 1
+            self.kinds["restored book"] += 1
+            self.flag("E2", command="startup", chain="", symbols=[symbol], diffs=diffs[:4])  # fmt: skip
 
     def dispatch(
         self,
@@ -541,15 +651,31 @@ def inputs(files: list[Path]) -> Iterator[Input]:
     """The engine's inputs in the audit, in order, each with what the live
     engine published for it: (topic, chain, payload, outputs, audit time) per echoed
     command or breaker timer (BREAKER_TIMER, payload {"symbol"}); first
-    ("startup", "", {}, what startup published); a ``book.<SYM>`` snapshot
+    ("startup", "", told, what startup published); a ``book.<SYM>`` snapshot
     as (topic, "", snapshot, []); and messages no input explains as
-    (None, chain, {}, those messages)."""
+    (None, chain, {}, those messages). *told* is what the start said that the
+    comparison leaves out: ``{"checkpoints": {symbol: system.book_checkpoint},
+    "recovery": system.startup_recovery or None}``.
+
+    A later engine start is (RESTART, "", its system.startup, []), followed by
+    its own "startup" input.
+
+    Raises :class:`Unavailable` where the trail is provably not the engine's
+    whole output: it does not begin at an engine start, the engine-wide
+    sequence (``eseq``) jumps, or pm-audit restarted while the engine ran: a
+    recorder-start marker anywhere but before the first line, between an
+    engine's ``system.eod`` and the next start, or before a line whose
+    ``eseq`` continues the one before (nothing was published meanwhile)."""
     commands = _command_topics()
     first = True
     startup: Live | None = []
+    told: dict[str, Any] = {"checkpoints": {}, "recovery": None}
     command: tuple[str, str, dict[str, Any], str] | None = None
     live: Live = []
     unit: tuple[str, Live, str, dict[str, Any] | None] | None = None
+    eseq: int | None = None
+    previous: str | None = None  # the last engine line's topic
+    marker: str | None = None  # a recorder-start marker before this line
 
     def unit_input(unit: tuple[str, Live, str, dict[str, Any] | None]) -> Input:
         chain, msgs, ts, silent = unit
@@ -560,7 +686,33 @@ def inputs(files: list[Path]) -> Iterator[Input]:
             return BREAKER_TIMER, chain, {"symbol": end.rsplit(".", 1)[1]}, msgs, ts
         return None, chain, {}, msgs, ts
 
-    for ln in lines(files):
+    for ln in lines(files, marks=True):
+        if ln.topic == RECORDER_START:
+            marker = ln.body
+            continue
+        if (
+            marker is not None
+            and previous is not None
+            and not (ln.topic == STARTUP and previous == TOPIC_EOD)
+            and not (eseq is not None and ln.eseq == eseq + 1)
+        ):
+            raise Unavailable(
+                f"pm-audit restarted while the engine ran ({marker[2:]}, before "
+                f"{ln.topic} at {ln.ts}): what the engine published meanwhile "
+                "is not in the trail"
+            )
+        marker = None
+        if ln.topic == STARTUP:
+            eseq = None
+        if ln.eseq is not None:
+            if eseq is not None and ln.eseq != eseq + 1:
+                raise Unavailable(
+                    f"the engine-wide sequence jumps from {eseq} to {ln.eseq} "
+                    f"before {ln.topic} at {ln.ts}: the trail is not the "
+                    "engine's whole output"
+                )
+            eseq = ln.eseq
+        previous = ln.topic
         if first:
             first = False
             if ln.topic != STARTUP:
@@ -570,9 +722,20 @@ def inputs(files: list[Path]) -> Iterator[Input]:
                 )
             continue
         if ln.topic == STARTUP:
-            raise Unavailable("the engine restarted during the run")
+            # The engine restarted: what the stopped one published is complete.
+            if startup is not None:
+                yield "startup", "", told, startup, ln.ts
+            if command is not None:
+                yield command[0], command[1], command[2], live, command[3]
+                command = None
+            if unit is not None:
+                yield unit_input(unit)
+                unit = None
+            yield RESTART, "", json.loads(ln.body), [], ln.ts
+            startup, told = [], {"checkpoints": {}, "recovery": None}
+            continue
         if ln.topic in commands and startup is not None:
-            yield "startup", "", {}, startup, ln.ts
+            yield "startup", "", told, startup, ln.ts
             startup = None
         if ln.topic in commands or ln.topic.startswith(PREFIX_BOOK_SNAPSHOT):
             if command is not None:
@@ -607,6 +770,13 @@ def inputs(files: list[Path]) -> Iterator[Input]:
                     {"gateway_id": body["gateway_id"], "reason": _HEARTBEAT_REASON},
                 )
                 continue
+        if startup is not None and ln.topic.startswith(PREFIX_BOOK_CHECKPOINT):
+            body = json.loads(ln.body)
+            told["checkpoints"][body["symbol"]] = body
+            continue
+        if startup is not None and ln.topic == TOPIC_STARTUP_RECOVERY:
+            told["recovery"] = json.loads(ln.body)
+            continue
         if ln.topic.startswith(_SKIP):
             continue
         if startup is not None:
@@ -627,7 +797,7 @@ def inputs(files: list[Path]) -> Iterator[Input]:
             unit = (ln.chain, [], ln.ts, None)
         unit[1].append((ln.topic, json.loads(ln.body)))
     if startup is not None:
-        yield "startup", "", {}, startup, ""
+        yield "startup", "", told, startup, ""
     if command is not None:
         yield command[0], command[1], command[2], live, command[3]
     if unit is not None:

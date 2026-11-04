@@ -113,6 +113,27 @@ class Scenario:
             buy("C", "TRADER01", 50)
             # The seed and X's 100-share slice; X's refill joins behind C.
             sell("S1", "OPS01", self.seed_qty + 100)
+        elif script.startswith("stop"):
+            # A sell stop-limit: armed at the seed bid, limit one tick above.
+            trigger = self.bid if script == "stop" else round(self.bid - 0.5, 2)
+            p = order_payload(
+                Side.SELL,
+                OrderType.STOP_LIMIT,
+                40,
+                "TRADER01",
+                price=round(self.bid + 0.01, 2),
+                stop_price=trigger,
+            )
+            self.ids["T"] = p["id"]
+            rec.command(engine, "order.new", p)
+            # The whole seed bid trades at the bid: the stop fires, rests.
+            sell("S1", "OPS01", self.seed_qty)
+            if script == "stop_cancelled":
+                rec.command(
+                    engine,
+                    "order.cancel",
+                    {"order_id": self.ids["T"], "gateway_id": "TRADER01"},
+                )
         (self.data / "audit.log").write_text("".join(rec.lines))
         return self
 
@@ -217,6 +238,44 @@ class TestPriority:
         assert f"{sc.seed_qty + 100:,} shares ahead" in out
         # The refill joined the back of the level, behind this order.
         assert "1 of 2 in its level, 0 shares ahead" in out
+
+
+class TestStops:
+    """A stop waits outside the book (OrderBook.checkpoint's stop lists) until
+    a trade fires it; it was reported as "never queued" (review 2026-11-05)."""
+
+    def test_a_stop_that_fires_and_rests_is_followed_into_its_level(
+        self, tmp_path: Path
+    ) -> None:
+        sc = Scenario(tmp_path / "data").record("stop")
+        out = order_text(sc, "T")
+        assert "never rested" not in out and "never queued" not in out
+        assert f"armed: a STOP_LIMIT stop at {sc.bid:.2f}" in out
+        assert f"triggered by a trade at {sc.bid:.2f}" in out
+        assert "now a LIMIT order" in out
+        assert f"rested at {sc.bid + 0.01:.2f}: 1 of 1 in its level" in out
+        assert (
+            out.strip()
+            .splitlines()[-1]
+            .startswith("verdict: still resting at the end of the trail: 1 of 1")
+        )
+
+    def test_a_stop_never_reached_is_still_armed(self, tmp_path: Path) -> None:
+        sc = Scenario(tmp_path / "data").record("stop_armed")
+        out = order_text(sc, "T")
+        assert "rested" not in out
+        assert out.strip().splitlines()[-1] == (
+            f"verdict: still armed at the end of the trail; its stop "
+            f"{sc.bid - 0.5:.2f} was never reached"
+        )
+
+    def test_a_stop_cancelled_while_armed_never_triggered(self, tmp_path: Path) -> None:
+        sc = Scenario(tmp_path / "data").record("stop_cancelled")
+        out = order_text(sc, "T")
+        assert out.strip().splitlines()[-1] == (
+            f"verdict: it never triggered; cancelled by its owner while armed "
+            f"(its stop {sc.bid - 0.5:.2f} was never reached)"
+        )
 
 
 class TestTheTraceAgrees:

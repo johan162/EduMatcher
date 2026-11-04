@@ -541,8 +541,10 @@ def _add_commands(
             "Re-execute the trail (design: Audit-Completeness-Workplan A4).\n"
             "Builds an engine from the config in system.startup, feeds it every\n"
             "echoed command in order and compares what it publishes with what\n"
-            "the live engine did. Needs a trail that begins at an engine start,\n"
-            "holds one run, and carries its config. Exit 0 clean, 1 on a\n"
+            "the live engine did; an engine restart is re-run as a restart.\n"
+            "Needs a trail that begins at an engine start with an empty book,\n"
+            "carries each run's config, and has no proven hole (eseq gap,\n"
+            "recorder restart while the engine ran). Exit 0 clean, 1 on a\n"
             "difference, 3 when the trail cannot be re-run."
         ),
     )
@@ -553,9 +555,8 @@ def _add_commands(
         help="Where an order stood in its level, or what a price level did",
         description=(
             "Follow a resting order or a price level through the day by\n"
-            "observing the re-run (Audit-Completeness-Workplan A8). Needs what\n"
-            "`rerun` needs: a trail that begins at an engine start, holds one\n"
-            "run and carries its config. Exit 0 answered, 1 order not in the\n"
+            "observing the re-run (Audit-Completeness-Workplan A8). Needs a\n"
+            "trail `rerun` can re-run. Exit 0 answered, 1 order not in the\n"
             "trail, 2 bad arguments, 3 the trail cannot be re-run."
         ),
     )

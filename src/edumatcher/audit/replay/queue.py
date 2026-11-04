@@ -7,7 +7,9 @@ own matching priority -- so iceberg slices, amends that lose priority and refill
 sent to the back follow the engine's rules, not a second implementation of them.
 
 ``OrderQueue`` follows one order: its place in its level after each change, what
-traded or was cancelled ahead of it, and a verdict.  ``LevelQueue`` follows one
+traded or was cancelled ahead of it, and a verdict.  A stop waits outside the
+level, in the checkpoint's stop lists, until a trade fires it; the view says
+when it was armed and what fired it, then follows what it became.  ``LevelQueue`` follows one
 price level: who rested, traded and left, and what the level held after each
 change.
 
@@ -30,6 +32,7 @@ from edumatcher.models.generated.order import (
     PREFIX_ORDER_CANCELLED,
     PREFIX_ORDER_EXPIRED,
     PREFIX_ORDER_FILL,
+    PREFIX_ORDER_TRIGGERED,
     TOPIC_ORDER_NEW,
 )
 from edumatcher.models.generated.trade import TOPIC_TRADE_EXECUTED
@@ -157,6 +160,8 @@ class OrderQueue:
         self.gateway = ""
         self.quantity = 0
         self.price_ticks: int | None = None
+        #: The stop price while the order waits as a stop (None otherwise).
+        self._armed: int | None = None
         self.lines: list[str] = []
         self.done = False
         self._labels = Labels(None, anonymise)
@@ -198,8 +203,14 @@ class OrderQueue:
             (i for i, r in enumerate(records) if r["order_id"] == self.rid), None
         )
         if index is None:
+            stop = self._stop_record(cp)
+            if stop is not None:
+                self._arming(step, stop)
+                return
+            self._triggered(step)
             self._left_the_book(step, mine)
             return
+        self._triggered(step)
         self._resting(step, records, index, mine)
 
     def _find(self, step: Step) -> bool:
@@ -217,6 +228,50 @@ class OrderQueue:
         self.price_ticks = step.payload.get("price_ticks")
         self._labels = Labels(self.gateway, self.anonymise)
         return True
+
+    # -- a stop ---------------------------------------------------------------
+
+    def _stop_record(self, cp: dict[str, Any]) -> Record | None:
+        """The order's record if it waits as a stop (armed or trailing)."""
+        stops = cp["buy_stops" if self.side == "BUY" else "sell_stops"]
+        return next(
+            (r for r in [*stops, *cp["trailing_stops"]] if r["order_id"] == self.rid),
+            None,
+        )
+
+    def _arming(self, step: Step, rec: Record) -> None:
+        if self._armed is None:
+            self.lines.append(
+                f"{_clock(step.ts)}  armed: a {rec['order_type']} stop at "
+                f"{self._ticks(rec['stop_price_ticks'])}"
+            )
+        self._armed = int(rec["stop_price_ticks"])
+
+    def _triggered(self, step: Step) -> None:
+        """Say what fired the stop, if this step did."""
+        if self._armed is None:
+            return
+        for topic, body in step.rerun:
+            if (
+                topic.startswith(PREFIX_ORDER_TRIGGERED)
+                and body["order_id"] == self.rid
+            ):
+                trade = body.get("trigger_trade_id")
+                self.lines.append(
+                    f"{_clock(step.ts)}  triggered by a trade at "
+                    f"{self._ticks(body['trigger_price_ticks'])}"
+                    + (
+                        f" (trade {step.ids.to_live.get(trade, trade)})"
+                        if trade
+                        else ""
+                    )
+                    + f": now a {body['becomes']} order"
+                )
+                self._armed = None
+                return
+
+    def _ticks(self, ticks: int) -> str:
+        return f"{from_ticks(ticks, self.symbol):.{get_tick_decimals(self.symbol)}f}"
 
     # -- what a step did ----------------------------------------------------
 
@@ -243,7 +298,7 @@ class OrderQueue:
     def _price(self) -> str:
         if self.price_ticks is None:
             return "market"
-        return f"{from_ticks(self.price_ticks, self.symbol):.{get_tick_decimals(self.symbol)}f}"
+        return self._ticks(self.price_ticks)
 
     def _resting(
         self, step: Step, records: list[Record], index: int, mine: Departure
@@ -374,6 +429,15 @@ class OrderQueue:
         when = _clock(step.ts)
         if mine.traded:
             self._filled += mine.traded
+        if self._armed is not None:
+            outcome = (
+                f"{mine.how() if mine.left else 'left the book'} while armed "
+                f"(its stop {self._ticks(self._armed)} was never reached)"
+            )
+            self.lines.append(f"{when}  {outcome}")
+            self._verdict = f"verdict: it never triggered; {outcome}"
+            self.done = True
+            return
         if not self._seen_resting:
             outcome = (
                 f"filled {_num(mine.traded)} at once"
@@ -417,7 +481,12 @@ class OrderQueue:
             *self.lines,
         ]
         verdict = self._verdict
-        if not self.done:
+        if not self.done and self._armed is not None:
+            verdict = (
+                f"verdict: still armed at the end of the trail; its stop "
+                f"{self._ticks(self._armed)} was never reached"
+            )
+        elif not self.done:
             place = self._place
             verdict = "verdict: still resting at the end of the trail"
             if place is not None:

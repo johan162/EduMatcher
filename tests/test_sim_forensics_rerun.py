@@ -100,9 +100,15 @@ class Recorder:
         self.chain = None
 
 
-def record(data: Path, silent: str | None = None, run_seq: int = 1) -> Path:
+def record(
+    data: Path, silent: str | None = None, run_seq: int = 1, restart: bool = False
+) -> Path:
     """A short run on the s1-basic example: seeds, connects, a crossing buy
     against the seed ask, a resting sell, a cancel, an MM quote, an OCO.
+
+    With *restart*, the engine then shuts down (persisting its book), a new
+    one starts from those files as the next run, the gateways reconnect and
+    the crossing buy is sent again.
 
     The config is deployed outside *data*: the checks take it from the
     audit's system.startup, as a run's own ref_data/ may be gone."""
@@ -111,28 +117,36 @@ def record(data: Path, silent: str | None = None, run_seq: int = 1) -> Path:
     compiled = deploy(resolve_example("s1-basic"), artifact)
     seed = compiled.engine.symbols["AAPL"].market_maker_quotes[0]
     ask = seed.ask_price_ticks / 100
-    reset_trade_ids_for_tests()
-    set_run_seq(run_seq)
     rec = Recorder()
-    with (
-        mock.patch.object(
-            engine_main,
-            "_deployed_config",
-            lambda: (compiled.engine, artifact.read_text(encoding="utf-8")),
-        ),
-        mock.patch.object(engine_main, "make_puller", lambda _: Recorder()),
-        mock.patch.object(engine_main, "make_publisher", lambda _: rec),
-        mock.patch.multiple(
+
+    def files() -> Any:
+        return mock.patch.multiple(
             engine_main,
             GTC_ORDERS_FILE=data / "gtc_orders.json",
             GTC_COMBOS_FILE=data / "gtc_combos.json",
             BOOK_STATS_FILE=data / "book_stats.json",
-        ),
-    ):
-        engine = engine_main.Engine(config_path=None)
-        engine._startup(run_seq)
-    for gw in ("TRADER01", "TRADER02", "MM01"):
-        rec.command(engine, "system.gateway_connect", {"gateway_id": gw})
+        )
+
+    def start(run: int) -> engine_main.Engine:
+        reset_trade_ids_for_tests()
+        set_run_seq(run)
+        with (
+            mock.patch.object(
+                engine_main,
+                "_deployed_config",
+                lambda: (compiled.engine, artifact.read_text(encoding="utf-8")),
+            ),
+            mock.patch.object(engine_main, "make_puller", lambda _: Recorder()),
+            mock.patch.object(engine_main, "make_publisher", lambda _: rec),
+            files(),
+        ):
+            engine = engine_main.Engine(config_path=None)
+            engine._startup(run)
+        for gw in ("TRADER01", "TRADER02", "MM01"):
+            rec.command(engine, "system.gateway_connect", {"gateway_id": gw})
+        return engine
+
+    engine = start(run_seq)
     buy = order_payload(Side.BUY, OrderType.LIMIT, 10, "TRADER01", price=ask)
     rec.command(engine, "order.new", buy)
     rest = order_payload(Side.SELL, OrderType.LIMIT, 5, "TRADER02", price=ask + 5)
@@ -186,6 +200,12 @@ def record(data: Path, silent: str | None = None, run_seq: int = 1) -> Path:
         session.last_heartbeat = time.monotonic() - 100
         engine._next_silence_check = 0.0
         engine._expire_silent_gateways()
+    if restart:
+        with files():
+            engine._shutdown()
+        engine = start(run_seq + 1)
+        buy = order_payload(Side.BUY, OrderType.LIMIT, 10, "TRADER01", price=ask)
+        rec.command(engine, "order.new", buy)
     (data / "audit.log").write_text("".join(rec.lines))
     resting = [o.to_dict() for b in engine.books.values() for o in b.resting_orders()]
     (data / "gtc_orders.json").write_text(json.dumps(resting))

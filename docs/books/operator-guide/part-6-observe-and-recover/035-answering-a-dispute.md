@@ -43,7 +43,7 @@ Do these in order and keep the output; each step makes the next one worth quotin
    a hole, every fill has its trade, and the quantities conserve. Any `SEQ_GAP`,
    `ESEQ_GAP` or `RECORDER_RESTART` in the window you are about to quote must be
    explained first.
-3. **Show the engine agrees.** `pm-audit-replay rerun` over the day. Zero hidden
+3. **Show the engine agrees.** `pm-audit-replay rerun` over the trail. Zero hidden
    inputs and zero differing episodes mean the trail is not only self-consistent but
    is what the matching engine does with those commands. Run it with the engine
    version the day ran on (the output names both versions).
@@ -104,11 +104,15 @@ Say these before someone else does.
   breaker's reopen and the disconnect of a gateway that stopped sending heartbeats.
   Anything else the engine did with no command behind it appears as a *hidden input*
   and cannot be reproduced.
-- **A run that cannot be re-run.** `rerun` and `queue` need a trail that begins at an
-  engine start, holds one run, and carries its compiled configuration. A day with an
-  engine restart in it can still be read with `story` and `stream`, but not re-executed
-  as a whole. An engine that ran from a YAML file rather than a deployed artifact has
-  no configuration in its trail (`CONFIG_NOT_RECORDED`).
+- **A trail that cannot be re-run.** `rerun` and `queue` start from the trail's
+  first line, which must be an engine start that began with an empty book, and every
+  run must carry its compiled configuration. Restarts in between are re-run. Once
+  retention has removed the day the data directory began empty, the trail can still
+  be read with `story` and `stream`, but not re-executed. An engine that ran from a
+  YAML file rather than a deployed artifact has no configuration in its trail
+  (`CONFIG_NOT_RECORDED`). A trail with a proven hole (`ESEQ_GAP`, or a recorder
+  restart while the engine ran) is not re-run either: its verdict would blame the
+  engine for what the recorder missed.
 - **Time.** Every line carries the recorder's receipt time. Engine clock readings
   (`ts_ns`) are on trades, fills, acknowledgements and book snapshots, and ordering
   between messages is by the engine's own sequence, not by either clock. A client's
