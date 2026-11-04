@@ -68,6 +68,12 @@ ACK_DUPLICATE = "ACK_DUPLICATE"
 #: the engine's, which is why the model keeps both.
 QTY_MISMATCH = "QTY_MISMATCH"
 
+#: ``pm-audit`` (re)started just before this line.  The recorder was not
+#: running until then, so whatever the engine published while it was down is
+#: absent from the trail; an ``ESEQ_GAP`` beside it, if the engine kept
+#: running, says how much.  Not a fault in itself.
+RECORDER_RESTART = "RECORDER_RESTART"
+
 #: ``remaining_qty`` rose across fills of one order.
 REMAINING_NOT_MONOTONIC = "REMAINING_NOT_MONOTONIC"
 

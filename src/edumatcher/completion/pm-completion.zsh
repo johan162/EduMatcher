@@ -718,6 +718,7 @@ _shtab_pm_audit_options=(
   "--flush-interval[Maximum seconds to wait before flushing buffer (default\: 10.0)]:SECONDS:"
   "--max-file-mb[Close the audit log as a day part at this size (default\: 10)]:MB:"
   "--keep-days[Delete archives older than N days (default\: 0 \= keep all)]:N:"
+  "--fsync-interval[Sync the active file to disk at most this often\; 0 syncs every flush (default\: 1.0)]:SECONDS:"
   "--log-level[Logging level override (default\: WARNING)]:log_level:(CRITICAL ERROR WARNING INFO DEBUG)"
   "*"{-v,--verbose}"[Increase log verbosity (-v\: INFO, -vv\: DEBUG)]"
   {-q,--quiet}"[Reduce output to warnings\/errors]"

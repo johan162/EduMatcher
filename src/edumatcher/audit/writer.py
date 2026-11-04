@@ -17,6 +17,7 @@ from __future__ import annotations
 import logging
 import os
 import re
+import time
 from collections.abc import Callable
 from datetime import datetime, timezone, tzinfo
 from pathlib import Path
@@ -53,6 +54,17 @@ def file_day(path: Path, tz: tzinfo) -> str | None:
     return stamp.astimezone(tz).date().isoformat()
 
 
+#: Prefix of the line a started recorder writes before its first line.  A
+#: comment, so readers skip it; ``query.iter_entries`` hands it to the next
+#: entry so the replay can say the recorder was not running just before it.
+RECORDER_START_PREFIX = "# edumatcher-audit recorder-start "
+
+
+def recorder_start_line() -> str:
+    started = datetime.now(timezone.utc).isoformat(timespec="milliseconds")
+    return f"{RECORDER_START_PREFIX}pm-audit={package_version()} started={started}"
+
+
 def header_line() -> str:
     """The first line of every audit file."""
     started = datetime.now(timezone.utc).isoformat(timespec="milliseconds")
@@ -74,7 +86,19 @@ class AuditFile:
         max_bytes: int,
         tz: tzinfo,
         on_day_closed: Callable[[], None] = lambda: None,
+        *,
+        fsync_interval: float = 1.0,
+        announce_start: bool = False,
+        clock: Callable[[], float] = time.monotonic,
     ) -> None:
+        #: Seconds between fsyncs of the active file; 0 syncs every flush.
+        #: Bounds what a power loss or kernel crash takes (a killed process
+        #: loses nothing already flushed; the OS has it).
+        self._fsync_interval = fsync_interval
+        self._clock = clock
+        self._last_sync: float | None = None
+        #: The next write begins with a recorder-start marker.
+        self._announce_start = announce_start
         #: Called when a roll closes a day that has ended (not on a size roll).
         self._on_day_closed = on_day_closed
         self._path = path
@@ -94,14 +118,24 @@ class AuditFile:
             self._on_day_closed()
         if self._day is None:
             self._day = day
+        if self._announce_start:
+            lines = [recorder_start_line(), *lines]
+            self._announce_start = False
         if self._size == 0:
             lines = [header_line(), *lines]
         data = ("\n".join(lines) + "\n").encode("utf-8")
         self._fh.write(data)
         self._fh.flush()
+        self._sync_if_due()
         self._size += len(data)
         if self._size >= self._max_bytes:
             self._try_roll()
+
+    def _sync_if_due(self) -> None:
+        now = self._clock()
+        if self._last_sync is None or now - self._last_sync >= self._fsync_interval:
+            os.fsync(self._fh.fileno())
+            self._last_sync = now
 
     def close_days_before(self, today: str) -> None:
         """Close ``audit.log`` if it holds a day before ``today`` (idle midnight)."""

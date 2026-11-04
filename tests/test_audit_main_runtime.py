@@ -370,3 +370,57 @@ def test_failed_health_socket_setup_closes_the_subscriber(tmp_path: Path) -> Non
         AuditProcess(log_path=tmp_path / "audit.log", to_terminal=False)
 
     assert fake_sub.closed is True
+
+
+def _record(proc: AuditProcess, topic: str, eseq: int | None) -> None:
+    """Feed the recorder one message carrying engine sequence *eseq*."""
+    proc.sub = _FakeSub(frame_count=1)
+    with (
+        patch("edumatcher.audit.main.decode", return_value=(topic, {})),
+        patch("edumatcher.audit.main.decode_sequence", return_value=1),
+        patch("edumatcher.audit.main.decode_envelope", return_value=None),
+        patch("edumatcher.audit.main.decode_publisher_sequence", return_value=eseq),
+    ):
+        proc._receive_one_message()
+
+
+def _samples(proc: AuditProcess) -> dict[str, float]:
+    return {s.name: s.value for s in proc.metric_samples()}
+
+
+class TestMissedMessages:
+    """The recorder counts what it can prove it missed: a jump in eseq."""
+
+    def _proc(self, tmp_path: Path) -> AuditProcess:
+        with (
+            patch("edumatcher.audit.main.make_subscriber", return_value=_FakeSub(0)),
+            patch("edumatcher.audit.main.make_replier"),
+        ):
+            return AuditProcess(log_path=tmp_path / "audit.log", to_terminal=False)
+
+    def test_a_dense_stream_misses_nothing(self, tmp_path: Path) -> None:
+        proc = self._proc(tmp_path)
+        for eseq in (1, 2, 3):
+            _record(proc, "trade.executed", eseq)
+        assert _samples(proc)["audit.missed_messages"] == 0
+
+    def test_a_jump_counts_the_messages_in_the_hole(self, tmp_path: Path) -> None:
+        proc = self._proc(tmp_path)
+        for eseq in (1, 2, 7):
+            _record(proc, "trade.executed", eseq)
+        assert _samples(proc)["audit.missed_messages"] == 4
+
+    def test_a_restart_of_the_engine_is_not_a_miss(self, tmp_path: Path) -> None:
+        proc = self._proc(tmp_path)
+        for eseq in (1, 2, 3):
+            _record(proc, "trade.executed", eseq)
+        _record(proc, "system.startup", 1)
+        _record(proc, "trade.executed", 2)
+        assert _samples(proc)["audit.missed_messages"] == 0
+
+    def test_a_line_without_eseq_is_ignored(self, tmp_path: Path) -> None:
+        proc = self._proc(tmp_path)
+        _record(proc, "trade.executed", 5)
+        _record(proc, "trade.executed", None)
+        _record(proc, "trade.executed", 6)
+        assert _samples(proc)["audit.missed_messages"] == 0

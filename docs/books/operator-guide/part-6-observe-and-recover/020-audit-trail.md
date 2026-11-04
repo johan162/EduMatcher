@@ -100,6 +100,7 @@ pm-audit [options]
 | `--flush-interval SECONDS` | `10.0` | Maximum seconds to wait before flushing buffer regardless of size |
 | `--max-file-mb MB` | `10` | Close the audit log as a day part when it reaches this size — see [Day parts and archives](#day-parts-and-archives) |
 | `--keep-days N` | `0` | Delete daily archives older than N days; `0` keeps them all |
+| `--fsync-interval SECONDS` | `1.0` | Sync the active file to disk at most this often; `0` syncs every flush — see [What can be lost](#what-can-be-lost) |
 | `--log-level` | `WARNING` | Explicit level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
 | `-v` / `--verbose` | off | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`) |
 | `-q` / `--quiet` | off | No-op — the default level is already `WARNING`, so `--quiet` currently sets the same level and has no observable effect |
@@ -120,7 +121,8 @@ group when either limit is reached:
 - **Shutdown**: Ctrl-C, SIGINT, or SIGTERM always flushes remaining messages before exit
 
 No messages are lost on clean shutdown. A hard kill (`kill -9`) may lose up
-to `--buffer-size` messages that had not yet been flushed.
+to `--buffer-size` messages that had not yet been flushed. See
+[What can be lost](#what-can-be-lost) for the whole picture.
 
 **Tuning examples:**
 
@@ -137,6 +139,31 @@ pm-audit --buffer-size 1 --flush-interval 1
 # Demo mode: see every event on the terminal as well
 pm-audit --terminal
 ```
+
+### What can be lost
+
+`pm-audit` is a subscriber, so the trail holds what it *received*. Four things
+sit between an engine publication and the disk, and each has a bound:
+
+| Where | What is lost | Bound |
+|---|---|---|
+| `pm-audit` is not running | Everything the engine publishes meanwhile | Unbounded. The next line shows a jump in `eseq` (replay: `ESEQ_GAP`), and a `# recorder-start` marker before it (replay: `RECORDER_RESTART`) says why |
+| The receive queue overflows (a burst faster than the writer) | The messages past the queue's 200 000 | Counted by `audit.missed_messages` when the next message shows the jump |
+| `pm-audit` is killed (`kill -9`) | Lines buffered but not yet written | At most `--buffer-size` messages or `--flush-interval` seconds, whichever comes first |
+| The host loses power or the kernel crashes | Lines written but not yet synced | At most `--fsync-interval` seconds (default 1) plus the line above |
+
+A stopped-and-started `pm-audit` writes one comment line, `# edumatcher-audit
+recorder-start pm-audit=<version> started=<time>`, before its first line, so the
+restart is visible in the file itself and not only as a hole in the numbering.
+`pm-audit-replay` reports it as `RECORDER_RESTART` (info) and does not count it
+as an unreadable line.
+
+The health beacon carries `audit.missed_messages`: the number of engine messages
+`pm-audit` can prove it missed. It stays 0 on a healthy exchange. An engine
+restart is not a miss (the sequence begins again at `system.startup`). The
+counter sees only a jump it observes, so messages lost after the last one
+received, because `pm-audit` was stopped, appear in the *next* run's trail as the
+gap, not in this counter.
 
 ### Log format
 

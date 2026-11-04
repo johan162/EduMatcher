@@ -439,6 +439,7 @@ reader should look at, **info** is something expected at a window edge.
 | `ARRIVAL_SEQ_REUSED` | error | A repeated or decreasing `arrival_seq` within one run: two orders claiming one queue position. Always reported, unlike the gap below |
 | `ARRIVAL_SEQ_GAP` | info | A gap in `arrival_seq` within one run. Expected whenever the window omits another gateway's orders, so `--strict` only |
 | `RUN_SEQ_CHANGE` | info | An engine restart observed mid-window. Not a fault, but nothing may be compared across it |
+| `RECORDER_RESTART` | info | `pm-audit` was (re)started just before this line, so nothing was recorded while it was down. See [What can be lost](020-audit-trail.md#what-can-be-lost) |
 | `ENVELOPE_MISSING` | info | An engine-published message with no envelope. Expected on archived lines; on a current log, a publisher is bypassing `CausalPublisher` |
 
 ### Command reconciliation

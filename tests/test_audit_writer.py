@@ -12,17 +12,23 @@ from zoneinfo import ZoneInfo
 
 from edumatcher.audit.main import AuditProcess
 from edumatcher.audit.query import discover_log_files
-from edumatcher.audit.writer import AuditFile, file_day, header_line
+from edumatcher.audit.writer import (
+    RECORDER_START_PREFIX,
+    AuditFile,
+    file_day,
+    header_line,
+)
 
 STOCKHOLM = ZoneInfo("Europe/Stockholm")
 
 
 def _lines(path: Path) -> list[str]:
-    """A file's records; every non-empty file starts with the header."""
+    """A file's records; every non-empty file starts with the header.  A
+    recorder-start marker (A6) is not a record."""
     lines = path.read_text(encoding="utf-8").splitlines()
     if lines:
         assert lines[0].startswith("# edumatcher-audit format=1 pm-audit="), lines[0]
-    return lines[1:]
+    return [ln for ln in lines[1:] if not ln.startswith(RECORDER_START_PREFIX)]
 
 
 def _parts(root: Path) -> list[str]:
@@ -267,3 +273,67 @@ def test_each_file_starts_with_a_header_its_day_reads_past(tmp_path: Path) -> No
     assert file_day(path, STOCKHOLM) == "2026-03-30"  # 00:30 local, not the header's
     assert parse_line(header) is None
     assert parse_line(first) is not None
+
+
+class TestDurability:
+    """How much of what was received survives a crash, and what the trail says
+    about the recorder itself (A6)."""
+
+    def test_fsync_runs_on_the_first_flush_then_at_most_once_per_interval(
+        self, tmp_path: Path
+    ) -> None:
+        clock = [100.0]
+        f = AuditFile(
+            tmp_path / "audit.log",
+            1 << 20,
+            timezone.utc,
+            fsync_interval=1.0,
+            clock=lambda: clock[0],
+        )
+        with patch("edumatcher.audit.writer.os.fsync") as fsync:
+            f.write("2026-10-24", ["a"])
+            f.write("2026-10-24", ["b"])
+            assert fsync.call_count == 1
+            clock[0] += 1.5
+            f.write("2026-10-24", ["c"])
+            assert fsync.call_count == 2
+
+    def test_a_zero_interval_syncs_every_flush(self, tmp_path: Path) -> None:
+        f = AuditFile(tmp_path / "audit.log", 1 << 20, timezone.utc, fsync_interval=0)
+        with patch("edumatcher.audit.writer.os.fsync") as fsync:
+            for line in ("a", "b", "c"):
+                f.write("2026-10-24", [line])
+            assert fsync.call_count == 3
+
+    def test_a_started_recorder_marks_where_it_began_once(self, tmp_path: Path) -> None:
+        f = AuditFile(
+            tmp_path / "audit.log", 1 << 20, timezone.utc, announce_start=True
+        )
+        f.write("2026-10-24", ["a"])
+        f.write("2026-10-24", ["b"])
+        f.close()
+        lines = (tmp_path / "audit.log").read_text().splitlines()
+        assert lines[0].startswith("# edumatcher-audit format=1")
+        assert lines[1].startswith("# edumatcher-audit recorder-start ")
+        assert lines[2:] == ["a", "b"]
+
+    def test_a_restart_into_a_non_empty_file_is_marked_too(
+        self, tmp_path: Path
+    ) -> None:
+        first = AuditFile(tmp_path / "audit.log", 1 << 20, timezone.utc)
+        first.write("2026-10-24", ["a"])
+        first.close()
+        second = AuditFile(
+            tmp_path / "audit.log", 1 << 20, timezone.utc, announce_start=True
+        )
+        second.write("2026-10-24", ["b"])
+        second.close()
+        lines = (tmp_path / "audit.log").read_text().splitlines()
+        assert lines[-2].startswith("# edumatcher-audit recorder-start ")
+        assert lines[-1] == "b"
+
+    def test_a_plain_file_writes_no_marker(self, tmp_path: Path) -> None:
+        f = AuditFile(tmp_path / "audit.log", 1 << 20, timezone.utc)
+        f.write("2026-10-24", ["a"])
+        f.close()
+        assert _lines(tmp_path / "audit.log") == ["a"]

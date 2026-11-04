@@ -1468,6 +1468,7 @@ matters.
 | `CLIENT_CLOCK_ABSURD` | info | `order.new.timestamp` more than an hour from receipt — a client-clock problem, harmless to the engine (priority uses `arrival_seq`) but worth knowing |
 | `ARRIVAL_SEQ_GAP` | info | A gap in `arrival_seq` within a run; expected across gateways, reported only with `--strict` |
 | `RUN_SEQ_CHANGE` | info | Engine restart observed mid-window |
+| `RECORDER_RESTART` | info | `pm-audit` (re)started just before this line (a `# edumatcher-audit recorder-start` comment); nothing was recorded while it was down (audit A6) |
 | `SEQ_GAP` | error | A gap in a topic's `seq`: messages are missing from the audit trail for that topic |
 | `ESEQ_GAP` | error | A gap in the engine publisher's socket-wide `eseq`: messages are missing from the audit stream |
 | `ESEQ_DISCONTINUITY` | error | A repeated or decreasing `eseq` without a `system.startup` boundary |

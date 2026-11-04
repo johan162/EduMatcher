@@ -68,7 +68,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 | 3 | A3 | Gateway-local rejects: `system.gateway_reject` for auth, role and rate-limit refusals (D1 = record) | G3 | D1 | 1.5 d | ◐ | 2026-11-04 (uncommitted) |
 | 4 | A4 | Promote the re-run to `pm-audit-replay rerun`; heartbeat timeouts become one chain and a reproducible input | G4 | A2 | 2.5 d | ◐ | 2026-11-04 (uncommitted) |
 | 5 | A5 | Unenveloped command: count it and surface it | G5 | — | 0.5 d | ◐ | 2026-11-04 (uncommitted) |
-| 6 | A6 | Recorder durability: fsync policy, gap-on-restart marker, documented loss window | G6 | A1 | 1.5 d | ☐ | |
+| 6 | A6 | Recorder durability: fsync policy, gap-on-restart marker, documented loss window | G6 | A1 | 1.5 d | ◐ | 2026-11-04 (uncommitted) |
 | 7 | A7 | Engine clock on ack and fill (decision D2) | G7 | D2 | 1 d | ◐ | 2026-11-04 (uncommitted) |
 | 8 | A8 | `story --queue`: book/queue view from checkpoint plus echoed commands (decision D3) | G8 | A4 | 2 d | ☐ | |
 | 9 | A9 | Close out: tick §17, evidence/dispute chapter in the operator guide | G9 | A1–A6 | 1 d | ☐ | |
