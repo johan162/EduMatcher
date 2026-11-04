@@ -386,13 +386,14 @@ class _Execution:
     none, so the first trade settles the flag.
     """
 
-    __slots__ = ("qty", "notional", "trade_ids", "flag")
+    __slots__ = ("qty", "notional", "trade_ids", "flag", "ts_ns")
 
     def __init__(self, flag: OrderFillLiquidityFlag) -> None:
         self.qty = 0
         self.notional = 0  # ticks x shares, divided once (H6)
         self.trade_ids: list[str] = []
         self.flag: OrderFillLiquidityFlag = flag
+        self.ts_ns = 0  # the last trade's time: a fill carries its print's clock
 
 
 #: The topics timed as order entry (engine.handle_us_*); every other PULL
@@ -2166,6 +2167,7 @@ class Engine:
                     "trail_offset_ticks": order.trail_offset_ticks,
                     "smp_action": _ack_smp_action,
                     "client_tag": order.client_tag,
+                    "ts_ns": now,
                 }
             ),
         ]
@@ -3320,6 +3322,7 @@ class Engine:
                 ex.qty += t.quantity
                 ex.notional += t.price * t.quantity
                 ex.trade_ids.append(t.id)
+                ex.ts_ns = t.ts_ns
         return out
 
     def _book_reject(self, symbol: str, do_match: bool) -> tuple[RejectCode, str]:
@@ -3475,6 +3478,7 @@ class Engine:
             leg_index=order.leg_index,
             is_seed=order.is_seed,
             trade_ids=ex.trade_ids,
+            ts_ns=ex.ts_ns,
             liquidity_flag=ex.flag,
             fill_notional_ticks=ex.notional,
             cum_qty=order.quantity - order.remaining_qty,

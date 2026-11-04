@@ -454,6 +454,7 @@ worse, a plausible one. So ordering deserves an explicit, documented policy.
 | `order.new` | `timestamp` | epoch **nanos** | **client** | **No.** Spec says explicitly: not what the book uses for priority |
 | `order.new` | `arrival_seq` | int | engine, per run | **Yes** — this is the engine's own priority order |
 | `trade.executed` | `ts_ns` | epoch **nanos** (int) | engine | Yes, engine-side |
+| `order.ack`, `order.fill` | `ts_ns` | epoch **nanos** (int) | engine | Yes, engine-side (audit A7). A fill carries its trade's `ts_ns`; an ack the engine's clock at the decision. Absent on older lines |
 | `trade.executed` | `id` | `run-counter` | engine, per run | **Yes** — monotonic and total within a run |
 | `drop_copy.event` | `seq` | int | drop-copy publisher | Yes, within that stream |
 | `log.*` | `seq` | int | `pm-log-srv` | Yes, within that stream |

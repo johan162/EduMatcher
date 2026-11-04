@@ -1350,6 +1350,14 @@ _ORDER_ACK_FIELDS: tuple[dict[str, Any], ...] = (
         "values": _ORDER_ACK_REJECT_CODE_VALUES,
     },
     {
+        "name": "ts_ns",
+        "type": "int",
+        "unit": "epoch_nanos",
+        "required": False,
+        "doc": "The engine's clock when it decided this order's fate (accepted or refused), in Unix epoch nanoseconds from the same strictly increasing source as trade.executed.ts_ns, so an ack sorts against the prints around it. Absent on a record written before the field existed.",
+        "constraints": {"ge": 0},
+    },
+    {
         "name": "symbol",
         "type": "string",
         "unit": None,
@@ -1516,6 +1524,7 @@ class OrderAck:
     accepted: bool
     reason: str = ""
     reject_code: OrderAckRejectCode | None = None
+    ts_ns: int | None = None  # unit: epoch_nanos
     symbol: str | None = None
     side: str | None = None
     order_type: str | None = None
@@ -1561,6 +1570,9 @@ class OrderAck:
                 raise MessageValidationError(
                     f"reject_code: {self.reject_code!r} is not one of {_ORDER_ACK_REJECT_CODE_VALUES!r}"
                 )
+        if self.ts_ns is not None:
+            if self.ts_ns < 0:
+                raise MessageValidationError(f"ts_ns: {self.ts_ns!r} must be >= 0")
         if self.symbol is not None:
             if len(self.symbol) > 16:
                 raise MessageValidationError(
@@ -1630,6 +1642,7 @@ class OrderAck:
                 if p.get("reject_code") is None
                 else cast(OrderAckRejectCode, str(p["reject_code"]))
             ),
+            ts_ns=None if p.get("ts_ns") is None else int(p["ts_ns"]),
             symbol=None if p.get("symbol") is None else str(p["symbol"]),
             side=None if p.get("side") is None else str(p["side"]),
             order_type=None if p.get("order_type") is None else str(p["order_type"]),
@@ -1680,6 +1693,8 @@ class OrderAck:
         }
         if self.reject_code is not None:
             payload["reject_code"] = self.reject_code
+        if self.ts_ns is not None:
+            payload["ts_ns"] = self.ts_ns
         if self.symbol is not None:
             payload["symbol"] = self.symbol
         if self.side is not None:
@@ -1754,6 +1769,7 @@ def make_order_ack_unchecked(
     accepted: bool,
     reason: str = "",
     reject_code: OrderAckRejectCode | None = None,
+    ts_ns: int | None = None,
     symbol: str | None = None,
     side: str | None = None,
     order_type: str | None = None,
@@ -1793,6 +1809,8 @@ def make_order_ack_unchecked(
     }
     if reject_code is not None:
         payload["reject_code"] = str(reject_code)
+    if ts_ns is not None:
+        payload["ts_ns"] = int(ts_ns)
     if symbol is not None:
         payload["symbol"] = str(symbol)
     if side is not None:
@@ -2006,6 +2024,14 @@ _ORDER_FILL_FIELDS: tuple[dict[str, Any], ...] = (
         "doc": "True when this order was created by config-driven startup seeding rather than a live gateway submission. See OrderDisplay.is_seed for the full rationale; carried here too so a fill reached after the originating order.ack has rotated out of the audit log still says whether the filled order was a config seed.",
     },
     {
+        "name": "ts_ns",
+        "type": "int",
+        "unit": "epoch_nanos",
+        "required": False,
+        "doc": "The match time of the trade behind this fill, in Unix epoch nanoseconds: identical to trade.executed.ts_ns (the last trade, when a sweep was coalesced into one fill). A fill and the print it reports carry one clock read. Absent on a record written before the field existed.",
+        "constraints": {"ge": 0},
+    },
+    {
         "name": "trade_ids",
         "type": "list",
         "unit": None,
@@ -2071,6 +2097,7 @@ class OrderFill:
     quote_id: str | None = None
     leg_index: int | None = None  # unit: dimensionless
     is_seed: bool = False
+    ts_ns: int | None = None  # unit: epoch_nanos
     trade_ids: list[str] = field(default_factory=list)
     liquidity_flag: OrderFillLiquidityFlag | None = None
     fill_notional_ticks: int | None = None  # unit: notional_ticks
@@ -2136,6 +2163,9 @@ class OrderFill:
                 raise MessageValidationError(
                     f"quote_id: length {len(self.quote_id)} exceeds max_len 64"
                 )
+        if self.ts_ns is not None:
+            if self.ts_ns < 0:
+                raise MessageValidationError(f"ts_ns: {self.ts_ns!r} must be >= 0")
         if self.liquidity_flag is not None:
             if self.liquidity_flag not in _ORDER_FILL_LIQUIDITY_FLAG_VALUES:
                 raise MessageValidationError(
@@ -2186,6 +2216,7 @@ class OrderFill:
             quote_id=None if p.get("quote_id") is None else str(p["quote_id"]),
             leg_index=None if p.get("leg_index") is None else int(p["leg_index"]),
             is_seed=bool(p.get("is_seed", False)),
+            ts_ns=None if p.get("ts_ns") is None else int(p["ts_ns"]),
             trade_ids=[str(item) for item in p.get("trade_ids", [])],
             liquidity_flag=(
                 None
@@ -2238,6 +2269,8 @@ class OrderFill:
             payload["quote_id"] = self.quote_id
         if self.leg_index is not None:
             payload["leg_index"] = self.leg_index
+        if self.ts_ns is not None:
+            payload["ts_ns"] = self.ts_ns
         if self.liquidity_flag is not None:
             payload["liquidity_flag"] = self.liquidity_flag
         if self.fill_notional_ticks is not None:
@@ -2295,6 +2328,7 @@ def make_order_fill_unchecked(
     quote_id: str | None = None,
     leg_index: int | None = None,
     is_seed: bool = False,
+    ts_ns: int | None = None,
     trade_ids: list[str] = [],
     liquidity_flag: OrderFillLiquidityFlag | None = None,
     fill_notional_ticks: int | None = None,
@@ -2342,6 +2376,8 @@ def make_order_fill_unchecked(
         payload["quote_id"] = str(quote_id)
     if leg_index is not None:
         payload["leg_index"] = int(leg_index)
+    if ts_ns is not None:
+        payload["ts_ns"] = int(ts_ns)
     if liquidity_flag is not None:
         payload["liquidity_flag"] = str(liquidity_flag)
     if fill_notional_ticks is not None:

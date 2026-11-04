@@ -360,6 +360,18 @@ Not recorded, on purpose: malformed frames and field-validation refusals
 attempting a write. `pm-audit-replay story` narrates a record as *"A request
 from GW01 (10.0.0.5:4411) was refused at the ALF gateway — rate limiting"*.
 
+### Which clock a line is stamped with
+
+Every audit line starts with the time `pm-audit` *received* it, which is the
+only clock present on every line. Three messages also carry the **engine's**
+clock, in Unix epoch nanoseconds: `trade.executed.ts_ns` (the match),
+`order.fill.ts_ns` (the same value as the trade it reports, so a fill and its
+print share one reading) and `order.ack.ts_ns` (when the engine accepted or
+refused the order, from the same strictly increasing source). For "when did the
+exchange accept this order", use the ack's `ts_ns`; the receipt time can lag it
+under load. Ordering between messages is by the engine's `eseq`, not by either
+clock. Lines recorded before this field existed carry the receipt time only.
+
 ### Commands the trail may not hold
 
 The engine echoes every inbound command into the trail before it acts on it,

@@ -46,6 +46,7 @@ from edumatcher.models.generated import session as _gen_session
 from edumatcher.models.generated import structure as _gen_structure
 from edumatcher.models.generated import system as _gen_system
 from edumatcher.models.generated import trade as _gen_trade
+from edumatcher.models.clock import now_ns
 from edumatcher.models.envelope import Envelope
 
 # PERF improvement #6: Use orjson instead of stdlib json.
@@ -446,6 +447,7 @@ def make_ack_msg(
         client_tag=order_client_tag(client_tag, order),
         request_tag=request_tag,
         is_seed=bool(detail.get("is_seed", False)),
+        ts_ns=now_ns(),
         **group_ids(order),
     )
 
