@@ -112,6 +112,25 @@ def test_auction_uses_ask_smp_when_bid_allows_self_match() -> None:
     assert bid.status == OrderStatus.NEW
 
 
+def test_uncross_leaves_no_self_match_cross_above_the_equilibrium() -> None:
+    """The walk at the equilibrium never meets a same-gateway pair lying
+    above it; the uncross must still resolve it, not leave a crossed book."""
+    book = OrderBook(SYMBOL)
+    _rest(book, Side.SELL, 100, "GW02")
+    ask = _rest(book, Side.SELL, 100.5, "GW01")
+    bid = _rest(book, Side.BUY, 101, "GW01", qty=20, smp=SmpAction.CANCEL_AGGRESSOR)
+    result = compute_equilibrium(book)
+    assert (result.eq_price, result.eq_qty) == (to_ticks(100, SYMBOL), 10)
+    trades, events = execute_uncross(book, result.resolve_price or 0)
+    assert sum(t.quantity for t in trades) == 10
+    assert bid.status == OrderStatus.CANCELLED
+    assert bid.cancel_reason == "SELF_MATCH_PREVENTED"
+    assert bid in events
+    assert ask.status == OrderStatus.NEW
+    best_bid, best_ask = book.best_bid_ticks(), book.best_ask_ticks()
+    assert best_bid is None or best_ask is None or best_bid < best_ask
+
+
 def test_opposing_oco_legs_never_trade_each_other(monkeypatch, tmp_path) -> None:
     engine, pub = make_engine(monkeypatch, tmp_path)
     connect(engine)
