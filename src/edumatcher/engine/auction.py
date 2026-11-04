@@ -319,9 +319,10 @@ def compute_equilibrium(book: "OrderBook") -> AuctionResult:  # noqa: F821
     prices whose min(buy_qty, sell_qty) could still beat the best walk found
     are walked.
 
-    Complexity is O(P^2) in the number of distinct price levels because the
-    cumulative lookups below rescan the price lists; that is fine for an
-    auction, which runs once per phase, and keeps the code obvious.
+    Complexity is O(P log P) in the number of distinct price levels -- the
+    sort -- because both cumulative curves are built in a single pass. That
+    matters: this runs per symbol on every indicative tick during a call
+    auction, not once per phase.
     """
     bid_qty, ask_qty = _auction_levels(book)
     bid_prices = sorted(bid_qty.keys(), reverse=True)  # highest first
@@ -333,52 +334,32 @@ def compute_equilibrium(book: "OrderBook") -> AuctionResult:  # noqa: F821
         )
         return AuctionResult(eq_price=None, eq_qty=0, surplus=0, imbalance_side="")
 
-    # Build cumulative buy qty from highest price downward:
-    # cum_buy[price] = total bid qty at prices >= price
-    cum_buy: dict[int, int] = {}
-    running = 0
-    for p in bid_prices:
-        running += bid_qty[p]
-        cum_buy[p] = running
-
-    # Build cumulative sell qty from lowest price upward:
-    # cum_sell[price] = total ask qty at prices <= price
-    cum_sell: dict[int, int] = {}
-    running = 0
-    for p in ask_prices:
-        running += ask_qty[p]
-        cum_sell[p] = running
-
     # Candidate prices = union of all bid and ask price levels, sorted
     all_prices = sorted(set(bid_prices) | set(ask_prices))
 
+    # Both cumulative curves in one pass each, indexed by position in
+    # all_prices: buy accumulates downward (bids at prices >= this one),
+    # sell upward (asks at prices <= this one). Looking them up per
+    # candidate used to rescan the price lists, which is what made the
+    # whole function quadratic.
+    buy_at = [0] * len(all_prices)
+    running = 0
+    for i in range(len(all_prices) - 1, -1, -1):
+        running += bid_qty.get(all_prices[i], 0)
+        buy_at[i] = running
+
+    sell_at = [0] * len(all_prices)
+    running = 0
+    for i, price in enumerate(all_prices):
+        running += ask_qty.get(price, 0)
+        sell_at[i] = running
+
     # (index in all_prices, price, buy_qty, sell_qty) of every crossing price
-    candidates: list[tuple[int, int, int, int]] = []
-    for index, price in enumerate(all_prices):
-        # Buy qty: sum of bids at prices >= candidate
-        # cum_buy is keyed by descending bid prices; we want the lowest bp >= price
-        buy_qty = 0
-        for bp in bid_prices:  # highest first
-            if bp >= price:
-                buy_qty = cum_buy[
-                    bp
-                ]  # keep updating — last match is the lowest bp >= price
-            else:
-                break
-
-        # Sell qty: sum of asks at prices <= candidate
-        # cum_sell is keyed by ascending ask prices; we want the highest ap <= price
-        sell_qty = 0
-        for ap in ask_prices:  # lowest first
-            if ap <= price:
-                sell_qty = cum_sell[
-                    ap
-                ]  # keep updating — last match is the highest ap <= price
-            else:
-                break
-
-        if min(buy_qty, sell_qty):
-            candidates.append((index, price, buy_qty, sell_qty))
+    candidates: list[tuple[int, int, int, int]] = [
+        (index, price, buy_at[index], sell_at[index])
+        for index, price in enumerate(all_prices)
+        if min(buy_at[index], sell_at[index])
+    ]
 
     if not candidates:
         return AuctionResult(eq_price=None, eq_qty=0, surplus=0, imbalance_side="")

@@ -529,6 +529,10 @@ CREATE TABLE IF NOT EXISTS trade_log (
 );
 
 CREATE INDEX IF NOT EXISTS idx_tl_symbol_ts ON trade_log(symbol, ts);
+-- Covers the largest-trade-of-the-day rehydration: symbol equality then an
+-- ordered scan, so LIMIT 1 short-circuits instead of sorting into a temp
+-- B-tree.
+CREATE INDEX IF NOT EXISTS idx_tl_symbol_qty ON trade_log(symbol, quantity DESC, ts);
 
 CREATE TABLE IF NOT EXISTS feed_gaps (
     seq             INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1305,8 +1309,15 @@ class StatsProcess:
             ).fetchone()[0]
             # Ties go to the earliest trade, matching _DayAccum.on_trade's
             # strict `>` comparison.
+            # INDEXED BY, not a hint: without stat1 the planner prefers
+            # idx_tl_symbol_ts and then sorts the whole symbol-day into a
+            # temp B-tree. idx_tl_symbol_qty matches the ORDER BY exactly,
+            # so LIMIT 1 stops at the first in-window row. The index is
+            # created by initialize_schema() on every open, so it is always
+            # present here.
             acc.largest_trade_qty, acc.largest_trade_price = self._conn.execute(
                 "SELECT quantity, price FROM trade_log "
+                "INDEXED BY idx_tl_symbol_qty "
                 "WHERE symbol = ? AND ts >= ? AND ts < ? "
                 "ORDER BY quantity DESC, ts ASC, rowid ASC LIMIT 1",
                 window,

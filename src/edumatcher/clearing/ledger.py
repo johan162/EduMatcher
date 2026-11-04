@@ -236,6 +236,10 @@ class Ledger:
         self._positions: dict[tuple[str, str], _Position] = {}
         # Batch incremental deltas — cleared after each successful flush.
         self._batch_deltas: dict[tuple[str, str, str], _BatchDelta] = {}
+        # symbol -> keys, so re-marking one symbol after a trade costs
+        # O(holders of that symbol) instead of O(every open position).
+        self._position_keys_by_symbol: dict[str, set[tuple[str, str]]] = {}
+        self._delta_keys_by_symbol: dict[str, set[tuple[str, str, str]]] = {}
         # Positions re-marked to the latest traded price this batch without
         # having traded themselves — cleared after each successful flush.
         self._remarked_keys: set[tuple[str, str]] = set()
@@ -260,6 +264,7 @@ class Ledger:
         """
         for r in rows:
             key = (r["gateway_id"], r["symbol"])
+            self._position_keys_by_symbol.setdefault(r["symbol"], set()).add(key)
             self._positions[key] = _Position(
                 gateway_id=r["gateway_id"],
                 symbol=r["symbol"],
@@ -342,12 +347,10 @@ class Ledger:
         the trade's precision, so a daily row's money and its end_* snapshot
         never mix two scales.
         """
-        for delta_key, delta in self._batch_deltas.items():
-            if delta_key[2] == symbol:
-                _rescale_delta(delta, tick_decimals)
-        for key, pos in self._positions.items():
-            if key[1] != symbol:
-                continue
+        for delta_key in self._delta_keys_by_symbol.get(symbol, ()):
+            _rescale_delta(self._batch_deltas[delta_key], tick_decimals)
+        for key in self._position_keys_by_symbol.get(symbol, ()):
+            pos = self._positions[key]
             _rescale_position(pos, tick_decimals)
             if pos.net_qty == 0:
                 continue
@@ -397,6 +400,7 @@ class Ledger:
     def clear_batch(self) -> None:
         """Reset batch delta accumulators after a successful flush."""
         self._batch_deltas.clear()
+        self._delta_keys_by_symbol.clear()
         self._remarked_keys.clear()
 
     def position(self, gateway_id: str, symbol: str) -> _Position | None:
@@ -426,6 +430,7 @@ class Ledger:
         pos_key = (gateway_id, symbol)
         if pos_key not in self._positions:
             self._positions[pos_key] = _Position(gateway_id=gateway_id, symbol=symbol)
+            self._position_keys_by_symbol.setdefault(symbol, set()).add(pos_key)
         pos = self._positions[pos_key]
         _rescale_position(pos, tick_decimals)
 
@@ -448,6 +453,7 @@ class Ledger:
         delta_key = (trade_date, gateway_id, symbol)
         if delta_key not in self._batch_deltas:
             self._batch_deltas[delta_key] = _BatchDelta()
+            self._delta_keys_by_symbol.setdefault(symbol, set()).add(delta_key)
         delta = self._batch_deltas[delta_key]
         _rescale_delta(delta, tick_decimals)
         delta.traded_qty += quantity

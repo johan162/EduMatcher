@@ -70,6 +70,7 @@ from edumatcher.models.generated.risk import topic_kill_switch_ack
 from edumatcher.models.generated.session import (
     topic_session_transition_ack,
 )
+from edumatcher.models.generated.trade import TOPIC_TRADE_EXECUTED
 from edumatcher.models.generated.system import (
     TOPIC_STARTUP_RECOVERY,
     match_gateway_bye,
@@ -119,7 +120,14 @@ class EngineClient:
         # ack; serialising them was the only safe option. The ack now echoes
         # command_id, so `match=` disambiguates them the way it always did for
         # the symbol-scoped acks, and the serialisation is unnecessary.
-        self._caches: dict[str, SessionCaches] = defaultdict(SessionCaches)
+        # One shared last-price map behind every gateway's cache: a public
+        # trade is market-wide, so folding it into each of N session caches
+        # wrote the same number N times and made a broadcast cost O(sessions).
+        self._market_prices: dict[str, float] = {}
+        self._caches: dict[str, SessionCaches] = defaultdict(
+            lambda: SessionCaches(last_prices=self._market_prices)
+        )
+        self._market_view = SessionCaches(last_prices=self._market_prices)
         self._sinks: dict[str, set[asyncio.Queue[dict[str, Any]]]] = defaultdict(set)
         self._market_data_sinks: set[asyncio.Queue[dict[str, Any]]] = set()
         # Latest-snapshot-per-topic plus a bounded trades tail, feeding the
@@ -545,8 +553,13 @@ class EngineClient:
                     self._record_drop("private", event)
         else:
             self._dbg_count("market_data_events")
-            for cache in self._caches.values():
-                cache.apply(topic, payload)
+            if topic == TOPIC_TRADE_EXECUTED:
+                # Lands in the shared last-price map; one apply covers every
+                # session, present and future.
+                self._market_view.apply(topic, payload)
+            else:
+                for cache in self._caches.values():
+                    cache.apply(topic, payload)
             event = envelope(topic, payload, seq=seq)
             # Retain latest snapshot / recent trade tail so a (re)subscribing
             # or gap-detecting client can be served without waiting for the
