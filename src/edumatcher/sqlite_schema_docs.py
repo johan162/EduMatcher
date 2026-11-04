@@ -105,7 +105,7 @@ def database_specs() -> tuple[DatabaseSpec, ...]:
         DatabaseSpec(
             "eod.db",
             "pm-eod",
-            "End-of-day settlement ledger: each trader's amount per trading date.",
+            "End-of-day settlement ledger: each trader's amount per trading date, in integer minor units (1234 = 12.34) of the display currency; positive = the exchange owes the trader, negative = the trader owes the exchange; every date sums to zero.",
             "src/edumatcher/eod/ledger.py",
             _initialize_eod,
         ),

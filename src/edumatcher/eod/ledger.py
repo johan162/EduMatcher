@@ -19,12 +19,20 @@ from pathlib import Path
 from edumatcher.eod.settle import EXCHANGE, Settlement
 
 SCHEMA = """
+-- One row per account per settled trading date.  The rows of a date sum to
+-- exactly 0: the exchange is the counterparty of every trader.
 CREATE TABLE IF NOT EXISTS eod_settlement (
-  trade_date   TEXT    NOT NULL,
+  trade_date   TEXT    NOT NULL,  -- YYYY-MM-DD, in the session timezone
   -- A gateway id, or 'EXCHANGE' for the rounding residual.
   account      TEXT    NOT NULL,
+  -- The day's change in the account's mark-to-market equity, in integer minor
+  -- units of the display currency (2 decimals: 1234 = 12.34).  Positive: the
+  -- exchange owes the trader (credit).  Negative: the trader owes the
+  -- exchange (debit).  A running balance is the sum of these plus the
+  -- roster's opening balance; it is never stored.
   amount_minor INTEGER NOT NULL,
-  -- {symbol: day P&L in display currency} for the statement.
+  -- {symbol: day P&L as a decimal string in display currency, same sign as
+  -- amount_minor}; the unrounded parts the statement lists per symbol.
   detail_json  TEXT    NOT NULL,
   PRIMARY KEY (trade_date, account)
 );
@@ -34,8 +42,8 @@ CREATE TABLE IF NOT EXISTS eod_settlement (
 CREATE TABLE IF NOT EXISTS eod_runs (
   trade_date  TEXT PRIMARY KEY,
   status      TEXT NOT NULL,   -- ok | failed | report-failed
-  started_at  TEXT NOT NULL,
-  finished_at TEXT NOT NULL,
+  started_at  TEXT NOT NULL,   -- ISO 8601, UTC
+  finished_at TEXT NOT NULL,   -- ISO 8601, UTC
   steps_json  TEXT NOT NULL    -- [{"step", "status", "message"}, ...]
 );
 """
@@ -191,6 +199,16 @@ def runs(conn: sqlite3.Connection, limit: int = 30) -> list[dict[str, str]]:
         (limit,),
     )
     return [dict(r) for r in rows]
+
+
+def run_for(conn: sqlite3.Connection, trade_date: str) -> dict[str, str] | None:
+    """The recorded run of ``trade_date``, if any."""
+    row = conn.execute(
+        "SELECT trade_date, status, started_at, finished_at, steps_json"
+        " FROM eod_runs WHERE trade_date = ?",
+        (trade_date,),
+    ).fetchone()
+    return dict(row) if row else None
 
 
 def check_zero_sum(conn: sqlite3.Connection) -> list[str]:

@@ -199,3 +199,36 @@ def test_a_second_pm_eod_is_refused(
     with run_lock(data):
         assert cli(data, "run", "--date", "2026-07-01") == 1
     assert "another pm-eod" in capsys.readouterr().err
+
+
+def test_show_lists_one_dates_rows_with_per_symbol_detail(
+    data: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    cli(data, "run", "--date", "2026-07-01")
+    capsys.readouterr()
+    assert cli(data, "--format", "json", "show", "--date", "2026-07-01") == 0
+    rows = json.loads(capsys.readouterr().out)
+    assert [r["account"] for r in rows] == ["A", "B"]
+    assert sum(float(r["amount"]) for r in rows) == 0
+    assert all(isinstance(r["detail"], dict) for r in rows)
+    assert cli(data, "show", "--date", "2026-07-01", "--gateway", "b") == 0
+    out = capsys.readouterr().out
+    assert "B" in out and "A " not in out.splitlines()[-1]
+
+
+def test_show_steps_prints_full_messages(
+    data: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    cli(data, "run", "--date", "2026-07-01")
+    capsys.readouterr()
+    assert cli(data, "--format", "json", "show", "--date", "2026-07-01", "--steps") == 0
+    steps = json.loads(capsys.readouterr().out)
+    assert [s["step"] for s in steps][:3] == ["gate", "settle", "report"]
+    assert all(s["message"] for s in steps)
+
+
+def test_show_an_unknown_date_has_no_rows(
+    data: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert cli(data, "show", "--date", "2026-07-02") == 0
+    assert capsys.readouterr().out.strip() == "No rows found."

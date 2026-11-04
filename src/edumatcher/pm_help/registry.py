@@ -1741,6 +1741,7 @@ _ADMIN_AND_OPS: tuple[CommandInfo, ...] = (
             "       [--log-keep-days 14] [--backup-keep-days 7] [--backup-skip NAME]",
             "pm-eod [--datapath DIR] [--format table|json|csv] status [-q]",
             "pm-eod [--datapath DIR] [--format table|json|csv] balances [--date D] [--gateway G] [--check]",
+            "pm-eod [--datapath DIR] [--format table|json|csv] show --date D [--gateway G] [--steps]",
         ),
         description=(
             "A one-shot command, normally started by 'pm-scheduler --on-close' after the "
@@ -1828,7 +1829,14 @@ _ADMIN_AND_OPS: tuple[CommandInfo, ...] = (
             ),
             Option("--limit N", "30", "status: number of runs shown", "status"),
             Option("--date D", "", "balances: balances as of this date", "balances"),
-            Option("--gateway G", "", "balances: only this trader", "balances"),
+            Option("--gateway G", "", "balances, show: only this trader", "balances"),
+            Option("--date D", "", "show: the settled trading date (required)", "show"),
+            Option(
+                "--steps",
+                "off",
+                "show: the run's steps with full messages instead of the amounts",
+                "show",
+            ),
             Option(
                 "--check",
                 "off",
@@ -1845,6 +1853,11 @@ _ADMIN_AND_OPS: tuple[CommandInfo, ...] = (
             Subcommand("status", args="[-q]", purpose="Recent runs and pending dates"),
             Subcommand(
                 "balances", args="[--check]", purpose="Running balance per account"
+            ),
+            Subcommand(
+                "show",
+                args="--date D [--steps]",
+                purpose="One date's ledger rows, or its run steps",
             ),
         ),
         related=("pm-scheduler", "pm-clearing", "pm-clearing-cli", "pm-audit-cli"),

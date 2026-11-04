@@ -4,6 +4,7 @@
   pm-eod run --pending             every closed date not yet done, oldest first
   pm-eod status [-q]               recent runs; -q is a health check (exit 0/1)
   pm-eod balances [--check]        running balances per account
+  pm-eod show --date D [--steps]   one date's ledger rows (or its run steps)
 
 Exit codes of ``run``: 0 clean, 1 the day failed (gate, settlement or report),
 2 only housekeeping warnings.
@@ -24,7 +25,15 @@ from typing import Any
 from edumatcher.audit.archive import session_timezone, today_in
 from edumatcher.clearing.store import validate_date
 from edumatcher.config import DATA_DIR
-from edumatcher.eod.ledger import balances, check_zero_sum, open_ledger, runs
+from edumatcher.eod.ledger import (
+    balances,
+    check_zero_sum,
+    day_amounts,
+    day_detail,
+    open_ledger,
+    run_for,
+    runs,
+)
 from edumatcher.eod.report import fmt_minor
 from edumatcher.eod.roster import RosterError, load_roster
 from edumatcher.eod.runner import (
@@ -122,6 +131,14 @@ def build_parser() -> argparse.ArgumentParser:
         "--check",
         action="store_true",
         help="Verify every settled date sums to zero; exit 1 if not",
+    )
+    show = sub.add_parser("show", help="One date's ledger rows or run steps")
+    show.add_argument("--date", metavar="YYYY-MM-DD", required=True)
+    show.add_argument("--gateway", metavar="GW_ID")
+    show.add_argument(
+        "--steps",
+        action="store_true",
+        help="Show the run's steps with their full messages instead of the amounts",
     )
     return parser
 
@@ -270,6 +287,37 @@ def _cmd_balances(args: argparse.Namespace, paths: Paths) -> int:
     return 0
 
 
+def _cmd_show(args: argparse.Namespace, paths: Paths) -> int:
+    ledger = open_ledger(paths.ledger)
+    try:
+        if args.steps:
+            run = run_for(ledger, args.date)
+            steps = json.loads(run["steps_json"]) if run else []
+            _emit(args, ["step", "status", "message"], steps)
+            return 0
+        amounts = day_amounts(ledger, args.date)
+        detail = day_detail(ledger, args.date)
+    finally:
+        ledger.close()
+    wanted = args.gateway.upper() if args.gateway else None
+    rows = [
+        {
+            "trade_date": args.date,
+            "account": a,
+            "amount": fmt_minor(amounts[a]),
+            "detail": (
+                {s: str(v) for s, v in sorted(detail[a].items())}
+                if args.format == "json"
+                else " ".join(f"{s}={v}" for s, v in sorted(detail[a].items()))
+            ),
+        }
+        for a in sorted(amounts)
+        if wanted is None or a == wanted
+    ]
+    _emit(args, ["trade_date", "account", "amount", "detail"], rows)
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> None:
     args = build_parser().parse_args(argv)
     if getattr(args, "date", None) is not None:
@@ -279,7 +327,10 @@ def main(argv: Sequence[str] | None = None) -> None:
             print(f"pm-eod: {exc}", file=sys.stderr)
             raise SystemExit(2) from exc
     paths = Paths(args.datapath)
-    handler = {"run": _cmd_run, "status": _cmd_status, "balances": _cmd_balances}[
-        args.command
-    ]
+    handler = {
+        "run": _cmd_run,
+        "status": _cmd_status,
+        "balances": _cmd_balances,
+        "show": _cmd_show,
+    }[args.command]
     raise SystemExit(handler(args, paths))
