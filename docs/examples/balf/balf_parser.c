@@ -32,6 +32,18 @@
 #define MSG_HEARTBEAT_ACK    0x31u
 #define MSG_LOGOUT           0x40u
 
+/* LOGON_ACK reject codes. A rejected logon is always followed by the gateway
+ * closing the connection: "retry" means a new TCP connection and a new LOGON. */
+#define LOGON_REJECT_NOT_CONFIGURED    0x01u
+#define LOGON_REJECT_ALREADY_CONNECTED 0x02u
+#define LOGON_REJECT_PROTO_MISMATCH    0x03u
+#define LOGON_REJECT_OTHER             0xFFu
+
+/* CANCEL_ACK.cancel_reason: 0 = the client asked, 255 = the exchange decided
+ * (self-match prevention, IOC remainder, session end, ...). */
+#define CANCEL_REASON_CLIENT 0u
+#define CANCEL_REASON_SYSTEM 255u
+
 typedef struct {
     uint8_t magic;
     uint8_t version;
@@ -45,6 +57,10 @@ static uint32_t read_u32_le(const uint8_t *p) {
            ((uint32_t)p[1] << 8) |
            ((uint32_t)p[2] << 16) |
            ((uint32_t)p[3] << 24);
+}
+
+static uint64_t read_u64_le(const uint8_t *p) {
+    return (uint64_t)read_u32_le(p) | ((uint64_t)read_u32_le(p + 4) << 32);
 }
 
 /* Little-endian writers, used only to build the demo frames in main(). */
@@ -129,6 +145,46 @@ static void parse_logon_ack(const uint8_t *body, size_t len) {
 
     printf("LOGON_ACK gateway_id=%s accepted=%u reject_code=%u msg=%s\n",
            gateway_id, (unsigned)accepted, (unsigned)reject_code, message);
+    if (accepted) return;
+
+    /* The ack is held until the gateway has the symbol metadata; if the engine
+     * never sends it the logon fails with 0xFF / SYMBOLS_UNAVAILABLE and the
+     * connection closes. Reconnect and log on again. */
+    if (reject_code == LOGON_REJECT_OTHER && strcmp(message, "SYMBOLS_UNAVAILABLE") == 0) {
+        puts("  -> SYMBOLS_UNAVAILABLE: engine did not send its symbols in time; "
+             "reconnect and log on again (check the engine if it repeats)");
+    } else if (reject_code == LOGON_REJECT_NOT_CONFIGURED) {
+        puts("  -> the gateway ID is not a configured participant");
+    } else if (reject_code == LOGON_REJECT_ALREADY_CONNECTED) {
+        puts("  -> this gateway ID already has a live session");
+    } else if (reject_code == LOGON_REJECT_PROTO_MISMATCH) {
+        puts("  -> unsupported protocol version in LOGON");
+    }
+}
+
+static void parse_cancel_ack(const uint8_t *body, size_t len) {
+    if (len != 24) {
+        fprintf(stderr, "CANCEL_ACK body size error: %zu\n", len);
+        return;
+    }
+    printf("CANCEL_ACK client_order_id=%llu order_id=%llu accepted=%u by=%s\n",
+           (unsigned long long)read_u64_le(body),
+           (unsigned long long)read_u64_le(body + 8),
+           (unsigned)body[16],
+           body[17] == CANCEL_REASON_SYSTEM ? "exchange" : "client");
+}
+
+static void parse_amend_ack(const uint8_t *body, size_t len) {
+    if (len != 40) {
+        fprintf(stderr, "AMEND_ACK body size error: %zu\n", len);
+        return;
+    }
+    printf("AMEND_ACK order_id=%llu price=%.8f qty=%u remaining=%u accepted=%u priority_reset=%u\n",
+           (unsigned long long)read_u64_le(body + 8),
+           (double)(int64_t)read_u64_le(body + 16) / 100000000.0,
+           (unsigned)read_u32_le(body + 24),
+           (unsigned)read_u32_le(body + 28),
+           (unsigned)body[32], (unsigned)body[33]);
 }
 
 /* EXECUTION_REPORT is parsed by the GENERATED binding rather than by hand.
@@ -165,9 +221,28 @@ static void parse_execution_report_generated(const uint8_t *frame, size_t len) {
            er.remaining_qty);
 }
 
+/* STOP_TRIGGERED (0x21) is parsed by the generated binding too. It arrives
+ * before the stop order's own execution reports and says why they follow. */
+static void parse_stop_triggered_generated(const uint8_t *frame, size_t len) {
+    edu_stop_triggered_balf_t st;
+    int rc = edu_stop_triggered_balf_parse(frame, len, &st);
+
+    if (rc != EDU_MSG_OK) {
+        fprintf(stderr, "STOP_TRIGGERED parse failed: %s\n", edu_msg_strerror(rc));
+        return;
+    }
+    printf("STOP_TRIGGERED order_id=%llu %s %s stop=%.8f -> %s\n",
+           (unsigned long long)st.order_id,
+           st.symbol,
+           edu_stop_triggered_order_type_to_str(st.order_type),
+           st.stop_price,
+           edu_stop_triggered_becomes_to_str(st.becomes));
+}
+
 int main(void) {
     uint8_t frame[92];
     uint8_t exec[EDU_EXECUTION_REPORT_BALF_FRAME_SIZE];
+    uint8_t other[56];
     BalfHeader hdr;
     const uint8_t *body = NULL;
     size_t body_len = 0;
@@ -215,6 +290,57 @@ int main(void) {
     exec[8 + 48] = 1;                               /* side   = BUY         */
     exec[8 + 49] = 2;                               /* status = FILLED      */
     parse_execution_report_generated(exec, sizeof(exec));
+
+    /* The refusal a client sees when the engine never sent its symbols. */
+    memset(frame, 0, sizeof(frame));
+    frame[0] = BALF_MAGIC;
+    frame[1] = BALF_VERSION;
+    frame[2] = MSG_LOGON_ACK;
+    memcpy(frame + 8, "TRADER01", 8);
+    frame[8 + 17] = LOGON_REJECT_OTHER;
+    frame[8 + 18] = 19;
+    memcpy(frame + 8 + 20, "SYMBOLS_UNAVAILABLE", 19);
+    if (split_frame(frame, sizeof(frame), &hdr, &body, &body_len) != 0) return 1;
+    parse_logon_ack(body, body_len);
+
+    /* CANCEL_ACK: order 42 cancelled by the exchange. */
+    memset(other, 0, sizeof(other));
+    other[0] = BALF_MAGIC;
+    other[1] = BALF_VERSION;
+    other[2] = MSG_CANCEL_ACK;
+    write_u64_le(other + 8 + 8, 42);
+    other[8 + 16] = 1;
+    other[8 + 17] = CANCEL_REASON_SYSTEM;
+    if (split_frame(other, 32, &hdr, &body, &body_len) != 0) return 1;
+    parse_cancel_ack(body, body_len);
+
+    /* AMEND_ACK: order 42 now 80 @ 150.25, 60 left, priority lost. */
+    memset(other, 0, sizeof(other));
+    other[0] = BALF_MAGIC;
+    other[1] = BALF_VERSION;
+    other[2] = MSG_AMEND_ACK;
+    write_u64_le(other + 8 + 8, 42);
+    write_u64_le(other + 8 + 16, 15025000000ULL);
+    write_u32_le(other + 8 + 24, 80);
+    write_u32_le(other + 8 + 28, 60);
+    other[8 + 32] = 1;
+    other[8 + 33] = 1;
+    if (split_frame(other, 48, &hdr, &body, &body_len) != 0) return 1;
+    parse_amend_ack(body, body_len);
+
+    /* STOP_TRIGGERED: a trailing stop on AAPL fired at 148.00, becomes MARKET.
+     * The wire codes are the order type's (STOP 5, STOP_LIMIT 6, TRAILING 8)
+     * and 1 = MARKET, 2 = LIMIT. */
+    memset(other, 0, sizeof(other));
+    other[0] = BALF_MAGIC;
+    other[1] = BALF_VERSION;
+    other[2] = MSG_STOP_TRIGGERED;
+    write_u64_le(other + 8 + 8, 42);
+    write_u64_le(other + 8 + 16, 148ULL * 100000000ULL);
+    memcpy(other + 8 + 32, "AAPL", 4);
+    other[8 + 40] = 8;
+    other[8 + 41] = 1;
+    parse_stop_triggered_generated(other, sizeof(other));
 
     puts("balf_parser.c self-test: OK");
     return 0;

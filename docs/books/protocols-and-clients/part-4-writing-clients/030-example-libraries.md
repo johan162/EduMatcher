@@ -706,14 +706,36 @@ Prices are encoded as fixed-point integers scaled by `100_000_000`
 : Decode a `LOGON_ACK` body.  Returns a dict with keys `gateway_id`,
   `accepted`, `reject_code`, `message`.
 
+**`describe_logon_ack(ack: dict) → str`**
+: One line saying whether the logon succeeded and, if not, what to do.  A
+  rejected logon is always followed by the gateway closing the connection, so
+  "retry" means a new TCP connection and a new `LOGON`.
+
 **`parse_order_ack(body: bytes) → dict`**
 : Decode an `ORDER_ACK` body.  Returns a dict with keys `client_order_id`,
-  `order_id`, `timestamp_ns`, `accepted`, `reject_code`, `reason`.
+  `order_id`, `timestamp_ns`, `accepted`, `reject_code`, `reject_name`,
+  `reason`.
+
+**`parse_cancel_ack(body: bytes) → dict`**
+: Decode a `CANCEL_ACK` body: `client_order_id`, `order_id`, `accepted`,
+  `cancel_reason` (0 = you asked, 255 = the exchange decided) and
+  `by_exchange`.
+
+**`parse_amend_ack(body: bytes) → dict`**
+: Decode an `AMEND_ACK` body: `client_order_id`, `order_id`, `new_price`,
+  `new_quantity`, `remaining_qty`, `accepted`, `priority_reset`.
+
+**`parse_stop_triggered(body: bytes) → dict`**
+: Decode a `STOP_TRIGGERED` body: a stop, stop-limit or trailing stop has
+  fired and its execution reports follow.  Keys `client_order_id`,
+  `order_id`, `stop_price`, `trigger_price`, `symbol`, `order_type`,
+  `becomes`.
 
 **`parse_execution_report(body: bytes) → dict`**
 : Decode an `EXECUTION_REPORT` body.  Returns a dict with keys
   `client_order_id`, `order_id`, `fill_price`, `fill_qty`,
-  `remaining_qty`, `timestamp_ns`, `symbol`, `side`, `status`.  `fill_price`
+  `remaining_qty`, `timestamp_ns`, `symbol`, `side` (`BUY`/`SELL`) and `status`
+  (`PARTIAL`/`FILLED`).  `fill_price`
   is already converted to a float via `decode_price()` — no further
   scaling is needed.
 
@@ -749,14 +771,34 @@ client would use, and prints the result as a self-test:
 
 ```bash
 cd docs/examples/balf
-cc -std=c11 -Wall -Wextra -pedantic -O2 balf_parser.c -o balf_parser
+cc -std=c11 -Wall -Wextra -pedantic -O2 -I../generated \
+   balf_parser.c ../generated/edumatcher_order.c \
+   ../generated/edumatcher_msg.c -o balf_parser
 ./balf_parser
 # → LOGON_ACK gateway_id=TRADER01 accepted=1 reject_code=0 msg=ok
+#   EXECUTION_REPORT ...
+#   LOGON_ACK gateway_id=TRADER01 accepted=0 reject_code=255 msg=SYMBOLS_UNAVAILABLE
+#   CANCEL_ACK ... / AMEND_ACK ... / STOP_TRIGGERED ...
 #   balf_parser.c self-test: OK
 ```
 
+`EXECUTION_REPORT` and `STOP_TRIGGERED` are decoded by the generated binding in
+`docs/examples/generated` (hence the extra sources); `LOGON_ACK`, `CANCEL_ACK`
+and `AMEND_ACK` are decoded by hand.
+
 There is no BALF C (or Python) network client example — only the parsing
-logic is provided.  To exercise BALF end-to-end, connect a TCP client to
+logic is provided. A client written on it must handle three things beyond the
+happy path:
+
+* **A held or refused `LOGON_ACK`.** The gateway withholds the accepted ack
+  until the engine has sent the symbol list, so it can take a moment. If the
+  engine never does, the ack is `accepted=0`, `reject_code=0xFF`,
+  `msg=SYMBOLS_UNAVAILABLE`, and the connection closes: reconnect and log on
+  again. `describe_logon_ack()` reports this.
+* **A `LOGOUT` from the gateway.** The engine restarted and no longer holds the
+  session; the connection closes. Log on again from scratch.
+* **An `ORDER_ACK` with `reject_code` `0x03`** for a symbol the engine does
+  not list.  To exercise BALF end-to-end, connect a TCP client to
 `pm-balf-gwy` and feed received frames through `split_frame()`
 (Python: [`balf_parser.py`](../../../downloads/examples/balf/balf_parser.py)) or the C
 reference decoder's parsing functions.

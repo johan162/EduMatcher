@@ -498,6 +498,26 @@ static void flush_collected(void)
  * Event handler
  * -------------------------------------------------------------------------- */
 
+/* What a client should do about the ERR codes that end or interrupt a session. */
+static const char *err_hint(const char *code)
+{
+    static const struct { const char *code, *hint; } hints[] = {
+        { "SESSION_LOST", "the exchange no longer holds this session (engine restart or expiry); the connection is closed - log on again" },
+        { "SYMBOLS_NOT_READY", "the gateway has no symbol list yet - retry shortly" },
+        { "ENGINE_UNAVAILABLE", "the command did not reach the engine - retry shortly" },
+        { "RATE_LIMITED", "too many commands per second - slow down" },
+        { "AUTH_TIMEOUT", "no HELLO in time; the connection is closed" },
+        { "IDLE_TIMEOUT", "silent for too long; the connection is closed" },
+        { "SLOW_CLIENT", "outbound queue full; the connection is closed" },
+        { "MAX_ERRORS", "too many errors; the connection is closed" },
+    };
+    size_t i;
+    if (!code) return NULL;
+    for (i = 0; i < sizeof(hints) / sizeof(hints[0]); i++)
+        if (strcmp(code, hints[i].code) == 0) return hints[i].hint;
+    return NULL;
+}
+
 static void handle_event(const alf_message_t *msg)  /* NOLINT(readability-function-cognitive-complexity) */
 {
     const char *t  = msg->msg_type;
@@ -572,12 +592,15 @@ static void handle_event(const alf_message_t *msg)  /* NOLINT(readability-functi
     if (strcmp(t, "ERR") == 0) {
         const char *reject_code = alf_get_field(msg, "REJECT_CODE");
         const char *tag = alf_get_field(msg, "TAG");
-        event_print("[%s] %sERR%s [%s]%s%s%s%s  %s",
+        const char *code = alf_get_field(msg, "CODE");
+        const char *hint = err_hint(code);
+        event_print("[%s] %sERR%s [%s]%s%s%s%s  %s%s%s%s",
                     ts, COL_RED, COL_RESET,
-                    alf_get_field(msg, "CODE")   ? alf_get_field(msg, "CODE")   : "?",
+                    code ? code : "?",
                     reject_code ? " reject_code=" : "", reject_code ? reject_code : "",
                     tag ? " tag=" : "", tag ? tag : "",
-                    alf_get_field(msg, "DETAIL") ? alf_get_field(msg, "DETAIL") : "");
+                    alf_get_field(msg, "DETAIL") ? alf_get_field(msg, "DETAIL") : "",
+                    hint ? "  (" : "", hint ? hint : "", hint ? ")" : "");
         return;
     }
 
@@ -680,9 +703,13 @@ static void handle_event(const alf_message_t *msg)  /* NOLINT(readability-functi
         if (oid) snprintf(id_text, sizeof(id_text), "%s", oid);
         OrderEntry *order = oid ? find_order(oid) : NULL;
         if (order) snprintf(order->status, sizeof(order->status), "CANCELLED");
-        event_print("[%s] %sCANCELLED%s %s%s%s%s%s", ts, COL_YELLOW, COL_RESET, id_text,
+        /* CANCEL_REASON is present only when the exchange decided (SMP, IOC
+         * remainder, kill switch, ...); a cancel you asked for has none. */
+        const char *why = alf_get_field(msg, "CANCEL_REASON");
+        event_print("[%s] %sCANCELLED%s %s%s%s%s%s%s%s", ts, COL_YELLOW, COL_RESET, id_text,
                     tag ? " tag=" : "", tag ? tag : "",
-                    rtag ? " rtag=" : "", rtag ? rtag : "");
+                    rtag ? " rtag=" : "", rtag ? rtag : "",
+                    why ? "  reason=" : "", why ? why : "");
         return;
     }
 
@@ -707,7 +734,14 @@ static void handle_event(const alf_message_t *msg)  /* NOLINT(readability-functi
          * quotes and match by send order — which breaks the moment one ack is
          * missed. */
         const char *sym = alf_get_field(msg, "SYM");
-        if (acc && strcmp(acc, "TRUE") == 0) {
+        const char *bid_id = alf_get_field(msg, "BID_ID");
+        const char *ask_id = alf_get_field(msg, "ASK_ID");
+        if (acc && strcmp(acc, "TRUE") == 0 &&
+            (!bid_id || !*bid_id) && (!ask_id || !*ask_id)) {
+            /* No leg ids: the answer to QUOTE_CANCEL, not to a QUOTE. */
+            event_print("[%s] %sQUOTE CXL%s  %s  %s  cancelled",
+                        ts, COL_YELLOW, COL_RESET, sym ? sym : "?", qid ? qid : "?");
+        } else if (acc && strcmp(acc, "TRUE") == 0) {
             event_print("[%s] %sQUOTE ACK%s  %s  %s  bid=%s ask=%s",
                         ts, COL_GREEN, COL_RESET,
                         sym ? sym : "?",

@@ -117,6 +117,14 @@ At the prompt:
 Tab completes command verbs, field names, and enum values.
 Command history is saved to `~/.alf_client_history`.
 
+A `CANCELLED` line shows `reason=<CANCEL_REASON>` when the exchange, not you,
+cancelled the order (self-match prevention, an IOC remainder, a kill switch...);
+a cancel you asked for has no reason. A `QUOTE_ACK` without leg ids is shown as
+`QUOTE CXL`: it answers `QUOTE_CANCEL`, not a new quote. Errors that end or
+interrupt a session (`SESSION_LOST` after an engine restart, `SYMBOLS_NOT_READY`,
+`ENGINE_UNAVAILABLE`, `RATE_LIMITED`...) are followed by a hint saying whether to
+log on again or retry.
+
 The clients display stop `TRIGGERED` notifications before subsequent fills,
 and show fill trade IDs and maker/taker `LIQUIDITY` when supplied. Drop-copy
 `DC_FILL` messages are displayed separately and never booked into the local
