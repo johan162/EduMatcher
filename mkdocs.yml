@@ -172,6 +172,7 @@ nav:
       - "Persistence — Data Across Trading Sessions": books/operator-guide/part-6-observe-and-recover/010-persistence.md
       - "Audit Trail": books/operator-guide/part-6-observe-and-recover/020-audit-trail.md
       - "Audit Replay (pm-audit-replay)": books/operator-guide/part-6-observe-and-recover/030-audit-replay.md
+      - "Answering a Dispute": books/operator-guide/part-6-observe-and-recover/035-answering-a-dispute.md
       - "Centralized Log Server": books/operator-guide/part-6-observe-and-recover/040-log-server.md
       - "Log Operator Console (`pm-log-ui`)": books/operator-guide/part-6-observe-and-recover/050-log-console.md
       - "Health Monitoring (`pm-monitor`)": books/operator-guide/part-6-observe-and-recover/060-health-monitor.md

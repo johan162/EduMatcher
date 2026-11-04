@@ -787,6 +787,13 @@ class BookCheckpoint(BaseModel):
     """Unit: ticks."""
     last_trade_id: str | None = Field(default=None)
     """The trade that set the last trade price."""
+    tick_decimals: int | None = Field(default=None, ge=0, le=9)
+    """Decimal scale of the `*_ticks` prices in this message (1 tick =
+    10^-tick_decimals) -- the symbol's. Every message that carries a tick price
+    carries its scale, so a reader of one line, or of a window of the trail that
+    begins long after the book snapshot that declared it, can turn it into money
+    without guessing. Absent when the message carries no tick price.
+    """
 
 
 class Startup(BaseModel):

@@ -52,6 +52,12 @@ class AuctionIndicative(BaseModel):
     """
     imbalance_qty: int = Field(ge=0)
     """Surplus on `imbalance_side`; zero when balanced. Unit: shares."""
+    tick_decimals: int | None = Field(default=None, ge=0, le=9)
+    """Decimal scale of the `*_ticks` prices in this message (1 tick =
+    10^-tick_decimals) -- the symbol's. Every message that carries a tick price
+    carries its scale, so a reader of one line can turn it into money without
+    guessing.
+    """
     eq_price_ticks: int | None = Field(default=None)
     """`eq_price` in engine ticks. Canonical; the float beside it is for display.
     Scale: the symbol's tick_decimals. Unit: ticks.
@@ -82,6 +88,12 @@ class AuctionResult(BaseModel):
     """Surplus on `imbalance_side`; zero when balanced. Unit: shares."""
     reason: AuctionResultReason
     """Which of the five uncross paths produced this event."""
+    tick_decimals: int | None = Field(default=None, ge=0, le=9)
+    """Decimal scale of the `*_ticks` prices in this message (1 tick =
+    10^-tick_decimals) -- the symbol's. Every message that carries a tick price
+    carries its scale, so a reader of one line can turn it into money without
+    guessing.
+    """
     eq_price_ticks: int | None = Field(default=None)
     """`eq_price` in engine ticks. Canonical; the float beside it is for display.
     Scale: the symbol's tick_decimals. Unit: ticks.

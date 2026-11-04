@@ -66,6 +66,7 @@ from edumatcher.audit.rawlines import (
     iso_ns,
     lines,
     run_config_text,
+    startup_message,
 )
 import edumatcher.engine.main as engine_main
 import edumatcher.models.clock as models_clock
@@ -422,7 +423,9 @@ class Rerun:
         compiled = decode_artifact(run_config_text(files))
         self.versions = (compiled.meta.compiler_version, _engine_version())
         reset_trade_ids_for_tests()
-        set_run_seq(1)
+        # The engine's run sequence persists across starts and prefixes every
+        # trade id: the run being re-run began at the number it announced.
+        set_run_seq(int(str(startup_message(files).get("run_seq", 1))))
         sink = _Sink()
         with live_clock(files) as clock:
             with tempfile.TemporaryDirectory() as empty:

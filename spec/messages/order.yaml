@@ -620,9 +620,23 @@ messages:
           True when this order was created by config-driven startup seeding
           rather than a live gateway submission. See OrderDisplay.is_seed
           (above) for the full rationale; this is the ack-time echo of the
-          same fact, since order.ack — not order.new, which never reaches
-          the engine's PUB feed — is the first audit-visible event for any
-          order, seeded or live.
+          same fact. A seeded order has no order.new (the engine made it, no
+          gateway sent it), so its order.ack is the first audit-visible event
+          for it; a live order's order.new is echoed into the trail first.
+      - name: tick_decimals
+        type: int
+        required: false
+        nullable: true
+        omit_when_none: true
+        unit: dimensionless
+        validate: { ge: 0, le: 9 }
+        doc: >
+          Decimal scale of the `*_ticks` prices in this message (1 tick =
+          10^-tick_decimals) -- the symbol's. Every message that carries a tick
+          price carries its scale, so a reader of one line, or of a window of
+          the trail that begins long after the book snapshot that declared it,
+          can turn it into money without guessing. Absent when the message
+          carries no tick price.
       - { name: price_ticks, type: ticks, unit: ticks, required: false,
           nullable: true, omit_when_none: true,
           doc: "`price` in engine ticks. Canonical; the float beside it is for display. Scale: the symbol's tick_decimals." }
@@ -906,6 +920,20 @@ messages:
         type: enum
         values: [STOP, STOP_LIMIT, TRAILING_STOP]
         doc: "The order as it was armed."
+      - name: tick_decimals
+        type: int
+        required: false
+        nullable: true
+        omit_when_none: true
+        unit: dimensionless
+        validate: { ge: 0, le: 9 }
+        doc: >
+          Decimal scale of the `*_ticks` prices in this message (1 tick =
+          10^-tick_decimals) -- the symbol's. Every message that carries a tick
+          price carries its scale, so a reader of one line, or of a window of
+          the trail that begins long after the book snapshot that declared it,
+          can turn it into money without guessing. Absent when the message
+          carries no tick price.
       - { name: stop_price_ticks, type: ticks, unit: ticks,
           doc: "The trigger price it fired at (a trailing stop's ratcheted one)." }
       - { name: trigger_trade_id, type: string, required: false, nullable: true,
@@ -952,6 +980,20 @@ messages:
       - { name: displayed_qty, type: int, unit: shares, required: false,
           nullable: true, omit_when_none: true, validate: { ge: 0 },
           doc: "ICEBERG_REFILL: the new visible slice." }
+      - name: tick_decimals
+        type: int
+        required: false
+        nullable: true
+        omit_when_none: true
+        unit: dimensionless
+        validate: { ge: 0, le: 9 }
+        doc: >
+          Decimal scale of the `*_ticks` prices in this message (1 tick =
+          10^-tick_decimals) -- the symbol's. Every message that carries a tick
+          price carries its scale, so a reader of one line, or of a window of
+          the trail that begins long after the book snapshot that declared it,
+          can turn it into money without guessing. Absent when the message
+          carries no tick price.
       - { name: stop_price_ticks, type: ticks, unit: ticks, required: false,
           nullable: true, omit_when_none: true,
           doc: "TRAILING_RATCHET: the new trigger." }
@@ -962,7 +1004,7 @@ messages:
       engine_pub:
         frames: [topic, json_payload]
         include: [symbol, kind, order_id, priority_seq, displayed_qty,
-                  stop_price_ticks, last_price_ticks]
+                  stop_price_ticks, last_price_ticks, tick_decimals]
 
   - name: order_amended
     topic: "order.amended.{gateway_id}"
@@ -1029,6 +1071,20 @@ messages:
         doc: >
           Client correlation tag for this amend request. Engine-initiated
           cancels publish with request_tag=null.
+      - name: tick_decimals
+        type: int
+        required: false
+        nullable: true
+        omit_when_none: true
+        unit: dimensionless
+        validate: { ge: 0, le: 9 }
+        doc: >
+          Decimal scale of the `*_ticks` prices in this message (1 tick =
+          10^-tick_decimals) -- the symbol's. Every message that carries a tick
+          price carries its scale, so a reader of one line, or of a window of
+          the trail that begins long after the book snapshot that declared it,
+          can turn it into money without guessing. Absent when the message
+          carries no tick price.
       - { name: price_ticks, type: ticks, unit: ticks, required: false,
           nullable: true, omit_when_none: true,
           doc: "`price` in engine ticks. Canonical; the float beside it is for display. Scale: the symbol's tick_decimals." }

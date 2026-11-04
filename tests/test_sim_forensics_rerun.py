@@ -100,7 +100,7 @@ class Recorder:
         self.chain = None
 
 
-def record(data: Path, silent: str | None = None) -> Path:
+def record(data: Path, silent: str | None = None, run_seq: int = 1) -> Path:
     """A short run on the s1-basic example: seeds, connects, a crossing buy
     against the seed ask, a resting sell, a cancel, an MM quote, an OCO.
 
@@ -112,7 +112,7 @@ def record(data: Path, silent: str | None = None) -> Path:
     seed = compiled.engine.symbols["AAPL"].market_maker_quotes[0]
     ask = seed.ask_price_ticks / 100
     reset_trade_ids_for_tests()
-    set_run_seq(1)
+    set_run_seq(run_seq)
     rec = Recorder()
     with (
         mock.patch.object(
@@ -130,7 +130,7 @@ def record(data: Path, silent: str | None = None) -> Path:
         ),
     ):
         engine = engine_main.Engine(config_path=None)
-        engine._startup(1)
+        engine._startup(run_seq)
     for gw in ("TRADER01", "TRADER02", "MM01"):
         rec.command(engine, "system.gateway_connect", {"gateway_id": gw})
     buy = order_payload(Side.BUY, OrderType.LIMIT, 10, "TRADER01", price=ask)

@@ -3144,6 +3144,14 @@ _BOOK_CHECKPOINT_FIELDS: tuple[dict[str, Any], ...] = (
         "required": False,
         "doc": "The trade that set the last trade price.",
     },
+    {
+        "name": "tick_decimals",
+        "type": "int",
+        "unit": "dimensionless",
+        "required": False,
+        "doc": "Decimal scale of the `*_ticks` prices in this message (1 tick = 10^-tick_decimals) -- the symbol's. Every message that carries a tick price carries its scale, so a reader of one line, or of a window of the trail that begins long after the book snapshot that declared it, can turn it into money without guessing. Absent when the message carries no tick price.",
+        "constraints": {"ge": 0, "le": 9},
+    },
 )
 
 
@@ -3174,6 +3182,7 @@ class BookCheckpoint:
     last_buy_price_ticks: int | None = None  # unit: ticks
     last_sell_price_ticks: int | None = None  # unit: ticks
     last_trade_id: str | None = None
+    tick_decimals: int | None = None  # unit: dimensionless
 
     def validate(self) -> None:
         """Raise MessageValidationError if any declared rule fails.
@@ -3204,6 +3213,15 @@ class BookCheckpoint:
             sell_stops_item.validate()
         for trailing_stops_item in self.trailing_stops:
             trailing_stops_item.validate()
+        if self.tick_decimals is not None:
+            if self.tick_decimals < 0:
+                raise MessageValidationError(
+                    f"tick_decimals: {self.tick_decimals!r} must be >= 0"
+                )
+            if self.tick_decimals > 9:
+                raise MessageValidationError(
+                    f"tick_decimals: {self.tick_decimals!r} must be <= 9"
+                )
 
     @classmethod
     def from_dict(cls, p: Mapping[str, Any]) -> "BookCheckpoint":
@@ -3242,6 +3260,9 @@ class BookCheckpoint:
             last_trade_id=(
                 None if p.get("last_trade_id") is None else str(p["last_trade_id"])
             ),
+            tick_decimals=(
+                None if p.get("tick_decimals") is None else int(p["tick_decimals"])
+            ),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -3264,6 +3285,8 @@ class BookCheckpoint:
             payload["last_sell_price_ticks"] = self.last_sell_price_ticks
         if self.last_trade_id is not None:
             payload["last_trade_id"] = self.last_trade_id
+        if self.tick_decimals is not None:
+            payload["tick_decimals"] = self.tick_decimals
         return payload
 
 

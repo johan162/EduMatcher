@@ -47,6 +47,7 @@ from edumatcher.models.generated import structure as _gen_structure
 from edumatcher.models.generated import system as _gen_system
 from edumatcher.models.generated import trade as _gen_trade
 from edumatcher.models.clock import now_ns
+from edumatcher.models.price import get_tick_decimals
 from edumatcher.models.envelope import Envelope
 
 # PERF improvement #6: Use orjson instead of stdlib json.
@@ -303,6 +304,7 @@ def make_amended_msg(
     symbol: str | None = None,
     price_ticks: int | None = None,
     priority_seq: int | None = None,
+    tick_decimals: int | None = None,
 ) -> list[bytes]:
     """Generated from ``spec/messages/order.yaml``.
 
@@ -330,6 +332,7 @@ def make_amended_msg(
         old_qty=old_qty,
         price_ticks=price_ticks,
         priority_seq=priority_seq,
+        tick_decimals=tick_decimals,
     )
 
 
@@ -447,6 +450,9 @@ def make_ack_msg(
         client_tag=order_client_tag(client_tag, order),
         request_tag=request_tag,
         is_seed=bool(detail.get("is_seed", False)),
+        tick_decimals=(
+            get_tick_decimals(detail["symbol"]) if detail.get("symbol") else None
+        ),
         ts_ns=now_ns(),
         **group_ids(order),
     )
@@ -1132,6 +1138,7 @@ def make_auction_indicative_msg(
         imbalance_side=imbalance_side or None,
         imbalance_qty=imbalance_qty,
         eq_price_ticks=eq_price_ticks,
+        tick_decimals=get_tick_decimals(symbol),
     )
 
 
@@ -1170,6 +1177,7 @@ def make_auction_result_msg(
         reason=reason,
         eq_price_ticks=eq_price_ticks,
         auction_id=auction_id,
+        tick_decimals=get_tick_decimals(symbol),
     )
 
 

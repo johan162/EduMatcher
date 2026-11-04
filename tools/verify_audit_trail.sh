@@ -179,7 +179,9 @@ AUDIT_PID=""
 # Across every part, for the same reason STEP A deletes them all: this is
 # what STEP D is about to read, and counting only the active file under-reports
 # a rotated run by several times.
-LINES="$(cat "$AUDIT_LOG" "$(dirname "$AUDIT_LOG")"/audit/audit-*.log 2>/dev/null | wc -l | tr -d ' ')"
+# `cat` fails on the unmatched glob when nothing rotated (a short run), and
+# pipefail + set -e would end the script before STEP D: `|| true` it.
+LINES="$( (cat "$AUDIT_LOG" "$(dirname "$AUDIT_LOG")"/audit/audit-*.log 2>/dev/null || true) | wc -l | tr -d ' ')"
 echo "[AUDIT] Recorded $LINES line(s)."
 if [[ "$LINES" -eq 0 ]]; then
   echo "[AUDIT] ERROR: the trail is empty — pm-audit recorded nothing."

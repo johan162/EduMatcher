@@ -1433,7 +1433,10 @@ class Engine:
         for symbol in sorted(self.books):
             self.pub_sock.send_multipart(
                 make_book_checkpoint(
-                    **self.books[symbol].checkpoint(), reason=reason, phase=phase
+                    **self.books[symbol].checkpoint(),
+                    reason=reason,
+                    phase=phase,
+                    tick_decimals=get_tick_decimals(symbol),
                 )
             )
 
@@ -1456,6 +1459,7 @@ class Engine:
                         trigger_price_ticks=trade_price,
                         becomes=becomes,
                         client_tag=order.client_tag,
+                        tick_decimals=get_tick_decimals(symbol),
                     )
                 )
             elif kind == "RESTED":
@@ -1463,7 +1467,7 @@ class Engine:
             elif kind == "ICEBERG_REFILL":
                 send(make_engine_trace_unchecked(symbol=rec[1], kind=kind, order_id=rec[2], priority_seq=rec[3], displayed_qty=rec[4]))  # fmt: skip
             else:  # TRAILING_RATCHET
-                send(make_engine_trace_unchecked(symbol=rec[1], kind=kind, order_id=rec[2], stop_price_ticks=rec[3], last_price_ticks=rec[4]))  # fmt: skip
+                send(make_engine_trace_unchecked(symbol=rec[1], kind=kind, order_id=rec[2], stop_price_ticks=rec[3], last_price_ticks=rec[4], tick_decimals=get_tick_decimals(rec[1])))  # fmt: skip
         self._trace.clear()
 
     def _publish_bands(self) -> None:
@@ -1479,6 +1483,7 @@ class Engine:
                     static_low_ticks=int(ref * (1 - c.static_band_pct)),
                     static_high_ticks=int(ref * (1 + c.static_band_pct)),
                     dynamic_band_pct=c.dynamic_band_pct,
+                    tick_decimals=get_tick_decimals(symbol),
                 )
             )
 
@@ -2167,6 +2172,7 @@ class Engine:
                     "trail_offset_ticks": order.trail_offset_ticks,
                     "smp_action": _ack_smp_action,
                     "client_tag": order.client_tag,
+                    "tick_decimals": get_tick_decimals(order.symbol),
                     "ts_ns": now,
                 }
             ),
@@ -6838,6 +6844,7 @@ class Engine:
                 old_qty=old_qty,
                 symbol=amended.symbol,
                 price_ticks=amended.price_ticks,
+                tick_decimals=get_tick_decimals(amended.symbol),
                 priority_seq=amended.arrival_seq,
             )
         )

@@ -40,6 +40,7 @@ from edumatcher.audit.replay.anomalies import (
     CANCEL_UNSOLICITED,
     CLIENT_CLOCK_ABSURD,
     CLOCK_SKEW,
+    ACK_WITHOUT_COMMAND,
     COMMAND_UNACKED,
     DROP_COPY_DISAGREE,
     DROP_COPY_MISSING,
@@ -942,8 +943,27 @@ class Detector:
             )
 
     def _close_command(self, episode: Episode) -> tuple[Anomaly, ...]:
-        if any(event.fact.kind.endswith(_ACK_SUFFIX) for event in episode.events):
-            return ()
+        acks = [e for e in episode.events if e.fact.kind.endswith(_ACK_SUFFIX)]
+        if acks:
+            # The engine echoes every command into the trail, so an ack with no
+            # request beside it means the window starts after the command (or
+            # the echo was lost); say so rather than narrate an unexplained ack.
+            asked = any(
+                not e.fact.kind.endswith(_ACK_SUFFIX)
+                and e.fact.kind != kinds.ADMIN_ACTION
+                for e in episode.events
+            )
+            if asked:
+                return ()
+            return (
+                _anomaly(
+                    ACK_WITHOUT_COMMAND,
+                    SEVERITY_WARN,
+                    f"command {episode.anchor_key} was acked but its request is "
+                    "not in this window",
+                    acks[0].fact,
+                ),
+            )
         if not any(event.fact.kind == kinds.ADMIN_ACTION for event in episode.events):
             return (
                 _anomaly(

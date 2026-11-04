@@ -70,8 +70,8 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 | 5 | A5 | Unenveloped command: count it and surface it | G5 | — | 0.5 d | ◐ | 2026-11-04 (uncommitted) |
 | 6 | A6 | Recorder durability: fsync policy, gap-on-restart marker, documented loss window | G6 | A1 | 1.5 d | ◐ | 2026-11-04 (uncommitted) |
 | 7 | A7 | Engine clock on ack and fill (decision D2) | G7 | D2 | 1 d | ◐ | 2026-11-04 (uncommitted) |
-| 8 | A8 | `pm-audit-replay queue`: order and level views, observing the re-run (D3, Q1-Q4 decided) | G8 | A4 | 3 d | ◐ | 2026-11-04 (uncommitted) |
-| 9 | A9 | Close out: tick §17, evidence/dispute chapter in the operator guide | G9 | A1–A6 | 1 d | ☐ | |
+| 8 | A8 | `pm-audit-replay queue`: order and level views, observing the re-run (D3, Q1-Q4 decided) | G8 | A4 | 3 d | ☑ | 2026-11-04 (uncommitted) |
+| 9 | A9 | Close out: tick §17, "Answering a Dispute" chapter, and what the real-capture acceptance run found | G9 | A1–A8 | 1 d | ☑ | 2026-11-04 (uncommitted) |
 
 Order: A1, A2, A5 are independent and cheap; do A1 first. A4 re-runs only artifact runs; accepted reloads cannot change the config during an auditable run.
 
@@ -258,13 +258,33 @@ disagreement between `engine.trace` and the re-run is reported.
   day). Acceptable for a dispute tool; if not, cache the per-symbol position
   series in the episode index. Recommendation: no cache for 1.0.
 
-### A9 — Close-out
+### A9 — Close-out (done)
 
-Tick the Audit-Replay §17 checklist item by item (or record why not); add an
-operator-guide chapter "Answering a dispute": which question is answered by
-which command (`story`, `anomalies`, `verify`, `verify --rerun`), what the
-trail cannot show (G3 if out of scope, hidden inputs), and the off-host
-anchoring step from A1.
+Ticked Audit-Replay §17 item by item (see there), wrote the operator guide chapter
+"Answering a Dispute", and, because ticking meant running it, ran the whole chain
+once on a real capture (real engine, real `pm-audit`, `tools/verify_audit_trail.sh`)
+instead of the test recorders. That found five defects no earlier WP's tests could:
+
+1. Seven message types carried tick prices without `tick_decimals` (`order.ack`,
+   `order.amended`, `order.triggered`, `engine.trace`, `risk.band`, `auction.*`,
+   `system.book_checkpoint`), so the replay warned on every acknowledgement and
+   `anomalies --severity warn` was never empty. Fixed in the spec and the engine;
+   a spec test now fails on any message that carries `*_ticks` without the scale.
+2. `rerun` assumed the engine's first start (`set_run_seq(1)`), so on any data dir
+   past its first start every trade differed. Now taken from `system.startup`.
+3. `ACK_WITHOUT_COMMAND` was never raised; `UNKNOWN_ENUM` was untested. Both are
+   exercised, and a test fails when a code exists that nothing fires.
+4. `tools/verify_matching.sh` waited a fixed 2 s for an engine that takes 4 s to
+   start; it now waits for the port.
+5. `tools/verify_audit_trail.sh` ended before STEP D on a run that rotated no part
+   (`cat` on an unmatched glob under `pipefail`).
+
+Also verified, on the same capture and on a scripted one with every new format in it
+(gateway_reject, recorder-start markers, a heartbeat-timeout unit, `ts_ns`): the
+simulation forensics' audit-based checks all pass (`tests/test_sim_forensics_audit_format.py`).
+
+Not done: the 200 MB performance target (§17), and `pm-monitor` alert rules on
+`UNRECORDED_COMMAND` and `audit.missed_messages`.
 
 ## 5. Verification (whole plan)
 

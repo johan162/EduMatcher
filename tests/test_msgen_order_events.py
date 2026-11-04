@@ -115,6 +115,7 @@ class TestByteIdenticalToTheHandWrittenBuilders:
                 client_tag="t1",
                 oco_group_id="G1",
                 leg_index=2,
+                tick_decimals=2,
             )
         )
 

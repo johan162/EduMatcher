@@ -587,3 +587,23 @@ class TestQuoteLegSnapshotPrice:
             G.QuoteLegSnapshot.__annotations__["price"]
             == G.QuoteLeg.__annotations__["price"]
         )
+
+
+def test_every_message_with_a_tick_price_declares_its_scale() -> None:
+    """The replay refuses to guess a tick price's scale, so a message that
+    carries `*_ticks` without `tick_decimals` makes every audit of it a warning
+    (order.ack, order.amended, order.triggered, engine.trace, risk.band,
+    auction.* and system.book_checkpoint did, until audit A9)."""
+    from pathlib import Path
+
+    from edumatcher.msgen.spec import load_all
+
+    _registry, families = load_all(Path(__file__).resolve().parents[1] / "spec")
+    missing = [
+        f"{family.family}.{message.name}"
+        for family in families
+        for message in family.messages
+        if any(getattr(f, "unit", None) == "ticks" for f in message.fields)
+        and "tick_decimals" not in {f.name for f in message.fields}
+    ]
+    assert missing == []

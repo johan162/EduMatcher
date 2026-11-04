@@ -87,19 +87,26 @@ def lines(files: list[Path], topics: tuple[str, ...] | None = None) -> Iterator[
             yield Line(raw[a + 3 : b], chain, raw[c + 2 :], raw[1:a], seq, eseq)
 
 
-def run_config_text(files: list[Path]) -> str:
-    """The compiled config artifact the run's engine announced in its first
-    message, ``system.startup``: the audit describes its own run."""
+def startup_message(files: list[Path]) -> dict[str, object]:
+    """The payload of the engine's first message, ``system.startup``: the
+    audit describes its own run (config, engine version, run sequence)."""
     for ln in lines(files):
         if ln.topic != STARTUP:
             raise Unavailable(
                 f"the audit does not begin with the engine's start ({STARTUP}); "
                 f"first line: {ln.topic}"
             )
-        text = json.loads(ln.body).get("config")
-        if not text:
-            raise Unavailable(
-                f"{STARTUP} carries no config (the engine ran on a YAML file)"
-            )
-        return str(text)
+        payload: dict[str, object] = json.loads(ln.body)
+        return payload
     raise Unavailable("the audit is empty")
+
+
+def run_config_text(files: list[Path]) -> str:
+    """The compiled config artifact the run's engine announced in
+    ``system.startup``."""
+    text = startup_message(files).get("config")
+    if not text:
+        raise Unavailable(
+            f"{STARTUP} carries no config (the engine ran on a YAML file)"
+        )
+    return str(text)

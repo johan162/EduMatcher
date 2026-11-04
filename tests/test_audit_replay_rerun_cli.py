@@ -63,3 +63,14 @@ def test_a_missing_book_file_is_said_not_passed(
     code, out = run(data, capsys)
     assert code == 0
     assert "final book: not checked" in out
+
+
+def test_a_run_that_is_not_the_first_start_of_its_data_dir_reruns_clean(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The engine's run sequence persists across starts (it prefixes every trade
+    id and rides on every trade), so the ninth start of a data dir is the
+    ordinary case, not the first.  The re-run takes it from `system.startup`."""
+    code, out = run(record(tmp_path / "data", run_seq=9), capsys)
+    assert code == 0, out
+    assert "outputs: 0 differing episodes" in out

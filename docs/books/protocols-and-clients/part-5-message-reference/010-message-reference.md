@@ -748,6 +748,7 @@ Engine to all: where one symbol would uncross if the call phase ended now. Publi
 | `eq_qty` | `int` | required | ge 0, unit `shares` | Quantity that would execute. Zero is a true reading and is always emitted, unlike `eq_price`, which has no zero. |
 | `imbalance_side` | enum: `BUY`, `SELL` | omitted when unset | — | Which side would be left unfilled. Absent when the book is balanced at the indicative price. |
 | `imbalance_qty` | `int` | required | ge 0, unit `shares` | Surplus on `imbalance_side`; zero when balanced. |
+| `tick_decimals` | `int` | omitted when unset | ge 0, le 9, unit `dimensionless` | Decimal scale of the `*_ticks` prices in this message (1 tick = 10^-tick_decimals) -- the symbol's. Every message that carries a tick price carries its scale, so a reader of one line can turn it into money without guessing. |
 | `eq_price_ticks` | `ticks` | omitted when unset | unit `ticks` | `eq_price` in engine ticks. Canonical; the float beside it is for display. Scale: the symbol's tick_decimals. |
 
 !!! note
@@ -785,6 +786,7 @@ Engine to all: one symbol's uncross has completed. Published for every uncross, 
 | `imbalance_side` | enum: `BUY`, `SELL` | omitted when unset | — | Which side was left unfilled. Absent when the book was balanced at the uncross price. |
 | `imbalance_qty` | `int` | required | ge 0, unit `shares` | Surplus on `imbalance_side`; zero when balanced. |
 | `reason` | enum: `SCHEDULED`, `REOPEN`, `RECOVERY`, `BACKSTOP`, `ADMIN_MANUAL` | required | — | Which of the five uncross paths produced this event. |
+| `tick_decimals` | `int` | omitted when unset | ge 0, le 9, unit `dimensionless` | Decimal scale of the `*_ticks` prices in this message (1 tick = 10^-tick_decimals) -- the symbol's. Every message that carries a tick price carries its scale, so a reader of one line can turn it into money without guessing. |
 | `eq_price_ticks` | `ticks` | omitted when unset | unit `ticks` | `eq_price` in engine ticks. Canonical; the float beside it is for display. Scale: the symbol's tick_decimals. |
 | `auction_id` | `string` | omitted when unset | max_len 32 | This uncross, `AUC-<run_seq>-<n>`: every print it made carries it as `trade.executed.auction_id`. |
 
@@ -2290,7 +2292,8 @@ Acknowledge acceptance or rejection of a new order, addressed to the gateway tha
 | `combo_parent_id` | `string` | omitted when unset | max_len 64 |  |
 | `quote_id` | `string` | omitted when unset | max_len 64 |  |
 | `leg_index` | `int` | omitted when unset | unit `dimensionless` |  |
-| `is_seed` | `bool` | defaults to `False` | — | True when this order was created by config-driven startup seeding rather than a live gateway submission. See OrderDisplay.is_seed (above) for the full rationale; this is the ack-time echo of the same fact, since order.ack — not order.new, which never reaches the engine's PUB feed — is the first audit-visible event for any order, seeded or live. |
+| `is_seed` | `bool` | defaults to `False` | — | True when this order was created by config-driven startup seeding rather than a live gateway submission. See OrderDisplay.is_seed (above) for the full rationale; this is the ack-time echo of the same fact. A seeded order has no order.new (the engine made it, no gateway sent it), so its order.ack is the first audit-visible event for it; a live order's order.new is echoed into the trail first. |
+| `tick_decimals` | `int` | omitted when unset | ge 0, le 9, unit `dimensionless` | Decimal scale of the `*_ticks` prices in this message (1 tick = 10^-tick_decimals) -- the symbol's. Every message that carries a tick price carries its scale, so a reader of one line, or of a window of the trail that begins long after the book snapshot that declared it, can turn it into money without guessing. Absent when the message carries no tick price. |
 | `price_ticks` | `ticks` | omitted when unset | unit `ticks` | `price` in engine ticks. Canonical; the float beside it is for display. Scale: the symbol's tick_decimals. |
 | `stop_price_ticks` | `ticks` | omitted when unset | unit `ticks` | `stop_price` in engine ticks. Canonical; the float beside it is for display. Scale: the symbol's tick_decimals. |
 | `trail_offset_ticks` | `ticks` | omitted when unset | unit `ticks` | `trail_offset` in engine ticks. Canonical; the float beside it is for display. Scale: the symbol's tick_decimals. |
@@ -2407,6 +2410,7 @@ A stop, stop-limit or trailing stop has fired: the trade that reached its trigge
 | `order_id` | `string` | required | max_len 64 |  |
 | `symbol` | `string` | required | max_len 16 |  |
 | `order_type` | enum: `STOP`, `STOP_LIMIT`, `TRAILING_STOP` | required | — | The order as it was armed. |
+| `tick_decimals` | `int` | omitted when unset | ge 0, le 9, unit `dimensionless` | Decimal scale of the `*_ticks` prices in this message (1 tick = 10^-tick_decimals) -- the symbol's. Every message that carries a tick price carries its scale, so a reader of one line, or of a window of the trail that begins long after the book snapshot that declared it, can turn it into money without guessing. Absent when the message carries no tick price. |
 | `stop_price_ticks` | `ticks` | required | unit `ticks` | The trigger price it fired at (a trailing stop's ratcheted one). |
 | `trigger_trade_id` | `string` | omitted when unset | max_len 64 | The trade that reached the trigger; absent when the last price came from a restart. |
 | `trigger_price_ticks` | `ticks` | omitted when unset | unit `ticks` | That trade's price. |
@@ -2432,6 +2436,7 @@ What the book did that no trade or order message shows, for the audit trail (no 
 | `order_id` | `string` | required | max_len 64 |  |
 | `priority_seq` | `int` | omitted when unset | ge 0, unit `dimensionless` |  |
 | `displayed_qty` | `int` | omitted when unset | ge 0, unit `shares` | ICEBERG_REFILL: the new visible slice. |
+| `tick_decimals` | `int` | omitted when unset | ge 0, le 9, unit `dimensionless` | Decimal scale of the `*_ticks` prices in this message (1 tick = 10^-tick_decimals) -- the symbol's. Every message that carries a tick price carries its scale, so a reader of one line, or of a window of the trail that begins long after the book snapshot that declared it, can turn it into money without guessing. Absent when the message carries no tick price. |
 | `stop_price_ticks` | `ticks` | omitted when unset | unit `ticks` | TRAILING_RATCHET: the new trigger. |
 | `last_price_ticks` | `ticks` | omitted when unset | unit `ticks` | TRAILING_RATCHET: the trade price that moved it. |
 
@@ -2466,6 +2471,7 @@ Confirm an accepted amendment and report the resulting order.
 | `old_qty` | `int` | omitted when unset | unit `shares` | The order's qty immediately before this amendment. Same replay rationale as old_price; absent on records written before this field existed. |
 | `client_tag` | `string` | omitted when unset | max_len 64 | Client correlation tag for the amended order. |
 | `request_tag` | `string` | omitted when unset | max_len 64 | Client correlation tag for this amend request. Engine-initiated cancels publish with request_tag=null. |
+| `tick_decimals` | `int` | omitted when unset | ge 0, le 9, unit `dimensionless` | Decimal scale of the `*_ticks` prices in this message (1 tick = 10^-tick_decimals) -- the symbol's. Every message that carries a tick price carries its scale, so a reader of one line, or of a window of the trail that begins long after the book snapshot that declared it, can turn it into money without guessing. Absent when the message carries no tick price. |
 | `price_ticks` | `ticks` | omitted when unset | unit `ticks` | `price` in engine ticks. Canonical; the float beside it is for display. Scale: the symbol's tick_decimals. |
 | `priority_seq` | `int` | omitted when unset | ge 0, unit `dimensionless` | The order's place in its book after the amendment (the book's arrival sequence): changed when `priority_reset`. |
 
@@ -3065,6 +3071,7 @@ A symbol's collar, as the engine will apply it: published once per collared symb
 |---|---|---|---|---|
 | `symbol` | `string` | required | max_len 16 |  |
 | `kind` | enum: `COLLAR` | required | — |  |
+| `tick_decimals` | `int` | omitted when unset | ge 0, le 9, unit `dimensionless` | Decimal scale of the `*_ticks` prices in this message (1 tick = 10^-tick_decimals) -- the symbol's. Every message that carries a tick price carries its scale, so a reader of one line can turn it into money without guessing. |
 | `reference_price_ticks` | `ticks` | required | unit `ticks` | The static band's reference (last close or the config seed). |
 | `static_low_ticks` | `ticks` | required | unit `ticks` |  |
 | `static_high_ticks` | `ticks` | required | unit `ticks` |  |
@@ -4287,6 +4294,7 @@ One symbol's whole book, for the audit: every resting order in priority order wi
 | `last_buy_price_ticks` | `ticks` | omitted when unset | unit `ticks` |  |
 | `last_sell_price_ticks` | `ticks` | omitted when unset | unit `ticks` |  |
 | `last_trade_id` | `string` | omitted when unset | — | The trade that set the last trade price. |
+| `tick_decimals` | `int` | omitted when unset | ge 0, le 9, unit `dimensionless` | Decimal scale of the `*_ticks` prices in this message (1 tick = 10^-tick_decimals) -- the symbol's. Every message that carries a tick price carries its scale, so a reader of one line, or of a window of the trail that begins long after the book snapshot that declared it, can turn it into money without guessing. Absent when the message carries no tick price. |
 
 !!! note
 

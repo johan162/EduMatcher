@@ -34,6 +34,7 @@ class TestTheBuildersDelegate:
             eq_qty=1000,
             imbalance_side="BUY",
             imbalance_qty=200,
+            tick_decimals=2,  # the symbol's scale rides on every tick-bearing message
         )
 
     def test_result(self) -> None:
@@ -47,6 +48,7 @@ class TestTheBuildersDelegate:
             imbalance_side="SELL",
             imbalance_qty=200,
             reason="SCHEDULED",
+            tick_decimals=2,
         )
 
 

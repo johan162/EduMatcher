@@ -2565,31 +2565,71 @@ Design choices that get there:
 
 ## 17. Acceptance Checklist
 
-- [ ] `pm-audit-replay stream` renders a readable chronological narrative for a
-      captured trading session
-- [ ] `pm-audit-replay story --order <id>` narrates one order end to end,
-      including both sides of every trade it participated in
-- [ ] Every price is rendered in display money with a resolved scale, or refuses
-      to render and reports an anomaly
-- [ ] Ordering follows the canonical key; a deliberately inverted ack/fill pair
-      narrates in causal order
-- [ ] Every link carries a confidence; HEURISTIC links are hedged in prose
-- [ ] `RECORDED` links dominate on a log captured since the envelope landed
-- [ ] A declared origin (envelope present, null `causation_id`) is rendered as
-      an origin and never sent through the inference tiers
-- [ ] `story --chain` returns the complete descent with no `--depth` tuning
-- [ ] `--strict-causality` distinguishes recorded links from inferred ones
-- [ ] No event is silently dropped — round-trip property test passes
-- [ ] `--format ndjson` output matches the prose beat for beat
-- [ ] All anomaly codes in §12 have a fixture that fires them
-- [ ] `anomalies --severity warn` is empty on a healthy verification run
-- [ ] Episode index builds incrementally and refuses a stale `rules_version`
-- [ ] `--no-index` and indexed runs agree
-- [ ] Spec-coverage test fails when a new topic or enum value is unmapped
-- [ ] Performance targets in §16 met on a 200 MB log
-- [ ] User guide section and worked examples written
-- [ ] `pm-audit-cli` behaviour unchanged
+Closed out 2026-11-04 (Audit-Completeness-Workplan A9). ☑ means the item holds and
+names where it is shown; ☐ means it does not, and says why. Nothing below is ticked
+on the strength of the tool existing.
 
+- [x] `pm-audit-replay stream` renders a readable chronological narrative for a
+      captured trading session. *Goldens (`test_audit_replay_goldens.py`); run on a
+      357-command engine + `pm-audit` capture, 1 686 facts, 100 % envelope coverage.*
+- [x] `pm-audit-replay story --order <id>` narrates one order end to end,
+      including both sides of every trade it participated in. *Goldens and
+      `test_audit_replay_views.py`.*
+- [x] Every price is rendered in display money with a resolved scale, or refuses
+      to render and reports an anomaly. *`TICK_SCALE_UNKNOWN`. Found failing on a
+      real capture: `order.ack`, `order.amended`, `order.triggered`,
+      `engine.trace`, `risk.band`, `auction.*` and `system.book_checkpoint` carried
+      tick prices without `tick_decimals` (285 warnings in 300 orders). Fixed in
+      the spec; `test_every_message_with_a_tick_price_declares_its_scale` keeps it
+      fixed.*
+- [x] Ordering follows the canonical key; a deliberately inverted ack/fill pair
+      narrates in causal order. *`test_audit_replay_ordering.py`.*
+- [x] Every link carries a confidence; HEURISTIC links are hedged in prose.
+      *`test_audit_replay_render.py::test_a_heuristic_link_is_hedged`.*
+- [x] `RECORDED` links dominate on a log captured since the envelope landed.
+      *`test_audit_replay_stats.py`; real capture: 68.9 % RECORDED, 31.1 % CERTAIN,
+      no HEURISTIC.*
+- [x] A declared origin (envelope present, null `causation_id`) is rendered as
+      an origin and never sent through the inference tiers.
+      *`test_audit_replay_links.py::test_it_is_an_origin_rather_than_a_gap`.*
+- [x] `story --chain` returns the complete descent with no `--depth` tuning.
+      *`test_audit_replay_views.py::test_a_chain_needs_no_depth`.*
+- [x] `--strict-causality` distinguishes recorded links from inferred ones.
+      *`test_audit_replay_views.py::test_strict_causality_refuses_to_traverse_a_guess`.*
+- [x] No event is silently dropped — round-trip property test passes.
+      *`test_audit_replay_roundtrip.py`.*
+- [x] `--format ndjson` output matches the prose beat for beat.
+      *`test_audit_replay_render_json.py`, `test_audit_replay_cli.py`.*
+- [x] All anomaly codes have a fixture that fires them. *Two did not:
+      `ACK_WITHOUT_COMMAND` was never raised and `UNKNOWN_ENUM` had no test. The
+      first is now raised, both are tested, and
+      `test_every_anomaly_code_is_exercised_by_a_test` fails when a code is added
+      that nothing fires.*
+- [x] `anomalies --severity warn` is empty on a healthy verification run.
+      *`tools/verify_audit_trail.sh` (a real engine and `pm-audit`): "No findings
+      across 1024 episode(s)". The script itself failed before this could be
+      checked: its fixed 2 s wait was shorter than the engine's start-up, and
+      `set -e` ended it before STEP D on a run that rotated no part. Both fixed.*
+- [ ] Episode index builds incrementally and refuses a stale `rules_version`.
+      *The index refuses a stale `rules_version` (`test_audit_replay_index.py`);
+      incremental build was dropped by decision (AR-3.4, "not worth building").*
+- [x] `--no-index` and indexed runs agree. *`test_audit_replay_reports.py`.*
+- [x] Spec-coverage test fails when a new topic or enum value is unmapped.
+      *`test_audit_replay_lexicon.py::TestCoverage`; it failed, as intended, when
+      `system.gateway_reject` added the `source` enum.*
+- [ ] Performance targets in §16 met on a 200 MB log. *Not measured in this pass.
+      A 1 700-line capture replays in about a second; no 200 MB log was timed.*
+- [x] User guide section and worked examples written. *Operator guide, Audit
+      Replay and Answering a Dispute.*
+- [ ] `pm-audit-cli` behaviour unchanged. *Additive only, but not unchanged: a
+      `verify` subcommand, a `# recorder-start` comment line the reader skips, a
+      `--fsync-interval` flag on `pm-audit`. No existing command's output changed.*
+
+Beyond the original list, checked on the same real capture: `pm-audit-replay rerun`
+re-executed all 357 commands with no hidden input and no differing episode, and the
+simulation forensics' audit-based checks (A5, C7-C11, D1-D11, E1-E7, F3, F6) all
+pass. `rerun` also failed on that capture until it took the run sequence from
+`system.startup` instead of assuming the first start of a data directory.
 
 
 ## 18. Open Questions and Future Work

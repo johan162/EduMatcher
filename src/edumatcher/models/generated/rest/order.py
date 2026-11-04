@@ -489,9 +489,17 @@ class OrderAck(BaseModel):
     is_seed: bool
     """True when this order was created by config-driven startup seeding rather than
     a live gateway submission. See OrderDisplay.is_seed (above) for the full
-    rationale; this is the ack-time echo of the same fact, since order.ack — not
-    order.new, which never reaches the engine's PUB feed — is the first audit-
-    visible event for any order, seeded or live.
+    rationale; this is the ack-time echo of the same fact. A seeded order has no
+    order.new (the engine made it, no gateway sent it), so its order.ack is the
+    first audit-visible event for it; a live order's order.new is echoed into the
+    trail first.
+    """
+    tick_decimals: int | None = Field(default=None, ge=0, le=9)
+    """Decimal scale of the `*_ticks` prices in this message (1 tick =
+    10^-tick_decimals) -- the symbol's. Every message that carries a tick price
+    carries its scale, so a reader of one line, or of a window of the trail that
+    begins long after the book snapshot that declared it, can turn it into money
+    without guessing. Absent when the message carries no tick price.
     """
     price_ticks: int | None = Field(default=None)
     """`price` in engine ticks. Canonical; the float beside it is for display. Scale:
@@ -673,6 +681,13 @@ class OrderTriggered(BaseModel):
     symbol: str = Field(max_length=16)
     order_type: OrderTriggeredOrderType
     """The order as it was armed."""
+    tick_decimals: int | None = Field(default=None, ge=0, le=9)
+    """Decimal scale of the `*_ticks` prices in this message (1 tick =
+    10^-tick_decimals) -- the symbol's. Every message that carries a tick price
+    carries its scale, so a reader of one line, or of a window of the trail that
+    begins long after the book snapshot that declared it, can turn it into money
+    without guessing. Absent when the message carries no tick price.
+    """
     stop_price_ticks: int
     """The trigger price it fired at (a trailing stop's ratcheted one). Unit: ticks."""
     trigger_trade_id: str | None = Field(default=None, max_length=64)
@@ -703,6 +718,13 @@ class EngineTrace(BaseModel):
     priority_seq: int | None = Field(default=None, ge=0)
     displayed_qty: int | None = Field(default=None, ge=0)
     """ICEBERG_REFILL: the new visible slice. Unit: shares."""
+    tick_decimals: int | None = Field(default=None, ge=0, le=9)
+    """Decimal scale of the `*_ticks` prices in this message (1 tick =
+    10^-tick_decimals) -- the symbol's. Every message that carries a tick price
+    carries its scale, so a reader of one line, or of a window of the trail that
+    begins long after the book snapshot that declared it, can turn it into money
+    without guessing. Absent when the message carries no tick price.
+    """
     stop_price_ticks: int | None = Field(default=None)
     """TRAILING_RATCHET: the new trigger. Unit: ticks."""
     last_price_ticks: int | None = Field(default=None)
@@ -743,6 +765,13 @@ class OrderAmended(BaseModel):
     request_tag: str | None = Field(default=None, max_length=64)
     """Client correlation tag for this amend request. Engine-initiated cancels
     publish with request_tag=null.
+    """
+    tick_decimals: int | None = Field(default=None, ge=0, le=9)
+    """Decimal scale of the `*_ticks` prices in this message (1 tick =
+    10^-tick_decimals) -- the symbol's. Every message that carries a tick price
+    carries its scale, so a reader of one line, or of a window of the trail that
+    begins long after the book snapshot that declared it, can turn it into money
+    without guessing. Absent when the message carries no tick price.
     """
     price_ticks: int | None = Field(default=None)
     """`price` in engine ticks. Canonical; the float beside it is for display. Scale:

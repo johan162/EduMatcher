@@ -166,8 +166,16 @@ poetry run pm-engine &
 ENGINE_PID=$!
 
 # Wait for the engine to bind its sockets
-echo "[VERIFY] Waiting for engine to bind (2 s) …"
-sleep 2
+# A fixed sleep is shorter than the engine's start-up on a slow or busy host
+# (python import, config load): replay_to_engine's first send then finds no
+# peer and fails with EAGAIN. Wait for the port instead, up to 30 s.
+echo "[VERIFY] Waiting for engine to bind …"
+PULL_PORT="${ENGINE_PULL##*:}"
+for _ in $(seq 1 60); do
+  (exec 3<>"/dev/tcp/127.0.0.1/$PULL_PORT") 2>/dev/null && break
+  kill -0 "$ENGINE_PID" 2>/dev/null || break
+  sleep 0.5
+done
 
 # Sanity-check: make sure the process is still alive
 if ! kill -0 "$ENGINE_PID" 2>/dev/null; then

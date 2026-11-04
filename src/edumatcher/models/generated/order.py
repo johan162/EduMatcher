@@ -1484,7 +1484,15 @@ _ORDER_ACK_FIELDS: tuple[dict[str, Any], ...] = (
         "type": "bool",
         "unit": None,
         "required": False,
-        "doc": "True when this order was created by config-driven startup seeding rather than a live gateway submission. See OrderDisplay.is_seed (above) for the full rationale; this is the ack-time echo of the same fact, since order.ack — not order.new, which never reaches the engine's PUB feed — is the first audit-visible event for any order, seeded or live.",
+        "doc": "True when this order was created by config-driven startup seeding rather than a live gateway submission. See OrderDisplay.is_seed (above) for the full rationale; this is the ack-time echo of the same fact. A seeded order has no order.new (the engine made it, no gateway sent it), so its order.ack is the first audit-visible event for it; a live order's order.new is echoed into the trail first.",
+    },
+    {
+        "name": "tick_decimals",
+        "type": "int",
+        "unit": "dimensionless",
+        "required": False,
+        "doc": "Decimal scale of the `*_ticks` prices in this message (1 tick = 10^-tick_decimals) -- the symbol's. Every message that carries a tick price carries its scale, so a reader of one line, or of a window of the trail that begins long after the book snapshot that declared it, can turn it into money without guessing. Absent when the message carries no tick price.",
+        "constraints": {"ge": 0, "le": 9},
     },
     {
         "name": "price_ticks",
@@ -1542,6 +1550,7 @@ class OrderAck:
     quote_id: str | None = None
     leg_index: int | None = None  # unit: dimensionless
     is_seed: bool = False
+    tick_decimals: int | None = None  # unit: dimensionless
     price_ticks: int | None = None  # unit: ticks
     stop_price_ticks: int | None = None  # unit: ticks
     trail_offset_ticks: int | None = None  # unit: ticks
@@ -1623,6 +1632,15 @@ class OrderAck:
                 raise MessageValidationError(
                     f"quote_id: length {len(self.quote_id)} exceeds max_len 64"
                 )
+        if self.tick_decimals is not None:
+            if self.tick_decimals < 0:
+                raise MessageValidationError(
+                    f"tick_decimals: {self.tick_decimals!r} must be >= 0"
+                )
+            if self.tick_decimals > 9:
+                raise MessageValidationError(
+                    f"tick_decimals: {self.tick_decimals!r} must be <= 9"
+                )
 
     @classmethod
     def from_dict(cls, p: Mapping[str, Any]) -> "OrderAck":
@@ -1670,6 +1688,9 @@ class OrderAck:
             quote_id=None if p.get("quote_id") is None else str(p["quote_id"]),
             leg_index=None if p.get("leg_index") is None else int(p["leg_index"]),
             is_seed=bool(p.get("is_seed", False)),
+            tick_decimals=(
+                None if p.get("tick_decimals") is None else int(p["tick_decimals"])
+            ),
             price_ticks=None if p.get("price_ticks") is None else int(p["price_ticks"]),
             stop_price_ticks=(
                 None
@@ -1727,6 +1748,8 @@ class OrderAck:
             payload["quote_id"] = self.quote_id
         if self.leg_index is not None:
             payload["leg_index"] = self.leg_index
+        if self.tick_decimals is not None:
+            payload["tick_decimals"] = self.tick_decimals
         if self.price_ticks is not None:
             payload["price_ticks"] = self.price_ticks
         if self.stop_price_ticks is not None:
@@ -1787,6 +1810,7 @@ def make_order_ack_unchecked(
     quote_id: str | None = None,
     leg_index: int | None = None,
     is_seed: bool = False,
+    tick_decimals: int | None = None,
     price_ticks: int | None = None,
     stop_price_ticks: int | None = None,
     trail_offset_ticks: int | None = None,
@@ -1843,6 +1867,8 @@ def make_order_ack_unchecked(
         payload["quote_id"] = str(quote_id)
     if leg_index is not None:
         payload["leg_index"] = int(leg_index)
+    if tick_decimals is not None:
+        payload["tick_decimals"] = int(tick_decimals)
     if price_ticks is not None:
         payload["price_ticks"] = int(price_ticks)
     if stop_price_ticks is not None:
@@ -3141,6 +3167,14 @@ _ORDER_TRIGGERED_FIELDS: tuple[dict[str, Any], ...] = (
         "values": _ORDER_TRIGGERED_ORDER_TYPE_VALUES,
     },
     {
+        "name": "tick_decimals",
+        "type": "int",
+        "unit": "dimensionless",
+        "required": False,
+        "doc": "Decimal scale of the `*_ticks` prices in this message (1 tick = 10^-tick_decimals) -- the symbol's. Every message that carries a tick price carries its scale, so a reader of one line, or of a window of the trail that begins long after the book snapshot that declared it, can turn it into money without guessing. Absent when the message carries no tick price.",
+        "constraints": {"ge": 0, "le": 9},
+    },
+    {
         "name": "stop_price_ticks",
         "type": "ticks",
         "unit": "ticks",
@@ -3194,6 +3228,7 @@ class OrderTriggered:
     order_type: OrderTriggeredOrderType
     stop_price_ticks: int  # unit: ticks
     becomes: OrderTriggeredBecomes
+    tick_decimals: int | None = None  # unit: dimensionless
     trigger_trade_id: str | None = None
     trigger_price_ticks: int | None = None  # unit: ticks
     client_tag: str | None = None
@@ -3221,6 +3256,15 @@ class OrderTriggered:
             raise MessageValidationError(
                 f"order_type: {self.order_type!r} is not one of {_ORDER_TRIGGERED_ORDER_TYPE_VALUES!r}"
             )
+        if self.tick_decimals is not None:
+            if self.tick_decimals < 0:
+                raise MessageValidationError(
+                    f"tick_decimals: {self.tick_decimals!r} must be >= 0"
+                )
+            if self.tick_decimals > 9:
+                raise MessageValidationError(
+                    f"tick_decimals: {self.tick_decimals!r} must be <= 9"
+                )
         if self.trigger_trade_id is not None:
             if len(self.trigger_trade_id) > 64:
                 raise MessageValidationError(
@@ -3249,6 +3293,9 @@ class OrderTriggered:
             order_id=str(p["order_id"]),
             symbol=str(p["symbol"]),
             order_type=cast(OrderTriggeredOrderType, str(p["order_type"])),
+            tick_decimals=(
+                None if p.get("tick_decimals") is None else int(p["tick_decimals"])
+            ),
             stop_price_ticks=int(p["stop_price_ticks"]),
             trigger_trade_id=(
                 None
@@ -3273,6 +3320,8 @@ class OrderTriggered:
             "stop_price_ticks": self.stop_price_ticks,
             "becomes": self.becomes,
         }
+        if self.tick_decimals is not None:
+            payload["tick_decimals"] = self.tick_decimals
         if self.trigger_trade_id is not None:
             payload["trigger_trade_id"] = self.trigger_trade_id
         if self.trigger_price_ticks is not None:
@@ -3316,6 +3365,7 @@ def make_order_triggered_unchecked(
     order_type: OrderTriggeredOrderType,
     stop_price_ticks: int,
     becomes: OrderTriggeredBecomes,
+    tick_decimals: int | None = None,
     trigger_trade_id: str | None = None,
     trigger_price_ticks: int | None = None,
     client_tag: str | None = None,
@@ -3337,6 +3387,8 @@ def make_order_triggered_unchecked(
         "stop_price_ticks": int(stop_price_ticks),
         "becomes": str(becomes),
     }
+    if tick_decimals is not None:
+        payload["tick_decimals"] = int(tick_decimals)
     if trigger_trade_id is not None:
         payload["trigger_trade_id"] = str(trigger_trade_id)
     if trigger_price_ticks is not None:
@@ -3421,6 +3473,14 @@ _ENGINE_TRACE_FIELDS: tuple[dict[str, Any], ...] = (
         "constraints": {"ge": 0},
     },
     {
+        "name": "tick_decimals",
+        "type": "int",
+        "unit": "dimensionless",
+        "required": False,
+        "doc": "Decimal scale of the `*_ticks` prices in this message (1 tick = 10^-tick_decimals) -- the symbol's. Every message that carries a tick price carries its scale, so a reader of one line, or of a window of the trail that begins long after the book snapshot that declared it, can turn it into money without guessing. Absent when the message carries no tick price.",
+        "constraints": {"ge": 0, "le": 9},
+    },
+    {
         "name": "stop_price_ticks",
         "type": "ticks",
         "unit": "ticks",
@@ -3456,6 +3516,7 @@ class EngineTrace:
     order_id: str
     priority_seq: int | None = None  # unit: dimensionless
     displayed_qty: int | None = None  # unit: shares
+    tick_decimals: int | None = None  # unit: dimensionless
     stop_price_ticks: int | None = None  # unit: ticks
     last_price_ticks: int | None = None  # unit: ticks
 
@@ -3488,6 +3549,15 @@ class EngineTrace:
                 raise MessageValidationError(
                     f"displayed_qty: {self.displayed_qty!r} must be >= 0"
                 )
+        if self.tick_decimals is not None:
+            if self.tick_decimals < 0:
+                raise MessageValidationError(
+                    f"tick_decimals: {self.tick_decimals!r} must be >= 0"
+                )
+            if self.tick_decimals > 9:
+                raise MessageValidationError(
+                    f"tick_decimals: {self.tick_decimals!r} must be <= 9"
+                )
 
     @classmethod
     def from_dict(cls, p: Mapping[str, Any]) -> "EngineTrace":
@@ -3506,6 +3576,9 @@ class EngineTrace:
             ),
             displayed_qty=(
                 None if p.get("displayed_qty") is None else int(p["displayed_qty"])
+            ),
+            tick_decimals=(
+                None if p.get("tick_decimals") is None else int(p["tick_decimals"])
             ),
             stop_price_ticks=(
                 None
@@ -3530,6 +3603,8 @@ class EngineTrace:
             payload["priority_seq"] = self.priority_seq
         if self.displayed_qty is not None:
             payload["displayed_qty"] = self.displayed_qty
+        if self.tick_decimals is not None:
+            payload["tick_decimals"] = self.tick_decimals
         if self.stop_price_ticks is not None:
             payload["stop_price_ticks"] = self.stop_price_ticks
         if self.last_price_ticks is not None:
@@ -3570,6 +3645,7 @@ def make_engine_trace_unchecked(
     order_id: str,
     priority_seq: int | None = None,
     displayed_qty: int | None = None,
+    tick_decimals: int | None = None,
     stop_price_ticks: int | None = None,
     last_price_ticks: int | None = None,
 ) -> list[bytes]:
@@ -3592,6 +3668,8 @@ def make_engine_trace_unchecked(
         payload["priority_seq"] = int(priority_seq)
     if displayed_qty is not None:
         payload["displayed_qty"] = int(displayed_qty)
+    if tick_decimals is not None:
+        payload["tick_decimals"] = int(tick_decimals)
     if stop_price_ticks is not None:
         payload["stop_price_ticks"] = int(stop_price_ticks)
     if last_price_ticks is not None:
@@ -3712,6 +3790,14 @@ _ORDER_AMENDED_FIELDS: tuple[dict[str, Any], ...] = (
         "constraints": {"max_len": 64},
     },
     {
+        "name": "tick_decimals",
+        "type": "int",
+        "unit": "dimensionless",
+        "required": False,
+        "doc": "Decimal scale of the `*_ticks` prices in this message (1 tick = 10^-tick_decimals) -- the symbol's. Every message that carries a tick price carries its scale, so a reader of one line, or of a window of the trail that begins long after the book snapshot that declared it, can turn it into money without guessing. Absent when the message carries no tick price.",
+        "constraints": {"ge": 0, "le": 9},
+    },
+    {
         "name": "price_ticks",
         "type": "ticks",
         "unit": "ticks",
@@ -3750,6 +3836,7 @@ class OrderAmended:
     old_qty: int | None = None  # unit: shares
     client_tag: str | None = None
     request_tag: str | None = None
+    tick_decimals: int | None = None  # unit: dimensionless
     price_ticks: int | None = None  # unit: ticks
     priority_seq: int | None = None  # unit: dimensionless
 
@@ -3783,6 +3870,15 @@ class OrderAmended:
                 raise MessageValidationError(
                     f"request_tag: length {len(self.request_tag)} exceeds max_len 64"
                 )
+        if self.tick_decimals is not None:
+            if self.tick_decimals < 0:
+                raise MessageValidationError(
+                    f"tick_decimals: {self.tick_decimals!r} must be >= 0"
+                )
+            if self.tick_decimals > 9:
+                raise MessageValidationError(
+                    f"tick_decimals: {self.tick_decimals!r} must be <= 9"
+                )
         if self.priority_seq is not None:
             if self.priority_seq < 0:
                 raise MessageValidationError(
@@ -3809,6 +3905,9 @@ class OrderAmended:
             old_qty=None if p.get("old_qty") is None else int(p["old_qty"]),
             client_tag=None if p.get("client_tag") is None else str(p["client_tag"]),
             request_tag=None if p.get("request_tag") is None else str(p["request_tag"]),
+            tick_decimals=(
+                None if p.get("tick_decimals") is None else int(p["tick_decimals"])
+            ),
             price_ticks=None if p.get("price_ticks") is None else int(p["price_ticks"]),
             priority_seq=(
                 None if p.get("priority_seq") is None else int(p["priority_seq"])
@@ -3834,6 +3933,8 @@ class OrderAmended:
             payload["client_tag"] = self.client_tag
         if self.request_tag is not None:
             payload["request_tag"] = self.request_tag
+        if self.tick_decimals is not None:
+            payload["tick_decimals"] = self.tick_decimals
         if self.price_ticks is not None:
             payload["price_ticks"] = self.price_ticks
         if self.priority_seq is not None:
@@ -3880,6 +3981,7 @@ def make_order_amended_unchecked(
     old_qty: int | None = None,
     client_tag: str | None = None,
     request_tag: str | None = None,
+    tick_decimals: int | None = None,
     price_ticks: int | None = None,
     priority_seq: int | None = None,
 ) -> list[bytes]:
@@ -3910,6 +4012,8 @@ def make_order_amended_unchecked(
         payload["client_tag"] = str(client_tag)
     if request_tag is not None:
         payload["request_tag"] = str(request_tag)
+    if tick_decimals is not None:
+        payload["tick_decimals"] = int(tick_decimals)
     if price_ticks is not None:
         payload["price_ticks"] = int(price_ticks)
     if priority_seq is not None:

@@ -930,12 +930,26 @@ messages:
       - { name: last_trade_id, type: string, required: false,
           nullable: true, omit_when_none: true,
           doc: "The trade that set the last trade price." }
+      - name: tick_decimals
+        type: int
+        required: false
+        nullable: true
+        omit_when_none: true
+        unit: dimensionless
+        validate: { ge: 0, le: 9 }
+        doc: >
+          Decimal scale of the `*_ticks` prices in this message (1 tick =
+          10^-tick_decimals) -- the symbol's. Every message that carries a tick
+          price carries its scale, so a reader of one line, or of a window of
+          the trail that begins long after the book snapshot that declared it,
+          can turn it into money without guessing. Absent when the message
+          carries no tick price.
     encoding:
       engine_pub:
         frames: [topic, json_payload]
         include: [symbol, reason, phase, bids, asks, buy_stops, sell_stops,
                   trailing_stops, last_trade_price_ticks, last_buy_price_ticks,
-                  last_sell_price_ticks, last_trade_id]
+                  last_sell_price_ticks, last_trade_id, tick_decimals]
 
   - name: startup
     topic: "system.startup"

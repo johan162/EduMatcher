@@ -107,7 +107,7 @@ def test_a_fired_stop_tells_its_owner_before_it_trades(
     assert fired == {
         "order_id": stop, "symbol": SYMBOL, "order_type": kind.value,
         "stop_price_ticks": 10_000, "trigger_trade_id": first["id"],
-        "trigger_price_ticks": 10_000, "becomes": becomes,
+        "trigger_price_ticks": 10_000, "becomes": becomes, "tick_decimals": 2,
     }  # fmt: skip
     topics = [t for t, p in all_msgs(pub) if p.get("order_id") == stop]
     assert topics.index("order.triggered.GW02") < topics.index("order.fill.GW02")
@@ -135,4 +135,5 @@ def test_a_collared_symbol_announces_its_band_at_startup(
     assert band == {
         "symbol": SYMBOL, "kind": "COLLAR", "reference_price_ticks": 10_000,
         "static_low_ticks": 8_000, "static_high_ticks": 12_000, "dynamic_band_pct": 0.02,
+        "tick_decimals": 2,
     }  # fmt: skip
