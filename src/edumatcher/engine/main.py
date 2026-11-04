@@ -4286,9 +4286,16 @@ class Engine:
                 session.heartbeat_interval_sec,
             )
             self.metrics.count(self.metrics.heartbeat_timeouts, session.gateway_id)
-            self._handle_gateway_disconnect(
-                {"gateway_id": session.gateway_id, "reason": "heartbeat_timeout"}
-            )
+            # No command caused this, but it is one piece of work: the bye and
+            # the cancels it brings share a chain, so the audit re-run can
+            # tell one timeout from unrelated roots (pm-audit-replay rerun).
+            self.pub_sock.begin_unit()
+            try:
+                self._handle_gateway_disconnect(
+                    {"gateway_id": session.gateway_id, "reason": "heartbeat_timeout"}
+                )
+            finally:
+                self.pub_sock.end_unit()
 
     def _handle_kill_switch(self, payload: dict[str, Any]) -> None:
         gateway_id = _clamp_wire_id(payload.get("gateway_id", ""))

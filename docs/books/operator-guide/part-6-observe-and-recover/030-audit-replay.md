@@ -175,6 +175,7 @@ required to produce identical output either way.
 | `episodes` | The index as a table, one row per episode | No |
 | `anomalies` | Every finding, worst first, each with the `story` command to run next | No |
 | `stats` | Link confidence, envelope coverage and anomaly counts over the window | No |
+| `rerun` | Feeds the trail's commands to a fresh engine and compares what it publishes | No |
 | `index` | Builds or refreshes the episode index; `--stats` reports what it holds | — |
 
 ### `story` selectors
@@ -363,6 +364,7 @@ produced it.
 | `0` | Success |
 | `1` | Nothing to narrate, or no audit log at the given path |
 | `2` | Argument error, including a format a subcommand cannot produce |
+| `3` | `rerun` only: the trail cannot be re-run (see [Re-executing the trail](#re-executing-the-trail)) |
 
 
 
@@ -598,6 +600,40 @@ Link confidence
 Low envelope coverage on a current log means a publisher is bypassing
 `CausalPublisher`. A high `HEURISTIC` share means the narrative is more
 inference than record, and should be read as such.
+
+### Re-executing the trail
+
+Everything above reads what the trail *says*. `rerun` checks it against the
+engine:
+
+```bash
+pm-audit-replay --log-file data/audit.log rerun
+```
+
+The engine echoes every command it is asked to perform into the trail before it
+acts, so the trail is the engine's complete input. `rerun` builds a fresh engine
+from the configuration in `system.startup`, feeds it each command in order, and
+compares what it publishes with what the live engine published for that
+command. It also fires the engine's own timers where the trail names them: a
+circuit breaker reopening, and a gateway disconnected for missed heartbeats.
+
+```text
+re-ran 8 commands (order.new 2, system.gateway_connect 3, ...)
+hidden inputs: 0
+outputs: 0 differing episodes; run made with 0.72.1, re-run with 0.72.1; ...
+final book: 0 differences
+```
+
+| Line | Means |
+|---|---|
+| `hidden inputs` | State changes the live engine published with no command or named timer behind them. The trail does not hold what caused them, so the re-run cannot reproduce them |
+| `outputs` | Commands after which the fresh engine published something different. A difference is non-determinism, a hidden input, or a change in the engine since the run, so re-run with the engine version the run used; the line names both versions |
+| `final book` | The re-run's resting book against `gtc_orders.json` beside the trail. Said plainly when the file is not there |
+
+Exit `0` is clean, `1` a difference, `3` the trail cannot be re-run: it does
+not begin at an engine start, holds more than one engine run, or carries no
+config (the engine ran from a YAML file; see `CONFIG_NOT_RECORDED`). It reads
+the whole trail in one pass, so allow minutes for a full simulated day.
 
 ### Feed it to something else
 

@@ -533,6 +533,20 @@ def _add_commands(
     )
 
     commands.add_parser(
+        "rerun",
+        parents=[inherited],
+        formatter_class=argparse.RawTextHelpFormatter,
+        help="Feed the audit's commands to a fresh engine and compare",
+        description=(
+            "Re-execute the trail (design: Audit-Completeness-Workplan A4).\n"
+            "Builds an engine from the config in system.startup, feeds it every\n"
+            "echoed command in order and compares what it publishes with what\n"
+            "the live engine did. Needs a trail that begins at an engine start,\n"
+            "holds one run, and carries its config. Exit 0 clean, 1 on a\n"
+            "difference, 3 when the trail cannot be re-run."
+        ),
+    )
+    commands.add_parser(
         "stats",
         parents=[inherited],
         formatter_class=argparse.RawTextHelpFormatter,
@@ -1118,6 +1132,34 @@ def validate_args(args: argparse.Namespace) -> str | None:
     return None
 
 
+def _run_rerun(args: argparse.Namespace) -> int:
+    from edumatcher.audit.rawlines import Unavailable
+    from edumatcher.audit.replay.rerun import rerun
+
+    try:
+        result = rerun(Path(args.log_file).expanduser().parent)
+    except Unavailable as exc:
+        print(f"pm-audit-replay: cannot re-run: {exc}", file=sys.stderr)
+        return 3
+    total = sum(result.commands.values())
+    top = ", ".join(f"{t} {n}" for t, n in result.commands.most_common(6))
+    print(f"re-ran {total} commands ({top}, ...)")
+    print(f"hidden inputs: {result.counts['E1']}")
+    print(f"outputs: {result.counts['E2']} differing episodes; {result.note()}")
+    if result.book_checked:
+        print(f"final book: {result.counts['E4']} differences")
+    else:
+        print("final book: not checked (no gtc_orders.json beside the trail)")
+    for label, key in (
+        ("hidden input", "E1"),
+        ("difference", "E2"),
+        ("book", "E4"),
+    ):
+        for sample in result.samples[key][:5]:
+            print(f"  {label}: {sample}")
+    return 1 if any(result.counts[k] for k in ("E1", "E2", "E4")) else 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     try:
@@ -1142,6 +1184,8 @@ def main(argv: list[str] | None = None) -> int:
         return _run_index(args)
     if args.command == "stats":
         return _run_stats(args)
+    if args.command == "rerun":
+        return _run_rerun(args)
     return 0
 
 

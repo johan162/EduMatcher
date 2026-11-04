@@ -1005,6 +1005,7 @@ _shtab_pm_audit_replay_commands() {
     digest:'A whole session or a whole day, collapsed (design section 9.4).'
     episodes:'A structured listing (design section 9.5): kind, anchor, actor,'
     index:'Materialise the episode model into SQLite (design section 9.7).'
+    rerun:'Re-execute the trail (design: Audit-Completeness-Workplan A4).'
     stats:'How the tool arrived at what it knows. On a log recorded since'
     story:'One episode and everything causally connected to it (section'
     stream:'Everything the exchange did, in causal order (section 9.2).'
@@ -1178,6 +1179,38 @@ _shtab_pm_audit_replay_index_options=(
 # guard to ensure default positional specs are added only once per session
 _shtab_pm_audit_replay_index_defaults_added=0
 
+_shtab_pm_audit_replay_rerun_options=(
+  "(- : *)"{-h,--help}"[show this help message and exit]"
+  "--log-file[Audit log to read (default\: \<EDUMATCHER_DATA_DIR\>\/audit.log).]:PATH:"
+  "--db[Episode index (default\: \<EDUMATCHER_DATA_DIR\>\/audit_replay.db)]:PATH:"
+  "--no-index[Stream without building or reading an index]"
+  "--rebuild[Rebuild the episode index before rendering]"
+  "--from[Start of window (ISO-8601 or YYYY-MM-DD)]:ISO_TS:"
+  "--to[End of window]:ISO_TS:"
+  "--date[Read this trading day (session timezone)\: its archive, or its parts before it is archived]:YYYY-MM-DD:"
+  "--last[Relative window, e.g. 15m, 2h, 1d]:DURATION:"
+  "*--symbol[Restrict to one or more symbols (repeatable)]:SYMBOL:"
+  "*--gateway[Restrict to one or more gateways (repeatable)]:GW_ID:"
+  "*--kind[Restrict to episode kinds (repeatable)]:KIND:"
+  "-q[Detail level 0\: episode outcomes only]"
+  "*-v[Raise detail level\: -v, -vv, -vvv (see design section 8.1)]"
+  "--format[Output format (default\: text)]:format:(text ndjson json markdown csv)"
+  "--show-source[Append audit.log\:LINE to every narrated line]"
+  "--show-units[Append unit provenance to every price]"
+  "--explain[Show link evidence and confidence inline]"
+  "--id-len[Order-id abbreviation (default\: 6)]:N|full:"
+  "--actor-style[Actor naming\: id (default) or descriptive]:actor_style:(id descriptive)"
+  "--tz[Render timestamps in this zone (default\: UTC)]:TZ:"
+  "--reorder-window[Reorder buffer, e.g. 2000 or 5s]:SPEC:"
+  "--no-color[Never emit ANSI colour, even to a terminal]"
+  "--force-color[Emit ANSI colour even when stdout is not a terminal,]"
+  "--strict[Report findings that are expected at a window edge (ARRIVAL_SEQ_GAP)]"
+  "--clock-skew-warn[Engine\/receipt clock difference worth reporting]:SECONDS:"
+)
+
+# guard to ensure default positional specs are added only once per session
+_shtab_pm_audit_replay_rerun_defaults_added=0
+
 _shtab_pm_audit_replay_stats_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
   "--log-file[Audit log to read (default\: \<EDUMATCHER_DATA_DIR\>\/audit.log).]:PATH:"
@@ -1308,6 +1341,7 @@ _shtab_pm_audit_replay() {
         digest) _arguments -C -s $_shtab_pm_audit_replay_digest_options ;;
         episodes) _arguments -C -s $_shtab_pm_audit_replay_episodes_options ;;
         index) _arguments -C -s $_shtab_pm_audit_replay_index_options ;;
+        rerun) _arguments -C -s $_shtab_pm_audit_replay_rerun_options ;;
         stats) _arguments -C -s $_shtab_pm_audit_replay_stats_options ;;
         story) _arguments -C -s $_shtab_pm_audit_replay_story_options ;;
         stream) _arguments -C -s $_shtab_pm_audit_replay_stream_options ;;

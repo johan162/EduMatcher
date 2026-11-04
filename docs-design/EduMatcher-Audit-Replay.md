@@ -209,8 +209,9 @@ symptom is *"the sequence was wrong"* is close to invisible.
 
 ### 3.2 Non-Goals
 
-- **Not a simulator.** `pm-audit-replay` describes what happened; it does not
-  re-run the matching engine to check the engine was right. (`tools/replay_to_engine.py`
+- **Not a simulator.** The narration describes what happened; it does not
+  re-run the matching engine to check the engine was right. (The `rerun`
+  subcommand does, as a separate pass: Audit-Completeness-Workplan A4.) (`tools/replay_to_engine.py`
   is the tool for that.) It *does* check internal consistency — see §12.
 - **Not a writer.** Strictly read-only with respect to the audit trail.
 - **Not a live monitor.** `pm-audit --terminal`, `pm-log-srv` and the GUIs cover

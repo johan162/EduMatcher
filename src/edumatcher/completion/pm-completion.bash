@@ -1690,7 +1690,7 @@ complete -o bashdefault -F _shtab_pm_audit_cli pm-audit-cli
 #    source ~/.local/share/bash_completion/pm-audit-replay
 # See also: https://github.com/scop/bash-completion/blob/main/doc/configuration.md
 
-_shtab_pm_audit_replay_subparsers=(stream story index digest episodes anomalies stats)
+_shtab_pm_audit_replay_subparsers=(stream story index digest episodes anomalies rerun stats)
 
 _shtab_pm_audit_replay_stream_option_strings=(-h --help --log-file --db --no-index --rebuild --from --to --date --last --symbol --gateway --kind -q -v --format --show-source --show-units --explain --id-len --actor-style --tz --reorder-window --no-color --force-color --strict --clock-skew-warn)
 _shtab_pm_audit_replay_story_option_strings=(-h --help --log-file --db --no-index --rebuild --from --to --date --last --symbol --gateway --kind -q -v --format --show-source --show-units --explain --id-len --actor-style --tz --reorder-window --no-color --force-color --strict --clock-skew-warn --order --trade --quote --oco --combo --command --client-tag --chain --msg --depth --strict-causality)
@@ -1698,6 +1698,7 @@ _shtab_pm_audit_replay_index_option_strings=(-h --help --log-file --db --no-inde
 _shtab_pm_audit_replay_digest_option_strings=(-h --help --log-file --db --no-index --rebuild --from --to --date --last --symbol --gateway --kind -q -v --format --show-source --show-units --explain --id-len --actor-style --tz --reorder-window --no-color --force-color --strict --clock-skew-warn --top --significance)
 _shtab_pm_audit_replay_episodes_option_strings=(-h --help --log-file --db --no-index --rebuild --from --to --date --last --symbol --gateway --kind -q -v --format --show-source --show-units --explain --id-len --actor-style --tz --reorder-window --no-color --force-color --strict --clock-skew-warn --outcome)
 _shtab_pm_audit_replay_anomalies_option_strings=(-h --help --log-file --db --no-index --rebuild --from --to --date --last --symbol --gateway --kind -q -v --format --show-source --show-units --explain --id-len --actor-style --tz --reorder-window --no-color --force-color --strict --clock-skew-warn --severity)
+_shtab_pm_audit_replay_rerun_option_strings=(-h --help --log-file --db --no-index --rebuild --from --to --date --last --symbol --gateway --kind -q -v --format --show-source --show-units --explain --id-len --actor-style --tz --reorder-window --no-color --force-color --strict --clock-skew-warn)
 _shtab_pm_audit_replay_stats_option_strings=(-h --help --log-file --db --no-index --rebuild --from --to --date --last --symbol --gateway --kind -q -v --format --show-source --show-units --explain --id-len --actor-style --tz --reorder-window --no-color --force-color --strict --clock-skew-warn)
 _shtab_pm_audit_replay_option_strings=(-h --help --version --log-file --db --no-index --rebuild --from --to --date --last --symbol --gateway --kind -q -v --format --show-source --show-units --explain --id-len --actor-style --tz --reorder-window --no-color --force-color --strict --clock-skew-warn)
 
@@ -1717,9 +1718,11 @@ _shtab_pm_audit_replay_episodes___actor_style_choices=(id descriptive)
 _shtab_pm_audit_replay_anomalies___format_choices=(text ndjson json markdown csv)
 _shtab_pm_audit_replay_anomalies___actor_style_choices=(id descriptive)
 _shtab_pm_audit_replay_anomalies___severity_choices=(error warn info)
+_shtab_pm_audit_replay_rerun___format_choices=(text ndjson json markdown csv)
+_shtab_pm_audit_replay_rerun___actor_style_choices=(id descriptive)
 _shtab_pm_audit_replay_stats___format_choices=(text ndjson json markdown csv)
 _shtab_pm_audit_replay_stats___actor_style_choices=(id descriptive)
-_shtab_pm_audit_replay_pos_0_choices=(stream story index digest episodes anomalies stats)
+_shtab_pm_audit_replay_pos_0_choices=(stream story index digest episodes anomalies rerun stats)
 _shtab_pm_audit_replay___format_choices=(text ndjson json markdown csv)
 _shtab_pm_audit_replay___actor_style_choices=(id descriptive)
 
@@ -1797,6 +1800,18 @@ _shtab_pm_audit_replay_anomalies___explain_nargs=0
 _shtab_pm_audit_replay_anomalies___no_color_nargs=0
 _shtab_pm_audit_replay_anomalies___force_color_nargs=0
 _shtab_pm_audit_replay_anomalies___strict_nargs=0
+_shtab_pm_audit_replay_rerun__h_nargs=0
+_shtab_pm_audit_replay_rerun___help_nargs=0
+_shtab_pm_audit_replay_rerun___no_index_nargs=0
+_shtab_pm_audit_replay_rerun___rebuild_nargs=0
+_shtab_pm_audit_replay_rerun__q_nargs=0
+_shtab_pm_audit_replay_rerun__v_nargs=0
+_shtab_pm_audit_replay_rerun___show_source_nargs=0
+_shtab_pm_audit_replay_rerun___show_units_nargs=0
+_shtab_pm_audit_replay_rerun___explain_nargs=0
+_shtab_pm_audit_replay_rerun___no_color_nargs=0
+_shtab_pm_audit_replay_rerun___force_color_nargs=0
+_shtab_pm_audit_replay_rerun___strict_nargs=0
 _shtab_pm_audit_replay_stats__h_nargs=0
 _shtab_pm_audit_replay_stats___help_nargs=0
 _shtab_pm_audit_replay_stats___no_index_nargs=0

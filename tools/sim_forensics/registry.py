@@ -13,6 +13,8 @@ from typing import Literal
 
 from sim_forensics.dataset import Dataset
 
+from edumatcher.audit.rawlines import Unavailable
+
 #: Oracle types — workplan §3.
 ORACLES = (
     "conservation",
@@ -38,8 +40,9 @@ class Outcome:
     note: str = ""
 
 
-class Skipped(Exception):
-    """Raised by a check whose stores are present but cannot answer it."""
+#: Raised by a check whose stores are present but cannot answer it. The same
+#: class the shipped audit reader raises, so a check need not translate it.
+Skipped = Unavailable
 
 
 @dataclass(frozen=True)

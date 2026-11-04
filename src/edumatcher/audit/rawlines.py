@@ -1,0 +1,105 @@
+"""The audit trail, read as the engine published it, line by line and fast.
+
+pm-audit has one SUB socket on the engine's PUB socket, so the files, oldest
+first, hold every engine message in publish order -- including the inbound
+commands, which the engine republishes before acting on them. A line is::
+
+    [ts] [topic] [seq=N eseq=N msg=ULID cause=ULID chain=ULID] {json}
+
+Lines are split by hand, not by ``edumatcher.audit.query.parse_line``: a run
+holds ~15 M lines, most of them book snapshots a reader may skip unparsed.
+Shared by the re-run (``edumatcher.audit.replay.rerun``) and the simulation
+forensics checks.
+"""
+
+from __future__ import annotations
+
+import json
+from collections.abc import Iterator
+from datetime import datetime
+from pathlib import Path
+from typing import NamedTuple
+
+from edumatcher.audit.query import discover_log_files, open_log_file
+from edumatcher.models.generated.system import TOPIC_STARTUP
+
+
+class Unavailable(Exception):
+    """The audit cannot answer what was asked of it (it is empty, does not
+    begin at an engine start, or the engine ran on a YAML file)."""
+
+
+def iso_ns(ts: str) -> int:
+    """Nanoseconds since the epoch of an ISO timestamp ("Z" or an offset)."""
+    moment = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+    return int(moment.timestamp()) * 1_000_000_000 + moment.microsecond * 1000
+
+
+#: The engine's first message on every start (it carries the run's config).
+STARTUP = TOPIC_STARTUP
+
+
+class Line(NamedTuple):
+    topic: str
+    chain: str
+    #: The JSON payload, not yet parsed.
+    body: str
+    #: When pm-audit wrote the line (ISO, millisecond precision).
+    ts: str
+    #: The engine's per-topic sequence (None on a line without one).
+    seq: int | None = None
+    #: The engine's socket-wide sequence (None on a line without one).
+    eseq: int | None = None
+
+
+def audit_files(data_dir: Path) -> list[Path]:
+    """The run's audit files, oldest first (empty when there is none): the
+    daily archives, then the live trail. ``discover_log_files`` leaves the
+    archives out, but a run that crossed midnight starts in one."""
+    archives = sorted((data_dir / "audit").glob("audit-????-??-??.log.zst"))
+    return archives + discover_log_files(data_dir / "audit.log")
+
+
+def lines(files: list[Path], topics: tuple[str, ...] | None = None) -> Iterator[Line]:
+    """The audit's lines; with *topics*, only those whose topic starts with
+    one of them (skipped lines are not split further). Not for a reader that
+    tells where a message chain ends by the next line, whatever its topic."""
+    for path in files:
+        for raw in open_log_file(path):
+            if not raw.startswith("["):
+                continue
+            a = raw.find("] [", 1)
+            b = raw.find("] [", a + 3)
+            c = raw.find("] ", b + 3)
+            if a < 0 or b < 0 or c < 0:
+                continue
+            if topics is not None and not raw.startswith(topics, a + 3):
+                continue
+            meta = raw[b + 3 : c]
+            chain = meta[meta.rfind("chain=") + 6 :]
+            seq = eseq = None
+            if meta.startswith("seq="):
+                end = meta.find(" ")
+                seq = int(meta[4 : end if end > 0 else None])
+                if meta.startswith("eseq=", end + 1):
+                    stop = meta.find(" ", end + 1)
+                    eseq = int(meta[end + 6 : stop if stop > 0 else None])
+            yield Line(raw[a + 3 : b], chain, raw[c + 2 :], raw[1:a], seq, eseq)
+
+
+def run_config_text(files: list[Path]) -> str:
+    """The compiled config artifact the run's engine announced in its first
+    message, ``system.startup``: the audit describes its own run."""
+    for ln in lines(files):
+        if ln.topic != STARTUP:
+            raise Unavailable(
+                f"the audit does not begin with the engine's start ({STARTUP}); "
+                f"first line: {ln.topic}"
+            )
+        text = json.loads(ln.body).get("config")
+        if not text:
+            raise Unavailable(
+                f"{STARTUP} carries no config (the engine ran on a YAML file)"
+            )
+        return str(text)
+    raise Unavailable("the audit is empty")

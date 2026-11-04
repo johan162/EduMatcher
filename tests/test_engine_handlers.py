@@ -49,6 +49,12 @@ class _FakeSock:
     def send_multipart(self, frames: list[bytes]) -> None:
         self.sent.append(frames)
 
+    def begin_unit(self) -> None:
+        pass
+
+    def end_unit(self) -> None:
+        pass
+
     def close(self) -> None:
         self.closed = True
 
