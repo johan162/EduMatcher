@@ -227,9 +227,11 @@ def _balf_authenticate(
     engine_pub: "zmq.Socket[bytes]",
     gateway_id: str = "TRADER01",
 ) -> bytes:
-    """Complete LOGON → engine auth → LOGON_ACK round-trip.
+    """Complete LOGON → engine auth → symbols → LOGON_ACK round-trip.
 
-    Returns the raw LOGON_ACK body.
+    Returns the raw LOGON_ACK body. The symbols reply is part of the handshake:
+    the gateway holds the accepted LOGON_ACK back until it knows every symbol's
+    tick scale (K11/B1).
     """
     bc.send(_build_logon(gateway_id))
 
@@ -248,6 +250,12 @@ def _balf_authenticate(
                 "reason": "",
                 "description": "integration test gateway",
             },
+        )
+    )
+    engine_pub.send_multipart(
+        encode(
+            f"system.symbols.{gateway_id}",
+            {"symbols": [{"symbol": "AAPL", "tick_decimals": 2}]},
         )
     )
 

@@ -187,6 +187,18 @@ def _publish_auth(
     )
 
 
+def _publish_symbols(
+    pub: "zmq.Socket[bytes]",
+    gateway_id: str = "TRADER01",
+) -> None:
+    pub.send_multipart(
+        encode(
+            f"system.symbols.{gateway_id}",
+            {"symbols": [{"symbol": "AAPL", "tick_decimals": 2}]},
+        )
+    )
+
+
 def _do_auth(
     bc: _BalfClient,
     pull: "zmq.Socket[bytes]",
@@ -197,6 +209,8 @@ def _do_auth(
     _drain_until(pull, "system.gateway_connect")
     time.sleep(0.1)  # allow ZMQ PUB subscription to propagate
     _publish_auth(pub, gateway_id, accepted=True)
+    # The accepted LOGON_ACK is held until symbol metadata arrives (K11/B1).
+    _publish_symbols(pub, gateway_id)
     return bc.recv_until(MSG_LOGON_ACK)
 
 
@@ -568,6 +582,7 @@ class TestFrameStreaming:
             _drain_until(pull, "system.gateway_connect")
             time.sleep(0.1)
             _publish_auth(pub)
+            _publish_symbols(pub)
 
             body = bc.recv_until(MSG_LOGON_ACK, timeout=3.0)
             assert body[16] == 1  # accepted
