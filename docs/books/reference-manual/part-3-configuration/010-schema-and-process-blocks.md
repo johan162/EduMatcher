@@ -205,6 +205,7 @@ post_trade_gateway:
   replay_retention_sec: 86400
   heartbeat_interval_sec: 1
   idle_timeout_sec: 5
+  max_connections: 64
   max_client_queue: 10000
   allowed_roles:
     - CLEARING
@@ -220,6 +221,7 @@ client roles it will accept. In the current implementation:
 - `replay_retention_sec` controls the in-memory replay window
 - `heartbeat_interval_sec` controls `HB` cadence
 - `idle_timeout_sec` controls inactive-session disconnect timing
+- `max_connections` caps simultaneous TCP connections
 - `max_client_queue` caps slow-client buffering before `SLOW_CLIENT`
 - `allowed_roles` limits accepted `HELLO|ROLE=...` values
 
@@ -341,6 +343,7 @@ dc_gateway:
   port: 5590
   heartbeat_interval_sec: 5
   idle_timeout_sec: 30
+  max_connections: 64
   max_client_queue: 10000
 ```
 
@@ -349,8 +352,9 @@ dc_gateway:
 | `name` | `dc-gwy01` | Gateway name echoed in `WELCOME` |
 | `bind_address` | `0.0.0.0` | TCP listen interface (`127.0.0.1` for loopback-only) |
 | `port` | `5590` | TCP listen port |
-| `heartbeat_interval_sec` | `5` | Seconds between server-initiated `HB` lines when no other outbound traffic |
-| `idle_timeout_sec` | `30` | Disconnect a session if no inbound traffic arrives within this window |
+| `heartbeat_interval_sec` | `5` | Seconds between server-initiated `HB` lines |
+| `idle_timeout_sec` | `30` | Disconnect a session when no traffic flows in either direction within this window |
+| `max_connections` | `64` | Maximum simultaneous TCP connections |
 | `max_client_queue` | `10000` | Per-client outbound buffer depth before a slow-client disconnect |
 
 The drop-copy source address the gateway relays from (`tcp://127.0.0.1:5557`,

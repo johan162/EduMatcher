@@ -138,6 +138,7 @@ def _resolve_config(args: argparse.Namespace) -> RalfGatewayConfig:
         replay_retention_sec=cfg.replay_retention_sec,
         heartbeat_interval_sec=cfg.heartbeat_interval_sec,
         idle_timeout_sec=cfg.idle_timeout_sec,
+        max_connections=cfg.max_connections,
         max_client_queue=cfg.max_client_queue,
         allowed_roles=cfg.allowed_roles,
     )

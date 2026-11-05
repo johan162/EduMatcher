@@ -656,6 +656,36 @@ class TestLayer2PostTradeAndMarketDataGatewaySchema:
         results = layer2_schema.check(raw, Path("x.yaml"))
         assert "S083" in _codes(results)
 
+    def test_s082_post_trade_max_connections_invalid(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL: {}\n"
+            "participants:\n    - id: GW01\n"
+            "post_trade_gateway:\n"
+            "  max_connections: 0\n"
+        )
+        results = layer2_schema.check(raw, Path("x.yaml"))
+        assert "S082" in _codes(results)
+
+    def test_s093_dc_max_connections_invalid(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL: {}\n"
+            "participants:\n    - id: GW01\n"
+            "dc_gateway:\n"
+            "  max_connections: 0\n"
+        )
+        results = layer2_schema.check(raw, Path("x.yaml"))
+        assert "S093" in _codes(results)
+
+    def test_max_connections_is_a_known_ralf_and_dc_field(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL: {}\n"
+            "participants:\n    - id: GW01\n"
+            "post_trade_gateway:\n  max_connections: 8\n"
+            "dc_gateway:\n  max_connections: 8\n"
+        )
+        results = layer2_schema.check(raw, Path("x.yaml"))
+        assert not [r for r in results if "max_connections" in r.message]
+
 
 class TestLayer2IndicesAndCombosSchema:
     def test_s043_indices_not_list(self) -> None:

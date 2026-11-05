@@ -506,18 +506,18 @@ details.
 
 Map observed ERR codes to operator action:
 
-- AUTH_REQUIRED: client handshake bug or ordering error
-- PROTO_MISMATCH: wrong protocol negotiation value
+- AUTH_REQUIRED: client handshake bug or ordering error, or a HELLO with a
+  missing CLIENT or wrong PROTO
 - INVALID_CHANNEL: unsupported CH value
 - INVALID_SYMBOL: unknown symbol, or `SYM=*` used with `INDEX`/`DEPTH`/`CB`
 - REPLAY_MISS: requested resume point outside replay retention
 - RATE_LIMITED: client is sending commands too fast; throttle it
 - SUB_LIMIT: too many subscriptions on one session; subscribe more narrowly
+- SLOW_CLIENT: the consumer could not keep up; its backlog was dropped and
+  the session closed — reconnect and use `RESUME` (Exercise 6)
 
-CALF has no `SLOW_CLIENT` error line. A consumer that cannot keep up with
-delivery is disconnected without any `ERR` being sent (the gateway logs
-`disconnecting slow client`), so the client only sees the connection drop —
-detect it by reconnecting and using `RESUME` (Exercise 6).
+A session the gateway ends for inactivity gets `EXIT|REASON=idle_timeout`
+before the socket closes.
 
 :material-checkbox-blank-outline: Checkpoint: you can convert each ERR code into a practical remediation step.
 

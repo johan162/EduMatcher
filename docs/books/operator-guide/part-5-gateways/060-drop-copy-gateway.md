@@ -95,6 +95,7 @@ dc_gateway:
   port: 5590
   heartbeat_interval_sec: 5
   idle_timeout_sec: 30
+  max_connections: 64
   max_client_queue: 10000
 ```
 
@@ -103,8 +104,9 @@ dc_gateway:
 | `name` | `dc-gwy01` | Process name echoed in `WELCOME` |
 | `bind_address` | `0.0.0.0` | Network interface to listen on (`127.0.0.1` for local-only) |
 | `port` | `5590` | TCP listen port |
-| `heartbeat_interval_sec` | `5` | Seconds between `HB` lines when no other outbound traffic |
-| `idle_timeout_sec` | `30` | Disconnect after this many seconds of inbound silence |
+| `heartbeat_interval_sec` | `5` | Seconds between `HB` lines, sent whether or not fills were sent in between |
+| `idle_timeout_sec` | `30` | Disconnect after this many seconds with no traffic in either direction. Heartbeats count, so a client that keeps reading is never idle |
+| `max_connections` | `64` | Simultaneous TCP connections; a connection beyond this is accepted and closed at once, without a line |
 | `max_client_queue` | `10000` | Per-client outbound line buffer capacity before the client is treated as slow and dropped |
 
 The drop-copy source address (`tcp://127.0.0.1:5557` by default) is **not**
@@ -221,6 +223,12 @@ HELLO|CLIENT=risksys|PROTO=DC1|ID=TRADER01
 On any other first line, or a `HELLO` missing `CLIENT`/`PROTO`/`ID`, the
 gateway sends `ERR|CODE=AUTH_REQUIRED|...` and closes the connection.
 
+A connection that sends no `HELLO` within 5 seconds receives
+`EXIT|REASON=auth_timeout` and is closed — the same deadline in all three
+line gateways (`pm-md-gwy`, `pm-ralf-gwy`, `pm-dc-gwy`). Lines a client sends after the one that
+ended its session (a `HELLO` pipelined behind a refused first line, for
+example) are ignored.
+
 !!! warning "No authentication"
     Unlike `pm-alf-gwy`, the `ID` in `HELLO` is not checked against
     `participants` or any other allowlist. Any client may request fills for
@@ -274,7 +282,7 @@ model, and no replay-by-sequence.
 | `WELCOME` | `PROTO`, `GW`, `ID`, `HBINT`, `IDLE` | Reply to a valid `HELLO` |
 | `DC_FILL` | `SEQ`, `ORDER_ID`, `SYMBOL`, `FILL_QTY`, `FILL_PRICE`, `LIQUIDITY` | Unsolicited, one per fill for the session's gateway ID |
 | `PONG` | `TS` | Reply to `PING` |
-| `HB` | `TS` | Periodic heartbeat when no other outbound traffic |
+| `HB` | `TS` | Heartbeat every `HBINT` seconds |
 | `ERR` | `CODE`, `DETAIL` | See [Error codes](#error-codes) |
 
 `DC_FILL` fields map directly from the drop-copy payload — see
@@ -297,9 +305,8 @@ Every error arrives as `ERR|CODE=<CODE>|DETAIL=<message>`.
 | Code | When it occurs | Connection kept? |
 |------|---------------|-----------------|
 | `AUTH_REQUIRED` | First line was not `HELLO`, or `HELLO` was missing `CLIENT`/`PROTO`/`ID` | No — closed immediately |
-| `BAD_MESSAGE` | Empty line, non-UTF-8, unparseable line, or line > 4096 bytes | Yes (or No if unrecoverable — see detail) |
+| `BAD_MESSAGE` | Empty line, unparseable line, or unsupported message type; or a line over 4096 bytes including the newline (`DETAIL=line exceeds 4096 bytes`) | Yes — except for an oversized line, which closes it |
 | `SLOW_CLIENT` | Outbound queue exceeded `max_client_queue` | No |
-| `IDLE_TIMEOUT` | No inbound traffic for `idle_timeout_sec` | No |
 
 `SLOW_CLIENT` and the idle timeout end the connection even for a client that
 has stopped reading: the gateway tries to deliver the final line, then closes
@@ -395,7 +402,8 @@ Expected output: `WELCOME|...` followed by a clean connection close.
 | `Connection refused` | Gateway not started or wrong port | Confirm `pm-dc-gwy` is running; check `dc_gateway.port` in config |
 | `ERR\|CODE=AUTH_REQUIRED` immediately | First line was not `HELLO`, or a required field was missing | Ensure the first line is `HELLO\|CLIENT=..\|PROTO=DC1\|ID=..` |
 | `WELCOME` arrives but no `DC_FILL` ever does | No fills have occurred for that gateway ID yet, or `pm-engine`'s drop-copy publisher failed to bind | Check `pm-engine` logs for drop-copy bind warnings; confirm trades are occurring for that gateway ID |
-| Gateway closes after ~30s of silence | `idle_timeout_sec` elapsed | Send `PING` periodically, or increase `idle_timeout_sec` in config |
+| `EXIT\|REASON=idle_timeout` | Writes to the client stopped succeeding for `idle_timeout_sec` — it is not reading its socket | Read continuously; heartbeats alone keep a reading client connected |
+| `EXIT\|REASON=auth_timeout` | No `HELLO` within 5 seconds of connecting | Send `HELLO` as the first line, straight after connecting |
 | Gateway not reachable from another host | `bind_address: 127.0.0.1` | Change `bind_address` to `0.0.0.0` (or the specific interface IP) |
 
 

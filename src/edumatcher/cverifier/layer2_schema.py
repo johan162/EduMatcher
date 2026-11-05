@@ -2399,7 +2399,7 @@ def _check_market_data_gateway(raw: dict[str, Any], results: list[CheckResult]) 
 # dc_gateway schema checks (S090–S094)
 # ---------------------------------------------------------------------------
 
-_DC_POSITIVE_INT_FIELDS = ("max_client_queue",)
+_DC_POSITIVE_INT_FIELDS = ("max_connections", "max_client_queue")
 
 _DC_POSITIVE_INT_OR_FLOAT_FIELDS = (
     "heartbeat_interval_sec",
@@ -3004,6 +3004,7 @@ _PROCESS_BLOCK_KEYS: dict[str, frozenset[str]] = {
             "replay_retention_sec",
             "heartbeat_interval_sec",
             "idle_timeout_sec",
+            "max_connections",
             "max_client_queue",
             "allowed_roles",
         }
@@ -3015,6 +3016,7 @@ _PROCESS_BLOCK_KEYS: dict[str, frozenset[str]] = {
             "port",
             "heartbeat_interval_sec",
             "idle_timeout_sec",
+            "max_connections",
             "max_client_queue",
         }
     ),

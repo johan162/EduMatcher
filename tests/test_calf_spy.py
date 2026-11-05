@@ -504,3 +504,36 @@ def test_plan_subscriptions_leaves_an_all_eligible_request_intact() -> None:
 
     assert subscriptions == [(["TOP", "TRADE"], ["*"])]
     assert skipped == []
+
+
+def test_format_human_exit_uses_the_session_layout() -> None:
+    """A gateway EXIT has no CH/SYM/SEQ; it must not render as a stream row
+    with empty channel columns and a bare '#'."""
+    line = format_human(CalfFrame("EXIT", {"REASON": "idle_timeout", "TS": "x"}))
+    assert "EXIT" in line
+    assert "REASON=idle_timeout" in line
+    assert "#" not in line
+
+
+def test_a_refused_handshake_is_a_reported_error_not_a_traceback(
+    running_gateway: MarketDataGateway,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """CLIENT over 32 characters gets ERR|CODE=AUTH_REQUIRED; the library
+    raises CalfProtocolMismatch, which used to escape the CLI uncaught."""
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "pm-calf-spy",
+            "--port",
+            str(running_gateway.config.port),
+            "--client-name",
+            "X" * 40,
+            "--no-color",
+        ],
+    )
+    with pytest.raises(SystemExit) as excinfo:
+        calf_spy_cli.main()
+    assert excinfo.value.code == 1
+    assert "gateway rejected HELLO: AUTH_REQUIRED" in capsys.readouterr().out

@@ -72,7 +72,13 @@ _WILDCARD_ELIGIBLE_CHANNELS = frozenset({"STATE", "TOP", "TRADE", "AUCTION"})
 # cannot drift.
 _SNAPSHOT_CHANNELS = frozenset({"TOP", "STATE", "INDEX", "DEPTH", "CB"})
 _MAX_LINE_BYTES = 4096
-_HELLO_TIMEOUT_SEC = 5
+#: Longest a closing session may take to drain its final line (SLOW_CLIENT
+#: error, idle EXIT, a refused HELLO) before it is disconnected regardless --
+#: the same grace pm-ralf-gwy and pm-dc-gwy give.
+CLOSE_GRACE_SEC = 5.0
+#: A connection must send HELLO within this long or is closed with
+#: EXIT|REASON=auth_timeout -- the same deadline in all three line gateways.
+HELLO_TIMEOUT_SEC = 5.0
 _MAX_ENGINE_EVENTS_PER_LOOP = 2000
 _DEBUG_SUMMARY_INTERVAL_SEC = 5.0
 # How often the engine is asked for its session state. Repeated rather than
@@ -110,8 +116,11 @@ class MarketDataGateway:
         # Health beacon (operator dashboard §8.5); attached by main(). This
         # gateway never drops a message for a slow client -- it disconnects
         # it -- so disconnects by reason are its back-pressure signal (F6).
+        # slow_clients counts sessions flagged slow, once each; closing_clients
+        # is how many are draining their final line (at most CLOSE_GRACE_SEC).
         self._reporter: HealthReporter | None = None
         self._msgs_out = 0
+        self._slow_clients = 0
         self._disconnects: dict[str, int] = {}
 
         self._subs = SubscriptionRegistry()
@@ -219,13 +228,16 @@ class MarketDataGateway:
         self._reporter = reporter
 
     def metric_samples(self) -> list[MetricSample]:
-        """Design §8.5: clients, messages out, disconnects by reason."""
+        """Design §8.5: clients, messages out, disconnects by reason, plus the
+        two signals for clients stuck in close-after-flush."""
         return client_gateway_samples(
             "md",
             clients=len(self._clients),
             clients_max=self.config.max_connections,
             msgs_out=self._msgs_out,
             disconnects=self._disconnects,
+            slow_clients=self._slow_clients,
+            closing_clients=sum(1 for s in self._clients.values() if s.closing),
         )
 
     def close(self) -> None:
@@ -280,6 +292,7 @@ class MarketDataGateway:
                 continue
 
             conn.setblocking(False)
+            conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
             session = ClientSession(sock=conn, addr=addr)
             session.rate_tokens = float(self.config.max_messages_per_second)
             self._clients[conn.fileno()] = session
@@ -306,7 +319,13 @@ class MarketDataGateway:
 
             try:
                 chunk = session.sock.recv(4096)
-            except BlockingIOError, OSError:
+            except BlockingIOError:
+                continue
+            except OSError as exc:
+                # ECONNRESET and the like: the peer is gone. Treating it as
+                # "no data yet" left the session to linger until idle timeout.
+                log.info("recv failed fd=%d: %s", session.sock.fileno(), exc)
+                self._disconnect(session, reason="peer_reset")
                 continue
 
             if not chunk:
@@ -315,25 +334,6 @@ class MarketDataGateway:
 
             session.in_buffer.extend(chunk)
             session.last_activity = time.monotonic()
-
-            # Defensive framing guard: when no newline arrives and the line grows
-            # beyond the protocol max, fail fast to avoid unbounded buffering.
-            if (
-                b"\n" not in session.in_buffer
-                and len(session.in_buffer) > _MAX_LINE_BYTES
-            ):
-                self._queue_line(
-                    session,
-                    "ERR",
-                    {"CODE": "BAD_MESSAGE", "MSG": "line exceeds 4096 bytes"},
-                )
-                log.warning(
-                    "dropping client fd=%d due to oversized inbound line",
-                    session.sock.fileno(),
-                )
-                self._close_after_flush(session)
-                continue
-
             self._drain_lines(session)
 
     def _drain_lines(self, session: ClientSession) -> None:
@@ -345,28 +345,44 @@ class MarketDataGateway:
         3) multiple lines in one recv chunk
         """
         while True:
+            if session.closing:
+                # The line that closed it was its last: nothing after it is
+                # answered or acted on (a pipelined HELLO, SUB, ...).
+                session.in_buffer.clear()
+                return
+
             idx = session.in_buffer.find(b"\n")
             if idx < 0:
+                # No newline yet: a buffer already at the limit can only
+                # become an oversized line, so refuse it now rather than
+                # buffer without bound.
+                if len(session.in_buffer) >= _MAX_LINE_BYTES:
+                    self._reject_oversized_line(session)
+                    continue
                 return
 
             raw = bytes(session.in_buffer[:idx])
             del session.in_buffer[: idx + 1]
 
             if len(raw) + 1 > _MAX_LINE_BYTES:
-                self._queue_line(
-                    session,
-                    "ERR",
-                    {"CODE": "BAD_MESSAGE", "MSG": "line exceeds 4096 bytes"},
-                )
-                log.warning(
-                    "dropping client fd=%d due to oversized framed line",
-                    session.sock.fileno(),
-                )
-                self._close_after_flush(session)
-                return
+                self._reject_oversized_line(session)
+                continue
 
             line = raw.decode("utf-8", errors="replace")
             self._handle_client_line(session, line)
+
+    def _reject_oversized_line(self, session: ClientSession) -> None:
+        log.warning(
+            "dropping client fd=%d: inbound line exceeds %d bytes",
+            session.sock.fileno(),
+            _MAX_LINE_BYTES,
+        )
+        self._queue_line(
+            session,
+            "ERR",
+            {"CODE": "BAD_MESSAGE", "DETAIL": f"line exceeds {_MAX_LINE_BYTES} bytes"},
+        )
+        self._close_after_flush(session)
 
     def _flush_client_writes(self) -> None:
         """Flush queued outbound bytes to all clients.
@@ -374,6 +390,7 @@ class MarketDataGateway:
         Writes are non-blocking and may complete partially; ``out_offset`` tracks
         progress for the first queued message until fully sent.
         """
+        now = time.monotonic()
         for session in list(self._clients.values()):
             while session.out_queue:
                 payload = session.out_queue[0]
@@ -402,18 +419,29 @@ class MarketDataGateway:
                     session.out_queue.popleft()
                     session.out_offset = 0
 
-            if len(session.out_queue) > self.config.max_client_queue:
+            if (
+                not session.closing
+                and len(session.out_queue) > self.config.max_client_queue
+            ):
+                self._slow_clients += 1
                 log.warning(
                     "disconnecting slow client fd=%d queue=%d max=%d",
                     session.sock.fileno(),
                     len(session.out_queue),
                     self.config.max_client_queue,
                 )
-                self._disconnect(session, reason="slow_client")
-                continue
+                self._drop_backlog(session)
+                self._queue_line(
+                    session,
+                    "ERR",
+                    {"CODE": "SLOW_CLIENT", "DETAIL": "queue overflow"},
+                )
+                self._close_after_flush(session, reason="slow_client")
 
-            if session.closing and not session.out_queue:
-                self._disconnect(session, reason="close_after_flush")
+            if session.closing and (
+                not session.out_queue or now - session.closing_since >= CLOSE_GRACE_SEC
+            ):
+                self._disconnect(session, reason=session.close_reason)
 
     # ------------------------------------------------------------------
     # Protocol handling
@@ -429,7 +457,7 @@ class MarketDataGateway:
             self._queue_line(
                 session,
                 "ERR",
-                {"CODE": "BAD_MESSAGE", "MSG": "parse error"},
+                {"CODE": "BAD_MESSAGE", "DETAIL": "parse error"},
             )
             return
 
@@ -438,7 +466,7 @@ class MarketDataGateway:
             self._queue_line(
                 session,
                 "ERR",
-                {"CODE": "RATE_LIMITED", "MSG": "too many messages"},
+                {"CODE": "RATE_LIMITED", "DETAIL": "too many messages"},
             )
             return
 
@@ -447,7 +475,7 @@ class MarketDataGateway:
                 self._queue_line(
                     session,
                     "ERR",
-                    {"CODE": "AUTH_REQUIRED", "MSG": "send HELLO first"},
+                    {"CODE": "AUTH_REQUIRED", "DETAIL": "send HELLO first"},
                 )
                 log.info(
                     "pre-auth command rejected fd=%d cmd=%s",
@@ -468,14 +496,14 @@ class MarketDataGateway:
         elif frame.msg_type == "UNSUB":
             self._handle_unsub(session, frame.fields)
         elif frame.msg_type == "PING":
-            self._queue_raw(session, build_line("PONG"), is_market_data=False)
+            self._queue_line(session, "PONG", {"TS": iso_utc(time.time())})
         elif frame.msg_type == "EXIT":
             self._close_after_flush(session)
         else:
             self._queue_line(
                 session,
                 "ERR",
-                {"CODE": "BAD_MESSAGE", "MSG": f"unsupported {frame.msg_type}"},
+                {"CODE": "BAD_MESSAGE", "DETAIL": f"unsupported {frame.msg_type}"},
             )
             log.debug(
                 "unsupported command fd=%d cmd=%s",
@@ -490,7 +518,7 @@ class MarketDataGateway:
             self._queue_line(
                 session,
                 "ERR",
-                {"CODE": "PROTO_MISMATCH", "MSG": "CLIENT and PROTO=CALF1 required"},
+                {"CODE": "AUTH_REQUIRED", "DETAIL": "CLIENT/PROTO required"},
             )
             self._close_after_flush(session)
             return
@@ -594,7 +622,7 @@ class MarketDataGateway:
                 "ERR",
                 {
                     "CODE": "BAD_MESSAGE",
-                    "MSG": "RESUME requires exactly one CH and one SYM",
+                    "DETAIL": "RESUME requires exactly one CH and one SYM",
                 },
             )
             return
@@ -606,7 +634,7 @@ class MarketDataGateway:
             self._queue_line(
                 session,
                 "ERR",
-                {"CODE": "BAD_MESSAGE", "MSG": "LASTSEQ must be an integer"},
+                {"CODE": "BAD_MESSAGE", "DETAIL": "LASTSEQ must be an integer"},
             )
             return
 
@@ -614,7 +642,7 @@ class MarketDataGateway:
             self._queue_line(
                 session,
                 "ERR",
-                {"CODE": "BAD_MESSAGE", "MSG": "LASTSEQ must be > 0"},
+                {"CODE": "BAD_MESSAGE", "DETAIL": "LASTSEQ must be > 0"},
             )
             return
 
@@ -655,7 +683,9 @@ class MarketDataGateway:
             self._subs.set_for_client(session.sock.fileno(), session.subscriptions)
 
         try:
-            lines = self._replay.replay_since(ch, sym, last_seq)
+            lines = self._replay.replay_since(
+                ch, sym, last_seq, self._sequencer.current(ch, sym) or 0
+            )
         except ReplayMissError:
             log.debug(
                 "[fd=%d] replay miss ch=%s sym=%s last_seq=%s",
@@ -765,7 +795,11 @@ class MarketDataGateway:
         channels = self._parse_csv_upper(fields.get("CH", ""))
         symbols = self._parse_csv_upper(fields.get("SYM", ""))
         if not channels or not symbols:
-            self._queue_line(session, "ERR", {"CODE": "BAD_MESSAGE"})
+            self._queue_line(
+                session,
+                "ERR",
+                {"CODE": "BAD_MESSAGE", "DETAIL": "CH and SYM required"},
+            )
             return
 
         for ch in channels:
@@ -818,6 +852,12 @@ class MarketDataGateway:
         This method centralizes sequence allocation + replay persistence so all
         CALF stream event types behave consistently.
         """
+        # A repeated trade is dropped before a sequence number is taken for
+        # it: taking one and then dropping the line left a hole that every
+        # subscriber saw as a gap.
+        trade_id = payload_fields.get("TRADE_ID") if ch == "TRADE" else None
+        if trade_id is not None and self._replay.has_trade(ch, sym, trade_id):
+            return
         seq = self._sequencer.next_seq(ch, sym)
         fields = {
             "CH": ch,
@@ -828,9 +868,7 @@ class MarketDataGateway:
         fields.update(payload_fields)
 
         line = build_line(msg_type, fields)
-        trade_id = payload_fields.get("TRADE_ID") if ch == "TRADE" else None
-        if not self._replay.append(ch, sym, seq, line, trade_id=trade_id):
-            return
+        self._replay.append(ch, sym, seq, line, trade_id=trade_id)
         self._dbg_count("stream_events")
 
         for target in self._clients.values():
@@ -1056,15 +1094,24 @@ class MarketDataGateway:
     def _drop_idle_clients(self) -> None:
         now = time.monotonic()
         for session in list(self._clients.values()):
-            idle = now - session.last_activity
-            if (
-                not session.authenticated
-                and now - session.connected_at > _HELLO_TIMEOUT_SEC
-            ):
-                self._disconnect(session, reason="auth_timeout")
+            if session.closing:
+                continue  # already on its way out; do not queue another EXIT
+            if not session.authenticated:
+                if now - session.connected_at > HELLO_TIMEOUT_SEC:
+                    self._queue_line(
+                        session,
+                        "EXIT",
+                        {"REASON": "auth_timeout", "TS": iso_utc(time.time())},
+                    )
+                    self._close_after_flush(session, reason="auth_timeout")
                 continue
-            if session.authenticated and idle > self.config.idle_timeout_sec:
-                self._disconnect(session, reason="idle_timeout")
+            if now - session.last_activity > self.config.idle_timeout_sec:
+                self._queue_line(
+                    session,
+                    "EXIT",
+                    {"REASON": "idle_timeout", "TS": iso_utc(time.time())},
+                )
+                self._close_after_flush(session, reason="idle_timeout")
 
     # ------------------------------------------------------------------
     # Queue/disconnect helpers
@@ -1085,13 +1132,9 @@ class MarketDataGateway:
         *,
         is_market_data: bool,
     ) -> None:
-        if session.closing and is_market_data:
-            return
-        if len(session.out_queue) >= self.config.max_client_queue:
-            if not session.closing:
-                session.out_queue.clear()
-                session.out_offset = 0
-                session.closing = True
+        if session.closing:
+            # Its final line (ERR / EXIT) is already queued; anything more
+            # only grows the backlog of a client that is being dropped.
             return
         session.out_queue.append(payload)
         self._msgs_out += 1
@@ -1122,9 +1165,36 @@ class MarketDataGateway:
         self._subs.remove_client(fd)
         log.info("client disconnected fd=%d client=%s reason=%s", fd, client_id, reason)
 
-    def _close_after_flush(self, session: ClientSession) -> None:
+    def _close_after_flush(
+        self, session: ClientSession, reason: str = "close_after_flush"
+    ) -> None:
+        """Send what is queued, then disconnect -- within CLOSE_GRACE_SEC.
+
+        The grace is what makes this a disconnect for a client that has
+        stopped reading: its queue never drains, so without a deadline the
+        session (and its queue) lived until the idle timeout.
+        """
+        if session.closing:
+            return
         session.closing = True
-        log.debug("session fd=%d marked closing-after-flush", session.sock.fileno())
+        session.closing_since = time.monotonic()
+        session.close_reason = reason
+        log.debug(
+            "session fd=%d closing after flush (%s)", session.sock.fileno(), reason
+        )
+
+    @staticmethod
+    def _drop_backlog(session: ClientSession) -> None:
+        """Discard queued lines, keeping one already partly sent: cutting it
+        would leave a torn line on the wire ahead of the final ERR."""
+        head = (
+            session.out_queue[0] if session.out_queue and session.out_offset else None
+        )
+        session.out_queue.clear()
+        if head is None:
+            session.out_offset = 0
+        else:
+            session.out_queue.append(head)
 
     @staticmethod
     def _parse_csv_upper(raw: str) -> list[str]:

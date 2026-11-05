@@ -33,6 +33,7 @@ project's suspected-bugs report.
 | Default port | `5580` (`post_trade_gateway.port`) |
 | Encoding | UTF-8 text lines |
 | Delimiter | `\n` |
+| Max line length | 4096 bytes including newline |
 | Version token | `RALF1` |
 | Connection model | long-lived, one authenticated session per connection |
 | Direction | gateway → client for all data; client → gateway for control only |
@@ -40,7 +41,9 @@ project's suspected-bugs report.
 A session proceeds: **connect → `HELLO` → `WELCOME` → one or more `SUB`/`UNSUB` →
 event stream + heartbeats → `EXIT`/disconnect**. A client MUST send `HELLO` before
 any other message; a non-`HELLO` first message is rejected with
-`ERR|CODE=AUTH_REQUIRED`.
+`ERR|CODE=AUTH_REQUIRED`. A connection that sends no `HELLO` within 5 seconds
+receives `EXIT|REASON=auth_timeout` and is closed. Once the gateway has sent
+the line that ends a session, it ignores anything more the client sends.
 
 ## 4. Wire format
 
@@ -78,7 +81,7 @@ MSGTYPE|KEY=VALUE|KEY=VALUE|...\n
 | `EOD` | gw → client | end-of-day per-symbol summary marker |
 | `HB` | gw → client | heartbeat when the stream is quiet |
 | `PING` / `PONG` | client → gw / gw → client | liveness probe and reply |
-| `EXIT` | gw → client | session terminated (e.g. idle timeout) |
+| `EXIT` | both | from the gateway: session terminated, with `REASON` (e.g. `idle_timeout`); from the client: close after flushing |
 | `ERR` | gw → client | protocol, entitlement, or replay error |
 
 ## 6. Message definitions
@@ -159,9 +162,11 @@ Per-symbol end-of-day marker, derived from the engine `system.eod` broadcast.
 
 ### `HB`, `PING`/`PONG`, `EXIT`
 
-`HB|TS=…` is sent to authenticated clients when the stream is otherwise quiet
-(cadence `HBINT`). A client MAY send `PING`; the gateway replies `PONG|TS=…`.
-`EXIT|REASON=…|TS=…` signals gateway-initiated termination (e.g. `idle_timeout`).
+`HB|TS=…` is sent to every authenticated client every `HBINT` seconds. A client
+MAY send `PING`; the gateway replies `PONG|TS=…`. `EXIT|REASON=…|TS=…` signals
+gateway-initiated termination (`idle_timeout`, `auth_timeout`). A client MAY send
+a bare `EXIT` to end its session; the gateway closes after flushing — as
+`pm-md-gwy` and `pm-dc-gwy` do.
 
 ## 7. Roles & entitlements
 
@@ -193,7 +198,9 @@ threshold to each entitled channel independently and replays events where
 **Replay.** If `HELLO` carries `LASTSEQ`, the gateway attempts to resend journalled
 events with `SEQ > LASTSEQ` (per channel, as above) and only for channels the role
 is entitled to receive (§7). If `LASTSEQ` predates the retained journal window for
-any entitled channel (`replay_retention_sec`), the gateway emits
+any entitled channel (`replay_retention_sec`) — including a channel whose
+journal has aged out entirely — or is ahead of any entitled channel, as after a
+gateway restart, the gateway emits
 `ERR|CODE=REPLAY_MISS` followed by a `SNAP` baseline; the client MUST reset to that
 baseline.
 
@@ -211,9 +218,12 @@ baseline.
 | Idle timeout | `idle_timeout_sec` | 5 s |
 | Replay retention (`REPLAY`) | `replay_retention_sec` | 86400 s |
 
-The gateway sends `HB` when no other line has been sent within the heartbeat
-interval. A session with no inbound activity for the idle timeout is dropped
-(`EXIT|REASON=idle_timeout`). A client whose outbound queue exceeds
+The gateway sends `HB` to every authenticated client every heartbeat interval,
+whether or not other lines were sent in between. The idle timeout counts traffic
+in **both** directions — a line received, or a line the client actually took
+off the socket — so a client that keeps reading is never idle: the heartbeats
+alone keep it alive. In practice the idle timeout fires only when writes to a
+client have stopped succeeding; it then sends `EXIT|REASON=idle_timeout`. A client whose outbound queue exceeds
 `max_client_queue` receives `ERR|CODE=SLOW_CLIENT` and is disconnected.
 
 ## 10. Error codes
@@ -221,10 +231,10 @@ interval. A session with no inbound activity for the idle timeout is dropped
 | Code | Meaning / trigger |
 |------|-------------------|
 | `AUTH_REQUIRED` | first message was not `HELLO`, or `HELLO` missing `CLIENT`/`PROTO`/`ROLE` |
-| `BAD_MESSAGE` | unparseable line, unsupported message type, or malformed field (e.g. non-integer `LASTSEQ`) |
+| `BAD_MESSAGE` | unparseable line, unsupported message type, or malformed field (e.g. non-integer `LASTSEQ`); an oversized line (`DETAIL=line exceeds 4096 bytes`) also ends the session |
 | `INVALID_CHANNEL` | `SUB` with missing/empty or unknown `CH` |
 | `ENTITLEMENT_DENIED` | role not in `allowed_roles`, or channel outside the role's entitlement |
-| `REPLAY_MISS` | requested `LASTSEQ` is older than the retained journal window |
+| `REPLAY_MISS` | requested `LASTSEQ` is older than the retained journal window, or ahead of the channel (e.g. after a gateway restart) |
 | `SLOW_CLIENT` | outbound queue exceeded `max_client_queue`; session disconnected |
 
 `ERR` carries `CODE` and a human-readable `DETAIL`, e.g.
@@ -243,7 +253,8 @@ interval. A session with no inbound activity for the idle timeout is dropped
 | `port` | `5580` | TCP listen port |
 | `replay_retention_sec` | `86400` | journal window; advertised as `WELCOME\|REPLAY=` |
 | `heartbeat_interval_sec` | `1` | `HB` cadence; advertised as `WELCOME\|HBINT=` |
-| `idle_timeout_sec` | `5` | inbound-idle disconnect |
+| `idle_timeout_sec` | `5` | disconnect after this long with no traffic in either direction |
+| `max_connections` | `64` | simultaneous TCP connections; one beyond this is accepted and closed at once |
 | `max_client_queue` | `10000` | outbound backlog before `SLOW_CLIENT` |
 | `allowed_roles` | `[CLEARING, DROP_COPY, AUDIT]` | roles permitted to authenticate |
 

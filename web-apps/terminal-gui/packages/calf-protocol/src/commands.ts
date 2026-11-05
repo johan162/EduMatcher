@@ -22,10 +22,11 @@ export function buildHello(clientId: string): string {
  * The reply is every buffered message *past* `lastSeq`, so it necessarily
  * re-sends anything already delivered above that point — a caller must drop
  * what it has seen rather than assume the replay is disjoint from live
- * traffic. If the gap has aged out of the gateway's replay window the answer
- * is `ERR|CODE=REPLAY_MISS|CH=..|SYM=..`, followed by a fresh `SNAP` on the
- * channels that have one; on `TRADE` and `AUCTION` the missed events are
- * simply gone. See `apps/bridge/src/calf/uplink.ts` for a consumer.
+ * traffic. If the gateway no longer holds what was missed -- the gap aged out
+ * of its replay window, or `lastSeq` is ahead of the stream after a gateway
+ * restart -- the answer is `ERR|CODE=REPLAY_MISS|CH=..|SYM=..`, followed by a
+ * fresh `SNAP` on the channels that have one; on `TRADE` and `AUCTION` the
+ * missed events are simply gone. An empty reply means nothing was missed. See `apps/bridge/src/calf/uplink.ts` for a consumer.
  */
 export function buildResume(ch: Channel, symbol: string, lastSeq: number): string {
   return buildLine("RESUME", { CH: ch, SYM: symbol, LASTSEQ: String(lastSeq) });
@@ -45,11 +46,10 @@ export function buildUnsub(channels: Channel[], symbols: string[]): string {
 }
 
 /**
- * The gateway's idle timer only advances on *inbound* client bytes
- * (`ClientSession.last_activity` is set in `_read_client_data`); its own
- * outbound `HB` does not reset it. A bridge that only ever listens is
- * therefore disconnected after `idle_timeout_sec` (default 300). A periodic
- * `PING` — answered with `PONG` — is what keeps the session alive.
+ * Liveness probe, answered with `PONG|TS=..`.
+ *
+ * Not needed to stay connected: the gateway's idle timer counts traffic in
+ * both directions, so the `HB` lines it sends keep a reading client alive.
  */
 export function buildPing(): string {
   return buildLine("PING");

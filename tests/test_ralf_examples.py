@@ -368,3 +368,51 @@ def test_c_example_builds_and_receives_gateway_exec(
         proc.terminate()
         proc.wait(timeout=5)
         os.close(master_fd)
+
+
+def test_python_example_single_channel_snap_rebaselines_without_a_gap(
+    example_subscriber_module: ModuleType, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """After a REPLAY_MISS (e.g. a gateway restart) the SNAP's SEQ can be
+    lower than anything seen; it must reset the baseline, not raise a gap."""
+    subscriber_module = example_subscriber_module
+    seq_tracker = subscriber_module.ChannelSequenceTracker()
+    exec_tracker = subscriber_module.ExecTracker()
+
+    def feed(msg_type: str, seq: str, exec_id: str = "") -> None:
+        fields = {"CH": "CLEARING", "SYM": "AAPL", "SEQ": seq, "QTY": "1"}
+        if exec_id:
+            fields["EXEC_ID"] = exec_id
+        subscriber_module._handle_message(
+            subscriber_module.RalfMessage(msg_type, fields), seq_tracker, exec_tracker
+        )
+
+    feed("EXEC", "500", "EX-1")
+    feed("SNAP", "0")
+    feed("EXEC", "1", "EX-2")
+    assert "sequence gap" not in capsys.readouterr().err
+
+
+def test_python_example_exits_when_the_handshake_is_refused(
+    running_gateway: tuple[zmq.Socket[bytes], int],
+) -> None:
+    """A non-integer LASTSEQ gets ERR|CODE=BAD_MESSAGE in reply to HELLO and
+    the session is closed; the example must not go on to subscribe."""
+    _pub, gateway_port = running_gateway
+    proc = subprocess.run(
+        [
+            sys.executable,
+            "ralf_subscriber.py",
+            "--port",
+            str(gateway_port),
+            "--lastseq",
+            "abc",
+        ],
+        cwd=EXAMPLE_DIR,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    assert proc.returncode == 1
+    assert "handshake refused: ERR BAD_MESSAGE" in proc.stderr
+    assert "Subscribed" not in proc.stdout

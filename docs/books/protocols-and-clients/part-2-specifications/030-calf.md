@@ -91,7 +91,11 @@ A CALF client connection is long-lived.
 - Gateway streams `SNAP`, `MD`, `TRADE`, `STATE`, `IDX`, `DEPTH`, `AUCTION`,
   `CB`, `HB`, and `ERR`.
 
-If no `HELLO` is received within 5 seconds, the gateway closes the socket.
+If no `HELLO` is received within 5 seconds, the gateway sends
+`EXIT|REASON=auth_timeout` and closes the socket. Once the gateway has sent
+the line that ends a session (`ERR|CODE=AUTH_REQUIRED`, for example), it
+ignores anything more the client sends — a `HELLO` pipelined behind a
+refused first line is not answered.
 
 
 
@@ -254,7 +258,7 @@ SUB|CH=CB|SYM=AAPL
 | `PONG`    | Gateway -> Client | Probe reply                                  |
 | `HB`      | Gateway -> Client | Heartbeat when quiet                         |
 | `ERR`     | Gateway -> Client | Protocol or flow error                       |
-| `EXIT`    | Client -> Gateway | Clean disconnect                             |
+| `EXIT`    | Both              | Clean disconnect; from the gateway, carries `REASON` |
 
 ### Market-data messages
 
@@ -280,8 +284,9 @@ SUB|CH=CB|SYM=AAPL
 
 **Purpose:** Session handshake.
 
-**Response:** `WELCOME` on successful handshake, or `ERR|CODE=PROTO_MISMATCH`
-(connection closed) if `CLIENT`/`PROTO` fail validation.
+**Response:** `WELCOME` on successful handshake, or `ERR|CODE=AUTH_REQUIRED`
+(connection closed) if `CLIENT`/`PROTO` fail validation — the same code
+`pm-ralf-gwy` and `pm-dc-gwy` use.
 
 | Field    | Req | Description                     |
 |----------|-----|---------------------------------|
@@ -366,7 +371,8 @@ SUB|CH=CB|SYM=AAPL
 `LASTSEQ`, instead of starting from a `SNAP`.
 
 **Response:** replayed events in sequence order, or `ERR|CODE=REPLAY_MISS`
-when the gap is wider than the replay window. On the snapshot-backed channels
+when the gap is wider than the replay window or `LASTSEQ` is ahead of the
+stream. On the snapshot-backed channels
 (`TOP`, `STATE`, `INDEX`, `DEPTH`, `CB`) a fresh `SNAP` follows that error; on
 `TRADE` and `AUCTION` it does not, because a past print has no current state to
 snapshot. See "Reconnect behavior" below.
@@ -1071,9 +1077,13 @@ HB|TS=2026-06-07T10:16:05.000Z
 
 `PING` is client-initiated liveness check. `PONG` is immediate reply.
 
+| Field | Req | Description       |
+|-------|-----|-------------------|
+| `TS`  | Yes | Gateway timestamp |
+
 ```text
 PING
-PONG
+PONG|TS=2026-06-07T10:16:05.000Z
 ```
 
 ### `ERR`
@@ -1083,7 +1093,7 @@ PONG
 | Field  | Req | Description                   |
 |--------|-----|-------------------------------|
 | `CODE` | Yes | Machine-readable error code   |
-| `MSG`  | No  | Human-readable context        |
+| `DETAIL` | No | Human-readable context      |
 | `CH`   | No  | Channel context when relevant |
 | `SYM`  | No  | Symbol context when relevant  |
 
@@ -1091,14 +1101,13 @@ Normative error codes:
 
 | Code              | Meaning                                                                          |
 |-------------------|---------------------------------------------------------------------------------|
-| `PROTO_MISMATCH`  | `HELLO` missing `CLIENT` or `PROTO != CALF1`                                    |
-| `AUTH_REQUIRED`   | Non-`HELLO` message sent before successful handshake                            |
+| `AUTH_REQUIRED`   | Non-`HELLO` message sent before successful handshake, or `HELLO` missing `CLIENT`, `CLIENT` over 32 chars, or `PROTO != CALF1` |
 | `INVALID_CHANNEL` | `CH` not in `{TOP, TRADE, STATE, INDEX, DEPTH, AUCTION, CB}`                     |
 | `INVALID_SYMBOL`  | Symbol not in the gateway's known instrument list (does not apply to `INDEX`, which has no known-id check — see "Subscription rules"), `SYM=*` used with `INDEX`/`DEPTH`/`CB` on `SUB` (alone or mixed with any other channel), `SYM=*` used at all on `RESUME` (every channel, including `TOP`/`TRADE`/`STATE`/`AUCTION`), a `SUB` with no `SYM` at all, or `CH=INDEX` combined with an empty symbol |
 | `SUB_LIMIT`       | Subscription would exceed `max_symbols_per_client`                              |
-| `REPLAY_MISS`     | `LASTSEQ` is older than the replay window; a `SNAP` follows on `TOP`/`STATE`/`INDEX`/`DEPTH`/`CB`, but not on `TRADE`/`AUCTION` |
+| `REPLAY_MISS`     | Events after `LASTSEQ` are no longer in the replay window, or `LASTSEQ` is ahead of the stream (e.g. after a gateway restart); a `SNAP` follows on `TOP`/`STATE`/`INDEX`/`DEPTH`/`CB`, but not on `TRADE`/`AUCTION` |
 | `SLOW_CLIENT`     | Outbound queue exceeded `max_client_queue`; connection closed                   |
-| `BAD_MESSAGE`     | Parse failure, oversized line (> 4096 bytes), or unsupported message type       |
+| `BAD_MESSAGE`     | Parse failure, oversized line (over 4096 bytes including the newline), or unsupported message type |
 | `RATE_LIMITED`    | Client exceeded `max_messages_per_second` (inbound token-bucket); connection stays open |
 
 Terminal behavior:
@@ -1106,24 +1115,39 @@ Terminal behavior:
 - `AUTH_REQUIRED` is terminal: any non-`HELLO` message before a successful
   handshake gets this error and the connection is closed immediately.
 - `SLOW_CLIENT` is terminal for the current TCP session; gateway disconnects.
-- `BAD_MESSAGE` may be terminal when parsing cannot continue safely.
+- `BAD_MESSAGE` is terminal for an oversized line (`DETAIL=line exceeds 4096 bytes`),
+  the same in `pm-ralf-gwy` and `pm-dc-gwy`; for any other cause the session
+  stays open.
 - `RATE_LIMITED` is non-terminal; the offending message is dropped and the
   connection remains open. The client may retry once its send rate is back
   under `max_messages_per_second`.
 
 ```text
-ERR|CODE=REPLAY_MISS|MSG=Requested sequence outside replay buffer|CH=TOP|SYM=AAPL
+ERR|CODE=REPLAY_MISS|DETAIL=Requested sequence outside replay buffer|CH=TOP|SYM=AAPL
 ```
 
 ### `EXIT`
 
-**Direction:** Client -> Gateway
+**Direction:** Both
 
-Requests clean disconnect.
+From the client, requests a clean disconnect. From the gateway, announces
+that the gateway is ending the session, and why.
+
+| Field    | Req | Description                                      |
+|----------|-----|--------------------------------------------------|
+| `REASON` | Gateway only | Why the session ends, e.g. `idle_timeout` |
+| `TS`     | Gateway only | Gateway timestamp                        |
 
 ```text
 EXIT
+EXIT|REASON=idle_timeout|TS=2026-06-07T10:16:05.000Z
 ```
+
+When the gateway ends a session — `EXIT`, `SLOW_CLIENT`, a refused `HELLO`,
+an oversized line — the final line is the last thing sent; the gateway then
+closes the socket once it has drained, or after at most 5 seconds if the
+client has stopped reading. This is the same close behaviour as
+`pm-ralf-gwy` and `pm-dc-gwy`.
 
 
 
@@ -1191,15 +1215,12 @@ it wants that it has no sequence position for.
   recorded, and never let one lower your `last_seq`.** Track which sequence
   ranges you are actually missing: that is the only thing distinguishing the
   backfill you asked for from a print you already have.
-- If the stream has no retained replay history at all yet (nothing has been
-  emitted for that `(CH,SYM)` since the gateway started or the buffer last
-  pruned it), the gateway returns zero replay lines and does **not** send
-  `ERR|CODE=REPLAY_MISS` or a `SNAP` — the client resumes live from
-  whatever the next emitted event turns out to be. This differs from the
-  replay-miss case above and is easy to mistake for a silently dropped
-  resume; clients that need a guaranteed baseline after `RESUME` should
-  also send an explicit `SUB` for the same stream, which always triggers a
-  `SNAP` for `TOP`/`STATE`/`INDEX`/`DEPTH`/`CB` regardless of replay state.
+- Zero replay lines and no error mean exactly one thing: `LASTSEQ` is the
+  stream's current sequence, so nothing was missed. Every other case the
+  gateway cannot serve is a `REPLAY_MISS` — including a stream whose
+  retained events have all aged out, and a `LASTSEQ` ahead of the stream
+  (or on a stream this gateway has never emitted), which is what a client
+  holding a position from before a gateway restart sends.
 - `SYM=*` is always invalid for `RESUME`, for every channel, even for
   `TOP`/`TRADE`/`STATE`/`AUCTION` where `SYM=*` is otherwise allowed on
   `SUB`. `RESUME` has no equivalent of `SUB`'s per-symbol snapshot burst,
@@ -1246,7 +1267,7 @@ sequenceDiagram
   line has been sent in that interval.
 - Client may issue `PING` anytime; gateway must respond with `PONG`.
 - If no inbound or outbound traffic occurs for `idle_timeout_sec`, gateway
-  closes the connection.
+  sends `EXIT|REASON=idle_timeout` and closes the connection.
 - `HB`, `PING`, and `PONG` are liveness messages and do not participate in
   `(CH,SYM)` sequence counters.
 
@@ -1270,7 +1291,7 @@ sequenceDiagram
 
     G-->>C: HB|TS=...
     C->>G: PING
-    G-->>C: PONG
+    G-->>C: PONG|TS=...
 
     C->>G: EXIT
     Note over G: Close TCP cleanly

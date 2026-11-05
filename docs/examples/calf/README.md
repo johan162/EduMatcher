@@ -81,6 +81,36 @@ needed to demonstrate the message in isolation.
 
 Run `python3 calf_subscriber.py --help` for the full flag list.
 
+## Session behaviour
+
+The same in all three line gateways (`pm-md-gwy`, `pm-ralf-gwy`,
+`pm-dc-gwy`), and what both examples rely on:
+
+- **Send `HELLO` straight after connecting.** A connection that sends none
+  within 5 seconds gets `EXIT|REASON=auth_timeout` and is closed.
+- **Check the reply.** `ERR|CODE=AUTH_REQUIRED` in reply to `HELLO` (missing
+  `CLIENT`, or `PROTO` not `CALF1`) is the gateway refusing the session; it
+  closes the connection, so both examples print the error and exit with
+  status 1 instead of subscribing.
+- **Errors are `ERR|CODE=..|DETAIL=..`.** `AUTH_REQUIRED`, `SLOW_CLIENT`,
+  and `BAD_MESSAGE` for a line over 4096 bytes end the session (the gateway
+  sends the line, then closes); every other code leaves it open.
+- **The gateway announces its own closes.** Besides the terminal `ERR`s, it
+  sends `EXIT|REASON=idle_timeout` or `EXIT|REASON=auth_timeout` before
+  closing. Both examples print the reason and exit with status 1.
+- **No `PING` needed.** Traffic in both directions counts against the idle
+  timeout, so a client that keeps reading stays connected on the gateway's
+  own market data and `HB` lines. The idle timeout only fires once writes to
+  a client have stopped succeeding.
+- **`EXIT` works both ways.** On Ctrl-C both examples send a bare `EXIT`;
+  the gateway flushes what is queued, then closes.
+- **`REPLAY_MISS` covers more than an old position.** It also answers a
+  `RESUME|LASTSEQ=` that is *ahead* of the stream -- a position from before
+  a gateway restart, which numbers its streams from 1 again. A fresh `SNAP`
+  follows on `TOP`/`STATE`/`INDEX`/`DEPTH`/`CB`, which both examples take as
+  the new baseline; on `TRADE`/`AUCTION` nothing follows and the gap is
+  permanent.
+
 ## Build and run C example
 
 ```bash
@@ -91,7 +121,8 @@ make
 
 Arguments are positional: `host [port [symbols [index_id]]]`. `symbols` is
 a comma-separated list (default `AAPL`); `index_id` is optional (default:
-skip the `INDEX` subscription). Press Ctrl-C for a clean shutdown.
+skip the `INDEX` subscription). Press Ctrl-C for a clean shutdown: the
+client sends `EXIT` and closes.
 
 ## What the examples send
 
@@ -105,6 +136,7 @@ skip the `INDEX` subscription). Press Ctrl-C for a clean shutdown.
   reliable route to the instrument universe, and it carries `REF=` too)
 - `RESUME|CH=..|SYM=..|LASTSEQ=..`, one per stream, whenever a `SEQ` gap
   appears
+- `EXIT` on Ctrl-C
 
 Then they parse incoming gateway messages and put them to use: a
 formatted top-of-book line per symbol, a rendered `DEPTH` ladder, clear

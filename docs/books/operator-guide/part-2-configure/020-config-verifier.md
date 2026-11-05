@@ -439,7 +439,7 @@ api_gateways:
 | `S090` | `dc_gateway` is present but not a mapping                                 |
 | `S091` | `dc_gateway.port` not an integer in `1..65535`                            |
 | `S092` | `dc_gateway.name` or `.bind_address` blank or not a string                |
-| `S093` | `dc_gateway.max_client_queue` not a positive integer                      |
+| `S093` | `dc_gateway.max_connections` or `.max_client_queue` not a positive integer |
 | `S094` | `dc_gateway.heartbeat_interval_sec` or `.idle_timeout_sec` not a positive number |
 
 **Log server fields (`log_server`)**

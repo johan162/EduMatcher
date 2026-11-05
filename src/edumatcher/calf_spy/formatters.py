@@ -37,7 +37,7 @@ _DEFAULT_CHANNEL_STYLE = "bold white"
 
 # Message types that carry no CH/SYM/SEQ envelope (session-level, not
 # stream-level) and are rendered with a distinct, de-emphasised layout.
-_SESSION_MSG_TYPES = frozenset({"WELCOME", "HB", "PONG", "ERR"})
+_SESSION_MSG_TYPES = frozenset({"WELCOME", "HB", "PONG", "ERR", "EXIT"})
 
 # Fields already surfaced by dedicated columns; excluded from the trailing
 # "KEY=VALUE ..." payload dump in human mode to avoid redundant repetition.
@@ -64,7 +64,7 @@ def format_human(frame: CalfFrame, *, raw_line: str | None = None) -> str:
 
         10:02:17.123  CB      AAPL    #4   STATUS=HALTED LEVEL=L2 ...
 
-    Layout for a session-level message (WELCOME/HB/PONG/ERR), which has no
+    Layout for a session-level message (WELCOME/HB/PONG/ERR/EXIT), which has no
     channel/symbol of its own::
 
         10:02:17.123  WELCOME          GW=md-gwy01 HBINT=1 ...

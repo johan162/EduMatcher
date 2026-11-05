@@ -15,8 +15,8 @@
     - How `--lastseq` differs from CALF's `RESUME`
     - How to run several instances at once, each with a different role, to
       watch different post-trade streams on separate terminals
-    - How `--ping-interval` keeps an otherwise-silent session alive past the
-      gateway's idle timeout
+    - Why a listen-only session needs no keepalive, and what `--ping-interval`
+      is still for
 
 
 ## What this tool is
@@ -127,20 +127,19 @@ aborting the whole session, so you can see exactly what was rejected.
 ## Keeping the connection alive
 
 `pm-ralf-spy` is purely a listener: after the initial `HELLO`/`SUB`
-handshake it has nothing more to say, so — unlike a real clearing/drop-copy
-consumer that might send its own protocol traffic — it would otherwise go
-completely silent for the rest of the session. `pm-ralf-gwy` disconnects
-(sends `EXIT|REASON=idle_timeout` and closes) any client that sends nothing
-at all for `idle_timeout_sec`, so a purely receive-only client needs to
-generate outbound traffic of its own to avoid being dropped.
+handshake it has nothing more to say. **This is fine, and needs no help from
+you.** `pm-ralf-gwy`'s idle timer counts traffic in either direction, and the
+gateway sends `HB` every `HBINT` seconds, so a client that keeps reading stays
+connected indefinitely without sending a thing. The idle timeout
+(`EXIT|REASON=idle_timeout`) fires only once writes to a client have stopped
+succeeding — a client that has stopped reading.
 
-`pm-ralf-spy` does this automatically: a background thread sends `PING`
-every `--ping-interval` seconds (default `60`), and the gateway replies with
-a `PONG` (suppressed from the default view the same way `HB` is — pass
-`--show-heartbeats` to see both). Set `--ping-interval` lower than the
-gateway's `idle_timeout_sec` if you have shortened that value for
-diagnostics, or `0` to disable the heartbeat entirely (e.g. when
-deliberately testing idle-timeout behavior — see the `EXIT` example below).
+`pm-ralf-spy` still sends `PING` from a background thread every
+`--ping-interval` seconds (default `60`), and the gateway replies with a
+`PONG` (suppressed from the default view the same way `HB` is — pass
+`--show-heartbeats` to see both). It is an explicit round-trip check that the
+session is genuinely alive rather than merely un-errored. Pass `0` to disable
+it.
 
 
 ## Human-readable output
@@ -234,12 +233,15 @@ independently per session.
   channel, role/channel mismatch) is printed like any other line — the
   session stays open so you can see the rejection and keep watching
   whatever subscriptions *did* succeed.
-- If the gateway sends `EXIT` — normally only seen if `--ping-interval 0`
-  disabled the heartbeat, or a network hiccup silently dropped the PINGs —
-  `pm-ralf-spy` prints it and closes cleanly rather than trying to keep
-  reading a closing socket.
-- Ctrl-C (or reaching `--count`) closes the connection cleanly and prints
-  `pm-ralf-spy: connection closed.`
+- If the connection closes before any reply to `HELLO`, the spy reports
+  `connection closed before WELCOME (is the gateway at max_connections?)` —
+  a gateway at `post_trade_gateway.max_connections` accepts a connection and
+  closes it without a line.
+- If the gateway sends `EXIT` (`REASON=idle_timeout`: writes to the spy had
+  stopped succeeding, e.g. the terminal was suspended), `pm-ralf-spy` prints
+  it and closes cleanly rather than trying to keep reading a closing socket.
+- Ctrl-C (or reaching `--count`) ends the session with `EXIT` — the gateway
+  flushes and closes — and prints `pm-ralf-spy: connection closed.`
 
 
 ## See also

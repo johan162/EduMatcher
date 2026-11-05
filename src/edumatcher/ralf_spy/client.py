@@ -87,6 +87,11 @@ class RalfSpyClient:
         self._running = False
         self._stop_ping_thread()
         if self._sock is not None:
+            # EXIT works in both directions: the gateway flushes, then closes.
+            try:
+                self._send_line("EXIT", {})
+            except OSError:
+                pass
             try:
                 self._sock.close()
             except OSError:
@@ -119,7 +124,11 @@ class RalfSpyClient:
 
         line = self._recv_line()
         if line is None:
-            raise RalfSpyConnectionError("connection closed before WELCOME")
+            # Also what a gateway at max_connections looks like: it accepts
+            # the connection and closes it without a line.
+            raise RalfSpyConnectionError(
+                "connection closed before WELCOME (is the gateway at max_connections?)"
+            )
         try:
             frame = parse_line(line)
         except RalfProtocolError as exc:
@@ -150,9 +159,11 @@ class RalfSpyClient:
         delivered (0 = unlimited).
 
         A background thread sends a ``PING`` every ``ping_interval_sec``
-        seconds for the duration of the read loop, so the gateway's idle
-        timeout never fires for a client (like ralf-spy) that otherwise
-        never sends anything after its initial SUB.
+        seconds for the duration of the read loop -- belt-and-braces, since
+        the gateway's idle timer counts its own outbound ``HB`` lines too.
+
+        Returns after a gateway ``EXIT|REASON=..`` (``idle_timeout``,
+        ``auth_timeout``): the gateway closes the socket next.
         """
         self._running = True
         self._start_ping_thread()

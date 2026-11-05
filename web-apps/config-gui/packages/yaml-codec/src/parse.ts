@@ -551,6 +551,7 @@ function parseNetworkGateways(raw: Dict, draft: EngineConfigDraft): void {
     g.heartbeatIntervalSec =
       asNumber(pt.heartbeat_interval_sec) ?? g.heartbeatIntervalSec;
     g.idleTimeoutSec = asNumber(pt.idle_timeout_sec) ?? g.idleTimeoutSec;
+    g.maxConnections = asNumber(pt.max_connections) ?? g.maxConnections;
     g.maxClientQueue = asNumber(pt.max_client_queue) ?? g.maxClientQueue;
     if (Array.isArray(pt.allowed_roles)) {
       g.allowedRoles = pt.allowed_roles
@@ -619,6 +620,7 @@ function parseNetworkGateways(raw: Dict, draft: EngineConfigDraft): void {
     g.heartbeatIntervalSec =
       asNumber(dc.heartbeat_interval_sec) ?? g.heartbeatIntervalSec;
     g.idleTimeoutSec = asNumber(dc.idle_timeout_sec) ?? g.idleTimeoutSec;
+    g.maxConnections = asNumber(dc.max_connections) ?? g.maxConnections;
     g.maxClientQueue = asNumber(dc.max_client_queue) ?? g.maxClientQueue;
   }
 

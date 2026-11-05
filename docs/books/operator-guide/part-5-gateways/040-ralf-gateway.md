@@ -109,6 +109,7 @@ post_trade_gateway:
   replay_retention_sec: 86400
   heartbeat_interval_sec: 1
   idle_timeout_sec: 5
+  max_connections: 64
   max_client_queue: 10000
   allowed_roles:
     - CLEARING
@@ -169,6 +170,7 @@ post_trade_gateway:
   replay_retention_sec: 3600
   heartbeat_interval_sec: 1
   idle_timeout_sec: 10
+  max_connections: 64
   max_client_queue: 2000
   allowed_roles:
     - CLEARING
@@ -309,6 +311,12 @@ HELLO|CLIENT=ext01|PROTO=RALF1|ROLE=CLEARING|LASTSEQ=0
 live position (no replay).  The gateway replies with `WELCOME` or closes the
 connection on protocol or entitlement error.
 
+A connection that sends no `HELLO` within 5 seconds receives
+`EXIT|REASON=auth_timeout` and is closed — the same deadline in all three
+line gateways (`pm-md-gwy`, `pm-ralf-gwy`, `pm-dc-gwy`). Lines a client sends after the one that
+ended its session (a `HELLO` pipelined behind a refused first line, for
+example) are ignored.
+
 The `REPLAY` field in `WELCOME` tells you the journal retention window in
 seconds — use it to decide how far back you can safely request on reconnect.
 
@@ -345,9 +353,11 @@ UNSUB|CH=DROP_COPY|SYM=AAPL
 ### Step 5 — Handle heartbeats
 
 When the stream is idle the gateway sends periodic `HB|TS=...` lines.  You can
-probe with `PING`; the gateway replies `PONG`.  If no inbound traffic is
-received for `idle_timeout_sec` seconds the gateway sends
-`EXIT|REASON=idle_timeout` and closes the connection.
+probe with `PING`; the gateway replies `PONG|TS=…`.  The idle timeout counts
+traffic in both directions, so a client that keeps reading stays connected on
+heartbeats alone; only when writes to it have stopped succeeding for
+`idle_timeout_sec` seconds does the gateway send `EXIT|REASON=idle_timeout`
+and close the connection.
 
 A client that stops reading is dropped too. When its outbound queue exceeds
 `max_client_queue` the gateway discards the backlog (a reconnect with
@@ -611,7 +621,7 @@ cd docs/examples/ralf && make
 | `AUTH_REQUIRED`      | Any message before a successful `HELLO`, or `HELLO` itself missing `CLIENT`/`PROTO`/`ROLE` | Send a well-formed `HELLO` first |
 | `ENTITLEMENT_DENIED` | Role not permitted for that channel               | Use the channel matching your role; `AUDIT` may access all |
 | `INVALID_CHANNEL`    | Unknown `CH` value                                | Use `CLEARING`, `DROP_COPY`, or `AUDIT`            |
-| `REPLAY_MISS`        | Requested `LASTSEQ` is outside the journal window | Accept the recovery `SNAP` and reset local baseline |
+| `REPLAY_MISS`        | Requested `LASTSEQ` is outside the journal window, or ahead of it after a gateway restart | Accept the recovery `SNAP` and reset local baseline |
 | `SLOW_CLIENT`        | Client cannot drain the outbound stream fast enough | Reconnect and process faster; terminal error      |
 | `BAD_MESSAGE`        | Malformed line (parse failure, unsupported message type, or non-integer `LASTSEQ`) | Fix line syntax/framing |
 

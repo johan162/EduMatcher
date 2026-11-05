@@ -106,6 +106,7 @@ When you are orienting yourself, this is the practical top-level map:
 | `src/edumatcher/alf_console/` | Interactive trader console and command parsing | Hands-on order entry, demos |
 | `src/edumatcher/api_gateway/` | REST/WebSocket edge for the web GUIs | Browser-facing flows |
 | `src/edumatcher/md_gateway/`, `dc_gateway/`, `ralf_gateway/` | Market-data (CALF), drop-copy and RALF relay gateways | Feed and post-trade consumers |
+| `src/edumatcher/alf_client/`, `calf_client/` | In-process client libraries for ALF order entry and the CALF market-data feed | Writing a tool or agent that talks to a gateway (see below) |
 | `src/edumatcher/commands/` | Admin/console command clients and tooling | Operator workflows and scripted control |
 | `src/edumatcher/messaging/` | Transport and message-bus helpers | Socket wiring and topic flow |
 | `src/edumatcher/models/` | Shared message, order, and domain models | Data structures and message payloads |
@@ -120,6 +121,30 @@ When you are orienting yourself, this is the practical top-level map:
 | `docs/` | User, architecture, concept, and developer documentation | Documentation updates |
 | `docs-design/` | Design proposals and implementation plans | Architecture and feature design review |
 | `release_checklist.md` | Canonical release checklist | Pre-release gate and release sequencing |
+
+### Client libraries: `alf_client` and `calf_client`
+
+These two packages are libraries for code *inside this repository* that
+needs to talk to a gateway. They are not commands and have no entry point, so
+an end user never runs them.
+
+| Package | Protocol | Contents | Used by |
+|---|---|---|---|
+| `alf_client` | ALF order entry (`pm-alf-gwy`) | `protocol` builds and parses ALF lines; `connection` holds one non-blocking TCP session (`AlfConnection`) | `ai_trader/transport.py` |
+| `calf_client` | CALF market data (`pm-md-gwy`) | `CalfClient` for raw frames; optional cached `MarketState` (top of book, depth, phase, halts). Handles reconnect with backoff, per-`(channel, symbol)` gap detection, `RESUME` repair with de-duplication, and `REF=` tick precision | `calf_spy/client.py` |
+
+Two points that are easy to get wrong:
+
+* `calf_client` is the *production* CALF client. The CALF chapter of the
+  Operator Guide documents it for people writing subscribers. `alf_client` is
+  deliberately minimal and has no user-facing chapter.
+* `docs/examples/alf/python/alf_client.py` is **not** the `alf_client`
+  package. It is a standalone, interactive example client shipped for
+  protocol learners, and it shares nothing with the package. When changing
+  the ALF wire format, update both.
+
+Prefer these libraries over a hand-rolled socket loop when adding a new
+in-repo ALF or CALF consumer.
 
 ### Good first files to read
 

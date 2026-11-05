@@ -122,14 +122,14 @@ export class FakeCalfGateway {
         if (line.startsWith("HELLO")) {
           if (authenticated) {
             // The real gateway rejects a second HELLO on the same session.
-            socket.write("ERR|CODE=BAD_MESSAGE|MSG=unsupported HELLO\n");
+            socket.write("ERR|CODE=BAD_MESSAGE|DETAIL=unsupported HELLO\n");
             continue;
           }
           authenticated = true;
           if (!this.opts.silent) socket.write(this.welcomeLine());
           continue;
         }
-        if (line.startsWith("PING")) socket.write("PONG\n");
+        if (line.startsWith("PING")) socket.write(`PONG|TS=${new Date().toISOString()}\n`);
 
         if (line.startsWith("SYMBOLS")) {
           const known = this.opts.symbolsOnRequest ?? this.opts.symbols ?? [];
@@ -197,6 +197,15 @@ export class FakeCalfGateway {
 
   dropConnections(): void {
     for (const socket of this.sockets) socket.destroy();
+    this.sockets.clear();
+  }
+
+  /**
+   * End every session the way the real gateway does: a final line
+   * (`EXIT|REASON=..` or a terminal `ERR`), then the close.
+   */
+  closeWith(line: string): void {
+    for (const socket of this.sockets) socket.end(`${line}\n`);
     this.sockets.clear();
   }
 

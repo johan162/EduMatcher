@@ -18,6 +18,10 @@ class ClientSession:
     out_queue: deque[bytes] = field(default_factory=deque)
     out_offset: int = 0
     closing: bool = False
+    #: When ``closing`` was set, and why: the session is disconnected with
+    #: this reason once its queue drains or CLOSE_GRACE_SEC passes.
+    closing_since: float = 0.0
+    close_reason: str = "close_after_flush"
 
     # Authentication/session state
     authenticated: bool = False

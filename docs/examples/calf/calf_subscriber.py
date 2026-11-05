@@ -21,7 +21,14 @@ Two things here are worth copying rather than reinventing:
   are commented at `SequenceTracker` below.
 
 See docs/books/protocols-and-clients/part-2-specifications/030-calf.md for the normative wire
-contract this client follows.
+contract this client follows. The session rules it relies on are the same
+in all three line gateways (pm-md-gwy, pm-ralf-gwy, pm-dc-gwy): send HELLO
+straight after connecting (the gateway closes a connection without one
+after 5 s, with EXIT|REASON=auth_timeout); an ERR in reply to HELLO ends
+the session; a gateway-initiated close is announced with a final ERR or
+EXIT|REASON=...; a client that keeps reading needs no PING to stay
+connected, because the gateway's outbound traffic counts; and a client may
+end its own session with a bare EXIT.
 
 Uses calf_parser.py to parse and build CALF lines.
 """
@@ -39,10 +46,11 @@ from calf_parser import CalfMessage, build_calf_line, parse_calf_line
 # Error codes the protocol defines as connection-terminal (see "Terminal
 # behavior" in the protocol reference). Anything else -- e.g.
 # RATE_LIMITED, or a code introduced by a future protocol revision -- is
-# treated as non-terminal: log it and keep reading.
-_TERMINAL_ERROR_CODES = frozenset(
-    {"PROTO_MISMATCH", "AUTH_REQUIRED", "SLOW_CLIENT", "BAD_MESSAGE"}
-)
+# treated as non-terminal: log it and keep reading. BAD_MESSAGE is terminal
+# only for an oversized line (DETAIL=line exceeds 4096 bytes), which this
+# client never sends; any other BAD_MESSAGE leaves the session open, and a
+# close that does follow is seen by the read loop anyway.
+_TERMINAL_ERROR_CODES = frozenset({"AUTH_REQUIRED", "SLOW_CLIENT"})
 
 # Channels guaranteed to exist even when a gateway build predates the
 # WELCOME|CH_SUPPORTED= advertisement (see the WELCOME field table).
@@ -259,7 +267,11 @@ class SequenceTracker:
         return True
 
     def replay_missed(self, channel: str, symbol: str) -> None:
-        """The gap outlived the gateway's replay window: it is permanent.
+        """The gateway cannot replay the gap: it is permanent.
+
+        Either the events aged out of the replay window, or `LASTSEQ` was
+        ahead of the stream -- a position from before a gateway restart,
+        which numbers its streams from 1 again.
 
         On `TOP`/`STATE`/`INDEX`/`DEPTH`/`CB` a fresh `SNAP` follows this
         error and re-baselines the stream. On `TRADE`/`AUCTION` nothing
@@ -359,9 +371,13 @@ def _handle_message(
         )
     elif msg.msg_type == "HB":
         print("HB    (gateway heartbeat)")
+    elif msg.msg_type == "EXIT":
+        # The gateway ended the session (idle_timeout, auth_timeout, ...) and
+        # closes the socket next.
+        raise SystemExit(f"gateway ended the session ({msg.fields.get('REASON', '?')})")
     elif msg.msg_type == "ERR":
         code = msg.fields.get("CODE", "?")
-        detail = msg.fields.get("MSG", "")
+        detail = msg.fields.get("DETAIL", "")
         print(f"ERR   {code}: {detail}", file=sys.stderr)
         if code == "REPLAY_MISS":
             seq_tracker.replay_missed(
@@ -427,6 +443,13 @@ def main() -> None:
         # following more than one stream.
         send_line(sock, "HELLO", {"CLIENT": args.client, "PROTO": "CALF1"})
         welcome = parse_calf_line(reader.recv_line())
+        if welcome.msg_type != "WELCOME":
+            # ERR|CODE=AUTH_REQUIRED (bad CLIENT/PROTO): the gateway closes the
+            # session, and the same HELLO would be refused again.
+            raise SystemExit(
+                f"handshake refused: {welcome.msg_type} "
+                f"{welcome.fields.get('CODE', '')}: {welcome.fields.get('DETAIL', '')}"
+            )
         print(f"WELCOME: type={welcome.msg_type} fields={welcome.fields}")
 
         # Display precision, if this gateway is new enough to advertise it.
@@ -511,6 +534,11 @@ def main() -> None:
                 )
         except KeyboardInterrupt:
             print("\ninterrupted, closing connection", file=sys.stderr)
+            # EXIT works in both directions: the gateway flushes, then closes.
+            try:
+                send_line(sock, "EXIT", {})
+            except OSError:
+                pass
         except (RuntimeError, OSError) as exc:
             print(f"connection lost: {exc}", file=sys.stderr)
             sys.exit(1)

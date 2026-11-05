@@ -32,6 +32,8 @@ from edumatcher.models.generated.system import (
 )
 
 _ALLOWED_CHANNELS = frozenset({"CLEARING", "DROP_COPY", "AUDIT"})
+_MAX_LINE_BYTES = 4096
+_MAX_ENGINE_EVENTS_PER_LOOP = 1000
 
 log = logging.getLogger(__name__)
 
@@ -40,6 +42,9 @@ log = logging.getLogger(__name__)
 #: as pm-md-gwy drops a slow client. A client that has stopped reading never
 #: drains, so without this it was never dropped at all.
 CLOSE_GRACE_SEC = 5.0
+#: A connection must send HELLO within this long or is closed with
+#: EXIT|REASON=auth_timeout -- the same deadline in all three line gateways.
+HELLO_TIMEOUT_SEC = 5.0
 
 
 @dataclass
@@ -69,6 +74,7 @@ class ClientSession:
     closing_since: float = 0.0
     close_reason: str = "close_after_flush"
     last_activity: float = field(default_factory=time.monotonic)
+    connected_at: float = field(default_factory=time.monotonic)
 
     def close(self) -> None:
         try:
@@ -161,6 +167,7 @@ class RalfGateway:
         return client_gateway_samples(
             "gwy",
             clients=len(self._clients),
+            clients_max=self.config.max_connections,
             msgs_out=self._msgs_out,
             disconnects=self._disconnects,
             slow_clients=self._slow_clients,
@@ -198,7 +205,18 @@ class RalfGateway:
             except OSError as exc:
                 log.warning("accept failed: %s", exc)
                 break
+            if len(self._clients) >= self.config.max_connections:
+                log.warning(
+                    "connection rejected: max_connections=%d reached",
+                    self.config.max_connections,
+                )
+                try:
+                    conn.close()
+                except OSError:
+                    pass
+                continue
             conn.setblocking(False)
+            conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
             self._clients[conn.fileno()] = ClientSession(sock=conn, addr=addr)
             log.info(
                 "client connected addr=%s:%s fd=%d", addr[0], addr[1], conn.fileno()
@@ -211,7 +229,7 @@ class RalfGateway:
         readable: list[socket.socket] = [s.sock for s in self._clients.values()]
         try:
             ready, _, _ = select.select(readable, [], [], 0)
-        except OSError as exc:
+        except (OSError, ValueError) as exc:
             log.warning("read select failed: %s", exc)
             return
 
@@ -221,7 +239,13 @@ class RalfGateway:
                 continue
             try:
                 chunk = sess.sock.recv(4096)
-            except BlockingIOError, OSError:
+            except BlockingIOError:
+                continue
+            except OSError as exc:
+                # ECONNRESET and the like: the peer is gone. Treating it as
+                # "no data yet" left the session to linger until idle timeout.
+                log.info("recv failed fd=%d: %s", sess.sock.fileno(), exc)
+                self._disconnect(sess, reason="peer_reset")
                 continue
             if not chunk:
                 self._disconnect(sess, reason="peer_closed")
@@ -232,13 +256,40 @@ class RalfGateway:
 
     def _drain_lines(self, sess: ClientSession) -> None:
         while True:
+            if sess.closing:
+                # The line that closed it was its last: nothing after it is
+                # answered or acted on (a pipelined HELLO, SUB, ...).
+                sess.in_buffer.clear()
+                return
             idx = sess.in_buffer.find(b"\n")
             if idx < 0:
+                # No newline yet: a buffer already at the limit can only
+                # become an oversized line, so refuse it now rather than
+                # buffer without bound.
+                if len(sess.in_buffer) >= _MAX_LINE_BYTES:
+                    self._reject_oversized_line(sess)
+                    continue
                 return
             raw = bytes(sess.in_buffer[:idx])
             del sess.in_buffer[: idx + 1]
+            if len(raw) + 1 > _MAX_LINE_BYTES:
+                self._reject_oversized_line(sess)
+                continue
             line = raw.decode("utf-8", errors="replace")
             self._handle_client_line(sess, line)
+
+    def _reject_oversized_line(self, sess: ClientSession) -> None:
+        log.warning(
+            "dropping client fd=%d: inbound line exceeds %d bytes",
+            sess.sock.fileno(),
+            _MAX_LINE_BYTES,
+        )
+        self._queue_line(
+            sess,
+            "ERR",
+            {"CODE": "BAD_MESSAGE", "DETAIL": f"line exceeds {_MAX_LINE_BYTES} bytes"},
+        )
+        self._close_after_flush(sess)
 
     def _flush_client_writes(self) -> None:
         now = time.monotonic()
@@ -371,6 +422,13 @@ class RalfGateway:
             },
         )
 
+        log.info(
+            "session authenticated fd=%d client=%s role=%s",
+            sess.sock.fileno(),
+            client,
+            role,
+        )
+
         if last_seq > 0:
             self._replay_from(sess, last_seq)
 
@@ -431,6 +489,11 @@ class RalfGateway:
 
         channels = [c.strip().upper() for c in ch_raw.split(",") if c.strip()]
         symbols = [s.strip().upper() for s in sym_raw.split(",") if s.strip()]
+        if not channels:
+            self._queue_line(
+                sess, "ERR", {"CODE": "BAD_MESSAGE", "DETAIL": "CH required"}
+            )
+            return
         if not symbols:
             symbols = ["*"]
 
@@ -439,9 +502,6 @@ class RalfGateway:
                 sess.subscriptions.discard((ch, sym))
 
     def _replay_from(self, sess: ClientSession, last_seq: int) -> None:
-        if not self._journal:
-            return
-
         entitled_channels = self._entitled_channels(sess)
         if not entitled_channels:
             return
@@ -453,7 +513,15 @@ class RalfGateway:
             if evt.channel not in oldest_by_channel:
                 oldest_by_channel[evt.channel] = evt.seq
 
-        if any(last_seq < oldest - 1 for oldest in oldest_by_channel.values()):
+        # A miss when LASTSEQ is ahead of a channel (a position from another
+        # gateway run), or when what follows it has aged out of the journal --
+        # including all of it, which used to look like a clean empty replay.
+        def missed(ch: str) -> bool:
+            latest = self._next_seq_by_channel.get(ch, 1) - 1
+            oldest = oldest_by_channel.get(ch, latest + 1)
+            return last_seq > latest or last_seq < oldest - 1
+
+        if any(missed(ch) for ch in entitled_channels):
             self._queue_line(
                 sess,
                 "ERR",
@@ -482,7 +550,11 @@ class RalfGateway:
     # ------------------------------------------------------------------
 
     def _poll_engine_events(self) -> None:
-        while self._sub.poll(timeout=0):
+        # Bounded per pass, as in pm-md-gwy and pm-dc-gwy: a burst of trades
+        # must not starve client reads, heartbeats and flushes.
+        budget = _MAX_ENGINE_EVENTS_PER_LOOP
+        while budget > 0 and self._sub.poll(timeout=0):
+            budget -= 1
             try:
                 topic, payload = decode(self._sub.recv_multipart())
             except zmq.ZMQError as exc:
@@ -623,6 +695,15 @@ class RalfGateway:
         for sess in list(self._clients.values()):
             if sess.closing:
                 continue  # already on its way out; do not queue another EXIT
+            if not sess.authenticated:
+                if now - sess.connected_at > HELLO_TIMEOUT_SEC:
+                    self._queue_line(
+                        sess,
+                        "EXIT",
+                        {"REASON": "auth_timeout", "TS": iso_utc(time.time())},
+                    )
+                    self._close_after_flush(sess, reason="auth_timeout")
+                continue
             if now - sess.last_activity > self.config.idle_timeout_sec:
                 self._queue_line(
                     sess,

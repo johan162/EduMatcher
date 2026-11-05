@@ -98,7 +98,7 @@ Open **http://127.0.0.1:8190**. Run `make help` for the full target list.
 | `MAX_WS_CLIENTS`                    | `200`                        | Browser-tab cap                                                                            |
 | `CALF_HOST` / `CALF_PORT`           | `127.0.0.1` / `5570`          | `pm-md-gwy` address                                                                        |
 | `CALF_CLIENT_ID`                    | `pm-terminal-bridge`          | `HELLO.CLIENT` identifier sent to the gateway                                              |
-| `CALF_PING_INTERVAL_SEC`            | `60`                          | Keepalive cadence — the gateway's idle timer only resets on inbound client bytes, so a bridge that merely listens needs to ping or it is disconnected after the gateway's idle timeout (default 300s) |
+| `CALF_PING_INTERVAL_SEC`            | `60`                          | Keepalive cadence; belt-and-braces — the gateway's idle timer counts traffic both ways, so its own `HB` lines keep a reading bridge connected |
 | `INDEX_IDS`                         | _(empty)_                    | Comma-separated index ids to subscribe to (`SUB\|CH=INDEX`); CALF has no "list indexes" request |
 | `API_GATEWAY_URL`                   | `http://127.0.0.1:8081`       | `pm-api-gwy` base URL for historical REST reads — the `dashboards` instance, which is where read-only keys are issued |
 | `PM_TERMINAL_API_KEY`               | _(empty)_                    | Read-only (`gateway_id: null`) API key, history reads only                                 |

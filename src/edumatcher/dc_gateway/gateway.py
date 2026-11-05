@@ -50,6 +50,9 @@ log = logging.getLogger(__name__)
 #: as pm-md-gwy drops a slow client. A client that has stopped reading never
 #: drains, so without this it was never dropped at all.
 CLOSE_GRACE_SEC = 5.0
+#: A connection must send HELLO within this long or is closed with
+#: EXIT|REASON=auth_timeout -- the same deadline in all three line gateways.
+HELLO_TIMEOUT_SEC = 5.0
 
 _MAX_LINE_BYTES = 4096
 _MAX_DC_EVENTS_PER_LOOP = 1000
@@ -74,6 +77,7 @@ class ClientSession:
     closing_since: float = 0.0
     close_reason: str = "close_after_flush"
     last_activity: float = field(default_factory=time.monotonic)
+    connected_at: float = field(default_factory=time.monotonic)
 
     def close(self) -> None:
         try:
@@ -162,6 +166,7 @@ class DcGateway:
         return client_gateway_samples(
             "gwy",
             clients=len(self._clients),
+            clients_max=self.config.max_connections,
             msgs_out=self._msgs_out,
             disconnects=self._disconnects,
             slow_clients=self._slow_clients,
@@ -201,6 +206,16 @@ class DcGateway:
             except OSError as exc:
                 log.warning("accept failed: %s", exc)
                 break
+            if len(self._clients) >= self.config.max_connections:
+                log.warning(
+                    "connection rejected: max_connections=%d reached",
+                    self.config.max_connections,
+                )
+                try:
+                    conn.close()
+                except OSError:
+                    pass
+                continue
             conn.setblocking(False)
             conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
             self._clients[conn.fileno()] = ClientSession(sock=conn, addr=addr)
@@ -215,7 +230,7 @@ class DcGateway:
         readable: list[socket.socket] = [s.sock for s in self._clients.values()]
         try:
             ready, _, _ = select.select(readable, [], [], 0)
-        except OSError as exc:
+        except (OSError, ValueError) as exc:
             log.warning("read select failed: %s", exc)
             return
 
@@ -225,33 +240,57 @@ class DcGateway:
                 continue
             try:
                 chunk = sess.sock.recv(4096)
-            except BlockingIOError, OSError:
+            except BlockingIOError:
+                continue
+            except OSError as exc:
+                # ECONNRESET and the like: the peer is gone. Treating it as
+                # "no data yet" left the session to linger until idle timeout.
+                log.info("recv failed fd=%d: %s", sess.sock.fileno(), exc)
+                self._disconnect(sess, reason="peer_reset")
                 continue
             if not chunk:
                 self._disconnect(sess, reason="peer_closed")
                 continue
             sess.in_buffer.extend(chunk)
             sess.last_activity = time.monotonic()
-
-            if b"\n" not in sess.in_buffer and len(sess.in_buffer) > _MAX_LINE_BYTES:
-                sess.in_buffer.clear()
-                self._queue_line(
-                    sess, "ERR", {"CODE": "BAD_MESSAGE", "DETAIL": "line too long"}
-                )
-                self._close_after_flush(sess)
-                continue
-
             self._drain_lines(sess)
 
     def _drain_lines(self, sess: ClientSession) -> None:
         while True:
+            if sess.closing:
+                # The line that closed it was its last: nothing after it is
+                # answered or acted on (a pipelined HELLO, SUB, ...).
+                sess.in_buffer.clear()
+                return
             idx = sess.in_buffer.find(b"\n")
             if idx < 0:
+                # No newline yet: a buffer already at the limit can only
+                # become an oversized line, so refuse it now rather than
+                # buffer without bound.
+                if len(sess.in_buffer) >= _MAX_LINE_BYTES:
+                    self._reject_oversized_line(sess)
+                    continue
                 return
             raw = bytes(sess.in_buffer[:idx])
             del sess.in_buffer[: idx + 1]
+            if len(raw) + 1 > _MAX_LINE_BYTES:
+                self._reject_oversized_line(sess)
+                continue
             line = raw.decode("utf-8", errors="replace")
             self._handle_client_line(sess, line)
+
+    def _reject_oversized_line(self, sess: ClientSession) -> None:
+        log.warning(
+            "dropping client fd=%d: inbound line exceeds %d bytes",
+            sess.sock.fileno(),
+            _MAX_LINE_BYTES,
+        )
+        self._queue_line(
+            sess,
+            "ERR",
+            {"CODE": "BAD_MESSAGE", "DETAIL": f"line exceeds {_MAX_LINE_BYTES} bytes"},
+        )
+        self._close_after_flush(sess)
 
     def _flush_client_writes(self) -> None:
         now = time.monotonic()
@@ -452,6 +491,15 @@ class DcGateway:
         for sess in list(self._clients.values()):
             if sess.closing:
                 continue  # already on its way out; do not queue another EXIT
+            if not sess.authenticated:
+                if now - sess.connected_at > HELLO_TIMEOUT_SEC:
+                    self._queue_line(
+                        sess,
+                        "EXIT",
+                        {"REASON": "auth_timeout", "TS": iso_utc(time.time())},
+                    )
+                    self._close_after_flush(sess, reason="auth_timeout")
+                continue
             if now - sess.last_activity > self.config.idle_timeout_sec:
                 self._queue_line(
                     sess,

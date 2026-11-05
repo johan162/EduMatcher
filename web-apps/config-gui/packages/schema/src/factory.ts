@@ -110,6 +110,7 @@ export function createPostTradeGateway(): PostTradeGatewayConfig {
     port: DEFAULT_POST_TRADE_GATEWAY.port,
     heartbeatIntervalSec: DEFAULT_POST_TRADE_GATEWAY.heartbeatIntervalSec,
     idleTimeoutSec: DEFAULT_POST_TRADE_GATEWAY.idleTimeoutSec,
+    maxConnections: DEFAULT_POST_TRADE_GATEWAY.maxConnections,
     maxClientQueue: DEFAULT_POST_TRADE_GATEWAY.maxClientQueue,
     replayRetentionSec: DEFAULT_POST_TRADE_GATEWAY.replayRetentionSec,
     allowedRoles: [...DEFAULT_POST_TRADE_GATEWAY.allowedRoles],
@@ -162,6 +163,7 @@ export function createDcGateway(): DcGatewayConfig {
     port: DEFAULT_DC_GATEWAY.port,
     heartbeatIntervalSec: DEFAULT_DC_GATEWAY.heartbeatIntervalSec,
     idleTimeoutSec: DEFAULT_DC_GATEWAY.idleTimeoutSec,
+    maxConnections: DEFAULT_DC_GATEWAY.maxConnections,
     maxClientQueue: DEFAULT_DC_GATEWAY.maxClientQueue,
   };
 }

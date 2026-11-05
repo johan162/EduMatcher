@@ -88,6 +88,7 @@ export const DEFAULT_POST_TRADE_GATEWAY = {
   replayRetentionSec: 86_400,
   heartbeatIntervalSec: 1,
   idleTimeoutSec: 5,
+  maxConnections: 64,
   maxClientQueue: 10_000,
   allowedRoles: ["CLEARING", "DROP_COPY", "AUDIT"] as string[],
 } as const;
@@ -143,6 +144,7 @@ export const DEFAULT_DC_GATEWAY = {
   port: 5590,
   heartbeatIntervalSec: 5,
   idleTimeoutSec: 30,
+  maxConnections: 64,
   maxClientQueue: 10_000,
 } as const;
 

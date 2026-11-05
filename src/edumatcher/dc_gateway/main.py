@@ -142,6 +142,7 @@ def _resolve_config(args: argparse.Namespace) -> DcGatewayConfig:
         drop_copy_pub_addr=drop_copy_pub_addr,
         heartbeat_interval_sec=cfg.heartbeat_interval_sec,
         idle_timeout_sec=cfg.idle_timeout_sec,
+        max_connections=cfg.max_connections,
         max_client_queue=cfg.max_client_queue,
     )
 

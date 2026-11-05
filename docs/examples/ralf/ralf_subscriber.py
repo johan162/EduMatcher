@@ -9,8 +9,15 @@ a running per-symbol executed-volume tally that correctly de-duplicates
 channel receives the *same* trade once per channel, by design, see §6)
 and a per-channel sequence-gap check.
 
-See docs/user-guide/930-app-ralf-protocol.md for the normative wire
-contract this client follows.
+See docs/books/protocols-and-clients/part-2-specifications/040-ralf.md for
+the normative wire contract this client follows. The session rules it relies
+on are the same in all three line gateways (pm-ralf-gwy, pm-md-gwy,
+pm-dc-gwy): send HELLO straight after connecting (the gateway closes a
+connection without one after 5 s, with EXIT|REASON=auth_timeout); an ERR
+in reply to HELLO ends the session; a gateway-initiated close is announced
+with a final ERR or EXIT|REASON=...; a client that keeps reading needs no
+PING to stay connected, because the heartbeats count as traffic; and a
+client may end its own session with a bare EXIT.
 
 Uses ralf_parser.py to parse and build RALF lines.
 """
@@ -85,6 +92,24 @@ class ChannelSequenceTracker:
 
     def __init__(self) -> None:
         self._last_seq: dict[str, int] = {}
+
+    def rebaseline(self, channels: str, seq_field: str | None) -> None:
+        """A SNAP re-anchors its channel(s); it is never a gap.
+
+        A gateway answers REPLAY_MISS -- LASTSEQ outside the journal, or
+        ahead of it after a gateway restart -- with a SNAP whose SEQ can be
+        *lower* than anything seen before, so checking it like an event
+        would report a gap that is really a reset. A single-channel SNAP
+        sets that channel's baseline. A combined one (CH=A,B,C) carries one
+        aggregate SEQ that is no channel's own baseline, so it only clears
+        them and lets each channel's next event set its own.
+        """
+        names = [c for c in channels.split(",") if c]
+        if len(names) == 1 and seq_field and seq_field.lstrip("-").isdigit():
+            self._last_seq[names[0]] = int(seq_field)
+            return
+        for name in names:
+            self._last_seq.pop(name, None)
 
     def observe(self, channel: str, seq_field: str | None) -> None:
         if not channel or not seq_field:
@@ -192,8 +217,9 @@ def _handle_message(
 ) -> None:
     channel = msg.fields.get("CH", "")
     symbol = msg.fields.get("SYM", "")
-    # A combined SNAP has one aggregate SEQ, not a baseline for each channel.
-    if msg.msg_type != "SNAP" or "," not in channel:
+    if msg.msg_type == "SNAP":
+        seq_tracker.rebaseline(channel, msg.fields.get("SEQ"))
+    else:
         seq_tracker.observe(channel, msg.fields.get("SEQ"))
 
     if msg.msg_type == "SNAP":
@@ -240,8 +266,11 @@ def _handle_message(
             file=sys.stderr,
         )
     elif msg.msg_type == "ERR":
-        # RALF's error field is DETAIL, not MSG (CALF's error field name) --
-        # see protocol reference §10.
+        # ERR|CODE=..|DETAIL=.. -- the same shape in every line gateway.
+        # Non-terminal codes (ENTITLEMENT_DENIED on SUB, INVALID_CHANNEL, ...)
+        # leave the session open; a terminal one (SLOW_CLIENT, an oversized
+        # line) is followed by the gateway closing the connection, which the
+        # read loop reports. REPLAY_MISS is followed by a SNAP baseline.
         code = msg.fields.get("CODE", "?")
         detail = msg.fields.get("DETAIL", "")
         print(f"ERR   {code}: {detail}", file=sys.stderr)
@@ -299,6 +328,16 @@ def main() -> None:
         )
 
         welcome = parse_ralf_line(reader.recv_line())
+        if welcome.msg_type != "WELCOME":
+            # AUTH_REQUIRED (bad CLIENT/PROTO/ROLE), ENTITLEMENT_DENIED (role
+            # not allowed) or BAD_MESSAGE (non-integer LASTSEQ): the gateway
+            # closes the session, so there is nothing to subscribe on.
+            print(
+                f"handshake refused: {welcome.msg_type} "
+                f"{welcome.fields.get('CODE', '')}: {welcome.fields.get('DETAIL', '')}",
+                file=sys.stderr,
+            )
+            sys.exit(1)
         print(f"WELCOME: type={welcome.msg_type} fields={welcome.fields}")
 
         subscribe(sock, channels, args.symbols)
@@ -309,8 +348,19 @@ def main() -> None:
             while True:
                 msg = parse_ralf_line(reader.recv_line())
                 _handle_message(msg, seq_tracker, exec_tracker)
+                if msg.msg_type == "EXIT":
+                    # The gateway ended the session and closes the socket next.
+                    connection_error = RuntimeError(
+                        f"gateway ended the session ({msg.fields.get('REASON', '?')})"
+                    )
+                    break
         except KeyboardInterrupt:
             print("\ninterrupted, closing connection", file=sys.stderr)
+            # EXIT works in both directions: the gateway flushes, then closes.
+            try:
+                send_line(sock, "EXIT", {})
+            except OSError:
+                pass
         except (RuntimeError, OSError) as exc:
             connection_error = exc
             print(f"connection lost: {exc}", file=sys.stderr)

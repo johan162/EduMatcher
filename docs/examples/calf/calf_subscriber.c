@@ -16,7 +16,13 @@
  * to quote that way. calf_subscriber.py shows that path.
  *
  * See docs/books/protocols-and-clients/part-2-specifications/030-calf.md for the normative wire
- * contract this client follows.
+ * contract this client follows. The session rules it relies on are the same
+ * in all three line gateways (pm-md-gwy, pm-ralf-gwy, pm-dc-gwy): send HELLO
+ * straight after connecting (no HELLO within 5 s ends in
+ * EXIT|REASON=auth_timeout); an ERR in reply to HELLO ends the session; a
+ * gateway-initiated close is announced with a final ERR or EXIT|REASON=...;
+ * a client that keeps reading needs no PING, since the gateway's outbound
+ * traffic counts; and a client may end its own session with a bare EXIT.
  */
 
 #define _POSIX_C_SOURCE 200809L
@@ -351,10 +357,27 @@ static void handle_message(int fd, const calf_message_t *msg) {
         print_depth_side("ASKS", asks[0] ? asks : NULL);
     } else if (strcmp(msg->msg_type, "HB") == 0) {
         printf("HB    (gateway heartbeat)\n");
+    } else if (strcmp(msg->msg_type, "EXIT") == 0) {
+        const char *reason = calf_get_field(msg, "REASON");
+        fprintf(stderr, "EXIT  gateway is closing the session (reason=%s)\n", reason ? reason : "?");
     } else if (strcmp(msg->msg_type, "ERR") == 0) {
+        /* ERR|CODE=..|DETAIL=.. -- the same shape in every line gateway.
+         * AUTH_REQUIRED and SLOW_CLIENT (and BAD_MESSAGE for an oversized
+         * line) are followed by the gateway closing the connection, which
+         * the read loop sees; every other code leaves the session open. */
         const char *code = calf_get_field(msg, "CODE");
-        const char *detail = calf_get_field(msg, "MSG");
+        const char *detail = calf_get_field(msg, "DETAIL");
         fprintf(stderr, "ERR   %s: %s\n", code ? code : "?", detail ? detail : "");
+        if (code && strcmp(code, "REPLAY_MISS") == 0) {
+            /* Events aged out of the replay window, or LASTSEQ was ahead of
+             * the stream (a gateway restart): nothing will fill the hole. A
+             * SNAP follows on the snapshot-backed channels only. */
+            calf_recovery_abandon(&g_recovery, channel, symbol);
+            if (!calf_channel_has_snapshot(channel)) {
+                fprintf(stderr, "!! gap on (%s,%s) is permanent: no SNAP follows on this channel\n",
+                        channel, symbol);
+            }
+        }
     } else {
         printf("%s (unhandled, %d field(s))\n", msg->msg_type, msg->field_count);
     }
@@ -417,6 +440,16 @@ int main(int argc, char **argv) {
         close(fd);
         return 1;
     }
+    if (strcmp(welcome.msg_type, "WELCOME") != 0) {
+        /* ERR|CODE=AUTH_REQUIRED (bad CLIENT/PROTO): the gateway closes the
+         * session, and the same HELLO would be refused again. */
+        const char *code = calf_get_field(&welcome, "CODE");
+        const char *detail = calf_get_field(&welcome, "DETAIL");
+        fprintf(stderr, "handshake refused: %s %s: %s\n", welcome.msg_type, code ? code : "",
+                detail ? detail : "");
+        close(fd);
+        return 1;
+    }
     const char *ch_supported = calf_get_field(&welcome, "CH_SUPPORTED");
     printf("WELCOME type=%s GW=%s CH_SUPPORTED=%s\n", welcome.msg_type,
            calf_get_field(&welcome, "GW") ? calf_get_field(&welcome, "GW") : "?", ch_supported ? ch_supported : "?");
@@ -465,14 +498,19 @@ int main(int argc, char **argv) {
         fprintf(stderr, "INDEX channel not advertised by this gateway build; skipping\n");
     }
 
+    int status = 0;
     for (;;) {
         int rc = recv_line(fd, line, sizeof(line));
         if (rc == -2) {
             printf("\ninterrupted, closing connection\n");
+            /* EXIT works in both directions: the gateway flushes, then closes. */
+            send_line(fd, "EXIT");
             break;
         }
         if (rc != 0) {
-            break; /* disconnected */
+            fprintf(stderr, "connection lost\n");
+            status = 1;
+            break;
         }
         calf_message_t msg;
         if (calf_parse_line(line, &msg) != 0) {
@@ -480,8 +518,12 @@ int main(int argc, char **argv) {
             continue;
         }
         handle_message(fd, &msg);
+        if (strcmp(msg.msg_type, "EXIT") == 0) {
+            status = 1; /* the gateway ended the session; it closes next */
+            break;
+        }
     }
 
     close(fd);
-    return 0;
+    return status;
 }

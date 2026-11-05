@@ -33,6 +33,7 @@ from edumatcher.health import HealthReporter
 from edumatcher.health.samples import gateway_stats_samples
 from edumatcher.md_gateway.client_session import ClientSession as MdSession
 from edumatcher.md_gateway.config import MarketDataGatewayConfig
+from edumatcher.md_gateway import gateway as md_gateway_module
 from edumatcher.md_gateway.gateway import MarketDataGateway
 from edumatcher.models.generated.health import MetricSample, parse_health_beacon
 from edumatcher.ralf_gateway.config import RalfGatewayConfig
@@ -214,6 +215,14 @@ def test_md_counts_messages_out_and_a_slow_client(fake_zmq: None) -> None:
     session.out_queue = deque([b"x" * 262_144] * 20)
     gateway._flush_client_writes()
     samples = gateway.metric_samples()
+    assert _value(samples, "md.slow_clients") == 1
+    assert _value(samples, "md.closing_clients") == 1
+    assert session.close_reason == "slow_client"
+
+    # It never reads its final ERR; the close grace drops it -- as RALF/DC do.
+    session.closing_since -= md_gateway_module.CLOSE_GRACE_SEC + 1
+    gateway._flush_client_writes()
+    samples = gateway.metric_samples()
     assert _value(samples, "md.disconnects", "slow_client") == 1
     assert _value(samples, "md.clients") == 0
     assert _value(samples, "md.clients_max") == gateway.config.max_connections
@@ -277,6 +286,7 @@ def test_a_client_that_stops_reading_is_dropped_as_slow(
 def test_an_idle_client_gets_one_exit_and_is_dropped(name: str, fake_zmq: None) -> None:
     gateway = _gateways()[name](free_port())
     session, left, right = _stream_session(name)
+    session.authenticated = True
     gateway._clients[left.fileno()] = session
     session.last_activity -= gateway.config.idle_timeout_sec + 1
     for _ in range(5):  # used to queue a fresh EXIT on every pass
@@ -288,6 +298,76 @@ def test_an_idle_client_gets_one_exit_and_is_dropped(name: str, fake_zmq: None) 
     assert _value(gateway.metric_samples(), "gwy.disconnects", "idle_timeout") == 1
     assert right.recv(4096).startswith(b"EXIT")  # it was told why
     right.close()
+    gateway.close()
+
+
+@pytest.mark.parametrize("name", ["ralf", "dc"])
+def test_a_client_without_hello_gets_one_exit_and_is_dropped(
+    name: str, fake_zmq: None
+) -> None:
+    """W3: the same 5 s HELLO deadline as pm-md-gwy, told as EXIT."""
+    gateway = _gateways()[name](free_port())
+    session, left, right = _stream_session(name)
+    gateway._clients[left.fileno()] = session
+    session.connected_at -= 6
+    for _ in range(3):
+        gateway._drop_idle_clients()
+    assert sum(b"EXIT" in line for line in session.out_queue) == 1
+    assert session.close_reason == "auth_timeout"
+
+    gateway._flush_client_writes()
+    assert _value(gateway.metric_samples(), "gwy.disconnects", "auth_timeout") == 1
+    assert right.recv(4096).startswith(b"EXIT|REASON=auth_timeout|")
+    right.close()
+    gateway.close()
+
+
+@pytest.mark.parametrize("name", ["ralf", "dc"])
+def test_lines_after_the_closing_one_are_ignored(name: str, fake_zmq: None) -> None:
+    """W3: a HELLO pipelined behind a rejected first line used to log the
+    session in (DC also subscribed its topic) although it was closing."""
+    gateway = _gateways()[name](free_port())
+    session, left, right = _stream_session(name)
+    hello = (
+        "HELLO|CLIENT=x|PROTO=RALF1|ROLE=AUDIT"
+        if name == "ralf"
+        else ("HELLO|CLIENT=x|PROTO=DC1|ID=TRADER01")
+    )
+    session.in_buffer.extend(f"PING\n{hello}\n".encode())
+    gateway._drain_lines(session)
+    assert session.authenticated is False
+    assert not session.in_buffer
+    assert [line.split(b"|")[1] for line in session.out_queue] == [
+        b"CODE=AUTH_REQUIRED"
+    ]
+    left.close()
+    right.close()
+    gateway.close()
+
+
+@pytest.mark.parametrize("name", ["ralf", "dc"])
+def test_a_connection_over_max_connections_is_closed(name: str, fake_zmq: None) -> None:
+    port = free_port()
+    if name == "ralf":
+        gateway: Any = RalfGateway(
+            RalfGatewayConfig(bind_address="127.0.0.1", port=port, max_connections=1)
+        )
+    else:
+        gateway = DcGateway(
+            DcGatewayConfig(bind_address="127.0.0.1", port=port, max_connections=1)
+        )
+    gateway._server = socket.create_server(("127.0.0.1", port))
+    gateway._server.setblocking(False)
+    first = socket.create_connection(("127.0.0.1", port))
+    second = socket.create_connection(("127.0.0.1", port))
+    time.sleep(0.05)
+    gateway._accept_new_clients()
+    assert len(gateway._clients) == 1
+    assert _value(gateway.metric_samples(), "gwy.clients_max") == 1
+    second.settimeout(2)
+    assert second.recv(4096) == b""  # closed without a line
+    first.close()
+    second.close()
     gateway.close()
 
 
@@ -520,9 +600,19 @@ def test_a_blocked_event_loop_shows_as_loop_lag(
 
 
 @pytest.mark.parametrize("name", ["ralf", "dc"])
-def test_the_real_loop_closes_an_idle_connection(name: str, fake_zmq: None) -> None:
-    """End to end: a silent client gets EXIT and then EOF from the running
-    gateway -- the socket is really closed, not just marked closing."""
+def test_the_real_loop_closes_a_connection_that_never_says_hello(
+    name: str, fake_zmq: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """End to end: a client that never sends HELLO gets EXIT and then EOF
+    from the running gateway -- the socket is really closed, not just marked
+    closing. (A HELLO'd client that keeps reading is never idle: the
+    heartbeats it receives are traffic.)"""
+    import edumatcher.dc_gateway.gateway as dc_mod
+    import edumatcher.ralf_gateway.gateway as ralf_mod
+
+    monkeypatch.setattr(
+        ralf_mod if name == "ralf" else dc_mod, "HELLO_TIMEOUT_SEC", 0.5
+    )
     port = free_port()
     if name == "ralf":
         gateway: Any = RalfGateway(
@@ -550,7 +640,7 @@ def test_the_real_loop_closes_an_idle_connection(name: str, fake_zmq: None) -> N
             if not chunk:
                 break  # EOF: the gateway closed the connection
             received += chunk
-        assert b"EXIT" in received and b"idle_timeout" in received
+        assert b"EXIT" in received and b"auth_timeout" in received
         client.close()
     finally:
         gateway.stop()

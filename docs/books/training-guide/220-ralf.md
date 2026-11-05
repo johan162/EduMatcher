@@ -207,16 +207,13 @@ Expected behavior:
 - PING yields PONG
 - UNSUB updates delivery set
 
-!!! note "`EXIT` is documented as gateway-initiated"
-    The [RALF Protocol Reference](../protocols-and-clients/part-2-specifications/040-ralf.md#5-message-catalog)
-    lists `EXIT` as **gateway → client** only (e.g. on idle timeout,
-    `EXIT|REASON=idle_timeout|TS=...`). The current gateway implementation
-    additionally accepts a client-sent `EXIT` and simply closes the session
-    after flushing pending output; this is not part of the documented wire
-    protocol, so portable clients should end a session by closing the TCP
-    connection (`Ctrl+D` / `Ctrl+C` in `nc`) rather than relying on it.
+!!! note "`EXIT` goes both ways"
+    The gateway sends `EXIT|REASON=…|TS=…` when it ends a session (e.g.
+    `EXIT|REASON=idle_timeout`). A client may send a bare `EXIT` to end its
+    own session; the gateway closes after flushing pending output. All three
+    line gateways (`pm-md-gwy`, `pm-ralf-gwy`, `pm-dc-gwy`) behave the same.
 
-:material-checkbox-blank-outline: Checkpoint: you can manually drive and verify protocol control flow, and you can explain who is allowed to send `EXIT`.
+:material-checkbox-blank-outline: Checkpoint: you can manually drive and verify protocol control flow, and you can explain what each side's `EXIT` means.
 
  
 

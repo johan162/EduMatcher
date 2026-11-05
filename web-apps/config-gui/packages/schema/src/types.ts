@@ -354,6 +354,7 @@ export interface NetworkGatewayBase {
 
 export interface PostTradeGatewayConfig extends NetworkGatewayBase {
   replayRetentionSec: number;
+  maxConnections: number;
   allowedRoles: string[];
 }
 
@@ -404,6 +405,7 @@ export interface DcGatewayConfig {
   port: number;
   heartbeatIntervalSec: number;
   idleTimeoutSec: number;
+  maxConnections: number;
   maxClientQueue: number;
 }
 

@@ -1785,3 +1785,67 @@ def test_mm_quote_stub_template_is_written_without_validation(
 
     assert out_file.exists()
     assert "Fill all market_maker_quotes" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    ("flag", "section", "loader"),
+    [
+        (
+            "--market-data-max-connections",
+            "market_data_gateway",
+            "edumatcher.md_gateway.config:load_market_data_gateway_config",
+        ),
+        (
+            "--post-trade-max-connections",
+            "post_trade_gateway",
+            "edumatcher.ralf_gateway.config:load_ralf_gateway_config",
+        ),
+        (
+            "--dc-max-connections",
+            "dc_gateway",
+            "edumatcher.dc_gateway.config:load_dc_gateway_config",
+        ),
+    ],
+)
+def test_max_connections_is_emitted_and_loads(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    flag: str,
+    section: str,
+    loader: str,
+) -> None:
+    """The option alone is enough to write the section, as for every other
+    per-gateway override, and the runtime loader reads it back."""
+    import importlib
+
+    out_file = tmp_path / "engine_config.yaml"
+    _run_main(
+        monkeypatch,
+        ["--symbols", "AAPL", "--participants", "TRADER01", flag, "9"]
+        + ["--output", str(out_file)],
+    )
+
+    raw = yaml.safe_load(out_file.read_text(encoding="utf-8"))
+    assert raw[section]["max_connections"] == 9
+    module, func = loader.split(":")
+    assert getattr(importlib.import_module(module), func)(out_file).max_connections == 9
+
+
+@pytest.mark.parametrize(
+    "flag",
+    [
+        "--market-data-max-connections",
+        "--post-trade-max-connections",
+        "--dc-max-connections",
+    ],
+)
+def test_max_connections_must_be_positive(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, flag: str
+) -> None:
+    with pytest.raises(SystemExit) as exc_info:
+        _run_main(
+            monkeypatch,
+            ["--symbols", "AAPL", "--participants", "TRADER01", flag, "0"]
+            + ["--output", str(tmp_path / "engine_config.yaml")],
+        )
+    assert exc_info.value.code != 0

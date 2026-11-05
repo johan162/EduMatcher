@@ -1,3 +1,30 @@
+## [v0.74.0] - 2026-11-05
+
+Release Type: major
+
+### 📋 Summary
+This release aligns the CALF, RALF and drop-copy line gateways around consistent connection and session behavior. It also improves replay correctness, adds configurable connection limits and brings client examples and protocol documentation in line with the implementation.
+
+### ⚠️ Breaking Changes
+- Changed CALF error text from `MSG` to `DETAIL`, changed invalid `HELLO` replies to `AUTH_REQUIRED`, and added `TS` to `PONG`; update clients that depend on the previous wire format
+- Added `max_connections` settings to RALF and drop-copy gateway configuration, with config-generator overrides for market-data, post-trade and drop-copy gateways
+
+### 🚀 Improvements
+- Standardized line-gateway connection deadlines, close responses and grace periods, and made slow-client and connection-limit behavior consistent
+- Added a 4096-byte inbound line limit and explicit `peer_reset` handling across line gateways
+- Improved CALF and RALF replay responses to report unavailable sequence ranges instead of silently returning an empty replay
+
+### 🐛 Bug Fixes
+- Fixed duplicate CALF trades consuming sequence numbers and creating false replay gaps
+- Fixed replay requests beyond the available stream being treated as successful
+
+### 📚 Documentation
+- Updated CALF and RALF specifications, gateway and configuration guides, and client examples to match the aligned behavior
+- Added the line-gateway alignment workplan and formal-specification checks against gateway behavior
+
+### 🛠 Internal
+- Added regression coverage for gateway connection lifecycle, replay, configuration, client examples and specification conformance
+
 ## [v0.73.0] - 2026-11-05
 
 Release Type: major

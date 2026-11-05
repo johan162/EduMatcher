@@ -128,10 +128,60 @@ def test_replay_miss_emits_err_and_snap(unit_gateway: RalfGateway) -> None:
     peer.close()
 
 
-def test_replay_from_empty_journal_is_noop(unit_gateway: RalfGateway) -> None:
+def _clearing_session() -> tuple[ClientSession, socket.socket]:
     sess, peer = _make_session()
+    sess.authenticated = True
+    sess.role = "CLEARING"
+    return sess, peer
+
+
+def _trade(unit_gateway: RalfGateway, trade_id: str) -> None:
+    unit_gateway._handle_trade(
+        {"id": trade_id, "symbol": "AAPL", "quantity": 1, "price": 1.0}
+    )
+
+
+def test_replay_ahead_of_the_journal_is_a_miss(unit_gateway: RalfGateway) -> None:
+    """W5: after a gateway restart the journal is empty and a client's
+    LASTSEQ is from the old run; that used to be a silent empty replay."""
+    sess, peer = _clearing_session()
     unit_gateway._replay_from(sess, last_seq=10)
+    codes = [parse_line(x.decode()).msg_type for x in sess.out_queue]
+    assert codes == ["ERR", "SNAP"]
+    assert b"CODE=REPLAY_MISS" in sess.out_queue[0]
+    assert b"SEQ=0" in sess.out_queue[1]
+    peer.close()
+
+
+def test_replay_after_everything_aged_out_is_a_miss(
+    unit_gateway: RalfGateway,
+) -> None:
+    sess, peer = _clearing_session()
+    for trade_id in ("T1", "T2", "T3"):
+        _trade(unit_gateway, trade_id)
+    unit_gateway._journal.clear()  # all pruned by retention
+    unit_gateway._replay_from(sess, last_seq=1)
+    assert b"CODE=REPLAY_MISS" in sess.out_queue[0]
+    assert b"SEQ=3" in sess.out_queue[1]
+    peer.close()
+
+
+def test_replay_when_up_to_date_sends_nothing(unit_gateway: RalfGateway) -> None:
+    sess, peer = _clearing_session()
+    for trade_id in ("T1", "T2"):
+        _trade(unit_gateway, trade_id)
+    unit_gateway._journal.clear()  # nothing retained, but nothing missed
+    unit_gateway._replay_from(sess, last_seq=2)
     assert not sess.out_queue
+    peer.close()
+
+
+def test_replay_resends_what_follows_last_seq(unit_gateway: RalfGateway) -> None:
+    sess, peer = _clearing_session()
+    for trade_id in ("T1", "T2", "T3"):
+        _trade(unit_gateway, trade_id)
+    unit_gateway._replay_from(sess, last_seq=1)
+    assert [b"SEQ=2" in x or b"SEQ=3" in x for x in sess.out_queue] == [True, True]
     peer.close()
 
 
@@ -358,3 +408,45 @@ def test_flush_client_writes_and_disconnect(unit_gateway: RalfGateway) -> None:
     assert b"PING|TS=1" in data
     assert sess.sock.fileno() not in unit_gateway._clients
     peer.close()
+
+
+def test_unsub_without_ch_is_bad_message(unit_gateway: RalfGateway) -> None:
+    """W6: was silently ignored; pm-md-gwy answers BAD_MESSAGE too."""
+    sess, peer = _clearing_session()
+    unit_gateway._handle_client_line(sess, "UNSUB|SYM=AAPL")
+    err = parse_line(sess.out_queue[0].decode("utf-8"))
+    assert err.fields == {"CODE": "BAD_MESSAGE", "DETAIL": "CH required"}
+    peer.close()
+
+
+class _EndlessSub:
+    """An engine SUB that always has another trade waiting."""
+
+    closed = False
+
+    def __init__(self) -> None:
+        self.reads = 0
+
+    def poll(self, *_a: object, **_k: object) -> int:
+        return 1
+
+    def recv_multipart(self) -> list[bytes]:
+        from edumatcher.models.generated.trade import TOPIC_TRADE_EXECUTED
+
+        self.reads += 1
+        return [TOPIC_TRADE_EXECUTED.encode(), b'{"id": "T", "symbol": "AAPL"}']
+
+    def close(self) -> None:
+        pass
+
+
+def test_engine_events_are_bounded_per_pass(unit_gateway: RalfGateway) -> None:
+    """W6: an unbounded drain let a trade burst starve the client loop."""
+    from edumatcher.ralf_gateway import gateway as ralf_mod
+
+    real_sub = unit_gateway._sub
+    endless = _EndlessSub()
+    unit_gateway._sub = endless
+    unit_gateway._poll_engine_events()
+    unit_gateway._sub = real_sub
+    assert endless.reads == ralf_mod._MAX_ENGINE_EVENTS_PER_LOOP

@@ -17,11 +17,17 @@
  *      one `(CH, SYM)` stream, ever. Instead the bridge reconnects with a
  *      plain `HELLO` and re-subscribes; the gateway's automatic `SNAP` on
  *      `SUB` restores correct state for `TOP`/`STATE`/`INDEX`/`DEPTH`/`CB`.
- *   2. **There is no `ERR|CODE=SLOW_CLIENT` to react to.** The gateway drops
- *      an over-queued client silently (`_queue_raw` clears the queue and marks
- *      the session closing; `_flush_client_writes` then disconnects). It looks
- *      like any other close, and is handled as one.
- *   3. **A keepalive `PING` is required.** See `config.calf.pingIntervalSec`.
+ *   2. **A gateway-initiated close is announced, then handled as any close.**
+ *      `ERR|CODE=SLOW_CLIENT` (an over-queued client; its backlog is dropped)
+ *      and `EXIT|REASON=idle_timeout`/`auth_timeout` are the last line before
+ *      the gateway closes the socket, within 5 s even if this bridge has
+ *      stopped reading. Both are surfaced for the operator log
+ *      (`gatewayError`, `gatewayExit`); the close that follows drives the
+ *      reconnect, exactly as an unannounced one does.
+ *   3. **The keepalive `PING` is belt-and-braces, not load-bearing.** The
+ *      gateway's idle timer counts traffic both ways, so the `HB` lines it
+ *      sends keep a reading bridge connected on their own. See
+ *      `config.calf.pingIntervalSec`.
  *   4. **`TRADE` gaps are resumed via the standalone `RESUME` command,
  *      per-symbol, on detection rather than never.** §17.1 accepted a lost
  *      print on `TRADE`/`AUCTION` reconnect as the right trade-off for a
@@ -162,6 +168,12 @@ export interface CalfUplinkEvents {
   /** `ERR` from the gateway — a real problem worth an operator's attention. */
   gatewayError: [{ code: string; detail: Record<string, string> }];
   /**
+   * `EXIT|REASON=..` — the gateway is ending this session (`idle_timeout`,
+   * `auth_timeout`, ...) and closes the socket next; the reconnect follows
+   * from that close.
+   */
+  gatewayExit: [{ reason: string }];
+  /**
    * A per-symbol subscription was opened or closed (design §17.5).
    *
    * Only the 0↔1 edges, not every browser tab's interest — what an operator
@@ -171,7 +183,9 @@ export interface CalfUplinkEvents {
   /**
    * A hole in one `(ch, sym)` stream that could not be closed (T-H4/T-H5) —
    * either the channel is not resumed at all, or a `RESUME` came back
-   * `REPLAY_MISS` because the gap outlasted the gateway's replay window.
+   * `REPLAY_MISS` because the gateway no longer holds what was missed (the
+   * gap outlasted its replay window, or the stream's whole buffer aged out --
+   * which older gateways answered with a silent, empty replay).
    */
   gap: [{ ch: string; sym: string; ts: string }];
 }
@@ -370,6 +384,11 @@ export class CalfUplink extends EventEmitter<CalfUplinkEvents> {
         return this.onWelcome(fields);
       case "HB":
       case "PONG":
+        return;
+      case "EXIT":
+        // Has no CH/SYM, so it must not reach the stream decoder, which would
+        // report it as a PARSE_ERROR.
+        this.emit("gatewayExit", { reason: fields["REASON"] ?? "" });
         return;
       case "SYMBOLS": {
         // The authoritative instrument universe, which WELCOME may not have

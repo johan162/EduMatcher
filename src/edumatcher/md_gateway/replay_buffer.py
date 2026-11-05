@@ -57,29 +57,48 @@ class ReplayBuffer:
             self._trade_ids[key].add(trade_id)
         return True
 
-    def replay_since(self, ch: str, sym: str, last_seq: int) -> list[bytes]:
+    def has_trade(self, ch: str, sym: str, trade_id: str) -> bool:
+        """Whether ``trade_id`` is already held for this stream."""
+        key = (ch, sym)
+        self._prune_stream(key, time.monotonic())
+        return trade_id in self._trade_ids.get(key, ())
+
+    def replay_since(
+        self, ch: str, sym: str, last_seq: int, current_seq: int
+    ) -> list[bytes]:
         """Return events with sequence > ``last_seq`` for stream.
+
+        ``current_seq`` is the stream's last allocated sequence (0 when the
+        stream has never emitted). Without it an empty buffer is ambiguous:
+        "nothing happened since last_seq" and "everything since last_seq has
+        aged out" both looked like an empty, successful replay.
 
         Raises
         ------
         ReplayMissError
-            If requested history falls before oldest retained sequence.
+            If ``last_seq`` is ahead of the stream (the client's position is
+            from another gateway run), or the events after it are no longer
+            retained.
         """
+        if last_seq > current_seq:
+            raise ReplayMissError(
+                f"requested last_seq={last_seq} ahead of stream at {current_seq}"
+            )
+        if last_seq == current_seq:
+            return []
+
         key = (ch, sym)
         now = time.monotonic()
         self._prune_stream(key, now)
 
         events = self._events.get(key)
-        if not events:
-            return []
-
-        oldest = events[0].seq
+        oldest = events[0].seq if events else current_seq + 1
         if last_seq < oldest - 1:
             raise ReplayMissError(
                 f"requested last_seq={last_seq} before oldest retained={oldest}"
             )
 
-        return [event.line for event in events if event.seq > last_seq]
+        return [event.line for event in events or () if event.seq > last_seq]
 
     def _prune_stream(self, key: StreamKey, now: float) -> None:
         cutoff = now - self._window_sec

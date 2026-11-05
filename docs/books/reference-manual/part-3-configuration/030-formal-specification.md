@@ -225,6 +225,7 @@ RalfGwyProcSpec:                             # post_trade_gateway (pm-ralf-gwy, 
   replay_retention_sec:         ? Int = 86400                 ∈ > 0
   heartbeat_interval_sec:       ? Int = 1                     ∈ > 0
   idle_timeout_sec:             ? Int = 5                     ∈ > 0
+  max_connections:              ? Int = 64                    ∈ > 0
   max_client_queue:             ? Int = 10000                 ∈ > 0
   allowed_roles:                ? List<Str> = [CLEARING, DROP_COPY, AUDIT]
 
@@ -234,6 +235,7 @@ DcGwyProcSpec:                               # dc_gateway         (pm-dc-gwy); n
   port:                         ? Port = 5590                 ∈ 1..65535
   heartbeat_interval_sec:       ? Secs = 5
   idle_timeout_sec:             ? Secs = 30
+  max_connections:              ? Int = 64                    ∈ > 0
   max_client_queue:             ? Int = 10000                 ∈ > 0
 
 ApiGwyProcSpec:                              # one value of api_gateways (pm-api-gwy)
@@ -755,6 +757,7 @@ Spec type: `RalfGwyProcSpec`.
 | `replay_retention_sec` | `Int` | – | `86400` | `> 0` |
 | `heartbeat_interval_sec` | `Int` | – | `1` | `> 0` |
 | `idle_timeout_sec` | `Int` | – | `5` | `> 0` |
+| `max_connections` | `Int` | – | `64` | `> 0` |
 | `max_client_queue` | `Int` | – | `10000` | `> 0` |
 | `allowed_roles` | `List<Str>` | – | `[CLEARING, DROP_COPY, AUDIT]` | values upper-cased |
 
@@ -811,7 +814,8 @@ Spec type: `DcGwyProcSpec`.
 | `bind_address` | `Str` | – | `"0.0.0.0"` | non-empty |
 | `port` | `Port` | – | `5590` | `1..65535` |
 | `heartbeat_interval_sec` | `Secs` | – | `5` | `> 0`; interval between `HB` lines |
-| `idle_timeout_sec` | `Secs` | – | `30` | `> 0`; inbound silence disconnect threshold |
+| `idle_timeout_sec` | `Secs` | – | `30` | `> 0`; disconnect threshold when no traffic flows in either direction |
+| `max_connections` | `Int` | – | `64` | `> 0`; simultaneous client connections |
 | `max_client_queue` | `Int` | – | `10000` | `> 0`; per-client outbound buffer before slow-client disconnect |
 
 This block has no `enabled` key. The drop-copy source address (`tcp://127.0.0.1:5557`)
