@@ -896,6 +896,14 @@ TOPIC_REGISTRY: Mapping[str, Mapping[str, Any]] = {
         "params": (),
         "fields": _system.describe_recovery_item(),
     },
+    _system.TOPIC_QUOTE_SEED_SKIPPED: {
+        "family": "system",
+        "message": "quote_seed_skipped",
+        "prefix": _system.TOPIC_QUOTE_SEED_SKIPPED,
+        "transport": ("engine_pub",),
+        "params": (),
+        "fields": _system.describe_quote_seed_skipped(),
+    },
     _system.TOPIC_DIAGNOSTIC: {
         "family": "system",
         "message": "diagnostic",

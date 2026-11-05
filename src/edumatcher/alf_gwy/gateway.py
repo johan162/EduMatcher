@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import errno
 import logging
+import re
 import resource
 import selectors
 import signal
@@ -39,6 +40,7 @@ from edumatcher.messaging.reject_report import RejectReporter
 from edumatcher.models.combo import ComboLeg, ComboOrder, ComboType
 from edumatcher.models.message import (
     decode,
+    decode_sequence,
     make_combo_cancel_msg,
     make_combo_order_msg,
     make_gateway_connect_msg,
@@ -153,11 +155,47 @@ _ENGINE_HEARTBEAT_SEC = 5
 #: missed, an expiry). The reply topic carries the probe's id.
 _SESSION_PROBE_SEC = 5.0
 _PROBE_ID_PREFIX = "ALF-PROBE-"
+#: Receive high-water mark of both SUB sockets. Past it the engine's PUB
+#: drops for this subscriber without a trace, and the main socket carries
+#: every gateway's private events, not only this one's: ZMQ's default of
+#: 1000 is gone in a fraction of a second when the loop stalls.
+_SUB_RCVHWM = 200_000
+#: Event families that change a session's order state, each topic scoped to
+#: one gateway (``<prefix><GW>``). A sequence gap on one of these is a lost
+#: fill, ack or cancel, and the session is told (see _check_sequence).
+_PRIVATE_EVENT_PREFIXES = (
+    PREFIX_ORDER_ACK,
+    PREFIX_ORDER_FILL,
+    PREFIX_ORDER_AMENDED,
+    PREFIX_ORDER_TRIGGERED,
+    PREFIX_ORDER_CANCELLED,
+    PREFIX_ORDER_EXPIRED,
+    PREFIX_QUOTE_ACK,
+    PREFIX_QUOTE_CANCEL_ACK,
+    PREFIX_QUOTE_STATUS,
+    PREFIX_COMBO_ACK,
+    PREFIX_COMBO_CANCEL_ACK,
+    PREFIX_COMBO_STATUS,
+    PREFIX_OCO_ACK,
+    PREFIX_OCO_CANCEL_ACK,
+    PREFIX_OCO_CANCELLED,
+    PREFIX_KILL_SWITCH_ACK,
+)
+#: Lines a slow client's overflow sheds: the trade feed and heartbeats,
+#: the bulk of any backlog and nothing it cannot do without. Everything
+#: else is the client's own or rare (SESSION is also a query reply).
+_SHEDDABLE = (b"TRADE|", b"HB|")
+#: How long a stopping gateway keeps flushing its sessions' last lines.
+_SHUTDOWN_FLUSH_SEC = 2.0
 _MAX_ENGINE_EVENTS_PER_LOOP = 1000
 _MAX_DC_EVENTS_PER_LOOP = 1000
 #: Longest the event loop sleeps when nothing is pending; housekeeping
 #: (heartbeats, idle checks) runs at this cadence.
 _LOOP_WAIT_MS = 100
+#: How long a closing session may take to flush its last lines. A peer that
+#: has stopped reading never drains them, and would otherwise hold its slot
+#: and its gateway ID until it exits.
+_CLOSE_GRACE_SEC = 5.0
 #: File descriptors needed beyond one per client (listener, ZMQ, logging).
 _FD_HEADROOM = 64
 # Topic prefix used by edumatcher.engine.drop_copy.DropCopyPublisher for live
@@ -168,6 +206,14 @@ _DC_EVENT_TOPIC_PREFIX = PREFIX_DROP_COPY_EVENT
 #: rather than per order by the validating message builder.
 _MAX_SYMBOL_LEN = 16
 _MAX_GATEWAY_ID_LEN = 32
+#: A gateway id as config-gen accepts it (config_gen/gateway_spec.py). The
+#: id is the last dot-separated part of every topic routed back to a
+#: session, so a '.' in it would deliver its events to another session.
+_GATEWAY_ID_RE = re.compile(rf"[A-Z][A-Z0-9_]{{0,{_MAX_GATEWAY_ID_LEN - 1}}}")
+#: Largest price in ticks accepted from a client. Past 2**53 a float price
+#: no longer resolves single ticks, so the grid check in to_ticks_exact is
+#: meaningless; the wire's 64-bit integers end not far beyond.
+_MAX_ABS_TICKS = 2**53 - 1
 
 _TAG_ALLOWED = set("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_.")
 
@@ -189,17 +235,20 @@ class ClientSession:
     # broadcasts (an AI agent among hundreds would otherwise parse every
     # trade print of the exchange).
     public_feed: bool = True
-    # Target gateway_id of an outstanding POS|GW=<gateway_id> query, or
-    # None. Set when the request is sent, cleared when the matching
+    # Target gateway_ids of outstanding POS|GW=<gateway_id> queries. Added
+    # when the request is sent, removed when the matching
     # system.position_snapshot.<target> reply arrives (see
-    # _handle_position_snapshot_response) or the session disconnects.
-    pending_position_query: str | None = None
+    # _handle_position_snapshot_response). The engine answers every request,
+    # so the set holds at most the targets in flight.
+    pending_position_queries: set[str] = field(default_factory=set)
     #: monotonic time the engine accepted the logon
     authenticated_at: float = 0.0
     out_queue: deque[bytes] = field(default_factory=deque)
     out_offset: int = 0
     in_buffer: bytearray = field(default_factory=bytearray)
     closing: bool = False
+    #: monotonic time ``closing`` was set; see _CLOSE_GRACE_SEC
+    closing_since: float = 0.0
     connected_at: float = field(default_factory=time.monotonic)
     last_activity: float = field(default_factory=time.monotonic)
     last_outbound: float = field(default_factory=time.monotonic)
@@ -301,23 +350,8 @@ class AlfGateway:
             # (AUTH_TIMEOUT, SYMBOLS_NOT_READY). Events for gateways with no
             # session here are discarded in the routing below.
             PREFIX_GATEWAY_AUTH,
-            PREFIX_ORDER_ACK,
-            PREFIX_ORDER_FILL,
-            PREFIX_ORDER_AMENDED,
-            PREFIX_ORDER_TRIGGERED,
-            PREFIX_ORDER_CANCELLED,
-            PREFIX_ORDER_EXPIRED,
+            *_PRIVATE_EVENT_PREFIXES,
             PREFIX_ORDERS,
-            PREFIX_QUOTE_ACK,
-            PREFIX_QUOTE_CANCEL_ACK,
-            PREFIX_QUOTE_STATUS,
-            PREFIX_COMBO_ACK,
-            PREFIX_COMBO_CANCEL_ACK,
-            PREFIX_COMBO_STATUS,
-            PREFIX_OCO_ACK,
-            PREFIX_OCO_CANCEL_ACK,
-            PREFIX_OCO_CANCELLED,
-            PREFIX_KILL_SWITCH_ACK,
             PREFIX_SYMBOLS,
             PREFIX_QUOTE_BOOTSTRAP,
             PREFIX_QUOTE_LEGS,
@@ -325,13 +359,20 @@ class AlfGateway:
             PREFIX_POSITION_SNAPSHOT,
             TOPIC_STARTUP_RECOVERY,
             PREFIX_GATEWAYS + _PROBE_ID_PREFIX,
+            rcvhwm=_SUB_RCVHWM,
         )
+        #: Last per-topic sequence seen on each private event topic (see
+        #: _check_sequence). Tracked for every gateway, connected here or
+        #: not, so a session that logs on later is not told of a false gap.
+        self._topic_seq: dict[str, int] = {}
         # Separate SUB socket for the engine's drop-copy feed (:5557). Kept
         # distinct from self._sub (:5556) because it is a different ZMQ PUB
         # address entirely -- see edumatcher.engine.drop_copy. No topics are
         # subscribed here at startup; DC|ON subscribes this session's own
         # drop_copy.event.<GW_ID> topic on demand (see _dc_subscribe_topic).
-        self._dc_sub: zmq.Socket[bytes] = make_subscriber(config.drop_copy_pub_addr)
+        self._dc_sub: zmq.Socket[bytes] = make_subscriber(
+            config.drop_copy_pub_addr, rcvhwm=_SUB_RCVHWM
+        )
         # Sessions with queued output. Flushing only these keeps the loop
         # O(active) instead of O(connected).
         self._dirty: set[int] = set()
@@ -354,6 +395,7 @@ class AlfGateway:
             "disconnects_total": 0,
             "slow_client_disconnects": 0,
             "auth_failures": 0,
+            "events_lost": 0,
         }
         # Health beacon (operator dashboard §8.5); attached by main().
         self._reporter: HealthReporter | None = None
@@ -449,8 +491,36 @@ class AlfGateway:
                     self._probe_engine_sessions_if_due(now)
                     self._drop_idle_clients()
                 self._flush_client_writes(writable=writable)
+            self._flush_for_shutdown()
         finally:
             self.close()
+
+    def _flush_for_shutdown(self) -> None:
+        """Give every session what it is owed before a requested stop.
+
+        Events the engine has already published (fills among them) and
+        lines already queued would otherwise die with the sockets. One
+        drain of each SUB socket, a closing ERR, then flush for at most
+        ``_SHUTDOWN_FLUSH_SEC``; whatever a peer has not taken by then is
+        dropped by close(). Not run after a crash: the loop's state is not
+        to be trusted then.
+        """
+        self._poll_engine_events()
+        self._poll_dc_events()
+        for session in list(self._clients.values()):
+            self._queue_line(
+                session,
+                "ERR",
+                {"CODE": "GATEWAY_SHUTDOWN", "DETAIL": "Gateway shutting down"},
+            )
+            self._close_after_flush(session)
+        deadline = time.monotonic() + _SHUTDOWN_FLUSH_SEC
+        while self._dirty and time.monotonic() < deadline:
+            # Every dirty session counts as writable: a peer that cannot
+            # take more just raises EAGAIN again, and the loop is bounded.
+            self._flush_client_writes(writable=set(self._dirty))
+            if self._dirty:
+                time.sleep(0.01)
 
     def stop(self) -> None:
         log.info("stop requested")
@@ -498,8 +568,20 @@ class AlfGateway:
                 conn, addr = self._server.accept()
             except BlockingIOError:
                 break
-            conn.setblocking(False)
-            conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+            except OSError as exc:
+                # EMFILE/ENFILE, ECONNABORTED, ENOBUFS, ...: refuse this one
+                # and retry on the next tick. Breaking (not continuing)
+                # matters for fd exhaustion, where the listener stays
+                # readable and a retry loop would spin.
+                log.warning("ALF accept failed: %s", exc)
+                break
+            try:
+                conn.setblocking(False)
+                conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+            except OSError as exc:
+                log.warning("ALF dropping connection from %s: %s", addr, exc)
+                conn.close()
+                continue
 
             if len(self._clients) >= self.config.max_connections:
                 try:
@@ -876,13 +958,14 @@ class AlfGateway:
             )
             return
 
-        if len(gateway_id) > _MAX_GATEWAY_ID_LEN:
+        if not _GATEWAY_ID_RE.fullmatch(gateway_id):
             # order_new declares gateway_id max_len 32. Refusing at HELLO is
             # both earlier and clearer than the per-order check this replaces.
             self._register_error(
                 session,
                 "INVALID_VALUE",
-                f"Gateway id exceeds {_MAX_GATEWAY_ID_LEN} characters",
+                "Gateway id must be a letter followed by up to "
+                f"{_MAX_GATEWAY_ID_LEN - 1} letters, digits or '_'",
                 close_connection=True,
             )
             return
@@ -1303,8 +1386,13 @@ class AlfGateway:
         target = fields.get("GW", "").upper()
         if not target:
             raise ValidationError("MISSING_FIELD", "POS requires GW=<gateway_id>")
-        session.pending_position_query = target
+        if not _GATEWAY_ID_RE.fullmatch(target):
+            # The engine answers on a topic named after the (clamped) id; one
+            # it would rename could never be matched to this query.
+            raise ValidationError("INVALID_VALUE", f"GW: invalid gateway id '{target}'")
         self._send_to_engine(make_position_request_msg(target))
+        # After the send: a request the engine never got gets no reply.
+        session.pending_position_queries.add(target)
 
     def _handle_position_snapshot_response(
         self, gateway_id: str, payload: dict[str, Any]
@@ -1316,17 +1404,17 @@ class AlfGateway:
         Cannot reuse ``_session_for_gateway`` here (that looks up the
         session whose *own* gateway_id matches -- always true for
         QBOOT/QLEGS/SESSION, never true for a cross-gateway POS query)
-        so this scans connected sessions for a matching
-        ``pending_position_query`` instead. More than one session may be
+        so this scans connected sessions for a matching entry in
+        ``pending_position_queries`` instead. More than one session may be
         querying the same target concurrently; every match is answered.
         """
         positions = payload.get("positions", [])
         if not isinstance(positions, list):
             positions = []
         for session in self._clients.values():
-            if session.pending_position_query != gateway_id:
+            if gateway_id not in session.pending_position_queries:
                 continue
-            session.pending_position_query = None
+            session.pending_position_queries.discard(gateway_id)
             self._queue_line(
                 session, "POSITION", {"GW": gateway_id, "COUNT": str(len(positions))}
             )
@@ -1352,7 +1440,7 @@ class AlfGateway:
         budget = _MAX_ENGINE_EVENTS_PER_LOOP
         while budget > 0 and self._sub.poll(timeout=0):
             try:
-                topic, payload = decode(self._sub.recv_multipart())
+                frames = self._sub.recv_multipart()
             except zmq.ZMQError as exc:
                 if exc.errno != errno.EINTR:
                     log.warning(
@@ -1360,99 +1448,169 @@ class AlfGateway:
                         exc.errno,
                     )
                 break
-            except Exception:
-                log.warning("decode error on engine SUB event", exc_info=True)
-                budget -= 1
-                continue
 
             budget -= 1
 
-            if topic.startswith(PREFIX_GATEWAY_AUTH):
-                gateway_id = topic.rsplit(".", 1)[-1].upper()
-                self._handle_gateway_auth(gateway_id, payload)
+            try:
+                topic = frames[0].decode()
+                if self._for_absent_gateway(topic):
+                    # Most of this socket is other gateways' order events
+                    # (see the subscription). Their payload is never read,
+                    # so it is not decoded: only the sequence is kept.
+                    self._check_sequence(topic, frames)
+                    continue
+                topic, payload = decode(frames)
+            except Exception:
+                # Not sequence-checked: the next event on its topic reports
+                # it as lost, which to the client it is.
+                log.warning("decode error on engine SUB event", exc_info=True)
                 continue
 
-            if topic.startswith(PREFIX_SYMBOLS):
-                gateway_id = topic.rsplit(".", 1)[-1].upper()
-                self._handle_symbols_response(gateway_id, payload)
-                continue
+            # One malformed event must not take every session down with it
+            # (the loop has no other guard): log it, drop it, carry on.
+            try:
+                self._check_sequence(topic, frames)
+                self._handle_engine_event(topic, payload)
+            except Exception:
+                log.exception("ALF gateway dropped unhandled engine event %s", topic)
 
-            if topic.startswith(PREFIX_ORDERS):
-                gateway_id = topic.rsplit(".", 1)[-1].upper()
-                self._handle_orders_response(gateway_id, payload)
-                continue
+    def _for_absent_gateway(self, topic: str) -> bool:
+        """A private order event for a gateway with no session here.
 
-            if topic.startswith(PREFIX_QUOTE_BOOTSTRAP):
-                gateway_id = topic.rsplit(".", 1)[-1].upper()
-                self._handle_qboot_response(gateway_id, payload)
-                continue
+        Exactly what _route_gateway_scoped_event would discard. Replies
+        routed otherwise (auth, symbols, POS) are never in this set.
+        """
+        return (
+            topic.startswith(_PRIVATE_EVENT_PREFIXES)
+            and topic.rpartition(".")[2].upper() not in self._active_gateway_sessions
+        )
 
-            if topic.startswith(PREFIX_QUOTE_LEGS):
-                gateway_id = topic.rsplit(".", 1)[-1].upper()
-                self._handle_qlegs_response(gateway_id, payload)
-                continue
+    def _check_sequence(self, topic: str, frames: list[bytes]) -> None:
+        """Tell a session when the engine's events for it were dropped.
 
-            if topic.startswith(PREFIX_POSITION_SNAPSHOT):
-                gateway_id = topic.rsplit(".", 1)[-1].upper()
-                self._handle_position_snapshot_response(gateway_id, payload)
-                continue
+        The engine numbers each topic (``SequencedPublisher``), and this
+        socket subscribes to every private family whole, so a jump means the
+        PUB dropped events at the high-water mark: fills, acks or cancels
+        the client will never see. The ERR comes before the event that
+        revealed the gap, untagged like the other unsolicited ERRs, and
+        tells the client to reconcile with ``ORDERS``.
+        """
+        if not topic.startswith(_PRIVATE_EVENT_PREFIXES):
+            return
+        seq = decode_sequence(frames)
+        if seq is None:
+            return
+        last = self._topic_seq.get(topic)
+        self._topic_seq[topic] = seq
+        # First sight of the topic, or a lower number: the engine restarted.
+        if last is None or seq <= last + 1:
+            return
+        missed = seq - last - 1
+        self._global_stats["events_lost"] += missed
+        family, _, gateway_id = topic.rpartition(".")
+        log.warning("engine dropped %d event(s) on %s", missed, topic)
+        session = self._session_for_gateway(gateway_id.upper())
+        if session is None:
+            return
+        self._queue_line(
+            session,
+            "ERR",
+            {
+                "CODE": "EVENTS_LOST",
+                "TOPIC": family,
+                "COUNT": str(missed),
+                "DETAIL": "Exchange events for this session were lost - "
+                "reconcile with ORDERS",
+            },
+        )
 
-            if topic.startswith(PREFIX_SESSION_STATUS):
-                gateway_id = topic.rsplit(".", 1)[-1].upper()
-                self._handle_session_status_response(gateway_id, payload)
-                continue
+    def _handle_engine_event(self, topic: str, payload: dict[str, Any]) -> None:
+        if topic.startswith(PREFIX_GATEWAY_AUTH):
+            gateway_id = topic.rsplit(".", 1)[-1].upper()
+            self._handle_gateway_auth(gateway_id, payload)
+            return
 
-            if topic == TOPIC_STARTUP_RECOVERY:
-                self._handle_engine_restart()
-                continue
+        if topic.startswith(PREFIX_SYMBOLS):
+            gateway_id = topic.rsplit(".", 1)[-1].upper()
+            self._handle_symbols_response(gateway_id, payload)
+            return
 
-            if topic.startswith(PREFIX_GATEWAYS + _PROBE_ID_PREFIX):
-                self._handle_session_probe(topic.rsplit(".", 1)[-1], payload)
-                continue
+        if topic.startswith(PREFIX_ORDERS):
+            gateway_id = topic.rsplit(".", 1)[-1].upper()
+            self._handle_orders_response(gateway_id, payload)
+            return
 
-            if topic == TOPIC_SESSION_STATE:
-                self._broadcast(
-                    "SESSION",
-                    {
-                        "STATE": str(payload.get("state", "")),
-                        "PREV_STATE": str(payload.get("prev_state", "")),
-                    },
-                )
-                continue
+        if topic.startswith(PREFIX_QUOTE_BOOTSTRAP):
+            gateway_id = topic.rsplit(".", 1)[-1].upper()
+            self._handle_qboot_response(gateway_id, payload)
+            return
 
-            if topic.startswith(PREFIX_CIRCUIT_BREAKER_HALT):
-                self._broadcast(
-                    "HALT",
-                    {
-                        "SYMBOL": str(payload.get("symbol", "")),
-                        "LEVEL": str(payload.get("level", "")),
-                    },
-                )
-                continue
+        if topic.startswith(PREFIX_QUOTE_LEGS):
+            gateway_id = topic.rsplit(".", 1)[-1].upper()
+            self._handle_qlegs_response(gateway_id, payload)
+            return
 
-            if topic.startswith(PREFIX_CIRCUIT_BREAKER_RESUME):
-                self._broadcast(
-                    "RESUME",
-                    {
-                        "SYMBOL": str(payload.get("symbol", "")),
-                        "SRC": str(payload.get("halt_source", "")),
-                    },
-                )
-                continue
+        if topic.startswith(PREFIX_POSITION_SNAPSHOT):
+            gateway_id = topic.rsplit(".", 1)[-1].upper()
+            self._handle_position_snapshot_response(gateway_id, payload)
+            return
 
-            if topic == TOPIC_TRADE_EXECUTED:
-                self._broadcast(
-                    "TRADE",
-                    {
-                        "SYMBOL": str(payload.get("symbol", "")),
-                        "PRICE": str(payload.get("price", "")),
-                        "QTY": str(payload.get("quantity", "")),
-                        "SIDE": str(payload.get("aggressor_side", "")),
-                    },
-                )
-                continue
+        if topic.startswith(PREFIX_SESSION_STATUS):
+            gateway_id = topic.rsplit(".", 1)[-1].upper()
+            self._handle_session_status_response(gateway_id, payload)
+            return
 
-            self._route_gateway_scoped_event(topic, payload)
+        if topic == TOPIC_STARTUP_RECOVERY:
+            self._handle_engine_restart()
+            return
+
+        if topic.startswith(PREFIX_GATEWAYS + _PROBE_ID_PREFIX):
+            self._handle_session_probe(topic.rsplit(".", 1)[-1], payload)
+            return
+
+        if topic == TOPIC_SESSION_STATE:
+            self._broadcast(
+                "SESSION",
+                {
+                    "STATE": str(payload.get("state", "")),
+                    "PREV_STATE": str(payload.get("prev_state", "")),
+                },
+            )
+            return
+
+        if topic.startswith(PREFIX_CIRCUIT_BREAKER_HALT):
+            self._broadcast(
+                "HALT",
+                {
+                    "SYMBOL": str(payload.get("symbol", "")),
+                    "LEVEL": str(payload.get("level", "")),
+                },
+            )
+            return
+
+        if topic.startswith(PREFIX_CIRCUIT_BREAKER_RESUME):
+            self._broadcast(
+                "RESUME",
+                {
+                    "SYMBOL": str(payload.get("symbol", "")),
+                    "SRC": str(payload.get("halt_source", "")),
+                },
+            )
+            return
+
+        if topic == TOPIC_TRADE_EXECUTED:
+            self._broadcast(
+                "TRADE",
+                {
+                    "SYMBOL": str(payload.get("symbol", "")),
+                    "PRICE": str(payload.get("price", "")),
+                    "QTY": str(payload.get("quantity", "")),
+                    "SIDE": str(payload.get("aggressor_side", "")),
+                },
+            )
+            return
+
+        self._route_gateway_scoped_event(topic, payload)
 
     def _poll_dc_events(self) -> None:
         """Poll the drop-copy SUB socket (:5557) and relay to subscribed sessions.
@@ -1489,18 +1647,21 @@ class AlfGateway:
             if session is None or not session.dc_enabled:
                 continue
 
-            self._queue_line(
-                session,
-                "DC_FILL",
-                {
-                    "SEQ": str(payload.get("seq", "")),
-                    "ORDER_ID": str(payload.get("order_id", "")),
-                    "SYMBOL": str(payload.get("symbol", "")),
-                    "FILL_QTY": str(payload.get("fill_qty", "")),
-                    "FILL_PRICE": str(payload.get("fill_price", "")),
-                    "LIQUIDITY": str(payload.get("liquidity_flag", "")),
-                },
-            )
+            try:
+                self._queue_line(
+                    session,
+                    "DC_FILL",
+                    {
+                        "SEQ": str(payload.get("seq", "")),
+                        "ORDER_ID": str(payload.get("order_id", "")),
+                        "SYMBOL": str(payload.get("symbol", "")),
+                        "FILL_QTY": str(payload.get("fill_qty", "")),
+                        "FILL_PRICE": str(payload.get("fill_price", "")),
+                        "LIQUIDITY": str(payload.get("liquidity_flag", "")),
+                    },
+                )
+            except Exception:
+                log.exception("ALF gateway dropped unhandled drop-copy event %s", topic)
 
     def _handle_gateway_auth(self, gateway_id: str, payload: dict[str, Any]) -> None:
         target = self._find_pending_auth_session(gateway_id)
@@ -2052,6 +2213,8 @@ class AlfGateway:
         self._symbols_reply = None
         self._symbols_snapshot_loaded = False
         self._known_symbols = set()
+        # Its topic counters restarted at 1.
+        self._topic_seq.clear()
         for session in lost:
             self._drop_lost_session(session, "The exchange engine restarted")
 
@@ -2062,7 +2225,7 @@ class AlfGateway:
     def _send_heartbeats_if_due(self) -> None:
         now = time.monotonic()
         for session in self._clients.values():
-            if not session.authenticated:
+            if not session.authenticated or session.closing:
                 continue
             if now - session.last_outbound < self.config.heartbeat_interval_sec:
                 continue
@@ -2091,6 +2254,11 @@ class AlfGateway:
     def _drop_idle_clients(self) -> None:
         now = time.monotonic()
         for session in list(self._clients.values()):
+            if session.closing:
+                # Already told why; only the flush is outstanding.
+                if now - session.closing_since > _CLOSE_GRACE_SEC:
+                    self._disconnect(session, reason="close_timeout")
+                continue
             if (
                 not session.authenticated
                 and now - session.connected_at > self.config.handshake_timeout_sec
@@ -2141,11 +2309,16 @@ class AlfGateway:
         machine-readable answer.
         """
         try:
-            return to_ticks_exact(price, symbol)
+            ticks = to_ticks_exact(price, symbol)
         except TickViolation as exc:
             raise ValidationError(
                 "INVALID_VALUE", f"{field}: {exc}", "TICK_VIOLATION"
             ) from exc
+        except OverflowError as exc:  # a finite price whose ticks are not
+            raise ValidationError("INVALID_VALUE", f"{field}: out of range") from exc
+        if abs(ticks) > _MAX_ABS_TICKS:
+            raise ValidationError("INVALID_VALUE", f"{field}: out of range")
+        return ticks
 
     def _optional_tag(self, fields: dict[str, str], key: str) -> str | None:
         if key not in fields:
@@ -2244,18 +2417,44 @@ class AlfGateway:
     def _queue_line(
         self, session: ClientSession, msg_type: str, fields: dict[str, str]
     ) -> None:
-        self._queue_raw(session, build_line(msg_type, fields))
+        try:
+            line = build_line(msg_type, fields)
+        except AlfProtocolError:
+            # Engine text relayed as-is (a REASON, say) may hold the field
+            # separator. Deliver it with the '|' blanked, as build_line does
+            # for newlines, rather than lose the event; retried only on
+            # failure so the hot path pays nothing.
+            line = build_line(
+                msg_type, {k: str(v).replace("|", " ") for k, v in fields.items()}
+            )
+        self._queue_raw(session, line)
 
     def _queue_raw(self, session: ClientSession, payload: bytes) -> None:
+        if session.closing:
+            # Its last line (the reason it is closing) is queued; anything
+            # after it would only delay the close or follow the goodbye.
+            return
         if len(session.out_queue) >= self.config.max_client_queue:
             self._global_stats["slow_client_disconnects"] += 1
-            session.out_queue.clear()
-            session.out_offset = 0
-            session.out_queue.append(
+            queued = iter(session.out_queue)
+            kept: deque[bytes] = deque()
+            if session.out_offset:
+                # A line already partly on the wire must be finished, or the
+                # ERR is glued onto its first half and the client parses a
+                # corrupt frame instead of the reason it is being dropped.
+                kept.append(next(queued)[session.out_offset :])
+            # The overflow is the public feed's doing; the client's own
+            # events (fills, acks, cancels) still go out ahead of the ERR,
+            # for as long as the close grace lets it drain them.
+            kept.extend(line for line in queued if not line.startswith(_SHEDDABLE))
+            if not payload.startswith(_SHEDDABLE):
+                kept.append(payload)
+            kept.append(
                 b"ERR|CODE=SLOW_CLIENT|DETAIL=Outbound queue full - disconnecting\n"
             )
-            session.closing = True
-            self._dirty.add(session.sock.fileno())
+            session.out_queue = kept
+            session.out_offset = 0
+            self._close_after_flush(session)
             return
         session.out_queue.append(payload)
         self._dirty.add(session.sock.fileno())
@@ -2351,7 +2550,9 @@ class AlfGateway:
             self._close_after_flush(session)
 
     def _close_after_flush(self, session: ClientSession) -> None:
-        session.closing = True
+        if not session.closing:
+            session.closing = True
+            session.closing_since = time.monotonic()
         self._dirty.add(session.sock.fileno())
 
     def _disconnect(self, session: ClientSession, *, reason: str) -> None:
@@ -2434,5 +2635,13 @@ class AlfGateway:
         for session in self._clients.values():
             if session.authenticated and session.public_feed:
                 if line is None:
-                    line = build_line(msg_type, fields)  # once, not per session
+                    # Once, not per session; '|' in engine text blanked as
+                    # in _queue_line.
+                    try:
+                        line = build_line(msg_type, fields)
+                    except AlfProtocolError:
+                        line = build_line(
+                            msg_type,
+                            {k: v.replace("|", " ") for k, v in fields.items()},
+                        )
                 self._queue_raw(session, line)

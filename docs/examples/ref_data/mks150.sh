@@ -154,8 +154,8 @@ gateway_args=(
   --post-trade-bind-address 0.0.0.0
   --post-trade-port 5580
   --post-trade-replay-retention-sec 3600
-  --post-trade-heartbeat-interval-sec 1
-  --post-trade-idle-timeout-sec 10
+  --post-trade-heartbeat-interval-sec 2
+  --post-trade-idle-timeout-sec 20
   --post-trade-max-client-queue 5000
   --post-trade-allowed-roles CLEARING DROP_COPY AUDIT
   --market-data-gateway
@@ -193,8 +193,8 @@ case "$profile" in
       --symbol-opts TSLA:level=HIGH_BETA,dynamic_band=0.04,cb_halt_l1=10
       --post-trade-gateway --post-trade-name ralf-gwy01
       --post-trade-bind-address 0.0.0.0 --post-trade-port 5580
-      --post-trade-replay-retention-sec 14400 --post-trade-heartbeat-interval-sec 1
-      --post-trade-idle-timeout-sec 10 --post-trade-max-client-queue 8000
+      --post-trade-replay-retention-sec 14400 --post-trade-heartbeat-interval-sec 2
+      --post-trade-idle-timeout-sec 20 --post-trade-max-client-queue 8000
       --post-trade-allowed-roles CLEARING DROP_COPY AUDIT
       --market-data-gateway --market-data-enabled --market-data-name md-gwy01
       --market-data-bind-address 0.0.0.0 --market-data-port 5570

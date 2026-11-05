@@ -17,7 +17,7 @@
 #          --no-circuit-breakers --no-enforce-mm-obligations --seed-mm-mid-range 20:300 \
 #          --seed-last-prices-from-mm --post-trade-gateway --post-trade-bind-address 0.0.0.0 \
 #          --post-trade-port 5580 --post-trade-replay-retention-sec 3600 \
-#          --post-trade-heartbeat-interval-sec 1 --post-trade-idle-timeout-sec 10 \
+#          --post-trade-heartbeat-interval-sec 2 --post-trade-idle-timeout-sec 20 \
 #          --post-trade-max-client-queue 5000 --post-trade-allowed-roles CLEARING DROP_COPY AUDIT \
 #          --market-data-gateway --market-data-enabled --market-data-name md-gwy01 \
 #          --market-data-bind-address 0.0.0.0 --market-data-port 5570 \
@@ -230,8 +230,8 @@
 #     bind_address: 0.0.0.0
 #     port: 5580
 #     replay_retention_sec: 86400
-#     heartbeat_interval_sec: 1
-#     idle_timeout_sec: 5
+#     heartbeat_interval_sec: 2
+#     idle_timeout_sec: 20
 #     max_connections: 64
 #     max_client_queue: 10000
 #     allowed_roles: [CLEARING, DROP_COPY, AUDIT]
@@ -270,8 +270,8 @@
 #     name: dc-gwy01
 #     bind_address: 0.0.0.0
 #     port: 5590
-#     heartbeat_interval_sec: 5
-#     idle_timeout_sec: 30
+#     heartbeat_interval_sec: 2
+#     idle_timeout_sec: 20
 #     max_connections: 64
 #     max_client_queue: 10000
 #
@@ -645,9 +645,9 @@
 #     TCP port clients connect to for fills, drop copy, and post-trade replay.
 #   replay_retention_sec: 86400
 #     How long post-trade events are retained for client replay after reconnect.
-#   heartbeat_interval_sec: 1
+#   heartbeat_interval_sec: 2
 #     Keepalive interval used to prove connection liveness to clients.
-#   idle_timeout_sec: 5
+#   idle_timeout_sec: 20
 #     Disconnect after this long with no traffic either way; HB counts, so a reading client stays.
 #   max_connections: 64
 #     Maximum number of simultaneous RALF client connections.
@@ -722,9 +722,9 @@
 #     Network interface/address the drop-copy TCP gateway listens on.
 #   port: 5590
 #     TCP port DC1 clients connect to for live fill notifications.
-#   heartbeat_interval_sec: 5
+#   heartbeat_interval_sec: 2
 #     Seconds between HB keepalive lines, sent on a fixed timer.
-#   idle_timeout_sec: 30
+#   idle_timeout_sec: 20
 #     Disconnect after this long with no traffic either way; HB counts, so a reading client stays.
 #   max_connections: 64
 #     Maximum number of simultaneous DC1 client connections.
@@ -968,8 +968,8 @@ post_trade_gateway:
   bind_address: 0.0.0.0
   port: 5580
   replay_retention_sec: 3600
-  heartbeat_interval_sec: 1
-  idle_timeout_sec: 10
+  heartbeat_interval_sec: 2
+  idle_timeout_sec: 20
   max_connections: 64
   max_client_queue: 5000
   allowed_roles:

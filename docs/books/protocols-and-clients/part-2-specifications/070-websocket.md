@@ -89,6 +89,10 @@ fields their row below names.
 - `seq` counts per `topic`, within one gateway process. A client checking for
   gaps MUST key on `topic`, not `type`: one type (`depth`) spans many topics
   (`depth.AAPL`, `depth.MSFT`), each numbered independently.
+- `trade.executed` is one topic for every symbol, so its `seq` is contiguous
+  only on a `*` trades subscription. A subscription to some symbols' trades
+  sees jumps where other symbols traded; it cannot detect a drop from `seq`
+  and SHOULD subscribe to `*` when it needs to.
 - `stream_seq` counts every event on one gateway's private stream, so on
   `/ws/private` it is contiguous: a gap of any size means events were lost.
 - An event is numbered before it is queued, so an event dropped for a slow

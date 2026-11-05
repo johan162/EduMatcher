@@ -3976,6 +3976,179 @@ def describe_recovery_item() -> tuple[dict[str, Any], ...]:
     return _RECOVERY_ITEM_FIELDS
 
 
+TOPIC_QUOTE_SEED_SKIPPED = "system.quote_seed_skipped"
+_TOPIC_QUOTE_SEED_SKIPPED_BYTES = "system.quote_seed_skipped".encode()
+_QUOTE_SEED_SKIPPED_REASON_VALUES = ("ACTIVE_QUOTE_RESTORED",)
+QuoteSeedSkippedReason = Literal["ACTIVE_QUOTE_RESTORED"]
+
+
+_QUOTE_SEED_SKIPPED_FIELDS: tuple[dict[str, Any], ...] = (
+    {
+        "name": "gateway_id",
+        "type": "string",
+        "unit": None,
+        "required": True,
+        "doc": "The market maker the seed is configured for.",
+        "constraints": {"max_len": 32},
+    },
+    {
+        "name": "symbol",
+        "type": "string",
+        "unit": None,
+        "required": True,
+        "doc": "",
+        "constraints": {"max_len": 16},
+    },
+    {
+        "name": "quote_id",
+        "type": "string",
+        "unit": None,
+        "required": True,
+        "doc": "The seed's quote id: the one that was not injected.",
+        "constraints": {"max_len": 64},
+    },
+    {
+        "name": "reason",
+        "type": "enum",
+        "unit": None,
+        "required": True,
+        "doc": "`seed_once` is set and an active quote was restored.",
+        "values": _QUOTE_SEED_SKIPPED_REASON_VALUES,
+    },
+)
+
+
+@dataclass(frozen=True, slots=True)
+class QuoteSeedSkipped:
+    """Engine to all subscribers: a configured seed quote the engine did not inject
+    at startup because `seed_once` is set and the gateway already has an active
+    quote in that symbol, restored from the persisted orders. A seed that fires
+    leaves its own legs' acks; one that does not left no trace but a line in the
+    process log, so a post-mortem asking "why is MM01's quote in this book not the
+    configured seed?" could only infer it from the seed's absence.
+    """
+
+    gateway_id: str
+    symbol: str
+    quote_id: str
+    reason: QuoteSeedSkippedReason
+
+    def validate(self) -> None:
+        """Raise MessageValidationError if any declared rule fails.
+
+        The only strictness gate: ``from_dict`` coerces but never validates, so a reader
+        of historical data can opt out of the rules by calling ``from_dict`` alone
+        (design section 5.1.1).
+        """
+        if len(self.gateway_id) > 32:
+            raise MessageValidationError(
+                f"gateway_id: length {len(self.gateway_id)} exceeds max_len 32"
+            )
+        if len(self.symbol) > 16:
+            raise MessageValidationError(
+                f"symbol: length {len(self.symbol)} exceeds max_len 16"
+            )
+        if len(self.quote_id) > 64:
+            raise MessageValidationError(
+                f"quote_id: length {len(self.quote_id)} exceeds max_len 64"
+            )
+        if self.reason not in _QUOTE_SEED_SKIPPED_REASON_VALUES:
+            raise MessageValidationError(
+                f"reason: {self.reason!r} is not one of {_QUOTE_SEED_SKIPPED_REASON_VALUES!r}"
+            )
+
+    @classmethod
+    def from_dict(cls, p: Mapping[str, Any]) -> "QuoteSeedSkipped":
+        """Coerce a payload mapping into this message. Does NOT validate.
+
+        Mirrors the hand-written payload's coercion exactly, including its lenient
+        fallbacks, so it is a drop-in replacement for readers of already-published data
+        (design section 5.1.1).
+        """
+        return cls(
+            gateway_id=str(p["gateway_id"]),
+            symbol=str(p["symbol"]),
+            quote_id=str(p["quote_id"]),
+            reason=cast(QuoteSeedSkippedReason, str(p["reason"])),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return the bus payload, in the spec's declared field order."""
+        return {
+            "gateway_id": self.gateway_id,
+            "symbol": self.symbol,
+            "quote_id": self.quote_id,
+            "reason": self.reason,
+        }
+
+
+def is_quote_seed_skipped(topic: str) -> bool:
+    """True when ``topic`` is this message's topic."""
+    return topic == TOPIC_QUOTE_SEED_SKIPPED
+
+
+def make_quote_seed_skipped(**kw: Any) -> list[bytes]:
+    """Coerce, validate, and return the TWO bus frames [topic, payload].
+
+    The per-topic sequence third frame is NOT added here; it is appended by
+    SequencedPublisher.send_multipart() at publish time (edumatcher/messaging/bus.py).
+
+    Routes through ``from_dict`` rather than the dataclass constructor, so a caller
+    passing ``price=100`` puts a float on the wire rather than an int (design section
+    5.1.1).
+    """
+    obj = QuoteSeedSkipped.from_dict(kw)
+    obj.validate()
+    return _msg.encode(TOPIC_QUOTE_SEED_SKIPPED, obj.to_dict())
+
+
+def make_quote_seed_skipped_unchecked(
+    *,
+    gateway_id: str,
+    symbol: str,
+    quote_id: str,
+    reason: QuoteSeedSkippedReason,
+) -> list[bytes]:
+    """Identical frames to ``make_quote_seed_skipped``, without ``validate()``.
+
+    For measured hot paths only; every other caller should use the validating
+    constructor. Builds the payload directly rather than via the dataclass, which is
+    what makes it cheap enough to be worth having — see the generator's _unchecked_block
+    docstring for the measurements.
+
+    Coerces exactly as ``make_*`` does, so for any input the two emit byte-identical
+    frames.
+    """
+    return [
+        _TOPIC_QUOTE_SEED_SKIPPED_BYTES,
+        _msg.dumps(
+            {
+                "gateway_id": str(gateway_id),
+                "symbol": str(symbol),
+                "quote_id": str(quote_id),
+                "reason": str(reason),
+            }
+        ),
+    ]
+
+
+def parse_quote_seed_skipped(frames: list[bytes]) -> "QuoteSeedSkipped":
+    """Decode bus frames into a validated message.
+
+    Raises MessageValidationError if the payload breaks a declared rule. Call
+    ``from_dict`` on a decoded payload instead to read without validating.
+    """
+    _topic, payload = _msg.decode(frames)
+    obj = QuoteSeedSkipped.from_dict(payload)
+    obj.validate()
+    return obj
+
+
+def describe_quote_seed_skipped() -> tuple[dict[str, Any], ...]:
+    """Return field metadata, for spy tools and runtime pretty-printing."""
+    return _QUOTE_SEED_SKIPPED_FIELDS
+
+
 TOPIC_DIAGNOSTIC = "system.diagnostic"
 _TOPIC_DIAGNOSTIC_BYTES = "system.diagnostic".encode()
 _DIAGNOSTIC_COMPONENT_VALUES = (
@@ -7347,6 +7520,7 @@ FAMILY_TOPICS: tuple[str, ...] = (
     TOPIC_STARTUP,
     TOPIC_STARTUP_RECOVERY,
     TOPIC_RECOVERY_ITEM,
+    TOPIC_QUOTE_SEED_SKIPPED,
     TOPIC_DIAGNOSTIC,
     TOPIC_SYMBOLS_REQUEST,
     TOPIC_SYMBOLS,

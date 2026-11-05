@@ -269,7 +269,7 @@ HELLO|CLIENT=mybot|PROTO=ALF1|ID=TRADER01
 |-------|----------|-------|
 | `CLIENT` | Yes | Free-text label for logging (max 32 chars) |
 | `PROTO` | Yes | Must be exactly `ALF1` |
-| `ID` | Yes | Gateway ID that must be in `participants` in config; max 32 characters (connection closed with `INVALID_VALUE` if exceeded) |
+| `ID` | Yes | Gateway ID that must be in `participants` in config: a letter, then up to 31 letters, digits or `_` (connection closed with `INVALID_VALUE` otherwise) |
 | `FEED` | No | `ALL` (default) or `ORDERS`. `ORDERS` turns off the public [broadcast events](#broadcast-events) (`SESSION`, `HALT`, `RESUME`, `TRADE`) for this session, for clients that take market data elsewhere — such as the AI traders, which would otherwise each parse every trade on the exchange. Replies to your own commands and your own order events are unaffected |
 
 On any other first line the gateway sends `ERR|CODE=AUTH_REQUIRED|...` and closes
@@ -615,11 +615,11 @@ the engine and renders the engine's `system.position_snapshot.{gateway_id}`
 reply: net quantity and average cost, per symbol, for every symbol that
 gateway has a non-zero position in. Unlike every other command on this
 page, the reply's topic is scoped to the *queried* `gateway_id`, not to
-your own session's gateway_id, so `pm-alf-gwy` subscribes to it on demand
-for the duration of one outstanding query and drops the subscription again
-once the reply arrives (or the session disconnects) — this is invisible on
-the wire, but it is why `POS|GW=` is the one command whose reply topic
-differs from every other request/reply pair in this protocol.
+your own session's gateway_id, so `pm-alf-gwy` routes it back to every
+session with a query outstanding for that `gateway_id`. A session may have
+queries for several gateways outstanding at once; each is answered with its
+own `POSITION` block. `GW` must be a valid gateway ID (a letter, then up to
+31 letters, digits or `_`), or the query is refused with `INVALID_VALUE`.
 
 **Multi-line response:**
 
@@ -791,10 +791,12 @@ When the rejected command carried `TAG` or `RTAG`, the gateway also echoes it as
 | `SYMBOL_NOT_CONFIGURED` | Unknown symbol (after symbols are loaded) | Yes |
 | `ROLE_DENIED` | Command not allowed for this gateway's role (e.g. `QUOTE` for non-MM) | Yes |
 | `RATE_LIMITED` | Commands arriving faster than `max_commands_per_second` | Yes |
-| `SLOW_CLIENT` | Outbound queue full | No |
+| `SLOW_CLIENT` | Outbound queue full (`max_client_queue`). Queued `TRADE` prints and heartbeats are dropped; the client's own events are still sent ahead of this line | No |
+| `GATEWAY_SHUTDOWN` | The gateway is stopping. Sent after the session's remaining events (flushed for up to 2 seconds) | No |
 | `IDLE_TIMEOUT` | No inbound traffic for `idle_timeout_sec` | No |
 | `MAX_ERRORS` | Too many errors in the sliding error window | No |
 | `SESSION_LOST` | The engine no longer holds the session: it restarted, or it expired the session. The gateway closes every session when it sees the engine's startup broadcast, and every 5 seconds asks the engine which participants it holds and closes the ones it no longer does. Log on again (after an engine restart the engine's positions start flat) | No |
+| `EVENTS_LOST` | The engine's event stream dropped events meant for this session (the gateway fell behind and the bus discarded them). Unsolicited and untagged; `TOPIC` names the event family (e.g. `ORDER.FILL`) and `COUNT` how many were missed. Reconcile with `ORDERS`. Counted in `gwy.events_lost` | Yes |
 | `ENGINE_UNAVAILABLE` | Command could not be forwarded to the engine (engine unreachable); retry shortly | Yes |
 | `INTERNAL_ERROR` | Unexpected gateway-internal exception | Yes |
 

@@ -20,6 +20,7 @@ and the REST API:
 | ALF  | `pm-alf-gwy`  | 5565 | `docs/examples/alf`  |
 | CALF | `pm-md-gwy`   | 5570 | `docs/examples/calf` |
 | RALF | `pm-ralf-gwy` | 5580 | `docs/examples/ralf` |
+| DC1  | `pm-dc-gwy`   | 5590 | `docs/examples/dc`   |
 | BALF | `pm-balf-gwy` | 5560 | `docs/examples/balf` |
 | REST | `pm-api-gwy`  | 8080 | `docs/examples/REST` |
 
@@ -638,6 +639,127 @@ See also:
 
 - [Post-Trade Dissemination (RALF)](../../operator-guide/part-5-gateways/040-ralf-gateway.md)
 - [RALF Protocol Reference](../part-2-specifications/040-ralf.md)
+
+
+---
+
+## DC support library and examples
+
+DC1 (`pm-dc-gwy`) relays the engine's drop-copy feed to plain TCP clients.
+A client names one participant's gateway ID in `HELLO` and receives that
+participant's fills as unsolicited `DC_FILL` lines; there is no `SUB` step.
+
+The example subscribers keep a running per-symbol tally of fills, executed
+quantity, VWAP and the `MAKER`/`TAKER` split (`DC_FILL` carries no side, so
+it is an activity tally, not a net position), and print it on Ctrl-C
+shutdown. Drop-copy `SEQ` is one engine-wide counter shared by every gateway
+ID, so a per-ID session sees gaps routinely; the examples report only a `SEQ`
+that goes backwards, which means the engine restarted.
+
+### Source files
+
+| File | Description |
+|------|-------------|
+| [dc/README.txt](../../../downloads/examples/dc/README.txt) | Directory overview and quick-start |
+| [dc/dc_parser.py](../../../downloads/examples/dc/dc_parser.py) | Python parser and builder |
+| [dc/dc_subscriber.py](../../../downloads/examples/dc/dc_subscriber.py) | Python subscriber example |
+| [dc/dc_parser.h](../../../downloads/examples/dc/dc_parser.h) | C library header |
+| [dc/dc_parser.c](../../../downloads/examples/dc/dc_parser.c) | C library implementation |
+| [dc/dc_subscriber.c](../../../downloads/examples/dc/dc_subscriber.c) | C subscriber example |
+| [dc/Makefile](../../../downloads/examples/dc/Makefile) | Build helper |
+
+### Wire format
+
+```
+MSGTYPE|KEY=VALUE|KEY=VALUE\n
+```
+
+Identical text-line structure to CALF and RALF; field parsing rules are the
+same.
+
+### Python API — `dc_parser.py`
+
+**`parse_dc_line(line: str) → DcMessage`**
+: Parse one DC1 line.  Returns a `DcMessage(msg_type, fields)` frozen
+  dataclass.  Raises `DcParseError` on malformed input.
+
+**`build_dc_line(msg_type: str, fields: dict | None) → str`**
+: Build one `\n`-terminated DC1 line.  Raises `DcParseError` for invalid
+  message types or fields containing `|`.
+
+### Python usage pattern
+
+```python
+from dc_parser import build_dc_line, parse_dc_line
+
+# Build a HELLO line
+line = build_dc_line("HELLO", {"CLIENT": "risk01", "PROTO": "DC1", "ID": "TRADER01"})
+# → "HELLO|CLIENT=risk01|PROTO=DC1|ID=TRADER01\n"
+
+# Parse an inbound fill
+fill = parse_dc_line(
+    "DC_FILL|SEQ=42|ORDER_ID=ORD-001|SYMBOL=AAPL|FILL_QTY=100|FILL_PRICE=150.05|LIQUIDITY=TAKER"
+)
+print(fill.fields["FILL_PRICE"])  # "150.05"
+```
+
+### Run Python example
+
+```bash
+cd docs/examples/dc
+python3 dc_subscriber.py --host 127.0.0.1 --port 5590 --id TRADER01
+```
+
+Run `python3 dc_subscriber.py --help` for the full flag list, including
+`--client`.
+
+### C API — `dc_parser.h`
+
+**`int dc_parse_line(char *line, dc_message_t *out)`**
+: Parse one mutable DC1 line in-place.  Returns 0 on success, negative on
+  error.
+
+**`const char *dc_get_field(const dc_message_t *msg, const char *key)`**
+: Return the value for `key`, or `NULL` if absent.
+
+### C usage pattern
+
+```c
+#include "dc_parser.h"
+
+char line[] = "DC_FILL|SEQ=42|SYMBOL=AAPL|FILL_QTY=100|FILL_PRICE=150.05";
+dc_message_t msg;
+dc_parse_line(line, &msg);
+printf("%s\n", dc_get_field(&msg, "FILL_PRICE")); /* "150.05" */
+```
+
+### Build and run C example
+
+```bash
+cd docs/examples/dc
+make
+./dc_subscriber 127.0.0.1 5590 TRADER01
+```
+
+Arguments are positional: `host [port [gateway_id]]` (default
+`127.0.0.1 5590 TRADER01`).
+
+### Manual gateway sanity check
+
+```bash
+nc 127.0.0.1 5590
+```
+
+Then type:
+
+```text
+HELLO|CLIENT=manual01|PROTO=DC1|ID=TRADER01
+```
+
+See also:
+
+- [Drop-Copy TCP Gateway](../../operator-guide/part-5-gateways/060-drop-copy-gateway.md)
+- [Drop Copy](../part-3-session-behaviour/060-drop-copy.md)
 
 
 ---

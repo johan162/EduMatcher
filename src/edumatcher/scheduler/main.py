@@ -18,7 +18,7 @@ Usage:
   poetry run pm-scheduler --daily          # run continuously, once per day
   poetry run pm-scheduler --now            # rapid-fire all transitions (for testing)
   poetry run pm-scheduler --no-confirm     # do not query/confirm via the engine
-  poetry run pm-scheduler --verbose        # DEBUG-level diagnostics
+  poetry run pm-scheduler -vv              # DEBUG-level diagnostics
   poetry run pm-scheduler --daily --on-close "pm-eod run --pending"
                                            # start a command 30 s after each
                                            # CLOSED (and once at start-up)
@@ -31,9 +31,10 @@ Usage:
 
 Logging:
   Operational messages go through the ``logging`` module (configured at the
-  process entry point, mirroring pm-engine). The default level is INFO; pass
-  ``--verbose`` / ``-v`` to drop to DEBUG for connection, schedule-table and
-  state-query diagnostics.
+  process entry point, mirroring pm-engine). The default level is WARNING;
+  ``-v`` gives INFO (each transition and wait), ``-vv`` DEBUG (connection,
+  schedule-table and state-query diagnostics), and ``--log-level`` sets it
+  outright.
 
 Same-day behavior:
   By default the scheduler drives *today's* timeline and then exits. If it is
@@ -357,15 +358,25 @@ def _validate_schedule_config(cfg: ScheduleConfig) -> list[str]:
     return errors
 
 
-def _time_today(hhmm: str) -> datetime:
-    """Parse a validated ``"HH:MM"`` string into a naive datetime for today.
+def _time_today(hhmm: str, day: date | None = None) -> datetime:
+    """Parse a validated ``"HH:MM"`` string into a naive datetime on ``day``
+    (default: the schedule clock's today).
 
     Classification, waits and countdowns resolve this local time through the
     same DST policy rather than comparing naive wall-clock readings.
     """
     h, m = hhmm.split(":")
     now = _clock.now()
-    return now.replace(hour=int(h), minute=int(m), second=0, microsecond=0)
+    on = now.date() if day is None else day
+    return now.replace(
+        year=on.year,
+        month=on.month,
+        day=on.day,
+        hour=int(h),
+        minute=int(m),
+        second=0,
+        microsecond=0,
+    )
 
 
 def _local_instant(target: datetime, timezone: ZoneInfo) -> datetime:
@@ -727,6 +738,85 @@ def _catch_up_transitions(
     return result
 
 
+def _route(start: SessionState, target: SessionState) -> list[SessionState]:
+    """Shortest legal transition path from ``start`` to ``target``.
+
+    Excludes ``start``, so it is empty when the two are equal. Ties are
+    broken by state name, which keeps the route deterministic.
+    """
+    paths: dict[SessionState, list[SessionState]] = {start: []}
+    frontier = [start]
+    while frontier and target not in paths:
+        reached: list[SessionState] = []
+        for state in frontier:
+            for nxt in sorted(VALID_TRANSITIONS.get(state, set()), key=str):
+                if nxt not in paths:
+                    paths[nxt] = [*paths[state], nxt]
+                    reached.append(nxt)
+        frontier = reached
+    return paths.get(target, [])
+
+
+_EARLY_STATES = (SessionState.PRE_OPEN, SessionState.OPENING_AUCTION)
+
+
+def _plan_catch_up(
+    past: list[tuple[str, str]],
+    upcoming: list[tuple[str, str, datetime]],
+    engine_state: SessionState | None,
+) -> tuple[list[_Step], list[tuple[str, str, datetime]]]:
+    """Steps that bring the engine to the current phase, and what remains.
+
+    An engine that is CLOSED, or in a state today's schedule has already
+    passed through, is on the day's path: :func:`_catch_up_transitions`
+    replays what it still lacks. Any other state means the engine is ahead
+    of the schedule or left over from a day that never closed, and replaying
+    from PRE_OPEN would be rejected step after step while the engine sat in
+    the wrong phase. Then:
+
+    * a not-yet-matching early phase (PRE_OPEN, OPENING_AUCTION) the day
+      still has ahead is kept, and the schedule resumes after it — routing
+      it back to CLOSED would have to pass through CONTINUOUS and match;
+    * any other state (CONTINUOUS, CLOSING_AUCTION) is driven along the
+      shortest legal route to the phase the schedule says is current.
+    """
+    if (
+        engine_state is None
+        or engine_state == SessionState.CLOSED
+        or any(state == engine_state.value for _, state in past)
+    ):
+        steps = [
+            _Step(state, _no_wait, label=f"{state} (catch-up, was due {hhmm})")
+            for hhmm, state in _catch_up_transitions(past, engine_state)
+        ]
+        return steps, upcoming
+
+    ahead = [state for _, state, _ in upcoming]
+    if engine_state in _EARLY_STATES and engine_state.value in ahead:
+        log.warning(
+            "engine is already in %s ahead of the schedule; resuming the "
+            "schedule after it",
+            engine_state.value,
+        )
+        return [], upcoming[ahead.index(engine_state.value) + 1 :]
+
+    target = SessionState(past[-1][1]) if past else SessionState.CLOSED
+    route = _route(engine_state, target)
+    log.warning(
+        "engine is in %s but the schedule says %s; reconciling via %s",
+        engine_state.value,
+        target.value,
+        " -> ".join(s.value for s in route),
+    )
+    steps = [
+        _Step(
+            s.value, _no_wait, label=f"{s.value} (reconcile from {engine_state.value})"
+        )
+        for s in route
+    ]
+    return steps, upcoming
+
+
 @dataclass(frozen=True)
 class _Step:
     """One transition to drive: its target state, a live wait, and a log label.
@@ -793,7 +883,7 @@ def _run_transitions(
         next_at = _to_utc_iso(following.at) if following and following.at else ""
 
         log.info("-> %s", label)
-        _dispatch_transition(
+        applied = _dispatch_transition(
             push_sock,
             confirm_sock,
             step.state,
@@ -801,8 +891,13 @@ def _run_transitions(
             next_at=next_at,
             on_wake=is_running,
         )
+        # The end-of-day command needs a closed day; a close that was not
+        # delivered or not confirmed is left to the next trigger.
         if on_closed is not None and step.state == SessionState.CLOSED.value:
-            on_closed()
+            if applied:
+                on_closed()
+            else:
+                log.warning("CLOSED not confirmed; --on-close not triggered")
 
     return True
 
@@ -814,20 +909,25 @@ def _dispatch_transition(
     next_state: str = "",
     next_at: str = "",
     on_wake: Callable[[], object] | None = None,
-) -> None:
-    """Send a transition and, when possible, confirm the engine applied it."""
+) -> bool:
+    """Send a transition and, when possible, confirm the engine applied it.
+
+    Returns ``False`` if the send failed or the confirmation did not arrive;
+    without a confirmation socket a delivered send counts as applied.
+    """
     if not _send_transition(push_sock, state, next_state=next_state, next_at=next_at):
-        return
+        return False
     if confirm_sock is None:
-        return
+        return True
     if _confirm_transition(confirm_sock, state, on_wake=on_wake):
         log.debug("confirmed: engine applied %s", state)
-    else:
-        log.warning(
-            "no confirmation that the engine applied %s "
-            "(it may have been rejected or the engine is unreachable)",
-            state,
-        )
+        return True
+    log.warning(
+        "no confirmation that the engine applied %s "
+        "(it may have been rejected or the engine is unreachable)",
+        state,
+    )
+    return False
 
 
 def _run_scheduled(
@@ -896,26 +996,23 @@ def _run_scheduled(
     past: list[tuple[str, str]] = []
     upcoming: list[tuple[str, str, datetime]] = []
     for hhmm, state in schedule:
-        target = _time_today(hhmm)
+        # Anchored to the day resolved above: the clock may have crossed
+        # midnight since (the state query alone can take seconds).
+        target = _time_today(hhmm, today)
         if _clock.is_past(target, now):
             past.append((hhmm, state))
         else:
             upcoming.append((hhmm, state, target))
 
-    catch_up = _catch_up_transitions(past, engine_state)
-    if past and not catch_up:
+    steps, upcoming = _plan_catch_up(past, upcoming, engine_state)
+    if past and not steps:
         log.info("Engine already at the current phase; no catch-up needed")
-    elif catch_up:
+    elif steps:
         log.info(
             "Catching up %d transition(s) to reach the current phase",
-            len(catch_up),
+            len(steps),
         )
 
-    steps: list[_Step] = []
-    for hhmm, state in catch_up:
-        steps.append(
-            _Step(state, _no_wait, label=f"{state} (catch-up, was due {hhmm})")
-        )
     for hhmm, state, target in upcoming:
         steps.append(
             _Step(state, _wait_until(target), label=f"{state} (at {hhmm})", at=target)

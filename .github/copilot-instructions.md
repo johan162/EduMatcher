@@ -57,6 +57,14 @@ durable/wire assertions, multi-actor scenarios where interactions matter,
 and explicit recovery checks for partial failures. See the
 [business-contract testing guidelines](../docs-design/EduMatcher-Testing-Guidelines.md).
 
+## Database connection cleanup
+
+Always close database connections opened by production code or tests, including
+on assertion failures and exceptions. Use `try/finally`, `contextlib.closing`,
+or a fixture with teardown; in tests, reuse `tests.conftest.opened` where suitable.
+Do not rely on garbage collection. A SQLite connection's `with conn:` block
+commits or rolls back a transaction but does not close the connection.
+
 
 ## Build, test, and lint commands
 
@@ -92,4 +100,3 @@ poetry build
 poetry run twine check dist/*
 
 ```
-

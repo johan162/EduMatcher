@@ -8,6 +8,7 @@ Covers the four behaviours the interface exists to provide (see
 from __future__ import annotations
 
 import socket
+import sqlite3
 import threading
 import time
 from pathlib import Path
@@ -17,7 +18,14 @@ import pytest
 import zmq
 
 from edumatcher.log_srv.config import LogServerConfig
-from edumatcher.log_srv.pubsub import LogFilter, LogFilterError
+from edumatcher.log_srv.pubsub import (
+    LogFilter,
+    LogFilterError,
+    LogPubSubHub,
+    Subscription,
+    register_sql_functions,
+    row_to_dict,
+)
 from edumatcher.log_srv.server import LogServer
 from edumatcher.log_srv.writer import LogEventRow
 from edumatcher.logclient.protocol import PROTO_VERSION, build_header_line, iso_utc
@@ -31,7 +39,7 @@ from edumatcher.models.message import (
     make_log_unsubscribe_msg,
 )
 from edumatcher.models.generated.log import TOPIC_LOG_SUBSCRIBE
-from tests.conftest import free_ports
+from tests.conftest import free_ports, opened
 
 _HOST = "127.0.0.1"
 
@@ -177,7 +185,7 @@ def harness(tmp_path: Path):
 # ---------------------------------------------------------------------------
 
 
-def _row(**overrides: Any) -> LogEventRow:
+def _row(**overrides: Any) -> dict[str, Any]:
     base: dict[str, Any] = {
         "client_ts": "2026-07-29T10:00:00.000Z",
         "server_ts": "2026-07-29T10:00:00.001Z",
@@ -195,7 +203,7 @@ def _row(**overrides: Any) -> LogEventRow:
         "message": "order accepted",
     }
     base.update(overrides)
-    return LogEventRow(**base)
+    return row_to_dict(1, LogEventRow(**base))
 
 
 def test_empty_filter_matches_everything() -> None:
@@ -250,11 +258,40 @@ def test_sql_where_is_parameterised() -> None:
         {"min_level": "ERROR", "processes": ["pm-engine"], "contains": "boom"}
     ).sql_where()
     assert any("level IN" in c for c in clauses)
-    assert any("LOWER(message) LIKE" in c for c in clauses)
-    assert "pm-engine" in params and "%boom%" in params
+    assert any("lalf_contains(message, ?)" in c for c in clauses)
+    assert "pm-engine" in params and "boom" in params
     # Every placeholder must have exactly one bound parameter — the whole
     # point of building the clause this way rather than interpolating.
     assert sum(c.count("?") for c in clauses) == len(params)
+
+
+@pytest.mark.parametrize(
+    ("payload", "row"),
+    [
+        # LIKE would read "_" as a wildcard and ignore case.
+        ({"loggers": ["edumatcher.log_srv"]}, {"logger": "edumatcher.logXsrv.server"}),
+        ({"loggers": ["edumatcher.log_srv"]}, {"logger": "EDUMATCHER.LOG_SRV.server"}),
+        ({"loggers": ["edumatcher.log_srv"]}, {"logger": "edumatcher.log_srv.server"}),
+        # SQLite's LOWER folds ASCII only; LIKE's % and _ are wildcards.
+        ({"contains": "ÅTERKÖP"}, {"message": "återköp avbrutet"}),
+        ({"contains": "100%"}, {"message": "fill 100x done"}),
+        ({"contains": "a_b"}, {"message": "aXb"}),
+    ],
+)
+def test_backfill_sql_selects_exactly_what_the_live_filter_matches(
+    payload: dict[str, Any], row: dict[str, Any]
+) -> None:
+    filt = LogFilter.from_payload(payload)
+    live = _row(**row)
+    conn = opened(sqlite3.connect(":memory:"))
+    register_sql_functions(conn)
+    conn.execute("CREATE TABLE log_events (logger TEXT, message TEXT)")
+    conn.execute(
+        "INSERT INTO log_events VALUES (?, ?)", (live["logger"], live["message"])
+    )
+    clauses, params = filt.sql_where()
+    sql = "SELECT COUNT(*) FROM log_events WHERE " + " AND ".join(clauses)
+    assert bool(conn.execute(sql, params).fetchone()[0]) is filt.matches(live)
 
 
 # ---------------------------------------------------------------------------
@@ -362,6 +399,75 @@ def test_backfill_honours_the_time_window(harness: _PubSubHarness) -> None:
     chunks = [p for t, p in harness.drain(0.8) if t == "log.backfill.v1"]
     assert chunks and chunks[-1]["done"] is True
     assert chunks[-1]["total_sent"] == 1
+
+
+def test_backfill_and_live_stream_meet_without_overlap(
+    harness: _PubSubHarness,
+) -> None:
+    for i in range(30):
+        harness.emit(f"old-{i}")
+    time.sleep(0.6)
+
+    # Rows logged while the 10-chunk backfill is still running must arrive
+    # once, on the live path — not a second time inside the backfill.
+    harness.send(make_log_subscribe_msg("v1", "STREAM", backfill_minutes=10))
+    for i in range(5):
+        harness.emit(f"new-{i}")
+    msgs = harness.drain(1.5)
+
+    acks = [p for t, p in msgs if t == "log.subscribe_ack.v1"]
+    chunks = [p for t, p in msgs if t == "log.backfill.v1"]
+    live = [r for t, p in msgs if t == "log.event.v1" for r in p["rows"]]
+    assert acks and chunks and chunks[-1]["done"] is True
+    assert {c["request_id"] for c in chunks} == {acks[0]["backfill_request_id"]}
+    backfilled = [r for c in chunks for r in c["rows"]]
+    seqs = [r["seq"] for r in backfilled + live]
+    assert len(seqs) == len(set(seqs)), "a row was delivered twice"
+    assert sorted(r["message"] for r in backfilled + live) == sorted(
+        [f"old-{i}" for i in range(30)] + [f"new-{i}" for i in range(5)]
+    )
+
+
+def test_a_superseded_backfill_is_still_terminated(harness: _PubSubHarness) -> None:
+    harness.send(make_log_subscribe_msg("v1", "STREAM"))
+    time.sleep(0.4)
+    for i in range(30):
+        harness.emit(f"old-{i}")
+    time.sleep(0.6)
+    harness.drain(0.5)
+
+    harness.send(make_log_backfill_request_msg("v1", minutes=10))
+    harness.send(make_log_backfill_request_msg("v1", minutes=10))
+    chunks = [p for t, p in harness.drain(1.5) if t == "log.backfill.v1"]
+
+    by_request: dict[str, list[dict[str, Any]]] = {}
+    for chunk in chunks:
+        by_request.setdefault(chunk["request_id"], []).append(chunk)
+    assert len(by_request) == 2
+    assert all(c[-1]["done"] is True for c in by_request.values())
+
+
+def test_inbox_overflow_is_reported_to_every_subscription(tmp_path: Path) -> None:
+    hub = LogPubSubHub(
+        pub_addr="tcp://127.0.0.1:1",
+        pull_addr="tcp://127.0.0.1:2",
+        db_path=tmp_path / "log.db",
+        server_name="t",
+    )
+    sub = Subscription(
+        sub_id="v1",
+        mode="STREAM",
+        filt=LogFilter(),
+        lease_sec=30.0,
+        notify_interval_sec=0.25,
+        max_pending_rows=100,
+        expires_at=time.monotonic() + 30,
+    )
+    hub._subs["v1"] = sub
+    hub._inbox_dropped = 7
+    hub._fan_out_new_rows()
+    hub._fan_out_new_rows()
+    assert sub.dropped_rows == 7
 
 
 def test_backfill_rejects_an_out_of_range_window(harness: _PubSubHarness) -> None:

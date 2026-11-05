@@ -76,7 +76,7 @@ def gateway(monkeypatch: pytest.MonkeyPatch) -> tuple[AlfGateway, _FakeSub, _Fak
     # distinct fake for each call, keyed on call order.
     calls: list[_FakeSub] = [fake_sub, fake_dc_sub]
 
-    def _fake_make_subscriber(_addr: str, *_topics: str) -> _FakeSub:
+    def _fake_make_subscriber(_addr: str, *_topics: str, **_kw: object) -> _FakeSub:
         return calls.pop(0)
 
     monkeypatch.setattr(

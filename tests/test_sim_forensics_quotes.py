@@ -193,3 +193,82 @@ def test_c8_accepts_the_same_seed_quote_after_an_engine_restart(
         [status("SEED-1", "ACTIVE")],
     )
     assert out.violations == 0, out.samples
+
+
+def seed_acks(qid: str, bid: str, ask: str) -> list[tuple[str, dict[str, Any]]]:
+    return [
+        (f"order.ack.{GW}", {"order_id": o, "accepted": True, "is_seed": True, "side": s, "symbol": "AAPL", "quote_id": qid})  # fmt: skip
+        for o, s in ((bid, "BUY"), (ask, "SELL"))
+    ]
+
+
+def hit_ask_then_restart() -> list[list[tuple[str, dict[str, Any]]]]:
+    """Q1's ask is hit in part (the policy pulls the bid), the engine restarts
+    and takes the ask's remainder back."""
+    return [
+        [acked("Q1", "B1", "A1"), status("Q1", "ACTIVE")],
+        [status("Q1", "INACTIVE_ASK_FILLED"), cancelled("B1"), trade("T1", "Y", "A1"), fill("A1", 80)],  # fmt: skip
+        [("system.startup", {"run_seq": 2})],
+        [("system.recovery_item", {"entity_id": "A1", "kind": "ORDER", "outcome": "RESTORED", "symbol": "AAPL"})],  # fmt: skip
+    ]
+
+
+def test_c10_finds_a_restored_remainder_left_live_by_a_seed(
+    open_ds: OpenDataset, tmp_path: Path
+) -> None:
+    out = run(
+        open_ds,
+        tmp_path,
+        *hit_ask_then_restart(),
+        [*seed_acks("SEED-1", "S1", "S2"), status("SEED-1", "ACTIVE")],
+        check="C10",
+    )
+    assert [(s["error"], s["order_id"]) for s in out.samples] == [
+        ("an earlier leg still live when a new quote was accepted", "A1")
+    ]
+
+
+def test_c10_passes_a_seed_that_clears_a_restored_remainder(
+    open_ds: OpenDataset, tmp_path: Path
+) -> None:
+    out = run(
+        open_ds,
+        tmp_path,
+        *hit_ask_then_restart(),
+        [replaced("A1"), *seed_acks("SEED-1", "S1", "S2"), status("SEED-1", "ACTIVE")],
+        check="C10",
+    )
+    assert out.violations == 0, out.samples
+
+
+def cancel_ack(accepted: bool) -> tuple[str, dict[str, Any]]:
+    return (f"quote.cancel_ack.{GW}", {"symbol": "AAPL", "quote_id": "Q1", "accepted": accepted})  # fmt: skip
+
+
+def test_c10_finds_a_quote_cancel_refused_while_a_remainder_is_live(
+    open_ds: OpenDataset, tmp_path: Path
+) -> None:
+    out = run(
+        open_ds,
+        tmp_path,
+        *hit_ask_then_restart()[:2],
+        [cancel_ack(False)],
+        check="C10",
+    )
+    assert [(s["error"], s["order_id"]) for s in out.samples] == [
+        ("a quote cancel was refused with a leg still live", "A1")
+    ]
+
+
+def test_c10_passes_a_quote_cancel_that_clears_the_remainder(
+    open_ds: OpenDataset, tmp_path: Path
+) -> None:
+    out = run(
+        open_ds,
+        tmp_path,
+        *hit_ask_then_restart()[:2],
+        [("order.cancelled." + GW, {"order_id": "A1"}), cancel_ack(True)],
+        [cancel_ack(False)],  # nothing left: a refusal is right
+        check="C10",
+    )
+    assert out.violations == 0, out.samples

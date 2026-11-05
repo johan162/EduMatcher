@@ -110,7 +110,7 @@ def test_gtc_quote_survives_restart_without_duplicating(monkeypatch, tmp_path):
     seeded_ids = {seeded_entry.bid_order_id, seeded_entry.ask_order_id}
     assert resting_ids(engine1.books["AAPL"]) == seeded_ids
 
-    engine2, _ = _persist_and_reopen(
+    engine2, pub_sock2 = _persist_and_reopen(
         monkeypatch, tmp_path, engine1, symbol_configs=symbol_configs
     )
 
@@ -121,6 +121,15 @@ def test_gtc_quote_survives_restart_without_duplicating(monkeypatch, tmp_path):
     assert restored_ids == seeded_ids
     assert resting_ids(engine2.books["AAPL"]) == seeded_ids
     assert engine2._quote_index.active_count() == 1
+    # The skip is on the audit trail, not only in the process log.
+    assert msgs(pub_sock2, "system.quote_seed_skipped") == [
+        {
+            "gateway_id": GW,
+            "symbol": "AAPL",
+            "quote_id": seeded_entry.quote_id,
+            "reason": "ACTIVE_QUOTE_RESTORED",
+        }
+    ]
 
 
 def test_default_tif_day_seed_quote_survives_same_day_restart(monkeypatch, tmp_path):
@@ -338,3 +347,62 @@ def test_mm_vs_mm_startup_crossing(monkeypatch, tmp_path):
     trades = msgs(pub_sock2, "trade.executed")
     assert len(trades) == 1
     assert trades[0]["symbol"] == "AAPL"
+
+
+def test_startup_seed_clears_a_restored_quote_remnant(monkeypatch, tmp_path):
+    """A partly hit quote leaves its hit leg's remainder resting, not
+    quote-managed; after a restart the seed replaces it like any new quote
+    (it used to stay and sit below the seed's own bid)."""
+    from edumatcher.models.order import OrderType, Side
+
+    from .engine_harness import order_payload
+
+    symbol_configs = {"AAPL": SymbolConfig(name="AAPL", market_maker_quotes=[])}
+    engine1, _ = make_engine(
+        monkeypatch,
+        tmp_path,
+        symbols=("AAPL",),
+        symbol_configs=symbol_configs,
+        gateways=(GW, "GW01"),
+        mm_gateways=(GW,),
+    )
+    engine1._restore_gtc()
+    engine1._load_config()
+    connect(engine1, GW, "GW01")
+    submit_quote(engine1, GW, 99.90, 100.00, quote_id="Q1", tif="GTC")
+    entry = engine1._quote_index.get(GW, "AAPL")
+    assert entry is not None
+    engine1._handle_new_order(
+        order_payload(Side.BUY, OrderType.LIMIT, 40, "GW01", price=100.00)
+    )
+    assert engine1._quote_index.get(GW, "AAPL") is None
+    remnant = engine1.books["AAPL"].quote_orders_for_gateway(GW)
+    assert [o.id for o in remnant] == [entry.ask_order_id]
+
+    seeded = {
+        "AAPL": SymbolConfig(
+            name="AAPL",
+            market_maker_quotes=[
+                MMQuoteSeed(
+                    gateway_id=GW,
+                    bid_price_ticks=10010,
+                    ask_price_ticks=10020,
+                    bid_qty=100,
+                    ask_qty=100,
+                    tif=TIF.GTC,
+                    quote_id="SEED-1",
+                    seed_once=True,
+                )
+            ],
+        )
+    }
+    engine2, _ = _persist_and_reopen(
+        monkeypatch, tmp_path, engine1, symbol_configs=seeded
+    )
+
+    fresh = engine2._quote_index.get(GW, "AAPL")
+    assert fresh is not None
+    assert resting_ids(engine2.books["AAPL"]) == {
+        fresh.bid_order_id,
+        fresh.ask_order_id,
+    }

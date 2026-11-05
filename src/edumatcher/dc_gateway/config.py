@@ -21,8 +21,8 @@ class DcGatewayConfig:
     bind_address: str = field(default_factory=resolve_gateway_bind_host)
     port: int = 5590
     drop_copy_pub_addr: str = DROP_COPY_PUB_ADDR
-    heartbeat_interval_sec: int = 5
-    idle_timeout_sec: int = 30
+    heartbeat_interval_sec: int = 2
+    idle_timeout_sec: int = 20
     max_connections: int = 64
     max_client_queue: int = 10_000
 
@@ -44,9 +44,9 @@ def _load_dc_gateway_config_from_raw(raw: dict[str, Any]) -> DcGatewayConfig:
     if port <= 0 or port > 65535:
         raise ValueError("dc_gateway.port must be in 1-65535")
     heartbeat_interval_sec = _as_int(
-        section.get("heartbeat_interval_sec", 5), "heartbeat_interval_sec"
+        section.get("heartbeat_interval_sec", 2), "heartbeat_interval_sec"
     )
-    idle_timeout_sec = _as_int(section.get("idle_timeout_sec", 30), "idle_timeout_sec")
+    idle_timeout_sec = _as_int(section.get("idle_timeout_sec", 20), "idle_timeout_sec")
     max_connections = _as_int(section.get("max_connections", 64), "max_connections")
     max_client_queue = _as_int(
         section.get("max_client_queue", 10_000), "max_client_queue"

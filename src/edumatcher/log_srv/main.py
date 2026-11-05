@@ -153,6 +153,19 @@ def _configure_logging(args: argparse.Namespace) -> int:
 
 
 def _resolve_config(args: argparse.Namespace) -> LogServerConfig:
+    # The same bounds the config loader enforces: a negative retention would
+    # put the prune cutoff in the future and delete every row.
+    for flag, value, minimum in (
+        ("--port", args.port, 1),
+        ("--retention-days", args.retention_days, 0),
+        ("--max-message-bytes", args.max_message_bytes, 1),
+        ("--pub-port", args.pub_port, 1),
+        ("--pull-port", args.pull_port, 1),
+        ("--lease-sec", args.lease_sec, 1),
+    ):
+        if value is not None and value < minimum:
+            raise ValueError(f"{flag} must be >= {minimum}")
+
     cfg = load_default_log_server_config()
 
     bind_address = str(args.host) if args.host else cfg.bind_address

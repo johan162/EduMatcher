@@ -39,6 +39,7 @@ from edumatcher.log_srv.schema import (
     DELETE_OLD_LOG_EVENTS,
     INCREMENT_TOTAL_CONNECTIONS,
     INCREMENT_TOTAL_ERRORS_SENT,
+    PRUNE_CHUNK_ROWS,
     UPDATE_PROCESS_DISCONNECTED,
     UPDATE_PROCESS_HEARTBEAT,
     UPSERT_PROCESS_CONNECT,
@@ -121,6 +122,9 @@ class LogServer:
         self._debug_last_summary = time.monotonic()
         self._last_retention_check = 0.0
         self._last_heartbeat_flush = 0.0
+        #: Set each loop pass while the writer backlog exceeds
+        #: max_client_queue and client reads are suspended (§5.8).
+        self._backlogged = False
 
         # A dedicated connection is used for the (rare, background) DELETE
         # pruning statement rather than sharing the writer thread's
@@ -279,10 +283,23 @@ class LogServer:
             )
 
     def _read_client_data(self) -> None:
+        # Backpressure (§5.8/§7.4/§15.13): while the writer thread holds more
+        # than max_client_queue uncommitted rows, read from no socket at all.
+        # Unread bytes stay in the kernel buffers, so TCP flow control slows
+        # every producer's send() equally until the disk catches up — and no
+        # accepted row is ever discarded.
+        self._backlogged = self._writer.pending > self.config.max_client_queue
+        if self._backlogged:
+            self._dbg_count("reads_throttled")
+            return
         if not self._clients:
             return
 
-        readable = [session.sock for session in self._clients.values()]
+        # A session closing after an ERR or EXIT is only flushed, not read:
+        # anything it sends after that point is not accepted.
+        readable = [s.sock for s in self._clients.values() if not s.closing]
+        if not readable:
+            return
         try:
             ready, _, _ = select.select(readable, [], [], 0)
         except (OSError, ValueError) as exc:
@@ -295,17 +312,18 @@ class LogServer:
             if session is None:
                 continue
 
-            # Backpressure (§5.8/§15.13): stop reading from this socket's
-            # buffer while its outbound queue is over the limit, so slow
-            # writer-thread drainage or a genuinely overloaded downstream
-            # naturally throttles the client via TCP flow control rather
-            # than the server buffering an unbounded number of LOG rows.
+            # A client that never reads its replies (ERR/PONG) is not read
+            # from either, so its outbound queue cannot grow without bound.
             if len(session.out_queue) > self.config.max_client_queue:
                 continue
 
             try:
                 chunk = session.sock.recv(4096)
-            except BlockingIOError, OSError:
+            except BlockingIOError:
+                continue
+            except OSError:
+                # ECONNRESET and friends: the peer is gone, not idle.
+                self._disconnect(session, reason="io_error")
                 continue
 
             if not chunk:
@@ -334,16 +352,22 @@ class LogServer:
             if frame is None:
                 return
             self._handle_frame(session, frame)
+            if session.closing:
+                return
 
     def _flush_client_writes(self) -> None:
         """Flush queued outbound bytes to all clients (mirrors md_gateway)."""
         for session in list(self._clients.values()):
+            failed = False
             while session.out_queue:
                 payload = session.out_queue[0]
                 unsent = payload[session.out_offset :]
                 try:
                     sent = session.sock.send(unsent)
-                except BlockingIOError, OSError:
+                except BlockingIOError:
+                    break
+                except OSError:
+                    failed = True
                     break
 
                 if sent <= 0:
@@ -355,7 +379,9 @@ class LogServer:
                     session.out_queue.pop(0)
                     session.out_offset = 0
 
-            if session.closing and not session.out_queue:
+            if failed:
+                self._disconnect(session, reason="io_error")
+            elif session.closing and not session.out_queue:
                 self._disconnect(session, reason=session.close_reason)
 
     # ------------------------------------------------------------------
@@ -535,8 +561,6 @@ class LogServer:
                     "MSG": f"message exceeds max_message_bytes={max_bytes}, truncated",
                 },
             )
-            with self._writer.lock, self._conn:
-                self._conn.execute(INCREMENT_TOTAL_ERRORS_SENT)
 
         line_raw = fields.get("LINE")
         line_no: int | None = None
@@ -615,14 +639,22 @@ class LogServer:
                 not session.authenticated
                 and now - session.connected_at > HELLO_TIMEOUT_SEC
             ):
+                if session.closing:
+                    # Its ERR was given one flush pass and has still not
+                    # gone out; do not wait on a client that will not read.
+                    self._disconnect(session, reason=session.close_reason)
+                    continue
                 self._queue_line(
                     session,
                     "ERR",
                     {"CODE": ERR_HELLO_TIMEOUT, "MSG": "no HELLO received"},
                 )
-                self._disconnect(session, reason="hello_timeout")
+                self._close_after_flush(session, reason="hello_timeout")
                 continue
-            if session.authenticated:
+            # While reads are throttled for backpressure, a client's
+            # heartbeats sit unread in the kernel buffer: silence then is the
+            # server's doing, not evidence the client is dead.
+            if session.authenticated and not self._backlogged:
                 idle = now - session.last_activity
                 max_idle = 2 * self.config.heartbeat_interval_sec
                 if idle > max_idle:
@@ -695,9 +727,18 @@ class LogServer:
 
     def _prune_older_than(self, days: int) -> int:
         cutoff = iso_utc(time.time() - days * 86400)
-        with self._prune_conn:
-            cur = self._prune_conn.execute(DELETE_OLD_LOG_EVENTS, (cutoff,))
-            deleted = max(cur.rowcount, 0)
+        deleted = 0
+        while True:
+            # One committed chunk per statement, so the writer thread never
+            # waits behind more than one bounded DELETE.
+            with self._prune_conn:
+                cur = self._prune_conn.execute(
+                    DELETE_OLD_LOG_EVENTS, (cutoff, PRUNE_CHUNK_ROWS)
+                )
+                count = max(cur.rowcount, 0)
+            deleted += count
+            if count < PRUNE_CHUNK_ROWS:
+                break
         if deleted:
             log.info(
                 "retention: pruned %d log_events rows older than %s", deleted, cutoff

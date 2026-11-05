@@ -88,7 +88,7 @@ def gateway(monkeypatch: pytest.MonkeyPatch) -> AlfGateway:
     )
     monkeypatch.setattr(
         "edumatcher.alf_gwy.gateway.make_subscriber",
-        lambda _addr, *_topics: fake_sub,
+        lambda _addr, *_topics, **_kw: fake_sub,
     )
 
     cfg = AlfGatewayConfig(
@@ -187,7 +187,7 @@ def test_startup_subscribes_every_gateway_scoped_reply_by_prefix(
     # the engine's reply; every reply family must be covered from startup.
     topics: list[str] = []
 
-    def _capture(_addr: str, *subscribed: str) -> _FakeSub:
+    def _capture(_addr: str, *subscribed: str, **_kw: object) -> _FakeSub:
         topics.extend(subscribed)
         return _FakeSub()
 
@@ -1213,7 +1213,7 @@ def test_pos_gw_sends_position_request(gateway: AlfGateway) -> None:
     assert fake_push.sent
     topic = fake_push.sent[-1][0].decode("utf-8")
     assert topic == "system.position_request"
-    assert session.pending_position_query == "MM_AAPL_01"
+    assert session.pending_position_queries == {"MM_AAPL_01"}
     peer.close()
 
 
@@ -1226,11 +1226,11 @@ def test_pos_gw_lowercase_is_uppercased(gateway: AlfGateway) -> None:
 
     gateway._handle_client_line(session, "POS|GW=mm_aapl_01")
 
-    assert session.pending_position_query == "MM_AAPL_01"
+    assert session.pending_position_queries == {"MM_AAPL_01"}
     peer.close()
 
 
-def test_second_pos_gw_query_replaces_the_first(gateway: AlfGateway) -> None:
+def test_second_pos_gw_query_keeps_the_first_pending(gateway: AlfGateway) -> None:
     session, peer = _make_session()
     session.authenticated = True
     session.gateway_id = "TRADER01"
@@ -1241,7 +1241,7 @@ def test_second_pos_gw_query_replaces_the_first(gateway: AlfGateway) -> None:
     session.rate_tokens = 10.0
     gateway._handle_client_line(session, "POS|GW=MM_MSFT_01")
 
-    assert session.pending_position_query == "MM_MSFT_01"
+    assert session.pending_position_queries == {"MM_AAPL_01", "MM_MSFT_01"}
     peer.close()
 
 
@@ -1281,7 +1281,7 @@ def test_position_snapshot_reply_routed_to_querying_client(
     end = parse_alf_line(session.out_queue[2].decode("utf-8"))
     assert end.command == "END"
     assert end.fields["TYPE"] == "POSITION"
-    assert session.pending_position_query is None
+    assert session.pending_position_queries == set()
     peer.close()
 
 
@@ -1354,7 +1354,7 @@ def test_position_snapshot_reply_for_different_gateway_is_ignored(
     gateway._poll_engine_events()
 
     assert not session.out_queue
-    assert session.pending_position_query == "MM_AAPL_01"
+    assert session.pending_position_queries == {"MM_AAPL_01"}
     peer.close()
 
 
@@ -1391,8 +1391,8 @@ def test_two_sessions_querying_the_same_gateway_are_both_answered(
 
     assert session_a.out_queue
     assert session_b.out_queue
-    assert session_a.pending_position_query is None
-    assert session_b.pending_position_query is None
+    assert session_a.pending_position_queries == set()
+    assert session_b.pending_position_queries == set()
     peer_a.close()
     peer_b.close()
 

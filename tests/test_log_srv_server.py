@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import socket
 import sqlite3
+import struct
 import threading
 import time
 from pathlib import Path
@@ -10,8 +11,11 @@ from typing import Any
 import pytest
 
 from edumatcher.log_srv.config import LogServerConfig
-from edumatcher.log_srv.schema import initialize_schema
+from edumatcher.log_srv.schema import initialize_schema, open_db
 from edumatcher.log_srv.server import LogServer
+from edumatcher.log_srv.session import LogSession
+from edumatcher.log_srv.writer import LogEventRow, WriterThread
+from edumatcher.logclient.protocol import iso_utc
 from tests.conftest import free_ports
 
 _HOST = "127.0.0.1"
@@ -124,8 +128,9 @@ def test_hello_timeout_disconnects_client(tmp_path: Path) -> None:
         # exact timing (keeps this test robust against CI scheduling jitter).
         s.settimeout(8.0)
         data = s.recv(4096)
-        # Either we get an ERR (HELLO_TIMEOUT) or the socket is closed (b"").
-        assert data == b"" or b"HELLO_TIMEOUT" in data
+        # The ERR is flushed before the close, not discarded with the socket.
+        assert b"HELLO_TIMEOUT" in data
+        assert s.recv(4096) == b""
         s.close()
     finally:
         rs.stop()
@@ -202,6 +207,9 @@ def test_oversized_payload_truncated_not_dropped(tmp_path: Path) -> None:
         assert len(rows) == 1
         assert rows[0][1] == 1
         assert len(rows[0][0].encode("utf-8")) <= 10
+        # One advisory ERR was sent, so it is counted once.
+        errors = conn.execute("SELECT total_errors_sent FROM server_stats").fetchone()
+        assert errors == (1,)
     finally:
         rs.stop()
 
@@ -433,3 +441,182 @@ def test_session_bookkeeping_waits_for_the_writer_lock(
         assert b"WELCOME" not in _recv_all(s, timeout=0.5)
     assert b"WELCOME" in _recv_all(s, timeout=2.0)
     s.close()
+
+
+def test_a_reset_connection_records_an_io_error(tmp_path: Path) -> None:
+    """A peer that vanishes with RST is a crash, not an idle client."""
+    rs = _RunningServer(tmp_path)
+    rs.start()
+    try:
+        s = rs.connect()
+        s.sendall(b"HELLO|CLIENT=pm-viewer|PID=1|HOST=h|PROTO=LALF1\n")
+        _recv_all(s)
+        s.sendall(b"HB\n")
+        time.sleep(0.3)
+        # Linger 0: close() sends RST instead of FIN.
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", 1, 0))
+        s.close()
+        time.sleep(0.4)
+        reason = (
+            rs.db().execute("SELECT disconnect_reason FROM processes").fetchone()[0]
+        )
+        assert reason == "io_error"
+    finally:
+        rs.stop()
+
+
+def test_frames_after_a_protocol_violation_are_not_accepted(
+    running_server: _RunningServer,
+) -> None:
+    s = running_server.connect()
+    body = b"x"
+    s.sendall(
+        b"HELLO|CLIENT=x|PID=1|HOST=h|PROTO=LALF1\n"
+        b"HELLO|CLIENT=x|PID=1|HOST=h|PROTO=LALF1\n"
+        b"LOG|SEQ=1|TS=2026-07-28T14:00:00.000Z|LEVEL=INFO|LOGGER=y|LEN=1\n" + body
+    )
+    resp = _recv_all(s, timeout=1.0)
+    assert resp.count(b"ERR") == 1
+    time.sleep(0.4)
+    conn = running_server.db()
+    assert conn.execute("SELECT COUNT(*) FROM log_events").fetchone() == (0,)
+    s.close()
+
+
+class _BackloggedWriter:
+    """Stands in for WriterThread with a fixed uncommitted-row count."""
+
+    def __init__(self, pending: int) -> None:
+        self.pending = pending
+        self.lock = threading.Lock()
+
+
+def test_reads_stop_while_the_writer_is_backlogged(tmp_path: Path) -> None:
+    """§5.8/§15.13: a writer backlog throttles producers via TCP, and their
+    unread heartbeats do not get them dropped as idle meanwhile."""
+    server = LogServer(
+        LogServerConfig(
+            bind_address=_HOST,
+            db_path=tmp_path / "log.db",
+            max_client_queue=10,
+            pubsub_enabled=False,
+        )
+    )
+    a, b = socket.socketpair()
+    try:
+        a.setblocking(False)
+        session = LogSession(sock=a, addr=(_HOST, 0))
+        session.authenticated = True
+        session.last_activity = time.monotonic() - 3600
+        server._clients[a.fileno()] = session
+        b.sendall(b"PING\n")
+        time.sleep(0.05)
+        real_writer = server._writer
+        server._writer = _BackloggedWriter(pending=11)
+
+        server._read_client_data()
+        server._drop_idle_clients()
+        assert session.out_queue == []  # PING left unread in the kernel
+        assert a.fileno() in server._clients  # not dropped as idle
+
+        server._writer = _BackloggedWriter(pending=10)
+        server._read_client_data()
+        assert any(b"PONG" in line for line in session.out_queue)
+        server._writer = real_writer
+    finally:
+        b.close()
+        server.close()
+
+
+def test_retention_prunes_in_chunks(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import edumatcher.log_srv.server as server_mod
+
+    monkeypatch.setattr(server_mod, "PRUNE_CHUNK_ROWS", 2)
+    server = LogServer(LogServerConfig(bind_address=_HOST, db_path=tmp_path / "log.db"))
+    try:
+        with server._conn:
+            for ts, msg in [("2000-01-01T00:00:00.000Z", "old")] * 5 + [
+                (iso_utc(time.time()), "new")
+            ]:
+                server._conn.execute(
+                    "INSERT INTO log_events (client_ts, server_ts, process, pid, "
+                    "host, session, level, logger, message) "
+                    "VALUES (?,?,'p',1,'h','s','INFO','l',?)",
+                    (ts, ts, msg),
+                )
+        assert server._prune_older_than(30) == 5
+        assert server._conn.execute("SELECT message FROM log_events").fetchall() == [
+            ("new",)
+        ]
+    finally:
+        server.close()
+
+
+def test_log_db_uses_wal(tmp_path: Path) -> None:
+    """Readers (pm-log-cli, backfill) must not block the writer's commits."""
+    conn = open_db(tmp_path / "log.db")
+    assert conn.execute("PRAGMA journal_mode").fetchone() == ("wal",)
+    conn.close()
+
+
+def _event(i: int) -> LogEventRow:
+    ts = iso_utc(time.time())
+    return LogEventRow(
+        ts, ts, "p", None, 1, "h", "s", "INFO", "l", None, None, False, False, f"m{i}"
+    )
+
+
+def test_writer_flushes_its_whole_backlog_at_shutdown(tmp_path: Path) -> None:
+    conn = open_db(tmp_path / "log.db")
+    writer = WriterThread(conn, batch_size=50)
+    for i in range(500):
+        writer.enqueue(_event(i))
+    writer.stop()  # never started: everything is still queued
+    assert conn.execute("SELECT COUNT(*) FROM log_events").fetchone() == (500,)
+    conn.close()
+
+
+class _FailingOnceConn:
+    """Delegates to a real connection; the first INSERT batch fails."""
+
+    def __init__(self, conn: sqlite3.Connection) -> None:
+        self._conn = conn
+        self.failed = False
+
+    def __enter__(self) -> "_FailingOnceConn":
+        self._conn.__enter__()
+        return self
+
+    def __exit__(self, *exc: Any) -> Any:
+        return self._conn.__exit__(*exc)
+
+    def executemany(self, sql: str, rows: Any) -> Any:
+        if not self.failed:
+            self.failed = True
+            raise sqlite3.OperationalError("database is locked")
+        return self._conn.executemany(sql, rows)
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._conn, name)
+
+
+def test_writer_retries_a_failed_batch_instead_of_dropping_it(
+    tmp_path: Path,
+) -> None:
+    conn = open_db(tmp_path / "log.db")
+    flaky = _FailingOnceConn(conn)
+    writer = WriterThread(flaky, batch_size=50)  # type: ignore[arg-type]
+    for i in range(3):
+        writer.enqueue(_event(i))
+
+    assert writer._drain_and_write(force=True) == 0
+    assert writer.pending == 3  # kept, and counted for backpressure
+    assert writer._drain_and_write(force=True) == 3
+    assert [r[0] for r in conn.execute("SELECT message FROM log_events")] == [
+        "m0",
+        "m1",
+        "m2",
+    ]
+    conn.close()

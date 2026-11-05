@@ -33,6 +33,9 @@ from edumatcher.gateway_ports import (
 )
 from edumatcher.models.session import VALID_TRANSITIONS, SessionState
 from edumatcher.config import MONITOR_HOST
+from edumatcher.dc_gateway.config import DcGatewayConfig
+from edumatcher.md_gateway.config import MarketDataGatewayConfig
+from edumatcher.ralf_gateway.config import RalfGatewayConfig
 from edumatcher.monitor.config import (
     DEFAULT_BEACON_INTERVAL_SEC,
     DEFAULT_BIND_ADDRESS,
@@ -88,6 +91,7 @@ def check(raw: dict[str, Any], path: Path) -> list[CheckResult]:  # noqa: ARG001
     _check_api_gateway_semantic(raw, results)
     _check_readonly_api_key(raw, results)
     _check_monitor_semantic(raw, results)
+    _check_line_gateway_heartbeats(raw, results)
     return results
 
 
@@ -1322,6 +1326,65 @@ def _check_monitor_semantic(raw: dict[str, Any], results: list[CheckResult]) -> 
                     "warning, not an error."
                 ),
                 path="monitor.bind_address",
+            )
+        )
+
+
+# ---------------------------------------------------------------------------
+# Line-gateway heartbeat vs. idle timeout (M033)
+# ---------------------------------------------------------------------------
+
+# The three line gateways whose own HB lines keep a reading client alive:
+# a successful send counts as activity, so a quiet session survives only if
+# a heartbeat goes out well inside the idle timeout. Defaults come from each
+# loader, so an omitted field is checked at the value the gateway will use.
+_LINE_GATEWAY_HEARTBEAT_DEFAULTS: tuple[tuple[str, int, int], ...] = (
+    (
+        "post_trade_gateway",
+        RalfGatewayConfig.heartbeat_interval_sec,
+        RalfGatewayConfig.idle_timeout_sec,
+    ),
+    (
+        "market_data_gateway",
+        MarketDataGatewayConfig.heartbeat_interval_sec,
+        MarketDataGatewayConfig.idle_timeout_sec,
+    ),
+    (
+        "dc_gateway",
+        DcGatewayConfig.heartbeat_interval_sec,
+        DcGatewayConfig.idle_timeout_sec,
+    ),
+)
+
+
+def _check_line_gateway_heartbeats(
+    raw: dict[str, Any], results: list[CheckResult]
+) -> None:
+    for section_name, default_hb, default_idle in _LINE_GATEWAY_HEARTBEAT_DEFAULTS:
+        section = raw.get(section_name)
+        if not isinstance(section, dict):
+            continue
+        hb = _number(section.get("heartbeat_interval_sec", default_hb))
+        idle = _number(section.get("idle_timeout_sec", default_idle))
+        if hb is None or idle is None or hb <= 0 or idle <= 0:
+            continue  # shape errors are layer 2's to report
+        if idle > 2 * hb:
+            continue
+        results.append(
+            CheckResult(
+                code="M033",
+                severity=Severity.ERROR,
+                message=(
+                    f"'{section_name}.idle_timeout_sec' ({idle:g}) must be more "
+                    f"than twice '{section_name}.heartbeat_interval_sec' ({hb:g})."
+                ),
+                suggestion=(
+                    "The gateway's heartbeats are what keep a client that only "
+                    "reads from timing out; with the idle timeout this close to "
+                    "the heartbeat interval, healthy quiet sessions get dropped. "
+                    "Raise idle_timeout_sec or lower heartbeat_interval_sec."
+                ),
+                path=f"{section_name}.idle_timeout_sec",
             )
         )
 

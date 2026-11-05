@@ -164,8 +164,11 @@ A connection goes through these stages, and each setting acts at one of them.
    or lower the client's send rate.
 6. **Slow consumers.** Lines for a client wait in an outbound queue until its
    socket accepts them. If that queue reaches `max_client_queue` lines, the
-   queue is discarded, the gateway sends `ERR|CODE=SLOW_CLIENT` and closes the
-   connection, so one stuck client cannot consume the gateway's memory.
+   gateway drops the queued `TRADE` prints and heartbeats, keeps the client's
+   own events (fills, acks, cancels), queues `ERR|CODE=SLOW_CLIENT` after them
+   and closes the connection once they are sent, or after 5 seconds if the
+   client still does not read. One stuck client cannot consume the gateway's
+   memory.
 
 Choosing values for a classroom: the defaults suit a few dozen desks. Raise
 `max_connections` if more clients connect, raise `max_commands_per_second` for
@@ -203,8 +206,8 @@ post_trade_gateway:
   bind_address: 0.0.0.0
   port: 5580
   replay_retention_sec: 86400
-  heartbeat_interval_sec: 1
-  idle_timeout_sec: 5
+  heartbeat_interval_sec: 2
+  idle_timeout_sec: 20
   max_connections: 64
   max_client_queue: 10000
   allowed_roles:
@@ -341,8 +344,8 @@ dc_gateway:
   name: dc-gwy01
   bind_address: 0.0.0.0
   port: 5590
-  heartbeat_interval_sec: 5
-  idle_timeout_sec: 30
+  heartbeat_interval_sec: 2
+  idle_timeout_sec: 20
   max_connections: 64
   max_client_queue: 10000
 ```
@@ -352,8 +355,8 @@ dc_gateway:
 | `name` | `dc-gwy01` | Gateway name echoed in `WELCOME` |
 | `bind_address` | `0.0.0.0` | TCP listen interface (`127.0.0.1` for loopback-only) |
 | `port` | `5590` | TCP listen port |
-| `heartbeat_interval_sec` | `5` | Seconds between server-initiated `HB` lines |
-| `idle_timeout_sec` | `30` | Disconnect a session when no traffic flows in either direction within this window |
+| `heartbeat_interval_sec` | `2` | Seconds between server-initiated `HB` lines |
+| `idle_timeout_sec` | `20` | Disconnect a session when no traffic flows in either direction within this window |
 | `max_connections` | `64` | Maximum simultaneous TCP connections |
 | `max_client_queue` | `10000` | Per-client outbound buffer depth before a slow-client disconnect |
 
@@ -529,7 +532,7 @@ log_server:
 | `db_path` | `data/log.db` | SQLite database path where `log_events`/`processes`/`server_stats` are stored |
 | `retention_days` | `30` | Prune `log_events` rows older than this many days, once per hour; `null` (or `--retention-days 0`) means unbounded retention |
 | `max_message_bytes` | `65536` | Maximum `LOG` payload size before truncation — oversized messages are truncated and stored, never dropped |
-| `max_client_queue` | `10000` | Per-connection outbound backlog limit before backpressure is applied |
+| `max_client_queue` | `10000` | Uncommitted-row backlog above which the server stops reading from clients (TCP backpressure); also caps one client's unread replies |
 | `write_batch_size` | `50` | Maximum rows per SQLite transaction in the background writer thread |
 | `write_batch_interval_ms` | `100` | Maximum time between writer-thread flushes, whichever comes first with `write_batch_size` |
 | `heartbeat_interval_sec` | `5` | How often a connected client must send something (`LOG` or `HB`) to stay alive; the server disconnects after 2× this interval of silence and advertises the value to clients in `WELCOME.HBINT` (the server itself never sends `HB`). Doubles as the publish interval for the LALF-PS `log.server_state` tick |

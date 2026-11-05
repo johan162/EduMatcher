@@ -93,8 +93,8 @@ dc_gateway:
   name: "dc-gwy01"
   bind_address: "0.0.0.0"
   port: 5590
-  heartbeat_interval_sec: 5
-  idle_timeout_sec: 30
+  heartbeat_interval_sec: 2
+  idle_timeout_sec: 20
   max_connections: 64
   max_client_queue: 10000
 ```
@@ -104,8 +104,8 @@ dc_gateway:
 | `name` | `dc-gwy01` | Process name echoed in `WELCOME` |
 | `bind_address` | `0.0.0.0` | Network interface to listen on (`127.0.0.1` for local-only) |
 | `port` | `5590` | TCP listen port |
-| `heartbeat_interval_sec` | `5` | Seconds between `HB` lines, sent whether or not fills were sent in between |
-| `idle_timeout_sec` | `30` | Disconnect after this many seconds with no traffic in either direction. Heartbeats count, so a client that keeps reading is never idle |
+| `heartbeat_interval_sec` | `2` | Seconds between `HB` lines, sent whether or not fills were sent in between |
+| `idle_timeout_sec` | `20` | Disconnect after this many seconds with no traffic in either direction. Heartbeats count, so a client that keeps reading is never idle |
 | `max_connections` | `64` | Simultaneous TCP connections; a connection beyond this is accepted and closed at once, without a line |
 | `max_client_queue` | `10000` | Per-client outbound line buffer capacity before the client is treated as slow and dropped |
 
@@ -175,7 +175,7 @@ HELLO|CLIENT=test|PROTO=DC1|ID=TRADER01
 Expected response:
 
 ```text
-WELCOME|PROTO=DC1|GW=dc-gwy01|ID=TRADER01|HBINT=5|IDLE=30
+WELCOME|PROTO=DC1|GW=dc-gwy01|ID=TRADER01|HBINT=2|IDLE=20
 ```
 
 Any fill published for `TRADER01` on port 5557 now arrives as an unsolicited
@@ -196,7 +196,7 @@ sequenceDiagram
     C->>G: TCP connect :5590
     C->>G: HELLO|CLIENT=risksys|PROTO=DC1|ID=TRADER01
     G->>G: subscribe drop_copy.event.TRADER01 (refcounted)
-    G-->>C: WELCOME|PROTO=DC1|GW=dc-gwy01|ID=TRADER01|HBINT=5|IDLE=30
+    G-->>C: WELCOME|PROTO=DC1|GW=dc-gwy01|ID=TRADER01|HBINT=2|IDLE=20
     Note over C,G: Session active — no further commands needed
     D-->>G: drop_copy.event.TRADER01 {fill payload}
     G-->>C: DC_FILL|SEQ=..|ORDER_ID=..|SYMBOL=..|FILL_QTY=..|FILL_PRICE=..|LIQUIDITY=..
@@ -239,7 +239,7 @@ example) are ignored.
 ### Step 2 — Receive `WELCOME`
 
 ```text
-WELCOME|PROTO=DC1|GW=dc-gwy01|ID=TRADER01|HBINT=5|IDLE=30
+WELCOME|PROTO=DC1|GW=dc-gwy01|ID=TRADER01|HBINT=2|IDLE=20
 ```
 
 The gateway subscribes this session to `drop_copy.event.TRADER01` on its
@@ -293,7 +293,7 @@ order state fields like `REMAINING`/`STATUS`.
 
 ```text
 > HELLO|CLIENT=risksys|PROTO=DC1|ID=TRADER01
-WELCOME|PROTO=DC1|GW=dc-gwy01|ID=TRADER01|HBINT=5|IDLE=30
+WELCOME|PROTO=DC1|GW=dc-gwy01|ID=TRADER01|HBINT=2|IDLE=20
 DC_FILL|SEQ=42|ORDER_ID=ORD-001|SYMBOL=AAPL|FILL_QTY=100|FILL_PRICE=150.05|LIQUIDITY=TAKER
 ```
 
@@ -355,6 +355,10 @@ while True:
 
 !!! warning "TCP is a byte stream"
     Never assume one `recv()` equals one line. Always buffer and split on `\n`.
+
+For full working Python and C subscribers (per-symbol volume/VWAP tally,
+`SEQ` direction check, clean Ctrl-C shutdown) see `docs/examples/dc/` and
+[Protocol Support Library Examples](../../protocols-and-clients/part-4-writing-clients/030-example-libraries.md#dc-support-library-and-examples).
 
 
 ## When to use `pm-dc-gwy` vs. the alternatives

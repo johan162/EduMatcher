@@ -41,6 +41,7 @@ RecoveryItemOutcome = Literal[
     "FAILED",
     "QUOTE_REMNANT",
 ]
+QuoteSeedSkippedReason = Literal["ACTIVE_QUOTE_RESTORED"]
 DiagnosticComponent = Literal[
     "MAINTENANCE_FLUSH",
     "DISPATCH_ERROR",
@@ -896,6 +897,26 @@ class RecoveryItem(BaseModel):
     """Free text, when there is something worth saying beyond kind and outcome — the
     exception message for a FAILED order, in particular.
     """
+
+
+class QuoteSeedSkipped(BaseModel):
+    """Engine to all subscribers: a configured seed quote the engine did not inject
+    at startup because `seed_once` is set and the gateway already has an active
+    quote in that symbol, restored from the persisted orders. A seed that fires
+    leaves its own legs' acks; one that does not left no trace but a line in the
+    process log, so a post-mortem asking "why is MM01's quote in this book not the
+    configured seed?" could only infer it from the seed's absence.
+    """
+
+    model_config = ConfigDict(use_attribute_docstrings=True)
+
+    gateway_id: str = Field(max_length=32)
+    """The market maker the seed is configured for."""
+    symbol: str = Field(max_length=16)
+    quote_id: str = Field(max_length=64)
+    """The seed's quote id: the one that was not injected."""
+    reason: QuoteSeedSkippedReason
+    """`seed_once` is set and an active quote was restored."""
 
 
 class Diagnostic(BaseModel):
