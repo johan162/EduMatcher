@@ -143,6 +143,8 @@ The viewer reads the full documented schema, not just the sections the example
 configs happen to use. Optional sections are simply absent from the render when
 absent from the file — the layout has no fixed slots, so nothing leaves a hole.
 
+`include:` is resolved before extraction; the header lists the included files.
+
 | Top-level key | Shown as | Notes |
 |---|---|---|
 | `sessions_enabled`, `enforce_collars`, `enforce_circuit_breakers`, `country` | header chips | on/off/unset, colour-coded |

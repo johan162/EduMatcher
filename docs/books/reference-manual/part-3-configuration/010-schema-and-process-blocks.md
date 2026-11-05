@@ -13,6 +13,7 @@ The current parser recognizes these top-level keys:
 
 | Key                        | Required when file exists? | Used by                         | Purpose                                                                   |
 |----------------------------|---------------------------:|---------------------------------|---------------------------------------------------------------------------|
+| `include`                  |                         No | Every tool that reads the authored file | List of files merged into the configuration; see [Splitting the file](../../operator-guide/part-2-configure/005-the-configuration-file.md#splitting-the-file-with-include) |
 | `symbols`                  |                        Yes | Engine                          | Accepted symbols and per-symbol settings                                  |
 | `participants`             |                        Yes | Engine                          | Participant identities allowed to connect, with per-participant settings |
 | `participant_defaults`     |                         No | Engine                          | Values a `participants` entry inherits when it omits them                 |

@@ -346,7 +346,8 @@ Output and safety options:
 | Option | Type | Default | Description |
 |---|---|---|---|
 | `--output FILE` | Path | none | Write YAML to file |
-| `--force` | Flag | off | Overwrite existing output file |
+| `--split` | Flag | off | Write `symbols` and `participants` to `symbols.yaml` and `participants.yaml` beside `--output`, joined to the main file by an `include:` list (see [Splitting the file](005-the-configuration-file.md#splitting-the-file-with-include)). Needs `--output` or `--dry-run` |
+| `--force` | Flag | off | Overwrite existing output file (with `--split`, all three files) |
 | `--dry-run` | Flag | off | Print YAML only; do not write file |
 | `--comment-default-config-fields` | Flag | off | Add a commented-out header showing every optional section with its default values, ready to uncomment — the engine settings and the process sections (the gateways, `api_gateways`, `log_server`, `monitor`, `indices`, `schedule`), each field explained. A section's own option (`--log-server`, `--monitor`, …) writes that section for real instead |
 
@@ -1754,7 +1755,7 @@ which already refuses it loudly and now names the reason.
 ### The source staleness check (a warning)
 
 The artifact also records `meta.source_path` and `meta.source_sha256` — where
-the YAML was read from, and the SHA-256 of its text. This is the check that
+the YAML was read from, and the SHA-256 of its text (of the main file followed by every file it lists under `include:`, so an edit to an included file counts too). This is the check that
 *does* look at your YAML, and it catches the one failure compiling introduces:
 editing the authored file and forgetting to deploy, so the exchange keeps
 running the previous configuration while the file on disk says otherwise.

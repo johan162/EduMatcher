@@ -88,6 +88,7 @@ this chapter that introduces it:
 
 | Block | Required | Read by | Step |
 |---|:-:|---|:-:|
+| `include` | no | every tool that reads the authored file | [Splitting the file](#splitting-the-file-with-include) |
 | `symbols` | **yes** | `pm-engine`, `pm-index` | [1](#step-1-the-smallest-working-file), [2](#step-2-reference-data), [4](#step-4-price-protection), [5](#step-5-market-makers-and-seeded-liquidity) |
 | `participants` | **yes** | `pm-engine`, `pm-alf-gwy`, `pm-balf-gwy` | [1](#step-1-the-smallest-working-file), [5](#step-5-market-makers-and-seeded-liquidity) |
 | `participant_defaults` | no | `pm-engine` | [5](#step-5-market-makers-and-seeded-liquidity) |
@@ -140,6 +141,59 @@ Three facts about the file explain most of the surprises operators meet:
 | **`null`** | An empty value (`halt_duration_ns:`) is `null`. Where a field allows it, `null` means "no limit". |
 | **Bind addresses** | `bind_address` / `host` default to `0.0.0.0` (all interfaces). The environment variable `EDUMATCHER_GATEWAY_BIND_HOST`, when set, overrides every one of them. |
 | **Ports** | Every listener in the file must use a different port — see [Ports at a glance](#ports-at-a-glance). `pm-cverifier` reports a clash as `M018`. |
+
+## Splitting the file with `include`
+
+A class with hundreds of symbols and participants makes one file hard to read
+and hard to compare between runs. YAML has no include of its own, so
+EduMatcher defines a small one: the top-level key `include` lists other files
+whose contents are merged into the configuration.
+
+```yaml
+include:
+  - symbols.yaml
+  - participants.yaml
+
+sessions_enabled: true
+locale: {country: SE, session_timezone: Europe/Stockholm}
+```
+
+```yaml
+# symbols.yaml
+symbols:
+  AAPL: {tick_decimals: 2, last_buy_price: 150.00}
+  MSFT: {tick_decimals: 2, last_buy_price: 400.00}
+```
+
+The rules are deliberately few:
+
+| Rule | Detail |
+|---|---|
+| **Where** | Paths are relative to the file that lists them. No absolute paths and no `..`; a subdirectory (`parts/symbols.yaml`) is fine. |
+| **Depth** | One level. An included file may not have an `include` of its own; list every file in the main file. |
+| **Content** | An included file is a YAML mapping using the same top-level keys as the main file. |
+| **Lists** | A list present in several files (`participants`) is concatenated: the main file's entries first, then each include in the order listed. |
+| **Mappings** | A mapping present in several files (`symbols`) is merged. The same symbol defined twice is an error. |
+| **Anything else** | A scalar or a block defined twice, or a list in one file and a mapping in another, is an error that names both files. Nothing is silently overridden. |
+
+Everything that reads the file sees the merged result, so `pm-cverifier`,
+`pm-config-show` and `pm-config-deploy` behave exactly as if you had written one
+file. Three things differ in practice:
+
+- **Findings name the file.** A verifier finding about `symbols.AAPL` that comes
+  from an included file is followed by `in symbols.yaml`, and `pm-config-deploy`
+  shows it as `[symbols.yaml: symbols.AAPL.tick_decimals]`. A broken or missing
+  include is `Y005`.
+- **Deploy treats the files as one unit.** The staleness check covers every
+  file, so editing only `symbols.yaml` without redeploying is reported, just as
+  for the main file. `pm-config-deploy` copies the main file and its includes
+  beside the artifact, and removes copies of includes you have since dropped.
+- **`pm-new-symbol` edits the include.** A symbol is added to the file that
+  supplies the last listed symbol, and the main file is left untouched.
+
+`pm-config-gen --split --output engine_config.yaml` writes a configuration in
+this layout from the start: `symbols.yaml` and `participants.yaml` beside the
+main file.
 
 ## Step 1: the smallest working file
 

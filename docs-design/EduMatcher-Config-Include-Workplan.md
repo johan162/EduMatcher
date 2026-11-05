@@ -96,7 +96,9 @@ working); cverifier maps it to a new `Y005`.
   `config_gen/cli.py` first (the temp-file validation near line 2097 must write the included files
   too). Not offered when output goes to stdout. → verify: generated split == generated single
   after load.
-- **WP-INC7 — docs and e2e.** Operator guide config chapter (005) and the training guide: syntax,
+- **WP-INC7 — docs and e2e. DONE 2026-11-05** (operator guide ch. 005 new section + block table, ch. 010 `--split`/digest, ch. 020 `Y005`, new-symbols, reference manual, verifier/show design docs; `tests/test_config_include_e2e.py` deploys a split s10-basic and starts the mini exchange; no bundled split example — the e2e and the equivalence test split a bundled one programmatically).
+
+Status: **all WPs done 2026-11-05.** Operator guide config chapter (005) and the training guide: syntax,
   merge rules, limits, `--split`. Config-verifier and config-show design docs updated. One bundled
   example in split form if it fits the examples layout. An e2e: `pm-config-deploy` on a split config
   then engine start (follow `make test-e2e` conventions).

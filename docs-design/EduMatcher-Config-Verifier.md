@@ -155,6 +155,9 @@ use `{placeholders}` for context-specific values.
 | `Y002` | ERROR | File is not readable | `Cannot read '{path}': {reason}. Check file permissions.` |
 | `Y003` | ERROR | YAML parse error | `YAML parse error at line {line}: {detail}. Fix the indentation or quoting at that line.` |
 | `Y004` | ERROR | Top-level is not a mapping | `Config must be a YAML mapping (key: value pairs). Got {type}. Start with 'symbols:' at the top level.` |
+| `Y005` | ERROR | `include:` list invalid, or an included file missing/unreadable/invalid/clashing | `{reason naming the file}. Fix the 'include:' list or the named file.` |
+
+Findings from layers 2–4 carry the included file they come from in `CheckResult.file` (see EduMatcher-Config-Include-Workplan.md).
 
 ### 5.2 Layer 2 — Schema
 

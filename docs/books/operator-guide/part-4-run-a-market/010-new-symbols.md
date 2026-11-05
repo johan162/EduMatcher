@@ -92,9 +92,14 @@ If you set up with `pm-setup`, the deployed source *is*
 `<DATA_DIR>/ref_data/engine_config.yaml`, so the default works without
 `--config`.
 
+If the source uses `include:`, the symbol is written to the included file that
+supplies the last listed symbol and the main file is left as it is; the command
+reports which file it edited.
+
 !!! warning "Undeployed edits block the listing"
-    The deployed source must be byte-for-byte what was last deployed (its
-    SHA-256 must match `meta.source_sha256`). Otherwise the IPO deploy would
+    The deployed source, together with any files it includes, must be
+    byte-for-byte what was last deployed (their combined SHA-256 must match
+    `meta.source_sha256`). Otherwise the IPO deploy would
     also ship whatever else had been edited, without review. Deploy or revert
     those edits first.
 

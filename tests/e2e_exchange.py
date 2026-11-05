@@ -96,9 +96,15 @@ class Exchange:
 
 @contextmanager
 def running_exchange(
-    request: pytest.FixtureRequest, tmp_path_factory: pytest.TempPathFactory
+    request: pytest.FixtureRequest,
+    tmp_path_factory: pytest.TempPathFactory,
+    config: Path | None = None,
 ) -> Generator[Exchange, None, None]:
-    """The ``mini`` exchange, started for the calling module and stopped after."""
+    """The ``mini`` exchange, started for the calling module and stopped after.
+
+    It runs the bundled ``s10-basic`` config, or *config* when given (an
+    authored file deployed with ``pm-config-deploy``).
+    """
     # Some Makefile targets pass their own -m, which replaces the default
     # "not e2e": run only when e2e is asked for by name.
     if "e2e" not in str(request.config.getoption("markexpr")).replace("not e2e", ""):
@@ -113,7 +119,10 @@ def running_exchange(
     env = {k: v for k, v in os.environ.items() if not k.startswith("EDUMATCHER_")}
     env["EDUMATCHER_DATA_DIR"] = str(data_dir)
     ex = Exchange(data_dir, env, "")
-    ex.cli("pm-config-deploy", "--example", "s10-basic")
+    if config is None:
+        ex.cli("pm-config-deploy", "--example", "s10-basic")
+    else:
+        ex.cli("pm-config-deploy", str(config))
     compiled = json.loads((data_dir / "ref_data" / "engine_config.json").read_text())
     ex.session_tz = compiled["engine"]["locale"]["session_timezone"]
     try:
