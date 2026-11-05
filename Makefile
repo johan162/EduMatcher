@@ -271,6 +271,9 @@ mutate: ## Mutation testing of the matching engine: every mutant x full suite (~
 	@echo -e "$(DARKYELLOW)- Running matching-engine mutation tests (tools/mutate_engine.py)...$(NC)"
 	@poetry run python tools/mutate_engine.py
 
+sim-forensics: ## Running SIM forensics from default SIM data and output directories
+	@$(MAKE) forensics DATA="${HOME}/.edumatcher-sim/data/" OUT="${HOME}/.edumatcher-sim/forensics/" SLOW="1"
+
 forensics: ## Check a stopped sim run's records against each other: make forensics DATA=<data dir> OUT=<report dir> [SLOW=1]
 	@if [ -z "$(DATA)" ] || [ -z "$(OUT)" ]; then \
 		echo -e "$(RED)✗ usage: make forensics DATA=<data dir> OUT=<report dir>$(NC)"; exit 1; \

@@ -1,29 +1,40 @@
-## [v0.74.1] - 2026-11-05
+## [v0.75.0] - 2026-11-05
 
-Release Type: minor
+Release Type: major
 
 ### 📋 Summary
-This release improves gateway configuration safety and adds a practical drop-copy client example. It also makes scheduled state recovery and log-server delivery more reliable. In addition it hardens
-the alf-gwy and log-server to be more robust agains badly formed input and possibel data loss at shutdown. 
+This release hardens the ALF gateway and log server against malformed input, slow clients and shutdown data loss. It also improves scheduler recovery and market-maker quote cleanup, adds drop-copy client examples, and makes skipped startup seed quotes visible in the audit trail.
+
+### ⚠️ Breaking Changes
+- Enforced ALF gateway IDs consisting of a letter followed by up to 31 letters, digits or underscores for logon and position queries; update integrations using other ID formats
+- Added configuration-verifier error `M033` when market-data, post-trade or drop-copy idle timeouts do not exceed twice their heartbeat intervals; correct these settings before deploying configurations
 
 ### ✨ Additions
-- Added Python and C DC1 subscriber examples with parsers, sequence checks and per-symbol fill summaries
+- Added Python and C DC1 subscriber examples with parsers, sequence checks and per-symbol fill, quantity and VWAP summaries
+- Added `system.quote_seed_skipped` events when `seed_once` prevents a startup seed from replacing a restored active quote
+- Added `make sim-forensics` to run the slow forensic checks against the default simulation data directory
 
 ### 🚀 Improvements
-- Added configuration validation requiring market-data, post-trade and drop-copy idle timeouts to exceed twice their heartbeat intervals
-- Improved log-server backfill and client backpressure so slow writes do not block service and acknowledged messages are preserved during shutdown
-- The log-srv now handles slow writer by throttling the incoming requests
-- ALF gateway hardened
+- Hardened ALF handling of malformed engine messages, out-of-range values and prices, and avoided decoding order events for participants not logged on to the gateway
+- Increased ALF receive buffering and improved sequence-gap detection, bounded closing-session lifetimes, and preserved complete lines and participant-specific events under output backpressure
+- Improved log-server write backpressure, bounded historical backfill work and aligned filtering between historical and live log delivery
+- Aligned line-gateway heartbeat and idle-timeout defaults to 2 and 20 seconds respectively
 
 ### 🐛 Bug Fixes
-- Fixed the scheduler failing to reconcile an engine that starts in the wrong session state; it now follows the shortest legal transition path
-- Fixed REST examples that no longer matched the current API behavior
+- Fixed ALF shutdown dropping queued replies and order events instead of attempting to drain them
+- Fixed log-server shutdown leaving acknowledged log messages unwritten
+- Fixed the scheduler repeatedly requesting illegal transitions when the engine starts in an unexpected phase; it now reconciles through the shortest legal path while preserving early auction phases
+- Fixed quote cancellation refusing to remove a partially filled quote's resting remainder after its active quote entry was removed
+- Fixed startup seed quotes leaving restored, inactive quote remainders alongside the new seed
+- Fixed REST examples that no longer matched the current API behavior and closed leaked SQLite connections in parametrized log-filter tests
 
 ### 📚 Documentation
-- Updated gateway configuration guidance and REST examples, and documented the new DC1 clients
+- Updated ALF protocol and operator guidance, gateway timeout configuration, log-server behavior and SQLite schema documentation
+- Added DC1 client usage instructions, refreshed REST examples and clarified startup seed replacement of quote remainders
 
 ### 🛠 Internal
-- Added regression coverage for gateway timeout validation, log-server backfill and shutdown, and scheduler state reconciliation
+- Added regression coverage for ALF input bounds, event routing, overflow and shutdown, log-server durability, scheduler reconciliation and quote recovery
+- Updated simulation forensics to account for skipped seeds and quote-remainder cancellation, and added a Copilot instruction requiring deterministic database connection cleanup
 
 ## [v0.74.0] - 2026-11-05
 
