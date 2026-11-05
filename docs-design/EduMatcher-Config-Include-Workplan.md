@@ -86,7 +86,7 @@ working); cverifier maps it to a new `Y005`.
   participants name the supplying file (`symbols.yaml: symbol ABC …`). Line numbers for syntax
   errors come from the failing file. Check `pm-config-show` prints the file list.
   → verify: verifier tests with a broken symbol in `symbols.yaml`.
-- **WP-INC5 — `pm-new-symbol`.** `insert_symbol` edits the file that supplies `symbols:` (the last
+- **WP-INC5 — `pm-new-symbol`. DONE 2026-11-05** (the whole file tree is staged in a `.new-symbol-*` directory beside the source and verified/compiled there; `Result.edited` names the file written; target = file supplying the last listed symbol). `insert_symbol` edits the file that supplies `symbols:` (the last
   contributing file if several; the main file if it has its own). Round-trip check in `yaml_edit`
   is done on that file's text; the "unreviewed edits" guard uses the combined digest.
   → verify: listing into split and unsplit configs; deployed result equals the unsplit one.
