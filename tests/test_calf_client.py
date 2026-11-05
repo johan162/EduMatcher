@@ -10,6 +10,7 @@ demand.
 
 from __future__ import annotations
 
+import logging
 import socket
 import threading
 import time
@@ -29,7 +30,7 @@ from edumatcher.calf_client import (
     has_snapshot,
     is_resumable,
 )
-from edumatcher.md_gateway.protocol import parse_line
+from edumatcher.md_gateway.protocol import CalfFrame, parse_line
 
 # ----------------------------------------------------------------------
 # SequenceTracker: the three rules, in isolation
@@ -624,3 +625,52 @@ def test_passive_mode_neither_resumes_nor_hides_duplicates(
     client.stop()
     gateway.close()
     thread.join(timeout=2)
+
+
+def test_stop_ends_the_session_with_exit() -> None:
+    """EXIT works both ways; it also makes the gateway close promptly."""
+    stub = StubGateway()
+    client = CalfClient(
+        CalfClientOptions(port=stub.port, ping_interval_sec=0, request_symbols=False)
+    )
+    try:
+        client.connect()
+        client.handshake()
+        stub.wait_ready()
+        client.stop()
+        deadline = time.monotonic() + 2.0
+        while not stub.sent_matching("EXIT") and time.monotonic() < deadline:
+            time.sleep(0.01)
+        assert stub.sent_matching("EXIT") == ["EXIT"]
+    finally:
+        client.disconnect()
+        stub.close()
+
+
+def test_a_gateway_exit_is_logged_with_its_reason(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    caplog.set_level(logging.INFO, logger="edumatcher.calf_client.client")
+    client = CalfClient(CalfClientOptions(track_state=False))
+    assert client._dispatch(
+        CalfFrame("EXIT", {"REASON": "idle_timeout", "TS": "x"}), None
+    )
+    assert "gateway ended the session: REASON=idle_timeout" in caplog.text
+
+
+def test_bad_message_is_not_announced_as_session_ending(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """BAD_MESSAGE ends a session only for an oversized line, which this
+    client never sends; a malformed RESUME, say, leaves it open."""
+    caplog.set_level(logging.INFO, logger="edumatcher.calf_client.client")
+    client = CalfClient(CalfClientOptions(track_state=False))
+    client._handle_error(
+        CalfFrame("ERR", {"CODE": "BAD_MESSAGE", "DETAIL": "LASTSEQ must be > 0"}),
+        None,
+    )
+    assert "session-ending" not in caplog.text
+    client._handle_error(
+        CalfFrame("ERR", {"CODE": "SLOW_CLIENT", "DETAIL": "queue overflow"}), None
+    )
+    assert "session-ending error SLOW_CLIENT" in caplog.text

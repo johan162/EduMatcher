@@ -514,3 +514,22 @@ def test_on_frame_does_not_suppress_data_frames(
     out = capsys.readouterr().out
     assert '"msg_type": "DROP_COPY"' in out
     assert session.count == 1
+
+
+def test_close_ends_the_session_with_exit(running_gateway: RalfGateway) -> None:
+    """EXIT works both ways: the gateway records an orderly close, not a
+    peer that vanished."""
+    client = RalfSpyClient(
+        RalfSpyOptions(host="127.0.0.1", port=running_gateway.config.port)
+    )
+    client.connect()
+    client.handshake()
+    client.close()
+    # The fixture's own readiness probe already counts as one peer_closed.
+    deadline = time.monotonic() + 2.0
+    while (
+        "close_after_flush" not in running_gateway._disconnects
+        and time.monotonic() < deadline
+    ):
+        time.sleep(0.01)
+    assert running_gateway._disconnects.get("close_after_flush") == 1

@@ -23,7 +23,7 @@ from dataclasses import dataclass, field
 from edumatcher.calf_client import (
     CalfClient,
     CalfClientOptions,
-    CalfConnectionError,
+    CalfError,
 )
 from edumatcher.md_gateway.protocol import CalfFrame
 
@@ -32,8 +32,11 @@ log = logging.getLogger(__name__)
 _DEFAULT_PING_INTERVAL_SEC = 60.0
 
 #: Kept as its own name so ``cli.py`` and the tests need not know that the
-#: transport moved. Every failure the spy can report is one of these.
-CalfSpyConnectionError = CalfConnectionError
+#: transport moved. Every failure the spy can report is one of these -- the
+#: library's base class, so a refused HELLO (``CalfProtocolMismatch``, raised
+#: for ``ERR|CODE=AUTH_REQUIRED``) is reported like a failed connect instead
+#: of escaping as a traceback.
+CalfSpyConnectionError = CalfError
 
 
 @dataclass(frozen=True)
@@ -136,9 +139,8 @@ class CalfSpyClient:
         delivered (0 = unlimited).
 
         A background thread sends a ``PING`` every ``ping_interval_sec``
-        seconds for the duration of the read loop, so the gateway's idle
-        timeout never fires for a client (like calf-spy) that otherwise
-        never sends anything after its initial SUB.
+        seconds for the duration of the read loop -- belt-and-braces, since
+        the gateway's idle timer counts its own outbound ``HB`` lines too.
         """
         # The raw line and its arrival time are what the renderer formats,
         # so they are paired back up with the parsed frame here. `on_line`

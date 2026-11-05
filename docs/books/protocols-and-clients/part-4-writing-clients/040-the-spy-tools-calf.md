@@ -13,8 +13,8 @@
     - How to run several instances at once against the same gateway to
       watch different channels on separate terminals
     - How `--resume` and `--count` work
-    - How `--ping-interval` keeps an otherwise-silent session alive past the
-      gateway's idle timeout
+    - Why a listen-only session needs no keepalive, and what `--ping-interval`
+      is still for
     - How connection and protocol errors are reported
 
 
@@ -144,7 +144,7 @@ distinct), the symbol, the sequence number, and the remaining fields as
 ```
 
 Session-level messages that carry no channel/symbol of their own (`WELCOME`,
-`HB`, `PONG`) are rendered without the channel/symbol/sequence columns.
+`HB`, `PONG`, `EXIT`) are rendered without the channel/symbol/sequence columns.
 `ERR` lines highlight the `CODE` field:
 
 ```text
@@ -214,16 +214,23 @@ same gateway — `pm-md-gwy` fans out independently per session.
 - If the initial TCP connect fails (gateway not running, wrong host/port),
   `pm-calf-spy` prints `pm-calf-spy: could not connect to HOST:PORT: ...`
   and exits `1` — no retry loop.
-- If the gateway rejects the handshake itself (`ERR|CODE=AUTH_REQUIRED` in reply to `HELLO`),
-  the client currently does not catch this case cleanly: it surfaces as an
-  unhandled Python traceback rather than a `pm-calf-spy: ...` message, though
-  the process does still exit non-zero.
+- If the gateway rejects the handshake itself (`ERR|CODE=AUTH_REQUIRED` in
+  reply to `HELLO` — e.g. a `--client-name` over 32 characters), the spy
+  prints `pm-calf-spy: gateway rejected HELLO: AUTH_REQUIRED ...` and exits
+  `1`.
+- If the connection closes before any reply to `HELLO`, the spy reports
+  `connection closed before WELCOME (is the gateway at max_connections?)` —
+  a gateway at `market_data_gateway.max_connections` accepts a connection and
+  closes it without a line.
 - Once connected, any `ERR` the gateway sends in response to `SUB` (bad
   channel, bad symbol, wildcard misuse, subscription limit) is printed like
   any other line — the session stays open so you can see the rejection
   and keep watching whatever subscriptions *did* succeed.
-- Ctrl-C (or reaching `--count`) closes the connection cleanly and prints
-  `pm-calf-spy: connection closed.`
+- If the gateway ends the session (`EXIT|REASON=idle_timeout`, after writes
+  to the spy stopped succeeding; or `ERR|CODE=SLOW_CLIENT`), the line is
+  printed and the spy exits once the gateway closes the socket.
+- Ctrl-C (or reaching `--count`) ends the session with `EXIT` — the gateway
+  flushes and closes — and prints `pm-calf-spy: connection closed.`
 
 
 ## See also

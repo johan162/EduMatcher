@@ -56,13 +56,15 @@ log = logging.getLogger(__name__)
 _MAX_LINE_BYTES = 4096
 _RECV_CHUNK_BYTES = 4096
 
-# Errors that mean this session is over. The gateway closes the connection
-# on all three, so the only question is whether reconnecting can help.
-# AUTH_REQUIRED in reply to HELLO cannot be fixed by retrying -- the gateway
-# refused this client's CLIENT/PROTO and would refuse the same HELLO again.
-# The other two are transient with respect to the connection itself.
+# Errors that mean this session is over. The gateway sends the line, then
+# closes the connection, so the only question is whether reconnecting can
+# help. AUTH_REQUIRED in reply to HELLO cannot be fixed by retrying -- the
+# gateway refused this client's CLIENT/PROTO and would refuse the same HELLO
+# again. SLOW_CLIENT is transient. BAD_MESSAGE is not listed: it ends the
+# session only for an oversized line, which this client never sends, and
+# otherwise (a malformed RESUME, say) leaves it open.
 _FATAL_ERROR_CODES = frozenset({"AUTH_REQUIRED"})
-_SESSION_ENDING_ERROR_CODES = frozenset({"AUTH_REQUIRED", "SLOW_CLIENT", "BAD_MESSAGE"})
+_SESSION_ENDING_ERROR_CODES = frozenset({"AUTH_REQUIRED", "SLOW_CLIENT"})
 
 
 class CalfError(RuntimeError):
@@ -116,9 +118,9 @@ class CalfClientOptions:
     reconnect_max_sec: float = 30.0
     connect_timeout_sec: float = 5.0
 
-    #: Keepalive interval. The gateway drops an idle client, and a
-    #: subscriber that only listens sends nothing after its initial SUB.
-    #: Zero disables the keepalive thread entirely.
+    #: Keepalive ``PING`` interval; belt-and-braces. The gateway's idle
+    #: timer counts traffic in both directions, so its own ``HB`` lines keep
+    #: a client that only listens connected. Zero disables the thread.
     ping_interval_sec: float = 30.0
 
     #: Maintain a :class:`MarketState` from the frame stream.
@@ -317,10 +319,19 @@ class CalfClient:
             self._close_socket()
 
     def stop(self) -> None:
-        """Ask :meth:`run` to return. Safe to call from any thread."""
+        """Ask :meth:`run` to return. Safe to call from any thread.
+
+        Ends the session with ``EXIT`` when connected: the gateway flushes
+        and closes, which also wakes a read loop blocked on the socket
+        rather than leaving it to the next heartbeat.
+        """
         self._running = False
         self._stopped.set()
         self._ping_stop.set()
+        try:
+            self._send("EXIT", {})
+        except CalfError:
+            pass  # not connected, or the peer is already gone
 
     def subscribe(self, channels: Sequence[str], symbols: Sequence[str]) -> None:
         """Add subscriptions, now and after every future reconnect.
@@ -390,7 +401,11 @@ class CalfClient:
 
         line = self._recv_line()
         if line is None:
-            raise CalfConnectionError("connection closed before WELCOME")
+            # Also what a gateway at max_connections looks like: it accepts
+            # the connection and closes it without a line.
+            raise CalfConnectionError(
+                "connection closed before WELCOME (is the gateway at max_connections?)"
+            )
         try:
             frame = parse_line(line)
         except CalfProtocolError as exc:
@@ -477,6 +492,15 @@ class CalfClient:
 
         if frame.msg_type == "ERR":
             self._handle_error(frame, on_gap)
+            return True
+
+        if frame.msg_type == "EXIT":
+            # EXIT|REASON=idle_timeout (or auth_timeout): the gateway ends the
+            # session and closes the socket next; the read loop sees EOF and
+            # the reconnect, if enabled, follows from that.
+            log.info(
+                "gateway ended the session: REASON=%s", frame.fields.get("REASON", "?")
+            )
             return True
 
         channel = frame.fields.get("CH", "")
@@ -570,9 +594,11 @@ class CalfClient:
         log.warning("gateway ERR %s: %s", code, frame.fields.get("DETAIL", ""))
 
         if code == "REPLAY_MISS" and channel:
-            # The one RESUME failure that makes a gap permanent: the buffer
-            # aged out before this client asked. Nothing will fill the hole,
-            # so the range must not stay open to mislabel a later
+            # The one RESUME failure that makes a gap permanent: the gateway
+            # no longer holds what was missed -- it aged out before this
+            # client asked, or LASTSEQ (a persisted position, see resume())
+            # is ahead of a gateway that restarted. Nothing will fill the
+            # hole, so the range must not stay open to mislabel a later
             # redelivery as backfill.
             position = self._sequence.position(channel, symbol)
             self._sequence.abandon_holes(channel, symbol)

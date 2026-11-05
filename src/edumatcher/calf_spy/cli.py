@@ -127,8 +127,9 @@ def build_parser() -> argparse.ArgumentParser:
         type=float,
         default=60.0,
         metavar="SECONDS",
-        help="Send PING to the gateway every SECONDS seconds to avoid its "
-        "idle timeout (default: 60). The gateway replies PONG (hidden by "
+        help="Send PING to the gateway every SECONDS seconds (default: 60); "
+        "belt-and-braces, since the gateway's own HB lines already keep a "
+        "reading client connected. The gateway replies PONG (hidden by "
         "default, see --show-heartbeats). Set to 0 to disable.",
     )
 
