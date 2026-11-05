@@ -90,7 +90,7 @@ ahead of the stream.
 | WP | Status |
 |----|--------|
 | W1 | done 2026-11-05 (uncommitted). Design docs under `docs-design/` still show `PROTO_MISMATCH`/`MSG` as history and were left alone. ALF, BALF and LALF also use `MSG`/`PROTO_MISMATCH`; out of scope here. |
-| W2 | — |
+| W2 | done 2026-11-05 (uncommitted). `md.slow_clients` / `md.closing_clients` added; the monitor keeps reading `md.disconnects{slow_client}`, which now moves. `_queue_raw` no longer caps the queue itself: as in RALF/DC, the flush pass checks it, so between two passes a queue can briefly exceed `max_client_queue` by one engine-poll budget. The pre-auth `auth_timeout` can still cut a refused `HELLO`'s grace short; W3 reworks that path. |
 | W3 | — |
 | W4 | — |
 | W5 | — |

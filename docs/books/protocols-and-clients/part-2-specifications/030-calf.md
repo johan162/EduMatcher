@@ -254,7 +254,7 @@ SUB|CH=CB|SYM=AAPL
 | `PONG`    | Gateway -> Client | Probe reply                                  |
 | `HB`      | Gateway -> Client | Heartbeat when quiet                         |
 | `ERR`     | Gateway -> Client | Protocol or flow error                       |
-| `EXIT`    | Client -> Gateway | Clean disconnect                             |
+| `EXIT`    | Both              | Clean disconnect; from the gateway, carries `REASON` |
 
 ### Market-data messages
 
@@ -1121,13 +1121,26 @@ ERR|CODE=REPLAY_MISS|DETAIL=Requested sequence outside replay buffer|CH=TOP|SYM=
 
 ### `EXIT`
 
-**Direction:** Client -> Gateway
+**Direction:** Both
 
-Requests clean disconnect.
+From the client, requests a clean disconnect. From the gateway, announces
+that the gateway is ending the session, and why.
+
+| Field    | Req | Description                                      |
+|----------|-----|--------------------------------------------------|
+| `REASON` | Gateway only | Why the session ends, e.g. `idle_timeout` |
+| `TS`     | Gateway only | Gateway timestamp                        |
 
 ```text
 EXIT
+EXIT|REASON=idle_timeout|TS=2026-06-07T10:16:05.000Z
 ```
+
+When the gateway ends a session — `EXIT`, `SLOW_CLIENT`, a refused `HELLO`,
+an oversized line — the final line is the last thing sent; the gateway then
+closes the socket once it has drained, or after at most 5 seconds if the
+client has stopped reading. This is the same close behaviour as
+`pm-ralf-gwy` and `pm-dc-gwy`.
 
 
 
@@ -1250,7 +1263,7 @@ sequenceDiagram
   line has been sent in that interval.
 - Client may issue `PING` anytime; gateway must respond with `PONG`.
 - If no inbound or outbound traffic occurs for `idle_timeout_sec`, gateway
-  closes the connection.
+  sends `EXIT|REASON=idle_timeout` and closes the connection.
 - `HB`, `PING`, and `PONG` are liveness messages and do not participate in
   `(CH,SYM)` sequence counters.
 

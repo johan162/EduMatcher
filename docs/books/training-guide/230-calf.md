@@ -513,11 +513,11 @@ Map observed ERR codes to operator action:
 - REPLAY_MISS: requested resume point outside replay retention
 - RATE_LIMITED: client is sending commands too fast; throttle it
 - SUB_LIMIT: too many subscriptions on one session; subscribe more narrowly
+- SLOW_CLIENT: the consumer could not keep up; its backlog was dropped and
+  the session closed — reconnect and use `RESUME` (Exercise 6)
 
-CALF has no `SLOW_CLIENT` error line. A consumer that cannot keep up with
-delivery is disconnected without any `ERR` being sent (the gateway logs
-`disconnecting slow client`), so the client only sees the connection drop —
-detect it by reconnecting and using `RESUME` (Exercise 6).
+A session the gateway ends for inactivity gets `EXIT|REASON=idle_timeout`
+before the socket closes.
 
 :material-checkbox-blank-outline: Checkpoint: you can convert each ERR code into a practical remediation step.
 

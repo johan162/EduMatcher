@@ -8,6 +8,7 @@ import pytest
 
 from edumatcher.md_gateway.client_session import ClientSession
 from edumatcher.md_gateway.config import MarketDataGatewayConfig
+from edumatcher.md_gateway import gateway as gateway_module
 from edumatcher.md_gateway.gateway import MarketDataGateway
 from edumatcher.md_gateway.protocol import parse_line
 from tests.conftest import free_ports
@@ -379,15 +380,23 @@ def test_outbound_traffic_keeps_a_passive_listener_connected(
 def test_idle_client_is_dropped_when_nothing_flows_either_way(
     unit_gateway: MarketDataGateway,
 ) -> None:
-    """The timeout must still fire when there is genuinely no traffic."""
+    """The timeout must still fire when there is genuinely no traffic.
+
+    Like pm-ralf-gwy and pm-dc-gwy, the client is told why before it goes.
+    """
     sess, peer = _make_session()
     sess.authenticated = True
     unit_gateway._clients[sess.sock.fileno()] = sess
     sess.last_activity = time.monotonic() - 60
 
     unit_gateway._drop_idle_clients()
+    unit_gateway._flush_client_writes()
 
     assert sess.sock.fileno() not in unit_gateway._clients
+    frame = parse_line(peer.recv(4096).decode("utf-8"))
+    assert frame.msg_type == "EXIT"
+    assert frame.fields["REASON"] == "idle_timeout"
+    assert unit_gateway._disconnects == {"idle_timeout": 1}
     peer.close()
 
 
@@ -409,6 +418,11 @@ def test_failed_writes_do_not_keep_a_wedged_client_alive(
     unit_gateway._flush_client_writes()
     unit_gateway._drop_idle_clients()
 
+    assert sess.closing is True
+    assert sess.close_reason == "idle_timeout"
+    # Its final EXIT never drains; the close grace ends the session anyway.
+    sess.closing_since -= gateway_module.CLOSE_GRACE_SEC
+    unit_gateway._flush_client_writes()
     assert sess.sock.fileno() not in unit_gateway._clients
 
 

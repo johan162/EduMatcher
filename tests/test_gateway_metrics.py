@@ -33,6 +33,7 @@ from edumatcher.health import HealthReporter
 from edumatcher.health.samples import gateway_stats_samples
 from edumatcher.md_gateway.client_session import ClientSession as MdSession
 from edumatcher.md_gateway.config import MarketDataGatewayConfig
+from edumatcher.md_gateway import gateway as md_gateway_module
 from edumatcher.md_gateway.gateway import MarketDataGateway
 from edumatcher.models.generated.health import MetricSample, parse_health_beacon
 from edumatcher.ralf_gateway.config import RalfGatewayConfig
@@ -212,6 +213,14 @@ def test_md_counts_messages_out_and_a_slow_client(fake_zmq: None) -> None:
     # Past max_client_queue with a peer that never reads: more bytes than
     # the socketpair buffer can take, so the queue cannot drain below max.
     session.out_queue = deque([b"x" * 262_144] * 20)
+    gateway._flush_client_writes()
+    samples = gateway.metric_samples()
+    assert _value(samples, "md.slow_clients") == 1
+    assert _value(samples, "md.closing_clients") == 1
+    assert session.close_reason == "slow_client"
+
+    # It never reads its final ERR; the close grace drops it -- as RALF/DC do.
+    session.closing_since -= md_gateway_module.CLOSE_GRACE_SEC + 1
     gateway._flush_client_writes()
     samples = gateway.metric_samples()
     assert _value(samples, "md.disconnects", "slow_client") == 1

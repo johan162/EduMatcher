@@ -658,6 +658,11 @@ def test_drop_idle_clients(unit_gateway: MarketDataGateway) -> None:
     unit_gateway._clients[new_session.sock.fileno()] = new_session
 
     unit_gateway._drop_idle_clients()
+    # Pre-auth: dropped at once. Authenticated: told EXIT, then closed.
+    assert new_session.sock.fileno() not in unit_gateway._clients
+    assert auth_session.closing is True
+    assert auth_session.close_reason == "idle_timeout"
+    unit_gateway._flush_client_writes()
     assert not unit_gateway._clients
 
     auth_peer.close()
@@ -701,7 +706,23 @@ def test_drop_idle_clients_uses_connect_age_for_pre_auth(
     peer.close()
 
 
-def test_queue_raw_marks_slow_client_on_full_queue(
+class _StalledSocket:
+    """A client socket whose send buffer is full: every send would block."""
+
+    def __init__(self, sock: socket.socket) -> None:
+        self._sock = sock
+
+    def send(self, data: bytes) -> int:
+        raise BlockingIOError
+
+    def fileno(self) -> int:
+        return self._sock.fileno()
+
+    def close(self) -> None:
+        self._sock.close()
+
+
+def test_slow_client_gets_slow_client_err_then_disconnect(
     unit_gateway: MarketDataGateway,
 ) -> None:
     sess, peer = _make_session()
@@ -722,11 +743,52 @@ def test_queue_raw_marks_slow_client_on_full_queue(
         depth_levels=unit_gateway.config.depth_levels,
     )
 
-    sess.out_queue.append(b"A\n")
+    # Same as pm-ralf-gwy / pm-dc-gwy: the backlog is dropped, the client is
+    # told SLOW_CLIENT, and the disconnect is counted as slow_client.
+    unit_gateway._clients[sess.sock.fileno()] = sess
+    sess.authenticated = True
+    unit_gateway._queue_raw(sess, b"A\n", is_market_data=True)
     unit_gateway._queue_raw(sess, b"B\n", is_market_data=True)
+    real_sock = sess.sock
+    sess.sock = _StalledSocket(real_sock)
+
+    unit_gateway._flush_client_writes()
 
     assert sess.closing is True
-    assert len(sess.out_queue) == 0
+    assert sess.close_reason == "slow_client"
+    assert unit_gateway._slow_clients == 1
+    assert list(sess.out_queue) == [b"ERR|CODE=SLOW_CLIENT|DETAIL=queue overflow\n"]
+
+    sess.sock = real_sock
+    unit_gateway._flush_client_writes()
+    assert sess.sock.fileno() not in unit_gateway._clients
+    assert unit_gateway._disconnects == {"slow_client": 1}
+    assert peer.recv(4096) == b"ERR|CODE=SLOW_CLIENT|DETAIL=queue overflow\n"
+    peer.close()
+
+
+def test_slow_client_keeps_a_partly_sent_line(unit_gateway: MarketDataGateway) -> None:
+    sess, peer = _make_session()
+    sess.out_queue.extend([b"MD|PARTIAL\n", b"B\n", b"C\n"])
+    sess.out_offset = 3
+    unit_gateway._drop_backlog(sess)
+    assert list(sess.out_queue) == [b"MD|PARTIAL\n"]
+    assert sess.out_offset == 3
+    peer.close()
+
+
+def test_closing_session_gets_no_further_lines(
+    unit_gateway: MarketDataGateway,
+) -> None:
+    sess, peer = _make_session()
+    sess.authenticated = True
+    unit_gateway._handle_client_line(sess, "EXIT")
+    unit_gateway._handle_client_line(sess, "PING")
+    unit_gateway._handle_client_line(sess, "NOPE")
+    sess.last_heartbeat_sent = sess.last_market_data_sent = 0.0
+    unit_gateway._clients[sess.sock.fileno()] = sess
+    unit_gateway._send_heartbeats_if_due()
+    assert not sess.out_queue
     peer.close()
 
 

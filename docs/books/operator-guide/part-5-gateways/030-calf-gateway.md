@@ -84,7 +84,7 @@ of the chapter is detail.
 | Max line length | 4096 bytes (longer → `ERR\|CODE=BAD_MESSAGE`) |
 | Channels | `TOP`, `TRADE`, `STATE`, `INDEX`, `DEPTH`, `AUCTION`, `CB` |
 | Heartbeat | every `heartbeat_interval_sec` (default 1 s) when a stream is quiet |
-| Idle timeout | disconnect after `idle_timeout_sec` (default 5 s) with no traffic in either direction |
+| Idle timeout | `EXIT\|REASON=idle_timeout`, then disconnect, after `idle_timeout_sec` (default 5 s) with no traffic in either direction |
 | Replay window | `replay_window_sec` (default 30 s), tracked per `(channel, symbol)` stream |
 | Values | prices as decimal text, sizes as integers, timestamps ISO-8601 UTC |
 
@@ -191,7 +191,7 @@ omitted. `pm-md-gwy` reads only this `market_data_gateway` block — see
 | `idle_timeout_sec` | `5` | Disconnect a client after this many seconds with no traffic in **either** direction. Outbound market data and heartbeats reset the timer, so a purely passive consumer stays connected without sending anything; a client is aged out only once writes to it stop succeeding |
 | `replay_window_sec` | `30` | Per-stream replay retention; advertised as `WELCOME\|REPLAY=` |
 | `max_symbols_per_client` | `200` | Cap on the number of *unique symbol strings* a client has subscribed to, counted once across all channels — `SYM=*` counts as a single entry; exceeding it returns `ERR\|CODE=SUB_LIMIT` |
-| `max_client_queue` | `10000` | Outbound backlog limit; exceeding it silently disconnects the client (no `ERR` is guaranteed to arrive first) |
+| `max_client_queue` | `10000` | Outbound backlog limit; exceeding it drops the backlog, sends `ERR\|CODE=SLOW_CLIENT` and disconnects the client (within 5 s if it has stopped reading) |
 | `max_connections` | `64` | Max simultaneous TCP connections; an over-limit connection is accepted at the socket level and then closed immediately with no `HELLO`/`WELCOME` exchange at all |
 | `max_messages_per_second` | `200` | Inbound token-bucket rate limit per client; exceeding it returns `ERR\|CODE=RATE_LIMITED` (connection stays open) |
 | `depth_levels` | `10` | Price levels per side on the `DEPTH` channel; surfaced as `LEVELS=` |
@@ -795,9 +795,10 @@ UNSUB|CH=TRADE|SYM=MSFT
 When the stream is quiet the gateway sends periodic heartbeats (`HB|TS=...`),
 which keep the session alive on their own — a listener never has to send
 anything to stay connected. You can still probe with `PING`; the gateway
-replies `PONG`. The connection is closed only when nothing has flowed in
+replies `PONG|TS=…`. The connection is closed only when nothing has flowed in
 *either* direction for `idle_timeout_sec` seconds, which in practice means
-writes to your client have stopped succeeding.
+writes to your client have stopped succeeding; the gateway sends
+`EXIT|REASON=idle_timeout` first.
 
 ### Step 6 — Disconnect
 
@@ -1145,10 +1146,6 @@ with socket.create_connection(("127.0.0.1", 5570), timeout=5) as sock:
             print(f"ERR {msg.fields['CODE']}: {msg.fields.get('DETAIL','')}")
             if msg.fields["CODE"] == "SLOW_CLIENT":
                 break  # terminal — must reconnect
-            # Note: a slow-client disconnect is not guaranteed to send this
-            # ERR first — the gateway may just drop the queue and close the
-            # socket. `reader.recv_line()` returning empty/raising on a
-            # closed connection is the other signal to treat as terminal.
 ```
 
 ### Run the bundled examples
@@ -1261,7 +1258,7 @@ the same logic in two languages is often what makes it click.
 | `SUB_LIMIT`       | Too many subscribed symbols                      | Reduce requested symbol set                       |
 | `RATE_LIMITED`    | Client exceeded `max_messages_per_second`        | Slow down the send rate; connection stays open    |
 | `REPLAY_MISS`     | Requested replay is outside buffer window        | On `TOP`/`STATE`/`INDEX`/`DEPTH`/`CB`, accept the fresh `SNAP` and reset the baseline. On `TRADE`/`AUCTION` none follows — the events are gone; mark the gap |
-| `SLOW_CLIENT`     | Client cannot drain the outbound stream fast enough | Gateway closes the connection without necessarily sending this `ERR` first (queue is dropped, not flushed) — reconnect and process faster |
+| `SLOW_CLIENT`     | Client cannot drain the outbound stream fast enough | Backlog is dropped, this `ERR` is sent, then the connection is closed — reconnect and process faster |
 | `BAD_MESSAGE`     | Malformed or oversized line (> 4096 bytes)       | Fix line syntax/framing                           |
 
 !!! note "Connection refused with no CALF response at all"
@@ -1315,9 +1312,8 @@ Whatever you build, the same six habits keep it correct:
 4. **Watch `SEQ`** — track it per `(CH, SYM)`; on a gap, reconnect and `RESUME`
    or re-`SUB` for a fresh `SNAP`.
 5. **Stay alive** — treat `HB` as a liveness signal, answer nothing; treat
-   any unexpected disconnect on a busy stream as a possible slow-client
-   condition (an `ERR|CODE=SLOW_CLIENT` may or may not arrive first) and
-   reconnect while consuming faster.
+   `ERR|CODE=SLOW_CLIENT` as a sign to reconnect and consume faster, and
+   `EXIT|REASON=…` as the gateway ending the session.
 6. **Degrade gracefully** — if `CH_SUPPORTED` lacks `DEPTH`/`INDEX`/`AUCTION`/`CB`,
    fall back instead of subscribing blindly.
 
