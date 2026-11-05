@@ -62,11 +62,11 @@ def test_missing_dc_gateway_returns_defaults(tmp_path: Path) -> None:
     assert cfg.name == "dc-gwy01"
 
 
-def test_non_mapping_root_returns_defaults(tmp_path: Path) -> None:
+def test_non_mapping_root_raises(tmp_path: Path) -> None:
     p = tmp_path / "config.yaml"
     p.write_text("- just\n- a\n- list\n")
-    cfg = load_dc_gateway_config(p)
-    assert cfg.port == 5590
+    with pytest.raises(ValueError, match="must be a YAML mapping"):
+        load_dc_gateway_config(p)
 
 
 def test_non_integer_field_raises(tmp_path: Path) -> None:

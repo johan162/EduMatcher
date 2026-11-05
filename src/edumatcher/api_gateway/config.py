@@ -15,8 +15,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-import yaml
 
+from edumatcher.config_include import load_config_mapping
 from edumatcher.config import (
     AUDIT_INDEX_DB_FILE,
     CLEARING_DB_FILE,
@@ -325,9 +325,7 @@ def load_named_api_gateway_configs(path: Path) -> dict[str, ApiGatewayConfig]:
     if not path.exists():
         return {}
 
-    raw = yaml.safe_load(path.read_text(encoding="utf-8"))
-    if not isinstance(raw, dict):
-        return {}
+    raw = load_config_mapping(path).data
 
     if "api_gateway" in raw:
         raise ValueError("api_gateway is not supported; use api_gateways")
@@ -342,9 +340,7 @@ def load_api_gateway_config(
     if not path.exists():
         return ApiGatewayConfig()
 
-    raw = yaml.safe_load(path.read_text(encoding="utf-8"))
-    if not isinstance(raw, dict):
-        return ApiGatewayConfig()
+    raw = load_config_mapping(path).data
 
     if "api_gateway" in raw:
         raise ValueError("api_gateway is not supported; use api_gateways")

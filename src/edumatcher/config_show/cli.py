@@ -11,11 +11,11 @@ import os
 import sys
 from pathlib import Path
 
-import yaml
 from rich.console import Console
 
 from edumatcher.cli_version import add_version_argument
 from edumatcher.config import ENGINE_CONFIG_FILE
+from edumatcher.config_include import ConfigIncludeError, load_config_mapping
 from edumatcher.config_show import theme as T
 from edumatcher.config_show.extract import build_view, resolve_source
 from edumatcher.config_show.render_term import render
@@ -109,14 +109,10 @@ def main(argv: list[str] | None = None) -> int:
         return _EXIT_NO_FILE
 
     try:
-        with source.path.open("r", encoding="utf-8") as handle:
-            raw = yaml.safe_load(handle)
-    except OSError as exc:
-        print(f"pm-config-show: cannot read {source.path}: {exc}", file=sys.stderr)
-        return _EXIT_NO_FILE
-    except yaml.YAMLError as exc:
+        raw = load_config_mapping(source.path).data
+    except ConfigIncludeError as exc:
         print(
-            f"pm-config-show: {source.path} is not valid YAML:\n{exc}", file=sys.stderr
+            f"pm-config-show: {source.path} cannot be loaded:\n{exc}", file=sys.stderr
         )
         print("\nRun pm-cverifier for a full diagnosis.", file=sys.stderr)
         return _EXIT_BAD_YAML

@@ -71,7 +71,7 @@ working); cverifier maps it to a new `Y005`.
   list concat, mapping merge, duplicate key, type clash, absolute path, `..`, missing file,
   nested include, YAML syntax error in an included file (message names that file).
   → verify: new tests green, mypy/pyright clean.
-- **WP-INC2 — wire into readers.** `load_engine_config` and the ten loaders called from
+- **WP-INC2 — wire into readers. DONE 2026-11-05** (also added `Y005` to layer 1; loaders now raise on a non-mapping file instead of returning defaults; `emo/cli.py:506` reads emo profiles, not the engine config, so unchanged). `load_engine_config` and the ten loaders called from
   `compile_config`; `layer1_yaml.load`; `config_show`; decide `emo/cli.py:506`. A split config and
   its single-file equivalent must produce identical `CompiledConfig` content.
   → verify: equivalence test over the bundled examples (split them programmatically in the test).

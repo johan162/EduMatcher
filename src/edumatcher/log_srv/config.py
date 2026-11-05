@@ -18,8 +18,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-import yaml
 
+from edumatcher.config_include import load_config_mapping
 from edumatcher.config import (
     LOG_DB_FILE,
     LOG_FALLBACK_DIR,
@@ -155,9 +155,7 @@ def load_log_client_config(path: Path) -> LogClientConfig:
     if not path.exists():
         return LogClientConfig()
 
-    raw = yaml.safe_load(path.read_text(encoding="utf-8"))
-    if not isinstance(raw, dict):
-        return LogClientConfig()
+    raw = load_config_mapping(path).data
 
     return _load_log_client_config_from_raw(raw)
 
@@ -329,9 +327,7 @@ def load_log_server_config(path: Path) -> LogServerConfig:
     if not path.exists():
         return LogServerConfig()
 
-    raw = yaml.safe_load(path.read_text(encoding="utf-8"))
-    if not isinstance(raw, dict):
-        return LogServerConfig()
+    raw = load_config_mapping(path).data
 
     return _load_log_server_config_from_raw(raw)
 

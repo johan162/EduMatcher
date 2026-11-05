@@ -24,9 +24,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Optional
 
-import yaml
 
 from edumatcher.config import resolve_data_path
+from edumatcher.config_include import load_config_mapping
 from edumatcher.models.combo import ComboLeg, ComboType
 from edumatcher.models.participant import DisconnectBehaviour, ParticipantRole
 from edumatcher.models.quote import QuoteRefreshPolicy
@@ -520,11 +520,7 @@ def load_engine_config(path: Path) -> EngineConfig:
     if not path.exists():
         raise FileNotFoundError(f"Engine config file not found: {path}")
 
-    raw = yaml.safe_load(path.read_text())
-    if not isinstance(raw, dict):
-        raise ValueError(
-            f"Engine config must be a YAML mapping, got {type(raw).__name__}"
-        )
+    raw = load_config_mapping(path).data
 
     symbols_raw = raw.get("symbols")
     if not isinstance(symbols_raw, dict):

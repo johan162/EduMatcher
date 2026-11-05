@@ -6,8 +6,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-import yaml
 
+from edumatcher.config_include import load_config_mapping
 from edumatcher.config import (
     ENGINE_PUB_ADDR,
     ENGINE_PULL_ADDR,
@@ -136,9 +136,7 @@ def load_market_data_gateway_config(path: Path) -> MarketDataGatewayConfig:
     if not path.exists():
         return MarketDataGatewayConfig()
 
-    raw = yaml.safe_load(path.read_text(encoding="utf-8"))
-    if not isinstance(raw, dict):
-        return MarketDataGatewayConfig()
+    raw = load_config_mapping(path).data
 
     return _load_market_data_gateway_config_from_raw(raw)
 

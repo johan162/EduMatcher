@@ -1,4 +1,4 @@
-"""Layer 1 — YAML syntax and top-level type checks (Y001–Y004)."""
+"""Layer 1 — YAML syntax and top-level type checks (Y001–Y005)."""
 
 from __future__ import annotations
 
@@ -7,6 +7,11 @@ from typing import Any
 
 import yaml
 
+from edumatcher.config_include import (
+    INCLUDE_KEY,
+    ConfigIncludeError,
+    load_config_mapping,
+)
 from edumatcher.cverifier.models import CheckResult, Severity
 
 
@@ -81,5 +86,20 @@ def load(path: Path) -> tuple[list[CheckResult], dict[str, Any] | None]:
             )
         )
         return results, None
+
+    if INCLUDE_KEY in data:
+        try:
+            data = load_config_mapping(path).data
+        except ConfigIncludeError as exc:
+            results.append(
+                CheckResult(
+                    code="Y005",
+                    severity=Severity.ERROR,
+                    message=f"{exc}.",
+                    suggestion="Fix the 'include:' list or the named file.",
+                    path=str(path),
+                )
+            )
+            return results, None
 
     return results, data
