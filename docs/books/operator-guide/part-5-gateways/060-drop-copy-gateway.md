@@ -95,6 +95,7 @@ dc_gateway:
   port: 5590
   heartbeat_interval_sec: 5
   idle_timeout_sec: 30
+  max_connections: 64
   max_client_queue: 10000
 ```
 
@@ -105,6 +106,7 @@ dc_gateway:
 | `port` | `5590` | TCP listen port |
 | `heartbeat_interval_sec` | `5` | Seconds between `HB` lines when no other outbound traffic |
 | `idle_timeout_sec` | `30` | Disconnect after this many seconds of inbound silence |
+| `max_connections` | `64` | Simultaneous TCP connections; a connection beyond this is accepted and closed at once, without a line |
 | `max_client_queue` | `10000` | Per-client outbound line buffer capacity before the client is treated as slow and dropped |
 
 The drop-copy source address (`tcp://127.0.0.1:5557` by default) is **not**
@@ -220,6 +222,12 @@ HELLO|CLIENT=risksys|PROTO=DC1|ID=TRADER01
 
 On any other first line, or a `HELLO` missing `CLIENT`/`PROTO`/`ID`, the
 gateway sends `ERR|CODE=AUTH_REQUIRED|...` and closes the connection.
+
+A connection that sends no `HELLO` within 5 seconds receives
+`EXIT|REASON=auth_timeout` and is closed — the same deadline in all three
+line gateways (`pm-md-gwy`, `pm-ralf-gwy`, `pm-dc-gwy`). Lines a client sends after the one that
+ended its session (a `HELLO` pipelined behind a refused first line, for
+example) are ignored.
 
 !!! warning "No authentication"
     Unlike `pm-alf-gwy`, the `ID` in `HELLO` is not checked against

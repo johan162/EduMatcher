@@ -91,7 +91,11 @@ A CALF client connection is long-lived.
 - Gateway streams `SNAP`, `MD`, `TRADE`, `STATE`, `IDX`, `DEPTH`, `AUCTION`,
   `CB`, `HB`, and `ERR`.
 
-If no `HELLO` is received within 5 seconds, the gateway closes the socket.
+If no `HELLO` is received within 5 seconds, the gateway sends
+`EXIT|REASON=auth_timeout` and closes the socket. Once the gateway has sent
+the line that ends a session (`ERR|CODE=AUTH_REQUIRED`, for example), it
+ignores anything more the client sends — a `HELLO` pipelined behind a
+refused first line is not answered.
 
 
 

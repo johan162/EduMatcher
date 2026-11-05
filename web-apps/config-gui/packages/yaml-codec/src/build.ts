@@ -596,6 +596,7 @@ function buildNetworkGateway(
       replay_retention_sec: g.replayRetentionSec,
       heartbeat_interval_sec: g.heartbeatIntervalSec,
       idle_timeout_sec: g.idleTimeoutSec,
+      max_connections: g.maxConnections,
       max_client_queue: g.maxClientQueue,
       allowed_roles: [...g.allowedRoles],
     };
@@ -644,6 +645,7 @@ function buildNetworkGateway(
     port: dc.port,
     heartbeat_interval_sec: dc.heartbeatIntervalSec,
     idle_timeout_sec: dc.idleTimeoutSec,
+    max_connections: dc.maxConnections,
     max_client_queue: dc.maxClientQueue,
   };
 }

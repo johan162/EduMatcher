@@ -658,9 +658,8 @@ def test_drop_idle_clients(unit_gateway: MarketDataGateway) -> None:
     unit_gateway._clients[new_session.sock.fileno()] = new_session
 
     unit_gateway._drop_idle_clients()
-    # Pre-auth: dropped at once. Authenticated: told EXIT, then closed.
-    assert new_session.sock.fileno() not in unit_gateway._clients
-    assert auth_session.closing is True
+    # Both are told EXIT with their reason, then closed.
+    assert new_session.close_reason == "auth_timeout"
     assert auth_session.close_reason == "idle_timeout"
     unit_gateway._flush_client_writes()
     assert not unit_gateway._clients
@@ -701,8 +700,13 @@ def test_drop_idle_clients_uses_connect_age_for_pre_auth(
     unit_gateway._clients[sess.sock.fileno()] = sess
 
     unit_gateway._drop_idle_clients()
+    # Told why, as pm-ralf-gwy and pm-dc-gwy do, then closed.
+    assert sess.close_reason == "auth_timeout"
+    unit_gateway._flush_client_writes()
 
     assert sess.sock.fileno() not in unit_gateway._clients
+    assert peer.recv(4096).startswith(b"EXIT|REASON=auth_timeout|")
+    assert unit_gateway._disconnects == {"auth_timeout": 1}
     peer.close()
 
 
@@ -1044,3 +1048,19 @@ def test_session_state_query_tolerates_an_absent_engine(
 
     _replace_push(unit_gateway, monkeypatch, _engine_down)
     unit_gateway._query_session_state_if_due()
+
+
+def test_lines_after_the_closing_one_are_ignored(
+    unit_gateway: MarketDataGateway,
+) -> None:
+    """W3: a HELLO pipelined behind a rejected first line used to be
+    answered with WELCOME on a session already being closed."""
+    sess, peer = _make_session()
+    sess.in_buffer.extend(b"PING\nHELLO|CLIENT=x|PROTO=CALF1\nSUB|CH=TOP|SYM=AAPL\n")
+    unit_gateway._drain_lines(sess)
+    assert sess.authenticated is False
+    assert not sess.in_buffer
+    assert [parse_line(line.decode()).fields["CODE"] for line in sess.out_queue] == [
+        "AUTH_REQUIRED"
+    ]
+    peer.close()

@@ -25,6 +25,7 @@ dc_gateway:
   port: 6100
   heartbeat_interval_sec: 2
   idle_timeout_sec: 10
+  max_connections: 8
   max_client_queue: 500
 """)
     cfg = load_dc_gateway_config(p)
@@ -33,6 +34,7 @@ dc_gateway:
     assert cfg.port == 6100
     assert cfg.heartbeat_interval_sec == 2
     assert cfg.idle_timeout_sec == 10
+    assert cfg.max_connections == 8
     assert cfg.max_client_queue == 500
 
 
@@ -103,6 +105,7 @@ dc_gateway:
     [
         "heartbeat_interval_sec",
         "idle_timeout_sec",
+        "max_connections",
         "max_client_queue",
     ],
 )

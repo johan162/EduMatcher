@@ -91,7 +91,7 @@ ahead of the stream.
 |----|--------|
 | W1 | done 2026-11-05 (uncommitted). Design docs under `docs-design/` still show `PROTO_MISMATCH`/`MSG` as history and were left alone. ALF, BALF and LALF also use `MSG`/`PROTO_MISMATCH`; out of scope here. |
 | W2 | done 2026-11-05 (uncommitted). `md.slow_clients` / `md.closing_clients` added; the monitor keeps reading `md.disconnects{slow_client}`, which now moves. `_queue_raw` no longer caps the queue itself: as in RALF/DC, the flush pass checks it, so between two passes a queue can briefly exceed `max_client_queue` by one engine-poll budget. The pre-auth `auth_timeout` can still cut a refused `HELLO`'s grace short; W3 reworks that path. |
-| W3 | — |
+| W3 | done 2026-11-05 (uncommitted). `HELLO_TIMEOUT_SEC` (5 s) in all three → `EXIT\|REASON=auth_timeout` via the grace path (the W2 note on a refused `HELLO`'s grace is resolved: closing sessions are skipped by the deadline). `max_connections` (default 64) for `post_trade_gateway` and `dc_gateway`, mirrored wherever `market_data_gateway.max_connections` lives: loaders, `main`, cverifier field lists (DC S093), config-gen commented defaults, config-gui model/codec/form, reference docs; like MD it has no config-gen flag. `gwy.clients_max` emitted and read by the monitor. `select` `ValueError` caught. DC behaviour change: a connection silent before `HELLO` is now closed after 5 s, not 30 s. Follow-up option (not done): `select.poll` would remove the 1024-fd ceiling outright; today an fd ≥ 1024 makes the read pass log a warning and skip. |
 | W4 | — |
 | W5 | — |
 | W6 | — |

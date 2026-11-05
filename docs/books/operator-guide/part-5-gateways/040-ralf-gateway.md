@@ -109,6 +109,7 @@ post_trade_gateway:
   replay_retention_sec: 86400
   heartbeat_interval_sec: 1
   idle_timeout_sec: 5
+  max_connections: 64
   max_client_queue: 10000
   allowed_roles:
     - CLEARING
@@ -169,6 +170,7 @@ post_trade_gateway:
   replay_retention_sec: 3600
   heartbeat_interval_sec: 1
   idle_timeout_sec: 10
+  max_connections: 64
   max_client_queue: 2000
   allowed_roles:
     - CLEARING
@@ -308,6 +310,12 @@ HELLO|CLIENT=ext01|PROTO=RALF1|ROLE=CLEARING|LASTSEQ=0
 `CLEARING`, `DROP_COPY`, or `AUDIT`.  `LASTSEQ=0` means start from the current
 live position (no replay).  The gateway replies with `WELCOME` or closes the
 connection on protocol or entitlement error.
+
+A connection that sends no `HELLO` within 5 seconds receives
+`EXIT|REASON=auth_timeout` and is closed — the same deadline in all three
+line gateways (`pm-md-gwy`, `pm-ralf-gwy`, `pm-dc-gwy`). Lines a client sends after the one that
+ended its session (a `HELLO` pipelined behind a refused first line, for
+example) are ignored.
 
 The `REPLAY` field in `WELCOME` tells you the journal retention window in
 seconds — use it to decide how far back you can safely request on reconnect.

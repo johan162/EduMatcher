@@ -22,6 +22,7 @@ class RalfGatewayConfig:
     replay_retention_sec: int = 86_400
     heartbeat_interval_sec: int = 1
     idle_timeout_sec: int = 5
+    max_connections: int = 64
     max_client_queue: int = 10_000
     allowed_roles: tuple[str, ...] = ("CLEARING", "DROP_COPY", "AUDIT")
 
@@ -49,6 +50,7 @@ def _load_ralf_gateway_config_from_raw(raw: dict[str, Any]) -> RalfGatewayConfig
         pg.get("heartbeat_interval_sec", 1), "heartbeat_interval_sec"
     )
     idle_timeout_sec = _as_int(pg.get("idle_timeout_sec", 5), "idle_timeout_sec")
+    max_connections = _as_int(pg.get("max_connections", 64), "max_connections")
     max_client_queue = _as_int(pg.get("max_client_queue", 10_000), "max_client_queue")
 
     allowed_roles_raw = pg.get("allowed_roles", ["CLEARING", "DROP_COPY", "AUDIT"])
@@ -64,6 +66,8 @@ def _load_ralf_gateway_config_from_raw(raw: dict[str, Any]) -> RalfGatewayConfig
         raise ValueError("post_trade_gateway.heartbeat_interval_sec must be > 0")
     if idle_timeout_sec <= 0:
         raise ValueError("post_trade_gateway.idle_timeout_sec must be > 0")
+    if max_connections <= 0:
+        raise ValueError("post_trade_gateway.max_connections must be > 0")
     if max_client_queue <= 0:
         raise ValueError("post_trade_gateway.max_client_queue must be > 0")
 
@@ -77,6 +81,7 @@ def _load_ralf_gateway_config_from_raw(raw: dict[str, Any]) -> RalfGatewayConfig
         replay_retention_sec=replay_retention_sec,
         heartbeat_interval_sec=heartbeat_interval_sec,
         idle_timeout_sec=idle_timeout_sec,
+        max_connections=max_connections,
         max_client_queue=max_client_queue,
         allowed_roles=allowed_roles,
     )

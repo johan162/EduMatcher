@@ -96,6 +96,7 @@ function PostTradePanel() {
           <NumField label="Replay retention (sec)" value={g.replayRetentionSec} onChange={(v) => set((gw) => (gw.replayRetentionSec = v ?? gw.replayRetentionSec))} help={{ text: "How long past trade records stay available for sequence-gap replay after a client reconnects.", cliFlag: "--post-trade-replay-retention-sec" }} />
           <NumField label="Heartbeat interval (sec)" value={g.heartbeatIntervalSec} onChange={(v) => set((gw) => (gw.heartbeatIntervalSec = v ?? gw.heartbeatIntervalSec))} help={{ text: "Seconds between HB keepalive lines when no other outbound traffic is pending.", cliFlag: "--post-trade-heartbeat-interval-sec" }} />
           <NumField label="Idle timeout (sec)" value={g.idleTimeoutSec} onChange={(v) => set((gw) => (gw.idleTimeoutSec = v ?? gw.idleTimeoutSec))} help={{ text: "Disconnect threshold when a connected client sends no traffic for this many seconds.", cliFlag: "--post-trade-idle-timeout-sec" }} />
+          <NumField label="Max connections" value={g.maxConnections} onChange={(v) => set((gw) => (gw.maxConnections = v ?? gw.maxConnections))} help={{ text: "Maximum number of simultaneous RALF client connections." }} />
           <NumField label="Max client queue" value={g.maxClientQueue} onChange={(v) => set((gw) => (gw.maxClientQueue = v ?? gw.maxClientQueue))} help={{ text: "Per-client outbound line buffer capacity before the client is treated as slow and disconnected.", cliFlag: "--post-trade-max-client-queue" }} />
           <FieldRow label="Allowed roles" help={{ text: "Which participant roles may subscribe to the post-trade feed (e.g. clearing, drop-copy, or audit systems).", cliFlag: "--post-trade-allowed-roles" }}>
             <div className="flex flex-wrap gap-1.5">
@@ -220,6 +221,12 @@ function DcPanel() {
             value={g.idleTimeoutSec}
             onChange={(v) => set((gw) => (gw.idleTimeoutSec = v ?? gw.idleTimeoutSec))}
             help={{ text: "Disconnect threshold when a connected client sends no traffic for this many seconds.", cliFlag: "--dc-idle-timeout-sec" }}
+          />
+          <NumField
+            label="Max connections"
+            value={g.maxConnections}
+            onChange={(v) => set((gw) => (gw.maxConnections = v ?? gw.maxConnections))}
+            help={{ text: "Maximum number of simultaneous DC1 client connections." }}
           />
           <NumField
             label="Max client queue"

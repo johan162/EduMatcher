@@ -50,6 +50,9 @@ log = logging.getLogger(__name__)
 #: as pm-md-gwy drops a slow client. A client that has stopped reading never
 #: drains, so without this it was never dropped at all.
 CLOSE_GRACE_SEC = 5.0
+#: A connection must send HELLO within this long or is closed with
+#: EXIT|REASON=auth_timeout -- the same deadline in all three line gateways.
+HELLO_TIMEOUT_SEC = 5.0
 
 _MAX_LINE_BYTES = 4096
 _MAX_DC_EVENTS_PER_LOOP = 1000
@@ -74,6 +77,7 @@ class ClientSession:
     closing_since: float = 0.0
     close_reason: str = "close_after_flush"
     last_activity: float = field(default_factory=time.monotonic)
+    connected_at: float = field(default_factory=time.monotonic)
 
     def close(self) -> None:
         try:
@@ -162,6 +166,7 @@ class DcGateway:
         return client_gateway_samples(
             "gwy",
             clients=len(self._clients),
+            clients_max=self.config.max_connections,
             msgs_out=self._msgs_out,
             disconnects=self._disconnects,
             slow_clients=self._slow_clients,
@@ -201,6 +206,16 @@ class DcGateway:
             except OSError as exc:
                 log.warning("accept failed: %s", exc)
                 break
+            if len(self._clients) >= self.config.max_connections:
+                log.warning(
+                    "connection rejected: max_connections=%d reached",
+                    self.config.max_connections,
+                )
+                try:
+                    conn.close()
+                except OSError:
+                    pass
+                continue
             conn.setblocking(False)
             conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
             self._clients[conn.fileno()] = ClientSession(sock=conn, addr=addr)
@@ -215,7 +230,7 @@ class DcGateway:
         readable: list[socket.socket] = [s.sock for s in self._clients.values()]
         try:
             ready, _, _ = select.select(readable, [], [], 0)
-        except OSError as exc:
+        except (OSError, ValueError) as exc:
             log.warning("read select failed: %s", exc)
             return
 
@@ -245,6 +260,11 @@ class DcGateway:
 
     def _drain_lines(self, sess: ClientSession) -> None:
         while True:
+            if sess.closing:
+                # The line that closed it was its last: nothing after it is
+                # answered or acted on (a pipelined HELLO, SUB, ...).
+                sess.in_buffer.clear()
+                return
             idx = sess.in_buffer.find(b"\n")
             if idx < 0:
                 return
@@ -452,6 +472,15 @@ class DcGateway:
         for sess in list(self._clients.values()):
             if sess.closing:
                 continue  # already on its way out; do not queue another EXIT
+            if not sess.authenticated:
+                if now - sess.connected_at > HELLO_TIMEOUT_SEC:
+                    self._queue_line(
+                        sess,
+                        "EXIT",
+                        {"REASON": "auth_timeout", "TS": iso_utc(time.time())},
+                    )
+                    self._close_after_flush(sess, reason="auth_timeout")
+                continue
             if now - sess.last_activity > self.config.idle_timeout_sec:
                 self._queue_line(
                     sess,

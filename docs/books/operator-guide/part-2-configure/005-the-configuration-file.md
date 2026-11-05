@@ -890,6 +890,7 @@ post_trade_gateway:
   replay_retention_sec: 86400
   heartbeat_interval_sec: 1
   idle_timeout_sec: 5
+  max_connections: 64
   max_client_queue: 10000
   allowed_roles:
     - CLEARING
@@ -902,6 +903,7 @@ dc_gateway:
   port: 5590
   heartbeat_interval_sec: 5
   idle_timeout_sec: 30
+  max_connections: 64
   max_client_queue: 10000
 
 api_gateways:
@@ -1008,6 +1010,7 @@ All values are integers greater than zero. See [Market Data Feed](../part-5-gate
 | `replay_retention_sec` | `86400` | How long executed trades are held in memory for replay (24 h). |
 | `heartbeat_interval_sec` | `1` | |
 | `idle_timeout_sec` | `5` | |
+| `max_connections` | `64` | |
 | `max_client_queue` | `10000` | |
 | `allowed_roles` | `CLEARING`, `DROP_COPY`, `AUDIT` | Which `HELLO ROLE=` values a subscriber may present. |
 
@@ -1020,6 +1023,7 @@ See [Post-Trade Dissemination](../part-5-gateways/040-ralf-gateway.md).
 | `name`, `bind_address`, `port` | `dc-gwy01`, `0.0.0.0`, `5590` | As above. |
 | `heartbeat_interval_sec` | `5` | |
 | `idle_timeout_sec` | `30` | |
+| `max_connections` | `64` | |
 | `max_client_queue` | `10000` | |
 
 See [Drop-Copy Gateway](../part-5-gateways/060-drop-copy-gateway.md).
@@ -1457,6 +1461,7 @@ post_trade_gateway:
   replay_retention_sec: 86400
   heartbeat_interval_sec: 1
   idle_timeout_sec: 5
+  max_connections: 64
   max_client_queue: 10000
   allowed_roles:
     - CLEARING
@@ -1469,6 +1474,7 @@ dc_gateway:
   port: 5590
   heartbeat_interval_sec: 5
   idle_timeout_sec: 30
+  max_connections: 64
   max_client_queue: 10000
 
 api_gateways:

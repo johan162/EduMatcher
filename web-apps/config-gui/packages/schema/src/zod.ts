@@ -218,6 +218,7 @@ export const alfGatewayProcSchema = z.object({
 export const postTradeGatewaySchema = z.object({
   ...networkBase,
   replayRetentionSec: z.number().int().positive(),
+  maxConnections: z.number().int().positive(),
   allowedRoles: z.array(z.string()),
 });
 
@@ -252,6 +253,7 @@ export const dcGatewaySchema = z.object({
   port: z.number().int().min(1).max(65535),
   heartbeatIntervalSec: z.number().positive(),
   idleTimeoutSec: z.number().positive(),
+  maxConnections: z.number().int().positive(),
   maxClientQueue: z.number().int().positive(),
 });
 

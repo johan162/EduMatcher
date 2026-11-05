@@ -916,6 +916,7 @@ post_trade_gateway:
   replay_retention_sec: 86400
   heartbeat_interval_sec: 1
   idle_timeout_sec: 5
+  max_connections: 64
   max_client_queue: 10000
   allowed_roles:
   - CLEARING

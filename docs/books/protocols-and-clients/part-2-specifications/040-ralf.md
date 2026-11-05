@@ -40,7 +40,9 @@ project's suspected-bugs report.
 A session proceeds: **connect → `HELLO` → `WELCOME` → one or more `SUB`/`UNSUB` →
 event stream + heartbeats → `EXIT`/disconnect**. A client MUST send `HELLO` before
 any other message; a non-`HELLO` first message is rejected with
-`ERR|CODE=AUTH_REQUIRED`.
+`ERR|CODE=AUTH_REQUIRED`. A connection that sends no `HELLO` within 5 seconds
+receives `EXIT|REASON=auth_timeout` and is closed. Once the gateway has sent
+the line that ends a session, it ignores anything more the client sends.
 
 ## 4. Wire format
 
@@ -244,6 +246,7 @@ interval. A session with no inbound activity for the idle timeout is dropped
 | `replay_retention_sec` | `86400` | journal window; advertised as `WELCOME\|REPLAY=` |
 | `heartbeat_interval_sec` | `1` | `HB` cadence; advertised as `WELCOME\|HBINT=` |
 | `idle_timeout_sec` | `5` | inbound-idle disconnect |
+| `max_connections` | `64` | simultaneous TCP connections; one beyond this is accepted and closed at once |
 | `max_client_queue` | `10000` | outbound backlog before `SLOW_CLIENT` |
 | `allowed_roles` | `[CLEARING, DROP_COPY, AUDIT]` | roles permitted to authenticate |
 

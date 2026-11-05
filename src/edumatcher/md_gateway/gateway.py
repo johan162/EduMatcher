@@ -72,11 +72,13 @@ _WILDCARD_ELIGIBLE_CHANNELS = frozenset({"STATE", "TOP", "TRADE", "AUCTION"})
 # cannot drift.
 _SNAPSHOT_CHANNELS = frozenset({"TOP", "STATE", "INDEX", "DEPTH", "CB"})
 _MAX_LINE_BYTES = 4096
-_HELLO_TIMEOUT_SEC = 5
 #: Longest a closing session may take to drain its final line (SLOW_CLIENT
 #: error, idle EXIT, a refused HELLO) before it is disconnected regardless --
 #: the same grace pm-ralf-gwy and pm-dc-gwy give.
 CLOSE_GRACE_SEC = 5.0
+#: A connection must send HELLO within this long or is closed with
+#: EXIT|REASON=auth_timeout -- the same deadline in all three line gateways.
+HELLO_TIMEOUT_SEC = 5.0
 _MAX_ENGINE_EVENTS_PER_LOOP = 2000
 _DEBUG_SUMMARY_INTERVAL_SEC = 5.0
 # How often the engine is asked for its session state. Repeated rather than
@@ -355,6 +357,12 @@ class MarketDataGateway:
         3) multiple lines in one recv chunk
         """
         while True:
+            if session.closing:
+                # The line that closed it was its last: nothing after it is
+                # answered or acted on (a pipelined HELLO, SUB, ...).
+                session.in_buffer.clear()
+                return
+
             idx = session.in_buffer.find(b"\n")
             if idx < 0:
                 return
@@ -1078,16 +1086,18 @@ class MarketDataGateway:
     def _drop_idle_clients(self) -> None:
         now = time.monotonic()
         for session in list(self._clients.values()):
-            idle = now - session.last_activity
-            if (
-                not session.authenticated
-                and now - session.connected_at > _HELLO_TIMEOUT_SEC
-            ):
-                self._disconnect(session, reason="auth_timeout")
-                continue
             if session.closing:
                 continue  # already on its way out; do not queue another EXIT
-            if session.authenticated and idle > self.config.idle_timeout_sec:
+            if not session.authenticated:
+                if now - session.connected_at > HELLO_TIMEOUT_SEC:
+                    self._queue_line(
+                        session,
+                        "EXIT",
+                        {"REASON": "auth_timeout", "TS": iso_utc(time.time())},
+                    )
+                    self._close_after_flush(session, reason="auth_timeout")
+                continue
+            if now - session.last_activity > self.config.idle_timeout_sec:
                 self._queue_line(
                     session,
                     "EXIT",

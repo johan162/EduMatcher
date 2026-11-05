@@ -26,6 +26,7 @@ post_trade_gateway:
   replay_retention_sec: 300
   heartbeat_interval_sec: 2
   idle_timeout_sec: 10
+  max_connections: 8
   max_client_queue: 500
   allowed_roles:
     - CLEARING
@@ -38,6 +39,7 @@ post_trade_gateway:
     assert cfg.replay_retention_sec == 300
     assert cfg.heartbeat_interval_sec == 2
     assert cfg.idle_timeout_sec == 10
+    assert cfg.max_connections == 8
     assert cfg.max_client_queue == 500
     assert cfg.allowed_roles == ("CLEARING", "AUDIT")
 
@@ -120,6 +122,7 @@ post_trade_gateway:
         "replay_retention_sec",
         "heartbeat_interval_sec",
         "idle_timeout_sec",
+        "max_connections",
         "max_client_queue",
     ],
 )
