@@ -196,7 +196,9 @@ threshold to each entitled channel independently and replays events where
 **Replay.** If `HELLO` carries `LASTSEQ`, the gateway attempts to resend journalled
 events with `SEQ > LASTSEQ` (per channel, as above) and only for channels the role
 is entitled to receive (§7). If `LASTSEQ` predates the retained journal window for
-any entitled channel (`replay_retention_sec`), the gateway emits
+any entitled channel (`replay_retention_sec`) — including a channel whose
+journal has aged out entirely — or is ahead of any entitled channel, as after a
+gateway restart, the gateway emits
 `ERR|CODE=REPLAY_MISS` followed by a `SNAP` baseline; the client MUST reset to that
 baseline.
 
@@ -227,7 +229,7 @@ interval. A session with no inbound activity for the idle timeout is dropped
 | `BAD_MESSAGE` | unparseable line, unsupported message type, or malformed field (e.g. non-integer `LASTSEQ`); an oversized line (`DETAIL=line exceeds 4096 bytes`) also ends the session |
 | `INVALID_CHANNEL` | `SUB` with missing/empty or unknown `CH` |
 | `ENTITLEMENT_DENIED` | role not in `allowed_roles`, or channel outside the role's entitlement |
-| `REPLAY_MISS` | requested `LASTSEQ` is older than the retained journal window |
+| `REPLAY_MISS` | requested `LASTSEQ` is older than the retained journal window, or ahead of the channel (e.g. after a gateway restart) |
 | `SLOW_CLIENT` | outbound queue exceeded `max_client_queue`; session disconnected |
 
 `ERR` carries `CODE` and a human-readable `DETAIL`, e.g.

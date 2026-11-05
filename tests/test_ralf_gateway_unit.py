@@ -128,10 +128,60 @@ def test_replay_miss_emits_err_and_snap(unit_gateway: RalfGateway) -> None:
     peer.close()
 
 
-def test_replay_from_empty_journal_is_noop(unit_gateway: RalfGateway) -> None:
+def _clearing_session() -> tuple[ClientSession, socket.socket]:
     sess, peer = _make_session()
+    sess.authenticated = True
+    sess.role = "CLEARING"
+    return sess, peer
+
+
+def _trade(unit_gateway: RalfGateway, trade_id: str) -> None:
+    unit_gateway._handle_trade(
+        {"id": trade_id, "symbol": "AAPL", "quantity": 1, "price": 1.0}
+    )
+
+
+def test_replay_ahead_of_the_journal_is_a_miss(unit_gateway: RalfGateway) -> None:
+    """W5: after a gateway restart the journal is empty and a client's
+    LASTSEQ is from the old run; that used to be a silent empty replay."""
+    sess, peer = _clearing_session()
     unit_gateway._replay_from(sess, last_seq=10)
+    codes = [parse_line(x.decode()).msg_type for x in sess.out_queue]
+    assert codes == ["ERR", "SNAP"]
+    assert b"CODE=REPLAY_MISS" in sess.out_queue[0]
+    assert b"SEQ=0" in sess.out_queue[1]
+    peer.close()
+
+
+def test_replay_after_everything_aged_out_is_a_miss(
+    unit_gateway: RalfGateway,
+) -> None:
+    sess, peer = _clearing_session()
+    for trade_id in ("T1", "T2", "T3"):
+        _trade(unit_gateway, trade_id)
+    unit_gateway._journal.clear()  # all pruned by retention
+    unit_gateway._replay_from(sess, last_seq=1)
+    assert b"CODE=REPLAY_MISS" in sess.out_queue[0]
+    assert b"SEQ=3" in sess.out_queue[1]
+    peer.close()
+
+
+def test_replay_when_up_to_date_sends_nothing(unit_gateway: RalfGateway) -> None:
+    sess, peer = _clearing_session()
+    for trade_id in ("T1", "T2"):
+        _trade(unit_gateway, trade_id)
+    unit_gateway._journal.clear()  # nothing retained, but nothing missed
+    unit_gateway._replay_from(sess, last_seq=2)
     assert not sess.out_queue
+    peer.close()
+
+
+def test_replay_resends_what_follows_last_seq(unit_gateway: RalfGateway) -> None:
+    sess, peer = _clearing_session()
+    for trade_id in ("T1", "T2", "T3"):
+        _trade(unit_gateway, trade_id)
+    unit_gateway._replay_from(sess, last_seq=1)
+    assert [b"SEQ=2" in x or b"SEQ=3" in x for x in sess.out_queue] == [True, True]
     peer.close()
 
 

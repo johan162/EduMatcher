@@ -182,8 +182,14 @@ def test_resume_recovers_several_streams_on_one_connection(
     HELLO is dispatched only while the session is unauthenticated.
     """
     sess, peer = _authenticated_session(unit_gateway)
-    unit_gateway._replay.append("TOP", "AAPL", 2, b"MD|CH=TOP|SYM=AAPL|SEQ=2\n")
-    unit_gateway._replay.append("TOP", "MSFT", 5, b"MD|CH=TOP|SYM=MSFT|SEQ=5\n")
+    top = {"BID_PX": "1", "BID_QTY": "1", "ASK_PX": "2", "ASK_QTY": "1"}
+    for _ in range(2):
+        unit_gateway._emit_stream_event("MD", "TOP", "AAPL", top, time.time())
+    for _ in range(5):
+        unit_gateway._emit_stream_event("MD", "TOP", "MSFT", top, time.time())
+    unit_gateway._emit_stream_event(
+        "TRADE", "TRADE", "AAPL", {"TRADE_ID": "T1"}, time.time()
+    )
 
     unit_gateway._handle_client_line(sess, "RESUME|CH=TOP|SYM=AAPL|LASTSEQ=1")
     unit_gateway._handle_client_line(sess, "RESUME|CH=TOP|SYM=MSFT|LASTSEQ=4")
@@ -674,3 +680,33 @@ def test_symbols_request_requires_authentication_first(
 
     assert _err_codes(sess) == ["AUTH_REQUIRED"]
     peer.close()
+
+
+def test_resume_on_an_aged_out_stream_is_a_miss_with_a_snap(
+    unit_gateway: MarketDataGateway,
+) -> None:
+    """W5: a quiet stream whose replay had all expired answered RESUME with
+    nothing -- no REPLAY_MISS, no SNAP -- so the client skipped events."""
+    sess, peer = _authenticated_session(unit_gateway)
+    top = {"BID_PX": "1", "BID_QTY": "1", "ASK_PX": "2", "ASK_QTY": "1"}
+    for _ in range(3):
+        unit_gateway._emit_stream_event("MD", "TOP", "AAPL", top, time.time())
+    unit_gateway._replay._events[("TOP", "AAPL")].clear()  # all aged out
+
+    unit_gateway._handle_client_line(sess, "RESUME|CH=TOP|SYM=AAPL|LASTSEQ=1")
+
+    assert _err_codes(sess) == ["REPLAY_MISS"]
+    assert sess.out_queue[-1].startswith(b"SNAP|CH=TOP|SYM=AAPL|SEQ=3|")
+    peer.close()
+
+
+def test_a_repeated_trade_takes_no_sequence_number(
+    unit_gateway: MarketDataGateway,
+) -> None:
+    """W5/F14: the duplicate was dropped after its SEQ was taken, so every
+    TRADE subscriber saw a gap that never happened."""
+    for trade_id in ("T1", "T1", "T2"):
+        unit_gateway._emit_stream_event(
+            "TRADE", "TRADE", "AAPL", {"TRADE_ID": trade_id}, time.time()
+        )
+    assert unit_gateway._sequencer.current("TRADE", "AAPL") == 2

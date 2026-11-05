@@ -877,14 +877,13 @@ sides over it; a record with an unmarked gap is worse than one that admits it.
 The session stays open either way, so your other `RESUME` requests are
 unaffected.
 
-**Recovery option 3 — nothing was ever recorded for the stream**
+**Recovery option 3 — the gateway cannot place `LASTSEQ`**
 
-If the gateway has never emitted anything for that exact `(CH, SYM)` pair (or
-the buffer has aged everything out), `RESUME` returns **zero replay
-lines** — no `ERR|CODE=REPLAY_MISS` and no fresh `SNAP` either. The session
-just resumes live from that point. Don't treat an empty replay as a failure;
-if you need a guaranteed baseline after reconnecting, re-`SUB` to the stream
-to force a `SNAP` rather than relying on `RESUME` alone.
+If the buffer has aged out everything after `LASTSEQ`, or `LASTSEQ` is ahead
+of the stream — the gateway was restarted and numbers from 1 again, or has
+never emitted that `(CH, SYM)` — the answer is also `ERR|CODE=REPLAY_MISS`
+(with a `SNAP` on the snapshot-backed channels). Zero replay lines with no
+error mean only that you were already up to date.
 
 !!! note "`RESUME` is per stream, and repeatable"
     Each `RESUME` recovers one `(CH, SYM)` stream, because `LASTSEQ` describes

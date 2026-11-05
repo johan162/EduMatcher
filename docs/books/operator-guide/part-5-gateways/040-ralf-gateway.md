@@ -619,7 +619,7 @@ cd docs/examples/ralf && make
 | `AUTH_REQUIRED`      | Any message before a successful `HELLO`, or `HELLO` itself missing `CLIENT`/`PROTO`/`ROLE` | Send a well-formed `HELLO` first |
 | `ENTITLEMENT_DENIED` | Role not permitted for that channel               | Use the channel matching your role; `AUDIT` may access all |
 | `INVALID_CHANNEL`    | Unknown `CH` value                                | Use `CLEARING`, `DROP_COPY`, or `AUDIT`            |
-| `REPLAY_MISS`        | Requested `LASTSEQ` is outside the journal window | Accept the recovery `SNAP` and reset local baseline |
+| `REPLAY_MISS`        | Requested `LASTSEQ` is outside the journal window, or ahead of it after a gateway restart | Accept the recovery `SNAP` and reset local baseline |
 | `SLOW_CLIENT`        | Client cannot drain the outbound stream fast enough | Reconnect and process faster; terminal error      |
 | `BAD_MESSAGE`        | Malformed line (parse failure, unsupported message type, or non-integer `LASTSEQ`) | Fix line syntax/framing |
 

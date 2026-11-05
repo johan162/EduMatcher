@@ -682,7 +682,9 @@ class MarketDataGateway:
             self._subs.set_for_client(session.sock.fileno(), session.subscriptions)
 
         try:
-            lines = self._replay.replay_since(ch, sym, last_seq)
+            lines = self._replay.replay_since(
+                ch, sym, last_seq, self._sequencer.current(ch, sym) or 0
+            )
         except ReplayMissError:
             log.debug(
                 "[fd=%d] replay miss ch=%s sym=%s last_seq=%s",
@@ -845,6 +847,12 @@ class MarketDataGateway:
         This method centralizes sequence allocation + replay persistence so all
         CALF stream event types behave consistently.
         """
+        # A repeated trade is dropped before a sequence number is taken for
+        # it: taking one and then dropping the line left a hole that every
+        # subscriber saw as a gap.
+        trade_id = payload_fields.get("TRADE_ID") if ch == "TRADE" else None
+        if trade_id is not None and self._replay.has_trade(ch, sym, trade_id):
+            return
         seq = self._sequencer.next_seq(ch, sym)
         fields = {
             "CH": ch,
@@ -855,9 +863,7 @@ class MarketDataGateway:
         fields.update(payload_fields)
 
         line = build_line(msg_type, fields)
-        trade_id = payload_fields.get("TRADE_ID") if ch == "TRADE" else None
-        if not self._replay.append(ch, sym, seq, line, trade_id=trade_id):
-            return
+        self._replay.append(ch, sym, seq, line, trade_id=trade_id)
         self._dbg_count("stream_events")
 
         for target in self._clients.values():

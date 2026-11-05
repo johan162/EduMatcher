@@ -371,7 +371,8 @@ SUB|CH=CB|SYM=AAPL
 `LASTSEQ`, instead of starting from a `SNAP`.
 
 **Response:** replayed events in sequence order, or `ERR|CODE=REPLAY_MISS`
-when the gap is wider than the replay window. On the snapshot-backed channels
+when the gap is wider than the replay window or `LASTSEQ` is ahead of the
+stream. On the snapshot-backed channels
 (`TOP`, `STATE`, `INDEX`, `DEPTH`, `CB`) a fresh `SNAP` follows that error; on
 `TRADE` and `AUCTION` it does not, because a past print has no current state to
 snapshot. See "Reconnect behavior" below.
@@ -1104,7 +1105,7 @@ Normative error codes:
 | `INVALID_CHANNEL` | `CH` not in `{TOP, TRADE, STATE, INDEX, DEPTH, AUCTION, CB}`                     |
 | `INVALID_SYMBOL`  | Symbol not in the gateway's known instrument list (does not apply to `INDEX`, which has no known-id check — see "Subscription rules"), `SYM=*` used with `INDEX`/`DEPTH`/`CB` on `SUB` (alone or mixed with any other channel), `SYM=*` used at all on `RESUME` (every channel, including `TOP`/`TRADE`/`STATE`/`AUCTION`), a `SUB` with no `SYM` at all, or `CH=INDEX` combined with an empty symbol |
 | `SUB_LIMIT`       | Subscription would exceed `max_symbols_per_client`                              |
-| `REPLAY_MISS`     | `LASTSEQ` is older than the replay window; a `SNAP` follows on `TOP`/`STATE`/`INDEX`/`DEPTH`/`CB`, but not on `TRADE`/`AUCTION` |
+| `REPLAY_MISS`     | Events after `LASTSEQ` are no longer in the replay window, or `LASTSEQ` is ahead of the stream (e.g. after a gateway restart); a `SNAP` follows on `TOP`/`STATE`/`INDEX`/`DEPTH`/`CB`, but not on `TRADE`/`AUCTION` |
 | `SLOW_CLIENT`     | Outbound queue exceeded `max_client_queue`; connection closed                   |
 | `BAD_MESSAGE`     | Parse failure, oversized line (over 4096 bytes including the newline), or unsupported message type |
 | `RATE_LIMITED`    | Client exceeded `max_messages_per_second` (inbound token-bucket); connection stays open |
@@ -1214,15 +1215,12 @@ it wants that it has no sequence position for.
   recorded, and never let one lower your `last_seq`.** Track which sequence
   ranges you are actually missing: that is the only thing distinguishing the
   backfill you asked for from a print you already have.
-- If the stream has no retained replay history at all yet (nothing has been
-  emitted for that `(CH,SYM)` since the gateway started or the buffer last
-  pruned it), the gateway returns zero replay lines and does **not** send
-  `ERR|CODE=REPLAY_MISS` or a `SNAP` — the client resumes live from
-  whatever the next emitted event turns out to be. This differs from the
-  replay-miss case above and is easy to mistake for a silently dropped
-  resume; clients that need a guaranteed baseline after `RESUME` should
-  also send an explicit `SUB` for the same stream, which always triggers a
-  `SNAP` for `TOP`/`STATE`/`INDEX`/`DEPTH`/`CB` regardless of replay state.
+- Zero replay lines and no error mean exactly one thing: `LASTSEQ` is the
+  stream's current sequence, so nothing was missed. Every other case the
+  gateway cannot serve is a `REPLAY_MISS` — including a stream whose
+  retained events have all aged out, and a `LASTSEQ` ahead of the stream
+  (or on a stream this gateway has never emitted), which is what a client
+  holding a position from before a gateway restart sends.
 - `SYM=*` is always invalid for `RESUME`, for every channel, even for
   `TOP`/`TRADE`/`STATE`/`AUCTION` where `SYM=*` is otherwise allowed on
   `SUB`. `RESUME` has no equivalent of `SUB`'s per-symbol snapshot burst,

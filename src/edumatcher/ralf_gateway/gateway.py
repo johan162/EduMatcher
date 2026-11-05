@@ -488,9 +488,6 @@ class RalfGateway:
                 sess.subscriptions.discard((ch, sym))
 
     def _replay_from(self, sess: ClientSession, last_seq: int) -> None:
-        if not self._journal:
-            return
-
         entitled_channels = self._entitled_channels(sess)
         if not entitled_channels:
             return
@@ -502,7 +499,15 @@ class RalfGateway:
             if evt.channel not in oldest_by_channel:
                 oldest_by_channel[evt.channel] = evt.seq
 
-        if any(last_seq < oldest - 1 for oldest in oldest_by_channel.values()):
+        # A miss when LASTSEQ is ahead of a channel (a position from another
+        # gateway run), or when what follows it has aged out of the journal --
+        # including all of it, which used to look like a clean empty replay.
+        def missed(ch: str) -> bool:
+            latest = self._next_seq_by_channel.get(ch, 1) - 1
+            oldest = oldest_by_channel.get(ch, latest + 1)
+            return last_seq > latest or last_seq < oldest - 1
+
+        if any(missed(ch) for ch in entitled_channels):
             self._queue_line(
                 sess,
                 "ERR",
