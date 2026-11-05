@@ -50,13 +50,14 @@ from edumatcher.api_gateway.config import load_named_api_gateway_configs
 from edumatcher.balf_gwy.config import load_balf_gateway_config
 from edumatcher.cli_version import package_version
 from edumatcher.config import COMPILED_CONFIG_FILE, ENGINE_CONFIG_FILE
+from edumatcher.config_include import ConfigIncludeError, load_config_mapping
 from edumatcher.config_artifact import (
     SCHEMA_VERSION,
     ArtifactMeta,
     CompiledConfig,
     content_digest,
     encode,
-    source_digest,
+    config_digest,
 )
 from edumatcher.cverifier.cli import run as run_verifier
 from edumatcher.cverifier.models import CheckResult, Severity
@@ -188,13 +189,12 @@ def compile_config(source: Path) -> CompiledConfig:
     if blocking:
         raise CompileError(f"{source} failed validation", blocking)
 
-    text = source.read_text(encoding="utf-8")
     meta = ArtifactMeta(
         schema_version=SCHEMA_VERSION,
         compiler_version=package_version(),
         compiled_at=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z"),
         source_path=str(source),
-        source_sha256=source_digest(text),
+        source_sha256=config_digest(load_config_mapping(source).files),
     )
 
     try:
@@ -242,6 +242,40 @@ def _write_atomically(path: Path, text: str) -> None:
     os.replace(staged, path)
 
 
+def _installed_includes(installed: Path) -> list[Path]:
+    """The include files a previous deploy left beside *installed*."""
+    try:
+        return list(load_config_mapping(installed).files[1:])
+    except OSError, ConfigIncludeError:
+        # An unreadable old copy leaves nothing we can safely identify.
+        return []
+
+
+def _install_source(source: Path, installed: Path) -> None:
+    """Copy the authored file and its includes next to the artifact.
+
+    Includes keep their layout relative to the main file. Includes a previous
+    deploy installed that this source no longer lists are removed, so the
+    directory never records files the running configuration was not built from.
+    """
+    loaded = load_config_mapping(source)
+    previous = _installed_includes(installed)
+    _write_atomically(installed, source.read_text("utf-8"))
+    kept = set()
+    for path in loaded.files[1:]:
+        target = installed.parent / path.relative_to(source.parent)
+        _write_atomically(target, path.read_text("utf-8"))
+        kept.add(target)
+    if installed.parent.resolve() == source.parent.resolve():
+        return  # deploying in place: those files are the authored ones
+    for stale in set(previous) - kept:
+        stale.unlink(missing_ok=True)
+        try:
+            stale.parent.rmdir()
+        except OSError:
+            pass  # not empty, or the install directory itself
+
+
 def deploy(source: Path, dest: Path = COMPILED_CONFIG_FILE) -> CompiledConfig:
     """Compile *source* and install the artifact at *dest*.
 
@@ -252,9 +286,7 @@ def deploy(source: Path, dest: Path = COMPILED_CONFIG_FILE) -> CompiledConfig:
     """
     config = compile_config(source)
     _write_atomically(dest, encode(config))
-    _write_atomically(
-        dest.with_name(ENGINE_CONFIG_FILE.name), source.read_text("utf-8")
-    )
+    _install_source(source, dest.with_name(ENGINE_CONFIG_FILE.name))
     sim_source = source.with_name(SIM_FILE_NAME)
     sim_dest = dest.with_name(SIM_FILE_NAME)
     if sim_source.is_file():

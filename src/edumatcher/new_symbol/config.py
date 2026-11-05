@@ -6,8 +6,9 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from edumatcher.config import COMPILED_CONFIG_FILE, ENGINE_CONFIG_FILE
-from edumatcher.config_artifact import load_compiled_config, source_digest
+from edumatcher.config_artifact import config_digest, load_compiled_config
 from edumatcher.config_deploy import examples_root
+from edumatcher.config_include import load_config_mapping
 
 
 @dataclass(frozen=True)
@@ -48,7 +49,7 @@ def resolve_target(config: Path | None) -> Target:
                 "edit that file, or its next deploy would drop the symbol"
             )
         return Target(source, False, COMPILED_CONFIG_FILE)
-    if source_digest(source.read_text(encoding="utf-8")) != (
+    if config_digest(load_config_mapping(source).files) != (
         deployed.meta.source_sha256
     ):
         raise ValueError(

@@ -75,7 +75,7 @@ working); cverifier maps it to a new `Y005`.
   `compile_config`; `layer1_yaml.load`; `config_show`; decide `emo/cli.py:506`. A split config and
   its single-file equivalent must produce identical `CompiledConfig` content.
   → verify: equivalence test over the bundled examples (split them programmatically in the test).
-- **WP-INC3 — deploy and staleness.** `source_digest` becomes a digest over all files (main +
+- **WP-INC3 — deploy and staleness. DONE 2026-11-05** (`config_digest(files)`: main text first, then `\0name\0text` per include, so a config without includes keeps its old digest and no artifact goes stale; `deploy` removes includes dropped since the last deploy, except when deploying in place; `staleness` reports a source that no longer loads; `new_symbol.resolve_target` uses the combined digest — its insert logic is WP-INC5). `source_digest` becomes a digest over all files (main +
   includes, in order, with names, so a rename changes it). `deploy` copies the authored tree beside
   the artifact (same relative layout) instead of one file. Stale-detection and
   `new_symbol.resolve_target` use the combined digest. Removing an include between deploys must
