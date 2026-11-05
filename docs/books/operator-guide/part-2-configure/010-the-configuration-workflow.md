@@ -373,6 +373,7 @@ Post-trade gateway options:
 | `--post-trade-replay-retention-sec`          | int (`> 0`) | `86400`                    | `post_trade_gateway.replay_retention_sec`                   |
 | `--post-trade-heartbeat-interval-sec`        | int (`> 0`) | `1`                        | `post_trade_gateway.heartbeat_interval_sec`                 |
 | `--post-trade-idle-timeout-sec`              | int (`> 0`) | `5`                        | `post_trade_gateway.idle_timeout_sec`                       |
+| `--post-trade-max-connections`               | int (`> 0`) | `64`                       | `post_trade_gateway.max_connections`                        |
 | `--post-trade-max-client-queue`              | int (`> 0`) | `10000`                    | `post_trade_gateway.max_client_queue`                       |
 | `--post-trade-allowed-roles ROLE [ROLE ...]` | list        | `CLEARING DROP_COPY AUDIT` | `post_trade_gateway.allowed_roles`                          |
 
@@ -388,6 +389,7 @@ Market-data gateway options:
 | `--market-data-heartbeat-interval-sec`             | int (`> 0`) | `1`                         | `market_data_gateway.heartbeat_interval_sec`               |
 | `--market-data-idle-timeout-sec`                   | int (`> 0`) | `5`                         | `market_data_gateway.idle_timeout_sec`                     |
 | `--market-data-replay-window-sec`                  | int (`> 0`) | `30`                        | `market_data_gateway.replay_window_sec`                    |
+| `--market-data-max-connections`                    | int (`> 0`) | `64`                        | `market_data_gateway.max_connections`                      |
 | `--market-data-max-symbols-per-client`             | int (`> 0`) | `200`                       | `market_data_gateway.max_symbols_per_client`               |
 | `--market-data-max-client-queue`                   | int (`> 0`) | `10000`                     | `market_data_gateway.max_client_queue`                     |
 | `--market-data-depth-levels`                       | int (`> 0`) | `10`                        | `market_data_gateway.depth_levels`                          |
@@ -439,6 +441,7 @@ Drop-copy gateway options:
 | `--dc-port` | int (`> 0`) | `5590` | `dc_gateway.port` |
 | `--dc-heartbeat-interval-sec` | int (`> 0`) | `5` | `dc_gateway.heartbeat_interval_sec` |
 | `--dc-idle-timeout-sec` | int (`> 0`) | `30` | `dc_gateway.idle_timeout_sec` |
+| `--dc-max-connections` | int (`> 0`) | `64` | `dc_gateway.max_connections` |
 | `--dc-max-client-queue` | int (`> 0`) | `10000` | `dc_gateway.max_client_queue` |
 
 Log server options:

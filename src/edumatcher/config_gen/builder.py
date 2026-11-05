@@ -55,6 +55,7 @@ from .defaults import (
     DEFAULT_DC_GATEWAY_HEARTBEAT_INTERVAL_SEC,
     DEFAULT_DC_GATEWAY_IDLE_TIMEOUT_SEC,
     DEFAULT_DC_GATEWAY_MAX_CLIENT_QUEUE,
+    DEFAULT_DC_GATEWAY_MAX_CONNECTIONS,
     DEFAULT_DC_GATEWAY_NAME,
     DEFAULT_DC_GATEWAY_PORT,
     DEFAULT_LOG_SERVER_BACKFILL_CHUNK_ROWS,
@@ -86,6 +87,7 @@ from .defaults import (
     DEFAULT_MARKET_DATA_GATEWAY_HEARTBEAT_INTERVAL_SEC,
     DEFAULT_MARKET_DATA_GATEWAY_IDLE_TIMEOUT_SEC,
     DEFAULT_MARKET_DATA_GATEWAY_MAX_CLIENT_QUEUE,
+    DEFAULT_MARKET_DATA_GATEWAY_MAX_CONNECTIONS,
     DEFAULT_MARKET_DATA_GATEWAY_MAX_SYMBOLS_PER_CLIENT,
     DEFAULT_MARKET_DATA_GATEWAY_NAME,
     DEFAULT_MARKET_DATA_GATEWAY_PORT,
@@ -107,6 +109,7 @@ from .defaults import (
     DEFAULT_POST_TRADE_GATEWAY_HEARTBEAT_INTERVAL_SEC,
     DEFAULT_POST_TRADE_GATEWAY_IDLE_TIMEOUT_SEC,
     DEFAULT_POST_TRADE_GATEWAY_MAX_CLIENT_QUEUE,
+    DEFAULT_POST_TRADE_GATEWAY_MAX_CONNECTIONS,
     DEFAULT_POST_TRADE_GATEWAY_NAME,
     DEFAULT_POST_TRADE_GATEWAY_PORT,
     DEFAULT_POST_TRADE_GATEWAY_REPLAY_RETENTION_SEC,
@@ -204,6 +207,7 @@ class PostTradeGatewaySpec:
     replay_retention_sec: int = DEFAULT_POST_TRADE_GATEWAY_REPLAY_RETENTION_SEC
     heartbeat_interval_sec: int = DEFAULT_POST_TRADE_GATEWAY_HEARTBEAT_INTERVAL_SEC
     idle_timeout_sec: int = DEFAULT_POST_TRADE_GATEWAY_IDLE_TIMEOUT_SEC
+    max_connections: int = DEFAULT_POST_TRADE_GATEWAY_MAX_CONNECTIONS
     max_client_queue: int = DEFAULT_POST_TRADE_GATEWAY_MAX_CLIENT_QUEUE
     allowed_roles: tuple[str, ...] = DEFAULT_POST_TRADE_GATEWAY_ALLOWED_ROLES
 
@@ -217,6 +221,7 @@ class MarketDataGatewaySpec:
     heartbeat_interval_sec: int = DEFAULT_MARKET_DATA_GATEWAY_HEARTBEAT_INTERVAL_SEC
     idle_timeout_sec: int = DEFAULT_MARKET_DATA_GATEWAY_IDLE_TIMEOUT_SEC
     replay_window_sec: int = DEFAULT_MARKET_DATA_GATEWAY_REPLAY_WINDOW_SEC
+    max_connections: int = DEFAULT_MARKET_DATA_GATEWAY_MAX_CONNECTIONS
     max_symbols_per_client: int = DEFAULT_MARKET_DATA_GATEWAY_MAX_SYMBOLS_PER_CLIENT
     max_client_queue: int = DEFAULT_MARKET_DATA_GATEWAY_MAX_CLIENT_QUEUE
     depth_levels: int = DEFAULT_MARKET_DATA_GATEWAY_DEPTH_LEVELS
@@ -264,6 +269,7 @@ class DcGatewaySpec:
     port: int = DEFAULT_DC_GATEWAY_PORT
     heartbeat_interval_sec: int = DEFAULT_DC_GATEWAY_HEARTBEAT_INTERVAL_SEC
     idle_timeout_sec: int = DEFAULT_DC_GATEWAY_IDLE_TIMEOUT_SEC
+    max_connections: int = DEFAULT_DC_GATEWAY_MAX_CONNECTIONS
     max_client_queue: int = DEFAULT_DC_GATEWAY_MAX_CLIENT_QUEUE
 
 
@@ -491,6 +497,7 @@ class ConfigBuilder:
             "replay_retention_sec": spec.replay_retention_sec,
             "heartbeat_interval_sec": spec.heartbeat_interval_sec,
             "idle_timeout_sec": spec.idle_timeout_sec,
+            "max_connections": spec.max_connections,
             "max_client_queue": spec.max_client_queue,
             "allowed_roles": list(spec.allowed_roles),
         }
@@ -508,6 +515,7 @@ class ConfigBuilder:
             "heartbeat_interval_sec": spec.heartbeat_interval_sec,
             "idle_timeout_sec": spec.idle_timeout_sec,
             "replay_window_sec": spec.replay_window_sec,
+            "max_connections": spec.max_connections,
             "max_symbols_per_client": spec.max_symbols_per_client,
             "max_client_queue": spec.max_client_queue,
             "depth_levels": spec.depth_levels,
@@ -545,6 +553,7 @@ class ConfigBuilder:
             "port": spec.port,
             "heartbeat_interval_sec": spec.heartbeat_interval_sec,
             "idle_timeout_sec": spec.idle_timeout_sec,
+            "max_connections": spec.max_connections,
             "max_client_queue": spec.max_client_queue,
         }
 

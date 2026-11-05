@@ -80,6 +80,7 @@ from edumatcher.config_gen.defaults import (
     DEFAULT_DC_GATEWAY_HEARTBEAT_INTERVAL_SEC,
     DEFAULT_DC_GATEWAY_IDLE_TIMEOUT_SEC,
     DEFAULT_DC_GATEWAY_MAX_CLIENT_QUEUE,
+    DEFAULT_DC_GATEWAY_MAX_CONNECTIONS,
     DEFAULT_DC_GATEWAY_NAME,
     DEFAULT_DC_GATEWAY_PORT,
     DEFAULT_LOG_SERVER_BACKFILL_CHUNK_ROWS,
@@ -110,6 +111,7 @@ from edumatcher.config_gen.defaults import (
     DEFAULT_MARKET_DATA_GATEWAY_HEARTBEAT_INTERVAL_SEC,
     DEFAULT_MARKET_DATA_GATEWAY_IDLE_TIMEOUT_SEC,
     DEFAULT_MARKET_DATA_GATEWAY_MAX_CLIENT_QUEUE,
+    DEFAULT_MARKET_DATA_GATEWAY_MAX_CONNECTIONS,
     DEFAULT_MARKET_DATA_GATEWAY_MAX_SYMBOLS_PER_CLIENT,
     DEFAULT_MARKET_DATA_GATEWAY_NAME,
     DEFAULT_MARKET_DATA_GATEWAY_PORT,
@@ -119,6 +121,7 @@ from edumatcher.config_gen.defaults import (
     DEFAULT_POST_TRADE_GATEWAY_HEARTBEAT_INTERVAL_SEC,
     DEFAULT_POST_TRADE_GATEWAY_IDLE_TIMEOUT_SEC,
     DEFAULT_POST_TRADE_GATEWAY_MAX_CLIENT_QUEUE,
+    DEFAULT_POST_TRADE_GATEWAY_MAX_CONNECTIONS,
     DEFAULT_POST_TRADE_GATEWAY_NAME,
     DEFAULT_POST_TRADE_GATEWAY_PORT,
     DEFAULT_POST_TRADE_GATEWAY_REPLAY_RETENTION_SEC,
@@ -180,6 +183,11 @@ def _validate_basic_args(args: argparse.Namespace) -> None:
     ):
         raise ValueError("--post-trade-idle-timeout-sec must be > 0")
     if (
+        args.post_trade_max_connections is not None
+        and args.post_trade_max_connections <= 0
+    ):
+        raise ValueError("--post-trade-max-connections must be > 0")
+    if (
         args.post_trade_max_client_queue is not None
         and args.post_trade_max_client_queue <= 0
     ):
@@ -199,6 +207,11 @@ def _validate_basic_args(args: argparse.Namespace) -> None:
         and args.market_data_replay_window_sec <= 0
     ):
         raise ValueError("--market-data-replay-window-sec must be > 0")
+    if (
+        args.market_data_max_connections is not None
+        and args.market_data_max_connections <= 0
+    ):
+        raise ValueError("--market-data-max-connections must be > 0")
     if (
         args.market_data_max_symbols_per_client is not None
         and args.market_data_max_symbols_per_client <= 0
@@ -299,6 +312,8 @@ def _validate_basic_args(args: argparse.Namespace) -> None:
         raise ValueError("--dc-heartbeat-interval-sec must be > 0")
     if args.dc_idle_timeout_sec is not None and args.dc_idle_timeout_sec <= 0:
         raise ValueError("--dc-idle-timeout-sec must be > 0")
+    if args.dc_max_connections is not None and args.dc_max_connections <= 0:
+        raise ValueError("--dc-max-connections must be > 0")
     if args.dc_max_client_queue is not None and args.dc_max_client_queue <= 0:
         raise ValueError("--dc-max-client-queue must be > 0")
 
@@ -973,6 +988,7 @@ def _build_post_trade_gateway_spec(
             args.post_trade_replay_retention_sec,
             args.post_trade_heartbeat_interval_sec,
             args.post_trade_idle_timeout_sec,
+            args.post_trade_max_connections,
             args.post_trade_max_client_queue,
             args.post_trade_allowed_roles,
         )
@@ -1006,6 +1022,10 @@ def _build_post_trade_gateway_spec(
             args.post_trade_idle_timeout_sec
             or DEFAULT_POST_TRADE_GATEWAY_IDLE_TIMEOUT_SEC
         ),
+        max_connections=int(
+            args.post_trade_max_connections
+            or DEFAULT_POST_TRADE_GATEWAY_MAX_CONNECTIONS
+        ),
         max_client_queue=int(
             args.post_trade_max_client_queue
             or DEFAULT_POST_TRADE_GATEWAY_MAX_CLIENT_QUEUE
@@ -1027,6 +1047,7 @@ def _build_market_data_gateway_spec(
             args.market_data_heartbeat_interval_sec,
             args.market_data_idle_timeout_sec,
             args.market_data_replay_window_sec,
+            args.market_data_max_connections,
             args.market_data_max_symbols_per_client,
             args.market_data_max_client_queue,
             args.market_data_depth_levels,
@@ -1058,6 +1079,10 @@ def _build_market_data_gateway_spec(
         replay_window_sec=int(
             args.market_data_replay_window_sec
             or DEFAULT_MARKET_DATA_GATEWAY_REPLAY_WINDOW_SEC
+        ),
+        max_connections=int(
+            args.market_data_max_connections
+            or DEFAULT_MARKET_DATA_GATEWAY_MAX_CONNECTIONS
         ),
         max_symbols_per_client=int(
             args.market_data_max_symbols_per_client
@@ -1210,6 +1235,7 @@ def _build_dc_gateway_spec(
             args.dc_port,
             args.dc_heartbeat_interval_sec,
             args.dc_idle_timeout_sec,
+            args.dc_max_connections,
             args.dc_max_client_queue,
         )
     ) or bool(args.dc_gateway)
@@ -1226,6 +1252,9 @@ def _build_dc_gateway_spec(
         ),
         idle_timeout_sec=int(
             args.dc_idle_timeout_sec or DEFAULT_DC_GATEWAY_IDLE_TIMEOUT_SEC
+        ),
+        max_connections=int(
+            args.dc_max_connections or DEFAULT_DC_GATEWAY_MAX_CONNECTIONS
         ),
         max_client_queue=int(
             args.dc_max_client_queue or DEFAULT_DC_GATEWAY_MAX_CLIENT_QUEUE

@@ -425,6 +425,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="post_trade_gateway.idle_timeout_sec override (> 0).",
     )
     parser.add_argument(
+        "--post-trade-max-connections",
+        type=int,
+        default=None,
+        metavar="N",
+        help="post_trade_gateway.max_connections override (> 0).",
+    )
+    parser.add_argument(
         "--post-trade-max-client-queue",
         type=int,
         default=None,
@@ -497,6 +504,13 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         metavar="N",
         help="market_data_gateway.replay_window_sec override (> 0).",
+    )
+    parser.add_argument(
+        "--market-data-max-connections",
+        type=int,
+        default=None,
+        metavar="N",
+        help="market_data_gateway.max_connections override (> 0).",
     )
     parser.add_argument(
         "--market-data-max-symbols-per-client",
@@ -900,6 +914,13 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         metavar="N",
         help="dc_gateway.idle_timeout_sec override (> 0).",
+    )
+    parser.add_argument(
+        "--dc-max-connections",
+        type=int,
+        default=None,
+        metavar="N",
+        help="dc_gateway.max_connections override (> 0).",
     )
     parser.add_argument(
         "--dc-max-client-queue",
