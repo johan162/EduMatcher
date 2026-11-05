@@ -4,8 +4,7 @@ Release Type: minor
 
 ### 📋 Summary
 This release improves gateway configuration safety and adds a practical drop-copy client example. It also makes scheduled state recovery and log-server delivery more reliable. In addition it hardens
-the log-server to not risk loosing messages at shutdown and handles back-pressure in the way that
-was documented.
+the alf-gwy and log-server to be more robust agains badly formed input and possibel data loss at shutdown. 
 
 ### ✨ Additions
 - Added Python and C DC1 subscriber examples with parsers, sequence checks and per-symbol fill summaries

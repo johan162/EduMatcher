@@ -158,6 +158,10 @@ _MAX_DC_EVENTS_PER_LOOP = 1000
 #: Longest the event loop sleeps when nothing is pending; housekeeping
 #: (heartbeats, idle checks) runs at this cadence.
 _LOOP_WAIT_MS = 100
+#: How long a closing session may take to flush its last lines. A peer that
+#: has stopped reading never drains them, and would otherwise hold its slot
+#: and its gateway ID until it exits.
+_CLOSE_GRACE_SEC = 5.0
 #: File descriptors needed beyond one per client (listener, ZMQ, logging).
 _FD_HEADROOM = 64
 # Topic prefix used by edumatcher.engine.drop_copy.DropCopyPublisher for live
@@ -200,6 +204,8 @@ class ClientSession:
     out_offset: int = 0
     in_buffer: bytearray = field(default_factory=bytearray)
     closing: bool = False
+    #: monotonic time ``closing`` was set; see _CLOSE_GRACE_SEC
+    closing_since: float = 0.0
     connected_at: float = field(default_factory=time.monotonic)
     last_activity: float = field(default_factory=time.monotonic)
     last_outbound: float = field(default_factory=time.monotonic)
@@ -2085,7 +2091,7 @@ class AlfGateway:
     def _send_heartbeats_if_due(self) -> None:
         now = time.monotonic()
         for session in self._clients.values():
-            if not session.authenticated:
+            if not session.authenticated or session.closing:
                 continue
             if now - session.last_outbound < self.config.heartbeat_interval_sec:
                 continue
@@ -2114,6 +2120,11 @@ class AlfGateway:
     def _drop_idle_clients(self) -> None:
         now = time.monotonic()
         for session in list(self._clients.values()):
+            if session.closing:
+                # Already told why; only the flush is outstanding.
+                if now - session.closing_since > _CLOSE_GRACE_SEC:
+                    self._disconnect(session, reason="close_timeout")
+                continue
             if (
                 not session.authenticated
                 and now - session.connected_at > self.config.handshake_timeout_sec
@@ -2280,15 +2291,28 @@ class AlfGateway:
         self._queue_raw(session, line)
 
     def _queue_raw(self, session: ClientSession, payload: bytes) -> None:
+        if session.closing:
+            # Its last line (the reason it is closing) is queued; anything
+            # after it would only delay the close or follow the goodbye.
+            return
         if len(session.out_queue) >= self.config.max_client_queue:
             self._global_stats["slow_client_disconnects"] += 1
+            # A line already partly on the wire must be finished, or the
+            # ERR is glued onto its first half and the client parses a
+            # corrupt frame instead of the reason it is being dropped.
+            head = (
+                session.out_queue[0][session.out_offset :]
+                if session.out_offset
+                else None
+            )
             session.out_queue.clear()
             session.out_offset = 0
+            if head is not None:
+                session.out_queue.append(head)
             session.out_queue.append(
                 b"ERR|CODE=SLOW_CLIENT|DETAIL=Outbound queue full - disconnecting\n"
             )
-            session.closing = True
-            self._dirty.add(session.sock.fileno())
+            self._close_after_flush(session)
             return
         session.out_queue.append(payload)
         self._dirty.add(session.sock.fileno())
@@ -2384,7 +2408,9 @@ class AlfGateway:
             self._close_after_flush(session)
 
     def _close_after_flush(self, session: ClientSession) -> None:
-        session.closing = True
+        if not session.closing:
+            session.closing = True
+            session.closing_since = time.monotonic()
         self._dirty.add(session.sock.fileno())
 
     def _disconnect(self, session: ClientSession, *, reason: str) -> None:

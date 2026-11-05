@@ -21,7 +21,12 @@ import time
 import pytest
 
 from edumatcher.alf_gwy.config import AlfGatewayConfig
-from edumatcher.alf_gwy.gateway import _PROBE_ID_PREFIX, AlfGateway, ClientSession
+from edumatcher.alf_gwy.gateway import (
+    _CLOSE_GRACE_SEC,
+    _PROBE_ID_PREFIX,
+    AlfGateway,
+    ClientSession,
+)
 from edumatcher.alf_gwy.protocol import parse_alf_line
 
 # ---------------------------------------------------------------------------
@@ -539,3 +544,107 @@ class TestAcceptErrors:
 
         assert conn.closed
         assert gw._clients == {}
+
+
+# ===========================================================================
+# Closing sessions and queue overflow (review 2026-11-05 H3, M1)
+# ===========================================================================
+
+
+def _fill_kernel_buffer(session: ClientSession) -> None:
+    """Make the peer look like it stopped reading: no send() room left."""
+    session.sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 4096)
+    while True:
+        try:
+            session.sock.send(b"Z" * 4096)
+        except BlockingIOError:
+            return
+
+
+class TestClosingSessionIsReaped:
+    def test_non_reading_peer_is_disconnected_after_grace(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        gw = _make_gateway(monkeypatch, idle_timeout_sec=1, heartbeat_interval_sec=1)
+        session, peer = _authed_session(gw)
+        _fill_kernel_buffer(session)
+        session.last_activity -= 10
+
+        gw._drop_idle_clients()  # IDLE_TIMEOUT queued, closing
+        for _ in range(20):  # ticks within the grace period
+            gw._send_heartbeats_if_due()
+            gw._drop_idle_clients()
+            gw._flush_client_writes(writable=set())
+
+        assert session.closing
+        assert _err_codes(session) == ["IDLE_TIMEOUT"]  # not one per tick
+        assert not any(raw.startswith(b"HB|") for raw in session.out_queue)
+
+        session.closing_since -= _CLOSE_GRACE_SEC + 1
+        gw._drop_idle_clients()
+
+        assert gw._clients == {}
+        assert not gw._gateway_in_use("TRADER01")
+        peer.close()
+
+    def test_flushing_session_within_grace_is_left_alone(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        gw = _make_gateway(monkeypatch)
+        session, peer = _authed_session(gw)
+        gw._close_after_flush(session)
+        first = session.closing_since
+        gw._close_after_flush(session)  # a second reason does not restart it
+
+        gw._drop_idle_clients()
+
+        assert session.closing_since == first
+        assert session.sock.fileno() in gw._clients
+        peer.close()
+
+    def test_nothing_is_queued_after_the_closing_line(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        gw = _make_gateway(monkeypatch)
+        session, peer = _authed_session(gw)
+        gw._handle_client_line(session, "EXIT")
+        gw._queue_line(session, "TRADE", {"SYMBOL": "AAPL"})
+
+        assert list(session.out_queue) == []
+        peer.close()
+
+
+class TestSlowClientOverflow:
+    def test_partly_sent_line_is_finished_before_the_err(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        gw = _make_gateway(monkeypatch, max_client_queue=3)
+        session, peer = _authed_session(gw)
+        fill = b"FILL|ORDER_ID=abc|FILL_QTY=100|FILL_PRICE=1.00\n"
+        session.out_queue.extend([fill, b"X\n", b"Y\n"])
+        session.out_offset = 16  # 'FILL|ORDER_ID=ab' already on the wire
+
+        gw._queue_line(session, "HB", {"TS": "t"})  # overflows
+        gw._flush_client_writes()
+
+        wire = fill[:16] + peer.recv(65536)
+        assert wire.split(b"\n")[:2] == [
+            fill.rstrip(b"\n"),
+            b"ERR|CODE=SLOW_CLIENT|DETAIL=Outbound queue full - disconnecting",
+        ]
+        assert gw._clients == {}
+        peer.close()
+
+    def test_overflow_after_the_close_queues_nothing_more(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        gw = _make_gateway(monkeypatch, max_client_queue=2)
+        session, peer = _authed_session(gw)
+        for i in range(10):
+            gw._queue_line(session, "TRADE", {"N": str(i)})
+
+        assert list(session.out_queue) == [
+            b"ERR|CODE=SLOW_CLIENT|DETAIL=Outbound queue full - disconnecting\n"
+        ]
+        assert gw._global_stats["slow_client_disconnects"] == 1
+        peer.close()
