@@ -1,3 +1,30 @@
+## [v0.74.1] - 2026-11-05
+
+Release Type: minor
+
+### 📋 Summary
+This release improves gateway configuration safety and adds a practical drop-copy client example. It also makes scheduled state recovery and log-server delivery more reliable. In addition it hardens
+the log-server to not risk loosing messages at shutdown and handles back-pressure in the way that
+was documented.
+
+### ✨ Additions
+- Added Python and C DC1 subscriber examples with parsers, sequence checks and per-symbol fill summaries
+
+### 🚀 Improvements
+- Added configuration validation requiring market-data, post-trade and drop-copy idle timeouts to exceed twice their heartbeat intervals
+- Improved log-server backfill and client backpressure so slow writes do not block service and acknowledged messages are preserved during shutdown
+- The log-srv now handles slow writer by throttling the incoming requests
+
+### 🐛 Bug Fixes
+- Fixed the scheduler failing to reconcile an engine that starts in the wrong session state; it now follows the shortest legal transition path
+- Fixed REST examples that no longer matched the current API behavior
+
+### 📚 Documentation
+- Updated gateway configuration guidance and REST examples, and documented the new DC1 clients
+
+### 🛠 Internal
+- Added regression coverage for gateway timeout validation, log-server backfill and shutdown, and scheduler state reconciliation
+
 ## [v0.74.0] - 2026-11-05
 
 Release Type: major
