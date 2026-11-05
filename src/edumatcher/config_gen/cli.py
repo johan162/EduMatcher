@@ -9,7 +9,7 @@ import sys
 from collections.abc import Callable
 from datetime import date
 from pathlib import Path
-from tempfile import NamedTemporaryFile
+from tempfile import TemporaryDirectory
 from typing import Any, TypeVar
 
 from dataclasses import fields, replace
@@ -127,7 +127,7 @@ from edumatcher.config_gen.defaults import (
     DEFAULT_POST_TRADE_GATEWAY_REPLAY_RETENTION_SEC,
 )
 from edumatcher.config_gen.gateway_spec import GatewaySpec, parse_gateway_spec
-from edumatcher.config_gen.renderer import render_yaml
+from edumatcher.config_gen.renderer import render_include_file, render_yaml
 from edumatcher.config_gen.risk_spec import parse_risk_level_spec
 from edumatcher.config_gen.symbol_spec import SymbolOverride
 from edumatcher.config_gen.symbol_spec import parse_symbol_opts
@@ -2075,6 +2075,10 @@ def _parse_combo_specs(
     return combos
 
 
+#: The sections ``--split`` moves out of the main file, and where they go.
+_SPLIT_FILES = {"symbols": "symbols.yaml", "participants": "participants.yaml"}
+
+
 def _write_output(output_path: Path, content: str, force: bool) -> None:
     if output_path.exists() and not force:
         raise FileExistsError("Output file already exists")
@@ -2082,26 +2086,22 @@ def _write_output(output_path: Path, content: str, force: bool) -> None:
     output_path.write_text(content, encoding="utf-8")
 
 
-def _validate_generated(content: str) -> None:
+def _validate_generated(content: str, parts: dict[str, str] | None = None) -> None:
     """Load the rendered YAML exactly as pm-engine will, or raise ValueError.
 
     A config the engine's own loader rejects is never written or printed: it
     would only move the failure from generation to engine startup, after the
     file may already have been deployed.
     """
-    with NamedTemporaryFile("w", suffix=".yaml", delete=False, encoding="utf-8") as fh:
-        fh.write(content)
-        tmp_path = Path(fh.name)
-
-    try:
-        load_engine_config(tmp_path)
-    except Exception as exc:
-        raise ValueError(f"Generated config failed validation: {exc}") from exc
-    finally:
+    with TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp) / "engine_config.yaml"
+        tmp_path.write_text(content, encoding="utf-8")
+        for name, text in (parts or {}).items():
+            (Path(tmp) / name).write_text(text, encoding="utf-8")
         try:
-            tmp_path.unlink(missing_ok=True)
-        except OSError:
-            pass
+            load_engine_config(tmp_path)
+        except Exception as exc:
+            raise ValueError(f"Generated config failed validation: {exc}") from exc
 
 
 def _require_index_reference_prices(config: dict[str, Any]) -> None:
@@ -2269,7 +2269,18 @@ def main() -> None:
         raise SystemExit(2) from exc
 
     output_path = Path(args.output) if args.output else None
-    output_exists = bool(output_path and output_path.exists() and not args.force)
+    if args.split and output_path is None and not args.dry_run:
+        print("[ERROR] --split needs --output (or --dry-run).", file=sys.stderr)
+        raise SystemExit(2)
+    split_names = list(_SPLIT_FILES.values()) if args.split else []
+    output_exists = bool(
+        output_path
+        and not args.force
+        and any(
+            p.exists()
+            for p in (output_path, *(output_path.parent / n for n in split_names))
+        )
+    )
 
     diagnostics = evaluate_diagnostics(
         spec=spec,
@@ -2303,7 +2314,13 @@ def main() -> None:
         generated_version=package_version(),
         generated_date=str(date.today()),
         default_engine_field_comments=default_config_field_comment_lines,
+        included=_SPLIT_FILES if args.split else None,
     )
+    parts = {
+        name: render_include_file(config, key, package_version(), str(date.today()))
+        for key, name in _SPLIT_FILES.items()
+        if args.split
+    }
 
     _print_diagnostics(diagnostics)
 
@@ -2315,7 +2332,7 @@ def main() -> None:
     # load until they do (the hint below says so).
     if not mm_quotes_pending_fill:
         try:
-            _validate_generated(rendered)
+            _validate_generated(rendered, parts)
         except ValueError as exc:
             print(f"[ERROR] {exc}", file=sys.stderr)
             print("[ERROR] Nothing was written.", file=sys.stderr)
@@ -2327,6 +2344,9 @@ def main() -> None:
 
     if args.dry_run or output_path is None:
         print(rendered, end="")
+        for name, text in parts.items():
+            print(f"\n# ==== {name} ====")
+            print(text, end="")
         if not args.dry_run and output_path is None:
             print(
                 "[INFO] No --output specified; YAML printed to stdout.",
@@ -2335,7 +2355,11 @@ def main() -> None:
         return
 
     _write_output(output_path=output_path, content=rendered, force=bool(args.force))
+    for name, text in parts.items():
+        _write_output(output_path.parent / name, text, force=bool(args.force))
     print(f"[INFO] Wrote generated config to {output_path}", file=sys.stderr)
+    for name in parts:
+        print(f"[INFO] Wrote {output_path.parent / name}", file=sys.stderr)
 
     if mm_quotes_pending_fill:
         print(

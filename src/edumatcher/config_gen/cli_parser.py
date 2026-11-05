@@ -1430,6 +1430,15 @@ def build_parser() -> argparse.ArgumentParser:
         "--output", default=None, metavar="FILE", help="Output file path."
     )
     parser.add_argument(
+        "--split",
+        action="store_true",
+        help=(
+            "Write the symbols and the participants to symbols.yaml and "
+            "participants.yaml beside --output, and list them under 'include:' in "
+            "the main file. Keeps a config with hundreds of either readable."
+        ),
+    )
+    parser.add_argument(
         "--force", action="store_true", help="Overwrite existing output file."
     )
     parser.add_argument(

@@ -90,7 +90,7 @@ working); cverifier maps it to a new `Y005`.
   contributing file if several; the main file if it has its own). Round-trip check in `yaml_edit`
   is done on that file's text; the "unreviewed edits" guard uses the combined digest.
   → verify: listing into split and unsplit configs; deployed result equals the unsplit one.
-- **WP-INC6 — `config_gen --split`.** Writes `symbols.yaml` and `participants.yaml` beside the
+- **WP-INC6 — `config_gen --split`. DONE 2026-11-05** (fixed names `symbols.yaml`/`participants.yaml` beside `--output`; `--split` needs `--output` or `--dry-run`; `--force` covers all three files; completion scripts regenerated). Writes `symbols.yaml` and `participants.yaml` beside the
   main output file and adds `include:`. Final `load_engine_config` validation runs on the main
   file, so it proves the split loads. Look at the existing output-path handling in
   `config_gen/cli.py` first (the temp-file validation near line 2097 must write the included files

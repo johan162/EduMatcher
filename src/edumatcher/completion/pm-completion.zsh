@@ -2366,6 +2366,7 @@ _shtab_pm_config_gen_options=(
   "*--index-state-file[Override state_file path for an index. Once per index.]:ID:PATH:"
   "*--combo[Seed a market-maker combo order\: ID\:TYPE\:TIF\:SYM\/SIDE\/TYPE\/QTY\[\/PRICE\[\/STOP\[\/SMP\]\]\],...]:COMBO_SPEC:"
   "--output[Output file path.]:FILE:"
+  "--split[Write the symbols and the participants to symbols.yaml and participants.yaml beside --output, and list them under \'include\:\' in the main file. Keeps a config with hundreds of either readable.]"
   "--force[Overwrite existing output file.]"
   "--dry-run[Print only, do not write.]"
   "--comment-default-config-fields[Add a commented-out header showing every optional section with its default values, ready to uncomment\: the engine settings and the process sections (gateways, api_gateways, log_server, monitor, indices, schedule), each field explained. A section\'s own option (e.g. --log-server, --monitor) writes it for real instead.]"

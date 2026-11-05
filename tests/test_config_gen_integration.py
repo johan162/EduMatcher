@@ -1849,3 +1849,73 @@ def test_max_connections_must_be_positive(
             + ["--output", str(tmp_path / "engine_config.yaml")],
         )
     assert exc_info.value.code != 0
+
+
+_SPLIT_ARGS = ["--symbols", "AAPL", "MSFT", "--participants", "TRADER01", "TRADER02"]
+
+
+def test_split_writes_include_files_that_load_like_the_single_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    whole = tmp_path / "whole" / "engine_config.yaml"
+    split = tmp_path / "split" / "engine_config.yaml"
+    _run_main(monkeypatch, [*_SPLIT_ARGS, "--output", str(whole)])
+    _run_main(monkeypatch, [*_SPLIT_ARGS, "--split", "--output", str(split)])
+
+    main_raw = yaml.safe_load(split.read_text(encoding="utf-8"))
+    assert main_raw["include"] == ["symbols.yaml", "participants.yaml"]
+    assert "symbols" not in main_raw and "participants" not in main_raw
+    assert (split.parent / "symbols.yaml").is_file()
+    assert (split.parent / "participants.yaml").is_file()
+
+    assert load_engine_config(split) == load_engine_config(whole)
+
+
+def test_split_refuses_to_overwrite_an_include_file_without_force(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    out_file = tmp_path / "engine_config.yaml"
+    (tmp_path / "symbols.yaml").write_text("keep: me\n", encoding="utf-8")
+    with pytest.raises(SystemExit) as exc:
+        _run_main(monkeypatch, [*_SPLIT_ARGS, "--split", "--output", str(out_file)])
+    assert exc.value.code == 1
+    assert not out_file.exists()
+    assert (tmp_path / "symbols.yaml").read_text(encoding="utf-8") == "keep: me\n"
+
+
+def test_split_with_force_overwrites_all_three(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    out_file = tmp_path / "engine_config.yaml"
+    (tmp_path / "symbols.yaml").write_text("stale: 1\n", encoding="utf-8")
+    _run_main(
+        monkeypatch,
+        [*_SPLIT_ARGS, "--split", "--force", "--output", str(out_file)],
+    )
+    assert "AAPL" in load_engine_config(out_file).symbols
+
+
+def test_split_needs_an_output_file(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    with pytest.raises(SystemExit) as exc:
+        _run_main(monkeypatch, [*_SPLIT_ARGS, "--split"])
+    assert exc.value.code == 2
+    assert "--split needs --output" in capsys.readouterr().err
+
+
+def test_split_dry_run_prints_every_file_and_writes_nothing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    out_file = tmp_path / "engine_config.yaml"
+    _run_main(
+        monkeypatch,
+        [*_SPLIT_ARGS, "--split", "--dry-run", "--output", str(out_file)],
+    )
+    out = capsys.readouterr().out
+    assert "include:" in out
+    assert "# ==== symbols.yaml ====" in out
+    assert "# ==== participants.yaml ====" in out
+    assert not list(tmp_path.iterdir())
