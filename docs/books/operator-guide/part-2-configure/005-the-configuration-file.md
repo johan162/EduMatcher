@@ -1102,6 +1102,7 @@ audiences different keys on different ports.
 | `order_retention_sec` | `3600` | How long a finished order stays in the in-memory cache; `0` never evicts. |
 | `market_data_cache_sec` | `60` | Lifetime of the per-symbol cache behind WebSocket snapshots and resume. |
 | `credentials` | empty | The accepted API keys (below). |
+| `credentials_file` | none | A file holding the keys instead (below). Not allowed together with `credentials`. |
 | `rate_limit.writes_per_second` | `10` | Sustained write rate per key. |
 | `rate_limit.burst` | `20` | Burst allowance per key. Reads are not limited. |
 | `timeouts.engine_auth_sec` | `3.0` | Wait for the engine to accept the gateway's login. |
@@ -1117,6 +1118,37 @@ Each entry of `credentials`:
 | `description` | Free-text label. |
 
 Relative database paths are placed under the data directory.
+
+**Keys in their own file.** With one key per participant the `credentials` list
+grows as long as the participant list, and the keys are secrets that do not
+belong in a file you keep under version control. Name a file instead:
+
+```yaml
+api_gateways:
+  desk:
+    port: 8080
+    credentials_file: desk-keys.yaml
+```
+
+```yaml
+# desk-keys.yaml -- a YAML list, one entry per key
+- api_key: key-trader01-4ye7zh
+  gateway_id: TRADER01
+  description: Student desk 1
+- api_key: key-dashboard-9fk2qa
+  gateway_id: null
+  description: Read-only dashboard
+```
+
+The path follows the same rules as `include:` (relative to the file that names
+it, no absolute path, no `..`), and an instance may use `credentials` or
+`credentials_file`, not both. Everything else treats the file as if its list had
+been written inline: the verifier checks every key, a finding names the file
+(`in desk-keys.yaml`), and `pm-config-deploy` compiles the keys into the
+artifact, installs a copy of the file beside it and reports an edit you have not
+deployed. Several instances may share one file. The file is not protected by
+EduMatcher: keep it readable by the exchange's user only (`pm-config-gen`
+creates it with mode `0600`).
 
 !!! danger "Replace the example keys"
     The `REPLACE-WITH-…` values in the listing are placeholders that anyone who

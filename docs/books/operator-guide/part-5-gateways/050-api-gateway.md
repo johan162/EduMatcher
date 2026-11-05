@@ -94,6 +94,7 @@ api_gateways:
 | `api_gateways.<NAME>` | Named API gateway process configuration selected with `--instance NAME` when needed |
 | `host` / `port` | HTTP server bind address and port |
 | `swagger_enabled` | Enables `/docs` and `/openapi.json` when true |
+| `credentials_file` | Optional file holding the `credentials` list, for configurations with many keys; see [The Configuration File](../part-2-configure/005-the-configuration-file.md#step-8-the-access-points) |
 | `credentials[].api_key` | Bearer token clients use for REST and WebSocket auth |
 | `credentials[].gateway_id` | Engine gateway identity; `null` means read-only market-data access; non-null values must be unique across `api_gateways` entries |
 | `stats_db` | `pm-stats`' SQLite file, read-only, for `/history/*` |

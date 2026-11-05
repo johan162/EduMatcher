@@ -146,5 +146,7 @@ Workpackages:
 - **WP-CRED1 — `credentials_file:` in the loader.** DONE 2026-11-05. (Layer 1 of the verifier now
   always goes through `load_config_mapping`, not only when `include:` is present.)
 - **WP-CRED2 — `pm-config-gen --api-keys-for`. DONE 2026-11-05** (single API gateway only: refused with `--api-gateway-instance` and `--no-api-gateway-generate-keys`; `api_keys.yaml` written mode 0600; `--force` covers it; the generated config is also checked with the API gateway loader; default seed `DEFAULT_API_KEYS_SEED`, announced with a `[NOTE]`).
-- **WP-CRED3 — docs and e2e** (ch. 005 api_gateways step, ch. 010 option table, reference manual,
+- **WP-CRED3 — docs and e2e. DONE 2026-11-05** (the e2e from WP-INC7 now also moves the keys into `desk-keys.yaml` and authenticates with one of them)
+
+  Original scope: (ch. 005 api_gateways step, ch. 010 option table, reference manual,
   e2e with a keys file).

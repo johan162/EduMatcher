@@ -1,10 +1,12 @@
 """A configuration split with ``include:`` deploys and runs a real exchange.
 
 The bundled ``s10-basic`` config is split into ``symbols.yaml`` and
-``participants.yaml`` around a main file that lists them; ``pm-config-deploy``
-compiles that, ``pm-opctl-cli`` starts the ``mini`` profile on it, and the API
-gateway comes up healthy. Then the installed copy is checked to hold the
-include files, so the deployed directory records what the exchange runs on.
+``participants.yaml`` around a main file that lists them, and each API
+gateway's keys move to a ``credentials_file``; ``pm-config-deploy`` compiles
+that, ``pm-opctl-cli`` starts the ``mini`` profile on it, and the API gateway
+comes up healthy and accepts a key that only the keys file holds. Then the
+installed copy is checked to hold the include and keys files, so the deployed
+directory records what the exchange runs on.
 
 End-to-end: runs only with ``-m e2e`` (``make test-e2e``).
 """
@@ -14,6 +16,7 @@ from __future__ import annotations
 import json
 import sys
 import time
+import urllib.error
 import urllib.request
 from collections.abc import Iterator
 from pathlib import Path
@@ -30,6 +33,8 @@ pytestmark = [
 ]
 
 URL = "http://127.0.0.1:8080"
+#: s10-basic's trader key, which now lives only in desk-keys.yaml.
+TRADER = "key-trader01-610wpl"
 
 
 def _split_s10(directory: Path) -> Path:
@@ -38,6 +43,12 @@ def _split_s10(directory: Path) -> Path:
         (directory / f"{key}.yaml").write_text(
             yaml.safe_dump({key: raw.pop(key)}, sort_keys=False), encoding="utf-8"
         )
+    for name, block in raw["api_gateways"].items():
+        (directory / f"{name}-keys.yaml").write_text(
+            yaml.safe_dump(block.pop("credentials"), sort_keys=False),
+            encoding="utf-8",
+        )
+        block["credentials_file"] = f"{name}-keys.yaml"
     main = directory / "engine_config.yaml"
     main.write_text(
         yaml.safe_dump(
@@ -84,4 +95,21 @@ def test_the_include_files_are_installed_beside_the_artifact(
     ref_data = exchange.data_dir / "ref_data"
     assert (ref_data / "symbols.yaml").is_file()
     assert (ref_data / "participants.yaml").is_file()
+    assert (ref_data / "desk-keys.yaml").is_file()
     assert "include" in (ref_data / "engine_config.yaml").read_text()
+
+
+def _status(key: str) -> int:
+    request = urllib.request.Request(
+        f"{URL}/api/v1/book", headers={"Authorization": f"Bearer {key}"}
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=5) as response:
+            return int(response.status)
+    except urllib.error.HTTPError as exc:
+        return int(exc.code)
+
+
+def test_a_key_from_the_credentials_file_authenticates(exchange: Exchange) -> None:
+    assert _status(TRADER) == 200
+    assert _status("not-a-key") == 401

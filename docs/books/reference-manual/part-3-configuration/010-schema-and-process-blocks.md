@@ -430,6 +430,7 @@ engine reply waits are applied. In the current implementation:
 - `credentials[].api_key` is the bearer token used by REST and WebSocket clients
 - `credentials[].gateway_id` maps a key to an ALF gateway; `null` is read-only
 - a non-null `credentials[].gateway_id` may appear in only one `api_gateways` entry
+- `credentials_file` names a YAML list of credentials, relative to the file that names it, in place of an inline `credentials` (not both)
 - `rate_limit` applies per API key to write endpoints only
 - `timeouts.engine_reply_sec` and `timeouts.wait_ack_sec` control request/reply and `?wait=ack` waits
 
