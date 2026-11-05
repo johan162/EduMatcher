@@ -214,7 +214,7 @@ same gateway — `pm-md-gwy` fans out independently per session.
 - If the initial TCP connect fails (gateway not running, wrong host/port),
   `pm-calf-spy` prints `pm-calf-spy: could not connect to HOST:PORT: ...`
   and exits `1` — no retry loop.
-- If the gateway rejects the handshake itself (`ERR|CODE=PROTO_MISMATCH`),
+- If the gateway rejects the handshake itself (`ERR|CODE=AUTH_REQUIRED` in reply to `HELLO`),
   the client currently does not catch this case cleanly: it surfaces as an
   unhandled Python traceback rather than a `pm-calf-spy: ...` message, though
   the process does still exit non-zero.

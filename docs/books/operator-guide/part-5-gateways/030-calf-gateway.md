@@ -122,7 +122,7 @@ code.**
 | `INDIC` | AUCTION | Indicative uncross price/qty while a call phase is still open — see [CALF protocol → `INDIC`](../../protocols-and-clients/part-2-specifications/030-calf.md#indic) |
 | `CB` | CB | Circuit-breaker halt or resume detail for one symbol |
 | `HB` | — | Heartbeat while the stream is quiet |
-| `PONG` | — | Reply to `PING` |
+| `PONG` | `TS` | Reply to `PING` |
 | `ERR\|CODE=..` | — | Protocol or subscription error (see [Common errors](#common-errors-and-fixes)) |
 
 ### The envelope on every market-data line
@@ -1142,7 +1142,7 @@ with socket.create_connection(("127.0.0.1", 5570), timeout=5) as sock:
             pass  # heartbeat — ignore or use for liveness tracking
 
         elif msg.msg_type == "ERR":
-            print(f"ERR {msg.fields['CODE']}: {msg.fields.get('MSG','')}")
+            print(f"ERR {msg.fields['CODE']}: {msg.fields.get('DETAIL','')}")
             if msg.fields["CODE"] == "SLOW_CLIENT":
                 break  # terminal — must reconnect
             # Note: a slow-client disconnect is not guaranteed to send this
@@ -1255,8 +1255,7 @@ the same logic in two languages is often what makes it click.
 
 | Error code        | Typical cause                                    | Action                                            |
 |-------------------|--------------------------------------------------|---------------------------------------------------|
-| `AUTH_REQUIRED`   | `SUB` sent before `HELLO`                        | Send `HELLO` first                                |
-| `PROTO_MISMATCH`  | Wrong or missing `PROTO`                         | Use `PROTO=CALF1`                                 |
+| `AUTH_REQUIRED`   | `SUB` sent before `HELLO`, or `HELLO` with a missing `CLIENT` or wrong/missing `PROTO` | Send `HELLO\|CLIENT=…\|PROTO=CALF1` first |
 | `INVALID_CHANNEL` | Unknown `CH` value                               | Use `TOP`, `TRADE`, `STATE`, `INDEX`, `DEPTH`, `AUCTION`, or `CB` |
 | `INVALID_SYMBOL`  | Unknown symbol; or `SYM=*` used with `INDEX`/`DEPTH`/`CB`; or `SYM=*` used at all on `RESUME` | Use configured symbols; `SYM=*` only for `STATE`/`TOP`/`TRADE`/`AUCTION` on `SUB` — never on `RESUME` |
 | `SUB_LIMIT`       | Too many subscribed symbols                      | Reduce requested symbol set                       |

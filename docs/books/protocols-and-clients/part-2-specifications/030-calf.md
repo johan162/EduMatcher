@@ -280,8 +280,9 @@ SUB|CH=CB|SYM=AAPL
 
 **Purpose:** Session handshake.
 
-**Response:** `WELCOME` on successful handshake, or `ERR|CODE=PROTO_MISMATCH`
-(connection closed) if `CLIENT`/`PROTO` fail validation.
+**Response:** `WELCOME` on successful handshake, or `ERR|CODE=AUTH_REQUIRED`
+(connection closed) if `CLIENT`/`PROTO` fail validation — the same code
+`pm-ralf-gwy` and `pm-dc-gwy` use.
 
 | Field    | Req | Description                     |
 |----------|-----|---------------------------------|
@@ -1071,9 +1072,13 @@ HB|TS=2026-06-07T10:16:05.000Z
 
 `PING` is client-initiated liveness check. `PONG` is immediate reply.
 
+| Field | Req | Description       |
+|-------|-----|-------------------|
+| `TS`  | Yes | Gateway timestamp |
+
 ```text
 PING
-PONG
+PONG|TS=2026-06-07T10:16:05.000Z
 ```
 
 ### `ERR`
@@ -1083,7 +1088,7 @@ PONG
 | Field  | Req | Description                   |
 |--------|-----|-------------------------------|
 | `CODE` | Yes | Machine-readable error code   |
-| `MSG`  | No  | Human-readable context        |
+| `DETAIL` | No | Human-readable context      |
 | `CH`   | No  | Channel context when relevant |
 | `SYM`  | No  | Symbol context when relevant  |
 
@@ -1091,8 +1096,7 @@ Normative error codes:
 
 | Code              | Meaning                                                                          |
 |-------------------|---------------------------------------------------------------------------------|
-| `PROTO_MISMATCH`  | `HELLO` missing `CLIENT` or `PROTO != CALF1`                                    |
-| `AUTH_REQUIRED`   | Non-`HELLO` message sent before successful handshake                            |
+| `AUTH_REQUIRED`   | Non-`HELLO` message sent before successful handshake, or `HELLO` missing `CLIENT`, `CLIENT` over 32 chars, or `PROTO != CALF1` |
 | `INVALID_CHANNEL` | `CH` not in `{TOP, TRADE, STATE, INDEX, DEPTH, AUCTION, CB}`                     |
 | `INVALID_SYMBOL`  | Symbol not in the gateway's known instrument list (does not apply to `INDEX`, which has no known-id check — see "Subscription rules"), `SYM=*` used with `INDEX`/`DEPTH`/`CB` on `SUB` (alone or mixed with any other channel), `SYM=*` used at all on `RESUME` (every channel, including `TOP`/`TRADE`/`STATE`/`AUCTION`), a `SUB` with no `SYM` at all, or `CH=INDEX` combined with an empty symbol |
 | `SUB_LIMIT`       | Subscription would exceed `max_symbols_per_client`                              |
@@ -1112,7 +1116,7 @@ Terminal behavior:
   under `max_messages_per_second`.
 
 ```text
-ERR|CODE=REPLAY_MISS|MSG=Requested sequence outside replay buffer|CH=TOP|SYM=AAPL
+ERR|CODE=REPLAY_MISS|DETAIL=Requested sequence outside replay buffer|CH=TOP|SYM=AAPL
 ```
 
 ### `EXIT`
@@ -1270,7 +1274,7 @@ sequenceDiagram
 
     G-->>C: HB|TS=...
     C->>G: PING
-    G-->>C: PONG
+    G-->>C: PONG|TS=...
 
     C->>G: EXIT
     Note over G: Close TCP cleanly

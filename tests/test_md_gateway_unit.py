@@ -76,7 +76,29 @@ def test_hello_bad_proto(unit_gateway: MarketDataGateway) -> None:
     unit_gateway._handle_client_line(sess, "HELLO|CLIENT=x|PROTO=NOPE")
     assert sess.closing is True
     frame = parse_line(sess.out_queue[0].decode("utf-8"))
-    assert frame.fields["CODE"] == "PROTO_MISMATCH"
+    assert frame.fields["CODE"] == "AUTH_REQUIRED"
+    assert frame.fields["DETAIL"] == "CLIENT/PROTO required"
+    peer.close()
+
+
+def test_ping_reply_carries_ts(unit_gateway: MarketDataGateway) -> None:
+    # Same PONG|TS=… as pm-dc-gwy and pm-ralf-gwy.
+    sess, peer = _make_session()
+    sess.authenticated = True
+    unit_gateway._handle_client_line(sess, "PING")
+    frame = parse_line(sess.out_queue[0].decode("utf-8"))
+    assert frame.msg_type == "PONG"
+    assert frame.fields["TS"].endswith("Z")
+    peer.close()
+
+
+def test_err_text_is_under_detail(unit_gateway: MarketDataGateway) -> None:
+    # Same ERR|CODE=…|DETAIL=… as pm-dc-gwy and pm-ralf-gwy; MSG is gone.
+    sess, peer = _make_session()
+    sess.authenticated = True
+    unit_gateway._handle_client_line(sess, "NOPE")
+    frame = parse_line(sess.out_queue[0].decode("utf-8"))
+    assert frame.fields == {"CODE": "BAD_MESSAGE", "DETAIL": "unsupported NOPE"}
     peer.close()
 
 

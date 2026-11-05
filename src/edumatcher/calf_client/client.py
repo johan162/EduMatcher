@@ -57,14 +57,12 @@ _MAX_LINE_BYTES = 4096
 _RECV_CHUNK_BYTES = 4096
 
 # Errors that mean this session is over. The gateway closes the connection
-# on all four, so the only question is whether reconnecting can help.
-# PROTO_MISMATCH cannot be fixed by retrying -- the client is speaking the
-# wrong protocol version and will do so again. The other three are
-# transient with respect to the connection itself.
-_FATAL_ERROR_CODES = frozenset({"PROTO_MISMATCH"})
-_SESSION_ENDING_ERROR_CODES = frozenset(
-    {"PROTO_MISMATCH", "AUTH_REQUIRED", "SLOW_CLIENT", "BAD_MESSAGE"}
-)
+# on all three, so the only question is whether reconnecting can help.
+# AUTH_REQUIRED in reply to HELLO cannot be fixed by retrying -- the gateway
+# refused this client's CLIENT/PROTO and would refuse the same HELLO again.
+# The other two are transient with respect to the connection itself.
+_FATAL_ERROR_CODES = frozenset({"AUTH_REQUIRED"})
+_SESSION_ENDING_ERROR_CODES = frozenset({"AUTH_REQUIRED", "SLOW_CLIENT", "BAD_MESSAGE"})
 
 
 class CalfError(RuntimeError):
@@ -76,7 +74,7 @@ class CalfConnectionError(CalfError):
 
 
 class CalfProtocolMismatch(CalfError):
-    """The gateway rejected this client's protocol version.
+    """The gateway rejected this client's ``HELLO`` (``CLIENT``/``PROTO``).
 
     Separate from :class:`CalfConnectionError` because retrying cannot help.
     """
@@ -400,7 +398,7 @@ class CalfClient:
 
         if frame.msg_type == "ERR":
             code = frame.fields.get("CODE", "?")
-            detail = f"{code} {frame.fields.get('MSG', '')}".rstrip()
+            detail = f"{code} {frame.fields.get('DETAIL', '')}".rstrip()
             if code in _FATAL_ERROR_CODES:
                 raise CalfProtocolMismatch(f"gateway rejected HELLO: {detail}")
             raise CalfConnectionError(f"gateway rejected HELLO: {detail}")
@@ -569,7 +567,7 @@ class CalfClient:
         code = frame.fields.get("CODE", "?")
         channel = frame.fields.get("CH", "")
         symbol = frame.fields.get("SYM", "")
-        log.warning("gateway ERR %s: %s", code, frame.fields.get("MSG", ""))
+        log.warning("gateway ERR %s: %s", code, frame.fields.get("DETAIL", ""))
 
         if code == "REPLAY_MISS" and channel:
             # The one RESUME failure that makes a gap permanent: the buffer

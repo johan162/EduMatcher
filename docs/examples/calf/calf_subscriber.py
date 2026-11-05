@@ -40,9 +40,7 @@ from calf_parser import CalfMessage, build_calf_line, parse_calf_line
 # behavior" in the protocol reference). Anything else -- e.g.
 # RATE_LIMITED, or a code introduced by a future protocol revision -- is
 # treated as non-terminal: log it and keep reading.
-_TERMINAL_ERROR_CODES = frozenset(
-    {"PROTO_MISMATCH", "AUTH_REQUIRED", "SLOW_CLIENT", "BAD_MESSAGE"}
-)
+_TERMINAL_ERROR_CODES = frozenset({"AUTH_REQUIRED", "SLOW_CLIENT", "BAD_MESSAGE"})
 
 # Channels guaranteed to exist even when a gateway build predates the
 # WELCOME|CH_SUPPORTED= advertisement (see the WELCOME field table).
@@ -361,7 +359,7 @@ def _handle_message(
         print("HB    (gateway heartbeat)")
     elif msg.msg_type == "ERR":
         code = msg.fields.get("CODE", "?")
-        detail = msg.fields.get("MSG", "")
+        detail = msg.fields.get("DETAIL", "")
         print(f"ERR   {code}: {detail}", file=sys.stderr)
         if code == "REPLAY_MISS":
             seq_tracker.replay_missed(

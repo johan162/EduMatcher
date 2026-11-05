@@ -325,7 +325,7 @@ class MarketDataGateway:
                 self._queue_line(
                     session,
                     "ERR",
-                    {"CODE": "BAD_MESSAGE", "MSG": "line exceeds 4096 bytes"},
+                    {"CODE": "BAD_MESSAGE", "DETAIL": "line exceeds 4096 bytes"},
                 )
                 log.warning(
                     "dropping client fd=%d due to oversized inbound line",
@@ -356,7 +356,7 @@ class MarketDataGateway:
                 self._queue_line(
                     session,
                     "ERR",
-                    {"CODE": "BAD_MESSAGE", "MSG": "line exceeds 4096 bytes"},
+                    {"CODE": "BAD_MESSAGE", "DETAIL": "line exceeds 4096 bytes"},
                 )
                 log.warning(
                     "dropping client fd=%d due to oversized framed line",
@@ -429,7 +429,7 @@ class MarketDataGateway:
             self._queue_line(
                 session,
                 "ERR",
-                {"CODE": "BAD_MESSAGE", "MSG": "parse error"},
+                {"CODE": "BAD_MESSAGE", "DETAIL": "parse error"},
             )
             return
 
@@ -438,7 +438,7 @@ class MarketDataGateway:
             self._queue_line(
                 session,
                 "ERR",
-                {"CODE": "RATE_LIMITED", "MSG": "too many messages"},
+                {"CODE": "RATE_LIMITED", "DETAIL": "too many messages"},
             )
             return
 
@@ -447,7 +447,7 @@ class MarketDataGateway:
                 self._queue_line(
                     session,
                     "ERR",
-                    {"CODE": "AUTH_REQUIRED", "MSG": "send HELLO first"},
+                    {"CODE": "AUTH_REQUIRED", "DETAIL": "send HELLO first"},
                 )
                 log.info(
                     "pre-auth command rejected fd=%d cmd=%s",
@@ -468,14 +468,14 @@ class MarketDataGateway:
         elif frame.msg_type == "UNSUB":
             self._handle_unsub(session, frame.fields)
         elif frame.msg_type == "PING":
-            self._queue_raw(session, build_line("PONG"), is_market_data=False)
+            self._queue_line(session, "PONG", {"TS": iso_utc(time.time())})
         elif frame.msg_type == "EXIT":
             self._close_after_flush(session)
         else:
             self._queue_line(
                 session,
                 "ERR",
-                {"CODE": "BAD_MESSAGE", "MSG": f"unsupported {frame.msg_type}"},
+                {"CODE": "BAD_MESSAGE", "DETAIL": f"unsupported {frame.msg_type}"},
             )
             log.debug(
                 "unsupported command fd=%d cmd=%s",
@@ -490,7 +490,7 @@ class MarketDataGateway:
             self._queue_line(
                 session,
                 "ERR",
-                {"CODE": "PROTO_MISMATCH", "MSG": "CLIENT and PROTO=CALF1 required"},
+                {"CODE": "AUTH_REQUIRED", "DETAIL": "CLIENT/PROTO required"},
             )
             self._close_after_flush(session)
             return
@@ -594,7 +594,7 @@ class MarketDataGateway:
                 "ERR",
                 {
                     "CODE": "BAD_MESSAGE",
-                    "MSG": "RESUME requires exactly one CH and one SYM",
+                    "DETAIL": "RESUME requires exactly one CH and one SYM",
                 },
             )
             return
@@ -606,7 +606,7 @@ class MarketDataGateway:
             self._queue_line(
                 session,
                 "ERR",
-                {"CODE": "BAD_MESSAGE", "MSG": "LASTSEQ must be an integer"},
+                {"CODE": "BAD_MESSAGE", "DETAIL": "LASTSEQ must be an integer"},
             )
             return
 
@@ -614,7 +614,7 @@ class MarketDataGateway:
             self._queue_line(
                 session,
                 "ERR",
-                {"CODE": "BAD_MESSAGE", "MSG": "LASTSEQ must be > 0"},
+                {"CODE": "BAD_MESSAGE", "DETAIL": "LASTSEQ must be > 0"},
             )
             return
 

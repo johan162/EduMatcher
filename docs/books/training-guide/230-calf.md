@@ -506,8 +506,8 @@ details.
 
 Map observed ERR codes to operator action:
 
-- AUTH_REQUIRED: client handshake bug or ordering error
-- PROTO_MISMATCH: wrong protocol negotiation value
+- AUTH_REQUIRED: client handshake bug or ordering error, or a HELLO with a
+  missing CLIENT or wrong PROTO
 - INVALID_CHANNEL: unsupported CH value
 - INVALID_SYMBOL: unknown symbol, or `SYM=*` used with `INDEX`/`DEPTH`/`CB`
 - REPLAY_MISS: requested resume point outside replay retention

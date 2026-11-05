@@ -353,7 +353,7 @@ static void handle_message(int fd, const calf_message_t *msg) {
         printf("HB    (gateway heartbeat)\n");
     } else if (strcmp(msg->msg_type, "ERR") == 0) {
         const char *code = calf_get_field(msg, "CODE");
-        const char *detail = calf_get_field(msg, "MSG");
+        const char *detail = calf_get_field(msg, "DETAIL");
         fprintf(stderr, "ERR   %s: %s\n", code ? code : "?", detail ? detail : "");
     } else {
         printf("%s (unhandled, %d field(s))\n", msg->msg_type, msg->field_count);

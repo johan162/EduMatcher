@@ -558,10 +558,10 @@ def test_client_tracks_state_so_callers_read_a_merged_book(
     thread.join(timeout=2)
 
 
-def test_protocol_mismatch_is_not_retried() -> None:
+def test_rejected_hello_is_not_retried() -> None:
     # Distinct from a connection error because reconnecting cannot help:
-    # the client would speak the same wrong version again.
-    stub = StubGateway(welcome="ERR|CODE=PROTO_MISMATCH|MSG=unsupported PROTO")
+    # the client would send the same refused HELLO again.
+    stub = StubGateway(welcome="ERR|CODE=AUTH_REQUIRED|DETAIL=CLIENT/PROTO required")
     try:
         client = CalfClient(
             CalfClientOptions(
