@@ -882,3 +882,70 @@ class TestShutdownFlush:
         gw.close()
         assert gw._clients == {}
         peer.close()
+
+
+# ===========================================================================
+# Other gateways' events are not decoded (review 2026-11-05 M5)
+# ===========================================================================
+
+
+class TestAbsentGatewayEventsSkipped:
+    def _count_decodes(self, monkeypatch: pytest.MonkeyPatch) -> list[str]:
+        from edumatcher.models.message import decode as real
+
+        decoded: list[str] = []
+
+        def _counting(frames: list[bytes]) -> tuple[str, dict[str, Any]]:
+            decoded.append(frames[0].decode())
+            return real(frames)
+
+        monkeypatch.setattr("edumatcher.alf_gwy.gateway.decode", _counting)
+        return decoded
+
+    def test_absent_gateways_private_events_are_not_decoded(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        gw = _make_gateway(monkeypatch)
+        session, peer = _authed_session(gw)
+        decoded = self._count_decodes(monkeypatch)
+        sub = _seq_sub(("order.fill.OTHER", 1), ("order.cancelled.TRADER01", 1))
+        # Not even valid JSON: it would have been a decode warning before.
+        sub.queue[0][1] = b"{not json"
+        gw._sub = sub
+
+        gw._poll_engine_events()
+
+        assert decoded == ["order.cancelled.TRADER01"]
+        assert [cmd for cmd, _ in _lines(session)] == ["CANCELLED"]
+        peer.close()
+
+    def test_skipped_events_still_keep_their_sequence(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        gw = _make_gateway(monkeypatch)
+        gw._sub = _seq_sub(("order.fill.OTHER", 1), ("order.fill.OTHER", 4))
+
+        gw._poll_engine_events()
+
+        assert gw._topic_seq["order.fill.OTHER"] == 4
+        assert gw._global_stats["events_lost"] == 2
+
+    @pytest.mark.parametrize(
+        "topic",
+        [
+            "system.gateway_auth.OTHER",  # routed to a pending, not active, session
+            "system.symbols.OTHER",  # refreshes the shared symbol cache
+            "system.position_snapshot.OTHER",  # routed by pending POS query
+            "trade.executed",
+        ],
+    )
+    def test_replies_and_public_events_are_still_decoded(
+        self, monkeypatch: pytest.MonkeyPatch, topic: str
+    ) -> None:
+        gw = _make_gateway(monkeypatch)
+        decoded = self._count_decodes(monkeypatch)
+        gw._sub = _QueueSub((topic, {}))
+
+        gw._poll_engine_events()
+
+        assert decoded == [topic]

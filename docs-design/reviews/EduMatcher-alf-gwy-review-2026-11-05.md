@@ -116,7 +116,7 @@ An overflow is almost always caused by the public feed (`TRADE` per print, `HALT
 
 **Fix:** catch `OSError` around `accept()`. Log it and `break` (on `EMFILE`/`ENFILE` the listener stays readable, so breaking prevents a hot loop; the next tick retries). Wrap the per-connection setup in `try/except OSError: conn.close(); continue`.
 
-### M5. Decode cost for events nobody here wants
+### M5. Decode cost for events nobody here wants **fixed** (absent gateways' private events skip decode, sequence still kept; 3.55 → 2.07 µs/event on a 90%-foreign stream)
 
 Because of the all-gateways subscription (H2), most messages on `self._sub` are for gateways with no session on this ALF instance. Each is still fully decoded (`decode()` → orjson) before `_route_gateway_scoped_event` looks up the session and discards it. Under a busy simulation that is the bulk of the gateway's engine-side CPU, and it directly feeds H2: a slower loop means more HWM drops.
 

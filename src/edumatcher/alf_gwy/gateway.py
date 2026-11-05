@@ -1425,7 +1425,6 @@ class AlfGateway:
         while budget > 0 and self._sub.poll(timeout=0):
             try:
                 frames = self._sub.recv_multipart()
-                topic, payload = decode(frames)
             except zmq.ZMQError as exc:
                 if exc.errno != errno.EINTR:
                     log.warning(
@@ -1433,14 +1432,23 @@ class AlfGateway:
                         exc.errno,
                     )
                 break
+
+            budget -= 1
+
+            try:
+                topic = frames[0].decode()
+                if self._for_absent_gateway(topic):
+                    # Most of this socket is other gateways' order events
+                    # (see the subscription). Their payload is never read,
+                    # so it is not decoded: only the sequence is kept.
+                    self._check_sequence(topic, frames)
+                    continue
+                topic, payload = decode(frames)
             except Exception:
                 # Not sequence-checked: the next event on its topic reports
                 # it as lost, which to the client it is.
                 log.warning("decode error on engine SUB event", exc_info=True)
-                budget -= 1
                 continue
-
-            budget -= 1
 
             # One malformed event must not take every session down with it
             # (the loop has no other guard): log it, drop it, carry on.
@@ -1449,6 +1457,17 @@ class AlfGateway:
                 self._handle_engine_event(topic, payload)
             except Exception:
                 log.exception("ALF gateway dropped unhandled engine event %s", topic)
+
+    def _for_absent_gateway(self, topic: str) -> bool:
+        """A private order event for a gateway with no session here.
+
+        Exactly what _route_gateway_scoped_event would discard. Replies
+        routed otherwise (auth, symbols, POS) are never in this set.
+        """
+        return (
+            topic.startswith(_PRIVATE_EVENT_PREFIXES)
+            and topic.rpartition(".")[2].upper() not in self._active_gateway_sessions
+        )
 
     def _check_sequence(self, topic: str, frames: list[bytes]) -> None:
         """Tell a session when the engine's events for it were dropped.

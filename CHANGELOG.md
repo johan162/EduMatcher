@@ -13,6 +13,7 @@ the alf-gwy and log-server to be more robust agains badly formed input and possi
 - Added configuration validation requiring market-data, post-trade and drop-copy idle timeouts to exceed twice their heartbeat intervals
 - Improved log-server backfill and client backpressure so slow writes do not block service and acknowledged messages are preserved during shutdown
 - The log-srv now handles slow writer by throttling the incoming requests
+- ALF gateway hardened
 
 ### 🐛 Bug Fixes
 - Fixed the scheduler failing to reconcile an engine that starts in the wrong session state; it now follows the shortest legal transition path
