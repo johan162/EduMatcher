@@ -19,10 +19,17 @@ from fastapi.routing import APIRoute
 from edumatcher.api_gateway.config import ApiGatewayConfig
 from edumatcher.api_gateway.errors import ERROR_CODES
 from edumatcher.api_gateway.main import create_app
-from edumatcher.api_gateway.routers import admin, bootstrap, history, orders, reference
+from edumatcher.api_gateway.routers import (
+    admin,
+    bootstrap,
+    history,
+    market,
+    orders,
+    reference,
+)
 from tests.api_gateway_error_scan import ROOT, route_codes
 
-_ROUTERS = (orders, reference, history, admin, bootstrap)
+_ROUTERS = (orders, reference, market, history, admin, bootstrap)
 
 
 def _operations() -> list[tuple[str, str, Any, dict[str, Any]]]:

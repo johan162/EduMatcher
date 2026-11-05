@@ -968,6 +968,7 @@ Every Python example runs against a real exchange in `make test-e2e`
 | [REST/python/demo_info.py](../../../downloads/examples/REST/python/demo_info.py) | Print gateway status, symbols, and session info |
 | [REST/python/submit_market_order.py](../../../downloads/examples/REST/python/submit_market_order.py) | Submit a MARKET order from the command line |
 | [REST/python/order_lifecycle.py](../../../downloads/examples/REST/python/order_lifecycle.py) | LIMIT with `wait=ack` and an `Idempotency-Key`, a safe retry, amend, replace, cancel, and a `TICK_VIOLATION` refusal |
+| [REST/python/book_snapshot.py](../../../downloads/examples/REST/python/book_snapshot.py) | The order book over REST: top of book for every symbol, one symbol's ladder, `*_ticks`, `seq`, `UNKNOWN_SYMBOL` |
 | [REST/python/history_pages.py](../../../downloads/examples/REST/python/history_pages.py) | Read a whole history list by following `next_cursor` |
 | [REST/python/private_stream.py](../../../downloads/examples/REST/python/private_stream.py) | The private WebSocket: snapshot, `stream_seq` gap detection, reconnect recovery |
 | [REST/python/market_data.py](../../../downloads/examples/REST/python/market_data.py) | Market data: `items` subscribe, per-topic `seq`, trades `resume` |
@@ -1077,6 +1078,9 @@ python3 submit_market_order.py --url http://10.0.0.5:8080 --key mykey \
 
 # One order's whole life; --price below the bid so it rests
 python3 order_lifecycle.py --symbol AAPL --price 22.70
+
+# The book over REST: every symbol's top of book, then AAPL's ladder
+python3 book_snapshot.py --symbol AAPL --levels 5
 
 # Today's trades, page by page
 python3 history_pages.py --limit 50

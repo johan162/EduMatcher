@@ -44,7 +44,7 @@ in the engine config. A key maps to one of two things:
   that depends on the engine **role** of that gateway: `TRADER`,
   `MARKET_MAKER` (adds quoting) or `ADMIN` (adds the `/admin` endpoints);
 * a **read-only key** (`gateway_id` null) -- may read public data only:
-  `/reference/*`, `/news`, `/companies/{symbol}`, `/history/trades`,
+  `/reference/*`, `/book`, `/news`, `/companies/{symbol}`, `/history/trades`,
   `/history/daily` and the other public history endpoints, `/bootstrap/trader`.
   Everything gateway-scoped answers `403 READ_ONLY`.
 
@@ -119,6 +119,16 @@ TAGS_METADATA: list[dict[str, str]] = [
             "endpoints are open to read-only keys; every response that "
             "derives from the reference bundle carries `config_version`, a "
             "hash that changes whenever the configuration does."
+        ),
+    },
+    {
+        "name": "market-data",
+        "description": (
+            "The order book as of now, over plain REST: one symbol's levels "
+            "and last trades, or best bid/ask for every symbol. Open to "
+            "read-only keys. Each reply carries the `seq` of the WebSocket "
+            "`book` frame it corresponds to, so a client can read here, then "
+            "subscribe, and drop frames it already has."
         ),
     },
     {
@@ -1516,6 +1526,115 @@ POSITIONS_REPLY = _counted(POSITIONS, "positions")
 STATUS_REPLY: dict[str, Any] = {"gateway_id": "TRADER01", "gateway_role": "TRADER"}
 ORDERS_LIST_REPLY = _counted(_wire(order_msgs.Orders, ORDERS_LIST), "orders")
 MASS_CANCEL_REPLY = _wire(risk_msgs.KillSwitchAck, MASS_CANCEL)
+
+#: ``book.AAPL`` as the engine publishes it (display prices only).
+BOOK_SNAPSHOT: dict[str, Any] = {
+    "symbol": "AAPL",
+    "tick_decimals": 2,
+    "ts_ns": _T0 + 250_000_000,
+    "bids": [
+        {"price": 186.9, "qty": 300, "count": 2},
+        {"price": 186.85, "qty": 500, "count": 1},
+        {"price": 186.8, "qty": 1200, "count": 5},
+    ],
+    "asks": [
+        {"price": 186.95, "qty": 250, "count": 1},
+        {"price": 187.0, "qty": 600, "count": 3},
+        {"price": 187.1, "qty": 900, "count": 4},
+    ],
+    "last_price": 186.95,
+    "last_qty": 100,
+    "last_buy_price": 186.95,
+    "last_sell_price": 186.9,
+    "recent_trades": [
+        {
+            "id": "T-20260829-000411",
+            "symbol": "AAPL",
+            "buy_order_id": _ORDER_2,
+            "sell_order_id": _ORDER_3,
+            "buy_gateway_id": "TRADER01",
+            "sell_gateway_id": "MM01",
+            "price": 186.9,
+            "quantity": 50,
+            "ts_ns": _T0 + 100_000_000,
+        },
+        {
+            "id": _TRADE_1,
+            "symbol": "AAPL",
+            "buy_order_id": _ORDER_1,
+            "sell_order_id": _ORDER_3,
+            "buy_gateway_id": "TRADER01",
+            "sell_gateway_id": "MM01",
+            "price": 186.95,
+            "quantity": 100,
+            "ts_ns": _T0 + 200_000_000,
+        },
+    ],
+}
+#: ``seq`` the examples give ``BOOK_SNAPSHOT``'s WebSocket frame.
+BOOK_SEQ = 4812
+BOOK_REPLY: dict[str, Any] = {
+    "symbol": "AAPL",
+    "tick_decimals": 2,
+    "ts_ns": _T0 + 250_000_000,
+    "seq": BOOK_SEQ,
+    "bids": [
+        {"price": 186.9, "qty": 300, "count": 2, "price_ticks": 18690},
+        {"price": 186.85, "qty": 500, "count": 1, "price_ticks": 18685},
+        {"price": 186.8, "qty": 1200, "count": 5, "price_ticks": 18680},
+    ],
+    "asks": [
+        {"price": 186.95, "qty": 250, "count": 1, "price_ticks": 18695},
+        {"price": 187.0, "qty": 600, "count": 3, "price_ticks": 18700},
+        {"price": 187.1, "qty": 900, "count": 4, "price_ticks": 18710},
+    ],
+    "last_price": 186.95,
+    "last_price_ticks": 18695,
+    "last_qty": 100,
+    "last_buy_price": 186.95,
+    "last_buy_price_ticks": 18695,
+    "last_sell_price": 186.9,
+    "last_sell_price_ticks": 18690,
+    "recent_trades": [
+        {**BOOK_SNAPSHOT["recent_trades"][0], "price_ticks": 18690},
+        {**BOOK_SNAPSHOT["recent_trades"][1], "price_ticks": 18695},
+    ],
+}
+BOOK_LIST_REPLY: dict[str, Any] = {
+    "books": [
+        {
+            "symbol": "AAPL",
+            "tick_decimals": 2,
+            "ts_ns": _T0 + 250_000_000,
+            "seq": BOOK_SEQ,
+            "best_bid": BOOK_REPLY["bids"][0],
+            "best_ask": BOOK_REPLY["asks"][0],
+            "last_price": 186.95,
+            "last_price_ticks": 18695,
+        },
+        {
+            "symbol": "MSFT",
+            "tick_decimals": 2,
+            "ts_ns": _T0 + 120_000_000,
+            "seq": 2031,
+            "best_bid": {"price": 411.3, "qty": 200, "count": 1, "price_ticks": 41130},
+            "best_ask": {"price": 411.4, "qty": 400, "count": 2, "price_ticks": 41140},
+            "last_price": 411.35,
+            "last_price_ticks": 41135,
+        },
+        {
+            "symbol": "TSLA",
+            "tick_decimals": 2,
+            "ts_ns": _T0 - 60_000_000_000,
+            "seq": 977,
+            "best_bid": None,
+            "best_ask": {"price": 248.4, "qty": 100, "count": 1, "price_ticks": 24840},
+            "last_price": None,
+            "last_price_ticks": None,
+        },
+    ],
+    "count": 3,
+}
 
 HISTORY_ORDERS_REPLY = _page(HISTORY_ORDERS, "events")
 HISTORY_FILLS_REPLY = _page(HISTORY_FILLS, "events")

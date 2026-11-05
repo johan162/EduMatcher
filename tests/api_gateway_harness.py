@@ -47,11 +47,12 @@ def response_model_of(endpoint: Any) -> Any:
         admin,
         bootstrap,
         history,
+        market,
         orders,
         reference,
     )
 
-    for module in (orders, reference, history, admin, bootstrap):
+    for module in (orders, reference, market, history, admin, bootstrap):
         for route in module.router.routes:
             if isinstance(route, APIRoute) and route.endpoint is endpoint:
                 assert route.response_model is not None, route.path

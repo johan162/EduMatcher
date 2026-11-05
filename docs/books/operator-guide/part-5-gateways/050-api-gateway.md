@@ -344,6 +344,7 @@ people.
 | Order entry | `/orders`, `/oco`, `/combos`, `/quotes`, `/mass-cancel` | the engine |
 | Account and live state | `/orders` (read), `/positions`, `/quotes` (read), `/symbols`, `/session`, `/halts`, `/status` | the engine, round trip per call |
 | Reference data | `/reference/*` | the engine (compiled config) |
+| Market-data snapshots | `/book`, `/book/{symbol}` | the gateway's market-data cache; `/book` also one reference round trip |
 | History | `/history/*` | `pm-stats`' `stats.db`; `/history/index-events` asks `pm-index` |
 | Bootstrap | `/bootstrap/trader`, `/mm`, `/admin` | the engine, several queries in parallel |
 | Admin | `/admin/*` | the engine; rebalance asks `pm-index`; the audit view reads `audit_index.db` |
@@ -417,6 +418,17 @@ reference data changes, so a client can cache the bundle and poll
 
 Use `pm-config-deploy` to compile and deploy the changed configuration, then
 restart the engine. This keeps the effective config tied to the audited run.
+
+### Book snapshots
+
+`GET /book/{symbol}` and `GET /book` read the same cache a WebSocket `snapshot`
+is answered from, so they cost the engine nothing once a book has been seen.
+The engine republishes a book only when it changes, so after a gateway restart
+a quiet symbol has nothing cached: the first read asks the engine to publish it
+and waits (`503 ENGINE_TIMEOUT` if the engine does not answer). `/book` checks
+the symbol list against the reference data on every call, so it is complete
+from the first call, and it is all or nothing. A quiet book's `ts_ns` is old
+and the snapshot is still current: it is when the book last changed.
 
 ### History endpoints
 

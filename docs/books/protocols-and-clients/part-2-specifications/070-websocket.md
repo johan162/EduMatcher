@@ -264,7 +264,9 @@ The client sends control frames as JSON objects at any time after
 
 - **Snapshot channels** (`book`, `depth`, `auction`) are self-healing: the
   current snapshot replaces whatever was missed. After a gap or a reconnect,
-  send `snapshot` (or `subscribe`) for the pairs concerned.
+  send `snapshot` (or `subscribe`) for the pairs concerned. The `book` snapshot
+  is also available without a socket as `GET /api/v1/book/{symbol}`, whose
+  `seq` is that of the `book` frame for the same snapshot.
 - **Trades** are replayable for the gateway's replay window
   (`market_data_cache_sec`, 60 seconds by default): `resume` with `topic: "trade.executed"`, the last
   processed `seq` and the symbol. Past the window the server sends
