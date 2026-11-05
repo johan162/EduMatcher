@@ -129,3 +129,54 @@ def test_config_show_lists_included_files(
     main = _split(resolve_example("s3-basic"), tmp_path)
     assert config_show_main(["--file", str(main), "--width", "140"]) == 0
     assert "includes: symbols.yaml, participants.yaml" in capsys.readouterr().out
+
+
+def _move_credentials_out(source: Path, target: Path) -> Path:
+    """Write *source* to *target* with each API gateway's keys in their own file."""
+    raw = yaml.safe_load(source.read_text(encoding="utf-8"))
+    for name, block in raw["api_gateways"].items():
+        (target / f"{name}-keys.yaml").write_text(
+            yaml.safe_dump(block.pop("credentials"), sort_keys=False),
+            encoding="utf-8",
+        )
+        block["credentials_file"] = f"{name}-keys.yaml"
+    main = target / "engine_config.yaml"
+    main.write_text(yaml.safe_dump(raw, sort_keys=False), encoding="utf-8")
+    return main
+
+
+def test_credentials_file_compiles_to_the_same_content(tmp_path: Path) -> None:
+    whole = tmp_path / "whole"
+    whole.mkdir()
+    (whole / "engine_config.yaml").write_text(
+        resolve_example("s10-basic").read_text(encoding="utf-8")
+    )
+    moved = tmp_path / "moved"
+    moved.mkdir()
+    main = _move_credentials_out(whole / "engine_config.yaml", moved)
+
+    expected = compile_config(whole / "engine_config.yaml")
+    actual = compile_config(main)
+
+    assert len(actual.api_gateways["desk"].credentials) == 4
+    assert content_digest(actual) == content_digest(expected)
+
+
+def test_credentials_file_is_deployed_and_watched_for_staleness(
+    tmp_path: Path,
+) -> None:
+    from edumatcher.config_artifact import staleness
+    from edumatcher.config_deploy import deploy
+
+    src = tmp_path / "src"
+    src.mkdir()
+    main = _move_credentials_out(resolve_example("s10-basic"), src)
+    dest = tmp_path / "ref_data" / "engine_config.json"
+
+    config = deploy(main, dest)
+    assert (dest.parent / "desk-keys.yaml").is_file()
+    assert staleness(config) is None
+
+    keys = src / "desk-keys.yaml"
+    keys.write_text(keys.read_text(encoding="utf-8") + "# rotated\n", encoding="utf-8")
+    assert "has changed" in (staleness(config) or "")

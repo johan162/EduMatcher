@@ -8,7 +8,6 @@ from typing import Any
 import yaml
 
 from edumatcher.config_include import (
-    INCLUDE_KEY,
     ConfigIncludeError,
     LoadedConfig,
     load_config_mapping,
@@ -29,8 +28,8 @@ def load_with_origins(
     Returns the Layer 1 findings and the parsed mapping (or None when the file
     is missing, unreadable, not valid YAML, or not a top-level mapping).  The
     caller can reuse the returned mapping instead of re-reading the file.  The
-    third item says which file each part came from; it is None unless the file
-    has an ``include:`` list.
+    third item says which file each part came from; it is None when the
+    file could not be loaded.
     """
     results: list[CheckResult] = []
 
@@ -92,23 +91,21 @@ def load_with_origins(
         )
         return results, None, None
 
-    if INCLUDE_KEY in data:
-        try:
-            loaded = load_config_mapping(path)
-        except ConfigIncludeError as exc:
-            results.append(
-                CheckResult(
-                    code="Y005",
-                    severity=Severity.ERROR,
-                    message=f"{exc}.",
-                    suggestion="Fix the 'include:' list or the named file.",
-                    path=str(path),
-                )
+    try:
+        loaded = load_config_mapping(path)
+    except ConfigIncludeError as exc:
+        results.append(
+            CheckResult(
+                code="Y005",
+                severity=Severity.ERROR,
+                message=f"{exc}.",
+                suggestion="Fix the 'include:' list, the 'credentials_file' or the named file.",
+                path=str(path),
             )
-            return results, None, None
-        return results, loaded.data, loaded
+        )
+        return results, None, None
 
-    return results, data, None
+    return results, loaded.data, loaded
 
 
 def load(path: Path) -> tuple[list[CheckResult], dict[str, Any] | None]:

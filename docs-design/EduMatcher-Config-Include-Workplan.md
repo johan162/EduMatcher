@@ -116,3 +116,35 @@ include in `market_sim.yaml` or other YAML files. Revisit only if asked.
 - The combined digest must stay stable for single-file configs, or every existing deployed artifact
   looks stale. Per the project rule there is no migration code, so the digest may simply change and
   existing artifacts get redeployed; decide in WP-INC3.
+
+## 8. Addendum: API credentials file and `--api-keys-for`
+
+Added 2026-11-05. One API key per participant makes `api_gateways.<name>.credentials`
+as long as the participant list, and two levels down, where `include:` cannot reach it.
+The keys are also secrets, so they belong outside the version-controlled main file.
+
+Decisions:
+
+1. `api_gateways.<name>.credentials_file: <path>` names a YAML **list** of credentials
+   (`api_key`, `gateway_id`, `description`). Same path rules as `include:` (relative to the
+   file that names it, no absolute path, no `..`). Setting both `credentials` and
+   `credentials_file` on one instance is an error. A file may be shared by several instances.
+2. It is resolved inside `load_config_mapping`, after includes are merged: the key is replaced
+   by `credentials`, so no downstream reader (loaders, verifier, show) changes. The file joins
+   `LoadedConfig.files`, so digest, staleness, deploy copy and new-symbol staging cover it, and
+   `origin_of("api_gateways.desk.credentials[3]")` names it.
+3. `pm-config-gen --api-keys-for GW_ID [GW_ID ...]` writes the generated credentials for those
+   participants to `api_keys.yaml` beside `--output` and emits `credentials_file: api_keys.yaml`
+   for the (single) API gateway. Needs `--output` or `--dry-run`. Keys are derived from
+   `--seed N`, or from a fixed default seed when `--seed` is absent, so a run is reproducible.
+   Trade-off, accepted by Johan: a key derived from a published default seed is guessable by
+   anyone who knows the participant ID. Fine for a classroom exchange; use `--seed` with a private
+   value anywhere else. The generator prints a note when the default seed is used.
+
+Workpackages:
+
+- **WP-CRED1 — `credentials_file:` in the loader.** DONE 2026-11-05. (Layer 1 of the verifier now
+  always goes through `load_config_mapping`, not only when `include:` is present.)
+- **WP-CRED2 — `pm-config-gen --api-keys-for`.**
+- **WP-CRED3 — docs and e2e** (ch. 005 api_gateways step, ch. 010 option table, reference manual,
+  e2e with a keys file).

@@ -28,7 +28,10 @@ import yaml
 INCLUDE_KEY = "include"
 
 
+CREDENTIALS_FILE_KEY = "credentials_file"
+
 _LOCATION = re.compile(r"^(\w+)(?:\[(\d+)\]|\.([^.\[]+))?")
+_CREDENTIALS_LOCATION = re.compile(r"^api_gateways\.([^.\[]+)\.credentials\b")
 
 
 class ConfigIncludeError(ValueError):
@@ -45,9 +48,14 @@ class LoadedConfig:
     #: Which file supplied each list element ``(key, index)`` and each mapping
     #: entry ``(key, name)`` of a top-level list or mapping.
     entry_files: dict[tuple[str, str | int], Path] = field(default_factory=dict)
+    #: The ``credentials_file`` that supplied each API gateway's credentials.
+    credential_files: dict[str, Path] = field(default_factory=dict)
 
     def origin_of(self, location: str) -> Path | None:
         """The file a finding's ``symbols.AAPL.x`` / ``participants[3]`` is from."""
+        creds = _CREDENTIALS_LOCATION.match(location)
+        if creds is not None and creds.group(1) in self.credential_files:
+            return self.credential_files[creds.group(1)]
         match = _LOCATION.match(location)
         if match is None:
             return None
@@ -80,18 +88,20 @@ def _include_paths(main: Path, raw: dict[str, Any]) -> list[Path]:
         return []
     if not isinstance(entries, list) or not all(isinstance(e, str) for e in entries):
         raise ConfigIncludeError(f"{main}: 'include' must be a list of file names")
-    paths: list[Path] = []
-    for entry in entries:
-        rel = PurePath(entry)
-        if rel.is_absolute() or ".." in rel.parts:
-            raise ConfigIncludeError(
-                f"{main}: include '{entry}' must be a relative path without '..'"
-            )
-        target = main.parent / rel
-        if not target.is_file():
-            raise ConfigIncludeError(f"{main}: included file not found: {target}")
-        paths.append(target)
-    return paths
+    return [_relative_file(main, entry, "include") for entry in entries]
+
+
+def _relative_file(owner: Path, entry: str, what: str) -> Path:
+    """The file *entry* names, relative to the file *owner* that lists it."""
+    rel = PurePath(entry)
+    if rel.is_absolute() or ".." in rel.parts:
+        raise ConfigIncludeError(
+            f"{owner}: {what} '{entry}' must be a relative path without '..'"
+        )
+    target = owner.parent / rel
+    if not target.is_file():
+        raise ConfigIncludeError(f"{owner}: {what} file not found: {target}")
+    return target
 
 
 def _record_entries(
@@ -141,6 +151,50 @@ def _merge(
             )
 
 
+def _read_credentials(path: Path) -> list[Any]:
+    try:
+        raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+    except OSError as exc:
+        raise ConfigIncludeError(f"{path}: cannot read: {exc.strerror}") from exc
+    except yaml.YAMLError as exc:
+        raise ConfigIncludeError(f"{path}: not valid YAML: {exc}") from exc
+    if raw is None:
+        return []
+    if not isinstance(raw, list):
+        raise ConfigIncludeError(
+            f"{path}: must be a YAML list of credentials, got {type(raw).__name__}"
+        )
+    return raw
+
+
+def _resolve_credentials_files(
+    merged: dict[str, Any], entries: dict[tuple[str, str | int], Path], main: Path
+) -> dict[str, Path]:
+    """Replace each API gateway's ``credentials_file`` by its ``credentials``."""
+    gateways = merged.get("api_gateways")
+    if not isinstance(gateways, dict):
+        return {}
+    resolved: dict[str, Path] = {}
+    for name, block in gateways.items():
+        if not isinstance(block, dict) or CREDENTIALS_FILE_KEY not in block:
+            continue
+        owner = entries.get(("api_gateways", str(name)), main)
+        where = f"api_gateways.{name}"
+        entry = block.pop(CREDENTIALS_FILE_KEY)
+        if not isinstance(entry, str):
+            raise ConfigIncludeError(
+                f"{owner}: {where}.credentials_file must be a name"
+            )
+        if "credentials" in block:
+            raise ConfigIncludeError(
+                f"{owner}: {where} has both 'credentials' and 'credentials_file'"
+            )
+        target = _relative_file(owner, entry, f"{where}.credentials_file")
+        block["credentials"] = _read_credentials(target)
+        resolved[str(name)] = target
+    return resolved
+
+
 def load_config_mapping(path: Path) -> LoadedConfig:
     """Parse *path*, resolve its ``include:`` list and return the merged mapping."""
     main_raw = _read_mapping(path)
@@ -157,6 +211,12 @@ def load_config_mapping(path: Path) -> LoadedConfig:
                 f"{included}: includes cannot be nested; list every file in {path}"
             )
         _merge(merged, origin, entries, extra, included)
+    credential_files = _resolve_credentials_files(merged, entries, path)
+    files = (path, *includes, *dict.fromkeys(credential_files.values()))
     return LoadedConfig(
-        data=merged, files=(path, *includes), key_files=origin, entry_files=entries
+        data=merged,
+        files=files,
+        key_files=origin,
+        entry_files=entries,
+        credential_files=credential_files,
     )

@@ -96,7 +96,7 @@ def test_subdirectory_include_is_allowed(tmp_path: Path) -> None:
 
 def test_missing_include_is_an_error(tmp_path: Path) -> None:
     main = _write(tmp_path, "main.yaml", "include: [nope.yaml]\n")
-    with pytest.raises(ConfigIncludeError, match="included file not found"):
+    with pytest.raises(ConfigIncludeError, match="include file not found"):
         load_config_mapping(main)
 
 
@@ -153,3 +153,98 @@ def test_origin_of_names_the_file_for_entries_and_keys(tmp_path: Path) -> None:
     assert loaded.origin_of("symbols") == main  # whole-section: first definer
     assert loaded.origin_of("indices[id=X].name") is None
     assert loaded.origin_of("") is None
+
+
+def _gateway_config(tmp_path: Path, extra: str = "") -> Path:
+    return _write(
+        tmp_path,
+        "main.yaml",
+        "api_gateways:\n  desk:\n    port: 8080\n    credentials_file: keys.yaml\n"
+        + extra,
+    )
+
+
+def test_credentials_file_supplies_the_credentials(tmp_path: Path) -> None:
+    main = _gateway_config(tmp_path)
+    keys = _write(
+        tmp_path,
+        "keys.yaml",
+        "- {api_key: k1, gateway_id: T1}\n- {api_key: k2, gateway_id: T2}\n",
+    )
+    loaded = load_config_mapping(main)
+    desk = loaded.data["api_gateways"]["desk"]
+    assert desk["credentials"] == [
+        {"api_key": "k1", "gateway_id": "T1"},
+        {"api_key": "k2", "gateway_id": "T2"},
+    ]
+    assert "credentials_file" not in desk
+    assert desk["port"] == 8080
+    assert loaded.files == (main, keys)
+    assert loaded.origin_of("api_gateways.desk.credentials[1].api_key") == keys
+    assert loaded.origin_of("api_gateways.desk.port") == main
+
+
+def test_credentials_file_is_relative_to_the_file_that_names_it(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "parts").mkdir()
+    main = _write(tmp_path, "main.yaml", "include: [parts/gw.yaml]\n")
+    _write(
+        tmp_path / "parts",
+        "gw.yaml",
+        "api_gateways:\n  desk:\n    credentials_file: keys.yaml\n",
+    )
+    keys = _write(tmp_path / "parts", "keys.yaml", "- {api_key: k1}\n")
+    loaded = load_config_mapping(main)
+    assert loaded.data["api_gateways"]["desk"]["credentials"] == [{"api_key": "k1"}]
+    assert keys in loaded.files
+
+
+def test_two_gateways_may_share_one_credentials_file(tmp_path: Path) -> None:
+    main = _write(
+        tmp_path,
+        "main.yaml",
+        "api_gateways:\n  a: {credentials_file: keys.yaml}\n"
+        "  b: {credentials_file: keys.yaml}\n",
+    )
+    keys = _write(tmp_path, "keys.yaml", "- {api_key: k1}\n")
+    assert load_config_mapping(main).files == (main, keys)
+
+
+def test_empty_credentials_file_means_no_credentials(tmp_path: Path) -> None:
+    main = _gateway_config(tmp_path)
+    _write(tmp_path, "keys.yaml", "")
+    assert load_config_mapping(main).data["api_gateways"]["desk"]["credentials"] == []
+
+
+def test_credentials_and_credentials_file_together_are_an_error(
+    tmp_path: Path,
+) -> None:
+    main = _gateway_config(tmp_path, "    credentials: []\n")
+    _write(tmp_path, "keys.yaml", "[]\n")
+    with pytest.raises(ConfigIncludeError, match="both 'credentials' and"):
+        load_config_mapping(main)
+
+
+@pytest.mark.parametrize(
+    ("file_text", "match"),
+    [(None, "credentials_file file not found"), ("a: 1\n", "YAML list")],
+)
+def test_bad_credentials_file(
+    tmp_path: Path, file_text: str | None, match: str
+) -> None:
+    main = _gateway_config(tmp_path)
+    if file_text is not None:
+        _write(tmp_path, "keys.yaml", file_text)
+    with pytest.raises(ConfigIncludeError, match=match):
+        load_config_mapping(main)
+
+
+def test_credentials_file_path_must_stay_inside(tmp_path: Path) -> None:
+    main = _write(
+        tmp_path,
+        "main.yaml",
+        "api_gateways:\n  desk: {credentials_file: ../keys.yaml}\n",
+    )
+    with pytest.raises(ConfigIncludeError, match="relative path without"):
+        load_config_mapping(main)
