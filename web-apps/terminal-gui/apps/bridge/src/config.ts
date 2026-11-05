@@ -48,11 +48,10 @@ export interface BridgeConfig {
     port: number;
     clientId: string;
     /**
-     * Keepalive cadence. The gateway's idle timer advances only on inbound
-     * client bytes — its own outbound `HB` does not reset it — so a bridge
-     * that merely listens is disconnected after `idle_timeout_sec`
-     * (default 300). Design §17 never mentions this; without it the terminal
-     * would silently drop every five minutes.
+     * Keepalive cadence; belt-and-braces. The gateway's idle timer counts
+     * traffic in both directions, so its own `HB` lines keep a reading bridge
+     * connected without any `PING` (an older gateway counted inbound bytes
+     * only, which is why this exists).
      */
     pingIntervalSec: number;
     /** Index ids to `SUB|CH=INDEX` for. CALF has no "list the indexes" request. */

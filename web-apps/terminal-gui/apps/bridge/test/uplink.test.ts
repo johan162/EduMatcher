@@ -966,4 +966,28 @@ describe("malformed market data", () => {
 
     expect(frameOf(frames, "trade")[0]).toMatchObject({ px: 150.1, qty: 100, side: "BUY" });
   });
+
+  describe("gateway-initiated close (line-gateway alignment)", () => {
+    it("reports EXIT with its reason, not as a parse error, and reconnects", async () => {
+      const { gateway, uplink, errors } = await connected();
+      const exits: string[] = [];
+      uplink.on("gatewayExit", ({ reason }) => exits.push(reason));
+
+      gateway.closeWith("EXIT|REASON=idle_timeout|TS=2026-11-05T10:00:00.000Z");
+
+      await waitFor(() => exits.length === 1, 2000, "the EXIT");
+      expect(exits).toEqual(["idle_timeout"]);
+      expect(errors.some((e) => e.code === "PARSE_ERROR")).toBe(false);
+      await waitFor(() => gateway.linesStartingWith("HELLO").length >= 2, 3000, "the reconnect");
+    });
+
+    it("surfaces SLOW_CLIENT as a gateway error, then reconnects", async () => {
+      const { gateway, errors } = await connected();
+
+      gateway.closeWith("ERR|CODE=SLOW_CLIENT|DETAIL=queue overflow");
+
+      await waitFor(() => errors.some((e) => e.code === "SLOW_CLIENT"), 2000, "the ERR");
+      await waitFor(() => gateway.linesStartingWith("HELLO").length >= 2, 3000, "the reconnect");
+    });
+  });
 });
