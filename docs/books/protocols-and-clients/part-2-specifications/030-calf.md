@@ -1106,7 +1106,7 @@ Normative error codes:
 | `SUB_LIMIT`       | Subscription would exceed `max_symbols_per_client`                              |
 | `REPLAY_MISS`     | `LASTSEQ` is older than the replay window; a `SNAP` follows on `TOP`/`STATE`/`INDEX`/`DEPTH`/`CB`, but not on `TRADE`/`AUCTION` |
 | `SLOW_CLIENT`     | Outbound queue exceeded `max_client_queue`; connection closed                   |
-| `BAD_MESSAGE`     | Parse failure, oversized line (> 4096 bytes), or unsupported message type       |
+| `BAD_MESSAGE`     | Parse failure, oversized line (over 4096 bytes including the newline), or unsupported message type |
 | `RATE_LIMITED`    | Client exceeded `max_messages_per_second` (inbound token-bucket); connection stays open |
 
 Terminal behavior:
@@ -1114,7 +1114,9 @@ Terminal behavior:
 - `AUTH_REQUIRED` is terminal: any non-`HELLO` message before a successful
   handshake gets this error and the connection is closed immediately.
 - `SLOW_CLIENT` is terminal for the current TCP session; gateway disconnects.
-- `BAD_MESSAGE` may be terminal when parsing cannot continue safely.
+- `BAD_MESSAGE` is terminal for an oversized line (`DETAIL=line exceeds 4096 bytes`),
+  the same in `pm-ralf-gwy` and `pm-dc-gwy`; for any other cause the session
+  stays open.
 - `RATE_LIMITED` is non-terminal; the offending message is dropped and the
   connection remains open. The client may retry once its send rate is back
   under `max_messages_per_second`.

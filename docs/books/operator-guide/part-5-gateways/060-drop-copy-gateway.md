@@ -305,7 +305,7 @@ Every error arrives as `ERR|CODE=<CODE>|DETAIL=<message>`.
 | Code | When it occurs | Connection kept? |
 |------|---------------|-----------------|
 | `AUTH_REQUIRED` | First line was not `HELLO`, or `HELLO` was missing `CLIENT`/`PROTO`/`ID` | No — closed immediately |
-| `BAD_MESSAGE` | Empty line, non-UTF-8, unparseable line, or line > 4096 bytes | Yes (or No if unrecoverable — see detail) |
+| `BAD_MESSAGE` | Empty line, unparseable line, or unsupported message type; or a line over 4096 bytes including the newline (`DETAIL=line exceeds 4096 bytes`) | Yes — except for an oversized line, which closes it |
 | `SLOW_CLIENT` | Outbound queue exceeded `max_client_queue` | No |
 | `IDLE_TIMEOUT` | No inbound traffic for `idle_timeout_sec` | No |
 

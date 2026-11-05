@@ -33,6 +33,7 @@ project's suspected-bugs report.
 | Default port | `5580` (`post_trade_gateway.port`) |
 | Encoding | UTF-8 text lines |
 | Delimiter | `\n` |
+| Max line length | 4096 bytes including newline |
 | Version token | `RALF1` |
 | Connection model | long-lived, one authenticated session per connection |
 | Direction | gateway → client for all data; client → gateway for control only |
@@ -223,7 +224,7 @@ interval. A session with no inbound activity for the idle timeout is dropped
 | Code | Meaning / trigger |
 |------|-------------------|
 | `AUTH_REQUIRED` | first message was not `HELLO`, or `HELLO` missing `CLIENT`/`PROTO`/`ROLE` |
-| `BAD_MESSAGE` | unparseable line, unsupported message type, or malformed field (e.g. non-integer `LASTSEQ`) |
+| `BAD_MESSAGE` | unparseable line, unsupported message type, or malformed field (e.g. non-integer `LASTSEQ`); an oversized line (`DETAIL=line exceeds 4096 bytes`) also ends the session |
 | `INVALID_CHANNEL` | `SUB` with missing/empty or unknown `CH` |
 | `ENTITLEMENT_DENIED` | role not in `allowed_roles`, or channel outside the role's entitlement |
 | `REPLAY_MISS` | requested `LASTSEQ` is older than the retained journal window |

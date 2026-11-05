@@ -32,6 +32,7 @@ from edumatcher.models.generated.system import (
 )
 
 _ALLOWED_CHANNELS = frozenset({"CLEARING", "DROP_COPY", "AUDIT"})
+_MAX_LINE_BYTES = 4096
 
 log = logging.getLogger(__name__)
 
@@ -236,7 +237,13 @@ class RalfGateway:
                 continue
             try:
                 chunk = sess.sock.recv(4096)
-            except BlockingIOError, OSError:
+            except BlockingIOError:
+                continue
+            except OSError as exc:
+                # ECONNRESET and the like: the peer is gone. Treating it as
+                # "no data yet" left the session to linger until idle timeout.
+                log.info("recv failed fd=%d: %s", sess.sock.fileno(), exc)
+                self._disconnect(sess, reason="peer_reset")
                 continue
             if not chunk:
                 self._disconnect(sess, reason="peer_closed")
@@ -254,11 +261,33 @@ class RalfGateway:
                 return
             idx = sess.in_buffer.find(b"\n")
             if idx < 0:
+                # No newline yet: a buffer already at the limit can only
+                # become an oversized line, so refuse it now rather than
+                # buffer without bound.
+                if len(sess.in_buffer) >= _MAX_LINE_BYTES:
+                    self._reject_oversized_line(sess)
+                    continue
                 return
             raw = bytes(sess.in_buffer[:idx])
             del sess.in_buffer[: idx + 1]
+            if len(raw) + 1 > _MAX_LINE_BYTES:
+                self._reject_oversized_line(sess)
+                continue
             line = raw.decode("utf-8", errors="replace")
             self._handle_client_line(sess, line)
+
+    def _reject_oversized_line(self, sess: ClientSession) -> None:
+        log.warning(
+            "dropping client fd=%d: inbound line exceeds %d bytes",
+            sess.sock.fileno(),
+            _MAX_LINE_BYTES,
+        )
+        self._queue_line(
+            sess,
+            "ERR",
+            {"CODE": "BAD_MESSAGE", "DETAIL": f"line exceeds {_MAX_LINE_BYTES} bytes"},
+        )
+        self._close_after_flush(sess)
 
     def _flush_client_writes(self) -> None:
         now = time.monotonic()
