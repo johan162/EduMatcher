@@ -24,6 +24,7 @@ from edumatcher.alf_gwy.config import AlfGatewayConfig
 from edumatcher.alf_gwy.gateway import (
     _CLOSE_GRACE_SEC,
     _PROBE_ID_PREFIX,
+    _SUB_RCVHWM,
     AlfGateway,
     ClientSession,
 )
@@ -70,7 +71,7 @@ def _make_gateway(monkeypatch: pytest.MonkeyPatch, **cfg_overrides: Any) -> AlfG
     fake_sub = _FakeSub()
     monkeypatch.setattr("edumatcher.alf_gwy.gateway.make_pusher", lambda _: fake_push)
     monkeypatch.setattr(
-        "edumatcher.alf_gwy.gateway.make_subscriber", lambda _addr, *_t: fake_sub
+        "edumatcher.alf_gwy.gateway.make_subscriber", lambda _addr, *_t, **_kw: fake_sub
     )
     cfg = AlfGatewayConfig(
         bind_address="127.0.0.1",
@@ -648,3 +649,142 @@ class TestSlowClientOverflow:
         ]
         assert gw._global_stats["slow_client_disconnects"] == 1
         peer.close()
+
+
+# ===========================================================================
+# Lost engine events (review 2026-11-05 H2)
+# ===========================================================================
+
+
+def _seq_sub(*events: tuple[str, int]) -> _QueueSub:
+    """A SUB stub whose messages carry the publisher's per-topic sequence."""
+    sub = _QueueSub()
+    sub.queue = [
+        [topic.encode(), json.dumps({"order_id": f"o{seq}"}).encode(), b"%d" % seq]
+        for topic, seq in events
+    ]
+    return sub
+
+
+def _lines(session: ClientSession) -> list[tuple[str, dict[str, str]]]:
+    frames = [parse_alf_line(raw.decode()) for raw in session.out_queue]
+    return [(f.command, f.fields) for f in frames]
+
+
+class TestEventGapDetection:
+    def test_gap_is_reported_before_the_event_that_revealed_it(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        gw = _make_gateway(monkeypatch)
+        session, peer = _authed_session(gw)
+        gw._sub = _seq_sub(
+            ("order.cancelled.TRADER01", 7),
+            ("order.cancelled.TRADER01", 8),
+            ("order.cancelled.TRADER01", 11),
+        )
+
+        gw._poll_engine_events()
+
+        lines = _lines(session)
+        assert [cmd for cmd, _ in lines] == [
+            "CANCELLED",
+            "CANCELLED",
+            "ERR",
+            "CANCELLED",
+        ]
+        assert lines[2][1]["CODE"] == "EVENTS_LOST"
+        assert lines[2][1]["TOPIC"] == "ORDER.CANCELLED"
+        assert lines[2][1]["COUNT"] == "2"
+        assert "TAG" not in lines[2][1]
+        assert gw._global_stats["events_lost"] == 2
+        assert session.errors == 0  # not counted against the client
+        peer.close()
+
+    def test_topics_are_counted_separately(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        gw = _make_gateway(monkeypatch)
+        session, peer = _authed_session(gw)
+        gw._sub = _seq_sub(
+            ("order.cancelled.TRADER01", 1),
+            ("order.expired.TRADER01", 40),
+            ("order.cancelled.OTHER", 5),
+            ("order.cancelled.TRADER01", 2),
+        )
+
+        gw._poll_engine_events()
+
+        assert gw._global_stats["events_lost"] == 0
+        assert "ERR" not in [cmd for cmd, _ in _lines(session)]
+        peer.close()
+
+    def test_gap_while_logged_off_is_counted_but_not_misreported(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        gw = _make_gateway(monkeypatch)
+        gw._sub = _seq_sub(
+            ("order.cancelled.TRADER01", 1),
+            ("order.cancelled.TRADER01", 2),
+        )
+        gw._poll_engine_events()  # no session yet: tracked anyway
+        session, peer = _authed_session(gw)
+        gw._sub = _seq_sub(("order.cancelled.TRADER01", 3))
+
+        gw._poll_engine_events()
+
+        assert [cmd for cmd, _ in _lines(session)] == ["CANCELLED"]
+        peer.close()
+
+    def test_lower_sequence_is_an_engine_restart_not_a_gap(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        gw = _make_gateway(monkeypatch)
+        session, peer = _authed_session(gw)
+        gw._sub = _seq_sub(
+            ("order.cancelled.TRADER01", 50),
+            ("order.cancelled.TRADER01", 1),
+            ("order.cancelled.TRADER01", 2),
+        )
+
+        gw._poll_engine_events()
+
+        assert gw._global_stats["events_lost"] == 0
+        peer.close()
+
+    def test_restart_broadcast_resets_the_counters(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        gw = _make_gateway(monkeypatch)
+        gw._topic_seq["order.cancelled.TRADER01"] = 3
+
+        gw._handle_engine_restart()
+
+        assert gw._topic_seq == {}
+
+    def test_public_topics_are_not_sequence_checked(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        gw = _make_gateway(monkeypatch)
+        gw._sub = _seq_sub(("trade.executed", 1), ("trade.executed", 9))
+
+        gw._poll_engine_events()
+
+        assert gw._global_stats["events_lost"] == 0
+        assert gw._topic_seq == {}
+
+
+def test_both_subscribers_get_a_raised_receive_hwm(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seen: list[int | None] = []
+
+    def _record(_addr: str, *_topics: str, rcvhwm: int | None = None) -> _FakeSub:
+        seen.append(rcvhwm)
+        return _FakeSub()
+
+    monkeypatch.setattr("edumatcher.alf_gwy.gateway.make_pusher", lambda _: _FakePush())
+    monkeypatch.setattr("edumatcher.alf_gwy.gateway.make_subscriber", _record)
+    AlfGateway(AlfGatewayConfig(bind_address="127.0.0.1", port=5565))
+
+    assert seen == [_SUB_RCVHWM, _SUB_RCVHWM]
+    assert _SUB_RCVHWM > 1000  # ZMQ's default, which this exists to raise

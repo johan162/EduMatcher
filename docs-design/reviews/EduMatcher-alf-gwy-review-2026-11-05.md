@@ -55,7 +55,7 @@ None of these is produced by today's engine as far as I can see, so this is a ro
 
 **Fix:** wrap the per-event dispatch (everything after `decode`) in `try/except Exception: log.exception(...); continue`, same as the drop-copy loop needs. In `build_line`, replace `|` in *values* with a placeholder rather than raising. Raising is right for keys we write ourselves, wrong for engine text being relayed. Add one regression test per row of the table.
 
-### H2. Silent loss of private events at the SUB high-water mark
+### H2. Silent loss of private events at the SUB high-water mark **fixed** (RCVHWM 200k on both SUBs; per-topic gap → `ERR|CODE=EVENTS_LOST`, `gwy.events_lost`)
 
 The fix for the subscribe-race (gateway.py:296–302) subscribes to **every gateway-scoped prefix for every gateway**: `order.ack.`, `order.fill.`, `order.cancelled.`, ... So this SUB socket carries the private order stream of the *whole exchange* (REST, BALF, mm-bot, AI traders), not just ALF's sessions. On top of that come `trade.executed` and the rest.
 

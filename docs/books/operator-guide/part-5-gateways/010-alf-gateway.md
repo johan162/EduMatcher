@@ -795,6 +795,7 @@ When the rejected command carried `TAG` or `RTAG`, the gateway also echoes it as
 | `IDLE_TIMEOUT` | No inbound traffic for `idle_timeout_sec` | No |
 | `MAX_ERRORS` | Too many errors in the sliding error window | No |
 | `SESSION_LOST` | The engine no longer holds the session: it restarted, or it expired the session. The gateway closes every session when it sees the engine's startup broadcast, and every 5 seconds asks the engine which participants it holds and closes the ones it no longer does. Log on again (after an engine restart the engine's positions start flat) | No |
+| `EVENTS_LOST` | The engine's event stream dropped events meant for this session (the gateway fell behind and the bus discarded them). Unsolicited and untagged; `TOPIC` names the event family (e.g. `ORDER.FILL`) and `COUNT` how many were missed. Reconcile with `ORDERS`. Counted in `gwy.events_lost` | Yes |
 | `ENGINE_UNAVAILABLE` | Command could not be forwarded to the engine (engine unreachable); retry shortly | Yes |
 | `INTERNAL_ERROR` | Unexpected gateway-internal exception | Yes |
 

@@ -88,7 +88,7 @@ def gateway(monkeypatch: pytest.MonkeyPatch) -> AlfGateway:
     )
     monkeypatch.setattr(
         "edumatcher.alf_gwy.gateway.make_subscriber",
-        lambda _addr, *_topics: fake_sub,
+        lambda _addr, *_topics, **_kw: fake_sub,
     )
 
     cfg = AlfGatewayConfig(
@@ -187,7 +187,7 @@ def test_startup_subscribes_every_gateway_scoped_reply_by_prefix(
     # the engine's reply; every reply family must be covered from startup.
     topics: list[str] = []
 
-    def _capture(_addr: str, *subscribed: str) -> _FakeSub:
+    def _capture(_addr: str, *subscribed: str, **_kw: object) -> _FakeSub:
         topics.extend(subscribed)
         return _FakeSub()
 

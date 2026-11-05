@@ -91,7 +91,7 @@ def gateway(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch) -> 
     sub = _FakeSub()
     subscribed: list[str] = []
 
-    def _record(_addr: str, *topics: str) -> _FakeSub:
+    def _record(_addr: str, *topics: str, **_kw: object) -> _FakeSub:
         subscribed.extend(topics)
         return sub
 

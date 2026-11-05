@@ -39,6 +39,7 @@ from edumatcher.messaging.reject_report import RejectReporter
 from edumatcher.models.combo import ComboLeg, ComboOrder, ComboType
 from edumatcher.models.message import (
     decode,
+    decode_sequence,
     make_combo_cancel_msg,
     make_combo_order_msg,
     make_gateway_connect_msg,
@@ -153,6 +154,32 @@ _ENGINE_HEARTBEAT_SEC = 5
 #: missed, an expiry). The reply topic carries the probe's id.
 _SESSION_PROBE_SEC = 5.0
 _PROBE_ID_PREFIX = "ALF-PROBE-"
+#: Receive high-water mark of both SUB sockets. Past it the engine's PUB
+#: drops for this subscriber without a trace, and the main socket carries
+#: every gateway's private events, not only this one's: ZMQ's default of
+#: 1000 is gone in a fraction of a second when the loop stalls.
+_SUB_RCVHWM = 200_000
+#: Event families that change a session's order state, each topic scoped to
+#: one gateway (``<prefix><GW>``). A sequence gap on one of these is a lost
+#: fill, ack or cancel, and the session is told (see _check_sequence).
+_PRIVATE_EVENT_PREFIXES = (
+    PREFIX_ORDER_ACK,
+    PREFIX_ORDER_FILL,
+    PREFIX_ORDER_AMENDED,
+    PREFIX_ORDER_TRIGGERED,
+    PREFIX_ORDER_CANCELLED,
+    PREFIX_ORDER_EXPIRED,
+    PREFIX_QUOTE_ACK,
+    PREFIX_QUOTE_CANCEL_ACK,
+    PREFIX_QUOTE_STATUS,
+    PREFIX_COMBO_ACK,
+    PREFIX_COMBO_CANCEL_ACK,
+    PREFIX_COMBO_STATUS,
+    PREFIX_OCO_ACK,
+    PREFIX_OCO_CANCEL_ACK,
+    PREFIX_OCO_CANCELLED,
+    PREFIX_KILL_SWITCH_ACK,
+)
 _MAX_ENGINE_EVENTS_PER_LOOP = 1000
 _MAX_DC_EVENTS_PER_LOOP = 1000
 #: Longest the event loop sleeps when nothing is pending; housekeeping
@@ -307,23 +334,8 @@ class AlfGateway:
             # (AUTH_TIMEOUT, SYMBOLS_NOT_READY). Events for gateways with no
             # session here are discarded in the routing below.
             PREFIX_GATEWAY_AUTH,
-            PREFIX_ORDER_ACK,
-            PREFIX_ORDER_FILL,
-            PREFIX_ORDER_AMENDED,
-            PREFIX_ORDER_TRIGGERED,
-            PREFIX_ORDER_CANCELLED,
-            PREFIX_ORDER_EXPIRED,
+            *_PRIVATE_EVENT_PREFIXES,
             PREFIX_ORDERS,
-            PREFIX_QUOTE_ACK,
-            PREFIX_QUOTE_CANCEL_ACK,
-            PREFIX_QUOTE_STATUS,
-            PREFIX_COMBO_ACK,
-            PREFIX_COMBO_CANCEL_ACK,
-            PREFIX_COMBO_STATUS,
-            PREFIX_OCO_ACK,
-            PREFIX_OCO_CANCEL_ACK,
-            PREFIX_OCO_CANCELLED,
-            PREFIX_KILL_SWITCH_ACK,
             PREFIX_SYMBOLS,
             PREFIX_QUOTE_BOOTSTRAP,
             PREFIX_QUOTE_LEGS,
@@ -331,13 +343,20 @@ class AlfGateway:
             PREFIX_POSITION_SNAPSHOT,
             TOPIC_STARTUP_RECOVERY,
             PREFIX_GATEWAYS + _PROBE_ID_PREFIX,
+            rcvhwm=_SUB_RCVHWM,
         )
+        #: Last per-topic sequence seen on each private event topic (see
+        #: _check_sequence). Tracked for every gateway, connected here or
+        #: not, so a session that logs on later is not told of a false gap.
+        self._topic_seq: dict[str, int] = {}
         # Separate SUB socket for the engine's drop-copy feed (:5557). Kept
         # distinct from self._sub (:5556) because it is a different ZMQ PUB
         # address entirely -- see edumatcher.engine.drop_copy. No topics are
         # subscribed here at startup; DC|ON subscribes this session's own
         # drop_copy.event.<GW_ID> topic on demand (see _dc_subscribe_topic).
-        self._dc_sub: zmq.Socket[bytes] = make_subscriber(config.drop_copy_pub_addr)
+        self._dc_sub: zmq.Socket[bytes] = make_subscriber(
+            config.drop_copy_pub_addr, rcvhwm=_SUB_RCVHWM
+        )
         # Sessions with queued output. Flushing only these keeps the loop
         # O(active) instead of O(connected).
         self._dirty: set[int] = set()
@@ -360,6 +379,7 @@ class AlfGateway:
             "disconnects_total": 0,
             "slow_client_disconnects": 0,
             "auth_failures": 0,
+            "events_lost": 0,
         }
         # Health beacon (operator dashboard §8.5); attached by main().
         self._reporter: HealthReporter | None = None
@@ -1370,7 +1390,8 @@ class AlfGateway:
         budget = _MAX_ENGINE_EVENTS_PER_LOOP
         while budget > 0 and self._sub.poll(timeout=0):
             try:
-                topic, payload = decode(self._sub.recv_multipart())
+                frames = self._sub.recv_multipart()
+                topic, payload = decode(frames)
             except zmq.ZMQError as exc:
                 if exc.errno != errno.EINTR:
                     log.warning(
@@ -1379,6 +1400,8 @@ class AlfGateway:
                     )
                 break
             except Exception:
+                # Not sequence-checked: the next event on its topic reports
+                # it as lost, which to the client it is.
                 log.warning("decode error on engine SUB event", exc_info=True)
                 budget -= 1
                 continue
@@ -1388,9 +1411,49 @@ class AlfGateway:
             # One malformed event must not take every session down with it
             # (the loop has no other guard): log it, drop it, carry on.
             try:
+                self._check_sequence(topic, frames)
                 self._handle_engine_event(topic, payload)
             except Exception:
                 log.exception("ALF gateway dropped unhandled engine event %s", topic)
+
+    def _check_sequence(self, topic: str, frames: list[bytes]) -> None:
+        """Tell a session when the engine's events for it were dropped.
+
+        The engine numbers each topic (``SequencedPublisher``), and this
+        socket subscribes to every private family whole, so a jump means the
+        PUB dropped events at the high-water mark: fills, acks or cancels
+        the client will never see. The ERR comes before the event that
+        revealed the gap, untagged like the other unsolicited ERRs, and
+        tells the client to reconcile with ``ORDERS``.
+        """
+        if not topic.startswith(_PRIVATE_EVENT_PREFIXES):
+            return
+        seq = decode_sequence(frames)
+        if seq is None:
+            return
+        last = self._topic_seq.get(topic)
+        self._topic_seq[topic] = seq
+        # First sight of the topic, or a lower number: the engine restarted.
+        if last is None or seq <= last + 1:
+            return
+        missed = seq - last - 1
+        self._global_stats["events_lost"] += missed
+        family, _, gateway_id = topic.rpartition(".")
+        log.warning("engine dropped %d event(s) on %s", missed, topic)
+        session = self._session_for_gateway(gateway_id.upper())
+        if session is None:
+            return
+        self._queue_line(
+            session,
+            "ERR",
+            {
+                "CODE": "EVENTS_LOST",
+                "TOPIC": family,
+                "COUNT": str(missed),
+                "DETAIL": "Exchange events for this session were lost - "
+                "reconcile with ORDERS",
+            },
+        )
 
     def _handle_engine_event(self, topic: str, payload: dict[str, Any]) -> None:
         if topic.startswith(PREFIX_GATEWAY_AUTH):
@@ -2081,6 +2144,8 @@ class AlfGateway:
         self._symbols_reply = None
         self._symbols_snapshot_loaded = False
         self._known_symbols = set()
+        # Its topic counters restarted at 1.
+        self._topic_seq.clear()
         for session in lost:
             self._drop_lost_session(session, "The exchange engine restarted")
 

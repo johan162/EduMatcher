@@ -64,7 +64,8 @@ def gateway(monkeypatch: pytest.MonkeyPatch) -> AlfGateway:
         "edumatcher.alf_gwy.gateway.make_pusher", lambda _addr: _FakePush()
     )
     monkeypatch.setattr(
-        "edumatcher.alf_gwy.gateway.make_subscriber", lambda _addr, *_t: _FakeSub()
+        "edumatcher.alf_gwy.gateway.make_subscriber",
+        lambda _addr, *_t, **_kw: _FakeSub(),
     )
     gw = AlfGateway(
         AlfGatewayConfig(
