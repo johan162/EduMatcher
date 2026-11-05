@@ -7734,6 +7734,10 @@ project's suspected-bugs report.</p>
 <td><code>\n</code></td>
 </tr>
 <tr>
+<td>Max line length</td>
+<td>4096 bytes including newline</td>
+</tr>
+<tr>
 <td>Version token</td>
 <td><code>RALF1</code></td>
 </tr>
@@ -7750,7 +7754,9 @@ project's suspected-bugs report.</p>
 <p>A session proceeds: <strong>connect → <code>HELLO</code> → <code>WELCOME</code> → one or more <code>SUB</code>/<code>UNSUB</code> →
 event stream + heartbeats → <code>EXIT</code>/disconnect</strong>. A client MUST send <code>HELLO</code> before
 any other message; a non-<code>HELLO</code> first message is rejected with
-<code>ERR|CODE=AUTH_REQUIRED</code>.</p>
+<code>ERR|CODE=AUTH_REQUIRED</code>. A connection that sends no <code>HELLO</code> within 5 seconds
+receives <code>EXIT|REASON=auth_timeout</code> and is closed. Once the gateway has sent
+the line that ends a session, it ignores anything more the client sends.</p>
 <h2 id="4-wire-format">4. Wire format<a class="headerlink" href="#4-wire-format" title="Permanent link">&para;</a></h2>
 <p>Every message is one line:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>MSGTYPE|KEY=VALUE|KEY=VALUE|...\n
@@ -7846,8 +7852,8 @@ any other message; a non-<code>HELLO</code> first message is rejected with
 </tr>
 <tr>
 <td><code>EXIT</code></td>
-<td>gw → client</td>
-<td>session terminated (e.g. idle timeout)</td>
+<td>both</td>
+<td>from the gateway: session terminated, with <code>REASON</code> (e.g. <code>idle_timeout</code>); from the client: close after flushing</td>
 </tr>
 <tr>
 <td><code>ERR</code></td>
@@ -8039,9 +8045,11 @@ each copy consuming its own <code>SEQ</code> (§8).</p>
 <p><code>EOD</code> is emitted once per symbol on all three channels:
 <code>CLEARING</code>, <code>DROP_COPY</code>, and <code>AUDIT</code>.</p>
 <h3 id="hb-pingpong-exit"><code>HB</code>, <code>PING</code>/<code>PONG</code>, <code>EXIT</code><a class="headerlink" href="#hb-pingpong-exit" title="Permanent link">&para;</a></h3>
-<p><code>HB|TS=…</code> is sent to authenticated clients when the stream is otherwise quiet
-(cadence <code>HBINT</code>). A client MAY send <code>PING</code>; the gateway replies <code>PONG|TS=…</code>.
-<code>EXIT|REASON=…|TS=…</code> signals gateway-initiated termination (e.g. <code>idle_timeout</code>).</p>
+<p><code>HB|TS=…</code> is sent to every authenticated client every <code>HBINT</code> seconds. A client
+MAY send <code>PING</code>; the gateway replies <code>PONG|TS=…</code>. <code>EXIT|REASON=…|TS=…</code> signals
+gateway-initiated termination (<code>idle_timeout</code>, <code>auth_timeout</code>). A client MAY send
+a bare <code>EXIT</code> to end its session; the gateway closes after flushing — as
+<code>pm-md-gwy</code> and <code>pm-dc-gwy</code> do.</p>
 <h2 id="7-roles-entitlements">7. Roles &amp; entitlements<a class="headerlink" href="#7-roles-entitlements" title="Permanent link">&para;</a></h2>
 <p>Roles and channels share the same three names. Entitlement rules:</p>
 <table>
@@ -8083,7 +8091,9 @@ threshold to each entitled channel independently and replays events where
 <p><strong>Replay.</strong> If <code>HELLO</code> carries <code>LASTSEQ</code>, the gateway attempts to resend journalled
 events with <code>SEQ &gt; LASTSEQ</code> (per channel, as above) and only for channels the role
 is entitled to receive (§7). If <code>LASTSEQ</code> predates the retained journal window for
-any entitled channel (<code>replay_retention_sec</code>), the gateway emits
+any entitled channel (<code>replay_retention_sec</code>) — including a channel whose
+journal has aged out entirely — or is ahead of any entitled channel, as after a
+gateway restart, the gateway emits
 <code>ERR|CODE=REPLAY_MISS</code> followed by a <code>SNAP</code> baseline; the client MUST reset to that
 baseline.</p>
 <div class="admonition warning">
@@ -8120,9 +8130,12 @@ subscriptions.</p>
 </tr>
 </tbody>
 </table>
-<p>The gateway sends <code>HB</code> when no other line has been sent within the heartbeat
-interval. A session with no inbound activity for the idle timeout is dropped
-(<code>EXIT|REASON=idle_timeout</code>). A client whose outbound queue exceeds
+<p>The gateway sends <code>HB</code> to every authenticated client every heartbeat interval,
+whether or not other lines were sent in between. The idle timeout counts traffic
+in <strong>both</strong> directions — a line received, or a line the client actually took
+off the socket — so a client that keeps reading is never idle: the heartbeats
+alone keep it alive. In practice the idle timeout fires only when writes to a
+client have stopped succeeding; it then sends <code>EXIT|REASON=idle_timeout</code>. A client whose outbound queue exceeds
 <code>max_client_queue</code> receives <code>ERR|CODE=SLOW_CLIENT</code> and is disconnected.</p>
 <h2 id="10-error-codes">10. Error codes<a class="headerlink" href="#10-error-codes" title="Permanent link">&para;</a></h2>
 <table>
@@ -8139,7 +8152,7 @@ interval. A session with no inbound activity for the idle timeout is dropped
 </tr>
 <tr>
 <td><code>BAD_MESSAGE</code></td>
-<td>unparseable line, unsupported message type, or malformed field (e.g. non-integer <code>LASTSEQ</code>)</td>
+<td>unparseable line, unsupported message type, or malformed field (e.g. non-integer <code>LASTSEQ</code>); an oversized line (<code>DETAIL=line exceeds 4096 bytes</code>) also ends the session</td>
 </tr>
 <tr>
 <td><code>INVALID_CHANNEL</code></td>
@@ -8151,7 +8164,7 @@ interval. A session with no inbound activity for the idle timeout is dropped
 </tr>
 <tr>
 <td><code>REPLAY_MISS</code></td>
-<td>requested <code>LASTSEQ</code> is older than the retained journal window</td>
+<td>requested <code>LASTSEQ</code> is older than the retained journal window, or ahead of the channel (e.g. after a gateway restart)</td>
 </tr>
 <tr>
 <td><code>SLOW_CLIENT</code></td>
@@ -8202,7 +8215,12 @@ interval. A session with no inbound activity for the idle timeout is dropped
 <tr>
 <td><code>idle_timeout_sec</code></td>
 <td><code>5</code></td>
-<td>inbound-idle disconnect</td>
+<td>disconnect after this long with no traffic in either direction</td>
+</tr>
+<tr>
+<td><code>max_connections</code></td>
+<td><code>64</code></td>
+<td>simultaneous TCP connections; one beyond this is accepted and closed at once</td>
 </tr>
 <tr>
 <td><code>max_client_queue</code></td>

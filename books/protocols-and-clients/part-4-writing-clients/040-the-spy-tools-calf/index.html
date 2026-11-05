@@ -7572,8 +7572,8 @@
 <li>How to run several instances at once against the same gateway to
   watch different channels on separate terminals</li>
 <li>How <code>--resume</code> and <code>--count</code> work</li>
-<li>How <code>--ping-interval</code> keeps an otherwise-silent session alive past the
-  gateway's idle timeout</li>
+<li>Why a listen-only session needs no keepalive, and what <code>--ping-interval</code>
+  is still for</li>
 <li>How connection and protocol errors are reported</li>
 </ul>
 </div>
@@ -7748,7 +7748,7 @@ distinct), the symbol, the sequence number, and the remaining fields as
 <a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>10:20:00.010  CB       CB       AAPL       #5      CORRHI=180.12 CORRLO=120.08 EXP=1 IMB=BUY INDICPX=182.00 INDICQTY=500 LEVEL=L2 REFPX=150.10 RESUMEAT=2026-07-20T10:25:00.000Z SRC=CB STATUS=HALTED TRIGGERPX=148.20
 </code></pre></div>
 <p>Session-level messages that carry no channel/symbol of their own (<code>WELCOME</code>,
-<code>HB</code>, <code>PONG</code>) are rendered without the channel/symbol/sequence columns.
+<code>HB</code>, <code>PONG</code>, <code>EXIT</code>) are rendered without the channel/symbol/sequence columns.
 <code>ERR</code> lines highlight the <code>CODE</code> field:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>10:02:21.010  ERR      INVALID_SYMBOL SYM=*
 </code></pre></div>
@@ -7797,16 +7797,23 @@ same gateway — <code>pm-md-gwy</code> fans out independently per session.</p>
 <li>If the initial TCP connect fails (gateway not running, wrong host/port),
   <code>pm-calf-spy</code> prints <code>pm-calf-spy: could not connect to HOST:PORT: ...</code>
   and exits <code>1</code> — no retry loop.</li>
-<li>If the gateway rejects the handshake itself (<code>ERR|CODE=PROTO_MISMATCH</code>),
-  the client currently does not catch this case cleanly: it surfaces as an
-  unhandled Python traceback rather than a <code>pm-calf-spy: ...</code> message, though
-  the process does still exit non-zero.</li>
+<li>If the gateway rejects the handshake itself (<code>ERR|CODE=AUTH_REQUIRED</code> in
+  reply to <code>HELLO</code> — e.g. a <code>--client-name</code> over 32 characters), the spy
+  prints <code>pm-calf-spy: gateway rejected HELLO: AUTH_REQUIRED ...</code> and exits
+  <code>1</code>.</li>
+<li>If the connection closes before any reply to <code>HELLO</code>, the spy reports
+  <code>connection closed before WELCOME (is the gateway at max_connections?)</code> —
+  a gateway at <code>market_data_gateway.max_connections</code> accepts a connection and
+  closes it without a line.</li>
 <li>Once connected, any <code>ERR</code> the gateway sends in response to <code>SUB</code> (bad
   channel, bad symbol, wildcard misuse, subscription limit) is printed like
   any other line — the session stays open so you can see the rejection
   and keep watching whatever subscriptions <em>did</em> succeed.</li>
-<li>Ctrl-C (or reaching <code>--count</code>) closes the connection cleanly and prints
-  <code>pm-calf-spy: connection closed.</code></li>
+<li>If the gateway ends the session (<code>EXIT|REASON=idle_timeout</code>, after writes
+  to the spy stopped succeeding; or <code>ERR|CODE=SLOW_CLIENT</code>), the line is
+  printed and the spy exits once the gateway closes the socket.</li>
+<li>Ctrl-C (or reaching <code>--count</code>) ends the session with <code>EXIT</code> — the gateway
+  flushes and closes — and prints <code>pm-calf-spy: connection closed.</code></li>
 </ul>
 <h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <p><strong>In this book:</strong></p>

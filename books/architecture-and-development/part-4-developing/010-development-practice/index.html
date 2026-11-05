@@ -5085,6 +5085,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#client-libraries-alf_client-and-calf_client" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Client libraries: alf_client and calf_client
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#good-first-files-to-read" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -8064,6 +8075,11 @@ for <code>scripts/docs-contctl.sh</code>.</p>
 <td>Feed and post-trade consumers</td>
 </tr>
 <tr>
+<td><code>src/edumatcher/alf_client/</code>, <code>calf_client/</code></td>
+<td>In-process client libraries for ALF order entry and the CALF market-data feed</td>
+<td>Writing a tool or agent that talks to a gateway (see below)</td>
+</tr>
+<tr>
 <td><code>src/edumatcher/commands/</code></td>
 <td>Admin/console command clients and tooling</td>
 <td>Operator workflows and scripted control</td>
@@ -8135,6 +8151,46 @@ for <code>scripts/docs-contctl.sh</code>.</p>
 </tr>
 </tbody>
 </table>
+<h3 id="client-libraries-alf_client-and-calf_client">Client libraries: <code>alf_client</code> and <code>calf_client</code><a class="headerlink" href="#client-libraries-alf_client-and-calf_client" title="Permanent link">&para;</a></h3>
+<p>These two packages are libraries for code <em>inside this repository</em> that
+needs to talk to a gateway. They are not commands and have no entry point, so
+an end user never runs them.</p>
+<table>
+<thead>
+<tr>
+<th>Package</th>
+<th>Protocol</th>
+<th>Contents</th>
+<th>Used by</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>alf_client</code></td>
+<td>ALF order entry (<code>pm-alf-gwy</code>)</td>
+<td><code>protocol</code> builds and parses ALF lines; <code>connection</code> holds one non-blocking TCP session (<code>AlfConnection</code>)</td>
+<td><code>ai_trader/transport.py</code></td>
+</tr>
+<tr>
+<td><code>calf_client</code></td>
+<td>CALF market data (<code>pm-md-gwy</code>)</td>
+<td><code>CalfClient</code> for raw frames; optional cached <code>MarketState</code> (top of book, depth, phase, halts). Handles reconnect with backoff, per-<code>(channel, symbol)</code> gap detection, <code>RESUME</code> repair with de-duplication, and <code>REF=</code> tick precision</td>
+<td><code>calf_spy/client.py</code></td>
+</tr>
+</tbody>
+</table>
+<p>Two points that are easy to get wrong:</p>
+<ul>
+<li><code>calf_client</code> is the <em>production</em> CALF client. The CALF chapter of the
+  Operator Guide documents it for people writing subscribers. <code>alf_client</code> is
+  deliberately minimal and has no user-facing chapter.</li>
+<li><code>docs/examples/alf/python/alf_client.py</code> is <strong>not</strong> the <code>alf_client</code>
+  package. It is a standalone, interactive example client shipped for
+  protocol learners, and it shares nothing with the package. When changing
+  the ALF wire format, update both.</li>
+</ul>
+<p>Prefer these libraries over a hand-rolled socket loop when adding a new
+in-repo ALF or CALF consumer.</p>
 <h3 id="good-first-files-to-read">Good first files to read<a class="headerlink" href="#good-first-files-to-read" title="Permanent link">&para;</a></h3>
 <p>If you want to understand the runtime quickly, read:</p>
 <ol>

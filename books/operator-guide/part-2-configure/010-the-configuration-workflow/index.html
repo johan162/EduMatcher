@@ -8568,6 +8568,12 @@ instead. Run <code>pm-cverifier</code> on the file once you have filled them in.
 <td><code>post_trade_gateway.idle_timeout_sec</code></td>
 </tr>
 <tr>
+<td><code>--post-trade-max-connections</code></td>
+<td>int (<code>&gt; 0</code>)</td>
+<td><code>64</code></td>
+<td><code>post_trade_gateway.max_connections</code></td>
+</tr>
+<tr>
 <td><code>--post-trade-max-client-queue</code></td>
 <td>int (<code>&gt; 0</code>)</td>
 <td><code>10000</code></td>
@@ -8639,6 +8645,12 @@ instead. Run <code>pm-cverifier</code> on the file once you have filled them in.
 <td>int (<code>&gt; 0</code>)</td>
 <td><code>30</code></td>
 <td><code>market_data_gateway.replay_window_sec</code></td>
+</tr>
+<tr>
+<td><code>--market-data-max-connections</code></td>
+<td>int (<code>&gt; 0</code>)</td>
+<td><code>64</code></td>
+<td><code>market_data_gateway.max_connections</code></td>
 </tr>
 <tr>
 <td><code>--market-data-max-symbols-per-client</code></td>
@@ -8894,6 +8906,12 @@ instead. Run <code>pm-cverifier</code> on the file once you have filled them in.
 <td>int (<code>&gt; 0</code>)</td>
 <td><code>30</code></td>
 <td><code>dc_gateway.idle_timeout_sec</code></td>
+</tr>
+<tr>
+<td><code>--dc-max-connections</code></td>
+<td>int (<code>&gt; 0</code>)</td>
+<td><code>64</code></td>
+<td><code>dc_gateway.max_connections</code></td>
 </tr>
 <tr>
 <td><code>--dc-max-client-queue</code></td>
@@ -9796,10 +9814,11 @@ run the validation command.</p>
 <a id="__codelineno-24-5" name="__codelineno-24-5" href="#__codelineno-24-5"></a><span class="w">  </span><span class="nt">replay_retention_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">86400</span>
 <a id="__codelineno-24-6" name="__codelineno-24-6" href="#__codelineno-24-6"></a><span class="w">  </span><span class="nt">heartbeat_interval_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
 <a id="__codelineno-24-7" name="__codelineno-24-7" href="#__codelineno-24-7"></a><span class="w">  </span><span class="nt">idle_timeout_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
-<a id="__codelineno-24-8" name="__codelineno-24-8" href="#__codelineno-24-8"></a><span class="w">  </span><span class="nt">max_client_queue</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10000</span>
-<a id="__codelineno-24-9" name="__codelineno-24-9" href="#__codelineno-24-9"></a><span class="w">  </span><span class="nt">allowed_roles</span><span class="p">:</span>
-<a id="__codelineno-24-10" name="__codelineno-24-10" href="#__codelineno-24-10"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CLEARING</span>
-<a id="__codelineno-24-11" name="__codelineno-24-11" href="#__codelineno-24-11"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">AUDIT</span>
+<a id="__codelineno-24-8" name="__codelineno-24-8" href="#__codelineno-24-8"></a><span class="w">  </span><span class="nt">max_connections</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">64</span>
+<a id="__codelineno-24-9" name="__codelineno-24-9" href="#__codelineno-24-9"></a><span class="w">  </span><span class="nt">max_client_queue</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10000</span>
+<a id="__codelineno-24-10" name="__codelineno-24-10" href="#__codelineno-24-10"></a><span class="w">  </span><span class="nt">allowed_roles</span><span class="p">:</span>
+<a id="__codelineno-24-11" name="__codelineno-24-11" href="#__codelineno-24-11"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CLEARING</span>
+<a id="__codelineno-24-12" name="__codelineno-24-12" href="#__codelineno-24-12"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">AUDIT</span>
 </code></pre></div>
 <p>This is the quickest path when you want one command that prepares both:</p>
 <ul>

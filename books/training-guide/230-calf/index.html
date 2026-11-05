@@ -8062,18 +8062,18 @@ always require an explicit id/symbol — see the CALF protocol reference for
 details.</p>
 <p>Map observed ERR codes to operator action:</p>
 <ul>
-<li>AUTH_REQUIRED: client handshake bug or ordering error</li>
-<li>PROTO_MISMATCH: wrong protocol negotiation value</li>
+<li>AUTH_REQUIRED: client handshake bug or ordering error, or a HELLO with a
+  missing CLIENT or wrong PROTO</li>
 <li>INVALID_CHANNEL: unsupported CH value</li>
 <li>INVALID_SYMBOL: unknown symbol, or <code>SYM=*</code> used with <code>INDEX</code>/<code>DEPTH</code>/<code>CB</code></li>
 <li>REPLAY_MISS: requested resume point outside replay retention</li>
 <li>RATE_LIMITED: client is sending commands too fast; throttle it</li>
 <li>SUB_LIMIT: too many subscriptions on one session; subscribe more narrowly</li>
+<li>SLOW_CLIENT: the consumer could not keep up; its backlog was dropped and
+  the session closed — reconnect and use <code>RESUME</code> (Exercise 6)</li>
 </ul>
-<p>CALF has no <code>SLOW_CLIENT</code> error line. A consumer that cannot keep up with
-delivery is disconnected without any <code>ERR</code> being sent (the gateway logs
-<code>disconnecting slow client</code>), so the client only sees the connection drop —
-detect it by reconnecting and using <code>RESUME</code> (Exercise 6).</p>
+<p>A session the gateway ends for inactivity gets <code>EXIT|REASON=idle_timeout</code>
+before the socket closes.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: you can convert each ERR code into a practical remediation step.</p>
 <h2 id="support-libraries-and-example-clients">Support Libraries and Example Clients<a class="headerlink" href="#support-libraries-and-example-clients" title="Permanent link">&para;</a></h2>
 <p>Reference implementations used in this training chapter:</p>

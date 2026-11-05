@@ -8041,7 +8041,7 @@ of the chapter is detail.</p>
 </tr>
 <tr>
 <td>Idle timeout</td>
-<td>disconnect after <code>idle_timeout_sec</code> (default 5 s) with no traffic in either direction</td>
+<td><code>EXIT\|REASON=idle_timeout</code>, then disconnect, after <code>idle_timeout_sec</code> (default 5 s) with no traffic in either direction</td>
 </tr>
 <tr>
 <td>Replay window</td>
@@ -8164,7 +8164,7 @@ code.</strong></p>
 </tr>
 <tr>
 <td><code>PONG</code></td>
-<td>—</td>
+<td><code>TS</code></td>
 <td>Reply to <code>PING</code></td>
 </tr>
 <tr>
@@ -8352,7 +8352,7 @@ omitted. <code>pm-md-gwy</code> reads only this <code>market_data_gateway</code>
 <tr>
 <td><code>max_client_queue</code></td>
 <td><code>10000</code></td>
-<td>Outbound backlog limit; exceeding it silently disconnects the client (no <code>ERR</code> is guaranteed to arrive first)</td>
+<td>Outbound backlog limit; exceeding it drops the backlog, sends <code>ERR\|CODE=SLOW_CLIENT</code> and disconnects the client (within 5 s if it has stopped reading)</td>
 </tr>
 <tr>
 <td><code>max_connections</code></td>
@@ -9127,9 +9127,10 @@ subsequent <code>MD</code> into it.</p>
 <p>When the stream is quiet the gateway sends periodic heartbeats (<code>HB|TS=...</code>),
 which keep the session alive on their own — a listener never has to send
 anything to stay connected. You can still probe with <code>PING</code>; the gateway
-replies <code>PONG</code>. The connection is closed only when nothing has flowed in
+replies <code>PONG|TS=…</code>. The connection is closed only when nothing has flowed in
 <em>either</em> direction for <code>idle_timeout_sec</code> seconds, which in practice means
-writes to your client have stopped succeeding.</p>
+writes to your client have stopped succeeding; the gateway sends
+<code>EXIT|REASON=idle_timeout</code> first.</p>
 <h3 id="step-6-disconnect">Step 6 — Disconnect<a class="headerlink" href="#step-6-disconnect" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>EXIT
 </code></pre></div>
@@ -9235,13 +9236,12 @@ state to snapshot, so the missed events are gone for good. If you present
 sides over it; a record with an unmarked gap is worse than one that admits it.</p>
 <p>The session stays open either way, so your other <code>RESUME</code> requests are
 unaffected.</p>
-<p><strong>Recovery option 3 — nothing was ever recorded for the stream</strong></p>
-<p>If the gateway has never emitted anything for that exact <code>(CH, SYM)</code> pair (or
-the buffer has aged everything out), <code>RESUME</code> returns <strong>zero replay
-lines</strong> — no <code>ERR|CODE=REPLAY_MISS</code> and no fresh <code>SNAP</code> either. The session
-just resumes live from that point. Don't treat an empty replay as a failure;
-if you need a guaranteed baseline after reconnecting, re-<code>SUB</code> to the stream
-to force a <code>SNAP</code> rather than relying on <code>RESUME</code> alone.</p>
+<p><strong>Recovery option 3 — the gateway cannot place <code>LASTSEQ</code></strong></p>
+<p>If the buffer has aged out everything after <code>LASTSEQ</code>, or <code>LASTSEQ</code> is ahead
+of the stream — the gateway was restarted and numbers from 1 again, or has
+never emitted that <code>(CH, SYM)</code> — the answer is also <code>ERR|CODE=REPLAY_MISS</code>
+(with a <code>SNAP</code> on the snapshot-backed channels). Zero replay lines with no
+error mean only that you were already up to date.</p>
 <div class="admonition note">
 <p class="admonition-title"><code>RESUME</code> is per stream, and repeatable</p>
 <p>Each <code>RESUME</code> recovers one <code>(CH, SYM)</code> stream, because <code>LASTSEQ</code> describes
@@ -9513,13 +9513,9 @@ highlight the key CALF patterns.</p>
 <a id="__codelineno-32-104" name="__codelineno-32-104" href="#__codelineno-32-104"></a>            <span class="k">pass</span>  <span class="c1"># heartbeat — ignore or use for liveness tracking</span>
 <a id="__codelineno-32-105" name="__codelineno-32-105" href="#__codelineno-32-105"></a>
 <a id="__codelineno-32-106" name="__codelineno-32-106" href="#__codelineno-32-106"></a>        <span class="k">elif</span> <span class="n">msg</span><span class="o">.</span><span class="n">msg_type</span> <span class="o">==</span> <span class="s2">"ERR"</span><span class="p">:</span>
-<a id="__codelineno-32-107" name="__codelineno-32-107" href="#__codelineno-32-107"></a>            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"ERR </span><span class="si">{</span><span class="n">msg</span><span class="o">.</span><span class="n">fields</span><span class="p">[</span><span class="s1">'CODE'</span><span class="p">]</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">msg</span><span class="o">.</span><span class="n">fields</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'MSG'</span><span class="p">,</span><span class="s1">''</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+<a id="__codelineno-32-107" name="__codelineno-32-107" href="#__codelineno-32-107"></a>            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"ERR </span><span class="si">{</span><span class="n">msg</span><span class="o">.</span><span class="n">fields</span><span class="p">[</span><span class="s1">'CODE'</span><span class="p">]</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">msg</span><span class="o">.</span><span class="n">fields</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'DETAIL'</span><span class="p">,</span><span class="s1">''</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 <a id="__codelineno-32-108" name="__codelineno-32-108" href="#__codelineno-32-108"></a>            <span class="k">if</span> <span class="n">msg</span><span class="o">.</span><span class="n">fields</span><span class="p">[</span><span class="s2">"CODE"</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"SLOW_CLIENT"</span><span class="p">:</span>
 <a id="__codelineno-32-109" name="__codelineno-32-109" href="#__codelineno-32-109"></a>                <span class="k">break</span>  <span class="c1"># terminal — must reconnect</span>
-<a id="__codelineno-32-110" name="__codelineno-32-110" href="#__codelineno-32-110"></a>            <span class="c1"># Note: a slow-client disconnect is not guaranteed to send this</span>
-<a id="__codelineno-32-111" name="__codelineno-32-111" href="#__codelineno-32-111"></a>            <span class="c1"># ERR first — the gateway may just drop the queue and close the</span>
-<a id="__codelineno-32-112" name="__codelineno-32-112" href="#__codelineno-32-112"></a>            <span class="c1"># socket. `reader.recv_line()` returning empty/raising on a</span>
-<a id="__codelineno-32-113" name="__codelineno-32-113" href="#__codelineno-32-113"></a>            <span class="c1"># closed connection is the other signal to treat as terminal.</span>
 </code></pre></div>
 <h3 id="run-the-bundled-examples">Run the bundled examples<a class="headerlink" href="#run-the-bundled-examples" title="Permanent link">&para;</a></h3>
 <p><code>calf_subscriber.py</code> has no <code>--channels</code> flag — the channel set is fixed by
@@ -9614,13 +9610,8 @@ the same logic in two languages is often what makes it click.</p>
 <tbody>
 <tr>
 <td><code>AUTH_REQUIRED</code></td>
-<td><code>SUB</code> sent before <code>HELLO</code></td>
-<td>Send <code>HELLO</code> first</td>
-</tr>
-<tr>
-<td><code>PROTO_MISMATCH</code></td>
-<td>Wrong or missing <code>PROTO</code></td>
-<td>Use <code>PROTO=CALF1</code></td>
+<td><code>SUB</code> sent before <code>HELLO</code>, or <code>HELLO</code> with a missing <code>CLIENT</code> or wrong/missing <code>PROTO</code></td>
+<td>Send <code>HELLO\|CLIENT=…\|PROTO=CALF1</code> first</td>
 </tr>
 <tr>
 <td><code>INVALID_CHANNEL</code></td>
@@ -9650,7 +9641,7 @@ the same logic in two languages is often what makes it click.</p>
 <tr>
 <td><code>SLOW_CLIENT</code></td>
 <td>Client cannot drain the outbound stream fast enough</td>
-<td>Gateway closes the connection without necessarily sending this <code>ERR</code> first (queue is dropped, not flushed) — reconnect and process faster</td>
+<td>Backlog is dropped, this <code>ERR</code> is sent, then the connection is closed — reconnect and process faster</td>
 </tr>
 <tr>
 <td><code>BAD_MESSAGE</code></td>
@@ -9750,9 +9741,8 @@ patterns already shown:</p>
 <li><strong>Watch <code>SEQ</code></strong> — track it per <code>(CH, SYM)</code>; on a gap, reconnect and <code>RESUME</code>
    or re-<code>SUB</code> for a fresh <code>SNAP</code>.</li>
 <li><strong>Stay alive</strong> — treat <code>HB</code> as a liveness signal, answer nothing; treat
-   any unexpected disconnect on a busy stream as a possible slow-client
-   condition (an <code>ERR|CODE=SLOW_CLIENT</code> may or may not arrive first) and
-   reconnect while consuming faster.</li>
+   <code>ERR|CODE=SLOW_CLIENT</code> as a sign to reconnect and consume faster, and
+   <code>EXIT|REASON=…</code> as the gateway ending the session.</li>
 <li><strong>Degrade gracefully</strong> — if <code>CH_SUPPORTED</code> lacks <code>DEPTH</code>/<code>INDEX</code>/<code>AUCTION</code>/<code>CB</code>,
    fall back instead of subscribing blindly.</li>
 </ol>

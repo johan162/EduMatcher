@@ -7787,16 +7787,13 @@ new trades.</p>
 <li>UNSUB updates delivery set</li>
 </ul>
 <div class="admonition note">
-<p class="admonition-title"><code>EXIT</code> is documented as gateway-initiated</p>
-<p>The <a href="../../protocols-and-clients/part-2-specifications/040-ralf/#5-message-catalog">RALF Protocol Reference</a>
-lists <code>EXIT</code> as <strong>gateway → client</strong> only (e.g. on idle timeout,
-<code>EXIT|REASON=idle_timeout|TS=...</code>). The current gateway implementation
-additionally accepts a client-sent <code>EXIT</code> and simply closes the session
-after flushing pending output; this is not part of the documented wire
-protocol, so portable clients should end a session by closing the TCP
-connection (<code>Ctrl+D</code> / <code>Ctrl+C</code> in <code>nc</code>) rather than relying on it.</p>
+<p class="admonition-title"><code>EXIT</code> goes both ways</p>
+<p>The gateway sends <code>EXIT|REASON=…|TS=…</code> when it ends a session (e.g.
+<code>EXIT|REASON=idle_timeout</code>). A client may send a bare <code>EXIT</code> to end its
+own session; the gateway closes after flushing pending output. All three
+line gateways (<code>pm-md-gwy</code>, <code>pm-ralf-gwy</code>, <code>pm-dc-gwy</code>) behave the same.</p>
 </div>
-<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: you can manually drive and verify protocol control flow, and you can explain who is allowed to send <code>EXIT</code>.</p>
+<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: you can manually drive and verify protocol control flow, and you can explain what each side's <code>EXIT</code> means.</p>
 <h2 id="support-libraries-and-example-clients">Support Libraries and Example Clients<a class="headerlink" href="#support-libraries-and-example-clients" title="Permanent link">&para;</a></h2>
 <p>Reference implementations used in this training chapter:</p>
 <ul>

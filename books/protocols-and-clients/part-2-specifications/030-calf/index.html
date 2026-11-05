@@ -8218,7 +8218,11 @@ behavior.</p>
 <li>Gateway streams <code>SNAP</code>, <code>MD</code>, <code>TRADE</code>, <code>STATE</code>, <code>IDX</code>, <code>DEPTH</code>, <code>AUCTION</code>,
   <code>CB</code>, <code>HB</code>, and <code>ERR</code>.</li>
 </ul>
-<p>If no <code>HELLO</code> is received within 5 seconds, the gateway closes the socket.</p>
+<p>If no <code>HELLO</code> is received within 5 seconds, the gateway sends
+<code>EXIT|REASON=auth_timeout</code> and closes the socket. Once the gateway has sent
+the line that ends a session (<code>ERR|CODE=AUTH_REQUIRED</code>, for example), it
+ignores anything more the client sends — a <code>HELLO</code> pipelined behind a
+refused first line is not answered.</p>
 <h2 id="wire-format">Wire format<a class="headerlink" href="#wire-format" title="Permanent link">&para;</a></h2>
 <h3 id="line-structure">Line structure<a class="headerlink" href="#line-structure" title="Permanent link">&para;</a></h3>
 <p>Every CALF message is one line:</p>
@@ -8474,8 +8478,8 @@ burst per symbol on subscribe.</p>
 </tr>
 <tr>
 <td><code>EXIT</code></td>
-<td>Client -&gt; Gateway</td>
-<td>Clean disconnect</td>
+<td>Both</td>
+<td>Clean disconnect; from the gateway, carries <code>REASON</code></td>
 </tr>
 </tbody>
 </table>
@@ -8540,8 +8544,9 @@ burst per symbol on subscribe.</p>
 <h3 id="hello"><code>HELLO</code><a class="headerlink" href="#hello" title="Permanent link">&para;</a></h3>
 <p><strong>Direction:</strong> Client -&gt; Gateway</p>
 <p><strong>Purpose:</strong> Session handshake.</p>
-<p><strong>Response:</strong> <code>WELCOME</code> on successful handshake, or <code>ERR|CODE=PROTO_MISMATCH</code>
-(connection closed) if <code>CLIENT</code>/<code>PROTO</code> fail validation.</p>
+<p><strong>Response:</strong> <code>WELCOME</code> on successful handshake, or <code>ERR|CODE=AUTH_REQUIRED</code>
+(connection closed) if <code>CLIENT</code>/<code>PROTO</code> fail validation — the same code
+<code>pm-ralf-gwy</code> and <code>pm-dc-gwy</code> use.</p>
 <table>
 <thead>
 <tr>
@@ -8680,7 +8685,8 @@ possible <code>ERR|CODE=INVALID_CHANNEL</code>/<code>INVALID_SYMBOL</code> respo
 <p><strong>Purpose:</strong> Subscribe to one stream and replay what was missed since
 <code>LASTSEQ</code>, instead of starting from a <code>SNAP</code>.</p>
 <p><strong>Response:</strong> replayed events in sequence order, or <code>ERR|CODE=REPLAY_MISS</code>
-when the gap is wider than the replay window. On the snapshot-backed channels
+when the gap is wider than the replay window or <code>LASTSEQ</code> is ahead of the
+stream. On the snapshot-backed channels
 (<code>TOP</code>, <code>STATE</code>, <code>INDEX</code>, <code>DEPTH</code>, <code>CB</code>) a fresh <code>SNAP</code> follows that error; on
 <code>TRADE</code> and <code>AUCTION</code> it does not, because a past print has no current state to
 snapshot. See "Reconnect behavior" below.</p>
@@ -9808,8 +9814,24 @@ the third is the resume that follows the first halt (<code>STATUS=ACTIVE</code>,
 </code></pre></div>
 <h3 id="ping-pong"><code>PING</code> / <code>PONG</code><a class="headerlink" href="#ping-pong" title="Permanent link">&para;</a></h3>
 <p><code>PING</code> is client-initiated liveness check. <code>PONG</code> is immediate reply.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>TS</code></td>
+<td>Yes</td>
+<td>Gateway timestamp</td>
+</tr>
+</tbody>
+</table>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>PING
-<a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a>PONG
+<a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a>PONG|TS=2026-06-07T10:16:05.000Z
 </code></pre></div>
 <h3 id="err"><code>ERR</code><a class="headerlink" href="#err" title="Permanent link">&para;</a></h3>
 <p><strong>Direction:</strong> Gateway -&gt; Client</p>
@@ -9828,7 +9850,7 @@ the third is the resume that follows the first halt (<code>STATUS=ACTIVE</code>,
 <td>Machine-readable error code</td>
 </tr>
 <tr>
-<td><code>MSG</code></td>
+<td><code>DETAIL</code></td>
 <td>No</td>
 <td>Human-readable context</td>
 </tr>
@@ -9854,12 +9876,8 @@ the third is the resume that follows the first halt (<code>STATUS=ACTIVE</code>,
 </thead>
 <tbody>
 <tr>
-<td><code>PROTO_MISMATCH</code></td>
-<td><code>HELLO</code> missing <code>CLIENT</code> or <code>PROTO != CALF1</code></td>
-</tr>
-<tr>
 <td><code>AUTH_REQUIRED</code></td>
-<td>Non-<code>HELLO</code> message sent before successful handshake</td>
+<td>Non-<code>HELLO</code> message sent before successful handshake, or <code>HELLO</code> missing <code>CLIENT</code>, <code>CLIENT</code> over 32 chars, or <code>PROTO != CALF1</code></td>
 </tr>
 <tr>
 <td><code>INVALID_CHANNEL</code></td>
@@ -9875,7 +9893,7 @@ the third is the resume that follows the first halt (<code>STATUS=ACTIVE</code>,
 </tr>
 <tr>
 <td><code>REPLAY_MISS</code></td>
-<td><code>LASTSEQ</code> is older than the replay window; a <code>SNAP</code> follows on <code>TOP</code>/<code>STATE</code>/<code>INDEX</code>/<code>DEPTH</code>/<code>CB</code>, but not on <code>TRADE</code>/<code>AUCTION</code></td>
+<td>Events after <code>LASTSEQ</code> are no longer in the replay window, or <code>LASTSEQ</code> is ahead of the stream (e.g. after a gateway restart); a <code>SNAP</code> follows on <code>TOP</code>/<code>STATE</code>/<code>INDEX</code>/<code>DEPTH</code>/<code>CB</code>, but not on <code>TRADE</code>/<code>AUCTION</code></td>
 </tr>
 <tr>
 <td><code>SLOW_CLIENT</code></td>
@@ -9883,7 +9901,7 @@ the third is the resume that follows the first halt (<code>STATUS=ACTIVE</code>,
 </tr>
 <tr>
 <td><code>BAD_MESSAGE</code></td>
-<td>Parse failure, oversized line (&gt; 4096 bytes), or unsupported message type</td>
+<td>Parse failure, oversized line (over 4096 bytes including the newline), or unsupported message type</td>
 </tr>
 <tr>
 <td><code>RATE_LIMITED</code></td>
@@ -9896,18 +9914,48 @@ the third is the resume that follows the first halt (<code>STATUS=ACTIVE</code>,
 <li><code>AUTH_REQUIRED</code> is terminal: any non-<code>HELLO</code> message before a successful
   handshake gets this error and the connection is closed immediately.</li>
 <li><code>SLOW_CLIENT</code> is terminal for the current TCP session; gateway disconnects.</li>
-<li><code>BAD_MESSAGE</code> may be terminal when parsing cannot continue safely.</li>
+<li><code>BAD_MESSAGE</code> is terminal for an oversized line (<code>DETAIL=line exceeds 4096 bytes</code>),
+  the same in <code>pm-ralf-gwy</code> and <code>pm-dc-gwy</code>; for any other cause the session
+  stays open.</li>
 <li><code>RATE_LIMITED</code> is non-terminal; the offending message is dropped and the
   connection remains open. The client may retry once its send rate is back
   under <code>max_messages_per_second</code>.</li>
 </ul>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a>ERR|CODE=REPLAY_MISS|MSG=Requested sequence outside replay buffer|CH=TOP|SYM=AAPL
+<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a>ERR|CODE=REPLAY_MISS|DETAIL=Requested sequence outside replay buffer|CH=TOP|SYM=AAPL
 </code></pre></div>
 <h3 id="exit"><code>EXIT</code><a class="headerlink" href="#exit" title="Permanent link">&para;</a></h3>
-<p><strong>Direction:</strong> Client -&gt; Gateway</p>
-<p>Requests clean disconnect.</p>
+<p><strong>Direction:</strong> Both</p>
+<p>From the client, requests a clean disconnect. From the gateway, announces
+that the gateway is ending the session, and why.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>REASON</code></td>
+<td>Gateway only</td>
+<td>Why the session ends, e.g. <code>idle_timeout</code></td>
+</tr>
+<tr>
+<td><code>TS</code></td>
+<td>Gateway only</td>
+<td>Gateway timestamp</td>
+</tr>
+</tbody>
+</table>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a>EXIT
+<a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a>EXIT|REASON=idle_timeout|TS=2026-06-07T10:16:05.000Z
 </code></pre></div>
+<p>When the gateway ends a session — <code>EXIT</code>, <code>SLOW_CLIENT</code>, a refused <code>HELLO</code>,
+an oversized line — the final line is the last thing sent; the gateway then
+closes the socket once it has drained, or after at most 5 seconds if the
+client has stopped reading. This is the same close behaviour as
+<code>pm-ralf-gwy</code> and <code>pm-dc-gwy</code>.</p>
 <h2 id="sequence-and-recovery-semantics">Sequence and recovery semantics<a class="headerlink" href="#sequence-and-recovery-semantics" title="Permanent link">&para;</a></h2>
 <h3 id="stream-identity">Stream identity<a class="headerlink" href="#stream-identity" title="Permanent link">&para;</a></h3>
 <p>Sequence numbers are maintained per <code>(CH, SYM)</code> stream.</p>
@@ -9966,15 +10014,12 @@ it wants that it has no sequence position for.</p>
   recorded, and never let one lower your <code>last_seq</code>.</strong> Track which sequence
   ranges you are actually missing: that is the only thing distinguishing the
   backfill you asked for from a print you already have.</li>
-<li>If the stream has no retained replay history at all yet (nothing has been
-  emitted for that <code>(CH,SYM)</code> since the gateway started or the buffer last
-  pruned it), the gateway returns zero replay lines and does <strong>not</strong> send
-  <code>ERR|CODE=REPLAY_MISS</code> or a <code>SNAP</code> — the client resumes live from
-  whatever the next emitted event turns out to be. This differs from the
-  replay-miss case above and is easy to mistake for a silently dropped
-  resume; clients that need a guaranteed baseline after <code>RESUME</code> should
-  also send an explicit <code>SUB</code> for the same stream, which always triggers a
-  <code>SNAP</code> for <code>TOP</code>/<code>STATE</code>/<code>INDEX</code>/<code>DEPTH</code>/<code>CB</code> regardless of replay state.</li>
+<li>Zero replay lines and no error mean exactly one thing: <code>LASTSEQ</code> is the
+  stream's current sequence, so nothing was missed. Every other case the
+  gateway cannot serve is a <code>REPLAY_MISS</code> — including a stream whose
+  retained events have all aged out, and a <code>LASTSEQ</code> ahead of the stream
+  (or on a stream this gateway has never emitted), which is what a client
+  holding a position from before a gateway restart sends.</li>
 <li><code>SYM=*</code> is always invalid for <code>RESUME</code>, for every channel, even for
   <code>TOP</code>/<code>TRADE</code>/<code>STATE</code>/<code>AUCTION</code> where <code>SYM=*</code> is otherwise allowed on
   <code>SUB</code>. <code>RESUME</code> has no equivalent of <code>SUB</code>'s per-symbol snapshot burst,
@@ -10016,7 +10061,7 @@ it wants that it has no sequence position for.</p>
   line has been sent in that interval.</li>
 <li>Client may issue <code>PING</code> anytime; gateway must respond with <code>PONG</code>.</li>
 <li>If no inbound or outbound traffic occurs for <code>idle_timeout_sec</code>, gateway
-  closes the connection.</li>
+  sends <code>EXIT|REASON=idle_timeout</code> and closes the connection.</li>
 <li><code>HB</code>, <code>PING</code>, and <code>PONG</code> are liveness messages and do not participate in
   <code>(CH,SYM)</code> sequence counters.</li>
 </ul>
@@ -10036,7 +10081,7 @@ it wants that it has no sequence position for.</p>
 
     G--&gt;&gt;C: HB|TS=...
     C-&gt;&gt;G: PING
-    G--&gt;&gt;C: PONG
+    G--&gt;&gt;C: PONG|TS=...
 
     C-&gt;&gt;G: EXIT
     Note over G: Close TCP cleanly</code></pre>

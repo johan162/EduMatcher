@@ -8679,11 +8679,12 @@ same <code>engine_config.yaml</code> file used by the engine. This block is not 
 <a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">  </span><span class="nt">replay_retention_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">86400</span>
 <a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">  </span><span class="nt">heartbeat_interval_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
 <a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">  </span><span class="nt">idle_timeout_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
-<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">  </span><span class="nt">max_client_queue</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10000</span>
-<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">  </span><span class="nt">allowed_roles</span><span class="p">:</span>
-<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CLEARING</span>
-<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">DROP_COPY</span>
-<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">AUDIT</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">  </span><span class="nt">max_connections</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">64</span>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">  </span><span class="nt">max_client_queue</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10000</span>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="w">  </span><span class="nt">allowed_roles</span><span class="p">:</span>
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CLEARING</span>
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">DROP_COPY</span>
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">AUDIT</span>
 </code></pre></div>
 <p>Use this block to control where the RALF gateway listens and which external
 client roles it will accept. In the current implementation:</p>
@@ -8693,6 +8694,7 @@ client roles it will accept. In the current implementation:</p>
 <li><code>replay_retention_sec</code> controls the in-memory replay window</li>
 <li><code>heartbeat_interval_sec</code> controls <code>HB</code> cadence</li>
 <li><code>idle_timeout_sec</code> controls inactive-session disconnect timing</li>
+<li><code>max_connections</code> caps simultaneous TCP connections</li>
 <li><code>max_client_queue</code> caps slow-client buffering before <code>SLOW_CLIENT</code></li>
 <li><code>allowed_roles</code> limits accepted <code>HELLO|ROLE=...</code> values</li>
 </ul>
@@ -8857,7 +8859,8 @@ credentials block is needed. This block has no <code>enabled</code> key.</p>
 <a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">  </span><span class="nt">port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5590</span>
 <a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="w">  </span><span class="nt">heartbeat_interval_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
 <a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="w">  </span><span class="nt">idle_timeout_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">30</span>
-<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="w">  </span><span class="nt">max_client_queue</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10000</span>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="w">  </span><span class="nt">max_connections</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">64</span>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="w">  </span><span class="nt">max_client_queue</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10000</span>
 </code></pre></div>
 <table>
 <thead>
@@ -8886,12 +8889,17 @@ credentials block is needed. This block has no <code>enabled</code> key.</p>
 <tr>
 <td><code>heartbeat_interval_sec</code></td>
 <td><code>5</code></td>
-<td>Seconds between server-initiated <code>HB</code> lines when no other outbound traffic</td>
+<td>Seconds between server-initiated <code>HB</code> lines</td>
 </tr>
 <tr>
 <td><code>idle_timeout_sec</code></td>
 <td><code>30</code></td>
-<td>Disconnect a session if no inbound traffic arrives within this window</td>
+<td>Disconnect a session when no traffic flows in either direction within this window</td>
+</tr>
+<tr>
+<td><code>max_connections</code></td>
+<td><code>64</code></td>
+<td>Maximum simultaneous TCP connections</td>
 </tr>
 <tr>
 <td><code>max_client_queue</code></td>

@@ -7994,11 +7994,12 @@ messages according to subscriptions.</p>
 <a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">  </span><span class="nt">replay_retention_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">86400</span>
 <a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="w">  </span><span class="nt">heartbeat_interval_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
 <a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="w">  </span><span class="nt">idle_timeout_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
-<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="w">  </span><span class="nt">max_client_queue</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10000</span>
-<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="w">  </span><span class="nt">allowed_roles</span><span class="p">:</span>
-<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CLEARING</span>
-<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">DROP_COPY</span>
-<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">AUDIT</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="w">  </span><span class="nt">max_connections</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">64</span>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="w">  </span><span class="nt">max_client_queue</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10000</span>
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="w">  </span><span class="nt">allowed_roles</span><span class="p">:</span>
+<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CLEARING</span>
+<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">DROP_COPY</span>
+<a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">AUDIT</span>
 </code></pre></div>
 <p>CLI overrides:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>pm-ralf-gwy<span class="w"> </span>--bind<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span>--port<span class="w"> </span><span class="m">5580</span><span class="w"> </span>--engine-pub<span class="w"> </span>tcp://127.0.0.1:5556
@@ -8086,10 +8087,11 @@ alongside the main engine config with <code>pm-config-gen</code>:</p>
 <a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="w">  </span><span class="nt">replay_retention_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3600</span>
 <a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="w">  </span><span class="nt">heartbeat_interval_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
 <a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="w">  </span><span class="nt">idle_timeout_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
-<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="w">  </span><span class="nt">max_client_queue</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2000</span>
-<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="w">  </span><span class="nt">allowed_roles</span><span class="p">:</span>
-<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CLEARING</span>
-<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">AUDIT</span>
+<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="w">  </span><span class="nt">max_connections</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">64</span>
+<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="w">  </span><span class="nt">max_client_queue</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2000</span>
+<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="w">  </span><span class="nt">allowed_roles</span><span class="p">:</span>
+<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CLEARING</span>
+<a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">AUDIT</span>
 </code></pre></div>
 <p>Use <code>127.0.0.1</code> for a single-host lab. If external consumers must connect from
 other machines, change the bind address to a controlled network-facing value
@@ -8239,6 +8241,11 @@ comparison table.</p>
 <code>CLEARING</code>, <code>DROP_COPY</code>, or <code>AUDIT</code>.  <code>LASTSEQ=0</code> means start from the current
 live position (no replay).  The gateway replies with <code>WELCOME</code> or closes the
 connection on protocol or entitlement error.</p>
+<p>A connection that sends no <code>HELLO</code> within 5 seconds receives
+<code>EXIT|REASON=auth_timeout</code> and is closed — the same deadline in all three
+line gateways (<code>pm-md-gwy</code>, <code>pm-ralf-gwy</code>, <code>pm-dc-gwy</code>). Lines a client sends after the one that
+ended its session (a <code>HELLO</code> pipelined behind a refused first line, for
+example) are ignored.</p>
 <p>The <code>REPLAY</code> field in <code>WELCOME</code> tells you the journal retention window in
 seconds — use it to decide how far back you can safely request on reconnect.</p>
 <h3 id="step-2-subscribe">Step 2 — Subscribe<a class="headerlink" href="#step-2-subscribe" title="Permanent link">&para;</a></h3>
@@ -8260,9 +8267,11 @@ Store the <code>SEQ</code> — it is your baseline sequence number for that chan
 <p><code>UNSUB</code> is idempotent.</p>
 <h3 id="step-5-handle-heartbeats">Step 5 — Handle heartbeats<a class="headerlink" href="#step-5-handle-heartbeats" title="Permanent link">&para;</a></h3>
 <p>When the stream is idle the gateway sends periodic <code>HB|TS=...</code> lines.  You can
-probe with <code>PING</code>; the gateway replies <code>PONG</code>.  If no inbound traffic is
-received for <code>idle_timeout_sec</code> seconds the gateway sends
-<code>EXIT|REASON=idle_timeout</code> and closes the connection.</p>
+probe with <code>PING</code>; the gateway replies <code>PONG|TS=…</code>.  The idle timeout counts
+traffic in both directions, so a client that keeps reading stays connected on
+heartbeats alone; only when writes to it have stopped succeeding for
+<code>idle_timeout_sec</code> seconds does the gateway send <code>EXIT|REASON=idle_timeout</code>
+and close the connection.</p>
 <p>A client that stops reading is dropped too. When its outbound queue exceeds
 <code>max_client_queue</code> the gateway discards the backlog (a reconnect with
 <code>LASTSEQ</code> replays it), sends <code>ERR|CODE=SLOW_CLIENT</code>, and closes the
@@ -8500,7 +8509,7 @@ highlight the key RALF patterns.</p>
 </tr>
 <tr>
 <td><code>REPLAY_MISS</code></td>
-<td>Requested <code>LASTSEQ</code> is outside the journal window</td>
+<td>Requested <code>LASTSEQ</code> is outside the journal window, or ahead of it after a gateway restart</td>
 <td>Accept the recovery <code>SNAP</code> and reset local baseline</td>
 </tr>
 <tr>

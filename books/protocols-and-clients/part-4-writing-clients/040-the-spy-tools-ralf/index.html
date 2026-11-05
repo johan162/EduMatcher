@@ -7585,8 +7585,8 @@
 <li>How <code>--lastseq</code> differs from CALF's <code>RESUME</code></li>
 <li>How to run several instances at once, each with a different role, to
   watch different post-trade streams on separate terminals</li>
-<li>How <code>--ping-interval</code> keeps an otherwise-silent session alive past the
-  gateway's idle timeout</li>
+<li>Why a listen-only session needs no keepalive, and what <code>--ping-interval</code>
+  is still for</li>
 </ul>
 </div>
 <h2 id="what-this-tool-is">What this tool is<a class="headerlink" href="#what-this-tool-is" title="Permanent link">&para;</a></h2>
@@ -7750,19 +7750,18 @@ any local state.</p>
 <code>--help</code> — same conventions as every other <code>pm-*</code> process.</p>
 <h2 id="keeping-the-connection-alive">Keeping the connection alive<a class="headerlink" href="#keeping-the-connection-alive" title="Permanent link">&para;</a></h2>
 <p><code>pm-ralf-spy</code> is purely a listener: after the initial <code>HELLO</code>/<code>SUB</code>
-handshake it has nothing more to say, so — unlike a real clearing/drop-copy
-consumer that might send its own protocol traffic — it would otherwise go
-completely silent for the rest of the session. <code>pm-ralf-gwy</code> disconnects
-(sends <code>EXIT|REASON=idle_timeout</code> and closes) any client that sends nothing
-at all for <code>idle_timeout_sec</code>, so a purely receive-only client needs to
-generate outbound traffic of its own to avoid being dropped.</p>
-<p><code>pm-ralf-spy</code> does this automatically: a background thread sends <code>PING</code>
-every <code>--ping-interval</code> seconds (default <code>60</code>), and the gateway replies with
-a <code>PONG</code> (suppressed from the default view the same way <code>HB</code> is — pass
-<code>--show-heartbeats</code> to see both). Set <code>--ping-interval</code> lower than the
-gateway's <code>idle_timeout_sec</code> if you have shortened that value for
-diagnostics, or <code>0</code> to disable the heartbeat entirely (e.g. when
-deliberately testing idle-timeout behavior — see the <code>EXIT</code> example below).</p>
+handshake it has nothing more to say. <strong>This is fine, and needs no help from
+you.</strong> <code>pm-ralf-gwy</code>'s idle timer counts traffic in either direction, and the
+gateway sends <code>HB</code> every <code>HBINT</code> seconds, so a client that keeps reading stays
+connected indefinitely without sending a thing. The idle timeout
+(<code>EXIT|REASON=idle_timeout</code>) fires only once writes to a client have stopped
+succeeding — a client that has stopped reading.</p>
+<p><code>pm-ralf-spy</code> still sends <code>PING</code> from a background thread every
+<code>--ping-interval</code> seconds (default <code>60</code>), and the gateway replies with a
+<code>PONG</code> (suppressed from the default view the same way <code>HB</code> is — pass
+<code>--show-heartbeats</code> to see both). It is an explicit round-trip check that the
+session is genuinely alive rather than merely un-errored. Pass <code>0</code> to disable
+it.</p>
 <h2 id="human-readable-output">Human-readable output<a class="headerlink" href="#human-readable-output" title="Permanent link">&para;</a></h2>
 <p>One line per event: a local wall-clock timestamp, the message type, the
 channel (colour-coded so several interleaved channels stay visually
@@ -7828,12 +7827,15 @@ independently per session.</p>
   channel, role/channel mismatch) is printed like any other line — the
   session stays open so you can see the rejection and keep watching
   whatever subscriptions <em>did</em> succeed.</li>
-<li>If the gateway sends <code>EXIT</code> — normally only seen if <code>--ping-interval 0</code>
-  disabled the heartbeat, or a network hiccup silently dropped the PINGs —
-  <code>pm-ralf-spy</code> prints it and closes cleanly rather than trying to keep
-  reading a closing socket.</li>
-<li>Ctrl-C (or reaching <code>--count</code>) closes the connection cleanly and prints
-  <code>pm-ralf-spy: connection closed.</code></li>
+<li>If the connection closes before any reply to <code>HELLO</code>, the spy reports
+  <code>connection closed before WELCOME (is the gateway at max_connections?)</code> —
+  a gateway at <code>post_trade_gateway.max_connections</code> accepts a connection and
+  closes it without a line.</li>
+<li>If the gateway sends <code>EXIT</code> (<code>REASON=idle_timeout</code>: writes to the spy had
+  stopped succeeding, e.g. the terminal was suspended), <code>pm-ralf-spy</code> prints
+  it and closes cleanly rather than trying to keep reading a closing socket.</li>
+<li>Ctrl-C (or reaching <code>--count</code>) ends the session with <code>EXIT</code> — the gateway
+  flushes and closes — and prints <code>pm-ralf-spy: connection closed.</code></li>
 </ul>
 <h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <p><strong>In this book:</strong></p>

@@ -7829,7 +7829,8 @@ to the values shown below) or hand-edit the YAML, then install it with
 <a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">  </span><span class="nt">port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5590</span>
 <a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">  </span><span class="nt">heartbeat_interval_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
 <a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="w">  </span><span class="nt">idle_timeout_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">30</span>
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="w">  </span><span class="nt">max_client_queue</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10000</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="w">  </span><span class="nt">max_connections</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">64</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="w">  </span><span class="nt">max_client_queue</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10000</span>
 </code></pre></div>
 <table>
 <thead>
@@ -7858,12 +7859,17 @@ to the values shown below) or hand-edit the YAML, then install it with
 <tr>
 <td><code>heartbeat_interval_sec</code></td>
 <td><code>5</code></td>
-<td>Seconds between <code>HB</code> lines when no other outbound traffic</td>
+<td>Seconds between <code>HB</code> lines, sent whether or not fills were sent in between</td>
 </tr>
 <tr>
 <td><code>idle_timeout_sec</code></td>
 <td><code>30</code></td>
-<td>Disconnect after this many seconds of inbound silence</td>
+<td>Disconnect after this many seconds with no traffic in either direction. Heartbeats count, so a client that keeps reading is never idle</td>
+</tr>
+<tr>
+<td><code>max_connections</code></td>
+<td><code>64</code></td>
+<td>Simultaneous TCP connections; a connection beyond this is accepted and closed at once, without a line</td>
 </tr>
 <tr>
 <td><code>max_client_queue</code></td>
@@ -8018,6 +8024,11 @@ against a configuration the others have not seen. Install one with
 </table>
 <p>On any other first line, or a <code>HELLO</code> missing <code>CLIENT</code>/<code>PROTO</code>/<code>ID</code>, the
 gateway sends <code>ERR|CODE=AUTH_REQUIRED|...</code> and closes the connection.</p>
+<p>A connection that sends no <code>HELLO</code> within 5 seconds receives
+<code>EXIT|REASON=auth_timeout</code> and is closed — the same deadline in all three
+line gateways (<code>pm-md-gwy</code>, <code>pm-ralf-gwy</code>, <code>pm-dc-gwy</code>). Lines a client sends after the one that
+ended its session (a <code>HELLO</code> pipelined behind a refused first line, for
+example) are ignored.</p>
 <div class="admonition warning">
 <p class="admonition-title">No authentication</p>
 <p>Unlike <code>pm-alf-gwy</code>, the <code>ID</code> in <code>HELLO</code> is not checked against
@@ -8101,7 +8112,7 @@ model, and no replay-by-sequence.</p>
 <tr>
 <td><code>HB</code></td>
 <td><code>TS</code></td>
-<td>Periodic heartbeat when no other outbound traffic</td>
+<td>Heartbeat every <code>HBINT</code> seconds</td>
 </tr>
 <tr>
 <td><code>ERR</code></td>
@@ -8137,17 +8148,12 @@ order state fields like <code>REMAINING</code>/<code>STATUS</code>.</p>
 </tr>
 <tr>
 <td><code>BAD_MESSAGE</code></td>
-<td>Empty line, non-UTF-8, unparseable line, or line &gt; 4096 bytes</td>
-<td>Yes (or No if unrecoverable — see detail)</td>
+<td>Empty line, unparseable line, or unsupported message type; or a line over 4096 bytes including the newline (<code>DETAIL=line exceeds 4096 bytes</code>)</td>
+<td>Yes — except for an oversized line, which closes it</td>
 </tr>
 <tr>
 <td><code>SLOW_CLIENT</code></td>
 <td>Outbound queue exceeded <code>max_client_queue</code></td>
-<td>No</td>
-</tr>
-<tr>
-<td><code>IDLE_TIMEOUT</code></td>
-<td>No inbound traffic for <code>idle_timeout_sec</code></td>
 <td>No</td>
 </tr>
 </tbody>
@@ -8268,9 +8274,14 @@ the connection after at most 5 seconds. On idle timeout the final line is
 <td>Check <code>pm-engine</code> logs for drop-copy bind warnings; confirm trades are occurring for that gateway ID</td>
 </tr>
 <tr>
-<td>Gateway closes after ~30s of silence</td>
-<td><code>idle_timeout_sec</code> elapsed</td>
-<td>Send <code>PING</code> periodically, or increase <code>idle_timeout_sec</code> in config</td>
+<td><code>EXIT\|REASON=idle_timeout</code></td>
+<td>Writes to the client stopped succeeding for <code>idle_timeout_sec</code> — it is not reading its socket</td>
+<td>Read continuously; heartbeats alone keep a reading client connected</td>
+</tr>
+<tr>
+<td><code>EXIT\|REASON=auth_timeout</code></td>
+<td>No <code>HELLO</code> within 5 seconds of connecting</td>
+<td>Send <code>HELLO</code> as the first line, straight after connecting</td>
 </tr>
 <tr>
 <td>Gateway not reachable from another host</td>
