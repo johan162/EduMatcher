@@ -8825,7 +8825,7 @@ line, before any other command, or the gateway rejects it.</p>
 <tr>
 <td><code>ID</code></td>
 <td>Yes</td>
-<td>Gateway ID to authenticate as (the same <code>participants[].id</code> ALF and BALF share), max 32 characters</td>
+<td>Gateway ID to authenticate as (the same <code>participants[].id</code> ALF and BALF share): a letter, then up to 31 letters, digits or <code>_</code></td>
 </tr>
 <tr>
 <td><code>FEED</code></td>
@@ -8866,7 +8866,7 @@ command gets <code>AUTH_REQUIRED</code>. Most of these close the connection:</p>
 </tr>
 <tr>
 <td><code>INVALID_VALUE</code></td>
-<td><code>CLIENT</code> or <code>ID</code> longer than 32 characters</td>
+<td><code>CLIENT</code> longer than 32 characters, or <code>ID</code> not a letter followed by up to 31 letters, digits or <code>_</code></td>
 <td>Yes</td>
 </tr>
 <tr>

@@ -8824,8 +8824,8 @@ about the <em>sibling</em> leg and about whether the engine considers the quote
 slot still active — it is never a statement that the hit leg's own
 remainder disappears.</strong> That remainder is cleaned up by exactly one
 mechanism, common to all three policies: the engine's <strong>replace-in-slot
-logic</strong>, which runs whenever a <code>QUOTE_CANCEL</code> or a new <code>QUOTE</code> arrives for
-that <code>(gateway_id, symbol)</code>. That logic cancels <em>every</em> order it can still
+logic</strong>, which runs whenever a <code>QUOTE_CANCEL</code>, a new <code>QUOTE</code> or a startup
+seed quote arrives for that <code>(gateway_id, symbol)</code>. That logic cancels <em>every</em> order it can still
 find resting for this gateway's quote on this symbol — the untouched
 sibling if one is still there, and the hit leg's own partial remainder if
 one is still there — before installing the new quote (or, for

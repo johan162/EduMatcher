@@ -7902,6 +7902,10 @@ fields their row below names.</p>
 <li><code>seq</code> counts per <code>topic</code>, within one gateway process. A client checking for
   gaps MUST key on <code>topic</code>, not <code>type</code>: one type (<code>depth</code>) spans many topics
   (<code>depth.AAPL</code>, <code>depth.MSFT</code>), each numbered independently.</li>
+<li><code>trade.executed</code> is one topic for every symbol, so its <code>seq</code> is contiguous
+  only on a <code>*</code> trades subscription. A subscription to some symbols' trades
+  sees jumps where other symbols traded; it cannot detect a drop from <code>seq</code>
+  and SHOULD subscribe to <code>*</code> when it needs to.</li>
 <li><code>stream_seq</code> counts every event on one gateway's private stream, so on
   <code>/ws/private</code> it is contiguous: a gap of any size means events were lost.</li>
 <li>An event is numbered before it is queued, so an event dropped for a slow

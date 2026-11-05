@@ -8306,7 +8306,7 @@ as shown in the Python example below.</p>
 <tr>
 <td><code>ID</code></td>
 <td>Yes</td>
-<td>Gateway ID that must be in <code>participants</code> in config; max 32 characters (connection closed with <code>INVALID_VALUE</code> if exceeded)</td>
+<td>Gateway ID that must be in <code>participants</code> in config: a letter, then up to 31 letters, digits or <code>_</code> (connection closed with <code>INVALID_VALUE</code> otherwise)</td>
 </tr>
 <tr>
 <td><code>FEED</code></td>
@@ -8648,11 +8648,11 @@ the engine and renders the engine's <code>system.position_snapshot.{gateway_id}<
 reply: net quantity and average cost, per symbol, for every symbol that
 gateway has a non-zero position in. Unlike every other command on this
 page, the reply's topic is scoped to the <em>queried</em> <code>gateway_id</code>, not to
-your own session's gateway_id, so <code>pm-alf-gwy</code> subscribes to it on demand
-for the duration of one outstanding query and drops the subscription again
-once the reply arrives (or the session disconnects) — this is invisible on
-the wire, but it is why <code>POS|GW=</code> is the one command whose reply topic
-differs from every other request/reply pair in this protocol.</p>
+your own session's gateway_id, so <code>pm-alf-gwy</code> routes it back to every
+session with a query outstanding for that <code>gateway_id</code>. A session may have
+queries for several gateways outstanding at once; each is answered with its
+own <code>POSITION</code> block. <code>GW</code> must be a valid gateway ID (a letter, then up to
+31 letters, digits or <code>_</code>), or the query is refused with <code>INVALID_VALUE</code>.</p>
 <p><strong>Multi-line response:</strong></p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a>POSITION|GW=MM_AAPL_01|COUNT=1
 <a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a>POS_ENTRY|SYM=AAPL|NET_QTY=-300|AVG_COST=150.05
@@ -8979,7 +8979,12 @@ When the rejected command carried <code>TAG</code> or <code>RTAG</code>, the gat
 </tr>
 <tr>
 <td><code>SLOW_CLIENT</code></td>
-<td>Outbound queue full</td>
+<td>Outbound queue full (<code>max_client_queue</code>). Queued <code>TRADE</code> prints and heartbeats are dropped; the client's own events are still sent ahead of this line</td>
+<td>No</td>
+</tr>
+<tr>
+<td><code>GATEWAY_SHUTDOWN</code></td>
+<td>The gateway is stopping. Sent after the session's remaining events (flushed for up to 2 seconds)</td>
 <td>No</td>
 </tr>
 <tr>
@@ -8996,6 +9001,11 @@ When the rejected command carried <code>TAG</code> or <code>RTAG</code>, the gat
 <td><code>SESSION_LOST</code></td>
 <td>The engine no longer holds the session: it restarted, or it expired the session. The gateway closes every session when it sees the engine's startup broadcast, and every 5 seconds asks the engine which participants it holds and closes the ones it no longer does. Log on again (after an engine restart the engine's positions start flat)</td>
 <td>No</td>
+</tr>
+<tr>
+<td><code>EVENTS_LOST</code></td>
+<td>The engine's event stream dropped events meant for this session (the gateway fell behind and the bus discarded them). Unsolicited and untagged; <code>TOPIC</code> names the event family (e.g. <code>ORDER.FILL</code>) and <code>COUNT</code> how many were missed. Reconcile with <code>ORDERS</code>. Counted in <code>gwy.events_lost</code></td>
+<td>Yes</td>
 </tr>
 <tr>
 <td><code>ENGINE_UNAVAILABLE</code></td>

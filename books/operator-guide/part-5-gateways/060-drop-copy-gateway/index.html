@@ -7827,8 +7827,8 @@ to the values shown below) or hand-edit the YAML, then install it with
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="s">"dc-gwy01"</span>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">  </span><span class="nt">bind_address</span><span class="p">:</span><span class="w"> </span><span class="s">"0.0.0.0"</span>
 <a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">  </span><span class="nt">port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5590</span>
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">  </span><span class="nt">heartbeat_interval_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
-<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="w">  </span><span class="nt">idle_timeout_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">30</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">  </span><span class="nt">heartbeat_interval_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="w">  </span><span class="nt">idle_timeout_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20</span>
 <a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="w">  </span><span class="nt">max_connections</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">64</span>
 <a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="w">  </span><span class="nt">max_client_queue</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10000</span>
 </code></pre></div>
@@ -7858,12 +7858,12 @@ to the values shown below) or hand-edit the YAML, then install it with
 </tr>
 <tr>
 <td><code>heartbeat_interval_sec</code></td>
-<td><code>5</code></td>
+<td><code>2</code></td>
 <td>Seconds between <code>HB</code> lines, sent whether or not fills were sent in between</td>
 </tr>
 <tr>
 <td><code>idle_timeout_sec</code></td>
-<td><code>30</code></td>
+<td><code>20</code></td>
 <td>Disconnect after this many seconds with no traffic in either direction. Heartbeats count, so a client that keeps reading is never idle</td>
 </tr>
 <tr>
@@ -7967,7 +7967,7 @@ against a configuration the others have not seen. Install one with
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>HELLO|CLIENT=test|PROTO=DC1|ID=TRADER01
 </code></pre></div>
 <p>Expected response:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>WELCOME|PROTO=DC1|GW=dc-gwy01|ID=TRADER01|HBINT=5|IDLE=30
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>WELCOME|PROTO=DC1|GW=dc-gwy01|ID=TRADER01|HBINT=2|IDLE=20
 </code></pre></div>
 <p>Any fill published for <code>TRADER01</code> on port 5557 now arrives as an unsolicited
 <code>DC_FILL</code> line. Type <code>EXIT</code> to close cleanly.</p>
@@ -7984,7 +7984,7 @@ against a configuration the others have not seen. Install one with
     C-&gt;&gt;G: TCP connect :5590
     C-&gt;&gt;G: HELLO|CLIENT=risksys|PROTO=DC1|ID=TRADER01
     G-&gt;&gt;G: subscribe drop_copy.event.TRADER01 (refcounted)
-    G--&gt;&gt;C: WELCOME|PROTO=DC1|GW=dc-gwy01|ID=TRADER01|HBINT=5|IDLE=30
+    G--&gt;&gt;C: WELCOME|PROTO=DC1|GW=dc-gwy01|ID=TRADER01|HBINT=2|IDLE=20
     Note over C,G: Session active — no further commands needed
     D--&gt;&gt;G: drop_copy.event.TRADER01 {fill payload}
     G--&gt;&gt;C: DC_FILL|SEQ=..|ORDER_ID=..|SYMBOL=..|FILL_QTY=..|FILL_PRICE=..|LIQUIDITY=..
@@ -8038,7 +8038,7 @@ port-5557 socket itself. See
 <a href="../../../protocols-and-clients/part-3-session-behaviour/060-drop-copy/#architecture">Drop Copy → Architecture</a>.</p>
 </div>
 <h3 id="step-2-receive-welcome">Step 2 — Receive <code>WELCOME</code><a class="headerlink" href="#step-2-receive-welcome" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>WELCOME|PROTO=DC1|GW=dc-gwy01|ID=TRADER01|HBINT=5|IDLE=30
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>WELCOME|PROTO=DC1|GW=dc-gwy01|ID=TRADER01|HBINT=2|IDLE=20
 </code></pre></div>
 <p>The gateway subscribes this session to <code>drop_copy.event.TRADER01</code> on its
 internal SUB socket (refcounted — sharing the ZMQ subscription across every
@@ -8127,7 +8127,7 @@ full source payload and field semantics. <code>SEQ</code> and <code>LIQUIDITY</c
 (<code>MAKER</code>/<code>TAKER</code>) come from the drop-copy envelope; <code>DC_FILL</code> does not carry
 order state fields like <code>REMAINING</code>/<code>STATUS</code>.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>&gt; HELLO|CLIENT=risksys|PROTO=DC1|ID=TRADER01
-<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>WELCOME|PROTO=DC1|GW=dc-gwy01|ID=TRADER01|HBINT=5|IDLE=30
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>WELCOME|PROTO=DC1|GW=dc-gwy01|ID=TRADER01|HBINT=2|IDLE=20
 <a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>DC_FILL|SEQ=42|ORDER_ID=ORD-001|SYMBOL=AAPL|FILL_QTY=100|FILL_PRICE=150.05|LIQUIDITY=TAKER
 </code></pre></div>
 <h2 id="error-codes">Error codes<a class="headerlink" href="#error-codes" title="Permanent link">&para;</a></h2>
@@ -8202,6 +8202,9 @@ the connection after at most 5 seconds. On idle timeout the final line is
 <p class="admonition-title">TCP is a byte stream</p>
 <p>Never assume one <code>recv()</code> equals one line. Always buffer and split on <code>\n</code>.</p>
 </div>
+<p>For full working Python and C subscribers (per-symbol volume/VWAP tally,
+<code>SEQ</code> direction check, clean Ctrl-C shutdown) see <code>docs/examples/dc/</code> and
+<a href="../../../protocols-and-clients/part-4-writing-clients/030-example-libraries/#dc-support-library-and-examples">Protocol Support Library Examples</a>.</p>
 <h2 id="when-to-use-pm-dc-gwy-vs-the-alternatives">When to use <code>pm-dc-gwy</code> vs. the alternatives<a class="headerlink" href="#when-to-use-pm-dc-gwy-vs-the-alternatives" title="Permanent link">&para;</a></h2>
 <table>
 <thead>

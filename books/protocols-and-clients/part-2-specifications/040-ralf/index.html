@@ -8116,12 +8116,12 @@ subscriptions.</p>
 <tr>
 <td>Heartbeat interval (<code>HBINT</code>)</td>
 <td><code>heartbeat_interval_sec</code></td>
-<td>1 s</td>
+<td>2 s</td>
 </tr>
 <tr>
 <td>Idle timeout</td>
 <td><code>idle_timeout_sec</code></td>
-<td>5 s</td>
+<td>20 s</td>
 </tr>
 <tr>
 <td>Replay retention (<code>REPLAY</code>)</td>
@@ -8209,12 +8209,12 @@ client have stopped succeeding; it then sends <code>EXIT|REASON=idle_timeout</co
 </tr>
 <tr>
 <td><code>heartbeat_interval_sec</code></td>
-<td><code>1</code></td>
+<td><code>2</code></td>
 <td><code>HB</code> cadence; advertised as <code>WELCOME\|HBINT=</code></td>
 </tr>
 <tr>
 <td><code>idle_timeout_sec</code></td>
-<td><code>5</code></td>
+<td><code>20</code></td>
 <td>disconnect after this long with no traffic in either direction</td>
 </tr>
 <tr>

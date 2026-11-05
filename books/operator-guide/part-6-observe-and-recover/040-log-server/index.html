@@ -8931,8 +8931,9 @@ and a fresh <code>last_heartbeat_at</code> is connected and healthy with nothing
 report. Both being stale is the case worth looking into.</p>
 <p><code>disconnect_reason</code> says <em>how</em> a session ended: <code>client_exit</code> means the
 client sent <code>EXIT</code> and shut down deliberately, while <code>peer_closed</code>,
-<code>idle_timeout</code>, <code>hello_timeout</code>, or <code>protocol_error</code> mean it went away
-without saying goodbye. It is empty for sessions still open, and for
+<code>io_error</code> (the connection was reset, typically a crash), <code>idle_timeout</code>,
+<code>hello_timeout</code>, or <code>protocol_error</code> mean it went away without saying
+goodbye. It is empty for sessions still open, and for
 sessions recorded before this column existed.</p>
 <p>A session appears here only once it has actually sent a <code>LOG</code> or <code>HB</code>
 frame, not merely completed the handshake. Every <code>pm-*</code> process probes for

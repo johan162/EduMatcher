@@ -4750,6 +4750,122 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#dc-support-library-and-examples" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        DC support library and examples
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="DC support library and examples">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#source-files_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Source files
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#wire-format_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Wire format
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#python-api-dc_parserpy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Python API — dc_parser.py
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#python-usage-pattern_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Python usage pattern
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#run-python-example_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Run Python example
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#c-api-dc_parserh" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        C API — dc_parser.h
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#c-usage-pattern_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        C usage pattern
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#build-and-run-c-example_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Build and run C example
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#manual-gateway-sanity-check_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Manual gateway sanity check
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#balf-support-library-and-examples" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4762,7 +4878,7 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#source-files_3" class="md-nav__link">
+  <a href="#source-files_4" class="md-nav__link">
     <span class="md-ellipsis">
       
         Source files
@@ -4806,7 +4922,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#python-usage-pattern_3" class="md-nav__link">
+  <a href="#python-usage-pattern_4" class="md-nav__link">
     <span class="md-ellipsis">
       
         Python usage pattern
@@ -4856,7 +4972,7 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#source-files_4" class="md-nav__link">
+  <a href="#source-files_5" class="md-nav__link">
     <span class="md-ellipsis">
       
         Source files
@@ -4889,7 +5005,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#python-usage-pattern_4" class="md-nav__link">
+  <a href="#python-usage-pattern_5" class="md-nav__link">
     <span class="md-ellipsis">
       
         Python usage pattern
@@ -4922,7 +5038,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#c-usage-pattern_3" class="md-nav__link">
+  <a href="#c-usage-pattern_4" class="md-nav__link">
     <span class="md-ellipsis">
       
         C usage pattern
@@ -4933,7 +5049,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#build-and-run-c-example_2" class="md-nav__link">
+  <a href="#build-and-run-c-example_3" class="md-nav__link">
     <span class="md-ellipsis">
       
         Build and run C example
@@ -8094,6 +8210,12 @@ and the REST API:</p>
 <td><code>docs/examples/ralf</code></td>
 </tr>
 <tr>
+<td>DC1</td>
+<td><code>pm-dc-gwy</code></td>
+<td>5590</td>
+<td><code>docs/examples/dc</code></td>
+</tr>
+<tr>
 <td>BALF</td>
 <td><code>pm-balf-gwy</code></td>
 <td>5560</td>
@@ -8675,11 +8797,124 @@ requesting a channel outside the role's entitlement:</p>
 <li><a href="../../part-2-specifications/040-ralf/">RALF Protocol Reference</a></li>
 </ul>
 <hr />
+<h2 id="dc-support-library-and-examples">DC support library and examples<a class="headerlink" href="#dc-support-library-and-examples" title="Permanent link">&para;</a></h2>
+<p>DC1 (<code>pm-dc-gwy</code>) relays the engine's drop-copy feed to plain TCP clients.
+A client names one participant's gateway ID in <code>HELLO</code> and receives that
+participant's fills as unsolicited <code>DC_FILL</code> lines; there is no <code>SUB</code> step.</p>
+<p>The example subscribers keep a running per-symbol tally of fills, executed
+quantity, VWAP and the <code>MAKER</code>/<code>TAKER</code> split (<code>DC_FILL</code> carries no side, so
+it is an activity tally, not a net position), and print it on Ctrl-C
+shutdown. Drop-copy <code>SEQ</code> is one engine-wide counter shared by every gateway
+ID, so a per-ID session sees gaps routinely; the examples report only a <code>SEQ</code>
+that goes backwards, which means the engine restarted.</p>
+<h3 id="source-files_3">Source files<a class="headerlink" href="#source-files_3" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="../../../downloads/examples/dc/README.txt">dc/README.txt</a></td>
+<td>Directory overview and quick-start</td>
+</tr>
+<tr>
+<td><a href="../../../downloads/examples/dc/dc_parser.py">dc/dc_parser.py</a></td>
+<td>Python parser and builder</td>
+</tr>
+<tr>
+<td><a href="../../../downloads/examples/dc/dc_subscriber.py">dc/dc_subscriber.py</a></td>
+<td>Python subscriber example</td>
+</tr>
+<tr>
+<td><a href="../../../downloads/examples/dc/dc_parser.h">dc/dc_parser.h</a></td>
+<td>C library header</td>
+</tr>
+<tr>
+<td><a href="../../../downloads/examples/dc/dc_parser.c">dc/dc_parser.c</a></td>
+<td>C library implementation</td>
+</tr>
+<tr>
+<td><a href="../../../downloads/examples/dc/dc_subscriber.c">dc/dc_subscriber.c</a></td>
+<td>C subscriber example</td>
+</tr>
+<tr>
+<td><a href="../../../downloads/examples/dc/Makefile">dc/Makefile</a></td>
+<td>Build helper</td>
+</tr>
+</tbody>
+</table>
+<h3 id="wire-format_3">Wire format<a class="headerlink" href="#wire-format_3" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>MSGTYPE|KEY=VALUE|KEY=VALUE\n
+</code></pre></div>
+<p>Identical text-line structure to CALF and RALF; field parsing rules are the
+same.</p>
+<h3 id="python-api-dc_parserpy">Python API — <code>dc_parser.py</code><a class="headerlink" href="#python-api-dc_parserpy" title="Permanent link">&para;</a></h3>
+<p><strong><code>parse_dc_line(line: str) → DcMessage</code></strong>
+: Parse one DC1 line.  Returns a <code>DcMessage(msg_type, fields)</code> frozen
+  dataclass.  Raises <code>DcParseError</code> on malformed input.</p>
+<p><strong><code>build_dc_line(msg_type: str, fields: dict | None) → str</code></strong>
+: Build one <code>\n</code>-terminated DC1 line.  Raises <code>DcParseError</code> for invalid
+  message types or fields containing <code>|</code>.</p>
+<h3 id="python-usage-pattern_3">Python usage pattern<a class="headerlink" href="#python-usage-pattern_3" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">dc_parser</span><span class="w"> </span><span class="kn">import</span> <span class="n">build_dc_line</span><span class="p">,</span> <span class="n">parse_dc_line</span>
+<a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a>
+<a id="__codelineno-26-3" name="__codelineno-26-3" href="#__codelineno-26-3"></a><span class="c1"># Build a HELLO line</span>
+<a id="__codelineno-26-4" name="__codelineno-26-4" href="#__codelineno-26-4"></a><span class="n">line</span> <span class="o">=</span> <span class="n">build_dc_line</span><span class="p">(</span><span class="s2">"HELLO"</span><span class="p">,</span> <span class="p">{</span><span class="s2">"CLIENT"</span><span class="p">:</span> <span class="s2">"risk01"</span><span class="p">,</span> <span class="s2">"PROTO"</span><span class="p">:</span> <span class="s2">"DC1"</span><span class="p">,</span> <span class="s2">"ID"</span><span class="p">:</span> <span class="s2">"TRADER01"</span><span class="p">})</span>
+<a id="__codelineno-26-5" name="__codelineno-26-5" href="#__codelineno-26-5"></a><span class="c1"># → "HELLO|CLIENT=risk01|PROTO=DC1|ID=TRADER01\n"</span>
+<a id="__codelineno-26-6" name="__codelineno-26-6" href="#__codelineno-26-6"></a>
+<a id="__codelineno-26-7" name="__codelineno-26-7" href="#__codelineno-26-7"></a><span class="c1"># Parse an inbound fill</span>
+<a id="__codelineno-26-8" name="__codelineno-26-8" href="#__codelineno-26-8"></a><span class="n">fill</span> <span class="o">=</span> <span class="n">parse_dc_line</span><span class="p">(</span>
+<a id="__codelineno-26-9" name="__codelineno-26-9" href="#__codelineno-26-9"></a>    <span class="s2">"DC_FILL|SEQ=42|ORDER_ID=ORD-001|SYMBOL=AAPL|FILL_QTY=100|FILL_PRICE=150.05|LIQUIDITY=TAKER"</span>
+<a id="__codelineno-26-10" name="__codelineno-26-10" href="#__codelineno-26-10"></a><span class="p">)</span>
+<a id="__codelineno-26-11" name="__codelineno-26-11" href="#__codelineno-26-11"></a><span class="nb">print</span><span class="p">(</span><span class="n">fill</span><span class="o">.</span><span class="n">fields</span><span class="p">[</span><span class="s2">"FILL_PRICE"</span><span class="p">])</span>  <span class="c1"># "150.05"</span>
+</code></pre></div>
+<h3 id="run-python-example_2">Run Python example<a class="headerlink" href="#run-python-example_2" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a><span class="nb">cd</span><span class="w"> </span>docs/examples/dc
+<a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a>python3<span class="w"> </span>dc_subscriber.py<span class="w"> </span>--host<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span>--port<span class="w"> </span><span class="m">5590</span><span class="w"> </span>--id<span class="w"> </span>TRADER01
+</code></pre></div>
+<p>Run <code>python3 dc_subscriber.py --help</code> for the full flag list, including
+<code>--client</code>.</p>
+<h3 id="c-api-dc_parserh">C API — <code>dc_parser.h</code><a class="headerlink" href="#c-api-dc_parserh" title="Permanent link">&para;</a></h3>
+<p><strong><code>int dc_parse_line(char *line, dc_message_t *out)</code></strong>
+: Parse one mutable DC1 line in-place.  Returns 0 on success, negative on
+  error.</p>
+<p><strong><code>const char *dc_get_field(const dc_message_t *msg, const char *key)</code></strong>
+: Return the value for <code>key</code>, or <code>NULL</code> if absent.</p>
+<h3 id="c-usage-pattern_3">C usage pattern<a class="headerlink" href="#c-usage-pattern_3" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a><span class="cp">#include</span><span class="w"> </span><span class="cpf">"dc_parser.h"</span>
+<a id="__codelineno-28-2" name="__codelineno-28-2" href="#__codelineno-28-2"></a>
+<a id="__codelineno-28-3" name="__codelineno-28-3" href="#__codelineno-28-3"></a><span class="kt">char</span><span class="w"> </span><span class="n">line</span><span class="p">[]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">"DC_FILL|SEQ=42|SYMBOL=AAPL|FILL_QTY=100|FILL_PRICE=150.05"</span><span class="p">;</span>
+<a id="__codelineno-28-4" name="__codelineno-28-4" href="#__codelineno-28-4"></a><span class="n">dc_message_t</span><span class="w"> </span><span class="n">msg</span><span class="p">;</span>
+<a id="__codelineno-28-5" name="__codelineno-28-5" href="#__codelineno-28-5"></a><span class="n">dc_parse_line</span><span class="p">(</span><span class="n">line</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">msg</span><span class="p">);</span>
+<a id="__codelineno-28-6" name="__codelineno-28-6" href="#__codelineno-28-6"></a><span class="n">printf</span><span class="p">(</span><span class="s">"%s</span><span class="se">\n</span><span class="s">"</span><span class="p">,</span><span class="w"> </span><span class="n">dc_get_field</span><span class="p">(</span><span class="o">&amp;</span><span class="n">msg</span><span class="p">,</span><span class="w"> </span><span class="s">"FILL_PRICE"</span><span class="p">));</span><span class="w"> </span><span class="cm">/* "150.05" */</span>
+</code></pre></div>
+<h3 id="build-and-run-c-example_2">Build and run C example<a class="headerlink" href="#build-and-run-c-example_2" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a><span class="nb">cd</span><span class="w"> </span>docs/examples/dc
+<a id="__codelineno-29-2" name="__codelineno-29-2" href="#__codelineno-29-2"></a>make
+<a id="__codelineno-29-3" name="__codelineno-29-3" href="#__codelineno-29-3"></a>./dc_subscriber<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span><span class="m">5590</span><span class="w"> </span>TRADER01
+</code></pre></div>
+<p>Arguments are positional: <code>host [port [gateway_id]]</code> (default
+<code>127.0.0.1 5590 TRADER01</code>).</p>
+<h3 id="manual-gateway-sanity-check_3">Manual gateway sanity check<a class="headerlink" href="#manual-gateway-sanity-check_3" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a>nc<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span><span class="m">5590</span>
+</code></pre></div>
+<p>Then type:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a>HELLO|CLIENT=manual01|PROTO=DC1|ID=TRADER01
+</code></pre></div>
+<p>See also:</p>
+<ul>
+<li><a href="../../../operator-guide/part-5-gateways/060-drop-copy-gateway/">Drop-Copy TCP Gateway</a></li>
+<li><a href="../../part-3-session-behaviour/060-drop-copy/">Drop Copy</a></li>
+</ul>
+<hr />
 <h2 id="balf-support-library-and-examples">BALF support library and examples<a class="headerlink" href="#balf-support-library-and-examples" title="Permanent link">&para;</a></h2>
 <p>BALF (<code>pm-balf-gwy</code>) is the binary order-entry gateway, intended for
 ultra-low-latency clients.  Frames are fixed-length little-endian structs
 rather than text lines.</p>
-<h3 id="source-files_3">Source files<a class="headerlink" href="#source-files_3" title="Permanent link">&para;</a></h3>
+<h3 id="source-files_4">Source files<a class="headerlink" href="#source-files_4" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
 <tr>
@@ -8851,24 +9086,24 @@ rather than text lines.</p>
   (<code>PARTIAL</code>/<code>FILLED</code>).  <code>fill_price</code>
   is already converted to a float via <code>decode_price()</code> — no further
   scaling is needed.</p>
-<h3 id="python-usage-pattern_3">Python usage pattern<a class="headerlink" href="#python-usage-pattern_3" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">balf_parser</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
-<a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a>    <span class="n">parse_header</span><span class="p">,</span> <span class="n">split_frame</span><span class="p">,</span> <span class="n">decode_price</span><span class="p">,</span>
-<a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a>    <span class="n">parse_logon_ack</span><span class="p">,</span> <span class="n">parse_order_ack</span><span class="p">,</span> <span class="n">parse_execution_report</span><span class="p">,</span>
-<a id="__codelineno-25-4" name="__codelineno-25-4" href="#__codelineno-25-4"></a>    <span class="n">MSG_LOGON_ACK</span><span class="p">,</span> <span class="n">MSG_ORDER_ACK</span><span class="p">,</span> <span class="n">MSG_EXECUTION_REPORT</span><span class="p">,</span>
-<a id="__codelineno-25-5" name="__codelineno-25-5" href="#__codelineno-25-5"></a>    <span class="n">FRAME_SIZES</span><span class="p">,</span>
-<a id="__codelineno-25-6" name="__codelineno-25-6" href="#__codelineno-25-6"></a><span class="p">)</span>
-<a id="__codelineno-25-7" name="__codelineno-25-7" href="#__codelineno-25-7"></a>
-<a id="__codelineno-25-8" name="__codelineno-25-8" href="#__codelineno-25-8"></a><span class="c1"># Decode a raw frame received from TCP</span>
-<a id="__codelineno-25-9" name="__codelineno-25-9" href="#__codelineno-25-9"></a><span class="n">hdr</span><span class="p">,</span> <span class="n">body</span> <span class="o">=</span> <span class="n">split_frame</span><span class="p">(</span><span class="n">raw_bytes</span><span class="p">)</span>
-<a id="__codelineno-25-10" name="__codelineno-25-10" href="#__codelineno-25-10"></a>
-<a id="__codelineno-25-11" name="__codelineno-25-11" href="#__codelineno-25-11"></a><span class="k">if</span> <span class="n">hdr</span><span class="o">.</span><span class="n">msg_type</span> <span class="o">==</span> <span class="n">MSG_EXECUTION_REPORT</span><span class="p">:</span>
-<a id="__codelineno-25-12" name="__codelineno-25-12" href="#__codelineno-25-12"></a>    <span class="n">report</span> <span class="o">=</span> <span class="n">parse_execution_report</span><span class="p">(</span><span class="n">body</span><span class="p">)</span>
-<a id="__codelineno-25-13" name="__codelineno-25-13" href="#__codelineno-25-13"></a>    <span class="n">price</span> <span class="o">=</span> <span class="n">report</span><span class="p">[</span><span class="s2">"fill_price"</span><span class="p">]</span>  <span class="c1"># already decoded to a float</span>
-<a id="__codelineno-25-14" name="__codelineno-25-14" href="#__codelineno-25-14"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"fill: </span><span class="si">{</span><span class="n">report</span><span class="p">[</span><span class="s1">'symbol'</span><span class="p">]</span><span class="si">}</span><span class="s2"> qty=</span><span class="si">{</span><span class="n">report</span><span class="p">[</span><span class="s1">'fill_qty'</span><span class="p">]</span><span class="si">}</span><span class="s2"> price=</span><span class="si">{</span><span class="n">price</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
-<a id="__codelineno-25-15" name="__codelineno-25-15" href="#__codelineno-25-15"></a><span class="k">elif</span> <span class="n">hdr</span><span class="o">.</span><span class="n">msg_type</span> <span class="o">==</span> <span class="n">MSG_ORDER_ACK</span><span class="p">:</span>
-<a id="__codelineno-25-16" name="__codelineno-25-16" href="#__codelineno-25-16"></a>    <span class="n">ack</span> <span class="o">=</span> <span class="n">parse_order_ack</span><span class="p">(</span><span class="n">body</span><span class="p">)</span>
-<a id="__codelineno-25-17" name="__codelineno-25-17" href="#__codelineno-25-17"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"order_id=</span><span class="si">{</span><span class="n">ack</span><span class="p">[</span><span class="s1">'order_id'</span><span class="p">]</span><span class="si">}</span><span class="s2"> accepted=</span><span class="si">{</span><span class="n">ack</span><span class="p">[</span><span class="s1">'accepted'</span><span class="p">]</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+<h3 id="python-usage-pattern_4">Python usage pattern<a class="headerlink" href="#python-usage-pattern_4" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">balf_parser</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+<a id="__codelineno-32-2" name="__codelineno-32-2" href="#__codelineno-32-2"></a>    <span class="n">parse_header</span><span class="p">,</span> <span class="n">split_frame</span><span class="p">,</span> <span class="n">decode_price</span><span class="p">,</span>
+<a id="__codelineno-32-3" name="__codelineno-32-3" href="#__codelineno-32-3"></a>    <span class="n">parse_logon_ack</span><span class="p">,</span> <span class="n">parse_order_ack</span><span class="p">,</span> <span class="n">parse_execution_report</span><span class="p">,</span>
+<a id="__codelineno-32-4" name="__codelineno-32-4" href="#__codelineno-32-4"></a>    <span class="n">MSG_LOGON_ACK</span><span class="p">,</span> <span class="n">MSG_ORDER_ACK</span><span class="p">,</span> <span class="n">MSG_EXECUTION_REPORT</span><span class="p">,</span>
+<a id="__codelineno-32-5" name="__codelineno-32-5" href="#__codelineno-32-5"></a>    <span class="n">FRAME_SIZES</span><span class="p">,</span>
+<a id="__codelineno-32-6" name="__codelineno-32-6" href="#__codelineno-32-6"></a><span class="p">)</span>
+<a id="__codelineno-32-7" name="__codelineno-32-7" href="#__codelineno-32-7"></a>
+<a id="__codelineno-32-8" name="__codelineno-32-8" href="#__codelineno-32-8"></a><span class="c1"># Decode a raw frame received from TCP</span>
+<a id="__codelineno-32-9" name="__codelineno-32-9" href="#__codelineno-32-9"></a><span class="n">hdr</span><span class="p">,</span> <span class="n">body</span> <span class="o">=</span> <span class="n">split_frame</span><span class="p">(</span><span class="n">raw_bytes</span><span class="p">)</span>
+<a id="__codelineno-32-10" name="__codelineno-32-10" href="#__codelineno-32-10"></a>
+<a id="__codelineno-32-11" name="__codelineno-32-11" href="#__codelineno-32-11"></a><span class="k">if</span> <span class="n">hdr</span><span class="o">.</span><span class="n">msg_type</span> <span class="o">==</span> <span class="n">MSG_EXECUTION_REPORT</span><span class="p">:</span>
+<a id="__codelineno-32-12" name="__codelineno-32-12" href="#__codelineno-32-12"></a>    <span class="n">report</span> <span class="o">=</span> <span class="n">parse_execution_report</span><span class="p">(</span><span class="n">body</span><span class="p">)</span>
+<a id="__codelineno-32-13" name="__codelineno-32-13" href="#__codelineno-32-13"></a>    <span class="n">price</span> <span class="o">=</span> <span class="n">report</span><span class="p">[</span><span class="s2">"fill_price"</span><span class="p">]</span>  <span class="c1"># already decoded to a float</span>
+<a id="__codelineno-32-14" name="__codelineno-32-14" href="#__codelineno-32-14"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"fill: </span><span class="si">{</span><span class="n">report</span><span class="p">[</span><span class="s1">'symbol'</span><span class="p">]</span><span class="si">}</span><span class="s2"> qty=</span><span class="si">{</span><span class="n">report</span><span class="p">[</span><span class="s1">'fill_qty'</span><span class="p">]</span><span class="si">}</span><span class="s2"> price=</span><span class="si">{</span><span class="n">price</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+<a id="__codelineno-32-15" name="__codelineno-32-15" href="#__codelineno-32-15"></a><span class="k">elif</span> <span class="n">hdr</span><span class="o">.</span><span class="n">msg_type</span> <span class="o">==</span> <span class="n">MSG_ORDER_ACK</span><span class="p">:</span>
+<a id="__codelineno-32-16" name="__codelineno-32-16" href="#__codelineno-32-16"></a>    <span class="n">ack</span> <span class="o">=</span> <span class="n">parse_order_ack</span><span class="p">(</span><span class="n">body</span><span class="p">)</span>
+<a id="__codelineno-32-17" name="__codelineno-32-17" href="#__codelineno-32-17"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"order_id=</span><span class="si">{</span><span class="n">ack</span><span class="p">[</span><span class="s1">'order_id'</span><span class="p">]</span><span class="si">}</span><span class="s2"> accepted=</span><span class="si">{</span><span class="n">ack</span><span class="p">[</span><span class="s1">'accepted'</span><span class="p">]</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 </code></pre></div>
 <h3 id="c-reference-decoder-balf_parserc">C reference decoder — <code>balf_parser.c</code><a class="headerlink" href="#c-reference-decoder-balf_parserc" title="Permanent link">&para;</a></h3>
 <p>Unlike the ALF and CALF C libraries, <code>balf_parser.c</code> has no header file and
@@ -8876,16 +9111,16 @@ its functions are all <code>static</code> — it is a single self-contained refe
 program, not a linkable library.  It builds a synthetic <code>LOGON_ACK</code> frame in
 memory, decodes it with the same <code>split_frame</code>/<code>parse_header</code> logic a real
 client would use, and prints the result as a self-test:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a><span class="nb">cd</span><span class="w"> </span>docs/examples/balf
-<a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a>cc<span class="w"> </span>-std<span class="o">=</span>c11<span class="w"> </span>-Wall<span class="w"> </span>-Wextra<span class="w"> </span>-pedantic<span class="w"> </span>-O2<span class="w"> </span>-I../generated<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-26-3" name="__codelineno-26-3" href="#__codelineno-26-3"></a><span class="w">   </span>balf_parser.c<span class="w"> </span>../generated/edumatcher_order.c<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-26-4" name="__codelineno-26-4" href="#__codelineno-26-4"></a><span class="w">   </span>../generated/edumatcher_msg.c<span class="w"> </span>-o<span class="w"> </span>balf_parser
-<a id="__codelineno-26-5" name="__codelineno-26-5" href="#__codelineno-26-5"></a>./balf_parser
-<a id="__codelineno-26-6" name="__codelineno-26-6" href="#__codelineno-26-6"></a><span class="c1"># → LOGON_ACK gateway_id=TRADER01 accepted=1 reject_code=0 msg=ok</span>
-<a id="__codelineno-26-7" name="__codelineno-26-7" href="#__codelineno-26-7"></a><span class="c1">#   EXECUTION_REPORT ...</span>
-<a id="__codelineno-26-8" name="__codelineno-26-8" href="#__codelineno-26-8"></a><span class="c1">#   LOGON_ACK gateway_id=TRADER01 accepted=0 reject_code=255 msg=SYMBOLS_UNAVAILABLE</span>
-<a id="__codelineno-26-9" name="__codelineno-26-9" href="#__codelineno-26-9"></a><span class="c1">#   CANCEL_ACK ... / AMEND_ACK ... / STOP_TRIGGERED ...</span>
-<a id="__codelineno-26-10" name="__codelineno-26-10" href="#__codelineno-26-10"></a><span class="c1">#   balf_parser.c self-test: OK</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a><span class="nb">cd</span><span class="w"> </span>docs/examples/balf
+<a id="__codelineno-33-2" name="__codelineno-33-2" href="#__codelineno-33-2"></a>cc<span class="w"> </span>-std<span class="o">=</span>c11<span class="w"> </span>-Wall<span class="w"> </span>-Wextra<span class="w"> </span>-pedantic<span class="w"> </span>-O2<span class="w"> </span>-I../generated<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-33-3" name="__codelineno-33-3" href="#__codelineno-33-3"></a><span class="w">   </span>balf_parser.c<span class="w"> </span>../generated/edumatcher_order.c<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-33-4" name="__codelineno-33-4" href="#__codelineno-33-4"></a><span class="w">   </span>../generated/edumatcher_msg.c<span class="w"> </span>-o<span class="w"> </span>balf_parser
+<a id="__codelineno-33-5" name="__codelineno-33-5" href="#__codelineno-33-5"></a>./balf_parser
+<a id="__codelineno-33-6" name="__codelineno-33-6" href="#__codelineno-33-6"></a><span class="c1"># → LOGON_ACK gateway_id=TRADER01 accepted=1 reject_code=0 msg=ok</span>
+<a id="__codelineno-33-7" name="__codelineno-33-7" href="#__codelineno-33-7"></a><span class="c1">#   EXECUTION_REPORT ...</span>
+<a id="__codelineno-33-8" name="__codelineno-33-8" href="#__codelineno-33-8"></a><span class="c1">#   LOGON_ACK gateway_id=TRADER01 accepted=0 reject_code=255 msg=SYMBOLS_UNAVAILABLE</span>
+<a id="__codelineno-33-9" name="__codelineno-33-9" href="#__codelineno-33-9"></a><span class="c1">#   CANCEL_ACK ... / AMEND_ACK ... / STOP_TRIGGERED ...</span>
+<a id="__codelineno-33-10" name="__codelineno-33-10" href="#__codelineno-33-10"></a><span class="c1">#   balf_parser.c self-test: OK</span>
 </code></pre></div>
 <p><code>EXECUTION_REPORT</code> and <code>STOP_TRIGGERED</code> are decoded by the generated binding in
 <code>docs/examples/generated</code> (hence the extra sources); <code>LOGON_ACK</code>, <code>CANCEL_ACK</code>
@@ -8908,13 +9143,13 @@ happy path:</p>
 reference decoder's parsing functions.</li>
 </ul>
 <h3 id="run-the-gateway">Run the gateway<a class="headerlink" href="#run-the-gateway" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a>pm-balf-gwy
-<a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a>
-<a id="__codelineno-27-3" name="__codelineno-27-3" href="#__codelineno-27-3"></a><span class="c1"># Override bind port</span>
-<a id="__codelineno-27-4" name="__codelineno-27-4" href="#__codelineno-27-4"></a>pm-balf-gwy<span class="w"> </span>--port<span class="w"> </span><span class="m">5560</span>
-<a id="__codelineno-27-5" name="__codelineno-27-5" href="#__codelineno-27-5"></a>
-<a id="__codelineno-27-6" name="__codelineno-27-6" href="#__codelineno-27-6"></a><span class="c1"># Override engine host</span>
-<a id="__codelineno-27-7" name="__codelineno-27-7" href="#__codelineno-27-7"></a>pm-balf-gwy<span class="w"> </span>--engine-host<span class="w"> </span><span class="m">10</span>.0.0.5
+<div class="highlight"><pre><span></span><code><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a>pm-balf-gwy
+<a id="__codelineno-34-2" name="__codelineno-34-2" href="#__codelineno-34-2"></a>
+<a id="__codelineno-34-3" name="__codelineno-34-3" href="#__codelineno-34-3"></a><span class="c1"># Override bind port</span>
+<a id="__codelineno-34-4" name="__codelineno-34-4" href="#__codelineno-34-4"></a>pm-balf-gwy<span class="w"> </span>--port<span class="w"> </span><span class="m">5560</span>
+<a id="__codelineno-34-5" name="__codelineno-34-5" href="#__codelineno-34-5"></a>
+<a id="__codelineno-34-6" name="__codelineno-34-6" href="#__codelineno-34-6"></a><span class="c1"># Override engine host</span>
+<a id="__codelineno-34-7" name="__codelineno-34-7" href="#__codelineno-34-7"></a>pm-balf-gwy<span class="w"> </span>--engine-host<span class="w"> </span><span class="m">10</span>.0.0.5
 </code></pre></div>
 <p>The gateway binds on port <strong>5560</strong> by default.  BALF uses fixed-length binary
 frames so there is no text-mode manual sanity check; use the Python parser
@@ -8933,7 +9168,7 @@ required. The two WebSocket examples need the <code>websockets</code> package
 (<code>pip install websockets</code>).</p>
 <p>Every Python example runs against a real exchange in <code>make test-e2e</code>
 (<code>tests/test_examples_e2e.py</code>), so they are kept working.</p>
-<h3 id="source-files_4">Source files<a class="headerlink" href="#source-files_4" title="Permanent link">&para;</a></h3>
+<h3 id="source-files_5">Source files<a class="headerlink" href="#source-files_5" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
 <tr>
@@ -8996,8 +9231,8 @@ required. The two WebSocket examples need the <code>websockets</code> package
 <p>All requests require a <code>Bearer</code> token in the <code>Authorization</code> header.
 The default development key is <code>key-trader-demo</code>.</p>
 <p>Configure via environment variables:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">EDUMATCHER_API_URL</span><span class="o">=</span><span class="s2">"http://127.0.0.1:8080"</span>
-<a id="__codelineno-28-2" name="__codelineno-28-2" href="#__codelineno-28-2"></a><span class="nb">export</span><span class="w"> </span><span class="nv">EDUMATCHER_API_KEY</span><span class="o">=</span><span class="s2">"key-trader-demo"</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-35-1" name="__codelineno-35-1" href="#__codelineno-35-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">EDUMATCHER_API_URL</span><span class="o">=</span><span class="s2">"http://127.0.0.1:8080"</span>
+<a id="__codelineno-35-2" name="__codelineno-35-2" href="#__codelineno-35-2"></a><span class="nb">export</span><span class="w"> </span><span class="nv">EDUMATCHER_API_KEY</span><span class="o">=</span><span class="s2">"key-trader-demo"</span>
 </code></pre></div>
 <h3 id="python-api-api_gateway_clientpy">Python API — <code>api_gateway_client.py</code><a class="headerlink" href="#python-api-api_gateway_clientpy" title="Permanent link">&para;</a></h3>
 <p><strong><code>ApiGatewayClient(base_url, api_key, timeout=5.0)</code></strong>
@@ -9024,69 +9259,69 @@ The default development key is <code>key-trader-demo</code>.</p>
   sent; retry it only with the same <code>Idempotency-Key</code>.</li>
 </ul>
 <p>Both subclass <code>RuntimeError</code>.</p>
-<h3 id="python-usage-pattern_4">Python usage pattern<a class="headerlink" href="#python-usage-pattern_4" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">uuid</span>
-<a id="__codelineno-29-2" name="__codelineno-29-2" href="#__codelineno-29-2"></a>
-<a id="__codelineno-29-3" name="__codelineno-29-3" href="#__codelineno-29-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">api_gateway_client</span><span class="w"> </span><span class="kn">import</span> <span class="n">ApiGatewayClient</span>
-<a id="__codelineno-29-4" name="__codelineno-29-4" href="#__codelineno-29-4"></a>
-<a id="__codelineno-29-5" name="__codelineno-29-5" href="#__codelineno-29-5"></a><span class="n">client</span> <span class="o">=</span> <span class="n">ApiGatewayClient</span><span class="p">(</span><span class="s2">"http://127.0.0.1:8080"</span><span class="p">,</span> <span class="s2">"key-trader-demo"</span><span class="p">)</span>
-<a id="__codelineno-29-6" name="__codelineno-29-6" href="#__codelineno-29-6"></a>
-<a id="__codelineno-29-7" name="__codelineno-29-7" href="#__codelineno-29-7"></a><span class="c1"># Query endpoints</span>
-<a id="__codelineno-29-8" name="__codelineno-29-8" href="#__codelineno-29-8"></a><span class="n">status</span>  <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">get_json</span><span class="p">(</span><span class="s2">"/api/v1/status"</span><span class="p">)</span>
-<a id="__codelineno-29-9" name="__codelineno-29-9" href="#__codelineno-29-9"></a><span class="n">symbols</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">get_json</span><span class="p">(</span><span class="s2">"/api/v1/symbols"</span><span class="p">)</span>
-<a id="__codelineno-29-10" name="__codelineno-29-10" href="#__codelineno-29-10"></a><span class="n">session</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">get_json</span><span class="p">(</span><span class="s2">"/api/v1/session"</span><span class="p">)</span>
-<a id="__codelineno-29-11" name="__codelineno-29-11" href="#__codelineno-29-11"></a>
-<a id="__codelineno-29-12" name="__codelineno-29-12" href="#__codelineno-29-12"></a><span class="c1"># Submit a MARKET order</span>
-<a id="__codelineno-29-13" name="__codelineno-29-13" href="#__codelineno-29-13"></a><span class="n">result</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">post_json</span><span class="p">(</span><span class="s2">"/api/v1/orders"</span><span class="p">,</span> <span class="p">{</span>
-<a id="__codelineno-29-14" name="__codelineno-29-14" href="#__codelineno-29-14"></a>    <span class="s2">"symbol"</span><span class="p">:</span>     <span class="s2">"AAPL"</span><span class="p">,</span>
-<a id="__codelineno-29-15" name="__codelineno-29-15" href="#__codelineno-29-15"></a>    <span class="s2">"side"</span><span class="p">:</span>       <span class="s2">"BUY"</span><span class="p">,</span>
-<a id="__codelineno-29-16" name="__codelineno-29-16" href="#__codelineno-29-16"></a>    <span class="s2">"order_type"</span><span class="p">:</span> <span class="s2">"MARKET"</span><span class="p">,</span>
-<a id="__codelineno-29-17" name="__codelineno-29-17" href="#__codelineno-29-17"></a>    <span class="s2">"quantity"</span><span class="p">:</span>   <span class="mi">100</span><span class="p">,</span>
-<a id="__codelineno-29-18" name="__codelineno-29-18" href="#__codelineno-29-18"></a><span class="p">})</span>
-<a id="__codelineno-29-19" name="__codelineno-29-19" href="#__codelineno-29-19"></a><span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s2">"order_id"</span><span class="p">],</span> <span class="n">result</span><span class="p">[</span><span class="s2">"status"</span><span class="p">])</span>
-<a id="__codelineno-29-20" name="__codelineno-29-20" href="#__codelineno-29-20"></a>
-<a id="__codelineno-29-21" name="__codelineno-29-21" href="#__codelineno-29-21"></a><span class="c1"># Submit and wait for the engine ACK; the key makes a retry safe</span>
-<a id="__codelineno-29-22" name="__codelineno-29-22" href="#__codelineno-29-22"></a><span class="n">result</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">post_json</span><span class="p">(</span><span class="s2">"/api/v1/orders?wait=ack"</span><span class="p">,</span> <span class="p">{</span>
-<a id="__codelineno-29-23" name="__codelineno-29-23" href="#__codelineno-29-23"></a>    <span class="s2">"symbol"</span><span class="p">:</span>     <span class="s2">"MSFT"</span><span class="p">,</span>
-<a id="__codelineno-29-24" name="__codelineno-29-24" href="#__codelineno-29-24"></a>    <span class="s2">"side"</span><span class="p">:</span>       <span class="s2">"SELL"</span><span class="p">,</span>
-<a id="__codelineno-29-25" name="__codelineno-29-25" href="#__codelineno-29-25"></a>    <span class="s2">"order_type"</span><span class="p">:</span> <span class="s2">"MARKET"</span><span class="p">,</span>
-<a id="__codelineno-29-26" name="__codelineno-29-26" href="#__codelineno-29-26"></a>    <span class="s2">"quantity"</span><span class="p">:</span>   <span class="mi">50</span><span class="p">,</span>
-<a id="__codelineno-29-27" name="__codelineno-29-27" href="#__codelineno-29-27"></a><span class="p">},</span> <span class="n">idempotency_key</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">uuid</span><span class="o">.</span><span class="n">uuid4</span><span class="p">()))</span>
-<a id="__codelineno-29-28" name="__codelineno-29-28" href="#__codelineno-29-28"></a><span class="k">if</span> <span class="n">result</span><span class="p">[</span><span class="s2">"ack_timeout"</span><span class="p">]:</span>
-<a id="__codelineno-29-29" name="__codelineno-29-29" href="#__codelineno-29-29"></a>    <span class="nb">print</span><span class="p">(</span><span class="s2">"sent; the ACK was late -- follow it, do not resubmit"</span><span class="p">)</span>
-<a id="__codelineno-29-30" name="__codelineno-29-30" href="#__codelineno-29-30"></a><span class="k">else</span><span class="p">:</span>
-<a id="__codelineno-29-31" name="__codelineno-29-31" href="#__codelineno-29-31"></a>    <span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"event"</span><span class="p">))</span>   <span class="c1"># engine acknowledgement event</span>
+<h3 id="python-usage-pattern_5">Python usage pattern<a class="headerlink" href="#python-usage-pattern_5" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-36-1" name="__codelineno-36-1" href="#__codelineno-36-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">uuid</span>
+<a id="__codelineno-36-2" name="__codelineno-36-2" href="#__codelineno-36-2"></a>
+<a id="__codelineno-36-3" name="__codelineno-36-3" href="#__codelineno-36-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">api_gateway_client</span><span class="w"> </span><span class="kn">import</span> <span class="n">ApiGatewayClient</span>
+<a id="__codelineno-36-4" name="__codelineno-36-4" href="#__codelineno-36-4"></a>
+<a id="__codelineno-36-5" name="__codelineno-36-5" href="#__codelineno-36-5"></a><span class="n">client</span> <span class="o">=</span> <span class="n">ApiGatewayClient</span><span class="p">(</span><span class="s2">"http://127.0.0.1:8080"</span><span class="p">,</span> <span class="s2">"key-trader-demo"</span><span class="p">)</span>
+<a id="__codelineno-36-6" name="__codelineno-36-6" href="#__codelineno-36-6"></a>
+<a id="__codelineno-36-7" name="__codelineno-36-7" href="#__codelineno-36-7"></a><span class="c1"># Query endpoints</span>
+<a id="__codelineno-36-8" name="__codelineno-36-8" href="#__codelineno-36-8"></a><span class="n">status</span>  <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">get_json</span><span class="p">(</span><span class="s2">"/api/v1/status"</span><span class="p">)</span>
+<a id="__codelineno-36-9" name="__codelineno-36-9" href="#__codelineno-36-9"></a><span class="n">symbols</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">get_json</span><span class="p">(</span><span class="s2">"/api/v1/symbols"</span><span class="p">)</span>
+<a id="__codelineno-36-10" name="__codelineno-36-10" href="#__codelineno-36-10"></a><span class="n">session</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">get_json</span><span class="p">(</span><span class="s2">"/api/v1/session"</span><span class="p">)</span>
+<a id="__codelineno-36-11" name="__codelineno-36-11" href="#__codelineno-36-11"></a>
+<a id="__codelineno-36-12" name="__codelineno-36-12" href="#__codelineno-36-12"></a><span class="c1"># Submit a MARKET order</span>
+<a id="__codelineno-36-13" name="__codelineno-36-13" href="#__codelineno-36-13"></a><span class="n">result</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">post_json</span><span class="p">(</span><span class="s2">"/api/v1/orders"</span><span class="p">,</span> <span class="p">{</span>
+<a id="__codelineno-36-14" name="__codelineno-36-14" href="#__codelineno-36-14"></a>    <span class="s2">"symbol"</span><span class="p">:</span>     <span class="s2">"AAPL"</span><span class="p">,</span>
+<a id="__codelineno-36-15" name="__codelineno-36-15" href="#__codelineno-36-15"></a>    <span class="s2">"side"</span><span class="p">:</span>       <span class="s2">"BUY"</span><span class="p">,</span>
+<a id="__codelineno-36-16" name="__codelineno-36-16" href="#__codelineno-36-16"></a>    <span class="s2">"order_type"</span><span class="p">:</span> <span class="s2">"MARKET"</span><span class="p">,</span>
+<a id="__codelineno-36-17" name="__codelineno-36-17" href="#__codelineno-36-17"></a>    <span class="s2">"quantity"</span><span class="p">:</span>   <span class="mi">100</span><span class="p">,</span>
+<a id="__codelineno-36-18" name="__codelineno-36-18" href="#__codelineno-36-18"></a><span class="p">})</span>
+<a id="__codelineno-36-19" name="__codelineno-36-19" href="#__codelineno-36-19"></a><span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s2">"order_id"</span><span class="p">],</span> <span class="n">result</span><span class="p">[</span><span class="s2">"status"</span><span class="p">])</span>
+<a id="__codelineno-36-20" name="__codelineno-36-20" href="#__codelineno-36-20"></a>
+<a id="__codelineno-36-21" name="__codelineno-36-21" href="#__codelineno-36-21"></a><span class="c1"># Submit and wait for the engine ACK; the key makes a retry safe</span>
+<a id="__codelineno-36-22" name="__codelineno-36-22" href="#__codelineno-36-22"></a><span class="n">result</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">post_json</span><span class="p">(</span><span class="s2">"/api/v1/orders?wait=ack"</span><span class="p">,</span> <span class="p">{</span>
+<a id="__codelineno-36-23" name="__codelineno-36-23" href="#__codelineno-36-23"></a>    <span class="s2">"symbol"</span><span class="p">:</span>     <span class="s2">"MSFT"</span><span class="p">,</span>
+<a id="__codelineno-36-24" name="__codelineno-36-24" href="#__codelineno-36-24"></a>    <span class="s2">"side"</span><span class="p">:</span>       <span class="s2">"SELL"</span><span class="p">,</span>
+<a id="__codelineno-36-25" name="__codelineno-36-25" href="#__codelineno-36-25"></a>    <span class="s2">"order_type"</span><span class="p">:</span> <span class="s2">"MARKET"</span><span class="p">,</span>
+<a id="__codelineno-36-26" name="__codelineno-36-26" href="#__codelineno-36-26"></a>    <span class="s2">"quantity"</span><span class="p">:</span>   <span class="mi">50</span><span class="p">,</span>
+<a id="__codelineno-36-27" name="__codelineno-36-27" href="#__codelineno-36-27"></a><span class="p">},</span> <span class="n">idempotency_key</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">uuid</span><span class="o">.</span><span class="n">uuid4</span><span class="p">()))</span>
+<a id="__codelineno-36-28" name="__codelineno-36-28" href="#__codelineno-36-28"></a><span class="k">if</span> <span class="n">result</span><span class="p">[</span><span class="s2">"ack_timeout"</span><span class="p">]:</span>
+<a id="__codelineno-36-29" name="__codelineno-36-29" href="#__codelineno-36-29"></a>    <span class="nb">print</span><span class="p">(</span><span class="s2">"sent; the ACK was late -- follow it, do not resubmit"</span><span class="p">)</span>
+<a id="__codelineno-36-30" name="__codelineno-36-30" href="#__codelineno-36-30"></a><span class="k">else</span><span class="p">:</span>
+<a id="__codelineno-36-31" name="__codelineno-36-31" href="#__codelineno-36-31"></a>    <span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"event"</span><span class="p">))</span>   <span class="c1"># engine acknowledgement event</span>
 </code></pre></div>
 <h3 id="run-python-examples">Run Python examples<a class="headerlink" href="#run-python-examples" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a><span class="nb">cd</span><span class="w"> </span>docs/examples/REST/python
-<a id="__codelineno-30-2" name="__codelineno-30-2" href="#__codelineno-30-2"></a>
-<a id="__codelineno-30-3" name="__codelineno-30-3" href="#__codelineno-30-3"></a><span class="c1"># Print gateway status, symbols, and session information</span>
-<a id="__codelineno-30-4" name="__codelineno-30-4" href="#__codelineno-30-4"></a>python3<span class="w"> </span>demo_info.py
-<a id="__codelineno-30-5" name="__codelineno-30-5" href="#__codelineno-30-5"></a>
-<a id="__codelineno-30-6" name="__codelineno-30-6" href="#__codelineno-30-6"></a><span class="c1"># Submit a BUY MARKET order for 100 AAPL</span>
-<a id="__codelineno-30-7" name="__codelineno-30-7" href="#__codelineno-30-7"></a>python3<span class="w"> </span>submit_market_order.py<span class="w"> </span>--side<span class="w"> </span>BUY<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--qty<span class="w"> </span><span class="m">100</span>
-<a id="__codelineno-30-8" name="__codelineno-30-8" href="#__codelineno-30-8"></a>
-<a id="__codelineno-30-9" name="__codelineno-30-9" href="#__codelineno-30-9"></a><span class="c1"># Submit and block until the engine ACKs</span>
-<a id="__codelineno-30-10" name="__codelineno-30-10" href="#__codelineno-30-10"></a>python3<span class="w"> </span>submit_market_order.py<span class="w"> </span>--side<span class="w"> </span>SELL<span class="w"> </span>--symbol<span class="w"> </span>MSFT<span class="w"> </span>--qty<span class="w"> </span><span class="m">50</span><span class="w"> </span>--wait-ack
-<a id="__codelineno-30-11" name="__codelineno-30-11" href="#__codelineno-30-11"></a>
-<a id="__codelineno-30-12" name="__codelineno-30-12" href="#__codelineno-30-12"></a><span class="c1"># Override URL or key on the command line</span>
-<a id="__codelineno-30-13" name="__codelineno-30-13" href="#__codelineno-30-13"></a>python3<span class="w"> </span>submit_market_order.py<span class="w"> </span>--url<span class="w"> </span>http://10.0.0.5:8080<span class="w"> </span>--key<span class="w"> </span>mykey<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-30-14" name="__codelineno-30-14" href="#__codelineno-30-14"></a><span class="w">    </span>--side<span class="w"> </span>BUY<span class="w"> </span>--symbol<span class="w"> </span>TSLA<span class="w"> </span>--qty<span class="w"> </span><span class="m">10</span>
-<a id="__codelineno-30-15" name="__codelineno-30-15" href="#__codelineno-30-15"></a>
-<a id="__codelineno-30-16" name="__codelineno-30-16" href="#__codelineno-30-16"></a><span class="c1"># One order's whole life; --price below the bid so it rests</span>
-<a id="__codelineno-30-17" name="__codelineno-30-17" href="#__codelineno-30-17"></a>python3<span class="w"> </span>order_lifecycle.py<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--price<span class="w"> </span><span class="m">22</span>.70
-<a id="__codelineno-30-18" name="__codelineno-30-18" href="#__codelineno-30-18"></a>
-<a id="__codelineno-30-19" name="__codelineno-30-19" href="#__codelineno-30-19"></a><span class="c1"># Today's trades, page by page</span>
-<a id="__codelineno-30-20" name="__codelineno-30-20" href="#__codelineno-30-20"></a>python3<span class="w"> </span>history_pages.py<span class="w"> </span>--limit<span class="w"> </span><span class="m">50</span>
-<a id="__codelineno-30-21" name="__codelineno-30-21" href="#__codelineno-30-21"></a>
-<a id="__codelineno-30-22" name="__codelineno-30-22" href="#__codelineno-30-22"></a><span class="c1"># The private stream: place and cancel one order, watch both events arrive</span>
-<a id="__codelineno-30-23" name="__codelineno-30-23" href="#__codelineno-30-23"></a>python3<span class="w"> </span>private_stream.py<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--price<span class="w"> </span><span class="m">22</span>.70
-<a id="__codelineno-30-24" name="__codelineno-30-24" href="#__codelineno-30-24"></a>
-<a id="__codelineno-30-25" name="__codelineno-30-25" href="#__codelineno-30-25"></a><span class="c1"># Market data: book for every symbol, trades for one; --trade makes a print</span>
-<a id="__codelineno-30-26" name="__codelineno-30-26" href="#__codelineno-30-26"></a>python3<span class="w"> </span>market_data.py<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--trade
-<a id="__codelineno-30-27" name="__codelineno-30-27" href="#__codelineno-30-27"></a>
-<a id="__codelineno-30-28" name="__codelineno-30-28" href="#__codelineno-30-28"></a><span class="c1"># Admin (an ADMIN key): halt, inspect, dry-run reopen, reopen</span>
-<a id="__codelineno-30-29" name="__codelineno-30-29" href="#__codelineno-30-29"></a>python3<span class="w"> </span>admin_halt_reopen.py<span class="w"> </span>--symbol<span class="w"> </span>MSFT<span class="w"> </span>--key<span class="w"> </span>&lt;admin<span class="w"> </span>key&gt;
+<div class="highlight"><pre><span></span><code><a id="__codelineno-37-1" name="__codelineno-37-1" href="#__codelineno-37-1"></a><span class="nb">cd</span><span class="w"> </span>docs/examples/REST/python
+<a id="__codelineno-37-2" name="__codelineno-37-2" href="#__codelineno-37-2"></a>
+<a id="__codelineno-37-3" name="__codelineno-37-3" href="#__codelineno-37-3"></a><span class="c1"># Print gateway status, symbols, and session information</span>
+<a id="__codelineno-37-4" name="__codelineno-37-4" href="#__codelineno-37-4"></a>python3<span class="w"> </span>demo_info.py
+<a id="__codelineno-37-5" name="__codelineno-37-5" href="#__codelineno-37-5"></a>
+<a id="__codelineno-37-6" name="__codelineno-37-6" href="#__codelineno-37-6"></a><span class="c1"># Submit a BUY MARKET order for 100 AAPL</span>
+<a id="__codelineno-37-7" name="__codelineno-37-7" href="#__codelineno-37-7"></a>python3<span class="w"> </span>submit_market_order.py<span class="w"> </span>--side<span class="w"> </span>BUY<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--qty<span class="w"> </span><span class="m">100</span>
+<a id="__codelineno-37-8" name="__codelineno-37-8" href="#__codelineno-37-8"></a>
+<a id="__codelineno-37-9" name="__codelineno-37-9" href="#__codelineno-37-9"></a><span class="c1"># Submit and block until the engine ACKs</span>
+<a id="__codelineno-37-10" name="__codelineno-37-10" href="#__codelineno-37-10"></a>python3<span class="w"> </span>submit_market_order.py<span class="w"> </span>--side<span class="w"> </span>SELL<span class="w"> </span>--symbol<span class="w"> </span>MSFT<span class="w"> </span>--qty<span class="w"> </span><span class="m">50</span><span class="w"> </span>--wait-ack
+<a id="__codelineno-37-11" name="__codelineno-37-11" href="#__codelineno-37-11"></a>
+<a id="__codelineno-37-12" name="__codelineno-37-12" href="#__codelineno-37-12"></a><span class="c1"># Override URL or key on the command line</span>
+<a id="__codelineno-37-13" name="__codelineno-37-13" href="#__codelineno-37-13"></a>python3<span class="w"> </span>submit_market_order.py<span class="w"> </span>--url<span class="w"> </span>http://10.0.0.5:8080<span class="w"> </span>--key<span class="w"> </span>mykey<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-37-14" name="__codelineno-37-14" href="#__codelineno-37-14"></a><span class="w">    </span>--side<span class="w"> </span>BUY<span class="w"> </span>--symbol<span class="w"> </span>TSLA<span class="w"> </span>--qty<span class="w"> </span><span class="m">10</span>
+<a id="__codelineno-37-15" name="__codelineno-37-15" href="#__codelineno-37-15"></a>
+<a id="__codelineno-37-16" name="__codelineno-37-16" href="#__codelineno-37-16"></a><span class="c1"># One order's whole life; --price below the bid so it rests</span>
+<a id="__codelineno-37-17" name="__codelineno-37-17" href="#__codelineno-37-17"></a>python3<span class="w"> </span>order_lifecycle.py<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--price<span class="w"> </span><span class="m">22</span>.70
+<a id="__codelineno-37-18" name="__codelineno-37-18" href="#__codelineno-37-18"></a>
+<a id="__codelineno-37-19" name="__codelineno-37-19" href="#__codelineno-37-19"></a><span class="c1"># Today's trades, page by page</span>
+<a id="__codelineno-37-20" name="__codelineno-37-20" href="#__codelineno-37-20"></a>python3<span class="w"> </span>history_pages.py<span class="w"> </span>--limit<span class="w"> </span><span class="m">50</span>
+<a id="__codelineno-37-21" name="__codelineno-37-21" href="#__codelineno-37-21"></a>
+<a id="__codelineno-37-22" name="__codelineno-37-22" href="#__codelineno-37-22"></a><span class="c1"># The private stream: place and cancel one order, watch both events arrive</span>
+<a id="__codelineno-37-23" name="__codelineno-37-23" href="#__codelineno-37-23"></a>python3<span class="w"> </span>private_stream.py<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--price<span class="w"> </span><span class="m">22</span>.70
+<a id="__codelineno-37-24" name="__codelineno-37-24" href="#__codelineno-37-24"></a>
+<a id="__codelineno-37-25" name="__codelineno-37-25" href="#__codelineno-37-25"></a><span class="c1"># Market data: book for every symbol, trades for one; --trade makes a print</span>
+<a id="__codelineno-37-26" name="__codelineno-37-26" href="#__codelineno-37-26"></a>python3<span class="w"> </span>market_data.py<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--trade
+<a id="__codelineno-37-27" name="__codelineno-37-27" href="#__codelineno-37-27"></a>
+<a id="__codelineno-37-28" name="__codelineno-37-28" href="#__codelineno-37-28"></a><span class="c1"># Admin (an ADMIN key): halt, inspect, dry-run reopen, reopen</span>
+<a id="__codelineno-37-29" name="__codelineno-37-29" href="#__codelineno-37-29"></a>python3<span class="w"> </span>admin_halt_reopen.py<span class="w"> </span>--symbol<span class="w"> </span>MSFT<span class="w"> </span>--key<span class="w"> </span>&lt;admin<span class="w"> </span>key&gt;
 </code></pre></div>
 <h3 id="c-api-api_gateway_clienth">C API — <code>api_gateway_client.h</code><a class="headerlink" href="#c-api-api_gateway_clienth" title="Permanent link">&para;</a></h3>
 <p><strong><code>ApiGatewayClient api_gateway_client(host, port, api_key)</code></strong>
@@ -9095,36 +9330,36 @@ The default development key is <code>key-trader-demo</code>.</p>
 : Issue a <code>GET</code> request and return the raw HTTP response body as a
   heap-allocated string.  The caller must <code>free()</code> the result.
   Returns <code>NULL</code> on network or allocation failure.</p>
-<h3 id="c-usage-pattern_3">C usage pattern<a class="headerlink" href="#c-usage-pattern_3" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a><span class="cp">#include</span><span class="w"> </span><span class="cpf">"api_gateway_client.h"</span>
-<a id="__codelineno-31-2" name="__codelineno-31-2" href="#__codelineno-31-2"></a><span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;stdlib.h&gt;</span>
-<a id="__codelineno-31-3" name="__codelineno-31-3" href="#__codelineno-31-3"></a><span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;stdio.h&gt;</span>
-<a id="__codelineno-31-4" name="__codelineno-31-4" href="#__codelineno-31-4"></a>
-<a id="__codelineno-31-5" name="__codelineno-31-5" href="#__codelineno-31-5"></a><span class="k">const</span><span class="w"> </span><span class="kt">char</span><span class="w"> </span><span class="o">*</span><span class="n">key</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">getenv</span><span class="p">(</span><span class="s">"EDUMATCHER_API_KEY"</span><span class="p">)</span><span class="w"> </span><span class="o">?:</span><span class="w"> </span><span class="s">"key-trader-demo"</span><span class="p">;</span>
-<a id="__codelineno-31-6" name="__codelineno-31-6" href="#__codelineno-31-6"></a><span class="n">ApiGatewayClient</span><span class="w"> </span><span class="n">client</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">api_gateway_client</span><span class="p">(</span><span class="s">"127.0.0.1"</span><span class="p">,</span><span class="w"> </span><span class="mi">8080</span><span class="p">,</span><span class="w"> </span><span class="n">key</span><span class="p">);</span>
-<a id="__codelineno-31-7" name="__codelineno-31-7" href="#__codelineno-31-7"></a>
-<a id="__codelineno-31-8" name="__codelineno-31-8" href="#__codelineno-31-8"></a><span class="kt">char</span><span class="w"> </span><span class="o">*</span><span class="n">body</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">api_gateway_get</span><span class="p">(</span><span class="o">&amp;</span><span class="n">client</span><span class="p">,</span><span class="w"> </span><span class="s">"/api/v1/symbols"</span><span class="p">);</span>
-<a id="__codelineno-31-9" name="__codelineno-31-9" href="#__codelineno-31-9"></a><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">body</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<a id="__codelineno-31-10" name="__codelineno-31-10" href="#__codelineno-31-10"></a><span class="w">    </span><span class="n">printf</span><span class="p">(</span><span class="s">"%s</span><span class="se">\n</span><span class="s">"</span><span class="p">,</span><span class="w"> </span><span class="n">body</span><span class="p">);</span>
-<a id="__codelineno-31-11" name="__codelineno-31-11" href="#__codelineno-31-11"></a><span class="w">    </span><span class="n">free</span><span class="p">(</span><span class="n">body</span><span class="p">);</span>
-<a id="__codelineno-31-12" name="__codelineno-31-12" href="#__codelineno-31-12"></a><span class="p">}</span>
+<h3 id="c-usage-pattern_4">C usage pattern<a class="headerlink" href="#c-usage-pattern_4" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-38-1" name="__codelineno-38-1" href="#__codelineno-38-1"></a><span class="cp">#include</span><span class="w"> </span><span class="cpf">"api_gateway_client.h"</span>
+<a id="__codelineno-38-2" name="__codelineno-38-2" href="#__codelineno-38-2"></a><span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;stdlib.h&gt;</span>
+<a id="__codelineno-38-3" name="__codelineno-38-3" href="#__codelineno-38-3"></a><span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;stdio.h&gt;</span>
+<a id="__codelineno-38-4" name="__codelineno-38-4" href="#__codelineno-38-4"></a>
+<a id="__codelineno-38-5" name="__codelineno-38-5" href="#__codelineno-38-5"></a><span class="k">const</span><span class="w"> </span><span class="kt">char</span><span class="w"> </span><span class="o">*</span><span class="n">key</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">getenv</span><span class="p">(</span><span class="s">"EDUMATCHER_API_KEY"</span><span class="p">)</span><span class="w"> </span><span class="o">?:</span><span class="w"> </span><span class="s">"key-trader-demo"</span><span class="p">;</span>
+<a id="__codelineno-38-6" name="__codelineno-38-6" href="#__codelineno-38-6"></a><span class="n">ApiGatewayClient</span><span class="w"> </span><span class="n">client</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">api_gateway_client</span><span class="p">(</span><span class="s">"127.0.0.1"</span><span class="p">,</span><span class="w"> </span><span class="mi">8080</span><span class="p">,</span><span class="w"> </span><span class="n">key</span><span class="p">);</span>
+<a id="__codelineno-38-7" name="__codelineno-38-7" href="#__codelineno-38-7"></a>
+<a id="__codelineno-38-8" name="__codelineno-38-8" href="#__codelineno-38-8"></a><span class="kt">char</span><span class="w"> </span><span class="o">*</span><span class="n">body</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">api_gateway_get</span><span class="p">(</span><span class="o">&amp;</span><span class="n">client</span><span class="p">,</span><span class="w"> </span><span class="s">"/api/v1/symbols"</span><span class="p">);</span>
+<a id="__codelineno-38-9" name="__codelineno-38-9" href="#__codelineno-38-9"></a><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">body</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-38-10" name="__codelineno-38-10" href="#__codelineno-38-10"></a><span class="w">    </span><span class="n">printf</span><span class="p">(</span><span class="s">"%s</span><span class="se">\n</span><span class="s">"</span><span class="p">,</span><span class="w"> </span><span class="n">body</span><span class="p">);</span>
+<a id="__codelineno-38-11" name="__codelineno-38-11" href="#__codelineno-38-11"></a><span class="w">    </span><span class="n">free</span><span class="p">(</span><span class="n">body</span><span class="p">);</span>
+<a id="__codelineno-38-12" name="__codelineno-38-12" href="#__codelineno-38-12"></a><span class="p">}</span>
 </code></pre></div>
-<h3 id="build-and-run-c-example_2">Build and run C example<a class="headerlink" href="#build-and-run-c-example_2" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a><span class="nb">cd</span><span class="w"> </span>docs/examples/REST/c
-<a id="__codelineno-32-2" name="__codelineno-32-2" href="#__codelineno-32-2"></a>make
-<a id="__codelineno-32-3" name="__codelineno-32-3" href="#__codelineno-32-3"></a>
-<a id="__codelineno-32-4" name="__codelineno-32-4" href="#__codelineno-32-4"></a><span class="c1"># Print status, symbols, and session info</span>
-<a id="__codelineno-32-5" name="__codelineno-32-5" href="#__codelineno-32-5"></a>./demo_info
+<h3 id="build-and-run-c-example_3">Build and run C example<a class="headerlink" href="#build-and-run-c-example_3" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-39-1" name="__codelineno-39-1" href="#__codelineno-39-1"></a><span class="nb">cd</span><span class="w"> </span>docs/examples/REST/c
+<a id="__codelineno-39-2" name="__codelineno-39-2" href="#__codelineno-39-2"></a>make
+<a id="__codelineno-39-3" name="__codelineno-39-3" href="#__codelineno-39-3"></a>
+<a id="__codelineno-39-4" name="__codelineno-39-4" href="#__codelineno-39-4"></a><span class="c1"># Print status, symbols, and session info</span>
+<a id="__codelineno-39-5" name="__codelineno-39-5" href="#__codelineno-39-5"></a>./demo_info
 </code></pre></div>
 <h3 id="manual-api-sanity-check">Manual API sanity check<a class="headerlink" href="#manual-api-sanity-check" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a>curl<span class="w"> </span>-s<span class="w"> </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer key-trader-demo"</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-33-2" name="__codelineno-33-2" href="#__codelineno-33-2"></a><span class="w">     </span>http://127.0.0.1:8080/api/v1/status<span class="w"> </span><span class="p">|</span><span class="w"> </span>python3<span class="w"> </span>-m<span class="w"> </span>json.tool
-<a id="__codelineno-33-3" name="__codelineno-33-3" href="#__codelineno-33-3"></a>
-<a id="__codelineno-33-4" name="__codelineno-33-4" href="#__codelineno-33-4"></a>curl<span class="w"> </span>-s<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-33-5" name="__codelineno-33-5" href="#__codelineno-33-5"></a><span class="w">     </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer key-trader-demo"</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-33-6" name="__codelineno-33-6" href="#__codelineno-33-6"></a><span class="w">     </span>-H<span class="w"> </span><span class="s2">"Content-Type: application/json"</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-33-7" name="__codelineno-33-7" href="#__codelineno-33-7"></a><span class="w">     </span>-d<span class="w"> </span><span class="s1">'{"symbol":"AAPL","side":"BUY","order_type":"MARKET","quantity":10}'</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-33-8" name="__codelineno-33-8" href="#__codelineno-33-8"></a><span class="w">     </span>http://127.0.0.1:8080/api/v1/orders<span class="w"> </span><span class="p">|</span><span class="w"> </span>python3<span class="w"> </span>-m<span class="w"> </span>json.tool
+<div class="highlight"><pre><span></span><code><a id="__codelineno-40-1" name="__codelineno-40-1" href="#__codelineno-40-1"></a>curl<span class="w"> </span>-s<span class="w"> </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer key-trader-demo"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-40-2" name="__codelineno-40-2" href="#__codelineno-40-2"></a><span class="w">     </span>http://127.0.0.1:8080/api/v1/status<span class="w"> </span><span class="p">|</span><span class="w"> </span>python3<span class="w"> </span>-m<span class="w"> </span>json.tool
+<a id="__codelineno-40-3" name="__codelineno-40-3" href="#__codelineno-40-3"></a>
+<a id="__codelineno-40-4" name="__codelineno-40-4" href="#__codelineno-40-4"></a>curl<span class="w"> </span>-s<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-40-5" name="__codelineno-40-5" href="#__codelineno-40-5"></a><span class="w">     </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer key-trader-demo"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-40-6" name="__codelineno-40-6" href="#__codelineno-40-6"></a><span class="w">     </span>-H<span class="w"> </span><span class="s2">"Content-Type: application/json"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-40-7" name="__codelineno-40-7" href="#__codelineno-40-7"></a><span class="w">     </span>-d<span class="w"> </span><span class="s1">'{"symbol":"AAPL","side":"BUY","order_type":"MARKET","quantity":10}'</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-40-8" name="__codelineno-40-8" href="#__codelineno-40-8"></a><span class="w">     </span>http://127.0.0.1:8080/api/v1/orders<span class="w"> </span><span class="p">|</span><span class="w"> </span>python3<span class="w"> </span>-m<span class="w"> </span>json.tool
 </code></pre></div>
 <p>See also:</p>
 <ul>

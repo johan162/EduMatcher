@@ -8280,8 +8280,8 @@ This tree is normative for <em>shape</em>; §4–§6 are normative for <em>field
 <a id="__codelineno-0-110" name="__codelineno-0-110" href="#__codelineno-0-110"></a>  bind_address:                 ? Str = "0.0.0.0"
 <a id="__codelineno-0-111" name="__codelineno-0-111" href="#__codelineno-0-111"></a>  port:                         ? Port = 5580                 ∈ 1..65535
 <a id="__codelineno-0-112" name="__codelineno-0-112" href="#__codelineno-0-112"></a>  replay_retention_sec:         ? Int = 86400                 ∈ &gt; 0
-<a id="__codelineno-0-113" name="__codelineno-0-113" href="#__codelineno-0-113"></a>  heartbeat_interval_sec:       ? Int = 1                     ∈ &gt; 0
-<a id="__codelineno-0-114" name="__codelineno-0-114" href="#__codelineno-0-114"></a>  idle_timeout_sec:             ? Int = 5                     ∈ &gt; 0
+<a id="__codelineno-0-113" name="__codelineno-0-113" href="#__codelineno-0-113"></a>  heartbeat_interval_sec:       ? Int = 2                     ∈ &gt; 0
+<a id="__codelineno-0-114" name="__codelineno-0-114" href="#__codelineno-0-114"></a>  idle_timeout_sec:             ? Int = 20                    ∈ &gt; 0
 <a id="__codelineno-0-115" name="__codelineno-0-115" href="#__codelineno-0-115"></a>  max_connections:              ? Int = 64                    ∈ &gt; 0
 <a id="__codelineno-0-116" name="__codelineno-0-116" href="#__codelineno-0-116"></a>  max_client_queue:             ? Int = 10000                 ∈ &gt; 0
 <a id="__codelineno-0-117" name="__codelineno-0-117" href="#__codelineno-0-117"></a>  allowed_roles:                ? List&lt;Str&gt; = [CLEARING, DROP_COPY, AUDIT]
@@ -8290,8 +8290,8 @@ This tree is normative for <em>shape</em>; §4–§6 are normative for <em>field
 <a id="__codelineno-0-120" name="__codelineno-0-120" href="#__codelineno-0-120"></a>  name:                         ? Str = "dc-gwy01"
 <a id="__codelineno-0-121" name="__codelineno-0-121" href="#__codelineno-0-121"></a>  bind_address:                 ? Str = "0.0.0.0"
 <a id="__codelineno-0-122" name="__codelineno-0-122" href="#__codelineno-0-122"></a>  port:                         ? Port = 5590                 ∈ 1..65535
-<a id="__codelineno-0-123" name="__codelineno-0-123" href="#__codelineno-0-123"></a>  heartbeat_interval_sec:       ? Secs = 5
-<a id="__codelineno-0-124" name="__codelineno-0-124" href="#__codelineno-0-124"></a>  idle_timeout_sec:             ? Secs = 30
+<a id="__codelineno-0-123" name="__codelineno-0-123" href="#__codelineno-0-123"></a>  heartbeat_interval_sec:       ? Secs = 2
+<a id="__codelineno-0-124" name="__codelineno-0-124" href="#__codelineno-0-124"></a>  idle_timeout_sec:             ? Secs = 20
 <a id="__codelineno-0-125" name="__codelineno-0-125" href="#__codelineno-0-125"></a>  max_connections:              ? Int = 64                    ∈ &gt; 0
 <a id="__codelineno-0-126" name="__codelineno-0-126" href="#__codelineno-0-126"></a>  max_client_queue:             ? Int = 10000                 ∈ &gt; 0
 <a id="__codelineno-0-127" name="__codelineno-0-127" href="#__codelineno-0-127"></a>
@@ -9679,14 +9679,14 @@ four <code>*_addr</code> fields of <code>ApiGwyProcSpec</code> (§6.5).</p>
 <td><code>heartbeat_interval_sec</code></td>
 <td><code>Int</code></td>
 <td style="text-align: center;">–</td>
-<td><code>1</code></td>
+<td><code>2</code></td>
 <td><code>&gt; 0</code></td>
 </tr>
 <tr>
 <td><code>idle_timeout_sec</code></td>
 <td><code>Int</code></td>
 <td style="text-align: center;">–</td>
-<td><code>5</code></td>
+<td><code>20</code></td>
 <td><code>&gt; 0</code></td>
 </tr>
 <tr>
@@ -9927,14 +9927,14 @@ schema tree (§3).</p>
 <td><code>heartbeat_interval_sec</code></td>
 <td><code>Secs</code></td>
 <td style="text-align: center;">–</td>
-<td><code>5</code></td>
+<td><code>2</code></td>
 <td><code>&gt; 0</code>; interval between <code>HB</code> lines</td>
 </tr>
 <tr>
 <td><code>idle_timeout_sec</code></td>
 <td><code>Secs</code></td>
 <td style="text-align: center;">–</td>
-<td><code>30</code></td>
+<td><code>20</code></td>
 <td><code>&gt; 0</code>; disconnect threshold when no traffic flows in either direction</td>
 </tr>
 <tr>
@@ -10394,6 +10394,10 @@ rejected at load.</p>
 <tr>
 <td>CV23</td>
 <td>(<code>monitor</code>) Every <code>thresholds</code> band is ordered (<code>warn &lt; crit</code>, except <code>disk_free_pct</code> where <code>warn &gt; crit</code>); <code>hung_after_sec &gt; beacon_interval_sec</code>; <code>pull_port ≠ pub_port</code>, and neither collides with another listener (counted even when the block is absent). A <code>host</code> that cannot reach <code>bind_address</code> (neither equal, nor a wildcard bind, nor both loopback) is reported as a warning, not rejected, because <code>EDUMATCHER_GATEWAY_BIND_HOST</code> may change the bind at run time.</td>
+</tr>
+<tr>
+<td>CV24</td>
+<td>(<code>post_trade_gateway</code>, <code>market_data_gateway</code>, <code>dc_gateway</code>) <code>idle_timeout_sec</code> MUST be <code>&gt; 2 × heartbeat_interval_sec</code>, each field taken at its default when omitted.</td>
 </tr>
 </tbody>
 </table>
