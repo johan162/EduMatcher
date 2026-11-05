@@ -7,8 +7,6 @@ This release aligns the CALF, RALF and drop-copy line gateways around consistent
 
 ### ⚠️ Breaking Changes
 - Changed CALF error text from `MSG` to `DETAIL`, changed invalid `HELLO` replies to `AUTH_REQUIRED`, and added `TS` to `PONG`; update clients that depend on the previous wire format
-
-### ✨ Additions
 - Added `max_connections` settings to RALF and drop-copy gateway configuration, with config-generator overrides for market-data, post-trade and drop-copy gateways
 
 ### 🚀 Improvements
