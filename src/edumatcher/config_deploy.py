@@ -299,7 +299,10 @@ def deploy(source: Path, dest: Path = COMPILED_CONFIG_FILE) -> CompiledConfig:
 
 def _report(findings: list[CheckResult]) -> None:
     for finding in findings:
-        location = f" [{finding.path}]" if finding.path else ""
+        where = finding.path
+        if finding.file:
+            where = f"{finding.file}: {where}"
+        location = f" [{where}]" if where else ""
         print(f"  {finding.code}{location}: {finding.message}", file=sys.stderr)
         if finding.suggestion:
             print(f"      {finding.suggestion}", file=sys.stderr)

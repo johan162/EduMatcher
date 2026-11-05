@@ -20,6 +20,9 @@ class CheckResult:
     message: str
     suggestion: str
     path: str = ""
+    #: The included file the finding's ``path`` is defined in; empty when it
+    #: is the main file.
+    file: str = ""
     context: dict[str, Any] = field(default_factory=dict)
 
 

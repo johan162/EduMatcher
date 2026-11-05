@@ -18,13 +18,17 @@ Rules (see docs-design/EduMatcher-Config-Include-Workplan.md section 3):
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import re
+from dataclasses import dataclass, field
 from pathlib import Path, PurePath
 from typing import Any
 
 import yaml
 
 INCLUDE_KEY = "include"
+
+
+_LOCATION = re.compile(r"^(\w+)(?:\[(\d+)\]|\.([^.\[]+))?")
 
 
 class ConfigIncludeError(ValueError):
@@ -36,6 +40,22 @@ class LoadedConfig:
     data: dict[str, Any]
     #: The main file first, then each include in the order listed.
     files: tuple[Path, ...]
+    #: Which file first supplied each top-level key.
+    key_files: dict[str, Path] = field(default_factory=dict)
+    #: Which file supplied each list element ``(key, index)`` and each mapping
+    #: entry ``(key, name)`` of a top-level list or mapping.
+    entry_files: dict[tuple[str, str | int], Path] = field(default_factory=dict)
+
+    def origin_of(self, location: str) -> Path | None:
+        """The file a finding's ``symbols.AAPL.x`` / ``participants[3]`` is from."""
+        match = _LOCATION.match(location)
+        if match is None:
+            return None
+        key, index, name = match.groups()
+        sub: str | int | None = int(index) if index is not None else name
+        if sub is not None and (key, sub) in self.entry_files:
+            return self.entry_files[(key, sub)]
+        return self.key_files.get(key)
 
 
 def _read_mapping(path: Path) -> dict[str, Any]:
@@ -74,16 +94,37 @@ def _include_paths(main: Path, raw: dict[str, Any]) -> list[Path]:
     return paths
 
 
+def _record_entries(
+    entries: dict[tuple[str, str | int], Path],
+    key: str,
+    value: Any,
+    path: Path,
+    offset: int = 0,
+) -> None:
+    if isinstance(value, list):
+        for i in range(len(value)):
+            entries[(key, offset + i)] = path
+    elif isinstance(value, dict):
+        for name in value:
+            entries[(key, str(name))] = path
+
+
 def _merge(
-    merged: dict[str, Any], origin: dict[str, Path], extra: dict[str, Any], path: Path
+    merged: dict[str, Any],
+    origin: dict[str, Path],
+    entries: dict[tuple[str, str | int], Path],
+    extra: dict[str, Any],
+    path: Path,
 ) -> None:
     for key, value in extra.items():
         if key not in merged:
             merged[key] = value
             origin[key] = path
+            _record_entries(entries, key, value, path)
             continue
         have = merged[key]
         if isinstance(have, list) and isinstance(value, list):
+            _record_entries(entries, key, value, path, offset=len(have))
             merged[key] = have + value
         elif isinstance(have, dict) and isinstance(value, dict):
             clash = sorted(set(have) & set(value), key=str)
@@ -91,6 +132,7 @@ def _merge(
                 raise ConfigIncludeError(
                     f"{path}: '{key}.{clash[0]}' is already defined in {origin[key]}"
                 )
+            _record_entries(entries, key, value, path)
             merged[key] = {**have, **value}
         else:
             raise ConfigIncludeError(
@@ -105,11 +147,16 @@ def load_config_mapping(path: Path) -> LoadedConfig:
     includes = _include_paths(path, main_raw)
     merged = {k: v for k, v in main_raw.items() if k != INCLUDE_KEY}
     origin = {k: path for k in merged}
+    entries: dict[tuple[str, str | int], Path] = {}
+    for key, value in merged.items():
+        _record_entries(entries, key, value, path)
     for included in includes:
         extra = _read_mapping(included)
         if INCLUDE_KEY in extra:
             raise ConfigIncludeError(
                 f"{included}: includes cannot be nested; list every file in {path}"
             )
-        _merge(merged, origin, extra, included)
-    return LoadedConfig(data=merged, files=(path, *includes))
+        _merge(merged, origin, entries, extra, included)
+    return LoadedConfig(
+        data=merged, files=(path, *includes), key_files=origin, entry_files=entries
+    )

@@ -133,3 +133,23 @@ def test_error_is_a_value_error(tmp_path: Path) -> None:
     main = _write(tmp_path, "main.yaml", "include: [nope.yaml]\n")
     with pytest.raises(ValueError):
         load_config_mapping(main)
+
+
+def test_origin_of_names_the_file_for_entries_and_keys(tmp_path: Path) -> None:
+    main = _write(
+        tmp_path,
+        "main.yaml",
+        "include: [s.yaml, p.yaml]\nlocale: sv\nparticipants:\n  - id: M\n"
+        "symbols:\n  MAIN: {}\n",
+    )
+    s = _write(tmp_path, "s.yaml", "symbols:\n  AAA: {}\n")
+    p = _write(tmp_path, "p.yaml", "participants:\n  - id: P1\n  - id: P2\n")
+    loaded = load_config_mapping(main)
+    assert loaded.origin_of("symbols.MAIN.tick_decimals") == main
+    assert loaded.origin_of("symbols.AAA.tick_decimals") == s
+    assert loaded.origin_of("participants[0]") == main
+    assert loaded.origin_of("participants[2].disconnect_behaviour") == p
+    assert loaded.origin_of("locale") == main
+    assert loaded.origin_of("symbols") == main  # whole-section: first definer
+    assert loaded.origin_of("indices[id=X].name") is None
+    assert loaded.origin_of("") is None

@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import os
 import sys
+from dataclasses import replace
 from pathlib import Path
 
 from rich.console import Console
@@ -109,7 +110,14 @@ def main(argv: list[str] | None = None) -> int:
         return _EXIT_NO_FILE
 
     try:
-        raw = load_config_mapping(source.path).data
+        loaded = load_config_mapping(source.path)
+        raw = loaded.data
+        source = replace(
+            source,
+            includes=tuple(
+                f.relative_to(source.path.parent).as_posix() for f in loaded.files[1:]
+            ),
+        )
     except ConfigIncludeError as exc:
         print(
             f"pm-config-show: {source.path} cannot be loaded:\n{exc}", file=sys.stderr

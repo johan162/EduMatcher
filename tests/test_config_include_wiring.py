@@ -78,3 +78,54 @@ def test_config_show_bad_include_exits_three(
     main.write_text("include: [missing.yaml]\n", encoding="utf-8")
     assert config_show_main(["--file", str(main)]) == 3
     assert "missing.yaml" in capsys.readouterr().err
+
+
+def _broken_split(tmp_path: Path) -> Path:
+    (tmp_path / "symbols.yaml").write_text(
+        "symbols:\n  AAA: {tick_decimals: two}\n", encoding="utf-8"
+    )
+    main = tmp_path / "engine_config.yaml"
+    main.write_text(
+        "include: [symbols.yaml]\nparticipants:\n  - {id: T1, role: TRADER}\n",
+        encoding="utf-8",
+    )
+    return main
+
+
+def test_verifier_findings_name_the_included_file(tmp_path: Path) -> None:
+    from edumatcher.cverifier.cli import run
+
+    results, _ = run(_broken_split(tmp_path))
+    in_symbols = [r for r in results if r.path.startswith("symbols.AAA")]
+    assert in_symbols
+    assert {r.file for r in in_symbols} == {"symbols.yaml"}
+    assert all(r.file == "" for r in results if r.path.startswith("participants"))
+
+
+def test_verifier_text_and_json_show_the_file(tmp_path: Path) -> None:
+    import json
+
+    from edumatcher.cverifier.cli import run
+    from edumatcher.cverifier.formatter import format_json, format_text
+    from edumatcher.cverifier.models import RiskSummary, VerificationReport
+
+    main = _broken_split(tmp_path)
+    results, _ = run(main)
+    report = VerificationReport(
+        file=str(main),
+        results=results,
+        summary={"errors": 1, "warnings": 0, "info": 0},
+        risk_summary=RiskSummary(),
+        verdict="ERROR",
+    )
+    assert "  in symbols.yaml" in format_text(report, color=False)
+    checks = json.loads(format_json(report))["checks"]
+    assert any(c["file"] == "symbols.yaml" for c in checks)
+
+
+def test_config_show_lists_included_files(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    main = _split(resolve_example("s3-basic"), tmp_path)
+    assert config_show_main(["--file", str(main), "--width", "140"]) == 0
+    assert "includes: symbols.yaml, participants.yaml" in capsys.readouterr().out

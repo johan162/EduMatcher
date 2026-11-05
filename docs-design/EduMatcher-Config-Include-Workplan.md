@@ -82,7 +82,7 @@ working); cverifier maps it to a new `Y005`.
   not leave an orphan copy behind (same care as the existing `market_sim.yaml` unlink).
   Open point: copy the tree (faithful record, chosen) vs. install one merged file (loses comments).
   → verify: deploy → edit an included file → staleness reported; deploy twice with fewer includes.
-- **WP-INC4 — diagnostics.** `Y005` for include errors; cverifier messages for symbols and
+- **WP-INC4 — diagnostics. DONE 2026-11-05** (`LoadedConfig.origin_of(location)`; `CheckResult.file`, shown as `  in <file>` in text, `file` in JSON, `[file: path]` in pm-config-deploy; `Source.includes` shown in the pm-config-show header; findings whose location cannot be mapped, e.g. `indices[id=X]`, are unattributed). `Y005` for include errors; cverifier messages for symbols and
   participants name the supplying file (`symbols.yaml: symbol ABC …`). Line numbers for syntax
   errors come from the failing file. Check `pm-config-show` prints the file list.
   → verify: verifier tests with a broken symbol in `symbols.yaml`.

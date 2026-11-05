@@ -10,6 +10,7 @@ import yaml
 from edumatcher.config_include import (
     INCLUDE_KEY,
     ConfigIncludeError,
+    LoadedConfig,
     load_config_mapping,
 )
 from edumatcher.cverifier.models import CheckResult, Severity
@@ -20,12 +21,16 @@ def check(raw: dict[str, Any] | None, path: Path) -> list[CheckResult]:  # noqa:
     return load(path)[0]
 
 
-def load(path: Path) -> tuple[list[CheckResult], dict[str, Any] | None]:
-    """Read and parse the file once.
+def load_with_origins(
+    path: Path,
+) -> tuple[list[CheckResult], dict[str, Any] | None, LoadedConfig | None]:
+    """Read and parse the file once, resolving its includes.
 
     Returns the Layer 1 findings and the parsed mapping (or None when the file
     is missing, unreadable, not valid YAML, or not a top-level mapping).  The
-    caller can reuse the returned mapping instead of re-reading the file.
+    caller can reuse the returned mapping instead of re-reading the file.  The
+    third item says which file each part came from; it is None unless the file
+    has an ``include:`` list.
     """
     results: list[CheckResult] = []
 
@@ -39,7 +44,7 @@ def load(path: Path) -> tuple[list[CheckResult], dict[str, Any] | None]:
                 path=str(path),
             )
         )
-        return results, None
+        return results, None, None
 
     try:
         text = path.read_text(encoding="utf-8")
@@ -53,7 +58,7 @@ def load(path: Path) -> tuple[list[CheckResult], dict[str, Any] | None]:
                 path=str(path),
             )
         )
-        return results, None
+        return results, None, None
 
     try:
         data = yaml.safe_load(text)
@@ -70,7 +75,7 @@ def load(path: Path) -> tuple[list[CheckResult], dict[str, Any] | None]:
                 path=str(path),
             )
         )
-        return results, None
+        return results, None, None
 
     if not isinstance(data, dict):
         results.append(
@@ -85,11 +90,11 @@ def load(path: Path) -> tuple[list[CheckResult], dict[str, Any] | None]:
                 path=str(path),
             )
         )
-        return results, None
+        return results, None, None
 
     if INCLUDE_KEY in data:
         try:
-            data = load_config_mapping(path).data
+            loaded = load_config_mapping(path)
         except ConfigIncludeError as exc:
             results.append(
                 CheckResult(
@@ -100,6 +105,13 @@ def load(path: Path) -> tuple[list[CheckResult], dict[str, Any] | None]:
                     path=str(path),
                 )
             )
-            return results, None
+            return results, None, None
+        return results, loaded.data, loaded
 
+    return results, data, None
+
+
+def load(path: Path) -> tuple[list[CheckResult], dict[str, Any] | None]:
+    """``load_with_origins`` without the origin map."""
+    results, data, _ = load_with_origins(path)
     return results, data

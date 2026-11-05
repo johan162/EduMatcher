@@ -226,6 +226,8 @@ class Source:
     size: int
     mtime: float
     resolved_via: str  # "--file" | "EDUMATCHER_DATA_DIR" | "data directory"
+    #: Included files, relative to the main file, in include order.
+    includes: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
