@@ -68,6 +68,13 @@ optional parameters.
 | [GET /api/v1/reference/indexes](#get-apiv1referenceindexes) | Authenticated key | Return configured exchange index definitions |
 | [GET /api/v1/reference/schedule](#get-apiv1referenceschedule) | Authenticated key | Return session schedule metadata |
 
+### Market data
+
+| Endpoint | Access | Purpose |
+|---|---|---|
+| [GET /api/v1/book](#get-apiv1book) | Authenticated key | Return best bid, best ask and last price for every symbol |
+| [GET /api/v1/book/{symbol}](#get-apiv1booksymbol) | Authenticated key | Return one symbol's book levels, last trade and recent prints |
+
 ### History
 
 | Endpoint | Access | Purpose |
@@ -179,6 +186,7 @@ the OpenAPI document lists all of them per operation.
 | `NOT_FOUND` | `404` | `UNKNOWN` | No such path |
 | `UNKNOWN_ORDER` | `404` | `UNKNOWN` | Order id unknown to the gateway (`GET /orders/{id}`) or absent from the audit trail (`GET /admin/orders/{id}`) |
 | `UNKNOWN_COMPANY` | `404` | `UNKNOWN` | No company profile for the symbol |
+| `UNKNOWN_SYMBOL` | `404` | `UNKNOWN` | The symbol is not in the venue's reference data (`GET /book/{symbol}`) |
 | `METHOD_NOT_ALLOWED` | `405` | `UNKNOWN` | The path exists but not for this method; the reply carries `Allow` |
 | `TRANSITION_REJECTED` | `409` | `UNKNOWN` | The engine refused the session transition |
 | `RELOAD_REJECTED` | `409` | `UNKNOWN` | The engine refused the reference reload |
@@ -1637,6 +1645,76 @@ Purpose: return session schedule metadata.
 | Code | Status | When |
 |---|---|---|
 | `ENGINE_TIMEOUT` | `503` | Engine did not reply in time |
+
+## Market data
+
+Base path: `/api/v1/book`. The order book as of now, without a WebSocket.
+Both endpoints read the gateway's copy of the `book.{symbol}` stream, the one
+a WebSocket `snapshot` is answered from, so a REST read and a WebSocket
+subscription agree on the same snapshot.
+
+- **`seq`** is the market-data sequence of the snapshot on topic
+  `book.{symbol}`, the `seq` its WebSocket `book` frame carries. A client that
+  reads here and then subscribes ignores `book` frames whose `seq` is at or
+  below it (the subscription replays the latest snapshot first).
+- **`ts_ns`** is when the engine produced the snapshot. The engine publishes a
+  book when it changes, so a quiet book keeps an old `ts_ns` and is still
+  current.
+- Every price is a display price with a `*_ticks` sibling: the integer
+  `price * 10**tick_decimals` (see *Prices* in [Response contract](#response-contract)).
+  Use the ticks to compare or sum prices exactly.
+- Iceberg orders contribute their displayed size only.
+
+### `GET /api/v1/book/{symbol}`
+
+Purpose: return one symbol's latest book: bid and ask levels (best first), the
+last trade, and the last five prints. Access: Authenticated key (read-only keys
+included) — market data is public.
+
+**Arguments**
+
+| Name | Type | Req | Description |
+|---|---|---|---|
+| `symbol` | path | Yes | Ticker, case-insensitive |
+| `levels` | query | No | Price levels per side, `1`–`100`, default `10` |
+
+**Reply**
+
+| Status | Shape | Meaning |
+|---|---|---|
+| `200 OK` | `{ "symbol", "tick_decimals", "ts_ns", "seq", "bids": [...], "asks": [...], "last_price", "last_price_ticks", "last_qty", "last_buy_price", "last_buy_price_ticks", "last_sell_price", "last_sell_price_ticks", "recent_trades": [...] }` | `bids` descending and `asks` ascending, each level `{ price, price_ticks, qty, count }`; `last_*` are `null` until the symbol has traded; `recent_trades` are the last five prints, oldest first, each as in `trade.executed` plus `price_ticks` |
+
+**Errors**
+
+| Code | Status | When |
+|---|---|---|
+| `VALIDATION` | `400` | `levels` outside `1`–`100`, or `symbol` over-long |
+| `UNKNOWN_SYMBOL` | `404` | `symbol` is not in the reference data |
+| `ENGINE_TIMEOUT` | `503` | The engine did not publish the book in time (only on the first read of a book the gateway has not seen) |
+
+### `GET /api/v1/book`
+
+Purpose: return best bid, best ask and last price for every symbol in the
+reference data, sorted by symbol, in one call. Access: Authenticated key
+(read-only keys included).
+
+**Arguments**
+
+| Name | Type | Req | Description |
+|---|---|---|---|
+| none | — | — | No query parameters |
+
+**Reply**
+
+| Status | Shape | Meaning |
+|---|---|---|
+| `200 OK` | `{ "books": [...], "count": n }` | One entry per symbol: `{ symbol, tick_decimals, ts_ns, seq, best_bid, best_ask, last_price, last_price_ticks }`. A side with no orders is `null`; `best_bid` and `best_ask` are levels as above |
+
+**Errors**
+
+| Code | Status | When |
+|---|---|---|
+| `ENGINE_TIMEOUT` | `503` | The engine did not reply in time. The list is all or nothing: one book that cannot be had fails the call |
 
 ## History
 

@@ -635,6 +635,19 @@ def build_parser() -> argparse.ArgumentParser:
         help="Do not auto-generate API keys for ALF gateways.",
     )
     parser.add_argument(
+        "--api-keys-for",
+        nargs="+",
+        default=None,
+        metavar="GW_ID",
+        help=(
+            "Write an API key for each listed participant to api_keys.yaml beside "
+            "--output, and point the API gateway at it with credentials_file. "
+            "Needs --output (or --dry-run). The keys follow from --seed, or from a "
+            "fixed default seed when --seed is not given, so the same command "
+            "always yields the same keys: pass your own --seed outside a classroom."
+        ),
+    )
+    parser.add_argument(
         "--api-gateway-readonly-key",
         action="store_true",
         help="Generate an additional read-only API key with gateway_id: null.",
@@ -1428,6 +1441,15 @@ def build_parser() -> argparse.ArgumentParser:
 
     parser.add_argument(
         "--output", default=None, metavar="FILE", help="Output file path."
+    )
+    parser.add_argument(
+        "--split",
+        action="store_true",
+        help=(
+            "Write the symbols and the participants to symbols.yaml and "
+            "participants.yaml beside --output, and list them under 'include:' in "
+            "the main file. Keeps a config with hundreds of either readable."
+        ),
     )
     parser.add_argument(
         "--force", action="store_true", help="Overwrite existing output file."

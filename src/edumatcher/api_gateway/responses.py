@@ -24,6 +24,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, create_model
 
 from edumatcher.compdb import store as compdb
+from edumatcher.models.generated.rest import book as rest_book
 from edumatcher.models.generated.rest import index as rest_index
 from edumatcher.models.generated.rest import news as rest_news
 from edumatcher.models.generated.rest import order as rest_order
@@ -191,6 +192,83 @@ class Status(BaseModel):
     gateway_count: int | None = Field(
         default=None, description="ADMIN only: connected gateways."
     )
+
+
+# ---------------------------------------------------------------------------
+# Market data (REST snapshots of the book.{symbol} stream)
+# ---------------------------------------------------------------------------
+
+
+class BookLevelView(rest_book.BookLevel):
+    """One aggregated price level, with the price in ticks beside the display price."""
+
+    price_ticks: int = Field(
+        description="`price` in integer ticks: `price * 10**tick_decimals`."
+    )
+
+
+class TapeRow(rest_book.RecentTrade):
+    """One print of the book's trade tape, with the price in ticks."""
+
+    price_ticks: int = Field(
+        description="`price` in integer ticks: `price * 10**tick_decimals`."
+    )
+
+
+class _BookStamp(BaseModel):
+    symbol: str
+    tick_decimals: int = Field(
+        description="Price scale: 2 means prices move in 0.01 steps. Same value as "
+        "`/reference/symbols`."
+    )
+    ts_ns: int = Field(
+        description="When the engine produced this snapshot (epoch nanoseconds). "
+        "The engine publishes a book when it changes, so a quiet book keeps an "
+        "old stamp."
+    )
+    seq: int = Field(
+        description="Market-data sequence of this snapshot on topic `book.{symbol}`: "
+        "the `seq` the WebSocket `book` frame for the same snapshot carries. "
+        "Ignore frames with `seq` at or below it."
+    )
+
+
+class BookView(_BookStamp):
+    """The latest book snapshot for one symbol."""
+
+    bids: list[BookLevelView] = Field(
+        description="Best (highest) price first, at most `levels` entries."
+    )
+    asks: list[BookLevelView] = Field(
+        description="Best (lowest) price first, at most `levels` entries."
+    )
+    last_price: float | None = Field(
+        description="Last trade price; null until the symbol has traded."
+    )
+    last_price_ticks: int | None
+    last_qty: int | None
+    last_buy_price: float | None
+    last_buy_price_ticks: int | None
+    last_sell_price: float | None
+    last_sell_price_ticks: int | None
+    recent_trades: list[TapeRow] = Field(
+        description="The last five prints, oldest first."
+    )
+
+
+class BookSummary(_BookStamp):
+    """Best bid, best ask and last price of one symbol."""
+
+    best_bid: BookLevelView | None = Field(description="Null on an empty bid side.")
+    best_ask: BookLevelView | None = Field(description="Null on an empty ask side.")
+    last_price: float | None = Field(
+        description="Last trade price; null until the symbol has traded."
+    )
+    last_price_ticks: int | None
+
+
+class BookSummaries(_Counted):
+    books: list[BookSummary] = Field(description="Sorted by symbol.")
 
 
 # ---------------------------------------------------------------------------

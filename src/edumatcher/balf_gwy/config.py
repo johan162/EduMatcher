@@ -14,9 +14,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-import yaml
 
 from edumatcher.config import ENGINE_PULL_ADDR, ENGINE_PUB_ADDR
+from edumatcher.config_include import load_config_mapping
 from edumatcher.config import resolve_gateway_bind_host
 from edumatcher.config_coerce import as_float, as_int
 
@@ -181,9 +181,7 @@ def load_balf_gateway_config(path: Path) -> BalfGatewayConfig:
     if not path.exists():
         return BalfGatewayConfig()
 
-    raw = yaml.safe_load(path.read_text(encoding="utf-8"))
-    if not isinstance(raw, dict):
-        return BalfGatewayConfig()
+    raw = load_config_mapping(path).data
 
     return _load_balf_gateway_config_from_raw(raw)
 

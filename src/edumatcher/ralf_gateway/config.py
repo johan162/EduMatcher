@@ -6,9 +6,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-import yaml
 
 from edumatcher.config import ENGINE_PUB_ADDR
+from edumatcher.config_include import load_config_mapping
 from edumatcher.config import resolve_gateway_bind_host
 from edumatcher.config_coerce import as_int
 
@@ -92,9 +92,7 @@ def load_ralf_gateway_config(path: Path) -> RalfGatewayConfig:
     if not path.exists():
         return RalfGatewayConfig()
 
-    raw = yaml.safe_load(path.read_text())
-    if not isinstance(raw, dict):
-        return RalfGatewayConfig()
+    raw = load_config_mapping(path).data
 
     return _load_ralf_gateway_config_from_raw(raw)
 

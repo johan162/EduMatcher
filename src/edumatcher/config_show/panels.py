@@ -172,7 +172,11 @@ def build_header(view: ConfigView, width: int) -> RenderableType:
         style=T.S_LABEL,
     )
 
-    return boxed("ENGINE CONFIGURATION", Group(line, chips, counts), width, hot=True)
+    parts: list[RenderableType] = [line]
+    if source.includes:
+        parts.append(Text("includes: " + ", ".join(source.includes), style=T.S_LABEL))
+    parts += [chips, counts]
+    return boxed("ENGINE CONFIGURATION", Group(*parts), width, hot=True)
 
 
 # ---------------------------------------------------------------------------

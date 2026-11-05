@@ -1,0 +1,303 @@
+"""Tests for the ``include:`` mechanism of authored config files."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+
+from edumatcher.config_include import ConfigIncludeError, load_config_mapping
+
+
+def _write(directory: Path, name: str, text: str) -> Path:
+    path = directory / name
+    path.write_text(text, encoding="utf-8")
+    return path
+
+
+def test_no_include_returns_file_unchanged(tmp_path: Path) -> None:
+    main = _write(tmp_path, "main.yaml", "symbols:\n  AAA: {}\n")
+    loaded = load_config_mapping(main)
+    assert loaded.data == {"symbols": {"AAA": {}}}
+    assert loaded.files == (main,)
+
+
+def test_empty_main_file_is_an_empty_mapping(tmp_path: Path) -> None:
+    assert load_config_mapping(_write(tmp_path, "main.yaml", "")).data == {}
+
+
+def test_includes_supply_keys_the_main_file_lacks(tmp_path: Path) -> None:
+    main = _write(
+        tmp_path, "main.yaml", "include: [symbols.yaml, p.yaml]\nlocale: sv\n"
+    )
+    sym = _write(tmp_path, "symbols.yaml", "symbols:\n  AAA: {}\n")
+    par = _write(tmp_path, "p.yaml", "participants:\n  - id: P1\n")
+    loaded = load_config_mapping(main)
+    assert loaded.data == {
+        "locale": "sv",
+        "symbols": {"AAA": {}},
+        "participants": [{"id": "P1"}],
+    }
+    assert loaded.files == (main, sym, par)
+
+
+def test_lists_concatenate_main_first(tmp_path: Path) -> None:
+    main = _write(
+        tmp_path, "main.yaml", "include: [a.yaml, b.yaml]\nparticipants: [m]\n"
+    )
+    _write(tmp_path, "a.yaml", "participants: [a1, a2]\n")
+    _write(tmp_path, "b.yaml", "participants: [b1]\n")
+    assert load_config_mapping(main).data["participants"] == ["m", "a1", "a2", "b1"]
+
+
+def test_mappings_merge_one_level_deep(tmp_path: Path) -> None:
+    main = _write(tmp_path, "main.yaml", "include: [a.yaml]\nsymbols:\n  AAA: {x: 1}\n")
+    _write(tmp_path, "a.yaml", "symbols:\n  BBB: {x: 2}\n")
+    assert load_config_mapping(main).data["symbols"] == {
+        "AAA": {"x": 1},
+        "BBB": {"x": 2},
+    }
+
+
+def test_repeated_mapping_key_is_an_error_naming_both_files(tmp_path: Path) -> None:
+    main = _write(tmp_path, "main.yaml", "include: [a.yaml]\nsymbols:\n  AAA: {}\n")
+    _write(tmp_path, "a.yaml", "symbols:\n  AAA: {}\n")
+    with pytest.raises(ConfigIncludeError, match=r"a\.yaml.*symbols\.AAA.*main\.yaml"):
+        load_config_mapping(main)
+
+
+def test_scalar_defined_twice_is_an_error(tmp_path: Path) -> None:
+    main = _write(tmp_path, "main.yaml", "include: [a.yaml]\nlocale: sv\n")
+    _write(tmp_path, "a.yaml", "locale: en\n")
+    with pytest.raises(ConfigIncludeError, match="'locale' is already defined"):
+        load_config_mapping(main)
+
+
+def test_list_and_mapping_do_not_merge(tmp_path: Path) -> None:
+    main = _write(tmp_path, "main.yaml", "include: [a.yaml]\nsymbols: []\n")
+    _write(tmp_path, "a.yaml", "symbols: {AAA: {}}\n")
+    with pytest.raises(ConfigIncludeError, match="cannot be merged"):
+        load_config_mapping(main)
+
+
+@pytest.mark.parametrize("entry", ["/etc/x.yaml", "../x.yaml", "sub/../../x.yaml"])
+def test_absolute_and_parent_paths_are_rejected(tmp_path: Path, entry: str) -> None:
+    main = _write(tmp_path, "main.yaml", f"include: ['{entry}']\n")
+    with pytest.raises(ConfigIncludeError, match="relative path without"):
+        load_config_mapping(main)
+
+
+def test_subdirectory_include_is_allowed(tmp_path: Path) -> None:
+    (tmp_path / "parts").mkdir()
+    main = _write(tmp_path, "main.yaml", "include: [parts/s.yaml]\n")
+    _write(tmp_path / "parts", "s.yaml", "symbols: {AAA: {}}\n")
+    assert load_config_mapping(main).data == {"symbols": {"AAA": {}}}
+
+
+def test_missing_include_is_an_error(tmp_path: Path) -> None:
+    main = _write(tmp_path, "main.yaml", "include: [nope.yaml]\n")
+    with pytest.raises(ConfigIncludeError, match="include file not found"):
+        load_config_mapping(main)
+
+
+def test_nested_include_is_rejected(tmp_path: Path) -> None:
+    main = _write(tmp_path, "main.yaml", "include: [a.yaml]\n")
+    _write(tmp_path, "a.yaml", "include: [b.yaml]\n")
+    _write(tmp_path, "b.yaml", "symbols: {}\n")
+    with pytest.raises(ConfigIncludeError, match="cannot be nested"):
+        load_config_mapping(main)
+
+
+@pytest.mark.parametrize("value", ["a.yaml", "[1, 2]", "{a: b}"])
+def test_include_must_be_a_list_of_names(tmp_path: Path, value: str) -> None:
+    main = _write(tmp_path, "main.yaml", f"include: {value}\n")
+    with pytest.raises(ConfigIncludeError, match="list of file names"):
+        load_config_mapping(main)
+
+
+def test_syntax_error_in_include_names_that_file(tmp_path: Path) -> None:
+    main = _write(tmp_path, "main.yaml", "include: [bad.yaml]\n")
+    _write(tmp_path, "bad.yaml", "symbols: [unclosed\n")
+    with pytest.raises(ConfigIncludeError, match=r"bad\.yaml: not valid YAML"):
+        load_config_mapping(main)
+
+
+def test_included_file_must_be_a_mapping(tmp_path: Path) -> None:
+    main = _write(tmp_path, "main.yaml", "include: [a.yaml]\n")
+    _write(tmp_path, "a.yaml", "- just\n- a list\n")
+    with pytest.raises(ConfigIncludeError, match="must be a YAML mapping"):
+        load_config_mapping(main)
+
+
+def test_error_is_a_value_error(tmp_path: Path) -> None:
+    main = _write(tmp_path, "main.yaml", "include: [nope.yaml]\n")
+    with pytest.raises(ValueError):
+        load_config_mapping(main)
+
+
+def test_origin_of_names_the_file_for_entries_and_keys(tmp_path: Path) -> None:
+    main = _write(
+        tmp_path,
+        "main.yaml",
+        "include: [s.yaml, p.yaml]\nlocale: sv\nparticipants:\n  - id: M\n"
+        "symbols:\n  MAIN: {}\n",
+    )
+    s = _write(tmp_path, "s.yaml", "symbols:\n  AAA: {}\n")
+    p = _write(tmp_path, "p.yaml", "participants:\n  - id: P1\n  - id: P2\n")
+    loaded = load_config_mapping(main)
+    assert loaded.origin_of("symbols.MAIN.tick_decimals") == main
+    assert loaded.origin_of("symbols.AAA.tick_decimals") == s
+    assert loaded.origin_of("participants[0]") == main
+    assert loaded.origin_of("participants[2].disconnect_behaviour") == p
+    assert loaded.origin_of("locale") == main
+    assert loaded.origin_of("symbols") == main  # whole-section: first definer
+    assert loaded.origin_of("indices[id=X].name") is None
+    assert loaded.origin_of("") is None
+
+
+def test_origin_of_a_symbol_with_a_dot_in_its_name(tmp_path: Path) -> None:
+    main = _write(
+        tmp_path,
+        "main.yaml",
+        "include: [s.yaml]\nsymbols:\n  BRK: {}\n  MAIN: {}\n",
+    )
+    s = _write(tmp_path, "s.yaml", "symbols:\n  BRK.B: {}\n")
+    loaded = load_config_mapping(main)
+    assert loaded.origin_of("symbols.BRK.B.tick_decimals") == s
+    assert loaded.origin_of("symbols.BRK.B") == s
+    assert loaded.origin_of("symbols.BRK.tick_decimals") == main
+
+
+@pytest.mark.parametrize("entry", ["a.yaml", "./a.yaml"])
+def test_a_file_listed_twice_is_rejected(tmp_path: Path, entry: str) -> None:
+    main = _write(tmp_path, "main.yaml", f"include: [a.yaml, {entry}]\n")
+    _write(tmp_path, "a.yaml", "participants: [a1]\n")
+    with pytest.raises(ConfigIncludeError, match="listed twice"):
+        load_config_mapping(main)
+
+
+@pytest.mark.parametrize(
+    "name", ["engine_config.yaml", "engine_config.json", "market_sim.yaml"]
+)
+def test_an_include_may_not_take_a_name_deploy_installs(
+    tmp_path: Path, name: str
+) -> None:
+    main = _write(tmp_path, "main.yaml", f"include: [{name}]\n")
+    _write(tmp_path, name, "symbols:\n  AAA: {}\n")
+    with pytest.raises(ConfigIncludeError, match="reserved"):
+        load_config_mapping(main)
+
+
+def test_a_reserved_name_is_fine_in_a_subdirectory(tmp_path: Path) -> None:
+    main = _write(tmp_path, "main.yaml", "include: [sub/engine_config.yaml]\n")
+    (tmp_path / "sub").mkdir()
+    _write(tmp_path / "sub", "engine_config.yaml", "symbols:\n  AAA: {}\n")
+    assert load_config_mapping(main).data == {"symbols": {"AAA": {}}}
+
+
+def test_a_credentials_file_may_not_take_a_name_deploy_installs(
+    tmp_path: Path,
+) -> None:
+    main = _write(
+        tmp_path,
+        "main.yaml",
+        "api_gateways:\n  desk:\n    credentials_file: market_sim.yaml\n",
+    )
+    _write(tmp_path, "market_sim.yaml", "[]\n")
+    with pytest.raises(ConfigIncludeError, match="reserved"):
+        load_config_mapping(main)
+
+
+def _gateway_config(tmp_path: Path, extra: str = "") -> Path:
+    return _write(
+        tmp_path,
+        "main.yaml",
+        "api_gateways:\n  desk:\n    port: 8080\n    credentials_file: keys.yaml\n"
+        + extra,
+    )
+
+
+def test_credentials_file_supplies_the_credentials(tmp_path: Path) -> None:
+    main = _gateway_config(tmp_path)
+    keys = _write(
+        tmp_path,
+        "keys.yaml",
+        "- {api_key: k1, gateway_id: T1}\n- {api_key: k2, gateway_id: T2}\n",
+    )
+    loaded = load_config_mapping(main)
+    desk = loaded.data["api_gateways"]["desk"]
+    assert desk["credentials"] == [
+        {"api_key": "k1", "gateway_id": "T1"},
+        {"api_key": "k2", "gateway_id": "T2"},
+    ]
+    assert "credentials_file" not in desk
+    assert desk["port"] == 8080
+    assert loaded.files == (main, keys)
+    assert loaded.origin_of("api_gateways.desk.credentials[1].api_key") == keys
+    assert loaded.origin_of("api_gateways.desk.port") == main
+
+
+def test_credentials_file_is_relative_to_the_file_that_names_it(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "parts").mkdir()
+    main = _write(tmp_path, "main.yaml", "include: [parts/gw.yaml]\n")
+    _write(
+        tmp_path / "parts",
+        "gw.yaml",
+        "api_gateways:\n  desk:\n    credentials_file: keys.yaml\n",
+    )
+    keys = _write(tmp_path / "parts", "keys.yaml", "- {api_key: k1}\n")
+    loaded = load_config_mapping(main)
+    assert loaded.data["api_gateways"]["desk"]["credentials"] == [{"api_key": "k1"}]
+    assert keys in loaded.files
+
+
+def test_two_gateways_may_share_one_credentials_file(tmp_path: Path) -> None:
+    main = _write(
+        tmp_path,
+        "main.yaml",
+        "api_gateways:\n  a: {credentials_file: keys.yaml}\n"
+        "  b: {credentials_file: keys.yaml}\n",
+    )
+    keys = _write(tmp_path, "keys.yaml", "- {api_key: k1}\n")
+    assert load_config_mapping(main).files == (main, keys)
+
+
+def test_empty_credentials_file_means_no_credentials(tmp_path: Path) -> None:
+    main = _gateway_config(tmp_path)
+    _write(tmp_path, "keys.yaml", "")
+    assert load_config_mapping(main).data["api_gateways"]["desk"]["credentials"] == []
+
+
+def test_credentials_and_credentials_file_together_are_an_error(
+    tmp_path: Path,
+) -> None:
+    main = _gateway_config(tmp_path, "    credentials: []\n")
+    _write(tmp_path, "keys.yaml", "[]\n")
+    with pytest.raises(ConfigIncludeError, match="both 'credentials' and"):
+        load_config_mapping(main)
+
+
+@pytest.mark.parametrize(
+    ("file_text", "match"),
+    [(None, "credentials_file file not found"), ("a: 1\n", "YAML list")],
+)
+def test_bad_credentials_file(
+    tmp_path: Path, file_text: str | None, match: str
+) -> None:
+    main = _gateway_config(tmp_path)
+    if file_text is not None:
+        _write(tmp_path, "keys.yaml", file_text)
+    with pytest.raises(ConfigIncludeError, match=match):
+        load_config_mapping(main)
+
+
+def test_credentials_file_path_must_stay_inside(tmp_path: Path) -> None:
+    main = _write(
+        tmp_path,
+        "main.yaml",
+        "api_gateways:\n  desk: {credentials_file: ../keys.yaml}\n",
+    )
+    with pytest.raises(ConfigIncludeError, match="relative path without"):
+        load_config_mapping(main)

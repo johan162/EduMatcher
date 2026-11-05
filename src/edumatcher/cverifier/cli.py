@@ -11,6 +11,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from edumatcher.config_include import LoadedConfig
 from edumatcher.cverifier import (
     layer1_yaml,
     layer2_schema,
@@ -89,6 +90,20 @@ def _compute_exit_code(verdict: str) -> int:
     return _EXIT_ERROR
 
 
+def _attribute(
+    results: list[CheckResult], loaded: LoadedConfig | None
+) -> list[CheckResult]:
+    """Name the included file a finding's location lives in."""
+    if loaded is None:
+        return results
+    main = loaded.files[0]
+    for result in results:
+        origin = loaded.origin_of(result.path)
+        if origin is not None and origin != main:
+            result.file = str(origin.relative_to(main.parent))
+    return results
+
+
 def run_layers(
     config_path: Path,
 ) -> tuple[list[LayerOutcome], dict[str, Any] | None]:
@@ -104,25 +119,25 @@ def run_layers(
             layers.append(LayerOutcome(name, status="skipped"))
 
     # Layer 1 — YAML syntax (parse the file exactly once and reuse the result).
-    l1, raw = layer1_yaml.load(config_path)
+    l1, raw, loaded = layer1_yaml.load_with_origins(config_path)
     layers.append(LayerOutcome("YAML syntax", "ran", l1))
     if any(r.severity is Severity.ERROR for r in l1) or raw is None:
         _skip_rest("Schema", "Semantic", "Completeness")
         return layers, None
 
     # Layer 2 — Schema
-    l2 = layer2_schema.check(raw, config_path)
+    l2 = _attribute(layer2_schema.check(raw, config_path), loaded)
     layers.append(LayerOutcome("Schema", "ran", l2))
     if any(r.severity is Severity.ERROR for r in l2):
         _skip_rest("Semantic", "Completeness")
         return layers, raw
 
     # Layer 3 — Semantic
-    l3 = layer3_semantic.check(raw, config_path)
+    l3 = _attribute(layer3_semantic.check(raw, config_path), loaded)
     layers.append(LayerOutcome("Semantic", "ran", l3))
 
     # Layer 4 — Completeness
-    l4 = layer4_complete.check(raw, config_path)
+    l4 = _attribute(layer4_complete.check(raw, config_path), loaded)
     layers.append(LayerOutcome("Completeness", "ran", l4))
 
     return layers, raw

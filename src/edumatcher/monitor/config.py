@@ -25,9 +25,9 @@ from dataclasses import dataclass, field, fields, replace
 from pathlib import Path
 from typing import Any
 
-import yaml
 
 from edumatcher.config import MONITOR_HOST, MONITOR_PUB_PORT, MONITOR_PULL_PORT
+from edumatcher.config_include import load_config_mapping
 
 DEFAULT_BIND_ADDRESS = "127.0.0.1"
 DEFAULT_BEACON_INTERVAL_SEC = 2.0
@@ -236,9 +236,7 @@ def load_monitor_config(path: Path) -> MonitorConfig:
     """Load the optional ``monitor:`` block from engine config YAML."""
     if not path.exists():
         return MonitorConfig()
-    raw = yaml.safe_load(path.read_text(encoding="utf-8"))
-    if not isinstance(raw, dict):
-        return MonitorConfig()
+    raw = load_config_mapping(path).data
     return monitor_config_from_raw(raw)
 
 

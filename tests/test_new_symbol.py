@@ -308,3 +308,75 @@ def test_compile_error_is_a_compile_error(tmp_path: Path, data_dir: Path) -> Non
     path.write_text(_GATEWAYS + "symbols:\n  AAPL:\n    tick_decimals: 2\n", "utf-8")
     with pytest.raises(CompileError):
         add_symbol(_args("--field", "level=NOPE", config=path))
+
+
+# -- a source split with include: ----------------------------------------------
+
+
+@pytest.fixture
+def split_source(source: Path, data_dir: Path) -> Path:
+    """The same source, with its symbols moved into an included file."""
+    raw = yaml.safe_load(source.read_text(encoding="utf-8"))
+    (source.parent / "symbols.yaml").write_text(
+        yaml.safe_dump({"symbols": raw.pop("symbols")}, sort_keys=False),
+        encoding="utf-8",
+    )
+    source.write_text(
+        yaml.safe_dump({"include": ["symbols.yaml"], **raw}, sort_keys=False),
+        encoding="utf-8",
+    )
+    deploy(source, data_dir / "ref_data" / "engine_config.json")
+    return source
+
+
+def test_symbol_goes_into_the_included_file(split_source: Path, data_dir: Path) -> None:
+    included = split_source.parent / "symbols.yaml"
+    main_before = split_source.read_bytes()
+    before = included.read_text(encoding="utf-8")
+
+    result = add_symbol(_args())
+
+    assert result.edited == included and result.source == split_source
+    assert split_source.read_bytes() == main_before
+    assert included.read_text(encoding="utf-8").startswith(before.rstrip("\n"))
+    assert "IPO1" in yaml.safe_load(included.read_text(encoding="utf-8"))["symbols"]
+    assert "IPO1" in _deployed(data_dir).engine.symbols
+    assert not [p for p in split_source.parent.iterdir() if p.name.startswith(".new")]
+
+
+def test_the_last_file_supplying_symbols_is_the_one_edited(
+    split_source: Path, data_dir: Path
+) -> None:
+    first = yaml.safe_load((split_source.parent / "symbols.yaml").read_text("utf-8"))
+    name, body = next(iter(first["symbols"].items()))
+    extra = split_source.parent / "more.yaml"
+    extra.write_text(
+        yaml.safe_dump({"symbols": {name + "X": body}}, sort_keys=False),
+        encoding="utf-8",
+    )
+    raw = yaml.safe_load(split_source.read_text(encoding="utf-8"))
+    raw["include"].append("more.yaml")
+    split_source.write_text(yaml.safe_dump(raw, sort_keys=False), encoding="utf-8")
+    deploy(split_source, data_dir / "ref_data" / "engine_config.json")
+
+    assert add_symbol(_args()).edited == extra
+
+
+def test_undeployed_edit_of_an_include_blocks_the_listing(split_source: Path) -> None:
+    included = split_source.parent / "symbols.yaml"
+    included.write_text(included.read_text("utf-8") + "# pending\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="never deployed"):
+        add_symbol(_args())
+
+
+def test_bad_listing_into_an_include_changes_nothing(
+    split_source: Path, data_dir: Path
+) -> None:
+    included = split_source.parent / "symbols.yaml"
+    before = (included.read_bytes(), split_source.read_bytes())
+    artifact = (data_dir / "ref_data" / "engine_config.json").read_bytes()
+    with pytest.raises(ValueError, match="tick grid"):
+        add_symbol(_args("--ipo-price", "20.001"))
+    assert (included.read_bytes(), split_source.read_bytes()) == before
+    assert (data_dir / "ref_data" / "engine_config.json").read_bytes() == artifact
+    assert not [p for p in split_source.parent.iterdir() if p.name.startswith(".new")]

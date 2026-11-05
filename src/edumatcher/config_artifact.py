@@ -28,11 +28,13 @@ import json
 import logging
 import types
 from dataclasses import dataclass, fields, is_dataclass
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any, TypeVar, Union, get_args, get_origin, get_type_hints
 
 from edumatcher.alf_gwy.config import AlfGatewayConfig
 from edumatcher.config import COMPILED_CONFIG_FILE
+from edumatcher.config_include import ConfigIncludeError, load_config_mapping
 from edumatcher.api_gateway.config import ApiGatewayConfig
 from edumatcher.balf_gwy.config import BalfGatewayConfig
 from edumatcher.dc_gateway.config import DcGatewayConfig
@@ -277,9 +279,15 @@ def staleness(config: CompiledConfig) -> str | None:
     try:
         if not source.is_file():
             return None
-        current = source_digest(source.read_text(encoding="utf-8"))
+        current = config_digest(load_config_mapping(source).files)
     except OSError:
         return None
+    except ConfigIncludeError as exc:
+        return (
+            f"{source} has changed since the running configuration was compiled "
+            f"at {config.meta.compiled_at} and no longer loads ({exc}) — this "
+            f"exchange is still running the previous one."
+        )
 
     if current == config.meta.source_sha256:
         return None
@@ -326,6 +334,22 @@ def report_deployment(log: logging.Logger) -> None:
 def source_digest(text: str) -> str:
     """Return the SHA-256 of an authored config's text."""
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def config_digest(files: Sequence[Path]) -> str:
+    """Return the SHA-256 of an authored config and the files it includes.
+
+    *files* is ``LoadedConfig.files``: the main file first, then the includes.
+    The includes are hashed with their names relative to the main file, so
+    renaming or reordering one changes the digest. A config without includes
+    digests exactly like ``source_digest`` of its text.
+    """
+    main, *includes = files
+    digest = hashlib.sha256(main.read_bytes())
+    for path in includes:
+        name = path.relative_to(main.parent).as_posix()
+        digest.update(b"\0" + name.encode("utf-8") + b"\0" + path.read_bytes())
+    return digest.hexdigest()
 
 
 def _payload_text(payload: dict[str, Any]) -> str:
@@ -433,6 +457,7 @@ __all__ = [
     "report_deployment",
     "staleness",
     "from_jsonable",
+    "config_digest",
     "source_digest",
     "to_jsonable",
 ]

@@ -42,6 +42,7 @@ from edumatcher.api_gateway.routers import (
     admin,
     bootstrap,
     history,
+    market,
     orders,
     reference,
     ws,
@@ -359,6 +360,7 @@ def create_app(config: ApiGatewayConfig, *, instance: str | None = None) -> Fast
 
     app.include_router(orders.router)
     app.include_router(reference.router)
+    app.include_router(market.router)
     app.include_router(history.router)
     app.include_router(admin.router)
     app.include_router(bootstrap.router)

@@ -125,6 +125,8 @@ def format_text(
                 code = f"{_CYAN}{code}{_RESET}"
                 sev_label = f"{_CYAN}{sev_label}{_RESET}"
         block = [f"{code} {sev_label}  {r.message}"]
+        if r.file:
+            block.append(f"  in {r.file}")
         if r.suggestion:
             for i, sline in enumerate(r.suggestion.splitlines()):
                 prefix = "  → " if i == 0 else "    "
@@ -248,6 +250,7 @@ def format_json(report: VerificationReport) -> str:
             "message": r.message,
             "suggestion": r.suggestion,
             "path": r.path,
+            "file": r.file,
         }
 
     rs = report.risk_summary

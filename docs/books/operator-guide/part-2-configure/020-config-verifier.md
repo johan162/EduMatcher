@@ -193,7 +193,7 @@ reporting scripts.
 
 ## Check Catalogue
 
-### Layer 1 — YAML Syntax (`Y001`–`Y004`)
+### Layer 1 — YAML Syntax (`Y001`–`Y005`)
 
 | Code   | Condition                           |
 |--------|-------------------------------------|
@@ -201,6 +201,7 @@ reporting scripts.
 | `Y002` | File is not readable                |
 | `Y003` | YAML parse error                    |
 | `Y004` | Top-level document is not a mapping |
+| `Y005` | An `include:` list is invalid or an included file is missing, unreadable, not valid YAML or clashes with another file; the message names the file (see [Splitting the file](005-the-configuration-file.md#splitting-the-file-with-include)) |
 
 ### Layer 2 — Schema (`S001`–`S131`)
 

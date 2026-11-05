@@ -20,6 +20,7 @@ from edumatcher.config_artifact import (
     content_digest,
     decode,
     encode,
+    staleness,
     source_digest,
 )
 from edumatcher.ai_trader.swarm_config import load_swarm_config
@@ -467,3 +468,97 @@ class TestMarketSimConfig:
     @pytest.mark.parametrize("example", ["s150-nominal", "s300-load", "s300-sim"])
     def test_examples_carry_one(self, example: str) -> None:
         assert resolve_example(example).with_name("market_sim.yaml").is_file()
+
+
+class TestIncludes:
+    """A split source is deployed, hashed and checked for staleness as a whole."""
+
+    @staticmethod
+    def _split(tmp_path: Path) -> Path:
+        src = tmp_path / "src"
+        src.mkdir()
+        (src / "symbols.yaml").write_text(VALID.split("participants:")[0])
+        (src / "parts").mkdir()
+        (src / "parts" / "p.yaml").write_text(
+            "participants:" + VALID.split("participants:")[1]
+        )
+        main = src / "engine_config.yaml"
+        main.write_text("include: [symbols.yaml, parts/p.yaml]\n")
+        return main
+
+    def test_the_digest_covers_every_file(self, tmp_path: Path) -> None:
+        main = self._split(tmp_path)
+        before = compile_config(main).meta.source_sha256
+        (main.parent / "symbols.yaml").write_text(
+            (main.parent / "symbols.yaml").read_text() + "\n# edit\n"
+        )
+        assert compile_config(main).meta.source_sha256 != before
+
+    def test_a_config_without_includes_digests_like_its_text(
+        self, tmp_path: Path
+    ) -> None:
+        assert compile_config(_source(tmp_path)).meta.source_sha256 == source_digest(
+            VALID
+        )
+
+    def test_deploy_installs_the_includes_beside_the_artifact(
+        self, tmp_path: Path
+    ) -> None:
+        main = self._split(tmp_path)
+        dest = tmp_path / "ref_data" / "engine_config.json"
+        deploy(main, dest)
+        assert (dest.parent / "engine_config.yaml").read_text() == main.read_text()
+        assert (dest.parent / "symbols.yaml").is_file()
+        assert (dest.parent / "parts" / "p.yaml").is_file()
+
+    def test_dropping_an_include_removes_its_installed_copy(
+        self, tmp_path: Path
+    ) -> None:
+        main = self._split(tmp_path)
+        dest = tmp_path / "ref_data" / "engine_config.json"
+        deploy(main, dest)
+
+        main.write_text(
+            (main.parent / "symbols.yaml").read_text()
+            + "participants:"
+            + VALID.split("participants:")[1]
+        )
+        deploy(main, dest)
+
+        assert not (dest.parent / "symbols.yaml").exists()
+        assert not (dest.parent / "parts").exists()
+        assert (dest.parent / "engine_config.yaml").is_file()
+
+    def test_installed_includes_keep_their_file_mode(self, tmp_path: Path) -> None:
+        # A credentials file is 0600; deploying must not widen it to the umask.
+        main = self._split(tmp_path)
+        (main.parent / "symbols.yaml").chmod(0o600)
+        dest = tmp_path / "ref_data" / "engine_config.json"
+        deploy(main, dest)
+        assert (dest.parent / "symbols.yaml").stat().st_mode & 0o777 == 0o600
+
+    def test_deploying_in_place_never_deletes_authored_includes(
+        self, tmp_path: Path
+    ) -> None:
+        main = self._split(tmp_path)
+        deploy(main, main.parent / "engine_config.json")
+        main.write_text(VALID)
+        deploy(main, main.parent / "engine_config.json")
+        assert (main.parent / "symbols.yaml").is_file()
+
+    def test_editing_only_an_include_makes_the_deployment_stale(
+        self, tmp_path: Path
+    ) -> None:
+        main = self._split(tmp_path)
+        config = compile_config(main)
+        assert staleness(config) is None
+
+        symbols = main.parent / "symbols.yaml"
+        symbols.write_text(symbols.read_text() + "\n# edit\n")
+        assert "has changed" in (staleness(config) or "")
+
+    def test_a_broken_include_is_reported_as_stale(self, tmp_path: Path) -> None:
+        main = self._split(tmp_path)
+        config = compile_config(main)
+        (main.parent / "symbols.yaml").unlink()
+        assert "no longer loads" in (staleness(config) or "")

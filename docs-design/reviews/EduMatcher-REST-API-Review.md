@@ -1626,7 +1626,7 @@ Implements Q8 as decided: dedicated cancel acks, before 1.0.
 
 | WP | Title | Content | Findings | Size |
 |---|---|---|---|---|
-| **WP-API10** | Market-data REST snapshots | `GET /book/{symbol}` (L1/L2), a venue-wide top-of-book list, last trade. | C4 | S–M |
+| **WP-API10** ✅ | Market-data REST snapshots | **Done 2026-11-05, pulled into 1.0**, see §9.16. `GET /book/{symbol}` (L2, `levels`), `GET /book` (top of book for every symbol). Last trade rides both. | C4 | S–M |
 | **WP-API11** | Structure and order queries | `GET /oco[/{id}]`, `GET /combos[/{id}]`, filters and pagination on `GET /orders`, `GET /orders/{id}` falling back to history after eviction. | C6, C7 | M |
 | **WP-API12** | Index and classroom control | Index corporate actions and constituent add/delist. News inject/confirm/retract. Simulator commands. | C2, C3 | M |
 | **WP-API13** | Operations polish | Read rate-limit bucket, `Retry-After` and `RateLimit-*` headers, `ETag`/`If-None-Match` on `/reference*` (keyed on `config_version`), `X-Request-ID` echo, build version exposed, hashed keys and key reload, swagger-off guidance. | R6, O3, S6 | M |
@@ -1649,7 +1649,8 @@ jumps from Q6 to Q8.
 | Item | When | Note |
 |---|---|---|
 | ~~OCO cancel ownership (found in WP-API17, §9.13)~~ | **done 2026-10-31** | Fixed, see §9.15 |
-| WP-API10 to 13 (P2) | 1.x | All additive: market-data REST snapshots, structure and order queries, index and classroom control, rate-limit and caching headers |
+| ~~WP-API10 (P2)~~ | **done 2026-11-05** | Pulled into 1.0, see §9.16 |
+| WP-API11 to 13 (P2) | 1.x | All additive: structure and order queries, index and classroom control, rate-limit and caching headers |
 | `oasdiff breaking` in CI | after 1.0 | Needs a released 1.0 to diff against (§9.6) |
 | Intermittent e2e failure seen once on 2026-10-30 | watch | Not reproduced in about ten runs since; capture the test name if it recurs |
 
@@ -1731,6 +1732,50 @@ before the fix); 9 existing assertions moved to the new key.
 **The REST API v1 review is closed.** Open items are the 1.x P2 packages
 (WP-API10 to 13), `oasdiff` once 1.0 is released, and watching the one-off
 e2e failure.
+
+### 9.16 WP-API10 outcome (2026-11-05)
+
+Closes C4: a REST-only client can read the book. Pulled into 1.0 from P2.
+
+- **`GET /api/v1/book/{symbol}?levels=N`** (default 10, 1 to 100): bids and
+  asks best first, `last_*`, and the last five prints. **`GET /api/v1/book`**:
+  best bid, best ask and last price for every symbol in the reference data,
+  sorted. Any key, read-only included. New router `routers/market.py`, tag
+  `market-data`, response models `BookView` / `BookSummaries`, error code
+  `UNKNOWN_SYMBOL` (404).
+- **Same data as the WebSocket.** Both read `MarketDataCache`, the store a WS
+  `snapshot` is answered from. `seq` is the envelope `seq` on `book.{symbol}`,
+  so a client that reads REST and then subscribes drops frames at or below it.
+  `ts_ns` is the engine's production time, not the read time.
+- **Ticks beside display prices (D8).** Every price, including the tape, has a
+  `*_ticks` sibling computed with `round(price * 10**tick_decimals)` from the
+  snapshot's own `tick_decimals`. The engine's book message carries display
+  prices only, so the message spec is unchanged.
+- **Quiet books.** The engine publishes a book only when it changes, so a
+  restarted gateway has nothing cached for a quiet symbol. On a miss the
+  handler checks the symbol against the reference bundle (`404 UNKNOWN_SYMBOL`
+  otherwise: the engine does not answer for a symbol it lacks, which would be
+  a timeout), registers the wait, then sends `book.snapshot_request`. The wait
+  is registered first so a fast publish cannot be missed (`sleep(0)`, held by a
+  mutant check). `GET /book` takes its symbol list from the bundle, not the
+  cache, so it is complete from the first call; it is all or nothing
+  (`503 ENGINE_TIMEOUT`).
+- **Not included:** depth metrics and auction state over REST (still WS
+  channels `depth` and `auction`), and a separate last-trade endpoint
+  (`last_*` and `recent_trades` carry it). Both are additive.
+- **Prices stay JSON floats (Q1).** Sizing the decimal-string alternative
+  showed the cost is in the engine payloads shared with every transport, not
+  in the REST schemas; the `*_ticks` siblings are the exact-arithmetic route.
+- **Contract diff is purely additive:** two paths, five schemas (`BookView`,
+  `BookSummary`, `BookSummaries`, `BookLevelView`, `TapeRow`), the tag, and
+  one line in the API description. Nothing existing changed.
+- **Also:** example `book_snapshot.py` (run by `test_examples_e2e.py`), spec
+  sections in `060-rest-and-websocket.md` and a cross-reference in
+  `070-websocket.md`, operator guide and training chapter 24.
+
+Tests: `tests/test_api_gateway_market_rest.py` (17, including one with the real
+`EngineClient` showing the cache is filled when the wait returns); the layout,
+error-code, spec-table and OpenAPI guards cover the new routes.
 
 ## 10. Decisions needed from you
 

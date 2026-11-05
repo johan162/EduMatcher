@@ -110,7 +110,7 @@ def main(argv: list[str] | None = None) -> None:
     payload = result.payload
     decimals = payload["tick_decimals"]
     print(
-        f"Listed {result.symbol} in {result.source}: IPO price "
+        f"Listed {result.symbol} in {result.edited}: IPO price "
         f"{payload['last_buy_price']:.{decimals}f}, "
         f"{payload['outstanding_shares']} shares outstanding"
     )

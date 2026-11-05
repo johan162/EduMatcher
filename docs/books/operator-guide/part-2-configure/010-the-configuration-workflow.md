@@ -346,7 +346,8 @@ Output and safety options:
 | Option | Type | Default | Description |
 |---|---|---|---|
 | `--output FILE` | Path | none | Write YAML to file |
-| `--force` | Flag | off | Overwrite existing output file |
+| `--split` | Flag | off | Write `symbols` and `participants` to `symbols.yaml` and `participants.yaml` beside `--output`, joined to the main file by an `include:` list (see [Splitting the file](005-the-configuration-file.md#splitting-the-file-with-include)). Needs `--output` or `--dry-run` |
+| `--force` | Flag | off | Overwrite existing output file (with `--split`, all three files) |
 | `--dry-run` | Flag | off | Print YAML only; do not write file |
 | `--comment-default-config-fields` | Flag | off | Add a commented-out header showing every optional section with its default values, ready to uncomment — the engine settings and the process sections (the gateways, `api_gateways`, `log_server`, `monitor`, `indices`, `schedule`), each field explained. A section's own option (`--log-server`, `--monitor`, …) writes that section for real instead |
 
@@ -552,6 +553,7 @@ API gateway options:
 | `--api-gateway-stats-db PATH` | path | `data/stats.db` | SQLite database used by `/history/*` endpoints |
 | `--api-key KEY:GATEWAY_ID[:DESCRIPTION]` | Repeatable | none | Add an explicit bearer-token credential; use `GATEWAY_ID=null` for read-only access |
 | `--api-gateway-generate-keys` / `--no-api-gateway-generate-keys` | Flag pair | generated when emitted | Generate one key for each `participants` entry |
+| `--api-keys-for GW_ID [GW_ID ...]` | Tokens | none | Write one key for each listed participant to `api_keys.yaml` beside `--output` and point the API gateway at it with `credentials_file`; needs `--output` or `--dry-run`, and a single API gateway. See [Keys for many participants](#keys-for-many-participants) |
 | `--api-gateway-readonly-key` | Flag | off | Generate an additional read-only key with `gateway_id: null` |
 | `--api-gateway-rate-limit-writes-per-second N` | int (`> 0`) | `10` | Per-key write rate limit |
 | `--api-gateway-rate-limit-burst N` | int (`> 0`) | `20` | Per-key write burst capacity |
@@ -589,6 +591,34 @@ and automatically generates one bearer token for each configured ALF gateway.
 Pass `--seed N` to make those generated keys reproducible. Use
 `--no-api-gateway-generate-keys` when you only want manually supplied
 `--api-key` entries.
+
+### Keys for many participants
+
+A class of a hundred students needs a hundred keys. `--api-keys-for` writes them
+to their own file instead of into the main one:
+
+```bash
+pm-config-gen \
+  --symbols AAPL MSFT \
+  --participants TRADER01 TRADER02 TRADER03 \
+  --api-keys-for TRADER01 TRADER02 TRADER03 \
+  --api-gateway-readonly-key \
+  --seed 20260814 \
+  --output engine_config.yaml
+```
+
+This writes `engine_config.yaml` with `credentials_file: api_keys.yaml` and, beside
+it, `api_keys.yaml` (mode `0600`) with one key per listed participant and the
+read-only key. It combines with `--split`, which moves the symbols and
+participants out as well. Without `--force` it refuses to replace an existing
+`api_keys.yaml`.
+
+The keys are derived from the seed, so the same command line always gives the
+same keys: handy for regenerating a lost file, and a reason to keep the seed
+private. Without `--seed` a fixed default seed is used and the command prints a
+note, because anyone who knows the default and a participant ID can then work out
+that participant's key. That is acceptable for a throwaway classroom exchange and
+nowhere else.
 
 Use repeated `--api-gateway-instance` options when you want separate API
 gateway processes for logical separation. A non-null `gateway_id` can belong to
@@ -1754,7 +1784,7 @@ which already refuses it loudly and now names the reason.
 ### The source staleness check (a warning)
 
 The artifact also records `meta.source_path` and `meta.source_sha256` — where
-the YAML was read from, and the SHA-256 of its text. This is the check that
+the YAML was read from, and the SHA-256 of its text (of the main file followed by every file it lists under `include:`, so an edit to an included file counts too). This is the check that
 *does* look at your YAML, and it catches the one failure compiling introduces:
 editing the authored file and forgetting to deploy, so the exchange keeps
 running the previous configuration while the file on disk says otherwise.

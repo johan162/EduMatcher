@@ -17,6 +17,7 @@ from edumatcher.api_gateway.routers import (
     admin,
     bootstrap,
     history,
+    market,
     orders,
     reference,
     ws,
@@ -57,6 +58,9 @@ REST_ROUTES = {
     ("GET", "/positions"),
     ("GET", "/status"),
     ("GET", "/healthz"),
+    # market data
+    ("GET", "/book"),
+    ("GET", "/book/{symbol}"),
     # history
     ("GET", "/history/orders"),
     ("GET", "/history/orders/{order_id}"),
@@ -100,7 +104,7 @@ REST_ROUTES = {
 
 WS_ROUTES = {"/ws/private", "/ws/market-data", "/ws/admin/monitor", "/ws/admin/sim"}
 
-_ROUTERS = (orders, reference, history, admin, bootstrap, ws)
+_ROUTERS = (orders, reference, market, history, admin, bootstrap, ws)
 
 
 def test_rest_routes_are_exactly_the_v1_surface() -> None:

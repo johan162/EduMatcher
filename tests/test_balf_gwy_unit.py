@@ -493,10 +493,11 @@ class TestLoadBalfGatewayConfig:
         p.write_text("{}\n")
         assert load_balf_gateway_config(p).port == 5560
 
-    def test_non_dict_yaml_returns_defaults(self, tmp_path: Path):
+    def test_non_dict_yaml_raises(self, tmp_path: Path):
         p = tmp_path / "cfg.yaml"
         p.write_text("- list\n- item\n")
-        assert load_balf_gateway_config(p).port == 5560
+        with pytest.raises(ValueError, match="must be a YAML mapping"):
+            load_balf_gateway_config(p)
 
     def test_full_config_parsed(self, tmp_path: Path):
         yaml_text = textwrap.dedent("""\

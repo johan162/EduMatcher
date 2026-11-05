@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "EduMatcher API Gateway",
-    "description": "REST/JSON and WebSocket gateway for EduMatcher order entry and market data.\n\n## Authentication\n\nEvery request carries an API key as a bearer token:\n\n    Authorization: Bearer <api_key>\n\nKeys are configured per gateway process under `api_gateways.<name>.credentials`\nin the engine config. A key maps to one of two things:\n\n* a **trading gateway** (`gateway_id` set) -- may submit, amend and cancel\n  orders and read its own orders, fills and positions. What it may do beyond\n  that depends on the engine **role** of that gateway: `TRADER`,\n  `MARKET_MAKER` (adds quoting) or `ADMIN` (adds the `/admin` endpoints);\n* a **read-only key** (`gateway_id` null) -- may read public data only:\n  `/reference/*`, `/news`, `/companies/{symbol}`, `/history/trades`,\n  `/history/daily` and the other public history endpoints, `/bootstrap/trader`.\n  Everything gateway-scoped answers `403 READ_ONLY`.\n\n## Asynchronous order entry\n\n`POST`, `PATCH` and `DELETE` on orders are **asynchronous**: the gateway hands\nthe request to the matching engine and, by default, answers `202` with\n`status: PENDING` straight away. The engine's verdict (accepted, rejected,\nfilled) arrives on the private WebSocket stream. Add `?wait=ack` to hold the\nresponse until the engine acknowledges, up to the gateway's `wait_ack_sec`\ntimeout; the verdict is then in `accepted`, `reject_code` and `event`.\n\n## Errors\n\nEvery error uses one envelope, whatever the cause:\n\n    {\"error\": {\"code\": \"VALIDATION\", \"message\": \"...\", \"field\": \"price\",\n               \"reject_code\": \"TICK_VIOLATION\"}}\n\nThat includes an unknown path (`404 NOT_FOUND`), a wrong method\n(`405 METHOD_NOT_ALLOWED`) and a gateway bug (`500 INTERNAL_ERROR`). `code` is\nthe HTTP-level category; `reject_code` is the same vocabulary the engine uses\non `order.ack` rejects, so REST and ALF clients see identical values for the\nsame mistake. `client_tag` / `request_tag` are echoed back when the request\ncarried one. Validation failures are always `400`.\n\n## Status codes\n\n`200` means the response carries the outcome; `202` means the request was\nhanded on and the outcome follows on a WebSocket. An order submit, cancel or\namend is `202` by default and `200` with `?wait=ack`. An admin command the\nengine refuses is `409` with a command-specific code.\n\n## Rate limiting\n\nWrite endpoints (POST/PATCH/DELETE) are limited per API key by a token bucket\n(`rate_limit.writes_per_second`, `rate_limit.burst`). Over the limit the answer\nis `429 RATE_LIMITED`. Reads are not limited.\n\n## Prices and time\n\nPrices are decimal display prices (`187.25`), always on the symbol's tick grid\n(`tick_decimals` in `/reference/symbols`); an off-grid price is `400 TICK_VIOLATION`.\nTimestamps named `ts_ns` / `*_ns` are epoch nanoseconds; `ts` in history rows is\nISO-8601 UTC. `date` filters are trading days in the exchange's own timezone\n(`session_timezone` in `GET /session`).\n\n## WebSocket\n\nLive streams are WebSockets under `/api/v1/ws/` and are not part of this\nOpenAPI document: `/api/v1/ws/private` (orders, fills, quotes),\n`/api/v1/ws/market-data` (book, trades, depth, auction, session, halts, news),\nand, for ADMIN keys, `/api/v1/ws/admin/monitor` and `/api/v1/ws/admin/sim`.\n",
+    "description": "REST/JSON and WebSocket gateway for EduMatcher order entry and market data.\n\n## Authentication\n\nEvery request carries an API key as a bearer token:\n\n    Authorization: Bearer <api_key>\n\nKeys are configured per gateway process under `api_gateways.<name>.credentials`\nin the engine config. A key maps to one of two things:\n\n* a **trading gateway** (`gateway_id` set) -- may submit, amend and cancel\n  orders and read its own orders, fills and positions. What it may do beyond\n  that depends on the engine **role** of that gateway: `TRADER`,\n  `MARKET_MAKER` (adds quoting) or `ADMIN` (adds the `/admin` endpoints);\n* a **read-only key** (`gateway_id` null) -- may read public data only:\n  `/reference/*`, `/book`, `/news`, `/companies/{symbol}`, `/history/trades`,\n  `/history/daily` and the other public history endpoints, `/bootstrap/trader`.\n  Everything gateway-scoped answers `403 READ_ONLY`.\n\n## Asynchronous order entry\n\n`POST`, `PATCH` and `DELETE` on orders are **asynchronous**: the gateway hands\nthe request to the matching engine and, by default, answers `202` with\n`status: PENDING` straight away. The engine's verdict (accepted, rejected,\nfilled) arrives on the private WebSocket stream. Add `?wait=ack` to hold the\nresponse until the engine acknowledges, up to the gateway's `wait_ack_sec`\ntimeout; the verdict is then in `accepted`, `reject_code` and `event`.\n\n## Errors\n\nEvery error uses one envelope, whatever the cause:\n\n    {\"error\": {\"code\": \"VALIDATION\", \"message\": \"...\", \"field\": \"price\",\n               \"reject_code\": \"TICK_VIOLATION\"}}\n\nThat includes an unknown path (`404 NOT_FOUND`), a wrong method\n(`405 METHOD_NOT_ALLOWED`) and a gateway bug (`500 INTERNAL_ERROR`). `code` is\nthe HTTP-level category; `reject_code` is the same vocabulary the engine uses\non `order.ack` rejects, so REST and ALF clients see identical values for the\nsame mistake. `client_tag` / `request_tag` are echoed back when the request\ncarried one. Validation failures are always `400`.\n\n## Status codes\n\n`200` means the response carries the outcome; `202` means the request was\nhanded on and the outcome follows on a WebSocket. An order submit, cancel or\namend is `202` by default and `200` with `?wait=ack`. An admin command the\nengine refuses is `409` with a command-specific code.\n\n## Rate limiting\n\nWrite endpoints (POST/PATCH/DELETE) are limited per API key by a token bucket\n(`rate_limit.writes_per_second`, `rate_limit.burst`). Over the limit the answer\nis `429 RATE_LIMITED`. Reads are not limited.\n\n## Prices and time\n\nPrices are decimal display prices (`187.25`), always on the symbol's tick grid\n(`tick_decimals` in `/reference/symbols`); an off-grid price is `400 TICK_VIOLATION`.\nTimestamps named `ts_ns` / `*_ns` are epoch nanoseconds; `ts` in history rows is\nISO-8601 UTC. `date` filters are trading days in the exchange's own timezone\n(`session_timezone` in `GET /session`).\n\n## WebSocket\n\nLive streams are WebSockets under `/api/v1/ws/` and are not part of this\nOpenAPI document: `/api/v1/ws/private` (orders, fills, quotes),\n`/api/v1/ws/market-data` (book, trades, depth, auction, session, halts, news),\nand, for ADMIN keys, `/api/v1/ws/admin/monitor` and `/api/v1/ws/admin/sim`.\n",
     "version": "1.0.0"
   },
   "paths": {
@@ -6000,6 +6000,465 @@
                   "$ref": "#/components/schemas/ErrorResponse"
                 },
                 "examples": {
+                  "ENGINE_UNAVAILABLE": {
+                    "summary": "ENGINE_UNAVAILABLE",
+                    "value": {
+                      "error": {
+                        "code": "ENGINE_UNAVAILABLE",
+                        "message": "Engine unavailable",
+                        "reject_code": "INTERNAL_ERROR"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/book/{symbol}": {
+      "get": {
+        "tags": [
+          "market-data"
+        ],
+        "summary": "Order book snapshot",
+        "description": "The latest aggregated book for one symbol: bid and ask levels (best first, iceberg orders at their displayed size), the last trade and the last five prints. Every price comes twice, as a display price and as `*_ticks`. `seq` is the sequence of the WebSocket `book` frame for the same snapshot: a client that reads this and then subscribes ignores frames with `seq` at or below it. The engine publishes a book when it changes, so a quiet book keeps an old `ts_ns` and is still current. Any key, read-only included.",
+        "operationId": "book",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "symbol",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 16,
+              "description": "Instrument, e.g. `AAPL` (case-insensitive).",
+              "title": "Symbol"
+            },
+            "description": "Instrument, e.g. `AAPL` (case-insensitive)."
+          },
+          {
+            "name": "levels",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "description": "How many price levels to return per side.",
+              "default": 10,
+              "title": "Levels"
+            },
+            "description": "How many price levels to return per side."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The latest snapshot.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BookView"
+                },
+                "example": {
+                  "symbol": "AAPL",
+                  "tick_decimals": 2,
+                  "ts_ns": 1788013800250000000,
+                  "seq": 4812,
+                  "bids": [
+                    {
+                      "price": 186.9,
+                      "qty": 300,
+                      "count": 2,
+                      "price_ticks": 18690
+                    },
+                    {
+                      "price": 186.85,
+                      "qty": 500,
+                      "count": 1,
+                      "price_ticks": 18685
+                    },
+                    {
+                      "price": 186.8,
+                      "qty": 1200,
+                      "count": 5,
+                      "price_ticks": 18680
+                    }
+                  ],
+                  "asks": [
+                    {
+                      "price": 186.95,
+                      "qty": 250,
+                      "count": 1,
+                      "price_ticks": 18695
+                    },
+                    {
+                      "price": 187.0,
+                      "qty": 600,
+                      "count": 3,
+                      "price_ticks": 18700
+                    },
+                    {
+                      "price": 187.1,
+                      "qty": 900,
+                      "count": 4,
+                      "price_ticks": 18710
+                    }
+                  ],
+                  "last_price": 186.95,
+                  "last_price_ticks": 18695,
+                  "last_qty": 100,
+                  "last_buy_price": 186.95,
+                  "last_buy_price_ticks": 18695,
+                  "last_sell_price": 186.9,
+                  "last_sell_price_ticks": 18690,
+                  "recent_trades": [
+                    {
+                      "id": "T-20260829-000411",
+                      "symbol": "AAPL",
+                      "buy_order_id": "3b7e1d9a5c2f4e86b0a1d3c5e7f90214",
+                      "sell_order_id": "c81a64f0d2e94b37a5f6091e8d3b72c4",
+                      "buy_gateway_id": "TRADER01",
+                      "sell_gateway_id": "MM01",
+                      "price": 186.9,
+                      "quantity": 50,
+                      "ts_ns": 1788013800100000000,
+                      "price_ticks": 18690
+                    },
+                    {
+                      "id": "T-20260829-000412",
+                      "symbol": "AAPL",
+                      "buy_order_id": "9f2c4e7a1b3d4c58a6e0f1d2c3b4a596",
+                      "sell_order_id": "c81a64f0d2e94b37a5f6091e8d3b72c4",
+                      "buy_gateway_id": "TRADER01",
+                      "sell_gateway_id": "MM01",
+                      "price": 186.95,
+                      "quantity": 100,
+                      "ts_ns": 1788013800200000000,
+                      "price_ticks": 18695
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`INTERNAL_ERROR`: A gateway bug; the message carries no internals.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "INTERNAL_ERROR": {
+                    "summary": "INTERNAL_ERROR",
+                    "value": {
+                      "error": {
+                        "code": "INTERNAL_ERROR",
+                        "message": "Internal server error",
+                        "reject_code": "INTERNAL_ERROR"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION`: A body field, query parameter, header or history filter failed validation; `field` names it. `reject_code` is one of `MISSING_FIELD`, `UNSUPPORTED_FIELD`, `INVALID_VALUE`, `TICK_VIOLATION`.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "VALIDATION": {
+                    "summary": "VALIDATION",
+                    "value": {
+                      "error": {
+                        "code": "VALIDATION",
+                        "message": "Input should be less than or equal to 5000",
+                        "reject_code": "INVALID_VALUE"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`AUTH`: Missing, malformed or unknown API key. The reply carries `WWW-Authenticate: Bearer`.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "AUTH": {
+                    "summary": "AUTH",
+                    "value": {
+                      "error": {
+                        "code": "AUTH",
+                        "message": "Unknown API key",
+                        "reject_code": "AUTH_REQUIRED"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`ENGINE_AUTH`: The engine refused the key's gateway identity.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "ENGINE_AUTH": {
+                    "summary": "ENGINE_AUTH",
+                    "value": {
+                      "error": {
+                        "code": "ENGINE_AUTH",
+                        "message": "Gateway TRADER01 is disabled",
+                        "reject_code": "AUTH_FAILED"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`UNKNOWN_SYMBOL`: The symbol is not in the venue's reference data.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "UNKNOWN_SYMBOL": {
+                    "summary": "UNKNOWN_SYMBOL",
+                    "value": {
+                      "error": {
+                        "code": "UNKNOWN_SYMBOL",
+                        "message": "Unknown symbol XYZ",
+                        "reject_code": "UNKNOWN"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "`ENGINE_TIMEOUT`: No engine reply in time. Transient; retry. `ENGINE_UNAVAILABLE`: The command could not be handed to the engine (down or backpressured); nothing was sent. Transient; retry.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "ENGINE_TIMEOUT": {
+                    "summary": "ENGINE_TIMEOUT",
+                    "value": {
+                      "error": {
+                        "code": "ENGINE_TIMEOUT",
+                        "message": "Timed out waiting for engine reply",
+                        "reject_code": "INTERNAL_ERROR"
+                      }
+                    }
+                  },
+                  "ENGINE_UNAVAILABLE": {
+                    "summary": "ENGINE_UNAVAILABLE",
+                    "value": {
+                      "error": {
+                        "code": "ENGINE_UNAVAILABLE",
+                        "message": "Engine unavailable",
+                        "reject_code": "INTERNAL_ERROR"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/book": {
+      "get": {
+        "tags": [
+          "market-data"
+        ],
+        "summary": "Top of book, all symbols",
+        "description": "Best bid, best ask and last price for every symbol in the reference data, sorted by symbol, from the same snapshots as `GET /book/{symbol}` (`seq` and `ts_ns` mean the same). A side with no orders is `null`. Any key, read-only included.",
+        "operationId": "book_list",
+        "responses": {
+          "200": {
+            "description": "One entry per symbol.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BookSummaries"
+                },
+                "example": {
+                  "books": [
+                    {
+                      "symbol": "AAPL",
+                      "tick_decimals": 2,
+                      "ts_ns": 1788013800250000000,
+                      "seq": 4812,
+                      "best_bid": {
+                        "price": 186.9,
+                        "qty": 300,
+                        "count": 2,
+                        "price_ticks": 18690
+                      },
+                      "best_ask": {
+                        "price": 186.95,
+                        "qty": 250,
+                        "count": 1,
+                        "price_ticks": 18695
+                      },
+                      "last_price": 186.95,
+                      "last_price_ticks": 18695
+                    },
+                    {
+                      "symbol": "MSFT",
+                      "tick_decimals": 2,
+                      "ts_ns": 1788013800120000000,
+                      "seq": 2031,
+                      "best_bid": {
+                        "price": 411.3,
+                        "qty": 200,
+                        "count": 1,
+                        "price_ticks": 41130
+                      },
+                      "best_ask": {
+                        "price": 411.4,
+                        "qty": 400,
+                        "count": 2,
+                        "price_ticks": 41140
+                      },
+                      "last_price": 411.35,
+                      "last_price_ticks": 41135
+                    },
+                    {
+                      "symbol": "TSLA",
+                      "tick_decimals": 2,
+                      "ts_ns": 1788013740000000000,
+                      "seq": 977,
+                      "best_ask": {
+                        "price": 248.4,
+                        "qty": 100,
+                        "count": 1,
+                        "price_ticks": 24840
+                      }
+                    }
+                  ],
+                  "count": 3
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`INTERNAL_ERROR`: A gateway bug; the message carries no internals.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "INTERNAL_ERROR": {
+                    "summary": "INTERNAL_ERROR",
+                    "value": {
+                      "error": {
+                        "code": "INTERNAL_ERROR",
+                        "message": "Internal server error",
+                        "reject_code": "INTERNAL_ERROR"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`AUTH`: Missing, malformed or unknown API key. The reply carries `WWW-Authenticate: Bearer`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "AUTH": {
+                    "summary": "AUTH",
+                    "value": {
+                      "error": {
+                        "code": "AUTH",
+                        "message": "Unknown API key",
+                        "reject_code": "AUTH_REQUIRED"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`ENGINE_AUTH`: The engine refused the key's gateway identity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "ENGINE_AUTH": {
+                    "summary": "ENGINE_AUTH",
+                    "value": {
+                      "error": {
+                        "code": "ENGINE_AUTH",
+                        "message": "Gateway TRADER01 is disabled",
+                        "reject_code": "AUTH_FAILED"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "`ENGINE_TIMEOUT`: No engine reply in time. Transient; retry. `ENGINE_UNAVAILABLE`: The command could not be handed to the engine (down or backpressured); nothing was sent. Transient; retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "ENGINE_TIMEOUT": {
+                    "summary": "ENGINE_TIMEOUT",
+                    "value": {
+                      "error": {
+                        "code": "ENGINE_TIMEOUT",
+                        "message": "Timed out waiting for engine reply",
+                        "reject_code": "INTERNAL_ERROR"
+                      }
+                    }
+                  },
                   "ENGINE_UNAVAILABLE": {
                     "summary": "ENGINE_UNAVAILABLE",
                     "value": {
@@ -15203,6 +15662,288 @@
         ],
         "title": "AuditEvent"
       },
+      "BookLevelView": {
+        "properties": {
+          "price": {
+            "type": "number",
+            "title": "Price",
+            "description": "Unit: display_price."
+          },
+          "qty": {
+            "type": "integer",
+            "title": "Qty",
+            "description": "Aggregate visible size at this level. Unit: shares."
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count",
+            "description": "How many orders make up the level."
+          },
+          "price_ticks": {
+            "type": "integer",
+            "title": "Price Ticks",
+            "description": "`price` in integer ticks: `price * 10**tick_decimals`."
+          }
+        },
+        "type": "object",
+        "required": [
+          "price",
+          "qty",
+          "count",
+          "price_ticks"
+        ],
+        "title": "BookLevelView",
+        "description": "One aggregated price level, with the price in ticks beside the display price."
+      },
+      "BookSummaries": {
+        "properties": {
+          "count": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Count",
+            "description": "Number of items in the list."
+          },
+          "books": {
+            "items": {
+              "$ref": "#/components/schemas/BookSummary"
+            },
+            "type": "array",
+            "title": "Books",
+            "description": "Sorted by symbol."
+          }
+        },
+        "type": "object",
+        "required": [
+          "count",
+          "books"
+        ],
+        "title": "BookSummaries"
+      },
+      "BookSummary": {
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "title": "Symbol"
+          },
+          "tick_decimals": {
+            "type": "integer",
+            "title": "Tick Decimals",
+            "description": "Price scale: 2 means prices move in 0.01 steps. Same value as `/reference/symbols`."
+          },
+          "ts_ns": {
+            "type": "integer",
+            "title": "Ts Ns",
+            "description": "When the engine produced this snapshot (epoch nanoseconds). The engine publishes a book when it changes, so a quiet book keeps an old stamp."
+          },
+          "seq": {
+            "type": "integer",
+            "title": "Seq",
+            "description": "Market-data sequence of this snapshot on topic `book.{symbol}`: the `seq` the WebSocket `book` frame for the same snapshot carries. Ignore frames with `seq` at or below it."
+          },
+          "best_bid": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BookLevelView"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null on an empty bid side."
+          },
+          "best_ask": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BookLevelView"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null on an empty ask side."
+          },
+          "last_price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Price",
+            "description": "Last trade price; null until the symbol has traded."
+          },
+          "last_price_ticks": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Price Ticks"
+          }
+        },
+        "type": "object",
+        "required": [
+          "symbol",
+          "tick_decimals",
+          "ts_ns",
+          "seq",
+          "best_bid",
+          "best_ask",
+          "last_price",
+          "last_price_ticks"
+        ],
+        "title": "BookSummary",
+        "description": "Best bid, best ask and last price of one symbol."
+      },
+      "BookView": {
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "title": "Symbol"
+          },
+          "tick_decimals": {
+            "type": "integer",
+            "title": "Tick Decimals",
+            "description": "Price scale: 2 means prices move in 0.01 steps. Same value as `/reference/symbols`."
+          },
+          "ts_ns": {
+            "type": "integer",
+            "title": "Ts Ns",
+            "description": "When the engine produced this snapshot (epoch nanoseconds). The engine publishes a book when it changes, so a quiet book keeps an old stamp."
+          },
+          "seq": {
+            "type": "integer",
+            "title": "Seq",
+            "description": "Market-data sequence of this snapshot on topic `book.{symbol}`: the `seq` the WebSocket `book` frame for the same snapshot carries. Ignore frames with `seq` at or below it."
+          },
+          "bids": {
+            "items": {
+              "$ref": "#/components/schemas/BookLevelView"
+            },
+            "type": "array",
+            "title": "Bids",
+            "description": "Best (highest) price first, at most `levels` entries."
+          },
+          "asks": {
+            "items": {
+              "$ref": "#/components/schemas/BookLevelView"
+            },
+            "type": "array",
+            "title": "Asks",
+            "description": "Best (lowest) price first, at most `levels` entries."
+          },
+          "last_price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Price",
+            "description": "Last trade price; null until the symbol has traded."
+          },
+          "last_price_ticks": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Price Ticks"
+          },
+          "last_qty": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Qty"
+          },
+          "last_buy_price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Buy Price"
+          },
+          "last_buy_price_ticks": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Buy Price Ticks"
+          },
+          "last_sell_price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Sell Price"
+          },
+          "last_sell_price_ticks": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Sell Price Ticks"
+          },
+          "recent_trades": {
+            "items": {
+              "$ref": "#/components/schemas/TapeRow"
+            },
+            "type": "array",
+            "title": "Recent Trades",
+            "description": "The last five prints, oldest first."
+          }
+        },
+        "type": "object",
+        "required": [
+          "symbol",
+          "tick_decimals",
+          "ts_ns",
+          "seq",
+          "bids",
+          "asks",
+          "last_price",
+          "last_price_ticks",
+          "last_qty",
+          "last_buy_price",
+          "last_buy_price_ticks",
+          "last_sell_price",
+          "last_sell_price_ticks",
+          "recent_trades"
+        ],
+        "title": "BookView",
+        "description": "The latest book snapshot for one symbol."
+      },
       "BootstrapAdmin": {
         "properties": {
           "ts": {
@@ -22013,6 +22754,76 @@
         ],
         "title": "TIF"
       },
+      "TapeRow": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 64,
+            "title": "Id"
+          },
+          "symbol": {
+            "type": "string",
+            "maxLength": 16,
+            "title": "Symbol"
+          },
+          "buy_order_id": {
+            "type": "string",
+            "maxLength": 64,
+            "title": "Buy Order Id"
+          },
+          "sell_order_id": {
+            "type": "string",
+            "maxLength": 64,
+            "title": "Sell Order Id"
+          },
+          "buy_gateway_id": {
+            "type": "string",
+            "maxLength": 32,
+            "title": "Buy Gateway Id"
+          },
+          "sell_gateway_id": {
+            "type": "string",
+            "maxLength": 32,
+            "title": "Sell Gateway Id"
+          },
+          "price": {
+            "type": "number",
+            "title": "Price",
+            "description": "Unit: display_price."
+          },
+          "quantity": {
+            "type": "integer",
+            "title": "Quantity",
+            "description": "Unit: shares."
+          },
+          "ts_ns": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Ts Ns",
+            "description": "Epoch nanoseconds, carried through unscaled -- identical to the trade.executed\nprint this row mirrors. Unit: epoch_nanos."
+          },
+          "price_ticks": {
+            "type": "integer",
+            "title": "Price Ticks",
+            "description": "`price` in integer ticks: `price * 10**tick_decimals`."
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "symbol",
+          "buy_order_id",
+          "sell_order_id",
+          "buy_gateway_id",
+          "sell_gateway_id",
+          "price",
+          "quantity",
+          "ts_ns",
+          "price_ticks"
+        ],
+        "title": "TapeRow",
+        "description": "One print of the book's trade tape, with the price in ticks."
+      },
       "TradePage": {
         "properties": {
           "count": {
@@ -22341,6 +23152,10 @@
     {
       "name": "reference",
       "description": "Static venue configuration (symbols, tick sizes, collars, circuit-breaker ladders, indexes, trading schedule) and live session/halt state, plus news and company profiles. Reference endpoints are open to read-only keys; every response that derives from the reference bundle carries `config_version`, a hash that changes whenever the configuration does."
+    },
+    {
+      "name": "market-data",
+      "description": "The order book as of now, over plain REST: one symbol's levels and last trades, or best bid/ask for every symbol. Open to read-only keys. Each reply carries the `seq` of the WebSocket `book` frame it corresponds to, so a client can read here, then subscribe, and drop frames it already has."
     },
     {
       "name": "history",

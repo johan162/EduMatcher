@@ -433,8 +433,24 @@ focused instrument:
   ]}
 ```
 
+The book is also available without a socket. Compare it with what the
+subscription just sent:
+
+```bash
+curl -s -H "Authorization: Bearer key-readonly-demo" \
+  "http://127.0.0.1:8080/api/v1/book/AAPL?levels=3"
+curl -s -H "Authorization: Bearer key-readonly-demo" http://127.0.0.1:8080/api/v1/book
+```
+
+Each price comes as a display price and as `*_ticks`. The reply's `seq` is the
+`seq` of the `book` frame for the same snapshot, so a client that reads REST
+first and then subscribes can drop frames at or below it.
+
 Expected behavior:
 
+- `GET /book/AAPL` matches the `book` frame the subscription sent, with the
+  same `seq` when the book has not changed since
+- `GET /book/NOSUCH` answers `404 UNKNOWN_SYMBOL`
 - private events correspond to the authenticated trading gateway
 - public market-data access does not require a non-null `gateway_id`
 - stale or unknown bearer keys are rejected

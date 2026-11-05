@@ -82,6 +82,11 @@ def test_market_data(exchange: Exchange) -> None:
     assert "trade AAPL" in out and "done:" in out
 
 
+def test_book_snapshot(exchange: Exchange) -> None:
+    out = run("book_snapshot.py", TRADER, "--symbol", "AAPL", "--levels", "3")
+    assert "AAPL at seq" in out and "UNKNOWN_SYMBOL" in out
+
+
 def test_history_pages(exchange: Exchange) -> None:
     out = run("history_pages.py", TRADER, "--limit", "2")
     assert "trades today" in out or "no history yet" in out

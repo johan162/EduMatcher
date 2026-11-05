@@ -9,6 +9,7 @@ import pytest
 from edumatcher.api_gateway import openapi_docs as docs
 from edumatcher.api_gateway.config import ApiGatewayConfig
 from edumatcher.api_gateway.main import create_app
+from edumatcher.models.generated import book as book_msgs
 from edumatcher.models.generated import order as order_msgs
 from edumatcher.models.generated import risk as risk_msgs
 from edumatcher.models.generated import system as system_msgs
@@ -148,6 +149,7 @@ def test_request_bodies_carry_examples(spec: dict[str, Any]) -> None:
         (system_msgs.Symbols, docs.SYMBOLS),
         (system_msgs.SessionStatus, docs.SESSION_STATUS),
         (system_msgs.HaltStatus, docs.HALT_STATUS),
+        (book_msgs.BookSnapshot, docs.BOOK_SNAPSHOT),
         (system_msgs.QuoteBootstrap, docs.QUOTE_BOOTSTRAP),
         (system_msgs.QuoteLegs, docs.QUOTE_LEGS),
         (system_msgs.RiskState, docs.ADMIN_RISK_STATE),
@@ -190,12 +192,13 @@ def test_every_success_example_is_exactly_its_response_model() -> None:
         admin,
         bootstrap,
         history,
+        market,
         orders,
         reference,
     )
 
     failures: list[str] = []
-    for module in (orders, reference, history, admin, bootstrap):
+    for module in (orders, reference, market, history, admin, bootstrap):
         for route in module.router.routes:
             if not isinstance(route, APIRoute) or route.response_model is None:
                 continue

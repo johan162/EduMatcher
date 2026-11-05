@@ -66,6 +66,12 @@ ERROR_CODES: dict[str, ErrorCode] = {
     "UNKNOWN_COMPANY": ErrorCode(
         404, "UNKNOWN", "No company profile for the symbol.", "No company for XYZ"
     ),
+    "UNKNOWN_SYMBOL": ErrorCode(
+        404,
+        "UNKNOWN",
+        "The symbol is not in the venue's reference data.",
+        "Unknown symbol XYZ",
+    ),
     "METHOD_NOT_ALLOWED": ErrorCode(
         405,
         "UNKNOWN",
