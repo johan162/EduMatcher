@@ -39,7 +39,7 @@ from edumatcher.models.message import (
     make_log_unsubscribe_msg,
 )
 from edumatcher.models.generated.log import TOPIC_LOG_SUBSCRIBE
-from tests.conftest import free_ports
+from tests.conftest import free_ports, opened
 
 _HOST = "127.0.0.1"
 
@@ -283,7 +283,7 @@ def test_backfill_sql_selects_exactly_what_the_live_filter_matches(
 ) -> None:
     filt = LogFilter.from_payload(payload)
     live = _row(**row)
-    conn = sqlite3.connect(":memory:")
+    conn = opened(sqlite3.connect(":memory:"))
     register_sql_functions(conn)
     conn.execute("CREATE TABLE log_events (logger TEXT, message TEXT)")
     conn.execute(
