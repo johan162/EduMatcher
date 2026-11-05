@@ -498,8 +498,20 @@ class AlfGateway:
                 conn, addr = self._server.accept()
             except BlockingIOError:
                 break
-            conn.setblocking(False)
-            conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+            except OSError as exc:
+                # EMFILE/ENFILE, ECONNABORTED, ENOBUFS, ...: refuse this one
+                # and retry on the next tick. Breaking (not continuing)
+                # matters for fd exhaustion, where the listener stays
+                # readable and a retry loop would spin.
+                log.warning("ALF accept failed: %s", exc)
+                break
+            try:
+                conn.setblocking(False)
+                conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+            except OSError as exc:
+                log.warning("ALF dropping connection from %s: %s", addr, exc)
+                conn.close()
+                continue
 
             if len(self._clients) >= self.config.max_connections:
                 try:
@@ -1367,92 +1379,100 @@ class AlfGateway:
 
             budget -= 1
 
-            if topic.startswith(PREFIX_GATEWAY_AUTH):
-                gateway_id = topic.rsplit(".", 1)[-1].upper()
-                self._handle_gateway_auth(gateway_id, payload)
-                continue
+            # One malformed event must not take every session down with it
+            # (the loop has no other guard): log it, drop it, carry on.
+            try:
+                self._handle_engine_event(topic, payload)
+            except Exception:
+                log.exception("ALF gateway dropped unhandled engine event %s", topic)
 
-            if topic.startswith(PREFIX_SYMBOLS):
-                gateway_id = topic.rsplit(".", 1)[-1].upper()
-                self._handle_symbols_response(gateway_id, payload)
-                continue
+    def _handle_engine_event(self, topic: str, payload: dict[str, Any]) -> None:
+        if topic.startswith(PREFIX_GATEWAY_AUTH):
+            gateway_id = topic.rsplit(".", 1)[-1].upper()
+            self._handle_gateway_auth(gateway_id, payload)
+            return
 
-            if topic.startswith(PREFIX_ORDERS):
-                gateway_id = topic.rsplit(".", 1)[-1].upper()
-                self._handle_orders_response(gateway_id, payload)
-                continue
+        if topic.startswith(PREFIX_SYMBOLS):
+            gateway_id = topic.rsplit(".", 1)[-1].upper()
+            self._handle_symbols_response(gateway_id, payload)
+            return
 
-            if topic.startswith(PREFIX_QUOTE_BOOTSTRAP):
-                gateway_id = topic.rsplit(".", 1)[-1].upper()
-                self._handle_qboot_response(gateway_id, payload)
-                continue
+        if topic.startswith(PREFIX_ORDERS):
+            gateway_id = topic.rsplit(".", 1)[-1].upper()
+            self._handle_orders_response(gateway_id, payload)
+            return
 
-            if topic.startswith(PREFIX_QUOTE_LEGS):
-                gateway_id = topic.rsplit(".", 1)[-1].upper()
-                self._handle_qlegs_response(gateway_id, payload)
-                continue
+        if topic.startswith(PREFIX_QUOTE_BOOTSTRAP):
+            gateway_id = topic.rsplit(".", 1)[-1].upper()
+            self._handle_qboot_response(gateway_id, payload)
+            return
 
-            if topic.startswith(PREFIX_POSITION_SNAPSHOT):
-                gateway_id = topic.rsplit(".", 1)[-1].upper()
-                self._handle_position_snapshot_response(gateway_id, payload)
-                continue
+        if topic.startswith(PREFIX_QUOTE_LEGS):
+            gateway_id = topic.rsplit(".", 1)[-1].upper()
+            self._handle_qlegs_response(gateway_id, payload)
+            return
 
-            if topic.startswith(PREFIX_SESSION_STATUS):
-                gateway_id = topic.rsplit(".", 1)[-1].upper()
-                self._handle_session_status_response(gateway_id, payload)
-                continue
+        if topic.startswith(PREFIX_POSITION_SNAPSHOT):
+            gateway_id = topic.rsplit(".", 1)[-1].upper()
+            self._handle_position_snapshot_response(gateway_id, payload)
+            return
 
-            if topic == TOPIC_STARTUP_RECOVERY:
-                self._handle_engine_restart()
-                continue
+        if topic.startswith(PREFIX_SESSION_STATUS):
+            gateway_id = topic.rsplit(".", 1)[-1].upper()
+            self._handle_session_status_response(gateway_id, payload)
+            return
 
-            if topic.startswith(PREFIX_GATEWAYS + _PROBE_ID_PREFIX):
-                self._handle_session_probe(topic.rsplit(".", 1)[-1], payload)
-                continue
+        if topic == TOPIC_STARTUP_RECOVERY:
+            self._handle_engine_restart()
+            return
 
-            if topic == TOPIC_SESSION_STATE:
-                self._broadcast(
-                    "SESSION",
-                    {
-                        "STATE": str(payload.get("state", "")),
-                        "PREV_STATE": str(payload.get("prev_state", "")),
-                    },
-                )
-                continue
+        if topic.startswith(PREFIX_GATEWAYS + _PROBE_ID_PREFIX):
+            self._handle_session_probe(topic.rsplit(".", 1)[-1], payload)
+            return
 
-            if topic.startswith(PREFIX_CIRCUIT_BREAKER_HALT):
-                self._broadcast(
-                    "HALT",
-                    {
-                        "SYMBOL": str(payload.get("symbol", "")),
-                        "LEVEL": str(payload.get("level", "")),
-                    },
-                )
-                continue
+        if topic == TOPIC_SESSION_STATE:
+            self._broadcast(
+                "SESSION",
+                {
+                    "STATE": str(payload.get("state", "")),
+                    "PREV_STATE": str(payload.get("prev_state", "")),
+                },
+            )
+            return
 
-            if topic.startswith(PREFIX_CIRCUIT_BREAKER_RESUME):
-                self._broadcast(
-                    "RESUME",
-                    {
-                        "SYMBOL": str(payload.get("symbol", "")),
-                        "SRC": str(payload.get("halt_source", "")),
-                    },
-                )
-                continue
+        if topic.startswith(PREFIX_CIRCUIT_BREAKER_HALT):
+            self._broadcast(
+                "HALT",
+                {
+                    "SYMBOL": str(payload.get("symbol", "")),
+                    "LEVEL": str(payload.get("level", "")),
+                },
+            )
+            return
 
-            if topic == TOPIC_TRADE_EXECUTED:
-                self._broadcast(
-                    "TRADE",
-                    {
-                        "SYMBOL": str(payload.get("symbol", "")),
-                        "PRICE": str(payload.get("price", "")),
-                        "QTY": str(payload.get("quantity", "")),
-                        "SIDE": str(payload.get("aggressor_side", "")),
-                    },
-                )
-                continue
+        if topic.startswith(PREFIX_CIRCUIT_BREAKER_RESUME):
+            self._broadcast(
+                "RESUME",
+                {
+                    "SYMBOL": str(payload.get("symbol", "")),
+                    "SRC": str(payload.get("halt_source", "")),
+                },
+            )
+            return
 
-            self._route_gateway_scoped_event(topic, payload)
+        if topic == TOPIC_TRADE_EXECUTED:
+            self._broadcast(
+                "TRADE",
+                {
+                    "SYMBOL": str(payload.get("symbol", "")),
+                    "PRICE": str(payload.get("price", "")),
+                    "QTY": str(payload.get("quantity", "")),
+                    "SIDE": str(payload.get("aggressor_side", "")),
+                },
+            )
+            return
+
+        self._route_gateway_scoped_event(topic, payload)
 
     def _poll_dc_events(self) -> None:
         """Poll the drop-copy SUB socket (:5557) and relay to subscribed sessions.
@@ -1489,18 +1509,21 @@ class AlfGateway:
             if session is None or not session.dc_enabled:
                 continue
 
-            self._queue_line(
-                session,
-                "DC_FILL",
-                {
-                    "SEQ": str(payload.get("seq", "")),
-                    "ORDER_ID": str(payload.get("order_id", "")),
-                    "SYMBOL": str(payload.get("symbol", "")),
-                    "FILL_QTY": str(payload.get("fill_qty", "")),
-                    "FILL_PRICE": str(payload.get("fill_price", "")),
-                    "LIQUIDITY": str(payload.get("liquidity_flag", "")),
-                },
-            )
+            try:
+                self._queue_line(
+                    session,
+                    "DC_FILL",
+                    {
+                        "SEQ": str(payload.get("seq", "")),
+                        "ORDER_ID": str(payload.get("order_id", "")),
+                        "SYMBOL": str(payload.get("symbol", "")),
+                        "FILL_QTY": str(payload.get("fill_qty", "")),
+                        "FILL_PRICE": str(payload.get("fill_price", "")),
+                        "LIQUIDITY": str(payload.get("liquidity_flag", "")),
+                    },
+                )
+            except Exception:
+                log.exception("ALF gateway dropped unhandled drop-copy event %s", topic)
 
     def _handle_gateway_auth(self, gateway_id: str, payload: dict[str, Any]) -> None:
         target = self._find_pending_auth_session(gateway_id)
@@ -2244,7 +2267,17 @@ class AlfGateway:
     def _queue_line(
         self, session: ClientSession, msg_type: str, fields: dict[str, str]
     ) -> None:
-        self._queue_raw(session, build_line(msg_type, fields))
+        try:
+            line = build_line(msg_type, fields)
+        except AlfProtocolError:
+            # Engine text relayed as-is (a REASON, say) may hold the field
+            # separator. Deliver it with the '|' blanked, as build_line does
+            # for newlines, rather than lose the event; retried only on
+            # failure so the hot path pays nothing.
+            line = build_line(
+                msg_type, {k: str(v).replace("|", " ") for k, v in fields.items()}
+            )
+        self._queue_raw(session, line)
 
     def _queue_raw(self, session: ClientSession, payload: bytes) -> None:
         if len(session.out_queue) >= self.config.max_client_queue:
@@ -2434,5 +2467,13 @@ class AlfGateway:
         for session in self._clients.values():
             if session.authenticated and session.public_feed:
                 if line is None:
-                    line = build_line(msg_type, fields)  # once, not per session
+                    # Once, not per session; '|' in engine text blanked as
+                    # in _queue_line.
+                    try:
+                        line = build_line(msg_type, fields)
+                    except AlfProtocolError:
+                        line = build_line(
+                            msg_type,
+                            {k: v.replace("|", " ") for k, v in fields.items()},
+                        )
                 self._queue_raw(session, line)

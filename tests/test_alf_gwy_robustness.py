@@ -13,13 +13,15 @@ from __future__ import annotations
 
 from typing import Any
 
+import errno
+import json
 import socket
 import time
 
 import pytest
 
 from edumatcher.alf_gwy.config import AlfGatewayConfig
-from edumatcher.alf_gwy.gateway import AlfGateway, ClientSession
+from edumatcher.alf_gwy.gateway import _PROBE_ID_PREFIX, AlfGateway, ClientSession
 from edumatcher.alf_gwy.protocol import parse_alf_line
 
 # ---------------------------------------------------------------------------
@@ -383,3 +385,157 @@ class TestNumericFieldExtremes:
         self._new_order(gw, session, "TYPE=LIMIT|QTY=abc|PRICE=100.0")
         assert "INVALID_VALUE" in _err_codes(session)
         peer.close()
+
+
+# ===========================================================================
+# Engine-event containment and accept errors (review 2026-11-05 H1, M4)
+# ===========================================================================
+
+
+class _QueueSub(_FakeSub):
+    """SUB stub that hands out queued multipart messages."""
+
+    def __init__(self, *messages: tuple[str, Any]) -> None:
+        super().__init__()
+        self.queue = [[t.encode(), json.dumps(p).encode()] for t, p in messages]
+
+    def poll(self, timeout: int = 0) -> int:
+        return 1 if self.queue else 0
+
+    def recv_multipart(self) -> list[bytes]:
+        return self.queue.pop(0)
+
+
+_GOOD_FILL = (
+    "order.fill.TRADER01",
+    {"order_id": "ok-1", "fill_qty": 5, "trade_ids": ["T1"]},
+)
+
+
+class TestEngineEventContainment:
+    """A bad engine event is dropped; the loop and later events survive."""
+
+    @pytest.mark.parametrize(
+        "topic, payload",
+        [
+            ("order.triggered.TRADER01", {"order_id": "x", "symbol": "AAPL"}),
+            ("order.fill.TRADER01", {"order_id": "x", "trade_ids": None}),
+            ("system.symbols.TRADER01", {"symbols": None}),
+            (f"system.gateways.{_PROBE_ID_PREFIX}1", {"gateways": None}),
+            ("order.ack.TRADER01", ["not", "a", "dict"]),
+        ],
+    )
+    def test_malformed_event_does_not_stop_the_loop(
+        self, monkeypatch: pytest.MonkeyPatch, topic: str, payload: Any
+    ) -> None:
+        gw = _make_gateway(monkeypatch)
+        session, peer = _authed_session(gw)
+        gw._probes[f"{_PROBE_ID_PREFIX}1"] = 0.0
+        gw._sub = _QueueSub((topic, payload), _GOOD_FILL)
+
+        gw._poll_engine_events()
+
+        lines = [parse_alf_line(raw.decode()) for raw in session.out_queue]
+        assert any(
+            f.command == "FILL" and f.fields["ORDER_ID"] == "OK-1" for f in lines
+        )
+        peer.close()
+
+    def test_pipe_in_engine_text_is_delivered_blanked(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        gw = _make_gateway(monkeypatch)
+        session, peer = _authed_session(gw)
+        gw._sub = _QueueSub(
+            ("order.ack.TRADER01", {"order_id": "x", "reason": "a|b"}),
+            ("trade.executed", {"symbol": "A|B", "price": 1, "quantity": 1}),
+        )
+
+        gw._poll_engine_events()
+
+        frames = [parse_alf_line(raw.decode()) for raw in session.out_queue]
+        assert [f.command for f in frames] == ["ACK", "TRADE"]
+        assert frames[0].fields["REASON"] == "A B"
+        assert frames[1].fields["SYMBOL"] == "A B"
+        peer.close()
+
+    def test_malformed_drop_copy_event_is_dropped(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        gw = _make_gateway(monkeypatch)
+        session, peer = _authed_session(gw)
+        session.dc_enabled = True
+        gw._dc_sub = _QueueSub(
+            ("drop_copy.event.TRADER01", ["not", "a", "dict"]),
+            ("drop_copy.event.TRADER01", {"seq": 2, "order_id": "ok-2"}),
+        )
+
+        gw._poll_dc_events()
+
+        frames = [parse_alf_line(raw.decode()) for raw in session.out_queue]
+        assert [(f.command, f.fields["SEQ"]) for f in frames] == [("DC_FILL", "2")]
+        peer.close()
+
+
+class _FailingServer:
+    def __init__(self, exc: OSError) -> None:
+        self.exc = exc
+        self.calls = 0
+
+    def accept(self) -> tuple[socket.socket, tuple[str, int]]:
+        self.calls += 1
+        raise self.exc
+
+
+class _BrokenConn:
+    def __init__(self) -> None:
+        self.closed = False
+
+    def setblocking(self, flag: bool) -> None:
+        raise OSError(errno.EINVAL, "already reset")
+
+    def close(self) -> None:
+        self.closed = True
+
+
+class TestAcceptErrors:
+    @pytest.mark.parametrize(
+        "exc",
+        [
+            OSError(errno.EMFILE, "Too many open files"),
+            ConnectionAbortedError(errno.ECONNABORTED, "aborted"),
+        ],
+    )
+    def test_accept_error_is_not_fatal(
+        self, monkeypatch: pytest.MonkeyPatch, exc: OSError
+    ) -> None:
+        gw = _make_gateway(monkeypatch)
+        server = _FailingServer(exc)
+        gw._server = server
+
+        gw._accept_new_clients()
+
+        assert server.calls == 1  # gave up for this tick, did not spin
+        assert gw._clients == {}
+
+    def test_connection_failing_setup_is_closed_and_skipped(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        gw = _make_gateway(monkeypatch)
+        conn = _BrokenConn()
+
+        class _Server:
+            def __init__(self) -> None:
+                self.pending = [conn]
+
+            def accept(self) -> tuple[Any, tuple[str, int]]:
+                if not self.pending:
+                    raise BlockingIOError
+                return self.pending.pop(), ("10.0.0.1", 1)
+
+        gw._server = _Server()
+
+        gw._accept_new_clients()
+
+        assert conn.closed
+        assert gw._clients == {}
