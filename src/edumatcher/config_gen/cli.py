@@ -18,6 +18,7 @@ import holidays
 
 from edumatcher.cli_version import package_version
 
+from edumatcher.api_gateway.config import load_named_api_gateway_configs
 from edumatcher.engine.config_loader import is_known_timezone, load_engine_config
 from edumatcher.models.order import SmpAction
 from edumatcher.models.participant import DisconnectBehaviour, ParticipantRole
@@ -127,7 +128,11 @@ from edumatcher.config_gen.defaults import (
     DEFAULT_POST_TRADE_GATEWAY_REPLAY_RETENTION_SEC,
 )
 from edumatcher.config_gen.gateway_spec import GatewaySpec, parse_gateway_spec
-from edumatcher.config_gen.renderer import render_include_file, render_yaml
+from edumatcher.config_gen.renderer import (
+    render_credentials_file,
+    render_include_file,
+    render_yaml,
+)
 from edumatcher.config_gen.risk_spec import parse_risk_level_spec
 from edumatcher.config_gen.symbol_spec import SymbolOverride
 from edumatcher.config_gen.symbol_spec import parse_symbol_opts
@@ -1504,6 +1509,7 @@ def _build_api_gateway_specs(
         or args.api_gateway_instance
         or args.api_key
         or args.api_gateway_readonly_key
+        or args.api_keys_for
     )
 
     if not emit:
@@ -1519,6 +1525,25 @@ def _build_api_gateway_specs(
             "--api-key is only supported for single API gateway generation; "
             "use generated keys with --api-gateway-instance"
         )
+
+    keys_for: tuple[str, ...] = ()
+    if args.api_keys_for:
+        if parsed_instances:
+            raise ValueError(
+                "--api-keys-for is only supported for single API gateway "
+                "generation, not with --api-gateway-instance"
+            )
+        if args.api_gateway_generate_keys is False:
+            raise ValueError(
+                "--api-keys-for generates keys; it cannot be combined with "
+                "--no-api-gateway-generate-keys"
+            )
+        keys_for = tuple(dict.fromkeys(i.upper() for i in args.api_keys_for))
+        unknown = [i for i in keys_for if i not in allowed_gateways]
+        if unknown:
+            raise ValueError(
+                f"--api-keys-for references unknown gateway_id '{unknown[0]}'"
+            )
 
     seen_names: set[str] = set()
     seen_gateway_ids: dict[str, str] = {}
@@ -1588,6 +1613,7 @@ def _build_api_gateway_specs(
         gateway_ids: tuple[str, ...] | None = None,
         credentials: tuple[ApiCredentialSpec, ...] = (),
         readonly_key: bool | None = None,
+        credentials_file: str = "",
     ) -> ApiGatewaySpec:
         return ApiGatewaySpec(
             name=name,
@@ -1609,6 +1635,7 @@ def _build_api_gateway_specs(
             engine_reply_sec=engine_reply_sec,
             wait_ack_sec=wait_ack_sec,
             order_retention_sec=order_retention_sec,
+            credentials_file=credentials_file,
         )
 
     base_port = int(args.api_gateway_port or DEFAULT_API_GATEWAY_PORT)
@@ -1628,6 +1655,8 @@ def _build_api_gateway_specs(
             name=str(args.api_gateway_name),
             port=base_port,
             credentials=credentials,
+            gateway_ids=keys_for or None,
+            credentials_file=_API_KEYS_FILE if keys_for else "",
         ),
     )
 
@@ -2075,15 +2104,22 @@ def _parse_combo_specs(
     return combos
 
 
+#: Where ``--api-keys-for`` writes the keys, beside the main file.
+_API_KEYS_FILE = "api_keys.yaml"
+
 #: The sections ``--split`` moves out of the main file, and where they go.
 _SPLIT_FILES = {"symbols": "symbols.yaml", "participants": "participants.yaml"}
 
 
-def _write_output(output_path: Path, content: str, force: bool) -> None:
+def _write_output(
+    output_path: Path, content: str, force: bool, mode: int | None = None
+) -> None:
     if output_path.exists() and not force:
         raise FileExistsError("Output file already exists")
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(content, encoding="utf-8")
+    if mode is not None:
+        output_path.chmod(mode)
 
 
 def _validate_generated(content: str, parts: dict[str, str] | None = None) -> None:
@@ -2100,6 +2136,7 @@ def _validate_generated(content: str, parts: dict[str, str] | None = None) -> No
             (Path(tmp) / name).write_text(text, encoding="utf-8")
         try:
             load_engine_config(tmp_path)
+            load_named_api_gateway_configs(tmp_path)
         except Exception as exc:
             raise ValueError(f"Generated config failed validation: {exc}") from exc
 
@@ -2269,10 +2306,13 @@ def main() -> None:
         raise SystemExit(2) from exc
 
     output_path = Path(args.output) if args.output else None
-    if args.split and output_path is None and not args.dry_run:
-        print("[ERROR] --split needs --output (or --dry-run).", file=sys.stderr)
-        raise SystemExit(2)
+    for flag, used in (("--split", args.split), ("--api-keys-for", args.api_keys_for)):
+        if used and output_path is None and not args.dry_run:
+            print(f"[ERROR] {flag} needs --output (or --dry-run).", file=sys.stderr)
+            raise SystemExit(2)
     split_names = list(_SPLIT_FILES.values()) if args.split else []
+    if args.api_keys_for:
+        split_names.append(_API_KEYS_FILE)
     output_exists = bool(
         output_path
         and not args.force
@@ -2294,7 +2334,8 @@ def main() -> None:
         _print_diagnostics(diagnostics)
         raise SystemExit(1)
 
-    config = ConfigBuilder(spec).build()
+    builder = ConfigBuilder(spec)
+    config = builder.build()
     try:
         _require_index_reference_prices(config)
     except ValueError as exc:
@@ -2321,6 +2362,17 @@ def main() -> None:
         for key, name in _SPLIT_FILES.items()
         if args.split
     }
+    for name, credentials in builder.credential_files().items():
+        parts[name] = render_credentials_file(
+            credentials, package_version(), str(date.today())
+        )
+    if args.api_keys_for and args.seed is None:
+        print(
+            f"[NOTE] No --seed given: {_API_KEYS_FILE} holds the keys derived from "
+            "the default seed, which anyone can reproduce from a participant ID. "
+            "Pass --seed N for keys only you can regenerate.",
+            file=sys.stderr,
+        )
 
     _print_diagnostics(diagnostics)
 
@@ -2356,7 +2408,13 @@ def main() -> None:
 
     _write_output(output_path=output_path, content=rendered, force=bool(args.force))
     for name, text in parts.items():
-        _write_output(output_path.parent / name, text, force=bool(args.force))
+        _write_output(
+            output_path.parent / name,
+            text,
+            force=bool(args.force),
+            # The keys file holds secrets.
+            mode=0o600 if name == _API_KEYS_FILE else None,
+        )
     print(f"[INFO] Wrote generated config to {output_path}", file=sys.stderr)
     for name in parts:
         print(f"[INFO] Wrote {output_path.parent / name}", file=sys.stderr)

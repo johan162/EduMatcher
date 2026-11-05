@@ -1919,3 +1919,130 @@ def test_split_dry_run_prints_every_file_and_writes_nothing(
     assert "# ==== symbols.yaml ====" in out
     assert "# ==== participants.yaml ====" in out
     assert not list(tmp_path.iterdir())
+
+
+_KEYS_ARGS = ["--symbols", "AAPL", "--participants", "T1", "T2", "T3"]
+
+
+def _keys(path: Path) -> list[dict[str, str]]:
+    return yaml.safe_load(path.read_text(encoding="utf-8"))
+
+
+def test_api_keys_for_writes_a_private_keys_file_the_gateway_reads(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from edumatcher.api_gateway.config import load_named_api_gateway_configs
+    from edumatcher.config_deploy import compile_config
+
+    out_file = tmp_path / "engine_config.yaml"
+    _run_main(
+        monkeypatch,
+        [*_KEYS_ARGS, "--api-keys-for", "T1", "T3", "--output", str(out_file)],
+    )
+
+    main_raw = yaml.safe_load(out_file.read_text(encoding="utf-8"))
+    assert main_raw["api_gateways"]["default"]["credentials_file"] == "api_keys.yaml"
+    assert "credentials" not in main_raw["api_gateways"]["default"]
+    keys_file = tmp_path / "api_keys.yaml"
+    assert [c["gateway_id"] for c in _keys(keys_file)] == ["T1", "T3"]
+    assert keys_file.stat().st_mode & 0o777 == 0o600
+
+    loaded = load_named_api_gateway_configs(out_file)["default"].credentials
+    assert [c.gateway_id for c in loaded] == ["T1", "T3"]
+    assert compile_config(out_file).api_gateways["default"].credentials == loaded
+
+
+def test_api_keys_are_reproducible_and_follow_the_seed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    def keys(name: str, *extra: str) -> list[dict[str, str]]:
+        out = tmp_path / name / "engine_config.yaml"
+        _run_main(
+            monkeypatch,
+            [*_KEYS_ARGS, "--api-keys-for", "T1", "T2", *extra, "--output", str(out)],
+        )
+        return _keys(out.parent / "api_keys.yaml")
+
+    default_a, default_b = keys("a"), keys("b")
+    assert "No --seed given" in capsys.readouterr().err
+    seeded_a, seeded_b = keys("c", "--seed", "7"), keys("d", "--seed", "7")
+    other = keys("e", "--seed", "8")
+    assert "No --seed given" not in capsys.readouterr().err
+
+    assert default_a == default_b
+    assert seeded_a == seeded_b
+    assert len({str(default_a), str(seeded_a), str(other)}) == 3
+
+
+def test_api_keys_for_works_together_with_split(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from edumatcher.config_deploy import compile_config
+
+    out_file = tmp_path / "engine_config.yaml"
+    _run_main(
+        monkeypatch,
+        [*_KEYS_ARGS, "--api-keys-for", "T1", "--split", "--output", str(out_file)],
+    )
+    assert {p.name for p in tmp_path.iterdir()} == {
+        "engine_config.yaml",
+        "symbols.yaml",
+        "participants.yaml",
+        "api_keys.yaml",
+    }
+    assert len(compile_config(out_file).api_gateways["default"].credentials) == 1
+
+
+@pytest.mark.parametrize(
+    ("extra", "message"),
+    [
+        (["--api-keys-for", "NOPE"], "unknown gateway_id 'NOPE'"),
+        (
+            ["--api-keys-for", "T1", "--api-gateway-instance", "desk:T1"],
+            "not with --api-gateway-instance",
+        ),
+        (
+            ["--api-keys-for", "T1", "--no-api-gateway-generate-keys"],
+            "--no-api-gateway-generate-keys",
+        ),
+    ],
+)
+def test_api_keys_for_rejects_bad_combinations(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    extra: list[str],
+    message: str,
+) -> None:
+    out_file = tmp_path / "engine_config.yaml"
+    with pytest.raises(SystemExit) as exc:
+        _run_main(monkeypatch, [*_KEYS_ARGS, *extra, "--output", str(out_file)])
+    assert exc.value.code == 2
+    assert message in capsys.readouterr().err
+    assert not list(tmp_path.iterdir())
+
+
+def test_api_keys_for_needs_an_output_file(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    with pytest.raises(SystemExit) as exc:
+        _run_main(monkeypatch, [*_KEYS_ARGS, "--api-keys-for", "T1"])
+    assert exc.value.code == 2
+    assert "--api-keys-for needs --output" in capsys.readouterr().err
+
+
+def test_existing_keys_file_is_not_overwritten_without_force(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (tmp_path / "api_keys.yaml").write_text("- keep: me\n", encoding="utf-8")
+    out_file = tmp_path / "engine_config.yaml"
+    with pytest.raises(SystemExit) as exc:
+        _run_main(
+            monkeypatch,
+            [*_KEYS_ARGS, "--api-keys-for", "T1", "--output", str(out_file)],
+        )
+    assert exc.value.code == 1
+    assert not out_file.exists()
+    assert (tmp_path / "api_keys.yaml").read_text(encoding="utf-8") == "- keep: me\n"

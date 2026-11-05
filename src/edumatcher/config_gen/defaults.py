@@ -106,6 +106,12 @@ DEFAULT_API_GATEWAY_ORDER_RETENTION_SEC = 3600
 # A six character hex string together with the unique prefix will form the complete key.
 DEFAULT_API_GATEWAY_KEY_BYTES = 3
 
+#: Seed for the keys --api-keys-for writes when --seed is not given, so the same
+#: command line always yields the same keys. Anyone who knows it and a
+#: participant ID can derive that participant's key: pass --seed for anything
+#: that is not a classroom exchange.
+DEFAULT_API_KEYS_SEED = 20260101
+
 DEFAULT_SCHEDULE = {
     "pre_open": "09:00",
     "opening_auction_start": "09:25",

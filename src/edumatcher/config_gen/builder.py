@@ -18,6 +18,7 @@ from .defaults import (
     DEFAULT_API_GATEWAY_ENGINE_REPLY_SEC,
     DEFAULT_API_GATEWAY_HOST,
     DEFAULT_API_GATEWAY_KEY_BYTES,
+    DEFAULT_API_KEYS_SEED,
     DEFAULT_API_GATEWAY_LOG_LEVEL,
     DEFAULT_API_GATEWAY_PORT,
     DEFAULT_API_GATEWAY_RATE_LIMIT_BURST,
@@ -353,6 +354,8 @@ class ApiGatewaySpec:
     gateway_ids: tuple[str, ...] | None = None
     generate_keys: bool = True
     generate_readonly_key: bool = False
+    #: File (beside the main one) that holds the credentials; empty = inline.
+    credentials_file: str = ""
     rate_limit_writes_per_second: int = DEFAULT_API_GATEWAY_RATE_LIMIT_WRITES_PER_SECOND
     rate_limit_burst: int = DEFAULT_API_GATEWAY_RATE_LIMIT_BURST
     engine_auth_sec: float = DEFAULT_API_GATEWAY_ENGINE_AUTH_SEC
@@ -647,14 +650,11 @@ class ConfigBuilder:
             "log_level": spec.log_level,
             "stats_db": spec.stats_db,
             "order_retention_sec": spec.order_retention_sec,
-            "credentials": [
-                {
-                    "api_key": item.api_key,
-                    "gateway_id": item.gateway_id,
-                    "description": item.description,
-                }
-                for item in self._effective_api_credentials(spec)
-            ],
+            **(
+                {"credentials_file": spec.credentials_file}
+                if spec.credentials_file
+                else {"credentials": self._credential_payload(spec)}
+            ),
             "rate_limit": {
                 "writes_per_second": spec.rate_limit_writes_per_second,
                 "burst": spec.rate_limit_burst,
@@ -665,6 +665,26 @@ class ConfigBuilder:
                 "wait_ack_sec": spec.wait_ack_sec,
             },
         }
+
+    def _credential_payload(self, spec: ApiGatewaySpec) -> list[dict[str, Any]]:
+        return [
+            {
+                "api_key": item.api_key,
+                "gateway_id": item.gateway_id,
+                "description": item.description,
+            }
+            for item in self._effective_api_credentials(spec)
+        ]
+
+    def credential_files(self) -> dict[str, list[dict[str, Any]]]:
+        """The credentials of every gateway that keeps them in a file, by file."""
+        files: dict[str, list[dict[str, Any]]] = {}
+        for spec in self.spec.api_gateways:
+            if spec.credentials_file:
+                files.setdefault(spec.credentials_file, []).extend(
+                    self._credential_payload(spec)
+                )
+        return files
 
     def _effective_api_credentials(
         self, spec: ApiGatewaySpec
@@ -686,7 +706,7 @@ class ConfigBuilder:
                     continue
                 credentials.append(
                     ApiCredentialSpec(
-                        api_key=self._generated_api_key(gateway.gateway_id),
+                        api_key=self._generated_api_key(gateway.gateway_id, spec),
                         gateway_id=gateway.gateway_id,
                         description=f"Generated key for {gateway.gateway_id}",
                     )
@@ -694,7 +714,7 @@ class ConfigBuilder:
         if spec.generate_readonly_key and None not in explicit_gateway_ids:
             credentials.append(
                 ApiCredentialSpec(
-                    api_key=self._generated_api_key("readonly"),
+                    api_key=self._generated_api_key("readonly", spec),
                     gateway_id=None,
                     description="Generated read-only market-data key",
                 )
@@ -702,13 +722,13 @@ class ConfigBuilder:
 
         return credentials
 
-    def _generated_api_key(self, label: str) -> str:
+    def _generated_api_key(self, label: str, gateway: ApiGatewaySpec) -> str:
         alphabet = string.ascii_lowercase + string.digits
-        rng = (
-            random.Random(f"api:{self.spec.random_seed}:{label}")
-            if self.spec.random_seed is not None
-            else self._rng
-        )
+        seed = self.spec.random_seed
+        if seed is None and gateway.credentials_file:
+            # A keys file is meant to be regenerated identically.
+            seed = DEFAULT_API_KEYS_SEED
+        rng = random.Random(f"api:{seed}:{label}") if seed is not None else self._rng
         token = "".join(
             rng.choice(alphabet) for _ in range(DEFAULT_API_GATEWAY_KEY_BYTES * 2)
         )

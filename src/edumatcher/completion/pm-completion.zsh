@@ -2253,6 +2253,7 @@ _shtab_pm_config_gen_options=(
   "*--api-key[Explicit api_gateways credential for single-instance generation. Use GATEWAY_ID\=null for a read-only market-data key. Can be repeated.]:KEY:GATEWAY_ID[:DESCRIPTION]:"
   "--api-gateway-generate-keys[Generate one API key for each configured ALF gateway when api_gateway is emitted.]"
   "--no-api-gateway-generate-keys[Do not auto-generate API keys for ALF gateways.]"
+  "--api-keys-for[Write an API key for each listed participant to api_keys.yaml beside --output, and point the API gateway at it with credentials_file. Needs --output (or --dry-run). The keys follow from --seed, or from a fixed default seed when --seed is not given, so the same command always yields the same keys\: pass your own --seed outside a classroom.]:GW_ID:"
   "--api-gateway-readonly-key[Generate an additional read-only API key with gateway_id\: null.]"
   "--api-gateway-rate-limit-writes-per-second[api_gateway.rate_limit.writes_per_second override (\> 0).]:N:"
   "--api-gateway-rate-limit-burst[api_gateway.rate_limit.burst override (\> 0).]:N:"
