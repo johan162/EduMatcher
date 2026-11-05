@@ -353,9 +353,11 @@ UNSUB|CH=DROP_COPY|SYM=AAPL
 ### Step 5 — Handle heartbeats
 
 When the stream is idle the gateway sends periodic `HB|TS=...` lines.  You can
-probe with `PING`; the gateway replies `PONG`.  If no inbound traffic is
-received for `idle_timeout_sec` seconds the gateway sends
-`EXIT|REASON=idle_timeout` and closes the connection.
+probe with `PING`; the gateway replies `PONG|TS=…`.  The idle timeout counts
+traffic in both directions, so a client that keeps reading stays connected on
+heartbeats alone; only when writes to it have stopped succeeding for
+`idle_timeout_sec` seconds does the gateway send `EXIT|REASON=idle_timeout`
+and close the connection.
 
 A client that stops reading is dropped too. When its outbound queue exceeds
 `max_client_queue` the gateway discards the backlog (a reconnect with

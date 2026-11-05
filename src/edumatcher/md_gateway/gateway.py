@@ -292,6 +292,7 @@ class MarketDataGateway:
                 continue
 
             conn.setblocking(False)
+            conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
             session = ClientSession(sock=conn, addr=addr)
             session.rate_tokens = float(self.config.max_messages_per_second)
             self._clients[conn.fileno()] = session
@@ -794,7 +795,11 @@ class MarketDataGateway:
         channels = self._parse_csv_upper(fields.get("CH", ""))
         symbols = self._parse_csv_upper(fields.get("SYM", ""))
         if not channels or not symbols:
-            self._queue_line(session, "ERR", {"CODE": "BAD_MESSAGE"})
+            self._queue_line(
+                session,
+                "ERR",
+                {"CODE": "BAD_MESSAGE", "DETAIL": "CH and SYM required"},
+            )
             return
 
         for ch in channels:

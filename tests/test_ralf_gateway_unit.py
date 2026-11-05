@@ -408,3 +408,45 @@ def test_flush_client_writes_and_disconnect(unit_gateway: RalfGateway) -> None:
     assert b"PING|TS=1" in data
     assert sess.sock.fileno() not in unit_gateway._clients
     peer.close()
+
+
+def test_unsub_without_ch_is_bad_message(unit_gateway: RalfGateway) -> None:
+    """W6: was silently ignored; pm-md-gwy answers BAD_MESSAGE too."""
+    sess, peer = _clearing_session()
+    unit_gateway._handle_client_line(sess, "UNSUB|SYM=AAPL")
+    err = parse_line(sess.out_queue[0].decode("utf-8"))
+    assert err.fields == {"CODE": "BAD_MESSAGE", "DETAIL": "CH required"}
+    peer.close()
+
+
+class _EndlessSub:
+    """An engine SUB that always has another trade waiting."""
+
+    closed = False
+
+    def __init__(self) -> None:
+        self.reads = 0
+
+    def poll(self, *_a: object, **_k: object) -> int:
+        return 1
+
+    def recv_multipart(self) -> list[bytes]:
+        from edumatcher.models.generated.trade import TOPIC_TRADE_EXECUTED
+
+        self.reads += 1
+        return [TOPIC_TRADE_EXECUTED.encode(), b'{"id": "T", "symbol": "AAPL"}']
+
+    def close(self) -> None:
+        pass
+
+
+def test_engine_events_are_bounded_per_pass(unit_gateway: RalfGateway) -> None:
+    """W6: an unbounded drain let a trade burst starve the client loop."""
+    from edumatcher.ralf_gateway import gateway as ralf_mod
+
+    real_sub = unit_gateway._sub
+    endless = _EndlessSub()
+    unit_gateway._sub = endless
+    unit_gateway._poll_engine_events()
+    unit_gateway._sub = real_sub
+    assert endless.reads == ralf_mod._MAX_ENGINE_EVENTS_PER_LOOP

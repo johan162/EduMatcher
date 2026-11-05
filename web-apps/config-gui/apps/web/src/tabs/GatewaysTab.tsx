@@ -94,8 +94,8 @@ function PostTradePanel() {
           <TextField label="Bind address" value={g.bindAddress} onChange={(v) => set((gw) => (gw.bindAddress = v))} help={{ text: "Network interface the post-trade (RALF) TCP gateway listens on. Use 127.0.0.1 for loopback-only.", cliFlag: "--post-trade-bind-address" }} />
           <NumField label="Port" path="postTradeGateway.port" value={g.port} onChange={(v) => set((gw) => (gw.port = v ?? gw.port))} help={{ text: "TCP port RALF post-trade subscribers connect to for the replayable trade feed.", cliFlag: "--post-trade-port" }} />
           <NumField label="Replay retention (sec)" value={g.replayRetentionSec} onChange={(v) => set((gw) => (gw.replayRetentionSec = v ?? gw.replayRetentionSec))} help={{ text: "How long past trade records stay available for sequence-gap replay after a client reconnects.", cliFlag: "--post-trade-replay-retention-sec" }} />
-          <NumField label="Heartbeat interval (sec)" value={g.heartbeatIntervalSec} onChange={(v) => set((gw) => (gw.heartbeatIntervalSec = v ?? gw.heartbeatIntervalSec))} help={{ text: "Seconds between HB keepalive lines when no other outbound traffic is pending.", cliFlag: "--post-trade-heartbeat-interval-sec" }} />
-          <NumField label="Idle timeout (sec)" value={g.idleTimeoutSec} onChange={(v) => set((gw) => (gw.idleTimeoutSec = v ?? gw.idleTimeoutSec))} help={{ text: "Disconnect threshold when a connected client sends no traffic for this many seconds.", cliFlag: "--post-trade-idle-timeout-sec" }} />
+          <NumField label="Heartbeat interval (sec)" value={g.heartbeatIntervalSec} onChange={(v) => set((gw) => (gw.heartbeatIntervalSec = v ?? gw.heartbeatIntervalSec))} help={{ text: "Seconds between HB keepalive lines, sent on a fixed timer.", cliFlag: "--post-trade-heartbeat-interval-sec" }} />
+          <NumField label="Idle timeout (sec)" value={g.idleTimeoutSec} onChange={(v) => set((gw) => (gw.idleTimeoutSec = v ?? gw.idleTimeoutSec))} help={{ text: "Disconnect after this long with no traffic either way; HB counts, so a reading client stays.", cliFlag: "--post-trade-idle-timeout-sec" }} />
           <NumField label="Max connections" value={g.maxConnections} onChange={(v) => set((gw) => (gw.maxConnections = v ?? gw.maxConnections))} help={{ text: "Maximum number of simultaneous RALF client connections." }} />
           <NumField label="Max client queue" value={g.maxClientQueue} onChange={(v) => set((gw) => (gw.maxClientQueue = v ?? gw.maxClientQueue))} help={{ text: "Per-client outbound line buffer capacity before the client is treated as slow and disconnected.", cliFlag: "--post-trade-max-client-queue" }} />
           <FieldRow label="Allowed roles" help={{ text: "Which participant roles may subscribe to the post-trade feed (e.g. clearing, drop-copy, or audit systems).", cliFlag: "--post-trade-allowed-roles" }}>
@@ -136,7 +136,7 @@ function MarketDataPanel() {
           <TextField label="Bind address" value={g.bindAddress} onChange={(v) => set((gw) => (gw.bindAddress = v))} help={{ text: "Network interface the market-data (CALF) TCP gateway listens on. Use 127.0.0.1 for loopback-only.", cliFlag: "--market-data-bind-address" }} />
           <NumField label="Port" path="marketDataGateway.port" value={g.port} onChange={(v) => set((gw) => (gw.port = v ?? gw.port))} help={{ text: "TCP port CALF subscribers connect to for order-book snapshots, trade prints, and session-state changes.", cliFlag: "--market-data-port" }} />
           <NumField label="Heartbeat interval (sec)" value={g.heartbeatIntervalSec} onChange={(v) => set((gw) => (gw.heartbeatIntervalSec = v ?? gw.heartbeatIntervalSec))} help={{ text: "Seconds between HB keepalive lines, advertised to clients as WELCOME|HBINT=.", cliFlag: "--market-data-heartbeat-interval-sec" }} />
-          <NumField label="Idle timeout (sec)" value={g.idleTimeoutSec} onChange={(v) => set((gw) => (gw.idleTimeoutSec = v ?? gw.idleTimeoutSec))} help={{ text: "Disconnect threshold when a connected client sends no traffic for this many seconds.", cliFlag: "--market-data-idle-timeout-sec" }} />
+          <NumField label="Idle timeout (sec)" value={g.idleTimeoutSec} onChange={(v) => set((gw) => (gw.idleTimeoutSec = v ?? gw.idleTimeoutSec))} help={{ text: "Disconnect after this long with no traffic either way; HB counts, so a reading client stays.", cliFlag: "--market-data-idle-timeout-sec" }} />
           <NumField label="Replay window (sec)" value={g.replayWindowSec} onChange={(v) => set((gw) => (gw.replayWindowSec = v ?? gw.replayWindowSec))} help={{ text: "How far back a reconnecting client can request a sequence-gap replay, advertised as WELCOME|REPLAY=.", cliFlag: "--market-data-replay-window-sec" }} />
           <NumField label="Max connections" value={g.maxConnections} onChange={(v) => set((gw) => (gw.maxConnections = v ?? gw.maxConnections))} help={{ text: "Maximum number of simultaneous CALF client connections." }} />
           <NumField label="Max messages/sec" value={g.maxMessagesPerSecond} onChange={(v) => set((gw) => (gw.maxMessagesPerSecond = v ?? gw.maxMessagesPerSecond))} help={{ text: "Per-client inbound message rate limit." }} />
@@ -214,13 +214,13 @@ function DcPanel() {
             label="Heartbeat interval (sec)"
             value={g.heartbeatIntervalSec}
             onChange={(v) => set((gw) => (gw.heartbeatIntervalSec = v ?? gw.heartbeatIntervalSec))}
-            help={{ text: "Seconds between HB keepalive lines when no other outbound traffic is pending.", cliFlag: "--dc-heartbeat-interval-sec" }}
+            help={{ text: "Seconds between HB keepalive lines, sent on a fixed timer.", cliFlag: "--dc-heartbeat-interval-sec" }}
           />
           <NumField
             label="Idle timeout (sec)"
             value={g.idleTimeoutSec}
             onChange={(v) => set((gw) => (gw.idleTimeoutSec = v ?? gw.idleTimeoutSec))}
-            help={{ text: "Disconnect threshold when a connected client sends no traffic for this many seconds.", cliFlag: "--dc-idle-timeout-sec" }}
+            help={{ text: "Disconnect after this long with no traffic either way; HB counts, so a reading client stays.", cliFlag: "--dc-idle-timeout-sec" }}
           />
           <NumField
             label="Max connections"

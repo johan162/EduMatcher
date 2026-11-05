@@ -33,6 +33,7 @@ from edumatcher.models.generated.system import (
 
 _ALLOWED_CHANNELS = frozenset({"CLEARING", "DROP_COPY", "AUDIT"})
 _MAX_LINE_BYTES = 4096
+_MAX_ENGINE_EVENTS_PER_LOOP = 1000
 
 log = logging.getLogger(__name__)
 
@@ -215,6 +216,7 @@ class RalfGateway:
                     pass
                 continue
             conn.setblocking(False)
+            conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
             self._clients[conn.fileno()] = ClientSession(sock=conn, addr=addr)
             log.info(
                 "client connected addr=%s:%s fd=%d", addr[0], addr[1], conn.fileno()
@@ -420,6 +422,13 @@ class RalfGateway:
             },
         )
 
+        log.info(
+            "session authenticated fd=%d client=%s role=%s",
+            sess.sock.fileno(),
+            client,
+            role,
+        )
+
         if last_seq > 0:
             self._replay_from(sess, last_seq)
 
@@ -480,6 +489,11 @@ class RalfGateway:
 
         channels = [c.strip().upper() for c in ch_raw.split(",") if c.strip()]
         symbols = [s.strip().upper() for s in sym_raw.split(",") if s.strip()]
+        if not channels:
+            self._queue_line(
+                sess, "ERR", {"CODE": "BAD_MESSAGE", "DETAIL": "CH required"}
+            )
+            return
         if not symbols:
             symbols = ["*"]
 
@@ -536,7 +550,11 @@ class RalfGateway:
     # ------------------------------------------------------------------
 
     def _poll_engine_events(self) -> None:
-        while self._sub.poll(timeout=0):
+        # Bounded per pass, as in pm-md-gwy and pm-dc-gwy: a burst of trades
+        # must not starve client reads, heartbeats and flushes.
+        budget = _MAX_ENGINE_EVENTS_PER_LOOP
+        while budget > 0 and self._sub.poll(timeout=0):
+            budget -= 1
             try:
                 topic, payload = decode(self._sub.recv_multipart())
             except zmq.ZMQError as exc:

@@ -111,3 +111,19 @@ def test_a_reset_connection_is_dropped_at_once(gateway: Any) -> None:
     assert not gateway._clients
     assert gateway._disconnects == {"peer_reset": 1}
     server.close()
+
+
+@pytest.mark.parametrize("gateway", NAMES, indirect=True)
+def test_accepted_connections_have_nodelay(gateway: Any) -> None:
+    """W6: only pm-dc-gwy set TCP_NODELAY; small lines (HB, PONG, a single
+    MD) waited on Nagle in the other two."""
+    gateway._server = socket.create_server(("127.0.0.1", 0))
+    gateway._server.setblocking(False)
+    client = socket.create_connection(gateway._server.getsockname())
+    for _ in range(50):
+        gateway._accept_new_clients()
+        if gateway._clients:
+            break
+    (sess,) = gateway._clients.values()
+    assert sess.sock.getsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY)
+    client.close()

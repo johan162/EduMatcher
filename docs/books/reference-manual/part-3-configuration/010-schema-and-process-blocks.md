@@ -352,7 +352,7 @@ dc_gateway:
 | `name` | `dc-gwy01` | Gateway name echoed in `WELCOME` |
 | `bind_address` | `0.0.0.0` | TCP listen interface (`127.0.0.1` for loopback-only) |
 | `port` | `5590` | TCP listen port |
-| `heartbeat_interval_sec` | `5` | Seconds between server-initiated `HB` lines when no other outbound traffic |
+| `heartbeat_interval_sec` | `5` | Seconds between server-initiated `HB` lines |
 | `idle_timeout_sec` | `30` | Disconnect a session when no traffic flows in either direction within this window |
 | `max_connections` | `64` | Maximum simultaneous TCP connections |
 | `max_client_queue` | `10000` | Per-client outbound buffer depth before a slow-client disconnect |
