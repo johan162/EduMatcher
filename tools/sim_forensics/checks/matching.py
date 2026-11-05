@@ -510,7 +510,7 @@ class _Replay:
                     price=_ticks(ack["price"], self.td.get(sym, 2)),
                     remaining=int(ack["qty"]),
                     gw=gw,
-                    smp=self.smp.get(gw, "NONE"),
+                    smp="NONE",  # the engine never resolves a seed's SMP
                 )
                 out.append((sym, o))
         if (
@@ -1205,7 +1205,7 @@ class _Replay:
             price=r.get("price_ticks"),
             remaining=int(r["remaining_qty"]),
             gw=r["gateway_id"],
-            smp=r.get("smp_action") or self.smp.get(r["gateway_id"], "NONE"),
+            smp=r.get("smp_action") or "NONE",
             peak=r.get("visible_qty"),
             stop=r.get("stop_price_ticks"),
             offset=r.get("trail_offset_ticks"),

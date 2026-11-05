@@ -1833,6 +1833,19 @@ def make_recovery_item_msg(
     )
 
 
+def make_quote_seed_skipped_msg(
+    gateway_id: str, symbol: str, quote_id: str
+) -> list[bytes]:
+    """Engine → all subscribers: a `seed_once` seed quote not injected because
+    an active quote was restored (see spec/messages/system.yaml)."""
+    return _gen_system.make_quote_seed_skipped(
+        gateway_id=gateway_id,
+        symbol=symbol,
+        quote_id=quote_id,
+        reason="ACTIVE_QUOTE_RESTORED",
+    )
+
+
 def make_diagnostic_msg(
     component: _gen_system.DiagnosticComponent,
     count: int,

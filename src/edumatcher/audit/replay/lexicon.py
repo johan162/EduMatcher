@@ -181,6 +181,8 @@ PHRASES: Mapping[str, Mapping[str, str]] = {
         "PHASE": "at a session transition",
         "EOD": "at shutdown",
         "SCHEDULED": "on schedule",
+        # system.quote_seed_skipped
+        "ACTIVE_QUOTE_RESTORED": "because an active quote was restored",
         "ADMIN_MANUAL": "on an admin instruction",
         "REOPEN": "to reopen a halted instrument",
         "BACKSTOP": "as a backstop",

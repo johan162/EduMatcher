@@ -214,6 +214,7 @@ from edumatcher.models.message import (
     make_risk_state_msg,
     make_startup_msg,
     make_startup_recovery_msg,
+    make_quote_seed_skipped_msg,
     make_recovery_item_msg,
     make_diagnostic_msg,
 )
@@ -1212,14 +1213,16 @@ class Engine:
                 # docs-design/EduMatcher-Revised-Quote-Persistence.md §3.3.
                 # See §5.4 and the ordering-dependency note in §6.1.
                 already_has_quote = self._quote_index.get(gateway_id, sym) is not None
+                quote_id = quote_seed.quote_id or f"SEED-{gateway_id}-{sym}-{idx}"
                 if quote_seed.seed_once and already_has_quote:
                     log.info(
                         f"Skipping seed quote for {sym}/{gateway_id} "
                         f"(seed_once=true, an active quote was restored)"
                     )
+                    self.pub_sock.send_multipart(
+                        make_quote_seed_skipped_msg(gateway_id, sym, quote_id)
+                    )
                     continue
-
-                quote_id = quote_seed.quote_id or f"SEED-{gateway_id}-{sym}-{idx}"
 
                 previous = self._quote_index.remove(
                     gateway_id, sym, reason="Replaced by startup quote"
@@ -1230,6 +1233,10 @@ class Engine:
                         reason="Replaced by startup quote",
                         cancel_reason="QUOTE_REPLACED",
                     )
+                else:
+                    # A hit leg's remainder is not quote-managed (see
+                    # _handle_quote_new); the seed replaces it like any quote.
+                    self._cancel_orphaned_quote_legs(gateway_id, sym)
 
                 bid = Order.create(
                     symbol=sym,
@@ -3197,7 +3204,12 @@ class Engine:
         )
         return cancelled_ids
 
-    def _cancel_orphaned_quote_legs(self, gateway_id: str, symbol: str) -> int:
+    def _cancel_orphaned_quote_legs(
+        self,
+        gateway_id: str,
+        symbol: str,
+        cancel_reason: CancelReason | None = "QUOTE_REPLACED",
+    ) -> list[Order]:
         """Cancel any resting quote-origin order(s) for this gateway/symbol
         that are no longer tracked by an active ``QuoteIndex`` entry.
 
@@ -3221,17 +3233,18 @@ class Engine:
         mirrors ``_handle_gateway_disconnect``'s ``CANCEL_ALL`` sweep, which
         excludes quote-origin orders for the same reason in reverse (it
         expects `QuoteIndex`-driven cancellation to handle those instead).
+
+        Three paths clear a leftover this way: a new quote, a startup seed
+        and ``quote.cancel``. Returns the orders actually cancelled.
         """
         book = self.books.get(symbol)
         if book is None:
-            return 0
-        cancelled = 0
+            return []
+        cancelled: list[Order] = []
         for order in list(book.quote_orders_for_gateway(gateway_id)):
-            if (
-                self._cancel_order_by_id(order.id, cancel_reason="QUOTE_REPLACED")
-                is not None
-            ):
-                cancelled += 1
+            gone = self._cancel_order_by_id(order.id, cancel_reason=cancel_reason)
+            if gone is not None:
+                cancelled.append(gone)
         return cancelled
 
     def _publish_trade(self, trade: Any) -> None:
@@ -4204,13 +4217,22 @@ class Engine:
         entry = self._quote_index.remove(
             gateway_id, symbol, reason="Cancelled by participant"
         )
-        if not entry:
-            _refuse("No active quote for symbol", "ORDER_NOT_FOUND")
-            return
-
-        cancelled_ids = self._cancel_quote_entry(
-            entry, reason="Cancelled by participant"
-        )
+        if entry:
+            cancelled_ids = self._cancel_quote_entry(
+                entry, reason="Cancelled by participant"
+            )
+            quote_id = entry.quote_id or ""
+        else:
+            # No active quote, but a hit leg's remainder may still rest (see
+            # _cancel_orphaned_quote_legs): cancelling the quote clears it.
+            leftovers = self._cancel_orphaned_quote_legs(
+                gateway_id, symbol, cancel_reason=None
+            )
+            if not leftovers:
+                _refuse("No active quote for symbol", "ORDER_NOT_FOUND")
+                return
+            cancelled_ids = [o.id for o in leftovers]
+            quote_id = leftovers[0].quote_id or ""
         self.pub_sock.send_multipart(
             self._structure_cancel_ack(
                 "quote",
@@ -4219,7 +4241,7 @@ class Engine:
                 request_tag=request_tag,
                 cancelled_order_ids=cancelled_ids,
                 symbol=symbol,
-                quote_id=entry.quote_id or "",
+                quote_id=quote_id,
             )
         )
 

@@ -209,8 +209,8 @@ about the *sibling* leg and about whether the engine considers the quote
 slot still active — it is never a statement that the hit leg's own
 remainder disappears.** That remainder is cleaned up by exactly one
 mechanism, common to all three policies: the engine's **replace-in-slot
-logic**, which runs whenever a `QUOTE_CANCEL` or a new `QUOTE` arrives for
-that `(gateway_id, symbol)`. That logic cancels *every* order it can still
+logic**, which runs whenever a `QUOTE_CANCEL`, a new `QUOTE` or a startup
+seed quote arrives for that `(gateway_id, symbol)`. That logic cancels *every* order it can still
 find resting for this gateway's quote on this symbol — the untouched
 sibling if one is still there, and the hit leg's own partial remainder if
 one is still there — before installing the new quote (or, for

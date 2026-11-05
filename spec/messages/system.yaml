@@ -1129,6 +1129,34 @@ messages:
     encoding:
       engine_pub: { frames: [topic, json_payload], include: all }
 
+  - name: quote_seed_skipped
+    topic: "system.quote_seed_skipped"
+    transport: [engine_pub]
+    doc:
+      motivation: >
+        Engine to all subscribers: a configured seed quote the engine did
+        not inject at startup because `seed_once` is set and the gateway
+        already has an active quote in that symbol, restored from the
+        persisted orders. A seed that fires leaves its own legs' acks; one
+        that does not left no trace but a line in the process log, so a
+        post-mortem asking "why is MM01's quote in this book not the
+        configured seed?" could only infer it from the seed's absence.
+      published_by: [engine]
+      since: "1.3"
+      see_also: ["system.recovery_item", "system.quote_bootstrap.{GW_ID}"]
+    fields:
+      - { name: gateway_id, type: string, validate: { max_len: 32 },
+          doc: "The market maker the seed is configured for." }
+      - { name: symbol, type: string, validate: { max_len: 16 } }
+      - { name: quote_id, type: string, validate: { max_len: 64 },
+          doc: "The seed's quote id: the one that was not injected." }
+      - name: reason
+        type: enum
+        values: [ACTIVE_QUOTE_RESTORED]
+        doc: "`seed_once` is set and an active quote was restored."
+    encoding:
+      engine_pub: { frames: [topic, json_payload], include: all }
+
   # ================================================================ diagnostic
   - name: diagnostic
     topic: "system.diagnostic"

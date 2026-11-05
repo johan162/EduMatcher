@@ -1236,3 +1236,60 @@ def test_smp_cancel_of_stale_quote_remainder_does_not_crash_reissue(
     assert new_entry.quote_id == "Q2"
     gw01_resting = {o.id for o in book.resting_orders() if o.gateway_id == "GW01"}
     assert gw01_resting == {new_entry.bid_order_id, new_entry.ask_order_id}
+
+
+def test_quote_cancel_clears_the_remainder_of_a_hit_leg(monkeypatch, tmp_path) -> None:
+    """After INACTIVATE_ON_ANY_FILL no quote is active, but the hit leg's
+    remainder still rests: QUOTE_CANCEL cancels it and is accepted; a second
+    one finds nothing and is refused."""
+    engine, pub_sock = _make_engine(
+        monkeypatch,
+        tmp_path,
+        role=ParticipantRole.MARKET_MAKER,
+        quote_refresh_policy=QuoteRefreshPolicy.INACTIVATE_ON_ANY_FILL,
+    )
+    engine._handle_quote_new(
+        {
+            "gateway_id": "GW01",
+            "symbol": "AAPL",
+            "quote_id": "Q1",
+            "tick_decimals": 2,
+            "bid_price_ticks": to_ticks(100.0, "AAPL"),
+            "bid_qty": 500,
+            "ask_price_ticks": to_ticks(101.0, "AAPL"),
+            "ask_qty": 500,
+        }
+    )
+    book = engine._book("AAPL")
+    entry = engine._quote_index.get("GW01", "AAPL")
+    assert entry is not None
+    engine._handle_new_order(
+        Order.create(
+            symbol="AAPL",
+            side=Side.SELL,
+            order_type=OrderType.LIMIT,
+            quantity=100,
+            gateway_id="GW01",
+            tif=TIF.DAY,
+            price_ticks=to_ticks(100.0, "AAPL"),
+        ).to_dict()
+    )
+    assert engine._quote_index.get("GW01", "AAPL") is None
+    assert [o.id for o in book.quote_orders_for_gateway("GW01")] == [entry.bid_order_id]
+
+    pub_sock.sent.clear()
+    engine._handle_quote_cancel({"gateway_id": "GW01", "symbol": "AAPL"})
+    ack = [
+        decode(f) for f in pub_sock.sent if decode(f)[0].startswith("quote.cancel_ack")
+    ]
+    assert ack[-1][1]["accepted"] is True
+    assert ack[-1][1]["cancelled_order_ids"] == [entry.bid_order_id]
+    assert ack[-1][1]["quote_id"] == "Q1"
+    assert not book.quote_orders_for_gateway("GW01")
+
+    pub_sock.sent.clear()
+    engine._handle_quote_cancel({"gateway_id": "GW01", "symbol": "AAPL"})
+    ack = [
+        decode(f) for f in pub_sock.sent if decode(f)[0].startswith("quote.cancel_ack")
+    ]
+    assert ack[-1][1]["accepted"] is False

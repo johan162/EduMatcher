@@ -6,9 +6,11 @@ says INACTIVE_* or CANCELLED. When a leg's fill inactivates it
 *other* leg in the same dispatch (QUOTE_LEG_FILLED); the filled leg's own
 remainder may stay live until a new quote replaces it.
 
-A gateway has one quote per symbol: a new one replaces the old, whose
-surviving legs (that remainder included) the engine cancels
-(QUOTE_REPLACED) before it acks the new quote (C10).
+A gateway has one quote per symbol: a new one -- or a startup seed -- replaces
+the old, whose surviving legs (that remainder included) the engine cancels
+(QUOTE_REPLACED) before it acks the new quote; a quote cancel the engine
+accepts leaves no leg of the gateway live in that symbol, and none it
+refuses has one to leave (C10). Legs restored at a start are live again.
 """
 
 from __future__ import annotations
@@ -138,8 +140,26 @@ class _Pass:
         self.leg_of[p["order_id"]] = (gw, p["quote_id"])
         if p.get("symbol"):
             key = (gw, p["symbol"])
-            self.live_legs[key] = self.live_legs.get(key, set()) | {p["order_id"]}
-            self.leg_key[p["order_id"]] = key
+            if len(q.legs) == 2:
+                # Both legs are in: a seed replaces whatever else is live.
+                self.legs_live(key, list(q.legs.values()), p["quote_id"])
+            else:
+                self.live_legs[key] = self.live_legs.get(key, set()) | {p["order_id"]}
+                self.leg_key[p["order_id"]] = key
+
+    def restored(self, oid: str, symbol: str) -> None:
+        """An order the engine took back at a start: live again."""
+        if oid in self.leg_of and oid not in self.gone:
+            key = (self.leg_of[oid][0], symbol)
+            self.live_legs.setdefault(key, set()).add(oid)
+            self.leg_key[oid] = key
+
+    def cancel_ack(self, gw: str, p: dict[str, Any]) -> None:
+        """A quote cancel: accepted, it leaves no leg live; refused, there
+        was none to cancel."""
+        live = self.live_legs.get((gw, p.get("symbol", "")), set())
+        for leg in sorted(live):
+            self.flag10("a quote cancel was " + ("accepted" if p.get("accepted") else "refused") + " with a leg still live", gateway_id=gw, symbol=p.get("symbol"), order_id=leg)  # fmt: skip
 
     def leg_done(self, oid: str, reason: str = "") -> None:
         if oid in self.leg_of:
@@ -165,8 +185,17 @@ def _quote_pass(ds: Dataset) -> _Pass:
             qp.end_chain()
             qp.chain = ln.chain
         if topic == STARTUP:
-            # A restart seeds its quotes again, under the same ids.
+            # A restart seeds its quotes again, under the same ids; what is
+            # live then is what its recovery restores.
             qp.quotes.clear()
+            qp.live_legs.clear()
+            qp.leg_key.clear()
+        elif topic == "system.recovery_item":
+            p = json.loads(ln.body)
+            if p.get("kind") == "ORDER" and p.get("outcome") == "RESTORED":
+                qp.restored(p["entity_id"], p.get("symbol") or "")
+        elif topic.startswith("quote.cancel_ack."):
+            qp.cancel_ack(topic[17:], json.loads(ln.body))
         elif topic.startswith("quote.ack."):
             qp.ack(topic[10:], json.loads(ln.body))
         elif topic.startswith("quote.status."):
@@ -212,13 +241,14 @@ def quote_lifecycle(ds: Dataset) -> Outcome:
 @check(
     "C10",
     "lifecycle",
-    "One quote per gateway and symbol: a replacement ends every earlier leg first",
+    "One quote per gateway and symbol: a replacement, a seed or a cancel ends every earlier leg",
     needs=(),
 )
 def quote_replacement(ds: Dataset) -> Outcome:
-    """When a quote is accepted, no earlier leg of its gateway and symbol is
-    live (the old quote's legs and a filled leg's remainder are cancelled
-    QUOTE_REPLACED first); a leg cancelled so never trades."""
+    """When a quote is accepted or seeded, no earlier leg of its gateway and
+    symbol is live (the old quote's legs and a filled leg's remainder are
+    cancelled QUOTE_REPLACED first); a leg cancelled so never trades; after
+    a quote cancel none is live."""
     qp = _quote_pass(ds)
     note = f"{len(qp.replaced)} legs cancelled QUOTE_REPLACED" + "".join(
         f"; {e}: {n}" for e, n in qp.c10_errors.most_common()

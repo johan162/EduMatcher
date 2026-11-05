@@ -653,6 +653,7 @@ Every topic in the system, and which process puts it on the wire.
 | `system.quote_bootstrap_request` | `system` | `admin`, `api_gateway`, `gateway` |
 | `system.quote_legs.{gateway_id}` | `system` | `engine` |
 | `system.quote_legs_request` | `system` | `api_gateway`, `gateway` |
+| `system.quote_seed_skipped` | `system` | `engine` |
 | `system.recovery_item` | `system` | `engine` |
 | `system.reference.{gateway_id}` | `system` | `engine` |
 | `system.reference_reload` | `system` | `api_gateway` |
@@ -4381,6 +4382,25 @@ Engine to all subscribers: one restored, discarded or failed entity from `_resto
     It is a pairing of two already-reported order ids, not a persisted thing with an id of its own to fail or be discarded; the summary count on `startup_recovery` is the whole story for it, same as it always was.
 
 **See also:** `system.startup_recovery`
+
+### `system.quote_seed_skipped`
+
+**Published by:** `engine`
+
+**Transport:** `engine_pub`
+
+**Since:** 1.3
+
+Engine to all subscribers: a configured seed quote the engine did not inject at startup because `seed_once` is set and the gateway already has an active quote in that symbol, restored from the persisted orders. A seed that fires leaves its own legs' acks; one that does not left no trace but a line in the process log, so a post-mortem asking "why is MM01's quote in this book not the configured seed?" could only infer it from the seed's absence.
+
+| Field | Type | Presence | Rules | Description |
+|---|---|---|---|---|
+| `gateway_id` | `string` | required | max_len 32 | The market maker the seed is configured for. |
+| `symbol` | `string` | required | max_len 16 |  |
+| `quote_id` | `string` | required | max_len 64 | The seed's quote id: the one that was not injected. |
+| `reason` | enum: `ACTIVE_QUOTE_RESTORED` | required | — | `seed_once` is set and an active quote was restored. |
+
+**See also:** `system.recovery_item`, `system.quote_bootstrap.{GW_ID}`
 
 ### `system.diagnostic`
 
