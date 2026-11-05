@@ -529,7 +529,7 @@ log_server:
 | `db_path` | `data/log.db` | SQLite database path where `log_events`/`processes`/`server_stats` are stored |
 | `retention_days` | `30` | Prune `log_events` rows older than this many days, once per hour; `null` (or `--retention-days 0`) means unbounded retention |
 | `max_message_bytes` | `65536` | Maximum `LOG` payload size before truncation — oversized messages are truncated and stored, never dropped |
-| `max_client_queue` | `10000` | Per-connection outbound backlog limit before backpressure is applied |
+| `max_client_queue` | `10000` | Uncommitted-row backlog above which the server stops reading from clients (TCP backpressure); also caps one client's unread replies |
 | `write_batch_size` | `50` | Maximum rows per SQLite transaction in the background writer thread |
 | `write_batch_interval_ms` | `100` | Maximum time between writer-thread flushes, whichever comes first with `write_batch_size` |
 | `heartbeat_interval_sec` | `5` | How often a connected client must send something (`LOG` or `HB`) to stay alive; the server disconnects after 2× this interval of silence and advertises the value to clients in `WELCOME.HBINT` (the server itself never sends `HB`). Doubles as the publish interval for the LALF-PS `log.server_state` tick |
