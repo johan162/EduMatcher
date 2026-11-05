@@ -3251,6 +3251,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#book-snapshots" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Book snapshots
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#history-endpoints" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -7922,6 +7933,10 @@ the existing CALF and RALF gateway pattern.</p>
 <td>Enables <code>/docs</code> and <code>/openapi.json</code> when true</td>
 </tr>
 <tr>
+<td><code>credentials_file</code></td>
+<td>Optional file holding the <code>credentials</code> list, for configurations with many keys; see <a href="../../part-2-configure/005-the-configuration-file/#step-8-the-access-points">The Configuration File</a></td>
+</tr>
+<tr>
 <td><code>credentials[].api_key</code></td>
 <td>Bearer token clients use for REST and WebSocket auth</td>
 </tr>
@@ -8313,6 +8328,11 @@ people.</p>
 <td>the engine (compiled config)</td>
 </tr>
 <tr>
+<td>Market-data snapshots</td>
+<td><code>/book</code>, <code>/book/{symbol}</code></td>
+<td>the gateway's market-data cache; <code>/book</code> also one reference round trip</td>
+</tr>
+<tr>
 <td>History</td>
 <td><code>/history/*</code></td>
 <td><code>pm-stats</code>' <code>stats.db</code>; <code>/history/index-events</code> asks <code>pm-index</code></td>
@@ -8393,6 +8413,15 @@ reference data changes, so a client can cache the bundle and poll
 </ul>
 <p>Use <code>pm-config-deploy</code> to compile and deploy the changed configuration, then
 restart the engine. This keeps the effective config tied to the audited run.</p>
+<h3 id="book-snapshots">Book snapshots<a class="headerlink" href="#book-snapshots" title="Permanent link">&para;</a></h3>
+<p><code>GET /book/{symbol}</code> and <code>GET /book</code> read the same cache a WebSocket <code>snapshot</code>
+is answered from, so they cost the engine nothing once a book has been seen.
+The engine republishes a book only when it changes, so after a gateway restart
+a quiet symbol has nothing cached: the first read asks the engine to publish it
+and waits (<code>503 ENGINE_TIMEOUT</code> if the engine does not answer). <code>/book</code> checks
+the symbol list against the reference data on every call, so it is complete
+from the first call, and it is all or nothing. A quiet book's <code>ts_ns</code> is old
+and the snapshot is still current: it is when the book last changed.</p>
 <h3 id="history-endpoints">History endpoints<a class="headerlink" href="#history-endpoints" title="Permanent link">&para;</a></h3>
 <p>Every <code>/history/*</code> endpoint except <code>/history/index-events</code> reads <code>pm-stats</code>'
 SQLite database (<code>--stats-db PATH</code>, default <code>data/stats.db</code>). Until <code>pm-stats</code>

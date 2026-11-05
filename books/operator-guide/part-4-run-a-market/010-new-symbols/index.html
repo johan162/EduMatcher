@@ -7724,10 +7724,14 @@ source, never the artifact.</p>
 <p>If you set up with <code>pm-setup</code>, the deployed source <em>is</em>
 <code>&lt;DATA_DIR&gt;/ref_data/engine_config.yaml</code>, so the default works without
 <code>--config</code>.</p>
+<p>If the source uses <code>include:</code>, the symbol is written to the included file that
+supplies the last listed symbol and the main file is left as it is; the command
+reports which file it edited.</p>
 <div class="admonition warning">
 <p class="admonition-title">Undeployed edits block the listing</p>
-<p>The deployed source must be byte-for-byte what was last deployed (its
-SHA-256 must match <code>meta.source_sha256</code>). Otherwise the IPO deploy would
+<p>The deployed source, together with any files it includes, must be
+byte-for-byte what was last deployed (their combined SHA-256 must match
+<code>meta.source_sha256</code>). Otherwise the IPO deploy would
 also ship whatever else had been edited, without review. Deploy or revert
 those edits first.</p>
 </div>

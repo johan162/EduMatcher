@@ -4198,6 +4198,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#market-data" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Market data
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#history" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4809,6 +4820,45 @@
     <span class="md-ellipsis">
       
         GET /api/v1/reference/schedule
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#market-data_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Market data
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Market data">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#get-apiv1booksymbol" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /api/v1/book/{symbol}
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-apiv1book" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /api/v1/book
       
     </span>
   </a>
@@ -8750,6 +8800,28 @@ optional parameters.</p>
 </tr>
 </tbody>
 </table>
+<h3 id="market-data">Market data<a class="headerlink" href="#market-data" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Endpoint</th>
+<th>Access</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="#get-apiv1book">GET /api/v1/book</a></td>
+<td>Authenticated key</td>
+<td>Return best bid, best ask and last price for every symbol</td>
+</tr>
+<tr>
+<td><a href="#get-apiv1booksymbol">GET /api/v1/book/{symbol}</a></td>
+<td>Authenticated key</td>
+<td>Return one symbol's book levels, last trade and recent prints</td>
+</tr>
+</tbody>
+</table>
 <h3 id="history">History<a class="headerlink" href="#history" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
@@ -9043,6 +9115,12 @@ the OpenAPI document lists all of them per operation.</p>
 <td style="text-align: right;"><code>404</code></td>
 <td><code>UNKNOWN</code></td>
 <td>No company profile for the symbol</td>
+</tr>
+<tr>
+<td><code>UNKNOWN_SYMBOL</code></td>
+<td style="text-align: right;"><code>404</code></td>
+<td><code>UNKNOWN</code></td>
+<td>The symbol is not in the venue's reference data (<code>GET /book/{symbol}</code>)</td>
 </tr>
 <tr>
 <td><code>METHOD_NOT_ALLOWED</code></td>
@@ -12199,6 +12277,154 @@ field law: <code>RiskLevel</code> in the <a href="../../part-5-message-reference
 <td><code>ENGINE_TIMEOUT</code></td>
 <td><code>503</code></td>
 <td>Engine did not reply in time</td>
+</tr>
+</tbody>
+</table>
+<h2 id="market-data_1">Market data<a class="headerlink" href="#market-data_1" title="Permanent link">&para;</a></h2>
+<p>Base path: <code>/api/v1/book</code>. The order book as of now, without a WebSocket.
+Both endpoints read the gateway's copy of the <code>book.{symbol}</code> stream, the one
+a WebSocket <code>snapshot</code> is answered from, so a REST read and a WebSocket
+subscription agree on the same snapshot.</p>
+<ul>
+<li><strong><code>seq</code></strong> is the market-data sequence of the snapshot on topic
+  <code>book.{symbol}</code>, the <code>seq</code> its WebSocket <code>book</code> frame carries. A client that
+  reads here and then subscribes ignores <code>book</code> frames whose <code>seq</code> is at or
+  below it (the subscription replays the latest snapshot first).</li>
+<li><strong><code>ts_ns</code></strong> is when the engine produced the snapshot. The engine publishes a
+  book when it changes, so a quiet book keeps an old <code>ts_ns</code> and is still
+  current.</li>
+<li>Every price is a display price with a <code>*_ticks</code> sibling: the integer
+  <code>price * 10**tick_decimals</code> (see <em>Prices</em> in <a href="#response-contract">Response contract</a>).
+  Use the ticks to compare or sum prices exactly.</li>
+<li>Iceberg orders contribute their displayed size only.</li>
+</ul>
+<h3 id="get-apiv1booksymbol"><code>GET /api/v1/book/{symbol}</code><a class="headerlink" href="#get-apiv1booksymbol" title="Permanent link">&para;</a></h3>
+<p>Purpose: return one symbol's latest book: bid and ask levels (best first), the
+last trade, and the last five prints. Access: Authenticated key (read-only keys
+included) — market data is public.</p>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>symbol</code></td>
+<td>path</td>
+<td>Yes</td>
+<td>Ticker, case-insensitive</td>
+</tr>
+<tr>
+<td><code>levels</code></td>
+<td>query</td>
+<td>No</td>
+<td>Price levels per side, <code>1</code>–<code>100</code>, default <code>10</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Reply</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Shape</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>200 OK</code></td>
+<td><code>{ "symbol", "tick_decimals", "ts_ns", "seq", "bids": [...], "asks": [...], "last_price", "last_price_ticks", "last_qty", "last_buy_price", "last_buy_price_ticks", "last_sell_price", "last_sell_price_ticks", "recent_trades": [...] }</code></td>
+<td><code>bids</code> descending and <code>asks</code> ascending, each level <code>{ price, price_ticks, qty, count }</code>; <code>last_*</code> are <code>null</code> until the symbol has traded; <code>recent_trades</code> are the last five prints, oldest first, each as in <code>trade.executed</code> plus <code>price_ticks</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Errors</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Status</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>VALIDATION</code></td>
+<td><code>400</code></td>
+<td><code>levels</code> outside <code>1</code>–<code>100</code>, or <code>symbol</code> over-long</td>
+</tr>
+<tr>
+<td><code>UNKNOWN_SYMBOL</code></td>
+<td><code>404</code></td>
+<td><code>symbol</code> is not in the reference data</td>
+</tr>
+<tr>
+<td><code>ENGINE_TIMEOUT</code></td>
+<td><code>503</code></td>
+<td>The engine did not publish the book in time (only on the first read of a book the gateway has not seen)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="get-apiv1book"><code>GET /api/v1/book</code><a class="headerlink" href="#get-apiv1book" title="Permanent link">&para;</a></h3>
+<p>Purpose: return best bid, best ask and last price for every symbol in the
+reference data, sorted by symbol, in one call. Access: Authenticated key
+(read-only keys included).</p>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>none</td>
+<td>—</td>
+<td>—</td>
+<td>No query parameters</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Reply</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Shape</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>200 OK</code></td>
+<td><code>{ "books": [...], "count": n }</code></td>
+<td>One entry per symbol: <code>{ symbol, tick_decimals, ts_ns, seq, best_bid, best_ask, last_price, last_price_ticks }</code>. A side with no orders is <code>null</code>; <code>best_bid</code> and <code>best_ask</code> are levels as above</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Errors</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Status</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ENGINE_TIMEOUT</code></td>
+<td><code>503</code></td>
+<td>The engine did not reply in time. The list is all or nothing: one book that cannot be had fails the call</td>
 </tr>
 </tbody>
 </table>

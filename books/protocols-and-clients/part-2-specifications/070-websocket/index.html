@@ -8329,7 +8329,9 @@ because a halt or a phase change alters the meaning of every other channel.</p>
 <ul>
 <li><strong>Snapshot channels</strong> (<code>book</code>, <code>depth</code>, <code>auction</code>) are self-healing: the
   current snapshot replaces whatever was missed. After a gap or a reconnect,
-  send <code>snapshot</code> (or <code>subscribe</code>) for the pairs concerned.</li>
+  send <code>snapshot</code> (or <code>subscribe</code>) for the pairs concerned. The <code>book</code> snapshot
+  is also available without a socket as <code>GET /api/v1/book/{symbol}</code>, whose
+  <code>seq</code> is that of the <code>book</code> frame for the same snapshot.</li>
 <li><strong>Trades</strong> are replayable for the gateway's replay window
   (<code>market_data_cache_sec</code>, 60 seconds by default): <code>resume</code> with <code>topic: "trade.executed"</code>, the last
   processed <code>seq</code> and the symbol. Past the window the server sends

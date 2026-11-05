@@ -9194,6 +9194,10 @@ required. The two WebSocket examples need the <code>websockets</code> package
 <td>LIMIT with <code>wait=ack</code> and an <code>Idempotency-Key</code>, a safe retry, amend, replace, cancel, and a <code>TICK_VIOLATION</code> refusal</td>
 </tr>
 <tr>
+<td><a href="../../../downloads/examples/REST/python/book_snapshot.py">REST/python/book_snapshot.py</a></td>
+<td>The order book over REST: top of book for every symbol, one symbol's ladder, <code>*_ticks</code>, <code>seq</code>, <code>UNKNOWN_SYMBOL</code></td>
+</tr>
+<tr>
 <td><a href="../../../downloads/examples/REST/python/history_pages.py">REST/python/history_pages.py</a></td>
 <td>Read a whole history list by following <code>next_cursor</code></td>
 </tr>
@@ -9311,17 +9315,20 @@ The default development key is <code>key-trader-demo</code>.</p>
 <a id="__codelineno-37-16" name="__codelineno-37-16" href="#__codelineno-37-16"></a><span class="c1"># One order's whole life; --price below the bid so it rests</span>
 <a id="__codelineno-37-17" name="__codelineno-37-17" href="#__codelineno-37-17"></a>python3<span class="w"> </span>order_lifecycle.py<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--price<span class="w"> </span><span class="m">22</span>.70
 <a id="__codelineno-37-18" name="__codelineno-37-18" href="#__codelineno-37-18"></a>
-<a id="__codelineno-37-19" name="__codelineno-37-19" href="#__codelineno-37-19"></a><span class="c1"># Today's trades, page by page</span>
-<a id="__codelineno-37-20" name="__codelineno-37-20" href="#__codelineno-37-20"></a>python3<span class="w"> </span>history_pages.py<span class="w"> </span>--limit<span class="w"> </span><span class="m">50</span>
+<a id="__codelineno-37-19" name="__codelineno-37-19" href="#__codelineno-37-19"></a><span class="c1"># The book over REST: every symbol's top of book, then AAPL's ladder</span>
+<a id="__codelineno-37-20" name="__codelineno-37-20" href="#__codelineno-37-20"></a>python3<span class="w"> </span>book_snapshot.py<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--levels<span class="w"> </span><span class="m">5</span>
 <a id="__codelineno-37-21" name="__codelineno-37-21" href="#__codelineno-37-21"></a>
-<a id="__codelineno-37-22" name="__codelineno-37-22" href="#__codelineno-37-22"></a><span class="c1"># The private stream: place and cancel one order, watch both events arrive</span>
-<a id="__codelineno-37-23" name="__codelineno-37-23" href="#__codelineno-37-23"></a>python3<span class="w"> </span>private_stream.py<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--price<span class="w"> </span><span class="m">22</span>.70
+<a id="__codelineno-37-22" name="__codelineno-37-22" href="#__codelineno-37-22"></a><span class="c1"># Today's trades, page by page</span>
+<a id="__codelineno-37-23" name="__codelineno-37-23" href="#__codelineno-37-23"></a>python3<span class="w"> </span>history_pages.py<span class="w"> </span>--limit<span class="w"> </span><span class="m">50</span>
 <a id="__codelineno-37-24" name="__codelineno-37-24" href="#__codelineno-37-24"></a>
-<a id="__codelineno-37-25" name="__codelineno-37-25" href="#__codelineno-37-25"></a><span class="c1"># Market data: book for every symbol, trades for one; --trade makes a print</span>
-<a id="__codelineno-37-26" name="__codelineno-37-26" href="#__codelineno-37-26"></a>python3<span class="w"> </span>market_data.py<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--trade
+<a id="__codelineno-37-25" name="__codelineno-37-25" href="#__codelineno-37-25"></a><span class="c1"># The private stream: place and cancel one order, watch both events arrive</span>
+<a id="__codelineno-37-26" name="__codelineno-37-26" href="#__codelineno-37-26"></a>python3<span class="w"> </span>private_stream.py<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--price<span class="w"> </span><span class="m">22</span>.70
 <a id="__codelineno-37-27" name="__codelineno-37-27" href="#__codelineno-37-27"></a>
-<a id="__codelineno-37-28" name="__codelineno-37-28" href="#__codelineno-37-28"></a><span class="c1"># Admin (an ADMIN key): halt, inspect, dry-run reopen, reopen</span>
-<a id="__codelineno-37-29" name="__codelineno-37-29" href="#__codelineno-37-29"></a>python3<span class="w"> </span>admin_halt_reopen.py<span class="w"> </span>--symbol<span class="w"> </span>MSFT<span class="w"> </span>--key<span class="w"> </span>&lt;admin<span class="w"> </span>key&gt;
+<a id="__codelineno-37-28" name="__codelineno-37-28" href="#__codelineno-37-28"></a><span class="c1"># Market data: book for every symbol, trades for one; --trade makes a print</span>
+<a id="__codelineno-37-29" name="__codelineno-37-29" href="#__codelineno-37-29"></a>python3<span class="w"> </span>market_data.py<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--trade
+<a id="__codelineno-37-30" name="__codelineno-37-30" href="#__codelineno-37-30"></a>
+<a id="__codelineno-37-31" name="__codelineno-37-31" href="#__codelineno-37-31"></a><span class="c1"># Admin (an ADMIN key): halt, inspect, dry-run reopen, reopen</span>
+<a id="__codelineno-37-32" name="__codelineno-37-32" href="#__codelineno-37-32"></a>python3<span class="w"> </span>admin_halt_reopen.py<span class="w"> </span>--symbol<span class="w"> </span>MSFT<span class="w"> </span>--key<span class="w"> </span>&lt;admin<span class="w"> </span>key&gt;
 </code></pre></div>
 <h3 id="c-api-api_gateway_clienth">C API — <code>api_gateway_client.h</code><a class="headerlink" href="#c-api-api_gateway_clienth" title="Permanent link">&para;</a></h3>
 <p><strong><code>ApiGatewayClient api_gateway_client(host, port, api_key)</code></strong>

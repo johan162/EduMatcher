@@ -8250,6 +8250,12 @@ for the formal grammar and validation rules, see
 </thead>
 <tbody>
 <tr>
+<td><code>include</code></td>
+<td style="text-align: right;">No</td>
+<td>Every tool that reads the authored file</td>
+<td>List of files merged into the configuration; see <a href="../../../operator-guide/part-2-configure/005-the-configuration-file/#splitting-the-file-with-include">Splitting the file</a></td>
+</tr>
+<tr>
 <td><code>symbols</code></td>
 <td style="text-align: right;">Yes</td>
 <td>Engine</td>
@@ -8972,6 +8978,7 @@ engine reply waits are applied. In the current implementation:</p>
 <li><code>credentials[].api_key</code> is the bearer token used by REST and WebSocket clients</li>
 <li><code>credentials[].gateway_id</code> maps a key to an ALF gateway; <code>null</code> is read-only</li>
 <li>a non-null <code>credentials[].gateway_id</code> may appear in only one <code>api_gateways</code> entry</li>
+<li><code>credentials_file</code> names a YAML list of credentials, relative to the file that names it, in place of an inline <code>credentials</code> (not both)</li>
 <li><code>rate_limit</code> applies per API key to write endpoints only</li>
 <li><code>timeouts.engine_reply_sec</code> and <code>timeouts.wait_ack_sec</code> control request/reply and <code>?wait=ack</code> waits</li>
 </ul>
