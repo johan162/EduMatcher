@@ -203,6 +203,7 @@ docs/knowledge-check/instructor-correction-keys.pdf
 
 ralf_subscriber
 calf_subscriber
+dc_subscriber
 balf_parser
 alf_client
 # ...the C example binary above, not the Python package of the same name

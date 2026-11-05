@@ -917,8 +917,8 @@ post_trade_gateway:
   bind_address: 127.0.0.1
   port: 5580
   replay_retention_sec: 86400
-  heartbeat_interval_sec: 1
-  idle_timeout_sec: 5
+  heartbeat_interval_sec: 2
+  idle_timeout_sec: 20
   max_connections: 64
   max_client_queue: 10000
   allowed_roles:

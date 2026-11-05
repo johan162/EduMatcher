@@ -497,7 +497,7 @@ The rules that relate two `monitor` fields are semantic checks (`M029`,
 See [Health Monitoring](../part-6-observe-and-recover/060-health-monitor.md#configuration)
 for what these fields do.
 
-### Layer 3 — Semantic (`M001`–`M032`)
+### Layer 3 — Semantic (`M001`–`M033`)
 
 `M014` is currently emitted during the schema pass because CB threshold ordering
 is validated while parsing `circuit_breaker_defaults`.
@@ -536,6 +536,7 @@ is validated while parsing `circuit_breaker_defaults`.
 | `M030` | ERROR    | `monitor.hung_after_sec` is not greater than `monitor.beacon_interval_sec` |
 | `M031` | WARN     | `monitor.bind_address` is neither a wildcard nor `monitor.host` (loopback on both sides counts as a match): every process sends its beacons to `host`, where pm-monitor may not be listening. A warning because `EDUMATCHER_GATEWAY_BIND_HOST` overrides the bind address at run time |
 | `M032` | WARN     | No read-only API credential (`gateway_id: null`) under `api_gateways`: pm-dash has no session schedule, terminal-gui no history and book-gui no data |
+| `M033` | ERROR    | `idle_timeout_sec` is not more than twice `heartbeat_interval_sec` in `post_trade_gateway`, `market_data_gateway` or `dc_gateway` (an omitted field is checked at its default). The gateway's own heartbeats keep a reading client from timing out, so a timeout this close to the interval drops healthy quiet sessions |
 
 ### Layer 4 — Completeness (`C001`–`C013`)
 

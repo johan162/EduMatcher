@@ -3028,6 +3028,43 @@ class TestLayer4InternalGuards:
         assert not any(r.path == "risk_controls.levels.ALT" for r in results)
 
 
+class TestLineGatewayHeartbeats:
+    """M033: a line gateway's idle timeout must exceed twice its heartbeat."""
+
+    _BASE = "symbols:\n  AAPL: {}\nparticipants:\n    - id: GW01\n"
+
+    def _m033(self, block: str) -> list[CheckResult]:
+        results = layer3_semantic.check(_raw(self._BASE + block), Path("x.yaml"))
+        return [r for r in results if r.code == "M033"]
+
+    @pytest.mark.parametrize(
+        "section", ["post_trade_gateway", "market_data_gateway", "dc_gateway"]
+    )
+    def test_idle_at_twice_the_heartbeat_is_an_error(self, section: str) -> None:
+        block = f"{section}:\n  heartbeat_interval_sec: 3\n  idle_timeout_sec: 6\n"
+        (result,) = self._m033(block)
+        assert result.severity == Severity.ERROR
+        assert result.path == f"{section}.idle_timeout_sec"
+
+    @pytest.mark.parametrize(
+        "section", ["post_trade_gateway", "market_data_gateway", "dc_gateway"]
+    )
+    def test_defaults_and_an_empty_section_are_clean(self, section: str) -> None:
+        assert self._m033(f"{section}: {{}}\n") == []
+
+    def test_omitted_idle_is_checked_at_the_loader_default(self) -> None:
+        # RALF's idle default is 20 s, so a 10 s heartbeat leaves it at 2x.
+        assert self._m033("post_trade_gateway:\n  heartbeat_interval_sec: 10\n")
+
+    def test_just_over_twice_is_clean(self) -> None:
+        block = "dc_gateway:\n  heartbeat_interval_sec: 2\n  idle_timeout_sec: 5\n"
+        assert self._m033(block) == []
+
+    def test_absent_section_and_bad_shapes_are_left_to_layer_2(self) -> None:
+        assert self._m033("") == []
+        assert self._m033("dc_gateway:\n  heartbeat_interval_sec: x\n") == []
+
+
 class TestMonitorSection:
     """Operator dashboard WP-A3: S124-S131 (shape), M029-M030 (semantics),
     M018 (ports), S121 (unknown keys at every level)."""

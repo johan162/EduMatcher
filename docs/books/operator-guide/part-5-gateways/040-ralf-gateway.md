@@ -107,8 +107,8 @@ post_trade_gateway:
   bind_address: "0.0.0.0"
   port: 5580
   replay_retention_sec: 86400
-  heartbeat_interval_sec: 1
-  idle_timeout_sec: 5
+  heartbeat_interval_sec: 2
+  idle_timeout_sec: 20
   max_connections: 64
   max_client_queue: 10000
   allowed_roles:
@@ -168,8 +168,8 @@ post_trade_gateway:
   bind_address: 0.0.0.0
   port: 5580
   replay_retention_sec: 3600
-  heartbeat_interval_sec: 1
-  idle_timeout_sec: 10
+  heartbeat_interval_sec: 2
+  idle_timeout_sec: 20
   max_connections: 64
   max_client_queue: 2000
   allowed_roles:
@@ -288,7 +288,7 @@ sequenceDiagram
 
     C->>G: TCP connect :5580
     C->>G: HELLO|CLIENT=ext01|PROTO=RALF1|ROLE=CLEARING|LASTSEQ=0
-    G-->>C: WELCOME|PROTO=RALF1|GW=ralf-gwy01|ROLE=CLEARING|REPLAY=86400|HBINT=1
+    G-->>C: WELCOME|PROTO=RALF1|GW=ralf-gwy01|ROLE=CLEARING|REPLAY=86400|HBINT=2
     C->>G: SUB|CH=CLEARING|SYM=*
     G-->>C: SNAP|CH=CLEARING|SYM=*|SEQ=42|TS=2026-06-30T09:30:00.000Z
     loop Live events

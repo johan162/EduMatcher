@@ -214,8 +214,8 @@ baseline.
 
 | Parameter | Source | Default |
 |-----------|--------|---------|
-| Heartbeat interval (`HBINT`) | `heartbeat_interval_sec` | 1 s |
-| Idle timeout | `idle_timeout_sec` | 5 s |
+| Heartbeat interval (`HBINT`) | `heartbeat_interval_sec` | 2 s |
+| Idle timeout | `idle_timeout_sec` | 20 s |
 | Replay retention (`REPLAY`) | `replay_retention_sec` | 86400 s |
 
 The gateway sends `HB` to every authenticated client every heartbeat interval,
@@ -252,8 +252,8 @@ client have stopped succeeding; it then sends `EXIT|REASON=idle_timeout`. A clie
 | `bind_address` | `0.0.0.0` | TCP listen address |
 | `port` | `5580` | TCP listen port |
 | `replay_retention_sec` | `86400` | journal window; advertised as `WELCOME\|REPLAY=` |
-| `heartbeat_interval_sec` | `1` | `HB` cadence; advertised as `WELCOME\|HBINT=` |
-| `idle_timeout_sec` | `5` | disconnect after this long with no traffic in either direction |
+| `heartbeat_interval_sec` | `2` | `HB` cadence; advertised as `WELCOME\|HBINT=` |
+| `idle_timeout_sec` | `20` | disconnect after this long with no traffic in either direction |
 | `max_connections` | `64` | simultaneous TCP connections; one beyond this is accepted and closed at once |
 | `max_client_queue` | `10000` | outbound backlog before `SLOW_CLIENT` |
 | `allowed_roles` | `[CLEARING, DROP_COPY, AUDIT]` | roles permitted to authenticate |

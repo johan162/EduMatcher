@@ -223,8 +223,8 @@ RalfGwyProcSpec:                             # post_trade_gateway (pm-ralf-gwy, 
   bind_address:                 ? Str = "0.0.0.0"
   port:                         ? Port = 5580                 ∈ 1..65535
   replay_retention_sec:         ? Int = 86400                 ∈ > 0
-  heartbeat_interval_sec:       ? Int = 1                     ∈ > 0
-  idle_timeout_sec:             ? Int = 5                     ∈ > 0
+  heartbeat_interval_sec:       ? Int = 2                     ∈ > 0
+  idle_timeout_sec:             ? Int = 20                    ∈ > 0
   max_connections:              ? Int = 64                    ∈ > 0
   max_client_queue:             ? Int = 10000                 ∈ > 0
   allowed_roles:                ? List<Str> = [CLEARING, DROP_COPY, AUDIT]
@@ -233,8 +233,8 @@ DcGwyProcSpec:                               # dc_gateway         (pm-dc-gwy); n
   name:                         ? Str = "dc-gwy01"
   bind_address:                 ? Str = "0.0.0.0"
   port:                         ? Port = 5590                 ∈ 1..65535
-  heartbeat_interval_sec:       ? Secs = 5
-  idle_timeout_sec:             ? Secs = 30
+  heartbeat_interval_sec:       ? Secs = 2
+  idle_timeout_sec:             ? Secs = 20
   max_connections:              ? Int = 64                    ∈ > 0
   max_client_queue:             ? Int = 10000                 ∈ > 0
 
@@ -755,8 +755,8 @@ Spec type: `RalfGwyProcSpec`.
 | `bind_address` | `Str` | – | `"0.0.0.0"` | |
 | `port` | `Port` | – | `5580` | `1..65535` |
 | `replay_retention_sec` | `Int` | – | `86400` | `> 0` |
-| `heartbeat_interval_sec` | `Int` | – | `1` | `> 0` |
-| `idle_timeout_sec` | `Int` | – | `5` | `> 0` |
+| `heartbeat_interval_sec` | `Int` | – | `2` | `> 0` |
+| `idle_timeout_sec` | `Int` | – | `20` | `> 0` |
 | `max_connections` | `Int` | – | `64` | `> 0` |
 | `max_client_queue` | `Int` | – | `10000` | `> 0` |
 | `allowed_roles` | `List<Str>` | – | `[CLEARING, DROP_COPY, AUDIT]` | values upper-cased |
@@ -813,8 +813,8 @@ Spec type: `DcGwyProcSpec`.
 | `name` | `Str` | – | `"dc-gwy01"` | non-empty; echoed in `WELCOME` |
 | `bind_address` | `Str` | – | `"0.0.0.0"` | non-empty |
 | `port` | `Port` | – | `5590` | `1..65535` |
-| `heartbeat_interval_sec` | `Secs` | – | `5` | `> 0`; interval between `HB` lines |
-| `idle_timeout_sec` | `Secs` | – | `30` | `> 0`; disconnect threshold when no traffic flows in either direction |
+| `heartbeat_interval_sec` | `Secs` | – | `2` | `> 0`; interval between `HB` lines |
+| `idle_timeout_sec` | `Secs` | – | `20` | `> 0`; disconnect threshold when no traffic flows in either direction |
 | `max_connections` | `Int` | – | `64` | `> 0`; simultaneous client connections |
 | `max_client_queue` | `Int` | – | `10000` | `> 0`; per-client outbound buffer before slow-client disconnect |
 
@@ -932,6 +932,7 @@ rejected at load.
 | CV21 | Every `DayScheduleSpec` present anywhere under `schedule` (`weekdays`, `weekend`, `holidays`, or an individual `mon`..`sun` key) MUST define all five of `pre_open`, `opening_auction_start`, `continuous_start`, `closing_auction_start`, `closing_auction_end`; a partial block is rejected, not filled from a default. |
 | CV22 | `participant_defaults`, when present, is a mapping whose only keys are `smp_action` and `disconnect_behaviour`, each a valid member of its enumeration. |
 | CV23 | (`monitor`) Every `thresholds` band is ordered (`warn < crit`, except `disk_free_pct` where `warn > crit`); `hung_after_sec > beacon_interval_sec`; `pull_port ≠ pub_port`, and neither collides with another listener (counted even when the block is absent). A `host` that cannot reach `bind_address` (neither equal, nor a wildcard bind, nor both loopback) is reported as a warning, not rejected, because `EDUMATCHER_GATEWAY_BIND_HOST` may change the bind at run time. |
+| CV24 | (`post_trade_gateway`, `market_data_gateway`, `dc_gateway`) `idle_timeout_sec` MUST be `> 2 × heartbeat_interval_sec`, each field taken at its default when omitted. |
 
 ---
 

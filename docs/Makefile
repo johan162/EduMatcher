@@ -32,7 +32,7 @@ DIST_DIR := $(DOCS_DIR)/dist
 DOWNLOADS_DIR := $(DOCS_DIR)/downloads
 EXAMPLES_DIR := $(DOCS_DIR)/examples
 # Example sets the books link to; ref_data and generated are not linked.
-EXAMPLE_DOWNLOAD_SETS := alf calf ralf balf REST
+EXAMPLE_DOWNLOAD_SETS := alf calf ralf dc balf REST
 BUILD_DIR := $(DOCS_DIR)/.build
 STAMP_DIR := $(DOCS_DIR)/.makefile-stamps
 SCRIPTS_DIR := ../scripts
