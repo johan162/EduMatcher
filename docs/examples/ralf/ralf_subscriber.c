@@ -9,8 +9,14 @@
  * per-channel sequence-gap check and a clean SIGINT shutdown that prints
  * the final tally before exiting.
  *
- * See docs/user-guide/930-app-ralf-protocol.md for the normative wire
- * contract this client follows.
+ * See docs/books/protocols-and-clients/part-2-specifications/040-ralf.md for
+ * the normative wire contract this client follows. The session rules it
+ * relies on are the same in all three line gateways (pm-ralf-gwy, pm-md-gwy,
+ * pm-dc-gwy): send HELLO straight after connecting (no HELLO within 5 s ends
+ * in EXIT|REASON=auth_timeout); an ERR in reply to HELLO ends the session; a
+ * gateway-initiated close is announced with a final ERR or EXIT|REASON=...;
+ * a client that keeps reading needs no PING, since heartbeats count as
+ * traffic; and a client may end its own session with a bare EXIT.
  */
 
 #define _POSIX_C_SOURCE 200809L
@@ -70,6 +76,32 @@ typedef struct {
 
 static channel_seq_t g_channel_seq[MAX_CHANNELS];
 static int g_channel_seq_count = 0;
+
+/* A SNAP re-anchors its channel(s) and is never a gap: after a REPLAY_MISS
+ * (LASTSEQ outside the journal, or ahead of it after a gateway restart) its
+ * SEQ can be lower than anything seen before. A single-channel SNAP sets that
+ * channel's baseline; a combined one (CH=A,B,C) carries one aggregate SEQ
+ * that is no channel's own, so it only clears them and each channel's next
+ * event sets its own.
+ */
+static void rebaseline(const char *channels, const char *seq_str) {
+    const int combined = strchr(channels, ',') != NULL;
+    for (int i = 0; i < g_channel_seq_count; i++) {
+        const char *name = g_channel_seq[i].channel;
+        size_t len = strlen(name);
+        const char *hit = strstr(channels, name);
+        int listed = hit && (hit == channels || hit[-1] == ',') && (hit[len] == ',' || hit[len] == '\0');
+        if (listed) {
+            g_channel_seq[i] = g_channel_seq[--g_channel_seq_count];
+            i--;
+        }
+    }
+    if (!combined && channels[0] && seq_str && g_channel_seq_count < MAX_CHANNELS) {
+        channel_seq_t *entry = &g_channel_seq[g_channel_seq_count++];
+        snprintf(entry->channel, sizeof(entry->channel), "%s", channels);
+        entry->seq = strtol(seq_str, NULL, 10);
+    }
+}
 
 static void check_sequence(const char *channel, const char *seq_str) {
     if (!channel[0] || !seq_str) {
@@ -279,8 +311,9 @@ static void handle_message(const ralf_message_t *msg) {
     const char *symbol = ralf_get_field(msg, "SYM");
     channel = channel ? channel : "";
     symbol = symbol ? symbol : "";
-    /* A combined SNAP's SEQ cannot seed each channel's independent counter. */
-    if (strcmp(msg->msg_type, "SNAP") != 0 || !strchr(channel, ',')) {
+    if (strcmp(msg->msg_type, "SNAP") == 0) {
+        rebaseline(channel, ralf_get_field(msg, "SEQ"));
+    } else {
         check_sequence(channel, ralf_get_field(msg, "SEQ"));
     }
 
@@ -343,8 +376,9 @@ static void handle_message(const ralf_message_t *msg) {
         const char *reason = ralf_get_field(msg, "REASON");
         fprintf(stderr, "EXIT  gateway is closing the session (reason=%s)\n", reason ? reason : "?");
     } else if (strcmp(msg->msg_type, "ERR") == 0) {
-        /* RALF's error field is DETAIL, not MSG (CALF's error field name)
-         * -- see protocol reference §10.
+        /* ERR|CODE=..|DETAIL=.. -- the same shape in every line gateway. A
+         * terminal code (SLOW_CLIENT, an oversized line) is followed by the
+         * gateway closing the connection; REPLAY_MISS by a SNAP baseline.
          */
         const char *code = ralf_get_field(msg, "CODE");
         const char *detail = ralf_get_field(msg, "DETAIL");
@@ -407,6 +441,16 @@ int main(int argc, char **argv) {
         close(fd);
         return 1;
     }
+    if (strcmp(welcome.msg_type, "WELCOME") != 0) {
+        /* AUTH_REQUIRED, ENTITLEMENT_DENIED or BAD_MESSAGE: the gateway
+         * closes the session, so there is nothing to subscribe on. */
+        const char *code = ralf_get_field(&welcome, "CODE");
+        const char *detail = ralf_get_field(&welcome, "DETAIL");
+        fprintf(stderr, "handshake refused: %s %s: %s\n", welcome.msg_type, code ? code : "",
+                detail ? detail : "");
+        close(fd);
+        return 1;
+    }
     printf("WELCOME type=%s GW=%s ROLE=%s\n", welcome.msg_type,
            ralf_get_field(&welcome, "GW") ? ralf_get_field(&welcome, "GW") : "?",
            ralf_get_field(&welcome, "ROLE") ? ralf_get_field(&welcome, "ROLE") : "?");
@@ -428,14 +472,19 @@ int main(int argc, char **argv) {
     }
     printf("Subscribed %s as role=%s\n", sub_line, role);
 
+    int status = 0;
     for (;;) {
         int rc = recv_line(fd, line, sizeof(line));
         if (rc == -2) {
             printf("\ninterrupted, closing connection\n");
+            /* EXIT works in both directions: the gateway flushes, then closes. */
+            send_line(fd, "EXIT");
             break;
         }
         if (rc != 0) {
-            break; /* disconnected */
+            fprintf(stderr, "connection lost\n");
+            status = 1;
+            break;
         }
         ralf_message_t msg;
         if (ralf_parse_line(line, &msg) != 0) {
@@ -443,9 +492,13 @@ int main(int argc, char **argv) {
             continue;
         }
         handle_message(&msg);
+        if (strcmp(msg.msg_type, "EXIT") == 0) {
+            status = 1; /* the gateway ended the session; it closes next */
+            break;
+        }
     }
 
     print_summary();
     close(fd);
-    return 0;
+    return status;
 }
