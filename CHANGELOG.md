@@ -1,3 +1,27 @@
+## [v0.76.0] - 2026-11-05
+
+Release Type: major
+
+### 📋 Summary
+This release makes large configurations easier to maintain with modular YAML files and external API gateway credentials. It also adds REST order-book snapshots and improves configuration generation, verification and deployment tracking.
+
+### ✨ Additions
+- Added top-level `include:` support across authored-configuration readers, with validated merging and source-file tracking
+- Added `credentials_file` support for API gateway credentials and `pm-config-gen --api-keys-for` to write seeded keys to those files
+- Added `GET /book` and `GET /book/{symbol}` REST endpoints for order-book snapshots
+
+### 🚀 Improvements
+- Updated `pm-config-gen --split` and `pm-new-symbol` to create and update symbol and participant include files
+- Extended configuration verification, display, digest, deployment and staleness checks to account for included files and attribute findings to their source
+- Hardened include-file handling for protected filenames and preserved file permissions
+
+### 📚 Documentation
+- Documented modular configuration, split workflows, external API credentials and REST order-book snapshots
+- Added a Python order-book snapshot example and updated the REST API specification
+
+### 🛠 Internal
+- Added automated and end-to-end coverage for configuration includes, external credentials and REST order-book snapshots
+
 ## [v0.75.0] - 2026-11-05
 
 Release Type: major
