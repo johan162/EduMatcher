@@ -25,12 +25,22 @@ from typing import Any
 
 import yaml
 
+from edumatcher.config import COMPILED_CONFIG_FILE, ENGINE_CONFIG_FILE
+from edumatcher.market_sim.config import FILE_NAME as SIM_FILE_NAME
+
 INCLUDE_KEY = "include"
 
 
 CREDENTIALS_FILE_KEY = "credentials_file"
 
-_LOCATION = re.compile(r"^(\w+)(?:\[(\d+)\]|\.([^.\[]+))?")
+_LOCATION = re.compile(r"^(\w+)(?:\[(\d+)\])?")
+
+#: Names pm-config-deploy writes beside the artifact. A top-level include or
+#: credentials file with one of them would be overwritten by, or overwrite,
+#: that file when installed.
+_RESERVED_NAMES = frozenset(
+    {ENGINE_CONFIG_FILE.name, COMPILED_CONFIG_FILE.name, SIM_FILE_NAME}
+)
 _CREDENTIALS_LOCATION = re.compile(r"^api_gateways\.([^.\[]+)\.credentials\b")
 
 
@@ -59,10 +69,17 @@ class LoadedConfig:
         match = _LOCATION.match(location)
         if match is None:
             return None
-        key, index, name = match.groups()
-        sub: str | int | None = int(index) if index is not None else name
-        if sub is not None and (key, sub) in self.entry_files:
-            return self.entry_files[(key, sub)]
+        key, index = match.groups()
+        if index is not None and (key, int(index)) in self.entry_files:
+            return self.entry_files[(key, int(index))]
+        rest = location[match.end() :]
+        if index is None and rest.startswith("."):
+            # A name may itself contain dots (symbol BRK.B): longest match wins.
+            parts = rest[1:].split(".")
+            for n in range(len(parts), 0, -1):
+                name = ".".join(parts[:n])
+                if (key, name) in self.entry_files:
+                    return self.entry_files[(key, name)]
         return self.key_files.get(key)
 
 
@@ -88,7 +105,14 @@ def _include_paths(main: Path, raw: dict[str, Any]) -> list[Path]:
         return []
     if not isinstance(entries, list) or not all(isinstance(e, str) for e in entries):
         raise ConfigIncludeError(f"{main}: 'include' must be a list of file names")
-    return [_relative_file(main, entry, "include") for entry in entries]
+    paths: list[Path] = []
+    for entry in entries:
+        target = _relative_file(main, entry, "include")
+        _refuse_reserved(main, target)
+        if any(target.resolve() == p.resolve() for p in paths):
+            raise ConfigIncludeError(f"{main}: include '{entry}' is listed twice")
+        paths.append(target)
+    return paths
 
 
 def _relative_file(owner: Path, entry: str, what: str) -> Path:
@@ -102,6 +126,15 @@ def _relative_file(owner: Path, entry: str, what: str) -> Path:
     if not target.is_file():
         raise ConfigIncludeError(f"{owner}: {what} file not found: {target}")
     return target
+
+
+def _refuse_reserved(main: Path, target: Path) -> None:
+    name = target.relative_to(main.parent).as_posix()
+    if name in _RESERVED_NAMES:
+        raise ConfigIncludeError(
+            f"{main}: '{name}' is a reserved name (pm-config-deploy installs "
+            "its own file there); rename it or move it into a subdirectory"
+        )
 
 
 def _record_entries(
@@ -190,6 +223,7 @@ def _resolve_credentials_files(
                 f"{owner}: {where} has both 'credentials' and 'credentials_file'"
             )
         target = _relative_file(owner, entry, f"{where}.credentials_file")
+        _refuse_reserved(main, target)
         block["credentials"] = _read_credentials(target)
         resolved[str(name)] = target
     return resolved

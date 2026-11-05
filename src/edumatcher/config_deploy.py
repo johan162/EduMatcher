@@ -40,6 +40,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import shutil
 import sys
 from dataclasses import replace
 from datetime import datetime, timezone
@@ -230,15 +231,18 @@ def compile_config(source: Path) -> CompiledConfig:
     )
 
 
-def _write_atomically(path: Path, text: str) -> None:
+def _write_atomically(path: Path, text: str, mode_of: Path | None = None) -> None:
     """Write *text* to *path* via a staged rename.
 
     A process starting midway through a deploy must see either the old file or
-    the new one, never half of either.
+    the new one, never half of either. With *mode_of*, the file gets that
+    file's permissions, so a private credentials file stays private.
     """
     path.parent.mkdir(parents=True, exist_ok=True)
     staged = path.with_name(path.name + ".tmp")
     staged.write_text(text, encoding="utf-8")
+    if mode_of is not None:
+        shutil.copymode(mode_of, staged)
     os.replace(staged, path)
 
 
@@ -264,7 +268,7 @@ def _install_source(source: Path, installed: Path) -> None:
     kept = set()
     for path in loaded.files[1:]:
         target = installed.parent / path.relative_to(source.parent)
-        _write_atomically(target, path.read_text("utf-8"))
+        _write_atomically(target, path.read_text("utf-8"), mode_of=path)
         kept.add(target)
     if installed.parent.resolve() == source.parent.resolve():
         return  # deploying in place: those files are the authored ones

@@ -529,6 +529,14 @@ class TestIncludes:
         assert not (dest.parent / "parts").exists()
         assert (dest.parent / "engine_config.yaml").is_file()
 
+    def test_installed_includes_keep_their_file_mode(self, tmp_path: Path) -> None:
+        # A credentials file is 0600; deploying must not widen it to the umask.
+        main = self._split(tmp_path)
+        (main.parent / "symbols.yaml").chmod(0o600)
+        dest = tmp_path / "ref_data" / "engine_config.json"
+        deploy(main, dest)
+        assert (dest.parent / "symbols.yaml").stat().st_mode & 0o777 == 0o600
+
     def test_deploying_in_place_never_deletes_authored_includes(
         self, tmp_path: Path
     ) -> None:

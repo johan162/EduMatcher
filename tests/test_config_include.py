@@ -155,6 +155,59 @@ def test_origin_of_names_the_file_for_entries_and_keys(tmp_path: Path) -> None:
     assert loaded.origin_of("") is None
 
 
+def test_origin_of_a_symbol_with_a_dot_in_its_name(tmp_path: Path) -> None:
+    main = _write(
+        tmp_path,
+        "main.yaml",
+        "include: [s.yaml]\nsymbols:\n  BRK: {}\n  MAIN: {}\n",
+    )
+    s = _write(tmp_path, "s.yaml", "symbols:\n  BRK.B: {}\n")
+    loaded = load_config_mapping(main)
+    assert loaded.origin_of("symbols.BRK.B.tick_decimals") == s
+    assert loaded.origin_of("symbols.BRK.B") == s
+    assert loaded.origin_of("symbols.BRK.tick_decimals") == main
+
+
+@pytest.mark.parametrize("entry", ["a.yaml", "./a.yaml"])
+def test_a_file_listed_twice_is_rejected(tmp_path: Path, entry: str) -> None:
+    main = _write(tmp_path, "main.yaml", f"include: [a.yaml, {entry}]\n")
+    _write(tmp_path, "a.yaml", "participants: [a1]\n")
+    with pytest.raises(ConfigIncludeError, match="listed twice"):
+        load_config_mapping(main)
+
+
+@pytest.mark.parametrize(
+    "name", ["engine_config.yaml", "engine_config.json", "market_sim.yaml"]
+)
+def test_an_include_may_not_take_a_name_deploy_installs(
+    tmp_path: Path, name: str
+) -> None:
+    main = _write(tmp_path, "main.yaml", f"include: [{name}]\n")
+    _write(tmp_path, name, "symbols:\n  AAA: {}\n")
+    with pytest.raises(ConfigIncludeError, match="reserved"):
+        load_config_mapping(main)
+
+
+def test_a_reserved_name_is_fine_in_a_subdirectory(tmp_path: Path) -> None:
+    main = _write(tmp_path, "main.yaml", "include: [sub/engine_config.yaml]\n")
+    (tmp_path / "sub").mkdir()
+    _write(tmp_path / "sub", "engine_config.yaml", "symbols:\n  AAA: {}\n")
+    assert load_config_mapping(main).data == {"symbols": {"AAA": {}}}
+
+
+def test_a_credentials_file_may_not_take_a_name_deploy_installs(
+    tmp_path: Path,
+) -> None:
+    main = _write(
+        tmp_path,
+        "main.yaml",
+        "api_gateways:\n  desk:\n    credentials_file: market_sim.yaml\n",
+    )
+    _write(tmp_path, "market_sim.yaml", "[]\n")
+    with pytest.raises(ConfigIncludeError, match="reserved"):
+        load_config_mapping(main)
+
+
 def _gateway_config(tmp_path: Path, extra: str = "") -> Path:
     return _write(
         tmp_path,

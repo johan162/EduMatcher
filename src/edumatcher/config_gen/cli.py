@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import math
+import os
 import shlex
 import sys
 from collections.abc import Callable
@@ -2117,9 +2118,15 @@ def _write_output(
     if output_path.exists() and not force:
         raise FileExistsError("Output file already exists")
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(content, encoding="utf-8")
-    if mode is not None:
-        output_path.chmod(mode)
+    if mode is None:
+        output_path.write_text(content, encoding="utf-8")
+        return
+    # Restrict the mode before any content is written, also when --force
+    # overwrites an existing, more open file.
+    fd = os.open(output_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, mode)
+    os.fchmod(fd, mode)
+    with os.fdopen(fd, "w", encoding="utf-8") as handle:
+        handle.write(content)
 
 
 def _validate_generated(content: str, parts: dict[str, str] | None = None) -> None:

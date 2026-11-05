@@ -170,6 +170,7 @@ The rules are deliberately few:
 | Rule | Detail |
 |---|---|
 | **Where** | Paths are relative to the file that lists them. No absolute paths and no `..`; a subdirectory (`parts/symbols.yaml`) is fine. |
+| **Names** | Each file may be listed once. Beside the main file, `engine_config.yaml`, `engine_config.json` and `market_sim.yaml` are reserved, because `pm-config-deploy` installs its own files under those names; put such a file in a subdirectory or rename it. The same applies to a `credentials_file`. |
 | **Depth** | One level. An included file may not have an `include` of its own; list every file in the main file. |
 | **Content** | An included file is a YAML mapping using the same top-level keys as the main file. |
 | **Lists** | A list present in several files (`participants`) is concatenated: the main file's entries first, then each include in the order listed. |

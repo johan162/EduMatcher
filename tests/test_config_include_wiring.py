@@ -67,7 +67,10 @@ def test_config_show_reads_included_files(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     main = _split(resolve_example("s3-basic"), tmp_path)
-    assert config_show_main(["--file", str(main), "--width", "100"]) == 0
+    # Pin the height too: Rich otherwise takes it from the terminal / LINES,
+    # and a short one renders the tiny view without the panels.
+    argv = ["--file", str(main), "--width", "100", "--height", "400"]
+    assert config_show_main(argv) == 0
     assert "participants" in capsys.readouterr().out.lower()
 
 
@@ -127,7 +130,8 @@ def test_config_show_lists_included_files(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     main = _split(resolve_example("s3-basic"), tmp_path)
-    assert config_show_main(["--file", str(main), "--width", "140"]) == 0
+    argv = ["--file", str(main), "--width", "140", "--height", "400"]
+    assert config_show_main(argv) == 0
     assert "includes: symbols.yaml, participants.yaml" in capsys.readouterr().out
 
 
