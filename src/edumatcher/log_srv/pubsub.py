@@ -59,6 +59,7 @@ import queue
 import sqlite3
 import threading
 import time
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -139,6 +140,31 @@ _ROW_COLUMNS = (
 )
 
 _SELECT_BACKFILL = f"SELECT {', '.join(_ROW_COLUMNS)} FROM log_events"
+
+
+#: A backfill chunk query examines at most this many chunks' worth of ``seq``
+#: values, so a selective filter cannot turn one main-loop pass into a scan
+#: of the whole window.
+_BACKFILL_SCAN_FACTOR = 20
+
+#: Name under which :func:`_contains` is registered on the backfill
+#: connection, so live and backfill share one substring test.
+CONTAINS_SQL_FUNCTION = "lalf_contains"
+
+
+def _contains(message: str, needle_lower: str) -> bool:
+    """Case-insensitive substring test shared by the live and backfill paths."""
+    return needle_lower in message.lower()
+
+
+def register_sql_functions(conn: sqlite3.Connection) -> None:
+    """Make :meth:`LogFilter.sql_where`'s functions available on ``conn``."""
+    conn.create_function(
+        CONTAINS_SQL_FUNCTION,
+        2,
+        lambda message, needle: int(_contains(str(message), str(needle))),
+        deterministic=True,
+    )
 
 
 class LogFilterError(ValueError):
@@ -226,26 +252,35 @@ class LogFilter:
         floor = LEVEL_ORDER[self.min_level]
         return tuple(name for name, rank in LEVEL_ORDER.items() if rank >= floor)
 
-    def matches(self, row: LogEventRow) -> bool:
-        """Evaluate the filter against one just-persisted row (live path)."""
+    def matches(self, row: Mapping[str, Any]) -> bool:
+        """Evaluate the filter against one serialised row (live path)."""
         if self.min_level is not None:
-            rank = LEVEL_ORDER.get(row.level.upper())
+            rank = LEVEL_ORDER.get(str(row["level"]).upper())
             if rank is None or rank < LEVEL_ORDER[self.min_level]:
                 return False
-        if self.processes and row.process not in self.processes:
+        if self.processes and row["process"] not in self.processes:
             return False
-        if self.sessions and row.session not in self.sessions:
+        if self.sessions and row["session"] not in self.sessions:
             return False
-        if self.loggers and not any(row.logger.startswith(p) for p in self.loggers):
+        if self.loggers:
+            logger_name = str(row["logger"] or "")
+            if not any(logger_name.startswith(p) for p in self.loggers):
+                return False
+        if self.exceptions_only and not row["has_exception"]:
             return False
-        if self.exceptions_only and not row.has_exception:
-            return False
-        if self.contains and self.contains not in row.message.lower():
+        if self.contains and not _contains(str(row["message"]), self.contains):
             return False
         return True
 
     def sql_where(self) -> tuple[list[str], list[Any]]:
-        """Compile the filter to ``WHERE`` fragments + params (backfill path)."""
+        """Compile the filter to ``WHERE`` fragments + params (backfill path).
+
+        Each fragment is the exact SQL counterpart of a :meth:`matches` test:
+        a logger prefix compares a ``substr`` (``LIKE`` would treat ``_`` as
+        a wildcard and ignore case), and ``contains`` calls the same Python
+        predicate, registered on the connection as ``lalf_contains``
+        (SQLite's ``LOWER`` folds ASCII only).
+        """
         clauses: list[str] = []
         params: list[Any] = []
 
@@ -261,14 +296,17 @@ class LogFilter:
             params.extend(self.sessions)
         if self.loggers:
             clauses.append(
-                "(" + " OR ".join(["logger LIKE ?"] * len(self.loggers)) + ")"
+                "("
+                + " OR ".join(["substr(logger, 1, ?) = ?"] * len(self.loggers))
+                + ")"
             )
-            params.extend(f"{prefix}%" for prefix in self.loggers)
+            for prefix in self.loggers:
+                params.extend((len(prefix), prefix))
         if self.exceptions_only:
             clauses.append("has_exception = 1")
         if self.contains:
-            clauses.append("LOWER(message) LIKE ?")
-            params.append(f"%{self.contains}%")
+            clauses.append(f"{CONTAINS_SQL_FUNCTION}(message, ?)")
+            params.append(self.contains)
         return clauses, params
 
     def to_dict(self) -> dict[str, Any]:
@@ -293,12 +331,17 @@ class BackfillJob:
     main loop. Instead each job keeps a ``seq`` cursor and emits at most
     one bounded chunk per :meth:`LogPubSubHub.poll` call, so an arbitrarily
     large window costs a bounded amount of work per loop iteration.
+
+    ``max_seq`` is the hub's last fanned-out ``seq`` when the job started:
+    every later row reaches the subscriber on the live path, so stopping
+    there makes the historical and live halves meet without overlap.
     """
 
     sub_id: str
     request_id: str
     where_sql: str
     params: list[Any]
+    max_seq: int
     cursor_seq: int = 0
     chunk_index: int = 0
     sent_rows: int = 0
@@ -435,9 +478,11 @@ class LogPubSubHub:
         # the main loop is somehow starved; overflow is counted and reported.
         self._inbox: "queue.Queue[list[dict[str, Any]]]" = queue.Queue(maxsize=1024)
         self._inbox_dropped = 0
+        self._inbox_dropped_reported = 0
         self._inbox_lock = threading.Lock()
 
         self._last_seq = 0
+        self._request_count = 0
         self._last_state_at = 0.0
         self._started = False
 
@@ -466,6 +511,7 @@ class LogPubSubHub:
 
         self._read_conn = open_db(self._db_path, read_only=True)
         self._read_conn.row_factory = sqlite3.Row
+        register_sql_functions(self._read_conn)
         self._last_seq = self._current_max_seq()
         self._started = True
 
@@ -660,6 +706,14 @@ class LogPubSubHub:
             sub.renewals = existing.renewals
         self._subs[sub_id] = sub
 
+        # Built before the ack so the ack can name the request id the
+        # backfill chunks will carry; a refusal is reported after the ack.
+        minutes = payload.get("backfill_minutes")
+        backfill = (
+            self._prepare_backfill(sub_id, payload, filt, minutes) if minutes else None
+        )
+        job = backfill if isinstance(backfill, BackfillJob) else None
+
         self._publish(
             make_log_subscribe_ack(
                 accepted=True,
@@ -672,7 +726,7 @@ class LogPubSubHub:
                 renew_before_sec=round(lease_sec / 2.0, 3),
                 notify_interval_ms=int(notify_interval * 1000),
                 last_seq=self._last_seq,
-                backfill_request_id="",
+                backfill_request_id=job.request_id if job is not None else "",
                 timestamp=time.time(),
             )
         )
@@ -684,9 +738,10 @@ class LogPubSubHub:
             filt.to_dict(),
         )
 
-        minutes = payload.get("backfill_minutes")
-        if minutes:
-            self._start_backfill(sub_id, payload, filt, minutes)
+        if isinstance(backfill, tuple):
+            self._error(sub_id, *backfill)
+        elif job is not None:
+            self._launch_backfill(job)
 
     def _handle_renew(self, sub_id: str, now: float) -> None:
         sub = self._subs.get(sub_id)
@@ -765,64 +820,121 @@ class LogPubSubHub:
             if filter_raw is None
             else LogFilter.from_payload(filter_raw)
         )
-        self._start_backfill(sub_id, payload, filt, minutes)
+        backfill = self._prepare_backfill(sub_id, payload, filt, minutes)
+        if isinstance(backfill, tuple):
+            self._error(sub_id, *backfill)
+        else:
+            self._launch_backfill(backfill)
         # Requesting a backfill is itself proof of life; treat it as a renew
         # so a subscriber pulling a large window never expires mid-transfer.
         self._subs[sub_id].renew(now)
 
-    def _start_backfill(
+    def _prepare_backfill(
         self,
         sub_id: str,
         payload: dict[str, Any],
         filt: LogFilter,
         minutes_raw: object,
-    ) -> None:
+    ) -> BackfillJob | tuple[str, str]:
+        """Validate a request and build its job, or return ``(code, reason)``."""
         try:
             minutes = int(minutes_raw)  # type: ignore[call-overload]
         except TypeError, ValueError:
-            self._error(sub_id, ERR_INVALID_WINDOW, "minutes must be an integer")
-            return
+            return ERR_INVALID_WINDOW, "minutes must be an integer"
         if minutes <= 0:
-            self._error(sub_id, ERR_INVALID_WINDOW, "minutes must be > 0")
-            return
+            return ERR_INVALID_WINDOW, "minutes must be > 0"
         if minutes > self._max_backfill_minutes:
-            self._error(
-                sub_id,
+            return (
                 ERR_INVALID_WINDOW,
                 f"minutes exceeds server max_backfill_minutes"
                 f"={self._max_backfill_minutes}",
             )
-            return
 
         max_rows = self._max_backfill_rows
         req_max = payload.get("max_rows")
         if isinstance(req_max, int) and 0 < req_max < max_rows:
             max_rows = req_max
 
-        request_id = f"{sub_id}-{int(time.time() * 1000):x}"
+        # The counter keeps two requests in one millisecond apart; the time
+        # keeps ids from repeating across server restarts.
+        self._request_count += 1
+        request_id = f"{sub_id}-{int(time.time() * 1000):x}-{self._request_count:x}"
         cutoff = iso_utc(time.time() - minutes * 60)
         clauses, params = filt.sql_where()
         clauses.insert(0, "client_ts >= ?")
         params.insert(0, cutoff)
 
-        self._backfills[sub_id] = BackfillJob(
+        return BackfillJob(
             sub_id=sub_id,
             request_id=request_id,
             where_sql=" WHERE " + " AND ".join(clauses),
             params=params,
+            max_seq=self._last_seq,
+            cursor_seq=self._first_seq_at_or_after(cutoff) - 1,
             max_rows=max_rows,
             chunk_rows=self._backfill_chunk_rows,
         )
+
+    def _launch_backfill(self, job: BackfillJob) -> None:
+        """Register ``job``, closing any job it replaces for the same sub."""
+        old = self._backfills.pop(job.sub_id, None)
+        if old is not None:
+            # The subscriber is still waiting on the old request id; end it
+            # explicitly (truncated: not everything was delivered).
+            self._publish(
+                make_log_backfill(
+                    sub_id=old.sub_id,
+                    request_id=old.request_id,
+                    chunk=old.chunk_index,
+                    rows=[],
+                    row_count=0,
+                    done=True,
+                    total_sent=old.sent_rows,
+                    truncated=True,
+                    last_seq=old.cursor_seq,
+                    timestamp=time.time(),
+                )
+            )
+            log.info(
+                "LALF-PS backfill superseded sub_id=%s request_id=%s",
+                old.sub_id,
+                old.request_id,
+            )
+        self._backfills[job.sub_id] = job
         log.info(
-            "LALF-PS backfill start sub_id=%s request_id=%s minutes=%d max_rows=%d",
-            sub_id,
-            request_id,
-            minutes,
-            max_rows,
+            "LALF-PS backfill start sub_id=%s request_id=%s seq=(%d, %d] max_rows=%d",
+            job.sub_id,
+            job.request_id,
+            job.cursor_seq,
+            job.max_seq,
+            job.max_rows,
         )
 
+    def _first_seq_at_or_after(self, cutoff: str) -> int:
+        """Lowest ``seq`` whose ``client_ts`` is in the window, via its index.
+
+        Starting the cursor here keeps a backfill from walking every row
+        older than its window. With no such row, one past ``_last_seq``:
+        the job then has nothing to scan and finishes on its first pass.
+        """
+        if self._read_conn is None:
+            return self._last_seq + 1
+        try:
+            row = self._read_conn.execute(
+                "SELECT MIN(seq) FROM log_events WHERE client_ts >= ?", (cutoff,)
+            ).fetchone()
+        except sqlite3.Error:  # pragma: no cover - defensive
+            return 1
+        return int(row[0]) if row and row[0] is not None else self._last_seq + 1
+
     def _pump_backfills(self) -> None:
-        """Emit at most one chunk per active job, then stop."""
+        """Emit at most one chunk per active job, then stop.
+
+        Each query looks at a bounded ``seq`` range past the cursor, so a
+        filter that matches rarely costs a bounded scan per pass rather
+        than a walk of the whole window; a pass that finds nothing in its
+        range publishes nothing and just advances the cursor.
+        """
         if not self._backfills or self._read_conn is None:
             return
         for sub_id, job in list(self._backfills.items()):
@@ -833,13 +945,16 @@ class LogPubSubHub:
 
             remaining = job.max_rows - job.sent_rows
             limit = min(job.chunk_rows, remaining)
+            upper = min(
+                job.cursor_seq + job.chunk_rows * _BACKFILL_SCAN_FACTOR, job.max_seq
+            )
             sql = (
-                f"{_SELECT_BACKFILL}{job.where_sql} AND seq > ? "
+                f"{_SELECT_BACKFILL}{job.where_sql} AND seq > ? AND seq <= ? "
                 f"ORDER BY seq ASC LIMIT ?"
             )
             try:
                 cursor = self._read_conn.execute(
-                    sql, (*job.params, job.cursor_seq, limit)
+                    sql, (*job.params, job.cursor_seq, upper, limit)
                 )
                 fetched = cursor.fetchall()
             except sqlite3.Error as exc:
@@ -849,11 +964,14 @@ class LogPubSubHub:
                 continue
 
             rows = [self._sqlite_row_to_dict(r) for r in fetched]
-            if rows:
-                job.cursor_seq = int(rows[-1]["seq"])
-                job.sent_rows += len(rows)
-            truncated = job.sent_rows >= job.max_rows and len(rows) == limit
-            done = len(rows) < limit or truncated
+            job.sent_rows += len(rows)
+            # A full chunk may have stopped short of ``upper``; otherwise the
+            # whole range has been examined.
+            job.cursor_seq = int(rows[-1]["seq"]) if len(rows) == limit else upper
+            truncated = job.sent_rows >= job.max_rows and job.cursor_seq < job.max_seq
+            done = job.cursor_seq >= job.max_seq or truncated
+            if not rows and not done:
+                continue
 
             self._publish(
                 make_log_backfill(
@@ -898,6 +1016,16 @@ class LogPubSubHub:
 
     def _fan_out_new_rows(self) -> None:
         """Drain the writer-thread inbox and route rows to subscriptions."""
+        with self._inbox_lock:
+            inbox_dropped = self._inbox_dropped
+        if inbox_dropped > self._inbox_dropped_reported:
+            # Rows lost before filtering: every subscription may have missed
+            # them, so each is told (an upper bound for a filtered one)
+            # rather than seeing an unexplained gap in seq.
+            missed = inbox_dropped - self._inbox_dropped_reported
+            for sub in self._subs.values():
+                sub.dropped_rows += missed
+            self._inbox_dropped_reported = inbox_dropped
         while True:
             try:
                 rows = self._inbox.get_nowait()
@@ -908,7 +1036,7 @@ class LogPubSubHub:
                 if seq > self._last_seq:
                     self._last_seq = seq
                 for sub in self._subs.values():
-                    if not self._row_matches(sub.filt, row):
+                    if not sub.filt.matches(row):
                         continue
                     if sub.mode == MODE_NOTIFY:
                         sub.pending_count += 1
@@ -924,27 +1052,6 @@ class LogPubSubHub:
                             # letting one lagging viewer bloat the server.
                             del sub.pending_rows[:overflow]
                             sub.dropped_rows += overflow
-
-    @staticmethod
-    def _row_matches(filt: LogFilter, row: dict[str, Any]) -> bool:
-        """Apply a filter to an already-serialised row dict."""
-        if filt.min_level is not None:
-            rank = LEVEL_ORDER.get(str(row["level"]).upper())
-            if rank is None or rank < LEVEL_ORDER[filt.min_level]:
-                return False
-        if filt.processes and row["process"] not in filt.processes:
-            return False
-        if filt.sessions and row["session"] not in filt.sessions:
-            return False
-        if filt.loggers:
-            logger_name = str(row["logger"] or "")
-            if not any(logger_name.startswith(p) for p in filt.loggers):
-                return False
-        if filt.exceptions_only and not row["has_exception"]:
-            return False
-        if filt.contains and filt.contains not in str(row["message"]).lower():
-            return False
-        return True
 
     def _flush_notifies(self, now: float) -> None:
         for sub in self._subs.values():

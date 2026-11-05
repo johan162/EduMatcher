@@ -138,3 +138,32 @@ def test_main_closes_server_even_on_runtime_error(
 
     assert called["run"] is True
     assert called["close"] is True
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        # A negative retention puts the prune cutoff in the future, which
+        # would delete every row on the first pass.
+        ["--retention-days", "-5"],
+        ["--max-message-bytes", "0"],
+        ["--lease-sec", "-1"],
+        ["--port", "-1"],
+    ],
+)
+def test_main_rejects_out_of_range_flags(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, argv: list[str]
+) -> None:
+    monkeypatch.setattr(
+        log_srv_main,
+        "load_default_log_server_config",
+        lambda: LogServerConfig(db_path=tmp_path / "log.db"),
+    )
+    monkeypatch.setattr(
+        "edumatcher.config_artifact.report_deployment", lambda _log: None
+    )
+    monkeypatch.setattr(sys, "argv", ["pm-log-srv", *argv])
+
+    with pytest.raises(SystemExit) as excinfo:
+        log_srv_main.main()
+    assert excinfo.value.code == 2

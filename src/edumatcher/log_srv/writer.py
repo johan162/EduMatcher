@@ -87,10 +87,13 @@ class WriterThread:
         self._queue: "queue.Queue[LogEventRow]" = queue.Queue()
         self._thread: threading.Thread | None = None
         self._running = False
-        # Depth is read by the server's backpressure check (§5.8/§15.13) —
-        # queue.Queue.qsize() is documented as approximate but "good enough
-        # for backpressure" per the design; exposed as a property so callers
-        # never reach into the private queue directly.
+        #: Rows of a batch whose commit failed, written first on the next
+        #: attempt: an accepted LOG row is never discarded for write-path
+        #: load (§15.13). Only touched under ``_drain_lock``.
+        self._retry: list[LogEventRow] = []
+        #: Serialises draining between the writer thread and ``stop()``'s
+        #: final flush, which can overlap if the thread failed to join.
+        self._drain_lock = threading.Lock()
         #: Serialises use of the shared connection: the server's main loop
         #: writes its session bookkeeping through the same connection, and a
         #: commit from one thread must never land inside the other's
@@ -99,7 +102,10 @@ class WriterThread:
 
     @property
     def pending(self) -> int:
-        return self._queue.qsize()
+        """Rows accepted but not yet committed — the server's backpressure
+        signal (§5.8/§15.13). ``qsize()`` is approximate, which is good
+        enough for a throttle threshold."""
+        return self._queue.qsize() + len(self._retry)
 
     def enqueue(self, row: LogEventRow) -> None:
         self._queue.put(row)
@@ -115,8 +121,15 @@ class WriterThread:
         self._running = False
         if self._thread is not None:
             self._thread.join(timeout=flush_timeout_sec)
-        # Final drain of anything left in the queue at shutdown, best-effort.
-        self._drain_and_write(force=True)
+        # Final drain: batch after batch until everything accepted is
+        # committed, or a commit fails and the rest cannot be written.
+        while self._drain_and_write(force=True):
+            pass
+        if self.pending:
+            log.error(
+                "writer thread: %d accepted rows could not be persisted at shutdown",
+                self.pending,
+            )
 
     def _run(self) -> None:
         while self._running:
@@ -125,7 +138,12 @@ class WriterThread:
                 time.sleep(self._batch_interval_sec)
 
     def _drain_and_write(self, *, force: bool) -> int:
-        rows: list[LogEventRow] = []
+        with self._drain_lock:
+            return self._drain_and_write_locked(force=force)
+
+    def _drain_and_write_locked(self, *, force: bool) -> int:
+        rows: list[LogEventRow] = self._retry
+        self._retry = []
         deadline = time.monotonic() + self._batch_interval_sec
         while len(rows) < self._batch_size:
             try:
@@ -202,8 +220,14 @@ class WriterThread:
                         (ts, n, session_id),
                     )
         except sqlite3.Error as exc:
+            # Kept, not dropped: the rows go first into the next attempt, and
+            # until then they count towards ``pending``, so a persistently
+            # failing disk throttles producers instead of losing their logs.
+            self._retry = rows
             log.error(
-                "writer thread: failed to persist batch of %d rows: %s", len(rows), exc
+                "writer thread: failed to persist batch of %d rows (will retry): %s",
+                len(rows),
+                exc,
             )
             return 0
 

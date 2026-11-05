@@ -870,6 +870,12 @@ CREATE TABLE server_stats (
 )
 ```
 
+#### `index idx_le_client_ts`
+
+```sql
+CREATE INDEX idx_le_client_ts  ON log_events(client_ts)
+```
+
 #### `index idx_le_level_ts`
 
 ```sql

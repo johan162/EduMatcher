@@ -46,6 +46,9 @@ CREATE INDEX IF NOT EXISTS idx_le_process_ts ON log_events(process, client_ts);
 CREATE INDEX IF NOT EXISTS idx_le_level_ts   ON log_events(level, client_ts);
 CREATE INDEX IF NOT EXISTS idx_le_logger_ts  ON log_events(logger, client_ts);
 CREATE INDEX IF NOT EXISTS idx_le_session    ON log_events(session);
+-- Time-window lookups with no other filter: the LALF-PS backfill start
+-- (first seq inside the window) and retention pruning.
+CREATE INDEX IF NOT EXISTS idx_le_client_ts  ON log_events(client_ts);
 
 CREATE TABLE IF NOT EXISTS processes (
     session         TEXT PRIMARY KEY,
@@ -139,9 +142,20 @@ INCREMENT_TOTAL_ERRORS_SENT = """
 UPDATE server_stats SET total_errors_sent = total_errors_sent + 1 WHERE id = 1
 """
 
+#: Deletes at most ``?`` rows per statement, oldest first, so an hourly prune
+#: of a large backlog holds the write lock for one bounded chunk at a time
+#: instead of one long transaction the writer thread would queue behind.
 DELETE_OLD_LOG_EVENTS = """
-DELETE FROM log_events WHERE client_ts < ?
+DELETE FROM log_events WHERE seq IN (
+    SELECT seq FROM log_events WHERE client_ts < ? ORDER BY seq LIMIT ?
+)
 """
+
+#: Rows removed per retention-prune statement.
+PRUNE_CHUNK_ROWS = 5000
+
+#: How long a connection waits on a locked database before SQLITE_BUSY.
+BUSY_TIMEOUT_MS = 10_000
 
 
 def initialize_schema(conn: sqlite3.Connection) -> None:
@@ -178,10 +192,15 @@ def open_db(path: Path, *, read_only: bool = False) -> sqlite3.Connection:
     if read_only:
         uri = f"file:{path}?mode=ro"
         conn = sqlite3.connect(uri, uri=True, check_same_thread=False)
+        conn.execute(f"PRAGMA busy_timeout = {BUSY_TIMEOUT_MS}")
         return conn
 
     path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(path), check_same_thread=False)
+    # WAL so readers (pm-log-cli, the LALF-PS backfill connection) never
+    # block the writer's commits, as every other EduMatcher store does.
+    conn.execute("PRAGMA journal_mode = WAL")
+    conn.execute(f"PRAGMA busy_timeout = {BUSY_TIMEOUT_MS}")
     initialize_schema(conn)
     conn.commit()
     return conn

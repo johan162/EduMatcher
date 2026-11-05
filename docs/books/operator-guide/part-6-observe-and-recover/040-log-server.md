@@ -753,8 +753,9 @@ report. Both being stale is the case worth looking into.
 
 `disconnect_reason` says *how* a session ended: `client_exit` means the
 client sent `EXIT` and shut down deliberately, while `peer_closed`,
-`idle_timeout`, `hello_timeout`, or `protocol_error` mean it went away
-without saying goodbye. It is empty for sessions still open, and for
+`io_error` (the connection was reset, typically a crash), `idle_timeout`,
+`hello_timeout`, or `protocol_error` mean it went away without saying
+goodbye. It is empty for sessions still open, and for
 sessions recorded before this column existed.
 
 A session appears here only once it has actually sent a `LOG` or `HB`
