@@ -164,8 +164,11 @@ A connection goes through these stages, and each setting acts at one of them.
    or lower the client's send rate.
 6. **Slow consumers.** Lines for a client wait in an outbound queue until its
    socket accepts them. If that queue reaches `max_client_queue` lines, the
-   queue is discarded, the gateway sends `ERR|CODE=SLOW_CLIENT` and closes the
-   connection, so one stuck client cannot consume the gateway's memory.
+   gateway drops the queued `TRADE` prints and heartbeats, keeps the client's
+   own events (fills, acks, cancels), queues `ERR|CODE=SLOW_CLIENT` after them
+   and closes the connection once they are sent, or after 5 seconds if the
+   client still does not read. One stuck client cannot consume the gateway's
+   memory.
 
 Choosing values for a classroom: the defaults suit a few dozen desks. Raise
 `max_connections` if more clients connect, raise `max_commands_per_second` for

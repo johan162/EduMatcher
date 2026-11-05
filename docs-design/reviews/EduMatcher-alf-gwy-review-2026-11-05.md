@@ -98,13 +98,13 @@ The client parses this as a `FILL` with a wrong `ORDER_ID` and no quantity, and 
 
 **Fix:** keep the remaining bytes of the head when `out_offset > 0`, i.e. replace it with `payload[out_offset:]` and set `out_offset=0`, then append the ERR. Make `_queue_raw` a no-op once `session.closing` is set (the ERR/close paths that legitimately queue after setting `closing` must queue first).
 
-### M2. SLOW_CLIENT discards fills together with the noise
+### M2. SLOW_CLIENT discards fills together with the noise **fixed** (sheds `TRADE`/`HB` only; own events kept ahead of the ERR)
 
 An overflow is almost always caused by the public feed (`TRADE` per print, `HALT`, `SESSION`) on a `FEED=ALL` session. The overflow clears *everything*, including the `FILL`/`ACK`/`CANCELLED` lines that matter, and the client has no way to recover the fills (see H2).
 
 **Fix (pick one):** when trimming, drop public broadcast lines first and keep private lines (mark them when queuing, e.g. a second deque or a flag tuple); or give public broadcasts their own, smaller cap, so a slow feed reader loses trades, not fills. Either way, the ERR should say how many private events were lost.
 
-### M3. Shutdown throws away queued output
+### M3. Shutdown throws away queued output **fixed** (`_flush_for_shutdown`: one SUB drain, `ERR|CODE=GATEWAY_SHUTDOWN`, ≤2 s flush)
 
 `close()` calls `_disconnect` on every session straight away. Lines still in `out_queue`, and events still sitting in the SUB socket, are discarded. On a planned restart, every fill the engine published in the last moments is lost to its client.
 

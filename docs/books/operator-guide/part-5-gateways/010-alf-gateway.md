@@ -791,7 +791,8 @@ When the rejected command carried `TAG` or `RTAG`, the gateway also echoes it as
 | `SYMBOL_NOT_CONFIGURED` | Unknown symbol (after symbols are loaded) | Yes |
 | `ROLE_DENIED` | Command not allowed for this gateway's role (e.g. `QUOTE` for non-MM) | Yes |
 | `RATE_LIMITED` | Commands arriving faster than `max_commands_per_second` | Yes |
-| `SLOW_CLIENT` | Outbound queue full | No |
+| `SLOW_CLIENT` | Outbound queue full (`max_client_queue`). Queued `TRADE` prints and heartbeats are dropped; the client's own events are still sent ahead of this line | No |
+| `GATEWAY_SHUTDOWN` | The gateway is stopping. Sent after the session's remaining events (flushed for up to 2 seconds) | No |
 | `IDLE_TIMEOUT` | No inbound traffic for `idle_timeout_sec` | No |
 | `MAX_ERRORS` | Too many errors in the sliding error window | No |
 | `SESSION_LOST` | The engine no longer holds the session: it restarted, or it expired the session. The gateway closes every session when it sees the engine's startup broadcast, and every 5 seconds asks the engine which participants it holds and closes the ones it no longer does. Log on again (after an engine restart the engine's positions start flat) | No |

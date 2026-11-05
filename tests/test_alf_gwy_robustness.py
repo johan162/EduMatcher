@@ -621,17 +621,19 @@ class TestSlowClientOverflow:
     ) -> None:
         gw = _make_gateway(monkeypatch, max_client_queue=3)
         session, peer = _authed_session(gw)
-        fill = b"FILL|ORDER_ID=abc|FILL_QTY=100|FILL_PRICE=1.00\n"
-        session.out_queue.extend([fill, b"X\n", b"Y\n"])
-        session.out_offset = 16  # 'FILL|ORDER_ID=ab' already on the wire
+        # A trade print, sheddable, but half-sent: it must be finished.
+        trade = b"TRADE|SYMBOL=AAPL|PRICE=1.00|QTY=100|SIDE=BUY\n"
+        session.out_queue.extend([trade, b"TRADE|N=1\n", b"TRADE|N=2\n"])
+        session.out_offset = 16  # 'TRADE|SYMBOL=AAP' already on the wire
 
         gw._queue_line(session, "HB", {"TS": "t"})  # overflows
         gw._flush_client_writes()
 
-        wire = fill[:16] + peer.recv(65536)
-        assert wire.split(b"\n")[:2] == [
-            fill.rstrip(b"\n"),
+        wire = trade[:16] + peer.recv(65536)
+        assert wire.split(b"\n") == [
+            trade.rstrip(b"\n"),
             b"ERR|CODE=SLOW_CLIENT|DETAIL=Outbound queue full - disconnecting",
+            b"",
         ]
         assert gw._clients == {}
         peer.close()
@@ -788,3 +790,95 @@ def test_both_subscribers_get_a_raised_receive_hwm(
 
     assert seen == [_SUB_RCVHWM, _SUB_RCVHWM]
     assert _SUB_RCVHWM > 1000  # ZMQ's default, which this exists to raise
+
+
+class TestSlowClientShedding:
+    """Overflow sheds the public feed, not the client's own events (M2)."""
+
+    def test_overflow_sheds_the_feed_and_keeps_the_clients_own_events(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        gw = _make_gateway(monkeypatch, max_client_queue=4)
+        session, peer = _authed_session(gw)
+        session.out_queue.extend(
+            [
+                b"TRADE|N=1\n",
+                b"FILL|ORDER_ID=a\n",
+                b"HB|TS=t\n",
+                b"SESSION|STATE=OPEN\n",
+            ]
+        )
+
+        gw._queue_line(session, "CANCELLED", {"ORDER_ID": "b"})  # overflows
+
+        assert list(session.out_queue) == [
+            b"FILL|ORDER_ID=a\n",
+            b"SESSION|STATE=OPEN\n",
+            b"CANCELLED|ORDER_ID=b\n",
+            b"ERR|CODE=SLOW_CLIENT|DETAIL=Outbound queue full - disconnecting\n",
+        ]
+        assert session.closing
+        peer.close()
+
+    def test_overflowing_trade_print_is_itself_shed(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        gw = _make_gateway(monkeypatch, max_client_queue=1)
+        session, peer = _authed_session(gw)
+        session.out_queue.append(b"FILL|ORDER_ID=a\n")
+
+        gw._queue_line(session, "TRADE", {"SYMBOL": "AAPL"})
+
+        assert list(session.out_queue) == [
+            b"FILL|ORDER_ID=a\n",
+            b"ERR|CODE=SLOW_CLIENT|DETAIL=Outbound queue full - disconnecting\n",
+        ]
+        peer.close()
+
+
+# ===========================================================================
+# Shutdown flush (review 2026-11-05 M3)
+# ===========================================================================
+
+
+class TestShutdownFlush:
+    def test_queued_and_pending_events_reach_the_client_before_close(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        gw = _make_gateway(monkeypatch)
+        session, peer = _authed_session(gw)
+        gw._queue_line(session, "FILL", {"ORDER_ID": "queued"})
+        gw._sub = _QueueSub(  # published, not yet read
+            ("order.cancelled.TRADER01", {"order_id": "pending"})
+        )
+        gw._dc_sub = _QueueSub()
+
+        gw._flush_for_shutdown()
+
+        received = peer.recv(65536).decode().splitlines()
+        assert received == [
+            "FILL|ORDER_ID=queued",
+            "CANCELLED|ORDER_ID=pending",
+            "ERR|CODE=GATEWAY_SHUTDOWN|DETAIL=Gateway shutting down",
+        ]
+        assert gw._clients == {}  # flushed sessions are closed
+        peer.close()
+
+    def test_a_peer_that_does_not_read_cannot_hold_up_the_stop(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr("edumatcher.alf_gwy.gateway._SHUTDOWN_FLUSH_SEC", 0.05)
+        gw = _make_gateway(monkeypatch)
+        gw._dc_sub = _QueueSub()
+        session, peer = _authed_session(gw)
+        _fill_kernel_buffer(session)
+        gw._queue_line(session, "FILL", {"ORDER_ID": "stuck"})
+
+        started = time.monotonic()
+        gw._flush_for_shutdown()
+
+        assert time.monotonic() - started < 1.0
+        assert session.sock.fileno() in gw._clients  # left for close()
+        gw.close()
+        assert gw._clients == {}
+        peer.close()

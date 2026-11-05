@@ -180,6 +180,12 @@ _PRIVATE_EVENT_PREFIXES = (
     PREFIX_OCO_CANCELLED,
     PREFIX_KILL_SWITCH_ACK,
 )
+#: Lines a slow client's overflow sheds: the trade feed and heartbeats,
+#: the bulk of any backlog and nothing it cannot do without. Everything
+#: else is the client's own or rare (SESSION is also a query reply).
+_SHEDDABLE = (b"TRADE|", b"HB|")
+#: How long a stopping gateway keeps flushing its sessions' last lines.
+_SHUTDOWN_FLUSH_SEC = 2.0
 _MAX_ENGINE_EVENTS_PER_LOOP = 1000
 _MAX_DC_EVENTS_PER_LOOP = 1000
 #: Longest the event loop sleeps when nothing is pending; housekeeping
@@ -475,8 +481,36 @@ class AlfGateway:
                     self._probe_engine_sessions_if_due(now)
                     self._drop_idle_clients()
                 self._flush_client_writes(writable=writable)
+            self._flush_for_shutdown()
         finally:
             self.close()
+
+    def _flush_for_shutdown(self) -> None:
+        """Give every session what it is owed before a requested stop.
+
+        Events the engine has already published (fills among them) and
+        lines already queued would otherwise die with the sockets. One
+        drain of each SUB socket, a closing ERR, then flush for at most
+        ``_SHUTDOWN_FLUSH_SEC``; whatever a peer has not taken by then is
+        dropped by close(). Not run after a crash: the loop's state is not
+        to be trusted then.
+        """
+        self._poll_engine_events()
+        self._poll_dc_events()
+        for session in list(self._clients.values()):
+            self._queue_line(
+                session,
+                "ERR",
+                {"CODE": "GATEWAY_SHUTDOWN", "DETAIL": "Gateway shutting down"},
+            )
+            self._close_after_flush(session)
+        deadline = time.monotonic() + _SHUTDOWN_FLUSH_SEC
+        while self._dirty and time.monotonic() < deadline:
+            # Every dirty session counts as writable: a peer that cannot
+            # take more just raises EAGAIN again, and the loop is bounded.
+            self._flush_client_writes(writable=set(self._dirty))
+            if self._dirty:
+                time.sleep(0.01)
 
     def stop(self) -> None:
         log.info("stop requested")
@@ -2362,21 +2396,24 @@ class AlfGateway:
             return
         if len(session.out_queue) >= self.config.max_client_queue:
             self._global_stats["slow_client_disconnects"] += 1
-            # A line already partly on the wire must be finished, or the
-            # ERR is glued onto its first half and the client parses a
-            # corrupt frame instead of the reason it is being dropped.
-            head = (
-                session.out_queue[0][session.out_offset :]
-                if session.out_offset
-                else None
-            )
-            session.out_queue.clear()
-            session.out_offset = 0
-            if head is not None:
-                session.out_queue.append(head)
-            session.out_queue.append(
+            queued = iter(session.out_queue)
+            kept: deque[bytes] = deque()
+            if session.out_offset:
+                # A line already partly on the wire must be finished, or the
+                # ERR is glued onto its first half and the client parses a
+                # corrupt frame instead of the reason it is being dropped.
+                kept.append(next(queued)[session.out_offset :])
+            # The overflow is the public feed's doing; the client's own
+            # events (fills, acks, cancels) still go out ahead of the ERR,
+            # for as long as the close grace lets it drain them.
+            kept.extend(line for line in queued if not line.startswith(_SHEDDABLE))
+            if not payload.startswith(_SHEDDABLE):
+                kept.append(payload)
+            kept.append(
                 b"ERR|CODE=SLOW_CLIENT|DETAIL=Outbound queue full - disconnecting\n"
             )
+            session.out_queue = kept
+            session.out_offset = 0
             self._close_after_flush(session)
             return
         session.out_queue.append(payload)
