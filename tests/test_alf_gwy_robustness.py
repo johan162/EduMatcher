@@ -11,7 +11,7 @@ Medium priority:
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 
 import errno
 import json
@@ -19,6 +19,7 @@ import socket
 import time
 
 import pytest
+import zmq
 
 from edumatcher.alf_gwy.config import AlfGatewayConfig
 from edumatcher.alf_gwy.gateway import (
@@ -29,6 +30,7 @@ from edumatcher.alf_gwy.gateway import (
     ClientSession,
 )
 from edumatcher.alf_gwy.protocol import parse_alf_line
+from edumatcher.models.price import register_tick_decimals
 
 # ---------------------------------------------------------------------------
 # Minimal stubs
@@ -949,3 +951,146 @@ class TestAbsentGatewayEventsSkipped:
         gw._poll_engine_events()
 
         assert decoded == [topic]
+
+
+# ===========================================================================
+# WP1: POS queries, gateway ids, price range (review 2026-11-05 L1-L3)
+# ===========================================================================
+
+
+def _sent(gw: AlfGateway) -> list[list[bytes]]:
+    return cast(_FakePush, gw._push).sent
+
+
+class _DownPush(_FakePush):
+    def send_multipart(self, frames: list[bytes]) -> None:
+        raise zmq.Again()
+
+
+class TestPosQueries:
+    def test_two_pending_queries_are_both_answered(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        gw = _make_gateway(monkeypatch)
+        session, peer = _authed_session(gw)
+        gw._handle_client_line(session, "POS|GW=MM_A")
+        gw._handle_client_line(session, "POS|GW=MM_B")
+        gw._sub = _QueueSub(
+            ("system.position_snapshot.MM_A", {"positions": []}),
+            ("system.position_snapshot.MM_B", {"positions": []}),
+        )
+
+        gw._poll_engine_events()
+
+        answered = [f["GW"] for cmd, f in _lines(session) if cmd == "POSITION"]
+        assert answered == ["MM_A", "MM_B"]
+        assert session.pending_position_queries == set()
+        peer.close()
+
+    def test_query_the_engine_never_got_is_not_left_pending(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        gw = _make_gateway(monkeypatch)
+        session, peer = _authed_session(gw)
+        gw._push = _DownPush()
+
+        gw._handle_client_line(session, "POS|GW=MM_A")
+
+        assert _err_codes(session) == ["ENGINE_UNAVAILABLE"]
+        assert session.pending_position_queries == set()
+        peer.close()
+
+    @pytest.mark.parametrize("target", ["A.B", "1ABC", "X" * 33, "MM-A"])
+    def test_unroutable_target_is_refused(
+        self, monkeypatch: pytest.MonkeyPatch, target: str
+    ) -> None:
+        gw = _make_gateway(monkeypatch)
+        session, peer = _authed_session(gw)
+        sent_before = len(_sent(gw))
+
+        gw._handle_client_line(session, f"POS|GW={target}")
+
+        assert _err_codes(session) == ["INVALID_VALUE"]
+        assert len(_sent(gw)) == sent_before
+        assert session.pending_position_queries == set()
+        peer.close()
+
+
+class TestHelloGatewayId:
+    def _hello(self, gw: AlfGateway, gateway_id: str) -> ClientSession:
+        session, peer = _make_session()
+        peer.close()
+        session.rate_tokens = 10.0
+        gw._clients[session.sock.fileno()] = session
+        gw._handle_client_line(session, f"HELLO|CLIENT=c|PROTO=ALF1|ID={gateway_id}")
+        return session
+
+    @pytest.mark.parametrize("gateway_id", ["A.B", "1ABC", "X" * 33, "DESK-1", "É"])
+    def test_id_that_cannot_be_routed_is_refused(
+        self, monkeypatch: pytest.MonkeyPatch, gateway_id: str
+    ) -> None:
+        gw = _make_gateway(monkeypatch)
+
+        session = self._hello(gw, gateway_id)
+
+        assert _err_codes(session) == ["INVALID_VALUE"]
+        assert session.closing
+        assert _sent(gw) == []  # no gateway_connect
+        assert not session.auth_pending
+
+    @pytest.mark.parametrize("gateway_id", ["TRADER01", "mm_aapl_01", "X" * 32])
+    def test_valid_id_logs_on(
+        self, monkeypatch: pytest.MonkeyPatch, gateway_id: str
+    ) -> None:
+        gw = _make_gateway(monkeypatch)
+
+        session = self._hello(gw, gateway_id)
+
+        assert _err_codes(session) == []
+        assert session.auth_pending
+        assert len(_sent(gw)) == 1
+
+
+class TestPriceRange:
+    @pytest.mark.parametrize(
+        "line",
+        [
+            "NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=1|PRICE=1e300",
+            "NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=1|PRICE=1e308",
+            "NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=1|PRICE=-1e20",
+            "NEW|SYM=AAPL|SIDE=BUY|TYPE=STOP|QTY=1|STOP=1e300",
+            "QUOTE|SYM=AAPL|BID=1|ASK=1e300|BID_QTY=1|ASK_QTY=1",
+        ],
+    )
+    def test_absurd_price_is_invalid_value_not_internal_error(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+        line: str,
+    ) -> None:
+        register_tick_decimals("AAPL", 2)
+        gw = _make_gateway(monkeypatch)
+        session, peer = _authed_session(gw)
+        session.role = "MARKET_MAKER"
+
+        gw._handle_client_line(session, line)
+
+        assert _err_codes(session) == ["INVALID_VALUE"]
+        assert _sent(gw) == []
+        assert not [r for r in caplog.records if r.exc_info]  # no traceback
+        peer.close()
+
+    def test_largest_price_on_the_grid_is_accepted(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        register_tick_decimals("AAPL", 2)
+        gw = _make_gateway(monkeypatch)
+        session, peer = _authed_session(gw)
+
+        gw._handle_client_line(
+            session, "NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=1|PRICE=1000000000.00"
+        )
+
+        assert _err_codes(session) == []
+        assert len(_sent(gw)) == 1
+        peer.close()

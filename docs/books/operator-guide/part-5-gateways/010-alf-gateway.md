@@ -269,7 +269,7 @@ HELLO|CLIENT=mybot|PROTO=ALF1|ID=TRADER01
 |-------|----------|-------|
 | `CLIENT` | Yes | Free-text label for logging (max 32 chars) |
 | `PROTO` | Yes | Must be exactly `ALF1` |
-| `ID` | Yes | Gateway ID that must be in `participants` in config; max 32 characters (connection closed with `INVALID_VALUE` if exceeded) |
+| `ID` | Yes | Gateway ID that must be in `participants` in config: a letter, then up to 31 letters, digits or `_` (connection closed with `INVALID_VALUE` otherwise) |
 | `FEED` | No | `ALL` (default) or `ORDERS`. `ORDERS` turns off the public [broadcast events](#broadcast-events) (`SESSION`, `HALT`, `RESUME`, `TRADE`) for this session, for clients that take market data elsewhere — such as the AI traders, which would otherwise each parse every trade on the exchange. Replies to your own commands and your own order events are unaffected |
 
 On any other first line the gateway sends `ERR|CODE=AUTH_REQUIRED|...` and closes
@@ -615,11 +615,11 @@ the engine and renders the engine's `system.position_snapshot.{gateway_id}`
 reply: net quantity and average cost, per symbol, for every symbol that
 gateway has a non-zero position in. Unlike every other command on this
 page, the reply's topic is scoped to the *queried* `gateway_id`, not to
-your own session's gateway_id, so `pm-alf-gwy` subscribes to it on demand
-for the duration of one outstanding query and drops the subscription again
-once the reply arrives (or the session disconnects) — this is invisible on
-the wire, but it is why `POS|GW=` is the one command whose reply topic
-differs from every other request/reply pair in this protocol.
+your own session's gateway_id, so `pm-alf-gwy` routes it back to every
+session with a query outstanding for that `gateway_id`. A session may have
+queries for several gateways outstanding at once; each is answered with its
+own `POSITION` block. `GW` must be a valid gateway ID (a letter, then up to
+31 letters, digits or `_`), or the query is refused with `INVALID_VALUE`.
 
 **Multi-line response:**
 

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import errno
 import logging
+import re
 import resource
 import selectors
 import signal
@@ -205,6 +206,14 @@ _DC_EVENT_TOPIC_PREFIX = PREFIX_DROP_COPY_EVENT
 #: rather than per order by the validating message builder.
 _MAX_SYMBOL_LEN = 16
 _MAX_GATEWAY_ID_LEN = 32
+#: A gateway id as config-gen accepts it (config_gen/gateway_spec.py). The
+#: id is the last dot-separated part of every topic routed back to a
+#: session, so a '.' in it would deliver its events to another session.
+_GATEWAY_ID_RE = re.compile(rf"[A-Z][A-Z0-9_]{{0,{_MAX_GATEWAY_ID_LEN - 1}}}")
+#: Largest price in ticks accepted from a client. Past 2**53 a float price
+#: no longer resolves single ticks, so the grid check in to_ticks_exact is
+#: meaningless; the wire's 64-bit integers end not far beyond.
+_MAX_ABS_TICKS = 2**53 - 1
 
 _TAG_ALLOWED = set("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_.")
 
@@ -226,11 +235,12 @@ class ClientSession:
     # broadcasts (an AI agent among hundreds would otherwise parse every
     # trade print of the exchange).
     public_feed: bool = True
-    # Target gateway_id of an outstanding POS|GW=<gateway_id> query, or
-    # None. Set when the request is sent, cleared when the matching
+    # Target gateway_ids of outstanding POS|GW=<gateway_id> queries. Added
+    # when the request is sent, removed when the matching
     # system.position_snapshot.<target> reply arrives (see
-    # _handle_position_snapshot_response) or the session disconnects.
-    pending_position_query: str | None = None
+    # _handle_position_snapshot_response). The engine answers every request,
+    # so the set holds at most the targets in flight.
+    pending_position_queries: set[str] = field(default_factory=set)
     #: monotonic time the engine accepted the logon
     authenticated_at: float = 0.0
     out_queue: deque[bytes] = field(default_factory=deque)
@@ -948,13 +958,14 @@ class AlfGateway:
             )
             return
 
-        if len(gateway_id) > _MAX_GATEWAY_ID_LEN:
+        if not _GATEWAY_ID_RE.fullmatch(gateway_id):
             # order_new declares gateway_id max_len 32. Refusing at HELLO is
             # both earlier and clearer than the per-order check this replaces.
             self._register_error(
                 session,
                 "INVALID_VALUE",
-                f"Gateway id exceeds {_MAX_GATEWAY_ID_LEN} characters",
+                "Gateway id must be a letter followed by up to "
+                f"{_MAX_GATEWAY_ID_LEN - 1} letters, digits or '_'",
                 close_connection=True,
             )
             return
@@ -1375,8 +1386,13 @@ class AlfGateway:
         target = fields.get("GW", "").upper()
         if not target:
             raise ValidationError("MISSING_FIELD", "POS requires GW=<gateway_id>")
-        session.pending_position_query = target
+        if not _GATEWAY_ID_RE.fullmatch(target):
+            # The engine answers on a topic named after the (clamped) id; one
+            # it would rename could never be matched to this query.
+            raise ValidationError("INVALID_VALUE", f"GW: invalid gateway id '{target}'")
         self._send_to_engine(make_position_request_msg(target))
+        # After the send: a request the engine never got gets no reply.
+        session.pending_position_queries.add(target)
 
     def _handle_position_snapshot_response(
         self, gateway_id: str, payload: dict[str, Any]
@@ -1388,17 +1404,17 @@ class AlfGateway:
         Cannot reuse ``_session_for_gateway`` here (that looks up the
         session whose *own* gateway_id matches -- always true for
         QBOOT/QLEGS/SESSION, never true for a cross-gateway POS query)
-        so this scans connected sessions for a matching
-        ``pending_position_query`` instead. More than one session may be
+        so this scans connected sessions for a matching entry in
+        ``pending_position_queries`` instead. More than one session may be
         querying the same target concurrently; every match is answered.
         """
         positions = payload.get("positions", [])
         if not isinstance(positions, list):
             positions = []
         for session in self._clients.values():
-            if session.pending_position_query != gateway_id:
+            if gateway_id not in session.pending_position_queries:
                 continue
-            session.pending_position_query = None
+            session.pending_position_queries.discard(gateway_id)
             self._queue_line(
                 session, "POSITION", {"GW": gateway_id, "COUNT": str(len(positions))}
             )
@@ -2293,11 +2309,16 @@ class AlfGateway:
         machine-readable answer.
         """
         try:
-            return to_ticks_exact(price, symbol)
+            ticks = to_ticks_exact(price, symbol)
         except TickViolation as exc:
             raise ValidationError(
                 "INVALID_VALUE", f"{field}: {exc}", "TICK_VIOLATION"
             ) from exc
+        except OverflowError as exc:  # a finite price whose ticks are not
+            raise ValidationError("INVALID_VALUE", f"{field}: out of range") from exc
+        if abs(ticks) > _MAX_ABS_TICKS:
+            raise ValidationError("INVALID_VALUE", f"{field}: out of range")
+        return ticks
 
     def _optional_tag(self, fields: dict[str, str], key: str) -> str | None:
         if key not in fields:
