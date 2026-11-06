@@ -1,0 +1,808 @@
+# NORDIC CONSUMER and HEALTHCARE. Made-up Swedish, Danish, Norwegian, Finnish
+# and Åland companies. The tickers are not in the s300 simulation; every name,
+# person and number is invented.
+HEMST:
+  name: Hemstad Home Furnishings AB
+  sector: CONSUMER_DISC
+  industry: Home Furnishing Retail
+  headquarters: Jönköping, Sweden
+  purpose: Designs and sells furniture, kitchens, lighting and home textiles through 420 large out-of-town stores and an online shop.
+  key_market: Households in Europe, North America and Asia, mostly young families furnishing their first homes
+  market_position: Designs its own range and builds each product around a cheap way to ship it, which keeps its prices below most rivals' for the same look.
+  origin: FOUNDER
+  founders: Gunnar Hemstad
+  founder_story: Gunnar Hemstad, a Småland carpenter, began selling birch chairs from his workshop in 1951; in 1962 he opened a warehouse showroom outside town where customers carried their own boxes home.
+  founded_year: 1951
+  ipo_year: 1985
+  ipo_valuation_musd: 120
+  ceo_name: Eva-Lotta Hansén
+  ceo_since: 2021
+  ceo_industry_years: 26
+  employees: 95000
+  fiscal_year: 2025
+  revenue_musd: 14500
+  net_income_musd: 950
+  revenue_growth_pct: 3.0
+  operating_margin_pct: 8.5
+  free_cash_flow_musd: 1100
+  market_cap_musd: 21000
+  dividend_yield_pct: 2.4
+  debt_to_equity: 0.5
+  credit_rating: A-
+  competitors: HD LOW AMZN
+  key_risk: Housing turnover is low in its main markets, and rising wood and shipping costs squeeze its low prices.
+TGNST:
+  name: Tegnestue Design Furniture A/S
+  sector: CONSUMER_DISC
+  industry: Home Furnishings
+  headquarters: Copenhagen, Denmark
+  purpose: Makes and sells classic and new designer furniture, such as chairs, sofas and lamps, in oak, leather and wool.
+  key_market: Design-conscious households, hotels and offices in Europe, the US and Japan
+  market_position: Still produces chairs designed by its founder in 1955, and the sales of those chairs pay for its young designers.
+  origin: FOUNDER
+  founders: Viggo Holmegaard
+  founder_story: Viggo Holmegaard, an architect in Copenhagen, began making the chairs he designed for his own commissions in a small workshop in 1949, when no manufacturer would make them.
+  founded_year: 1949
+  ipo_year: 1996
+  ipo_valuation_musd: 90
+  ceo_name: Camilla Thorning
+  ceo_since: 2020
+  ceo_industry_years: 22
+  employees: 2200
+  fiscal_year: 2025
+  revenue_musd: 1100
+  net_income_musd: 135
+  revenue_growth_pct: 6.0
+  operating_margin_pct: 15.0
+  free_cash_flow_musd: 150
+  market_cap_musd: 2700
+  dividend_yield_pct: 1.8
+  debt_to_equity: 0.2
+  credit_rating: A-
+  key_risk: Buyers delay expensive furniture when household incomes are under pressure.
+HMFIX:
+  name: Hemfix DIY Stores AB
+  sector: CONSUMER_DISC
+  industry: Home Improvement Retail
+  headquarters: Helsingborg, Sweden
+  purpose: Runs 480 stores that sell tools, paint, timber, kitchens, bathrooms and garden products to home owners and small builders.
+  key_market: Home owners and tradespeople in Sweden, Norway and Denmark
+  market_position: Has a trade counter in every store, so builders buy their timber and fixings from it, and that business is twice as steady as the home owners'.
+  origin: FOUNDER
+  founders: Bengt Hemfix
+  founder_story: Bengt Hemfix, a timber merchant in Helsingborg, opened a cash-and-carry yard for builders in 1962 and let home owners walk in as well.
+  founded_year: 1962
+  ipo_year: 1994
+  ipo_valuation_musd: 150
+  ceo_name: Stefan Wallin
+  ceo_since: 2018
+  ceo_industry_years: 30
+  employees: 21000
+  fiscal_year: 2025
+  revenue_musd: 6800
+  net_income_musd: 330
+  revenue_growth_pct: 1.0
+  operating_margin_pct: 7.5
+  free_cash_flow_musd: 420
+  market_cap_musd: 5600
+  dividend_yield_pct: 3.4
+  debt_to_equity: 1.0
+  credit_rating: BBB
+  competitors: HD LOW RTKRT
+  key_risk: A weak housing market cuts spending on renovation, and online sellers of tools are growing.
+RTKRT:
+  name: Rautakartano Oy
+  sector: CONSUMER_DISC
+  industry: Home Improvement Retail
+  headquarters: Vantaa, Finland
+  purpose: Runs 320 hardware, building-supply and garden stores in Finland and the Baltic states, serving both builders and home owners.
+  key_market: Home owners, builders and farmers in Finland, Estonia and Latvia
+  market_position: Has a store within 30 minutes of nearly every Finn, and its own-brand timber and paint are bought by the cooperatives that own it.
+  origin: COOPERATIVE
+  founders: A group of rural cooperatives
+  founder_story: Farmers' cooperatives joined together in 1927 to buy nails, tools and cement in bulk for their members, and opened shops in the market towns of Finland.
+  founded_year: 1927
+  ipo_year: 2001
+  ipo_valuation_musd: 180
+  ceo_name: Mika Vuorinen
+  ceo_since: 2022
+  ceo_industry_years: 28
+  employees: 9000
+  fiscal_year: 2025
+  revenue_musd: 2900
+  net_income_musd: 105
+  revenue_growth_pct: 0.5
+  operating_margin_pct: 6.0
+  free_cash_flow_musd: 150
+  market_cap_musd: 1700
+  dividend_yield_pct: 4.0
+  debt_to_equity: 0.8
+  credit_rating: BBB-
+  competitors: HD LOW HMFIX
+  key_risk: Finland's housing market has been weak for three years and the Baltic stores face discount rivals.
+MDHST:
+  name: Modehuset Nordic Fashion AB
+  sector: CONSUMER_DISC
+  industry: Apparel Retail
+  headquarters: Stockholm, Sweden
+  purpose: Sells women's, men's and children's fashion through 3,900 stores and an online shop, with clothes designed in house and made by contract factories.
+  key_market: Shoppers aged 18 to 40 in Europe and North America
+  market_position: Brings a new design from sketch to store in three weeks, which lets it follow trends faster than most rivals.
+  origin: FAMILY
+  founders: The Ek family
+  founder_story: Gustaf Ek opened a women's clothing shop in Västerås in 1947; his family still holds the majority of the votes.
+  founded_year: 1947
+  ipo_year: 1974
+  ipo_valuation_musd: 15
+  ceo_name: Marianne Eklund
+  ceo_since: 2020
+  ceo_industry_years: 24
+  employees: 105000
+  fiscal_year: 2025
+  revenue_musd: 17500
+  net_income_musd: 1250
+  revenue_growth_pct: 2.0
+  operating_margin_pct: 8.5
+  free_cash_flow_musd: 1500
+  market_cap_musd: 24000
+  dividend_yield_pct: 4.5
+  debt_to_equity: 0.5
+  credit_rating: A-
+  competitors: NKE LULU AMZN
+  key_risk: Cheap fashion from Chinese online sellers has taken young customers.
+FJLGL:
+  name: Fjällglim Outdoor Apparel AB
+  sector: CONSUMER_DISC
+  industry: Apparel, Accessories & Luxury Goods
+  headquarters: Örnsköldsvik, Sweden
+  purpose: Designs jackets, trousers, tents and backpacks of waxed cotton and recycled fabrics for hiking, hunting and everyday wear.
+  key_market: Outdoor enthusiasts and fashion buyers in Europe, North America and Japan
+  market_position: Its fox-logo backpack became a school and street fashion item, which lets it charge premium prices for ordinary-looking gear.
+  origin: FOUNDER
+  founders: Arne Glim
+  founder_story: Arne Glim, a hunter in Ångermanland, sewed a waxed-cotton jacket in 1960 that did not tear on spruce branches; his friends asked him to make them one too.
+  founded_year: 1960
+  ipo_year: 2017
+  ipo_valuation_musd: 1600
+  ceo_name: Sanna Fahlén
+  ceo_since: 2019
+  ceo_industry_years: 20
+  employees: 2300
+  fiscal_year: 2025
+  revenue_musd: 1600
+  net_income_musd: 220
+  revenue_growth_pct: 12.0
+  operating_margin_pct: 18.0
+  free_cash_flow_musd: 240
+  market_cap_musd: 5200
+  dividend_yield_pct: 1.5
+  debt_to_equity: 0.2
+  credit_rating: A-
+  competitors: NKE LULU
+  key_risk: A fashion cycle can turn away from a brand quickly, and imitations cost it sales.
+SKGMK:
+  name: Skogsmark Outdoor Power AB
+  sector: CONSUMER_DISC
+  industry: Leisure Products
+  headquarters: Jönköping, Sweden
+  purpose: Makes chainsaws, robotic lawn mowers, trimmers and garden tools for professional foresters, gardeners and home owners.
+  key_market: Home owners and professional forestry and park workers in Europe and North America
+  market_position: Its robotic mower is the best-selling in Europe, and its chainsaws are the tool of choice for professional foresters.
+  origin: FOUNDER
+  founders: Adolf Skogsmark
+  founder_story: Adolf Skogsmark began making saw blades for Småland sawmills in a rented smithy in 1902, and added the first motor-driven chainsaw in 1948.
+  founded_year: 1902
+  ipo_year: 1957
+  ipo_valuation_musd: 12
+  ceo_name: Torbjörn Rask
+  ceo_since: 2021
+  ceo_industry_years: 27
+  employees: 13000
+  fiscal_year: 2025
+  revenue_musd: 5600
+  net_income_musd: 410
+  revenue_growth_pct: 1.0
+  operating_margin_pct: 11.5
+  free_cash_flow_musd: 480
+  market_cap_musd: 6800
+  dividend_yield_pct: 3.0
+  debt_to_equity: 0.7
+  credit_rating: BBB+
+  competitors: DE
+  key_risk: Gardening sales are tied to the weather and to housing, and both have been poor.
+KLSSN:
+  name: Klossen Toy Bricks A/S
+  sector: CONSUMER_DISC
+  industry: Leisure Products
+  headquarters: Billund, Denmark
+  purpose: Makes interlocking plastic building bricks, kits and games, runs five theme parks and sells toys through its own shops and online.
+  key_market: Families with children in 130 countries, and adult collectors
+  market_position: The best-selling toy maker in the world by revenue, with a brick that fits those made seventy years ago.
+  origin: FAMILY
+  founders: The Klossen family
+  founder_story: Ole Klossen, a village carpenter, made wooden toys in 1932 when work had dried up in the Depression; his son switched to plastic bricks in 1949.
+  founded_year: 1932
+  ipo_year: 2010
+  ipo_valuation_musd: 5200
+  ceo_name: Kirsten Holm-Nygaard
+  ceo_since: 2023
+  ceo_industry_years: 25
+  employees: 29000
+  fiscal_year: 2025
+  revenue_musd: 7800
+  net_income_musd: 1450
+  revenue_growth_pct: 7.0
+  operating_margin_pct: 24.0
+  free_cash_flow_musd: 1500
+  market_cap_musd: 38000
+  dividend_yield_pct: 2.5
+  debt_to_equity: 0.1
+  credit_rating: AA-
+  competitors: HAS
+  key_risk: Children turn to screens earlier, and its licensed sets depend on hit films.
+PRLMR:
+  name: Perlemor Jewellery A/S
+  sector: CONSUMER_DISC
+  industry: Apparel, Accessories & Luxury Goods
+  headquarters: Copenhagen, Denmark
+  purpose: Designs and sells silver and gold-plated bracelets, charms and rings, and lab-grown diamond jewellery, in 3,000 own shops and through 6,500 other retailers.
+  key_market: Women buying for themselves and as gifts, in the US, UK and Europe
+  market_position: Its charm bracelet created a market where customers collect pieces over many years, and a third of buyers are repeat customers.
+  origin: CO_FOUNDERS
+  founders: Per Lund, Winnie Lund
+  founder_story: A couple from Copenhagen began to import Thai silver jewellery in 1982 to sell at craft markets, and started to design their own after a customer asked for a charm.
+  founded_year: 1982
+  ipo_year: 2010
+  ipo_valuation_musd: 2100
+  ceo_name: Rasmus Bendix
+  ceo_since: 2019
+  ceo_industry_years: 22
+  employees: 29000
+  fiscal_year: 2025
+  revenue_musd: 3600
+  net_income_musd: 700
+  revenue_growth_pct: 8.0
+  operating_margin_pct: 27.0
+  free_cash_flow_musd: 780
+  market_cap_musd: 9800
+  dividend_yield_pct: 4.5
+  debt_to_equity: 0.9
+  credit_rating: BBB+
+  key_risk: The price of silver and gold has risen, and demand for jewellery depends on gift-giving in the US.
+SKYDD:
+  name: Skydd Automotive Safety AB
+  sector: CONSUMER_DISC
+  industry: Automotive Parts & Equipment
+  headquarters: Stockholm, Sweden
+  purpose: Makes seat belts, airbags and steering-wheel safety systems, and sensors that detect a child left in a car.
+  key_market: Car makers in Europe, North America and Asia
+  market_position: Supplies the seat belts or airbags in two of every five new cars, and holds many of the key patents.
+  origin: MERGER
+  founders: A Swedish and a US safety firm
+  founder_story: A Swedish seat-belt maker joined an American airbag firm in 1997 to offer car makers a complete safety system from a single supplier.
+  founded_year: 1953
+  ipo_year: 1997
+  ipo_valuation_musd: 1500
+  ceo_name: Henrik Örn
+  ceo_since: 2020
+  ceo_industry_years: 28
+  employees: 56000
+  fiscal_year: 2025
+  revenue_musd: 10500
+  net_income_musd: 640
+  revenue_growth_pct: -1.0
+  operating_margin_pct: 8.0
+  free_cash_flow_musd: 700
+  market_cap_musd: 8500
+  dividend_yield_pct: 3.0
+  debt_to_equity: 0.9
+  credit_rating: BBB
+  key_risk: Car makers press for price cuts every year, and car production in Europe is falling.
+ISVIK:
+  name: Isvik Electric Cars AB
+  sector: CONSUMER_DISC
+  industry: Electric Vehicle Manufacturing
+  headquarters: Gothenburg, Sweden
+  purpose: Designs and builds premium electric cars and sports utility vehicles in Sweden and China, with a focus on safety and Scandinavian design.
+  key_market: Premium car buyers in Europe, North America and China
+  market_position: Competes on safety and design against the German premium brands, and sells in Europe at prices close to the best electric rivals.
+  origin: SPIN_OFF
+  founders: A Swedish car maker's performance division
+  founder_story: A car maker's performance arm in Gothenburg became a separate brand for electric cars in 2017 and was floated in 2022 to pay for new models.
+  founded_year: 2017
+  ipo_year: 2022
+  ipo_valuation_musd: 9000
+  ceo_name: Joakim Strand
+  ceo_since: 2023
+  ceo_industry_years: 22
+  employees: 5100
+  fiscal_year: 2025
+  revenue_musd: 6200
+  net_income_musd: -500
+  revenue_growth_pct: 12.0
+  operating_margin_pct: -9.0
+  free_cash_flow_musd: -650
+  market_cap_musd: 5800
+  dividend_yield_pct: 0.0
+  debt_to_equity: 1.8
+  credit_rating: B+
+  competitors: TSLA RIVN LCID
+  key_risk: Tariffs on cars built in China and a price war in electric cars keep it loss-making.
+OSTSJ:
+  name: Östersjö Ferries Ab
+  sector: CONSUMER_DISC
+  industry: Hotels, Resorts & Cruise Lines
+  headquarters: Mariehamn, Finland
+  purpose: Runs cruise ferries between Stockholm, Helsinki, Tallinn and Turku with restaurants, shops and cabins, and carries freight on the same ships.
+  key_market: Leisure travellers and freight forwarders around the Baltic Sea
+  market_position: Its ferries sail through the Åland islands, where a tax-free arrangement lets it sell duty-free goods that mainland rivals cannot.
+  origin: FAMILY
+  founders: Åland shipowning families
+  founder_story: Several Åland shipowners joined in 1959 to run a night boat between Mariehamn and Stockholm, and their families still hold a majority of the votes.
+  founded_year: 1959
+  ipo_year: 1989
+  ipo_valuation_musd: 90
+  ceo_name: Linus Sjöblom
+  ceo_since: 2019
+  ceo_industry_years: 25
+  employees: 4800
+  fiscal_year: 2025
+  revenue_musd: 2100
+  net_income_musd: 120
+  revenue_growth_pct: 3.0
+  operating_margin_pct: 7.0
+  free_cash_flow_musd: 150
+  market_cap_musd: 1500
+  dividend_yield_pct: 3.5
+  debt_to_equity: 1.2
+  credit_rating: BB+
+  competitors: CCL RCL
+  key_risk: The EU is under pressure to end duty-free sales on the ferries, and fuel costs are rising.
+SPLHS:
+  name: Spelhuset Gaming AB
+  sector: CONSUMER_DISC
+  industry: Casinos & Gaming
+  headquarters: Stockholm, Sweden
+  purpose: Runs online casinos, sports betting and bingo under licence in regulated markets in Europe and Latin America.
+  key_market: Adult players in Sweden, the UK, Germany and Brazil
+  market_position: Its mobile betting app is built for safer gambling, with spending limits that regulators praise and that win it licences.
+  origin: FOUNDER
+  founders: Dan Spel
+  founder_story: Dan Spel, a Stockholm programmer, wrote a slot machine game for the early web in 1996 and sold it to offshore casinos before he began his own.
+  founded_year: 1996
+  ipo_year: 2004
+  ipo_valuation_musd: 300
+  ceo_name: Christoffer Wik
+  ceo_since: 2022
+  ceo_industry_years: 22
+  employees: 3200
+  fiscal_year: 2025
+  revenue_musd: 1400
+  net_income_musd: 210
+  revenue_growth_pct: 9.0
+  operating_margin_pct: 20.0
+  free_cash_flow_musd: 240
+  market_cap_musd: 3100
+  dividend_yield_pct: 3.8
+  debt_to_equity: 0.3
+  credit_rating: BBB-
+  competitors: LVS MGM
+  key_risk: Gambling taxes and rules are tightening in each of its main markets.
+HAVGL:
+  name: Havgull Salmon ASA
+  sector: CONSUMER_STAPLES
+  industry: Packaged Foods & Meats
+  headquarters: Bergen, Norway
+  purpose: Breeds and farms Atlantic salmon in sea cages along the Norwegian, Scottish and Chilean coasts, and processes the fish into fillets and ready meals.
+  key_market: Supermarkets and restaurants in Europe, the US and Japan
+  market_position: Controls the whole chain from egg to fillet, which lets it name the farm and the date on every pack of fish.
+  origin: FOUNDER
+  founders: Bjørn Havgull
+  founder_story: Bjørn Havgull, a fisherman in Hordaland, built the first floating net cages for salmon in a fjord in 1964, after wild catches had begun to decline.
+  founded_year: 1964
+  ipo_year: 1997
+  ipo_valuation_musd: 300
+  ceo_name: Siv Rydland
+  ceo_since: 2020
+  ceo_industry_years: 26
+  employees: 11500
+  fiscal_year: 2025
+  revenue_musd: 5200
+  net_income_musd: 540
+  revenue_growth_pct: 6.0
+  operating_margin_pct: 15.0
+  free_cash_flow_musd: 450
+  market_cap_musd: 8200
+  dividend_yield_pct: 4.5
+  debt_to_equity: 0.5
+  credit_rating: BBB
+  key_risk: Sea lice, algae blooms and a new Norwegian tax on salmon farming cut harvests and profit.
+HVRLD:
+  name: Havrelund Oat Drinks AB
+  sector: CONSUMER_STAPLES
+  industry: Soft Drinks & Non-alcoholic Beverages
+  headquarters: Malmö, Sweden
+  purpose: Makes oat milk, oat yoghurt and oat ice cream as alternatives to dairy, and sells them to coffee shops and supermarkets.
+  key_market: Coffee shops and supermarkets in Europe, the US and China
+  market_position: Its oat milk for baristas is used in more cafes than any other plant milk, though its larger rivals now copy the recipe.
+  origin: FOUNDER
+  founders: Two brothers
+  founder_story: Two brothers, one a food scientist at Lund university, found how to turn oats into a milk-like drink in the 1990s and spent twenty years selling the idea before it caught on.
+  founded_year: 1994
+  ipo_year: 2021
+  ipo_valuation_musd: 4800
+  ceo_name: Daniel Lövgren
+  ceo_since: 2022
+  ceo_industry_years: 18
+  employees: 1500
+  fiscal_year: 2025
+  revenue_musd: 850
+  net_income_musd: -85
+  revenue_growth_pct: 9.0
+  operating_margin_pct: -6.0
+  free_cash_flow_musd: -40
+  market_cap_musd: 1400
+  dividend_yield_pct: 0.0
+  debt_to_equity: 1.4
+  credit_rating: B
+  competitors: KDP
+  key_risk: Supermarkets sell cheap oat milk under their own names and it is still losing money.
+HMLGD:
+  name: Humlegård Brewery A/S
+  sector: CONSUMER_STAPLES
+  industry: Brewers
+  headquarters: Copenhagen, Denmark
+  purpose: Brews and sells beer, cider and soft drinks in 75 countries, and owns a number of local brands in Eastern Europe and Asia.
+  key_market: Beer drinkers in Western Europe, Eastern Europe and Asia
+  market_position: Its pilsner is one of the best-known Danish brands, and it is the largest brewer in Eastern Europe.
+  origin: FOUNDER
+  founders: J.C. Humlegård
+  founder_story: J.C. Humlegård, a brewer, started the brewery in 1847 on a hill outside Copenhagen, and left it to a foundation that still owns a controlling stake.
+  founded_year: 1847
+  ipo_year: 1970
+  ipo_valuation_musd: 14
+  ceo_name: Jacob Mejlby
+  ceo_since: 2015
+  ceo_industry_years: 30
+  employees: 38000
+  fiscal_year: 2025
+  revenue_musd: 11500
+  net_income_musd: 1450
+  revenue_growth_pct: 2.0
+  operating_margin_pct: 16.0
+  free_cash_flow_musd: 1500
+  market_cap_musd: 24000
+  dividend_yield_pct: 2.8
+  debt_to_equity: 0.6
+  credit_rating: BBB+
+  key_risk: Beer sales are falling in Europe as younger people drink less, and barley and aluminium costs are volatile.
+MTHLN:
+  name: Mathallen Food Stores AB
+  sector: CONSUMER_STAPLES
+  industry: Food Retail
+  headquarters: Solna, Sweden
+  purpose: Runs 2,100 supermarkets, convenience stores and online grocery services, owned partly by independent shopkeepers.
+  key_market: Swedish households, who buy the majority of their groceries from its stores
+  market_position: Has the largest share of Swedish grocery sales, and its loyalty card has 4.5 million members.
+  origin: COOPERATIVE
+  founders: A group of independent shopkeepers
+  founder_story: A group of independent grocers in Stockholm formed a buying cooperative in 1917 to compete against the large department stores on price.
+  founded_year: 1917
+  ipo_year: 1991
+  ipo_valuation_musd: 400
+  ceo_name: Annica Wahlström
+  ceo_since: 2019
+  ceo_industry_years: 29
+  employees: 38000
+  fiscal_year: 2025
+  revenue_musd: 14000
+  net_income_musd: 380
+  revenue_growth_pct: 3.0
+  operating_margin_pct: 4.0
+  free_cash_flow_musd: 520
+  market_cap_musd: 7800
+  dividend_yield_pct: 4.0
+  debt_to_equity: 0.9
+  credit_rating: BBB
+  competitors: KR COST WMT
+  key_risk: Foreign discount chains are opening stores in Sweden, and food-price politics add pressure.
+SNSVK:
+  name: Snusvik Nicotine Pouches AB
+  sector: CONSUMER_STAPLES
+  industry: Tobacco
+  headquarters: Stockholm, Sweden
+  purpose: Makes snus, nicotine pouches and chewing tobacco, sold in tins and pouches rather than as cigarettes.
+  key_market: Adult nicotine users in Scandinavia, the US and Eastern Europe
+  market_position: Its pouch brand leads in Sweden and is growing quickly in the US, where it is sold as a smoke-free option.
+  origin: SPIN_OFF
+  founders: A state tobacco monopoly
+  founder_story: The business started when the Swedish state tobacco monopoly was broken up in 1992, and a private company took over the snus brands and their factory in Gothenburg.
+  founded_year: 1914
+  ipo_year: 1996
+  ipo_valuation_musd: 700
+  ceo_name: Fredrik Gyllenhammar
+  ceo_since: 2020
+  ceo_industry_years: 29
+  employees: 5200
+  fiscal_year: 2025
+  revenue_musd: 2300
+  net_income_musd: 640
+  revenue_growth_pct: 9.0
+  operating_margin_pct: 38.0
+  free_cash_flow_musd: 780
+  market_cap_musd: 11000
+  dividend_yield_pct: 3.0
+  debt_to_equity: 1.1
+  credit_rating: BBB+
+  competitors: MO
+  key_risk: The EU and US are moving to ban flavours and restrict nicotine pouches.
+KHVLK:
+  name: Kahvilaakso Coffee Roasters Oy
+  sector: CONSUMER_STAPLES
+  industry: Packaged Foods & Meats
+  headquarters: Helsinki, Finland
+  purpose: Roasts and sells coffee, tea and chocolate for supermarkets and cafes, and runs a chain of 240 cafes in Finland and the Baltic states.
+  key_market: Finnish and Baltic households, who drink more coffee per head than any other in the world
+  market_position: Sells every second cup of coffee brewed at home in Finland, and its light-roast blend is the national favourite.
+  origin: FAMILY
+  founders: The Karhunen family
+  founder_story: Eino Karhunen began to roast coffee in a Helsinki back yard in 1925, when coffee was rationed, and the family still controls the firm.
+  founded_year: 1925
+  ipo_year: 1988
+  ipo_valuation_musd: 40
+  ceo_name: Liisa Karhunen
+  ceo_since: 2019
+  ceo_industry_years: 26
+  employees: 3100
+  fiscal_year: 2025
+  revenue_musd: 1300
+  net_income_musd: 85
+  revenue_growth_pct: 3.0
+  operating_margin_pct: 9.5
+  free_cash_flow_musd: 110
+  market_cap_musd: 1900
+  dividend_yield_pct: 3.8
+  debt_to_equity: 0.4
+  credit_rating: BBB
+  competitors: KDP KHC
+  key_risk: Coffee bean prices have doubled in two years and it cannot pass on all of the increase.
+LYTTR:
+  name: Lyttra Hearing Systems A/S
+  sector: HEALTHCARE
+  industry: Health Care Equipment
+  headquarters: Ballerup, Denmark
+  purpose: Makes hearing aids, cochlear implants and AI-based sound processing, and runs a chain of 1,100 hearing clinics.
+  key_market: People with hearing loss in Europe, the US and Asia, and the clinics and health systems that fit them
+  market_position: Its hearing aid uses an AI chip to separate speech from noise, a feature that sells at twice the price of a basic aid.
+  origin: FOUNDER
+  founders: Aksel Lyttra
+  founder_story: Aksel Lyttra, a telephone engineer, built a hearing horn for his deaf daughter in 1920 and began to make them for the hospital that treated her.
+  founded_year: 1920
+  ipo_year: 1985
+  ipo_valuation_musd: 90
+  ceo_name: Niels Brandt
+  ceo_since: 2018
+  ceo_industry_years: 26
+  employees: 17000
+  fiscal_year: 2025
+  revenue_musd: 3500
+  net_income_musd: 600
+  revenue_growth_pct: 7.0
+  operating_margin_pct: 22.0
+  free_cash_flow_musd: 640
+  market_cap_musd: 14500
+  dividend_yield_pct: 1.0
+  debt_to_equity: 0.6
+  credit_rating: A-
+  competitors: MDT BSX
+  key_risk: Over-the-counter hearing aids and earbuds with hearing features are growing fast in the US.
+MTFRM:
+  name: Mettaform Therapeutics A/S
+  sector: HEALTHCARE
+  industry: Biopharmaceuticals
+  headquarters: Copenhagen, Denmark
+  purpose: Develops and sells once-weekly injections for obesity and diabetes, and is testing a pill version and a treatment for heart and liver disease.
+  key_market: Patients with obesity and diabetes, mainly in the US and Europe
+  market_position: Its obesity injection is among the two best-selling in the world, and it has a decade's lead in patent protection and manufacturing.
+  origin: FOUNDER
+  founders: Bodil Mettaform
+  founder_story: Bodil Mettaform, an endocrinologist in Gentofte, started the company in 1989 to develop a gut hormone that she had shown could cut appetite in her patients.
+  founded_year: 1989
+  ipo_year: 2001
+  ipo_valuation_musd: 1800
+  ceo_name: Lars Fogh-Madsen
+  ceo_since: 2019
+  ceo_industry_years: 30
+  employees: 14500
+  fiscal_year: 2025
+  revenue_musd: 9500
+  net_income_musd: 3300
+  revenue_growth_pct: 38.0
+  operating_margin_pct: 42.0
+  free_cash_flow_musd: 3000
+  market_cap_musd: 78000
+  dividend_yield_pct: 0.8
+  debt_to_equity: 0.3
+  credit_rating: AA-
+  competitors: LLY PFE ABBV
+  key_risk: One drug class provides nearly all of its growth, and US rivals and compounders are cutting prices.
+STRLV:
+  name: Strålvik Oncology Systems AB
+  sector: HEALTHCARE
+  industry: Health Care Equipment
+  headquarters: Stockholm, Sweden
+  purpose: Makes radiation therapy machines, brain surgery systems and the planning software that hospitals use to treat cancer.
+  key_market: Hospitals and cancer centres in the US, Europe and China
+  market_position: Its brain surgery system has been used on one million patients, and it is the only maker with an MRI scanner built into a radiotherapy machine.
+  origin: CO_FOUNDERS
+  founders: Gunnar Strålvik, Henning Aas
+  founder_story: A neurosurgeon and a physicist at a Stockholm hospital designed a device in 1972 to aim radiation at a brain tumour within a millimetre, then set up a company to build it.
+  founded_year: 1972
+  ipo_year: 1993
+  ipo_valuation_musd: 130
+  ceo_name: Pia Lindroth
+  ceo_since: 2022
+  ceo_industry_years: 24
+  employees: 4700
+  fiscal_year: 2025
+  revenue_musd: 1500
+  net_income_musd: 160
+  revenue_growth_pct: 5.0
+  operating_margin_pct: 14.0
+  free_cash_flow_musd: 170
+  market_cap_musd: 2600
+  dividend_yield_pct: 1.5
+  debt_to_equity: 0.4
+  credit_rating: BBB+
+  competitors: DHR MDT
+  key_risk: Hospitals delay buying machines when budgets are tight, and the Chinese market has become much harder to sell in.
+SGRDA:
+  name: Sigurd AI Therapeutics ApS
+  sector: HEALTHCARE
+  industry: Biotechnology
+  headquarters: Copenhagen, Denmark
+  purpose: Uses AI models to design proteins and antibodies for new medicines, and develops them with larger drug companies in return for fees and royalties.
+  key_market: Large drug companies that license its designs
+  market_position: Its AI platform can design an antibody against a given target in weeks, not years, and two big drug companies pay it for access.
+  origin: CO_FOUNDERS
+  founders: Sigrid Lund-Hansen, Tomas Eriksen
+  founder_story: A protein chemist and an AI researcher at a Copenhagen university founded the company in 2018 after their model designed a working enzyme in a single afternoon.
+  founded_year: 2018
+  ipo_year: 2023
+  ipo_valuation_musd: 2100
+  ceo_name: Sigrid Lund-Hansen
+  ceo_since: 2018
+  ceo_industry_years: 18
+  employees: 640
+  fiscal_year: 2025
+  revenue_musd: 180
+  net_income_musd: -90
+  revenue_growth_pct: 40.0
+  operating_margin_pct: -55.0
+  free_cash_flow_musd: -110
+  market_cap_musd: 3800
+  dividend_yield_pct: 0.0
+  debt_to_equity: 0.1
+  credit_rating: BB
+  competitors: MRNA AMGN
+  key_risk: Most designs it hands over fail in the clinic, and its income depends on a few partners.
+TNDKR:
+  name: Tandkraft Dental Implants AB
+  sector: HEALTHCARE
+  industry: Health Care Supplies
+  headquarters: Gothenburg, Sweden
+  purpose: Makes titanium dental implants, crowns and digital scanners, and trains dentists to use them.
+  key_market: Dentists and dental clinics in Europe, North America and China
+  market_position: Its implant surface heals into the jaw faster than most, and a major dental chain has made it the default for over a thousand clinics.
+  origin: CO_FOUNDERS
+  founders: Two dentists
+  founder_story: Two dentists in Gothenburg began making their own titanium implants in 1981 after they had seen a research team show that titanium could bond with bone.
+  founded_year: 1981
+  ipo_year: 1997
+  ipo_valuation_musd: 140
+  ceo_name: Anders Karlén
+  ceo_since: 2020
+  ceo_industry_years: 27
+  employees: 3600
+  fiscal_year: 2025
+  revenue_musd: 1100
+  net_income_musd: 170
+  revenue_growth_pct: 6.0
+  operating_margin_pct: 22.0
+  free_cash_flow_musd: 180
+  market_cap_musd: 3600
+  dividend_yield_pct: 1.4
+  debt_to_equity: 0.3
+  credit_rating: A-
+  competitors: DHR
+  key_risk: Patients pay for implants themselves, and cheap Korean implants are taking the low end of the market.
+TRKDX:
+  name: Turku Diagnostics Oy
+  sector: HEALTHCARE
+  industry: Life Sciences Tools & Services
+  headquarters: Turku, Finland
+  purpose: Makes blood tests and rapid point-of-care tests that give a doctor an answer within minutes, plus the readers that run them.
+  key_market: Hospital labs, health centres and pharmacies in Europe, Asia and the US
+  market_position: Its finger-prick test for infection markers lets a doctor decide on antibiotics in five minutes, and some health systems require it.
+  origin: SPIN_OFF
+  founders: A Turku university research group
+  founder_story: A research group at the University of Turku spun the company off in 1968 to sell an assay that measured infection in a single drop of blood.
+  founded_year: 1968
+  ipo_year: 1990
+  ipo_valuation_musd: 60
+  ceo_name: Jussi Heikkilä
+  ceo_since: 2019
+  ceo_industry_years: 28
+  employees: 5400
+  fiscal_year: 2025
+  revenue_musd: 1900
+  net_income_musd: 260
+  revenue_growth_pct: 5.0
+  operating_margin_pct: 17.0
+  free_cash_flow_musd: 300
+  market_cap_musd: 4900
+  dividend_yield_pct: 2.0
+  debt_to_equity: 0.35
+  credit_rating: BBB+
+  competitors: DHR IDXX LH
+  key_risk: Demand fell sharply when the pandemic ended and large rivals now sell cheaper tests.
+OMSRG:
+  name: Omsorgsgruppen Care AB
+  sector: HEALTHCARE
+  industry: Health Care Services
+  headquarters: Stockholm, Sweden
+  purpose: Runs 260 nursing homes, 140 primary-care clinics and home-care services that municipalities and regions pay for.
+  key_market: Swedish municipalities and regional health authorities
+  market_position: Gets the best inspection results among the large private care operators, which helps it win municipal contracts.
+  origin: CO_FOUNDERS
+  founders: Four nurses
+  founder_story: Four nurses from Stockholm hospitals bought a nursing home that the municipality wanted to close in 1993 and ran it better than the council had.
+  founded_year: 1993
+  ipo_year: 2006
+  ipo_valuation_musd: 220
+  ceo_name: Charlotta Sjödin
+  ceo_since: 2021
+  ceo_industry_years: 25
+  employees: 31000
+  fiscal_year: 2025
+  revenue_musd: 2900
+  net_income_musd: 105
+  revenue_growth_pct: 4.0
+  operating_margin_pct: 6.0
+  free_cash_flow_musd: 140
+  market_cap_musd: 1700
+  dividend_yield_pct: 2.8
+  debt_to_equity: 1.3
+  credit_rating: BB+
+  competitors: HCA
+  key_risk: Politicians in Sweden want to limit private profit in publicly funded care.
+PLSTR:
+  name: Plåsterfabriken Wound Care AB
+  sector: HEALTHCARE
+  industry: Health Care Supplies
+  headquarters: Borås, Sweden
+  purpose: Makes advanced foam dressings for chronic wounds and pressure ulcers, surgical drapes and gloves, and supplies them to hospitals.
+  key_market: Hospitals and nursing homes in Europe, the US and Japan
+  market_position: Its silicone-adhesive dressing is the market leader for pressure ulcers and is on every major hospital's approved list.
+  origin: FAMILY
+  founders: The Rydén family
+  founder_story: A Borås textile mill began to make cotton bandages in 1849, and the family that owned it turned to medical products when the textile trade moved to Asia.
+  founded_year: 1849
+  ipo_year: 2005
+  ipo_valuation_musd: 1200
+  ceo_name: Gunilla Rydén
+  ceo_since: 2020
+  ceo_industry_years: 28
+  employees: 9800
+  fiscal_year: 2025
+  revenue_musd: 2600
+  net_income_musd: 460
+  revenue_growth_pct: 5.0
+  operating_margin_pct: 24.0
+  free_cash_flow_musd: 480
+  market_cap_musd: 9200
+  dividend_yield_pct: 2.2
+  debt_to_equity: 0.6
+  credit_rating: A-
+  competitors: BDX BAX
+  key_risk: Hospital buying groups push down the price of wound dressings.

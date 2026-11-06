@@ -1,0 +1,723 @@
+# NORDIC TECH and COMMUNICATION. Made-up Swedish, Danish, Norwegian, Finnish and
+# Icelandic companies. The tickers are not in the s300 simulation; every name,
+# person and number is invented.
+NRDAI:
+  name: Nordlys Intelligence AB
+  sector: TECH
+  industry: Artificial Intelligence Software
+  headquarters: Stockholm, Sweden
+  purpose: Builds large language models trained on the Nordic languages and sells them, with secure hosting, to governments, banks and utilities across Europe.
+  key_market: Public-sector bodies and regulated companies in the Nordics and the EU
+  market_position: The only European model builder that keeps customer data and training inside EU data centres under EU law, which public buyers now require.
+  origin: CO_FOUNDERS
+  founders: Linnea Waldenström, Erik Hasselqvist
+  founder_story: Two computational linguists at a Stockholm university set out in 2016 to build a Swedish-language search engine for a bank; a model that read legal text better than any English one turned it into an AI company.
+  founded_year: 2016
+  ipo_year: 2022
+  ipo_valuation_musd: 3800
+  ceo_name: Linnea Waldenström
+  ceo_since: 2016
+  ceo_industry_years: 18
+  employees: 2300
+  fiscal_year: 2025
+  revenue_musd: 1900
+  net_income_musd: 95
+  revenue_growth_pct: 48.0
+  operating_margin_pct: 6.5
+  free_cash_flow_musd: 140
+  market_cap_musd: 21000
+  dividend_yield_pct: 0.0
+  debt_to_equity: 0.2
+  credit_rating: BBB
+  competitors: SAP NOW PLTR
+  key_risk: Training costs grow faster than revenue, and US cloud giants sell multilingual models at lower prices.
+FJSIL:
+  name: Fjordsilicon ASA
+  sector: TECH
+  industry: Fabless Chip Design
+  headquarters: Trondheim, Norway
+  purpose: Designs low-power chips that run AI models inside cameras, hearing aids, cars and factory sensors without a cloud connection.
+  key_market: Makers of consumer electronics, medical devices and industrial sensors in Europe and Asia
+  market_position: Its chips run a speech or vision model on a coin-cell battery for a year, a figure its larger rivals cannot match.
+  origin: SPIN_OFF
+  founders: A university research group
+  founder_story: A research group at a Norwegian technical university spun out in 2004 to sell a radio chip design that used one tenth of the power of the usual ones; the AI chip family came ten years later.
+  founded_year: 2004
+  ipo_year: 2013
+  ipo_valuation_musd: 420
+  ceo_name: Torbjørn Aasmundsen
+  ceo_since: 2019
+  ceo_industry_years: 26
+  employees: 2100
+  fiscal_year: 2025
+  revenue_musd: 1250
+  net_income_musd: 240
+  revenue_growth_pct: 21.0
+  operating_margin_pct: 24.0
+  free_cash_flow_musd: 260
+  market_cap_musd: 9800
+  dividend_yield_pct: 0.4
+  debt_to_equity: 0.05
+  credit_rating: BBB+
+  competitors: MCHP ADI TXN
+  key_risk: Two Asian foundries make all of its chips, and its customers can switch to in-house designs.
+SKLDA:
+  name: Skuld Analytics AB
+  sector: TECH
+  industry: Data Analytics Software
+  headquarters: Malmö, Sweden
+  purpose: Sells forecasting software that predicts demand for grocers and retailers and the load on power grids, using machine learning on weather, price and sales data.
+  key_market: Retail chains and grid operators in the Nordics, Germany and the UK
+  market_position: Its forecasts of electricity demand are used by eleven grid operators, which gives it data that new rivals cannot buy.
+  origin: FOUNDER
+  founders: Pontus Lindgren
+  founder_story: Pontus Lindgren, a statistician at a Malmö supermarket chain, built a model in 2009 that cut the chain's wasted milk by a third; other chains asked for it, and he left to sell it.
+  founded_year: 2009
+  ipo_year: 2018
+  ipo_valuation_musd: 310
+  ceo_name: Pontus Lindgren
+  ceo_since: 2009
+  ceo_industry_years: 22
+  employees: 1800
+  fiscal_year: 2025
+  revenue_musd: 640
+  net_income_musd: 92
+  revenue_growth_pct: 26.0
+  operating_margin_pct: 17.0
+  free_cash_flow_musd: 105
+  market_cap_musd: 5400
+  dividend_yield_pct: 0.0
+  debt_to_equity: 0.15
+  credit_rating: BBB
+  competitors: PLTR SNOW FICO
+  key_risk: Clients can build similar forecasts with the AI tools their cloud provider sells.
+TYRCY:
+  name: Tyr Cyber Defence AB
+  sector: TECH
+  industry: Security Software
+  headquarters: Linköping, Sweden
+  purpose: Sells software that finds and stops attacks on company networks, and runs a monitoring centre for customers who cannot staff their own.
+  key_market: Defence ministries, banks and energy companies in Europe
+  market_position: Its Swedish-cleared staff and EU-hosted systems let it serve defence and critical-infrastructure customers that will not buy from US vendors.
+  origin: SPIN_OFF
+  founders: Four engineers from a defence research agency
+  founder_story: Four engineers left a government defence research agency in 2011 to turn the intrusion detection tools they had built for the armed forces into a commercial product.
+  founded_year: 2011
+  ipo_year: 2019
+  ipo_valuation_musd: 540
+  ceo_name: Gunilla Strandberg
+  ceo_since: 2020
+  ceo_industry_years: 24
+  employees: 3400
+  fiscal_year: 2025
+  revenue_musd: 980
+  net_income_musd: 110
+  revenue_growth_pct: 19.0
+  operating_margin_pct: 14.0
+  free_cash_flow_musd: 150
+  market_cap_musd: 7600
+  dividend_yield_pct: 0.0
+  debt_to_equity: 0.3
+  credit_rating: BBB
+  competitors: CRWD PANW FTNT
+  key_risk: Large US security vendors are building European data centres and bidding for the same government contracts.
+LUMNA:
+  name: Lumenhelm Oy
+  sector: TECH
+  industry: Machine Vision Systems
+  headquarters: Espoo, Finland
+  purpose: Makes camera systems and AI software that inspect products on production lines, spotting defects in steel, paper, batteries and food at line speed.
+  key_market: Paper mills, steelworks, battery plants and food factories in Europe and Asia
+  market_position: Its systems check a two-metre-wide steel strip moving at 20 metres a second, a niche where it has no large competitor.
+  origin: FOUNDER
+  founders: Veikko Rantanen
+  founder_story: Veikko Rantanen, a paper-mill electrician in Kouvola, put a camera over a paper web in 1987 so that he could see holes before the customer did; the mill's owner asked him for ten more.
+  founded_year: 1987
+  ipo_year: 1998
+  ipo_valuation_musd: 90
+  ceo_name: Outi Hakkarainen
+  ceo_since: 2021
+  ceo_industry_years: 22
+  employees: 2900
+  fiscal_year: 2025
+  revenue_musd: 820
+  net_income_musd: 118
+  revenue_growth_pct: 11.0
+  operating_margin_pct: 19.0
+  free_cash_flow_musd: 130
+  market_cap_musd: 4300
+  dividend_yield_pct: 1.6
+  debt_to_equity: 0.25
+  credit_rating: A-
+  competitors: GRMN APH EMR
+  key_risk: Orders for new production lines slow sharply when steel and battery makers cut investment.
+SAMNT:
+  name: Samnet Cloud A/S
+  sector: TECH
+  industry: Cloud Infrastructure Services
+  headquarters: Copenhagen, Denmark
+  purpose: Rents computing, storage and AI processing capacity from its own data centres and guarantees that customer data stays under European law.
+  key_market: European public bodies, banks and health systems that need a sovereign cloud
+  market_position: Europe's largest cloud provider owned entirely by European shareholders, which is the selling point against the three US giants.
+  origin: FOUNDER
+  founders: Mikkel Frandsen
+  founder_story: Mikkel Frandsen sold web hosting from a Copenhagen basement in 2006; when European governments began to ask where their data was stored, he built data centres to answer.
+  founded_year: 2006
+  ipo_year: 2020
+  ipo_valuation_musd: 2100
+  ceo_name: Mikkel Frandsen
+  ceo_since: 2006
+  ceo_industry_years: 25
+  employees: 6800
+  fiscal_year: 2025
+  revenue_musd: 2700
+  net_income_musd: 210
+  revenue_growth_pct: 29.0
+  operating_margin_pct: 11.0
+  free_cash_flow_musd: -380
+  market_cap_musd: 14500
+  dividend_yield_pct: 0.0
+  debt_to_equity: 1.1
+  credit_rating: BBB-
+  competitors: MSFT AMZN GOOGL
+  key_risk: Building data centres eats more cash than it earns, and the US giants can cut prices for years.
+KVNTM:
+  name: Kvantum Systems Oy
+  sector: TECH
+  industry: Quantum Computing
+  headquarters: Espoo, Finland
+  purpose: Builds superconducting quantum computers and sells them, and time on them, to research institutes, banks and chemical companies.
+  key_market: National research centres and corporate research labs in Europe and Japan
+  market_position: It has sold more quantum computers than any other European maker and installs them in the customer's own lab.
+  origin: SPIN_OFF
+  founders: Five physicists
+  founder_story: Five physicists left a Finnish university in 2018 to build superconducting circuits that held their quantum state longer than the ones in the lab; the first customers were research councils.
+  founded_year: 2018
+  ipo_year: 2024
+  ipo_valuation_musd: 1700
+  ceo_name: Aleksi Ahlqvist
+  ceo_since: 2018
+  ceo_industry_years: 15
+  employees: 620
+  fiscal_year: 2025
+  revenue_musd: 85
+  net_income_musd: -62
+  revenue_growth_pct: 70.0
+  operating_margin_pct: -78.0
+  free_cash_flow_musd: -70
+  market_cap_musd: 2900
+  dividend_yield_pct: 0.0
+  debt_to_equity: 0.05
+  credit_rating: B+
+  competitors: IBM NVDA
+  key_risk: Useful quantum computers may be many years away, and its cash will run out before then without new share issues.
+LJSEN:
+  name: Ljusbro Sensors AB
+  sector: TECH
+  industry: Electronic Components
+  headquarters: Lund, Sweden
+  purpose: Makes light, distance and gas sensors used in smartphones, cars, smart meters and factory robots.
+  key_market: Car makers, phone makers and industrial automation companies
+  market_position: Its short-range laser distance sensor is inside most of the world's robot vacuum cleaners and many car cabins.
+  origin: SPIN_OFF
+  founders: Researchers at a Lund university
+  founder_story: Researchers at the physics department in Lund started the company in 1998 to sell a semiconductor laser they had grown in the lab, first to printers and later to phones.
+  founded_year: 1998
+  ipo_year: 2007
+  ipo_valuation_musd: 210
+  ceo_name: Helena Bergqvist
+  ceo_since: 2017
+  ceo_industry_years: 28
+  employees: 4600
+  fiscal_year: 2025
+  revenue_musd: 1650
+  net_income_musd: 230
+  revenue_growth_pct: 7.0
+  operating_margin_pct: 18.0
+  free_cash_flow_musd: 250
+  market_cap_musd: 6900
+  dividend_yield_pct: 1.4
+  debt_to_equity: 0.3
+  credit_rating: BBB+
+  competitors: APH GLW MCHP
+  key_risk: A few phone and car customers account for half of sales and negotiate hard on price.
+GNGNR:
+  name: Gungnir Networks AB
+  sector: TECH
+  industry: Communications Equipment
+  headquarters: Stockholm, Sweden
+  purpose: Builds the radio base stations, core networks and software that mobile operators use to run 4G and 5G networks.
+  key_market: Mobile operators in Europe, North America, India and the Middle East
+  market_position: One of only three Western makers of complete mobile networks, so operators wary of Chinese suppliers have few other choices.
+  origin: FAMILY
+  founders: The Hallström family
+  founder_story: Lars Hallström, a telegraph mechanic, opened a workshop in Stockholm in 1876 to repair telegraph instruments; his son sold the first telephone exchanges to Swedish towns.
+  founded_year: 1876
+  ipo_year: 1919
+  ipo_valuation_musd: 8
+  ceo_name: Magnus Hallström
+  ceo_since: 2020
+  ceo_industry_years: 31
+  employees: 88000
+  fiscal_year: 2025
+  revenue_musd: 25500
+  net_income_musd: 2100
+  revenue_growth_pct: -1.0
+  operating_margin_pct: 12.5
+  free_cash_flow_musd: 2400
+  market_cap_musd: 31000
+  dividend_yield_pct: 2.8
+  debt_to_equity: 0.35
+  credit_rating: A-
+  competitors: CSCO QCOM ANET
+  key_risk: Operators have cut spending on networks since the 5G build-out peaked, and prices fall each year.
+BIRKA:
+  name: Birkaland Systems AB
+  sector: TECH
+  industry: Enterprise Software
+  headquarters: Karlstad, Sweden
+  purpose: Sells business software for manufacturers, covering orders, production planning, stock and accounting, hosted on its own cloud.
+  key_market: Medium-sized manufacturers in Sweden, Norway, Germany and the Baltic states
+  market_position: Its software knows the paperwork of Nordic metal and wood industries, which keeps customers for fifteen years or more.
+  origin: FOUNDER
+  founders: Bertil Sandin
+  founder_story: Bertil Sandin, a bookkeeper at a Värmland sawmill, wrote a stock program for the mill's first office computer in 1983 and sold it to the mill next door.
+  founded_year: 1983
+  ipo_year: 1995
+  ipo_valuation_musd: 60
+  ceo_name: Camilla Östlund
+  ceo_since: 2018
+  ceo_industry_years: 25
+  employees: 5200
+  fiscal_year: 2025
+  revenue_musd: 1050
+  net_income_musd: 165
+  revenue_growth_pct: 9.0
+  operating_margin_pct: 20.0
+  free_cash_flow_musd: 205
+  market_cap_musd: 6300
+  dividend_yield_pct: 1.2
+  debt_to_equity: 0.4
+  credit_rating: BBB+
+  competitors: SAP ORCL INTU
+  key_risk: Moving customers from licences to the cloud is slow and lowers profit during the switch.
+TINDR:
+  name: Tindra Developer Platform ApS
+  sector: TECH
+  industry: Developer Tools Software
+  headquarters: Copenhagen, Denmark
+  purpose: Sells a platform that programmers use to build, test and release software, with AI assistants that write and review code.
+  key_market: Software teams in start-ups and large companies in Europe and North America
+  market_position: Its tools are favoured by teams that want to host their code in Europe, and its code assistant runs on the customer's own servers.
+  origin: CO_FOUNDERS
+  founders: Rasmus Kjeldsen, Sofie Vinther
+  founder_story: Two programmers at a Copenhagen game studio built a tool in 2013 to stop their nightly builds breaking, then found that other studios would pay for it.
+  founded_year: 2013
+  ipo_year: 2021
+  ipo_valuation_musd: 2600
+  ceo_name: Sofie Vinther
+  ceo_since: 2013
+  ceo_industry_years: 20
+  employees: 1700
+  fiscal_year: 2025
+  revenue_musd: 720
+  net_income_musd: 58
+  revenue_growth_pct: 31.0
+  operating_margin_pct: 9.0
+  free_cash_flow_musd: 95
+  market_cap_musd: 8200
+  dividend_yield_pct: 0.0
+  debt_to_equity: 0.1
+  credit_rating: BBB-
+  competitors: TEAM DDOG MSFT
+  key_risk: Free AI coding tools from the largest cloud companies lower what teams will pay.
+LNDQV:
+  name: Lindqvist Digital Consulting AB
+  sector: TECH
+  industry: IT Consulting & Services
+  headquarters: Stockholm, Sweden
+  purpose: Builds and runs IT systems for banks, retailers and public agencies, from cloud migration to AI projects, with 24,000 consultants.
+  key_market: Banks, insurers, retailers and government agencies in the Nordics and the Baltic states
+  market_position: The largest Nordic IT consultancy, and the one many Swedish agencies are required to use through framework contracts.
+  origin: FOUNDER
+  founders: Karl-Johan Lindqvist
+  founder_story: Karl-Johan Lindqvist left a computer maker in 1969 to rent out programmers by the hour to Stockholm banks that had bought their first mainframes.
+  founded_year: 1969
+  ipo_year: 1986
+  ipo_valuation_musd: 35
+  ceo_name: Anna-Karin Roos
+  ceo_since: 2022
+  ceo_industry_years: 28
+  employees: 24000
+  fiscal_year: 2025
+  revenue_musd: 3100
+  net_income_musd: 235
+  revenue_growth_pct: 3.0
+  operating_margin_pct: 10.0
+  free_cash_flow_musd: 290
+  market_cap_musd: 3900
+  dividend_yield_pct: 4.1
+  debt_to_equity: 0.35
+  credit_rating: BBB+
+  competitors: ACN CTSH EPAM IBM
+  key_risk: AI tools are cutting the hours clients buy for routine programming and testing.
+POLBY:
+  name: Polarbyte Data Centers AS
+  sector: TECH
+  industry: Data Center Services
+  headquarters: Narvik, Norway
+  purpose: Runs data centres in northern Norway powered by hydroelectricity and cooled by the Arctic air, and rents space to AI companies and banks.
+  key_market: AI training firms, banks and cloud providers renting capacity
+  market_position: Its electricity costs a third of the price in continental Europe and comes from hydropower, so it wins AI training work on both price and emissions.
+  origin: FOUNDER
+  founders: Ola Brendryen
+  founder_story: Ola Brendryen, a Narvik power engineer, noticed in 2012 that the aluminium smelters had closed and left unused grid capacity; he built a server hall beside the substation.
+  founded_year: 2012
+  ipo_year: 2021
+  ipo_valuation_musd: 900
+  ceo_name: Ola Brendryen
+  ceo_since: 2012
+  ceo_industry_years: 22
+  employees: 540
+  fiscal_year: 2025
+  revenue_musd: 610
+  net_income_musd: 85
+  revenue_growth_pct: 55.0
+  operating_margin_pct: 22.0
+  free_cash_flow_musd: -240
+  market_cap_musd: 5200
+  dividend_yield_pct: 0.0
+  debt_to_equity: 1.4
+  credit_rating: BB+
+  competitors: EQIX DLR
+  key_risk: Its customers are few and large, and the grid in the north has little spare capacity left.
+ORBTK:
+  name: Orbitek Wearables Oy
+  sector: TECH
+  industry: Technology Hardware
+  headquarters: Oulu, Finland
+  purpose: Makes a smart ring and a health app that track sleep, heart rate and temperature, sold with a monthly subscription.
+  key_market: Health-conscious consumers in Europe, the US and Japan
+  market_position: Its ring is the most accurate consumer sleep tracker in independent tests, and the subscription makes up a third of revenue.
+  origin: CO_FOUNDERS
+  founders: Petri Lehtonen, Mari Salmela
+  founder_story: A medical-sensor engineer and a sleep researcher at an Oulu hospital launched a ring in 2015 after the engineer's father was told his heart condition had been missed.
+  founded_year: 2015
+  ipo_year: 2023
+  ipo_valuation_musd: 3100
+  ceo_name: Mari Salmela
+  ceo_since: 2015
+  ceo_industry_years: 17
+  employees: 1100
+  fiscal_year: 2025
+  revenue_musd: 910
+  net_income_musd: 130
+  revenue_growth_pct: 38.0
+  operating_margin_pct: 16.0
+  free_cash_flow_musd: 150
+  market_cap_musd: 6800
+  dividend_yield_pct: 0.0
+  debt_to_equity: 0.1
+  credit_rating: BBB
+  competitors: AAPL GRMN
+  key_risk: Large phone makers sell watches that do the same and can bundle them with their phones.
+HLVAC:
+  name: Hallingdal Vacuum Systems AS
+  sector: TECH
+  industry: Semiconductor Equipment
+  headquarters: Horten, Norway
+  purpose: Makes the vacuum chambers, pumps and gas systems that chip factories use to coat and etch silicon wafers.
+  key_market: Chip equipment makers and wafer plants in Taiwan, South Korea, the US and Europe
+  market_position: Supplies the vacuum systems inside most of the equipment that makes the most advanced chips, so it ships alongside every new factory.
+  origin: FAMILY
+  founders: The Hallingdal family
+  founder_story: Anders Hallingdal began making vacuum tubes for radios in a Horten boathouse in 1946; his grandson steered the firm to chip equipment in the 1990s.
+  founded_year: 1946
+  ipo_year: 1997
+  ipo_valuation_musd: 70
+  ceo_name: Anders Hallingdal
+  ceo_since: 2010
+  ceo_industry_years: 33
+  employees: 3800
+  fiscal_year: 2025
+  revenue_musd: 1480
+  net_income_musd: 305
+  revenue_growth_pct: 14.0
+  operating_margin_pct: 26.0
+  free_cash_flow_musd: 290
+  market_cap_musd: 11200
+  dividend_yield_pct: 1.1
+  debt_to_equity: 0.2
+  credit_rating: A-
+  competitors: AMAT LRCX KLAC
+  key_risk: Chip equipment orders swing with the memory-chip cycle, and Asian rivals are catching up.
+BETLR:
+  name: Betalar Banking Software AB
+  sector: TECH
+  industry: Banking Software
+  headquarters: Gothenburg, Sweden
+  purpose: Sells the core systems that banks use to run accounts, loans and payments, and a cloud service that lets small banks outsource them.
+  key_market: Small and mid-sized banks in the Nordics, Benelux and Eastern Europe
+  market_position: Runs the accounts of banks serving 40 million people, and no bank has left it for a rival since 2016.
+  origin: SPIN_OFF
+  founders: A Swedish savings-bank group
+  founder_story: A group of savings banks set up an IT department in 1971 to share one computer; in 1990 it began to sell its systems to banks outside the group.
+  founded_year: 1971
+  ipo_year: 2005
+  ipo_valuation_musd: 380
+  ceo_name: Rolf Jernström
+  ceo_since: 2016
+  ceo_industry_years: 34
+  employees: 4700
+  fiscal_year: 2025
+  revenue_musd: 1180
+  net_income_musd: 195
+  revenue_growth_pct: 8.0
+  operating_margin_pct: 21.0
+  free_cash_flow_musd: 230
+  market_cap_musd: 7100
+  dividend_yield_pct: 1.8
+  debt_to_equity: 0.5
+  credit_rating: BBB+
+  competitors: FIS FI SAP
+  key_risk: Banks merge, and the surviving bank usually picks one system and drops the others.
+POLST:
+  name: Polarstjärna Earth Observation AB
+  sector: TECH
+  industry: Geospatial Data & Analytics
+  headquarters: Kiruna, Sweden
+  purpose: Operates a fleet of small radar and optical satellites and sells images and AI analysis of them to defence, forestry and insurance customers.
+  key_market: Defence agencies, forest owners, insurers and commodity traders
+  market_position: Its radar satellites see through cloud and Arctic darkness, which optical-only rivals cannot, and customers use them to watch the Baltic and the Arctic.
+  origin: SPIN_OFF
+  founders: Engineers from a space research centre
+  founder_story: Engineers at a rocket range outside Kiruna built their first small satellite in 2014 to watch ice for the shipping lanes and sold the images to insurers.
+  founded_year: 2014
+  ipo_year: 2022
+  ipo_valuation_musd: 1300
+  ceo_name: Mattias Lundmark
+  ceo_since: 2020
+  ceo_industry_years: 21
+  employees: 760
+  fiscal_year: 2025
+  revenue_musd: 240
+  net_income_musd: 8
+  revenue_growth_pct: 45.0
+  operating_margin_pct: 4.0
+  free_cash_flow_musd: -55
+  market_cap_musd: 3300
+  dividend_yield_pct: 0.0
+  debt_to_equity: 0.5
+  credit_rating: BB
+  competitors: PLTR LMT
+  key_risk: A launch failure or a satellite lost to space debris would cost a year of revenue.
+SAGNA:
+  name: Sagna Conversational AI Oy
+  sector: TECH
+  industry: Customer Engagement Software
+  headquarters: Helsinki, Finland
+  purpose: Sells AI agents that answer customer calls, chats and e-mails for airlines, telecom operators and utilities in more than 30 languages.
+  key_market: Contact centres of large service companies in Europe
+  market_position: Its agents handle Finnish, Estonian and Baltic languages better than the global products, and are now spreading to the rest of Europe.
+  origin: CO_FOUNDERS
+  founders: Johanna Mäkelä, Teemu Ojala
+  founder_story: Two speech researchers met while building a voice assistant for a Finnish bank in 2017; when the bank cancelled it they bought the code and started to sell it to others.
+  founded_year: 2017
+  ipo_year: 2024
+  ipo_valuation_musd: 1500
+  ceo_name: Johanna Mäkelä
+  ceo_since: 2017
+  ceo_industry_years: 16
+  employees: 1300
+  fiscal_year: 2025
+  revenue_musd: 380
+  net_income_musd: 24
+  revenue_growth_pct: 52.0
+  operating_margin_pct: 7.0
+  free_cash_flow_musd: 35
+  market_cap_musd: 3900
+  dividend_yield_pct: 0.0
+  debt_to_equity: 0.1
+  credit_rating: BB+
+  competitors: CRM NOW MSFT
+  key_risk: General-purpose AI models can now do the same job, and the largest customers may build their own.
+LYSDL:
+  name: Lysdal Photonics A/S
+  sector: TECH
+  industry: Optical Components
+  headquarters: Aarhus, Denmark
+  purpose: Makes lasers and optical parts for fibre networks, data centres, and the cutting machines used in factories.
+  key_market: Telecom equipment makers, data centre operators and industrial laser users
+  market_position: A leading supplier of the fast optical links that connect AI computers inside a data centre, a market that doubles every two years.
+  origin: SPIN_OFF
+  founders: A university physics institute
+  founder_story: A professor and two graduate students left the Aarhus physics institute in 1995 to sell the semiconductor lasers they had been building for telescopes.
+  founded_year: 1995
+  ipo_year: 2006
+  ipo_valuation_musd: 150
+  ceo_name: Jesper Vestergaard
+  ceo_since: 2018
+  ceo_industry_years: 27
+  employees: 3100
+  fiscal_year: 2025
+  revenue_musd: 1320
+  net_income_musd: 190
+  revenue_growth_pct: 33.0
+  operating_margin_pct: 18.0
+  free_cash_flow_musd: 120
+  market_cap_musd: 8700
+  dividend_yield_pct: 0.5
+  debt_to_equity: 0.35
+  credit_rating: BBB
+  competitors: GLW ANET AVGO
+  key_risk: A handful of cloud companies buy most of its fast links and can switch suppliers quickly.
+HNDLA:
+  name: Handla Commerce Platform AB
+  sector: TECH
+  industry: Commerce Software
+  headquarters: Stockholm, Sweden
+  purpose: Sells the software that online shops use for catalogues, checkout, payments and delivery, and takes a share of the sales that go through it.
+  key_market: Small and mid-sized online retailers in Europe
+  market_position: Powers about one in five online shops in the Nordics, with checkout and payment tools built for European rules.
+  origin: CO_FOUNDERS
+  founders: Emil Carlsson, Josefin Nyström
+  founder_story: Two brothers-in-law who ran a Stockholm candle shop online built their own checkout in 2010 because every existing one was designed for the US.
+  founded_year: 2010
+  ipo_year: 2019
+  ipo_valuation_musd: 1900
+  ceo_name: Josefin Nyström
+  ceo_since: 2010
+  ceo_industry_years: 19
+  employees: 2600
+  fiscal_year: 2025
+  revenue_musd: 1350
+  net_income_musd: 140
+  revenue_growth_pct: 24.0
+  operating_margin_pct: 12.0
+  free_cash_flow_musd: 190
+  market_cap_musd: 7900
+  dividend_yield_pct: 0.0
+  debt_to_equity: 0.2
+  credit_rating: BBB
+  competitors: SHOP ADBE PYPL
+  key_risk: Shop owners can move to larger platforms as they grow, and US rivals are spending heavily in Europe.
+NVTEL:
+  name: Nordvik Telecom AB
+  sector: COMMUNICATION
+  industry: Integrated Telecommunication Services
+  headquarters: Stockholm, Sweden
+  purpose: Sells mobile, fixed broadband, TV and business network services to 21 million customers in Sweden, Denmark and the Baltic states.
+  key_market: Households and businesses in Sweden, Denmark, Estonia and Lithuania
+  market_position: Owns the only fibre network that reaches more than half of Swedish homes, and has the best mobile coverage in the thinly populated north.
+  origin: PRIVATISATION
+  founders: The Swedish state
+  founder_story: Set up as the state telegraph administration in 1853, it was split and partly floated on the Stockholm exchange in 2000 when the telecom markets were opened up.
+  founded_year: 1853
+  ipo_year: 2000
+  ipo_valuation_musd: 14000
+  ceo_name: Birgitta Sundqvist
+  ceo_since: 2021
+  ceo_industry_years: 27
+  employees: 18500
+  fiscal_year: 2025
+  revenue_musd: 9800
+  net_income_musd: 880
+  revenue_growth_pct: 1.5
+  operating_margin_pct: 19.0
+  free_cash_flow_musd: 1250
+  market_cap_musd: 14500
+  dividend_yield_pct: 5.8
+  debt_to_equity: 1.3
+  credit_rating: BBB+
+  competitors: T VZ TMUS
+  key_risk: Price competition in a small number of markets and the cost of fibre and 5G leave little room for growth.
+GMRKT:
+  name: Troll & Tales Games AB
+  sector: COMMUNICATION
+  industry: Interactive Home Entertainment
+  headquarters: Stockholm, Sweden
+  purpose: Develops and publishes PC and console games, including a long-running fantasy series built on Nordic folklore, and sells game expansions online.
+  key_market: Gamers in North America, Europe and Asia
+  market_position: Its fantasy series has sold 120 million copies, and each new game is carried by a community that stays for a decade.
+  origin: CO_FOUNDERS
+  founders: Gustav Eklund, Mikael Brännström
+  founder_story: Two friends who made board games about trolls in a Stockholm student flat released their first computer game in 1996; it sold enough to fund the next three.
+  founded_year: 1994
+  ipo_year: 2005
+  ipo_valuation_musd: 160
+  ceo_name: Mikael Brännström
+  ceo_since: 2012
+  ceo_industry_years: 31
+  employees: 2900
+  fiscal_year: 2025
+  revenue_musd: 1850
+  net_income_musd: 420
+  revenue_growth_pct: 12.0
+  operating_margin_pct: 29.0
+  free_cash_flow_musd: 470
+  market_cap_musd: 9600
+  dividend_yield_pct: 1.9
+  debt_to_equity: 0.05
+  credit_rating: A-
+  competitors: EA
+  key_risk: Most revenue depends on one franchise, and a delayed release or a weak sequel hits the shares hard.
+SAGOL:
+  name: Sagoland Audio AB
+  sector: COMMUNICATION
+  industry: Interactive Media & Services
+  headquarters: Gothenburg, Sweden
+  purpose: Runs a streaming service for audiobooks, podcasts and children's stories, with a monthly subscription and an AI voice that reads books in the author's style.
+  key_market: Paying listeners in the Nordics, Germany and the UK
+  market_position: Has the largest library of Nordic-language audiobooks, and its children's story app is used by one Swedish family in three.
+  origin: CO_FOUNDERS
+  founders: Annelie Sjöberg, Rickard Dahl
+  founder_story: A publisher and a sound engineer who had recorded books for the blind in a Gothenburg library began to offer them by subscription in 2013.
+  founded_year: 2013
+  ipo_year: 2021
+  ipo_valuation_musd: 1800
+  ceo_name: Annelie Sjöberg
+  ceo_since: 2013
+  ceo_industry_years: 22
+  employees: 1400
+  fiscal_year: 2025
+  revenue_musd: 980
+  net_income_musd: 70
+  revenue_growth_pct: 22.0
+  operating_margin_pct: 9.0
+  free_cash_flow_musd: 110
+  market_cap_musd: 5100
+  dividend_yield_pct: 0.0
+  debt_to_equity: 0.2
+  credit_rating: BBB-
+  competitors: SPOT NFLX
+  key_risk: The large music-streaming services include audiobooks in their basic subscription at no extra charge.
+KUUTO:
+  name: Kuutio Games Oy
+  sector: COMMUNICATION
+  industry: Interactive Home Entertainment
+  headquarters: Helsinki, Finland
+  purpose: Makes free-to-play mobile games in which players build villages and raid each other, earning from in-game purchases and ads.
+  key_market: Mobile players worldwide, mostly in the US, Japan and South Korea
+  market_position: Has kept three games in the top 50 for a decade, a rare record in an industry where most hits fade within a year.
+  origin: CO_FOUNDERS
+  founders: Ilkka Pelkonen, Sanni Heikkinen
+  founder_story: Six friends from a Helsinki university game club left their jobs in 2010 to make a game on their phones; their fifth attempt, about farm animals, paid the rent.
+  founded_year: 2010
+  ipo_year: 2017
+  ipo_valuation_musd: 2200
+  ceo_name: Ilkka Pelkonen
+  ceo_since: 2010
+  ceo_industry_years: 20
+  employees: 800
+  fiscal_year: 2025
+  revenue_musd: 2150
+  net_income_musd: 640
+  revenue_growth_pct: 6.0
+  operating_margin_pct: 36.0
+  free_cash_flow_musd: 700
+  market_cap_musd: 12500
+  dividend_yield_pct: 3.2
+  debt_to_equity: 0.0
+  credit_rating: A
+  competitors: EA
+  key_risk: Apple and Google take a third of every purchase, and a change in their rules on tracking could cut ad income.

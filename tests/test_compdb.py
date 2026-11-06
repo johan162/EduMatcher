@@ -61,7 +61,8 @@ def test_seed_covers_the_s300_simulation_with_its_sectors(
 ) -> None:
     sim = yaml.safe_load((S300 / "market_sim.yaml").read_text(encoding="utf-8"))
     expected = {s: body["sector"] for s, body in sim["symbols"].items()}
-    assert {r["symbol"]: r["sector"] for r in seed} == expected
+    sectors = {r["symbol"]: r["sector"] for r in seed}
+    assert {s: sectors.get(s) for s in expected} == expected
 
 
 def test_seed_uses_the_simulations_own_industries(
@@ -231,7 +232,7 @@ def test_cli_init_builds_the_bundled_companies(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     path = tmp_path / "sub" / "c.db"
-    assert "300 companies" in _run(capsys, "--db", str(path), "init")
+    assert "400 companies" in _run(capsys, "--db", str(path), "init")
     with pytest.raises(SystemExit):
         main(["--db", str(path), "init"])
     assert "--force" in capsys.readouterr().err

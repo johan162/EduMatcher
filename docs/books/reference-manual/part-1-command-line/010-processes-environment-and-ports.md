@@ -1957,7 +1957,8 @@ None.
 
 A SQLite database of company profiles for the 300 tickers of the s300
 simulation (`docs/examples/ref_data/s300-sim-setup`), and the tool to query and
-edit it. The companies are made up: each ticker keeps its
+edit it. It also holds 100 Swedish and other Nordic companies whose tickers
+`pm-market-sim` does not trade. The companies are made up: each ticker keeps its
 sector and industry from `pm-market-sim` (and so the news it gets), but every
 name, person and number is invented. No running process is needed.
 
