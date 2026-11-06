@@ -1740,6 +1740,18 @@ class Engine:
 
         # Restore GTC combos and rebuild parent-child links
         combos = load_gtc_combos(GTC_COMBOS_FILE)
+        if any(c.tif == TIF.DAY for c in combos):
+            # As for orders: a DAY combo ends with its business day (its legs
+            # were discarded above for the same reason).
+            fresh = [
+                c
+                for c in combos
+                if c.tif != TIF.DAY
+                or datetime.fromtimestamp(c.timestamp / 1e9, session_tz).date() >= today
+            ]
+            if len(fresh) != len(combos):
+                log.info(f"Discarded {len(combos) - len(fresh)} stale TIF=DAY combo(s)")
+            combos = fresh
         for combo in combos:
             self._combos[combo.id] = combo
             for child_id in combo.child_order_ids:
@@ -1751,7 +1763,7 @@ class Engine:
                 make_recovery_item_msg(combo.id, "COMBO", "RESTORED")
             )
         if combos:
-            log.info(f"Restored {len(combos)} GTC combo(s) from previous session.")
+            log.info(f"Restored {len(combos)} combo(s) from previous session.")
 
         # Broadcast once, unconditionally (even an all-zero restart is worth
         # a record) -- see spec/messages/system.yaml::startup_recovery. Every
@@ -7021,15 +7033,10 @@ class Engine:
         # unaffected by this change. See
         # docs-design/EduMatcher-Revised-Quote-Persistence.md §12-§13.
         #
-        # Combos are out of scope for that design: save_gtc_combos() below
-        # still persists only TIF.GTC combo parents, so a restored TIF.DAY
-        # combo leg (now persisted here as a plain order, since it is no
-        # longer expired) comes back with a combo_parent_id that no longer
-        # resolves to anything in self._combos/_order_to_combo — it restores
-        # as an ordinary standalone resting order, silently detached from
-        # its former combo. _check_combo_after_child_event() no-ops safely
-        # on the unresolved id rather than raising, so this is a known,
-        # scoped-out limitation, not a crash risk.
+        # Combos follow the same rule: save_gtc_combos() below persists live
+        # TIF.DAY parents beside TIF.GTC ones, so a restored DAY leg keeps
+        # its combo_parent_id link (Engine._restore_gtc discards a DAY combo
+        # whose business day has passed, with its legs).
         #
         # Quote-origin orders (MM quote legs) are also no longer excluded
         # here: they persist by the same TIF rule as any other resting
@@ -7043,11 +7050,10 @@ class Engine:
         n_combos = sum(
             1
             for c in self._combos.values()
-            if c.tif == TIF.GTC
-            and c.status in (ComboStatus.PENDING, ComboStatus.PARTIALLY_MATCHED)
+            if c.status in (ComboStatus.PENDING, ComboStatus.PARTIALLY_MATCHED)
         )
         if n_combos:
-            log.info(f"Saved {n_combos} GTC combo(s) to {GTC_COMBOS_FILE}")
+            log.info(f"Saved {n_combos} combo(s) to {GTC_COMBOS_FILE}")
 
         save_book_stats(self.books, BOOK_STATS_FILE)
         log.info(

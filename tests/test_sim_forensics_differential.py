@@ -192,3 +192,12 @@ def test_e5_to_e7_are_slow(tmp_path: Path, open_ds: OpenDataset) -> None:
     results = run_checks(open_ds(data), [REGISTRY[i] for i in E], 10)
     assert {r.status for r in results} == {"SKIPPED"}
     assert results[0].note.startswith("slow:")
+
+
+def test_snapped_equates_floats_a_decimal_apart_only() -> None:
+    """E7: a VWAP on a 9-decimal rounding boundary rounds either way."""
+    ref = {"fill_price": 79.380351563, "price": 1.0, "qty": 5}
+    near = {"fill_price": 79.380351562, "price": 1.0, "qty": 5}
+    far = {"fill_price": 79.38035156, "price": 1.0, "qty": 5}
+    assert differential._snapped(near, ref) == ref
+    assert differential._snapped(far, ref) == far

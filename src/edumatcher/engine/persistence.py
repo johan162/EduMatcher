@@ -200,12 +200,12 @@ def load_book_stats(path: Path) -> dict[str, dict[str, Any]]:
 
 
 def save_gtc_combos(combos: list[ComboOrder], path: Path) -> None:
-    """Persist resting GTC combos that are still PENDING or PARTIALLY_MATCHED."""
+    """Persist resting combos (GTC or DAY) that are still PENDING or
+    PARTIALLY_MATCHED; their DAY legs persist as orders, so the parent must."""
     active = [
         c.to_dict()
         for c in combos
-        if c.tif == TIF.GTC
-        and c.status
+        if c.status
         in (
             ComboStatus.PENDING,
             ComboStatus.PARTIALLY_MATCHED,

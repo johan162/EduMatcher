@@ -497,11 +497,9 @@ class TestComboEndToEnd:
         it persists like any other resting DAY order and the combo stays
         PENDING (nothing cascades, because nothing expired).
 
-        Combos themselves remain out of scope for that persistence design:
-        save_gtc_combos() still only persists TIF=GTC combo parents, so this
-        combo's PENDING record in engine._combos does not itself survive a
-        restart — only its two child legs do, as plain resting orders (see
-        the _shutdown() comment on the resulting dangling combo_parent_id).
+        The parent combo persists too (save_gtc_combos() keeps live DAY
+        combos), so the legs keep their link across a restart.
+
         This test covers the in-memory, pre-restart behaviour only.
         """
         engine, pub_sock = combo_engine

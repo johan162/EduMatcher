@@ -290,6 +290,41 @@ class TestRestoreGTCWithOrders:
         engine._restore_gtc()
         assert combo.id in engine._combos
 
+    @pytest.mark.parametrize("days_ago, restored", [(0, True), (1, False)])
+    def test_restore_day_combo_only_within_its_business_day(
+        self, monkeypatch, tmp_path, days_ago, restored
+    ) -> None:
+        """A TIF=DAY combo restores with its links the same day, not after."""
+        combo = ComboOrder.create(
+            combo_id="C02",
+            gateway_id="GW01",
+            combo_type=ComboType.AON,
+            tif=TIF.DAY,
+            legs=[
+                ComboLeg(
+                    symbol=sym,
+                    side=side,
+                    order_type=OrderType.LIMIT,
+                    quantity=100,
+                    tick_decimals=2,
+                    price_ticks=100,
+                )
+                for sym, side in (("AAPL", Side.BUY), ("MSFT", Side.SELL))
+            ],
+        )
+        combo.child_order_ids = ["child-a", "child-b"]
+        combo.timestamp -= days_ago * 86_400 * 10**9
+        engine, _ = _make_engine(
+            monkeypatch,
+            tmp_path,
+            symbols=("AAPL", "MSFT"),
+            gtc_combos=[combo],
+            verbose=False,
+        )
+        engine._restore_gtc()
+        assert (combo.id in engine._combos) is restored
+        assert ("child-a" in engine._order_to_combo) is restored
+
 
 class TestRestoreGTCBusinessDayCheck:
     """TIF=DAY orders are only restored if their business day is still

@@ -271,7 +271,7 @@ class TestComboPersistence:
         assert loaded[0].tif == TIF.GTC
 
     def test_only_active_gtc_combos_persisted(self, tmp_path: Path) -> None:
-        """MATCHED / DAY combos should not be persisted."""
+        """Only live (PENDING / PARTIALLY_MATCHED) combos are persisted, DAY or GTC."""
         active = ComboOrder.create(
             combo_id="ACTIVE",
             gateway_id="GW",
@@ -353,8 +353,7 @@ class TestComboPersistence:
         save_gtc_combos([active, matched, day_combo], path)
         loaded = load_gtc_combos(path)
 
-        assert len(loaded) == 1
-        assert loaded[0].combo_id == "ACTIVE"
+        assert [c.combo_id for c in loaded] == ["ACTIVE", "DAYC"]
 
     def test_load_missing_file_returns_empty(self, tmp_path: Path) -> None:
         assert load_gtc_combos(tmp_path / "nonexistent.json") == []
