@@ -3209,6 +3209,7 @@ class Engine:
         gateway_id: str,
         symbol: str,
         cancel_reason: CancelReason | None = "QUOTE_REPLACED",
+        command_id: str = "",
     ) -> list[Order]:
         """Cancel any resting quote-origin order(s) for this gateway/symbol
         that are no longer tracked by an active ``QuoteIndex`` entry.
@@ -3234,15 +3235,18 @@ class Engine:
         excludes quote-origin orders for the same reason in reverse (it
         expects `QuoteIndex`-driven cancellation to handle those instead).
 
-        Three paths clear a leftover this way: a new quote, a startup seed
-        and ``quote.cancel``. Returns the orders actually cancelled.
+        Five paths clear a leftover this way: a new quote, a startup seed,
+        ``quote.cancel`` and the two admin mass cancels (the gateway kill
+        switch and ``CANCEL_SYM``). Returns the orders actually cancelled.
         """
         book = self.books.get(symbol)
         if book is None:
             return []
         cancelled: list[Order] = []
         for order in list(book.quote_orders_for_gateway(gateway_id)):
-            gone = self._cancel_order_by_id(order.id, cancel_reason=cancel_reason)
+            gone = self._cancel_order_by_id(
+                order.id, cancel_reason=cancel_reason, command_id=command_id
+            )
             if gone is not None:
                 cancelled.append(gone)
         return cancelled
@@ -4524,6 +4528,22 @@ class Engine:
                 command_id=command_id,
             )
 
+        # A quote hit on one side (INACTIVATE_ON_ANY_FILL) has already left
+        # the QuoteIndex, yet its other leg may still rest; the index sweep
+        # above cannot see it.
+        for book in self.books.values():
+            if symbol_filter and book.symbol != symbol_filter:
+                continue
+            cancelled_quote_order_ids += [
+                gone.id
+                for gone in self._cancel_orphaned_quote_legs(
+                    target_gateway_id,
+                    book.symbol,
+                    cancel_reason="KILL_SWITCH",
+                    command_id=command_id,
+                )
+            ]
+
         # O(k) per book via OrderBook._orders_by_gateway (k = this gateway's
         # resting orders there) instead of a scan of every resting order in
         # every book — see ../../../docs/books/architecture-and-development/part-1-architecture/020-guided-tour.md §10.
@@ -5084,6 +5104,19 @@ class Engine:
                 cancel_reason="ADMIN_CANCEL_SYMBOL",
                 command_id=command_id,
             )
+
+        # Quote legs that outlived their inactivated quote (see the kill
+        # switch) are no longer in the QuoteIndex; clear them here too.
+        if book is not None:
+            for order in list(book.resting_orders()):
+                if order.origin == OrderOrigin.QUOTE:
+                    gone = self._cancel_order_by_id(
+                        order.id,
+                        cancel_reason="ADMIN_CANCEL_SYMBOL",
+                        command_id=command_id,
+                    )
+                    if gone is not None:
+                        cancelled_quote_order_ids.append(gone.id)
 
         cancelled_orders = len(cancelled_order_ids)
         cancelled_quotes = len(cancelled_quote_order_ids)

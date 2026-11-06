@@ -14,7 +14,12 @@ IOC, ICEBERG, and TRAILING_STOP — through practical exercises.
 ## Prerequisites
 
 - Chapters 01–04 completed.
-- At least one trader gateway connected with active MM liquidity.
+- `TRADER01`, `TRADER02`, the operator console and the `MM_AAPL_01` console
+  connected to the current engine (Exercise 5 also uses `MM_TSLA_01`).
+- The MSFT market-maker quote from chapter 02 still resting (Exercise 4 trades
+  against its 300-share ask at 420.10). If `BOOK|SYM=MSFT` shows otherwise,
+  send it again from `MM_MSFT_01`:
+  `QUOTE|SYM=MSFT|BID=419.90|ASK=420.10|BID_QTY=300|ASK_QTY=300|TIF=DAY|QUOTE_ID=MSFT-MM-005`.
 
  
 
@@ -168,7 +173,17 @@ If only 300 are available at the ask, you get 300 filled and 700 cancelled.
 
 ## Exercise 5: Iceberg Order
 
-An iceberg shows only a visible "peak" quantity while hiding the reserve:
+An iceberg shows only a visible "peak" quantity while hiding the reserve.
+First give TSLA a known book: chapter 04 left orders of its own on it, and its
+market-maker quote was cleared there. Clear TSLA and have the market maker
+quote it again:
+
+```
+[GW_ADMIN|ADMIN]> CANCEL_SYM|SYM=TSLA
+[MM_TSLA_01]> QUOTE|SYM=TSLA|BID=249.75|ASK=250.25|BID_QTY=200|ASK_QTY=200|TIF=DAY|QUOTE_ID=TSLA-MM-005
+```
+
+Then place the iceberg:
 
 ```
 [TRADER01]> NEW|SYM=TSLA|SIDE=BUY|TYPE=ICEBERG|QTY=1000|PRICE=249.70|VISIBLE=100|TIF=DAY
@@ -183,9 +198,11 @@ Check the book:
 [GW_ADMIN|ADMIN]> BOOK|SYM=TSLA
 ```
 
-You should see a 100-lot bid at 249.70, not 1000. (The price is one tick
-below the market maker's 249.75 bid on purpose: `BOOK` adds up all orders at
-one price, so at 249.75 you would see the market maker's 200 plus your 100.)
+You should see the market maker's 200-share bid at 249.75 and, below it, a
+100-share bid at 249.70 — not 1000 — next to the market maker's 200 ask at
+250.25. (The iceberg's price is one tick below the market maker's bid on
+purpose: `BOOK` adds up all orders at one price, so at 249.75 you would see
+the market maker's 200 plus your 100.)
 
 :material-checkbox-blank-outline: **Checkpoint:** only peak quantity visible in the book.
 

@@ -56,7 +56,21 @@ Different TIF values control when orders are active and when they expire.
 
 ## Exercise 1: Observe Session Phases
 
-Start the scheduler in rapid-fire mode to see all transitions quickly:
+`pm-scheduler --now` replays the whole day, and the engine only accepts the
+transitions in order, so it can show you every phase only when it starts from
+`CLOSED`. If `SESSION_STATUS` in the operator console says anything else
+(after chapter 05 it says `CONTINUOUS`), close the day by hand first:
+
+```
+[GW_ADMIN|ADMIN]> SESSION|STATE=CLOSING_AUCTION
+[GW_ADMIN|ADMIN]> SESSION|STATE=CLOSED
+```
+
+Entering `CLOSED` expires every resting `DAY` order, which includes the
+market makers' quotes from chapter 02, so the books are empty afterwards. That
+is fine for the rest of this chapter and for chapter 07, which build their own
+orders. Now start the scheduler in rapid-fire mode to see all transitions
+quickly:
 
 ```bash
 pm-scheduler --now --delay 5
@@ -72,8 +86,10 @@ console, which does:
 ```
 
 Run it after each transition, or watch the audit trail in another terminal for
-the live `session.state` events. The audit logger also prints order-book
-checkpoints at every phase change, so filter for the lines you want:
+the `session.state` events. The audit logger prints in batches (at least every
+10 seconds), so a line can appear a few seconds after the transition. It also
+prints order-book checkpoints at every phase change, so filter for the lines
+you want:
 
 ```bash
 pm-audit --terminal | grep '\[session.state\]'
@@ -138,8 +154,9 @@ reproducible phase instead of racing a free-running scheduler.
 
 ## Exercise 2: DAY Order Expiry
 
-During CONTINUOUS (freeze there with `SESSION|STATE=CONTINUOUS` per the
-procedure above), place a DAY order:
+During CONTINUOUS (freeze there per the procedure above: the scheduler's day in
+Exercise 1 ended in `CLOSED`, so send `SESSION|STATE=PRE_OPEN` and then
+`SESSION|STATE=CONTINUOUS`), place a DAY order:
 
 ```
 [TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=148.00|TIF=DAY
