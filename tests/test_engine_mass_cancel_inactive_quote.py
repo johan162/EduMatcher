@@ -10,8 +10,11 @@ orders in the book, so that remainder survived both, and the Training Guide's
 
 from __future__ import annotations
 
+import pytest
+
 from typing import Any
 
+from edumatcher.models.participant import DisconnectBehaviour
 from edumatcher.models.order import OrderType, Side
 from tests.engine_harness import (
     SYMBOL,
@@ -69,4 +72,77 @@ def test_the_gateway_kill_switch_clears_the_leg_of_an_inactivated_quote(
     (ack,) = msgs(pub, f"risk.kill_switch_gateway_ack.{ADMIN}")
     assert ack["accepted"] is True
     assert (ack["cancelled_orders"], ack["cancelled_quotes"]) == (0, 1)
+    assert list(engine.books[SYMBOL].resting_orders()) == []
+
+
+@pytest.mark.parametrize(
+    ("behaviour", "ordinary_order_remains", "quote_remainder_remains"),
+    [
+        (DisconnectBehaviour.CANCEL_QUOTES_ONLY, True, False),
+        (DisconnectBehaviour.CANCEL_ALL, False, False),
+        (DisconnectBehaviour.LEAVE_ALL, True, True),
+    ],
+)
+def test_disconnect_applies_policy_to_inactivated_quote_remainder(
+    monkeypatch,
+    tmp_path,
+    behaviour,
+    ordinary_order_remains,
+    quote_remainder_remains,
+):
+    engine, pub = _engine_with_a_half_filled_quote(monkeypatch, tmp_path)
+    engine._sessions[MM].disconnect_behaviour = behaviour
+    ordinary = order_payload(
+        side=Side.BUY,
+        order_type=OrderType.LIMIT,
+        qty=10,
+        gateway_id=MM,
+        price=90.0,
+    )
+    engine._handle_new_order(ordinary)
+    quote_remainder = engine.books[SYMBOL].quote_orders_for_gateway(MM)[0]
+    pub.sent.clear()
+
+    engine._handle_gateway_disconnect({"gateway_id": MM})
+
+    remaining = list(engine.books[SYMBOL].resting_orders())
+    expected_remaining = []
+    if ordinary_order_remains:
+        expected_remaining.append(ordinary["id"])
+    if quote_remainder_remains:
+        expected_remaining.append(quote_remainder.id)
+    assert {order.id for order in remaining} == set(expected_remaining)
+    cancellations = msgs(pub, f"order.cancelled.{MM}")
+    assert {item["order_id"] for item in cancellations} == (
+        set()
+        if quote_remainder_remains
+        else (
+            {quote_remainder.id}
+            if ordinary_order_remains
+            else {quote_remainder.id, ordinary["id"]}
+        )
+    )
+    assert all(item["cancel_reason"] == "GATEWAY_DISCONNECT" for item in cancellations)
+
+
+def test_participant_kill_clears_and_acknowledges_inactivated_quote_remainder(
+    monkeypatch, tmp_path
+):
+    engine, pub = _engine_with_a_half_filled_quote(monkeypatch, tmp_path)
+    ordinary = order_payload(
+        side=Side.BUY,
+        order_type=OrderType.LIMIT,
+        qty=10,
+        gateway_id=MM,
+        price=90.0,
+    )
+    engine._handle_new_order(ordinary)
+    quote_remainder = engine.books[SYMBOL].quote_orders_for_gateway(MM)[0]
+
+    engine._handle_kill_switch({"gateway_id": MM})
+
+    (ack,) = msgs(pub, f"risk.kill_switch_ack.{MM}")
+    assert (ack["cancelled_orders"], ack["cancelled_quotes"]) == (1, 1)
+    assert ack["cancelled_order_ids"] == [ordinary["id"]]
+    assert ack["cancelled_quote_order_ids"] == [quote_remainder.id]
     assert list(engine.books[SYMBOL].resting_orders()) == []

@@ -504,12 +504,17 @@ ORDERS
 QBOOT
 ```
 
-Both responses should show `COUNT=0` — **if `MM01` has nothing else resting.**
-A *partly filled* quote from an earlier chapter leaves its unfilled leg behind
-as an ordinary order, and `KILL` does not remove it: `ORDERS` then lists it
-(for example `ORDER|…|SYM=MSFT|SIDE=SELL|…|REMAINING=660|…`) and `QBOOT` is
-empty. Cancel such an order with `CANCEL|ID=<id>`, or start clean as described
-in the note under Exercise 1.
+`KILL_ACK` reports non-quote orders in `ORDERS` and quote-origin orders in
+`QUOTES`. A partially filled quote can be inactive while its unfilled
+remainder still rests; `KILL` removes that remainder and includes it in
+`QUOTES`, even after an engine restart.
+
+For example, if 340 shares of a 1,000-share quote leg filled before restart,
+`ORDERS` may show its 660-share remainder. After `KILL`, the acknowledgement
+reports `ORDERS=0` and `QUOTES=1` for that remainder. `ORDERS` then returns
+`ORDERS|COUNT=0|GW=MM01` followed by `END|TYPE=ORDERS`; `QBOOT` is empty because
+the quote was already inactive. If other orders or quotes are resting, their
+cancellations are included in the corresponding acknowledgement count.
 
 Scope the kill to one symbol:
 

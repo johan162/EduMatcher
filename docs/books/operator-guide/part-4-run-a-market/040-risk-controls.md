@@ -1352,12 +1352,15 @@ When `"symbol"` is empty or absent, all symbols are included.
 
 ### What the engine does
 
-1. Collects all resting orders and quote legs for the specified gateway (and
-   optionally symbol).
+1. Collects all resting orders and quote-origin legs for the specified
+   gateway (and optionally symbol), including a partially filled quote's
+   remainder after its quote has become inactive.
 2. Cancels each order and quote leg, excluding child orders that were derived
    from a quote (those are cancelled as part of the quote leg cancellation).
 3. Sends a `risk.kill_switch_ack.{GW_ID}` reply with the count of cancelled
-   items and the ids of the orders/quote legs cancelled.
+   items and the ids of the orders/quote legs cancelled. Quote-origin
+   remainders are included in `cancelled_quotes` and
+   `cancelled_quote_order_ids`, not in the non-quote order count.
 
 ### Reply
 

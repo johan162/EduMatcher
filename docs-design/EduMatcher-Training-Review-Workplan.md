@@ -29,7 +29,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 | # | WP | Content | Findings | Depends on | Status | Done on |
 |---|----|---------|----------|------------|--------|---------|
 | 1 | T1 | Audit startup delivery and completeness | Q1 | — | ☑ | 2026-11-06 |
-| 2 | T2 | Orphaned quote remainders on disconnect and kill | Q2, Q20 | — | ☐ | |
+| 2 | T2 | Orphaned quote remainders on disconnect and kill | Q2, Q20 | — | ☑ | 2026-11-06 |
 | 3 | T3 | Combo self-match prevention contract | Q3 | Contract decision | ☐ | |
 | 4 | T4 | Console authentication after engine restart | Q4 | — | ☐ | |
 | 5 | T5 | Admin console identities and safe reset guidance | Q5, Q6 | — | ☐ | |
@@ -147,10 +147,11 @@ Verification:
 
 ### T2 — Orphaned quote remainders on disconnect and kill (Q2, Q20)
 
-**Question to resolve:** Does the configured disconnect behavior and
-participant `KILL` contract cancel partially filled quote remainders? The review
-describes these paths as canceling quotes/orders, but existing tests document
-that a remainder may survive until replacement.
+**Resolution:** Quote-origin remainders are quote exposure, even after a
+partial fill removes their quote from `QuoteIndex`. `CANCEL_QUOTES_ONLY` and
+`CANCEL_ALL` cancel those remainders on disconnect; `LEAVE_ALL` intentionally
+preserves them. Participant `KILL` cancels them and counts their IDs under
+`cancelled_quotes` / ALF `QUOTES`.
 
 Steps:
 1. Before changing code, add failing engine-level tests that:
@@ -182,6 +183,22 @@ Steps:
   and restart.
 - The intentional behavior for each disconnect policy is documented.
 - Targeted engine/gateway tests and full project checks pass.
+
+**Result (2026-11-06):** Added failing-before tests for both disconnect
+policies and participant `KILL`; the initial run failed in all three cases
+because the orphan remained in the book and `KILL` omitted it from its
+acknowledgement. Both disconnect cleanup and participant `KILL` now call the
+existing indexed orphan-leg helper. The `LEAVE_ALL` early return remains
+unchanged. The restart regression persists a 1,000-share GTC quote after a
+340-share partial fill, restores the 660-share remainder, sends `KILL` through
+the ALF command handler, and verifies the subsequent ALF `ORDERS` response is
+empty. Participant, operator, and training guidance now match this behavior.
+
+Verification:
+- Final disconnect/restart regression tests — 13 passed
+- Full suite — 13,466 passed, 1 skipped; 90.36% coverage (85% required)
+- Repository-wide Black, Flake8, mypy, pyright — passed
+- `poetry run mkdocs build` — passed
 
 ### T3 — Combo self-match prevention contract (Q3)
 

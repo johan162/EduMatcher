@@ -238,6 +238,10 @@ When inactivation is triggered, the engine cancels the opposite leg and emits
 before anything else that order causes is matched: a stop order the fill
 triggers cannot trade against it.
 
+If the filled leg is only partially executed, its unfilled remainder stays
+resting even though the quote is now inactive. It remains a quote-origin order:
+disconnect cleanup and `KILL` remove it along with active quote legs.
+
 The same holds for a quote that crosses the book when it arrives. Its
 `quote.ack` and `quote.status ACTIVE` come first, then the fills. If the
 bid's fill inactivates the quote, the ask never reaches the book: it is
@@ -257,19 +261,20 @@ MM obligation enforcement is optional and configured per gateway:
 Gateway disconnect behavior is configurable per gateway:
 
 - `CANCEL_QUOTES_ONLY` (the default for every gateway): on disconnect, all active
-  quote legs for that gateway are cancelled.  Regular resting orders are left.
+  quote legs and any resting remainder of an inactivated quote are cancelled.
+  Regular resting orders are left.
 - `CANCEL_ALL`: on disconnect, quotes **and** all resting non-quote orders are
-  cancelled.
+  cancelled, including any remainder of an inactivated quote.
 - `LEAVE_ALL`: disconnect is recorded but nothing is cancelled.  Quotes and
   orders remain in the book unchanged.
 
 `KILL` is an immediate risk control that cancels:
 
-- Active quote legs
+- Active quote legs and resting remainders of inactivated quotes
 - Non-quote resting orders (optionally scoped to a single symbol)
 
-The acknowledgement message includes cancellation totals so the gateway can
-confirm action scope.
+The acknowledgement counts quote-origin orders under `QUOTES`, including
+inactivated quote remainders, and non-quote orders under `ORDERS`.
 
 !!! warning "Seed quotes and disconnect"
     If the MM gateway was never connected in the first place, `_handle_gateway_disconnect`

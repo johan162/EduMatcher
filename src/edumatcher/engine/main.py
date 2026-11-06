@@ -3227,7 +3227,8 @@ class Engine:
         that are no longer tracked by an active ``QuoteIndex`` entry.
 
         This is the fallback half of ``_handle_quote_new``'s replace-in-slot
-        cleanup (see its call site). It exists because
+        cleanup (see its call site), and is shared by other cancellation paths.
+        It exists because
         ``_on_quote_leg_filled`` (``INACTIVATE_ON_ANY_FILL``) removes the
         ``QuoteIndex`` entry at fill time but deliberately leaves a
         *partially* filled hit leg resting — by design, that remainder stays
@@ -3247,9 +3248,9 @@ class Engine:
         excludes quote-origin orders for the same reason in reverse (it
         expects `QuoteIndex`-driven cancellation to handle those instead).
 
-        Five paths clear a leftover this way: a new quote, a startup seed,
-        ``quote.cancel`` and the two admin mass cancels (the gateway kill
-        switch and ``CANCEL_SYM``). Returns the orders actually cancelled.
+        Quote replacement, startup seeding, quote cancellation, disconnects,
+        and kill switches use this to clear remainders after the quote entry
+        has been removed. Returns the orders actually cancelled.
         """
         book = self.books.get(symbol)
         if book is None:
@@ -4292,6 +4293,13 @@ class Engine:
                 cancel_reason="GATEWAY_DISCONNECT",
             )
 
+        for book in self.books.values():
+            self._cancel_orphaned_quote_legs(
+                gateway_id,
+                book.symbol,
+                cancel_reason="GATEWAY_DISCONNECT",
+            )
+
         if session.disconnect_behaviour == DisconnectBehaviour.CANCEL_ALL:
             # O(k) per book via OrderBook._orders_by_gateway (k = this
             # gateway's resting orders there), not a scan of every resting
@@ -4410,6 +4418,19 @@ class Engine:
                     cancel_reason="KILL_SWITCH",
                     command_id=command_id,
                 )
+
+        for book in self.books.values():
+            if symbol_filter and book.symbol != symbol_filter:
+                continue
+            cancelled_quote_order_ids.extend(
+                order.id
+                for order in self._cancel_orphaned_quote_legs(
+                    gateway_id,
+                    book.symbol,
+                    cancel_reason="KILL_SWITCH",
+                    command_id=command_id,
+                )
+            )
 
         # O(k) per book via OrderBook._orders_by_gateway (k = this gateway's
         # resting orders there) instead of a scan of every resting order in
