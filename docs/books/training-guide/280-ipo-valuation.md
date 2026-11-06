@@ -286,6 +286,15 @@ List Tornfalk on your exchange and trade it.
     Deployed to …/engine_config.json. Start the exchange to open trading.
     ```
 
+    The seed-quote line appears when the deployed configuration has a market
+    maker with seeded quotes (as in chapters 01–03). If you are still on one of
+    the generated configurations of chapters 23–28 (`--no-mm-seed-quotes`), the
+    command prints `no seed quote: the book opens empty` instead, as in Exercise
+    8. Either way the stock opens in the auction. The exchange must be stopped
+    (every `pm-*` process, not only `pm-engine`) and the data directory must hold
+    no saved state for `TORN`; a leftover `pm-engine` anywhere on the machine
+    makes `--list` stop with `pm-engine is running (pid …)`.
+
 2. During the pre-open, each trader enters orders for TORN at the price they
    believe in: buyers who missed out in the book, and allocated investors
    ready to take a profit.
@@ -320,8 +329,9 @@ into a configuration **without** a market maker's quotes and see what the
 auction does with nothing but your classmates' orders.
 
 `--list` refuses to edit a bundled example, so work on a copy (Chapter 00 says
-where the examples live; with a container install, `docs/examples/…` is inside
-the container):
+where the examples live; with a container or `pipx` install they are inside the
+package: replace `docs/examples` below by `$EX`, with
+`EX=$(python -c "from edumatcher.config_deploy import examples_root; print(examples_root().parent)")`):
 
 ```bash
 pm-opctl-cli stop

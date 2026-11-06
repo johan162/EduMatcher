@@ -49,7 +49,8 @@ be entered from `CLOSED`, so first check where you are:
 ```
 
 Chapter 06 left the market in `CONTINUOUS`. From there, close the day first —
-`SESSION|STATE=CLOSING_AUCTION`, then `SESSION|STATE=CLOSED` (a request for
+`SESSION|STATE=CLOSING_AUCTION`, then `SESSION|STATE=CLOSED` (`CLOSED` alone is
+also accepted from `CONTINUOUS`; a request for
 `PRE_OPEN` from `CONTINUOUS` is ignored and the console only prints
 `TIMEOUT`). From `CLOSED` go on:
 

@@ -21,9 +21,18 @@ cascades, session boundaries and recovery.
 - An admin console for clearing the training books.
 - For the stop-trigger labs, a third configured and connected trader,
   `TRADER03`, to print a trigger trade without changing `TRADER01`'s position.
-  Add it using the gateway configuration procedure from
-  [Configuring Startup](010-configuring-startup.md), then connect with
-  `pm-alf-console --id TRADER03`.
+  Add it to the `participants:` list of your `engine_config.yaml`, check,
+  deploy, restart `pm-engine`, restart your open consoles and reopen the market
+  (see "After every engine restart" in the
+  [introduction](index.md#after-every-engine-restart)):
+
+  ```yaml
+    - id: TRADER03
+      description: "Carol — third trader"
+      role: TRADER
+  ```
+
+  then connect with `pm-alf-console --id TRADER03`.
 - For the three-leg basket, `TSLA` configured alongside `AAPL` and `MSFT`.
 
 ### Lab discipline
@@ -139,7 +148,7 @@ Now submit the combo — buy AAPL and sell MSFT atomically:
 Because both counter-orders above match the combo's leg prices exactly, the
 engine can fill both legs simultaneously.
 
-:material-checkbox-blank-outline: **Checkpoint:** the trader console shows a fill on each leg followed by `COMBO MATCHED  PAIR-001`, and `BOOK|SYM=AAPL` / `BOOK|SYM=MSFT` in the operator console show both counter-orders gone.
+:material-checkbox-blank-outline: **Checkpoint:** the trader console shows a fill on each leg (with a `COMBO PARTIALLY_MATCHED  PAIR-001` line between them) followed by `COMBO MATCHED  PAIR-001`, and `BOOK|SYM=AAPL` / `BOOK|SYM=MSFT` in the operator console show both counter-orders gone.
 
 Observation: when the pre-check passes, both legs execute in the same pass —
 this is the case the AON guarantee is designed for.
@@ -279,11 +288,16 @@ exercises, the OCO's first leg fills on entry instead — clear AAPL with
 `CANCEL_SYM` first for a clean run.)
 
 To pull an OCO pair yourself before either leg fills, cancel it by its
-`OCO_ID` rather than cancelling each leg individually:
+`OCO_ID` rather than cancelling each leg individually. `OCO-AAPL-ENTRY` has
+already completed (cancelling it now answers `OCO CXL REJ … ORDER_NOT_FOUND`),
+so submit a fresh pair and cancel that:
 
 ```
-[TRADER01]> CANCEL|OCO_ID=OCO-AAPL-ENTRY
+[TRADER01]> NEW|TYPE=OCO|OCO_ID=OCO-AAPL-ENTRY-2|SYM=AAPL|QTY=100|TIF=DAY|LEG1_SIDE=BUY|LEG1_TYPE=LIMIT|LEG1_PRICE=149.50|LEG2_SIDE=BUY|LEG2_TYPE=LIMIT|LEG2_PRICE=148.00
+[TRADER01]> CANCEL|OCO_ID=OCO-AAPL-ENTRY-2
 ```
+
+Both legs are cancelled: `OCO CXL OK OCO-AAPL-ENTRY-2  legs cancelled=2`.
 
 :material-checkbox-blank-outline: **Checkpoint:** filling one OCO leg cancels the other.
 
@@ -615,19 +629,27 @@ Stage an AAPL offer **owned by TRADER01**, and an MSFT bid owned by
 [TRADER01]> NEW|TYPE=COMBO|COMBO_ID=SMP-01|COMBO_TYPE=AON|SMP=CANCEL_AGGRESSOR|TIF=DAY|LEG_COUNT=2|LEG0.SYM=AAPL|LEG0.SIDE=BUY|LEG0.QTY=100|LEG0.PRICE=150.00|LEG1.SYM=MSFT|LEG1.SIDE=SELL|LEG1.QTY=50|LEG1.PRICE=420.00
 ```
 
-The first child meets its owner's offer; SMP cancels that aggressing child.
-The parent fails, the MSFT child is not posted, and there is no trade.
+The combo-level `SMP` applies to every child, and the entry check does not
+count your own resting orders as liquidity. So the AAPL offer, although 100
+shares sit at exactly the price, counts as **zero** here: the combo is
+accepted, then its first leg is rejected with `INSUFFICIENT_LIQUIDITY` and the
+parent shows `COMBO FAILED  SMP-01  Leg 0 (AAPL) REJECTED`. The MSFT child is
+not posted, there is no trade, and your own AAPL offer is still resting.
 
-Reset and compare `SMP=CANCEL_RESTING` and `SMP=CANCEL_BOTH`, recording which
-own orders survive and whether any later leg is posted. Do not equate an
-accepted parent or displayed depth with guaranteed execution. With
-`CANCEL_RESTING`, a child can remain working after its own opposing order is
-removed; measure the other leg's fills before deciding how to unwind.
+Reset and send the same combo with `SMP=CANCEL_RESTING`, then
+`SMP=CANCEL_BOTH`: with any policy other than `NONE` the outcome is the same,
+because the entry check discounts own liquidity before any SMP action could
+run. Now reset once more and send it with `SMP=NONE`, or without `SMP=` at all
+when your gateway has no default (as in the configuration you wrote in chapter
+01): both legs fill, the AAPL leg *against your own offer*, and the parent
+reaches `MATCHED`. That is a self-trade, not hedge liquidity. Do not equate an
+accepted parent, displayed depth or a `MATCHED` parent with genuine external
+execution.
 
-In ALF the combo-level `SMP` applies to every child. Omitting it uses the
-gateway's configured default; `SMP=NONE` explicitly allows self-matching.
-Do not use self-trades as evidence of genuine external hedge liquidity.
-OCO has no per-request SMP field: its legs use the gateway default.
+Omitting `SMP=` uses the gateway's configured default (`smp_action` in the
+participant's block; the bundled example configurations set
+`CANCEL_AGGRESSOR`, a hand-written one like yours sets nothing, which means
+`NONE`). OCO has no per-request SMP field: its legs use the gateway default.
 
 ### C. Reprice a child without re-entering the parent
 
@@ -649,8 +671,8 @@ order amendment, not a resubmission of the original AON package. Apply
 the other child limits were changed.
 
 :material-checkbox-blank-outline: **Checkpoint:** explain why the same
-displayed depth can produce different results under different SMP policies,
-why a child amend can create leg risk, and why cascade cancellation cannot
+displayed depth gives a rejected combo under any SMP policy but a self-trade
+under `NONE`, why a child amend can create leg risk, and why cascade cancellation cannot
 roll back a previous execution.
 
 ## Exercise 14: Validation and TIF — When Should Nothing Be Posted?
@@ -664,7 +686,7 @@ Use a new label for every attempt and preserve the error message:
 |---|---|
 | `LEG_COUNT=1` or `11` | Gateway refuses the supported-range violation |
 | Use AAPL for both legs | Engine refuses duplicate symbols |
-| Remove a required limit `.PRICE` | Gateway refuses the missing field |
+| Remove a required limit `.PRICE` | Engine refuses it: `COMBO REJ … Leg 0: LIMIT requires price` |
 | Supply a price between that symbol's valid ticks | Gateway refuses an off-grid price; each symbol has its own tick scale |
 | `LEG0.TYPE=TRAILING_STOP` or `ICEBERG` | Unsupported combo leg shape is refused |
 | Set a leg quantity to zero | Invalid quantity is refused |

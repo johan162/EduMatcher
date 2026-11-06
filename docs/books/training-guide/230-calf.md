@@ -32,6 +32,19 @@ Recommended startup terminals:
 2. CALF gateway: `pm-md-gwy`
 3. One or more client terminals for subscriber exercises
 
+!!! note "Where the example files are, and port 5570"
+    As in the previous chapter, `docs/examples/calf` exists in a repository
+    checkout; on a container or `pipx` install use
+    `EX=$(python -c "from edumatcher.config_deploy import examples_root; print(examples_root().parent)")`
+    and `$EX/calf/…`. The C example needs `make` and a C compiler (not in the
+    container image). If the AI-simulation container is running, its own
+    `pm-md-gwy` already holds port 5570. Start `pm-md-gwy` a few seconds after
+    the engine and before the first client: a client started too early gets
+    `Connection refused`.
+    This chapter's configuration has no market makers. To create a trade, enter
+    a limit sell from `TRADER01` and a limit buy at the same price from
+    `TRADER02` (as in the previous chapter).
+
  
 
 ## Background
@@ -79,7 +92,7 @@ pm-config-gen \
 !!! note "Back up, check, deploy — then restart"
     This chapter starts from a fresh configuration (its operator is `OPS01`),
     and `--force` replaces your `engine_config.yaml`: save a copy first if you
-    want to come back to it (`cp engine_config.yaml engine_config.before-ch23.yaml`).
+    want to come back to it (`cp engine_config.yaml engine_config.before-ch24.yaml`).
     As always, nothing changes until you deploy it and restart the engine:
     `pm-cverifier engine_config.yaml`, then `pm-config-deploy engine_config.yaml`. Sessions are enabled, so the restarted engine starts in `CLOSED`: open
     the market from the operator console (`pm-admin --id OPS01`, then
@@ -345,8 +358,13 @@ your session-state controls) and observe:
 - `INDICQTY` and `IMBQTY` always present; `INDICPX` omitted when the book
   would not cross at all — that omission is a reading ("nothing would
   trade"), not a gap
-- exactly one final `AUCTION|...` line when the call phase ends and the
-  symbol actually uncrosses
+- exactly one final `AUCTION|...` line when the call phase ends. An uncross
+  with no crossing interest is reported too, as `EQQTY=0|TRADES=0`; you will see
+  one at every opening and closing auction, and for a reopening after a halt.
+  To get a non-empty one, enter a crossing sell and buy while the call phase is
+  open (for example `SESSION|STATE=CLOSING_AUCTION`, a sell of 50 at 149.50 and
+  a buy of 40 at 151.00); the indicative then reads `INDICQTY=40|INDICPX=149.5|IMB=SELL`
+  and the final line `EQQTY=40|EQPX=149.5|TRADES=1|REASON=SCHEDULED`
 
 :material-checkbox-blank-outline: Checkpoint: you can explain why `INDIC` and `AUCTION` share a channel but are different message types, and why a missing `INDICPX` must not be rendered as a zero price.
 
@@ -467,7 +485,11 @@ per connection; that form is no longer accepted.
 
 Observe replay behavior:
 
-- replayed events for SEQ greater than LASTSEQ when retained
+- replayed events for SEQ greater than LASTSEQ when retained. This chapter's
+  configuration keeps only **30 seconds** of replay history
+  (`--market-data-replay-window-sec 30`), so do steps 1–4 promptly; a
+  `RESUME|CH=TOP|…` for events older than that is answered with `REPLAY_MISS`
+  (try `LASTSEQ=1` after a minute to see it) and `TRADE` shows how a replay hit looks
 - REPLAY_MISS plus a SNAP baseline when outside the replay window — but on
   `TOP`/`STATE`/`INDEX`/`DEPTH`/`CB` only. On `TRADE` and `AUCTION` no SNAP
   follows, because there is no snapshot of a print that already happened.

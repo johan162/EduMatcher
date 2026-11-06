@@ -28,7 +28,11 @@ You will practise:
 - Chapters 01-26 completed.
 - Engine running and configured with at least two gateway IDs.
 - `pm-alf-gwy` available in the environment (`poetry run pm-alf-gwy` or installed via `pipx`).
-- Support libraries and clients available in `docs/examples/alf`:
+- Support libraries and clients available in `docs/examples/alf` (in a repository
+  checkout; on a container or `pipx` install they are under
+  `$EX/alf`, with
+  `EX=$(python -c "from edumatcher.config_deploy import examples_root; print(examples_root().parent)")`;
+  the C client needs `make`, a C compiler and the readline headers):
   - `python/alf_parser.py`, `python/alf_client.py`
   - `c/alf_parser.h`, `c/alf_parser.c`, `c/alf_client.c`, `c/Makefile`
 
@@ -81,7 +85,7 @@ Append the `alf_gateway:` section yourself:
 alf_gateway:
   enabled: true
   name: "alf-gwy01"
-  bind_address: "0.0.0.0"
+  bind_address: "0.0.0.0"          # all interfaces; use 127.0.0.1 if you do not want other machines to reach it
   port: 5565
   heartbeat_interval_sec: 5
   handshake_timeout_sec: 10
@@ -101,7 +105,7 @@ it entirely still works, using every default shown there).
 !!! note "Back up, check, deploy — then restart"
     This chapter starts from a fresh configuration (its operator is `OPS01`),
     and `--force` replaces your `engine_config.yaml`: save a copy first if you
-    want to come back to it (`cp engine_config.yaml engine_config.before-ch26.yaml`).
+    want to come back to it (`cp engine_config.yaml engine_config.before-ch27.yaml`).
     As always, nothing changes until you deploy it and restart the engine:
     `pm-cverifier engine_config.yaml`, then `pm-config-deploy engine_config.yaml`.
 
@@ -111,6 +115,14 @@ Start processes with that config:
 pm-engine --verbose
 pm-alf-gwy
 ```
+
+!!! note "Orders from earlier chapters are still in the data directory"
+    Resting `DAY` orders and market-maker quote legs from the previous chapters
+    are restored when the engine starts. Exercise 4's "`COUNT=0`" answers and
+    Exercise 8's "kill clears everything" assume `MM01` and the traders start
+    with nothing resting. For a clean venue stop every process and run
+    `pm-opctl-cli clear --state --yes` before starting the engine (this also
+    deletes `clearing.db` and `stats.db`).
 
 :material-checkbox-blank-outline: Checkpoint: `pm-alf-gwy` starts, logs that it is listening on port 5565, and reports a successful engine ZMQ connection.
 
@@ -278,7 +290,7 @@ NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=200|PRICE=149.00|TAG=NC-ORDER-002
 AMEND|ID=<uuid>|PRICE=149.50|QTY=150|RTAG=NC-AMD-001
 ```
 
-Expected: `AMENDED|ORDER_ID=...|PRICE=149.50|QTY=150|REMAINING=150|PRIORITY_RESET=TRUE|TAG=NC-ORDER-002|RTAG=NC-AMD-001`
+Expected: `AMENDED|ORDER_ID=...|PRICE=149.5|QTY=150|REMAINING=150|PRIORITY_RESET=TRUE|TAG=NC-ORDER-002|RTAG=NC-AMD-001`
 
 `RTAG` is optional, but it is the easiest way to prove which amend or cancel a
 later TCP response belongs to.
@@ -474,6 +486,8 @@ QBOOT
 ```
 
 Expected: `QBOOT|COUNT=1` with one active `QUOTE|...` line, then `END|TYPE=QBOOT`.
+(If `MM01` still had a quote on AAPL from an earlier chapter you also see a
+`CANCELLED|…|CANCEL_REASON=QUOTE_REPLACED` line for the old one.)
 
 ### KILL — cancel all resting orders and active quotes
 
@@ -490,7 +504,12 @@ ORDERS
 QBOOT
 ```
 
-Both responses should show `COUNT=0`.
+Both responses should show `COUNT=0` — **if `MM01` has nothing else resting.**
+A *partly filled* quote from an earlier chapter leaves its unfilled leg behind
+as an ordinary order, and `KILL` does not remove it: `ORDERS` then lists it
+(for example `ORDER|…|SYM=MSFT|SIDE=SELL|…|REMAINING=660|…`) and `QBOOT` is
+empty. Cancel such an order with `CANCEL|ID=<id>`, or start clean as described
+in the note under Exercise 1.
 
 Scope the kill to one symbol:
 
@@ -532,7 +551,7 @@ Map each observed `ERR|CODE=...|REJECT_CODE=...` to its operator remediation:
 |---|---|---|
 | `AUTH_REQUIRED` | `AUTH_REQUIRED` | Client sent a non-`HELLO` first line; fix client code ordering |
 | `PROTO_MISMATCH` | `AUTH_FAILED` | Wrong `PROTO=` value; must be exactly `ALF1` |
-| `AUTH_FAILED` | `AUTH_FAILED` | Gateway ID not in `participants`; add to config and restart engine |
+| `AUTH_FAILED` | `UNKNOWN` | Gateway ID not in `participants`; add to config and restart engine |
 | `GATEWAY_ALREADY_CONNECTED` | `AUTH_FAILED` | Same ID connected from another session; disconnect it first |
 | `MISSING_FIELD` | `MISSING_FIELD` | Required field absent for this order type; check command reference |
 | `INVALID_VALUE` | `INVALID_VALUE` | Field value fails validation (e.g. `PRICE=NaN`, `QTY=0`); fix client |

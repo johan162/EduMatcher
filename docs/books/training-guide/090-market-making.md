@@ -36,8 +36,11 @@ nothing, because every process reads the compiled artifact:
 pm-config-deploy engine_config.yaml
 ```
 
-Then restart `pm-engine`, reopen the market from the operator console
-(`SESSION|STATE=PRE_OPEN`, then `SESSION|STATE=CONTINUOUS`) and connect:
+Then restart `pm-engine`, restart your open consoles (`pm-admin`, the trader
+consoles — see "After every engine restart" in the
+[introduction](index.md#after-every-engine-restart)), reopen the market from the
+operator console (`SESSION|STATE=PRE_OPEN`, then `SESSION|STATE=CONTINUOUS`) and
+connect:
 
 ```bash
 pm-alf-console --id MM_MANUAL_01
@@ -85,8 +88,9 @@ Expected: a `Quote legs` table with one row per leg. The columns are:
 |---|---|
 | `Symbol` | The instrument |
 | `Quote` | Your `QUOTE_ID` — the label you chose when submitting |
-| `Leg` | `BID` or `ASK` |
+| `Leg` | `BUY` (the bid leg) or `SELL` (the ask leg) |
 | `Order` | The leg's full order ID |
+| `Price` | The leg's price |
 | `Qty` | Original quantity of the leg |
 | `Rem` | Still resting |
 | `Filled` | Already executed |
@@ -118,8 +122,8 @@ quantity); `RECENT` shows the complement — legs that are done. Right now
 `ACTIVE` should list both of your legs and `RECENT` should be empty; after
 Exercise 3 that flips.
 
-:material-checkbox-blank-outline: **Checkpoint:** `QLEGS` shows both a BID and an
-ASK row for `Q001`, each with `Leg status` `NEW` and `Quote status` `ACTIVE`,
+:material-checkbox-blank-outline: **Checkpoint:** `QLEGS` shows both a `BUY` and a
+`SELL` row for `Q001`, each with `Leg status` `NEW` and `Quote status` `ACTIVE`,
 and you can say why no leg shows a status of `ACTIVE`.
 
  
@@ -168,13 +172,20 @@ You can replace directly — the engine handles the swap:
 [MM_MANUAL_01]> QUOTE|SYM=AAPL|BID=149.95|ASK=150.05|BID_QTY=500|ASK_QTY=500|TIF=DAY|QUOTE_ID=Q003
 ```
 
-Expected:
+Expected (each line also carries a `[HH:MM:SS.mmm]` time; the two `CANCELLED`
+lines are the two legs of `Q002` being replaced):
 
 ```
-QUOTE CANCELLED  Q002
-QUOTE ACK   Q003  ...
+CANCELLED <Q002 bid id> reason=QUOTE_REPLACED
+CANCELLED <Q002 ask id> reason=QUOTE_REPLACED
+QUOTE CANCELLED  Q002  Replaced by new quote
+QUOTE ACK   Q003  bid=<bid_id> ask=<ask_id>
 QUOTE ACTIVE  Q003
 ```
+
+(In Exercise 4 the same thing happened more quietly: the engine cancelled the
+400 shares of `Q001`'s ask that were still resting, with one `CANCELLED …
+reason=QUOTE_REPLACED` line.)
 
 :material-checkbox-blank-outline: **Checkpoint:** old quote cancelled, new quote active in one step.
 

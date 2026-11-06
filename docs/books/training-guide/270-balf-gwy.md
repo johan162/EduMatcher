@@ -28,7 +28,10 @@ You will practise:
 - Chapters 01-27 completed.
 - Engine running and configured with at least two gateway IDs.
 - `pm-balf-gwy` available in the environment (`poetry run pm-balf-gwy` or installed via `pipx`).
-- Support parser examples available in `docs/examples/balf`:
+- Support parser examples available in `docs/examples/balf` (in a repository
+  checkout; on a container or `pipx` install use `$EX/balf`, with
+  `EX=$(python -c "from edumatcher.config_deploy import examples_root; print(examples_root().parent)")`;
+  Exercise 5's C build needs a C compiler, which the container image does not have):
   - `balf_parser.py`
   - `balf_parser.c`
 
@@ -75,9 +78,14 @@ pm-config-gen \
 !!! note "Back up, check, deploy — then restart"
     This chapter starts from a fresh configuration (its operator is `OPS01`),
     and `--force` replaces your `engine_config.yaml`: save a copy first if you
-    want to come back to it (`cp engine_config.yaml engine_config.before-ch27.yaml`).
+    want to come back to it (`cp engine_config.yaml engine_config.before-ch28.yaml`).
     As always, nothing changes until you deploy it and restart the engine:
     `pm-cverifier engine_config.yaml`, then `pm-config-deploy engine_config.yaml`.
+
+Orders and market-maker quotes from earlier chapters are restored when the
+engine starts. For the empty AAPL book that Exercise 4B assumes, stop every
+process and run `pm-opctl-cli clear --state --yes` before you start the engine
+(it also deletes `clearing.db` and `stats.db`).
 
 Inspect the generated section:
 
@@ -448,8 +456,10 @@ Read it against the [BALF specification](../protocols-and-clients/part-2-specifi
 - The fill is at the resting order's price, 150.50 (the taker's limit equals it
   here). Both sides then get their own `EXECUTION_REPORT`; the `client_order_id`
   in each is the number that session chose (1 and 7). The 80 shares left on the
-  bid stay on the book until you cancel them with `CANCEL_ORDER`, as in
-  Exercise 4.
+  bid would stay on the book until you cancel them with `CANCEL_ORDER`, as in
+  Exercise 4 — but the script ends and closes both connections, and a closing
+  session has its resting orders cancelled by the engine, so the book is empty
+  again and you can run the script a second time with the same result.
 
 :material-checkbox-blank-outline: Checkpoint: you decoded an `AMEND_ACK` with `priority_reset=True` and the two
 `EXECUTION_REPORT` frames of one trade, and can say why the resting side's
@@ -509,11 +519,19 @@ connecting two clients using the same gateway ID.
 - With `REJECT_NEW`, second `LOGON` should receive `LOGON_ACK` with reject code `0x02`.
 - With `EVICT_OLD`, first client disconnects and second session is accepted.
 
+The default is `REJECT_NEW` (the generated config shows it). A second `LOGON`
+as `TRADER01` while the first session is open gets `accepted=False`, code
+`0x02` and the message `Gateway already connected`.
+
 Also verify heartbeat handling:
 
-- Keep a client idle and watch for `HEARTBEAT` frames.
+- Keep a client idle and watch for `HEARTBEAT` frames (one per second here,
+  `heartbeat_interval_sec: 1`).
 - Ensure your client replies with `HEARTBEAT_ACK`.
-- Skip ACK replies to confirm timeout disconnect after `heartbeat_timeout_sec`.
+- Skip ACK replies to confirm timeout disconnect after `heartbeat_timeout_sec`:
+  with the generated values (1 s interval, 5 s timeout) a client that logs on
+  and then only reads receives frames at 0, 1, 2, 3 and 4 s, and the gateway
+  closes the connection at 5 s.
 
 :material-checkbox-blank-outline: Checkpoint: observed both duplicate-session behaviour and heartbeat timeout semantics.
 

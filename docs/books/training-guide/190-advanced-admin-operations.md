@@ -35,6 +35,13 @@ These controls exist in both:
 - Interactive admin console (`pm-admin` / ALF commands).
 - One-shot scripting CLI (`pm-admin-cli`).
 
+!!! warning "Use one or the other at a time"
+    Both log on as the same participant, `GW_ADMIN`, and the engine allows one
+    connection per participant. While `pm-admin --id GW_ADMIN` is open, every
+    `pm-admin-cli --id GW_ADMIN …` command below fails with
+    `Auth refused: Gateway already connected: GW_ADMIN`. Try the console
+    versions first, then leave `pm-admin` (`Ctrl-C`) before the CLI versions.
+
  
 
 ## Exercise 1: Disconnect a Gateway with KICK
@@ -131,9 +138,11 @@ Confirm TSLA resting orders were cleared while other symbols remain unchanged.
 ## Exercise 4: Force Session State for Controlled Drills
 
 Set session state explicitly. Transitions are validated by the engine: from
-`CLOSED` the only legal move is `PRE_OPEN`, so if a previous exercise left the
-exchange closed, go through `PRE_OPEN` first (an illegal jump is silently
-ignored and the console just times out).
+`CLOSED` the only legal move is `PRE_OPEN`, and `PRE_OPEN` must precede
+`CONTINUOUS`. The sequence below starts from `CLOSED`; if the market is open
+(`CONTINUOUS`), the first two requests are ignored and the console or CLI
+only prints a timeout, so start from the step that matches `SESSION_STATUS`
+(an illegal jump is silently ignored).
 
 From admin console:
 
@@ -178,6 +187,9 @@ pm-admin-cli --id GW_ADMIN qcancel --gw MM_AAPL_01 --sym AAPL
 pm-admin-cli --id GW_ADMIN cancel-sym --sym AAPL
 pm-admin-cli --id GW_ADMIN session-status
 ```
+
+`TRADER02` is now disconnected: leave its console and start a new one before
+the next chapter, which needs it.
 
 :material-checkbox-blank-outline: **Checkpoint:** you can explain when to use each control and why they are not interchangeable.
 

@@ -27,7 +27,13 @@ You will practice:
 
 - Chapters 01-24 completed.
 - Engine and stats commands available from the current environment.
-- REST examples available in `docs/examples/REST`.
+- REST examples available in `docs/examples/REST`. On a container or `pipx`
+  install that directory is inside the package: set
+  `EX=$(python -c "from edumatcher.config_deploy import examples_root; print(examples_root().parent)")`
+  and read `docs/examples` as `$EX` in Exercises 6, 7 and 12. The C example
+  needs `make` and a C compiler (not in the container image).
+- The `curl` commands below assume the lab config from Exercise 1 and are run
+  from the directory holding `engine_config.yaml`.
 - A terminal for `pm-engine`, one for `pm-stats`, one for `pm-api-gwy`, and one or more client terminals.
 - Optional: `pm-audit` running, if you want to see a populated reply instead of
   `AUDIT_INDEX_UNAVAILABLE` from the audited order-lifecycle call in Exercise 10.
@@ -126,7 +132,7 @@ pm-config-gen \
 !!! note "Back up, check, deploy — then restart"
     This chapter starts from a fresh configuration (its operator is `OPS01`),
     and `--force` replaces your `engine_config.yaml`: save a copy first if you
-    want to come back to it (`cp engine_config.yaml engine_config.before-ch24.yaml`).
+    want to come back to it (`cp engine_config.yaml engine_config.before-ch25.yaml`).
     As always, nothing changes until you deploy it and restart the engine:
     `pm-cverifier engine_config.yaml`, then `pm-config-deploy engine_config.yaml`.
 
@@ -142,8 +148,22 @@ Expected behavior:
 - `desk:` has `port: 8080`
 - generated credentials exist for `TRADER01`, `TRADER02`, `OPS01`, and one read-only key
 
-Note down `OPS01`'s generated key — its resolved engine role is `ADMIN`, and
-Exercise 10 uses it for every admin REST call.
+The keys are random (for example `key-trader01-r0yzyj`; `--seed` does not fix
+them), so the commands in this chapter read them from the file instead of
+using fixed names. Define three shell variables once in each terminal you use
+for `curl` (the function reads `engine_config.yaml` in the current directory):
+
+```bash
+key() { awk -v g="$1" '$1=="-" && $2=="api_key:" {k=$3} $1=="gateway_id:" && $2==g {print k; exit}' engine_config.yaml; }
+KEY_TRADER=$(key TRADER01)    # trading key for TRADER01
+KEY_OPS=$(key OPS01)          # OPS01's key: its resolved engine role is ADMIN
+KEY_RO=$(key null)            # the read-only key
+echo "$KEY_TRADER $KEY_OPS $KEY_RO"
+```
+
+Exercise 10 uses `$KEY_OPS` for every admin REST call. Where a tool cannot
+expand shell variables (the WebSocket sessions in Exercise 9, the Python
+default in Exercise 12), paste the value that `echo` printed.
 
 :material-checkbox-blank-outline: Checkpoint: you can identify one trading key, one read-only key, and the `OPS01` admin key in the config.
 
@@ -185,14 +205,12 @@ Open Swagger in a browser:
 http://127.0.0.1:8080/docs
 ```
 
-Use the Authorize control and paste a generated bearer token. Then run:
+Use the Authorize control and paste a generated bearer token (`echo $KEY_TRADER`). Then run:
 
 ```bash
-curl -H 'Authorization: Bearer key-trader-demo' \
+curl -H "Authorization: Bearer $KEY_TRADER" \
   http://127.0.0.1:8080/api/v1/status
 ```
-
-Replace `key-trader-demo` with a key from your generated config.
 
 Try the same request with a read-only key, then try a write endpoint with the
 read-only key.
@@ -214,23 +232,24 @@ Submit a limit order with a trading key:
 
 ```bash
 curl -X POST http://127.0.0.1:8080/api/v1/orders \
-  -H 'Authorization: Bearer key-trader-demo' \
+  -H "Authorization: Bearer $KEY_TRADER" \
   -H 'Content-Type: application/json' \
   -d '{
     "symbol": "AAPL",
     "side": "BUY",
     "order_type": "LIMIT",
     "quantity": 100,
-    "price": 209.50,
+    "price": 140.00,
     "tif": "DAY"
   }'
 ```
 
-Capture the returned `order_id`, then cancel it with a request tag:
+The price is well below AAPL's market on purpose, so the order rests instead
+of trading. Capture the returned `order_id`, then cancel it with a request tag:
 
 ```bash
 curl -X DELETE 'http://127.0.0.1:8080/api/v1/orders/ORDER_ID?request_tag=rest-cxl-001' \
-  -H 'Authorization: Bearer key-trader-demo'
+  -H "Authorization: Bearer $KEY_TRADER"
 ```
 
 Expected behavior:
@@ -258,23 +277,23 @@ trade or per order.
 Fetch the full bundle in one call:
 
 ```bash
-curl -H 'Authorization: Bearer key-readonly-demo' \
+curl -H "Authorization: Bearer $KEY_RO" \
   http://127.0.0.1:8080/api/v1/reference
 ```
 
 Then fetch the individual sections used most often:
 
 ```bash
-curl -H 'Authorization: Bearer key-readonly-demo' \
+curl -H "Authorization: Bearer $KEY_RO" \
   http://127.0.0.1:8080/api/v1/reference/symbols
 
-curl -H 'Authorization: Bearer key-readonly-demo' \
+curl -H "Authorization: Bearer $KEY_RO" \
   http://127.0.0.1:8080/api/v1/reference/risk
 
-curl -H 'Authorization: Bearer key-readonly-demo' \
+curl -H "Authorization: Bearer $KEY_RO" \
   http://127.0.0.1:8080/api/v1/reference/schedule
 
-curl -H 'Authorization: Bearer key-readonly-demo' \
+curl -H "Authorization: Bearer $KEY_RO" \
   http://127.0.0.1:8080/api/v1/reference/config-version
 ```
 
@@ -304,9 +323,9 @@ From the REST example directory, run the Python client or adapt it with the key
 and port from your config:
 
 ```bash
-cd docs/examples/REST/python
+cd docs/examples/REST/python        # or: cd $EX/REST/python
 EDUMATCHER_API_URL=http://127.0.0.1:8080 \
-EDUMATCHER_API_KEY=key-trader-demo \
+EDUMATCHER_API_KEY=$KEY_TRADER \
 python3 demo_info.py
 ```
 
@@ -322,9 +341,9 @@ calls to a test harness.
 Build and run the C example from the REST example directory:
 
 ```bash
-cd docs/examples/REST/c
+cd docs/examples/REST/c             # or: cd $EX/REST/c
 make
-EDUMATCHER_API_KEY=key-trader-demo ./demo_info
+EDUMATCHER_API_KEY=$KEY_TRADER ./demo_info
 ```
 
 Expected behavior:
@@ -347,13 +366,13 @@ Submit and fill an order (repeat Exercise 4 with a marketable price, or cross
 `TRADER01` against `TRADER02`), then query its lifecycle with a trading key:
 
 ```bash
-curl -H 'Authorization: Bearer key-trader-demo' \
+curl -H "Authorization: Bearer $KEY_TRADER" \
   "http://127.0.0.1:8080/api/v1/history/orders?symbol=AAPL&limit=10"
 
-curl -H 'Authorization: Bearer key-trader-demo' \
+curl -H "Authorization: Bearer $KEY_TRADER" \
   http://127.0.0.1:8080/api/v1/history/orders/ORDER_ID
 
-curl -H 'Authorization: Bearer key-trader-demo' \
+curl -H "Authorization: Bearer $KEY_TRADER" \
   "http://127.0.0.1:8080/api/v1/history/fills?symbol=AAPL"
 ```
 
@@ -361,19 +380,26 @@ The public trade tape and daily OHLCV accept any authenticated key, not only
 a trading key:
 
 ```bash
-curl -H 'Authorization: Bearer key-readonly-demo' \
+curl -H "Authorization: Bearer $KEY_RO" \
   "http://127.0.0.1:8080/api/v1/history/trades?symbol=AAPL&limit=5"
 
-curl -H 'Authorization: Bearer key-readonly-demo' \
+curl -H "Authorization: Bearer $KEY_RO" \
   "http://127.0.0.1:8080/api/v1/history/daily?symbol=AAPL"
 ```
 
 Walk a second page using the cursor from the first reply:
 
 ```bash
-curl -H 'Authorization: Bearer key-readonly-demo' \
+curl -H "Authorization: Bearer $KEY_RO" \
   "http://127.0.0.1:8080/api/v1/history/trades?symbol=AAPL&limit=5&after=NEXT_CURSOR"
 ```
+
+Every history call returns rows **oldest first**, a page at a time. On a data
+directory that has seen earlier chapters the first page is therefore old
+traffic, not your new order, and `/history/daily` totals include everything
+`pm-stats` has recorded today. Look an order up by its id
+(`/history/orders/ORDER_ID`), narrow the range with `from=<ISO timestamp>`
+(or `date=YYYY-MM-DD`), or follow `next_cursor` to reach the recent rows.
 
 Expected behavior:
 
@@ -402,8 +428,13 @@ as your first input, then press Enter:
 
 ```text
 > {"api_key": "key-trader-demo"}
-< {"type": "authenticated", "gateway_id": "TRADER01"}
+< {"type": "authenticated", "gateway_id": "TRADER01", "stream_seq": 10}
+< {"type": "orders.snapshot", "gateway_id": "TRADER01", ...}
 ```
+
+(`stream_seq` is the gateway's private-stream counter, so the number differs;
+the `orders.snapshot` that follows lists your current orders and positions
+before any live event.)
 
 In another terminal, submit or cancel an order with the same key. Observe the
 private event stream.
@@ -437,9 +468,9 @@ The book is also available without a socket. Compare it with what the
 subscription just sent:
 
 ```bash
-curl -s -H "Authorization: Bearer key-readonly-demo" \
+curl -s -H "Authorization: Bearer $KEY_RO" \
   "http://127.0.0.1:8080/api/v1/book/AAPL?levels=3"
-curl -s -H "Authorization: Bearer key-readonly-demo" http://127.0.0.1:8080/api/v1/book
+curl -s -H "Authorization: Bearer $KEY_RO" http://127.0.0.1:8080/api/v1/book
 ```
 
 Each price comes as a display price and as `*_ticks`. The reply's `seq` is the
@@ -471,7 +502,7 @@ Expected behavior:
 Confirm the resolved role first, with `OPS01`'s key from Exercise 1:
 
 ```bash
-curl -H 'Authorization: Bearer key-ops01-demo' \
+curl -H "Authorization: Bearer $KEY_OPS" \
   http://127.0.0.1:8080/api/v1/status
 ```
 
@@ -479,7 +510,7 @@ curl -H 'Authorization: Bearer key-ops01-demo' \
 field only ADMIN callers get back. Now try the same idea with a trading key:
 
 ```bash
-curl -i -H 'Authorization: Bearer key-trader-demo' \
+curl -i -H "Authorization: Bearer $KEY_TRADER" \
   http://127.0.0.1:8080/api/v1/admin/gateways
 ```
 
@@ -491,15 +522,15 @@ part of the path; the body carries only the optional `level` (and `reason`):
 
 ```bash
 curl -X POST http://127.0.0.1:8080/api/v1/admin/symbols/AAPL/halt \
-  -H 'Authorization: Bearer key-ops01-demo' \
+  -H "Authorization: Bearer $KEY_OPS" \
   -H 'Content-Type: application/json' \
   -d '{"level": "L1"}'
 
-curl -H 'Authorization: Bearer key-ops01-demo' \
+curl -H "Authorization: Bearer $KEY_OPS" \
   http://127.0.0.1:8080/api/v1/halts
 
 curl -X POST http://127.0.0.1:8080/api/v1/admin/symbols/AAPL/resume \
-  -H 'Authorization: Bearer key-ops01-demo'
+  -H "Authorization: Bearer $KEY_OPS"
 ```
 
 Request a session transition. This call waits for the engine's verdict
@@ -508,20 +539,24 @@ instead of firing and forgetting. If you have not opened the day yet, send
 
 ```bash
 curl -i -X POST http://127.0.0.1:8080/api/v1/admin/session/transition \
-  -H 'Authorization: Bearer key-ops01-demo' \
+  -H "Authorization: Bearer $KEY_OPS" \
   -H 'Content-Type: application/json' \
   -d '{"to_state": "CONTINUOUS"}'
 ```
 
 A successful transition returns `200` with `status: "APPLIED"` and a
-`command_id`. Requesting a state the engine cannot apply (for example when
-sessions are disabled) returns `409 TRANSITION_REJECTED` with the engine's
-reason as `message`, instead of leaving you to guess from a timeout.
+`command_id`. Requesting a state the engine cannot apply because sessions are
+disabled returns `409 TRANSITION_REJECTED` with the engine's reason as
+`message`. A transition that is simply not legal *from the current phase*
+(for example `CONTINUOUS` when the market is already `CONTINUOUS`) gets no
+answer from the engine at all: the call waits about three seconds and ends
+with `503 ENGINE_TIMEOUT`. Check `GET /api/v1/session` first, as for the
+console.
 
 Look at cross-gateway order visibility:
 
 ```bash
-curl -H 'Authorization: Bearer key-ops01-demo' \
+curl -H "Authorization: Bearer $KEY_OPS" \
   "http://127.0.0.1:8080/api/v1/admin/orders?symbol=AAPL"
 ```
 
@@ -534,7 +569,7 @@ instance), while resting orders are never evicted regardless of age.
 Fetch one order's full cross-gateway lifecycle from the audit trail:
 
 ```bash
-curl -i -H 'Authorization: Bearer key-ops01-demo' \
+curl -i -H "Authorization: Bearer $KEY_OPS" \
   http://127.0.0.1:8080/api/v1/admin/orders/ORDER_ID/audit
 ```
 
@@ -547,12 +582,12 @@ Finally, cancel resting exposure with the kill-switch family:
 
 ```bash
 curl -X POST http://127.0.0.1:8080/api/v1/admin/symbols/AAPL/cancel-orders \
-  -H 'Authorization: Bearer key-ops01-demo' \
+  -H "Authorization: Bearer $KEY_OPS" \
   -H 'Content-Type: application/json' \
   -d '{"reason": "training exercise"}'
 
 curl -X POST http://127.0.0.1:8080/api/v1/admin/gateways/TRADER01/kill-switch \
-  -H 'Authorization: Bearer key-ops01-demo' \
+  -H "Authorization: Bearer $KEY_OPS" \
   -H 'Content-Type: application/json' \
   -d '{"reason": "training exercise"}'
 ```
@@ -562,8 +597,9 @@ Expected behavior:
 - a trading key gets `403 ROLE_DENIED` on every `/admin/*` path
 - halting a symbol the engine does not know returns `409 HALT_REJECTED` with
   `message: "Unknown symbol: ..."` — the engine refused, your role is fine
-- `/admin/session/transition` blocks for the engine's verdict and never just
-  times out silently
+- `/admin/session/transition` blocks for the engine's verdict (applied, or
+  `409` when sessions are disabled; an illegal next phase ends in
+  `503 ENGINE_TIMEOUT`)
 - `/admin/orders` returns orders from every gateway, not just `OPS01`'s
 - `/admin/orders/{order_id}/audit` either returns the full lifecycle or a clear
   `503 AUDIT_INDEX_UNAVAILABLE` if no audit index is deployed
@@ -624,7 +660,7 @@ small script that submits a LIMIT order and prints the engine response.
 
 ```python
 import argparse, json, os, sys
-sys.path.insert(0, "docs/examples/REST/python")
+sys.path.insert(0, os.path.join(os.environ.get("EX", "docs/examples"), "REST/python"))
 from api_gateway_client import ApiGatewayClient
 
 parser = argparse.ArgumentParser()
@@ -650,11 +686,13 @@ result = client.post_json(path, {
 print(json.dumps(result, indent=2))
 ```
 
-Run it from the repo root:
+Save it as `limit_order.py`, set `EDUMATCHER_API_KEY` to a trading key (`export EDUMATCHER_API_KEY=$KEY_TRADER`;
+the built-in default is only a placeholder) and run it from the repo root (or
+from anywhere with `EX` set as above):
 
 ```bash
-python3 limit_order.py --side BUY --symbol AAPL --qty 100 --price 209.50
-python3 limit_order.py --side BUY --symbol AAPL --qty 100 --price 209.50 --wait-ack
+python3 limit_order.py --side BUY --symbol AAPL --qty 100 --price 140.00
+python3 limit_order.py --side BUY --symbol AAPL --qty 100 --price 140.00 --wait-ack
 ```
 
 Expected behavior:
@@ -662,7 +700,10 @@ Expected behavior:
 - without `--wait-ack`: `status` is `PENDING` and `event` is null
 - with `--wait-ack`: `status` is `ACKED` and `event` contains the engine response
 - sending a read-only key returns `403 READ_ONLY`
-- omitting `--price` returns `400 VALIDATION` because `LIMIT` requires `price`
+- omitting `--price` is stopped by the script's own argument parser
+  (`error: the following arguments are required: --price`) before any request
+  is sent; to see the gateway's `400 VALIDATION` for a `LIMIT` order without
+  `price`, post the JSON body with `curl` and leave `price` out
 
 A fully documented `MARKET` order version that follows the same pattern is
 available at `docs/examples/REST/python/submit_market_order.py`.

@@ -162,8 +162,9 @@ Exercise 1 ended in `CLOSED`, so send `SESSION|STATE=PRE_OPEN` and then
 [TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=148.00|TIF=DAY
 ```
 
-Advance the session to CLOSED — from CONTINUOUS that is two steps, through
-the closing auction:
+Advance the session to CLOSED. The engine also accepts `CONTINUOUS` →
+`CLOSED` directly, but this exercise goes through the closing auction, the way
+a real day ends:
 
 ```
 [GW_ADMIN|ADMIN]> SESSION|STATE=CLOSING_AUCTION

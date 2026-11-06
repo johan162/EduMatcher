@@ -646,7 +646,7 @@ The last thing a clearing operator needs to trust is that yesterday's settled
 numbers are still there tomorrow, and that a new session does not disturb them.
 
 **1. Restart the exchange** — engine, scheduler, gateways and market makers, as
-in Chapter 01. `pm-clearing` can keep running throughout, or be restarted; both
+in Chapter 01 (restart your consoles too, and reopen the market). `pm-clearing` can keep running throughout, or be restarted; both
 work, because the state lives in `clearing.db`, not in memory.
 
 **2. Confirm the closed day is intact:**
