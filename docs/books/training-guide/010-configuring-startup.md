@@ -552,10 +552,11 @@ show on the `TRADER01` console as `CANCELLED … reason=KILL_SWITCH`.
 
 !!! warning "Engine restarts disconnect your consoles"
     Several exercises below (and in later chapters) restart `pm-engine`. When
-    you do, **exit and restart your trader and operator consoles** too — an
-    open console is not reconnected, and its commands fail with
-    `AUTH_REQUIRED` or `Gateway not connected`. See "After every engine
-    restart" in the [guide introduction](index.md#after-every-engine-restart).
+    the engine connection is detected as lost, each console prints
+    `Engine connection was lost; logging out.` and exits. Consoles do not
+    reconnect by themselves, so start them again before continuing. See
+    "After every engine restart" in the
+    [guide introduction](index.md#after-every-engine-restart).
 
 :material-checkbox-blank-outline: **Checkpoint:** `pm-admin` is connected, `BOOK|SYM=AAPL`
 shows the book, and you can state which of the two consoles a given command
@@ -564,7 +565,7 @@ belongs to.
 !!! tip "Keep both terminals open from here on"
     Every later chapter assumes you have a trader console *and* an operator
     console available. Leaving both running saves restarting them — except
-    after an engine restart, when each must be restarted (see above).
+    after an engine restart, when each must be started again (see above).
 
  
 

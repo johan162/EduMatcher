@@ -180,10 +180,10 @@ cp engine_config.yaml engine_config.ex1.yaml   # keep a copy of this state
 The copy is for the optional Exercise 8, which changes `engine_config.yaml`.
 
 Then restart `pm-engine` to pick up the new gateways (`Ctrl-C`, then
-`pm-engine --verbose`). A restarted engine starts in `CLOSED` again, and your
-open consoles are disconnected: **restart `pm-admin` and your trader console**,
-then reopen the market from the operator console (`SESSION|STATE=PRE_OPEN`,
-then `SESSION|STATE=CONTINUOUS`).
+`pm-engine --verbose`). A restarted engine starts in `CLOSED` again. Your
+consoles log out when they detect the lost connection; start `pm-admin` and
+your trader console again, then reopen the market from the operator console
+(`SESSION|STATE=PRE_OPEN`, then `SESSION|STATE=CONTINUOUS`).
 
 Now look at the books before any market maker has connected:
 

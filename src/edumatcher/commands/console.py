@@ -32,19 +32,23 @@ Commands
 from __future__ import annotations
 
 import argparse
+import asyncio
 import json
 import logging
 import sys
 from typing import Any, Callable
 
+import zmq
 from prompt_toolkit import PromptSession
 from prompt_toolkit.completion import CompleteEvent, Completer, Completion
 from prompt_toolkit.document import Document
+from prompt_toolkit.formatted_text import FormattedText
 from prompt_toolkit.history import InMemoryHistory
 from prompt_toolkit.patch_stdout import patch_stdout as pt_patch_stdout
 from prompt_toolkit.styles import Style
 from rich.console import Console
 from rich.table import Table
+from zmq.utils.monitor import recv_monitor_message
 
 from edumatcher.commands import CommandTimeoutError, ExchangeCommandClient
 from edumatcher.log_srv.config import (
@@ -1144,6 +1148,7 @@ class AdminConsole:
         self._gw_id = gw_id.upper()
         self._client = ExchangeCommandClient(self._gw_id)
         self._known_symbols: list[str] = []
+        self._connection_lost = False
 
     # ------------------------------------------------------------------
     # Command dispatch
@@ -1159,8 +1164,24 @@ class AdminConsole:
             execute_command(
                 self._client, cmd, fields, symbols_cache=self._known_symbols
             )
+        except zmq.Again:
+            self._connection_lost = True
+            console.print("[red]Engine connection was lost; logging out.[/red]")
         except CommandTimeoutError as exc:
             console.print(f"[red]TIMEOUT[/red]  {exc}")
+
+    async def _watch_engine_disconnect(
+        self, app: Any, monitor: zmq.Socket[bytes]
+    ) -> None:
+        while not self._connection_lost:
+            if monitor.poll(0):
+                event = recv_monitor_message(monitor)
+                if event["event"] == zmq.EVENT_DISCONNECTED:
+                    self._connection_lost = True
+                    console.print("[red]Engine connection was lost; logging out.[/red]")
+                    app.exit(exception=KeyboardInterrupt)
+                    return
+            await asyncio.sleep(0.1)
 
     # ------------------------------------------------------------------
     # REPL entry point
@@ -1186,35 +1207,41 @@ class AdminConsole:
             self._client.close()
             return
 
-        desc = result.get("description", "")
-        console.print(
-            f"\n[bold green]ADMIN console — {self._gw_id} connected[/bold green]"
-            + (f"  {desc}" if desc else "")
-            + "\nType [bold]HELP[/bold] for commands.  "
-            "[dim]Tab=complete  ↑↓=history  Ctrl-C=exit[/dim]\n"
-        )
-
-        # Pre-fetch symbol list so tab completion works immediately
+        monitor = self._client.engine_disconnect_monitor()
         try:
-            self._known_symbols.extend(self._client.symbol_list())
-        except CommandTimeoutError:
-            pass
+            desc = result.get("description", "")
+            console.print(
+                f"\n[bold green]ADMIN console — {self._gw_id} connected[/bold green]"
+                + (f"  {desc}" if desc else "")
+                + "\nType [bold]HELP[/bold] for commands.  "
+                "[dim]Tab=complete  ↑↓=history  Ctrl-C=exit[/dim]\n"
+            )
 
-        completer = _AdminCompleter(self._known_symbols)
-        session: PromptSession[str] = PromptSession(
-            history=InMemoryHistory(),
-            completer=completer,
-            complete_while_typing=False,
-            style=_PROMPT_STYLE,
-            mouse_support=False,
-        )
-        prompt_str = [("class:prompt", f"[{self._gw_id}|ADMIN]> ")]
+            try:
+                self._known_symbols.extend(self._client.symbol_list())
+            except CommandTimeoutError:
+                pass
 
-        try:
+            completer = _AdminCompleter(self._known_symbols)
+            session: PromptSession[str] = PromptSession(
+                history=InMemoryHistory(),
+                completer=completer,
+                complete_while_typing=False,
+                style=_PROMPT_STYLE,
+                mouse_support=False,
+            )
+            prompt_str = FormattedText([("class:prompt", f"[{self._gw_id}|ADMIN]> ")])
+
             with pt_patch_stdout(raw=True):
-                while True:
+                while not self._connection_lost:
+
+                    def _start_monitor() -> None:
+                        session.app.create_background_task(
+                            self._watch_engine_disconnect(session.app, monitor)
+                        )
+
                     try:
-                        line = session.prompt(prompt_str)  # type: ignore[arg-type]
+                        line = session.prompt(prompt_str, pre_run=_start_monitor)
                     except EOFError, KeyboardInterrupt:
                         break
                     line = line.strip()
@@ -1225,9 +1252,20 @@ class AdminConsole:
                         break
                     self._dispatch(cmd, fields)
         finally:
-            self._client.disconnect()
-            self._client.close()
-            console.print(f"\n[bold]ADMIN console {self._gw_id} disconnected.[/bold]")
+            try:
+                monitor.close(linger=0)
+            finally:
+                try:
+                    if not self._connection_lost:
+                        self._client.disconnect()
+                except zmq.Again:
+                    self._connection_lost = True
+                    console.print("[red]Engine connection was lost; logging out.[/red]")
+                finally:
+                    self._client.close()
+                    console.print(
+                        f"\n[bold]ADMIN console {self._gw_id} disconnected.[/bold]"
+                    )
 
 
 # ---------------------------------------------------------------------------

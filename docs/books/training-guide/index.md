@@ -81,17 +81,12 @@ this is why.
 
 Many exercises stop `pm-engine` and start it again to pick up a new
 configuration. A restarted engine knows nothing about the consoles that were
-connected to the old one, and **a console never reconnects by itself**:
+connected to the old one. When either console detects that its engine
+connection was lost, it prints `Engine connection was lost; logging out.` and
+exits; **consoles do not reconnect by themselves**:
 
-- an open `pm-alf-console` answers every order with
-  `REJECTED … code=AUTH_REQUIRED  Gateway not connected: TRADER01`;
-- an open `pm-admin` answers commands such as `KILL` with
-  `REJECTED  Gateway not connected: GW_ADMIN`, and `GATEWAYS` lists every
-  gateway, including itself, as `no`.
-
-So after each engine restart, **leave every console (`EXIT` in `pm-alf-console`,
-`Ctrl-C` in `pm-admin`) and start it again**, then reopen the market. A
-quote or order that is still resting from before the restart is still there.
+After each engine restart, start the consoles again, then reopen the market.
+A quote or order that is still resting from before the restart is still there.
 
 !!! note "Harmless warnings"
     When you start the processes by hand, `pm-monitor` (the health monitor) is

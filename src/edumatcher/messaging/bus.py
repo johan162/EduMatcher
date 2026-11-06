@@ -7,7 +7,7 @@ Callers are responsible for closing sockets when done.
 
 from __future__ import annotations
 
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
 
 import zmq
 
@@ -30,11 +30,12 @@ class PushSocket(Protocol):
 
     ``make_pusher`` returns a wrapper, not a ``zmq.Socket``, so annotating a
     caller with the concrete socket type is now wrong. This protocol is the
-    honest contract: the four members the call sites in ``alf_console``,
-    ``alf_gwy``, ``balf_gwy``, ``mm_bot`` and ``scheduler`` between them use.
+    honest contract for the socket operations used by gateway callers.
     """
 
     def send_multipart(self, frames: list[bytes], *args: Any, **kwargs: Any) -> Any: ...
+
+    def get_monitor_socket(self, events: int = zmq.EVENT_ALL) -> zmq.Socket[bytes]: ...
 
     def setsockopt(self, option: int, value: Any) -> Any: ...
 
@@ -285,6 +286,9 @@ class CausalPusher:
         return self._sock.send_multipart(
             [*frames, Envelope.root().to_frame()], *args, **kwargs
         )
+
+    def get_monitor_socket(self, events: int = zmq.EVENT_ALL) -> zmq.Socket[bytes]:
+        return cast(zmq.Socket[bytes], self._sock.get_monitor_socket(events=events))
 
     # The socket surface callers actually use, declared rather than left to
     # __getattr__. __getattr__ keeps working for everything else, but a

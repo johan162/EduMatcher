@@ -27,7 +27,7 @@ from typing import Any
 
 import zmq
 
-from edumatcher.messaging.bus import make_pusher
+from edumatcher.messaging.bus import PushSocket, make_pusher
 from edumatcher.models.ids import new_command_id
 from edumatcher.config import (
     ENGINE_PUB_ADDR,
@@ -243,6 +243,7 @@ class ExchangeCommandClient:
         self._timeout_ms = timeout_ms
         self._recv_queue = _recv_queue
         self._owns_sockets = _push_sock is None
+        self._push: PushSocket
 
         if _push_sock is not None:
             # Injection mode (tests) — use provided sockets as-is.
@@ -426,6 +427,10 @@ class ExchangeCommandClient:
     def disconnect(self) -> None:
         """Send a graceful disconnect notice.  No ack is published."""
         self._send(make_gateway_disconnect_msg(self._gw_id))
+
+    def engine_disconnect_monitor(self) -> zmq.Socket[bytes]:
+        """Monitor the engine transport for a disconnect after authentication."""
+        return self._push.get_monitor_socket(events=zmq.EVENT_DISCONNECTED)
 
     def close(self) -> None:
         """Close ZMQ sockets (only when they were created by this instance)."""

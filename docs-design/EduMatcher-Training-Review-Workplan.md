@@ -30,8 +30,8 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 |---|----|---------|----------|------------|--------|---------|
 | 1 | T1 | Audit startup delivery and completeness | Q1 | — | ☑ | 2026-11-06 |
 | 2 | T2 | Orphaned quote remainders on disconnect and kill | Q2, Q20 | — | ☑ | 2026-11-06 |
-| 3 | T3 | Combo self-match prevention contract | Q3 | Contract decision | ☐ | |
-| 4 | T4 | Console authentication after engine restart | Q4 | — | ☐ | |
+| 3 | T3 | Combo self-match prevention contract | Q3 | Contract decision | ☑ | 2026-11-06 |
+| 4 | T4 | Console logout after engine connection loss | Q4 | — | ☑ | 2026-11-07 |
 | 5 | T5 | Admin console identities and safe reset guidance | Q5, Q6 | — | ☐ | |
 | 6 | T6 | Clearing totals and gateway quote-status scope | Q7, Q8 | Contract decisions | ☐ | |
 | 7 | T7 | Installed examples, C exercises and version metadata | Q9, Q10, Q21 | — | ☐ | |
@@ -202,9 +202,14 @@ Verification:
 
 ### T3 — Combo self-match prevention contract (Q3)
 
-**Question to resolve:** Should AON combo entry discount the submitter's own
-resting liquidity under every SMP policy, and should resting combo children
-apply SMP when they later become executable?
+**Decision:** AON entry preflight must count only liquidity executable under
+the child's resolved SMP policy. With `NONE`, same-gateway liquidity counts
+and may self-trade; with any `CANCEL_*` policy, it does not count, and if
+that leaves a leg short while it would otherwise cross, the combo fails
+without cancelling or trading the resting order. Omitted per-leg SMP resolves
+to the gateway default, and explicit `NONE` overrides that default. Once a
+combo child is resting, it applies its own resolved SMP action whenever it
+later becomes the aggressor (including after a marketable amend).
 
 Steps:
 1. Record the expected semantics for `NONE`, `CANCEL_AGGRESSOR`,
@@ -231,33 +236,60 @@ Steps:
 - The guide's predictions and checkpoint agree with the contract tests.
 - Targeted combo tests and full project checks pass.
 
-### T4 — Console authentication after engine restart (Q4)
+**Result (2026-11-06):** Added entry contract tests for all four SMP actions,
+omitted SMP using the configured gateway default, and explicit `NONE`
+overriding a non-`NONE` default. Added execution tests that rest an AON combo,
+stage same-gateway liquidity, and amend a child across it. The tests confirm
+that current preflight and matching behavior satisfy the decision: non-`NONE`
+entry rejects the own-only AAPL liquidity without trades or cancellations;
+`NONE` fills both legs, including the self-trade. On a later marketable amend,
+`CANCEL_AGGRESSOR` cancels the combo child and sibling, `CANCEL_RESTING`
+cancels the own order and leaves the child resting, `CANCEL_BOTH` cancels both
+sides and the sibling, and `NONE` self-trades. No engine behavior change was
+needed. Updated Exercise 13B and its checkpoint with the two distinct
+behaviors and their outcomes.
 
-**Question to resolve:** Should long-running admin and ALF consoles
-automatically re-authenticate when the engine returns, or is reconnecting the
-console the intended lifecycle?
+Verification:
+- `poetry run pytest tests/test_combo.py -q --no-cov` — 34 passed
+- Targeted combo, gateway-integration, and engine-acceptance tests — 67 passed
+- Full suite — 13,477 passed, 1 skipped; 90.36% coverage (85% required)
+- Repository-wide Black, Flake8, mypy, pyright — passed
+- `poetry run mkdocs build` — passed
+
+### T4 — Console logout after engine connection loss (Q4)
+
+**Decision:** When an authenticated console detects that its engine connection
+was lost, it logs out and prints `Engine connection was lost; logging out.`
+It does not retry commands or authenticate again automatically; the operator
+starts a new console session after the engine is available.
 
 Steps:
-1. Add a failing end-to-end test that authenticates a console, restarts only
-   the engine while preserving the console process, waits for engine
-   readiness, then sends a write command (`KILL` for admin and a valid order
-   for ALF). Capture heartbeat, auth, reply and gateway-list behavior.
-2. Assert the agreed outcome: automatic re-authentication and successful
-   command after recovery, or an explicit disconnected state that requires a
-   documented console restart. Read-only success must not be mistaken for
-   write readiness.
-3. If automatic recovery is chosen, add bounded retry/backoff and ensure only
-   one live session is registered after recovery. Test repeated engine
-   restarts and a permanently unavailable engine.
-4. Update console help/troubleshooting and the guide's "after engine restart"
-   instructions.
+1. Add regression tests that reproduce a lost engine transport during an
+   admin command and during ALF command/heartbeat delivery.
+2. Assert both clients print the explicit connection-lost message and exit
+   without sending further commands or a misleading graceful disconnect.
+3. Update console troubleshooting and the guide's "after engine restart"
+   instructions to require starting a new console session.
 
 **Definition of done:**
-- The test reproduces the current post-restart write failure and verifies the
-  chosen recovery contract without manually restarting the console.
-- No duplicate gateway session or misleading connected status occurs.
-- Recovery and permanent-failure behavior are documented and targeted tests
-  pass.
+- Regression tests reproduce lost-transport behavior and verify logout for
+  both clients.
+- A lost session cannot continue issuing commands or appear connected.
+- The guide documents the message and the required new console session;
+  targeted tests pass.
+
+**Result (2026-11-07):** Both clients monitor their engine transport for a
+ZeroMQ disconnect and log out with the requested message, even while idle.
+`pm-admin` exits its prompt and closes without trying to send a graceful
+disconnect. `pm-alf-console` monitors the engine event socket and also logs
+out on a failed command send or heartbeat. Added a real ZMQ peer-disconnect
+test for the ALF listener plus admin command and idle-monitor tests. Updated
+the guide introduction and restart instructions.
+
+Verification:
+- `poetry run pytest tests/test_commands_console.py tests/test_alf_console_heartbeat.py -q --no-cov` — 48 passed
+- Full suite — 13,484 passed, 1 skipped; 90.38% coverage (85% required)
+- Black, Flake8, mypy, pyright, and MkDocs — passed
 
 ### T5 — Admin identities and safe reset guidance (Q5, Q6)
 
