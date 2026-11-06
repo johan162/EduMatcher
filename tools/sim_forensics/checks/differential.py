@@ -83,6 +83,9 @@ _E7_SHIFT = 7
 _KEEP = 50
 #: Numbers a restarted engine assigns afresh (E6).
 _RENUMBERED = frozenset({"priority_seq"})
+#: A restart seeds a breaker's reference from the last trade price: the
+#: window of trades the reference averages is not persisted (E6).
+_REBASED = frozenset({"reference_price", "corridor_high", "corridor_low"})
 #: Counted across the whole engine (AUC-<run>-<n>): a one-symbol engine
 #: numbers its auctions alone (E5).
 _ENGINE_WIDE = frozenset({"auction_id"})
@@ -166,17 +169,25 @@ class _Run:
         only: set[str | None] | None,
         exact: bool = True,
         ignore: frozenset[str] = frozenset(),
+        ignore_in_breaker: frozenset[str] = frozenset(),
         **context: object,
     ) -> None:
         """Compare *mine* with the reference's *ref* symbol by symbol (only
-        the symbols in *only*, if given); floats to 9 decimals unless
-        *exact*."""
+        the symbols in *only*, if given); floats to 9 decimals, and one
+        decimal apart counts as equal, unless *exact*."""
         if not exact:
             mine = [(t, _rounded(p)) for t, p in mine]
             ref = [(t, _rounded(p)) for t, p in ref]
-        if ignore:
-            mine = [(t, {k: v for k, v in p.items() if k not in ignore}) for t, p in mine]  # fmt: skip
-            ref = [(t, {k: v for k, v in p.items() if k not in ignore}) for t, p in ref]  # fmt: skip
+            # Rounding alone splits a value that sits on a rounding boundary.
+            mine = [(t, _snapped(p, r)) for (t, p), (_, r) in zip(mine, ref)] + mine[len(ref):]  # fmt: skip
+        if ignore or ignore_in_breaker:
+
+            def keep(t: str, p: dict[str, Any]) -> dict[str, Any]:
+                drop = ignore | (ignore_in_breaker if t.startswith("circuit_breaker.") else frozenset())  # fmt: skip
+                return {k: v for k, v in p.items() if k not in drop}
+
+            mine = [(t, keep(t, p)) for t, p in mine]
+            ref = [(t, keep(t, p)) for t, p in ref]
         mg, rg = self.where.group(mine), self.where.group(ref)
         keys = only if only is not None else set(mg) | set(rg)
         for g in sorted(keys, key=str):
@@ -243,6 +254,18 @@ def _rounded(v: Any) -> Any:
     if isinstance(v, list):
         return [_rounded(x) for x in v]
     return round(v, 9) if isinstance(v, float) else v
+
+
+def _snapped(v: Any, ref: Any) -> Any:
+    """*v* with each float within a unit of the 9th decimal of the float at
+    the same place in *ref* replaced by it (messages that line up)."""
+    if isinstance(v, dict) and isinstance(ref, dict):
+        return {k: _snapped(x, ref[k]) if k in ref else x for k, x in v.items()}
+    if isinstance(v, list) and isinstance(ref, list):
+        return [_snapped(x, r) for x, r in zip(v, ref)] + v[len(ref) :]
+    if isinstance(v, float) and isinstance(ref, float) and abs(v - ref) <= 1.5e-9:
+        return ref
+    return v
 
 
 # --- E5 ----------------------------------------------------------------------
@@ -360,7 +383,7 @@ class _Recovery:
             apply(self.lane.engine, topic, p)
             # A restart numbers each book's queue afresh: the order of the
             # queue is compared at the restart, not the numbers after it.
-            self.run.compare("E6", self.lane, self.lane.sink.take(), ref, None, ignore=_RENUMBERED, restart=self.restarts, command=topic, chain=chain)  # fmt: skip
+            self.run.compare("E6", self.lane, self.lane.sink.take(), ref, None, ignore=_RENUMBERED, ignore_in_breaker=_REBASED, restart=self.restarts, command=topic, chain=chain)  # fmt: skip
             self.left -= 1
             if self.left <= 0:
                 self.lane = None

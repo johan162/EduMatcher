@@ -259,7 +259,15 @@ Resume:
 ## Exercise 7: Exchange-Wide Halt with pm-admin-cli
 
 Use the one-shot CLI form when you want an operation to run from a script or
-checklist without opening an interactive console:
+checklist without opening an interactive console.
+
+!!! warning "Close the interactive console first"
+    `pm-admin-cli --id GW_ADMIN` logs on as `GW_ADMIN`, and the engine allows
+    only one connection per participant ID. While `pm-admin --id GW_ADMIN` is
+    still open every `pm-admin-cli` command fails with
+    `Auth refused: Gateway already connected: GW_ADMIN`. Leave `pm-admin`
+    (`Ctrl-C`) before Exercises 7 and 8, and start it again for Exercise 9 and
+    later.
 
 ```bash
 pm-admin-cli --id GW_ADMIN halt
@@ -376,11 +384,24 @@ symbols:
     level: L1                 # MSFT opts into the loose profile
 ```
 
-AAPL and TSLA name no level, so both get `default_level: L2`. Check, deploy and
-restart the engine, then reopen the market. **Predict** the outcome of each
-order before sending it (reference prices are 150, 420 and 250). Use buys below
-the market, which rest instead of trading, so that only the *static* band is
-being tested:
+AAPL and TSLA name no level, so both get `default_level: L2`. Check and deploy.
+
+Before restarting, reset the prices the engine remembers. At shutdown it saves
+each symbol's reference price and last trade in `book_stats.json`; Exercise 4
+moved AAPL's to 164.50, and the **dynamic** band (measured from the last trade)
+rejects *any* order too far from it, buy or sell, resting or not. To test the
+static band alone, stop `pm-engine` with `Ctrl-C`, delete that file from the
+data directory, and start it again:
+
+```bash
+rm "$EDUMATCHER_DATA_DIR/book_stats.json"     # container shell: rm /data/book_stats.json
+```
+
+The reference prices are then 150, 420 and 250 again (from your configuration)
+and there is no last trade. Restart your consoles and reopen the market.
+**Predict** the outcome of each order before sending it. Use buys below the
+market, which rest instead of trading, so that only the *static* band is being
+tested:
 
 ```
 [TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=1|PRICE=143.00|TIF=DAY

@@ -1,0 +1,902 @@
+# NORDIC INDUSTRIALS and MATERIALS. Made-up Swedish, Danish, Norwegian and Finnish
+# companies. The tickers are not in the s300 simulation; every name, person and
+# number is invented.
+STLRK:
+  name: Stålberga Rock Technology AB
+  sector: INDUSTRIALS
+  industry: Industrial Machinery & Supplies
+  headquarters: Örebro, Sweden
+  purpose: Makes rock drills, drill steel, crushers and the underground machines that mines and tunnel builders use.
+  key_market: Mining companies and tunnelling contractors in Australia, Canada, Chile and Europe
+  market_position: Its hardened drill steel lasts twice as long as the usual kind, and its underground mining machines run without a driver in a dozen mines.
+  origin: FOUNDER
+  founders: Johan Stålberg
+  founder_story: Johan Stålberg, a blacksmith in Örebro, learned in 1873 to harden drill steel so that it stayed sharp through a whole shift in the iron mines of Bergslagen.
+  founded_year: 1873
+  ipo_year: 1954
+  ipo_valuation_musd: 25
+  ceo_name: Sten-Olof Brolin
+  ceo_since: 2018
+  ceo_industry_years: 29
+  employees: 17000
+  fiscal_year: 2025
+  revenue_musd: 6200
+  net_income_musd: 920
+  revenue_growth_pct: 4.0
+  operating_margin_pct: 20.0
+  free_cash_flow_musd: 850
+  market_cap_musd: 17500
+  dividend_yield_pct: 3.0
+  debt_to_equity: 0.45
+  credit_rating: A-
+  competitors: CAT DE
+  key_risk: Mining companies cut equipment orders quickly when metal prices fall.
+LFTST:
+  name: Luftström Compressors AB
+  sector: INDUSTRIALS
+  industry: Industrial Machinery & Supplies
+  headquarters: Stockholm, Sweden
+  purpose: Makes compressors, vacuum pumps and air tools for factories, hospitals and food plants, and services them under long contracts.
+  key_market: Manufacturing and process industries in 180 countries
+  market_position: Earns more than half its sales from service on machines it has already sold, which keeps profit steady through the cycle.
+  origin: FOUNDER
+  founders: Gösta Ahlgren
+  founder_story: Gösta Ahlgren, an engineer, built air compressors for the tunnel diggers of Stockholm in 1898 after discovering that the English ones failed in the cold.
+  founded_year: 1898
+  ipo_year: 1928
+  ipo_valuation_musd: 18
+  ceo_name: Nils-Gunnar Bäckström
+  ceo_since: 2017
+  ceo_industry_years: 30
+  employees: 52000
+  fiscal_year: 2025
+  revenue_musd: 14500
+  net_income_musd: 2650
+  revenue_growth_pct: 2.0
+  operating_margin_pct: 22.5
+  free_cash_flow_musd: 2400
+  market_cap_musd: 62000
+  dividend_yield_pct: 1.6
+  debt_to_equity: 0.4
+  credit_rating: A+
+  competitors: IR DOV ITW
+  key_risk: Its shares are priced for steady growth, and a fall in industrial output would hurt new machine sales.
+NOSTN:
+  name: Nostin Elevators Oy
+  sector: INDUSTRIALS
+  industry: Elevators & Escalators
+  headquarters: Helsinki, Finland
+  purpose: Builds, installs and maintains elevators, escalators and automatic doors, and runs a remote monitoring service for 1.5 million machines.
+  key_market: Property owners and builders in China, Europe and North America
+  market_position: Gets three quarters of its profit from servicing elevators, so a building boom matters less to it than to a builder.
+  origin: FAMILY
+  founders: The Salonen family
+  founder_story: Hjalmar Salonen opened a Helsinki workshop in 1910 to build lifts for the city's new stone apartment blocks; the family still holds a majority of the votes.
+  founded_year: 1910
+  ipo_year: 1967
+  ipo_valuation_musd: 22
+  ceo_name: Eero Hämäläinen
+  ceo_since: 2019
+  ceo_industry_years: 29
+  employees: 63000
+  fiscal_year: 2025
+  revenue_musd: 12800
+  net_income_musd: 1250
+  revenue_growth_pct: 3.0
+  operating_margin_pct: 12.5
+  free_cash_flow_musd: 1400
+  market_cap_musd: 28000
+  dividend_yield_pct: 3.4
+  debt_to_equity: 0.5
+  credit_rating: A-
+  competitors: CARR JCI
+  key_risk: The Chinese building slump has cut sales of new elevators by a fifth.
+VRGTD:
+  name: Vargtand Heavy Trucks AB
+  sector: INDUSTRIALS
+  industry: Construction Machinery & Heavy Trucks
+  headquarters: Skövde, Sweden
+  purpose: Builds heavy trucks and buses, with diesel, gas and electric engines, and sells finance and repair contracts with them.
+  key_market: Haulage companies and bus operators in Europe, Latin America and Africa
+  market_position: Has the strongest Nordic truck brand and sells the longest-range electric lorry in Europe.
+  origin: MERGER
+  founders: A wagon builder and a bus maker
+  founder_story: A Skaraborg wagon builder that began making lorries in 1891 merged in 1968 with a bus manufacturer from Södertälje to survive the shake-out of the Swedish car industry.
+  founded_year: 1891
+  ipo_year: 1968
+  ipo_valuation_musd: 40
+  ceo_name: Kristoffer Ahlberg
+  ceo_since: 2020
+  ceo_industry_years: 24
+  employees: 45000
+  fiscal_year: 2025
+  revenue_musd: 21500
+  net_income_musd: 1750
+  revenue_growth_pct: -4.0
+  operating_margin_pct: 11.0
+  free_cash_flow_musd: 1800
+  market_cap_musd: 24000
+  dividend_yield_pct: 4.5
+  debt_to_equity: 1.6
+  credit_rating: A-
+  competitors: CAT CMI DE
+  key_risk: European truck orders are slowing, and electric trucks cost more to build than diesel ones.
+ASGRB:
+  name: Asgard Robotics A/S
+  sector: INDUSTRIALS
+  industry: Industrial Automation
+  headquarters: Odense, Denmark
+  purpose: Makes small robot arms that work beside people in factories and warehouses, and the AI software that teaches them new tasks.
+  key_market: Small and medium-sized manufacturers worldwide
+  market_position: Pioneered the robot arm that can be taught by hand and has sold more than 100,000 of them.
+  origin: CO_FOUNDERS
+  founders: Mads Overgaard, Kim Rosendahl, Lone Brix
+  founder_story: Three engineers at the Odense robotics cluster founded the firm in 2005 to build a robot that a worker could move by hand, so that a small factory could afford one.
+  founded_year: 2005
+  ipo_year: 2015
+  ipo_valuation_musd: 1700
+  ceo_name: Jonas Thorsen
+  ceo_since: 2019
+  ceo_industry_years: 20
+  employees: 2700
+  fiscal_year: 2025
+  revenue_musd: 1450
+  net_income_musd: 210
+  revenue_growth_pct: 8.0
+  operating_margin_pct: 17.0
+  free_cash_flow_musd: 240
+  market_cap_musd: 6800
+  dividend_yield_pct: 0.9
+  debt_to_equity: 0.1
+  credit_rating: A-
+  competitors: EMR ETN HON
+  key_risk: Chinese makers sell similar robot arms at half the price.
+STRMV:
+  name: Stormvang Wind Systems A/S
+  sector: INDUSTRIALS
+  industry: Heavy Electrical Equipment
+  headquarters: Aarhus, Denmark
+  purpose: Designs and builds wind turbines for land and sea, installs them and services them for the 25 years of their life.
+  key_market: Wind farm developers and utilities in Europe, the US and Australia
+  market_position: Has installed more turbines than any other Western maker, and its service contracts cover 140 gigawatts.
+  origin: FOUNDER
+  founders: Søren Stormvang
+  founder_story: Søren Stormvang, a Jutland smith who built farm machinery, made a small wind turbine in 1979 when the oil crisis made the price of electricity jump.
+  founded_year: 1979
+  ipo_year: 1998
+  ipo_valuation_musd: 300
+  ceo_name: Henriette Mølgaard
+  ceo_since: 2022
+  ceo_industry_years: 26
+  employees: 29000
+  fiscal_year: 2025
+  revenue_musd: 17500
+  net_income_musd: 310
+  revenue_growth_pct: 9.0
+  operating_margin_pct: 3.5
+  free_cash_flow_musd: 450
+  market_cap_musd: 16000
+  dividend_yield_pct: 0.5
+  debt_to_equity: 0.8
+  credit_rating: BBB-
+  competitors: GE ETN
+  key_risk: Turbine price wars with Chinese makers and quality problems have cost it profit for three years.
+NRDHV:
+  name: Nordhav Container Lines A/S
+  sector: INDUSTRIALS
+  industry: Marine Shipping
+  headquarters: Copenhagen, Denmark
+  purpose: Operates 340 container ships and a network of terminals and trucking firms that carry goods between Asia, Europe and the Americas.
+  key_market: Importers and exporters of consumer goods worldwide
+  market_position: One of the five largest container carriers, with a fleet that burns methanol and so meets future emission rules.
+  origin: FAMILY
+  founders: The Ravn family
+  founder_story: Captain Peter Ravn bought a steamship with his savings in 1904 to carry Danish butter to England; his descendants control the votes in the company today.
+  founded_year: 1904
+  ipo_year: 1968
+  ipo_valuation_musd: 12
+  ceo_name: Kasper Ravn-Jensen
+  ceo_since: 2016
+  ceo_industry_years: 36
+  employees: 21000
+  fiscal_year: 2025
+  revenue_musd: 9500
+  net_income_musd: 700
+  revenue_growth_pct: -6.0
+  operating_margin_pct: 9.0
+  free_cash_flow_musd: 900
+  market_cap_musd: 11500
+  dividend_yield_pct: 6.0
+  debt_to_equity: 0.35
+  credit_rating: BBB+
+  competitors: FDX UPS EXPD
+  key_risk: Freight rates collapse when new ships arrive faster than trade grows.
+BRGBK:
+  name: Bergen Bulk Carriers ASA
+  sector: INDUSTRIALS
+  industry: Marine Shipping
+  headquarters: Bergen, Norway
+  purpose: Owns and charters 85 dry-bulk ships that carry iron ore, coal, grain and bauxite around the world.
+  key_market: Miners and grain traders shipping between Brazil, Australia, China and Europe
+  market_position: Its modern fuel-efficient fleet is among the youngest in bulk shipping, so charterers pay more to use it.
+  origin: FOUNDER
+  founders: Kristoffer Haugland
+  founder_story: Kristoffer Haugland borrowed against his family's farm in 1946 to buy a steamer that carried coal from Newcastle to Bergen's fish-processing plants.
+  founded_year: 1946
+  ipo_year: 1997
+  ipo_valuation_musd: 280
+  ceo_name: Ragnhild Solheim
+  ceo_since: 2018
+  ceo_industry_years: 27
+  employees: 1100
+  fiscal_year: 2025
+  revenue_musd: 2400
+  net_income_musd: 360
+  revenue_growth_pct: -10.0
+  operating_margin_pct: 18.0
+  free_cash_flow_musd: 410
+  market_cap_musd: 3600
+  dividend_yield_pct: 8.5
+  debt_to_equity: 1.0
+  credit_rating: BB+
+  competitors: NRDHV
+  key_risk: Charter rates follow Chinese steel output, and its profit moves with them.
+VKNGD:
+  name: Vikingsvärd Defence Electronics AB
+  sector: INDUSTRIALS
+  industry: Defense Electronics
+  headquarters: Karlskoga, Sweden
+  purpose: Makes radars, missile guidance systems, fire-control computers and electronic warfare equipment for armies, navies and air forces.
+  key_market: Nordic and NATO armed forces and their allies
+  market_position: Its ground-based radar is used by the armed forces of ten European countries and has been in short supply since 2022.
+  origin: PRIVATISATION
+  founders: The Swedish state
+  founder_story: The state-owned gun and radar works in Karlskoga was split from the arms factory and floated on the Stockholm exchange in 1999, after Sweden cut its defence budget.
+  founded_year: 1902
+  ipo_year: 1999
+  ipo_valuation_musd: 700
+  ceo_name: Håkan Tideman
+  ceo_since: 2021
+  ceo_industry_years: 28
+  employees: 11500
+  fiscal_year: 2025
+  revenue_musd: 4800
+  net_income_musd: 410
+  revenue_growth_pct: 22.0
+  operating_margin_pct: 11.5
+  free_cash_flow_musd: 280
+  market_cap_musd: 11500
+  dividend_yield_pct: 1.0
+  debt_to_equity: 0.5
+  credit_rating: BBB+
+  competitors: LMT RTX LHX NOC
+  key_risk: Orders depend on government budgets, and it cannot hire engineers or buy electronic parts as fast as it wins contracts.
+BLTFS:
+  name: Bultfast Fastening Systems AB
+  sector: INDUSTRIALS
+  industry: Industrial Machinery & Supplies
+  headquarters: Eskilstuna, Sweden
+  purpose: Makes bolts, rivets, screws and the tightening tools used to assemble cars, wind turbines and trains.
+  key_market: Car makers, truck makers and renewable energy equipment makers
+  market_position: Supplies the tightening systems for most Nordic car and truck plants, with software that logs the force of every bolt.
+  origin: FOUNDER
+  founders: Karl Bult
+  founder_story: Karl Bult began forging bolts in an Eskilstuna smithy in 1921, for the town's cutlery and tool makers, and later for the Scania trucks built nearby.
+  founded_year: 1921
+  ipo_year: 1960
+  ipo_valuation_musd: 14
+  ceo_name: Pernilla Sandberg
+  ceo_since: 2023
+  ceo_industry_years: 25
+  employees: 9800
+  fiscal_year: 2025
+  revenue_musd: 2800
+  net_income_musd: 290
+  revenue_growth_pct: 1.0
+  operating_margin_pct: 15.5
+  free_cash_flow_musd: 300
+  market_cap_musd: 4200
+  dividend_yield_pct: 2.9
+  debt_to_equity: 0.6
+  credit_rating: BBB
+  competitors: FAST ITW
+  key_risk: Car production in Europe is falling and electric cars use fewer fasteners.
+KLLGR:
+  name: Kullager Precision Bearings AB
+  sector: INDUSTRIALS
+  industry: Industrial Machinery & Supplies
+  headquarters: Gothenburg, Sweden
+  purpose: Makes bearings, seals and lubrication systems that let wheels, shafts and turbines turn with little friction.
+  key_market: Car makers, railway operators, wind farms and heavy industry
+  market_position: Sells a sensor bearing that tells a train company which wheel will fail, and the data service attached to it is its fastest-growing line.
+  origin: FOUNDER
+  founders: Sven Kullager
+  founder_story: Sven Kullager, a Gothenburg mechanic, built a roller bearing for the shipyard cranes in 1912 after the cranes kept stopping; the yards ordered the same bearing for every crane.
+  founded_year: 1912
+  ipo_year: 1935
+  ipo_valuation_musd: 9
+  ceo_name: Mats Skoglund
+  ceo_since: 2021
+  ceo_industry_years: 33
+  employees: 40000
+  fiscal_year: 2025
+  revenue_musd: 9200
+  net_income_musd: 900
+  revenue_growth_pct: -2.0
+  operating_margin_pct: 13.5
+  free_cash_flow_musd: 950
+  market_cap_musd: 12000
+  dividend_yield_pct: 3.3
+  debt_to_equity: 0.55
+  credit_rating: A-
+  competitors: EMR DOV
+  key_risk: Weak car and truck production cuts its volumes, and Asian rivals compete on price.
+NYCKL:
+  name: Nyckelfri Access Solutions AB
+  sector: INDUSTRIALS
+  industry: Building Products
+  headquarters: Stockholm, Sweden
+  purpose: Makes door locks, keycards, electronic access systems and automatic doors for homes, offices, hospitals and airports.
+  key_market: Building owners and doors makers across Europe, North America and Asia
+  market_position: The largest lock maker in the world by sales, with its electronic locks installed in six million hotel rooms.
+  origin: MERGER
+  founders: Three Scandinavian lock makers
+  founder_story: Three family lock makers from Eskilstuna, Copenhagen and Oslo merged in 1994 to sell across the new European market, then bought lock firms in a hundred countries.
+  founded_year: 1994
+  ipo_year: 1994
+  ipo_valuation_musd: 600
+  ceo_name: Hedvig Landin
+  ceo_since: 2022
+  ceo_industry_years: 25
+  employees: 61000
+  fiscal_year: 2025
+  revenue_musd: 14800
+  net_income_musd: 1800
+  revenue_growth_pct: 6.0
+  operating_margin_pct: 17.0
+  free_cash_flow_musd: 1900
+  market_cap_musd: 34000
+  dividend_yield_pct: 1.7
+  debt_to_equity: 0.6
+  credit_rating: BBB+
+  competitors: CARR JCI HON
+  key_risk: Weak building starts and a slow housing market cut sales of locks for new homes.
+KLGSA:
+  name: Kollega Staffing AB
+  sector: INDUSTRIALS
+  industry: Human Resource & Employment Services
+  headquarters: Stockholm, Sweden
+  purpose: Finds temporary and permanent staff for factories, warehouses, hospitals and offices, and runs payroll and outplacement services.
+  key_market: Employers in Sweden, Norway, Finland and Germany
+  market_position: Has collective agreements with all the main Swedish unions, which lets it place staff in places where agencies from abroad are shut out.
+  origin: CO_FOUNDERS
+  founders: Dag Hellström, Marita Bohlin
+  founder_story: Two union representatives who saw laid-off factory workers wait for months for jobs opened a staffing agency in Södertälje in 1990.
+  founded_year: 1990
+  ipo_year: 2001
+  ipo_valuation_musd: 260
+  ceo_name: Dag Hellström
+  ceo_since: 2019
+  ceo_industry_years: 35
+  employees: 28000
+  fiscal_year: 2025
+  revenue_musd: 3900
+  net_income_musd: 120
+  revenue_growth_pct: 2.0
+  operating_margin_pct: 4.2
+  free_cash_flow_musd: 150
+  market_cap_musd: 1800
+  dividend_yield_pct: 3.5
+  debt_to_equity: 0.5
+  credit_rating: BBB-
+  competitors: ADP PAYX
+  key_risk: Demand for temporary staff falls sharply in a downturn, and AI tools reduce the work in office placements.
+VTNPM:
+  name: Vattenverk Pumps A/S
+  sector: INDUSTRIALS
+  industry: Industrial Machinery & Supplies
+  headquarters: Silkeborg, Denmark
+  purpose: Makes pumps for water supply, heating, irrigation and industry, and sells smart pumps that cut a building's heating bill by a third.
+  key_market: Water utilities, building owners and farms in Europe, India and China
+  market_position: Its smart circulator pump is in one of every three European homes with central heating, and a heat-pump boom is increasing the number.
+  origin: FAMILY
+  founders: Peder Vattenverk
+  founder_story: Peder Vattenverk, a Jutland blacksmith, made a hand pump for farm wells in 1945; a foundation owned by his descendants still holds the company.
+  founded_year: 1945
+  ipo_year: 2012
+  ipo_valuation_musd: 1800
+  ceo_name: Birgit Lauritzen
+  ceo_since: 2020
+  ceo_industry_years: 26
+  employees: 19000
+  fiscal_year: 2025
+  revenue_musd: 4600
+  net_income_musd: 470
+  revenue_growth_pct: 5.0
+  operating_margin_pct: 14.0
+  free_cash_flow_musd: 510
+  market_cap_musd: 7500
+  dividend_yield_pct: 2.2
+  debt_to_equity: 0.3
+  credit_rating: A-
+  competitors: DOV IR
+  key_risk: Heat-pump sales in Europe depend on subsidies that governments keep changing.
+NRDXP:
+  name: Nordexpress Logistics A/S
+  sector: INDUSTRIALS
+  industry: Air Freight & Logistics
+  headquarters: Taastrup, Denmark
+  purpose: Moves freight by air, sea and road for 120,000 customers, runs warehouses and handles customs paperwork.
+  key_market: Exporters and importers shipping between Europe, Asia and North America
+  market_position: Owns no ships or planes, so it can switch routes quickly and has grown by buying smaller rivals about once a year.
+  origin: FOUNDER
+  founders: Ejnar Nord
+  founder_story: Ejnar Nord started with one lorry in Taastrup in 1976 and a promise to deliver when other hauliers did not.
+  founded_year: 1976
+  ipo_year: 1987
+  ipo_valuation_musd: 11
+  ceo_name: Jens-Peter Kragh
+  ceo_since: 2015
+  ceo_industry_years: 32
+  employees: 75000
+  fiscal_year: 2025
+  revenue_musd: 22000
+  net_income_musd: 1100
+  revenue_growth_pct: 3.0
+  operating_margin_pct: 7.0
+  free_cash_flow_musd: 1400
+  market_cap_musd: 30000
+  dividend_yield_pct: 1.1
+  debt_to_equity: 0.6
+  credit_rating: BBB+
+  competitors: FDX UPS EXPD
+  key_risk: Freight volumes and rates drop in a downturn, and large acquisitions are hard to integrate.
+BYGGM:
+  name: Byggmästarn Construction AB
+  sector: INDUSTRIALS
+  industry: Construction & Engineering
+  headquarters: Stockholm, Sweden
+  purpose: Builds apartment blocks, offices, hospitals, roads and railways, and develops some of the projects itself.
+  key_market: Public bodies and property companies in Sweden, Norway and Finland
+  market_position: Has built many of Sweden's largest hospitals and rail tunnels, and is the main contractor on the new high-speed rail line.
+  origin: FOUNDER
+  founders: Erik Byggmästare
+  founder_story: Erik Byggmästare, a master mason, set up a firm in 1887 to build the stone tenements that went up in Stockholm as the city grew.
+  founded_year: 1887
+  ipo_year: 1965
+  ipo_valuation_musd: 16
+  ceo_name: Linda Kjellberg
+  ceo_since: 2022
+  ceo_industry_years: 27
+  employees: 21000
+  fiscal_year: 2025
+  revenue_musd: 7200
+  net_income_musd: 280
+  revenue_growth_pct: 3.0
+  operating_margin_pct: 5.0
+  free_cash_flow_musd: 320
+  market_cap_musd: 4200
+  dividend_yield_pct: 4.0
+  debt_to_equity: 0.4
+  credit_rating: BBB
+  competitors: MLM
+  key_risk: Fixed-price contracts leave it exposed to a rise in material or wage costs.
+ATRVN:
+  name: Återvinn Circular Solutions AB
+  sector: INDUSTRIALS
+  industry: Environmental Services
+  headquarters: Gothenburg, Sweden
+  purpose: Collects waste, sorts and recycles metals, plastics and paper, and burns what is left to make district heating.
+  key_market: Municipalities and industrial customers in Sweden, Denmark and Germany
+  market_position: Its plants recycle electric-car batteries and electronics, work that few rivals in the Nordics can do on a large scale.
+  origin: SPIN_OFF
+  founders: A Gothenburg municipal waste department
+  founder_story: The city's waste department was turned into a company in 1998 when Swedish law opened waste collection to competition; it grew by buying the private contractors.
+  founded_year: 1998
+  ipo_year: 2008
+  ipo_valuation_musd: 450
+  ceo_name: Ulrika Edlund
+  ceo_since: 2020
+  ceo_industry_years: 23
+  employees: 9500
+  fiscal_year: 2025
+  revenue_musd: 2300
+  net_income_musd: 195
+  revenue_growth_pct: 6.0
+  operating_margin_pct: 11.5
+  free_cash_flow_musd: 210
+  market_cap_musd: 3500
+  dividend_yield_pct: 1.9
+  debt_to_equity: 0.9
+  credit_rating: BBB
+  key_risk: Prices of recycled metals and plastics swing widely and set its margins.
+MRVMA:
+  name: Merivoima Marine & Power Oy
+  sector: INDUSTRIALS
+  industry: Industrial Machinery & Supplies
+  headquarters: Vaasa, Finland
+  purpose: Builds engines for ships and for power plants that run on diesel, gas, ammonia or methanol, and services them.
+  key_market: Shipping companies, shipyards and power producers worldwide
+  market_position: Its engines power one of every three large cargo ships, and its power-plant engines balance wind and solar grids.
+  origin: FOUNDER
+  founders: Gustaf Merivuori
+  founder_story: Gustaf Merivuori started an ironworks in Vaasa in 1834 that built steam engines for the Gulf of Bothnia timber ships.
+  founded_year: 1834
+  ipo_year: 1912
+  ipo_valuation_musd: 6
+  ceo_name: Jukka Kangasniemi
+  ceo_since: 2020
+  ceo_industry_years: 28
+  employees: 17500
+  fiscal_year: 2025
+  revenue_musd: 6300
+  net_income_musd: 520
+  revenue_growth_pct: 1.0
+  operating_margin_pct: 10.5
+  free_cash_flow_musd: 560
+  market_cap_musd: 9000
+  dividend_yield_pct: 3.0
+  debt_to_equity: 0.45
+  credit_rating: BBB+
+  competitors: CMI CAT GE
+  key_risk: Shipping companies hold back orders until they know which fuel will win.
+NRMLM:
+  name: Norrmalm Iron AB
+  sector: MATERIALS
+  industry: Metals & Mining
+  headquarters: Luleå, Sweden
+  purpose: Mines iron ore in Lapland and makes it into pellets that steelmakers use in blast furnaces and in hydrogen-based direct reduction plants.
+  key_market: Steel mills in Europe and the Middle East
+  market_position: Its pellets contain more iron than most ore, which makes them the preferred input for fossil-free steel.
+  origin: PRIVATISATION
+  founders: The Swedish state
+  founder_story: The railway to the ore fields of Lapland was finished in 1890 and a state mining company took over the mines; the state sold a minority stake on the stock market in 2004.
+  founded_year: 1890
+  ipo_year: 2004
+  ipo_valuation_musd: 2600
+  ceo_name: Jonas Wikström
+  ceo_since: 2019
+  ceo_industry_years: 25
+  employees: 4300
+  fiscal_year: 2025
+  revenue_musd: 3800
+  net_income_musd: 950
+  revenue_growth_pct: -7.0
+  operating_margin_pct: 31.0
+  free_cash_flow_musd: 700
+  market_cap_musd: 11000
+  dividend_yield_pct: 5.5
+  debt_to_equity: 0.3
+  credit_rating: A
+  competitors: NUE FCX
+  key_risk: The mines are deeper every year, and iron ore prices are set in China.
+GRVDL:
+  name: Gruvdal Metals AB
+  sector: MATERIALS
+  industry: Metals & Mining
+  headquarters: Skellefteå, Sweden
+  purpose: Mines copper, zinc, lead and gold in northern Sweden and Finland, and recycles electronic scrap in its smelters.
+  key_market: Cable makers and metal traders in Europe
+  market_position: Runs one of the cleanest copper smelters in the world, and its recycling plant takes in more electronic waste than any other in Europe.
+  origin: FOUNDER
+  founders: A reindeer herder and a prospector
+  founder_story: A reindeer herder showed a prospector a vein of copper ore he had seen under a snowdrift in 1924, and the two started a mine that grew into the company.
+  founded_year: 1925
+  ipo_year: 1972
+  ipo_valuation_musd: 30
+  ceo_name: Marie Lindahl
+  ceo_since: 2021
+  ceo_industry_years: 27
+  employees: 6200
+  fiscal_year: 2025
+  revenue_musd: 6600
+  net_income_musd: 880
+  revenue_growth_pct: 12.0
+  operating_margin_pct: 17.0
+  free_cash_flow_musd: 600
+  market_cap_musd: 14500
+  dividend_yield_pct: 2.5
+  debt_to_equity: 0.5
+  credit_rating: BBB+
+  competitors: FCX NEM
+  key_risk: Its profit moves with copper and zinc prices, and new mines take a decade to permit.
+NRDST:
+  name: Nordstål High-Strength Steel AB
+  sector: MATERIALS
+  industry: Steel
+  headquarters: Borlänge, Sweden
+  purpose: Makes high-strength steel plate and strip for cars, cranes, mining trucks and armour, and is replacing its blast furnaces with electric arc furnaces.
+  key_market: Truck makers, crane makers and defence suppliers in Europe and North America
+  market_position: The world's leading maker of very hard steel grades, which let customers cut the weight of lorries and cranes by a fifth.
+  origin: MERGER
+  founders: Three Nordic steelmakers
+  founder_story: Swedish and Finnish steel mills merged in 2006 to share the cost of developing steel grades that were harder than their rivals', and later bought an American mill.
+  founded_year: 1878
+  ipo_year: 1989
+  ipo_valuation_musd: 700
+  ceo_name: Peter Wennerholm
+  ceo_since: 2018
+  ceo_industry_years: 31
+  employees: 14500
+  fiscal_year: 2025
+  revenue_musd: 9800
+  net_income_musd: 540
+  revenue_growth_pct: -3.0
+  operating_margin_pct: 8.5
+  free_cash_flow_musd: 480
+  market_cap_musd: 6800
+  dividend_yield_pct: 4.0
+  debt_to_equity: 0.35
+  credit_rating: BBB
+  competitors: NUE
+  key_risk: Steel prices swing with Chinese exports, and converting the furnaces costs several billion dollars.
+LJSST:
+  name: Ljusstål Fossil-Free Steel AB
+  sector: MATERIALS
+  industry: Steel
+  headquarters: Boden, Sweden
+  purpose: Builds a new steel mill in Lapland that makes steel with hydrogen and hydropower instead of coal, to sell to car makers and appliance makers at a premium.
+  key_market: Car makers and appliance makers in Europe that have promised low-carbon steel
+  market_position: The first large mill to sell steel made without coal, with 80 per cent of its first five years' output already contracted.
+  origin: CO_FOUNDERS
+  founders: Karolina Nylander, Fredrik Tjäder
+  founder_story: A former steel-mill engineer and a venture investor founded the company in 2020 to build the first mill that made steel with hydrogen, and raised seven billion dollars from the market and from banks.
+  founded_year: 2020
+  ipo_year: 2022
+  ipo_valuation_musd: 2900
+  ceo_name: Karolina Nylander
+  ceo_since: 2020
+  ceo_industry_years: 19
+  employees: 2400
+  fiscal_year: 2025
+  revenue_musd: 640
+  net_income_musd: -380
+  revenue_growth_pct: 210.0
+  operating_margin_pct: -35.0
+  free_cash_flow_musd: -1900
+  market_cap_musd: 4600
+  dividend_yield_pct: 0.0
+  debt_to_equity: 2.4
+  credit_rating: B+
+  competitors: NUE NRDST
+  key_risk: Costs have risen above plan, and it needs new financing to finish the mill and reach full output.
+TRSST:
+  name: Teräsvuori Stainless Oy
+  sector: MATERIALS
+  industry: Steel
+  headquarters: Kemi, Finland
+  purpose: Makes stainless steel coil and plate, from its own chromium mine and ferrochrome smelter, for kitchens, chemical plants and trains.
+  key_market: Appliance makers, builders and chemical plants in Europe and the US
+  market_position: Owns the only large chromium mine in the EU, which gives it a cost advantage in steel that is mostly chromium.
+  origin: PRIVATISATION
+  founders: The Finnish state
+  founder_story: A state-owned mining company discovered chromium ore at Kemi in 1959, and the state later built a stainless steel mill beside it; the company was floated in 1989.
+  founded_year: 1959
+  ipo_year: 1989
+  ipo_valuation_musd: 400
+  ceo_name: Hannu Peltonen
+  ceo_since: 2022
+  ceo_industry_years: 26
+  employees: 8100
+  fiscal_year: 2025
+  revenue_musd: 6900
+  net_income_musd: 150
+  revenue_growth_pct: -5.0
+  operating_margin_pct: 4.0
+  free_cash_flow_musd: 180
+  market_cap_musd: 2400
+  dividend_yield_pct: 3.0
+  debt_to_equity: 0.7
+  credit_rating: BBB-
+  competitors: NUE
+  key_risk: Asian mills sell stainless steel in Europe at prices that barely cover costs.
+SKGKR:
+  name: Skogskraft Forest Products AB
+  sector: MATERIALS
+  industry: Paper & Forest Products
+  headquarters: Sundsvall, Sweden
+  purpose: Owned by 24,000 forest owners, it makes timber, pulp, paper, packaging board and wood-based chemicals and energy.
+  key_market: Packaging makers and builders in Europe and Asia
+  market_position: Its owners are the forest owners who supply the wood, so it never runs short of raw material at a fair price.
+  origin: COOPERATIVE
+  founders: A group of forest-owning farmers
+  founder_story: Farmers in Medelpad formed a cooperative sawmill in 1921 so they no longer had to sell their timber cheaply to the big sawmill owners on the coast.
+  founded_year: 1921
+  ipo_year: 1988
+  ipo_valuation_musd: 300
+  ceo_name: Birger Holmberg
+  ceo_since: 2018
+  ceo_industry_years: 30
+  employees: 22000
+  fiscal_year: 2025
+  revenue_musd: 10800
+  net_income_musd: 520
+  revenue_growth_pct: -2.0
+  operating_margin_pct: 7.0
+  free_cash_flow_musd: 620
+  market_cap_musd: 9500
+  dividend_yield_pct: 3.7
+  debt_to_equity: 0.6
+  credit_rating: BBB
+  competitors: IP
+  key_risk: Pulp prices drop when Brazilian mills open new lines, and demand for printing paper keeps falling.
+KOIVL:
+  name: Koivula Pulp & Packaging Oy
+  sector: MATERIALS
+  industry: Paper & Forest Products
+  headquarters: Kotka, Finland
+  purpose: Makes pulp, cartonboard and packaging paper from Finnish and Baltic forests, and sells cartons for food, drinks and medicines.
+  key_market: Food and consumer goods makers in Europe and Asia
+  market_position: Makes cartonboard that carries a food-safe barrier without plastic, which grocers now prefer to plastic trays.
+  origin: MERGER
+  founders: Two pulp mills
+  founder_story: Two Kymi valley pulp mills joined forces in 1970, and merged again with a packaging board maker in 2002 to supply the growing market for food cartons.
+  founded_year: 1870
+  ipo_year: 1982
+  ipo_valuation_musd: 210
+  ceo_name: Sari Heinonen
+  ceo_since: 2020
+  ceo_industry_years: 27
+  employees: 16500
+  fiscal_year: 2025
+  revenue_musd: 8400
+  net_income_musd: 480
+  revenue_growth_pct: 0.0
+  operating_margin_pct: 8.0
+  free_cash_flow_musd: 540
+  market_cap_musd: 8300
+  dividend_yield_pct: 4.2
+  debt_to_equity: 0.5
+  credit_rating: BBB
+  competitors: IP SKGKR
+  key_risk: Wood costs in Finland have risen, and a new pulp mill in South America undercuts it.
+FJRDG:
+  name: Fjordgrodd Fertilizers ASA
+  sector: MATERIALS
+  industry: Fertilizers & Agricultural Chemicals
+  headquarters: Oslo, Norway
+  purpose: Makes nitrogen, phosphate and potassium fertilisers and sells crop nutrition and digital farm advice to farmers in 60 countries.
+  key_market: Farmers in Europe, Brazil and North America
+  market_position: Runs one of the world's biggest ammonia works and is building a plant that makes ammonia from hydropower instead of gas.
+  origin: SPIN_OFF
+  founders: A Norwegian hydropower company
+  founder_story: A hydropower company began to make nitrogen fertiliser from air and cheap electricity in 1953; the business was spun out and floated in 1990.
+  founded_year: 1953
+  ipo_year: 1990
+  ipo_valuation_musd: 450
+  ceo_name: Gunnar Bjerknes
+  ceo_since: 2021
+  ceo_industry_years: 28
+  employees: 17000
+  fiscal_year: 2025
+  revenue_musd: 14200
+  net_income_musd: 750
+  revenue_growth_pct: 4.0
+  operating_margin_pct: 7.5
+  free_cash_flow_musd: 800
+  market_cap_musd: 11500
+  dividend_yield_pct: 4.0
+  debt_to_equity: 0.6
+  credit_rating: BBB
+  competitors: CF MOS CTVA
+  key_risk: European natural gas prices decide its costs, and cheap imports from Russia's neighbours undercut its prices.
+NRDVA:
+  name: Nordvest Aluminium ASA
+  sector: MATERIALS
+  industry: Aluminum
+  headquarters: Oslo, Norway
+  purpose: Smelts and rolls aluminium, recycles aluminium scrap, and extrudes profiles for buildings and cars, using hydropower for most of its smelting.
+  key_market: Car makers, building contractors and packaging makers in Europe and North America
+  market_position: Its aluminium from hydropower and recycled scrap has a quarter of the carbon footprint of the world average, which earns a premium from car makers.
+  origin: PRIVATISATION
+  founders: The Norwegian state and a power company
+  founder_story: A state-backed company built an aluminium smelter beside a Norwegian waterfall in 1905; the state sold a majority on the Oslo exchange in 1993 and still owns a third.
+  founded_year: 1905
+  ipo_year: 1993
+  ipo_valuation_musd: 1800
+  ceo_name: Torill Ytterdahl
+  ceo_since: 2020
+  ceo_industry_years: 25
+  employees: 31000
+  fiscal_year: 2025
+  revenue_musd: 13500
+  net_income_musd: 780
+  revenue_growth_pct: 3.0
+  operating_margin_pct: 6.5
+  free_cash_flow_musd: 850
+  market_cap_musd: 12500
+  dividend_yield_pct: 3.3
+  debt_to_equity: 0.35
+  credit_rating: BBB+
+  competitors: FCX
+  key_risk: The aluminium price follows power prices and Chinese output, and both are hard to forecast.
+KEMKO:
+  name: Kemiko Water Chemicals Oy
+  sector: MATERIALS
+  industry: Specialty Chemicals
+  headquarters: Helsinki, Finland
+  purpose: Makes the chemicals that clean drinking water and wastewater and that strengthen paper and board, and sells dosing equipment and monitoring services with them.
+  key_market: Water utilities and paper mills in Europe, the US and Brazil
+  market_position: Its dosing software cuts the amount of chemicals a water works uses by a fifth, which saves customers more than the product costs.
+  origin: SPIN_OFF
+  founders: A Finnish pulp company
+  founder_story: A pulp maker set up a chemicals unit in 1920 to sell the rosin and sulphate by-products from its mills, and in time turned it into a supplier to water works.
+  founded_year: 1920
+  ipo_year: 1994
+  ipo_valuation_musd: 280
+  ceo_name: Riikka Laitinen
+  ceo_since: 2019
+  ceo_industry_years: 24
+  employees: 5300
+  fiscal_year: 2025
+  revenue_musd: 3800
+  net_income_musd: 270
+  revenue_growth_pct: 3.0
+  operating_margin_pct: 10.5
+  free_cash_flow_musd: 300
+  market_cap_musd: 4800
+  dividend_yield_pct: 3.1
+  debt_to_equity: 0.6
+  credit_rating: BBB
+  competitors: ECL IFF
+  key_risk: Demand from paper mills is falling as printing paper declines.
+SLLSY:
+  name: Sällsynt Rare Earths AB
+  sector: MATERIALS
+  industry: Metals & Mining
+  headquarters: Kiruna, Sweden
+  purpose: Is building Europe's first large mine for rare earth metals, the magnet metals used in electric motors and wind turbines, along with a plant to separate them.
+  key_market: Magnet makers and car makers in Europe that want non-Chinese supply
+  market_position: Holds the largest known rare-earth deposit in the EU, in a market where China makes nine tenths of the world's supply.
+  origin: FOUNDER
+  founders: Per-Erik Sällsynt
+  founder_story: Per-Erik Sällsynt, a geologist, spent a decade mapping the rocks near Kiruna and in 2011 showed that a deposit there held more rare earths than anyone had thought.
+  founded_year: 2011
+  ipo_year: 2019
+  ipo_valuation_musd: 180
+  ceo_name: Ebba Karlberg
+  ceo_since: 2020
+  ceo_industry_years: 15
+  employees: 420
+  fiscal_year: 2025
+  revenue_musd: 38
+  net_income_musd: -55
+  revenue_growth_pct: 90.0
+  operating_margin_pct: -140.0
+  free_cash_flow_musd: -160
+  market_cap_musd: 2600
+  dividend_yield_pct: 0.0
+  debt_to_equity: 0.6
+  credit_rating: B
+  competitors: ALB
+  key_risk: Mining permits and local objections delay the mine, and China can undercut prices for years.
+AKKNM:
+  name: Akkuniemi Battery Chemicals Oy
+  sector: MATERIALS
+  industry: Specialty Chemicals
+  headquarters: Sotkamo, Finland
+  purpose: Extracts nickel, cobalt and zinc from a black-schist mine and refines them into the chemicals that go into the cathodes of electric-car batteries.
+  key_market: Battery cell makers in Europe
+  market_position: One of the few European suppliers of battery-grade nickel sulphate, so cell makers use it to meet EU rules on local sourcing.
+  origin: PRIVATISATION
+  founders: A Finnish mining company
+  founder_story: A bankrupt state-linked nickel mine was bought in 2015 by a group of Finnish investors who changed the plan from making metal to making battery chemicals.
+  founded_year: 2008
+  ipo_year: 2021
+  ipo_valuation_musd: 800
+  ceo_name: Veli-Matti Kinnunen
+  ceo_since: 2019
+  ceo_industry_years: 22
+  employees: 540
+  fiscal_year: 2025
+  revenue_musd: 420
+  net_income_musd: -18
+  revenue_growth_pct: 35.0
+  operating_margin_pct: 2.0
+  free_cash_flow_musd: -60
+  market_cap_musd: 1600
+  dividend_yield_pct: 0.0
+  debt_to_equity: 1.1
+  credit_rating: BB-
+  competitors: ALB
+  key_risk: Nickel prices fell sharply, and European battery plants have cut their planned volumes.

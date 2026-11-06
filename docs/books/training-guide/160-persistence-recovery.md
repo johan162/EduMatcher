@@ -165,7 +165,7 @@ Start `pm-stats`, execute a few trades, and inspect the stats database:
 
 ```bash
 pm-stats
-pm-stats-cli trades --symbol AAPL --limit 5
+pm-stats-cli trades --symbol AAPL --limit 5     # the first five of the day, oldest first
 ls -lh "$EDUMATCHER_DATA_DIR"
 ```
 
@@ -189,6 +189,10 @@ Execute a trade, then inspect the log:
 ```bash
 tail -20 "$EDUMATCHER_DATA_DIR/audit.log"
 ```
+
+`pm-audit` collects events in a buffer and writes them out in batches, at
+least every 10 seconds, so wait a few seconds after the trade before you look
+(and start `pm-audit` before you trade: it records only what it sees).
 
 :material-checkbox-blank-outline: **Checkpoint:** audit log contains events from your trading session.
 

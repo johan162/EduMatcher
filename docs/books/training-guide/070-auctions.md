@@ -41,10 +41,18 @@ Stop the scheduler and use manual phase control instead (see
 You want to be sitting in `OPENING_AUCTION` — **not** `PRE_OPEN` — before
 sending the `TIF=ATO` orders below: the engine only accepts `ATO` orders
 while the session state is exactly `OPENING_AUCTION` and rejects them during
-`PRE_OPEN` even though `PRE_OPEN` accepts orders generally. With no
-scheduler running, a freshly started engine sits in `CLOSED`, and `CLOSED`'s
-only legal move is to `PRE_OPEN` — so get there first, then go on to
-`OPENING_AUCTION`:
+`PRE_OPEN` even though `PRE_OPEN` accepts orders generally. `PRE_OPEN` can only
+be entered from `CLOSED`, so first check where you are:
+
+```
+[GW_ADMIN|ADMIN]> SESSION_STATUS
+```
+
+Chapter 06 left the market in `CONTINUOUS`. From there, close the day first —
+`SESSION|STATE=CLOSING_AUCTION`, then `SESSION|STATE=CLOSED` (`CLOSED` alone is
+also accepted from `CONTINUOUS`; a request for
+`PRE_OPEN` from `CONTINUOUS` is ignored and the console only prints
+`TIMEOUT`). From `CLOSED` go on:
 
 ```
 [GW_ADMIN|ADMIN]> SESSION|STATE=PRE_OPEN
@@ -76,8 +84,8 @@ From two gateways, enter orders while in `OPENING_AUCTION`:
 [TRADER02]> NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=150.30|TIF=ATO
 ```
 
-Add one order that cannot cross, for Exercise 3 — a bid for MSFT far below the
-market maker's ask of about 420:
+Add one order that cannot cross, for Exercise 3 — a bid for MSFT far below any
+offer (the MSFT market maker, when it is quoting, asks about 420):
 
 ```
 [TRADER01]> NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=400.00|TIF=ATO
@@ -139,9 +147,10 @@ EXPIRED   <second order id>  (DAY order — trading day ended)
 
 An ATO order that does not cross expires when the auction ends, instead of
 carrying on into continuous trading. You entered one in Exercise 1: the MSFT
-bid at 400.00. The uncrossing in Exercise 2 left it unfilled — the MSFT market
-maker from chapter 02 asks about 420, far above 400 — and the console reported
-it `EXPIRED` in the same burst as the AAPL fills. Confirm it:
+bid at 400.00. The uncrossing in Exercise 2 left it unfilled — no MSFT seller
+was anywhere near 400 (the day's market-maker quotes were gone after chapter
+06's close, and a quote at about 420 would be far above 400 anyway) — and the
+console reported it `EXPIRED` in the same burst as the AAPL fills. Confirm it:
 
 ```
 [TRADER01]> ORDERS

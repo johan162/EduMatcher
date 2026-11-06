@@ -537,13 +537,17 @@ must decide what to do with any resting quotes:
 
 | `disconnect_behaviour` | What happens to quotes | What happens to plain orders      |
 |------------------------|------------------------|-----------------------------------|
-| `CANCEL_QUOTES_ONLY`   | All quotes cancelled   | Resting orders remain in book     |
-| `CANCEL_ALL`           | All quotes cancelled   | All resting orders also cancelled |
+| `CANCEL_QUOTES_ONLY`   | Active quotes and inactive partial-fill remainders are cancelled | Plain resting orders remain in book |
+| `CANCEL_ALL`           | Active quotes and inactive partial-fill remainders are cancelled | All plain resting orders are also cancelled |
 | `LEAVE_ALL`            | Nothing cancelled      | Nothing cancelled                 |
 
 The default is `CANCEL_QUOTES_ONLY`, which is the most appropriate for
 market making: quotes represent ongoing commitment and should not linger after
-the MM disconnects.
+the MM disconnects. A quote may become inactive after one leg partially fills
+while that leg's unfilled remainder still rests; disconnect cleanup treats
+that remainder as a quote and cancels it under either `CANCEL_QUOTES_ONLY` or
+`CANCEL_ALL`. Participant `KILL` also cancels it, and reports it in the
+`QUOTES` count.
 
 ---
 

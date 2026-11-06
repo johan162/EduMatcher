@@ -67,7 +67,29 @@ until it is **confirmed**; a **retracted** rumour never moves anything.
 pm-config-deploy --example s150-nominal
 ```
 
-Restart `pm-engine`, then start the gateway the AI traders log on through,
+This **replaces** the configuration you have built since chapter 01. From here
+on the participants are the ones the example defines — `TRADER01`–`TRADER10`,
+the instructor `OPS01` (ADMIN), `MM01`, and `AI001`–`AI020` — so `GW_ADMIN`,
+`TRADER03`, `MM_AAPL_01` and the other gateways of your own configuration no
+longer exist. Stop the consoles and bots that use them. To return to your own
+configuration later, deploy `engine_config.yaml` again.
+
+The scenario and swarm files this chapter uses ship with EduMatcher, but not in
+your current directory: on a container or `pipx` install they live inside the
+installed package, and only in a repository checkout are they under
+`docs/examples`. Ask Python where they are, once per terminal, and use `$EX`
+in the commands below:
+
+```bash
+EX=$(python -c "from edumatcher.config_deploy import examples_root; print(examples_root().parent)")
+ls "$EX/news"          # the four scenarios: chip-race, earnings-surprise, rumour-confirmed, rumour-retracted
+```
+
+(In the container shell `python` is the right interpreter; in a Poetry checkout
+use `poetry run python`; with `pipx` use
+`~/.local/pipx/venvs/edumatcher/bin/python`.)
+
+Restart `pm-engine` (and reopen the market in a moment), then start the gateway the AI traders log on through,
 the market model, and a market maker for all 150 symbols that quotes around
 the model's true values, each in its own terminal:
 
@@ -118,12 +140,13 @@ Stop it with Ctrl+C: its session closes and the participant's
 ## Exercise 3: The Swarm
 
 ```bash
-pm-ai-swarm --swarm docs/examples/ref_data/s150-nominal-setup/swarm.yaml -v
+pm-ai-swarm --swarm "$EX/ref_data/s150-nominal-setup/swarm.yaml" -v
 ```
 
 `swarm.yaml` gives the twenty traders `AI001`–`AI020` a mix of every preset
 (`per_agent: 150` — every agent trades every symbol, not a slice of them),
-and caps the whole swarm at 40 order actions a second. Once a minute the swarm logs a status line:
+and sets a budget of about 40 order actions a second for the whole swarm.
+Once a minute the swarm logs a status line:
 
 ```text
 [w1-AI001-AI020] t=120s session=CONTINUOUS actions=4801 (40.0/s) live_orders=164 fills=1290 rejects=0
@@ -167,7 +190,7 @@ pm-news list
 Then the instructor plays the first scenario:
 
 ```bash
-pm-news --id OPS01 play docs/examples/news/earnings-surprise.yaml
+pm-news --id OPS01 play "$EX/news/earnings-surprise.yaml"
 ```
 
 Sixty seconds into the play (it counts from its start when the market is
@@ -196,7 +219,7 @@ leave no trace. Without it, prices are what the traders believe — the AI
 traders' resting orders keep the books two-sided.
 
 ```bash
-pm-news --id OPS01 play docs/examples/news/rumour-confirmed.yaml
+pm-news --id OPS01 play "$EX/news/rumour-confirmed.yaml"
 ```
 
 At 60 seconds a rumour says JPM is a takeover target, credibility 50%.
@@ -211,7 +234,7 @@ bid is confirmed and the value jumps about 12%.
 ## Exercise 7: A Rumour That Is Retracted
 
 ```bash
-pm-news --id OPS01 play docs/examples/news/rumour-retracted.yaml
+pm-news --id OPS01 play "$EX/news/rumour-retracted.yaml"
 ```
 
 At 60 seconds a rumour says energy producers face a new windfall tax: a
@@ -233,7 +256,7 @@ they are big. Their kind says what happened: `OPERATIONS`, `RESEARCH`,
 students watch NVDA and AMD side by side.
 
 ```bash
-pm-news --id OPS01 play docs/examples/news/chip-race.yaml
+pm-news --id OPS01 play "$EX/news/chip-race.yaml"
 ```
 
 At 60 seconds NVDA announces a `RESEARCH` breakthrough: its next chips are

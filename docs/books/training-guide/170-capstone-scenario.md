@@ -78,6 +78,15 @@ would make the collars and circuit breakers reject them.
 
 Open the file and confirm the symbol and gateway sections are present.
 
+!!! note "The configuration is new, the data directory is not"
+    The data directory still holds what earlier chapters left in it: resting
+    GTC orders (such as chapter 16's bid at 140.00), same-day DAY orders and
+    clearing history. They are restored when the engine starts, so a book may
+    not be as empty as the text assumes. For a truly empty venue, stop every
+    process and run `pm-opctl-cli clear --state --yes` before Exercise 3. It
+    also deletes `clearing.db` and `stats.db`, which is what you want for a
+    fresh venue.
+
 :material-checkbox-blank-outline: **Checkpoint:** config contains 3 symbols,
 5 traders (`TRADER01`, `TRADER02`, `AI001`–`AI003`), 1 admin, and 4 market
 makers, `require_mm_seed_quotes: false`, and no `market_maker_quotes`.
@@ -220,7 +229,9 @@ pm-ai-trader --id AI003 --preset noise-retail  --duration 300
 
 `--duration 300` stops them after five minutes, which is long enough for the
 rest of the capstone and short enough that you are not chasing runaway
-processes later. Watch `pm-viewer` — the book should get noticeably busier.
+processes later. They print nothing unless you add `-v`; check that they are
+connected with `GATEWAYS` (`AI001`–`AI003` now show `YES`) and watch
+`pm-viewer` — the book should get noticeably busier.
 
 :material-checkbox-blank-outline: **Checkpoint:** you have at least one market
 fill, one amended order, one cross-trader fill, and a visible stream of AI
@@ -254,6 +265,10 @@ Check the observer terminals and run:
 pm-stats-cli trades --symbol AAPL --limit 10
 pm-stats-cli daily
 ```
+
+(`trades` lists the day's trades oldest first, ten at a time; with the AI
+traders running there are more, and the output ends with a notice giving the
+`--after` cursor for the next page.)
 
 (`daily` with no `--symbol` filter gives one OHLCV summary row per symbol —
 see [15 — Statistics & Reporting](150-statistics-reporting.md) for the full

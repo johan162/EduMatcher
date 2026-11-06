@@ -44,7 +44,9 @@ sed -i.bak 's/^EM_PROFILE=.*/EM_PROFILE=default/' .env
 ```
 
 The `sed` line just edits one setting in the file `.env`; you can make the
-same change in any text editor. Then open **two** terminals and run
+same change in any text editor. (A file whose name starts with a dot is hidden
+by default; `ls -a` shows it.) Check the result with `grep EM_PROFILE .env`,
+which should print `EM_PROFILE=default`. Then open **two** terminals and run
 `./edumatcher.sh shell` in each, so both are inside the exchange.
 
 **Python package.** Deploy the same configuration and restart the processes:
@@ -91,6 +93,15 @@ Everything the engine sends back to you — acknowledgements, fills,
 rejections — appears in the same window with a `[HH:MM:SS.mmm]` timestamp.
 Type `HELP` at any time to list the commands.
 
+!!! warning "Leaving a console cancels your orders"
+    In these configurations a trader's resting orders are cancelled when the
+    trader disconnects. If you type `EXIT` or close the window, everything
+    TRADER01 had in the book disappears, and a later step that expects it
+    will not find it. Keep both consoles open until you finish the chapter.
+    A participant ID can also be connected only once at a time: starting a
+    second console as `TRADER01` (or logging in to the Trading GUI with its
+    key) is refused with *Gateway already connected*.
+
 ## Step 3 — See what you can trade
 
 At the `[TRADER01]>` prompt, type:
@@ -111,8 +122,10 @@ SYMBOLS
 ```
 
 `Tick` is the smallest price step: AAPL prices are whole cents. The other
-columns are market-maker rules, which this configuration does not enforce.
-Every example below uses `AAPL`.
+columns are market-maker rules, which this configuration does not enforce; in
+particular `Min Qty` is a market-maker quoting rule, not a minimum for your
+orders, so the 50- and 30-share orders in later steps are fine. Every example
+below uses `AAPL`.
 
 ## Step 4 — Place a buy order that rests
 
@@ -122,6 +135,11 @@ at this price or better."* At the `[TRADER01]>` prompt:
 ```text
 NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TIF=DAY
 ```
+
+Every command is a word (`NEW`) followed by `KEY=VALUE` pairs, all separated
+by the `|` character, with no spaces. Type it exactly like this, in capital
+letters; the Tab key completes command names and `↑` brings back the previous
+line. Prices are written with a decimal point.
 
 | Field | Value | Meaning |
 |---|---|---|
@@ -373,6 +391,20 @@ chapter spends some time on it.
     To get the market-maker bot and the ten-symbol configuration back on the
     container route, run `./edumatcher.sh config s10-basic`, set
     `EM_PROFILE=mm-demo` again in `.env`, and `./edumatcher.sh restart`.
+
+!!! tip "Start over from a clean market"
+    If your orders, positions or P&L no longer match this chapter (for
+    example after a mistyped command), reset the exchange's saved state. On
+    the container route:
+
+    ```bash
+    ./edumatcher.sh shell pm-opctl-cli stop
+    ./edumatcher.sh shell pm-opctl-cli clear --state --yes
+    ./edumatcher.sh restart
+    ```
+
+    On the Python route, run the same `pm-opctl-cli stop`, `clear --state
+    --yes` and then `pm-opctl-cli start`. The deployed configuration is kept.
 
 ## Where to go next
 

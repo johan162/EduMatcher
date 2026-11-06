@@ -21,6 +21,7 @@ including recovering from a crash.
 | **IV. Run a market** | Listing symbols, valuation, sessions and auctions, risk controls, statistics, the market index, and closing the day (settlement and statements) |
 | **V. Gateways** | Starting, configuring and troubleshooting each external gateway |
 | **VI. Observe and recover** | Persistence, the audit trail and replay, and the central log server |
+| **Appendix** | An FAQ on seed quotes, the scheduler, the participant allowlist, and where the configuration and data files live |
 
 ## A first class session, chapter by chapter
 

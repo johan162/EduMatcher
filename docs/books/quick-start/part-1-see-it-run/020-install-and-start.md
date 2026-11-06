@@ -10,6 +10,27 @@
 
 **Time:** about 15 minutes, most of it spent downloading.
 
+## Before you start
+
+You need a Linux or macOS computer. On Windows, install WSL 2 and run every
+command in this book in its Linux terminal: the installer and the
+`edumatcher.sh` control script are bash scripts. You also need a web browser
+and an internet connection for the first download of the container images.
+
+Check what you already have by typing these in a terminal:
+
+```bash
+podman --version           # either of these two is enough ...
+docker --version
+docker compose version     # ... but Docker also needs Compose
+python3 --version          # only for the Python route; it must say 3.14 or newer
+```
+
+A "command not found" simply means that tool is not installed. If you have
+neither Podman nor Docker, install one first (on macOS, Docker Desktop or
+Podman with `podman machine start`; on Linux, your package manager). Most
+people should then use the container route below.
+
 ## Pick a route
 
 There are two ways in. Both give you the same exchange.
@@ -40,6 +61,10 @@ curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment
 cd ~/.edumatcher
 ```
 
+(The installer is a short script that you are piping into `bash`. If you
+prefer to read it first, open the URL in a browser, or download it with
+`curl -fsSLO <the same URL>`, look through it and run `bash install.sh`.)
+
 The installer downloads the latest release into `~/.edumatcher`, pulls seven
 container images (the exchange plus six browser applications) and starts
 them. The first start takes a few minutes; later starts take seconds. When it
@@ -53,7 +78,7 @@ a handful of its commands:
 | `./edumatcher.sh status` | Shows the containers and every exchange process with its health |
 | `./edumatcher.sh urls` | Prints the browser addresses again |
 | `./edumatcher.sh shell` | Opens a terminal inside the exchange, where the `pm-*` commands live |
-| `./edumatcher.sh logs` | Shows what the exchange printed while starting |
+| `./edumatcher.sh logs` | Follows what the containers print, starting with the startup messages; press `Ctrl-C` to stop watching (the exchange keeps running) |
 | `./edumatcher.sh config <name>` | Chooses another configuration (applied by the next `restart`) |
 | `./edumatcher.sh restart` | Stops and starts everything, applying configuration changes |
 | `./edumatcher.sh stop` / `start` | Stops or starts everything; your data is kept |
@@ -78,7 +103,9 @@ Then confirm that the exchange itself is healthy:
 ./edumatcher.sh status
 ```
 
-Every process in the table should show `running`.
+Every process in the table should show `running`. If a container is missing
+or a page does not open, see
+[When Something Does Not Work](../90-backmatter/020-when-something-does-not-work.md).
 
 !!! question "Where do the prices on TapeDeck come from?"
     The container starts a slow **market-maker bot**, `pm-mm-bot`, trading as
@@ -89,8 +116,8 @@ Every process in the table should show `running`.
 
 ### What you just started
 
-One container runs the exchange: the engine and about fourteen supporting
-processes, started in the right order by the process manager `pm-opctl-cli`.
+One container runs the exchange: the engine and about fifteen supporting
+processes (sixteen in all, including the market-maker bot), started in the right order by the process manager `pm-opctl-cli`.
 Six more containers run the browser applications. They share a private
 network, which is why nothing asked you for an address. The bundled
 configuration is called `s10-basic`: ten symbols, four participants
@@ -121,12 +148,23 @@ per terminal window — the next chapter uses two.
 ## Route 2: the Python package
 
 Use this route if you would rather run each process yourself, or cannot use
-containers.
+containers. It needs **Python 3.14 or newer**, which many systems do not have
+by default (check with `python3 --version`); if yours is older, use the
+container route instead.
+
+[`pipx`](https://pipx.pypa.io) installs Python programs in their own
+environments. If `pipx --version` says "command not found", install it with
+your package manager (for example `brew install pipx` on macOS, or
+`python3 -m pip install --user pipx`) and then run `pipx ensurepath`.
+Open a new terminal window afterwards so the change takes effect. Then:
 
 ```bash
 pipx install edumatcher
 pm-setup
 ```
+
+If you have several Python versions, tell pipx which to use:
+`pipx install --python python3.14 edumatcher`.
 
 `pm-setup` creates the data directory (`~/.local/share/edumatcher`) and
 deploys the bundled `s10-basic` configuration. It also prints one line to

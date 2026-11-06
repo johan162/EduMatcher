@@ -18,13 +18,25 @@ just that each half works correctly on its own.
 
 from __future__ import annotations
 
+import socket
 from pathlib import Path
 from unittest.mock import patch
 
+from edumatcher.alf_gwy.config import AlfGatewayConfig
+from edumatcher.alf_gwy.gateway import AlfGateway, ClientSession
 from edumatcher.engine.config_loader import MMQuoteSeed, SymbolConfig
-from edumatcher.models.order import TIF
+from edumatcher.models.message import decode
+from edumatcher.models.order import OrderType, Side, TIF
 
-from .engine_harness import connect, make_engine, msgs, resting_ids, submit_quote
+from .engine_harness import (
+    FakeSock,
+    connect,
+    make_engine,
+    msgs,
+    order_payload,
+    resting_ids,
+    submit_quote,
+)
 
 GW = "MM01"
 
@@ -406,3 +418,97 @@ def test_startup_seed_clears_a_restored_quote_remnant(monkeypatch, tmp_path):
         fresh.bid_order_id,
         fresh.ask_order_id,
     }
+
+
+def test_alf_kill_after_restart_clears_quote_remainder_from_orders(
+    monkeypatch, tmp_path
+):
+    """A persisted half-filled quote remainder is killed through ALF after
+    restart and is absent from the participant's subsequent ORDERS reply."""
+    symbol_configs = {"AAPL": SymbolConfig(name="AAPL", market_maker_quotes=[])}
+    engine1, _ = make_engine(
+        monkeypatch,
+        tmp_path,
+        symbols=("AAPL",),
+        symbol_configs=symbol_configs,
+        gateways=(GW, "GW01"),
+        mm_gateways=(GW,),
+    )
+    engine1._restore_gtc()
+    engine1._load_config()
+    connect(engine1, GW, "GW01")
+    submit_quote(
+        engine1,
+        GW,
+        100.0,
+        101.0,
+        bid_qty=1000,
+        ask_qty=1000,
+        quote_id="Q1",
+        tif="GTC",
+    )
+    entry = engine1._quote_index.get(GW, "AAPL")
+    assert entry is not None
+    engine1._handle_new_order(
+        order_payload(Side.SELL, OrderType.LIMIT, 340, "GW01", price=100.0)
+    )
+    (remainder,) = engine1.books["AAPL"].quote_orders_for_gateway(GW)
+    assert remainder.id == entry.bid_order_id
+    assert remainder.remaining_qty == 660
+
+    engine2, pub = _persist_and_reopen(
+        monkeypatch,
+        tmp_path,
+        engine1,
+        symbol_configs=symbol_configs,
+        gateways=(GW, "GW01"),
+        mm_gateways=(GW,),
+    )
+    connect(engine2, GW)
+    (restored_remainder,) = engine2.books["AAPL"].quote_orders_for_gateway(GW)
+    assert restored_remainder.id == remainder.id
+    assert restored_remainder.remaining_qty == 660
+
+    push = FakeSock()
+    monkeypatch.setattr("edumatcher.alf_gwy.gateway.make_pusher", lambda *_: push)
+    monkeypatch.setattr(
+        "edumatcher.alf_gwy.gateway.make_subscriber",
+        lambda *_args, **_kwargs: FakeSock(),
+    )
+    gateway = AlfGateway(AlfGatewayConfig(gateway_roles=((GW, "MARKET_MAKER"),)))
+    client_sock, peer_sock = socket.socketpair()
+    try:
+        session = ClientSession(
+            sock=client_sock,
+            addr=("local", 0),
+            gateway_id=GW,
+            authenticated=True,
+        )
+        session.rate_tokens = 10.0
+        gateway._clients[client_sock.fileno()] = session
+        gateway._active_gateway_sessions[GW] = client_sock.fileno()
+
+        gateway._handle_client_line(session, "KILL")
+        kill_topic, kill_payload = decode(push.sent[-1])
+        assert kill_topic == "risk.kill_switch"
+        engine2._handle_kill_switch(kill_payload)
+        (ack,) = msgs(pub, f"risk.kill_switch_ack.{GW}")
+        assert ack["cancelled_quotes"] == 1
+        assert ack["cancelled_quote_order_ids"] == [restored_remainder.id]
+
+        gateway._handle_client_line(session, "ORDERS")
+        orders_request_topic, orders_request = decode(push.sent[-1])
+        assert orders_request_topic == "order.orders_request"
+        engine2._handle_orders_request(orders_request)
+        orders_topic, orders_payload = decode(pub.sent[-1])
+        assert orders_topic == f"order.orders.{GW}"
+        gateway._handle_orders_response(GW, orders_payload)
+
+        lines = [line.decode("utf-8").rstrip("\n") for line in session.out_queue]
+        assert len(lines) == 2
+        assert lines[0].startswith(f"ORDERS|COUNT=0|GW={GW}")
+        assert lines[1] == "END|TYPE=ORDERS"
+        assert list(engine2.books["AAPL"].resting_orders()) == []
+    finally:
+        client_sock.close()
+        peer_sock.close()

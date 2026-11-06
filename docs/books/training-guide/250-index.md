@@ -115,7 +115,7 @@ pm-config-gen \
 !!! note "Back up, check, deploy — then restart"
     This chapter starts from a fresh configuration (its operator is `OPS01`),
     and `--force` replaces your `engine_config.yaml`: save a copy first if you
-    want to come back to it (`cp engine_config.yaml engine_config.before-ch25.yaml`).
+    want to come back to it (`cp engine_config.yaml engine_config.before-ch26.yaml`).
     As always, nothing changes until you deploy it and restart the engine:
     `pm-cverifier engine_config.yaml`, then `pm-config-deploy engine_config.yaml`. Sessions are enabled, so the restarted engine starts in `CLOSED`: open
     the market from the operator console (`pm-admin --id OPS01`, then
@@ -217,7 +217,12 @@ Fields shown:
 | O / H / L | Day open, high, low (empty before continuous trading begins) |
 | Session state | Current engine session state |
 
-The `INDEX` command works from any gateway role (TRADER, ADMIN, or read-only).
+The `INDEX` command works in `pm-alf-console` under any gateway role (TRADER,
+ADMIN, or read-only). The operator console `pm-admin` has no `INDEX` command
+(`Unknown command 'INDEX'`): use `pm-alf-console --id OPS01` when you want it
+as the operator. It prints only the **most recent** index update this console
+has received, as a single line, so it is a spot check, not a list of
+constituents or of indices.
 
 :material-checkbox-blank-outline: **Checkpoint:** `INDEX` command returns a level for `EDU100`.
 
@@ -384,12 +389,16 @@ pm-index-admin-cli --id OPS01 add \
   --shares 10500000000 --price 195.00
 ```
 
-Check that AMZN now appears when you run `INDEX`. It may take a few trades before
-AMZN's price updates from the seeded reference.
+`INDEX` prints only the level, not the constituents, so check the change in
+the history instead (the `ADD OK` reply also prints the new divisor):
 
+```bash
+pm-index-cli --config engine_config.yaml events --index EDU100 --type ADD_CONSTITUENT
 ```
-[TRADER01]> INDEX
-```
+
+AMZN is not traded on this venue, so its price stays at the reference price
+you gave until an engine feed for it exists; it contributes to the cap at
+`195.00`. (`delist` needs no price.)
 
 ### Remove TSLA from the index
 
@@ -397,7 +406,8 @@ AMZN's price updates from the seeded reference.
 pm-index-admin-cli --id OPS01 delist --index EDU100 --sym TSLA
 ```
 
-Run `INDEX` again and confirm TSLA no longer appears in the constituent listing.
+Confirm it with `pm-index-cli --config engine_config.yaml events --index EDU100 --type DELIST`,
+and run `INDEX` again: the level should be the same as before the change.
 
 :material-checkbox-blank-outline: **Checkpoint:** AMZN added and TSLA removed without visible discontinuity in the index level.
 
@@ -565,9 +575,13 @@ pm-config-gen \
   --output engine_config.yaml --force
 ```
 
-Restart `pm-index` with `--reset` to clear state and re-initialise:
+Deploy the new configuration (`pm-index` reads the compiled artifact, so
+without this it still loads one index), then restart `pm-index` with `--reset`
+to clear state and re-initialise. Stop the running `pm-index` first:
 
 ```bash
+pm-cverifier engine_config.yaml
+pm-config-deploy engine_config.yaml
 pm-index --reset
 ```
 
@@ -576,16 +590,26 @@ pm-index --reset
     recomputed from scratch using current reference prices. Use only when
     you intentionally want a clean slate.
 
-Run `INDEX` in the TRADER terminal to see both indices:
+Both indices start at their base value (`pm-index -v` prints
+`index ready index_id=EDU100 … level=1000.0` and
+`index ready index_id=TECH2 … level=500.0`), but nothing is published until a
+constituent trades. Make a trade in AAPL or MSFT, then run `INDEX` in the
+TRADER terminal:
 
 ```
 [TRADER01]> INDEX
 ```
 
 ```
-[10:00:01.100] EDU100   1000.00  +0.00  +0.00%  PRE_OPEN
-[10:00:01.100] TECH2     500.00  +0.00  +0.00%  PRE_OPEN
+[15:52:12.376] EDU100 1001.83 +0.00 +0.00% O=1001.83 H=1001.83 L=1001.83 PRE_OPEN
 ```
+
+You see one line, for whichever index published last. `TECH2` is throttled to
+one publish every 2 seconds, so `EDU100` is usually the one shown; use the
+history commands below to see both. The session state on that line is also
+only as good as `pm-index`'s last session broadcast: a `pm-index` started
+after the market opened reports `PRE_OPEN` (its default) until the next
+session change, even though the engine is in `CONTINUOUS`.
 
 Use `pm-index-cli` to list both configured indices, and `pm-stats-cli` to
 confirm `pm-stats` is capturing ticks for both:
@@ -613,20 +637,27 @@ single-index scope keeps the output meaningful).
 These go over the PULL socket (port 5559) and return records inline:
 
 ```
-[OPS01]> INDEX|HISTORY
+[OPS01]> INDEX|HISTORY|INDEX=EDU100
 ```
 
-Returns the last 30 days of **structural/audit records** — `INIT`,
+Run it in a `pm-alf-console` session (`pm-alf-console --id OPS01`), not in
+`pm-admin`, which has no `INDEX` command. Without a prior index update seen by
+that console it answers `INDEX|HISTORY requires INDEX=<id> or prior index.update.`,
+so a console you have just started needs the index named:
+`INDEX|HISTORY|INDEX=EDU100`. With one, it returns the last 30 days of
+**structural/audit records** — `INIT`,
 `CORP_ACTION`, `ADD_CONSTITUENT`, `DELIST` — for whichever index you last
 saw an `INDEX` update for (or pass `INDEX=<id>` explicitly, e.g.
 `INDEX|HISTORY|INDEX=EDU100`).
 
 ```
-[OPS01]> INDEX|HISTORY|FROM=2026-06-25|TO=2026-06-25
+[OPS01]> INDEX|HISTORY|INDEX=EDU100|FROM=2026-06-25|TO=2026-06-26
 ```
 
 Returns structural/audit records within the specified date range, newest
-last.
+last. `TO` is the *start* of that date, so `FROM=2026-06-25|TO=2026-06-25`
+returns nothing: to include a whole day, end the range on the next date (use
+today's date as `FROM` and tomorrow's as `TO` to see this session's records).
 
 !!! warning "No level or EOD ticks here"
     `INDEX|HISTORY` never returns intraday level ticks or end-of-day OHLC

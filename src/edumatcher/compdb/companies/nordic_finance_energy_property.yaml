@@ -1,0 +1,570 @@
+# NORDIC FINANCIALS, ENERGY, UTILITIES and REAL ESTATE. Made-up Swedish, Danish,
+# Norwegian, Finnish and Icelandic companies. The tickers are not in the s300
+# simulation; every name, person and number is invented.
+KRNBK:
+  name: Kronbank AB
+  sector: FINANCIALS
+  industry: Diversified Banks
+  headquarters: Stockholm, Sweden
+  purpose: Provides current accounts, mortgages, business loans, cards and wealth management to 4 million customers in Sweden and the Baltic states.
+  key_market: Households and mid-sized companies in Sweden, Estonia, Latvia and Lithuania
+  market_position: Holds one in four Swedish home loans and has the largest branch and app network in the Baltic states.
+  origin: MERGER
+  founders: A savings bank and a commercial bank
+  founder_story: A Stockholm savings bank founded in 1820 merged in 1962 with a commercial bank that financed the iron and timber exporters, and the new group bought banks in the Baltics after 1991.
+  founded_year: 1820
+  ipo_year: 1962
+  ipo_valuation_musd: 90
+  ceo_name: Agneta Rosenqvist
+  ceo_since: 2021
+  ceo_industry_years: 30
+  employees: 15500
+  fiscal_year: 2025
+  revenue_musd: 11000
+  net_income_musd: 3800
+  revenue_growth_pct: 4.0
+  operating_margin_pct: 44.0
+  free_cash_flow_musd: 4000
+  market_cap_musd: 38000
+  dividend_yield_pct: 6.0
+  debt_to_equity: 1.2
+  credit_rating: A+
+  competitors: ORSND FJRDB
+  key_risk: Falling interest rates cut its margins, and Swedish house prices and the Baltic property market could weaken its loans.
+ORSND:
+  name: Øresund Credit Bank A/S
+  sector: FINANCIALS
+  industry: Diversified Banks
+  headquarters: Copenhagen, Denmark
+  purpose: Lends against property through the Danish mortgage-bond system, and offers banking to households, farmers and companies.
+  key_market: Danish homeowners, farmers and small businesses
+  market_position: Funds one in three Danish mortgages by selling bonds to pension funds, a system that makes its loans cheap and safe.
+  origin: COOPERATIVE
+  founders: A group of Zealand landowners
+  founder_story: Landowners on Zealand formed a credit association in 1851 to lend to each other against their land after the banks refused them, and it became a bank in 1992.
+  founded_year: 1851
+  ipo_year: 1992
+  ipo_valuation_musd: 700
+  ceo_name: Torben Skov-Rasmussen
+  ceo_since: 2018
+  ceo_industry_years: 33
+  employees: 9800
+  fiscal_year: 2025
+  revenue_musd: 6800
+  net_income_musd: 2300
+  revenue_growth_pct: 3.0
+  operating_margin_pct: 43.0
+  free_cash_flow_musd: 2400
+  market_cap_musd: 29000
+  dividend_yield_pct: 5.5
+  debt_to_equity: 1.5
+  credit_rating: A
+  competitors: KRNBK
+  key_risk: A fall in Danish house prices or a rise in interest rates would test the quality of its mortgages.
+FJRDB:
+  name: Fjordsparebanken ASA
+  sector: FINANCIALS
+  industry: Regional Banks
+  headquarters: Bergen, Norway
+  purpose: Takes deposits and lends to households, fishing and shipping firms, and small businesses along Norway's west coast.
+  key_market: Households and companies in Vestland and Møre
+  market_position: The leading bank on the west coast, with a loan book of fish farms, boats and homes that no larger bank understands as well.
+  origin: FOUNDER
+  founders: A group of Bergen merchants
+  founder_story: A group of Bergen merchants and priests opened a savings bank in 1823 to let fishermen and servants save small sums safely.
+  founded_year: 1823
+  ipo_year: 1994
+  ipo_valuation_musd: 380
+  ceo_name: Ingvild Moe
+  ceo_since: 2020
+  ceo_industry_years: 24
+  employees: 1900
+  fiscal_year: 2025
+  revenue_musd: 1700
+  net_income_musd: 620
+  revenue_growth_pct: 5.0
+  operating_margin_pct: 46.0
+  free_cash_flow_musd: 650
+  market_cap_musd: 6200
+  dividend_yield_pct: 6.5
+  debt_to_equity: 0.8
+  credit_rating: A-
+  competitors: KRNBK
+  key_risk: A downturn in fish farming or shipping, or a weak Norwegian krone, would affect its large borrowers.
+TRVKL:
+  name: Turvakulma Insurance Oy
+  sector: FINANCIALS
+  industry: Property & Casualty Insurance
+  headquarters: Helsinki, Finland
+  purpose: Sells home, car, business, farm and forest insurance in Finland and the Baltic states, and manages a large investment portfolio.
+  key_market: Finnish households, farmers, forest owners and companies
+  market_position: Insures most of Finland's private forests and farms, and its claims staff know the cost of storm damage better than any rival.
+  origin: COOPERATIVE
+  founders: A group of Finnish farmers
+  founder_story: Farmers in central Finland formed a mutual fire-insurance association in 1891 after a village burned down without cover, and it later became a listed company.
+  founded_year: 1891
+  ipo_year: 2009
+  ipo_valuation_musd: 2200
+  ceo_name: Pekka Salminen
+  ceo_since: 2019
+  ceo_industry_years: 28
+  employees: 14500
+  fiscal_year: 2025
+  revenue_musd: 7000
+  net_income_musd: 900
+  revenue_growth_pct: 4.0
+  operating_margin_pct: 16.0
+  free_cash_flow_musd: 1100
+  market_cap_musd: 14500
+  dividend_yield_pct: 5.0
+  debt_to_equity: 0.25
+  credit_rating: A
+  competitors: HIG ALL CB
+  key_risk: Storms and forest fires are becoming more frequent and cost more to cover.
+DLBTL:
+  name: Delbetala Pay AB
+  sector: FINANCIALS
+  industry: Transaction & Payment Processing
+  headquarters: Stockholm, Sweden
+  purpose: Offers pay-later and instalment financing at the checkout of online shops, and a card and an app for consumers.
+  key_market: Online shoppers in Europe, mostly aged 20 to 40
+  market_position: Its pay-in-30-days option is used by one in three Swedish online shoppers, and it has copied that in nine other countries.
+  origin: CO_FOUNDERS
+  founders: Victor Hedén, Amanda Rydin
+  founder_story: Two friends in Stockholm who ran an online jeans shop built a way for customers to receive the goods before they paid in 2005, and then sold it to other shops.
+  founded_year: 2005
+  ipo_year: 2017
+  ipo_valuation_musd: 2700
+  ceo_name: Victor Hedén
+  ceo_since: 2005
+  ceo_industry_years: 21
+  employees: 4000
+  fiscal_year: 2025
+  revenue_musd: 2400
+  net_income_musd: 110
+  revenue_growth_pct: 25.0
+  operating_margin_pct: 8.0
+  free_cash_flow_musd: 160
+  market_cap_musd: 7200
+  dividend_yield_pct: 0.0
+  debt_to_equity: 3.0
+  credit_rating: BBB-
+  competitors: PYPL SQ
+  key_risk: Credit losses rise in a downturn, and regulators in Europe are tightening the rules on pay-later credit.
+KPTLV:
+  name: Kapitalvård Asset Management AB
+  sector: FINANCIALS
+  industry: Asset Management & Custody Banks
+  headquarters: Stockholm, Sweden
+  purpose: Manages 380 billion dollars of mutual funds, pension money and mandates for savers and institutions across the Nordics.
+  key_market: Nordic savers, pension funds and insurance companies
+  market_position: Runs the largest equity funds in the Nordic region, which are in a large share of Swedish premium pension portfolios.
+  origin: CO_FOUNDERS
+  founders: Carl-Johan Sundin, Bengt Åkerman
+  founder_story: Two fund managers left a bank in 1989 to start an independent company that would charge only for what it earned for clients.
+  founded_year: 1989
+  ipo_year: 2001
+  ipo_valuation_musd: 450
+  ceo_name: Carl-Johan Sundin
+  ceo_since: 2017
+  ceo_industry_years: 32
+  employees: 1400
+  fiscal_year: 2025
+  revenue_musd: 1300
+  net_income_musd: 560
+  revenue_growth_pct: 7.0
+  operating_margin_pct: 55.0
+  free_cash_flow_musd: 580
+  market_cap_musd: 9500
+  dividend_yield_pct: 4.2
+  debt_to_equity: 0.1
+  credit_rating: A-
+  competitors: BLK AMP
+  key_risk: Savers move money to cheap index funds, which cuts the fees it earns.
+STMHS:
+  name: Stamhus Investment AB
+  sector: FINANCIALS
+  industry: Multi-Sector Holdings
+  headquarters: Stockholm, Sweden
+  purpose: Holds long-term stakes in a dozen Nordic industrial, health and technology companies, appoints their directors and funds a private-equity arm.
+  key_market: Shareholders who want exposure to Nordic industry at one remove
+  market_position: Its holdings are among the largest Nordic exporters, and it has owned most of them for fifty years.
+  origin: FAMILY
+  founders: The Stam family
+  founder_story: A banker, Anton Stam, set up a family investment company in 1916 to hold the family's stakes in iron mines, a match factory and a telephone maker.
+  founded_year: 1916
+  ipo_year: 1945
+  ipo_valuation_musd: 20
+  ceo_name: Gustaf Adolfsson
+  ceo_since: 2022
+  ceo_industry_years: 27
+  employees: 3500
+  fiscal_year: 2025
+  revenue_musd: 4800
+  net_income_musd: 3600
+  revenue_growth_pct: 5.0
+  operating_margin_pct: 62.0
+  free_cash_flow_musd: 1500
+  market_cap_musd: 62000
+  dividend_yield_pct: 2.0
+  debt_to_equity: 0.15
+  credit_rating: AA-
+  competitors: BX
+  key_risk: Its value follows the share prices of a few holdings, and a fall in one of them takes the discount wider.
+NRDSJ:
+  name: Nordsjø Petroleum ASA
+  sector: ENERGY
+  industry: Oil & Gas Exploration & Production
+  headquarters: Stavanger, Norway
+  purpose: Finds and produces oil and gas from 40 fields on the Norwegian shelf, and sells most of the gas to Europe by pipeline.
+  key_market: European gas buyers and refiners
+  market_position: Produces the lowest-emission oil in the industry, because its platforms run on electricity from the Norwegian grid.
+  origin: SPIN_OFF
+  founders: The Norwegian state
+  founder_story: The state sold part of its oil-field holdings in 2007 to a company that would take over the fields and the drilling staff, and kept a third of its shares.
+  founded_year: 2007
+  ipo_year: 2007
+  ipo_valuation_musd: 4500
+  ceo_name: Arne Haugvik
+  ceo_since: 2019
+  ceo_industry_years: 32
+  employees: 3100
+  fiscal_year: 2025
+  revenue_musd: 11000
+  net_income_musd: 2800
+  revenue_growth_pct: -8.0
+  operating_margin_pct: 62.0
+  free_cash_flow_musd: 3800
+  market_cap_musd: 24000
+  dividend_yield_pct: 7.0
+  debt_to_equity: 0.4
+  credit_rating: A
+  competitors: COP EOG DVN
+  key_risk: Falling gas prices and a 78 per cent tax on petroleum profit cut cash flow, and the fields are maturing.
+HVBNN:
+  name: Havbunn Subsea Services ASA
+  sector: ENERGY
+  industry: Oil & Gas Equipment & Services
+  headquarters: Stavanger, Norway
+  purpose: Builds and runs underwater robots, cables and installation vessels for oil platforms and offshore wind farms.
+  key_market: Offshore oil operators and wind developers in the North Sea and Brazil
+  market_position: Its robots can work at 3,000 metres without divers, and about a third of its sales now come from wind farms.
+  origin: CO_FOUNDERS
+  founders: Ole Havbunn, Silje Aarvik
+  founder_story: Two engineers who had worked on North Sea platforms started the company in 1987 with a single remote-operated submarine bought second-hand from a navy.
+  founded_year: 1987
+  ipo_year: 1998
+  ipo_valuation_musd: 150
+  ceo_name: Silje Aarvik
+  ceo_since: 2021
+  ceo_industry_years: 24
+  employees: 7200
+  fiscal_year: 2025
+  revenue_musd: 3000
+  net_income_musd: 240
+  revenue_growth_pct: 11.0
+  operating_margin_pct: 12.0
+  free_cash_flow_musd: 260
+  market_cap_musd: 3800
+  dividend_yield_pct: 2.5
+  debt_to_equity: 0.7
+  credit_rating: BBB-
+  competitors: SLB HAL BKR NOV
+  key_risk: Oil companies cut spending on new fields quickly when the oil price falls.
+PUHDS:
+  name: Puhdas Fuels Oy
+  sector: ENERGY
+  industry: Oil & Gas Refining & Marketing
+  headquarters: Espoo, Finland
+  purpose: Refines crude oil and makes renewable diesel and aviation fuel from used cooking oil, animal fat and wood waste.
+  key_market: Fuel buyers and airlines in Europe and North America
+  market_position: The world's largest maker of renewable diesel and aviation fuel from waste, which airlines must now blend by law.
+  origin: PRIVATISATION
+  founders: The Finnish state
+  founder_story: Finland founded a state oil company in 1948 to refine fuel for a country with no oil, and floated it in 1995 after it turned to waste-based fuels.
+  founded_year: 1948
+  ipo_year: 1995
+  ipo_valuation_musd: 900
+  ceo_name: Heikki Laaksonen
+  ceo_since: 2020
+  ceo_industry_years: 28
+  employees: 5300
+  fiscal_year: 2025
+  revenue_musd: 20500
+  net_income_musd: 1050
+  revenue_growth_pct: -9.0
+  operating_margin_pct: 7.0
+  free_cash_flow_musd: 1200
+  market_cap_musd: 17000
+  dividend_yield_pct: 3.5
+  debt_to_equity: 0.35
+  credit_rating: BBB+
+  competitors: VLO MPC PSX
+  key_risk: Margins on renewable diesel have fallen as new plants open in the US and Asia.
+ELKTR:
+  name: Elektrolys Hydrogen ASA
+  sector: ENERGY
+  industry: Hydrogen & Fuel Cell Equipment
+  headquarters: Oslo, Norway
+  purpose: Makes electrolysers that split water into hydrogen and oxygen using renewable power, and sells them to fertiliser plants, steelmakers and fuel producers.
+  key_market: Developers of green hydrogen plants in Europe, the Middle East and North America
+  market_position: Has produced electrolysers for ninety years and has the largest factory capacity in Europe, though orders have been slow.
+  origin: SPIN_OFF
+  founders: A fertiliser company
+  founder_story: A fertiliser company built electrolysers in 1927 to make hydrogen for ammonia from cheap hydropower, and spun the business off in 2017 when green hydrogen became a theme.
+  founded_year: 1927
+  ipo_year: 2017
+  ipo_valuation_musd: 700
+  ceo_name: Ingebjørg Moen
+  ceo_since: 2020
+  ceo_industry_years: 20
+  employees: 900
+  fiscal_year: 2025
+  revenue_musd: 190
+  net_income_musd: -110
+  revenue_growth_pct: -15.0
+  operating_margin_pct: -70.0
+  free_cash_flow_musd: -130
+  market_cap_musd: 1500
+  dividend_yield_pct: 0.0
+  debt_to_equity: 0.05
+  credit_rating: B+
+  key_risk: Few green hydrogen projects have reached a final decision, and its order book has shrunk.
+FSSKR:
+  name: Fossekraft ASA
+  sector: UTILITIES
+  industry: Renewable Utilities
+  headquarters: Oslo, Norway
+  purpose: Owns 180 hydropower stations and a growing fleet of wind farms, and sells electricity in Norway and on the European market.
+  key_market: Norwegian industry and households, and exports through cables to Germany and Britain
+  market_position: Europe's largest producer of renewable power, with reservoirs that can store months of electricity and sell it when prices are high.
+  origin: PRIVATISATION
+  founders: The Norwegian state
+  founder_story: The state power board was turned into a company in 1992, and the government sold a minority stake on the Oslo exchange in 1996 while keeping control.
+  founded_year: 1895
+  ipo_year: 1996
+  ipo_valuation_musd: 3200
+  ceo_name: Eirik Lunde
+  ceo_since: 2018
+  ceo_industry_years: 30
+  employees: 4700
+  fiscal_year: 2025
+  revenue_musd: 6200
+  net_income_musd: 1500
+  revenue_growth_pct: -12.0
+  operating_margin_pct: 38.0
+  free_cash_flow_musd: 1700
+  market_cap_musd: 22000
+  dividend_yield_pct: 4.5
+  debt_to_equity: 0.55
+  credit_rating: A
+  competitors: NEE
+  key_risk: Power prices in Europe have fallen from their peak, and Norwegian politicians debate limits on exports.
+NRRKR:
+  name: Norrkraft AB
+  sector: UTILITIES
+  industry: Electric Utilities
+  headquarters: Stockholm, Sweden
+  purpose: Generates electricity from hydro, nuclear and wind power, distributes it to 900,000 homes and sells district heating in Stockholm.
+  key_market: Swedish homes and industry, and exports to Germany, Denmark and Finland
+  market_position: Runs the biggest fleet of Swedish nuclear and hydro stations, and is building small modular reactors to replace the oldest.
+  origin: PRIVATISATION
+  founders: The Swedish state
+  founder_story: The state power board was founded in 1909 to build the Trollhättan and Porjus stations, and the government floated a part of the company in 2002 while keeping a majority.
+  founded_year: 1909
+  ipo_year: 2002
+  ipo_valuation_musd: 8000
+  ceo_name: Maria Torstensson
+  ceo_since: 2020
+  ceo_industry_years: 28
+  employees: 19000
+  fiscal_year: 2025
+  revenue_musd: 18000
+  net_income_musd: 2100
+  revenue_growth_pct: -5.0
+  operating_margin_pct: 18.0
+  free_cash_flow_musd: 1800
+  market_cap_musd: 24000
+  dividend_yield_pct: 4.0
+  debt_to_equity: 0.8
+  credit_rating: A
+  competitors: DUK SO
+  key_risk: Nuclear projects have a history of delays, and lower power prices cut profit.
+HVVND:
+  name: Havvind Offshore Wind A/S
+  sector: UTILITIES
+  industry: Renewable Utilities
+  headquarters: Fredericia, Denmark
+  purpose: Builds, owns and operates offshore wind farms in the North Sea, the Baltic and off the US and Taiwan coasts.
+  key_market: Electricity buyers and governments in Europe, the US and Taiwan
+  market_position: Built the world's first commercial offshore wind farms and has more operating capacity at sea than any rival.
+  origin: MERGER
+  founders: Six Danish utilities
+  founder_story: Six regional Danish power companies merged in 2006 to form a single national company, and it turned to wind at sea after the state decided to retire its coal plants.
+  founded_year: 2006
+  ipo_year: 2016
+  ipo_valuation_musd: 14000
+  ceo_name: Mette Ravnsbæk
+  ceo_since: 2022
+  ceo_industry_years: 24
+  employees: 8200
+  fiscal_year: 2025
+  revenue_musd: 9000
+  net_income_musd: 300
+  revenue_growth_pct: 5.0
+  operating_margin_pct: 14.0
+  free_cash_flow_musd: -2500
+  market_cap_musd: 17000
+  dividend_yield_pct: 1.5
+  debt_to_equity: 1.3
+  credit_rating: BBB
+  competitors: NEE
+  key_risk: Costs of turbines, ships and capital have risen, and it has written down US projects.
+HVRGT:
+  name: Hverir Geothermal Energy hf.
+  sector: UTILITIES
+  industry: Renewable Utilities
+  headquarters: Reykjavik, Iceland
+  purpose: Produces electricity and hot water from geothermal and hydro stations, and heats nearly every home in Iceland's capital.
+  key_market: Icelandic households, aluminium smelters and data centres
+  market_position: Gets all of its energy from renewable sources and sells power at fixed prices to smelters and data centres that want green electricity.
+  origin: PRIVATISATION
+  founders: The City of Reykjavik
+  founder_story: The city set up a district heating plant in 1930 to pipe hot water from hot springs to homes, and a minority stake in the company was floated in 2004.
+  founded_year: 1930
+  ipo_year: 2004
+  ipo_valuation_musd: 600
+  ceo_name: Guðrún Sigurðardóttir
+  ceo_since: 2019
+  ceo_industry_years: 25
+  employees: 780
+  fiscal_year: 2025
+  revenue_musd: 520
+  net_income_musd: 130
+  revenue_growth_pct: 4.0
+  operating_margin_pct: 38.0
+  free_cash_flow_musd: 90
+  market_cap_musd: 3000
+  dividend_yield_pct: 2.8
+  debt_to_equity: 0.8
+  credit_rating: BBB
+  key_risk: A volcanic eruption can damage wells and pipelines, and the geothermal fields lose pressure over time.
+HYRSG:
+  name: Hyresgäst Bostäder AB
+  sector: REAL_ESTATE
+  industry: Residential REITs
+  headquarters: Stockholm, Sweden
+  purpose: Owns and lets 52,000 rental apartments in Stockholm, Uppsala and Gothenburg and builds new ones.
+  key_market: Tenants in Sweden's three largest cities
+  market_position: Is the largest private landlord in the Stockholm region, in a market where rents are set by negotiation and queues for a flat last for years.
+  origin: FOUNDER
+  founders: Sture Hyresgäst
+  founder_story: Sture Hyresgäst, a builder, put up 300 flats in Stockholm's suburbs in 1996 when the city began to sell its municipal housing, and bought more every year.
+  founded_year: 1996
+  ipo_year: 2008
+  ipo_valuation_musd: 1100
+  ceo_name: Lena Palmgren
+  ceo_since: 2019
+  ceo_industry_years: 26
+  employees: 1100
+  fiscal_year: 2025
+  revenue_musd: 1400
+  net_income_musd: 620
+  revenue_growth_pct: 5.0
+  operating_margin_pct: 52.0
+  free_cash_flow_musd: 450
+  market_cap_musd: 9800
+  dividend_yield_pct: 2.8
+  debt_to_equity: 1.2
+  credit_rating: BBB+
+  competitors: AVB MAA
+  key_risk: Rent rises are set by tenant negotiation and may not keep up with interest costs.
+LGRHS:
+  name: Lagerhus Logistics Properties AB
+  sector: REAL_ESTATE
+  industry: Industrial REITs
+  headquarters: Gothenburg, Sweden
+  purpose: Owns and rents out warehouses and distribution centres near Nordic ports and motorways to online retailers and logistics firms.
+  key_market: Logistics firms and retailers in Sweden, Denmark and Finland
+  market_position: Its warehouses sit beside Gothenburg and Malmö harbours, the sites that Nordic importers prefer.
+  origin: CO_FOUNDERS
+  founders: Joakim Strömbom, Karin Ydrefors
+  founder_story: Two property managers bought a warehouse near Gothenburg's port in 2005 and let it to a retailer, then built a second one for the same customer.
+  founded_year: 2005
+  ipo_year: 2014
+  ipo_valuation_musd: 800
+  ceo_name: Joakim Strömbom
+  ceo_since: 2016
+  ceo_industry_years: 24
+  employees: 410
+  fiscal_year: 2025
+  revenue_musd: 1100
+  net_income_musd: 420
+  revenue_growth_pct: 6.0
+  operating_margin_pct: 55.0
+  free_cash_flow_musd: 600
+  market_cap_musd: 8600
+  dividend_yield_pct: 3.2
+  debt_to_equity: 0.9
+  credit_rating: BBB+
+  competitors: PLD
+  key_risk: Higher interest rates raise its borrowing costs and lower property values.
+KNTRT:
+  name: Kontortorget Properties ASA
+  sector: REAL_ESTATE
+  industry: Office REITs
+  headquarters: Oslo, Norway
+  purpose: Owns and lets 90 office buildings in central Oslo and Bergen, and rents out meeting rooms and shared offices.
+  key_market: Banks, law firms, energy companies and public bodies in central Oslo
+  market_position: Owns a fifth of Oslo's modern office space and is the main landlord in the Bjørvika district.
+  origin: SPIN_OFF
+  founders: A Norwegian insurance company
+  founder_story: An insurance company moved its offices into a new building in 1995 and, in 2007, floated the rest of its Oslo property as a separate company.
+  founded_year: 1995
+  ipo_year: 2007
+  ipo_valuation_musd: 1300
+  ceo_name: Hilde Engen
+  ceo_since: 2020
+  ceo_industry_years: 25
+  employees: 220
+  fiscal_year: 2025
+  revenue_musd: 780
+  net_income_musd: 150
+  revenue_growth_pct: 2.0
+  operating_margin_pct: 62.0
+  free_cash_flow_musd: 360
+  market_cap_musd: 3200
+  dividend_yield_pct: 5.2
+  debt_to_equity: 1.4
+  credit_rating: BBB-
+  key_risk: Remote working has cut demand for office space and the cost of its debt remains high.
+TRGCT:
+  name: Torgcenter Shopping Properties Oy
+  sector: REAL_ESTATE
+  industry: Retail REITs
+  headquarters: Helsinki, Finland
+  purpose: Owns and rents out 24 shopping centres in Finland and the Baltic states, with supermarkets, shops, restaurants and cinemas.
+  key_market: Shoppers in the Helsinki and Tallinn regions
+  market_position: Owns the three busiest shopping centres in Finland, which attract 90 million visitors a year.
+  origin: SPIN_OFF
+  founders: A Finnish pension insurer
+  founder_story: A pension insurer built its first shopping centre on the edge of Helsinki in 1983 and floated its centres as a separate company in 2011.
+  founded_year: 1983
+  ipo_year: 2011
+  ipo_valuation_musd: 1400
+  ceo_name: Anne Kallio
+  ceo_since: 2021
+  ceo_industry_years: 24
+  employees: 340
+  fiscal_year: 2025
+  revenue_musd: 540
+  net_income_musd: 190
+  revenue_growth_pct: 2.0
+  operating_margin_pct: 58.0
+  free_cash_flow_musd: 260
+  market_cap_musd: 3300
+  dividend_yield_pct: 4.8
+  debt_to_equity: 0.9
+  credit_rating: BBB
+  competitors: SPG REG
+  key_risk: Online shopping is taking sales from the smaller shops in its centres.

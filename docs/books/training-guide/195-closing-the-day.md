@@ -22,7 +22,10 @@ Close a trading day the way an exchange operator does, using `pm-eod`:
 - Chapters 01–19 completed. Chapter 12 (`pm-clearing`) matters most here:
   settlement reads what `pm-clearing` recorded.
 - The engine running with `TRADER01`, `TRADER02`, `GW_ADMIN` and the market
-  makers from chapter 02 connected, and `pm-clearing` running.
+  makers from chapter 02 connected, and `pm-clearing` running. If chapter 19
+  left `TRADER02` kicked, start a new console for it, and re-send a `QUOTE`
+  from `MM_AAPL_01` if its quote was cancelled: Exercise 5 needs liquidity on
+  AAPL.
 - **No `pm-scheduler` running.** You move the session phases yourself, as in
   earlier chapters. A running `--daily` scheduler would close the day at its
   own time.
@@ -383,12 +386,16 @@ code 1 back to 0, and today's status is `ok` again.
 ## Exercise 10: Trading after the close
 
 Sometimes trading resumes on a date that is already settled, for example when
-a class runs over. Reopen the market and trade:
+a class runs over. Reopen the market and trade. Buy rather than sell here: Exercise 5 ended with a
+sell at the market makers' bid, so selling again at that same price would not
+move the closing price and the new amounts would equal the old ones. A buy
+trades at the offer, which moves it:
 
 ```
 [GW_ADMIN|ADMIN]> SESSION|STATE=PRE_OPEN
 [GW_ADMIN|ADMIN]> SESSION|STATE=CONTINUOUS
-[TRADER02]> NEW|SYM=AAPL|SIDE=SELL|TYPE=MARKET|QTY=50
+[MM_AAPL_01]> QUOTE|SYM=AAPL|BID=149.95|ASK=150.05|BID_QTY=500|ASK_QTY=500|TIF=DAY|QUOTE_ID=AAPL-LATE-001
+[TRADER02]> NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=50
 [GW_ADMIN|ADMIN]> SESSION|STATE=CLOSED
 ```
 

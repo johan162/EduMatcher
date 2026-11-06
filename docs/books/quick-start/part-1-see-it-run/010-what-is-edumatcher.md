@@ -109,7 +109,10 @@ Developer Guide tells that story in
 ## Five ideas to learn first
 
 These five ideas are enough to make the rest of the documentation readable.
-You will meet every one of them in the next two chapters.
+The first three appear in the next two chapters; session phases come in
+[Run a Trading Session](../part-2-next-steps/010-run-a-trading-session.md)
+and the deployed configuration in
+[Your Own Configuration](../part-2-next-steps/020-your-own-configuration.md).
 
 | Idea | What it means |
 |---|---|

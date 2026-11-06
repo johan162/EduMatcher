@@ -89,8 +89,9 @@ way to observe the event stream without writing a custom ZMQ subscriber.
 
 ## Exercise 4: Confirm the Drop-Copy Feed Is Bound
 
-Restart `pm-engine --verbose` and look for this startup line in the engine
-output (preceded by the usual timestamp, level and logger name):
+Restart `pm-engine --verbose` (and then your trader and operator consoles, and
+reopen the market) and look for this startup line in the engine output
+(preceded by the usual timestamp, level and logger name):
 
 ```
 Drop copy PUB bound on port 5557

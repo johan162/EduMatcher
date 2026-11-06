@@ -34,6 +34,25 @@ Recommended startup terminals:
 2. RALF gateway: `pm-ralf-gwy`
 3. One or more client terminals for subscriber exercises
 
+!!! note "Where the example files are, and port 5580"
+    - `docs/examples/ralf` exists in a repository checkout. On a container or
+      `pipx` install use the copy that ships with the package:
+      `EX=$(python -c "from edumatcher.config_deploy import examples_root; print(examples_root().parent)")`
+      and then `$EX/ralf/…` wherever this chapter says `docs/examples/ralf`.
+      The C example needs `make` and a C compiler, which the container image
+      does not have; the Python subscriber and `nc` are enough for every
+      exercise.
+    - Port 5580 can only have one owner. If the AI-simulation container is
+      running, its own `pm-ralf-gwy` holds the port: yours will fail to start,
+      and `nc 127.0.0.1 5580` would talk to the *simulation's* gateway (you
+      would see symbols you never configured). Stop the simulation first, or
+      pick another port in Exercise 1.
+    - There are no market makers in this chapter's configuration. To create a
+      trade, put a limit order in from each trader, for example
+      `NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=150.00|TIF=DAY` on
+      `TRADER01` and then `NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=60|PRICE=150.00|TIF=DAY`
+      on `TRADER02`.
+
  
 
 ## Background
@@ -70,7 +89,7 @@ pm-config-gen \
 !!! note "Back up, check, deploy — then restart"
     This chapter starts from a fresh configuration (its operator is `OPS01`),
     and `--force` replaces your `engine_config.yaml`: save a copy first if you
-    want to come back to it (`cp engine_config.yaml engine_config.before-ch22.yaml`).
+    want to come back to it (`cp engine_config.yaml engine_config.before-ch23.yaml`).
     As always, nothing changes until you deploy it and restart the engine:
     `pm-cverifier engine_config.yaml`, then `pm-config-deploy engine_config.yaml`. Sessions are enabled, so the restarted engine starts in `CLOSED`: open
     the market from the operator console (`pm-admin --id OPS01`, then
@@ -204,8 +223,9 @@ UNSUB|CH=CLEARING|SYM=AAPL
 
 Expected behavior:
 
-- PING yields PONG
-- UNSUB updates delivery set
+- PING yields `PONG|TS=…`
+- UNSUB updates the delivery set and sends no reply of its own: trades in AAPL
+  stop arriving, other symbols continue
 
 !!! note "`EXIT` goes both ways"
     The gateway sends `EXIT|REASON=…|TS=…` when it ends a session (e.g.
@@ -244,8 +264,10 @@ HELLO|CLIENT=replay01|PROTO=RALF1|ROLE=CLEARING|LASTSEQ=<saved_seq>
 
 Observe replay behavior:
 
-- replayed EXEC/EOD events for SEQ greater than LASTSEQ when retained
-- REPLAY_MISS plus SNAP baseline when outside retention window
+- replayed EXEC/EOD events for SEQ greater than LASTSEQ when retained; they
+  arrive immediately after `WELCOME`, before you have sent `SUB`
+- `ERR|CODE=REPLAY_MISS|DETAIL=requested seq outside retention` followed by a
+  `SNAP` baseline when outside the retention window (try `LASTSEQ=999`)
 
 :material-checkbox-blank-outline: Checkpoint: you can describe the recovery path for both replay-hit and replay-miss cases.
 
@@ -264,6 +286,16 @@ SUB|CH=UNKNOWN|SYM=*
 
 The gateway closes the connection after a handshake error, so open a fresh
 `nc` session for each line.
+
+What you should see for each line, in order:
+`ERR|CODE=AUTH_REQUIRED|DETAIL=send HELLO first`;
+`ERR|CODE=AUTH_REQUIRED|DETAIL=CLIENT/PROTO/ROLE required`;
+`ERR|CODE=ENTITLEMENT_DENIED|DETAIL=role not allowed`;
+`ERR|CODE=INVALID_CHANNEL|DETAIL=unsupported CH=UNKNOWN` (this one needs a valid
+`HELLO` first). A valid `HELLO` followed by `SUB|CH=AUDIT|SYM=*` as role
+`CLEARING` gives `ENTITLEMENT_DENIED` too, because a role may only subscribe
+to its own channel. `BAD_MESSAGE` and `SLOW_CLIENT` are not easy to trigger by
+hand.
 
 Map observed ERR codes to operator action:
 

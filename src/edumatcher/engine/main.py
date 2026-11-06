@@ -1740,6 +1740,18 @@ class Engine:
 
         # Restore GTC combos and rebuild parent-child links
         combos = load_gtc_combos(GTC_COMBOS_FILE)
+        if any(c.tif == TIF.DAY for c in combos):
+            # As for orders: a DAY combo ends with its business day (its legs
+            # were discarded above for the same reason).
+            fresh = [
+                c
+                for c in combos
+                if c.tif != TIF.DAY
+                or datetime.fromtimestamp(c.timestamp / 1e9, session_tz).date() >= today
+            ]
+            if len(fresh) != len(combos):
+                log.info(f"Discarded {len(combos) - len(fresh)} stale TIF=DAY combo(s)")
+            combos = fresh
         for combo in combos:
             self._combos[combo.id] = combo
             for child_id in combo.child_order_ids:
@@ -1751,7 +1763,7 @@ class Engine:
                 make_recovery_item_msg(combo.id, "COMBO", "RESTORED")
             )
         if combos:
-            log.info(f"Restored {len(combos)} GTC combo(s) from previous session.")
+            log.info(f"Restored {len(combos)} combo(s) from previous session.")
 
         # Broadcast once, unconditionally (even an all-zero restart is worth
         # a record) -- see spec/messages/system.yaml::startup_recovery. Every
@@ -3209,12 +3221,14 @@ class Engine:
         gateway_id: str,
         symbol: str,
         cancel_reason: CancelReason | None = "QUOTE_REPLACED",
+        command_id: str = "",
     ) -> list[Order]:
         """Cancel any resting quote-origin order(s) for this gateway/symbol
         that are no longer tracked by an active ``QuoteIndex`` entry.
 
         This is the fallback half of ``_handle_quote_new``'s replace-in-slot
-        cleanup (see its call site). It exists because
+        cleanup (see its call site), and is shared by other cancellation paths.
+        It exists because
         ``_on_quote_leg_filled`` (``INACTIVATE_ON_ANY_FILL``) removes the
         ``QuoteIndex`` entry at fill time but deliberately leaves a
         *partially* filled hit leg resting — by design, that remainder stays
@@ -3234,15 +3248,18 @@ class Engine:
         excludes quote-origin orders for the same reason in reverse (it
         expects `QuoteIndex`-driven cancellation to handle those instead).
 
-        Three paths clear a leftover this way: a new quote, a startup seed
-        and ``quote.cancel``. Returns the orders actually cancelled.
+        Quote replacement, startup seeding, quote cancellation, disconnects,
+        and kill switches use this to clear remainders after the quote entry
+        has been removed. Returns the orders actually cancelled.
         """
         book = self.books.get(symbol)
         if book is None:
             return []
         cancelled: list[Order] = []
         for order in list(book.quote_orders_for_gateway(gateway_id)):
-            gone = self._cancel_order_by_id(order.id, cancel_reason=cancel_reason)
+            gone = self._cancel_order_by_id(
+                order.id, cancel_reason=cancel_reason, command_id=command_id
+            )
             if gone is not None:
                 cancelled.append(gone)
         return cancelled
@@ -4276,6 +4293,13 @@ class Engine:
                 cancel_reason="GATEWAY_DISCONNECT",
             )
 
+        for book in self.books.values():
+            self._cancel_orphaned_quote_legs(
+                gateway_id,
+                book.symbol,
+                cancel_reason="GATEWAY_DISCONNECT",
+            )
+
         if session.disconnect_behaviour == DisconnectBehaviour.CANCEL_ALL:
             # O(k) per book via OrderBook._orders_by_gateway (k = this
             # gateway's resting orders there), not a scan of every resting
@@ -4394,6 +4418,19 @@ class Engine:
                     cancel_reason="KILL_SWITCH",
                     command_id=command_id,
                 )
+
+        for book in self.books.values():
+            if symbol_filter and book.symbol != symbol_filter:
+                continue
+            cancelled_quote_order_ids.extend(
+                order.id
+                for order in self._cancel_orphaned_quote_legs(
+                    gateway_id,
+                    book.symbol,
+                    cancel_reason="KILL_SWITCH",
+                    command_id=command_id,
+                )
+            )
 
         # O(k) per book via OrderBook._orders_by_gateway (k = this gateway's
         # resting orders there) instead of a scan of every resting order in
@@ -4523,6 +4560,22 @@ class Engine:
                 cancel_reason="KILL_SWITCH",
                 command_id=command_id,
             )
+
+        # A quote hit on one side (INACTIVATE_ON_ANY_FILL) has already left
+        # the QuoteIndex, yet its other leg may still rest; the index sweep
+        # above cannot see it.
+        for book in self.books.values():
+            if symbol_filter and book.symbol != symbol_filter:
+                continue
+            cancelled_quote_order_ids += [
+                gone.id
+                for gone in self._cancel_orphaned_quote_legs(
+                    target_gateway_id,
+                    book.symbol,
+                    cancel_reason="KILL_SWITCH",
+                    command_id=command_id,
+                )
+            ]
 
         # O(k) per book via OrderBook._orders_by_gateway (k = this gateway's
         # resting orders there) instead of a scan of every resting order in
@@ -5084,6 +5137,19 @@ class Engine:
                 cancel_reason="ADMIN_CANCEL_SYMBOL",
                 command_id=command_id,
             )
+
+        # Quote legs that outlived their inactivated quote (see the kill
+        # switch) are no longer in the QuoteIndex; clear them here too.
+        if book is not None:
+            for order in list(book.resting_orders()):
+                if order.origin == OrderOrigin.QUOTE:
+                    gone = self._cancel_order_by_id(
+                        order.id,
+                        cancel_reason="ADMIN_CANCEL_SYMBOL",
+                        command_id=command_id,
+                    )
+                    if gone is not None:
+                        cancelled_quote_order_ids.append(gone.id)
 
         cancelled_orders = len(cancelled_order_ids)
         cancelled_quotes = len(cancelled_quote_order_ids)
@@ -6988,15 +7054,10 @@ class Engine:
         # unaffected by this change. See
         # docs-design/EduMatcher-Revised-Quote-Persistence.md §12-§13.
         #
-        # Combos are out of scope for that design: save_gtc_combos() below
-        # still persists only TIF.GTC combo parents, so a restored TIF.DAY
-        # combo leg (now persisted here as a plain order, since it is no
-        # longer expired) comes back with a combo_parent_id that no longer
-        # resolves to anything in self._combos/_order_to_combo — it restores
-        # as an ordinary standalone resting order, silently detached from
-        # its former combo. _check_combo_after_child_event() no-ops safely
-        # on the unresolved id rather than raising, so this is a known,
-        # scoped-out limitation, not a crash risk.
+        # Combos follow the same rule: save_gtc_combos() below persists live
+        # TIF.DAY parents beside TIF.GTC ones, so a restored DAY leg keeps
+        # its combo_parent_id link (Engine._restore_gtc discards a DAY combo
+        # whose business day has passed, with its legs).
         #
         # Quote-origin orders (MM quote legs) are also no longer excluded
         # here: they persist by the same TIF rule as any other resting
@@ -7010,11 +7071,10 @@ class Engine:
         n_combos = sum(
             1
             for c in self._combos.values()
-            if c.tif == TIF.GTC
-            and c.status in (ComboStatus.PENDING, ComboStatus.PARTIALLY_MATCHED)
+            if c.status in (ComboStatus.PENDING, ComboStatus.PARTIALLY_MATCHED)
         )
         if n_combos:
-            log.info(f"Saved {n_combos} GTC combo(s) to {GTC_COMBOS_FILE}")
+            log.info(f"Saved {n_combos} combo(s) to {GTC_COMBOS_FILE}")
 
         save_book_stats(self.books, BOOK_STATS_FILE)
         log.info(

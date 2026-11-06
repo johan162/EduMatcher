@@ -74,3 +74,7 @@ files = [
   "060-health-monitor.md",
   "070-operator-dashboard.md",
 ]
+
+[backmatter]
+title = "Appendices"
+files = ["90-backmatter/010-faq-setup-and-operation.md"]

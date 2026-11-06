@@ -48,8 +48,9 @@ in action.
     below shows exactly how, and it is a one-time step per session — after
     that, every `pm-*` command in the chapters works unchanged. This is why
     Route A is still the recommended default even though the chapters are
-    demonstrated as bare commands: the only difference is prefixing your first
-    command with `./edumatcher.sh shell`.
+    demonstrated as bare commands. The differences are prefixing your first
+    command with `./edumatcher.sh shell`, and where your own files live: see
+    "Where to keep your working files" below.
 
 Pick one route below, then continue from Exercise 2 — the remaining exercises
 apply to all of them.
@@ -94,8 +95,8 @@ curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment
 
 The installer checks for Podman or Docker, resolves the newest release,
 downloads four small support files (`compose.yaml`, `compose.zmq.yaml`,
-`edumatcher.sh`, `.env.example`), pulls six images and starts them. Nothing
-is compiled on your machine.
+`edumatcher.sh`, `.env.example`), pulls seven images (the exchange and the six
+web applications) and starts them. Nothing is compiled on your machine.
 
 When it finishes you have a complete exchange **and** six web applications:
 
@@ -115,11 +116,12 @@ market-maker bid and ask the moment `pm-engine` starts, so there is a two-sided
 book before anyone has traded.
 
 !!! note "If a port is already taken"
-    The published ports (`8080`, `8090`–`8095`) are fixed. If another program
-    on your machine already uses one of them, `./edumatcher.sh start` fails
-    with a bind error naming that port. Free it, or move the conflicting
-    service, then run `./edumatcher.sh start` again — nothing was left
-    half-started.
+    The REST API ports (`8080`, `8081`) are fixed; the six web applications use
+    `8090`–`8095` by default, and you can move any of them with the
+    `*_GUI_PORT` settings in `.env` (Exercise 4). If another program on your
+    machine already uses one of these ports, `./edumatcher.sh start` fails with
+    a bind error naming that port. Free it, move the conflicting service, or
+    change the port in `.env`, then run `./edumatcher.sh start` again.
 
 !!! warning "Running a second install on the same machine"
     Every container and its ports are fixed by name, so a second `curl |
@@ -177,6 +179,41 @@ pm-engine --verbose         # now follow the chapters
 
 For the exercises that need several terminals, run `./edumatcher.sh shell` once
 in each of them.
+
+### Where to keep your working files
+
+From Chapter 01 on you write YAML files (`engine_config.yaml`,
+`mm_aapl.yaml`, …) and run commands that read them. On the container route
+this needs one deliberate step, because the container is not a normal machine:
+it opens in `/`, it has **no text editor**, and anything you save in its own
+file system is deleted when `./edumatcher.sh restart` or `stop` removes the
+container. The one folder that your computer and the container share, and that
+survives, is the data directory. So keep your files there:
+
+```bash
+# on your computer: make the folder, and edit files in it with your own editor
+mkdir -p ~/.edumatcher/data/training
+
+# in every container shell (./edumatcher.sh shell), before running anything:
+cd /data/training
+```
+
+`~/.edumatcher/data/training` on your computer and `/data/training` inside the
+container are the same folder. Whenever a chapter says "in your working
+directory", it means this one. Check with `ls /data/training` inside the
+container.
+
+!!! note "Docker on Linux"
+    With Docker (not Podman) the container writes as `root`, so a file that a
+    command *creates* there (for example `generated.yaml`) belongs to `root` on
+    your computer. You can read it, but to edit it run
+    `sudo chown -R "$USER" ~/.edumatcher/data/training` first.
+
+On Routes B, C and D simply make a folder of your own and work in it:
+
+```bash
+mkdir -p ~/training && cd ~/training
+```
 
 !!! note "Getting back to a running market"
     `pm-opctl-cli start` restarts the whole profile whenever you want the
@@ -308,7 +345,7 @@ verify it, then bootstrap:
 ```bash
 multipass version
 
-curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh | bash -s -- --version 0.76.0
+curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh | bash -s -- --version 0.76.1
 ```
 
 If `multipass version` fails with `command not found`, the install did not
@@ -504,7 +541,7 @@ so updating does not discard your edits.
 
 | Variable | Default | What it does |
 |---|---|---|
-| `EM_VERSION` | *(the installed release)* | Which release to run. All six images carry this tag, so one value pins the whole system |
+| `EM_VERSION` | *(the installed release)* | Which release to run. All seven images carry this tag, so one value pins the whole system |
 | `GHCR_OWNER` | `johan162` | The registry namespace images come from. Change only for a fork |
 | `EM_CONFIG` | `s10-basic` | Which bundled example the exchange deploys |
 | `EM_CONFIG_FILE` | *(empty)* | Set when you run a configuration of your own; non-empty wins over `EM_CONFIG` |
@@ -619,6 +656,9 @@ chapter assumes without re-explaining:
       for containers it means a shell opened with `./edumatcher.sh shell`.
 - [ ] On the container route only: `pm-opctl-cli stop`, so the next chapter can
       start the processes itself.
+- [ ] You have a working folder (`~/training`, or `~/.edumatcher/data/training`
+      on the container route, which you reach as `/data/training` inside
+      `./edumatcher.sh shell`) and a text editor to write YAML files in it.
 
 ## Reflection
 

@@ -30,6 +30,17 @@ Drop copy publishes per-participant fill events on:
 Each message carries a monotonically increasing `seq` field. Consumers use this
 to detect gaps and de-duplicate messages.
 
+Two properties of `seq` matter for gap detection:
+
+- **One counter for the whole engine, not one per gateway.** Every fill produces
+  two events (one per counterparty), numbered consecutively, so a subscriber
+  to *all* `drop_copy.event.` topics sees `1, 2, 3, …`. A subscriber filtered
+  to one gateway (say `drop_copy.event.TRADER01`) sees only every other number
+  in a two-party market and would report a "gap" on every event. The exercises
+  below therefore subscribe to the whole prefix.
+- **The counter restarts at 1 when the engine restarts.** After a restart
+  `seq` goes backwards; treat that as a new stream, not as a duplicate.
+
 Important current limitation:
 
 - Replay exists as an in-process publisher method

@@ -21,6 +21,7 @@ profit, and using the trading screens. It is written from the trader's seat.
 | **IV. Automated trading** | The AI trader bots, and how they decide what to trade |
 | **V. Positions and results** | Position tracking, average cost, realized and unrealized P&L |
 | **VI. Front-ends** | TapeDeck, the Trading GUI and the Order Book Viewer |
+| **Appendix** | An FAQ on order types, saved orders, average cost and self-match prevention |
 
 ## Where to start
 

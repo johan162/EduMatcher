@@ -73,6 +73,18 @@ phases at the times in the timetable — in the container's time zone, which is
 in `CLOSED`. In this chapter you will drive the phases by hand, which works
 at any time of day.
 
+!!! warning "Check the clock first"
+    The timetable applies on weekdays. If you start between 09:00 and 16:05
+    Stockholm time on a weekday, the scheduler has already moved the exchange
+    into the pre-open, auction or continuous phase, and the next step (a
+    rejected order in `CLOSED`) will not happen. Run `SESSION_STATUS` in
+    Step 2 to see where you are. You can still follow the chapter: drive the
+    phases by hand from wherever the exchange is, but remember that the
+    scheduler will move it on again at the next time in the timetable. On a
+    weekend, or in the evening, the exchange stays in `CLOSED` and everything
+    reads exactly as written. In a classroom, run this chapter outside
+    trading hours.
+
 ## Step 2 — Open the operator console
 
 In a shell inside the exchange, connect as the operator `OPS01`:
@@ -158,8 +170,10 @@ traders receive a fill:
 
 Every order matched in an auction trades at **one price**, the
 **equilibrium price**: the price at which the largest number of shares can
-change hands. Here any price from 149.00 to 150.00 would let all 100 shares
-trade; when several prices tie, EduMatcher's rule picks the lowest, so both
+change hands. If several prices allow the same volume, EduMatcher prefers the
+one that leaves the smaller imbalance (unmatched shares), and if that is also
+a tie it picks the lowest price. Here any price from 149.00 to 150.00 would
+let all 100 shares trade with nothing left over, so the lowest wins and both
 fill at 149.00. With more orders on each side the choice becomes a real
 calculation, and the Training Guide's [Auctions](../../training-guide/070-auctions.md)
 chapter has you work one out by hand.

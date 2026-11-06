@@ -86,6 +86,17 @@ every message as a single JSON line to the configured log file. It also binds
 a small health socket (port `5562`) that answers
 [`pm-audit-cli health`](#health-recorder-and-log-file-health) pings.
 
+ZeroMQ PUB/SUB subscriptions join asynchronously. A publication made before
+`pm-audit`'s subscription has reached the engine is not queued or replayed;
+the recorder cannot write an event it never received. Start `pm-audit` before
+starting `pm-engine`, wait for `pm-audit-cli health` to report the recorder
+healthy, and verify that the engine's `system.startup` event appears in the
+audit log before trading. The health check confirms the recorder's receive
+loop is running; it does not itself acknowledge the upstream subscription.
+If attaching to an already-running engine, allow the subscription to join
+before relying on the trail. The write buffer affects when received events
+appear on disk, not whether the subscription receives them.
+
 ```bash
 pm-audit [options]
 ```

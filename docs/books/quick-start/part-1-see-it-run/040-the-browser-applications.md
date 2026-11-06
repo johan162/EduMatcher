@@ -29,6 +29,13 @@ in one — or in a `pm-alf-console` — shows up in the others within a second.
 The read-only displays need no login. The Trading GUI does, because it can
 change things.
 
+!!! note "What you will see depends on the previous chapter"
+    If you followed [Your First Trade](030-your-first-trade.md), the exchange
+    now runs `s3-basic-nomm`: three symbols and empty books, so TapeDeck shows
+    `AAPL`, `MSFT` and `TSLA` without prices until someone trades. After
+    `./edumatcher.sh config s10-basic` (see the tip at the end of that
+    chapter) you get the ten-symbol market with quotes again.
+
 ## Find your API key
 
 The Trading GUI logs in with an **API key**. Each key in the configuration
@@ -54,13 +61,20 @@ The `-a` option shows everything, including the keys in full. Look for the
 ╰────────────────────────────────────────────────────────────────────────╯
 ```
 
-Your keys will be different. The `READ-ONLY` key is the one the two displays
-use behind the scenes; it cannot log in to the Trading GUI.
+Your keys will be different, and each configuration has its own: after you
+switch configuration (as in the previous chapter, or in
+[Your Own Configuration](../part-2-next-steps/020-your-own-configuration.md))
+look the keys up again, because the old ones stop working. The `READ-ONLY`
+key is the one the read-only displays (such as TapeDeck and the Order Book
+Viewer) use behind the scenes; it cannot log in to the Trading GUI.
 
 ## Trade from the browser
 
-1. Open <http://localhost:8093>, paste `TRADER01`'s key and click
-   **Connect**. You land in the **Trading Workspace**: a price chart, a depth
+1. Close any `pm-alf-console` that is connected as `TRADER01`: a participant ID
+   can be connected only once at a time, and the Trading GUI counts. Then open
+   <http://localhost:8093>, paste `TRADER01`'s key and click **Connect**. If
+   the key is wrong or from an older configuration, you stay on the login
+   screen; look it up again as above. You land in the **Trading Workspace**: a price chart, a depth
    ladder (the order book, best prices in the middle), an order ticket and a
    blotter of your working orders.
 2. Open the Order Book Viewer at <http://localhost:8094> in a second window,
@@ -68,8 +82,10 @@ use behind the scenes; it cannot log in to the Trading GUI.
 3. In the ticket, choose **Limit**, enter a quantity and a price below the
    best ask, and press **Buy**. A toast confirms *accepted*, the order appears
    in the blotter, and the Order Book Viewer shows it as a new bid.
-4. Sell into it from a trader console (or log in as `TRADER02` in a private
-   browser window) and watch the trade appear on the tape in both windows and
+4. Sell into it from a trader console connected as `TRADER02`
+   (`pm-alf-console --id TRADER02` in `./edumatcher.sh shell`), or log in as
+   `TRADER02` in a private browser window, entering the same quantity at the
+   same price, and watch the trade appear on the tape in both windows and
    on TapeDeck.
 
 !!! tip "Reloading logs you out"

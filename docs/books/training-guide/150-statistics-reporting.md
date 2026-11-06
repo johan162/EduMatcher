@@ -41,9 +41,10 @@ startup messages, run it with `-v`:
 pm-stats -v
 ```
 
-The last startup line reads `recording market statistics (Ctrl-C to stop)`,
-preceded by an `opened stats DB connection path=...` line showing the
-database path (which reflects your `EDUMATCHER_DATA_DIR`).
+The startup lines include `opened stats DB connection path=...`, showing the
+database path (which reflects your `EDUMATCHER_DATA_DIR`), and
+`recording market statistics (Ctrl-C to stop)`; two more lines follow it
+(`recorded tick metadata …`, `requested opening snapshots …`).
 
 To confirm the active path with a stable command instead, run:
 
@@ -64,7 +65,21 @@ ls -la "$EDUMATCHER_DATA_DIR/stats.db"
 
 ## Exercise 2: Generate Some Trading Activity
 
-Ensure `pm-mm-bot` (or AI traders) is quoting. A manual market-maker quote is pulled after its first fill (Chapter 03), so the second and third orders below would find no liquidity if you rely on one. Execute a few manual trades:
+Ensure `pm-mm-bot` (or AI traders) is quoting **both AAPL and MSFT** (the third
+order below is a MSFT order; without a MSFT quote it is cancelled with
+`INSUFFICIENT_LIQUIDITY`). A manual market-maker quote is pulled after its first
+fill (Chapter 03), so the second and third orders would find no liquidity if you
+rely on one. One bot per symbol, each with a start range, as in chapter 02:
+
+```bash
+pm-mm-bot --symbol AAPL --gap 0.10 --qty 500 --initial_min 149 --initial_max 151
+pm-mm-bot --symbol MSFT --gap 0.16 --qty 300 --initial_min 419 --initial_max 421
+```
+
+(Both need their market-maker gateway, `MM_AAPL_01` and `MM_MSFT_01`, in the
+configuration and no console connected as it. If you are still on the
+`s150-nominal` example from chapter 14, use its `MM01` instead, as in that
+chapter.) Execute a few manual trades:
 
 ```
 [TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=100
@@ -131,12 +146,17 @@ average price across all of today's trades for that symbol.
 pm-stats-cli trades --symbol AAPL --limit 20
 ```
 
-Shows the last 20 trades from `trade_log`: `ts`, `trade_id`, `symbol`,
-`price`, `quantity`, `buy_gateway_id`, `sell_gateway_id`. `trade_id` is a
-durable `run_seq-counter` string such as `000042-000000001`. Alongside the two
-gateway columns, `trade_log` also records `aggressor_side`: `BUY` or `SELL`
-for a continuous match, and `AUCTION` for an uncross print — so you can
-classify trades by which side crossed the spread.
+Shows up to 20 trades from `trade_log`, **oldest first** (it is a page, not a
+"latest" list): `ts`, `trade_id`, `symbol`, `price`, `quantity`,
+`aggressor_side`, `buy_gateway_id`, `sell_gateway_id`. When more rows exist
+the command ends with a notice such as
+`[WARN] Output truncated at --limit 20. More rows exist; re-run with --after <cursor>`;
+copy that cursor to read the next page, or narrow the range with
+`--from <ISO timestamp>` to start at the recent trades. `trade_id` is a
+durable `run_seq-counter` string such as `000042-000000001`.
+`aggressor_side` is `BUY` or `SELL` for a continuous match, and `AUCTION` for
+an uncross print — so you can classify trades by which side crossed the
+spread.
 
 :material-checkbox-blank-outline: **Checkpoint:** trade log visible.
 

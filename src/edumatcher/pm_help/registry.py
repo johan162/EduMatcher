@@ -1687,7 +1687,7 @@ _QUERY_CLIS: tuple[CommandInfo, ...] = (
         ),
         description=(
             "A SQLite database of made-up company profiles for the 300 tickers of "
-            "the s300 simulation: name, industry, purpose, founder story, CEO, "
+            "the s300 simulation and 100 Nordic ones: name, industry, purpose, founder story, CEO, "
             "financials (revenue, profit, P/E, margins, debt, rating) and more. "
             "Each ticker keeps its sector and industry from pm-market-sim; every "
             "name, person and number is invented. No running process is needed.",

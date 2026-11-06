@@ -300,8 +300,8 @@ The three disconnect behaviours:
 
 | Value | On disconnect the engine… |
 |---|---|
-| `CANCEL_QUOTES_ONLY` | cancels the participant's active quote legs; ordinary resting orders stay in the book. |
-| `CANCEL_ALL` | cancels quotes **and** all resting orders. A student who closes the laptop leaves nothing behind. |
+| `CANCEL_QUOTES_ONLY` | cancels active quotes and any resting remainder of an inactivated partial-fill quote; ordinary resting orders stay in the book. |
+| `CANCEL_ALL` | cancels active quotes, inactivated partial-fill quote remainders, and all other resting orders. A student who closes the laptop leaves nothing behind. |
 | `LEAVE_ALL` | cancels nothing. Use it for the operator console, whose connection should not disturb the book. |
 
 The market-maker-only fields of a participant (`quote_refresh_policy`,

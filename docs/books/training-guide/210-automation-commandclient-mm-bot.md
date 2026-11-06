@@ -35,6 +35,16 @@ This chapter combines two advanced surfaces:
 
  
 
+!!! warning "Close `pm-admin` and the MM console first"
+    `ExchangeCommandClient("GW_ADMIN")` logs on as `GW_ADMIN`, and the bot in
+    Exercises 4–5 as `MM_AAPL_01`. The engine allows one connection per
+    participant, so leave any open `pm-admin --id GW_ADMIN` and
+    `pm-alf-console --id MM_AAPL_01` (`Ctrl-C`) before running the scripts.
+    If you forget, `connect()` does **not** raise: it returns
+    `accepted: False, reason: 'Gateway already connected: GW_ADMIN'`, read-only
+    calls such as `symbol_list()` still work, and only the commands that change
+    something fail. A script that matters should check `auth["accepted"]`.
+
 ## Exercise 1: Run a Minimal CommandClient Session
 
 Execute a short Python script:
@@ -111,13 +121,18 @@ Optional extension:
 
 ## Exercise 4: Tune pm-mm-bot Startup Reliability
 
-Run one bot with explicit startup controls:
+Run one bot with explicit startup controls. A bot started on an empty book
+with no range to draw a price from stops with
+`startup failed: no reference price available`, and the last trade price saved
+from an earlier session does not count, so the command gives it a start range:
 
 ```bash
 pm-mm-bot \
   --symbol AAPL \
   --gap 0.10 \
   --qty 500 \
+  --initial_min 149.00 \
+  --initial_max 151.00 \
   --startup-session-timeout-sec 5.0 \
   --bootstrap-timeout-sec 1.0 \
   --qlegs-reconcile-interval-sec 15.0 \
@@ -179,7 +194,8 @@ Simulate sparse startup conditions and run bot with explicit bootstrap range:
 pm-mm-bot --symbol AAPL --initial_min 149.00 --initial_max 151.00 -v
 ```
 
-Then compare behavior with and without range configured.
+Then compare behavior with and without range configured (stop the first bot
+with `Ctrl-C` before you start the next; it cancels its quote on the way out).
 
 Expected understanding:
 
