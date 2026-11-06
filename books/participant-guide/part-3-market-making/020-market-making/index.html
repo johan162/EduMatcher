@@ -3130,6 +3130,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../90-backmatter/010-faq-orders-and-positions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ: Orders, Sessions and Positions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -4524,6 +4552,34 @@
           </ul>
         </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/90-backmatter/010-faq-setup-and-operation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ: Setup and Operation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -9188,13 +9244,13 @@ must decide what to do with any resting quotes:</p>
 <tbody>
 <tr>
 <td><code>CANCEL_QUOTES_ONLY</code></td>
-<td>All quotes cancelled</td>
-<td>Resting orders remain in book</td>
+<td>Active quotes and inactive partial-fill remainders are cancelled</td>
+<td>Plain resting orders remain in book</td>
 </tr>
 <tr>
 <td><code>CANCEL_ALL</code></td>
-<td>All quotes cancelled</td>
-<td>All resting orders also cancelled</td>
+<td>Active quotes and inactive partial-fill remainders are cancelled</td>
+<td>All plain resting orders are also cancelled</td>
 </tr>
 <tr>
 <td><code>LEAVE_ALL</code></td>
@@ -9205,7 +9261,11 @@ must decide what to do with any resting quotes:</p>
 </table>
 <p>The default is <code>CANCEL_QUOTES_ONLY</code>, which is the most appropriate for
 market making: quotes represent ongoing commitment and should not linger after
-the MM disconnects.</p>
+the MM disconnects. A quote may become inactive after one leg partially fills
+while that leg's unfilled remainder still rests; disconnect cleanup treats
+that remainder as a quote and cancels it under either <code>CANCEL_QUOTES_ONLY</code> or
+<code>CANCEL_ALL</code>. Participant <code>KILL</code> also cancels it, and reports it in the
+<code>QUOTES</code> count.</p>
 <hr />
 <h2 id="full-worked-example">Full worked example<a class="headerlink" href="#full-worked-example" title="Permanent link">&para;</a></h2>
 <p><strong>Scenario</strong>: <code>MM01</code> provides a continuous two-sided market in <code>AAPL</code>.

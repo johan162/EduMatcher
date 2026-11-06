@@ -1949,6 +1949,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../participant-guide/90-backmatter/010-faq-orders-and-positions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ: Orders, Sessions and Positions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -3343,6 +3371,34 @@
           </ul>
         </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../operator-guide/90-backmatter/010-faq-setup-and-operation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ: Setup and Operation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -5519,6 +5575,17 @@
     <span class="md-ellipsis">
       
         Running pm-* commands for the rest of the training
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#where-to-keep-your-working-files" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where to keep your working files
       
     </span>
   </a>
@@ -7802,8 +7869,9 @@ you open a shell <em>inside</em> the container and stop them first. Exercise 1
 below shows exactly how, and it is a one-time step per session — after
 that, every <code>pm-*</code> command in the chapters works unchanged. This is why
 Route A is still the recommended default even though the chapters are
-demonstrated as bare commands: the only difference is prefixing your first
-command with <code>./edumatcher.sh shell</code>.</p>
+demonstrated as bare commands. The differences are prefixing your first
+command with <code>./edumatcher.sh shell</code>, and where your own files live: see
+"Where to keep your working files" below.</p>
 </div>
 <p>Pick one route below, then continue from Exercise 2 — the remaining exercises
 apply to all of them.</p>
@@ -7860,8 +7928,8 @@ directory removes the installation.</p>
 </div>
 <p>The installer checks for Podman or Docker, resolves the newest release,
 downloads four small support files (<code>compose.yaml</code>, <code>compose.zmq.yaml</code>,
-<code>edumatcher.sh</code>, <code>.env.example</code>), pulls six images and starts them. Nothing
-is compiled on your machine.</p>
+<code>edumatcher.sh</code>, <code>.env.example</code>), pulls seven images (the exchange and the six
+web applications) and starts them. Nothing is compiled on your machine.</p>
 <p>When it finishes you have a complete exchange <strong>and</strong> six web applications:</p>
 <table>
 <thead>
@@ -7915,11 +7983,12 @@ market-maker bid and ask the moment <code>pm-engine</code> starts, so there is a
 book before anyone has traded.</p>
 <div class="admonition note">
 <p class="admonition-title">If a port is already taken</p>
-<p>The published ports (<code>8080</code>, <code>8090</code>–<code>8095</code>) are fixed. If another program
-on your machine already uses one of them, <code>./edumatcher.sh start</code> fails
-with a bind error naming that port. Free it, or move the conflicting
-service, then run <code>./edumatcher.sh start</code> again — nothing was left
-half-started.</p>
+<p>The REST API ports (<code>8080</code>, <code>8081</code>) are fixed; the six web applications use
+<code>8090</code>–<code>8095</code> by default, and you can move any of them with the
+<code>*_GUI_PORT</code> settings in <code>.env</code> (Exercise 4). If another program on your
+machine already uses one of these ports, <code>./edumatcher.sh start</code> fails with
+a bind error naming that port. Free it, move the conflicting service, or
+change the port in <code>.env</code>, then run <code>./edumatcher.sh start</code> again.</p>
 </div>
 <div class="admonition warning">
 <p class="admonition-title">Running a second install on the same machine</p>
@@ -7963,6 +8032,34 @@ first:</p>
 </code></pre></div>
 <p>For the exercises that need several terminals, run <code>./edumatcher.sh shell</code> once
 in each of them.</p>
+<h3 id="where-to-keep-your-working-files">Where to keep your working files<a class="headerlink" href="#where-to-keep-your-working-files" title="Permanent link">&para;</a></h3>
+<p>From Chapter 01 on you write YAML files (<code>engine_config.yaml</code>,
+<code>mm_aapl.yaml</code>, …) and run commands that read them. On the container route
+this needs one deliberate step, because the container is not a normal machine:
+it opens in <code>/</code>, it has <strong>no text editor</strong>, and anything you save in its own
+file system is deleted when <code>./edumatcher.sh restart</code> or <code>stop</code> removes the
+container. The one folder that your computer and the container share, and that
+survives, is the data directory. So keep your files there:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1"># on your computer: make the folder, and edit files in it with your own editor</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>mkdir<span class="w"> </span>-p<span class="w"> </span>~/.edumatcher/data/training
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="c1"># in every container shell (./edumatcher.sh shell), before running anything:</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="nb">cd</span><span class="w"> </span>/data/training
+</code></pre></div>
+<p><code>~/.edumatcher/data/training</code> on your computer and <code>/data/training</code> inside the
+container are the same folder. Whenever a chapter says "in your working
+directory", it means this one. Check with <code>ls /data/training</code> inside the
+container.</p>
+<div class="admonition note">
+<p class="admonition-title">Docker on Linux</p>
+<p>With Docker (not Podman) the container writes as <code>root</code>, so a file that a
+command <em>creates</em> there (for example <code>generated.yaml</code>) belongs to <code>root</code> on
+your computer. You can read it, but to edit it run
+<code>sudo chown -R "$USER" ~/.edumatcher/data/training</code> first.</p>
+</div>
+<p>On Routes B, C and D simply make a folder of your own and work in it:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>mkdir<span class="w"> </span>-p<span class="w"> </span>~/training<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">cd</span><span class="w"> </span>~/training
+</code></pre></div>
 <div class="admonition note">
 <p class="admonition-title">Getting back to a running market</p>
 <p><code>pm-opctl-cli start</code> restarts the whole profile whenever you want the
@@ -8002,13 +8099,13 @@ available to you.</p>
 </tr>
 </tbody>
 </table>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1"># macOS with Homebrew</span>
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>brew<span class="w"> </span>install<span class="w"> </span>pipx
-<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>pipx<span class="w"> </span>ensurepath
-<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>
-<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="c1"># Linux, or macOS without Homebrew</span>
-<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>--user<span class="w"> </span>pipx
-<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>python<span class="w"> </span>-m<span class="w"> </span>pipx<span class="w"> </span>ensurepath
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="c1"># macOS with Homebrew</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>brew<span class="w"> </span>install<span class="w"> </span>pipx
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>pipx<span class="w"> </span>ensurepath
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="c1"># Linux, or macOS without Homebrew</span>
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>--user<span class="w"> </span>pipx
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a>python<span class="w"> </span>-m<span class="w"> </span>pipx<span class="w"> </span>ensurepath
 </code></pre></div>
 <div class="admonition warning">
 <p class="admonition-title"><code>pip install pipx</code> on its own often fails</p>
@@ -8021,10 +8118,10 @@ both what avoids that error and the setup pipx itself recommends.</p>
 <p><code>pipx ensurepath</code> edits your shell's startup file but cannot update the
 <em>current</em> shell. <strong>Open a new terminal</strong> before continuing, then install
 EduMatcher into it:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>pipx<span class="w"> </span>install<span class="w"> </span>edumatcher
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>pipx<span class="w"> </span>install<span class="w"> </span>edumatcher
 </code></pre></div>
 <p>Verify:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>pm-engine<span class="w"> </span>--version
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>pm-engine<span class="w"> </span>--version
 </code></pre></div>
 <div class="admonition note">
 <p class="admonition-title"><code>command not found: pm-engine</code></p>
@@ -8033,33 +8130,33 @@ when you ran <code>pipx ensurepath</code>. Open a new one (or <code>exec $SHELL<
 again before suspecting anything else.</p>
 </div>
 <p>Then bootstrap your workspace:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>pm-setup
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>pm-setup
 </code></pre></div>
 <p><code>pm-setup</code> creates the data directory, compiles a bundled example
 configuration (<code>s10-basic</code> unless you say otherwise) and installs it as the
 deployed artifact, then prints the one environment variable you need. The
 output looks like this — yours will show your own home directory and shell:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>pm-setup — EduMatcher session initialisation
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>==================================================
-<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>  ✓ Created data directory:          /Users/you/.local/share/edumatcher
-<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>    ✓ Example config 's10-basic' compiled to: /Users/you/.local/share/edumatcher/ref_data/engine_config.json
-<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>    10 symbol(s) ready to trade.
-<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>
-<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a>  Shell environment snippet — add to your shell profile:
-<a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a>  (~/.zshrc)
-<a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a>  ----------------------------------------------
-<a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a>  export EDUMATCHER_DATA_DIR="/Users/you/.local/share/edumatcher"
-<a id="__codelineno-10-11" name="__codelineno-10-11" href="#__codelineno-10-11"></a>  ----------------------------------------------
-<a id="__codelineno-10-12" name="__codelineno-10-12" href="#__codelineno-10-12"></a>
-<a id="__codelineno-10-13" name="__codelineno-10-13" href="#__codelineno-10-13"></a>  This is the only variable to set. Every process derives its
-<a id="__codelineno-10-14" name="__codelineno-10-14" href="#__codelineno-10-14"></a>  configuration, database and log paths from it, so they cannot
-<a id="__codelineno-10-15" name="__codelineno-10-15" href="#__codelineno-10-15"></a>  drift apart.
-<a id="__codelineno-10-16" name="__codelineno-10-16" href="#__codelineno-10-16"></a>  ...
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>pm-setup — EduMatcher session initialisation
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>==================================================
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>  ✓ Created data directory:          /Users/you/.local/share/edumatcher
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>    ✓ Example config 's10-basic' compiled to: /Users/you/.local/share/edumatcher/ref_data/engine_config.json
+<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>    10 symbol(s) ready to trade.
+<a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a>
+<a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a>  Shell environment snippet — add to your shell profile:
+<a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a>  (~/.zshrc)
+<a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a>  ----------------------------------------------
+<a id="__codelineno-12-10" name="__codelineno-12-10" href="#__codelineno-12-10"></a>  export EDUMATCHER_DATA_DIR="/Users/you/.local/share/edumatcher"
+<a id="__codelineno-12-11" name="__codelineno-12-11" href="#__codelineno-12-11"></a>  ----------------------------------------------
+<a id="__codelineno-12-12" name="__codelineno-12-12" href="#__codelineno-12-12"></a>
+<a id="__codelineno-12-13" name="__codelineno-12-13" href="#__codelineno-12-13"></a>  This is the only variable to set. Every process derives its
+<a id="__codelineno-12-14" name="__codelineno-12-14" href="#__codelineno-12-14"></a>  configuration, database and log paths from it, so they cannot
+<a id="__codelineno-12-15" name="__codelineno-12-15" href="#__codelineno-12-15"></a>  drift apart.
+<a id="__codelineno-12-16" name="__codelineno-12-16" href="#__codelineno-12-16"></a>  ...
 </code></pre></div>
 <p>Add the <code>export</code> line to <code>~/.zshrc</code> (macOS default shell) or <code>~/.bashrc</code>
 (Linux, or bash on macOS) — <code>pm-setup</code> names the right file for your shell in
 its own output — then reload it:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="nb">source</span><span class="w"> </span>~/.zshrc<span class="w">     </span><span class="c1"># or source ~/.bashrc — whichever pm-setup named</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="nb">source</span><span class="w"> </span>~/.zshrc<span class="w">     </span><span class="c1"># or source ~/.bashrc — whichever pm-setup named</span>
 </code></pre></div>
 <div class="admonition note">
 <p class="admonition-title">Re-running pm-setup</p>
@@ -8085,9 +8182,9 @@ has the details.</p>
 <p>A ready-to-run Linux environment without installing Python tooling on your
 host. Install Multipass from <a href="https://multipass.run/install">multipass.run</a>,
 verify it, then bootstrap:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>multipass<span class="w"> </span>version
-<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>
-<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.76.0
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>multipass<span class="w"> </span>version
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>
+<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.76.1
 </code></pre></div>
 <p>If <code>multipass version</code> fails with <code>command not found</code>, the install did not
 complete or your shell has not picked up its PATH change yet — open a new
@@ -8095,22 +8192,22 @@ terminal and retry before moving on.</p>
 <p>This launches a VM (default name <code>ems</code>), installs the runtime inside it, runs
 <code>pm-setup</code> for you, takes a snapshot named <code>clean</code>, and prints the VM's
 address and API keys.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>multipass<span class="w"> </span>shell<span class="w"> </span>ems
-<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>pm-engine<span class="w"> </span>--version
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>multipass<span class="w"> </span>shell<span class="w"> </span>ems
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>pm-engine<span class="w"> </span>--version
 </code></pre></div>
 <p>Inside the VM, <code>pm-*</code> commands work exactly as the chapters describe. The whole
 exchange can be started at once with <code>pm-opctl-cli start</code>, or process by
 process as the exercises do it.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>multipass<span class="w"> </span>stop<span class="w"> </span>ems<span class="w">              </span><span class="c1"># pause the VM</span>
-<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>multipass<span class="w"> </span>start<span class="w"> </span>ems<span class="w">             </span><span class="c1"># resume</span>
-<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>multipass<span class="w"> </span>delete<span class="w"> </span>--purge<span class="w"> </span>ems<span class="w">    </span><span class="c1"># remove it entirely</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>multipass<span class="w"> </span>stop<span class="w"> </span>ems<span class="w">              </span><span class="c1"># pause the VM</span>
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>multipass<span class="w"> </span>start<span class="w"> </span>ems<span class="w">             </span><span class="c1"># resume</span>
+<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a>multipass<span class="w"> </span>delete<span class="w"> </span>--purge<span class="w"> </span>ems<span class="w">    </span><span class="c1"># remove it entirely</span>
 </code></pre></div>
 <div class="admonition tip">
 <p class="admonition-title">The snapshot is the point</p>
 <p>Provisioning takes a snapshot named <code>clean</code>. After an exercise leaves the
 order books in a mess, restore it with the <code>-d</code> (destructive) flag, which
 skips the confirmation prompt and discards everything since:
-<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>multipass<span class="w"> </span>restore<span class="w"> </span>-d<span class="w"> </span>ems.clean
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>multipass<span class="w"> </span>restore<span class="w"> </span>-d<span class="w"> </span>ems.clean
 </code></pre></div></p>
 </div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> <code>multipass shell ems</code> works and
@@ -8118,10 +8215,10 @@ skips the confirmation prompt and discards everything since:
 <h3 id="route-d-poetry-checkout-for-changing-edumatcher-itself">Route D: Poetry checkout — for changing EduMatcher itself<a class="headerlink" href="#route-d-poetry-checkout-for-changing-edumatcher-itself" title="Permanent link">&para;</a></h3>
 <p>Choose this only if you intend to modify EduMatcher's own source, not to run
 it as a student.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/johan162/EduMatcher.git
-<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="nb">cd</span><span class="w"> </span>EduMatcher
-<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a>poetry<span class="w"> </span>config<span class="w"> </span>virtualenvs.in-project<span class="w"> </span><span class="nb">true</span>
-<a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a>poetry<span class="w"> </span>install<span class="w"> </span>--with<span class="w"> </span>dev,docs
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/johan162/EduMatcher.git
+<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a><span class="nb">cd</span><span class="w"> </span>EduMatcher
+<a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a>poetry<span class="w"> </span>config<span class="w"> </span>virtualenvs.in-project<span class="w"> </span><span class="nb">true</span>
+<a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a>poetry<span class="w"> </span>install<span class="w"> </span>--with<span class="w"> </span>dev,docs
 </code></pre></div>
 <p>Every command is then prefixed with <code>poetry run</code>, e.g. <code>poetry run pm-engine</code>.
 The data directory is the repository's own <code>src/data/</code> unless you set
@@ -8133,16 +8230,16 @@ trades, logs and databases back to it. Two processes pointed at different data
 directories are two different exchanges that cannot see each other.</p>
 <p>Find yours:</p>
 <p><strong>If you installed with containers:</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="nb">cd</span><span class="w"> </span>~/.edumatcher
-<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>./edumatcher.sh<span class="w"> </span>mounts
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="nb">cd</span><span class="w"> </span>~/.edumatcher
+<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>./edumatcher.sh<span class="w"> </span>mounts
 </code></pre></div>
 <p>The directory is <code>~/.edumatcher/data</code> on your disk, mounted as <code>/data</code>
 inside the container. Both names refer to the same files — that is why the
 Log Operator Console's health page says <code>/backend-data/log.db</code> while on your machine
 the file is <code>~/.edumatcher/data/log.db</code>.</p>
 <p><strong>If you installed with pipx, the VM, or Poetry:</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="nb">echo</span><span class="w"> </span><span class="nv">$EDUMATCHER_DATA_DIR</span>
-<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>ls<span class="w"> </span>-la<span class="w"> </span><span class="s2">"</span><span class="nv">$EDUMATCHER_DATA_DIR</span><span class="s2">"</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a><span class="nb">echo</span><span class="w"> </span><span class="nv">$EDUMATCHER_DATA_DIR</span>
+<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a>ls<span class="w"> </span>-la<span class="w"> </span><span class="s2">"</span><span class="nv">$EDUMATCHER_DATA_DIR</span><span class="s2">"</span>
 </code></pre></div>
 <p><code>EDUMATCHER_DATA_DIR</code> is <strong>the only location variable there is</strong>. If it is
 unset, EduMatcher falls back to <code>~/.local/share/edumatcher</code> for an
@@ -8199,22 +8296,22 @@ directory, and <code>ref_data/</code> inside it contains both <code>engine_confi
 <h2 id="exercise-3-understand-the-deployed-configuration">Exercise 3: Understand the deployed configuration<a class="headerlink" href="#exercise-3-understand-the-deployed-configuration" title="Permanent link">&para;</a></h2>
 <p>EduMatcher separates <strong>the file you author</strong> from <strong>the file the exchange
 runs</strong>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>your engine_config.yaml   →   pm-config-deploy   →   ref_data/engine_config.json
-<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>        (edit this)              (validates,              (every process
-<a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a>                                  compiles)                reads this)
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>your engine_config.yaml   →   pm-config-deploy   →   ref_data/engine_config.json
+<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a>        (edit this)              (validates,              (every process
+<a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a>                                  compiles)                reads this)
 </code></pre></div>
 <p>No process takes a path to a configuration. There is exactly one deployed
 artifact per data directory, which is what makes it impossible to start two
 processes on different configurations by accident.</p>
 <p>Look at what your install deployed:</p>
 <p><strong>If you installed with containers:</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>./edumatcher.sh<span class="w"> </span>shell<span class="w"> </span>pm-config-show
-<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a>cat<span class="w"> </span>~/.edumatcher/data/ref_data/engine_config.yaml
+<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a>./edumatcher.sh<span class="w"> </span>shell<span class="w"> </span>pm-config-show
+<a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a>cat<span class="w"> </span>~/.edumatcher/data/ref_data/engine_config.yaml
 </code></pre></div>
 <p><strong>If you installed with pipx, the VM, or Poetry:</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>pm-config-deploy<span class="w"> </span>--show<span class="w">             </span><span class="c1"># the paths of the source and compiled files</span>
-<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a>pm-config-show<span class="w">                      </span><span class="c1"># the configuration as a terminal dashboard</span>
-<a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a>cat<span class="w"> </span><span class="s2">"</span><span class="nv">$EDUMATCHER_DATA_DIR</span><span class="s2">/ref_data/engine_config.yaml"</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>pm-config-deploy<span class="w"> </span>--show<span class="w">             </span><span class="c1"># the paths of the source and compiled files</span>
+<a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a>pm-config-show<span class="w">                      </span><span class="c1"># the configuration as a terminal dashboard</span>
+<a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a>cat<span class="w"> </span><span class="s2">"</span><span class="nv">$EDUMATCHER_DATA_DIR</span><span class="s2">/ref_data/engine_config.yaml"</span>
 </code></pre></div>
 <p>You should see a <code>symbols:</code> section and a <code>participants:</code> section. This is the same
 <em>kind</em> of file you will author yourself in the next chapter — there, though,
@@ -8231,20 +8328,20 @@ configuration and see its symbols.</p>
 <h2 id="exercise-4-customise-your-installation">Exercise 4: Customise your installation<a class="headerlink" href="#exercise-4-customise-your-installation" title="Permanent link">&para;</a></h2>
 <h3 id="choosing-a-different-configuration">Choosing a different configuration<a class="headerlink" href="#choosing-a-different-configuration" title="Permanent link">&para;</a></h3>
 <p><strong>If you installed with containers:</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a><span class="nb">cd</span><span class="w"> </span>~/.edumatcher
-<a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a>./edumatcher.sh<span class="w"> </span>config<span class="w"> </span>s10-nominal<span class="w">      </span><span class="c1"># a bundled example</span>
-<a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a>./edumatcher.sh<span class="w"> </span>config<span class="w"> </span>./my-market.yaml<span class="w"> </span><span class="c1"># or one of your own</span>
-<a id="__codelineno-22-4" name="__codelineno-22-4" href="#__codelineno-22-4"></a>./edumatcher.sh<span class="w"> </span>restart
+<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a><span class="nb">cd</span><span class="w"> </span>~/.edumatcher
+<a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a>./edumatcher.sh<span class="w"> </span>config<span class="w"> </span>s10-nominal<span class="w">      </span><span class="c1"># a bundled example</span>
+<a id="__codelineno-24-3" name="__codelineno-24-3" href="#__codelineno-24-3"></a>./edumatcher.sh<span class="w"> </span>config<span class="w"> </span>./my-market.yaml<span class="w"> </span><span class="c1"># or one of your own</span>
+<a id="__codelineno-24-4" name="__codelineno-24-4" href="#__codelineno-24-4"></a>./edumatcher.sh<span class="w"> </span>restart
 </code></pre></div>
 <p>A file of your own is copied into <code>~/.edumatcher/config/</code> and deployed on
 every start, so editing it and restarting is the whole edit-test loop.</p>
 <p><strong>If you installed with pipx, the VM, or Poetry:</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>pm-config-deploy<span class="w"> </span>~/configs/classroom.yaml
+<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>pm-config-deploy<span class="w"> </span>~/configs/classroom.yaml
 </code></pre></div>
 <p>Or give a scenario its own data directory, which isolates its statistics
 and logs as well:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">EDUMATCHER_DATA_DIR</span><span class="o">=</span>~/sessions/classroom
-<a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a>pm-config-deploy<span class="w"> </span>~/configs/classroom.yaml
+<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">EDUMATCHER_DATA_DIR</span><span class="o">=</span>~/sessions/classroom
+<a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a>pm-config-deploy<span class="w"> </span>~/configs/classroom.yaml
 </code></pre></div>
 <h3 id="settings-the-env-file-containers-only">Settings — the <code>.env</code> file (containers only)<a class="headerlink" href="#settings-the-env-file-containers-only" title="Permanent link">&para;</a></h3>
 <p><code>~/.edumatcher/.env</code> holds every choice about a running install. Compose reads
@@ -8264,7 +8361,7 @@ so updating does not discard your edits.</p>
 <tr>
 <td><code>EM_VERSION</code></td>
 <td><em>(the installed release)</em></td>
-<td>Which release to run. All six images carry this tag, so one value pins the whole system</td>
+<td>Which release to run. All seven images carry this tag, so one value pins the whole system</td>
 </tr>
 <tr>
 <td><code>GHCR_OWNER</code></td>
@@ -8366,12 +8463,12 @@ different bundled configuration and seen the symbols change.</p>
 <p>Verify the commands the coming chapters use. Prefix each with
 <code>./edumatcher.sh shell</code> on the container route, or run them directly
 otherwise:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>pm-engine<span class="w"> </span>--help
-<a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a>pm-scheduler<span class="w"> </span>--help
-<a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a>pm-alf-console<span class="w"> </span>--help
-<a id="__codelineno-25-4" name="__codelineno-25-4" href="#__codelineno-25-4"></a>pm-config-deploy<span class="w"> </span>--help
-<a id="__codelineno-25-5" name="__codelineno-25-5" href="#__codelineno-25-5"></a>pm-config-gen<span class="w"> </span>--help
-<a id="__codelineno-25-6" name="__codelineno-25-6" href="#__codelineno-25-6"></a>pm-mm-bot<span class="w"> </span>--help
+<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a>pm-engine<span class="w"> </span>--help
+<a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a>pm-scheduler<span class="w"> </span>--help
+<a id="__codelineno-27-3" name="__codelineno-27-3" href="#__codelineno-27-3"></a>pm-alf-console<span class="w"> </span>--help
+<a id="__codelineno-27-4" name="__codelineno-27-4" href="#__codelineno-27-4"></a>pm-config-deploy<span class="w"> </span>--help
+<a id="__codelineno-27-5" name="__codelineno-27-5" href="#__codelineno-27-5"></a>pm-config-gen<span class="w"> </span>--help
+<a id="__codelineno-27-6" name="__codelineno-27-6" href="#__codelineno-27-6"></a>pm-mm-bot<span class="w"> </span>--help
 </code></pre></div>
 <p>Each should print usage information without errors.</p>
 <div class="admonition note">
@@ -8464,6 +8561,9 @@ chapter assumes without re-explaining:</p>
       for containers it means a shell opened with <code>./edumatcher.sh shell</code>.</li>
 <li>[ ] On the container route only: <code>pm-opctl-cli stop</code>, so the next chapter can
       start the processes itself.</li>
+<li>[ ] You have a working folder (<code>~/training</code>, or <code>~/.edumatcher/data/training</code>
+      on the container route, which you reach as <code>/data/training</code> inside
+      <code>./edumatcher.sh shell</code>) and a text editor to write YAML files in it.</li>
 </ul>
 <h2 id="reflection">Reflection<a class="headerlink" href="#reflection" title="Permanent link">&para;</a></h2>
 <p>Why does EduMatcher refuse to let a process take a path to a configuration

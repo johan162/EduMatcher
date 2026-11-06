@@ -2152,6 +2152,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../participant-guide/90-backmatter/010-faq-orders-and-positions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ: Orders, Sessions and Positions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -3546,6 +3574,34 @@
           </ul>
         </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/90-backmatter/010-faq-setup-and-operation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ: Setup and Operation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -7635,7 +7691,9 @@ market-maker bot) and restart:</p>
 <a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>./edumatcher.sh<span class="w"> </span>restart
 </code></pre></div>
 <p>The <code>sed</code> line just edits one setting in the file <code>.env</code>; you can make the
-same change in any text editor. Then open <strong>two</strong> terminals and run
+same change in any text editor. (A file whose name starts with a dot is hidden
+by default; <code>ls -a</code> shows it.) Check the result with <code>grep EM_PROFILE .env</code>,
+which should print <code>EM_PROFILE=default</code>. Then open <strong>two</strong> terminals and run
 <code>./edumatcher.sh shell</code> in each, so both are inside the exchange.</p>
 <p><strong>Python package.</strong> Deploy the same configuration and restart the processes:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pm-opctl-cli<span class="w"> </span>stop
@@ -7668,6 +7726,16 @@ banner and a prompt:</p>
 <p>Everything the engine sends back to you — acknowledgements, fills,
 rejections — appears in the same window with a <code>[HH:MM:SS.mmm]</code> timestamp.
 Type <code>HELP</code> at any time to list the commands.</p>
+<div class="admonition warning">
+<p class="admonition-title">Leaving a console cancels your orders</p>
+<p>In these configurations a trader's resting orders are cancelled when the
+trader disconnects. If you type <code>EXIT</code> or close the window, everything
+TRADER01 had in the book disappears, and a later step that expects it
+will not find it. Keep both consoles open until you finish the chapter.
+A participant ID can also be connected only once at a time: starting a
+second console as <code>TRADER01</code> (or logging in to the Trading GUI with its
+key) is refused with <em>Gateway already connected</em>.</p>
+</div>
 <h2 id="step-3-see-what-you-can-trade">Step 3 — See what you can trade<a class="headerlink" href="#step-3-see-what-you-can-trade" title="Permanent link">&para;</a></h2>
 <p>At the <code>[TRADER01]&gt;</code> prompt, type:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>SYMBOLS
@@ -7682,13 +7750,19 @@ Type <code>HELP</code> at any time to list the commands.</p>
 <a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>└──────┴────────────┴──────┴─────────────┴────────────┴─────────┘
 </code></pre></div>
 <p><code>Tick</code> is the smallest price step: AAPL prices are whole cents. The other
-columns are market-maker rules, which this configuration does not enforce.
-Every example below uses <code>AAPL</code>.</p>
+columns are market-maker rules, which this configuration does not enforce; in
+particular <code>Min Qty</code> is a market-maker quoting rule, not a minimum for your
+orders, so the 50- and 30-share orders in later steps are fine. Every example
+below uses <code>AAPL</code>.</p>
 <h2 id="step-4-place-a-buy-order-that-rests">Step 4 — Place a buy order that rests<a class="headerlink" href="#step-4-place-a-buy-order-that-rests" title="Permanent link">&para;</a></h2>
 <p>A <strong>limit order</strong> says: <em>"I want to buy (or sell) this many shares, but only
 at this price or better."</em> At the <code>[TRADER01]&gt;</code> prompt:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TIF=DAY
 </code></pre></div>
+<p>Every command is a word (<code>NEW</code>) followed by <code>KEY=VALUE</code> pairs, all separated
+by the <code>|</code> character, with no spaces. Type it exactly like this, in capital
+letters; the Tab key completes command names and <code>↑</code> brings back the previous
+line. Prices are written with a decimal point.</p>
 <table>
 <thead>
 <tr>
@@ -7944,6 +8018,18 @@ chapter spends some time on it.</p>
 <p>To get the market-maker bot and the ten-symbol configuration back on the
 container route, run <code>./edumatcher.sh config s10-basic</code>, set
 <code>EM_PROFILE=mm-demo</code> again in <code>.env</code>, and <code>./edumatcher.sh restart</code>.</p>
+</div>
+<div class="admonition tip">
+<p class="admonition-title">Start over from a clean market</p>
+<p>If your orders, positions or P&amp;L no longer match this chapter (for
+example after a mistyped command), reset the exchange's saved state. On
+the container route:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a>./edumatcher.sh<span class="w"> </span>shell<span class="w"> </span>pm-opctl-cli<span class="w"> </span>stop
+<a id="__codelineno-29-2" name="__codelineno-29-2" href="#__codelineno-29-2"></a>./edumatcher.sh<span class="w"> </span>shell<span class="w"> </span>pm-opctl-cli<span class="w"> </span>clear<span class="w"> </span>--state<span class="w"> </span>--yes
+<a id="__codelineno-29-3" name="__codelineno-29-3" href="#__codelineno-29-3"></a>./edumatcher.sh<span class="w"> </span>restart
+</code></pre></div>
+<p>On the Python route, run the same <code>pm-opctl-cli stop</code>, <code>clear --state
+--yes</code> and then <code>pm-opctl-cli start</code>. The deployed configuration is kept.</p>
 </div>
 <h2 id="where-to-go-next">Where to go next<a class="headerlink" href="#where-to-go-next" title="Permanent link">&para;</a></h2>
 <ul>

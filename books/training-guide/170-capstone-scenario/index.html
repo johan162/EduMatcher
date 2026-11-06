@@ -1949,6 +1949,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../participant-guide/90-backmatter/010-faq-orders-and-positions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ: Orders, Sessions and Positions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -3343,6 +3371,34 @@
           </ul>
         </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../operator-guide/90-backmatter/010-faq-setup-and-operation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ: Setup and Operation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -7675,6 +7731,16 @@ venue is stood up from nothing. Seeding random prices with
 AAPL near 150, MSFT near 420 and TSLA near 250, and seeded prices elsewhere
 would make the collars and circuit breakers reject them.</p>
 <p>Open the file and confirm the symbol and gateway sections are present.</p>
+<div class="admonition note">
+<p class="admonition-title">The configuration is new, the data directory is not</p>
+<p>The data directory still holds what earlier chapters left in it: resting
+GTC orders (such as chapter 16's bid at 140.00), same-day DAY orders and
+clearing history. They are restored when the engine starts, so a book may
+not be as empty as the text assumes. For a truly empty venue, stop every
+process and run <code>pm-opctl-cli clear --state --yes</code> before Exercise 3. It
+also deletes <code>clearing.db</code> and <code>stats.db</code>, which is what you want for a
+fresh venue.</p>
+</div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> config contains 3 symbols,
 5 traders (<code>TRADER01</code>, <code>TRADER02</code>, <code>AI001</code>–<code>AI003</code>), 1 admin, and 4 market
 makers, <code>require_mm_seed_quotes: false</code>, and no <code>market_maker_quotes</code>.</p>
@@ -7764,7 +7830,9 @@ terminals:</p>
 </code></pre></div>
 <p><code>--duration 300</code> stops them after five minutes, which is long enough for the
 rest of the capstone and short enough that you are not chasing runaway
-processes later. Watch <code>pm-viewer</code> — the book should get noticeably busier.</p>
+processes later. They print nothing unless you add <code>-v</code>; check that they are
+connected with <code>GATEWAYS</code> (<code>AI001</code>–<code>AI003</code> now show <code>YES</code>) and watch
+<code>pm-viewer</code> — the book should get noticeably busier.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> you have at least one market
 fill, one amended order, one cross-trader fill, and a visible stream of AI
 trades in <code>pm-viewer</code> and <code>pm-audit</code>.</p>
@@ -7781,6 +7849,9 @@ trades in <code>pm-viewer</code> and <code>pm-audit</code>.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>pm-stats-cli<span class="w"> </span>trades<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--limit<span class="w"> </span><span class="m">10</span>
 <a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>pm-stats-cli<span class="w"> </span>daily
 </code></pre></div>
+<p>(<code>trades</code> lists the day's trades oldest first, ten at a time; with the AI
+traders running there are more, and the output ends with a notice giving the
+<code>--after</code> cursor for the next page.)</p>
 <p>(<code>daily</code> with no <code>--symbol</code> filter gives one OHLCV summary row per symbol —
 see <a href="../150-statistics-reporting/">15 — Statistics &amp; Reporting</a> for the full
 <code>pm-stats-cli</code> verb reference; there is no separate <code>summary</code> verb.)</p>

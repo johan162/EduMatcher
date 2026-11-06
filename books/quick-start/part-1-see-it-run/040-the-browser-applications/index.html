@@ -2064,6 +2064,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../participant-guide/90-backmatter/010-faq-orders-and-positions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ: Orders, Sessions and Positions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -3458,6 +3486,34 @@
           </ul>
         </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/90-backmatter/010-faq-setup-and-operation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ: Setup and Operation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -7572,6 +7628,14 @@ in one — or in a <code>pm-alf-console</code> — shows up in the others within
 </table>
 <p>The read-only displays need no login. The Trading GUI does, because it can
 change things.</p>
+<div class="admonition note">
+<p class="admonition-title">What you will see depends on the previous chapter</p>
+<p>If you followed <a href="../030-your-first-trade/">Your First Trade</a>, the exchange
+now runs <code>s3-basic-nomm</code>: three symbols and empty books, so TapeDeck shows
+<code>AAPL</code>, <code>MSFT</code> and <code>TSLA</code> without prices until someone trades. After
+<code>./edumatcher.sh config s10-basic</code> (see the tip at the end of that
+chapter) you get the ten-symbol market with quotes again.</p>
+</div>
 <h2 id="find-your-api-key">Find your API key<a class="headerlink" href="#find-your-api-key" title="Permanent link">&para;</a></h2>
 <p>The Trading GUI logs in with an <strong>API key</strong>. Each key in the configuration
 belongs to one participant, and the participant's role (<code>TRADER</code>,
@@ -7590,12 +7654,19 @@ configurations generate their keys, so look them up in the running exchange:</p>
 <a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>│ —               dashboards    READ-ONLY        key-readonly-z6f1hx     │
 <a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>╰────────────────────────────────────────────────────────────────────────╯
 </code></pre></div>
-<p>Your keys will be different. The <code>READ-ONLY</code> key is the one the two displays
-use behind the scenes; it cannot log in to the Trading GUI.</p>
+<p>Your keys will be different, and each configuration has its own: after you
+switch configuration (as in the previous chapter, or in
+<a href="../../part-2-next-steps/020-your-own-configuration/">Your Own Configuration</a>)
+look the keys up again, because the old ones stop working. The <code>READ-ONLY</code>
+key is the one the read-only displays (such as TapeDeck and the Order Book
+Viewer) use behind the scenes; it cannot log in to the Trading GUI.</p>
 <h2 id="trade-from-the-browser">Trade from the browser<a class="headerlink" href="#trade-from-the-browser" title="Permanent link">&para;</a></h2>
 <ol>
-<li>Open <a href="http://localhost:8093">http://localhost:8093</a>, paste <code>TRADER01</code>'s key and click
-   <strong>Connect</strong>. You land in the <strong>Trading Workspace</strong>: a price chart, a depth
+<li>Close any <code>pm-alf-console</code> that is connected as <code>TRADER01</code>: a participant ID
+   can be connected only once at a time, and the Trading GUI counts. Then open
+   <a href="http://localhost:8093">http://localhost:8093</a>, paste <code>TRADER01</code>'s key and click <strong>Connect</strong>. If
+   the key is wrong or from an older configuration, you stay on the login
+   screen; look it up again as above. You land in the <strong>Trading Workspace</strong>: a price chart, a depth
    ladder (the order book, best prices in the middle), an order ticket and a
    blotter of your working orders.</li>
 <li>Open the Order Book Viewer at <a href="http://localhost:8094">http://localhost:8094</a> in a second window,
@@ -7603,8 +7674,10 @@ use behind the scenes; it cannot log in to the Trading GUI.</p>
 <li>In the ticket, choose <strong>Limit</strong>, enter a quantity and a price below the
    best ask, and press <strong>Buy</strong>. A toast confirms <em>accepted</em>, the order appears
    in the blotter, and the Order Book Viewer shows it as a new bid.</li>
-<li>Sell into it from a trader console (or log in as <code>TRADER02</code> in a private
-   browser window) and watch the trade appear on the tape in both windows and
+<li>Sell into it from a trader console connected as <code>TRADER02</code>
+   (<code>pm-alf-console --id TRADER02</code> in <code>./edumatcher.sh shell</code>), or log in as
+   <code>TRADER02</code> in a private browser window, entering the same quantity at the
+   same price, and watch the trade appear on the tape in both windows and
    on TapeDeck.</li>
 </ol>
 <div class="admonition tip">

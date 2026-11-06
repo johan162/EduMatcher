@@ -1949,6 +1949,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../participant-guide/90-backmatter/010-faq-orders-and-positions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ: Orders, Sessions and Positions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -4273,6 +4301,34 @@
           </ul>
         </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../90-backmatter/010-faq-setup-and-operation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ: Setup and Operation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -9749,12 +9805,15 @@ its own orders.</p>
 <p>When <code>"symbol"</code> is empty or absent, all symbols are included.</p>
 <h3 id="what-the-engine-does">What the engine does<a class="headerlink" href="#what-the-engine-does" title="Permanent link">&para;</a></h3>
 <ol>
-<li>Collects all resting orders and quote legs for the specified gateway (and
-   optionally symbol).</li>
+<li>Collects all resting orders and quote-origin legs for the specified
+   gateway (and optionally symbol), including a partially filled quote's
+   remainder after its quote has become inactive.</li>
 <li>Cancels each order and quote leg, excluding child orders that were derived
    from a quote (those are cancelled as part of the quote leg cancellation).</li>
 <li>Sends a <code>risk.kill_switch_ack.{GW_ID}</code> reply with the count of cancelled
-   items and the ids of the orders/quote legs cancelled.</li>
+   items and the ids of the orders/quote legs cancelled. Quote-origin
+   remainders are included in <code>cancelled_quotes</code> and
+   <code>cancelled_quote_order_ids</code>, not in the non-quote order count.</li>
 </ol>
 <h3 id="reply">Reply<a class="headerlink" href="#reply" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a>topic:   b"risk.kill_switch_ack.GW01"

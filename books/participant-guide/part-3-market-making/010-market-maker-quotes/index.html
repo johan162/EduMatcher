@@ -2176,6 +2176,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../90-backmatter/010-faq-orders-and-positions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ: Orders, Sessions and Positions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -3570,6 +3598,34 @@
           </ul>
         </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/90-backmatter/010-faq-setup-and-operation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ: Setup and Operation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -7849,6 +7905,9 @@ quote is cancelled and the new one is registered atomically.</p>
 <code>quote.status.&lt;GW_ID&gt;</code>. The opposite leg is pulled at the moment of the fill,
 before anything else that order causes is matched: a stop order the fill
 triggers cannot trade against it.</p>
+<p>If the filled leg is only partially executed, its unfilled remainder stays
+resting even though the quote is now inactive. It remains a quote-origin order:
+disconnect cleanup and <code>KILL</code> remove it along with active quote legs.</p>
 <p>The same holds for a quote that crosses the book when it arrives. Its
 <code>quote.ack</code> and <code>quote.status ACTIVE</code> come first, then the fills. If the
 bid's fill inactivates the quote, the ask never reaches the book: it is
@@ -7868,19 +7927,20 @@ rested is cancelled the same way.</p>
 <p>Gateway disconnect behavior is configurable per gateway:</p>
 <ul>
 <li><code>CANCEL_QUOTES_ONLY</code> (the default for every gateway): on disconnect, all active
-  quote legs for that gateway are cancelled.  Regular resting orders are left.</li>
+  quote legs and any resting remainder of an inactivated quote are cancelled.
+  Regular resting orders are left.</li>
 <li><code>CANCEL_ALL</code>: on disconnect, quotes <strong>and</strong> all resting non-quote orders are
-  cancelled.</li>
+  cancelled, including any remainder of an inactivated quote.</li>
 <li><code>LEAVE_ALL</code>: disconnect is recorded but nothing is cancelled.  Quotes and
   orders remain in the book unchanged.</li>
 </ul>
 <p><code>KILL</code> is an immediate risk control that cancels:</p>
 <ul>
-<li>Active quote legs</li>
+<li>Active quote legs and resting remainders of inactivated quotes</li>
 <li>Non-quote resting orders (optionally scoped to a single symbol)</li>
 </ul>
-<p>The acknowledgement message includes cancellation totals so the gateway can
-confirm action scope.</p>
+<p>The acknowledgement counts quote-origin orders under <code>QUOTES</code>, including
+inactivated quote remainders, and non-quote orders under <code>ORDERS</code>.</p>
 <div class="admonition warning">
 <p class="admonition-title">Seed quotes and disconnect</p>
 <p>If the MM gateway was never connected in the first place, <code>_handle_gateway_disconnect</code>

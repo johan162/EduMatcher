@@ -1949,6 +1949,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../participant-guide/90-backmatter/010-faq-orders-and-positions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ: Orders, Sessions and Positions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -3343,6 +3371,34 @@
           </ul>
         </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../operator-guide/90-backmatter/010-faq-setup-and-operation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ: Setup and Operation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -7673,7 +7729,10 @@ CLI tools, a minimal Python client, and the BALF parser reference libraries.</p>
 <li>Chapters 01-27 completed.</li>
 <li>Engine running and configured with at least two gateway IDs.</li>
 <li><code>pm-balf-gwy</code> available in the environment (<code>poetry run pm-balf-gwy</code> or installed via <code>pipx</code>).</li>
-<li>Support parser examples available in <code>docs/examples/balf</code>:</li>
+<li>Support parser examples available in <code>docs/examples/balf</code> (in a repository
+  checkout; on a container or <code>pipx</code> install use <code>$EX/balf</code>, with
+  <code>EX=$(python -c "from edumatcher.config_deploy import examples_root; print(examples_root().parent)")</code>;
+  Exercise 5's C build needs a C compiler, which the container image does not have):</li>
 <li><code>balf_parser.py</code></li>
 <li><code>balf_parser.c</code></li>
 </ul>
@@ -7711,10 +7770,14 @@ binary frames into the same engine semantics used by ALF command workflows.</p>
 <p class="admonition-title">Back up, check, deploy — then restart</p>
 <p>This chapter starts from a fresh configuration (its operator is <code>OPS01</code>),
 and <code>--force</code> replaces your <code>engine_config.yaml</code>: save a copy first if you
-want to come back to it (<code>cp engine_config.yaml engine_config.before-ch27.yaml</code>).
+want to come back to it (<code>cp engine_config.yaml engine_config.before-ch28.yaml</code>).
 As always, nothing changes until you deploy it and restart the engine:
 <code>pm-cverifier engine_config.yaml</code>, then <code>pm-config-deploy engine_config.yaml</code>.</p>
 </div>
+<p>Orders and market-maker quotes from earlier chapters are restored when the
+engine starts. For the empty AAPL book that Exercise 4B assumes, stop every
+process and run <code>pm-opctl-cli clear --state --yes</code> before you start the engine
+(it also deletes <code>clearing.db</code> and <code>stats.db</code>).</p>
 <p>Inspect the generated section:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>grep<span class="w"> </span>-A20<span class="w"> </span><span class="s1">'^balf_gateway:'</span><span class="w"> </span>engine_config.yaml
 </code></pre></div>
@@ -8028,8 +8091,10 @@ AAPL's book empty (the configuration from Exercise 1 has no seed quotes).</p>
 <li>The fill is at the resting order's price, 150.50 (the taker's limit equals it
   here). Both sides then get their own <code>EXECUTION_REPORT</code>; the <code>client_order_id</code>
   in each is the number that session chose (1 and 7). The 80 shares left on the
-  bid stay on the book until you cancel them with <code>CANCEL_ORDER</code>, as in
-  Exercise 4.</li>
+  bid would stay on the book until you cancel them with <code>CANCEL_ORDER</code>, as in
+  Exercise 4 — but the script ends and closes both connections, and a closing
+  session has its resting orders cancelled by the engine, so the book is empty
+  again and you can run the script a second time with the same result.</li>
 </ul>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: you decoded an <code>AMEND_ACK</code> with <code>priority_reset=True</code> and the two
 <code>EXECUTION_REPORT</code> frames of one trade, and can say why the resting side's
@@ -8069,11 +8134,18 @@ connecting two clients using the same gateway ID.</p>
 <li>With <code>REJECT_NEW</code>, second <code>LOGON</code> should receive <code>LOGON_ACK</code> with reject code <code>0x02</code>.</li>
 <li>With <code>EVICT_OLD</code>, first client disconnects and second session is accepted.</li>
 </ul>
+<p>The default is <code>REJECT_NEW</code> (the generated config shows it). A second <code>LOGON</code>
+as <code>TRADER01</code> while the first session is open gets <code>accepted=False</code>, code
+<code>0x02</code> and the message <code>Gateway already connected</code>.</p>
 <p>Also verify heartbeat handling:</p>
 <ul>
-<li>Keep a client idle and watch for <code>HEARTBEAT</code> frames.</li>
+<li>Keep a client idle and watch for <code>HEARTBEAT</code> frames (one per second here,
+  <code>heartbeat_interval_sec: 1</code>).</li>
 <li>Ensure your client replies with <code>HEARTBEAT_ACK</code>.</li>
-<li>Skip ACK replies to confirm timeout disconnect after <code>heartbeat_timeout_sec</code>.</li>
+<li>Skip ACK replies to confirm timeout disconnect after <code>heartbeat_timeout_sec</code>:
+  with the generated values (1 s interval, 5 s timeout) a client that logs on
+  and then only reads receives frames at 0, 1, 2, 3 and 4 s, and the gateway
+  closes the connection at 5 s.</li>
 </ul>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: observed both duplicate-session behaviour and heartbeat timeout semantics.</p>
 <h2 id="exercise-7-error-conditions-and-operational-interpretation">Exercise 7: Error Conditions and Operational Interpretation<a class="headerlink" href="#exercise-7-error-conditions-and-operational-interpretation" title="Permanent link">&para;</a></h2>

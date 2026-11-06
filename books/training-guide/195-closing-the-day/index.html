@@ -1949,6 +1949,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../participant-guide/90-backmatter/010-faq-orders-and-positions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ: Orders, Sessions and Positions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -3343,6 +3371,34 @@
           </ul>
         </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../operator-guide/90-backmatter/010-faq-setup-and-operation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ: Setup and Operation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -7660,7 +7716,10 @@
 <li>Chapters 01–19 completed. Chapter 12 (<code>pm-clearing</code>) matters most here:
   settlement reads what <code>pm-clearing</code> recorded.</li>
 <li>The engine running with <code>TRADER01</code>, <code>TRADER02</code>, <code>GW_ADMIN</code> and the market
-  makers from chapter 02 connected, and <code>pm-clearing</code> running.</li>
+  makers from chapter 02 connected, and <code>pm-clearing</code> running. If chapter 19
+  left <code>TRADER02</code> kicked, start a new console for it, and re-send a <code>QUOTE</code>
+  from <code>MM_AAPL_01</code> if its quote was cancelled: Exercise 5 needs liquidity on
+  AAPL.</li>
 <li><strong>No <code>pm-scheduler</code> running.</strong> You move the session phases yourself, as in
   earlier chapters. A running <code>--daily</code> scheduler would close the day at its
   own time.</li>
@@ -7905,11 +7964,15 @@ a run with <code>--only</code> is never recorded, so the day would stay
 code 1 back to 0, and today's status is <code>ok</code> again.</p>
 <h2 id="exercise-10-trading-after-the-close">Exercise 10: Trading after the close<a class="headerlink" href="#exercise-10-trading-after-the-close" title="Permanent link">&para;</a></h2>
 <p>Sometimes trading resumes on a date that is already settled, for example when
-a class runs over. Reopen the market and trade:</p>
+a class runs over. Reopen the market and trade. Buy rather than sell here: Exercise 5 ended with a
+sell at the market makers' bid, so selling again at that same price would not
+move the closing price and the new amounts would equal the old ones. A buy
+trades at the offer, which moves it:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>[GW_ADMIN|ADMIN]&gt; SESSION|STATE=PRE_OPEN
 <a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a>[GW_ADMIN|ADMIN]&gt; SESSION|STATE=CONTINUOUS
-<a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a>[TRADER02]&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=MARKET|QTY=50
-<a id="__codelineno-25-4" name="__codelineno-25-4" href="#__codelineno-25-4"></a>[GW_ADMIN|ADMIN]&gt; SESSION|STATE=CLOSED
+<a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a>[MM_AAPL_01]&gt; QUOTE|SYM=AAPL|BID=149.95|ASK=150.05|BID_QTY=500|ASK_QTY=500|TIF=DAY|QUOTE_ID=AAPL-LATE-001
+<a id="__codelineno-25-4" name="__codelineno-25-4" href="#__codelineno-25-4"></a>[TRADER02]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=50
+<a id="__codelineno-25-5" name="__codelineno-25-5" href="#__codelineno-25-5"></a>[GW_ADMIN|ADMIN]&gt; SESSION|STATE=CLOSED
 </code></pre></div>
 <p>Now ask <code>pm-eod</code> to catch up:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a>pm-eod<span class="w"> </span>run<span class="w"> </span>--pending

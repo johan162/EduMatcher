@@ -783,6 +783,17 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#before-you-start" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Before you start
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#pick-a-route" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2109,6 +2120,34 @@
           </ul>
         </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../participant-guide/90-backmatter/010-faq-orders-and-positions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ: Orders, Sessions and Positions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -3508,6 +3547,34 @@
           </ul>
         </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/90-backmatter/010-faq-setup-and-operation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ: Setup and Operation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -7567,6 +7634,21 @@
 </ul>
 </div>
 <p><strong>Time:</strong> about 15 minutes, most of it spent downloading.</p>
+<h2 id="before-you-start">Before you start<a class="headerlink" href="#before-you-start" title="Permanent link">&para;</a></h2>
+<p>You need a Linux or macOS computer. On Windows, install WSL 2 and run every
+command in this book in its Linux terminal: the installer and the
+<code>edumatcher.sh</code> control script are bash scripts. You also need a web browser
+and an internet connection for the first download of the container images.</p>
+<p>Check what you already have by typing these in a terminal:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>podman<span class="w"> </span>--version<span class="w">           </span><span class="c1"># either of these two is enough ...</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>docker<span class="w"> </span>--version
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>docker<span class="w"> </span>compose<span class="w"> </span>version<span class="w">     </span><span class="c1"># ... but Docker also needs Compose</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>python3<span class="w"> </span>--version<span class="w">          </span><span class="c1"># only for the Python route; it must say 3.14 or newer</span>
+</code></pre></div>
+<p>A "command not found" simply means that tool is not installed. If you have
+neither Podman nor Docker, install one first (on macOS, Docker Desktop or
+Podman with <code>podman machine start</code>; on Linux, your package manager). Most
+people should then use the container route below.</p>
 <h2 id="pick-a-route">Pick a route<a class="headerlink" href="#pick-a-route" title="Permanent link">&para;</a></h2>
 <p>There are two ways in. Both give you the same exchange.</p>
 <table>
@@ -7618,9 +7700,12 @@ containers from source, and a developer checkout) in full detail.</p>
 <h2 id="route-1-containers">Route 1: containers<a class="headerlink" href="#route-1-containers" title="Permanent link">&para;</a></h2>
 <h3 id="install-and-start_1">Install and start<a class="headerlink" href="#install-and-start_1" title="Permanent link">&para;</a></h3>
 <p>With Podman or Docker installed, run:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/curl/install.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>bash
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="nb">cd</span><span class="w"> </span>~/.edumatcher
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/curl/install.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>bash
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="nb">cd</span><span class="w"> </span>~/.edumatcher
 </code></pre></div>
+<p>(The installer is a short script that you are piping into <code>bash</code>. If you
+prefer to read it first, open the URL in a browser, or download it with
+<code>curl -fsSLO &lt;the same URL&gt;</code>, look through it and run <code>bash install.sh</code>.)</p>
 <p>The installer downloads the latest release into <code>~/.edumatcher</code>, pulls seven
 container images (the exchange plus six browser applications) and starts
 them. The first start takes a few minutes; later starts take seconds. When it
@@ -7649,7 +7734,7 @@ a handful of its commands:</p>
 </tr>
 <tr>
 <td><code>./edumatcher.sh logs</code></td>
-<td>Shows what the exchange printed while starting</td>
+<td>Follows what the containers print, starting with the startup messages; press <code>Ctrl-C</code> to stop watching (the exchange keeps running)</td>
 </tr>
 <tr>
 <td><code>./edumatcher.sh config &lt;name&gt;</code></td>
@@ -7714,9 +7799,11 @@ a handful of its commands:</p>
 </tbody>
 </table>
 <p>Then confirm that the exchange itself is healthy:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>./edumatcher.sh<span class="w"> </span>status
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>./edumatcher.sh<span class="w"> </span>status
 </code></pre></div>
-<p>Every process in the table should show <code>running</code>.</p>
+<p>Every process in the table should show <code>running</code>. If a container is missing
+or a page does not open, see
+<a href="../../90-backmatter/020-when-something-does-not-work/">When Something Does Not Work</a>.</p>
 <div class="admonition question">
 <p class="admonition-title">Where do the prices on TapeDeck come from?</p>
 <p>The container starts a slow <strong>market-maker bot</strong>, <code>pm-mm-bot</code>, trading as
@@ -7726,8 +7813,8 @@ trading yet, so you see quotes moving now and then, but no trades. You
 will make the first trade in the next chapter.</p>
 </div>
 <h3 id="what-you-just-started">What you just started<a class="headerlink" href="#what-you-just-started" title="Permanent link">&para;</a></h3>
-<p>One container runs the exchange: the engine and about fourteen supporting
-processes, started in the right order by the process manager <code>pm-opctl-cli</code>.
+<p>One container runs the exchange: the engine and about fifteen supporting
+processes (sixteen in all, including the market-maker bot), started in the right order by the process manager <code>pm-opctl-cli</code>.
 Six more containers run the browser applications. They share a private
 network, which is why nothing asked you for an address. The bundled
 configuration is called <code>s10-basic</code>: ten symbols, four participants
@@ -7736,33 +7823,42 @@ schedule, so the market is open for continuous trading straight away.</p>
 <h3 id="a-terminal-inside-the-exchange">A terminal inside the exchange<a class="headerlink" href="#a-terminal-inside-the-exchange" title="Permanent link">&para;</a></h3>
 <p>The <code>pm-*</code> commands are installed inside the exchange container, not on your
 computer. Open a shell there:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>./edumatcher.sh<span class="w"> </span>shell
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>./edumatcher.sh<span class="w"> </span>shell
 </code></pre></div>
 <p>Your prompt changes, and every <code>pm-*</code> command now works. Try the built-in
 command index:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>pm-help<span class="w">                 </span><span class="c1"># one line for every pm-* command, grouped by purpose</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>pm-help<span class="w"> </span>pm-alf-console<span class="w">  </span><span class="c1"># the full manual page of one command</span>
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>pm-config-show<span class="w">          </span><span class="c1"># what the running exchange is configured with</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>pm-help<span class="w">                 </span><span class="c1"># one line for every pm-* command, grouped by purpose</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>pm-help<span class="w"> </span>pm-alf-console<span class="w">  </span><span class="c1"># the full manual page of one command</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>pm-config-show<span class="w">          </span><span class="c1"># what the running exchange is configured with</span>
 </code></pre></div>
 <p>Leave the shell with <code>exit</code> or <code>Ctrl-D</code>. You can open as many as you like, one
 per terminal window — the next chapter uses two.</p>
 <h2 id="route-2-the-python-package">Route 2: the Python package<a class="headerlink" href="#route-2-the-python-package" title="Permanent link">&para;</a></h2>
 <p>Use this route if you would rather run each process yourself, or cannot use
-containers.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>pipx<span class="w"> </span>install<span class="w"> </span>edumatcher
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>pm-setup
+containers. It needs <strong>Python 3.14 or newer</strong>, which many systems do not have
+by default (check with <code>python3 --version</code>); if yours is older, use the
+container route instead.</p>
+<p><a href="https://pipx.pypa.io"><code>pipx</code></a> installs Python programs in their own
+environments. If <code>pipx --version</code> says "command not found", install it with
+your package manager (for example <code>brew install pipx</code> on macOS, or
+<code>python3 -m pip install --user pipx</code>) and then run <code>pipx ensurepath</code>.
+Open a new terminal window afterwards so the change takes effect. Then:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>pipx<span class="w"> </span>install<span class="w"> </span>edumatcher
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>pm-setup
 </code></pre></div>
+<p>If you have several Python versions, tell pipx which to use:
+<code>pipx install --python python3.14 edumatcher</code>.</p>
 <p><code>pm-setup</code> creates the data directory (<code>~/.local/share/edumatcher</code>) and
 deploys the bundled <code>s10-basic</code> configuration. It also prints one line to
 add to your shell profile:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">EDUMATCHER_DATA_DIR</span><span class="o">=</span><span class="s2">"</span><span class="nv">$HOME</span><span class="s2">/.local/share/edumatcher"</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">EDUMATCHER_DATA_DIR</span><span class="o">=</span><span class="s2">"</span><span class="nv">$HOME</span><span class="s2">/.local/share/edumatcher"</span>
 </code></pre></div>
 <p>Every <code>pm-*</code> process finds the configuration, and writes its databases and
 logs, through this one variable, so all processes of one exchange must agree
 on it.</p>
 <p>Start the whole exchange with the process manager, and check it:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>pm-opctl-cli<span class="w"> </span>start<span class="w">      </span><span class="c1"># starts the full set of processes in the right order</span>
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>pm-opctl-cli<span class="w"> </span>list<span class="w">       </span><span class="c1"># one line per process, with its health</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>pm-opctl-cli<span class="w"> </span>start<span class="w">      </span><span class="c1"># starts the full set of processes in the right order</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>pm-opctl-cli<span class="w"> </span>list<span class="w">       </span><span class="c1"># one line per process, with its health</span>
 </code></pre></div>
 <p><code>pm-opctl-cli stop</code> stops them all again. The next chapter also shows how to
 start just the two or three processes a first trade needs, one terminal each —
@@ -7774,8 +7870,8 @@ of the Python package, but you can run them as ready-built containers
 next to your <code>pipx</code> exchange (a plain exchange or the simulation). With
 Podman or Docker installed, and the exchange started with
 <code>EDUMATCHER_GATEWAY_BIND_HOST=0.0.0.0 pm-opctl-cli start</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/curl/install.sh<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="p">|</span><span class="w"> </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--guis
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/curl/install.sh<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="p">|</span><span class="w"> </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--guis
 </code></pre></div>
 <p>The addresses are the same as on the container route. The Operator's Guide
 chapter <a href="../../../operator-guide/part-1-install-and-deploy/010-installation/#web-applications-with-a-pipx-exchange">Installation</a>
@@ -7824,7 +7920,7 @@ on purpose:</p>
 see the container's exchange data by default. Use
 <code>./edumatcher.sh shell</code> instead, or point the command at the container's
 data explicitly:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">EDUMATCHER_DATA_DIR</span><span class="o">=</span><span class="s2">"</span><span class="nv">$HOME</span><span class="s2">/.edumatcher/data"</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">EDUMATCHER_DATA_DIR</span><span class="o">=</span><span class="s2">"</span><span class="nv">$HOME</span><span class="s2">/.edumatcher/data"</span>
 </code></pre></div>
 </div>
 <p>The Reference Manual's

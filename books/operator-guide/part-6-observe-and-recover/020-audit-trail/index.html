@@ -1949,6 +1949,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../participant-guide/90-backmatter/010-faq-orders-and-positions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ: Orders, Sessions and Positions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -3896,6 +3924,34 @@
           </ul>
         </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../90-backmatter/010-faq-setup-and-operation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ: Setup and Operation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -8039,6 +8095,16 @@ persistent files:</p>
 every message as a single JSON line to the configured log file. It also binds
 a small health socket (port <code>5562</code>) that answers
 <a href="#health-recorder-and-log-file-health"><code>pm-audit-cli health</code></a> pings.</p>
+<p>ZeroMQ PUB/SUB subscriptions join asynchronously. A publication made before
+<code>pm-audit</code>'s subscription has reached the engine is not queued or replayed;
+the recorder cannot write an event it never received. Start <code>pm-audit</code> before
+starting <code>pm-engine</code>, wait for <code>pm-audit-cli health</code> to report the recorder
+healthy, and verify that the engine's <code>system.startup</code> event appears in the
+audit log before trading. The health check confirms the recorder's receive
+loop is running; it does not itself acknowledge the upstream subscription.
+If attaching to an already-running engine, allow the subscription to join
+before relying on the trail. The write buffer affects when received events
+appear on disk, not whether the subscription receives them.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pm-audit<span class="w"> </span><span class="o">[</span>options<span class="o">]</span>
 </code></pre></div>
 <h3 id="startup-options">Startup options<a class="headerlink" href="#startup-options" title="Permanent link">&para;</a></h3>

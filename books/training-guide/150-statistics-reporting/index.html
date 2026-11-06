@@ -1949,6 +1949,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../participant-guide/90-backmatter/010-faq-orders-and-positions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ: Orders, Sessions and Positions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -3343,6 +3371,34 @@
           </ul>
         </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../operator-guide/90-backmatter/010-faq-setup-and-operation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ: Setup and Operation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -7641,9 +7697,10 @@ tool lets you query this data without writing SQL.</p>
 startup messages, run it with <code>-v</code>:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pm-stats<span class="w"> </span>-v
 </code></pre></div>
-<p>The last startup line reads <code>recording market statistics (Ctrl-C to stop)</code>,
-preceded by an <code>opened stats DB connection path=...</code> line showing the
-database path (which reflects your <code>EDUMATCHER_DATA_DIR</code>).</p>
+<p>The startup lines include <code>opened stats DB connection path=...</code>, showing the
+database path (which reflects your <code>EDUMATCHER_DATA_DIR</code>), and
+<code>recording market statistics (Ctrl-C to stop)</code>; two more lines follow it
+(<code>recorded tick metadata …</code>, <code>requested opening snapshots …</code>).</p>
 <p>To confirm the active path with a stable command instead, run:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>pm-stats<span class="w"> </span>--help
 </code></pre></div>
@@ -7653,10 +7710,21 @@ after the next exercise:</p>
 </code></pre></div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> stats service running and <code>$EDUMATCHER_DATA_DIR/stats.db</code> exists.</p>
 <h2 id="exercise-2-generate-some-trading-activity">Exercise 2: Generate Some Trading Activity<a class="headerlink" href="#exercise-2-generate-some-trading-activity" title="Permanent link">&para;</a></h2>
-<p>Ensure <code>pm-mm-bot</code> (or AI traders) is quoting. A manual market-maker quote is pulled after its first fill (Chapter 03), so the second and third orders below would find no liquidity if you rely on one. Execute a few manual trades:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=100
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=MARKET|QTY=50
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>[TRADER01]&gt; NEW|SYM=MSFT|SIDE=BUY|TYPE=MARKET|QTY=200
+<p>Ensure <code>pm-mm-bot</code> (or AI traders) is quoting <strong>both AAPL and MSFT</strong> (the third
+order below is a MSFT order; without a MSFT quote it is cancelled with
+<code>INSUFFICIENT_LIQUIDITY</code>). A manual market-maker quote is pulled after its first
+fill (Chapter 03), so the second and third orders would find no liquidity if you
+rely on one. One bot per symbol, each with a start range, as in chapter 02:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>pm-mm-bot<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--gap<span class="w"> </span><span class="m">0</span>.10<span class="w"> </span>--qty<span class="w"> </span><span class="m">500</span><span class="w"> </span>--initial_min<span class="w"> </span><span class="m">149</span><span class="w"> </span>--initial_max<span class="w"> </span><span class="m">151</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>pm-mm-bot<span class="w"> </span>--symbol<span class="w"> </span>MSFT<span class="w"> </span>--gap<span class="w"> </span><span class="m">0</span>.16<span class="w"> </span>--qty<span class="w"> </span><span class="m">300</span><span class="w"> </span>--initial_min<span class="w"> </span><span class="m">419</span><span class="w"> </span>--initial_max<span class="w"> </span><span class="m">421</span>
+</code></pre></div>
+<p>(Both need their market-maker gateway, <code>MM_AAPL_01</code> and <code>MM_MSFT_01</code>, in the
+configuration and no console connected as it. If you are still on the
+<code>s150-nominal</code> example from chapter 14, use its <code>MM01</code> instead, as in that
+chapter.) Execute a few manual trades:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=100
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=MARKET|QTY=50
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>[TRADER01]&gt; NEW|SYM=MSFT|SIDE=BUY|TYPE=MARKET|QTY=200
 </code></pre></div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> trades executed and recorded by stats service.</p>
 <h2 id="exercise-3-query-the-daily-ohlcv-summary">Exercise 3: Query the Daily OHLCV Summary<a class="headerlink" href="#exercise-3-query-the-daily-ohlcv-summary" title="Permanent link">&para;</a></h2>
@@ -7665,41 +7733,46 @@ after the next exercise:</p>
 intraday price points, recorded at the interval set by
 <code>pm-stats --snapshot-interval</code>, default 15 minutes). For today's daily
 summary:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>pm-stats-cli<span class="w"> </span>daily<span class="w"> </span>--symbol<span class="w"> </span>AAPL
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>pm-stats-cli<span class="w"> </span>daily<span class="w"> </span>--symbol<span class="w"> </span>AAPL
 </code></pre></div>
 <p>Expected output (table or JSON):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>date       | symbol | open_price | high_price | low_price | close_price | volume | trade_count | vwap
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>-----------|--------|------------|------------|-----------|-------------|--------|-------------|-------
-<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>2026-06-18 | AAPL   | 150        | 150.10     | 149.95    | 150.05      | 350    | 3           | 150.02
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>date       | symbol | open_price | high_price | low_price | close_price | volume | trade_count | vwap
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>-----------|--------|------------|------------|-----------|-------------|--------|-------------|-------
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>2026-06-18 | AAPL   | 150        | 150.10     | 149.95    | 150.05      | 350    | 3           | 150.02
 </code></pre></div>
 <p>Note that <code>vwap</code> is already one of the columns in this row — see Exercise 4.</p>
 <p>For an intraday price series instead of a single daily summary row, use
 <code>snapshots</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>pm-stats-cli<span class="w"> </span>snapshots<span class="w"> </span>--symbol<span class="w"> </span>AAPL
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>pm-stats-cli<span class="w"> </span>snapshots<span class="w"> </span>--symbol<span class="w"> </span>AAPL
 </code></pre></div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> <code>daily</code> returns an OHLCV row for AAPL with today's date.</p>
 <h2 id="exercise-4-read-the-vwap-column">Exercise 4: Read the VWAP Column<a class="headerlink" href="#exercise-4-read-the-vwap-column" title="Permanent link">&para;</a></h2>
 <p>There is no standalone <code>vwap</code> command — the volume-weighted average price is
 a column on the <code>daily</code> row you already queried in Exercise 3:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>pm-stats-cli<span class="w"> </span>daily<span class="w"> </span>--symbol<span class="w"> </span>AAPL
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>pm-stats-cli<span class="w"> </span>daily<span class="w"> </span>--symbol<span class="w"> </span>AAPL
 </code></pre></div>
 <p>Read the <code>vwap</code> column from the output. It reflects the volume-weighted
 average price across all of today's trades for that symbol.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> you can locate the <code>vwap</code> value within <code>daily</code> output.</p>
 <h2 id="exercise-5-query-trade-log">Exercise 5: Query Trade Log<a class="headerlink" href="#exercise-5-query-trade-log" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>pm-stats-cli<span class="w"> </span>trades<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--limit<span class="w"> </span><span class="m">20</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>pm-stats-cli<span class="w"> </span>trades<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--limit<span class="w"> </span><span class="m">20</span>
 </code></pre></div>
-<p>Shows the last 20 trades from <code>trade_log</code>: <code>ts</code>, <code>trade_id</code>, <code>symbol</code>,
-<code>price</code>, <code>quantity</code>, <code>buy_gateway_id</code>, <code>sell_gateway_id</code>. <code>trade_id</code> is a
-durable <code>run_seq-counter</code> string such as <code>000042-000000001</code>. Alongside the two
-gateway columns, <code>trade_log</code> also records <code>aggressor_side</code>: <code>BUY</code> or <code>SELL</code>
-for a continuous match, and <code>AUCTION</code> for an uncross print — so you can
-classify trades by which side crossed the spread.</p>
+<p>Shows up to 20 trades from <code>trade_log</code>, <strong>oldest first</strong> (it is a page, not a
+"latest" list): <code>ts</code>, <code>trade_id</code>, <code>symbol</code>, <code>price</code>, <code>quantity</code>,
+<code>aggressor_side</code>, <code>buy_gateway_id</code>, <code>sell_gateway_id</code>. When more rows exist
+the command ends with a notice such as
+<code>[WARN] Output truncated at --limit 20. More rows exist; re-run with --after &lt;cursor&gt;</code>;
+copy that cursor to read the next page, or narrow the range with
+<code>--from &lt;ISO timestamp&gt;</code> to start at the recent trades. <code>trade_id</code> is a
+durable <code>run_seq-counter</code> string such as <code>000042-000000001</code>.
+<code>aggressor_side</code> is <code>BUY</code> or <code>SELL</code> for a continuous match, and <code>AUCTION</code> for
+an uncross print — so you can classify trades by which side crossed the
+spread.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> trade log visible.</p>
 <h2 id="exercise-6-multi-symbol-summary">Exercise 6: Multi-Symbol Summary<a class="headerlink" href="#exercise-6-multi-symbol-summary" title="Permanent link">&para;</a></h2>
 <p>There is no dedicated <code>summary</code> verb. Omit <code>--symbol</code> on <code>daily</code> to get one
 row per symbol instead of filtering to one:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>pm-stats-cli<span class="w"> </span>daily
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>pm-stats-cli<span class="w"> </span>daily
 </code></pre></div>
 <p>Each row shows, per symbol: <code>open_price</code>, <code>high_price</code>, <code>low_price</code>,
 <code>close_price</code>, <code>volume</code>, <code>trade_count</code>, and <code>vwap</code> for the day. This does
@@ -7708,7 +7781,7 @@ row per symbol instead of filtering to one:</p>
 <code>BOOK|SYM=&lt;symbol&gt;</code> in the operator console (<code>pm-admin</code>).</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> <code>daily</code> with no <code>--symbol</code> filter returns one row per active symbol.</p>
 <h2 id="exercise-7-export-data">Exercise 7: Export Data<a class="headerlink" href="#exercise-7-export-data" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>pm-stats-cli<span class="w"> </span>--format<span class="w"> </span>csv<span class="w"> </span>trades<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>&gt;<span class="w"> </span>aapl_trades.csv
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>pm-stats-cli<span class="w"> </span>--format<span class="w"> </span>csv<span class="w"> </span>trades<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>&gt;<span class="w"> </span>aapl_trades.csv
 </code></pre></div>
 <p>The CSV can be imported into Excel or a Jupyter notebook for further analysis.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> CSV export generated.</p>

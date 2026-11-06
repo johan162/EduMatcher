@@ -1949,6 +1949,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../participant-guide/90-backmatter/010-faq-orders-and-positions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ: Orders, Sessions and Positions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -3343,6 +3371,34 @@
           </ul>
         </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../operator-guide/90-backmatter/010-faq-setup-and-operation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ: Setup and Operation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -7723,7 +7779,11 @@ CLI tools, the example parser libraries, and the interactive example clients.</p
 <li>Chapters 01-26 completed.</li>
 <li>Engine running and configured with at least two gateway IDs.</li>
 <li><code>pm-alf-gwy</code> available in the environment (<code>poetry run pm-alf-gwy</code> or installed via <code>pipx</code>).</li>
-<li>Support libraries and clients available in <code>docs/examples/alf</code>:</li>
+<li>Support libraries and clients available in <code>docs/examples/alf</code> (in a repository
+  checkout; on a container or <code>pipx</code> install they are under
+  <code>$EX/alf</code>, with
+  <code>EX=$(python -c "from edumatcher.config_deploy import examples_root; print(examples_root().parent)")</code>;
+  the C client needs <code>make</code>, a C compiler and the readline headers):</li>
 <li><code>python/alf_parser.py</code>, <code>python/alf_client.py</code></li>
 <li><code>c/alf_parser.h</code>, <code>c/alf_parser.c</code>, <code>c/alf_client.c</code>, <code>c/Makefile</code></li>
 </ul>
@@ -7764,7 +7824,7 @@ then add <code>alf_gateway:</code> by hand:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nt">alf_gateway</span><span class="p">:</span>
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
 <a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="s">"alf-gwy01"</span>
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">  </span><span class="nt">bind_address</span><span class="p">:</span><span class="w"> </span><span class="s">"0.0.0.0"</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">  </span><span class="nt">bind_address</span><span class="p">:</span><span class="w"> </span><span class="s">"0.0.0.0"</span><span class="w">          </span><span class="c1"># all interfaces; use 127.0.0.1 if you do not want other machines to reach it</span>
 <a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">  </span><span class="nt">port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5565</span>
 <a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">  </span><span class="nt">heartbeat_interval_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
 <a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">  </span><span class="nt">handshake_timeout_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
@@ -7780,7 +7840,7 @@ it entirely still works, using every default shown there).</p>
 <p class="admonition-title">Back up, check, deploy — then restart</p>
 <p>This chapter starts from a fresh configuration (its operator is <code>OPS01</code>),
 and <code>--force</code> replaces your <code>engine_config.yaml</code>: save a copy first if you
-want to come back to it (<code>cp engine_config.yaml engine_config.before-ch26.yaml</code>).
+want to come back to it (<code>cp engine_config.yaml engine_config.before-ch27.yaml</code>).
 As always, nothing changes until you deploy it and restart the engine:
 <code>pm-cverifier engine_config.yaml</code>, then <code>pm-config-deploy engine_config.yaml</code>.</p>
 </div>
@@ -7788,6 +7848,15 @@ As always, nothing changes until you deploy it and restart the engine:
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>pm-engine<span class="w"> </span>--verbose
 <a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>pm-alf-gwy
 </code></pre></div>
+<div class="admonition note">
+<p class="admonition-title">Orders from earlier chapters are still in the data directory</p>
+<p>Resting <code>DAY</code> orders and market-maker quote legs from the previous chapters
+are restored when the engine starts. Exercise 4's "<code>COUNT=0</code>" answers and
+Exercise 8's "kill clears everything" assume <code>MM01</code> and the traders start
+with nothing resting. For a clean venue stop every process and run
+<code>pm-opctl-cli clear --state --yes</code> before starting the engine (this also
+deletes <code>clearing.db</code> and <code>stats.db</code>).</p>
+</div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: <code>pm-alf-gwy</code> starts, logs that it is listening on port 5565, and reports a successful engine ZMQ connection.</p>
 <h2 id="exercise-2-verify-the-port-is-listening-with-cli-tools">Exercise 2: Verify the Port Is Listening with CLI Tools<a class="headerlink" href="#exercise-2-verify-the-port-is-listening-with-cli-tools" title="Permanent link">&para;</a></h2>
 <p>Before writing any client code, confirm the gateway is actually bound to the
@@ -7897,7 +7966,7 @@ need drop copy just to find out which side of a trade you were on.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=200|PRICE=149.00|TAG=NC-ORDER-002
 <a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>AMEND|ID=&lt;uuid&gt;|PRICE=149.50|QTY=150|RTAG=NC-AMD-001
 </code></pre></div>
-<p>Expected: <code>AMENDED|ORDER_ID=...|PRICE=149.50|QTY=150|REMAINING=150|PRIORITY_RESET=TRUE|TAG=NC-ORDER-002|RTAG=NC-AMD-001</code></p>
+<p>Expected: <code>AMENDED|ORDER_ID=...|PRICE=149.5|QTY=150|REMAINING=150|PRIORITY_RESET=TRUE|TAG=NC-ORDER-002|RTAG=NC-AMD-001</code></p>
 <p><code>RTAG</code> is optional, but it is the easiest way to prove which amend or cancel a
 later TCP response belongs to.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: you can submit, confirm, amend, and cancel an order using only raw TCP and a terminal.</p>
@@ -8026,7 +8095,9 @@ reconciliation responsibilities.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a>QUOTE|SYM=AAPL|BID=149.90|ASK=150.10|BID_QTY=500|ASK_QTY=500
 <a id="__codelineno-29-2" name="__codelineno-29-2" href="#__codelineno-29-2"></a>QBOOT
 </code></pre></div>
-<p>Expected: <code>QBOOT|COUNT=1</code> with one active <code>QUOTE|...</code> line, then <code>END|TYPE=QBOOT</code>.</p>
+<p>Expected: <code>QBOOT|COUNT=1</code> with one active <code>QUOTE|...</code> line, then <code>END|TYPE=QBOOT</code>.
+(If <code>MM01</code> still had a quote on AAPL from an earlier chapter you also see a
+<code>CANCELLED|…|CANCEL_REASON=QUOTE_REPLACED</code> line for the old one.)</p>
 <h3 id="kill-cancel-all-resting-orders-and-active-quotes">KILL — cancel all resting orders and active quotes<a class="headerlink" href="#kill-cancel-all-resting-orders-and-active-quotes" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a>KILL
 </code></pre></div>
@@ -8035,7 +8106,16 @@ reconciliation responsibilities.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a>ORDERS
 <a id="__codelineno-31-2" name="__codelineno-31-2" href="#__codelineno-31-2"></a>QBOOT
 </code></pre></div>
-<p>Both responses should show <code>COUNT=0</code>.</p>
+<p><code>KILL_ACK</code> reports non-quote orders in <code>ORDERS</code> and quote-origin orders in
+<code>QUOTES</code>. A partially filled quote can be inactive while its unfilled
+remainder still rests; <code>KILL</code> removes that remainder and includes it in
+<code>QUOTES</code>, even after an engine restart.</p>
+<p>For example, if 340 shares of a 1,000-share quote leg filled before restart,
+<code>ORDERS</code> may show its 660-share remainder. After <code>KILL</code>, the acknowledgement
+reports <code>ORDERS=0</code> and <code>QUOTES=1</code> for that remainder. <code>ORDERS</code> then returns
+<code>ORDERS|COUNT=0|GW=MM01</code> followed by <code>END|TYPE=ORDERS</code>; <code>QBOOT</code> is empty because
+the quote was already inactive. If other orders or quotes are resting, their
+cancellations are included in the corresponding acknowledgement count.</p>
 <p>Scope the kill to one symbol:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a>NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=149.00
 <a id="__codelineno-32-2" name="__codelineno-32-2" href="#__codelineno-32-2"></a>NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=50|PRICE=400.00
@@ -8078,7 +8158,7 @@ completing the <code>HELLO</code> handshake, or with invalid content:</p>
 </tr>
 <tr>
 <td><code>AUTH_FAILED</code></td>
-<td><code>AUTH_FAILED</code></td>
+<td><code>UNKNOWN</code></td>
 <td>Gateway ID not in <code>participants</code>; add to config and restart engine</td>
 </tr>
 <tr>

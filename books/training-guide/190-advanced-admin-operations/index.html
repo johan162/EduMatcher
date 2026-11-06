@@ -1949,6 +1949,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../participant-guide/90-backmatter/010-faq-orders-and-positions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ: Orders, Sessions and Positions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -3343,6 +3371,34 @@
           </ul>
         </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../operator-guide/90-backmatter/010-faq-setup-and-operation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ: Setup and Operation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -7611,6 +7667,14 @@ operations, admins also need targeted controls for:</p>
 <li>Interactive admin console (<code>pm-admin</code> / ALF commands).</li>
 <li>One-shot scripting CLI (<code>pm-admin-cli</code>).</li>
 </ul>
+<div class="admonition warning">
+<p class="admonition-title">Use one or the other at a time</p>
+<p>Both log on as the same participant, <code>GW_ADMIN</code>, and the engine allows one
+connection per participant. While <code>pm-admin --id GW_ADMIN</code> is open, every
+<code>pm-admin-cli --id GW_ADMIN …</code> command below fails with
+<code>Auth refused: Gateway already connected: GW_ADMIN</code>. Try the console
+versions first, then leave <code>pm-admin</code> (<code>Ctrl-C</code>) before the CLI versions.</p>
+</div>
 <h2 id="exercise-1-disconnect-a-gateway-with-kick">Exercise 1: Disconnect a Gateway with KICK<a class="headerlink" href="#exercise-1-disconnect-a-gateway-with-kick" title="Permanent link">&para;</a></h2>
 <p>From admin console:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>[GW_ADMIN|ADMIN]&gt; KICK|GW=TRADER02|REASON=Training_disconnect_check
@@ -7661,9 +7725,11 @@ intervention without relying on the MM terminal.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> symbol-scoped cancel works across gateways.</p>
 <h2 id="exercise-4-force-session-state-for-controlled-drills">Exercise 4: Force Session State for Controlled Drills<a class="headerlink" href="#exercise-4-force-session-state-for-controlled-drills" title="Permanent link">&para;</a></h2>
 <p>Set session state explicitly. Transitions are validated by the engine: from
-<code>CLOSED</code> the only legal move is <code>PRE_OPEN</code>, so if a previous exercise left the
-exchange closed, go through <code>PRE_OPEN</code> first (an illegal jump is silently
-ignored and the console just times out).</p>
+<code>CLOSED</code> the only legal move is <code>PRE_OPEN</code>, and <code>PRE_OPEN</code> must precede
+<code>CONTINUOUS</code>. The sequence below starts from <code>CLOSED</code>; if the market is open
+(<code>CONTINUOUS</code>), the first two requests are ignored and the console or CLI
+only prints a timeout, so start from the step that matches <code>SESSION_STATUS</code>
+(an illegal jump is silently ignored).</p>
 <p>From admin console:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>[GW_ADMIN|ADMIN]&gt; SESSION|STATE=PRE_OPEN
 <a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>[GW_ADMIN|ADMIN]&gt; SESSION|STATE=CONTINUOUS
@@ -7694,6 +7760,8 @@ ignored and the console just times out).</p>
 <a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>cancel-sym<span class="w"> </span>--sym<span class="w"> </span>AAPL
 <a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>session-status
 </code></pre></div>
+<p><code>TRADER02</code> is now disconnected: leave its console and start a new one before
+the next chapter, which needs it.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> you can explain when to use each control and why they are not interchangeable.</p>
 <h2 id="summary">Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h2>
 <p>You can now operate advanced admin controls beyond halt/resume:</p>

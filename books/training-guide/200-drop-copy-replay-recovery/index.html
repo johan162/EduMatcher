@@ -1949,6 +1949,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../participant-guide/90-backmatter/010-faq-orders-and-positions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ: Orders, Sessions and Positions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -3343,6 +3371,34 @@
           </ul>
         </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../operator-guide/90-backmatter/010-faq-setup-and-operation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ: Setup and Operation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -7605,6 +7661,17 @@ and does not exist in the current EduMatcher runtime.</p>
 </ul>
 <p>Each message carries a monotonically increasing <code>seq</code> field. Consumers use this
 to detect gaps and de-duplicate messages.</p>
+<p>Two properties of <code>seq</code> matter for gap detection:</p>
+<ul>
+<li><strong>One counter for the whole engine, not one per gateway.</strong> Every fill produces
+  two events (one per counterparty), numbered consecutively, so a subscriber
+  to <em>all</em> <code>drop_copy.event.</code> topics sees <code>1, 2, 3, …</code>. A subscriber filtered
+  to one gateway (say <code>drop_copy.event.TRADER01</code>) sees only every other number
+  in a two-party market and would report a "gap" on every event. The exercises
+  below therefore subscribe to the whole prefix.</li>
+<li><strong>The counter restarts at 1 when the engine restarts.</strong> After a restart
+  <code>seq</code> goes backwards; treat that as a new stream, not as a duplicate.</li>
+</ul>
 <p>Important current limitation:</p>
 <ul>
 <li>Replay exists as an in-process publisher method

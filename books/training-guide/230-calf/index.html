@@ -1949,6 +1949,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../participant-guide/90-backmatter/010-faq-orders-and-positions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ: Orders, Sessions and Positions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -3343,6 +3371,34 @@
           </ul>
         </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../operator-guide/90-backmatter/010-faq-setup-and-operation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ: Setup and Operation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -7709,6 +7765,20 @@ consumption, heartbeats, replay checkpoints, and recovery/error behavior.</p>
 <li>CALF gateway: <code>pm-md-gwy</code></li>
 <li>One or more client terminals for subscriber exercises</li>
 </ol>
+<div class="admonition note">
+<p class="admonition-title">Where the example files are, and port 5570</p>
+<p>As in the previous chapter, <code>docs/examples/calf</code> exists in a repository
+checkout; on a container or <code>pipx</code> install use
+<code>EX=$(python -c "from edumatcher.config_deploy import examples_root; print(examples_root().parent)")</code>
+and <code>$EX/calf/…</code>. The C example needs <code>make</code> and a C compiler (not in the
+container image). If the AI-simulation container is running, its own
+<code>pm-md-gwy</code> already holds port 5570. Start <code>pm-md-gwy</code> a few seconds after
+the engine and before the first client: a client started too early gets
+<code>Connection refused</code>.
+This chapter's configuration has no market makers. To create a trade, enter
+a limit sell from <code>TRADER01</code> and a limit buy at the same price from
+<code>TRADER02</code> (as in the previous chapter).</p>
+</div>
 <h2 id="background">Background<a class="headerlink" href="#background" title="Permanent link">&para;</a></h2>
 <p>CALF is a line-oriented protocol over TCP used for external market-data
  dissemination.
@@ -7747,7 +7817,7 @@ Clients connect to pm-md-gwy, perform HELLO and SUB, then consume stream data.</
 <p class="admonition-title">Back up, check, deploy — then restart</p>
 <p>This chapter starts from a fresh configuration (its operator is <code>OPS01</code>),
 and <code>--force</code> replaces your <code>engine_config.yaml</code>: save a copy first if you
-want to come back to it (<code>cp engine_config.yaml engine_config.before-ch23.yaml</code>).
+want to come back to it (<code>cp engine_config.yaml engine_config.before-ch24.yaml</code>).
 As always, nothing changes until you deploy it and restart the engine:
 <code>pm-cverifier engine_config.yaml</code>, then <code>pm-config-deploy engine_config.yaml</code>. Sessions are enabled, so the restarted engine starts in <code>CLOSED</code>: open
 the market from the operator console (<code>pm-admin --id OPS01</code>, then
@@ -7941,8 +8011,13 @@ your session-state controls) and observe:</p>
 <li><code>INDICQTY</code> and <code>IMBQTY</code> always present; <code>INDICPX</code> omitted when the book
   would not cross at all — that omission is a reading ("nothing would
   trade"), not a gap</li>
-<li>exactly one final <code>AUCTION|...</code> line when the call phase ends and the
-  symbol actually uncrosses</li>
+<li>exactly one final <code>AUCTION|...</code> line when the call phase ends. An uncross
+  with no crossing interest is reported too, as <code>EQQTY=0|TRADES=0</code>; you will see
+  one at every opening and closing auction, and for a reopening after a halt.
+  To get a non-empty one, enter a crossing sell and buy while the call phase is
+  open (for example <code>SESSION|STATE=CLOSING_AUCTION</code>, a sell of 50 at 149.50 and
+  a buy of 40 at 151.00); the indicative then reads <code>INDICQTY=40|INDICPX=149.5|IMB=SELL</code>
+  and the final line <code>EQQTY=40|EQPX=149.5|TRADES=1|REASON=SCHEDULED</code></li>
 </ul>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: you can explain why <code>INDIC</code> and <code>AUCTION</code> share a channel but are different message types, and why a missing <code>INDICPX</code> must not be rendered as a zero price.</p>
 <h2 id="exercise-4d-automated-corridor-expansion-ace">Exercise 4D: Automated Corridor Expansion (ACE)<a class="headerlink" href="#exercise-4d-automated-corridor-expansion-ace" title="Permanent link">&para;</a></h2>
@@ -8029,7 +8104,11 @@ it as a <code>RESUME=1</code> flag on <code>HELLO</code>, which could only ever 
 per connection; that form is no longer accepted.</p>
 <p>Observe replay behavior:</p>
 <ul>
-<li>replayed events for SEQ greater than LASTSEQ when retained</li>
+<li>replayed events for SEQ greater than LASTSEQ when retained. This chapter's
+  configuration keeps only <strong>30 seconds</strong> of replay history
+  (<code>--market-data-replay-window-sec 30</code>), so do steps 1–4 promptly; a
+  <code>RESUME|CH=TOP|…</code> for events older than that is answered with <code>REPLAY_MISS</code>
+  (try <code>LASTSEQ=1</code> after a minute to see it) and <code>TRADE</code> shows how a replay hit looks</li>
 <li>
 <p>REPLAY_MISS plus a SNAP baseline when outside the replay window — but on
   <code>TOP</code>/<code>STATE</code>/<code>INDEX</code>/<code>DEPTH</code>/<code>CB</code> only. On <code>TRADE</code> and <code>AUCTION</code> no SNAP

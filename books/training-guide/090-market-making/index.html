@@ -1949,6 +1949,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../participant-guide/90-backmatter/010-faq-orders-and-positions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ: Orders, Sessions and Positions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -3343,6 +3371,34 @@
           </ul>
         </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../operator-guide/90-backmatter/010-faq-setup-and-operation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ: Setup and Operation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -7651,8 +7707,11 @@ seeds that are written down.</p>
 nothing, because every process reads the compiled artifact:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pm-config-deploy<span class="w"> </span>engine_config.yaml
 </code></pre></div>
-<p>Then restart <code>pm-engine</code>, reopen the market from the operator console
-(<code>SESSION|STATE=PRE_OPEN</code>, then <code>SESSION|STATE=CONTINUOUS</code>) and connect:</p>
+<p>Then restart <code>pm-engine</code>, restart your open consoles (<code>pm-admin</code>, the trader
+consoles — see "After every engine restart" in the
+<a href="../#after-every-engine-restart">introduction</a>), reopen the market from the
+operator console (<code>SESSION|STATE=PRE_OPEN</code>, then <code>SESSION|STATE=CONTINUOUS</code>) and
+connect:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>MM_MANUAL_01
 </code></pre></div>
 <p>In this chapter <code>MM_MANUAL_01</code> should be the only liquidity on AAPL —
@@ -7692,11 +7751,15 @@ quoting AAPL, and clear the symbol from the operator console:</p>
 </tr>
 <tr>
 <td><code>Leg</code></td>
-<td><code>BID</code> or <code>ASK</code></td>
+<td><code>BUY</code> (the bid leg) or <code>SELL</code> (the ask leg)</td>
 </tr>
 <tr>
 <td><code>Order</code></td>
 <td>The leg's full order ID</td>
+</tr>
+<tr>
+<td><code>Price</code></td>
+<td>The leg's price</td>
 </tr>
 <tr>
 <td><code>Qty</code></td>
@@ -7747,8 +7810,8 @@ misread:</p>
 quantity); <code>RECENT</code> shows the complement — legs that are done. Right now
 <code>ACTIVE</code> should list both of your legs and <code>RECENT</code> should be empty; after
 Exercise 3 that flips.</p>
-<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> <code>QLEGS</code> shows both a BID and an
-ASK row for <code>Q001</code>, each with <code>Leg status</code> <code>NEW</code> and <code>Quote status</code> <code>ACTIVE</code>,
+<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> <code>QLEGS</code> shows both a <code>BUY</code> and a
+<code>SELL</code> row for <code>Q001</code>, each with <code>Leg status</code> <code>NEW</code> and <code>Quote status</code> <code>ACTIVE</code>,
 and you can say why no leg shows a status of <code>ACTIVE</code>.</p>
 <h2 id="exercise-3-get-filled-and-observe-inactivation">Exercise 3: Get Filled and Observe Inactivation<a class="headerlink" href="#exercise-3-get-filled-and-observe-inactivation" title="Permanent link">&para;</a></h2>
 <p>From TRADER01, buy into the MM's ask:</p>
@@ -7772,11 +7835,17 @@ quote and cancels the <strong>other</strong> leg; the hit leg's unfilled remaind
 <p>You can replace directly — the engine handles the swap:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>[MM_MANUAL_01]&gt; QUOTE|SYM=AAPL|BID=149.95|ASK=150.05|BID_QTY=500|ASK_QTY=500|TIF=DAY|QUOTE_ID=Q003
 </code></pre></div>
-<p>Expected:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>QUOTE CANCELLED  Q002
-<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>QUOTE ACK   Q003  ...
-<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>QUOTE ACTIVE  Q003
+<p>Expected (each line also carries a <code>[HH:MM:SS.mmm]</code> time; the two <code>CANCELLED</code>
+lines are the two legs of <code>Q002</code> being replaced):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>CANCELLED &lt;Q002 bid id&gt; reason=QUOTE_REPLACED
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>CANCELLED &lt;Q002 ask id&gt; reason=QUOTE_REPLACED
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>QUOTE CANCELLED  Q002  Replaced by new quote
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>QUOTE ACK   Q003  bid=&lt;bid_id&gt; ask=&lt;ask_id&gt;
+<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>QUOTE ACTIVE  Q003
 </code></pre></div>
+<p>(In Exercise 4 the same thing happened more quietly: the engine cancelled the
+400 shares of <code>Q001</code>'s ask that were still resting, with one <code>CANCELLED …
+reason=QUOTE_REPLACED</code> line.)</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> old quote cancelled, new quote active in one step.</p>
 <h2 id="exercise-6-explicit-cancel">Exercise 6: Explicit Cancel<a class="headerlink" href="#exercise-6-explicit-cancel" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>[MM_MANUAL_01]&gt; QUOTE_CANCEL|SYM=AAPL

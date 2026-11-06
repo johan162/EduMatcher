@@ -1949,6 +1949,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../participant-guide/90-backmatter/010-faq-orders-and-positions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ: Orders, Sessions and Positions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -3343,6 +3371,34 @@
           </ul>
         </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../operator-guide/90-backmatter/010-faq-setup-and-operation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ: Setup and Operation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -7716,28 +7772,45 @@ until it is <strong>confirmed</strong>; a <strong>retracted</strong> rumour neve
 <h2 id="exercise-1-deploy-an-example-with-ai-traders">Exercise 1: Deploy an Example with AI Traders<a class="headerlink" href="#exercise-1-deploy-an-example-with-ai-traders" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pm-config-deploy<span class="w"> </span>--example<span class="w"> </span>s150-nominal
 </code></pre></div>
-<p>Restart <code>pm-engine</code>, then start the gateway the AI traders log on through,
+<p>This <strong>replaces</strong> the configuration you have built since chapter 01. From here
+on the participants are the ones the example defines — <code>TRADER01</code>–<code>TRADER10</code>,
+the instructor <code>OPS01</code> (ADMIN), <code>MM01</code>, and <code>AI001</code>–<code>AI020</code> — so <code>GW_ADMIN</code>,
+<code>TRADER03</code>, <code>MM_AAPL_01</code> and the other gateways of your own configuration no
+longer exist. Stop the consoles and bots that use them. To return to your own
+configuration later, deploy <code>engine_config.yaml</code> again.</p>
+<p>The scenario and swarm files this chapter uses ship with EduMatcher, but not in
+your current directory: on a container or <code>pipx</code> install they live inside the
+installed package, and only in a repository checkout are they under
+<code>docs/examples</code>. Ask Python where they are, once per terminal, and use <code>$EX</code>
+in the commands below:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nv">EX</span><span class="o">=</span><span class="k">$(</span>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">"from edumatcher.config_deploy import examples_root; print(examples_root().parent)"</span><span class="k">)</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>ls<span class="w"> </span><span class="s2">"</span><span class="nv">$EX</span><span class="s2">/news"</span><span class="w">          </span><span class="c1"># the four scenarios: chip-race, earnings-surprise, rumour-confirmed, rumour-retracted</span>
+</code></pre></div>
+<p>(In the container shell <code>python</code> is the right interpreter; in a Poetry checkout
+use <code>poetry run python</code>; with <code>pipx</code> use
+<code>~/.local/pipx/venvs/edumatcher/bin/python</code>.)</p>
+<p>Restart <code>pm-engine</code> (and reopen the market in a moment), then start the gateway the AI traders log on through,
 the market model, and a market maker for all 150 symbols that quotes around
 the model's true values, each in its own terminal:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pm-alf-gwy<span class="w"> </span>-v
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>pm-market-sim<span class="w"> </span>-v
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>pm-mm-bot<span class="w"> </span>--gateway-id<span class="w"> </span>MM01<span class="w"> </span>--all-symbols<span class="w"> </span>--strategy<span class="w"> </span>passive<span class="w"> </span>--gap<span class="w"> </span><span class="m">0</span>.20<span class="w"> </span>--qty<span class="w"> </span><span class="m">200</span><span class="w"> </span>--anchor-sim<span class="w"> </span><span class="m">0</span>.3
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>pm-alf-gwy<span class="w"> </span>-v
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>pm-market-sim<span class="w"> </span>-v
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>pm-mm-bot<span class="w"> </span>--gateway-id<span class="w"> </span>MM01<span class="w"> </span>--all-symbols<span class="w"> </span>--strategy<span class="w"> </span>passive<span class="w"> </span>--gap<span class="w"> </span><span class="m">0</span>.20<span class="w"> </span>--qty<span class="w"> </span><span class="m">200</span><span class="w"> </span>--anchor-sim<span class="w"> </span><span class="m">0</span>.3
 </code></pre></div>
 <p>Without <code>--anchor-sim</code> the market maker keeps refilling its quotes around
 its own mid, and no amount of informed trading moves the price.</p>
 <p>Open the market from the operator console:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>pm-admin --id OPS01
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>[OPS01|ADMIN]&gt; SESSION|STATE=PRE_OPEN
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>[OPS01|ADMIN]&gt; SESSION|STATE=OPENING_AUCTION
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>[OPS01|ADMIN]&gt; SESSION|STATE=CONTINUOUS
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>pm-admin --id OPS01
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>[OPS01|ADMIN]&gt; SESSION|STATE=PRE_OPEN
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>[OPS01|ADMIN]&gt; SESSION|STATE=OPENING_AUCTION
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>[OPS01|ADMIN]&gt; SESSION|STATE=CONTINUOUS
 </code></pre></div>
 <p><code>pm-market-sim</code> starts moving the values when continuous trading starts.
 Check it:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>pm-market-sim<span class="w"> </span>--status<span class="w"> </span>--id<span class="w"> </span>OPS01
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>pm-market-sim<span class="w"> </span>--status<span class="w"> </span>--id<span class="w"> </span>OPS01
 </code></pre></div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> <code>pm-market-sim: RUNNING … symbols=150</code>.</p>
 <h2 id="exercise-2-one-ai-trader">Exercise 2: One AI Trader<a class="headerlink" href="#exercise-2-one-ai-trader" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>pm-ai-trader<span class="w"> </span>--id<span class="w"> </span>AI001<span class="w"> </span>--preset<span class="w"> </span>noise-retail<span class="w"> </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span>-v
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>pm-ai-trader<span class="w"> </span>--id<span class="w"> </span>AI001<span class="w"> </span>--preset<span class="w"> </span>noise-retail<span class="w"> </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span>-v
 </code></pre></div>
 <p>The trader logs on, reads the AAPL book and starts resting small orders near
 the touch. Watch them arrive with <code>BOOK|SYM=AAPL</code> in the operator console.
@@ -7745,21 +7818,22 @@ Stop it with Ctrl+C: its session closes and the participant's
 <code>disconnect_behaviour</code> (<code>CANCEL_ALL</code>) removes its orders.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> AI001's orders appear in the AAPL book and disappear when you stop it.</p>
 <h2 id="exercise-3-the-swarm">Exercise 3: The Swarm<a class="headerlink" href="#exercise-3-the-swarm" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>pm-ai-swarm<span class="w"> </span>--swarm<span class="w"> </span>docs/examples/ref_data/s150-nominal-setup/swarm.yaml<span class="w"> </span>-v
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>pm-ai-swarm<span class="w"> </span>--swarm<span class="w"> </span><span class="s2">"</span><span class="nv">$EX</span><span class="s2">/ref_data/s150-nominal-setup/swarm.yaml"</span><span class="w"> </span>-v
 </code></pre></div>
 <p><code>swarm.yaml</code> gives the twenty traders <code>AI001</code>–<code>AI020</code> a mix of every preset
 (<code>per_agent: 150</code> — every agent trades every symbol, not a slice of them),
-and caps the whole swarm at 40 order actions a second. Once a minute the swarm logs a status line:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>[w1-AI001-AI020] t=120s session=CONTINUOUS actions=4801 (40.0/s) live_orders=164 fills=1290 rejects=0
+and sets a budget of about 40 order actions a second for the whole swarm.
+Once a minute the swarm logs a status line:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>[w1-AI001-AI020] t=120s session=CONTINUOUS actions=4801 (40.0/s) live_orders=164 fills=1290 rejects=0
 </code></pre></div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> a status line every minute; books changing on symbols nobody in the room is trading.</p>
 <h2 id="exercise-4-price-and-value">Exercise 4: Price and Value<a class="headerlink" href="#exercise-4-price-and-value" title="Permanent link">&para;</a></h2>
 <p>The instructor can see what the students cannot:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>pm-market-sim<span class="w"> </span>--status<span class="w"> </span>--id<span class="w"> </span>OPS01<span class="w"> </span>--top<span class="w"> </span><span class="m">5</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>pm-market-sim<span class="w"> </span>--status<span class="w"> </span>--id<span class="w"> </span>OPS01<span class="w"> </span>--top<span class="w"> </span><span class="m">5</span>
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>symbol        value        mid  mid/value
-<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>TSLA         212.40     219.95     +3.55%
-<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>...
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>symbol        value        mid  mid/value
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>TSLA         212.40     219.95     +3.55%
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>...
 </code></pre></div>
 <p>The value traders lean against these gaps; the noise and momentum traders
 keep opening new ones. Run the command again a few minutes later: the
@@ -7768,17 +7842,17 @@ symbols at the top change, and large gaps rarely last.</p>
 <h2 id="exercise-5-an-earnings-surprise">Exercise 5: An Earnings Surprise<a class="headerlink" href="#exercise-5-an-earnings-surprise" title="Permanent link">&para;</a></h2>
 <p>Every student opens a news display: the <strong>News</strong> screen of the trading GUI,
 the News view of TapeDeck, <code>pm-ticker</code>, or simply</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>pm-news<span class="w"> </span>list
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>pm-news<span class="w"> </span>list
 </code></pre></div>
 <p>Then the instructor plays the first scenario:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>pm-news<span class="w"> </span>--id<span class="w"> </span>OPS01<span class="w"> </span>play<span class="w"> </span>docs/examples/news/earnings-surprise.yaml
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>pm-news<span class="w"> </span>--id<span class="w"> </span>OPS01<span class="w"> </span>play<span class="w"> </span><span class="s2">"</span><span class="nv">$EX</span><span class="s2">/news/earnings-surprise.yaml"</span>
 </code></pre></div>
 <p>Sixty seconds into the play (it counts from its start when the market is
 already in continuous trading) AAPL reports far above expectations. The
 news is confirmed from the start: AAPL's value jumps about 8% at once. The
 news traders hit the book within seconds; the value investors follow.</p>
 <p>Students try to buy AAPL as soon as they see the headline:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=100
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=100
 </code></pre></div>
 <p>Compare your fill with the AAPL price a minute later.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> AAPL trades several percent higher within a minute of the headline.</p>
@@ -7788,7 +7862,7 @@ withdrawn). It quotes around the true values, and a rumour changes no value:
 it would sell to every rumour buyer at the old price, and the rumour would
 leave no trace. Without it, prices are what the traders believe — the AI
 traders' resting orders keep the books two-sided.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>pm-news<span class="w"> </span>--id<span class="w"> </span>OPS01<span class="w"> </span>play<span class="w"> </span>docs/examples/news/rumour-confirmed.yaml
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>pm-news<span class="w"> </span>--id<span class="w"> </span>OPS01<span class="w"> </span>play<span class="w"> </span><span class="s2">"</span><span class="nv">$EX</span><span class="s2">/news/rumour-confirmed.yaml"</span>
 </code></pre></div>
 <p>At 60 seconds a rumour says JPM is a takeover target, credibility 50%.
 Nothing has happened to JPM's value — any move now is traders betting on the
@@ -7796,7 +7870,7 @@ rumour. Discuss before the next step: buy now, or wait? At 240 seconds the
 bid is confirmed and the value jumps about 12%.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> JPM moves a little on the rumour and much more on the confirmation.</p>
 <h2 id="exercise-7-a-rumour-that-is-retracted">Exercise 7: A Rumour That Is Retracted<a class="headerlink" href="#exercise-7-a-rumour-that-is-retracted" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>pm-news<span class="w"> </span>--id<span class="w"> </span>OPS01<span class="w"> </span>play<span class="w"> </span>docs/examples/news/rumour-retracted.yaml
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>pm-news<span class="w"> </span>--id<span class="w"> </span>OPS01<span class="w"> </span>play<span class="w"> </span><span class="s2">"</span><span class="nv">$EX</span><span class="s2">/news/rumour-retracted.yaml"</span>
 </code></pre></div>
 <p>At 60 seconds a rumour says energy producers face a new windfall tax: a
 <em>sector</em> headline, so every ENERGY symbol (<code>XOM</code>, <code>CVX</code>, …) is concerned. The
@@ -7810,7 +7884,7 @@ breakthrough, a big new contract, a product recall) go one way only, and
 they are big. Their kind says what happened: <code>OPERATIONS</code>, <code>RESEARCH</code>,
 <code>CONTRACT</code>, <code>ESG</code> or <code>PRODUCT</code>. Keep the market maker stopped, and have
 students watch NVDA and AMD side by side.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>pm-news<span class="w"> </span>--id<span class="w"> </span>OPS01<span class="w"> </span>play<span class="w"> </span>docs/examples/news/chip-race.yaml
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>pm-news<span class="w"> </span>--id<span class="w"> </span>OPS01<span class="w"> </span>play<span class="w"> </span><span class="s2">"</span><span class="nv">$EX</span><span class="s2">/news/chip-race.yaml"</span>
 </code></pre></div>
 <p>At 60 seconds NVDA announces a <code>RESEARCH</code> breakthrough: its next chips are
 50% faster. The news is confirmed, and NVDA's value jumps about 10%. It is a

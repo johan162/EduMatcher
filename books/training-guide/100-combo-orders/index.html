@@ -1949,6 +1949,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../participant-guide/90-backmatter/010-faq-orders-and-positions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ: Orders, Sessions and Positions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -3343,6 +3371,34 @@
           </ul>
         </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../operator-guide/90-backmatter/010-faq-setup-and-operation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ: Setup and Operation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -7900,11 +7956,17 @@ cascades, session boundaries and recovery.</p>
 <li>An admin console for clearing the training books.</li>
 <li>For the stop-trigger labs, a third configured and connected trader,
   <code>TRADER03</code>, to print a trigger trade without changing <code>TRADER01</code>'s position.
-  Add it using the gateway configuration procedure from
-  <a href="../010-configuring-startup/">Configuring Startup</a>, then connect with
-  <code>pm-alf-console --id TRADER03</code>.</li>
-<li>For the three-leg basket, <code>TSLA</code> configured alongside <code>AAPL</code> and <code>MSFT</code>.</li>
+  Add it to the <code>participants:</code> list of your <code>engine_config.yaml</code>, check,
+  deploy, restart <code>pm-engine</code>, restart your open consoles and reopen the market
+  (see "After every engine restart" in the
+  <a href="../#after-every-engine-restart">introduction</a>):</li>
 </ul>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TRADER03</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">    </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">"Carol</span><span class="nv"> </span><span class="s">—</span><span class="nv"> </span><span class="s">third</span><span class="nv"> </span><span class="s">trader"</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">    </span><span class="nt">role</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TRADER</span>
+</code></pre></div>
+<p>then connect with <code>pm-alf-console --id TRADER03</code>.
+- For the three-leg basket, <code>TSLA</code> configured alongside <code>AAPL</code> and <code>MSFT</code>.</p>
 <h3 id="lab-discipline">Lab discipline<a class="headerlink" href="#lab-discipline" title="Permanent link">&para;</a></h3>
 <p>Use an <strong>isolated classroom exchange</strong>, not a shared trading session.
 Stop market-maker bots and AI traders. Keep the session in <code>CONTINUOUS</code>
@@ -7913,9 +7975,9 @@ with the scheduler stopped, using the
 The session exercise explicitly changes this.</p>
 <p>Exercises 1–4 build on each other. Before Exercise 5 and before <strong>each
 independent run or variant</strong> in Exercises 6–15, clear the affected books:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>[GW_ADMIN|ADMIN]&gt; CANCEL_SYM|SYM=AAPL
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>[GW_ADMIN|ADMIN]&gt; CANCEL_SYM|SYM=MSFT
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>[GW_ADMIN|ADMIN]&gt; CANCEL_SYM|SYM=TSLA
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>[GW_ADMIN|ADMIN]&gt; CANCEL_SYM|SYM=AAPL
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>[GW_ADMIN|ADMIN]&gt; CANCEL_SYM|SYM=MSFT
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>[GW_ADMIN|ADMIN]&gt; CANCEL_SYM|SYM=TSLA
 </code></pre></div>
 <p>Only use the TSLA command if that symbol is configured. These commands cancel
 orders, <strong>not positions or trade history</strong>. Record positions before and after
@@ -8004,18 +8066,18 @@ earlier chapters would get in the way — TRADER02's MSFT buy at 420.50, for
 example, would trade straight away with a market maker's cheaper ask instead
 of resting. So stop any <code>pm-mm-bot</code>, clear both symbols from the operator
 console, and then place the counter-orders:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>[GW_ADMIN|ADMIN]&gt; CANCEL_SYM|SYM=AAPL
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>[GW_ADMIN|ADMIN]&gt; CANCEL_SYM|SYM=MSFT
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>[GW_ADMIN|ADMIN]&gt; CANCEL_SYM|SYM=AAPL
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>[GW_ADMIN|ADMIN]&gt; CANCEL_SYM|SYM=MSFT
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>[TRADER02]&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=150.10|TIF=DAY
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>[TRADER02]&gt; NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=50|PRICE=420.50|TIF=DAY
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>[TRADER02]&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=150.10|TIF=DAY
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>[TRADER02]&gt; NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=50|PRICE=420.50|TIF=DAY
 </code></pre></div>
 <p>Now submit the combo — buy AAPL and sell MSFT atomically:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>[TRADER01]&gt; NEW|TYPE=COMBO|COMBO_ID=PAIR-001|COMBO_TYPE=AON|TIF=DAY|LEG_COUNT=2|LEG0.SYM=AAPL|LEG0.SIDE=BUY|LEG0.QTY=100|LEG0.PRICE=150.10|LEG1.SYM=MSFT|LEG1.SIDE=SELL|LEG1.QTY=50|LEG1.PRICE=420.50
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>[TRADER01]&gt; NEW|TYPE=COMBO|COMBO_ID=PAIR-001|COMBO_TYPE=AON|TIF=DAY|LEG_COUNT=2|LEG0.SYM=AAPL|LEG0.SIDE=BUY|LEG0.QTY=100|LEG0.PRICE=150.10|LEG1.SYM=MSFT|LEG1.SIDE=SELL|LEG1.QTY=50|LEG1.PRICE=420.50
 </code></pre></div>
 <p>Because both counter-orders above match the combo's leg prices exactly, the
 engine can fill both legs simultaneously.</p>
-<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> the trader console shows a fill on each leg followed by <code>COMBO MATCHED  PAIR-001</code>, and <code>BOOK|SYM=AAPL</code> / <code>BOOK|SYM=MSFT</code> in the operator console show both counter-orders gone.</p>
+<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> the trader console shows a fill on each leg (with a <code>COMBO PARTIALLY_MATCHED  PAIR-001</code> line between them) followed by <code>COMBO MATCHED  PAIR-001</code>, and <code>BOOK|SYM=AAPL</code> / <code>BOOK|SYM=MSFT</code> in the operator console show both counter-orders gone.</p>
 <p>Observation: when the pre-check passes, both legs execute in the same pass —
 this is the case the AON guarantee is designed for.</p>
 <h2 id="exercise-2-atomicity-at-entry-one-short-leg-blocks-every-leg">Exercise 2: Atomicity at Entry — One Short Leg Blocks Every Leg<a class="headerlink" href="#exercise-2-atomicity-at-entry-one-short-leg-blocks-every-leg" title="Permanent link">&para;</a></h2>
@@ -8028,7 +8090,7 @@ matches, even the one that could have — and the combo is rejected:</p>
    liquidity at that price so the second leg has nothing to match against.</li>
 <li>Submit a new combo with a fresh ID:</li>
 </ol>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>[TRADER01]&gt; NEW|TYPE=COMBO|COMBO_ID=PAIR-002|COMBO_TYPE=AON|TIF=DAY|LEG_COUNT=2|LEG0.SYM=AAPL|LEG0.SIDE=BUY|LEG0.QTY=100|LEG0.PRICE=150.10|LEG1.SYM=MSFT|LEG1.SIDE=SELL|LEG1.QTY=50|LEG1.PRICE=420.50
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>[TRADER01]&gt; NEW|TYPE=COMBO|COMBO_ID=PAIR-002|COMBO_TYPE=AON|TIF=DAY|LEG_COUNT=2|LEG0.SYM=AAPL|LEG0.SIDE=BUY|LEG0.QTY=100|LEG0.PRICE=150.10|LEG1.SYM=MSFT|LEG1.SIDE=SELL|LEG1.QTY=50|LEG1.PRICE=420.50
 </code></pre></div>
 <ol>
 <li>The AAPL leg is rejected with <code>INSUFFICIENT_LIQUIDITY</code> and the combo
@@ -8049,16 +8111,16 @@ AAPL leg could not rest instead: a buy at 150.10 resting against a sell at
 This is the case people are surprised by, so cause it deliberately.</p>
 <p><strong>1.</strong> Submit a combo whose AAPL leg bids below TRADER02's AAPL sell at
 150.10, and confirm it is resting and <code>PENDING</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>[TRADER01]&gt; NEW|TYPE=COMBO|COMBO_ID=PAIR-003|COMBO_TYPE=AON|TIF=DAY|LEG_COUNT=2|LEG0.SYM=AAPL|LEG0.SIDE=BUY|LEG0.QTY=100|LEG0.PRICE=150.00|LEG1.SYM=MSFT|LEG1.SIDE=SELL|LEG1.QTY=50|LEG1.PRICE=420.50
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>[TRADER01]&gt; ORDERS
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>[TRADER01]&gt; NEW|TYPE=COMBO|COMBO_ID=PAIR-003|COMBO_TYPE=AON|TIF=DAY|LEG_COUNT=2|LEG0.SYM=AAPL|LEG0.SIDE=BUY|LEG0.QTY=100|LEG0.PRICE=150.00|LEG1.SYM=MSFT|LEG1.SIDE=SELL|LEG1.QTY=50|LEG1.PRICE=420.50
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>[TRADER01]&gt; ORDERS
 </code></pre></div>
 <p>You should see both child legs — the AAPL buy at 150.00 and the MSFT sell at
 420.50 — with status <code>NEW</code>.</p>
 <p><strong>2.</strong> From <code>TRADER02</code>, hit <strong>only the MSFT leg</strong>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>[TRADER02]&gt; NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=50|PRICE=420.50|TIF=DAY
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>[TRADER02]&gt; NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=50|PRICE=420.50|TIF=DAY
 </code></pre></div>
 <p><strong>3.</strong> Look at what happened to the combo:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>[TRADER01]&gt; ORDERS
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>[TRADER01]&gt; ORDERS
 </code></pre></div>
 <p>The MSFT fill message says <code>FILLED</code>, and <code>ORDERS</code> now lists that leg as
 <code>FILLED</code>. The AAPL leg is still <code>NEW</code>, resting. The combo has moved to
@@ -8074,20 +8136,20 @@ why this does not contradict "all-or-none".</p>
 <p>Because a resting AON combo can be picked apart, desks do not leave them
 resting. They either submit only when both sides are already fillable, or
 they cancel the whole combo the moment it fails to execute at entry:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>[TRADER01]&gt; CANCEL|COMBO_ID=PAIR-003
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>[TRADER01]&gt; CANCEL|COMBO_ID=PAIR-003
 </code></pre></div>
 <p>That cancels every remaining leg. Fills that already happened are <strong>not</strong>
 reversed — cancel the combo before someone hits a leg, not after.</p>
 </div>
 <p>Clean up before continuing:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>[TRADER01]&gt; CANCEL|COMBO_ID=PAIR-003
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>[TRADER01]&gt; CANCEL|COMBO_ID=PAIR-003
 </code></pre></div>
 <h2 id="exercise-4-cancel-a-resting-combo">Exercise 4: Cancel a Resting Combo<a class="headerlink" href="#exercise-4-cancel-a-resting-combo" title="Permanent link">&para;</a></h2>
 <p>Exercise 3's clean-up already cancelled <code>PAIR-003</code>. Submit one more combo that
 cannot fill — there is no MSFT bid at 420.50 now, and the AAPL leg bids below
 the AAPL sell — so it rests, then cancel it as a whole:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>[TRADER01]&gt; NEW|TYPE=COMBO|COMBO_ID=PAIR-004|COMBO_TYPE=AON|TIF=DAY|LEG_COUNT=2|LEG0.SYM=AAPL|LEG0.SIDE=BUY|LEG0.QTY=100|LEG0.PRICE=149.00|LEG1.SYM=MSFT|LEG1.SIDE=SELL|LEG1.QTY=50|LEG1.PRICE=420.50
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>[TRADER01]&gt; CANCEL|COMBO_ID=PAIR-004
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>[TRADER01]&gt; NEW|TYPE=COMBO|COMBO_ID=PAIR-004|COMBO_TYPE=AON|TIF=DAY|LEG_COUNT=2|LEG0.SYM=AAPL|LEG0.SIDE=BUY|LEG0.QTY=100|LEG0.PRICE=149.00|LEG1.SYM=MSFT|LEG1.SIDE=SELL|LEG1.QTY=50|LEG1.PRICE=420.50
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>[TRADER01]&gt; CANCEL|COMBO_ID=PAIR-004
 </code></pre></div>
 <p>All legs are cancelled together, and the console reports
 <code>COMBO CANCELLED  PAIR-004</code>.</p>
@@ -8096,10 +8158,10 @@ the AAPL sell — so it rests, then cancel it as a whole:</p>
 <p>Link two independent orders so that when one <strong>fully fills</strong> or otherwise
 ends (cancel, rejection or expiry), the other is automatically cancelled.
 A partial fill alone does not end the pair; Exercise 7 tests this distinction.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>[TRADER01]&gt; NEW|TYPE=OCO|OCO_ID=OCO-AAPL-ENTRY|SYM=AAPL|QTY=100|TIF=DAY|LEG1_SIDE=BUY|LEG1_TYPE=LIMIT|LEG1_PRICE=149.50|LEG2_SIDE=BUY|LEG2_TYPE=LIMIT|LEG2_PRICE=148.00
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>[TRADER01]&gt; NEW|TYPE=OCO|OCO_ID=OCO-AAPL-ENTRY|SYM=AAPL|QTY=100|TIF=DAY|LEG1_SIDE=BUY|LEG1_TYPE=LIMIT|LEG1_PRICE=149.50|LEG2_SIDE=BUY|LEG2_TYPE=LIMIT|LEG2_PRICE=148.00
 </code></pre></div>
 <p>Make the first leg fill by selling into it from <code>TRADER02</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>[TRADER02]&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=149.50|TIF=DAY
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>[TRADER02]&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=149.50|TIF=DAY
 </code></pre></div>
 <p>The 149.50 leg fills, and the console reports the sibling at 148.00
 cancelled: <code>OCO CANCEL OCO-AAPL-ENTRY  sibling=…  OCO sibling … reached FILLED</code>.
@@ -8107,19 +8169,23 @@ cancelled: <code>OCO CANCEL OCO-AAPL-ENTRY  sibling=…  OCO sibling … reached
 exercises, the OCO's first leg fills on entry instead — clear AAPL with
 <code>CANCEL_SYM</code> first for a clean run.)</p>
 <p>To pull an OCO pair yourself before either leg fills, cancel it by its
-<code>OCO_ID</code> rather than cancelling each leg individually:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>[TRADER01]&gt; CANCEL|OCO_ID=OCO-AAPL-ENTRY
+<code>OCO_ID</code> rather than cancelling each leg individually. <code>OCO-AAPL-ENTRY</code> has
+already completed (cancelling it now answers <code>OCO CXL REJ … ORDER_NOT_FOUND</code>),
+so submit a fresh pair and cancel that:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>[TRADER01]&gt; NEW|TYPE=OCO|OCO_ID=OCO-AAPL-ENTRY-2|SYM=AAPL|QTY=100|TIF=DAY|LEG1_SIDE=BUY|LEG1_TYPE=LIMIT|LEG1_PRICE=149.50|LEG2_SIDE=BUY|LEG2_TYPE=LIMIT|LEG2_PRICE=148.00
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>[TRADER01]&gt; CANCEL|OCO_ID=OCO-AAPL-ENTRY-2
 </code></pre></div>
+<p>Both legs are cancelled: <code>OCO CXL OK OCO-AAPL-ENTRY-2  legs cancelled=2</code>.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> filling one OCO leg cancels the other.</p>
 <h2 id="exercise-6-oco-protect-an-existing-long-position">Exercise 6: OCO — Protect an Existing Long Position<a class="headerlink" href="#exercise-6-oco-protect-an-existing-long-position" title="Permanent link">&para;</a></h2>
 <p>A common exit pattern is a take-profit plus a stop-loss. Both legs are
 <strong>SELL</strong>, not different sides: each is an alternative way to close the
 same long position. First acquire 100 shares on the cleared AAPL book:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>[TRADER02]&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=150.00|TIF=DAY
-<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TIF=DAY
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>[TRADER02]&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=150.00|TIF=DAY
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TIF=DAY
 </code></pre></div>
 <p>Now submit the exit pair:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>[TRADER01]&gt; NEW|TYPE=OCO|OCO_ID=BRACKET-AAPL-001|SYM=AAPL|QTY=100|TIF=DAY|LEG1_SIDE=SELL|LEG1_TYPE=LIMIT|LEG1_PRICE=151.00|LEG2_SIDE=SELL|LEG2_TYPE=STOP|LEG2_STOP=149.00
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>[TRADER01]&gt; NEW|TYPE=OCO|OCO_ID=BRACKET-AAPL-001|SYM=AAPL|QTY=100|TIF=DAY|LEG1_SIDE=SELL|LEG1_TYPE=LIMIT|LEG1_PRICE=151.00|LEG2_SIDE=SELL|LEG2_TYPE=STOP|LEG2_STOP=149.00
 </code></pre></div>
 <p>Run both branches separately, acquiring a fresh 100-share position and using
 a fresh OCO ID on the second run:</p>
@@ -8148,9 +8214,9 @@ than from the stop trigger.</p>
 <p><strong>Predict first:</strong> after 40 shares of a 100-share leg fill, does the sibling
 remain at 100, resize to 60, or disappear?</p>
 <p>On a cleared AAPL book:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>[TRADER01]&gt; NEW|TYPE=OCO|OCO_ID=OCO-PARTIAL-01|SYM=AAPL|QTY=100|TIF=DAY|LEG1_SIDE=BUY|LEG1_TYPE=LIMIT|LEG1_PRICE=149.50|LEG2_SIDE=BUY|LEG2_TYPE=LIMIT|LEG2_PRICE=148.00
-<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>[TRADER02]&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=40|PRICE=149.50|TIF=DAY
-<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a>[TRADER01]&gt; ORDERS
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>[TRADER01]&gt; NEW|TYPE=OCO|OCO_ID=OCO-PARTIAL-01|SYM=AAPL|QTY=100|TIF=DAY|LEG1_SIDE=BUY|LEG1_TYPE=LIMIT|LEG1_PRICE=149.50|LEG2_SIDE=BUY|LEG2_TYPE=LIMIT|LEG2_PRICE=148.00
+<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>[TRADER02]&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=40|PRICE=149.50|TIF=DAY
+<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a>[TRADER01]&gt; ORDERS
 </code></pre></div>
 <p>The first leg has 60 remaining and is <code>PARTIAL</code>. The sibling still bids for
 <strong>100</strong>, not 60. OCO has not cancelled or resized it.</p>
@@ -8178,7 +8244,7 @@ not undo the 40-share fill.</p>
 alternative entry, not protection of an existing position.</p>
 <p>First establish a last trade of 150.00 with a one-share sell from <code>TRADER02</code>
 and a one-share buy from <code>TRADER03</code>. Then submit:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>[TRADER01]&gt; NEW|TYPE=OCO|OCO_ID=BREAKOUT-01|SYM=AAPL|QTY=100|TIF=DAY|LEG1_SIDE=BUY|LEG1_TYPE=STOP|LEG1_STOP=151.00|LEG2_SIDE=SELL|LEG2_TYPE=STOP|LEG2_STOP=149.00
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>[TRADER01]&gt; NEW|TYPE=OCO|OCO_ID=BREAKOUT-01|SYM=AAPL|QTY=100|TIF=DAY|LEG1_SIDE=BUY|LEG1_TYPE=STOP|LEG1_STOP=151.00|LEG2_SIDE=SELL|LEG2_TYPE=STOP|LEG2_STOP=149.00
 </code></pre></div>
 <ul>
 <li><strong>Up-break run:</strong> <code>TRADER02</code> offers 101 at 151.00; <code>TRADER03</code> buys 1
@@ -8194,7 +8260,7 @@ stop. Observe that a triggered market order can end unfilled and still end
 its sibling. <strong>OCO cancellation does not prove a position was acquired.</strong></p>
 <h3 id="b-price-protection-versus-execution-risk">B. Price protection versus execution risk<a class="headerlink" href="#b-price-protection-versus-execution-risk" title="Permanent link">&para;</a></h3>
 <p>Acquire a fresh 100-share long at 150.00, as in Exercise 6. Use this exit:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>[TRADER01]&gt; NEW|TYPE=OCO|OCO_ID=EXIT-LIMIT-01|SYM=AAPL|QTY=100|TIF=DAY|LEG1_SIDE=SELL|LEG1_TYPE=LIMIT|LEG1_PRICE=153.00|LEG2_SIDE=SELL|LEG2_TYPE=STOP_LIMIT|LEG2_STOP=149.00|LEG2_PRICE=148.90
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>[TRADER01]&gt; NEW|TYPE=OCO|OCO_ID=EXIT-LIMIT-01|SYM=AAPL|QTY=100|TIF=DAY|LEG1_SIDE=SELL|LEG1_TYPE=LIMIT|LEG1_PRICE=153.00|LEG2_SIDE=SELL|LEG2_TYPE=STOP_LIMIT|LEG2_STOP=149.00|LEG2_PRICE=148.90
 </code></pre></div>
 <p><code>TRADER02</code> bids for 101 at 148.50 and <code>TRADER03</code> sells 1 there. The gap
 print triggers the stop-limit, but its sell limit of 148.90 cannot hit
@@ -8202,7 +8268,7 @@ print triggers the stop-limit, but its sell limit of 148.90 cannot hit
 shares. Cancel the group and compare this with the market-stop outcome.</p>
 <h3 id="c-trail-a-profitable-position">C. Trail a profitable position<a class="headerlink" href="#c-trail-a-profitable-position" title="Permanent link">&para;</a></h3>
 <p>Acquire another 100 shares at 150.00 and submit:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>[TRADER01]&gt; NEW|TYPE=OCO|OCO_ID=EXIT-TRAIL-01|SYM=AAPL|QTY=100|TIF=DAY|LEG1_SIDE=SELL|LEG1_TYPE=LIMIT|LEG1_PRICE=153.00|LEG2_SIDE=SELL|LEG2_TYPE=TRAILING_STOP|LEG2_TRAIL=1.00|LEG2_STOP=149.00
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>[TRADER01]&gt; NEW|TYPE=OCO|OCO_ID=EXIT-TRAIL-01|SYM=AAPL|QTY=100|TIF=DAY|LEG1_SIDE=SELL|LEG1_TYPE=LIMIT|LEG1_PRICE=153.00|LEG2_SIDE=SELL|LEG2_TYPE=TRAILING_STOP|LEG2_TRAIL=1.00|LEG2_STOP=149.00
 </code></pre></div>
 <ol>
 <li><code>TRADER02</code> offers 1 at 152.00; <code>TRADER03</code> buys it. The sell trailing
@@ -8223,15 +8289,15 @@ the notionals are 15,000 versus 21,000. A combo supplies execution mechanics,
 <strong>not</strong> the hedge ratio or a profitable trading signal.</p>
 <p>Choose a gross notional of 42,000 on each side. That requires buying 280
 AAPL at 150 and selling 100 MSFT at 420:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>[TRADER02]&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=280|PRICE=150.00|TIF=DAY
-<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a>[TRADER02]&gt; NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=420.00|TIF=DAY
-<a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a>[TRADER01]&gt; NEW|TYPE=COMBO|COMBO_ID=NEUTRAL-IN-01|COMBO_TYPE=AON|TIF=DAY|TAG=PAIR-LAB|LEG_COUNT=2|LEG0.SYM=AAPL|LEG0.SIDE=BUY|LEG0.QTY=280|LEG0.PRICE=150.00|LEG1.SYM=MSFT|LEG1.SIDE=SELL|LEG1.QTY=100|LEG1.PRICE=420.00
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>[TRADER02]&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=280|PRICE=150.00|TIF=DAY
+<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a>[TRADER02]&gt; NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=420.00|TIF=DAY
+<a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a>[TRADER01]&gt; NEW|TYPE=COMBO|COMBO_ID=NEUTRAL-IN-01|COMBO_TYPE=AON|TIF=DAY|TAG=PAIR-LAB|LEG_COUNT=2|LEG0.SYM=AAPL|LEG0.SIDE=BUY|LEG0.QTY=280|LEG0.PRICE=150.00|LEG1.SYM=MSFT|LEG1.SIDE=SELL|LEG1.QTY=100|LEG1.PRICE=420.00
 </code></pre></div>
 <p>After both fill, close the <strong>actual filled quantities</strong> with a new,
 opposite-side combo:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>[TRADER02]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=280|PRICE=152.00|TIF=DAY
-<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a>[TRADER02]&gt; NEW|SYM=MSFT|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=422.00|TIF=DAY
-<a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a>[TRADER01]&gt; NEW|TYPE=COMBO|COMBO_ID=NEUTRAL-OUT-01|COMBO_TYPE=AON|TIF=DAY|TAG=PAIR-LAB|LEG_COUNT=2|LEG0.SYM=AAPL|LEG0.SIDE=SELL|LEG0.QTY=280|LEG0.PRICE=152.00|LEG1.SYM=MSFT|LEG1.SIDE=BUY|LEG1.QTY=100|LEG1.PRICE=422.00
+<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a>[TRADER02]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=280|PRICE=152.00|TIF=DAY
+<a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a>[TRADER02]&gt; NEW|SYM=MSFT|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=422.00|TIF=DAY
+<a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a>[TRADER01]&gt; NEW|TYPE=COMBO|COMBO_ID=NEUTRAL-OUT-01|COMBO_TYPE=AON|TIF=DAY|TAG=PAIR-LAB|LEG_COUNT=2|LEG0.SYM=AAPL|LEG0.SIDE=SELL|LEG0.QTY=280|LEG0.PRICE=152.00|LEG1.SYM=MSFT|LEG1.SIDE=BUY|LEG1.QTY=100|LEG1.PRICE=422.00
 </code></pre></div>
 <p>Calculate before reading the answer:</p>
 <ul>
@@ -8253,10 +8319,10 @@ prove both parents matched, and reconcile four leg fills to +360 gross P&amp;L.<
 <p>Model a hypothetical relative-value signal: buy AAPL against a basket of
 MSFT and TSLA. Use unequal quantities to balance cash notionals:
 100 × 150 = 25 × 420 + 18 × 250 = 15,000.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a>[TRADER02]&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=150.00|TIF=DAY
-<a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a>[TRADER02]&gt; NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=25|PRICE=420.00|TIF=DAY
-<a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a>[TRADER02]&gt; NEW|SYM=TSLA|SIDE=BUY|TYPE=LIMIT|QTY=18|PRICE=250.00|TIF=DAY
-<a id="__codelineno-22-4" name="__codelineno-22-4" href="#__codelineno-22-4"></a>[TRADER01]&gt; NEW|TYPE=COMBO|COMBO_ID=BASKET-01|COMBO_TYPE=AON|TIF=DAY|LEG_COUNT=3|LEG0.SYM=AAPL|LEG0.SIDE=BUY|LEG0.QTY=100|LEG0.PRICE=150.00|LEG1.SYM=MSFT|LEG1.SIDE=SELL|LEG1.QTY=25|LEG1.PRICE=420.00|LEG2.SYM=TSLA|LEG2.SIDE=SELL|LEG2.QTY=18|LEG2.PRICE=250.00
+<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>[TRADER02]&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=150.00|TIF=DAY
+<a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a>[TRADER02]&gt; NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=25|PRICE=420.00|TIF=DAY
+<a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a>[TRADER02]&gt; NEW|SYM=TSLA|SIDE=BUY|TYPE=LIMIT|QTY=18|PRICE=250.00|TIF=DAY
+<a id="__codelineno-23-4" name="__codelineno-23-4" href="#__codelineno-23-4"></a>[TRADER01]&gt; NEW|TYPE=COMBO|COMBO_ID=BASKET-01|COMBO_TYPE=AON|TIF=DAY|LEG_COUNT=3|LEG0.SYM=AAPL|LEG0.SIDE=BUY|LEG0.QTY=100|LEG0.PRICE=150.00|LEG1.SYM=MSFT|LEG1.SIDE=SELL|LEG1.QTY=25|LEG1.PRICE=420.00|LEG2.SYM=TSLA|LEG2.SIDE=SELL|LEG2.QTY=18|LEG2.PRICE=250.00
 </code></pre></div>
 <ol>
 <li>Verify all three fills and <code>MATCHED</code>.</li>
@@ -8286,11 +8352,11 @@ to the supported two-to-ten-leg range.</p>
 <h2 id="exercise-11-execution-cost-depth-market-ioc-and-fok-legs">Exercise 11: Execution Cost — Depth, MARKET, IOC and FOK Legs<a class="headerlink" href="#exercise-11-execution-cost-depth-market-ioc-and-fok-legs" title="Permanent link">&para;</a></h2>
 <p>An AON pre-check needs the <strong>whole quantity</strong>, not merely a visible best
 price. On cleared books stage this ladder:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>[TRADER02]&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=40|PRICE=150.00|TIF=DAY
-<a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a>[TRADER02]&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=60|PRICE=150.10|TIF=DAY
-<a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a>[TRADER02]&gt; NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=20|PRICE=420.50|TIF=DAY
-<a id="__codelineno-23-4" name="__codelineno-23-4" href="#__codelineno-23-4"></a>[TRADER02]&gt; NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=30|PRICE=420.40|TIF=DAY
-<a id="__codelineno-23-5" name="__codelineno-23-5" href="#__codelineno-23-5"></a>[TRADER01]&gt; NEW|TYPE=COMBO|COMBO_ID=DEPTH-01|COMBO_TYPE=AON|TIF=DAY|LEG_COUNT=2|LEG0.SYM=AAPL|LEG0.SIDE=BUY|LEG0.QTY=100|LEG0.TYPE=LIMIT|LEG0.PRICE=150.10|LEG1.SYM=MSFT|LEG1.SIDE=SELL|LEG1.QTY=50|LEG1.TYPE=LIMIT|LEG1.PRICE=420.40
+<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>[TRADER02]&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=40|PRICE=150.00|TIF=DAY
+<a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a>[TRADER02]&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=60|PRICE=150.10|TIF=DAY
+<a id="__codelineno-24-3" name="__codelineno-24-3" href="#__codelineno-24-3"></a>[TRADER02]&gt; NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=20|PRICE=420.50|TIF=DAY
+<a id="__codelineno-24-4" name="__codelineno-24-4" href="#__codelineno-24-4"></a>[TRADER02]&gt; NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=30|PRICE=420.40|TIF=DAY
+<a id="__codelineno-24-5" name="__codelineno-24-5" href="#__codelineno-24-5"></a>[TRADER01]&gt; NEW|TYPE=COMBO|COMBO_ID=DEPTH-01|COMBO_TYPE=AON|TIF=DAY|LEG_COUNT=2|LEG0.SYM=AAPL|LEG0.SIDE=BUY|LEG0.QTY=100|LEG0.TYPE=LIMIT|LEG0.PRICE=150.10|LEG1.SYM=MSFT|LEG1.SIDE=SELL|LEG1.QTY=50|LEG1.TYPE=LIMIT|LEG1.PRICE=420.40
 </code></pre></div>
 <p>Calculate the leg VWAPs from executions: AAPL <strong>150.06</strong>, MSFT <strong>420.44</strong>.
 The entry receives 21,022 − 15,006 = <strong>6,016 cash</strong> before fees, but it
@@ -8349,7 +8415,7 @@ belong to their individual symbol books. Use them to study conditional
 exposure, <strong>not</strong> as a promise of an atomic future hedge.</p>
 <p>Establish a one-share AAPL trade at 150.00 between <code>TRADER02</code> and
 <code>TRADER03</code>. Leave no other interest, then submit:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>[TRADER01]&gt; NEW|TYPE=COMBO|COMBO_ID=CONDITIONAL-01|COMBO_TYPE=AON|TIF=DAY|LEG_COUNT=2|LEG0.SYM=AAPL|LEG0.SIDE=BUY|LEG0.QTY=100|LEG0.TYPE=STOP|LEG0.STOP=151.00|LEG1.SYM=MSFT|LEG1.SIDE=BUY|LEG1.QTY=50|LEG1.TYPE=LIMIT|LEG1.PRICE=420.00
+<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>[TRADER01]&gt; NEW|TYPE=COMBO|COMBO_ID=CONDITIONAL-01|COMBO_TYPE=AON|TIF=DAY|LEG_COUNT=2|LEG0.SYM=AAPL|LEG0.SIDE=BUY|LEG0.QTY=100|LEG0.TYPE=STOP|LEG0.STOP=151.00|LEG1.SYM=MSFT|LEG1.SIDE=BUY|LEG1.QTY=50|LEG1.TYPE=LIMIT|LEG1.PRICE=420.00
 </code></pre></div>
 <ol>
 <li>Confirm the parent is pending. The AAPL stop is dormant; the MSFT limit
@@ -8381,7 +8447,7 @@ fill price.</p>
 <h3 id="a-cancel-one-child-fail-the-strategy">A. Cancel one child, fail the strategy<a class="headerlink" href="#a-cancel-one-child-fail-the-strategy" title="Permanent link">&para;</a></h3>
 <p>Submit <code>PAIR-004</code>'s passive limits from Exercise 4 with a fresh ID to empty
 books. Save the child order IDs. Instead of cancelling the parent, send:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>[TRADER01]&gt; CANCEL|ID=&lt;aapl_child_id&gt;
+<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a>[TRADER01]&gt; CANCEL|ID=&lt;aapl_child_id&gt;
 </code></pre></div>
 <p>The parent becomes <code>FAILED</code> and its MSFT sibling is cancelled. Contrast
 this with <code>CANCEL|COMBO_ID=...</code>, which produces <code>CANCELLED</code>. Repeat after a
@@ -8389,26 +8455,34 @@ this with <code>CANCEL|COMBO_ID=...</code>, which produces <code>CANCELLED</code
 <h3 id="b-sufficient-displayed-depth-can-still-be-your-own-liquidity">B. Sufficient displayed depth can still be your own liquidity<a class="headerlink" href="#b-sufficient-displayed-depth-can-still-be-your-own-liquidity" title="Permanent link">&para;</a></h3>
 <p>Stage an AAPL offer <strong>owned by TRADER01</strong>, and an MSFT bid owned by
 <code>TRADER02</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=150.00|TIF=DAY
-<a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a>[TRADER02]&gt; NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=50|PRICE=420.00|TIF=DAY
-<a id="__codelineno-26-3" name="__codelineno-26-3" href="#__codelineno-26-3"></a>[TRADER01]&gt; NEW|TYPE=COMBO|COMBO_ID=SMP-01|COMBO_TYPE=AON|SMP=CANCEL_AGGRESSOR|TIF=DAY|LEG_COUNT=2|LEG0.SYM=AAPL|LEG0.SIDE=BUY|LEG0.QTY=100|LEG0.PRICE=150.00|LEG1.SYM=MSFT|LEG1.SIDE=SELL|LEG1.QTY=50|LEG1.PRICE=420.00
+<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=150.00|TIF=DAY
+<a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a>[TRADER02]&gt; NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=50|PRICE=420.00|TIF=DAY
+<a id="__codelineno-27-3" name="__codelineno-27-3" href="#__codelineno-27-3"></a>[TRADER01]&gt; NEW|TYPE=COMBO|COMBO_ID=SMP-01|COMBO_TYPE=AON|SMP=CANCEL_AGGRESSOR|TIF=DAY|LEG_COUNT=2|LEG0.SYM=AAPL|LEG0.SIDE=BUY|LEG0.QTY=100|LEG0.PRICE=150.00|LEG1.SYM=MSFT|LEG1.SIDE=SELL|LEG1.QTY=50|LEG1.PRICE=420.00
 </code></pre></div>
-<p>The first child meets its owner's offer; SMP cancels that aggressing child.
-The parent fails, the MSFT child is not posted, and there is no trade.</p>
-<p>Reset and compare <code>SMP=CANCEL_RESTING</code> and <code>SMP=CANCEL_BOTH</code>, recording which
-own orders survive and whether any later leg is posted. Do not equate an
-accepted parent or displayed depth with guaranteed execution. With
-<code>CANCEL_RESTING</code>, a child can remain working after its own opposing order is
-removed; measure the other leg's fills before deciding how to unwind.</p>
-<p>In ALF the combo-level <code>SMP</code> applies to every child. Omitting it uses the
-gateway's configured default; <code>SMP=NONE</code> explicitly allows self-matching.
-Do not use self-trades as evidence of genuine external hedge liquidity.
-OCO has no per-request SMP field: its legs use the gateway default.</p>
+<p>The combo-level <code>SMP</code> applies to every child, and the entry check does not
+count your own resting orders as liquidity. So the AAPL offer, although 100
+shares sit at exactly the price, counts as <strong>zero</strong> here: the combo is
+accepted, then its first leg is rejected with <code>INSUFFICIENT_LIQUIDITY</code> and the
+parent shows <code>COMBO FAILED  SMP-01  Leg 0 (AAPL) REJECTED</code>. The MSFT child is
+not posted, there is no trade, and your own AAPL offer is still resting.</p>
+<p>Reset and send the same combo with <code>SMP=CANCEL_RESTING</code>, then
+<code>SMP=CANCEL_BOTH</code>: with any policy other than <code>NONE</code> the outcome is the same,
+because the entry check discounts own liquidity before any SMP action could
+run. Now reset once more and send it with <code>SMP=NONE</code>, or without <code>SMP=</code> at all
+when your gateway has no default (as in the configuration you wrote in chapter
+01): both legs fill, the AAPL leg <em>against your own offer</em>, and the parent
+reaches <code>MATCHED</code>. That is a self-trade, not hedge liquidity. Do not equate an
+accepted parent, displayed depth or a <code>MATCHED</code> parent with genuine external
+execution.</p>
+<p>Omitting <code>SMP=</code> uses the gateway's configured default (<code>smp_action</code> in the
+participant's block; the bundled example configurations set
+<code>CANCEL_AGGRESSOR</code>, a hand-written one like yours sets nothing, which means
+<code>NONE</code>). OCO has no per-request SMP field: its legs use the gateway default.</p>
 <h3 id="c-reprice-a-child-without-re-entering-the-parent">C. Reprice a child without re-entering the parent<a class="headerlink" href="#c-reprice-a-child-without-re-entering-the-parent" title="Permanent link">&para;</a></h3>
 <p>On empty books submit a fresh passive combo buying 100 AAPL at 149.00
 and selling 50 MSFT at 420.00. Then <code>TRADER02</code> offers 100 AAPL at 150.00.
 Amend the saved AAPL child ID:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a>[TRADER01]&gt; AMEND|ID=&lt;aapl_child_id&gt;|PRICE=150.00|RTAG=COMBO-REPRICE-01
+<div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a>[TRADER01]&gt; AMEND|ID=&lt;aapl_child_id&gt;|PRICE=150.00|RTAG=COMBO-REPRICE-01
 </code></pre></div>
 <p>The amended child can fill alone, moving the parent to <code>PARTIALLY_MATCHED</code>.
 Its sibling remains working. Complete it with a 50-share MSFT buy from
@@ -8418,8 +8492,8 @@ order amendment, not a resubmission of the original AON package. Apply
 <a href="../040-amending-orders/">Amending Orders</a>'s priority rules, and do not assume
 the other child limits were changed.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> explain why the same
-displayed depth can produce different results under different SMP policies,
-why a child amend can create leg risk, and why cascade cancellation cannot
+displayed depth gives a rejected combo under any SMP policy but a self-trade
+under <code>NONE</code>, why a child amend can create leg risk, and why cascade cancellation cannot
 roll back a previous execution.</p>
 <h2 id="exercise-14-validation-and-tif-when-should-nothing-be-posted">Exercise 14: Validation and TIF — When Should Nothing Be Posted?<a class="headerlink" href="#exercise-14-validation-and-tif-when-should-nothing-be-posted" title="Permanent link">&para;</a></h2>
 <h3 id="a-reject-malformed-intent-before-trading">A. Reject malformed intent before trading<a class="headerlink" href="#a-reject-malformed-intent-before-trading" title="Permanent link">&para;</a></h3>
@@ -8443,7 +8517,7 @@ Use a new label for every attempt and preserve the error message:</p>
 </tr>
 <tr>
 <td>Remove a required limit <code>.PRICE</code></td>
-<td>Gateway refuses the missing field</td>
+<td>Engine refuses it: <code>COMBO REJ … Leg 0: LIMIT requires price</code></td>
 </tr>
 <tr>
 <td>Supply a price between that symbol's valid ticks</td>

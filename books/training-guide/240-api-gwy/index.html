@@ -1949,6 +1949,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../participant-guide/90-backmatter/010-faq-orders-and-positions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ: Orders, Sessions and Positions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -3343,6 +3371,34 @@
           </ul>
         </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../operator-guide/90-backmatter/010-faq-setup-and-operation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ: Setup and Operation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -7711,7 +7767,13 @@ event handling, and multi-process logical separation.</p>
 <ul>
 <li>Chapters 01-24 completed.</li>
 <li>Engine and stats commands available from the current environment.</li>
-<li>REST examples available in <code>docs/examples/REST</code>.</li>
+<li>REST examples available in <code>docs/examples/REST</code>. On a container or <code>pipx</code>
+  install that directory is inside the package: set
+  <code>EX=$(python -c "from edumatcher.config_deploy import examples_root; print(examples_root().parent)")</code>
+  and read <code>docs/examples</code> as <code>$EX</code> in Exercises 6, 7 and 12. The C example
+  needs <code>make</code> and a C compiler (not in the container image).</li>
+<li>The <code>curl</code> commands below assume the lab config from Exercise 1 and are run
+  from the directory holding <code>engine_config.yaml</code>.</li>
 <li>A terminal for <code>pm-engine</code>, one for <code>pm-stats</code>, one for <code>pm-api-gwy</code>, and one or more client terminals.</li>
 <li>Optional: <code>pm-audit</code> running, if you want to see a populated reply instead of
   <code>AUDIT_INDEX_UNAVAILABLE</code> from the audited order-lifecycle call in Exercise 10.</li>
@@ -7809,7 +7871,7 @@ configured refuses it with <code>HALT_REJECTED</code>, <code>AAPL has no circuit
 <p class="admonition-title">Back up, check, deploy — then restart</p>
 <p>This chapter starts from a fresh configuration (its operator is <code>OPS01</code>),
 and <code>--force</code> replaces your <code>engine_config.yaml</code>: save a copy first if you
-want to come back to it (<code>cp engine_config.yaml engine_config.before-ch24.yaml</code>).
+want to come back to it (<code>cp engine_config.yaml engine_config.before-ch25.yaml</code>).
 As always, nothing changes until you deploy it and restart the engine:
 <code>pm-cverifier engine_config.yaml</code>, then <code>pm-config-deploy engine_config.yaml</code>.</p>
 </div>
@@ -7822,14 +7884,25 @@ As always, nothing changes until you deploy it and restart the engine:
 <li><code>desk:</code> has <code>port: 8080</code></li>
 <li>generated credentials exist for <code>TRADER01</code>, <code>TRADER02</code>, <code>OPS01</code>, and one read-only key</li>
 </ul>
-<p>Note down <code>OPS01</code>'s generated key — its resolved engine role is <code>ADMIN</code>, and
-Exercise 10 uses it for every admin REST call.</p>
+<p>The keys are random (for example <code>key-trader01-r0yzyj</code>; <code>--seed</code> does not fix
+them), so the commands in this chapter read them from the file instead of
+using fixed names. Define three shell variables once in each terminal you use
+for <code>curl</code> (the function reads <code>engine_config.yaml</code> in the current directory):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>key<span class="o">()</span><span class="w"> </span><span class="o">{</span><span class="w"> </span>awk<span class="w"> </span>-v<span class="w"> </span><span class="nv">g</span><span class="o">=</span><span class="s2">"</span><span class="nv">$1</span><span class="s2">"</span><span class="w"> </span><span class="s1">'$1=="-" &amp;&amp; $2=="api_key:" {k=$3} $1=="gateway_id:" &amp;&amp; $2==g {print k; exit}'</span><span class="w"> </span>engine_config.yaml<span class="p">;</span><span class="w"> </span><span class="o">}</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="nv">KEY_TRADER</span><span class="o">=</span><span class="k">$(</span>key<span class="w"> </span>TRADER01<span class="k">)</span><span class="w">    </span><span class="c1"># trading key for TRADER01</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="nv">KEY_OPS</span><span class="o">=</span><span class="k">$(</span>key<span class="w"> </span>OPS01<span class="k">)</span><span class="w">          </span><span class="c1"># OPS01's key: its resolved engine role is ADMIN</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="nv">KEY_RO</span><span class="o">=</span><span class="k">$(</span>key<span class="w"> </span>null<span class="k">)</span><span class="w">            </span><span class="c1"># the read-only key</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="nb">echo</span><span class="w"> </span><span class="s2">"</span><span class="nv">$KEY_TRADER</span><span class="s2"> </span><span class="nv">$KEY_OPS</span><span class="s2"> </span><span class="nv">$KEY_RO</span><span class="s2">"</span>
+</code></pre></div>
+<p>Exercise 10 uses <code>$KEY_OPS</code> for every admin REST call. Where a tool cannot
+expand shell variables (the WebSocket sessions in Exercise 9, the Python
+default in Exercise 12), paste the value that <code>echo</code> printed.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: you can identify one trading key, one read-only key, and the <code>OPS01</code> admin key in the config.</p>
 <h2 id="exercise-2-start-the-api-gateway-process">Exercise 2: Start the API Gateway Process<a class="headerlink" href="#exercise-2-start-the-api-gateway-process" title="Permanent link">&para;</a></h2>
 <p>Start the core processes with the generated config:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>pm-engine<span class="w"> </span>--verbose
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>pm-stats
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>pm-api-gwy<span class="w"> </span>--instance<span class="w"> </span>desk
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>pm-engine<span class="w"> </span>--verbose
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>pm-stats
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>pm-api-gwy<span class="w"> </span>--instance<span class="w"> </span>desk
 </code></pre></div>
 <p>If the config contains only one <code>api_gateways</code> entry, <code>--instance</code> can be omitted.
 Use it anyway in labs so the selected process is explicit.</p>
@@ -7846,13 +7919,12 @@ Exercise 10 shows the REST equivalent.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: <code>GET /api/v1/status</code> is reachable once the process is running.</p>
 <h2 id="exercise-3-explore-swagger-with-a-bearer-key">Exercise 3: Explore Swagger with a Bearer Key<a class="headerlink" href="#exercise-3-explore-swagger-with-a-bearer-key" title="Permanent link">&para;</a></h2>
 <p>Open Swagger in a browser:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>http://127.0.0.1:8080/docs
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>http://127.0.0.1:8080/docs
 </code></pre></div>
-<p>Use the Authorize control and paste a generated bearer token. Then run:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>curl<span class="w"> </span>-H<span class="w"> </span><span class="s1">'Authorization: Bearer key-trader-demo'</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="w">  </span>http://127.0.0.1:8080/api/v1/status
+<p>Use the Authorize control and paste a generated bearer token (<code>echo $KEY_TRADER</code>). Then run:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>curl<span class="w"> </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer </span><span class="nv">$KEY_TRADER</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">  </span>http://127.0.0.1:8080/api/v1/status
 </code></pre></div>
-<p>Replace <code>key-trader-demo</code> with a key from your generated config.</p>
 <p>Try the same request with a read-only key, then try a write endpoint with the
 read-only key.</p>
 <p>Expected behavior:</p>
@@ -7865,21 +7937,22 @@ read-only key.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: you can authenticate in Swagger and explain which key is allowed to submit orders.</p>
 <h2 id="exercise-4-submit-and-cancel-an-order-over-rest">Exercise 4: Submit and Cancel an Order over REST<a class="headerlink" href="#exercise-4-submit-and-cancel-an-order-over-rest" title="Permanent link">&para;</a></h2>
 <p>Submit a limit order with a trading key:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>http://127.0.0.1:8080/api/v1/orders<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">  </span>-H<span class="w"> </span><span class="s1">'Authorization: Bearer key-trader-demo'</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">  </span>-H<span class="w"> </span><span class="s1">'Content-Type: application/json'</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="w">  </span>-d<span class="w"> </span><span class="s1">'{</span>
-<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="s1">    "symbol": "AAPL",</span>
-<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="s1">    "side": "BUY",</span>
-<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="s1">    "order_type": "LIMIT",</span>
-<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="s1">    "quantity": 100,</span>
-<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="s1">    "price": 209.50,</span>
-<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="s1">    "tif": "DAY"</span>
-<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a><span class="s1">  }'</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>http://127.0.0.1:8080/api/v1/orders<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="w">  </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer </span><span class="nv">$KEY_TRADER</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="w">  </span>-H<span class="w"> </span><span class="s1">'Content-Type: application/json'</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="w">  </span>-d<span class="w"> </span><span class="s1">'{</span>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="s1">    "symbol": "AAPL",</span>
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="s1">    "side": "BUY",</span>
+<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="s1">    "order_type": "LIMIT",</span>
+<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a><span class="s1">    "quantity": 100,</span>
+<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a><span class="s1">    "price": 140.00,</span>
+<a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a><span class="s1">    "tif": "DAY"</span>
+<a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a><span class="s1">  }'</span>
 </code></pre></div>
-<p>Capture the returned <code>order_id</code>, then cancel it with a request tag:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>curl<span class="w"> </span>-X<span class="w"> </span>DELETE<span class="w"> </span><span class="s1">'http://127.0.0.1:8080/api/v1/orders/ORDER_ID?request_tag=rest-cxl-001'</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="w">  </span>-H<span class="w"> </span><span class="s1">'Authorization: Bearer key-trader-demo'</span>
+<p>The price is well below AAPL's market on purpose, so the order rests instead
+of trading. Capture the returned <code>order_id</code>, then cancel it with a request tag:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>curl<span class="w"> </span>-X<span class="w"> </span>DELETE<span class="w"> </span><span class="s1">'http://127.0.0.1:8080/api/v1/orders/ORDER_ID?request_tag=rest-cxl-001'</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="w">  </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer </span><span class="nv">$KEY_TRADER</span><span class="s2">"</span>
 </code></pre></div>
 <p>Expected behavior:</p>
 <ul>
@@ -7899,21 +7972,21 @@ sizes, risk bands, index definitions, and the session schedule. They change
 only when an admin reloads the reference bundle (Exercise 10) — never per
 trade or per order.</p>
 <p>Fetch the full bundle in one call:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>curl<span class="w"> </span>-H<span class="w"> </span><span class="s1">'Authorization: Bearer key-readonly-demo'</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="w">  </span>http://127.0.0.1:8080/api/v1/reference
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>curl<span class="w"> </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer </span><span class="nv">$KEY_RO</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="w">  </span>http://127.0.0.1:8080/api/v1/reference
 </code></pre></div>
 <p>Then fetch the individual sections used most often:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>curl<span class="w"> </span>-H<span class="w"> </span><span class="s1">'Authorization: Bearer key-readonly-demo'</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="w">  </span>http://127.0.0.1:8080/api/v1/reference/symbols
-<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>
-<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>curl<span class="w"> </span>-H<span class="w"> </span><span class="s1">'Authorization: Bearer key-readonly-demo'</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="w">  </span>http://127.0.0.1:8080/api/v1/reference/risk
-<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>
-<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a>curl<span class="w"> </span>-H<span class="w"> </span><span class="s1">'Authorization: Bearer key-readonly-demo'</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a><span class="w">  </span>http://127.0.0.1:8080/api/v1/reference/schedule
-<a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a>
-<a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a>curl<span class="w"> </span>-H<span class="w"> </span><span class="s1">'Authorization: Bearer key-readonly-demo'</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a><span class="w">  </span>http://127.0.0.1:8080/api/v1/reference/config-version
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>curl<span class="w"> </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer </span><span class="nv">$KEY_RO</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">  </span>http://127.0.0.1:8080/api/v1/reference/symbols
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>curl<span class="w"> </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer </span><span class="nv">$KEY_RO</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="w">  </span>http://127.0.0.1:8080/api/v1/reference/risk
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>
+<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a>curl<span class="w"> </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer </span><span class="nv">$KEY_RO</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a><span class="w">  </span>http://127.0.0.1:8080/api/v1/reference/schedule
+<a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a>
+<a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a>curl<span class="w"> </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer </span><span class="nv">$KEY_RO</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-10-11" name="__codelineno-10-11" href="#__codelineno-10-11"></a><span class="w">  </span>http://127.0.0.1:8080/api/v1/reference/config-version
 </code></pre></div>
 <p>Every reference reply carries <code>config_version</code> — a content hash of the
 compiled bundle. Compare the value returned by <code>/reference/config-version</code>
@@ -7934,19 +8007,19 @@ endpoints, and what <code>config_version</code> is for.</p>
 <h2 id="exercise-6-use-the-python-rest-example">Exercise 6: Use the Python REST Example<a class="headerlink" href="#exercise-6-use-the-python-rest-example" title="Permanent link">&para;</a></h2>
 <p>From the REST example directory, run the Python client or adapt it with the key
 and port from your config:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="nb">cd</span><span class="w"> </span>docs/examples/REST/python
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="nv">EDUMATCHER_API_URL</span><span class="o">=</span>http://127.0.0.1:8080<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="nv">EDUMATCHER_API_KEY</span><span class="o">=</span>key-trader-demo<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>python3<span class="w"> </span>demo_info.py
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="nb">cd</span><span class="w"> </span>docs/examples/REST/python<span class="w">        </span><span class="c1"># or: cd $EX/REST/python</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="nv">EDUMATCHER_API_URL</span><span class="o">=</span>http://127.0.0.1:8080<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="nv">EDUMATCHER_API_KEY</span><span class="o">=</span><span class="nv">$KEY_TRADER</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>python3<span class="w"> </span>demo_info.py
 </code></pre></div>
 <p>Use the example source as a reference for adding status, order-entry, and cancel
 calls to a test harness.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: the Python client reaches the gateway and sends authenticated requests.</p>
 <h2 id="exercise-7-use-the-c-rest-example">Exercise 7: Use the C REST Example<a class="headerlink" href="#exercise-7-use-the-c-rest-example" title="Permanent link">&para;</a></h2>
 <p>Build and run the C example from the REST example directory:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="nb">cd</span><span class="w"> </span>docs/examples/REST/c
-<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>make
-<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="nv">EDUMATCHER_API_KEY</span><span class="o">=</span>key-trader-demo<span class="w"> </span>./demo_info
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="nb">cd</span><span class="w"> </span>docs/examples/REST/c<span class="w">             </span><span class="c1"># or: cd $EX/REST/c</span>
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>make
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="nv">EDUMATCHER_API_KEY</span><span class="o">=</span><span class="nv">$KEY_TRADER</span><span class="w"> </span>./demo_info
 </code></pre></div>
 <p>Expected behavior:</p>
 <ul>
@@ -7961,27 +8034,33 @@ running and must have been running while your orders and trades happened —
 it cannot reconstruct events from before it started.</p>
 <p>Submit and fill an order (repeat Exercise 4 with a marketable price, or cross
 <code>TRADER01</code> against <code>TRADER02</code>), then query its lifecycle with a trading key:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>curl<span class="w"> </span>-H<span class="w"> </span><span class="s1">'Authorization: Bearer key-trader-demo'</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="w">  </span><span class="s2">"http://127.0.0.1:8080/api/v1/history/orders?symbol=AAPL&amp;limit=10"</span>
-<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>
-<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>curl<span class="w"> </span>-H<span class="w"> </span><span class="s1">'Authorization: Bearer key-trader-demo'</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a><span class="w">  </span>http://127.0.0.1:8080/api/v1/history/orders/ORDER_ID
-<a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a>
-<a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a>curl<span class="w"> </span>-H<span class="w"> </span><span class="s1">'Authorization: Bearer key-trader-demo'</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a><span class="w">  </span><span class="s2">"http://127.0.0.1:8080/api/v1/history/fills?symbol=AAPL"</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>curl<span class="w"> </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer </span><span class="nv">$KEY_TRADER</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="w">  </span><span class="s2">"http://127.0.0.1:8080/api/v1/history/orders?symbol=AAPL&amp;limit=10"</span>
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>
+<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a>curl<span class="w"> </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer </span><span class="nv">$KEY_TRADER</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a><span class="w">  </span>http://127.0.0.1:8080/api/v1/history/orders/ORDER_ID
+<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a>
+<a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a>curl<span class="w"> </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer </span><span class="nv">$KEY_TRADER</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-13-8" name="__codelineno-13-8" href="#__codelineno-13-8"></a><span class="w">  </span><span class="s2">"http://127.0.0.1:8080/api/v1/history/fills?symbol=AAPL"</span>
 </code></pre></div>
 <p>The public trade tape and daily OHLCV accept any authenticated key, not only
 a trading key:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>curl<span class="w"> </span>-H<span class="w"> </span><span class="s1">'Authorization: Bearer key-readonly-demo'</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="w">  </span><span class="s2">"http://127.0.0.1:8080/api/v1/history/trades?symbol=AAPL&amp;limit=5"</span>
-<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>
-<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a>curl<span class="w"> </span>-H<span class="w"> </span><span class="s1">'Authorization: Bearer key-readonly-demo'</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a><span class="w">  </span><span class="s2">"http://127.0.0.1:8080/api/v1/history/daily?symbol=AAPL"</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>curl<span class="w"> </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer </span><span class="nv">$KEY_RO</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="w">  </span><span class="s2">"http://127.0.0.1:8080/api/v1/history/trades?symbol=AAPL&amp;limit=5"</span>
+<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>
+<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a>curl<span class="w"> </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer </span><span class="nv">$KEY_RO</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a><span class="w">  </span><span class="s2">"http://127.0.0.1:8080/api/v1/history/daily?symbol=AAPL"</span>
 </code></pre></div>
 <p>Walk a second page using the cursor from the first reply:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>curl<span class="w"> </span>-H<span class="w"> </span><span class="s1">'Authorization: Bearer key-readonly-demo'</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="w">  </span><span class="s2">"http://127.0.0.1:8080/api/v1/history/trades?symbol=AAPL&amp;limit=5&amp;after=NEXT_CURSOR"</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>curl<span class="w"> </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer </span><span class="nv">$KEY_RO</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="w">  </span><span class="s2">"http://127.0.0.1:8080/api/v1/history/trades?symbol=AAPL&amp;limit=5&amp;after=NEXT_CURSOR"</span>
 </code></pre></div>
+<p>Every history call returns rows <strong>oldest first</strong>, a page at a time. On a data
+directory that has seen earlier chapters the first page is therefore old
+traffic, not your new order, and <code>/history/daily</code> totals include everything
+<code>pm-stats</code> has recorded today. Look an order up by its id
+(<code>/history/orders/ORDER_ID</code>), narrow the range with <code>from=&lt;ISO timestamp&gt;</code>
+(or <code>date=YYYY-MM-DD</code>), or follow <code>next_cursor</code> to reach the recent rows.</p>
 <p>Expected behavior:</p>
 <ul>
 <li><code>/history/orders</code> and <code>/history/fills</code> are scoped to the caller's own
@@ -7995,36 +8074,40 @@ a trading key:</p>
 <code>/history/orders</code> is gateway-scoped but <code>/history/trades</code> is not.</p>
 <h2 id="exercise-9-observe-websocket-events">Exercise 9: Observe WebSocket Events<a class="headerlink" href="#exercise-9-observe-websocket-events" title="Permanent link">&para;</a></h2>
 <p>Connect to private events before submitting new orders:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>python3<span class="w"> </span>-m<span class="w"> </span>websockets<span class="w"> </span>ws://127.0.0.1:8080/api/v1/ws/private<span class="w">   </span><span class="c1"># needs `pip install websockets`</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>python3<span class="w"> </span>-m<span class="w"> </span>websockets<span class="w"> </span>ws://127.0.0.1:8080/api/v1/ws/private<span class="w">   </span><span class="c1"># needs `pip install websockets`</span>
 </code></pre></div>
 <p>Once connected, the CLI waits for you to type. Send the authentication message
 as your first input, then press Enter:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>&gt; {"api_key": "key-trader-demo"}
-<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>&lt; {"type": "authenticated", "gateway_id": "TRADER01"}
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>&gt; {"api_key": "key-trader-demo"}
+<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>&lt; {"type": "authenticated", "gateway_id": "TRADER01", "stream_seq": 10}
+<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a>&lt; {"type": "orders.snapshot", "gateway_id": "TRADER01", ...}
 </code></pre></div>
+<p>(<code>stream_seq</code> is the gateway's private-stream counter, so the number differs;
+the <code>orders.snapshot</code> that follows lists your current orders and positions
+before any live event.)</p>
 <p>In another terminal, submit or cancel an order with the same key. Observe the
 private event stream.</p>
 <p>Then connect to a public market-data WebSocket with a read-only key:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>python3<span class="w"> </span>-m<span class="w"> </span>websockets<span class="w"> </span>ws://127.0.0.1:8080/api/v1/ws/market-data
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>python3<span class="w"> </span>-m<span class="w"> </span>websockets<span class="w"> </span>ws://127.0.0.1:8080/api/v1/ws/market-data
 </code></pre></div>
 <p>After authentication, send a subscription control message:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>&gt; {"api_key": "key-readonly-demo"}
-<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>&lt; {"type": "authenticated"}
-<a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a>&gt; {"action": "subscribe", "symbols": ["AAPL"], "channels": ["book", "trades"]}
-<a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a>&lt; {"type": "subscription", "data": {"items": [...], "always": ["session", "circuit_breaker", "news"], "rejected": []}}
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>&gt; {"api_key": "key-readonly-demo"}
+<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>&lt; {"type": "authenticated"}
+<a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a>&gt; {"action": "subscribe", "symbols": ["AAPL"], "channels": ["book", "trades"]}
+<a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a>&lt; {"type": "subscription", "data": {"items": [...], "always": ["session", "circuit_breaker", "news"], "rejected": []}}
 </code></pre></div>
 <p>Each rule can have its own symbols, so one socket can carry an overview plus a
 focused instrument:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>&gt; {"action": "subscribe", "items": [
-<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>    {"symbols": ["*"],    "channels": ["book", "trades"]},
-<a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a>    {"symbols": ["AAPL"], "channels": ["depth"]}
-<a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a>  ]}
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>&gt; {"action": "subscribe", "items": [
+<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a>    {"symbols": ["*"],    "channels": ["book", "trades"]},
+<a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a>    {"symbols": ["AAPL"], "channels": ["depth"]}
+<a id="__codelineno-20-4" name="__codelineno-20-4" href="#__codelineno-20-4"></a>  ]}
 </code></pre></div>
 <p>The book is also available without a socket. Compare it with what the
 subscription just sent:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>curl<span class="w"> </span>-s<span class="w"> </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer key-readonly-demo"</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a><span class="w">  </span><span class="s2">"http://127.0.0.1:8080/api/v1/book/AAPL?levels=3"</span>
-<a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a>curl<span class="w"> </span>-s<span class="w"> </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer key-readonly-demo"</span><span class="w"> </span>http://127.0.0.1:8080/api/v1/book
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>curl<span class="w"> </span>-s<span class="w"> </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer </span><span class="nv">$KEY_RO</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a><span class="w">  </span><span class="s2">"http://127.0.0.1:8080/api/v1/book/AAPL?levels=3"</span>
+<a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a>curl<span class="w"> </span>-s<span class="w"> </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer </span><span class="nv">$KEY_RO</span><span class="s2">"</span><span class="w"> </span>http://127.0.0.1:8080/api/v1/book
 </code></pre></div>
 <p>Each price comes as a display price and as <code>*_ticks</code>. The reply's <code>seq</code> is the
 <code>seq</code> of the <code>book</code> frame for the same snapshot, so a client that reads REST
@@ -8048,44 +8131,48 @@ first and then subscribes can drop frames at or below it.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: you can explain when to use REST responses versus WebSocket events for order outcomes.</p>
 <h2 id="exercise-10-admin-rest-session-control-risk-and-cross-gateway-orders">Exercise 10: Admin REST — Session Control, Risk, and Cross-Gateway Orders<a class="headerlink" href="#exercise-10-admin-rest-session-control-risk-and-cross-gateway-orders" title="Permanent link">&para;</a></h2>
 <p>Confirm the resolved role first, with <code>OPS01</code>'s key from Exercise 1:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>curl<span class="w"> </span>-H<span class="w"> </span><span class="s1">'Authorization: Bearer key-ops01-demo'</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a><span class="w">  </span>http://127.0.0.1:8080/api/v1/status
+<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a>curl<span class="w"> </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer </span><span class="nv">$KEY_OPS</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a><span class="w">  </span>http://127.0.0.1:8080/api/v1/status
 </code></pre></div>
 <p><code>gateway_role</code> must read <code>ADMIN</code>; the reply also includes <code>gateway_count</code>, a
 field only ADMIN callers get back. Now try the same idea with a trading key:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a>curl<span class="w"> </span>-i<span class="w"> </span>-H<span class="w"> </span><span class="s1">'Authorization: Bearer key-trader-demo'</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a><span class="w">  </span>http://127.0.0.1:8080/api/v1/admin/gateways
+<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>curl<span class="w"> </span>-i<span class="w"> </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer </span><span class="nv">$KEY_TRADER</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a><span class="w">  </span>http://127.0.0.1:8080/api/v1/admin/gateways
 </code></pre></div>
 <p>Expect <code>403 ROLE_DENIED</code> — a trading key is never accepted on <code>/admin/*</code>,
 regardless of which gateway it is bound to.</p>
 <p>Trigger and resume a circuit-breaker halt with the ADMIN key. The symbol is
 part of the path; the body carries only the optional <code>level</code> (and <code>reason</code>):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>http://127.0.0.1:8080/api/v1/admin/symbols/AAPL/halt<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a><span class="w">  </span>-H<span class="w"> </span><span class="s1">'Authorization: Bearer key-ops01-demo'</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a><span class="w">  </span>-H<span class="w"> </span><span class="s1">'Content-Type: application/json'</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-23-4" name="__codelineno-23-4" href="#__codelineno-23-4"></a><span class="w">  </span>-d<span class="w"> </span><span class="s1">'{"level": "L1"}'</span>
-<a id="__codelineno-23-5" name="__codelineno-23-5" href="#__codelineno-23-5"></a>
-<a id="__codelineno-23-6" name="__codelineno-23-6" href="#__codelineno-23-6"></a>curl<span class="w"> </span>-H<span class="w"> </span><span class="s1">'Authorization: Bearer key-ops01-demo'</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-23-7" name="__codelineno-23-7" href="#__codelineno-23-7"></a><span class="w">  </span>http://127.0.0.1:8080/api/v1/halts
-<a id="__codelineno-23-8" name="__codelineno-23-8" href="#__codelineno-23-8"></a>
-<a id="__codelineno-23-9" name="__codelineno-23-9" href="#__codelineno-23-9"></a>curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>http://127.0.0.1:8080/api/v1/admin/symbols/AAPL/resume<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-23-10" name="__codelineno-23-10" href="#__codelineno-23-10"></a><span class="w">  </span>-H<span class="w"> </span><span class="s1">'Authorization: Bearer key-ops01-demo'</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>http://127.0.0.1:8080/api/v1/admin/symbols/AAPL/halt<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a><span class="w">  </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer </span><span class="nv">$KEY_OPS</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-24-3" name="__codelineno-24-3" href="#__codelineno-24-3"></a><span class="w">  </span>-H<span class="w"> </span><span class="s1">'Content-Type: application/json'</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-24-4" name="__codelineno-24-4" href="#__codelineno-24-4"></a><span class="w">  </span>-d<span class="w"> </span><span class="s1">'{"level": "L1"}'</span>
+<a id="__codelineno-24-5" name="__codelineno-24-5" href="#__codelineno-24-5"></a>
+<a id="__codelineno-24-6" name="__codelineno-24-6" href="#__codelineno-24-6"></a>curl<span class="w"> </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer </span><span class="nv">$KEY_OPS</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-24-7" name="__codelineno-24-7" href="#__codelineno-24-7"></a><span class="w">  </span>http://127.0.0.1:8080/api/v1/halts
+<a id="__codelineno-24-8" name="__codelineno-24-8" href="#__codelineno-24-8"></a>
+<a id="__codelineno-24-9" name="__codelineno-24-9" href="#__codelineno-24-9"></a>curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>http://127.0.0.1:8080/api/v1/admin/symbols/AAPL/resume<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-24-10" name="__codelineno-24-10" href="#__codelineno-24-10"></a><span class="w">  </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer </span><span class="nv">$KEY_OPS</span><span class="s2">"</span>
 </code></pre></div>
 <p>Request a session transition. This call waits for the engine's verdict
 instead of firing and forgetting. If you have not opened the day yet, send
 <code>PRE_OPEN</code> first; the engine only accepts the legal next phase:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>curl<span class="w"> </span>-i<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>http://127.0.0.1:8080/api/v1/admin/session/transition<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a><span class="w">  </span>-H<span class="w"> </span><span class="s1">'Authorization: Bearer key-ops01-demo'</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-24-3" name="__codelineno-24-3" href="#__codelineno-24-3"></a><span class="w">  </span>-H<span class="w"> </span><span class="s1">'Content-Type: application/json'</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-24-4" name="__codelineno-24-4" href="#__codelineno-24-4"></a><span class="w">  </span>-d<span class="w"> </span><span class="s1">'{"to_state": "CONTINUOUS"}'</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>curl<span class="w"> </span>-i<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>http://127.0.0.1:8080/api/v1/admin/session/transition<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a><span class="w">  </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer </span><span class="nv">$KEY_OPS</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a><span class="w">  </span>-H<span class="w"> </span><span class="s1">'Content-Type: application/json'</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-25-4" name="__codelineno-25-4" href="#__codelineno-25-4"></a><span class="w">  </span>-d<span class="w"> </span><span class="s1">'{"to_state": "CONTINUOUS"}'</span>
 </code></pre></div>
 <p>A successful transition returns <code>200</code> with <code>status: "APPLIED"</code> and a
-<code>command_id</code>. Requesting a state the engine cannot apply (for example when
-sessions are disabled) returns <code>409 TRANSITION_REJECTED</code> with the engine's
-reason as <code>message</code>, instead of leaving you to guess from a timeout.</p>
+<code>command_id</code>. Requesting a state the engine cannot apply because sessions are
+disabled returns <code>409 TRANSITION_REJECTED</code> with the engine's reason as
+<code>message</code>. A transition that is simply not legal <em>from the current phase</em>
+(for example <code>CONTINUOUS</code> when the market is already <code>CONTINUOUS</code>) gets no
+answer from the engine at all: the call waits about three seconds and ends
+with <code>503 ENGINE_TIMEOUT</code>. Check <code>GET /api/v1/session</code> first, as for the
+console.</p>
 <p>Look at cross-gateway order visibility:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>curl<span class="w"> </span>-H<span class="w"> </span><span class="s1">'Authorization: Bearer key-ops01-demo'</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a><span class="w">  </span><span class="s2">"http://127.0.0.1:8080/api/v1/admin/orders?symbol=AAPL"</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a>curl<span class="w"> </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer </span><span class="nv">$KEY_OPS</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a><span class="w">  </span><span class="s2">"http://127.0.0.1:8080/api/v1/admin/orders?symbol=AAPL"</span>
 </code></pre></div>
 <p>This is the only endpoint that shows every gateway's resting orders in one
 call; a trading key never sees this. Note the <code>retention_sec</code> field in the
@@ -8093,31 +8180,32 @@ reply — filled/cancelled/expired orders are evicted from this view after
 <code>order_retention_sec</code> (default one hour, configurable per <code>api_gateways</code>
 instance), while resting orders are never evicted regardless of age.</p>
 <p>Fetch one order's full cross-gateway lifecycle from the audit trail:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a>curl<span class="w"> </span>-i<span class="w"> </span>-H<span class="w"> </span><span class="s1">'Authorization: Bearer key-ops01-demo'</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a><span class="w">  </span>http://127.0.0.1:8080/api/v1/admin/orders/ORDER_ID/audit
+<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a>curl<span class="w"> </span>-i<span class="w"> </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer </span><span class="nv">$KEY_OPS</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a><span class="w">  </span>http://127.0.0.1:8080/api/v1/admin/orders/ORDER_ID/audit
 </code></pre></div>
 <p>This endpoint is optional: it depends on a separate <code>pm-audit</code> index that
 this gateway only <em>reads</em>, never writes. If <code>pm-audit</code> has not built one,
 expect <code>503 AUDIT_INDEX_UNAVAILABLE</code> — every other admin endpoint keeps
 working normally.</p>
 <p>Finally, cancel resting exposure with the kill-switch family:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a>curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>http://127.0.0.1:8080/api/v1/admin/symbols/AAPL/cancel-orders<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a><span class="w">  </span>-H<span class="w"> </span><span class="s1">'Authorization: Bearer key-ops01-demo'</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-27-3" name="__codelineno-27-3" href="#__codelineno-27-3"></a><span class="w">  </span>-H<span class="w"> </span><span class="s1">'Content-Type: application/json'</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-27-4" name="__codelineno-27-4" href="#__codelineno-27-4"></a><span class="w">  </span>-d<span class="w"> </span><span class="s1">'{"reason": "training exercise"}'</span>
-<a id="__codelineno-27-5" name="__codelineno-27-5" href="#__codelineno-27-5"></a>
-<a id="__codelineno-27-6" name="__codelineno-27-6" href="#__codelineno-27-6"></a>curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>http://127.0.0.1:8080/api/v1/admin/gateways/TRADER01/kill-switch<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-27-7" name="__codelineno-27-7" href="#__codelineno-27-7"></a><span class="w">  </span>-H<span class="w"> </span><span class="s1">'Authorization: Bearer key-ops01-demo'</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-27-8" name="__codelineno-27-8" href="#__codelineno-27-8"></a><span class="w">  </span>-H<span class="w"> </span><span class="s1">'Content-Type: application/json'</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-27-9" name="__codelineno-27-9" href="#__codelineno-27-9"></a><span class="w">  </span>-d<span class="w"> </span><span class="s1">'{"reason": "training exercise"}'</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a>curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>http://127.0.0.1:8080/api/v1/admin/symbols/AAPL/cancel-orders<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-28-2" name="__codelineno-28-2" href="#__codelineno-28-2"></a><span class="w">  </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer </span><span class="nv">$KEY_OPS</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-28-3" name="__codelineno-28-3" href="#__codelineno-28-3"></a><span class="w">  </span>-H<span class="w"> </span><span class="s1">'Content-Type: application/json'</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-28-4" name="__codelineno-28-4" href="#__codelineno-28-4"></a><span class="w">  </span>-d<span class="w"> </span><span class="s1">'{"reason": "training exercise"}'</span>
+<a id="__codelineno-28-5" name="__codelineno-28-5" href="#__codelineno-28-5"></a>
+<a id="__codelineno-28-6" name="__codelineno-28-6" href="#__codelineno-28-6"></a>curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>http://127.0.0.1:8080/api/v1/admin/gateways/TRADER01/kill-switch<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-28-7" name="__codelineno-28-7" href="#__codelineno-28-7"></a><span class="w">  </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer </span><span class="nv">$KEY_OPS</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-28-8" name="__codelineno-28-8" href="#__codelineno-28-8"></a><span class="w">  </span>-H<span class="w"> </span><span class="s1">'Content-Type: application/json'</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-28-9" name="__codelineno-28-9" href="#__codelineno-28-9"></a><span class="w">  </span>-d<span class="w"> </span><span class="s1">'{"reason": "training exercise"}'</span>
 </code></pre></div>
 <p>Expected behavior:</p>
 <ul>
 <li>a trading key gets <code>403 ROLE_DENIED</code> on every <code>/admin/*</code> path</li>
 <li>halting a symbol the engine does not know returns <code>409 HALT_REJECTED</code> with
   <code>message: "Unknown symbol: ..."</code> — the engine refused, your role is fine</li>
-<li><code>/admin/session/transition</code> blocks for the engine's verdict and never just
-  times out silently</li>
+<li><code>/admin/session/transition</code> blocks for the engine's verdict (applied, or
+  <code>409</code> when sessions are disabled; an illegal next phase ends in
+  <code>503 ENGINE_TIMEOUT</code>)</li>
 <li><code>/admin/orders</code> returns orders from every gateway, not just <code>OPS01</code>'s</li>
 <li><code>/admin/orders/{order_id}/audit</code> either returns the full lifecycle or a clear
   <code>503 AUDIT_INDEX_UNAVAILABLE</code> if no audit index is deployed</li>
@@ -8128,25 +8216,25 @@ API key itself.</p>
 <h2 id="exercise-11-configure-multiple-logical-api-gateways">Exercise 11: Configure Multiple Logical API Gateways<a class="headerlink" href="#exercise-11-configure-multiple-logical-api-gateways" title="Permanent link">&para;</a></h2>
 <p>Generate two API gateway process configs, one for desk trading and one for
 algorithmic trading:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a>pm-config-gen<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-28-2" name="__codelineno-28-2" href="#__codelineno-28-2"></a><span class="w">  </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span>MSFT<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-28-3" name="__codelineno-28-3" href="#__codelineno-28-3"></a><span class="w">  </span>--participants<span class="w"> </span>TRADER01<span class="w"> </span>ALGO01<span class="w"> </span>OPS01:ADMIN<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-28-4" name="__codelineno-28-4" href="#__codelineno-28-4"></a><span class="w">  </span>--api-gateway-instance<span class="w"> </span>desk:TRADER01:8080<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-28-5" name="__codelineno-28-5" href="#__codelineno-28-5"></a><span class="w">  </span>--api-gateway-instance<span class="w"> </span>algos:ALGO01:8081<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-28-6" name="__codelineno-28-6" href="#__codelineno-28-6"></a><span class="w">  </span>--seed<span class="w"> </span><span class="m">20260624</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-28-7" name="__codelineno-28-7" href="#__codelineno-28-7"></a><span class="w">  </span>--output<span class="w"> </span>engine_config.yaml<span class="w"> </span>--force
+<div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a>pm-config-gen<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-29-2" name="__codelineno-29-2" href="#__codelineno-29-2"></a><span class="w">  </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span>MSFT<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-29-3" name="__codelineno-29-3" href="#__codelineno-29-3"></a><span class="w">  </span>--participants<span class="w"> </span>TRADER01<span class="w"> </span>ALGO01<span class="w"> </span>OPS01:ADMIN<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-29-4" name="__codelineno-29-4" href="#__codelineno-29-4"></a><span class="w">  </span>--api-gateway-instance<span class="w"> </span>desk:TRADER01:8080<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-29-5" name="__codelineno-29-5" href="#__codelineno-29-5"></a><span class="w">  </span>--api-gateway-instance<span class="w"> </span>algos:ALGO01:8081<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-29-6" name="__codelineno-29-6" href="#__codelineno-29-6"></a><span class="w">  </span>--seed<span class="w"> </span><span class="m">20260624</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-29-7" name="__codelineno-29-7" href="#__codelineno-29-7"></a><span class="w">  </span>--output<span class="w"> </span>engine_config.yaml<span class="w"> </span>--force
 </code></pre></div>
 <p>Start each named process in a separate terminal:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a>pm-api-gwy<span class="w"> </span>--instance<span class="w"> </span>desk
-<a id="__codelineno-29-2" name="__codelineno-29-2" href="#__codelineno-29-2"></a>pm-api-gwy<span class="w"> </span>--instance<span class="w"> </span>algos
+<div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a>pm-api-gwy<span class="w"> </span>--instance<span class="w"> </span>desk
+<a id="__codelineno-30-2" name="__codelineno-30-2" href="#__codelineno-30-2"></a>pm-api-gwy<span class="w"> </span>--instance<span class="w"> </span>algos
 </code></pre></div>
 <p>Try an invalid duplicate assignment:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a>pm-config-gen<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-30-2" name="__codelineno-30-2" href="#__codelineno-30-2"></a><span class="w">  </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-30-3" name="__codelineno-30-3" href="#__codelineno-30-3"></a><span class="w">  </span>--participants<span class="w"> </span>TRADER01<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-30-4" name="__codelineno-30-4" href="#__codelineno-30-4"></a><span class="w">  </span>--api-gateway-instance<span class="w"> </span>desk:TRADER01<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-30-5" name="__codelineno-30-5" href="#__codelineno-30-5"></a><span class="w">  </span>--api-gateway-instance<span class="w"> </span>algos:TRADER01<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-30-6" name="__codelineno-30-6" href="#__codelineno-30-6"></a><span class="w">  </span>--dry-run
+<div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a>pm-config-gen<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-31-2" name="__codelineno-31-2" href="#__codelineno-31-2"></a><span class="w">  </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-31-3" name="__codelineno-31-3" href="#__codelineno-31-3"></a><span class="w">  </span>--participants<span class="w"> </span>TRADER01<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-31-4" name="__codelineno-31-4" href="#__codelineno-31-4"></a><span class="w">  </span>--api-gateway-instance<span class="w"> </span>desk:TRADER01<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-31-5" name="__codelineno-31-5" href="#__codelineno-31-5"></a><span class="w">  </span>--api-gateway-instance<span class="w"> </span>algos:TRADER01<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-31-6" name="__codelineno-31-6" href="#__codelineno-31-6"></a><span class="w">  </span>--dry-run
 </code></pre></div>
 <p>Expected behavior:</p>
 <ul>
@@ -8158,42 +8246,47 @@ algorithmic trading:</p>
 <h2 id="exercise-12-write-a-python-cli-client-for-limit-order-entry">Exercise 12: Write a Python CLI Client for LIMIT Order Entry<a class="headerlink" href="#exercise-12-write-a-python-cli-client-for-limit-order-entry" title="Permanent link">&para;</a></h2>
 <p>Use the <code>ApiGatewayClient</code> library from <code>docs/examples/REST/python</code> to write a
 small script that submits a LIMIT order and prints the engine response.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span><span class="o">,</span><span class="w"> </span><span class="nn">json</span><span class="o">,</span><span class="w"> </span><span class="nn">os</span><span class="o">,</span><span class="w"> </span><span class="nn">sys</span>
-<a id="__codelineno-31-2" name="__codelineno-31-2" href="#__codelineno-31-2"></a><span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="s2">"docs/examples/REST/python"</span><span class="p">)</span>
-<a id="__codelineno-31-3" name="__codelineno-31-3" href="#__codelineno-31-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">api_gateway_client</span><span class="w"> </span><span class="kn">import</span> <span class="n">ApiGatewayClient</span>
-<a id="__codelineno-31-4" name="__codelineno-31-4" href="#__codelineno-31-4"></a>
-<a id="__codelineno-31-5" name="__codelineno-31-5" href="#__codelineno-31-5"></a><span class="n">parser</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">()</span>
-<a id="__codelineno-31-6" name="__codelineno-31-6" href="#__codelineno-31-6"></a><span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">"--side"</span><span class="p">,</span>   <span class="n">required</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">choices</span><span class="o">=</span><span class="p">[</span><span class="s2">"BUY"</span><span class="p">,</span> <span class="s2">"SELL"</span><span class="p">])</span>
-<a id="__codelineno-31-7" name="__codelineno-31-7" href="#__codelineno-31-7"></a><span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">"--symbol"</span><span class="p">,</span> <span class="n">required</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-<a id="__codelineno-31-8" name="__codelineno-31-8" href="#__codelineno-31-8"></a><span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">"--qty"</span><span class="p">,</span>    <span class="n">required</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
-<a id="__codelineno-31-9" name="__codelineno-31-9" href="#__codelineno-31-9"></a><span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">"--price"</span><span class="p">,</span>  <span class="n">required</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
-<a id="__codelineno-31-10" name="__codelineno-31-10" href="#__codelineno-31-10"></a><span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">"--wait-ack"</span><span class="p">,</span> <span class="n">action</span><span class="o">=</span><span class="s2">"store_true"</span><span class="p">)</span>
-<a id="__codelineno-31-11" name="__codelineno-31-11" href="#__codelineno-31-11"></a><span class="n">args</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">parse_args</span><span class="p">()</span>
-<a id="__codelineno-31-12" name="__codelineno-31-12" href="#__codelineno-31-12"></a>
-<a id="__codelineno-31-13" name="__codelineno-31-13" href="#__codelineno-31-13"></a><span class="n">client</span> <span class="o">=</span> <span class="n">ApiGatewayClient</span><span class="p">(</span>
-<a id="__codelineno-31-14" name="__codelineno-31-14" href="#__codelineno-31-14"></a>    <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"EDUMATCHER_API_URL"</span><span class="p">,</span> <span class="s2">"http://127.0.0.1:8080"</span><span class="p">),</span>
-<a id="__codelineno-31-15" name="__codelineno-31-15" href="#__codelineno-31-15"></a>    <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"EDUMATCHER_API_KEY"</span><span class="p">,</span> <span class="s2">"key-trader-demo"</span><span class="p">),</span>
-<a id="__codelineno-31-16" name="__codelineno-31-16" href="#__codelineno-31-16"></a><span class="p">)</span>
-<a id="__codelineno-31-17" name="__codelineno-31-17" href="#__codelineno-31-17"></a><span class="n">path</span> <span class="o">=</span> <span class="s2">"/api/v1/orders"</span> <span class="o">+</span> <span class="p">(</span><span class="s2">"?wait=ack"</span> <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">wait_ack</span> <span class="k">else</span> <span class="s2">""</span><span class="p">)</span>
-<a id="__codelineno-31-18" name="__codelineno-31-18" href="#__codelineno-31-18"></a><span class="n">result</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">post_json</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="p">{</span>
-<a id="__codelineno-31-19" name="__codelineno-31-19" href="#__codelineno-31-19"></a>    <span class="s2">"symbol"</span><span class="p">:</span> <span class="n">args</span><span class="o">.</span><span class="n">symbol</span><span class="o">.</span><span class="n">upper</span><span class="p">(),</span>
-<a id="__codelineno-31-20" name="__codelineno-31-20" href="#__codelineno-31-20"></a>    <span class="s2">"side"</span><span class="p">:</span>   <span class="n">args</span><span class="o">.</span><span class="n">side</span><span class="p">,</span>
-<a id="__codelineno-31-21" name="__codelineno-31-21" href="#__codelineno-31-21"></a>    <span class="s2">"order_type"</span><span class="p">:</span> <span class="s2">"LIMIT"</span><span class="p">,</span>
-<a id="__codelineno-31-22" name="__codelineno-31-22" href="#__codelineno-31-22"></a>    <span class="s2">"quantity"</span><span class="p">:</span> <span class="n">args</span><span class="o">.</span><span class="n">qty</span><span class="p">,</span>
-<a id="__codelineno-31-23" name="__codelineno-31-23" href="#__codelineno-31-23"></a>    <span class="s2">"price"</span><span class="p">:</span>  <span class="n">args</span><span class="o">.</span><span class="n">price</span><span class="p">,</span>
-<a id="__codelineno-31-24" name="__codelineno-31-24" href="#__codelineno-31-24"></a><span class="p">})</span>
-<a id="__codelineno-31-25" name="__codelineno-31-25" href="#__codelineno-31-25"></a><span class="nb">print</span><span class="p">(</span><span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="n">indent</span><span class="o">=</span><span class="mi">2</span><span class="p">))</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span><span class="o">,</span><span class="w"> </span><span class="nn">json</span><span class="o">,</span><span class="w"> </span><span class="nn">os</span><span class="o">,</span><span class="w"> </span><span class="nn">sys</span>
+<a id="__codelineno-32-2" name="__codelineno-32-2" href="#__codelineno-32-2"></a><span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"EX"</span><span class="p">,</span> <span class="s2">"docs/examples"</span><span class="p">),</span> <span class="s2">"REST/python"</span><span class="p">))</span>
+<a id="__codelineno-32-3" name="__codelineno-32-3" href="#__codelineno-32-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">api_gateway_client</span><span class="w"> </span><span class="kn">import</span> <span class="n">ApiGatewayClient</span>
+<a id="__codelineno-32-4" name="__codelineno-32-4" href="#__codelineno-32-4"></a>
+<a id="__codelineno-32-5" name="__codelineno-32-5" href="#__codelineno-32-5"></a><span class="n">parser</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">()</span>
+<a id="__codelineno-32-6" name="__codelineno-32-6" href="#__codelineno-32-6"></a><span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">"--side"</span><span class="p">,</span>   <span class="n">required</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">choices</span><span class="o">=</span><span class="p">[</span><span class="s2">"BUY"</span><span class="p">,</span> <span class="s2">"SELL"</span><span class="p">])</span>
+<a id="__codelineno-32-7" name="__codelineno-32-7" href="#__codelineno-32-7"></a><span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">"--symbol"</span><span class="p">,</span> <span class="n">required</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<a id="__codelineno-32-8" name="__codelineno-32-8" href="#__codelineno-32-8"></a><span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">"--qty"</span><span class="p">,</span>    <span class="n">required</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
+<a id="__codelineno-32-9" name="__codelineno-32-9" href="#__codelineno-32-9"></a><span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">"--price"</span><span class="p">,</span>  <span class="n">required</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+<a id="__codelineno-32-10" name="__codelineno-32-10" href="#__codelineno-32-10"></a><span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">"--wait-ack"</span><span class="p">,</span> <span class="n">action</span><span class="o">=</span><span class="s2">"store_true"</span><span class="p">)</span>
+<a id="__codelineno-32-11" name="__codelineno-32-11" href="#__codelineno-32-11"></a><span class="n">args</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">parse_args</span><span class="p">()</span>
+<a id="__codelineno-32-12" name="__codelineno-32-12" href="#__codelineno-32-12"></a>
+<a id="__codelineno-32-13" name="__codelineno-32-13" href="#__codelineno-32-13"></a><span class="n">client</span> <span class="o">=</span> <span class="n">ApiGatewayClient</span><span class="p">(</span>
+<a id="__codelineno-32-14" name="__codelineno-32-14" href="#__codelineno-32-14"></a>    <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"EDUMATCHER_API_URL"</span><span class="p">,</span> <span class="s2">"http://127.0.0.1:8080"</span><span class="p">),</span>
+<a id="__codelineno-32-15" name="__codelineno-32-15" href="#__codelineno-32-15"></a>    <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"EDUMATCHER_API_KEY"</span><span class="p">,</span> <span class="s2">"key-trader-demo"</span><span class="p">),</span>
+<a id="__codelineno-32-16" name="__codelineno-32-16" href="#__codelineno-32-16"></a><span class="p">)</span>
+<a id="__codelineno-32-17" name="__codelineno-32-17" href="#__codelineno-32-17"></a><span class="n">path</span> <span class="o">=</span> <span class="s2">"/api/v1/orders"</span> <span class="o">+</span> <span class="p">(</span><span class="s2">"?wait=ack"</span> <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">wait_ack</span> <span class="k">else</span> <span class="s2">""</span><span class="p">)</span>
+<a id="__codelineno-32-18" name="__codelineno-32-18" href="#__codelineno-32-18"></a><span class="n">result</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">post_json</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="p">{</span>
+<a id="__codelineno-32-19" name="__codelineno-32-19" href="#__codelineno-32-19"></a>    <span class="s2">"symbol"</span><span class="p">:</span> <span class="n">args</span><span class="o">.</span><span class="n">symbol</span><span class="o">.</span><span class="n">upper</span><span class="p">(),</span>
+<a id="__codelineno-32-20" name="__codelineno-32-20" href="#__codelineno-32-20"></a>    <span class="s2">"side"</span><span class="p">:</span>   <span class="n">args</span><span class="o">.</span><span class="n">side</span><span class="p">,</span>
+<a id="__codelineno-32-21" name="__codelineno-32-21" href="#__codelineno-32-21"></a>    <span class="s2">"order_type"</span><span class="p">:</span> <span class="s2">"LIMIT"</span><span class="p">,</span>
+<a id="__codelineno-32-22" name="__codelineno-32-22" href="#__codelineno-32-22"></a>    <span class="s2">"quantity"</span><span class="p">:</span> <span class="n">args</span><span class="o">.</span><span class="n">qty</span><span class="p">,</span>
+<a id="__codelineno-32-23" name="__codelineno-32-23" href="#__codelineno-32-23"></a>    <span class="s2">"price"</span><span class="p">:</span>  <span class="n">args</span><span class="o">.</span><span class="n">price</span><span class="p">,</span>
+<a id="__codelineno-32-24" name="__codelineno-32-24" href="#__codelineno-32-24"></a><span class="p">})</span>
+<a id="__codelineno-32-25" name="__codelineno-32-25" href="#__codelineno-32-25"></a><span class="nb">print</span><span class="p">(</span><span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="n">indent</span><span class="o">=</span><span class="mi">2</span><span class="p">))</span>
 </code></pre></div>
-<p>Run it from the repo root:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a>python3<span class="w"> </span>limit_order.py<span class="w"> </span>--side<span class="w"> </span>BUY<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--qty<span class="w"> </span><span class="m">100</span><span class="w"> </span>--price<span class="w"> </span><span class="m">209</span>.50
-<a id="__codelineno-32-2" name="__codelineno-32-2" href="#__codelineno-32-2"></a>python3<span class="w"> </span>limit_order.py<span class="w"> </span>--side<span class="w"> </span>BUY<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--qty<span class="w"> </span><span class="m">100</span><span class="w"> </span>--price<span class="w"> </span><span class="m">209</span>.50<span class="w"> </span>--wait-ack
+<p>Save it as <code>limit_order.py</code>, set <code>EDUMATCHER_API_KEY</code> to a trading key (<code>export EDUMATCHER_API_KEY=$KEY_TRADER</code>;
+the built-in default is only a placeholder) and run it from the repo root (or
+from anywhere with <code>EX</code> set as above):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a>python3<span class="w"> </span>limit_order.py<span class="w"> </span>--side<span class="w"> </span>BUY<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--qty<span class="w"> </span><span class="m">100</span><span class="w"> </span>--price<span class="w"> </span><span class="m">140</span>.00
+<a id="__codelineno-33-2" name="__codelineno-33-2" href="#__codelineno-33-2"></a>python3<span class="w"> </span>limit_order.py<span class="w"> </span>--side<span class="w"> </span>BUY<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--qty<span class="w"> </span><span class="m">100</span><span class="w"> </span>--price<span class="w"> </span><span class="m">140</span>.00<span class="w"> </span>--wait-ack
 </code></pre></div>
 <p>Expected behavior:</p>
 <ul>
 <li>without <code>--wait-ack</code>: <code>status</code> is <code>PENDING</code> and <code>event</code> is null</li>
 <li>with <code>--wait-ack</code>: <code>status</code> is <code>ACKED</code> and <code>event</code> contains the engine response</li>
 <li>sending a read-only key returns <code>403 READ_ONLY</code></li>
-<li>omitting <code>--price</code> returns <code>400 VALIDATION</code> because <code>LIMIT</code> requires <code>price</code></li>
+<li>omitting <code>--price</code> is stopped by the script's own argument parser
+  (<code>error: the following arguments are required: --price</code>) before any request
+  is sent; to see the gateway's <code>400 VALIDATION</code> for a <code>LIMIT</code> order without
+  <code>price</code>, post the JSON body with <code>curl</code> and leave <code>price</code> out</li>
 </ul>
 <p>A fully documented <code>MARKET</code> order version that follows the same pattern is
 available at <code>docs/examples/REST/python/submit_market_order.py</code>.</p>

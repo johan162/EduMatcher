@@ -2040,6 +2040,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../participant-guide/90-backmatter/010-faq-orders-and-positions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ: Orders, Sessions and Positions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -3434,6 +3462,34 @@
           </ul>
         </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/90-backmatter/010-faq-setup-and-operation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ: Setup and Operation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -7527,6 +7583,51 @@ first three.</p>
 </tbody>
 </table>
 <h2 id="common-first-day-problems">Common first-day problems<a class="headerlink" href="#common-first-day-problems" title="Permanent link">&para;</a></h2>
+<p><strong>The installer or <code>./edumatcher.sh start</code> fails, or a container is missing.</strong>
+Run <code>./edumatcher.sh status</code> to see which container is down and
+<code>./edumatcher.sh logs</code> (press <code>Ctrl-C</code> to stop watching) for the reason.
+The usual causes are:</p>
+<ul>
+<li><em>Neither Podman nor Docker is installed</em>, or Docker has no Compose support.
+  Check with <code>podman --version</code> or <code>docker compose version</code>. On macOS the
+  Docker Desktop application, or <code>podman machine start</code>, must be running.</li>
+<li><em>The images could not be downloaded.</em> Check your internet connection and
+  run <code>./edumatcher.sh pull</code>, then <code>./edumatcher.sh start</code> again.</li>
+<li><em>Permission denied on the Docker socket</em> (Linux). Your user must be allowed
+  to use Docker (see Docker's "post-installation steps for Linux"), or use
+  Podman, which needs no special rights.</li>
+<li><em>A port is already in use.</em> The exchange publishes 8080, 8081 and 8090–8095
+  on your computer. Stop whatever else uses them, or change a browser
+  application's port in <code>.env</code> (for example <code>TERMINAL_GUI_PORT=8190</code>) and run
+  <code>./edumatcher.sh restart</code>; <code>./edumatcher.sh urls</code> prints the addresses in
+  use. Another running EduMatcher installation counts too (see <em>Two
+  installations at once</em> below).</li>
+</ul>
+<p><strong>A browser page does not open, or stays empty.</strong> Open the address on the
+same computer that runs the exchange: it listens on <code>localhost</code> only. If the
+page opens but shows a disconnected banner, check <code>./edumatcher.sh status</code>.
+An empty page can also be correct: see <em>When a display looks empty</em> in
+<a href="../../part-1-see-it-run/040-the-browser-applications/">The Browser Applications</a>.</p>
+<p><strong>The Trading GUI does not accept my API key.</strong> Each configuration has its
+own keys, so after you switch configuration the old ones stop working. Look
+them up again with <code>./edumatcher.sh shell pm-config-show -a</code>. Paste the whole
+key, with no spaces, and use the key of the participant you mean.</p>
+<p><strong>The console says <em>Gateway already connected</em>.</strong> A participant ID can be
+connected once at a time. Another console, or a Trading GUI login, is using
+it. Close that one, or use another participant such as <code>TRADER02</code>.</p>
+<p><strong>My orders disappeared.</strong> When a trader disconnects (typing <code>EXIT</code>, or
+closing the console window) the exchange cancels that trader's resting orders
+in the bundled configurations. Orders with <code>TIF=GTC</code> are cancelled too; they
+only survive a stop and start of the <em>exchange</em>, not a trader leaving.</p>
+<p><strong>I want to start over.</strong> Reset the saved state and keep the configuration:
+stop the processes, clear them, restart.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>./edumatcher.sh<span class="w"> </span>shell<span class="w"> </span>pm-opctl-cli<span class="w"> </span>stop
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>./edumatcher.sh<span class="w"> </span>shell<span class="w"> </span>pm-opctl-cli<span class="w"> </span>clear<span class="w"> </span>--state<span class="w"> </span>--yes
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>./edumatcher.sh<span class="w"> </span>restart
+</code></pre></div>
+<p>On the Python route use <code>pm-opctl-cli stop</code>, <code>pm-opctl-cli clear --state
+--yes</code> and <code>pm-opctl-cli start</code>. <code>clear --all</code> also removes logs and audit
+files.</p>
 <p><strong>My order does not trade.</strong> Nobody is waiting on the other side at a price
 that crosses yours. That is the market working correctly. Look at the book
 (<code>pm-viewer --symbol AAPL</code>, <code>BOOK|SYM=AAPL</code> in <code>pm-admin</code>, or the Order Book

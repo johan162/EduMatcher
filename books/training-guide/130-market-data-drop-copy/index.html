@@ -1949,6 +1949,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../participant-guide/90-backmatter/010-faq-orders-and-positions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ: Orders, Sessions and Positions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -3343,6 +3371,34 @@
           </ul>
         </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../operator-guide/90-backmatter/010-faq-setup-and-operation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ: Setup and Operation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -7665,8 +7721,9 @@ resting order state across gateways.</p>
 way to observe the event stream without writing a custom ZMQ subscriber.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> audit output shows the trade/order lifecycle events.</p>
 <h2 id="exercise-4-confirm-the-drop-copy-feed-is-bound">Exercise 4: Confirm the Drop-Copy Feed Is Bound<a class="headerlink" href="#exercise-4-confirm-the-drop-copy-feed-is-bound" title="Permanent link">&para;</a></h2>
-<p>Restart <code>pm-engine --verbose</code> and look for this startup line in the engine
-output (preceded by the usual timestamp, level and logger name):</p>
+<p>Restart <code>pm-engine --verbose</code> (and then your trader and operator consoles, and
+reopen the market) and look for this startup line in the engine output
+(preceded by the usual timestamp, level and logger name):</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>Drop copy PUB bound on port 5557
 </code></pre></div>
 <p>That confirms the drop-copy publisher is active. It is intended for external

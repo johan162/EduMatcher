@@ -1949,6 +1949,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../participant-guide/90-backmatter/010-faq-orders-and-positions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ: Orders, Sessions and Positions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -3343,6 +3371,34 @@
           </ul>
         </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../operator-guide/90-backmatter/010-faq-setup-and-operation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ: Setup and Operation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -5592,10 +5648,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#exercise-7-drive-the-bot-from-a-config-file" class="md-nav__link">
+  <a href="#exercise-7-drive-the-bot-from-a-config-file-optional" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Exercise 7: Drive the Bot from a Config File
+        Exercise 7: Drive the Bot from a Config File (Optional)
       
     </span>
   </a>
@@ -5603,15 +5659,15 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#exercise-8-one-bot-three-symbols-three-sets-of-terms" class="md-nav__link">
+  <a href="#exercise-8-one-bot-three-symbols-three-sets-of-terms-optional" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Exercise 8: One Bot, Three Symbols, Three Sets of Terms
+        Exercise 8: One Bot, Three Symbols, Three Sets of Terms (Optional)
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Exercise 8: One Bot, Three Symbols, Three Sets of Terms">
+    <nav class="md-nav" aria-label="Exercise 8: One Bot, Three Symbols, Three Sets of Terms (Optional)">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -5638,6 +5694,17 @@
         
       </ul>
     </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#returning-to-the-manual-quote-state" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Returning to the manual-quote state
+      
+    </span>
+  </a>
   
 </li>
       
@@ -7661,8 +7728,17 @@ invocation.</p>
 <li>Chapters 00–01 completed.</li>
 <li><code>pm-engine</code> running and the market open in <code>CONTINUOUS</code> (chapter 01,
   "Open the market for the chapters ahead").</li>
-<li>At least one trader gateway connected (for book checks).</li>
+<li>The operator console connected (for book checks), and your working folder as
+  your current directory (<code>cd /data/training</code> on the container route).</li>
 </ul>
+<div class="admonition important">
+<p class="admonition-title">Which exercises chapter 03 needs</p>
+<p>Chapter 03 trades against the <strong>manual quotes</strong> you create in
+Exercises 1–5. Exercises 6–8 replace them with market-maker bots and change
+the configuration, so they are <strong>optional for now</strong>: do them after
+chapter 03, or use "Returning to the manual-quote state" at the end of this
+chapter to get back.</p>
+</div>
 <h2 id="background">Background<a class="headerlink" href="#background" title="Permanent link">&para;</a></h2>
 <p>A market maker posts simultaneous buy (bid) and sell (ask) prices. Without one,
 the order book is empty and no trader can get an immediate fill.</p>
@@ -7709,12 +7785,34 @@ symbol naming its market maker:</p>
 <a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">        </span><span class="nt">ask_price</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">150.05</span>
 <a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="w">        </span><span class="nt">bid_qty</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">500</span>
 <a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="w">        </span><span class="nt">ask_qty</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">500</span>
-<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="w">  </span><span class="c1"># ... the same shape for MSFT/MM_MSFT_01 and TSLA/MM_TSLA_01</span>
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="w">  </span><span class="nt">MSFT</span><span class="p">:</span>
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="w">    </span><span class="nt">tick_decimals</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span>
+<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="w">    </span><span class="nt">last_buy_price</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">420.00</span>
+<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a><span class="w">    </span><span class="nt">last_sell_price</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">420.00</span>
+<a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a><span class="w">    </span><span class="nt">market_maker_quotes</span><span class="p">:</span>
+<a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">gateway_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MM_MSFT_01</span>
+<a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a><span class="w">        </span><span class="nt">bid_price</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">419.90</span>
+<a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a><span class="w">        </span><span class="nt">ask_price</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">420.10</span>
+<a id="__codelineno-1-20" name="__codelineno-1-20" href="#__codelineno-1-20"></a><span class="w">        </span><span class="nt">bid_qty</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">300</span>
+<a id="__codelineno-1-21" name="__codelineno-1-21" href="#__codelineno-1-21"></a><span class="w">        </span><span class="nt">ask_qty</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">300</span>
+<a id="__codelineno-1-22" name="__codelineno-1-22" href="#__codelineno-1-22"></a><span class="w">  </span><span class="nt">TSLA</span><span class="p">:</span>
+<a id="__codelineno-1-23" name="__codelineno-1-23" href="#__codelineno-1-23"></a><span class="w">    </span><span class="nt">tick_decimals</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span>
+<a id="__codelineno-1-24" name="__codelineno-1-24" href="#__codelineno-1-24"></a><span class="w">    </span><span class="nt">last_buy_price</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">250.00</span>
+<a id="__codelineno-1-25" name="__codelineno-1-25" href="#__codelineno-1-25"></a><span class="w">    </span><span class="nt">last_sell_price</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">250.00</span>
+<a id="__codelineno-1-26" name="__codelineno-1-26" href="#__codelineno-1-26"></a><span class="w">    </span><span class="nt">market_maker_quotes</span><span class="p">:</span>
+<a id="__codelineno-1-27" name="__codelineno-1-27" href="#__codelineno-1-27"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">gateway_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MM_TSLA_01</span>
+<a id="__codelineno-1-28" name="__codelineno-1-28" href="#__codelineno-1-28"></a><span class="w">        </span><span class="nt">bid_price</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">249.75</span>
+<a id="__codelineno-1-29" name="__codelineno-1-29" href="#__codelineno-1-29"></a><span class="w">        </span><span class="nt">ask_price</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">250.25</span>
+<a id="__codelineno-1-30" name="__codelineno-1-30" href="#__codelineno-1-30"></a><span class="w">        </span><span class="nt">bid_qty</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">200</span>
+<a id="__codelineno-1-31" name="__codelineno-1-31" href="#__codelineno-1-31"></a><span class="w">        </span><span class="nt">ask_qty</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">200</span>
 </code></pre></div>
+<p>These are the prices and sizes the manual <code>QUOTE</code> commands below use too, so
+the quote you send replaces a seed that looks exactly the same.</p>
 <div class="admonition warning">
 <p class="admonition-title">Skip the seeds and the deploy is refused</p>
 <p>Without them the verifier raises <strong>M001 (ERROR)</strong> — <em>"Symbol 'AAPL' has no
-market_maker_quotes entry for MARKET_MAKER gateway(s) MM_AAPL_01"</em> — and
+market_maker_quotes entry for MARKET_MAKER gateway(s) MM_AAPL_01, MM_MSFT_01,
+MM_TSLA_01"</em> — and
 <code>pm-config-deploy</code> refuses to install a configuration with any error. This
 is the verifier doing its job: a market maker with nothing to quote is a
 configuration mistake, not a runtime one.</p>
@@ -7731,7 +7829,7 @@ the block above. Two ways to use it:</p>
 <a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">  </span>--participants<span class="w"> </span>TRADER01<span class="w"> </span>TRADER02<span class="w"> </span>GW_ADMIN:ADMIN<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="w">    </span>MM_AAPL_01:MARKET_MAKER<span class="w"> </span>MM_MSFT_01:MARKET_MAKER<span class="w"> </span>MM_TSLA_01:MARKET_MAKER<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="w">  </span>--enforce-mm-obligations<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="w">  </span>--output<span class="w"> </span>engine_config.yaml<span class="w"> </span>--force
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="w">  </span>--output<span class="w"> </span>mm-stub.yaml<span class="w"> </span>--force
 <a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>
 <a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="c1"># Fully seeded: also fills bid_price/ask_price from a random midpoint in</span>
 <a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="c1"># the given range, rounded to each symbol's tick grid</span>
@@ -7741,8 +7839,11 @@ the block above. Two ways to use it:</p>
 <a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a><span class="w">    </span>MM_AAPL_01:MARKET_MAKER<span class="w"> </span>MM_MSFT_01:MARKET_MAKER<span class="w"> </span>MM_TSLA_01:MARKET_MAKER<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a><span class="w">  </span>--enforce-mm-obligations<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-2-17" name="__codelineno-2-17" href="#__codelineno-2-17"></a><span class="w">  </span>--seed-mm-mid-range<span class="w"> </span><span class="m">100</span>:400<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-2-18" name="__codelineno-2-18" href="#__codelineno-2-18"></a><span class="w">  </span>--output<span class="w"> </span>engine_config.yaml<span class="w"> </span>--force
+<a id="__codelineno-2-18" name="__codelineno-2-18" href="#__codelineno-2-18"></a><span class="w">  </span>--output<span class="w"> </span>mm-seeded.yaml<span class="w"> </span>--force
 </code></pre></div>
+<p>These write to their own files on purpose: generated files have no
+reference prices, so writing them over your hand-written
+<code>engine_config.yaml</code> would silently lose what later chapters need.</p>
 <p>The first form is a trap worth knowing about: <code>pm-cverifier</code> will report
 <strong>0 errors</strong> on the stub — <code>market_maker_quotes</code> entries exist, so M001
 doesn't fire, and the required keys are all present (just <code>null</code>), so the
@@ -7761,12 +7862,16 @@ price is expected.</p>
 </div>
 <p>Check, deploy, then restart the engine — editing the YAML alone changes
 nothing, because every process reads the compiled artifact:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>pm-cverifier<span class="w"> </span>engine_config.yaml<span class="w">       </span><span class="c1"># expect 0 errors</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>pm-cverifier<span class="w"> </span>engine_config.yaml<span class="w">       </span><span class="c1"># expect 0 errors (the M032 warning is fine)</span>
 <a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>pm-config-deploy<span class="w"> </span>engine_config.yaml
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>cp<span class="w"> </span>engine_config.yaml<span class="w"> </span>engine_config.ex1.yaml<span class="w">   </span><span class="c1"># keep a copy of this state</span>
 </code></pre></div>
-<p>Then restart <code>pm-engine</code> to pick up the new gateways. A restarted engine
-starts in <code>CLOSED</code> again, so reopen the market from the operator console
-(<code>SESSION|STATE=PRE_OPEN</code>, then <code>SESSION|STATE=CONTINUOUS</code>).</p>
+<p>The copy is for the optional Exercise 8, which changes <code>engine_config.yaml</code>.</p>
+<p>Then restart <code>pm-engine</code> to pick up the new gateways (<code>Ctrl-C</code>, then
+<code>pm-engine --verbose</code>). A restarted engine starts in <code>CLOSED</code> again, and your
+open consoles are disconnected: <strong>restart <code>pm-admin</code> and your trader console</strong>,
+then reopen the market from the operator console (<code>SESSION|STATE=PRE_OPEN</code>,
+then <code>SESSION|STATE=CONTINUOUS</code>).</p>
 <p>Now look at the books before any market maker has connected:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>[GW_ADMIN|ADMIN]&gt; BOOK|SYM=AAPL
 </code></pre></div>
@@ -7787,10 +7892,11 @@ the deploy succeeds, and the engine logs show 6 gateways loaded.</p>
 <p>Expected output should include a quote acknowledgement and active status.
 Because the engine already placed a seed quote for this market maker, your
 <code>QUOTE</code> replaces it, and you see the old one go first:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>CANCELLED  &lt;order id&gt;  reason=QUOTE_REPLACED
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>QUOTE CANCELLED  SEED-MM_AAPL_01-AAPL-1  Replaced by new quote
-<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>QUOTE ACK  AAPL-MM-001  bid=&lt;order id&gt; ask=&lt;order id&gt;
-<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>QUOTE ACTIVE  AAPL-MM-001
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>[&lt;time&gt;] CANCELLED &lt;seed bid leg id&gt; reason=QUOTE_REPLACED
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>[&lt;time&gt;] CANCELLED &lt;seed ask leg id&gt; reason=QUOTE_REPLACED
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>[&lt;time&gt;] QUOTE CANCELLED  SEED-MM_AAPL_01-AAPL-1  Replaced by new quote
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>[&lt;time&gt;] QUOTE ACK  AAPL-MM-001  bid=&lt;order id&gt; ask=&lt;order id&gt;
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>[&lt;time&gt;] QUOTE ACTIVE  AAPL-MM-001
 </code></pre></div>
 <p>A market maker holds at most one active quote per symbol; sending another
 always replaces the previous one.</p>
@@ -7837,22 +7943,31 @@ restart or partial execution.</p>
 <p>The manual quote sequence above can be automated with one bot per symbol —
 independent processes, each free to crash, restart, or be tuned without
 touching the others. (Exercise 8 below shows the alternative: one process
-covering several symbols at once, each on its own terms.) Stop your manual
-quotes first (<code>QUOTE_CANCEL|SYM=&lt;symbol&gt;</code> from each MM console, or just leave
-them — the bot's own startup reconciliation handles either case, see the note
-below) and run:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>pm-mm-bot<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--gap<span class="w"> </span><span class="m">0</span>.10<span class="w"> </span>--qty<span class="w"> </span><span class="m">500</span>
-<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>pm-mm-bot<span class="w"> </span>--symbol<span class="w"> </span>MSFT<span class="w"> </span>--gap<span class="w"> </span><span class="m">0</span>.16<span class="w"> </span>--qty<span class="w"> </span><span class="m">300</span>
-<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>pm-mm-bot<span class="w"> </span>--symbol<span class="w"> </span>TSLA<span class="w"> </span>--gap<span class="w"> </span><span class="m">0</span>.20<span class="w"> </span>--qty<span class="w"> </span><span class="m">200</span>
+covering several symbols at once, each on its own terms.)</p>
+<p>First, <strong>exit the three market-maker consoles</strong> (<code>EXIT</code> in each). A bot
+connects under the same gateway ID as the console (<code>MM_AAPL_01</code>, …) and the
+engine allows only one connection per ID, so while a console is open the bot
+is refused with <code>auth rejected: Gateway already connected: MM_AAPL_01</code>. Leaving
+the consoles also cancels their quotes (<code>CANCEL_QUOTES_ONLY</code> in the
+configuration), so the books are left without a market maker and the bots need
+a starting price. Give each one a range to start in with <code>--initial_min</code> and
+<code>--initial_max</code>; it draws its first mid-price at random inside it. Then, in
+three terminals:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>pm-mm-bot<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--gap<span class="w"> </span><span class="m">0</span>.10<span class="w"> </span>--qty<span class="w"> </span><span class="m">500</span><span class="w"> </span>--initial_min<span class="w"> </span><span class="m">149</span><span class="w"> </span>--initial_max<span class="w"> </span><span class="m">151</span>
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>pm-mm-bot<span class="w"> </span>--symbol<span class="w"> </span>MSFT<span class="w"> </span>--gap<span class="w"> </span><span class="m">0</span>.16<span class="w"> </span>--qty<span class="w"> </span><span class="m">300</span><span class="w"> </span>--initial_min<span class="w"> </span><span class="m">419</span><span class="w"> </span>--initial_max<span class="w"> </span><span class="m">421</span>
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>pm-mm-bot<span class="w"> </span>--symbol<span class="w"> </span>TSLA<span class="w"> </span>--gap<span class="w"> </span><span class="m">0</span>.20<span class="w"> </span>--qty<span class="w"> </span><span class="m">200</span><span class="w"> </span>--initial_min<span class="w"> </span><span class="m">249</span><span class="w"> </span>--initial_max<span class="w"> </span><span class="m">251</span>
 </code></pre></div>
 <p>Add <code>--verbose</code> to any of these to follow what the bot does; by default it
-prints only warnings and errors.</p>
+prints only warnings and errors. The quotes now sit around the random mid-price
+the bot chose, not at the prices of Exercises 2–3: check with
+<code>BOOK|SYM=AAPL</code> in the operator console.</p>
 <p>The bot connects using the gateway ID <code>MM_&lt;SYMBOL&gt;_&lt;id-suffix&gt;</code> (default
 suffix <code>01</code>), quotes symmetrically around the current mid-price at <code>--gap</code>,
 reissues after fills, and reprices when the mid drifts. It also runs a
-<code>QBOOT</code> request at startup so it can adopt an already-active quote — such as
-your manual quote, or the engine's seed — instead of creating a duplicate, and periodically re-runs <code>QLEGS</code> to reconcile leg state
-in case an engine reply was ever dropped.</p>
+<code>QBOOT</code> request at startup so it can adopt an already-active quote of its own
+gateway — the engine's seed quote, for instance, when no console is holding the
+ID — instead of creating a duplicate, and periodically re-runs <code>QLEGS</code> to
+reconcile leg state in case an engine reply was ever dropped.</p>
 <div class="admonition note">
 <p class="admonition-title">The 20-tick limit on <code>--gap</code></p>
 <p>The gaps above are not arbitrary. Every symbol has a maximum quoted spread,
@@ -7883,7 +7998,7 @@ mismatch here causes the engine to reject the bot's connection.</p>
 for the advanced runtime flags (bootstrap timeout, QLEGS reconciliation
 interval, and similar) that this chapter deliberately leaves out.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> explain what the bot automates compared with your manual <code>QUOTE</code> workflow.</p>
-<h2 id="exercise-7-drive-the-bot-from-a-config-file">Exercise 7: Drive the Bot from a Config File<a class="headerlink" href="#exercise-7-drive-the-bot-from-a-config-file" title="Permanent link">&para;</a></h2>
+<h2 id="exercise-7-drive-the-bot-from-a-config-file-optional">Exercise 7: Drive the Bot from a Config File (Optional)<a class="headerlink" href="#exercise-7-drive-the-bot-from-a-config-file-optional" title="Permanent link">&para;</a></h2>
 <p>A bot's whole configuration can live in a version-controlled YAML file
 instead of a long command line. Create <code>mm_aapl.yaml</code>:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
@@ -7900,9 +8015,14 @@ instead of a long command line. Create <code>mm_aapl.yaml</code>:</p>
 <a id="__codelineno-14-12" name="__codelineno-14-12" href="#__codelineno-14-12"></a><span class="w">  </span><span class="nt">drift_ticks</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3</span>
 <a id="__codelineno-14-13" name="__codelineno-14-13" href="#__codelineno-14-13"></a>
 <a id="__codelineno-14-14" name="__codelineno-14-14" href="#__codelineno-14-14"></a><span class="nt">symbols</span><span class="p">:</span>
-<a id="__codelineno-14-15" name="__codelineno-14-15" href="#__codelineno-14-15"></a><span class="w">  </span><span class="nt">AAPL</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{}</span>
+<a id="__codelineno-14-15" name="__codelineno-14-15" href="#__codelineno-14-15"></a><span class="w">  </span><span class="nt">AAPL</span><span class="p">:</span>
+<a id="__codelineno-14-16" name="__codelineno-14-16" href="#__codelineno-14-16"></a><span class="w">    </span><span class="nt">initial_min</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">149</span>
+<a id="__codelineno-14-17" name="__codelineno-14-17" href="#__codelineno-14-17"></a><span class="w">    </span><span class="nt">initial_max</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">151</span>
 </code></pre></div>
-<p>Run the bot from it instead of typing the flags:</p>
+<p>The <code>symbols:</code> block names AAPL and gives it a starting range (the bot needs a
+reference price on an empty book, as in Exercise 6). Run the bot from the file
+instead of typing the flags (exit any other process connected as <code>MM_AAPL_01</code>
+first):</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>pm-mm-bot<span class="w"> </span>--config<span class="w"> </span>mm_aapl.yaml<span class="w"> </span>--verbose
 </code></pre></div>
 <p>The file has four blocks, and the split between them is the thing worth
@@ -7938,9 +8058,10 @@ learning:</p>
 </tr>
 </tbody>
 </table>
-<p><code>AAPL: {}</code> means "quote AAPL, on the house defaults". The empty braces are
-required YAML, not decoration: the value of a symbol key is its override
-block, and this one overrides nothing.</p>
+<p>A symbol's block holds its overrides: here only the start range, so AAPL is
+quoted on the house defaults. A symbol with nothing to override is written
+<code>AAPL: {}</code> — the empty braces are required YAML, not decoration, because the
+value of a symbol key is its override block.</p>
 <p>An explicit CLI flag still overrides the file, so you can keep one committed
 file per desk for a class and override a single value for a one-off run:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>pm-mm-bot<span class="w"> </span>--config<span class="w"> </span>mm_aapl.yaml<span class="w"> </span>--gap<span class="w"> </span><span class="m">0</span>.15
@@ -7978,15 +8099,15 @@ it outright rather than guessing; <code>"01"</code> is correct.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> you have started a bot from
 a config file alone, then overridden one value from the CLI and confirmed the
 CLI value won.</p>
-<h2 id="exercise-8-one-bot-three-symbols-three-sets-of-terms">Exercise 8: One Bot, Three Symbols, Three Sets of Terms<a class="headerlink" href="#exercise-8-one-bot-three-symbols-three-sets-of-terms" title="Permanent link">&para;</a></h2>
+<h2 id="exercise-8-one-bot-three-symbols-three-sets-of-terms-optional">Exercise 8: One Bot, Three Symbols, Three Sets of Terms (Optional)<a class="headerlink" href="#exercise-8-one-bot-three-symbols-three-sets-of-terms-optional" title="Permanent link">&para;</a></h2>
 <p>Exercise 6 ran three separate <code>pm-mm-bot</code> processes, one per symbol. But
 nothing on the engine side requires a <code>MARKET_MAKER</code> gateway to quote only
 one symbol: the engine's <code>QuoteIndex</code> keys every active quote by
 <code>(gateway_id, symbol)</code> and tracks a <em>set</em> of such keys per gateway, so one
 gateway can hold AAPL's quote and MSFT's quote and TSLA's quote at the same
 time — and each of those symbols can be quoted on its own terms.</p>
-<p>Stop the three bots from Exercise 6 (Ctrl+C each — a bot cancels its own quote
-when it exits) and register one gateway that will quote all three symbols
+<p>Stop the three bots from Exercise 6 if you ran them (Ctrl+C each — a bot cancels
+its own quote when it exits) and register one gateway that will quote all three symbols
 instead:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="nt">participants</span><span class="p">:</span>
 <a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MM_TECH_01</span>
@@ -8021,8 +8142,11 @@ prices and sizes):</p>
 <a id="__codelineno-19-10" name="__codelineno-19-10" href="#__codelineno-19-10"></a><span class="w">        </span><span class="nt">bid_qty</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">500</span>
 <a id="__codelineno-19-11" name="__codelineno-19-11" href="#__codelineno-19-11"></a><span class="w">        </span><span class="nt">ask_qty</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">500</span>
 </code></pre></div>
-<p>Check and deploy as before, restart the engine and reopen the market. The old market makers' seed quotes are still in the books, so clear
-them from the operator console and leave <code>MM_TECH_01</code> the only quoter:</p>
+<p>Check and deploy as before, restart the engine, <strong>restart <code>pm-admin</code></strong> (the
+engine restart disconnected it, and <code>KILL</code> would answer
+<code>Gateway not connected: GW_ADMIN</code>) and reopen the market. The old market makers'
+seed quotes are still in the books, so clear them from the operator console and
+leave <code>MM_TECH_01</code> the only quoter:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>[GW_ADMIN|ADMIN]&gt; KILL|GW=MM_AAPL_01
 <a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a>[GW_ADMIN|ADMIN]&gt; KILL|GW=MM_MSFT_01
 <a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a>[GW_ADMIN|ADMIN]&gt; KILL|GW=MM_TSLA_01
@@ -8169,8 +8293,8 @@ Try both and read the startup lines:</p>
 <a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a><span class="c1"># MSFT keeps 0.16 and TSLA keeps 0.20, because their blocks named a gap.</span>
 <a id="__codelineno-27-3" name="__codelineno-27-3" href="#__codelineno-27-3"></a>pm-mm-bot<span class="w"> </span>--verbose<span class="w"> </span>--config<span class="w"> </span>mm_tech.yaml<span class="w"> </span>--gap<span class="w"> </span><span class="m">0</span>.18
 <a id="__codelineno-27-4" name="__codelineno-27-4" href="#__codelineno-27-4"></a>
-<a id="__codelineno-27-5" name="__codelineno-27-5" href="#__codelineno-27-5"></a><span class="c1"># Widens TSLA too, because this names it (0.18 is narrower than its 0.20, but</span>
-<a id="__codelineno-27-6" name="__codelineno-27-6" href="#__codelineno-27-6"></a><span class="c1"># the point is that the symbol's own CLI scope wins)</span>
+<a id="__codelineno-27-5" name="__codelineno-27-5" href="#__codelineno-27-5"></a><span class="c1"># Changes TSLA too, because this names it. (0.18 is narrower than its 0.20, but</span>
+<a id="__codelineno-27-6" name="__codelineno-27-6" href="#__codelineno-27-6"></a><span class="c1"># the point is that the symbol's own CLI scope wins.)</span>
 <a id="__codelineno-27-7" name="__codelineno-27-7" href="#__codelineno-27-7"></a>pm-mm-bot<span class="w"> </span>--verbose<span class="w"> </span>--config<span class="w"> </span>mm_tech.yaml<span class="w"> </span>--symbol<span class="w"> </span>TSLA<span class="w"> </span>--gap<span class="w"> </span><span class="m">0</span>.18
 </code></pre></div>
 <p>A value someone deliberately wrote into a reviewed file for one symbol is
@@ -8202,6 +8326,27 @@ whole process only exits if <em>every</em> symbol fails. Try it: change TSLA's
 quoting all three symbols with three different spreads and sizes, its startup
 lines report each symbol's own settings, its log lines are tagged per symbol,
 and all three books show two-sided liquidity at visibly different spreads.</p>
+<h2 id="returning-to-the-manual-quote-state">Returning to the manual-quote state<a class="headerlink" href="#returning-to-the-manual-quote-state" title="Permanent link">&para;</a></h2>
+<p>Chapter 03 needs the state of Exercises 1–5: <code>MM_AAPL_01</code> connected with the
+manual quote <code>AAPL-MM-001</code>. If you have since run the bots of Exercises 6–8 (or
+simply want a clean start), get back to it:</p>
+<ol>
+<li>Stop every <code>pm-mm-bot</code> (<code>Ctrl-C</code>; a bot cancels its quotes on exit).</li>
+<li>Restore the configuration from Exercise 1 and deploy it:</li>
+</ol>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a>cp<span class="w"> </span>engine_config.ex1.yaml<span class="w"> </span>engine_config.yaml
+<a id="__codelineno-30-2" name="__codelineno-30-2" href="#__codelineno-30-2"></a>pm-config-deploy<span class="w"> </span>engine_config.yaml
+</code></pre></div>
+<ol>
+<li>Restart <code>pm-engine</code>, then restart <code>pm-admin</code>, and reopen the market with
+   <code>SESSION|STATE=PRE_OPEN</code> and <code>SESSION|STATE=CONTINUOUS</code>.</li>
+<li>Connect <code>pm-alf-console --id MM_AAPL_01</code> (and the MSFT and TSLA ones if you
+   want them) and send the <code>QUOTE</code> commands of Exercises 2 and 3 again.</li>
+<li>In <code>pm-admin</code>, <code>BOOK|SYM=AAPL</code> shows 500 bid at 149.95 and 500 ask at
+   150.05. Orders that a trader placed earlier (in chapter 03, say) survive
+   the engine restart and are still in the book; clear them with
+   <code>KILL|GW=TRADER01</code> (and <code>KILL|GW=TRADER02</code>) if you want the clean state.</li>
+</ol>
 <h2 id="summary">Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h2>
 <p>You now have:</p>
 <ul>

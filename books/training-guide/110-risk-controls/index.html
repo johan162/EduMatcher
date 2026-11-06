@@ -1949,6 +1949,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../participant-guide/90-backmatter/010-faq-orders-and-positions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ: Orders, Sessions and Positions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -3343,6 +3371,34 @@
           </ul>
         </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../operator-guide/90-backmatter/010-faq-setup-and-operation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ: Setup and Operation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -7851,7 +7907,16 @@ accepted and rest for the reopening, as in Exercise 4.)</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> halt prevents trading; resume restores it.</p>
 <h2 id="exercise-7-exchange-wide-halt-with-pm-admin-cli">Exercise 7: Exchange-Wide Halt with pm-admin-cli<a class="headerlink" href="#exercise-7-exchange-wide-halt-with-pm-admin-cli" title="Permanent link">&para;</a></h2>
 <p>Use the one-shot CLI form when you want an operation to run from a script or
-checklist without opening an interactive console:</p>
+checklist without opening an interactive console.</p>
+<div class="admonition warning">
+<p class="admonition-title">Close the interactive console first</p>
+<p><code>pm-admin-cli --id GW_ADMIN</code> logs on as <code>GW_ADMIN</code>, and the engine allows
+only one connection per participant ID. While <code>pm-admin --id GW_ADMIN</code> is
+still open every <code>pm-admin-cli</code> command fails with
+<code>Auth refused: Gateway already connected: GW_ADMIN</code>. Leave <code>pm-admin</code>
+(<code>Ctrl-C</code>) before Exercises 7 and 8, and start it again for Exercise 9 and
+later.</p>
+</div>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>halt
 </code></pre></div>
 <p>All symbols stop matching. Confirm status:</p>
@@ -7918,17 +7983,26 @@ symbols as they are, with no <code>collar:</code> and no <code>level:</code>):</
 <a id="__codelineno-26-14" name="__codelineno-26-14" href="#__codelineno-26-14"></a><span class="w">  </span><span class="nt">MSFT</span><span class="p">:</span>
 <a id="__codelineno-26-15" name="__codelineno-26-15" href="#__codelineno-26-15"></a><span class="w">    </span><span class="nt">level</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">L1</span><span class="w">                 </span><span class="c1"># MSFT opts into the loose profile</span>
 </code></pre></div>
-<p>AAPL and TSLA name no level, so both get <code>default_level: L2</code>. Check, deploy and
-restart the engine, then reopen the market. <strong>Predict</strong> the outcome of each
-order before sending it (reference prices are 150, 420 and 250). Use buys below
-the market, which rest instead of trading, so that only the <em>static</em> band is
-being tested:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=1|PRICE=143.00|TIF=DAY
-<a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=1|PRICE=142.00|TIF=DAY
-<a id="__codelineno-27-3" name="__codelineno-27-3" href="#__codelineno-27-3"></a>[TRADER01]&gt; NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=1|PRICE=300.00|TIF=DAY
-<a id="__codelineno-27-4" name="__codelineno-27-4" href="#__codelineno-27-4"></a>[TRADER01]&gt; NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=1|PRICE=290.00|TIF=DAY
-<a id="__codelineno-27-5" name="__codelineno-27-5" href="#__codelineno-27-5"></a>[TRADER01]&gt; NEW|SYM=TSLA|SIDE=BUY|TYPE=LIMIT|QTY=1|PRICE=240.00|TIF=DAY
-<a id="__codelineno-27-6" name="__codelineno-27-6" href="#__codelineno-27-6"></a>[TRADER01]&gt; NEW|SYM=TSLA|SIDE=BUY|TYPE=LIMIT|QTY=1|PRICE=237.00|TIF=DAY
+<p>AAPL and TSLA name no level, so both get <code>default_level: L2</code>. Check and deploy.</p>
+<p>Before restarting, reset the prices the engine remembers. At shutdown it saves
+each symbol's reference price and last trade in <code>book_stats.json</code>; Exercise 4
+moved AAPL's to 164.50, and the <strong>dynamic</strong> band (measured from the last trade)
+rejects <em>any</em> order too far from it, buy or sell, resting or not. To test the
+static band alone, stop <code>pm-engine</code> with <code>Ctrl-C</code>, delete that file from the
+data directory, and start it again:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a>rm<span class="w"> </span><span class="s2">"</span><span class="nv">$EDUMATCHER_DATA_DIR</span><span class="s2">/book_stats.json"</span><span class="w">     </span><span class="c1"># container shell: rm /data/book_stats.json</span>
+</code></pre></div>
+<p>The reference prices are then 150, 420 and 250 again (from your configuration)
+and there is no last trade. Restart your consoles and reopen the market.
+<strong>Predict</strong> the outcome of each order before sending it. Use buys below the
+market, which rest instead of trading, so that only the <em>static</em> band is being
+tested:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=1|PRICE=143.00|TIF=DAY
+<a id="__codelineno-28-2" name="__codelineno-28-2" href="#__codelineno-28-2"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=1|PRICE=142.00|TIF=DAY
+<a id="__codelineno-28-3" name="__codelineno-28-3" href="#__codelineno-28-3"></a>[TRADER01]&gt; NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=1|PRICE=300.00|TIF=DAY
+<a id="__codelineno-28-4" name="__codelineno-28-4" href="#__codelineno-28-4"></a>[TRADER01]&gt; NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=1|PRICE=290.00|TIF=DAY
+<a id="__codelineno-28-5" name="__codelineno-28-5" href="#__codelineno-28-5"></a>[TRADER01]&gt; NEW|SYM=TSLA|SIDE=BUY|TYPE=LIMIT|QTY=1|PRICE=240.00|TIF=DAY
+<a id="__codelineno-28-6" name="__codelineno-28-6" href="#__codelineno-28-6"></a>[TRADER01]&gt; NEW|SYM=TSLA|SIDE=BUY|TYPE=LIMIT|QTY=1|PRICE=237.00|TIF=DAY
 </code></pre></div>
 <table>
 <thead>

@@ -1949,6 +1949,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../participant-guide/90-backmatter/010-faq-orders-and-positions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ: Orders, Sessions and Positions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -3343,6 +3371,34 @@
           </ul>
         </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../operator-guide/90-backmatter/010-faq-setup-and-operation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ: Setup and Operation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -7889,7 +7945,7 @@ at startup.</p>
 <p class="admonition-title">Back up, check, deploy — then restart</p>
 <p>This chapter starts from a fresh configuration (its operator is <code>OPS01</code>),
 and <code>--force</code> replaces your <code>engine_config.yaml</code>: save a copy first if you
-want to come back to it (<code>cp engine_config.yaml engine_config.before-ch25.yaml</code>).
+want to come back to it (<code>cp engine_config.yaml engine_config.before-ch26.yaml</code>).
 As always, nothing changes until you deploy it and restart the engine:
 <code>pm-cverifier engine_config.yaml</code>, then <code>pm-config-deploy engine_config.yaml</code>. Sessions are enabled, so the restarted engine starts in <code>CLOSED</code>: open
 the market from the operator console (<code>pm-admin --id OPS01</code>, then
@@ -7984,7 +8040,12 @@ price that traded and the <em>seeded</em> reference prices of the other two cons
 </tr>
 </tbody>
 </table>
-<p>The <code>INDEX</code> command works from any gateway role (TRADER, ADMIN, or read-only).</p>
+<p>The <code>INDEX</code> command works in <code>pm-alf-console</code> under any gateway role (TRADER,
+ADMIN, or read-only). The operator console <code>pm-admin</code> has no <code>INDEX</code> command
+(<code>Unknown command 'INDEX'</code>): use <code>pm-alf-console --id OPS01</code> when you want it
+as the operator. It prints only the <strong>most recent</strong> index update this console
+has received, as a single line, so it is a spot check, not a list of
+constituents or of indices.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> <code>INDEX</code> command returns a level for <code>EDU100</code>.</p>
 <h2 id="exercise-4-watch-the-index-move">Exercise 4: Watch the Index Move<a class="headerlink" href="#exercise-4-watch-the-index-move" title="Permanent link">&para;</a></h2>
 <p>Move the session into <code>CONTINUOUS</code> (if the scheduler hasn't already done so —
@@ -8103,14 +8164,18 @@ moment of addition. You must supply the new shares and a reference price:</p>
 <a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a><span class="w">  </span>--index<span class="w"> </span>EDU100<span class="w"> </span>--sym<span class="w"> </span>AMZN<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a><span class="w">  </span>--shares<span class="w"> </span><span class="m">10500000000</span><span class="w"> </span>--price<span class="w"> </span><span class="m">195</span>.00
 </code></pre></div>
-<p>Check that AMZN now appears when you run <code>INDEX</code>. It may take a few trades before
-AMZN's price updates from the seeded reference.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>[TRADER01]&gt; INDEX
+<p><code>INDEX</code> prints only the level, not the constituents, so check the change in
+the history instead (the <code>ADD OK</code> reply also prints the new divisor):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>pm-index-cli<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml<span class="w"> </span>events<span class="w"> </span>--index<span class="w"> </span>EDU100<span class="w"> </span>--type<span class="w"> </span>ADD_CONSTITUENT
 </code></pre></div>
+<p>AMZN is not traded on this venue, so its price stays at the reference price
+you gave until an engine feed for it exists; it contributes to the cap at
+<code>195.00</code>. (<code>delist</code> needs no price.)</p>
 <h3 id="remove-tsla-from-the-index">Remove TSLA from the index<a class="headerlink" href="#remove-tsla-from-the-index" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>pm-index-admin-cli<span class="w"> </span>--id<span class="w"> </span>OPS01<span class="w"> </span>delist<span class="w"> </span>--index<span class="w"> </span>EDU100<span class="w"> </span>--sym<span class="w"> </span>TSLA
 </code></pre></div>
-<p>Run <code>INDEX</code> again and confirm TSLA no longer appears in the constituent listing.</p>
+<p>Confirm it with <code>pm-index-cli --config engine_config.yaml events --index EDU100 --type DELIST</code>,
+and run <code>INDEX</code> again: the level should be the same as before the change.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> AMZN added and TSLA removed without visible discontinuity in the index level.</p>
 <h2 id="exercise-8-query-history-with-pm-index-cli-and-pm-stats-cli">Exercise 8: Query History with <code>pm-index-cli</code> and <code>pm-stats-cli</code><a class="headerlink" href="#exercise-8-query-history-with-pm-index-cli-and-pm-stats-cli" title="Permanent link">&para;</a></h2>
 <p>Two tools cover two different slices of index history:</p>
@@ -8219,8 +8284,12 @@ timestamps instead:</p>
 <a id="__codelineno-35-17" name="__codelineno-35-17" href="#__codelineno-35-17"></a><span class="w">  </span>--index-interval<span class="w"> </span>TECH2:2.0<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-35-18" name="__codelineno-35-18" href="#__codelineno-35-18"></a><span class="w">  </span>--output<span class="w"> </span>engine_config.yaml<span class="w"> </span>--force
 </code></pre></div>
-<p>Restart <code>pm-index</code> with <code>--reset</code> to clear state and re-initialise:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-36-1" name="__codelineno-36-1" href="#__codelineno-36-1"></a>pm-index<span class="w"> </span>--reset
+<p>Deploy the new configuration (<code>pm-index</code> reads the compiled artifact, so
+without this it still loads one index), then restart <code>pm-index</code> with <code>--reset</code>
+to clear state and re-initialise. Stop the running <code>pm-index</code> first:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-36-1" name="__codelineno-36-1" href="#__codelineno-36-1"></a>pm-cverifier<span class="w"> </span>engine_config.yaml
+<a id="__codelineno-36-2" name="__codelineno-36-2" href="#__codelineno-36-2"></a>pm-config-deploy<span class="w"> </span>engine_config.yaml
+<a id="__codelineno-36-3" name="__codelineno-36-3" href="#__codelineno-36-3"></a>pm-index<span class="w"> </span>--reset
 </code></pre></div>
 <div class="admonition warning">
 <p class="admonition-title"><code>--reset</code> discards divisors</p>
@@ -8228,12 +8297,21 @@ timestamps instead:</p>
 recomputed from scratch using current reference prices. Use only when
 you intentionally want a clean slate.</p>
 </div>
-<p>Run <code>INDEX</code> in the TRADER terminal to see both indices:</p>
+<p>Both indices start at their base value (<code>pm-index -v</code> prints
+<code>index ready index_id=EDU100 … level=1000.0</code> and
+<code>index ready index_id=TECH2 … level=500.0</code>), but nothing is published until a
+constituent trades. Make a trade in AAPL or MSFT, then run <code>INDEX</code> in the
+TRADER terminal:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-37-1" name="__codelineno-37-1" href="#__codelineno-37-1"></a>[TRADER01]&gt; INDEX
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-38-1" name="__codelineno-38-1" href="#__codelineno-38-1"></a>[10:00:01.100] EDU100   1000.00  +0.00  +0.00%  PRE_OPEN
-<a id="__codelineno-38-2" name="__codelineno-38-2" href="#__codelineno-38-2"></a>[10:00:01.100] TECH2     500.00  +0.00  +0.00%  PRE_OPEN
+<div class="highlight"><pre><span></span><code><a id="__codelineno-38-1" name="__codelineno-38-1" href="#__codelineno-38-1"></a>[15:52:12.376] EDU100 1001.83 +0.00 +0.00% O=1001.83 H=1001.83 L=1001.83 PRE_OPEN
 </code></pre></div>
+<p>You see one line, for whichever index published last. <code>TECH2</code> is throttled to
+one publish every 2 seconds, so <code>EDU100</code> is usually the one shown; use the
+history commands below to see both. The session state on that line is also
+only as good as <code>pm-index</code>'s last session broadcast: a <code>pm-index</code> started
+after the market opened reports <code>PRE_OPEN</code> (its default) until the next
+session change, even though the engine is in <code>CONTINUOUS</code>.</p>
 <p>Use <code>pm-index-cli</code> to list both configured indices, and <code>pm-stats-cli</code> to
 confirm <code>pm-stats</code> is capturing ticks for both:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-39-1" name="__codelineno-39-1" href="#__codelineno-39-1"></a>pm-index-cli<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml<span class="w"> </span>indices
@@ -8250,16 +8328,23 @@ single-index scope keeps the output meaningful).</p>
 <h2 id="exercise-11-history-query-via-the-gateway">Exercise 11: History Query via the Gateway<a class="headerlink" href="#exercise-11-history-query-via-the-gateway" title="Permanent link">&para;</a></h2>
 <p><code>pm-index</code> also accepts history requests directly through the ADMIN gateway.
 These go over the PULL socket (port 5559) and return records inline:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-40-1" name="__codelineno-40-1" href="#__codelineno-40-1"></a>[OPS01]&gt; INDEX|HISTORY
+<div class="highlight"><pre><span></span><code><a id="__codelineno-40-1" name="__codelineno-40-1" href="#__codelineno-40-1"></a>[OPS01]&gt; INDEX|HISTORY|INDEX=EDU100
 </code></pre></div>
-<p>Returns the last 30 days of <strong>structural/audit records</strong> — <code>INIT</code>,
+<p>Run it in a <code>pm-alf-console</code> session (<code>pm-alf-console --id OPS01</code>), not in
+<code>pm-admin</code>, which has no <code>INDEX</code> command. Without a prior index update seen by
+that console it answers <code>INDEX|HISTORY requires INDEX=&lt;id&gt; or prior index.update.</code>,
+so a console you have just started needs the index named:
+<code>INDEX|HISTORY|INDEX=EDU100</code>. With one, it returns the last 30 days of
+<strong>structural/audit records</strong> — <code>INIT</code>,
 <code>CORP_ACTION</code>, <code>ADD_CONSTITUENT</code>, <code>DELIST</code> — for whichever index you last
 saw an <code>INDEX</code> update for (or pass <code>INDEX=&lt;id&gt;</code> explicitly, e.g.
 <code>INDEX|HISTORY|INDEX=EDU100</code>).</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-41-1" name="__codelineno-41-1" href="#__codelineno-41-1"></a>[OPS01]&gt; INDEX|HISTORY|FROM=2026-06-25|TO=2026-06-25
+<div class="highlight"><pre><span></span><code><a id="__codelineno-41-1" name="__codelineno-41-1" href="#__codelineno-41-1"></a>[OPS01]&gt; INDEX|HISTORY|INDEX=EDU100|FROM=2026-06-25|TO=2026-06-26
 </code></pre></div>
 <p>Returns structural/audit records within the specified date range, newest
-last.</p>
+last. <code>TO</code> is the <em>start</em> of that date, so <code>FROM=2026-06-25|TO=2026-06-25</code>
+returns nothing: to include a whole day, end the range on the next date (use
+today's date as <code>FROM</code> and tomorrow's as <code>TO</code> to see this session's records).</p>
 <div class="admonition warning">
 <p class="admonition-title">No level or EOD ticks here</p>
 <p><code>INDEX|HISTORY</code> never returns intraday level ticks or end-of-day OHLC

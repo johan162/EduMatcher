@@ -1949,6 +1949,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../participant-guide/90-backmatter/010-faq-orders-and-positions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ: Orders, Sessions and Positions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -3343,6 +3371,34 @@
           </ul>
         </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../operator-guide/90-backmatter/010-faq-setup-and-operation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ: Setup and Operation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -7668,6 +7724,28 @@ replay checkpoints, and recovery/error behavior.</p>
 <li>RALF gateway: <code>pm-ralf-gwy</code></li>
 <li>One or more client terminals for subscriber exercises</li>
 </ol>
+<div class="admonition note">
+<p class="admonition-title">Where the example files are, and port 5580</p>
+<ul>
+<li><code>docs/examples/ralf</code> exists in a repository checkout. On a container or
+  <code>pipx</code> install use the copy that ships with the package:
+  <code>EX=$(python -c "from edumatcher.config_deploy import examples_root; print(examples_root().parent)")</code>
+  and then <code>$EX/ralf/…</code> wherever this chapter says <code>docs/examples/ralf</code>.
+  The C example needs <code>make</code> and a C compiler, which the container image
+  does not have; the Python subscriber and <code>nc</code> are enough for every
+  exercise.</li>
+<li>Port 5580 can only have one owner. If the AI-simulation container is
+  running, its own <code>pm-ralf-gwy</code> holds the port: yours will fail to start,
+  and <code>nc 127.0.0.1 5580</code> would talk to the <em>simulation's</em> gateway (you
+  would see symbols you never configured). Stop the simulation first, or
+  pick another port in Exercise 1.</li>
+<li>There are no market makers in this chapter's configuration. To create a
+  trade, put a limit order in from each trader, for example
+  <code>NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=150.00|TIF=DAY</code> on
+  <code>TRADER01</code> and then <code>NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=60|PRICE=150.00|TIF=DAY</code>
+  on <code>TRADER02</code>.</li>
+</ul>
+</div>
 <h2 id="background">Background<a class="headerlink" href="#background" title="Permanent link">&para;</a></h2>
 <p>RALF is a line-oriented protocol over TCP used for post-trade dissemination.
 Clients connect to pm-ralf-gwy, perform HELLO and SUB, then consume events.</p>
@@ -7695,7 +7773,7 @@ Clients connect to pm-ralf-gwy, perform HELLO and SUB, then consume events.</p>
 <p class="admonition-title">Back up, check, deploy — then restart</p>
 <p>This chapter starts from a fresh configuration (its operator is <code>OPS01</code>),
 and <code>--force</code> replaces your <code>engine_config.yaml</code>: save a copy first if you
-want to come back to it (<code>cp engine_config.yaml engine_config.before-ch22.yaml</code>).
+want to come back to it (<code>cp engine_config.yaml engine_config.before-ch23.yaml</code>).
 As always, nothing changes until you deploy it and restart the engine:
 <code>pm-cverifier engine_config.yaml</code>, then <code>pm-config-deploy engine_config.yaml</code>. Sessions are enabled, so the restarted engine starts in <code>CLOSED</code>: open
 the market from the operator console (<code>pm-admin --id OPS01</code>, then
@@ -7783,8 +7861,9 @@ new trades.</p>
 </code></pre></div>
 <p>Expected behavior:</p>
 <ul>
-<li>PING yields PONG</li>
-<li>UNSUB updates delivery set</li>
+<li>PING yields <code>PONG|TS=…</code></li>
+<li>UNSUB updates the delivery set and sends no reply of its own: trades in AAPL
+  stop arriving, other symbols continue</li>
 </ul>
 <div class="admonition note">
 <p class="admonition-title"><code>EXIT</code> goes both ways</p>
@@ -7815,8 +7894,10 @@ line gateways (<code>pm-md-gwy</code>, <code>pm-ralf-gwy</code>, <code>pm-dc-gwy
 </code></pre></div>
 <p>Observe replay behavior:</p>
 <ul>
-<li>replayed EXEC/EOD events for SEQ greater than LASTSEQ when retained</li>
-<li>REPLAY_MISS plus SNAP baseline when outside retention window</li>
+<li>replayed EXEC/EOD events for SEQ greater than LASTSEQ when retained; they
+  arrive immediately after <code>WELCOME</code>, before you have sent <code>SUB</code></li>
+<li><code>ERR|CODE=REPLAY_MISS|DETAIL=requested seq outside retention</code> followed by a
+  <code>SNAP</code> baseline when outside the retention window (try <code>LASTSEQ=999</code>)</li>
 </ul>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: you can describe the recovery path for both replay-hit and replay-miss cases.</p>
 <h2 id="exercise-7-error-conditions-and-operational-interpretation">Exercise 7: Error Conditions and Operational Interpretation<a class="headerlink" href="#exercise-7-error-conditions-and-operational-interpretation" title="Permanent link">&para;</a></h2>
@@ -7828,6 +7909,15 @@ line gateways (<code>pm-md-gwy</code>, <code>pm-ralf-gwy</code>, <code>pm-dc-gwy
 </code></pre></div>
 <p>The gateway closes the connection after a handshake error, so open a fresh
 <code>nc</code> session for each line.</p>
+<p>What you should see for each line, in order:
+<code>ERR|CODE=AUTH_REQUIRED|DETAIL=send HELLO first</code>;
+<code>ERR|CODE=AUTH_REQUIRED|DETAIL=CLIENT/PROTO/ROLE required</code>;
+<code>ERR|CODE=ENTITLEMENT_DENIED|DETAIL=role not allowed</code>;
+<code>ERR|CODE=INVALID_CHANNEL|DETAIL=unsupported CH=UNKNOWN</code> (this one needs a valid
+<code>HELLO</code> first). A valid <code>HELLO</code> followed by <code>SUB|CH=AUDIT|SYM=*</code> as role
+<code>CLEARING</code> gives <code>ENTITLEMENT_DENIED</code> too, because a role may only subscribe
+to its own channel. <code>BAD_MESSAGE</code> and <code>SLOW_CLIENT</code> are not easy to trigger by
+hand.</p>
 <p>Map observed ERR codes to operator action:</p>
 <ul>
 <li>AUTH_REQUIRED: client handshake bug or ordering error</li>

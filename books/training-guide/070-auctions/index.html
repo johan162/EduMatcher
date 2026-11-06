@@ -1949,6 +1949,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../participant-guide/90-backmatter/010-faq-orders-and-positions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ: Orders, Sessions and Positions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -3343,6 +3371,34 @@
           </ul>
         </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../operator-guide/90-backmatter/010-faq-setup-and-operation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ: Setup and Operation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -7613,33 +7669,38 @@ that maximises the quantity traded.</p>
 You want to be sitting in <code>OPENING_AUCTION</code> — <strong>not</strong> <code>PRE_OPEN</code> — before
 sending the <code>TIF=ATO</code> orders below: the engine only accepts <code>ATO</code> orders
 while the session state is exactly <code>OPENING_AUCTION</code> and rejects them during
-<code>PRE_OPEN</code> even though <code>PRE_OPEN</code> accepts orders generally. With no
-scheduler running, a freshly started engine sits in <code>CLOSED</code>, and <code>CLOSED</code>'s
-only legal move is to <code>PRE_OPEN</code> — so get there first, then go on to
-<code>OPENING_AUCTION</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>[GW_ADMIN|ADMIN]&gt; SESSION|STATE=PRE_OPEN
+<code>PRE_OPEN</code> even though <code>PRE_OPEN</code> accepts orders generally. <code>PRE_OPEN</code> can only
+be entered from <code>CLOSED</code>, so first check where you are:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>[GW_ADMIN|ADMIN]&gt; SESSION_STATUS
+</code></pre></div>
+<p>Chapter 06 left the market in <code>CONTINUOUS</code>. From there, close the day first —
+<code>SESSION|STATE=CLOSING_AUCTION</code>, then <code>SESSION|STATE=CLOSED</code> (<code>CLOSED</code> alone is
+also accepted from <code>CONTINUOUS</code>; a request for
+<code>PRE_OPEN</code> from <code>CONTINUOUS</code> is ignored and the console only prints
+<code>TIMEOUT</code>). From <code>CLOSED</code> go on:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>[GW_ADMIN|ADMIN]&gt; SESSION|STATE=PRE_OPEN
 </code></pre></div>
 <p>Before the auction starts, empty the AAPL book. The market-maker quotes from
 chapter 02 would otherwise take part in the auction too, and the calculation
 in Exercise 2 assumes only the four orders below. Stop any <code>pm-mm-bot</code> and AI
 traders, then cancel everything resting on AAPL — orders and quotes — and
 check the book is empty:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>[GW_ADMIN|ADMIN]&gt; CANCEL_SYM|SYM=AAPL
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>[GW_ADMIN|ADMIN]&gt; BOOK|SYM=AAPL
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>[GW_ADMIN|ADMIN]&gt; SESSION|STATE=OPENING_AUCTION
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>[GW_ADMIN|ADMIN]&gt; CANCEL_SYM|SYM=AAPL
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>[GW_ADMIN|ADMIN]&gt; BOOK|SYM=AAPL
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>[GW_ADMIN|ADMIN]&gt; SESSION|STATE=OPENING_AUCTION
 </code></pre></div>
 <p>From two gateways, enter orders while in <code>OPENING_AUCTION</code>:</p>
 <p><strong>TRADER01:</strong>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=300|PRICE=150.50|TIF=ATO
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=200|PRICE=150.20|TIF=ATO
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=300|PRICE=150.50|TIF=ATO
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=200|PRICE=150.20|TIF=ATO
 </code></pre></div></p>
 <p><strong>TRADER02:</strong>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>[TRADER02]&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=400|PRICE=149.80|TIF=ATO
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>[TRADER02]&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=150.30|TIF=ATO
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>[TRADER02]&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=400|PRICE=149.80|TIF=ATO
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>[TRADER02]&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=150.30|TIF=ATO
 </code></pre></div></p>
-<p>Add one order that cannot cross, for Exercise 3 — a bid for MSFT far below the
-market maker's ask of about 420:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>[TRADER01]&gt; NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=400.00|TIF=ATO
+<p>Add one order that cannot cross, for Exercise 3 — a bid for MSFT far below any
+offer (the MSFT market maker, when it is quoting, asks about 420):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>[TRADER01]&gt; NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=400.00|TIF=ATO
 </code></pre></div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> orders accepted, resting in auction book.</p>
 <h2 id="exercise-2-trigger-the-auction-uncrossing">Exercise 2: Trigger the Auction Uncrossing<a class="headerlink" href="#exercise-2-trigger-the-auction-uncrossing" title="Permanent link">&para;</a></h2>
@@ -7647,7 +7708,7 @@ market maker's ask of about 420:</p>
 match at the equilibrium price. Nothing has traded yet — the orders from
 Exercise 1 are collected, not matched. Work out the result by hand first, then
 fire the uncrossing:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>[GW_ADMIN|ADMIN]&gt; SESSION|STATE=CONTINUOUS
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>[GW_ADMIN|ADMIN]&gt; SESSION|STATE=CONTINUOUS
 </code></pre></div>
 <p>For the exact orders entered in Exercise 1, here is the full calculation
 (verified against <code>engine/auction.py</code>):</p>
@@ -7706,18 +7767,19 @@ expire, because an <code>ATO</code> order only lives for the opening auction.</p
 fill events, and confirm it equals <code>149.80</code> and the total filled quantity
 equals <code>400</code> (300 from TRADER01's first order + 100 from the
 second, against TRADER02's 400-share sell). On <code>TRADER01</code> you see:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>FILL      &lt;first order id&gt;   qty=300 @149.8  remaining=0    [FILLED]
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>FILL      &lt;second order id&gt;  qty=100 @149.8  remaining=100  [PARTIAL]
-<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>EXPIRED   &lt;second order id&gt;  (DAY order — trading day ended)
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>FILL      &lt;first order id&gt;   qty=300 @149.8  remaining=0    [FILLED]
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>FILL      &lt;second order id&gt;  qty=100 @149.8  remaining=100  [PARTIAL]
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>EXPIRED   &lt;second order id&gt;  (DAY order — trading day ended)
 </code></pre></div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> all fills report execution price <code>149.80</code> and matched quantity <code>400</code>.</p>
 <h2 id="exercise-3-unfilled-auction-orders">Exercise 3: Unfilled Auction Orders<a class="headerlink" href="#exercise-3-unfilled-auction-orders" title="Permanent link">&para;</a></h2>
 <p>An ATO order that does not cross expires when the auction ends, instead of
 carrying on into continuous trading. You entered one in Exercise 1: the MSFT
-bid at 400.00. The uncrossing in Exercise 2 left it unfilled — the MSFT market
-maker from chapter 02 asks about 420, far above 400 — and the console reported
-it <code>EXPIRED</code> in the same burst as the AAPL fills. Confirm it:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>[TRADER01]&gt; ORDERS
+bid at 400.00. The uncrossing in Exercise 2 left it unfilled — no MSFT seller
+was anywhere near 400 (the day's market-maker quotes were gone after chapter
+06's close, and a quote at about 420 would be far above 400 anyway) — and the
+console reported it <code>EXPIRED</code> in the same burst as the AAPL fills. Confirm it:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>[TRADER01]&gt; ORDERS
 </code></pre></div>
 <p>The MSFT order is listed with status <code>EXPIRED</code>. (The console's explanation
 reads <em>DAY order — trading day ended</em>; for an <code>ATO</code> order, read it as <em>the
@@ -7725,15 +7787,15 @@ opening auction ended</em>.)</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> the unmatched ATO order expired at the start of CONTINUOUS.</p>
 <h2 id="exercise-4-closing-auction">Exercise 4: Closing Auction<a class="headerlink" href="#exercise-4-closing-auction" title="Permanent link">&para;</a></h2>
 <p>Move the session to the closing auction:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>[GW_ADMIN|ADMIN]&gt; SESSION|STATE=CLOSING_AUCTION
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>[GW_ADMIN|ADMIN]&gt; SESSION|STATE=CLOSING_AUCTION
 </code></pre></div>
 <p>Then enter:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.80|TIF=ATC
-<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>[TRADER02]&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=150.60|TIF=ATC
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.80|TIF=ATC
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>[TRADER02]&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=150.60|TIF=ATC
 </code></pre></div>
 <p>Close the day; on the transition to CLOSED the auction uncrosses and fills
 are generated:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>[GW_ADMIN|ADMIN]&gt; SESSION|STATE=CLOSED
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>[GW_ADMIN|ADMIN]&gt; SESSION|STATE=CLOSED
 </code></pre></div>
 <p>Both orders fill in full at one price, <strong>150.60</strong>: the candidates 150.60 and
 150.80 both match 100 shares with no surplus, and the engine keeps the lower of
@@ -7747,14 +7809,14 @@ chapter.</p>
 opening auction. After Exercise 4 the market is <code>CLOSED</code>; move to <code>PRE_OPEN</code>
 (which accepts GTC but not ATO), clear AAPL with <code>CANCEL_SYM|SYM=AAPL</code>, and
 rest a GTC bid:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>[GW_ADMIN|ADMIN]&gt; SESSION|STATE=PRE_OPEN
-<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=50|PRICE=150.00|TIF=GTC
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>[GW_ADMIN|ADMIN]&gt; SESSION|STATE=PRE_OPEN
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=50|PRICE=150.00|TIF=GTC
 </code></pre></div>
 <p>Move to <code>OPENING_AUCTION</code>, offer 50 shares at the same price as an ATO order,
 and uncross:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>[GW_ADMIN|ADMIN]&gt; SESSION|STATE=OPENING_AUCTION
-<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>[TRADER02]&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=50|PRICE=150.00|TIF=ATO
-<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>[GW_ADMIN|ADMIN]&gt; SESSION|STATE=CONTINUOUS
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>[GW_ADMIN|ADMIN]&gt; SESSION|STATE=OPENING_AUCTION
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>[TRADER02]&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=50|PRICE=150.00|TIF=ATO
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>[GW_ADMIN|ADMIN]&gt; SESSION|STATE=CONTINUOUS
 </code></pre></div>
 <p>Both consoles report <code>FILL … qty=50 @150.0 [FILLED]</code>: the GTC bid, placed
 before the auction began, was matched in it. The same holds in the closing

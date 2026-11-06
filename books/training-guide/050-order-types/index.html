@@ -1949,6 +1949,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../participant-guide/90-backmatter/010-faq-orders-and-positions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ: Orders, Sessions and Positions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -3343,6 +3371,34 @@
           </ul>
         </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../operator-guide/90-backmatter/010-faq-setup-and-operation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ: Setup and Operation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -7604,7 +7660,12 @@ IOC, ICEBERG, and TRAILING_STOP — through practical exercises.</p>
 <h2 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h2>
 <ul>
 <li>Chapters 01–04 completed.</li>
-<li>At least one trader gateway connected with active MM liquidity.</li>
+<li><code>TRADER01</code>, <code>TRADER02</code>, the operator console and the <code>MM_AAPL_01</code> console
+  connected to the current engine (Exercise 5 also uses <code>MM_TSLA_01</code>).</li>
+<li>The MSFT market-maker quote from chapter 02 still resting (Exercise 4 trades
+  against its 300-share ask at 420.10). If <code>BOOK|SYM=MSFT</code> shows otherwise,
+  send it again from <code>MM_MSFT_01</code>:
+  <code>QUOTE|SYM=MSFT|BID=419.90|ASK=420.10|BID_QTY=300|ASK_QTY=300|TIF=DAY|QUOTE_ID=MSFT-MM-005</code>.</li>
 </ul>
 <h2 id="deterministic-trigger-setup">Deterministic Trigger Setup<a class="headerlink" href="#deterministic-trigger-setup" title="Permanent link">&para;</a></h2>
 <p>Stop and stop-limit orders only trigger when the market actually <strong>trades</strong>
@@ -7698,30 +7759,39 @@ or below 150.10, and the order is rejected at once with
 <p>If only 300 are available at the ask, you get 300 filled and 700 cancelled.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> partial fill + cancellation of remainder.</p>
 <h2 id="exercise-5-iceberg-order">Exercise 5: Iceberg Order<a class="headerlink" href="#exercise-5-iceberg-order" title="Permanent link">&para;</a></h2>
-<p>An iceberg shows only a visible "peak" quantity while hiding the reserve:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>[TRADER01]&gt; NEW|SYM=TSLA|SIDE=BUY|TYPE=ICEBERG|QTY=1000|PRICE=249.70|VISIBLE=100|TIF=DAY
+<p>An iceberg shows only a visible "peak" quantity while hiding the reserve.
+First give TSLA a known book: chapter 04 left orders of its own on it, and its
+market-maker quote was cleared there. Clear TSLA and have the market maker
+quote it again:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>[GW_ADMIN|ADMIN]&gt; CANCEL_SYM|SYM=TSLA
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>[MM_TSLA_01]&gt; QUOTE|SYM=TSLA|BID=249.75|ASK=250.25|BID_QTY=200|ASK_QTY=200|TIF=DAY|QUOTE_ID=TSLA-MM-005
+</code></pre></div>
+<p>Then place the iceberg:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>[TRADER01]&gt; NEW|SYM=TSLA|SIDE=BUY|TYPE=ICEBERG|QTY=1000|PRICE=249.70|VISIBLE=100|TIF=DAY
 </code></pre></div>
 <p>The book shows only 100 visible. When those 100 fill, another 100 automatically
 appears until the full 1000 is done.</p>
 <p>Check the book:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>[GW_ADMIN|ADMIN]&gt; BOOK|SYM=TSLA
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>[GW_ADMIN|ADMIN]&gt; BOOK|SYM=TSLA
 </code></pre></div>
-<p>You should see a 100-lot bid at 249.70, not 1000. (The price is one tick
-below the market maker's 249.75 bid on purpose: <code>BOOK</code> adds up all orders at
-one price, so at 249.75 you would see the market maker's 200 plus your 100.)</p>
+<p>You should see the market maker's 200-share bid at 249.75 and, below it, a
+100-share bid at 249.70 — not 1000 — next to the market maker's 200 ask at
+250.25. (The iceberg's price is one tick below the market maker's bid on
+purpose: <code>BOOK</code> adds up all orders at one price, so at 249.75 you would see
+the market maker's 200 plus your 100.)</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> only peak quantity visible in the book.</p>
 <h2 id="exercise-6-trailing-stop">Exercise 6: Trailing Stop<a class="headerlink" href="#exercise-6-trailing-stop" title="Permanent link">&para;</a></h2>
 <p>A trailing stop follows the market by a fixed offset. To watch it work you
 control every trade, as in the setup above. Clear AAPL again and create a last
 traded price of 150.00:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>[GW_ADMIN|ADMIN]&gt; CANCEL_SYM|SYM=AAPL
-<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>[MM_AAPL_01]&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=150.00|TIF=DAY
-<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>[TRADER02]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TIF=DAY
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>[GW_ADMIN|ADMIN]&gt; CANCEL_SYM|SYM=AAPL
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>[MM_AAPL_01]&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=150.00|TIF=DAY
+<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a>[TRADER02]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TIF=DAY
 </code></pre></div>
 <p>Now place the trailing stop. No <code>STOP=</code> is given, so the engine derives the
 initial trigger from the last traded price minus <code>TRAIL</code>: 150.00 − 0.20 =
 <strong>149.80</strong>.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=TRAILING_STOP|QTY=100|TRAIL=0.20|TIF=DAY
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=TRAILING_STOP|QTY=100|TRAIL=0.20|TIF=DAY
 </code></pre></div>
 <div class="admonition note">
 <p class="admonition-title">Without a trade, no automatic trigger</p>
@@ -7731,21 +7801,21 @@ yourself, e.g. <code>STOP=149.80</code>.</p>
 </div>
 <p>Put a bid in the book for the stop to sell into once it fires (it becomes a
 market sell), well below the trigger so it does not interfere:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>[MM_AAPL_01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=149.70|TIF=DAY
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>[MM_AAPL_01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=149.70|TIF=DAY
 </code></pre></div>
 <p><strong>Let the price rise.</strong> A trade at 150.50 drags the stop up to 150.30
 (150.50 − 0.20); nothing happens visibly:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>[MM_AAPL_01]&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=150.50|TIF=DAY
-<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>[TRADER02]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.50|TIF=DAY
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>[MM_AAPL_01]&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=150.50|TIF=DAY
+<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>[TRADER02]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.50|TIF=DAY
 </code></pre></div>
 <p><strong>Let it reverse.</strong> A trade at 150.30 reaches the (raised) stop. Had the stop
 stayed at 149.80 this trade would not have touched it:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>[MM_AAPL_01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.30|TIF=DAY
-<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>[TRADER02]&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=150.30|TIF=DAY
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>[MM_AAPL_01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.30|TIF=DAY
+<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a>[TRADER02]&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=150.30|TIF=DAY
 </code></pre></div>
 <p><code>TRADER01</code>'s console now reports the stop's market sell, filled against the
 149.70 bid:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>[&lt;time&gt;] FILL      &lt;order_id&gt;  qty=100 @149.7  remaining=0  [FILLED]
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>[&lt;time&gt;] FILL      &lt;order_id&gt;  qty=100 @149.7  remaining=0  [FILLED]
 </code></pre></div>
 <p>The stop only moves <strong>up</strong> (for a sell) or <strong>down</strong> (for a buy) — never against
 you — and, like a plain stop, it guarantees the exit, not the price: it was

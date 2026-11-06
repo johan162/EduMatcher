@@ -1949,6 +1949,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../participant-guide/90-backmatter/010-faq-orders-and-positions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ: Orders, Sessions and Positions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -3343,6 +3371,34 @@
           </ul>
         </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../operator-guide/90-backmatter/010-faq-setup-and-operation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ: Setup and Operation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -5362,6 +5418,17 @@
     <span class="md-ellipsis">
       
         Keeping the market open
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#after-every-engine-restart" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        After every engine restart
       
     </span>
   </a>
@@ -7668,6 +7735,10 @@ taken early:</p>
 <li><strong>Several terminals.</strong> The exchange is a set of processes, and this guide
   asks you to watch them side by side. A multiplexer (<code>tmux</code>, <code>screen</code>) or
   split panes helps, but separate windows are fine.</li>
+<li><strong>A text editor and a working folder.</strong> You will write YAML files
+  (configurations, bot settings) and keep them in one folder. Chapter 00 sets
+  it up; on the container route it matters, because the container has no
+  editor and its own file system is thrown away on every restart.</li>
 </ul>
 <h3 id="the-two-consoles">The two consoles<a class="headerlink" href="#the-two-consoles" title="Permanent link">&para;</a></h3>
 <p>This is the one thing worth knowing before chapter 00, because mixing them up
@@ -7717,6 +7788,28 @@ how to open it by hand from the operator console — <code>SESSION|STATE=PRE_OPE
 then <code>SESSION|STATE=CONTINUOUS</code> — and the exercises assume you do this after
 every engine restart. If an order comes back <code>REJECTED … code=MARKET_CLOSED</code>,
 this is why.</p>
+<h3 id="after-every-engine-restart">After every engine restart<a class="headerlink" href="#after-every-engine-restart" title="Permanent link">&para;</a></h3>
+<p>Many exercises stop <code>pm-engine</code> and start it again to pick up a new
+configuration. A restarted engine knows nothing about the consoles that were
+connected to the old one, and <strong>a console never reconnects by itself</strong>:</p>
+<ul>
+<li>an open <code>pm-alf-console</code> answers every order with
+  <code>REJECTED … code=AUTH_REQUIRED  Gateway not connected: TRADER01</code>;</li>
+<li>an open <code>pm-admin</code> answers commands such as <code>KILL</code> with
+  <code>REJECTED  Gateway not connected: GW_ADMIN</code>, and <code>GATEWAYS</code> lists every
+  gateway, including itself, as <code>no</code>.</li>
+</ul>
+<p>So after each engine restart, <strong>leave every console (<code>EXIT</code> in <code>pm-alf-console</code>,
+<code>Ctrl-C</code> in <code>pm-admin</code>) and start it again</strong>, then reopen the market. A
+quote or order that is still resting from before the restart is still there.</p>
+<div class="admonition note">
+<p class="admonition-title">Harmless warnings</p>
+<p>When you start the processes by hand, <code>pm-monitor</code> (the health monitor) is
+not running, and you may see lines such as
+<code>WARNING … pm-monitor at tcp://127.0.0.1:5610 not accepting beacons</code> or
+<code>WARNING … heartbeat dropped: engine unreachable</code> (also whenever the
+engine is restarted). They do not affect the exercises.</p>
+</div>
 <h3 id="conventions">Conventions<a class="headerlink" href="#conventions" title="Permanent link">&para;</a></h3>
 <ul>
 <li><code>[TRADER01]&gt;</code> — type this at that trader console's prompt.</li>

@@ -1949,6 +1949,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../participant-guide/90-backmatter/010-faq-orders-and-positions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ: Orders, Sessions and Positions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -3343,6 +3371,34 @@
           </ul>
         </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../operator-guide/90-backmatter/010-faq-setup-and-operation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ: Setup and Operation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -7899,6 +7955,14 @@ preset, while the full one does not?</p>
 <a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>  seed quote MM01: 1000 @ 104.90 / 1000 @ 105.10 (DAY)
 <a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>Deployed to …/engine_config.json. Start the exchange to open trading.
 </code></pre></div>
+<p>The seed-quote line appears when the deployed configuration has a market
+maker with seeded quotes (as in chapters 01–03). If you are still on one of
+the generated configurations of chapters 23–28 (<code>--no-mm-seed-quotes</code>), the
+command prints <code>no seed quote: the book opens empty</code> instead, as in Exercise
+8. Either way the stock opens in the auction. The exchange must be stopped
+(every <code>pm-*</code> process, not only <code>pm-engine</code>) and the data directory must hold
+no saved state for <code>TORN</code>; a leftover <code>pm-engine</code> anywhere on the machine
+makes <code>--list</code> stop with <code>pm-engine is running (pid …)</code>.</p>
 </li>
 <li>
 <p>During the pre-open, each trader enters orders for TORN at the price they
@@ -7931,8 +7995,9 @@ the first price is whatever the orders in the auction say. List the same stock
 into a configuration <strong>without</strong> a market maker's quotes and see what the
 auction does with nothing but your classmates' orders.</p>
 <p><code>--list</code> refuses to edit a bundled example, so work on a copy (Chapter 00 says
-where the examples live; with a container install, <code>docs/examples/…</code> is inside
-the container):</p>
+where the examples live; with a container or <code>pipx</code> install they are inside the
+package: replace <code>docs/examples</code> below by <code>$EX</code>, with
+<code>EX=$(python -c "from edumatcher.config_deploy import examples_root; print(examples_root().parent)")</code>):</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>pm-opctl-cli<span class="w"> </span>stop
 <a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>cp<span class="w"> </span>docs/examples/ref_data/s3-nominal-nomm-setup/engine_config.yaml<span class="w"> </span>classroom.yaml
 <a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>pm-config-deploy<span class="w"> </span>classroom.yaml

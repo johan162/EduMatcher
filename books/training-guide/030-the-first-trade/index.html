@@ -1949,6 +1949,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../participant-guide/90-backmatter/010-faq-orders-and-positions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ: Orders, Sessions and Positions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -3343,6 +3371,34 @@
           </ul>
         </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../operator-guide/90-backmatter/010-faq-setup-and-operation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ: Setup and Operation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -7608,17 +7664,29 @@ lifecycle.</p>
 <li>Engine running from chapters 01–02, with the market open in <code>CONTINUOUS</code>.</li>
 <li>The manual AAPL quote from chapter 02 active: <code>MM_AAPL_01</code> bidding 149.95
   and asking 150.05, 500 shares each side, and its console still open. (With
-  <code>pm-mm-bot</code> quoting instead, the prices and sizes below will differ.)</li>
-<li><code>TRADER01</code> gateway connected, and the operator console open.</li>
+  <code>pm-mm-bot</code> quoting instead, the prices and sizes below will differ. If you
+  ran the optional bot exercises 6–8 of chapter 02, use "Returning to the
+  manual-quote state" at the end of that chapter first.)</li>
+<li><code>TRADER01</code> gateway and the operator console open <strong>and connected to the
+  current engine</strong>. If you restarted the engine since you started them,
+  restart them too (see "After every engine restart" in the
+  <a href="../#after-every-engine-restart">introduction</a>).</li>
 <li>One spare terminal for the clearing process.</li>
 </ul>
+<p><strong>Check the starting point.</strong> In <code>pm-admin</code>, <code>BOOK|SYM=AAPL</code> should show exactly
+one bid, 500 at 149.95, and one ask, 500 at 150.05. Anything else (for example
+a 1-lot bid at 0.01) is left over from an earlier exercise: clear it with
+<code>KILL|GW=TRADER01</code> in <code>pm-admin</code> before you begin, and see chapter 01's
+"Clear the test orders".</p>
 <h2 id="exercise-1-start-clearing">Exercise 1: Start Clearing<a class="headerlink" href="#exercise-1-start-clearing" title="Permanent link">&para;</a></h2>
 <p>In a new terminal, start the clearing process before you trade:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pm-clearing<span class="w"> </span>--print-every<span class="w"> </span><span class="m">1</span>
 </code></pre></div>
 <p><code>pm-clearing</code> subscribes to executed trades, updates per-gateway positions and
 P&amp;L, and writes batched results to <code>clearing.db</code> (SQLite) in the data
-directory — not a CSV file. Use <code>pm-clearing-cli --format csv ...</code> afterward
+directory — not a CSV file. It starts silent and prints its table after a
+trade has been processed (it works in batches, so allow it up to about twenty
+seconds). Use <code>pm-clearing-cli --format csv ...</code> afterward
 if you want a CSV export. <code>--print-every 1</code> makes it print its P&amp;L summary
 after every trade; by default it prints only every 100 trades. Leave
 <code>pm-clearing</code> running while you work through this chapter.</p>
@@ -7639,7 +7707,7 @@ those from the order you just sent):</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>[&lt;time&gt;] FILL      &lt;order_id&gt;  qty=100 @150.05  remaining=0  [FILLED]
 </code></pre></div>
 <p>The order matched against the MM's ask at 150.05.</p>
-<p>Now switch to the <code>pm-clearing</code> terminal. Within a few seconds it prints a P&amp;L
+<p>Now switch to the <code>pm-clearing</code> terminal. After a short delay it prints a P&amp;L
 summary: <code>TRADER01</code> is long 100 AAPL at 150.05, and <code>MM_AAPL_01</code> is short 100
 at the same price.</p>
 <p>Look at the market maker's console too:</p>
@@ -7676,7 +7744,9 @@ Now sell:</p>
 </code></pre></div>
 <p>Expected: <code>ACK &lt;order id&gt;  order accepted</code>. The order rests, because its
 price is below the best ask (it is not marketable).</p>
-<p>Verify in the <strong>operator console</strong> — a trader cannot see the whole book:</p>
+<p>Verify in the <strong>operator console</strong> — a trader cannot see the whole book. (It
+reads the current book from the engine each time you ask, however long the
+console has been open.)</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>[GW_ADMIN|ADMIN]&gt; BOOK|SYM=AAPL
 </code></pre></div>
 <p>You should see two bids: the market maker's 400 at 149.95 on top, and your
@@ -7703,8 +7773,10 @@ reports the whole order filled at the average price,
 <p>From TRADER01, inspect the partially filled order:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>[TRADER01]&gt; ORDERS
 </code></pre></div>
-<p>Expected: the order from Exercise 4 appears with filled and remaining quantity
-showing the partial fill.</p>
+<p>Expected: the order from Exercise 4 appears with its quantity, the remaining
+quantity (<code>Qty</code> 200, <code>Rem</code> 150) and status <code>PARTIAL</code>. <code>ORDERS</code> lists the day's
+orders for this gateway, so the filled market orders of Exercises 2–3 appear
+in the list as well, with status <code>FILLED</code>.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> ORDERS shows partial fill state correctly.</p>
 <p><strong>Optional:</strong> If you have <code>pm-viewer</code> running on AAPL, you should see the bid size drop from 200 to 150 after the fill.</p>
 <h2 id="exercise-7-optional-observe-automatic-re-quoting-with-pm-mm-bot">Exercise 7 (Optional): Observe Automatic Re-Quoting with pm-mm-bot<a class="headerlink" href="#exercise-7-optional-observe-automatic-re-quoting-with-pm-mm-bot" title="Permanent link">&para;</a></h2>
