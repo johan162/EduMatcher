@@ -24,7 +24,7 @@ from edumatcher.models.combo import (
     ComboType,
 )
 from edumatcher.models.message import decode
-from edumatcher.models.order import Order, OrderStatus, OrderType, Side, TIF
+from edumatcher.models.order import Order, OrderStatus, OrderType, Side, SmpAction, TIF
 
 # ---------------------------------------------------------------
 # Helpers
@@ -610,6 +610,25 @@ class TestComboValidation:
 
 class TestComboLifecycle:
 
+    @staticmethod
+    def _combo_status(
+        engine: Engine, pub_sock: _DummySocket, combo: ComboOrder
+    ) -> ComboStatus:
+        statuses = [
+            payload["status"]
+            for frame in pub_sock.sent
+            for topic, payload in [decode(frame)]
+            if topic.startswith("combo.status.")
+            and payload.get("combo_id") == combo.combo_id
+        ]
+        if statuses:
+            return ComboStatus(statuses[-1])
+        return next(
+            tracked
+            for tracked in engine._combos.values()
+            if tracked.combo_id == combo.combo_id
+        ).status
+
     def _seed_resting(
         self,
         engine: Engine,
@@ -630,6 +649,223 @@ class TestComboLifecycle:
             price_ticks=price,
         )
         engine._handle_new_order(order.to_dict())
+
+    @pytest.mark.parametrize(
+        ("smp_action", "configured_default", "expected_status", "expected_trades"),
+        [
+            (SmpAction.NONE, SmpAction.NONE, ComboStatus.MATCHED, 2),
+            (SmpAction.CANCEL_AGGRESSOR, SmpAction.NONE, ComboStatus.FAILED, 0),
+            (SmpAction.CANCEL_RESTING, SmpAction.NONE, ComboStatus.FAILED, 0),
+            (SmpAction.CANCEL_BOTH, SmpAction.NONE, ComboStatus.FAILED, 0),
+            (None, SmpAction.CANCEL_AGGRESSOR, ComboStatus.FAILED, 0),
+            (SmpAction.NONE, SmpAction.CANCEL_AGGRESSOR, ComboStatus.MATCHED, 2),
+            (None, SmpAction.NONE, ComboStatus.MATCHED, 2),
+        ],
+    )
+    def test_aon_entry_preflight_excludes_own_liquidity_under_smp(
+        self,
+        combo_engine,
+        smp_action,
+        configured_default,
+        expected_status,
+        expected_trades,
+    ) -> None:
+        """Only SMP=NONE may use the submitter's resting AAPL offer to pass
+        AON preflight; external liquidity is available for the other leg.
+        Omitted leg policies inherit the gateway default, and explicit NONE
+        overrides it."""
+        engine, pub_sock = combo_engine
+        assert engine._engine_config is not None
+        engine._engine_config.participants["TRADER01"].smp_action = configured_default
+        self._seed_resting(engine, "AAPL", Side.SELL, 100, 15000, gateway_id="TRADER01")
+        self._seed_resting(engine, "MSFT", Side.BUY, 50, 42000)
+        pub_sock.sent.clear()
+
+        combo = ComboOrder.create(
+            combo_id=f"ENTRY-{smp_action or 'OMITTED'}-{configured_default.value}",
+            gateway_id="TRADER01",
+            combo_type=ComboType.AON,
+            tif=TIF.DAY,
+            legs=[
+                ComboLeg(
+                    symbol="AAPL",
+                    side=Side.BUY,
+                    order_type=OrderType.LIMIT,
+                    quantity=100,
+                    tick_decimals=2,
+                    price_ticks=15000,
+                    smp_action=smp_action,
+                ),
+                ComboLeg(
+                    symbol="MSFT",
+                    side=Side.SELL,
+                    order_type=OrderType.LIMIT,
+                    quantity=50,
+                    tick_decimals=2,
+                    price_ticks=42000,
+                    smp_action=smp_action,
+                ),
+            ],
+        )
+        engine._handle_combo_order(combo.to_dict())
+
+        assert self._combo_status(engine, pub_sock, combo) is expected_status
+        trades = [
+            decode(frame)[1]
+            for frame in pub_sock.sent
+            if decode(frame)[0] == "trade.executed"
+        ]
+        assert len(trades) == expected_trades
+        effective_action = smp_action or configured_default
+        if effective_action is SmpAction.NONE:
+            own_trade = next(trade for trade in trades if trade["symbol"] == "AAPL")
+            assert (
+                own_trade["buy_gateway_id"]
+                == own_trade["sell_gateway_id"]
+                == "TRADER01"
+            )
+            assert [(trade["symbol"], trade["quantity"]) for trade in trades] == [
+                ("AAPL", 100),
+                ("MSFT", 50),
+            ]
+        else:
+            tracked = next(
+                tracked
+                for tracked in engine._combos.values()
+                if tracked.combo_id == combo.combo_id
+            )
+            assert tracked.leg_fill_qty[0] == 0
+            assert len(tracked.child_order_ids) == 1
+            assert [
+                order.gateway_id for order in engine.books["AAPL"].resting_orders()
+            ] == ["TRADER01"]
+            assert [
+                order.gateway_id for order in engine.books["MSFT"].resting_orders()
+            ] == ["TRADER02"]
+
+    @pytest.mark.parametrize(
+        ("smp_action", "expected_status", "expected_trade_count", "aapl_resting"),
+        [
+            (SmpAction.NONE, ComboStatus.PARTIALLY_MATCHED, 1, set()),
+            (SmpAction.CANCEL_AGGRESSOR, ComboStatus.FAILED, 0, {"TRADER01"}),
+            (SmpAction.CANCEL_RESTING, ComboStatus.PENDING, 0, {"TRADER01"}),
+            (SmpAction.CANCEL_BOTH, ComboStatus.FAILED, 0, set()),
+        ],
+    )
+    def test_resting_combo_child_applies_smp_when_amended_across_own_order(
+        self,
+        combo_engine,
+        smp_action,
+        expected_status,
+        expected_trade_count,
+        aapl_resting,
+    ) -> None:
+        """A child later made marketable by AMEND applies its own SMP action
+        against same-gateway liquidity, like any other aggressing order."""
+        engine, pub_sock = combo_engine
+        combo = ComboOrder.create(
+            combo_id=f"AMEND-{smp_action.value}",
+            gateway_id="TRADER01",
+            combo_type=ComboType.AON,
+            tif=TIF.DAY,
+            legs=[
+                ComboLeg(
+                    symbol="AAPL",
+                    side=Side.BUY,
+                    order_type=OrderType.LIMIT,
+                    quantity=100,
+                    tick_decimals=2,
+                    price_ticks=14900,
+                    smp_action=smp_action,
+                ),
+                ComboLeg(
+                    symbol="MSFT",
+                    side=Side.SELL,
+                    order_type=OrderType.LIMIT,
+                    quantity=50,
+                    tick_decimals=2,
+                    price_ticks=42000,
+                    smp_action=smp_action,
+                ),
+            ],
+        )
+        engine._handle_combo_order(combo.to_dict())
+        tracked = next(
+            tracked
+            for tracked in engine._combos.values()
+            if tracked.combo_id == combo.combo_id
+        )
+        self._seed_resting(engine, "AAPL", Side.SELL, 100, 15000, gateway_id="TRADER01")
+        offer_id = next(
+            order.id
+            for order in engine.books["AAPL"].resting_orders()
+            if order.side is Side.SELL
+        )
+        pub_sock.sent.clear()
+
+        child_id = tracked.child_order_ids[0]
+        sibling_id = tracked.child_order_ids[1]
+        engine._handle_amend(
+            {"gateway_id": "TRADER01", "order_id": child_id, "price": 150.0}
+        )
+
+        assert self._combo_status(engine, pub_sock, combo) is expected_status
+        trades = [
+            decode(frame)[1]
+            for frame in pub_sock.sent
+            if decode(frame)[0] == "trade.executed"
+        ]
+        assert len(trades) == expected_trade_count
+        aapl_ids = {order.id for order in engine.books["AAPL"].resting_orders()}
+        msft_ids = {order.id for order in engine.books["MSFT"].resting_orders()}
+        assert {
+            order.gateway_id for order in engine.books["AAPL"].resting_orders()
+        } == aapl_resting
+        if smp_action is SmpAction.NONE:
+            (trade,) = trades
+            assert trade["buy_gateway_id"] == trade["sell_gateway_id"] == "TRADER01"
+            assert [(trade["symbol"], trade["quantity"]) for trade in trades] == [
+                ("AAPL", 100)
+            ]
+            assert aapl_ids == set()
+            assert msft_ids == {sibling_id}
+        elif smp_action is SmpAction.CANCEL_AGGRESSOR:
+            assert aapl_ids == {offer_id}
+            assert msft_ids == set()
+            cancelled = [
+                payload
+                for frame in pub_sock.sent
+                for topic, payload in [decode(frame)]
+                if topic == "order.cancelled.TRADER01"
+            ]
+            assert {item["order_id"] for item in cancelled} == {
+                child_id,
+                sibling_id,
+            }
+        elif smp_action is SmpAction.CANCEL_RESTING:
+            assert aapl_ids == {child_id}
+            assert msft_ids == {sibling_id}
+            cancelled = [
+                payload
+                for frame in pub_sock.sent
+                for topic, payload in [decode(frame)]
+                if topic == "order.cancelled.TRADER01"
+            ]
+            assert {item["order_id"] for item in cancelled} == {offer_id}
+        else:
+            assert aapl_ids == set()
+            assert msft_ids == set()
+            cancelled = [
+                payload
+                for frame in pub_sock.sent
+                for topic, payload in [decode(frame)]
+                if topic == "order.cancelled.TRADER01"
+            ]
+            assert {item["order_id"] for item in cancelled} == {
+                offer_id,
+                child_id,
+                sibling_id,
+            }
 
     def test_combo_both_legs_fill_immediately(self, combo_engine) -> None:
         """Both legs cross resting liquidity → combo should reach MATCHED."""
