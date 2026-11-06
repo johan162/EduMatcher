@@ -54,3 +54,7 @@ files = [
   "020-trading-platform-gui.md",
   "030-order-book-gui.md",
 ]
+
+[backmatter]
+title = "Appendices"
+files = ["90-backmatter/010-faq-orders-and-positions.md"]

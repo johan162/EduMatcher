@@ -2,14 +2,15 @@
 
 Welcome to EduMatcher. This Quick Start Guide takes you from nothing to a
 running exchange, a trade you made yourself and a clear idea of where to go
-next. It is meant to be finished in a single sitting.
+next. Part I takes about an hour; Part II is another one to two hours, so
+plan two sittings.
 
 | | |
 |---|---|
 | **Who it is for** | Anyone new to EduMatcher: students, instructors trying the system, developers |
-| **What you need** | A computer with Podman or Docker (or Python 3.14 and `pipx`), and a terminal |
+| **What you need** | A Linux or macOS computer (on Windows, a WSL 2 Linux terminal) with Podman or Docker, or with Python 3.14 and `pipx`; a web browser; and a terminal |
 | **What you do not need** | Any finance background, Python knowledge or a copy of the source code |
-| **Time** | About 15 minutes to a running exchange, about an hour to finish Part I |
+| **Time** | About 15 minutes to a running exchange, about an hour to finish Part I, one to two more hours for Part II |
 
 ## What you will be able to do
 
@@ -90,8 +91,10 @@ end of this guide gives a reading path for each role.
 
 ## Conventions
 
-- A line starting with `$`, or a bare command in a `bash` block, is typed in a
-  normal terminal.
+- A **terminal** is the window where you type commands (Terminal on macOS,
+  any terminal program on Linux, a WSL 2 window on Windows). A line starting
+  with `$`, or a bare command in a `bash` block, is typed there and finished
+  with Enter. Several chapters use two or three terminal windows at once.
 - `[TRADER01]>` is the prompt of a **trader console** (`pm-alf-console`); type
   the text after it there.
 - `[OPS01|ADMIN]>` is the prompt of the **operator console** (`pm-admin`).

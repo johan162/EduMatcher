@@ -16,6 +16,59 @@ first three.
 
 ## Common first-day problems
 
+**The installer or `./edumatcher.sh start` fails, or a container is missing.**
+Run `./edumatcher.sh status` to see which container is down and
+`./edumatcher.sh logs` (press `Ctrl-C` to stop watching) for the reason.
+The usual causes are:
+
+- *Neither Podman nor Docker is installed*, or Docker has no Compose support.
+  Check with `podman --version` or `docker compose version`. On macOS the
+  Docker Desktop application, or `podman machine start`, must be running.
+- *The images could not be downloaded.* Check your internet connection and
+  run `./edumatcher.sh pull`, then `./edumatcher.sh start` again.
+- *Permission denied on the Docker socket* (Linux). Your user must be allowed
+  to use Docker (see Docker's "post-installation steps for Linux"), or use
+  Podman, which needs no special rights.
+- *A port is already in use.* The exchange publishes 8080, 8081 and 8090–8095
+  on your computer. Stop whatever else uses them, or change a browser
+  application's port in `.env` (for example `TERMINAL_GUI_PORT=8190`) and run
+  `./edumatcher.sh restart`; `./edumatcher.sh urls` prints the addresses in
+  use. Another running EduMatcher installation counts too (see *Two
+  installations at once* below).
+
+**A browser page does not open, or stays empty.** Open the address on the
+same computer that runs the exchange: it listens on `localhost` only. If the
+page opens but shows a disconnected banner, check `./edumatcher.sh status`.
+An empty page can also be correct: see *When a display looks empty* in
+[The Browser Applications](../part-1-see-it-run/040-the-browser-applications.md).
+
+**The Trading GUI does not accept my API key.** Each configuration has its
+own keys, so after you switch configuration the old ones stop working. Look
+them up again with `./edumatcher.sh shell pm-config-show -a`. Paste the whole
+key, with no spaces, and use the key of the participant you mean.
+
+**The console says *Gateway already connected*.** A participant ID can be
+connected once at a time. Another console, or a Trading GUI login, is using
+it. Close that one, or use another participant such as `TRADER02`.
+
+**My orders disappeared.** When a trader disconnects (typing `EXIT`, or
+closing the console window) the exchange cancels that trader's resting orders
+in the bundled configurations. Orders with `TIF=GTC` are cancelled too; they
+only survive a stop and start of the *exchange*, not a trader leaving.
+
+**I want to start over.** Reset the saved state and keep the configuration:
+stop the processes, clear them, restart.
+
+```bash
+./edumatcher.sh shell pm-opctl-cli stop
+./edumatcher.sh shell pm-opctl-cli clear --state --yes
+./edumatcher.sh restart
+```
+
+On the Python route use `pm-opctl-cli stop`, `pm-opctl-cli clear --state
+--yes` and `pm-opctl-cli start`. `clear --all` also removes logs and audit
+files.
+
 **My order does not trade.** Nobody is waiting on the other side at a price
 that crosses yours. That is the market working correctly. Look at the book
 (`pm-viewer --symbol AAPL`, `BOOK|SYM=AAPL` in `pm-admin`, or the Order Book
