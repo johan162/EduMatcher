@@ -286,6 +286,23 @@ class ExchangeCommandClient:
         """Send a two-frame ZMQ multipart message over the PUSH socket."""
         self._push.send_multipart(frames)
 
+    def _discard_pending(self) -> None:
+        """Drop every message already queued on the SUB sockets.
+
+        Some replies travel on a topic the engine also broadcasts to every
+        subscriber (``book.snapshot.<SYM>``). Those broadcasts pile up in this
+        client's SUB queue while it sits idle at a prompt, so the next
+        request would be answered by the oldest of them -- a book from
+        minutes ago -- instead of its own reply. Commands run one at a time,
+        so nothing queued before a request is still wanted; calling this just
+        before it leaves only messages published after it.
+        """
+        if self._recv_queue is not None:
+            return  # test mode: the injected queue is the whole conversation
+        for sock in (self._sub, self._index_sub):
+            while sock is not None and sock.poll(0):
+                sock.recv_multipart()
+
     def _send_index(self, frames: list[bytes]) -> None:
         """Send to ``pm-index``, waiting for the PUSH connection to come up.
 
@@ -587,6 +604,7 @@ class ExchangeCommandClient:
         ``last_buy_price``, ``last_sell_price``. The four ``last_*`` fields
         are ``None`` on a book that has not traded.
         """
+        self._discard_pending()
         self._send(make_book_snapshot_request_msg(symbol.upper()))
         return self._recv(topic_book_snapshot(symbol.upper()))
 

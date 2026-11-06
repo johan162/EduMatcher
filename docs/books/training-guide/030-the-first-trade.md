@@ -18,9 +18,20 @@ lifecycle.
 - Engine running from chapters 01–02, with the market open in `CONTINUOUS`.
 - The manual AAPL quote from chapter 02 active: `MM_AAPL_01` bidding 149.95
   and asking 150.05, 500 shares each side, and its console still open. (With
-  `pm-mm-bot` quoting instead, the prices and sizes below will differ.)
-- `TRADER01` gateway connected, and the operator console open.
+  `pm-mm-bot` quoting instead, the prices and sizes below will differ. If you
+  ran the optional bot exercises 6–8 of chapter 02, use "Returning to the
+  manual-quote state" at the end of that chapter first.)
+- `TRADER01` gateway and the operator console open **and connected to the
+  current engine**. If you restarted the engine since you started them,
+  restart them too (see "After every engine restart" in the
+  [introduction](index.md#after-every-engine-restart)).
 - One spare terminal for the clearing process.
+
+**Check the starting point.** In `pm-admin`, `BOOK|SYM=AAPL` should show exactly
+one bid, 500 at 149.95, and one ask, 500 at 150.05. Anything else (for example
+a 1-lot bid at 0.01) is left over from an earlier exercise: clear it with
+`KILL|GW=TRADER01` in `pm-admin` before you begin, and see chapter 01's
+"Clear the test orders".
 
  
 
@@ -34,7 +45,9 @@ pm-clearing --print-every 1
 
 `pm-clearing` subscribes to executed trades, updates per-gateway positions and
 P&L, and writes batched results to `clearing.db` (SQLite) in the data
-directory — not a CSV file. Use `pm-clearing-cli --format csv ...` afterward
+directory — not a CSV file. It starts silent and prints its table after a
+trade has been processed (it works in batches, so allow it up to about twenty
+seconds). Use `pm-clearing-cli --format csv ...` afterward
 if you want a CSV export. `--print-every 1` makes it print its P&L summary
 after every trade; by default it prints only every 100 trades. Leave
 `pm-clearing` running while you work through this chapter.
@@ -66,7 +79,7 @@ those from the order you just sent):
 
 The order matched against the MM's ask at 150.05.
 
-Now switch to the `pm-clearing` terminal. Within a few seconds it prints a P&L
+Now switch to the `pm-clearing` terminal. After a short delay it prints a P&L
 summary: `TRADER01` is long 100 AAPL at 150.05, and `MM_AAPL_01` is short 100
 at the same price.
 
@@ -130,7 +143,9 @@ Place a buy order below the current bid — it should rest on the book:
 Expected: `ACK <order id>  order accepted`. The order rests, because its
 price is below the best ask (it is not marketable).
 
-Verify in the **operator console** — a trader cannot see the whole book:
+Verify in the **operator console** — a trader cannot see the whole book. (It
+reads the current book from the engine each time you ask, however long the
+console has been open.)
 
 ```
 [GW_ADMIN|ADMIN]> BOOK|SYM=AAPL
@@ -178,8 +193,10 @@ From TRADER01, inspect the partially filled order:
 [TRADER01]> ORDERS
 ```
 
-Expected: the order from Exercise 4 appears with filled and remaining quantity
-showing the partial fill.
+Expected: the order from Exercise 4 appears with its quantity, the remaining
+quantity (`Qty` 200, `Rem` 150) and status `PARTIAL`. `ORDERS` lists the day's
+orders for this gateway, so the filled market orders of Exercises 2–3 appear
+in the list as well, with status `FILLED`.
 
 :material-checkbox-blank-outline: **Checkpoint:** ORDERS shows partial fill state correctly.
 

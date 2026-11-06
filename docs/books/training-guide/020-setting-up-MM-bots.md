@@ -21,7 +21,15 @@ invocation.
 - Chapters 00–01 completed.
 - `pm-engine` running and the market open in `CONTINUOUS` (chapter 01,
   "Open the market for the chapters ahead").
-- At least one trader gateway connected (for book checks).
+- The operator console connected (for book checks), and your working folder as
+  your current directory (`cd /data/training` on the container route).
+
+!!! important "Which exercises chapter 03 needs"
+    Chapter 03 trades against the **manual quotes** you create in
+    Exercises 1–5. Exercises 6–8 replace them with market-maker bots and change
+    the configuration, so they are **optional for now**: do them after
+    chapter 03, or use "Returning to the manual-quote state" at the end of this
+    chapter to get back.
 
  
 
@@ -80,12 +88,35 @@ symbols:
         ask_price: 150.05
         bid_qty: 500
         ask_qty: 500
-  # ... the same shape for MSFT/MM_MSFT_01 and TSLA/MM_TSLA_01
+  MSFT:
+    tick_decimals: 2
+    last_buy_price: 420.00
+    last_sell_price: 420.00
+    market_maker_quotes:
+      - gateway_id: MM_MSFT_01
+        bid_price: 419.90
+        ask_price: 420.10
+        bid_qty: 300
+        ask_qty: 300
+  TSLA:
+    tick_decimals: 2
+    last_buy_price: 250.00
+    last_sell_price: 250.00
+    market_maker_quotes:
+      - gateway_id: MM_TSLA_01
+        bid_price: 249.75
+        ask_price: 250.25
+        bid_qty: 200
+        ask_qty: 200
 ```
+
+These are the prices and sizes the manual `QUOTE` commands below use too, so
+the quote you send replaces a seed that looks exactly the same.
 
 !!! warning "Skip the seeds and the deploy is refused"
     Without them the verifier raises **M001 (ERROR)** — *"Symbol 'AAPL' has no
-    market_maker_quotes entry for MARKET_MAKER gateway(s) MM_AAPL_01"* — and
+    market_maker_quotes entry for MARKET_MAKER gateway(s) MM_AAPL_01, MM_MSFT_01,
+    MM_TSLA_01"* — and
     `pm-config-deploy` refuses to install a configuration with any error. This
     is the verifier doing its job: a market maker with nothing to quote is a
     configuration mistake, not a runtime one.
@@ -103,7 +134,7 @@ symbols:
       --participants TRADER01 TRADER02 GW_ADMIN:ADMIN \
         MM_AAPL_01:MARKET_MAKER MM_MSFT_01:MARKET_MAKER MM_TSLA_01:MARKET_MAKER \
       --enforce-mm-obligations \
-      --output engine_config.yaml --force
+      --output mm-stub.yaml --force
 
     # Fully seeded: also fills bid_price/ask_price from a random midpoint in
     # the given range, rounded to each symbol's tick grid
@@ -113,8 +144,12 @@ symbols:
         MM_AAPL_01:MARKET_MAKER MM_MSFT_01:MARKET_MAKER MM_TSLA_01:MARKET_MAKER \
       --enforce-mm-obligations \
       --seed-mm-mid-range 100:400 \
-      --output engine_config.yaml --force
+      --output mm-seeded.yaml --force
     ```
+
+    These write to their own files on purpose: generated files have no
+    reference prices, so writing them over your hand-written
+    `engine_config.yaml` would silently lose what later chapters need.
 
     The first form is a trap worth knowing about: `pm-cverifier` will report
     **0 errors** on the stub — `market_maker_quotes` entries exist, so M001
@@ -137,13 +172,18 @@ Check, deploy, then restart the engine — editing the YAML alone changes
 nothing, because every process reads the compiled artifact:
 
 ```bash
-pm-cverifier engine_config.yaml       # expect 0 errors
+pm-cverifier engine_config.yaml       # expect 0 errors (the M032 warning is fine)
 pm-config-deploy engine_config.yaml
+cp engine_config.yaml engine_config.ex1.yaml   # keep a copy of this state
 ```
 
-Then restart `pm-engine` to pick up the new gateways. A restarted engine
-starts in `CLOSED` again, so reopen the market from the operator console
-(`SESSION|STATE=PRE_OPEN`, then `SESSION|STATE=CONTINUOUS`).
+The copy is for the optional Exercise 8, which changes `engine_config.yaml`.
+
+Then restart `pm-engine` to pick up the new gateways (`Ctrl-C`, then
+`pm-engine --verbose`). A restarted engine starts in `CLOSED` again, and your
+open consoles are disconnected: **restart `pm-admin` and your trader console**,
+then reopen the market from the operator console (`SESSION|STATE=PRE_OPEN`,
+then `SESSION|STATE=CONTINUOUS`).
 
 Now look at the books before any market maker has connected:
 
@@ -181,10 +221,11 @@ Because the engine already placed a seed quote for this market maker, your
 `QUOTE` replaces it, and you see the old one go first:
 
 ```
-CANCELLED  <order id>  reason=QUOTE_REPLACED
-QUOTE CANCELLED  SEED-MM_AAPL_01-AAPL-1  Replaced by new quote
-QUOTE ACK  AAPL-MM-001  bid=<order id> ask=<order id>
-QUOTE ACTIVE  AAPL-MM-001
+[<time>] CANCELLED <seed bid leg id> reason=QUOTE_REPLACED
+[<time>] CANCELLED <seed ask leg id> reason=QUOTE_REPLACED
+[<time>] QUOTE CANCELLED  SEED-MM_AAPL_01-AAPL-1  Replaced by new quote
+[<time>] QUOTE ACK  AAPL-MM-001  bid=<order id> ask=<order id>
+[<time>] QUOTE ACTIVE  AAPL-MM-001
 ```
 
 A market maker holds at most one active quote per symbol; sending another
@@ -265,26 +306,36 @@ Interpretation guide:
 The manual quote sequence above can be automated with one bot per symbol —
 independent processes, each free to crash, restart, or be tuned without
 touching the others. (Exercise 8 below shows the alternative: one process
-covering several symbols at once, each on its own terms.) Stop your manual
-quotes first (`QUOTE_CANCEL|SYM=<symbol>` from each MM console, or just leave
-them — the bot's own startup reconciliation handles either case, see the note
-below) and run:
+covering several symbols at once, each on its own terms.)
+
+First, **exit the three market-maker consoles** (`EXIT` in each). A bot
+connects under the same gateway ID as the console (`MM_AAPL_01`, …) and the
+engine allows only one connection per ID, so while a console is open the bot
+is refused with `auth rejected: Gateway already connected: MM_AAPL_01`. Leaving
+the consoles also cancels their quotes (`CANCEL_QUOTES_ONLY` in the
+configuration), so the books are left without a market maker and the bots need
+a starting price. Give each one a range to start in with `--initial_min` and
+`--initial_max`; it draws its first mid-price at random inside it. Then, in
+three terminals:
 
 ```bash
-pm-mm-bot --symbol AAPL --gap 0.10 --qty 500
-pm-mm-bot --symbol MSFT --gap 0.16 --qty 300
-pm-mm-bot --symbol TSLA --gap 0.20 --qty 200
+pm-mm-bot --symbol AAPL --gap 0.10 --qty 500 --initial_min 149 --initial_max 151
+pm-mm-bot --symbol MSFT --gap 0.16 --qty 300 --initial_min 419 --initial_max 421
+pm-mm-bot --symbol TSLA --gap 0.20 --qty 200 --initial_min 249 --initial_max 251
 ```
 
 Add `--verbose` to any of these to follow what the bot does; by default it
-prints only warnings and errors.
+prints only warnings and errors. The quotes now sit around the random mid-price
+the bot chose, not at the prices of Exercises 2–3: check with
+`BOOK|SYM=AAPL` in the operator console.
 
 The bot connects using the gateway ID `MM_<SYMBOL>_<id-suffix>` (default
 suffix `01`), quotes symmetrically around the current mid-price at `--gap`,
 reissues after fills, and reprices when the mid drifts. It also runs a
-`QBOOT` request at startup so it can adopt an already-active quote — such as
-your manual quote, or the engine's seed — instead of creating a duplicate, and periodically re-runs `QLEGS` to reconcile leg state
-in case an engine reply was ever dropped.
+`QBOOT` request at startup so it can adopt an already-active quote of its own
+gateway — the engine's seed quote, for instance, when no console is holding the
+ID — instead of creating a duplicate, and periodically re-runs `QLEGS` to
+reconcile leg state in case an engine reply was ever dropped.
 
 !!! note "The 20-tick limit on `--gap`"
     The gaps above are not arbitrary. Every symbol has a maximum quoted spread,
@@ -318,7 +369,7 @@ interval, and similar) that this chapter deliberately leaves out.
 
  
 
-## Exercise 7: Drive the Bot from a Config File
+## Exercise 7: Drive the Bot from a Config File (Optional)
 
 A bot's whole configuration can live in a version-controlled YAML file
 instead of a long command line. Create `mm_aapl.yaml`:
@@ -338,10 +389,15 @@ defaults:
   drift_ticks: 3
 
 symbols:
-  AAPL: {}
+  AAPL:
+    initial_min: 149
+    initial_max: 151
 ```
 
-Run the bot from it instead of typing the flags:
+The `symbols:` block names AAPL and gives it a starting range (the bot needs a
+reference price on an empty book, as in Exercise 6). Run the bot from the file
+instead of typing the flags (exit any other process connected as `MM_AAPL_01`
+first):
 
 ```bash
 pm-mm-bot --config mm_aapl.yaml --verbose
@@ -357,9 +413,10 @@ learning:
 | `defaults:` | Quoting settings applied to every symbol           | These *are* the defaults |
 | `symbols:`  | Which symbols to quote, and each one's overrides    | **Yes** — see Exercise 8 |
 
-`AAPL: {}` means "quote AAPL, on the house defaults". The empty braces are
-required YAML, not decoration: the value of a symbol key is its override
-block, and this one overrides nothing.
+A symbol's block holds its overrides: here only the start range, so AAPL is
+quoted on the house defaults. A symbol with nothing to override is written
+`AAPL: {}` — the empty braces are required YAML, not decoration, because the
+value of a symbol key is its override block.
 
 An explicit CLI flag still overrides the file, so you can keep one committed
 file per desk for a class and override a single value for a one-off run:
@@ -405,7 +462,7 @@ CLI value won.
 
  
 
-## Exercise 8: One Bot, Three Symbols, Three Sets of Terms
+## Exercise 8: One Bot, Three Symbols, Three Sets of Terms (Optional)
 
 Exercise 6 ran three separate `pm-mm-bot` processes, one per symbol. But
 nothing on the engine side requires a `MARKET_MAKER` gateway to quote only
@@ -414,8 +471,8 @@ one symbol: the engine's `QuoteIndex` keys every active quote by
 gateway can hold AAPL's quote and MSFT's quote and TSLA's quote at the same
 time — and each of those symbols can be quoted on its own terms.
 
-Stop the three bots from Exercise 6 (Ctrl+C each — a bot cancels its own quote
-when it exits) and register one gateway that will quote all three symbols
+Stop the three bots from Exercise 6 if you ran them (Ctrl+C each — a bot cancels
+its own quote when it exits) and register one gateway that will quote all three symbols
 instead:
 
 ```yaml
@@ -455,8 +512,11 @@ prices and sizes):
         ask_qty: 500
 ```
 
-Check and deploy as before, restart the engine and reopen the market. The old market makers' seed quotes are still in the books, so clear
-them from the operator console and leave `MM_TECH_01` the only quoter:
+Check and deploy as before, restart the engine, **restart `pm-admin`** (the
+engine restart disconnected it, and `KILL` would answer
+`Gateway not connected: GW_ADMIN`) and reopen the market. The old market makers'
+seed quotes are still in the books, so clear them from the operator console and
+leave `MM_TECH_01` the only quoter:
 
 ```
 [GW_ADMIN|ADMIN]> KILL|GW=MM_AAPL_01
@@ -601,8 +661,8 @@ Try both and read the startup lines:
 # MSFT keeps 0.16 and TSLA keeps 0.20, because their blocks named a gap.
 pm-mm-bot --verbose --config mm_tech.yaml --gap 0.18
 
-# Widens TSLA too, because this names it (0.18 is narrower than its 0.20, but
-# the point is that the symbol's own CLI scope wins)
+# Changes TSLA too, because this names it. (0.18 is narrower than its 0.20, but
+# the point is that the symbol's own CLI scope wins.)
 pm-mm-bot --verbose --config mm_tech.yaml --symbol TSLA --gap 0.18
 ```
 
@@ -644,6 +704,29 @@ lines report each symbol's own settings, its log lines are tagged per symbol,
 and all three books show two-sided liquidity at visibly different spreads.
 
  
+
+## Returning to the manual-quote state
+
+Chapter 03 needs the state of Exercises 1–5: `MM_AAPL_01` connected with the
+manual quote `AAPL-MM-001`. If you have since run the bots of Exercises 6–8 (or
+simply want a clean start), get back to it:
+
+1. Stop every `pm-mm-bot` (`Ctrl-C`; a bot cancels its quotes on exit).
+2. Restore the configuration from Exercise 1 and deploy it:
+
+   ```bash
+   cp engine_config.ex1.yaml engine_config.yaml
+   pm-config-deploy engine_config.yaml
+   ```
+
+3. Restart `pm-engine`, then restart `pm-admin`, and reopen the market with
+   `SESSION|STATE=PRE_OPEN` and `SESSION|STATE=CONTINUOUS`.
+4. Connect `pm-alf-console --id MM_AAPL_01` (and the MSFT and TSLA ones if you
+   want them) and send the `QUOTE` commands of Exercises 2 and 3 again.
+5. In `pm-admin`, `BOOK|SYM=AAPL` shows 500 bid at 149.95 and 500 ask at
+   150.05. Orders that a trader placed earlier (in chapter 03, say) survive
+   the engine restart and are still in the book; clear them with
+   `KILL|GW=TRADER01` (and `KILL|GW=TRADER02`) if you want the clean state.
 
 ## Summary
 

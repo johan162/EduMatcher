@@ -42,6 +42,10 @@ taken early:
 - **Several terminals.** The exchange is a set of processes, and this guide
   asks you to watch them side by side. A multiplexer (`tmux`, `screen`) or
   split panes helps, but separate windows are fine.
+- **A text editor and a working folder.** You will write YAML files
+  (configurations, bot settings) and keep them in one folder. Chapter 00 sets
+  it up; on the container route it matters, because the container has no
+  editor and its own file system is thrown away on every restart.
 
 ### The two consoles
 
@@ -72,6 +76,29 @@ how to open it by hand from the operator console — `SESSION|STATE=PRE_OPEN`,
 then `SESSION|STATE=CONTINUOUS` — and the exercises assume you do this after
 every engine restart. If an order comes back `REJECTED … code=MARKET_CLOSED`,
 this is why.
+
+### After every engine restart
+
+Many exercises stop `pm-engine` and start it again to pick up a new
+configuration. A restarted engine knows nothing about the consoles that were
+connected to the old one, and **a console never reconnects by itself**:
+
+- an open `pm-alf-console` answers every order with
+  `REJECTED … code=AUTH_REQUIRED  Gateway not connected: TRADER01`;
+- an open `pm-admin` answers commands such as `KILL` with
+  `REJECTED  Gateway not connected: GW_ADMIN`, and `GATEWAYS` lists every
+  gateway, including itself, as `no`.
+
+So after each engine restart, **leave every console (`EXIT` in `pm-alf-console`,
+`Ctrl-C` in `pm-admin`) and start it again**, then reopen the market. A
+quote or order that is still resting from before the restart is still there.
+
+!!! note "Harmless warnings"
+    When you start the processes by hand, `pm-monitor` (the health monitor) is
+    not running, and you may see lines such as
+    `WARNING … pm-monitor at tcp://127.0.0.1:5610 not accepting beacons` or
+    `WARNING … heartbeat dropped: engine unreachable` (also whenever the
+    engine is restarted). They do not affect the exercises.
 
 ### Conventions
 

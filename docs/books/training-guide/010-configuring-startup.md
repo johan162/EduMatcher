@@ -50,7 +50,13 @@ source and forgot to redeploy. Exercise 12 walks through both.
 
 ## Exercise 1: Create a Minimal Configuration
 
-Create a file called `engine_config.yaml` in your working directory:
+Create a file called `engine_config.yaml` in your working folder (the one you
+set up in [chapter 00](000-installation.md); on the container route that is
+`~/.edumatcher/data/training` on your computer, which you reach as
+`/data/training` after `cd /data/training` inside `./edumatcher.sh shell`).
+Every file this chapter and the next ones create or edit — `generated.yaml`,
+`schedule.yaml`, `mm_aapl.yaml` and the rest — lives in that same folder, and
+every command that reads one is run from it.
 
 ```yaml
 symbols:
@@ -188,7 +194,8 @@ Expected for this chapter config:
   defined under `api_gateways`. That credential is what the browser
   dashboards use; this configuration starts no API gateway until Chapter 25,
   so you can leave the warning alone for now. Below it you will see a few
-  `INFO` advisories (`C003`, `C004`, `C007`) — suggestions, not problems.
+  `INFO` advisories (`M004`, `C003`, `C004`, `C007`) — suggestions, not
+  problems.
 - Exit code is `0` when there are no warnings/errors, `1` when warnings exist, and `2` when hard errors exist. Here it is `1`, because of `M032`.
 
 Run it on `generated.yaml` as well and compare: that file has the same
@@ -329,6 +336,10 @@ prints only warnings and errors. Expected output includes lines like these
 waits to be told when the day begins: your configuration does not set
 `sessions_enabled`, and its default is `true`.
 
+If you also see a `WARNING … pm-monitor … not accepting beacons` line from any
+process, ignore it: that is the health monitor, which is not running when you
+start processes by hand.
+
 The stable way to confirm the engine actually loaded your config, independent
 of log wording, is to query it from a gateway once connected (Exercise 8) with
 `SYMBOLS` — if it lists `AAPL`, `MSFT`, and `TSLA`, the engine started correctly
@@ -370,7 +381,8 @@ To skip the wait and drive the sequence immediately, restart it with `--now`:
 pm-scheduler --now --delay 5 --verbose
 ```
 
-Expected output (timestamps trimmed):
+Expected output (timestamps trimmed; between the transitions you also see a
+`Waiting 5s for …` line, and a harmless `pm-monitor` warning may follow `Done.`):
 
 ```
 ... INFO edumatcher.scheduler.main - --now mode: sending all transitions with 5.0s delays
@@ -433,15 +445,26 @@ a tiny limit order:
 [TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=1|PRICE=0.01|TIF=DAY
 ```
 
-You should see an acknowledgement (the order rests since no matching ask exists).
+If you have just done Exercise 7, the scheduler's `--now` day ended in `CLOSED`,
+so you will see this first:
 
-If instead you see `REJECTED ... code=MARKET_CLOSED  Market is closed`, the
-scheduler is outside its timetable or has finished its `--now` day. Do
-Exercise 10 first — it ends by opening the market — then come back.
+```
+[<time>] REJECTED  <order_id> code=MARKET_CLOSED  Market is closed
+```
+
+That is the engine working as designed, not a fault. Open the market in the
+next exercise (the last part of it, "Open the market for the chapters ahead"),
+then come back and send the same order again. Now you should see an
+acknowledgement (the order rests since no matching ask exists):
+
+```
+[<time>] ACK       <order_id>  order accepted
+```
 
 Repeat for `MSFT` and `TSLA` to confirm all three books are active.
 
-:material-checkbox-blank-outline: **Checkpoint:** all three symbols accept orders.
+:material-checkbox-blank-outline: **Checkpoint:** all three symbols accept orders
+(after the market is open).
 
  
 
@@ -510,13 +533,38 @@ step is `PRE_OPEN` — so it takes two commands. Chapter 06 explains this
 "freeze and advance" technique properly; whenever a later exercise says the
 market must be open, this is how you open it.
 
+Now go back to Exercise 9 and send the three 1-lot test orders (AAPL, MSFT,
+TSLA) if you have not yet.
+
+### Clear the test orders
+
+Those three 1-lot bids at 0.01 are still resting, and they **survive engine
+restarts**. Left in place, they would show up in the order books and in
+`ORDERS` in every later chapter. Remove them with the operator's kill switch,
+which cancels everything one gateway has resting (chapter 08 explains it):
+
+```
+[GW_ADMIN|ADMIN]> KILL|GW=TRADER01
+```
+
+It answers `KILL OK  TRADER01  orders=3  quotes=0`; the cancellations also
+show on the `TRADER01` console as `CANCELLED … reason=KILL_SWITCH`.
+
+!!! warning "Engine restarts disconnect your consoles"
+    Several exercises below (and in later chapters) restart `pm-engine`. When
+    you do, **exit and restart your trader and operator consoles** too — an
+    open console is not reconnected, and its commands fail with
+    `AUTH_REQUIRED` or `Gateway not connected`. See "After every engine
+    restart" in the [guide introduction](index.md#after-every-engine-restart).
+
 :material-checkbox-blank-outline: **Checkpoint:** `pm-admin` is connected, `BOOK|SYM=AAPL`
 shows the book, and you can state which of the two consoles a given command
 belongs to.
 
 !!! tip "Keep both terminals open from here on"
     Every later chapter assumes you have a trader console *and* an operator
-    console available. Leaving both running saves restarting them constantly.
+    console available. Leaving both running saves restarting them — except
+    after an engine restart, when each must be restarted (see above).
 
  
 
@@ -574,9 +622,10 @@ Start the engine again in the same terminal:
 pm-engine
 ```
 
-Expected: the engine refuses to start, reporting that the compiled config's
-payload no longer matches its recorded content digest — naming
-`pm-config-deploy`, not manual editing, as the fix.
+Expected: the engine refuses to start. It prints a Python traceback; read its
+**last line**, which reports that the compiled config's payload no longer
+matches its recorded content digest and names `pm-config-deploy`, not manual
+editing, as the fix.
 
 Recover by recompiling the (untouched) source that is still sitting next to
 the artifact, then start the engine again:
@@ -585,6 +634,9 @@ the artifact, then start the engine again:
 pm-config-deploy engine_config.yaml
 pm-engine
 ```
+
+(The engine restart disconnected your consoles; restart them before using them
+again.)
 
 !!! note "A second, different message can come from the same digest check"
     The content-digest check actually distinguishes two separate causes for
@@ -622,9 +674,9 @@ pm-engine
 Expected: the engine **starts anyway**, but logs a warning that
 `engine_config.yaml` has changed since the running configuration was
 compiled and that the exchange is still serving the previous one. Confirm
-with `SYMBOLS` from a gateway that the symbols still report the old tick size
-(`0.01`, not `0.001`) — the warning told the truth, nothing was silently
-applied.
+with `SYMBOLS` from a gateway (restart your trader console first, as the engine
+was restarted) that the symbols still report the old tick size (`0.01`, not
+`0.001`) — the warning told the truth, nothing was silently applied.
 
 Restore the file and redeploy to clear the warning:
 
@@ -766,8 +818,8 @@ pm-config-deploy schedule.yaml
 ```
 
 Restart `pm-engine` (`Ctrl-C`, then start it again) so that it reads the new
-artifact, and ask the operator console for the schedule the engine is really
-running:
+artifact, restart `pm-admin` (it was disconnected by the restart), and ask the
+operator console for the schedule the engine is really running:
 
 ```
 [GW_ADMIN|ADMIN]> SCHEDULE
@@ -787,9 +839,9 @@ them:
 pm-config-deploy engine_config.yaml
 ```
 
-Restart `pm-engine` once more (`Ctrl-C`, then `pm-engine`) and reopen the market
-with `SESSION|STATE=PRE_OPEN` and `SESSION|STATE=CONTINUOUS`, as at the end of
-Exercise 10.
+Restart `pm-engine` once more (`Ctrl-C`, then `pm-engine`), restart your trader
+and operator consoles, and reopen the market with `SESSION|STATE=PRE_OPEN` and
+`SESSION|STATE=CONTINUOUS`, as at the end of Exercise 10.
 
 !!! tip "`weekend:` and `sat:`/`sun:` are mutually exclusive"
     `--weekend` generates a single shared block for both days. There is no

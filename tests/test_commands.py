@@ -1210,3 +1210,69 @@ class TestForceUncross:
         result = client.force_uncross("AAPL")
         assert result["accepted"] is False
         assert "ADMIN" in result["reason"]
+
+
+class TestBookDepthIgnoresStaleSnapshots:
+    """The engine also broadcasts ``book.snapshot.<SYM>`` to every subscriber.
+
+    An idle client's SUB queue fills with those, and ``book_depth`` used to
+    return the oldest of them rather than the reply to its own request.
+    """
+
+    @staticmethod
+    def _book(last_price: float) -> list[bytes]:
+        return make_book_msg(
+            "AAPL",
+            {
+                "symbol": "AAPL",
+                "tick_decimals": 2,
+                "ts_ns": 1,
+                "bids": [],
+                "asks": [],
+                "last_price": last_price,
+                "last_qty": 1,
+                "last_buy_price": None,
+                "last_sell_price": None,
+                "recent_trades": [],
+            },
+        )
+
+    def test_book_depth_returns_the_book_published_after_the_request(self) -> None:
+        import threading
+        import time
+
+        ctx: zmq.Context[zmq.Socket[bytes]] = zmq.Context.instance()
+        pub = ctx.socket(zmq.PUB)
+        pub_port = pub.bind_to_random_port("tcp://127.0.0.1")
+        pull = ctx.socket(zmq.PULL)
+        pull_port = pull.bind_to_random_port("tcp://127.0.0.1")
+        client = ExchangeCommandClient(
+            "GW_ADMIN",
+            push_addr=f"tcp://127.0.0.1:{pull_port}",
+            pub_addr=f"tcp://127.0.0.1:{pub_port}",
+            timeout_ms=3000,
+        )
+        try:
+            # Let the subscription reach the publisher, then queue three
+            # broadcasts that nobody reads (the idle operator at a prompt).
+            deadline = time.monotonic() + 3
+            while not client._sub.poll(0) and time.monotonic() < deadline:
+                pub.send_multipart(self._book(100.0))
+                time.sleep(0.05)
+            assert client._sub.poll(0), "subscription never connected"
+            for _ in range(3):
+                pub.send_multipart(self._book(100.0))
+            time.sleep(0.2)
+
+            def engine() -> None:
+                pull.recv_multipart()  # the snapshot request
+                pub.send_multipart(self._book(150.25))
+
+            thread = threading.Thread(target=engine)
+            thread.start()
+            result = client.book_depth("AAPL")
+            thread.join()
+            assert result["last_price"] == 150.25
+        finally:
+            for sock in (pub, pull, client._sub, client._push):
+                sock.close(linger=0)
