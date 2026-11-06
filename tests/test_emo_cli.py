@@ -964,6 +964,11 @@ def test_start_profile_starts_log_srv_first_and_waits_for_it(
 ) -> None:
     processes = [
         {"name": "engine", "command": ["pm-engine"]},
+        {
+            "name": "audit",
+            "command": ["pm-audit"],
+            "healthcheck": ["pm-audit-cli", "health", "-q"],
+        },
         {"name": "log", "command": ["pm-log-srv"], "tcp": "127.0.0.1:5600"},
     ]
     monkeypatch.setattr(emo_cli, "load_profiles", lambda: {"demo": processes})
@@ -978,8 +983,47 @@ def test_start_profile_starts_log_srv_first_and_waits_for_it(
         events.append(f"wait {address}")
         return True
 
+    def fake_wait_health(process: dict[str, Any], pid: int, timeout_sec: float) -> bool:
+        events.append(f"wait health {process['name']} {pid}")
+        return True
+
     monkeypatch.setattr(emo_cli, "spawn_process", fake_spawn)
     monkeypatch.setattr(emo_cli, "wait_for_tcp", fake_wait)
+    monkeypatch.setattr(emo_cli, "wait_for_health", fake_wait_health)
 
     assert emo_cli.start_profile("demo") == 0
-    assert events == ["spawn log", "wait 127.0.0.1:5600", "spawn engine"]
+    assert events == [
+        "spawn log",
+        "wait 127.0.0.1:5600",
+        "spawn audit",
+        "wait health audit 1",
+        "spawn engine",
+    ]
+
+
+def test_start_profile_does_not_start_engine_until_audit_is_healthy(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    processes = [
+        {"name": "engine", "command": ["pm-engine"]},
+        {"name": "audit", "command": ["pm-audit"]},
+    ]
+    monkeypatch.setattr(emo_cli, "load_profiles", lambda: {"demo": processes})
+    monkeypatch.setattr(emo_cli, "resolve_pid", lambda process, claimed: (None, False))
+    spawned: list[str] = []
+    checked: list[dict[str, Any]] = []
+
+    def fake_spawn(process: dict[str, Any]) -> int:
+        spawned.append(process["name"])
+        return 1
+
+    def fake_wait_health(process: dict[str, Any], pid: int, timeout_sec: float) -> bool:
+        checked.append(process)
+        return False
+
+    monkeypatch.setattr(emo_cli, "spawn_process", fake_spawn)
+    monkeypatch.setattr(emo_cli, "wait_for_health", fake_wait_health)
+
+    assert emo_cli.start_profile("demo") == 1
+    assert spawned == ["audit"]
+    assert checked[0]["healthcheck"] == ["pm-audit-cli", "health", "-q"]

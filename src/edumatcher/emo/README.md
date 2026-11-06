@@ -45,6 +45,13 @@ Processes are launched from the repository root, inherit the
 current environment (including `EDUMATCHER_DATA_DIR`), and write their combined
 stdout/stderr to `<DATA-DIR>/emo/<process>.log`. PID files are kept beside them.
 
+When a profile contains both `pm-audit` and `pm-engine`, `start` launches the
+audit recorder first and waits for `pm-audit-cli health -q` to succeed before
+launching the engine. If the recorder does not become healthy within 10 seconds,
+startup stops and the engine is not started. The healthcheck confirms that
+`pm-audit` is running and its health endpoint responds; it does not confirm that
+the ZeroMQ subscription has joined an already-running publisher.
+
 `stop` stops only processes that `pm-opctl-cli` recorded in its PID directory. It
 does not search for or terminate unrelated processes with the same executable
 name.
@@ -207,4 +214,3 @@ the configuration before starting a profile:
 poetry run pm-config-deploy engine_config.yaml
 poetry run pm-opctl-cli start micro
 ```
-

@@ -85,7 +85,8 @@ Commands
 --------
 ``start [profile]`` (alias ``up``)
     Start a profile (``default`` when omitted), skipping entries already
-    running.
+    running. When both ``pm-audit`` and ``pm-engine`` are configured, wait for
+    the audit healthcheck before starting the engine.
 ``list``
     Print a status table for the active profile, including each process's
     uptime as ``HH:MM`` and resident memory in MiB, and offer to restart any
@@ -170,6 +171,8 @@ TCP_CHECK_TIMEOUT_SEC = 0.3
 LOG_SRV_COMMAND = "pm-log-srv"
 LOG_SRV_READY_TIMEOUT_SEC = 10.0
 LOG_SRV_READY_POLL_SEC = 0.1
+AUDIT_COMMAND = "pm-audit"
+AUDIT_READY_TIMEOUT_SEC = 10.0
 # `stop` signals in waves, each waited out before the next: everything else,
 # then the engine, then the recorders that must see its last messages, then the
 # log server that hears the others' farewells.
@@ -922,6 +925,18 @@ def wait_for_tcp(address: str, timeout_sec: float) -> bool:
         time.sleep(LOG_SRV_READY_POLL_SEC)
 
 
+def wait_for_health(process: dict[str, Any], pid: int, timeout_sec: float) -> bool:
+    """Poll a process's application healthcheck until it passes or times out."""
+    deadline = time.monotonic() + timeout_sec
+    while True:
+        if check_health(process, pid)[0] == "running":
+            return True
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return False
+        time.sleep(min(LOG_SRV_READY_POLL_SEC, remaining))
+
+
 def start_profile(profile_name: str, *, debug: bool = False) -> int:
     profiles = load_profiles()
     if profile_name not in profiles:
@@ -946,18 +961,56 @@ def start_profile(profile_name: str, *, debug: bool = False) -> int:
     # pm-log-srv always goes first: every other process probes for it once at
     # startup and never re-probes, so it has to be accepting connections by then.
     processes = sorted(processes, key=lambda p: p["command"][0] != LOG_SRV_COMMAND)
+    if any(p["command"][0] == "pm-engine" for p in processes):
+        audit_index = next(
+            (i for i, p in enumerate(processes) if p["command"][0] == AUDIT_COMMAND),
+            None,
+        )
+        engine_index = next(
+            (i for i, p in enumerate(processes) if p["command"][0] == "pm-engine"),
+            None,
+        )
+        if (
+            audit_index is not None
+            and engine_index is not None
+            and audit_index > engine_index
+        ):
+            audit = processes.pop(audit_index)
+            processes.insert(engine_index, audit)
     for process in processes:
         name = process["name"]
+        command = process["command"][0]
+        wait_for_audit = command == AUDIT_COMMAND and any(
+            p["command"][0] == "pm-engine" for p in processes
+        )
+        health_process = process
+        if wait_for_audit and process.get("healthcheck") is None:
+            health_process = {
+                **process,
+                "healthcheck": ["pm-audit-cli", "health", "-q"],
+            }
         existing, _ = resolve_pid(process, claimed)
+        pid: int
         if existing is not None:
             print(f"  already running {name} (pid {existing})")
-            continue
-        pid = spawn_process(process)
-        if pid is None:
+            pid = existing
+        else:
+            spawned_pid = spawn_process(process)
+            if spawned_pid is None:
+                return 1
+            pid = spawned_pid
+            print(f"  started {name} (pid {pid}): {' '.join(process['command'])}")
+        if wait_for_audit and not wait_for_health(
+            health_process, pid, AUDIT_READY_TIMEOUT_SEC
+        ):
+            print(
+                f"  error: {name} not healthy after {AUDIT_READY_TIMEOUT_SEC:g}s; "
+                "pm-engine was not started",
+                file=sys.stderr,
+            )
             return 1
-        print(f"  started {name} (pid {pid}): {' '.join(process['command'])}")
         address = process.get("tcp")
-        if process["command"][0] == LOG_SRV_COMMAND and isinstance(address, str):
+        if existing is None and command == LOG_SRV_COMMAND and isinstance(address, str):
             if not wait_for_tcp(address, LOG_SRV_READY_TIMEOUT_SEC):
                 print(
                     f"  warning: {name} not accepting connections on {address} "

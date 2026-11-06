@@ -28,7 +28,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 
 | # | WP | Content | Findings | Depends on | Status | Done on |
 |---|----|---------|----------|------------|--------|---------|
-| 1 | T1 | Audit startup delivery and completeness | Q1 | — | ☐ | |
+| 1 | T1 | Audit startup delivery and completeness | Q1 | — | ☑ | 2026-11-06 |
 | 2 | T2 | Orphaned quote remainders on disconnect and kill | Q2, Q20 | — | ☐ | |
 | 3 | T3 | Combo self-match prevention contract | Q3 | Contract decision | ☐ | |
 | 4 | T4 | Console authentication after engine restart | Q4 | — | ☐ | |
@@ -122,6 +122,28 @@ Steps:
   output; a restart/reopen check confirms buffered events are not lost.
 - The guide accurately explains startup readiness and flush latency.
 - Targeted audit tests and the full project test/type/lint checks pass.
+
+**Result (2026-11-06):** The missing first event is explained by ZeroMQ's
+PUB/SUB slow-joiner window, not by the audit buffer timer or file writer.
+`test_publication_before_audit_subscription_is_not_replayed` confirms that a
+publication made before `pm-audit` subscribes is not replayed; after XPUB
+confirms the audit subscription, `test_events_after_subscription_are_recorded_once_within_flush_interval`
+publishes 13 unique events from offset 0 through 36 seconds at 3-second
+intervals. A raw SUB observer receives each event, while the audit records it
+exactly once in the file and terminal within the 10-second default flush
+interval. The test closes and reopens the audit file and confirms the entries
+remain intact. No production code change was warranted. The operator guide now
+instructs operators to start the recorder before the engine and verify the
+`system.startup` event; it clarifies that `pm-audit-cli health` does not
+acknowledge the upstream subscription.
+
+Verification:
+- `poetry run pytest tests/test_audit_e2e.py -m e2e -q` — passed
+- Full suite — 13,460 passed, 1 skipped; 90% coverage (85% required)
+- Repository-wide Black, Flake8, mypy and pyright — passed
+- `poetry run mkdocs build` — passed
+- `scripts/checkdocs.py` still reports the two pre-existing `Y005` errors
+  for `/tmp/symbols.yaml` and `/tmp/desk-keys.yaml`, outside T1's scope
 
 ### T2 — Orphaned quote remainders on disconnect and kill (Q2, Q20)
 
@@ -602,4 +624,3 @@ Steps:
 - **Installer/system-wide actions:** T16's installer, Multipass and process
   control checks must run only in disposable environments. Never use global
   stop/clear commands on a developer machine with unrelated `pm-*` processes.
-
