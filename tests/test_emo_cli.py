@@ -15,7 +15,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from edumatcher.config import ENGINE_CONFIG_FILE
+from edumatcher.config import DATA_DIR, ENGINE_CONFIG_FILE
 from edumatcher.emo import cli as emo_cli
 from edumatcher.emo.cli import (
     DEFAULT_PROCESSES,
@@ -593,7 +593,76 @@ def test_clear_state_preserves_logs_configuration_and_audit(
     assert log_file.exists() and config_file.exists()
 
 
-def test_clear_all_requires_confirmation_and_warns_about_live_processes(
+def test_clear_reset_scopes_match_the_documented_data_sets(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    state_relative = {
+        Path("book_stats.json"),
+        Path("gtc_orders.json"),
+        Path("gtc_combos.json"),
+        Path("stats.db"),
+        Path("clearing.db"),
+        Path("indexes"),
+    }
+    non_state_relative = {
+        Path("audit.log"),
+        Path("audit"),
+        Path("audit_index.db"),
+        Path("log.db"),
+        Path("metrics.db"),
+        Path("logs"),
+        Path("emo"),
+        Path("eod.db"),
+        Path("settlement"),
+        Path("backup"),
+    }
+    assert {
+        path.relative_to(DATA_DIR) for path in emo_cli.STATE_PATHS
+    } == state_relative
+    assert {
+        path.relative_to(DATA_DIR) for path in emo_cli.NON_STATE_PATHS
+    } == non_state_relative
+    state_paths = tuple(tmp_path / path for path in state_relative)
+    non_state_paths = tuple(tmp_path / path for path in non_state_relative)
+    config_paths = (
+        tmp_path / "ref_data" / "engine_config.json",
+        tmp_path / "emo-config.yaml",
+    )
+    directory_names = {"indexes", "audit", "logs", "emo", "settlement", "backup"}
+    for path in (*state_paths, *non_state_paths, *config_paths):
+        if path.name in directory_names:
+            path.mkdir(parents=True)
+            (path / "marker").write_text("data", encoding="utf-8")
+        else:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("data", encoding="utf-8")
+
+    monkeypatch.setattr(emo_cli, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(emo_cli, "STATE_PATHS", state_paths)
+    monkeypatch.setattr(emo_cli, "NON_STATE_PATHS", non_state_paths)
+    monkeypatch.setattr(emo_cli, "_running_pm_pids", lambda: [])
+
+    assert emo_cli.clear_data(scope="state", assume_yes=True) == 0
+    assert all(not path.exists() for path in state_paths)
+    assert all(path.exists() for path in non_state_paths)
+    assert all(path.exists() for path in config_paths)
+
+    for path in state_paths:
+        if path.name in directory_names:
+            path.mkdir(parents=True)
+            (path / "marker").write_text("data", encoding="utf-8")
+        else:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("data", encoding="utf-8")
+
+    assert emo_cli.clear_data(scope="all", assume_yes=True) == 0
+    assert all(not path.exists() for path in (*state_paths, *non_state_paths))
+    assert all(path.exists() for path in config_paths)
+
+
+@pytest.mark.parametrize("scope", ["state", "all"])
+def test_clear_requires_confirmation_and_warns_about_live_processes(
+    scope: str,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -608,7 +677,7 @@ def test_clear_all_requires_confirmation_and_warns_about_live_processes(
     monkeypatch.setattr(emo_cli, "_running_pm_pids", lambda: [10, 20])
     monkeypatch.setattr(sys.stdin, "isatty", lambda: False)
 
-    assert emo_cli.clear_data(scope="all", assume_yes=False) == 1
+    assert emo_cli.clear_data(scope=scope, assume_yes=False) == 1
     assert state_file.exists() and log_file.exists()
     captured = capsys.readouterr()
     assert "2 pm-* process(es)" in captured.out

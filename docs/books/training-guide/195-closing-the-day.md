@@ -140,6 +140,8 @@ means there was no backlog.
     can be cleared away with `pm-opctl-cli clear --state` (with everything
     stopped). That deletes all working state (clearing history, GTC orders,
     statistics) but keeps `eod.db`, so the balances settled so far survive.
+    See [Starting over](110-risk-controls.md#starting-over) for the full reset
+    matrix and the `--all` data-loss warning.
 
 :material-checkbox-blank-outline: **Checkpoint:** `pm-eod run --pending` ended
 without a `[FAIL]` line, and a second `pm-eod run --pending` prints

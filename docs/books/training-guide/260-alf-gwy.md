@@ -122,7 +122,9 @@ pm-alf-gwy
     Exercise 8's "kill clears everything" assume `MM01` and the traders start
     with nothing resting. For a clean venue stop every process and run
     `pm-opctl-cli clear --state --yes` before starting the engine (this also
-    deletes `clearing.db` and `stats.db`).
+    deletes `clearing.db` and `stats.db`). See
+    [Starting over](110-risk-controls.md#starting-over) for the reset matrix
+    and preconditions.
 
 :material-checkbox-blank-outline: Checkpoint: `pm-alf-gwy` starts, logs that it is listening on port 5565, and reports a successful engine ZMQ connection.
 

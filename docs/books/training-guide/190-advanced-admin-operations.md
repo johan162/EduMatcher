@@ -35,12 +35,11 @@ These controls exist in both:
 - Interactive admin console (`pm-admin` / ALF commands).
 - One-shot scripting CLI (`pm-admin-cli`).
 
-!!! warning "Use one or the other at a time"
-    Both log on as the same participant, `GW_ADMIN`, and the engine allows one
-    connection per participant. While `pm-admin --id GW_ADMIN` is open, every
-    `pm-admin-cli --id GW_ADMIN …` command below fails with
-    `Auth refused: Gateway already connected: GW_ADMIN`. Try the console
-    versions first, then leave `pm-admin` (`Ctrl-C`) before the CLI versions.
+!!! note "Use a separate identity for each operator client"
+    The interactive console uses `GW_ADMIN`; one-shot commands use
+    `ADMIN_CLI`. The chapter 01 configuration defines both as ADMIN so the
+    console and CLI can stay connected at once. A duplicate live connection
+    with the same participant ID is refused.
 
  
 
@@ -55,7 +54,7 @@ From admin console:
 Or with CLI:
 
 ```bash
-pm-admin-cli --id GW_ADMIN kick --gw TRADER02 --reason "Training disconnect check"
+pm-admin-cli --id ADMIN_CLI kick --gw TRADER02 --reason "Training disconnect check"
 ```
 
 Verification:
@@ -88,7 +87,7 @@ From admin console:
 Or with CLI:
 
 ```bash
-pm-admin-cli --id GW_ADMIN qcancel --gw MM_AAPL_01 --sym AAPL
+pm-admin-cli --id ADMIN_CLI qcancel --gw MM_AAPL_01 --sym AAPL
 ```
 
 Verify from MM gateway:
@@ -120,13 +119,13 @@ From admin console:
 Or with CLI:
 
 ```bash
-pm-admin-cli --id GW_ADMIN cancel-sym --sym TSLA
+pm-admin-cli --id ADMIN_CLI cancel-sym --sym TSLA
 ```
 
 Verify:
 
 ```bash
-pm-admin-cli --id GW_ADMIN book --sym TSLA
+pm-admin-cli --id ADMIN_CLI book --sym TSLA
 ```
 
 Confirm TSLA resting orders were cleared while other symbols remain unchanged.
@@ -156,11 +155,11 @@ From admin console:
 Or with CLI:
 
 ```bash
-pm-admin-cli --id GW_ADMIN session --state PRE_OPEN
-pm-admin-cli --id GW_ADMIN session --state CONTINUOUS
-pm-admin-cli --id GW_ADMIN session --state CLOSING_AUCTION
-pm-admin-cli --id GW_ADMIN session --state CLOSED
-pm-admin-cli --id GW_ADMIN session-status
+pm-admin-cli --id ADMIN_CLI session --state PRE_OPEN
+pm-admin-cli --id ADMIN_CLI session --state CONTINUOUS
+pm-admin-cli --id ADMIN_CLI session --state CLOSING_AUCTION
+pm-admin-cli --id ADMIN_CLI session --state CLOSED
+pm-admin-cli --id ADMIN_CLI session-status
 ```
 
 Use this to reproduce auction and close transitions deterministically in training.
@@ -182,10 +181,10 @@ Simulate a short incident response sequence:
 Example CLI sequence:
 
 ```bash
-pm-admin-cli --id GW_ADMIN kick --gw TRADER02 --reason "Training incident"
-pm-admin-cli --id GW_ADMIN qcancel --gw MM_AAPL_01 --sym AAPL
-pm-admin-cli --id GW_ADMIN cancel-sym --sym AAPL
-pm-admin-cli --id GW_ADMIN session-status
+pm-admin-cli --id ADMIN_CLI kick --gw TRADER02 --reason "Training incident"
+pm-admin-cli --id ADMIN_CLI qcancel --gw MM_AAPL_01 --sym AAPL
+pm-admin-cli --id ADMIN_CLI cancel-sym --sym AAPL
+pm-admin-cli --id ADMIN_CLI session-status
 ```
 
 `TRADER02` is now disconnected: leave its console and start a new one before

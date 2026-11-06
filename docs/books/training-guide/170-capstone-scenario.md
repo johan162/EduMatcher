@@ -55,7 +55,7 @@ subset:
 ```bash
 pm-config-gen \
   --symbols AAPL MSFT TSLA \
-  --participants TRADER01:TRADER TRADER02:TRADER GW_ADMIN:ADMIN \
+  --participants TRADER01:TRADER TRADER02:TRADER GW_ADMIN:ADMIN ADMIN_CLI:ADMIN \
              MM_AAPL_01:MARKET_MAKER MM_MSFT_01:MARKET_MAKER MM_TSLA_01:MARKET_MAKER \
              MM_MANUAL_01:MARKET_MAKER \
              AI001:TRADER AI002:TRADER AI003:TRADER \
@@ -85,10 +85,11 @@ Open the file and confirm the symbol and gateway sections are present.
     not be as empty as the text assumes. For a truly empty venue, stop every
     process and run `pm-opctl-cli clear --state --yes` before Exercise 3. It
     also deletes `clearing.db` and `stats.db`, which is what you want for a
-    fresh venue.
+    fresh venue. See [Starting over](110-risk-controls.md#starting-over) for
+    the complete reset matrix and preconditions.
 
 :material-checkbox-blank-outline: **Checkpoint:** config contains 3 symbols,
-5 traders (`TRADER01`, `TRADER02`, `AI001`–`AI003`), 1 admin, and 4 market
+5 traders (`TRADER01`, `TRADER02`, `AI001`–`AI003`), 2 admins, and 4 market
 makers, `require_mm_seed_quotes: false`, and no `market_maker_quotes`.
 
  

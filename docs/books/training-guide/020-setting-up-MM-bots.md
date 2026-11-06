@@ -131,7 +131,7 @@ the quote you send replaces a seed that looks exactly the same.
     # ask_price are left as `null` for you to fill in by hand
     pm-config-gen \
       --symbols AAPL MSFT TSLA \
-      --participants TRADER01 TRADER02 GW_ADMIN:ADMIN \
+      --participants TRADER01 TRADER02 GW_ADMIN:ADMIN ADMIN_CLI:ADMIN \
         MM_AAPL_01:MARKET_MAKER MM_MSFT_01:MARKET_MAKER MM_TSLA_01:MARKET_MAKER \
       --enforce-mm-obligations \
       --output mm-stub.yaml --force
@@ -140,7 +140,7 @@ the quote you send replaces a seed that looks exactly the same.
     # the given range, rounded to each symbol's tick grid
     pm-config-gen \
       --symbols AAPL MSFT TSLA \
-      --participants TRADER01 TRADER02 GW_ADMIN:ADMIN \
+      --participants TRADER01 TRADER02 GW_ADMIN:ADMIN ADMIN_CLI:ADMIN \
         MM_AAPL_01:MARKET_MAKER MM_MSFT_01:MARKET_MAKER MM_TSLA_01:MARKET_MAKER \
       --enforce-mm-obligations \
       --seed-mm-mid-range 100:400 \

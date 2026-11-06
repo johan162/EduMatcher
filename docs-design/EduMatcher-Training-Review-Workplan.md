@@ -32,7 +32,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 | 2 | T2 | Orphaned quote remainders on disconnect and kill | Q2, Q20 | — | ☑ | 2026-11-06 |
 | 3 | T3 | Combo self-match prevention contract | Q3 | Contract decision | ☑ | 2026-11-06 |
 | 4 | T4 | Console logout after engine connection loss | Q4 | — | ☑ | 2026-11-07 |
-| 5 | T5 | Admin console identities and safe reset guidance | Q5, Q6 | — | ☐ | |
+| 5 | T5 | Admin console identities and safe reset guidance | Q5, Q6 | — | ☑ | 2026-11-07 |
 | 6 | T6 | Clearing totals and gateway quote-status scope | Q7, Q8 | Contract decisions | ☐ | |
 | 7 | T7 | Installed examples, C exercises and version metadata | Q9, Q10, Q21 | — | ☐ | |
 | 8 | T8 | Normal-use warnings and artifact errors | Q11 | Contract decision | ☐ | |
@@ -293,26 +293,29 @@ Verification:
 
 ### T5 — Admin identities and safe reset guidance (Q5, Q6)
 
-**Question to resolve:** Should simultaneous `pm-admin` and `pm-admin-cli`
-sessions use separate configured identities, or should the guide require one
-to be closed? Which reset recipe is appropriate for each training scenario?
+**Decision (2026-11-07):** Simultaneous `pm-admin` and `pm-admin-cli` sessions
+use separate configured ADMIN identities: `GW_ADMIN` for the interactive
+console and `ADMIN_CLI` for the one-shot CLI. Reusing an already-connected ID
+is an error. For resets, stop all EduMatcher processes first; use the narrowest
+reset that meets the scenario's needs.
 
 Steps:
-1. Add a reproducible CLI/integration check that starts an admin console,
-   starts `pm-admin-cli` using the same configured identity, and records the
-   current `Gateway already connected` result. Use an isolated exchange.
-2. Decide whether the supported workflow is a second ADMIN identity or
-   sequential use. If simultaneous use is supported, add the second identity
-   to example configuration and test both sessions' authorization; otherwise
-   document and verify the close-one-before-starting-the-other workflow.
+1. Add an engine gateway-auth integration test that connects two distinct
+   configured ADMIN IDs concurrently, verifies both can issue an ADMIN-only
+   command, then attempts a second live connection with the first ID and
+   asserts the exact `Gateway already connected` refusal.
+2. Add both identities to example configurations and document which ID each
+   operator client uses. Ensure the chosen IDs pass the configuration
+   verifier's participant-ID checks.
 3. Create a reset matrix for `book_stats.json`, `pm-opctl-cli clear --state`,
    and `--all`: what each removes, required stopped processes, and what must be
    redeployed/restarted.
-4. Verify each reset only in a disposable data directory with all relevant
-   processes stopped. Include a negative/safety check that the documented
-   recipe refuses or warns before deleting state while services are active.
-5. Add a concise "Starting over" section and link it from the chapters that
-   need a clean exchange.
+4. Verify each reset's exact file/directory effects in a disposable data
+   directory. Include a safety check that both clear modes warn about active
+   processes and refuse a non-interactive request without `--yes`.
+5. Add a concise "Starting over" section, explain that the active-process
+   warning is not a hard block, and link it from chapters that need a clean
+   exchange.
 
 **Definition of done:**
 - The simultaneous-session behavior is explicitly selected and the scenario
@@ -320,6 +323,32 @@ Steps:
 - Every reset's effects and preconditions match observed files/process state.
 - The guide has one linked reset reference instead of divergent instructions.
 - Relevant CLI tests and documentation checks pass.
+
+**Result (2026-11-07):** Separate ADMIN identities are supported by the
+engine's existing one-live-connection-per-ID rule. The engine integration
+test connects `GW_ADMIN` and `ADMIN_CLI` concurrently, confirms both are
+authorized for an ADMIN-only halt operation, and confirms a duplicate
+`GW_ADMIN` connection is refused with `Gateway already connected: GW_ADMIN`.
+Chapter 01 and the market-maker/capstone examples configure both identities;
+the risk-controls and advanced-admin chapters consistently use
+`GW_ADMIN` for `pm-admin` and `ADMIN_CLI` for `pm-admin-cli`.
+
+The risk-controls chapter now has the single reset matrix. It distinguishes
+deleting only `book_stats.json` from `clear --state` and `clear --all`, names
+the removed and preserved state, requires processes to be stopped, warns that
+the process check is advisory (and `--yes` bypasses confirmation), and
+highlights EOD/settlement data loss with `--all`. Chapters that require a clean
+exchange link to this matrix. A disposable-directory test verifies every
+listed data path for both scopes and confirms configuration remains; the CLI
+warning/refusal test covers both scopes.
+
+Verification:
+- `poetry run pytest tests/test_emo_cli.py tests/test_engine_integration.py -q --no-cov` — 104 passed
+- Black, Flake8, mypy and pyright on both changed test files — passed
+- `poetry run mkdocs build` — passed
+- `poetry run python scripts/checkdocs.py` — links, CLI, and anchors clean;
+  only the two pre-existing `Y005` missing `/tmp/symbols.yaml` and
+  `/tmp/desk-keys.yaml` warnings remain
 
 ### T6 — Clearing totals and gateway quote-status scope (Q7, Q8)
 
