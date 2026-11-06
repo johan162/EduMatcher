@@ -1,3 +1,26 @@
+## [v0.76.1] - 2026-11-06
+
+Release Type: minor
+
+### 📋 Summary
+This release expands the sample company database and improves engine recovery and risk-control behavior. It also updates the getting-started and training guides.
+
+### ✨ Additions
+- Added 100 fictional Nordic companies to the company database and S300 simulation reference data
+
+### 🚀 Improvements
+- Updated `pm-opctl-cli` to wait for `pm-audit` readiness before starting the engine
+
+### 🐛 Bug Fixes
+- Fixed combo child orders not being persisted and restored correctly across engine restarts
+- Fixed disconnect and participant kill-switch paths leaving partially filled quote remainders resting in the book
+
+### 📚 Documentation
+- Updated the quick-start, installation and training guides with corrected setup steps, examples and troubleshooting guidance
+
+### 🛠 Internal
+- Added regression and integration coverage for audit startup readiness, combo persistence and quote-remainder cancellation
+
 ## [v0.76.0] - 2026-11-05
 
 Release Type: major
