@@ -2613,6 +2613,28 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#importing-and-exporting-symbols" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Importing and exporting symbols
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#importing-and-exporting-participants" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Importing and exporting participants
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#the-symbols-workspace" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -8595,6 +8617,143 @@ all (for example, one added outside the IPO dialog).</p>
 <p><em>AMD listed at 42.50. The primary market maker's opening quote is derived from the opening
 spread and quote size and shown below them (bid 42.48 / ask 42.52, 500 × 500); an
 additional market-maker row gives MM02 its own explicit quote.</em></p>
+<h3 id="importing-and-exporting-symbols">Importing and exporting symbols<a class="headerlink" href="#importing-and-exporting-symbols" title="Permanent link">&para;</a></h3>
+<p>Next to <strong>"+ Add symbol"</strong> on the Basics and Symbols tabs, <strong>Import symbols…</strong>
+reads a CSV or JSON file (chosen by its <code>.csv</code> / <code>.json</code> extension) and lists
+every symbol in it at once. <strong>Export CSV</strong> and <strong>Export JSON</strong> write the
+current symbols in the same format, so an exported file can be edited and
+imported into another draft.</p>
+<p>Each row holds exactly the IPO dialog's fields, and an imported row creates
+the same symbol the dialog would:</p>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Required</th>
+<th>Blank means</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>symbol</code></td>
+<td>yes</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>reference_price</code></td>
+<td>yes</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>outstanding_shares</code></td>
+<td>no</td>
+<td>the dialog's default, 1,000,000,000</td>
+</tr>
+<tr>
+<td><code>tick_decimals</code></td>
+<td>no</td>
+<td>the global tick decimals</td>
+</tr>
+<tr>
+<td><code>mm_gateway</code></td>
+<td>no</td>
+<td>no explicit market-maker quote (<a href="#quote-seeding-mid-range-vs-explicit">mid-range seeding</a> applies)</td>
+</tr>
+<tr>
+<td><code>spread_ticks</code></td>
+<td>no</td>
+<td>2 (needs <code>mm_gateway</code>)</td>
+</tr>
+<tr>
+<td><code>quote_size</code></td>
+<td>no</td>
+<td>1000 (needs <code>mm_gateway</code>)</td>
+</tr>
+</tbody>
+</table>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>symbol,reference_price,outstanding_shares,tick_decimals,mm_gateway,spread_ticks,quote_size
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>AAPL,182.50,15000000000,2,MM01,2,500
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>MSFT,410.00,,,,,
+</code></pre></div>
+<p>The JSON form is an array of objects with the same keys; a missing key or
+<code>null</code> counts as blank:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="p">[</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="w">  </span><span class="p">{</span><span class="w"> </span><span class="nt">"symbol"</span><span class="p">:</span><span class="w"> </span><span class="s2">"AAPL"</span><span class="p">,</span><span class="w"> </span><span class="nt">"reference_price"</span><span class="p">:</span><span class="w"> </span><span class="mf">182.5</span><span class="p">,</span><span class="w"> </span><span class="nt">"mm_gateway"</span><span class="p">:</span><span class="w"> </span><span class="s2">"MM01"</span><span class="w"> </span><span class="p">},</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="w">  </span><span class="p">{</span><span class="w"> </span><span class="nt">"symbol"</span><span class="p">:</span><span class="w"> </span><span class="s2">"MSFT"</span><span class="p">,</span><span class="w"> </span><span class="nt">"reference_price"</span><span class="p">:</span><span class="w"> </span><span class="mi">410</span><span class="w"> </span><span class="p">}</span>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="p">]</span>
+</code></pre></div>
+<p>An import is all-or-nothing. The whole file is checked first, and any problem
+rejects it: an unknown column or key, a symbol that already exists or appears
+twice, a value out of range, or an <code>mm_gateway</code> that is not a
+<code>MARKET_MAKER</code> gateway. The error dialog lists every problem with its line
+(CSV) or entry (JSON) number, and the draft is unchanged.</p>
+<p>Export writes only these fields. Per-symbol overrides such as risk level,
+collars, order limits and circuit-breaker settings are not included. After
+editing, a symbol may no longer fit the IPO fields: its last buy and last sell
+prices may differ, or it may have a hand-edited or second market-maker quote.
+Such a symbol is exported as closely as the fields allow (last buy becomes
+<code>reference_price</code>), and a dialog names it and gives the reason, because
+re-importing the file would not reproduce it.</p>
+<p>CSV files follow the usual quoting rules: a cell that contains a comma or a
+double quote is wrapped in double quotes, and a double quote inside it is
+doubled (<code>"Says ""hi"", twice"</code>). Export writes cells this way, and import
+reads them.</p>
+<h3 id="importing-and-exporting-participants">Importing and exporting participants<a class="headerlink" href="#importing-and-exporting-participants" title="Permanent link">&para;</a></h3>
+<p>The Participants table on the Basics tab has the same three buttons next to
+<strong>"+ Add gateway"</strong>: <strong>Import participants…</strong>, <strong>Export CSV</strong> and
+<strong>Export JSON</strong>. Each row holds exactly the table's fields, and an imported
+row creates the gateway <strong>"+ Add gateway"</strong> would:</p>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Required</th>
+<th>Blank means</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>yes</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>role</code></td>
+<td>no</td>
+<td><code>TRADER</code></td>
+</tr>
+<tr>
+<td><code>disconnect_behaviour</code></td>
+<td>no</td>
+<td>the role's default (<code>CANCEL_ALL</code> for <code>TRADER</code>, <code>CANCEL_QUOTES_ONLY</code> for <code>MARKET_MAKER</code>, <code>LEAVE_ALL</code> for <code>ADMIN</code>)</td>
+</tr>
+<tr>
+<td><code>smp_action</code></td>
+<td>no</td>
+<td>inherit the participant default</td>
+</tr>
+<tr>
+<td><code>description</code></td>
+<td>no</td>
+<td>no description</td>
+</tr>
+</tbody>
+</table>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>id,role,disconnect_behaviour,smp_action,description
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>DESK01,TRADER,,CANCEL_AGGRESSOR,"Equities desk, floor 2"
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>MM01,MARKET_MAKER,,,
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>OPS,ADMIN,,,Operations
+</code></pre></div>
+<p>IDs and the <code>role</code>, <code>disconnect_behaviour</code> and <code>smp_action</code> values are
+uppercased on import. As for symbols, the import is all-or-nothing: an ID that
+already exists or appears twice, or a value that is not one of the allowed
+ones, rejects the whole file.</p>
+<p>Export writes only these fields. The Expert <strong>⚙ Advanced</strong> market-maker
+settings are not included. A participant whose disconnect behaviour is
+<strong>(default)</strong> is written with the value it inherits now, so the engine
+behaves the same after a re-import. The export dialog names it, because the
+re-imported participant no longer follows later changes to the participant
+default.</p>
 <h3 id="the-symbols-workspace">The Symbols workspace<a class="headerlink" href="#the-symbols-workspace" title="Permanent link">&para;</a></h3>
 <p>The <strong>Symbols</strong> tab (Intermediate+) has three parts, top to bottom.</p>
 <p><strong>Global default</strong> — the global tick decimals and the symbol universe, a list
@@ -8832,10 +8991,10 @@ row (Basics tab) provides the finest-grained control:</p>
 quotes are inactivated after a fill. The default <code>INACTIVATE_ON_ANY_FILL</code> suits
 most scenarios.</p>
 <p><strong>Precedence (highest to lowest):</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>Per-gateway per-symbol  (mm_obligations.&lt;SYM&gt;)
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>  → Per-gateway flat    (gateway.mm_max_spread_ticks / mm_min_qty)
-<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>    → Per-symbol global (mm_obligation_defaults.symbols.&lt;SYM&gt;)
-<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>      → Global defaults (mm_obligation_defaults)
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>Per-gateway per-symbol  (mm_obligations.&lt;SYM&gt;)
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>  → Per-gateway flat    (gateway.mm_max_spread_ticks / mm_min_qty)
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>    → Per-symbol global (mm_obligation_defaults.symbols.&lt;SYM&gt;)
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>      → Global defaults (mm_obligation_defaults)
 </code></pre></div>
 <p><img alt="The ⚙ Advanced market-maker settings for MM01." src="../../../../assets/config-gui/config-mm-advanced.png" /></p>
 <p><em>MM01 keeps the default quote refresh policy, allows itself a 25-tick spread instead of
@@ -8866,9 +9025,9 @@ book at startup. This maps to <code>require_mm_seed_quotes</code> in the YAML (t
 <p><strong>Option B — Global mid-range seeding.</strong> On the Market Maker tab, set a <strong>Seed
 MM mid-range</strong> (e.g. <code>100</code> to <code>300</code>). The builder computes one deterministic
 midpoint and applies it to <em>every</em> symbol:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>midpoint = (min + max) / 2     # arithmetic mean, snapped to the tick grid
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>bid      = midpoint − 1 tick
-<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>ask      = midpoint + 1 tick
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>midpoint = (min + max) / 2     # arithmetic mean, snapped to the tick grid
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>bid      = midpoint − 1 tick
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>ask      = midpoint + 1 tick
 </code></pre></div>
 <div class="admonition note">
 <p class="admonition-title">The same midpoint applies to every symbol</p>
@@ -9031,6 +9190,34 @@ advanced tuning — only appear at Expert:</p>
 <p><img alt="The API sub-tab of Auxiliary Gateways." src="../../../../assets/config-gui/config-aux-gateways-api.png" /></p>
 <p><em>The <code>desk</code> instance on port 8080 with one credential per participant; <strong>Generate</strong> makes a
 fresh random key. A second instance, <code>dashboards</code>, follows below it with the read-only key.</em></p>
+<p><strong>Generate keys for participants…</strong> opens a list of every participant, all
+selected by default, with <strong>Select all</strong> / <strong>Select none</strong>. Each selected
+participant gets one random key bound to it, in pm-config-gen's
+<code>key-&lt;id&gt;-&lt;token&gt;</code> shape with the description <code>Generated key for &lt;ID&gt;</code>.
+<strong>Key length</strong> sets the number of random characters in the token. The default
+is 6, as pm-config-gen uses, which is easy to type in a class; use 24 or more
+for anything exposed to a network you do not control. A participant that
+already has a key, in this instance or another, is shown but cannot be
+selected, because a participant may have keys in only one instance. A row's
+<strong>Generate</strong> button and <strong>+ Add credential</strong> make keys in the same shape,
+labelled <code>readonly</code> for a read-only key (<code>key-readonly-…</code>). They use the
+length last used in the dialog, which this browser remembers (6 until then).</p>
+<p>The <strong>API credentials in separate files</strong> switch on the Review &amp; Export tab
+turns credentials files on for every instance at once. A single instance
+writes to <code>api_keys.yaml</code>, as <code>pm-config-gen --api-keys-for</code> does. Several
+instances each get <code>api_keys_&lt;instance&gt;.yaml</code>, because instances sharing a
+file would each accept every key in it. A name an instance already has is
+kept. Turning the switch off writes all credentials inline again. An instance
+added while it is on gets a file too.</p>
+<p>An instance's <strong>Credentials file</strong> keeps its API keys out of the main file,
+as <code>pm-config-gen --api-keys-for</code> does. The main file then names the file with
+<code>credentials_file:</code>, and <strong>Download</strong> writes the keys to that file beside it.
+The file holds secrets, so keep it out of version control. Instances that name
+the same file all read the whole of it, so it is written once. The Review tab
+flags an error if they list different credentials, or if the name is
+absolute, contains <code>..</code>, is reserved (<code>engine_config.yaml</code>,
+<code>engine_config.json</code>, <code>market_sim.yaml</code>), or is the name of another output
+file.</p>
 <p>Each sub-tab (other than ALF, which is always present) has its own <strong>"Write
 <code>&lt;section&gt;</code> section"</strong> toggle: off omits that section from the exported file
 entirely, rather than writing it with defaults. Enabling a gateway reveals its
@@ -9179,6 +9366,30 @@ opens the Review tab first, reporting the health of what you loaded.</p>
 schema — is preserved verbatim in a per-section <strong>"unmapped YAML" passthrough</strong>
 and re-emitted unchanged on export, so import → edit → export never silently
 drops data. A banner marks any tab that carries unmapped content.</p>
+<p>A config split with <code>include:</code> (from <code>pm-config-gen --split</code>, or this GUI's
+<strong>Separate symbol and participant files</strong> option) is imported by selecting
+the main file <em>together with</em> every file it includes in the same file dialog.
+The GUI merges them with the engine's rules: lists concatenate, mappings merge
+one level deep, and a key defined twice is an error. It then turns on
+<strong>Separate symbol and participant files</strong>, so exporting writes the split
+again. A split exported by this GUI or by <code>pm-config-gen --split</code> round-trips
+file for file. Any other layout, such as schedules in an included file or
+different file names, merges just as the engine would. A note then says that
+export writes the standard layout instead: symbols in <code>symbols.yaml</code>,
+participants in <code>participants.yaml</code>, and everything else in the main file.
+An API gateway's <code>credentials_file</code> works the same way: select the file
+together with the config, and the GUI reads the credentials from it. The path
+is relative to the file that defines the gateway. The GUI keeps the file
+name, so the export writes the keys to that file again, not into the main
+file.</p>
+<p>Import refuses what the engine refuses: an include or credentials file path
+that is absolute or contains <code>..</code>, a reserved name (<code>engine_config.yaml</code>,
+<code>engine_config.json</code> or <code>market_sim.yaml</code> beside the main file), an include
+listed twice, nested includes, and a gateway with both <code>credentials</code> and
+<code>credentials_file</code>. It also refuses a selection it cannot resolve: a file the
+config names that was not selected, a selected file the config does not name,
+or two named files with the same name in different directories. The browser
+sees only file names, not paths.</p>
 <p>A file written by an earlier <code>config-gui</code> may carry a top-level <code>country</code>,
 which no process reads. Import does not convert it (it is kept as unmapped
 YAML); set the country again on the Basics tab so it is written under
@@ -9200,21 +9411,37 @@ default schedule, and the universe is large (both informational).</em></p>
 <li><strong>Output options</strong> — the download filename and the
    "comment default fields" toggle (emits the full commented reference block,
    matching <code>pm-config-gen --comment-default-config-fields</code>; the top bar's
-   <strong>Comment defaults</strong> checkbox is the same setting).</li>
+   <strong>Comment defaults</strong> checkbox is the same setting),
+   <strong>Separate symbol and participant files</strong> (see below), and <strong>API credentials
+   in separate files</strong> (see <a href="#auxiliary-gateways">Auxiliary gateways</a>).</li>
 <li><strong>YAML preview</strong> — a live, syntax-highlighted, read-only render of exactly
    what will be downloaded, with a copy-to-clipboard button. This preview <em>is</em>
-   the dry-run view.</li>
+   the dry-run view. With separate files, buttons above it switch between
+   the files.</li>
 <li><strong>Export actions:</strong><ul>
-<li><strong>Download</strong> — writes <code>engine_config.yaml</code> (blocked while any error
-  exists; warnings require a one-time acknowledgement).</li>
+<li><strong>Download</strong> — writes <code>engine_config.yaml</code>, plus the included files when
+  they are separate and any API <a href="#auxiliary-gateways">credentials file</a>
+  (blocked while any error exists; warnings require a one-time
+  acknowledgement).</li>
 <li><strong>Verify with pm-cverifier</strong> — optional; see
   <a href="#optional-server-side-verification">server-side verification</a>.</li>
 </ul>
 </li>
 </ol>
+<p><strong>Separate symbol and participant files</strong> matches <code>pm-config-gen --split</code>.
+With it on, the symbols are written to <code>symbols.yaml</code> and the participants to
+<code>participants.yaml</code>. The main file lists both under <code>include:</code> and leaves the
+two keys out, which keeps a config with hundreds of symbols or participants
+readable. The engine merges the files back into the same configuration, so
+<strong>Verify with pm-cverifier</strong> checks the equivalent single file. <strong>Download</strong>
+saves all three files; your browser may ask once whether to allow multiple
+downloads. Keep the files in the same directory, and give the main file a
+name other than <code>symbols.yaml</code> or <code>participants.yaml</code> (the Review tab flags a
+clash as an error). <code>pm-config-deploy</code> installs the included files together
+with the main file.</p>
 <p>The download is an <strong>authored</strong> <code>engine_config.yaml</code> — the file you keep and
 version, not the one the exchange runs. Install it before starting anything:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>pm-config-deploy<span class="w"> </span>~/Downloads/engine_config.yaml
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>pm-config-deploy<span class="w"> </span>~/Downloads/engine_config.yaml
 </code></pre></div>
 <p>That validates it, resolves every default, and writes the compiled artifact the
 processes actually read. Because the GUI already refuses to export while any
@@ -9243,11 +9470,11 @@ assets. The API serves the UI and falls back to <code>index.html</code> for clie
 routes.</p>
 <h3 id="manual-production-build">Manual production build<a class="headerlink" href="#manual-production-build" title="Permanent link">&para;</a></h3>
 <p>To run the pieces yourself:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="nb">cd</span><span class="w"> </span>web-apps/config-gui
-<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>npm<span class="w"> </span>install
-<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>npm<span class="w"> </span>run<span class="w"> </span>build<span class="w">            </span><span class="c1"># emits the static UI to apps/web/dist</span>
-<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="nv">STATIC_DIR</span><span class="o">=</span><span class="s2">"</span><span class="nv">$PWD</span><span class="s2">/apps/web/dist"</span><span class="w"> </span><span class="nv">HOST</span><span class="o">=</span><span class="m">0</span>.0.0.0<span class="w"> </span><span class="nv">PORT</span><span class="o">=</span><span class="m">8092</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="w">  </span>npm<span class="w"> </span>run<span class="w"> </span>start<span class="w"> </span>--workspace<span class="w"> </span>@edumatcher/server
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="nb">cd</span><span class="w"> </span>web-apps/config-gui
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>npm<span class="w"> </span>install
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>npm<span class="w"> </span>run<span class="w"> </span>build<span class="w">            </span><span class="c1"># emits the static UI to apps/web/dist</span>
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="nv">STATIC_DIR</span><span class="o">=</span><span class="s2">"</span><span class="nv">$PWD</span><span class="s2">/apps/web/dist"</span><span class="w"> </span><span class="nv">HOST</span><span class="o">=</span><span class="m">0</span>.0.0.0<span class="w"> </span><span class="nv">PORT</span><span class="o">=</span><span class="m">8092</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a><span class="w">  </span>npm<span class="w"> </span>run<span class="w"> </span>start<span class="w"> </span>--workspace<span class="w"> </span>@edumatcher/server
 </code></pre></div>
 <p>Alternatively host <code>apps/web/dist</code> on any static server and run the API
 separately; then either reverse-proxy <code>/api</code> under the same origin or set
@@ -9306,7 +9533,7 @@ inherit your host's npm or proxy settings</strong> — it has its own network an
 empty npm config. Behind a proxy or a TLS-intercepting firewall, <code>npm install</code>
 may <strong>hang</strong> (the connection is silently dropped) rather than fail fast.</p>
 <p>First confirm the registry is reachable from inside a container:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>node:22-slim<span class="w"> </span>sh<span class="w"> </span>-c<span class="w"> </span><span class="s2">"npm config set fetch-timeout 30000 &amp;&amp; npm ping"</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>node:22-slim<span class="w"> </span>sh<span class="w"> </span>-c<span class="w"> </span><span class="s2">"npm config set fetch-timeout 30000 &amp;&amp; npm ping"</span>
 </code></pre></div>
 <p>If that hangs, pass build arguments to route around it. <code>docker compose</code> picks
 up your shell's proxy variables automatically:</p>
@@ -9332,9 +9559,9 @@ up your shell's proxy variables automatically:</p>
 </tr>
 </tbody>
 </table>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">HTTPS_PROXY</span><span class="o">=</span>http://proxy.corp.example:8092
-<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="nb">export</span><span class="w"> </span><span class="nv">NPM_REGISTRY</span><span class="o">=</span>https://artifactory.corp.example/api/npm/npm-remote/
-<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>docker<span class="w"> </span>compose<span class="w"> </span>up<span class="w"> </span>--build
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">HTTPS_PROXY</span><span class="o">=</span>http://proxy.corp.example:8092
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="nb">export</span><span class="w"> </span><span class="nv">NPM_REGISTRY</span><span class="o">=</span>https://artifactory.corp.example/api/npm/npm-remote/
+<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>docker<span class="w"> </span>compose<span class="w"> </span>up<span class="w"> </span>--build
 </code></pre></div>
 <div class="admonition tip">
 <p class="admonition-title">TLS interception (custom root CA)</p>
