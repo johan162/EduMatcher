@@ -54,12 +54,18 @@ MAX_DECISIONS_PER_SEC = 10.0
 KILL_CODES = frozenset({"INSUFFICIENT_LIQUIDITY"})
 
 
+#: Extra weight at the open and the close: with the swarm budget raised 30 %,
+#: the rush ends run 40 % above the old level (1.4 / 1.3).
+RUSH_EXTRA = 1.4 / 1.3 - 1.0
+
+
 def intraday_multiplier(market: MarketState, wall: float) -> float:
-    """U-shaped activity over continuous trading, mean 1 over the session.
+    """U-shaped activity over continuous trading, mean about 1.03.
 
     ``0.6 + 1.6 * (2x - 1)^2`` for ``x`` the elapsed fraction of the phase,
-    divided by its mean 17/15: 1.94 at the open and the close, 0.53 midday.
-    1.0 whenever the phase boundaries are unknown.
+    divided by its mean 17/15, times ``1 + RUSH_EXTRA * (2x - 1)^2``: 2.09 at
+    the open and the close, 0.53 midday. 1.0 whenever the phase boundaries are
+    unknown.
     """
     if (
         market.phase != "CONTINUOUS"
@@ -71,7 +77,8 @@ def intraday_multiplier(market: MarketState, wall: float) -> float:
     if span <= 0:
         return 1.0
     x = min(1.0, max(0.0, (wall - market.phase_since) / span))
-    return (0.6 + 1.6 * (2 * x - 1) ** 2) / (17.0 / 15.0)
+    u = (2 * x - 1) ** 2
+    return (0.6 + 1.6 * u) / (17.0 / 15.0) * (1.0 + RUSH_EXTRA * u)
 
 
 @dataclass

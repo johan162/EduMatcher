@@ -394,10 +394,12 @@ class TestIntraday:
         m.phase_since, m.next_at = 0.0, 100.0
         ends = intraday_multiplier(m, 0.0), intraday_multiplier(m, 100.0)
         mid = intraday_multiplier(m, 50.0)
-        assert ends[0] == pytest.approx(2.2 * 15 / 17) and ends[1] == ends[0]
+        assert (
+            ends[0] == pytest.approx(2.2 * 15 / 17 * 1.4 / 1.3) and ends[1] == ends[0]
+        )
         assert mid == pytest.approx(0.6 * 15 / 17)
         avg = sum(intraday_multiplier(m, x / 10) for x in range(1001)) / 1001
-        assert avg == pytest.approx(1.0, abs=0.01)
+        assert avg == pytest.approx(1.0 + (1.4 / 1.3 - 1) * 0.52 * 15 / 17, abs=0.01)
 
     def test_unknown_boundaries_or_other_phase(self) -> None:
         assert intraday_multiplier(_market(), 5.0) == 1.0

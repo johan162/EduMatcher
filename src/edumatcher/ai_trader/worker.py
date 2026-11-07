@@ -29,7 +29,7 @@ from typing import Any, cast
 import zmq
 
 from edumatcher.ai_trader.actions import Action, AmendOrder, NewOco, NewOrder
-from edumatcher.ai_trader.agent import Agent
+from edumatcher.ai_trader.agent import Agent, intraday_multiplier
 from edumatcher.ai_trader.clock import Clock, WallClock
 from edumatcher.ai_trader.market_state import MarketState
 from edumatcher.ai_trader.preset import Preset
@@ -431,7 +431,8 @@ class Worker:
         Starts from the nominal tempo rates, then corrects multiplicatively
         from the measured action rate over the last ``BUDGET_WINDOW`` seconds
         (one decision makes between zero and a few actions, so the ratio has
-        to be learned).
+        to be learned). The target is the budget times the intraday
+        multiplier, so the open and close rushes are not levelled out.
         """
         if self.budget is None or not self.agents:
             return
@@ -452,8 +453,10 @@ class Worker:
         measured = sum(n for _, n in self._sent_window) / span
         if measured <= 0:
             return
+        target = self.budget * intraday_multiplier(self.market, self.clock.wall())
         factor = min(
-            BUDGET_MAX_STEP, max(1.0 / BUDGET_MAX_STEP, self.budget / measured)
+            BUDGET_MAX_STEP,
+            max(1.0 / BUDGET_MAX_STEP, target / measured),
         )
         factor = factor**0.5  # damped
         for a in self.agents.values():
