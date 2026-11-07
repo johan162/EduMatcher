@@ -1,3 +1,20 @@
+## [v0.76.4] - 2026-11-07
+
+Release Type: patch
+
+### 📋 Summary
+This release improves API gateway throughput and reduces load from admin monitoring. It also makes the trader GUI recover its monitor state after dropped WebSocket events.
+
+### 🚀 Improvements
+- Batched API gateway engine-event processing to improve receive throughput
+- Reduced event load on the admin-monitor feed and added trader-GUI monitor resynchronization after event drops
+
+### 📚 Documentation
+- Clarified API gateway monitoring and WebSocket sequencing behavior
+
+### 🛠 Internal
+- Added regression tests for API gateway batching, WebSocket sequence recovery and trader monitor resynchronization
+
 ## [v0.76.3] - 2026-11-07
 
 Release Type: minor
