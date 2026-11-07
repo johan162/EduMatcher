@@ -6070,7 +6070,23 @@ class Engine:
                         self._order_symbol.pop(cancelled.id, None)
                         if cancelled.combo_parent_id:
                             self._check_combo_after_child_event(cancelled)
+                        if cancelled.quote_id:
+                            self._end_expired_quote(cancelled)
                         self._mark_dirty(book.symbol)
+
+    def _end_expired_quote(self, leg: Order) -> None:
+        """A quote whose leg expired is over (X41): it leaves the QuoteIndex
+        and its owner hears CANCELLED, as for a halt or a kill switch. The
+        other leg expires in the same sweep."""
+        entry = self._quote_index.get(leg.gateway_id, leg.symbol)
+        if entry is None or entry.quote_id != leg.quote_id:
+            return
+        self._quote_index.remove(leg.gateway_id, leg.symbol, reason="Expired")
+        self.pub_sock.send_multipart(
+            make_quote_status_msg(
+                leg.gateway_id, entry.quote_id, "CANCELLED", "Expired"
+            )
+        )
 
     def _uncross_match_type(self, reason: str) -> str:
         """``trade.executed.match_type`` of an uncross's prints. A scheduled

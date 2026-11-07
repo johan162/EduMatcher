@@ -1,5 +1,6 @@
 """C12 — every refusal is justified, and every acceptance too (S30); C13 —
-a kill switch or a disconnect cancels exactly what it names (S31).
+a kill switch or a disconnect cancels exactly what it names (S31); C14 —
+orders expire as their time in force ends, and nothing outlives it (S33).
 
 D8 checks the collar both ways; C12 does it for the refusals the engine
 decides from state the audit shows, each command judged on the state
@@ -40,6 +41,14 @@ exactly what it cancelled, quote legs apart, and counts its lists; a
 refused one cancels nothing; the administrator's two need an ADMIN caller.
 A kill switch is a mass cancel: nothing keeps the gateway from trading
 again (KILL_SWITCH_ACTIVE is in the spec's enum but no gate uses it).
+
+C14, on the same state, each order's TIF from its ack (a quote's legs from
+their ``quote.new``, the books from their checkpoints): an
+``order.expired`` only as its window ends -- DAY at the transition to
+CLOSED, ATO as the opening auction ends, ATC as the closing auction ends --
+and never for a GTC order; after that transition no order of the TIF is
+live; and a quote whose legs expired at the close ends with them (a
+``quote.status`` that is not ACTIVE).
 """
 
 from __future__ import annotations
@@ -78,6 +87,7 @@ class _Live:
     symbol: str
     oco: str | None = None
     quote: bool = False  # a market maker's quote leg
+    tif: str | None = None
 
 
 @dataclass
@@ -91,6 +101,14 @@ class _Pass:
     sweep_samples: list[Sample] = field(default_factory=list)
     sweep_errors: Counter[str] = field(default_factory=Counter)
     sweeps: Counter[str] = field(default_factory=Counter)
+    #: C14's own: expiries.
+    expiry_samples: list[Sample] = field(default_factory=list)
+    expiry_errors: Counter[str] = field(default_factory=Counter)
+    expiries: Counter[str] = field(default_factory=Counter)
+    #: The TIF of the quote.new this dispatch answers (its legs carry none).
+    quote_tif: str | None = None
+    #: Quote id → its two legs.
+    _legs_of: dict[str, tuple[str, ...]] = field(default_factory=dict)
     phase: str | None = None
     #: Symbol → halt source (CB, ADMIN).
     halted: dict[str, str] = field(default_factory=dict)
@@ -374,6 +392,77 @@ class _Pass:
         if o.quote:
             self.quote_legs.get((o.gw, o.symbol), set()).discard(oid)
 
+    def dispatch(self, command: str, body: dict[str, Any], out: list[tuple[str, dict[str, Any]]], chain: str) -> None:  # fmt: skip
+        """One dispatch: judged (C12, C13, C14) on the state before it,
+        then applied."""
+        if command:
+            self.judge(command, body, out, chain)
+        self.sweep(command, body, out, chain)
+        prev = self.phase
+        state = next((x["state"] for t, x in out if t == "session.state"), None)
+        self.expired(out, prev, state, chain)
+        self.quote_tif = body.get("tif") if command == "quote.new" else None
+        quotes = dict(self.quotes)
+        # The messages' account first, then the books' own (the checkpoints
+        # a transition publishes): each must show the window closed.
+        books = [(t, x) for t, x in out if t.startswith("system.book_checkpoint.")]
+        self.apply_all([(t, x) for t, x in out if not t.startswith("system.book_checkpoint.")])  # fmt: skip
+        self.outlived(out, prev, state, quotes, chain)
+        self.apply_all(books)
+
+    # --- C14: expiries ----------------------------------------------------
+
+    def expiry_flag(self, error: str, **keys: Any) -> None:
+        self.expiry_errors[error] += 1
+        if len(self.expiry_samples) < _KEEP:
+            self.expiry_samples.append({"error": error, **keys})
+
+    @staticmethod
+    def _window(tif: str | None, prev: str | None, state: str | None) -> bool:
+        """Whether this dispatch ends *tif*'s window: DAY at the close, ATO
+        and ATC as their auction ends."""
+        if tif == "DAY":
+            return state == "CLOSED" and prev != "CLOSED"
+        auction = {"ATO": "OPENING_AUCTION", "ATC": "CLOSING_AUCTION"}.get(tif or "")
+        return auction is not None and prev == auction and state not in (None, auction)  # fmt: skip
+
+    def expired(self, out: list[tuple[str, dict[str, Any]]], prev: str | None, state: str | None, chain: str) -> None:  # fmt: skip
+        """C14: an order expires only as its window ends, and a GTC never."""
+        for t, x in out:
+            if not t.startswith("order.expired."):
+                continue
+            o = self.live.get(x["order_id"])
+            if o is None:
+                self.expiry_flag("expired an order not live", order_id=x["order_id"], chain=chain)  # fmt: skip
+                continue
+            self.expiries[f"{o.tif} expired"] += 1
+            if not self._window(o.tif, prev, state):
+                self.expiry_flag(f"a {o.tif} order expired outside its window", order_id=x["order_id"], phase=(prev, state), chain=chain)  # fmt: skip
+
+    def outlived(self, out: list[tuple[str, dict[str, Any]]], prev: str | None, state: str | None, quotes: dict[tuple[str, str], str], chain: str) -> None:  # fmt: skip
+        """C14: no order outlives its window, and a quote whose legs expired
+        at the close ends with them."""
+        if state is None or state == prev:
+            return
+        for tif in ("DAY", "ATO", "ATC"):
+            if not self._window(tif, prev, state):
+                continue
+            left = sorted(oid for oid, o in self.live.items() if o.tif == tif)
+            self.expiries[f"{tif} windows closed"] += 1
+            if left:
+                self.expiry_flag(f"{tif} orders outlived their window", count=len(left), example=left[:3], chain=chain)  # fmt: skip
+            kept = sorted(o["order_id"] for t, x in out if t.startswith("system.book_checkpoint.") for side in _STAMPED_SIDES for o in x.get(side) or [] if o.get("tif") == tif)  # fmt: skip
+            if kept:
+                self.expiry_flag(f"{tif} orders outlived their window in the book", count=len(kept), example=kept[:3], chain=chain)  # fmt: skip
+        if state != "CLOSED":
+            return
+        expired = {x["order_id"] for t, x in out if t.startswith("order.expired.")}
+        ended = {x["quote_id"] for t, x in out if t.startswith("quote.status.") and x.get("status") != "ACTIVE"}  # fmt: skip
+        for key, qid in quotes.items():
+            legs_gone = not self.quote_legs.get(key)
+            if legs_gone and qid not in ended and self.quotes.get(key) == qid and any(o in expired for o in self._legs_of.get(qid, ())):  # fmt: skip
+                self.expiry_flag("a quote's legs expired at the close, but the quote did not end", quote_id=qid, gateway_id=key[0], symbol=key[1], chain=chain)  # fmt: skip
+
     def apply_all(self, out: list[tuple[str, dict[str, Any]]]) -> None:
         """A dispatch's messages: what it created first, then the rest in
         order -- an order may be acked after it already traded (an OCO's
@@ -389,7 +478,10 @@ class _Pass:
         """What one engine message changes."""
         if topic.startswith("order.ack."):
             if p.get("accepted") and p.get("order_id") and p.get("symbol"):
-                self.add(p["order_id"], _Live(topic.rsplit(".", 1)[1], p["symbol"], p.get("oco_group_id"), bool(p.get("quote_id") or p.get("is_seed"))))  # fmt: skip
+                self.add(p["order_id"], _Live(topic.rsplit(".", 1)[1], p["symbol"], p.get("oco_group_id"), bool(p.get("quote_id") or p.get("is_seed")), p.get("tif")))  # fmt: skip
+                if p.get("quote_id"):
+                    self._legs_of[p["quote_id"]] = (*self._legs_of.get(p["quote_id"], ()), p["order_id"])  # fmt: skip
+                    self.quote_of.setdefault(p["quote_id"], (topic.rsplit(".", 1)[1], p["symbol"]))  # fmt: skip
             elif not p.get("accepted") and p.get("order_id") in self.live and p.get("reject_code") == "INSUFFICIENT_LIQUIDITY":  # fmt: skip
                 self.end(p["order_id"])  # acked, then refused by the book (X5)
         elif topic.startswith("order.fill."):
@@ -417,9 +509,9 @@ class _Pass:
                 key = (topic.rsplit(".", 1)[1], p["symbol"])
                 self.quote_of[p["quote_id"]] = key
                 self.quotes[key] = p["quote_id"]
-                for side in ("bid_order_id", "ask_order_id"):
-                    if p.get(side):
-                        self.add(p[side], _Live(key[0], key[1], quote=True))
+                self._legs_of[p["quote_id"]] = tuple(p[side] for side in ("bid_order_id", "ask_order_id") if p.get(side))  # fmt: skip
+                for oid in self._legs_of[p["quote_id"]]:
+                    self.add(oid, _Live(key[0], key[1], quote=True, tif=self.quote_tif))
         elif topic.startswith("quote.cancel_ack."):
             if p.get("accepted"):
                 self.quotes.pop((topic.rsplit(".", 1)[1], p["symbol"]), None)
@@ -452,12 +544,15 @@ class _Pass:
         for side in _STAMPED_SIDES:
             for o in p.get(side) or []:
                 gw = o["gateway_id"]
-                self.add(o["order_id"], _Live(gw, sym, o.get("oco_group_id"), bool(o.get("quote_id"))))  # fmt: skip
+                self.add(o["order_id"], _Live(gw, sym, o.get("oco_group_id"), bool(o.get("quote_id")), o.get("tif")))  # fmt: skip
                 if o.get("oco_group_id"):
                     groups.setdefault((gw, o["oco_group_id"]), []).append(o["order_id"])  # fmt: skip
                 if o.get("quote_id"):
                     quotes.setdefault((gw, o["quote_id"]), set()).add(o["order_id"])
                     self.quote_of[o["quote_id"]] = (gw, sym)
+                    self._legs_of[o["quote_id"]] = tuple(
+                        sorted(quotes[(gw, o["quote_id"])])
+                    )
         for key, legs in groups.items():
             if len(legs) == 2:
                 self.oco[key] = (legs[0], legs[1])
@@ -496,10 +591,7 @@ def _state_pass(ds: Dataset) -> _Pass:
     out: list[tuple[str, dict[str, Any]]] = []
     for ln in lines(files):
         if ln.chain != chain:
-            if command:
-                p.judge(command, body, out, chain)
-            p.sweep(command, body, out, chain)
-            p.apply_all(out)
+            p.dispatch(command, body, out, chain)
             chain, command, body, out = ln.chain, "", {}, []
         if ln.topic in _COMMANDS and not command and not out:
             command, body = ln.topic, json.loads(ln.body)
@@ -507,7 +599,5 @@ def _state_pass(ds: Dataset) -> _Pass:
         if ln.topic.startswith(("book.", "depth.", "auction.indicative.")):
             continue
         out.append((ln.topic, json.loads(ln.body)))
-    if command:
-        p.judge(command, body, out, chain)
-    p.sweep(command, body, out, chain)
+    p.dispatch(command, body, out, chain)
     return p

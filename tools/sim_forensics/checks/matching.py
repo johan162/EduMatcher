@@ -1731,6 +1731,20 @@ def sweeps_complete(ds: Dataset) -> Outcome:
     return Outcome(sum(p.sweep_errors.values()), p.sweep_samples, note)
 
 
+@check(
+    "C14",
+    "lifecycle",
+    "Orders expire as their time in force ends, never a GTC one, and none outlives it",
+    needs=(),
+)
+def expiries(ds: Dataset) -> Outcome:
+    """``refusals.py``'s pass, which C12 and C13 share."""
+    p = refusals.state_pass(ds)
+    note = ", ".join(f"{k} {n}" for k, n in sorted(p.expiries.items())) or "no window closed"  # fmt: skip
+    note += "".join(f"; {e}: {n}" for e, n in p.expiry_errors.most_common())
+    return Outcome(sum(p.expiry_errors.values()), p.expiry_samples, note)
+
+
 @check("D7", "book-state", "No continuous self-trade under SMP", needs=())
 def self_trades(ds: Dataset) -> Outcome:
     r = _replay(ds)

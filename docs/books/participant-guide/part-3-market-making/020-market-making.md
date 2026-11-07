@@ -108,7 +108,7 @@ stateDiagram-v2
     [*] --> ACTIVE : QUOTE accepted
     ACTIVE --> INACTIVE_BID_FILLED : bid leg fills
     ACTIVE --> INACTIVE_ASK_FILLED : ask leg fills
-    ACTIVE --> CANCELLED : QUOTE_CANCEL, gateway disconnect, or a new QUOTE replacing this one
+    ACTIVE --> CANCELLED : QUOTE_CANCEL, gateway disconnect, a new QUOTE replacing this one, or a DAY quote's legs expiring at the close
     INACTIVE_BID_FILLED --> [*] : ask leg cancelled by engine
     INACTIVE_ASK_FILLED --> [*] : bid leg cancelled by engine
     CANCELLED --> [*]
@@ -117,8 +117,11 @@ stateDiagram-v2
 There is no separate `REPLACED` status: a new `QUOTE` on the same
 `(gateway_id, symbol)` cancels the old quote and the engine emits an ordinary
 `quote.status CANCELLED` for it (with reason `"Replaced by new quote"`)
-before installing the new one. The engine's only `quote.status` values are
-`ACTIVE`, `INACTIVE_BID_FILLED`, `INACTIVE_ASK_FILLED`, and `CANCELLED`.
+before installing the new one. Likewise there is no `EXPIRED` status: when a
+`TIF=DAY` quote's legs expire at the close (`order.expired` for each), the
+quote ends with `quote.status CANCELLED`, reason `"Expired"`. The engine's
+only `quote.status` values are `ACTIVE`, `INACTIVE_BID_FILLED`,
+`INACTIVE_ASK_FILLED`, and `CANCELLED`.
 
 When inactivation occurs, the gateway receives a `quote.status` event:
 
@@ -518,7 +521,7 @@ quote seeding.
 
 | `tif` value *(default `DAY`)* | Behaviour during the session                                    | Cross-restart behaviour                                                                          |
 |-------------------------------|-------------------------------------------------------------------|----------------------------------------------------------------------------------------------------|
-| `DAY`                          | Quote expires at end of trading day (scheduler-driven `CLOSED`, not a process exit) | Survives a restart within the same business day; discarded at restore if the business day has rolled over |
+| `DAY`                          | Quote expires at end of trading day (scheduler-driven `CLOSED`, not a process exit): `order.expired` for each leg, then `quote.status CANCELLED` (reason `"Expired"`) | Survives a restart within the same business day; discarded at restore if the business day has rolled over |
 | `GTC`                          | Quote survives an ATC/session reset within the same engine run    | Survives every restart unconditionally, regardless of business day                                 |
 
 Both values now behave the same as an ordinary participant order at the same

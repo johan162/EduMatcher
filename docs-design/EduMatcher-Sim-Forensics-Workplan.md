@@ -56,7 +56,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 | 30 | S30 | C12: every refusal is justified, and every acceptance too (all reject codes, D8 does collars) | — | 1.5 d | ☑ | 2026-11-07 |
 | 31 | S31 | C13: kill switches and disconnect behaviour sweep exactly their scope (X40 found and fixed) | — | 0.5 d | ☑ | 2026-11-07 |
 | 32 | S32 | D12: circuit-breaker oracle (own reference window: halts justified, no trade outside the corridor, reopen on time) | — | 1 d | ☑ | 2026-11-07 |
-| 33 | S33 | C14: end-of-day expiry (every live DAY order, leg and quote expires once; no GTC does) | — | 0.5 d | ☐ | |
+| 33 | S33 | C14: end-of-day expiry (every live DAY order, leg and quote expires once; no GTC does) (X41 found and fixed) | — | 0.5 d | ☑ | 2026-11-07 |
 | 34 | S34 | E7 time-shift lane: the day moved across a DST change and a UTC midnight changes nothing | — | 1 d | ☐ | |
 | 35 | S35 | A6: client view (`ai_swarm/*.jsonl` day totals) equals the exchange's, per gateway | — | 0.5 d | ☐ | |
 | 36 | S36 | Decision traces in `engine.trace`: UNCROSS_PRICE, AON_PREFLIGHT, SMP_DECISION; D6/C12 use them | Q11 | 1 d | ☑ (C12 part with S30) | 2026-11-07 |
@@ -233,6 +233,7 @@ Status column of the report = PASS / FAIL(n) / SKIPPED(reason).
 | C10 | (S18) One quote per (gateway, symbol): when a quote is accepted no earlier leg of that gateway and symbol is live (the engine cancels them `QUOTE_REPLACED` first, a filled leg's remainder included), and a replaced leg never trades. |
 | C12 | (S30) Every refusal holds on the state (and, for a FOK's or an all-or-none combo's liquidity, the replayed book) it was made on, and no acceptance meets a refusal's reason: `order.new` gates, cancel / amend / OCO cancel / quote cancel not found or not owner, the market maker's quote obligation, AON_PREFLIGHT against the book. Collars stay D8's. |
 | C13 | (S31) A kill switch (a gateway's own, an administrator's on one gateway, the global one; symbol / quotes-only scopes) or a disconnect / heartbeat timeout (per `disconnect_behaviour`) cancels every live order in its scope, quote legs and a hit quote's remainder included, nothing beyond it, each for its reason; an accepted switch's ack lists and counts exactly that; a refused one cancels nothing; the administrator's need an ADMIN caller. |
+| C14 | (S33) An order expires only as its time in force ends -- DAY at the transition to CLOSED, ATO as the opening auction ends, ATC as the closing auction ends -- never a GTC one; after the transition no order of that TIF is live, by the messages nor in the checkpoints the transition publishes; a quote whose legs expired at the close ends (`quote.status` not ACTIVE). |
 
 ### D — Matching correctness (audit episodes; needs S1 retention)
 
@@ -803,6 +804,7 @@ Finding ids are X*n* (the catalogue's E1–E4 are replay checks).
 | X38 | E6 | 2026-11-07 | EA, NET (restarts 8, 11) | Engine: a restart seeded each circuit breaker's reference from the last trade price; the uninterrupted engine averages its 5-minute window (EA 25407 over 308 trades, restored 25325), so the corridor and the halts differed. On the 2026-11-07 data after the fix: E6 PASS (44 restarts, 0 findings; 1 441 combos on re-seeded books left out). Decided with Johan: `book_stats.json` now carries each breaker's window (`cb_window`: `saved_ns`, trades in ticks, reference); `_load_config` takes it back when saved on the same business day (`CircuitBreakerState.restore_window`), else seeds as before. E6 compares the windows at each restart; `_REBASED` and `compare(ignore_in_breaker=...)` removed | Fixed 2026-11-07 (uncommitted) |
 | X39 | E6 (s3-complex test day) | 2026-11-07 | every restart | Engine: a market maker's seeded combo restored live (DAY combos persist since aee90385, GTC ones always did) was seeded again at startup -- two copies of the market maker's interest. `_load_config` skips a seed combo whose `combo_id` was restored PENDING or PARTIALLY_MATCHED (no `seed_once` flag, as quotes have: a duplicate is never intended) | Fixed 2026-11-07 (uncommitted) |
 | X40 | C13 (S31, reading the engine; recorded run) | 2026-11-07 | the global kill switch | Engine: `_handle_kill_switch_global` swept the QuoteIndex and skipped quote-origin orders in the books, so the remainder a hit quote leaves resting (INACTIVATE_ON_ANY_FILL) survived the market-wide stop -- the bug `risk.cancel_symbol` and the gateway kill switch had and lost earlier (`tests/test_engine_mass_cancel_inactive_quote.py`). The book loop now cancels a quote-origin order too, listed among the quotes. C13 on the recorded run finds it on the old code (`kill_switch_global left orders live`) | Fixed 2026-11-07 (uncommitted) |
+| X41 | C14 (S33, recorded run) | 2026-11-07 | every DAY quote at the close (6 seeds on s3-complex) | Engine: `_expire_tif` expired a DAY quote's legs (`order.expired`) but left the quote in the QuoteIndex and published no `quote.status`: every subscriber still saw it ACTIVE with no legs, and a `quote.cancel` next day was accepted cancelling nothing. Decided with Johan: the quote ends as a halt or kill switch ends one -- `_end_expired_quote` removes it and publishes `quote.status CANCELLED`, reason "Expired" (no new enum value). The 2026-11-07 run had no quote up at the close (the MM bot pulls them), so it did not show there | Fixed 2026-11-07 (uncommitted) |
 
 **X1 — triggered stop orders trade without an `order.fill`.** B2: 749 orders
 traded but have no FILL event in pm-stats (traded − filled = +95 132; top
@@ -2461,8 +2463,10 @@ checkpoint -- X38.
   resting: C12 and C13 PASS; three planted edits found. On the pre-X40
   engine the same recording fails C13. Engine regression in
   `tests/test_engine_mass_cancel_inactive_quote.py`.
-- The 2026-11-07 run had no kill switch or disconnect (S27's `sim_ops`
-  schedule was not running), so C13 is not yet seen on a sim run.
+- On the 2026-11-07 data: **C13 PASS** on the 101 disconnects at the end
+  of the run (100 CANCEL_ALL, 1 CANCEL_QUOTES_ONLY). It had no kill switch
+  (S27's `sim_ops` schedule was not running): those are seen on the
+  recording only.
 
 ### S32 — done 2026-11-07
 
@@ -2497,4 +2501,27 @@ checkpoint -- X38.
 - On the 2026-11-07 data: **D12 PASS** -- 1 053 breaker halts, all with
   their breach and numbers; 1 053 reopens on time and inside the corridor;
   1 491 161 prints in windows (no extension that day).
+
+### S33 — done 2026-11-07
+
+- **C14** (`checks/refusals.py` `_Pass.expired` / `outlived`, registered
+  in `matching.py` beside C12/C13): each order's TIF from its ack, a
+  quote's legs from their `quote.new`, the books' from their checkpoints.
+  An `order.expired` must close its TIF's window -- DAY at the transition
+  to CLOSED, ATO / ATC as their auction ends -- and never names a GTC
+  order or one not live. After that transition no order of the TIF may be
+  live: neither by the messages (applied first) nor in the checkpoints the
+  transition publishes (looked at before they reset the state). A quote
+  whose legs expired at the close must end in the same dispatch.
+- **X41** found on the first recorded run and fixed (ledger); the
+  participant guide's quote lifecycle and seed-`tif` table say so.
+- Tests: `tests/test_sim_forensics_expiry.py` -- a real engine
+  (s3-complex) through two days: DAY and GTC orders, a DAY stop and OCO,
+  ATC in the closing auction, ATO in the next opening auction; C14 PASS;
+  planted faults (a dropped expiry, a DAY order left in the close's
+  checkpoint, an expired GTC) found. Engine regression (DAY quote ends,
+  GTC quote stays) in `tests/test_engine_mass_cancel_inactive_quote.py`.
+- On the 2026-11-07 data: **C14 PASS** -- 6 757 DAY and 1 969 ATC expiries
+  (all 8 726 of the day) inside their windows, nothing left after the
+  close.
 
