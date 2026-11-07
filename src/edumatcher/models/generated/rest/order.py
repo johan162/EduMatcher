@@ -144,7 +144,17 @@ OrderCancelledCancelReason = Literal[
 ]
 OrderTriggeredOrderType = Literal["STOP", "STOP_LIMIT", "TRAILING_STOP"]
 OrderTriggeredBecomes = Literal["MARKET", "LIMIT"]
-EngineTraceKind = Literal["RESTED", "ICEBERG_REFILL", "TRAILING_RATCHET"]
+EngineTraceKind = Literal[
+    "RESTED",
+    "ICEBERG_REFILL",
+    "TRAILING_RATCHET",
+    "UNCROSS_PRICE",
+    "AON_PREFLIGHT",
+    "SMP_DECISION",
+]
+EngineTraceRule = Literal["VOLUME", "SURPLUS", "LOWEST_PRICE", "OVERRIDE"]
+EngineTraceOutcome = Literal["MATCH", "REST", "REJECT"]
+EngineTraceSmpAction = Literal["CANCEL_AGGRESSOR", "CANCEL_RESTING", "CANCEL_BOTH"]
 OrderNewSide = Literal["BUY", "SELL"]
 OrderNewOrderType = Literal[
     "MARKET",
@@ -707,14 +717,21 @@ class EngineTrace(BaseModel):
     queue it got, an iceberg refilling its slice at the back of its level, a
     trailing stop ratcheting its trigger. A replay can then compare its model of
     priority and of trailing triggers with the engine's own, instead of inferring
-    them.
+    them. Three kinds say why the engine decided (S36): UNCROSS_PRICE (which rule
+    chose an uncross's price, among which tied prices), AON_PREFLIGHT (per leg of
+    an all-or-none combo, what could fill, and whether the combo matches, rests or
+    is rejected) and SMP_DECISION (the same-gateway pair self-match prevention
+    met, and the policy applied).
     """
 
     model_config = ConfigDict(use_attribute_docstrings=True)
 
     symbol: str = Field(max_length=16)
     kind: EngineTraceKind
-    order_id: str = Field(max_length=64)
+    order_id: str | None = Field(default=None, max_length=64)
+    """The order the record is about; SMP_DECISION: the order whose policy applied
+    (the aggressor; in an uncross the bid, unless only the ask has a policy).
+    """
     priority_seq: int | None = Field(default=None, ge=0)
     displayed_qty: int | None = Field(default=None, ge=0)
     """ICEBERG_REFILL: the new visible slice. Unit: shares."""
@@ -729,6 +746,53 @@ class EngineTrace(BaseModel):
     """TRAILING_RATCHET: the new trigger. Unit: ticks."""
     last_price_ticks: int | None = Field(default=None)
     """TRAILING_RATCHET: the trade price that moved it. Unit: ticks."""
+    auction_id: str | None = Field(default=None, max_length=32)
+    """UNCROSS_PRICE: the uncross, as on its `auction.result`."""
+    eq_price_ticks: int | None = Field(default=None)
+    """UNCROSS_PRICE: the price the uncross runs at (it prints nothing there when
+    `eq_qty` is 0: SMP or an OCO pair took the whole overlap). Unit: ticks.
+    """
+    eq_qty: int | None = Field(default=None, ge=0)
+    """UNCROSS_PRICE: the executable quantity at that price. Unit: shares."""
+    surplus: int | None = Field(default=None, ge=0)
+    """UNCROSS_PRICE: the unmatched quantity at that price. Unit: shares."""
+    rule: EngineTraceRule | None = Field(default=None)
+    """UNCROSS_PRICE: what decided -- the most volume (one price had it), then the
+    least surplus among those, then the lowest price; OVERRIDE when the price was
+    imposed (closing backstop, ADMIN_MANUAL).
+    """
+    tied_prices_ticks: list[int] | None = Field(default=None)
+    """UNCROSS_PRICE: the prices still tied when `rule` decided, lowest first (one
+    price for VOLUME; the most-volume prices for SURPLUS; those with the least
+    surplus too for LOWEST_PRICE). In ticks.
+    """
+    combo_id: str | None = Field(default=None, max_length=64)
+    """AON_PREFLIGHT: the client's combo id."""
+    leg_index: int | None = Field(default=None, ge=0)
+    """AON_PREFLIGHT: the leg, in the combo's order."""
+    quantity: int | None = Field(default=None, ge=0)
+    """AON_PREFLIGHT: the leg's quantity. Unit: shares."""
+    fillable_qty: int | None = Field(default=None, ge=0)
+    """AON_PREFLIGHT: what the leg could fill now, the gateway's own orders left out
+    under its SMP policy. Unit: shares.
+    """
+    fillable_no_smp_qty: int | None = Field(default=None, ge=0)
+    """AON_PREFLIGHT: what the leg would trade now counting the gateway's own orders
+    (more than 0 on a blocked combo is what rejects it). Unit: shares.
+    """
+    outcome: EngineTraceOutcome | None = Field(default=None)
+    """AON_PREFLIGHT: the combo's outcome, the same on every leg -- every leg fills
+    in full and the legs match; a leg is short and the legs rest unmatched; or a
+    leg is short and one would trade now, so the combo fails at its first leg
+    (INSUFFICIENT_LIQUIDITY). Halted symbols and phases without matching rest.
+    """
+    other_order_id: str | None = Field(default=None, max_length=64)
+    """SMP_DECISION: the same gateway's order on the other side."""
+    smp_action: EngineTraceSmpAction | None = Field(default=None)
+    """SMP_DECISION: the policy applied, of `order_id`'s order: which of the two was
+    cancelled (both for CANCEL_BOTH). An unfillable FOK meets each same-gateway
+    order in its range: one record each.
+    """
 
 
 class OrderAmended(BaseModel):

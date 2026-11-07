@@ -3427,8 +3427,28 @@ def describe_order_triggered() -> tuple[dict[str, Any], ...]:
 TOPIC_ENGINE_TRACE = "engine.trace.{symbol}"
 PREFIX_ENGINE_TRACE = "engine.trace."
 _ENGINE_TRACE_RE = re.compile("engine\\.trace\\.(?P<symbol>[^.]+)")
-_ENGINE_TRACE_KIND_VALUES = ("RESTED", "ICEBERG_REFILL", "TRAILING_RATCHET")
-EngineTraceKind = Literal["RESTED", "ICEBERG_REFILL", "TRAILING_RATCHET"]
+_ENGINE_TRACE_KIND_VALUES = (
+    "RESTED",
+    "ICEBERG_REFILL",
+    "TRAILING_RATCHET",
+    "UNCROSS_PRICE",
+    "AON_PREFLIGHT",
+    "SMP_DECISION",
+)
+EngineTraceKind = Literal[
+    "RESTED",
+    "ICEBERG_REFILL",
+    "TRAILING_RATCHET",
+    "UNCROSS_PRICE",
+    "AON_PREFLIGHT",
+    "SMP_DECISION",
+]
+_ENGINE_TRACE_RULE_VALUES = ("VOLUME", "SURPLUS", "LOWEST_PRICE", "OVERRIDE")
+EngineTraceRule = Literal["VOLUME", "SURPLUS", "LOWEST_PRICE", "OVERRIDE"]
+_ENGINE_TRACE_OUTCOME_VALUES = ("MATCH", "REST", "REJECT")
+EngineTraceOutcome = Literal["MATCH", "REST", "REJECT"]
+_ENGINE_TRACE_SMP_ACTION_VALUES = ("CANCEL_AGGRESSOR", "CANCEL_RESTING", "CANCEL_BOTH")
+EngineTraceSmpAction = Literal["CANCEL_AGGRESSOR", "CANCEL_RESTING", "CANCEL_BOTH"]
 
 
 _ENGINE_TRACE_FIELDS: tuple[dict[str, Any], ...] = (
@@ -3452,8 +3472,8 @@ _ENGINE_TRACE_FIELDS: tuple[dict[str, Any], ...] = (
         "name": "order_id",
         "type": "string",
         "unit": None,
-        "required": True,
-        "doc": "",
+        "required": False,
+        "doc": "The order the record is about; SMP_DECISION: the order whose policy applied (the aggressor; in an uncross the bid, unless only the ask has a policy).",
         "constraints": {"max_len": 64},
     },
     {
@@ -3494,6 +3514,116 @@ _ENGINE_TRACE_FIELDS: tuple[dict[str, Any], ...] = (
         "required": False,
         "doc": "TRAILING_RATCHET: the trade price that moved it.",
     },
+    {
+        "name": "auction_id",
+        "type": "string",
+        "unit": None,
+        "required": False,
+        "doc": "UNCROSS_PRICE: the uncross, as on its `auction.result`.",
+        "constraints": {"max_len": 32},
+    },
+    {
+        "name": "eq_price_ticks",
+        "type": "ticks",
+        "unit": "ticks",
+        "required": False,
+        "doc": "UNCROSS_PRICE: the price the uncross runs at (it prints nothing there when `eq_qty` is 0: SMP or an OCO pair took the whole overlap).",
+    },
+    {
+        "name": "eq_qty",
+        "type": "int",
+        "unit": "shares",
+        "required": False,
+        "doc": "UNCROSS_PRICE: the executable quantity at that price.",
+        "constraints": {"ge": 0},
+    },
+    {
+        "name": "surplus",
+        "type": "int",
+        "unit": "shares",
+        "required": False,
+        "doc": "UNCROSS_PRICE: the unmatched quantity at that price.",
+        "constraints": {"ge": 0},
+    },
+    {
+        "name": "rule",
+        "type": "enum",
+        "unit": None,
+        "required": False,
+        "doc": "UNCROSS_PRICE: what decided -- the most volume (one price had it), then the least surplus among those, then the lowest price; OVERRIDE when the price was imposed (closing backstop, ADMIN_MANUAL).",
+        "values": _ENGINE_TRACE_RULE_VALUES,
+    },
+    {
+        "name": "tied_prices_ticks",
+        "type": "list",
+        "unit": None,
+        "required": False,
+        "doc": "UNCROSS_PRICE: the prices still tied when `rule` decided, lowest first (one price for VOLUME; the most-volume prices for SURPLUS; those with the least surplus too for LOWEST_PRICE). In ticks.",
+    },
+    {
+        "name": "combo_id",
+        "type": "string",
+        "unit": None,
+        "required": False,
+        "doc": "AON_PREFLIGHT: the client's combo id.",
+        "constraints": {"max_len": 64},
+    },
+    {
+        "name": "leg_index",
+        "type": "int",
+        "unit": "dimensionless",
+        "required": False,
+        "doc": "AON_PREFLIGHT: the leg, in the combo's order.",
+        "constraints": {"ge": 0},
+    },
+    {
+        "name": "quantity",
+        "type": "int",
+        "unit": "shares",
+        "required": False,
+        "doc": "AON_PREFLIGHT: the leg's quantity.",
+        "constraints": {"ge": 0},
+    },
+    {
+        "name": "fillable_qty",
+        "type": "int",
+        "unit": "shares",
+        "required": False,
+        "doc": "AON_PREFLIGHT: what the leg could fill now, the gateway's own orders left out under its SMP policy.",
+        "constraints": {"ge": 0},
+    },
+    {
+        "name": "fillable_no_smp_qty",
+        "type": "int",
+        "unit": "shares",
+        "required": False,
+        "doc": "AON_PREFLIGHT: what the leg would trade now counting the gateway's own orders (more than 0 on a blocked combo is what rejects it).",
+        "constraints": {"ge": 0},
+    },
+    {
+        "name": "outcome",
+        "type": "enum",
+        "unit": None,
+        "required": False,
+        "doc": "AON_PREFLIGHT: the combo's outcome, the same on every leg -- every leg fills in full and the legs match; a leg is short and the legs rest unmatched; or a leg is short and one would trade now, so the combo fails at its first leg (INSUFFICIENT_LIQUIDITY). Halted symbols and phases without matching rest.",
+        "values": _ENGINE_TRACE_OUTCOME_VALUES,
+    },
+    {
+        "name": "other_order_id",
+        "type": "string",
+        "unit": None,
+        "required": False,
+        "doc": "SMP_DECISION: the same gateway's order on the other side.",
+        "constraints": {"max_len": 64},
+    },
+    {
+        "name": "smp_action",
+        "type": "enum",
+        "unit": None,
+        "required": False,
+        "doc": "SMP_DECISION: the policy applied, of `order_id`'s order: which of the two was cancelled (both for CANCEL_BOTH). An unfillable FOK meets each same-gateway order in its range: one record each.",
+        "values": _ENGINE_TRACE_SMP_ACTION_VALUES,
+    },
 )
 
 
@@ -3504,21 +3634,40 @@ class EngineTrace:
     queue it got, an iceberg refilling its slice at the back of its level, a
     trailing stop ratcheting its trigger. A replay can then compare its model of
     priority and of trailing triggers with the engine's own, instead of inferring
-    them.
+    them. Three kinds say why the engine decided (S36): UNCROSS_PRICE (which rule
+    chose an uncross's price, among which tied prices), AON_PREFLIGHT (per leg of
+    an all-or-none combo, what could fill, and whether the combo matches, rests or
+    is rejected) and SMP_DECISION (the same-gateway pair self-match prevention
+    met, and the policy applied).
 
     `priority_seq` is the book's arrival sequence; it orders orders at one price,
     nothing more. A trailing stop rests in a list checked in arming order, so its RESTED
-    has no `priority_seq`.
+    has no `priority_seq`. UNCROSS_PRICE names no order; AON_PREFLIGHT names the combo
+    and the leg, not an order (the leg's order does not exist yet).
     """
 
     symbol: str
     kind: EngineTraceKind
-    order_id: str
+    order_id: str | None = None
     priority_seq: int | None = None  # unit: dimensionless
     displayed_qty: int | None = None  # unit: shares
     tick_decimals: int | None = None  # unit: dimensionless
     stop_price_ticks: int | None = None  # unit: ticks
     last_price_ticks: int | None = None  # unit: ticks
+    auction_id: str | None = None
+    eq_price_ticks: int | None = None  # unit: ticks
+    eq_qty: int | None = None  # unit: shares
+    surplus: int | None = None  # unit: shares
+    rule: EngineTraceRule | None = None
+    tied_prices_ticks: list[int] = field(default_factory=list)
+    combo_id: str | None = None
+    leg_index: int | None = None  # unit: dimensionless
+    quantity: int | None = None  # unit: shares
+    fillable_qty: int | None = None  # unit: shares
+    fillable_no_smp_qty: int | None = None  # unit: shares
+    outcome: EngineTraceOutcome | None = None
+    other_order_id: str | None = None
+    smp_action: EngineTraceSmpAction | None = None
 
     def validate(self) -> None:
         """Raise MessageValidationError if any declared rule fails.
@@ -3535,10 +3684,11 @@ class EngineTrace:
             raise MessageValidationError(
                 f"kind: {self.kind!r} is not one of {_ENGINE_TRACE_KIND_VALUES!r}"
             )
-        if len(self.order_id) > 64:
-            raise MessageValidationError(
-                f"order_id: length {len(self.order_id)} exceeds max_len 64"
-            )
+        if self.order_id is not None:
+            if len(self.order_id) > 64:
+                raise MessageValidationError(
+                    f"order_id: length {len(self.order_id)} exceeds max_len 64"
+                )
         if self.priority_seq is not None:
             if self.priority_seq < 0:
                 raise MessageValidationError(
@@ -3558,6 +3708,62 @@ class EngineTrace:
                 raise MessageValidationError(
                     f"tick_decimals: {self.tick_decimals!r} must be <= 9"
                 )
+        if self.auction_id is not None:
+            if len(self.auction_id) > 32:
+                raise MessageValidationError(
+                    f"auction_id: length {len(self.auction_id)} exceeds max_len 32"
+                )
+        if self.eq_qty is not None:
+            if self.eq_qty < 0:
+                raise MessageValidationError(f"eq_qty: {self.eq_qty!r} must be >= 0")
+        if self.surplus is not None:
+            if self.surplus < 0:
+                raise MessageValidationError(f"surplus: {self.surplus!r} must be >= 0")
+        if self.rule is not None:
+            if self.rule not in _ENGINE_TRACE_RULE_VALUES:
+                raise MessageValidationError(
+                    f"rule: {self.rule!r} is not one of {_ENGINE_TRACE_RULE_VALUES!r}"
+                )
+        if self.combo_id is not None:
+            if len(self.combo_id) > 64:
+                raise MessageValidationError(
+                    f"combo_id: length {len(self.combo_id)} exceeds max_len 64"
+                )
+        if self.leg_index is not None:
+            if self.leg_index < 0:
+                raise MessageValidationError(
+                    f"leg_index: {self.leg_index!r} must be >= 0"
+                )
+        if self.quantity is not None:
+            if self.quantity < 0:
+                raise MessageValidationError(
+                    f"quantity: {self.quantity!r} must be >= 0"
+                )
+        if self.fillable_qty is not None:
+            if self.fillable_qty < 0:
+                raise MessageValidationError(
+                    f"fillable_qty: {self.fillable_qty!r} must be >= 0"
+                )
+        if self.fillable_no_smp_qty is not None:
+            if self.fillable_no_smp_qty < 0:
+                raise MessageValidationError(
+                    f"fillable_no_smp_qty: {self.fillable_no_smp_qty!r} must be >= 0"
+                )
+        if self.outcome is not None:
+            if self.outcome not in _ENGINE_TRACE_OUTCOME_VALUES:
+                raise MessageValidationError(
+                    f"outcome: {self.outcome!r} is not one of {_ENGINE_TRACE_OUTCOME_VALUES!r}"
+                )
+        if self.other_order_id is not None:
+            if len(self.other_order_id) > 64:
+                raise MessageValidationError(
+                    f"other_order_id: length {len(self.other_order_id)} exceeds max_len 64"
+                )
+        if self.smp_action is not None:
+            if self.smp_action not in _ENGINE_TRACE_SMP_ACTION_VALUES:
+                raise MessageValidationError(
+                    f"smp_action: {self.smp_action!r} is not one of {_ENGINE_TRACE_SMP_ACTION_VALUES!r}"
+                )
 
     @classmethod
     def from_dict(cls, p: Mapping[str, Any]) -> "EngineTrace":
@@ -3570,7 +3776,7 @@ class EngineTrace:
         return cls(
             symbol=str(p["symbol"]),
             kind=cast(EngineTraceKind, str(p["kind"])),
-            order_id=str(p["order_id"]),
+            order_id=None if p.get("order_id") is None else str(p["order_id"]),
             priority_seq=(
                 None if p.get("priority_seq") is None else int(p["priority_seq"])
             ),
@@ -3590,6 +3796,40 @@ class EngineTrace:
                 if p.get("last_price_ticks") is None
                 else int(p["last_price_ticks"])
             ),
+            auction_id=None if p.get("auction_id") is None else str(p["auction_id"]),
+            eq_price_ticks=(
+                None if p.get("eq_price_ticks") is None else int(p["eq_price_ticks"])
+            ),
+            eq_qty=None if p.get("eq_qty") is None else int(p["eq_qty"]),
+            surplus=None if p.get("surplus") is None else int(p["surplus"]),
+            rule=(
+                None if p.get("rule") is None else cast(EngineTraceRule, str(p["rule"]))
+            ),
+            tied_prices_ticks=[int(item) for item in p.get("tied_prices_ticks", [])],
+            combo_id=None if p.get("combo_id") is None else str(p["combo_id"]),
+            leg_index=None if p.get("leg_index") is None else int(p["leg_index"]),
+            quantity=None if p.get("quantity") is None else int(p["quantity"]),
+            fillable_qty=(
+                None if p.get("fillable_qty") is None else int(p["fillable_qty"])
+            ),
+            fillable_no_smp_qty=(
+                None
+                if p.get("fillable_no_smp_qty") is None
+                else int(p["fillable_no_smp_qty"])
+            ),
+            outcome=(
+                None
+                if p.get("outcome") is None
+                else cast(EngineTraceOutcome, str(p["outcome"]))
+            ),
+            other_order_id=(
+                None if p.get("other_order_id") is None else str(p["other_order_id"])
+            ),
+            smp_action=(
+                None
+                if p.get("smp_action") is None
+                else cast(EngineTraceSmpAction, str(p["smp_action"]))
+            ),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -3597,8 +3837,9 @@ class EngineTrace:
         payload: dict[str, Any] = {
             "symbol": self.symbol,
             "kind": self.kind,
-            "order_id": self.order_id,
         }
+        if self.order_id is not None:
+            payload["order_id"] = self.order_id
         if self.priority_seq is not None:
             payload["priority_seq"] = self.priority_seq
         if self.displayed_qty is not None:
@@ -3609,6 +3850,34 @@ class EngineTrace:
             payload["stop_price_ticks"] = self.stop_price_ticks
         if self.last_price_ticks is not None:
             payload["last_price_ticks"] = self.last_price_ticks
+        if self.auction_id is not None:
+            payload["auction_id"] = self.auction_id
+        if self.eq_price_ticks is not None:
+            payload["eq_price_ticks"] = self.eq_price_ticks
+        if self.eq_qty is not None:
+            payload["eq_qty"] = self.eq_qty
+        if self.surplus is not None:
+            payload["surplus"] = self.surplus
+        if self.rule is not None:
+            payload["rule"] = self.rule
+        if self.tied_prices_ticks:
+            payload["tied_prices_ticks"] = self.tied_prices_ticks
+        if self.combo_id is not None:
+            payload["combo_id"] = self.combo_id
+        if self.leg_index is not None:
+            payload["leg_index"] = self.leg_index
+        if self.quantity is not None:
+            payload["quantity"] = self.quantity
+        if self.fillable_qty is not None:
+            payload["fillable_qty"] = self.fillable_qty
+        if self.fillable_no_smp_qty is not None:
+            payload["fillable_no_smp_qty"] = self.fillable_no_smp_qty
+        if self.outcome is not None:
+            payload["outcome"] = self.outcome
+        if self.other_order_id is not None:
+            payload["other_order_id"] = self.other_order_id
+        if self.smp_action is not None:
+            payload["smp_action"] = self.smp_action
         return payload
 
 
@@ -3642,12 +3911,26 @@ def make_engine_trace_unchecked(
     *,
     symbol: str,
     kind: EngineTraceKind,
-    order_id: str,
+    order_id: str | None = None,
     priority_seq: int | None = None,
     displayed_qty: int | None = None,
     tick_decimals: int | None = None,
     stop_price_ticks: int | None = None,
     last_price_ticks: int | None = None,
+    auction_id: str | None = None,
+    eq_price_ticks: int | None = None,
+    eq_qty: int | None = None,
+    surplus: int | None = None,
+    rule: EngineTraceRule | None = None,
+    tied_prices_ticks: list[int] = [],
+    combo_id: str | None = None,
+    leg_index: int | None = None,
+    quantity: int | None = None,
+    fillable_qty: int | None = None,
+    fillable_no_smp_qty: int | None = None,
+    outcome: EngineTraceOutcome | None = None,
+    other_order_id: str | None = None,
+    smp_action: EngineTraceSmpAction | None = None,
 ) -> list[bytes]:
     """Identical frames to ``make_engine_trace``, without ``validate()``.
 
@@ -3662,8 +3945,9 @@ def make_engine_trace_unchecked(
     payload: dict[str, Any] = {
         "symbol": str(symbol),
         "kind": str(kind),
-        "order_id": str(order_id),
     }
+    if order_id is not None:
+        payload["order_id"] = str(order_id)
     if priority_seq is not None:
         payload["priority_seq"] = int(priority_seq)
     if displayed_qty is not None:
@@ -3674,6 +3958,34 @@ def make_engine_trace_unchecked(
         payload["stop_price_ticks"] = int(stop_price_ticks)
     if last_price_ticks is not None:
         payload["last_price_ticks"] = int(last_price_ticks)
+    if auction_id is not None:
+        payload["auction_id"] = str(auction_id)
+    if eq_price_ticks is not None:
+        payload["eq_price_ticks"] = int(eq_price_ticks)
+    if eq_qty is not None:
+        payload["eq_qty"] = int(eq_qty)
+    if surplus is not None:
+        payload["surplus"] = int(surplus)
+    if rule is not None:
+        payload["rule"] = str(rule)
+    if tied_prices_ticks:
+        payload["tied_prices_ticks"] = [int(item) for item in tied_prices_ticks]
+    if combo_id is not None:
+        payload["combo_id"] = str(combo_id)
+    if leg_index is not None:
+        payload["leg_index"] = int(leg_index)
+    if quantity is not None:
+        payload["quantity"] = int(quantity)
+    if fillable_qty is not None:
+        payload["fillable_qty"] = int(fillable_qty)
+    if fillable_no_smp_qty is not None:
+        payload["fillable_no_smp_qty"] = int(fillable_no_smp_qty)
+    if outcome is not None:
+        payload["outcome"] = str(outcome)
+    if other_order_id is not None:
+        payload["other_order_id"] = str(other_order_id)
+    if smp_action is not None:
+        payload["smp_action"] = str(smp_action)
     return [
         topic_engine_trace(symbol).encode(),
         _msg.dumps(payload),

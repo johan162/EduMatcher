@@ -2,6 +2,7 @@
 
 from sim_forensics.checks import (  # noqa: F401
     bookkeeping,
+    breakers,
     completeness,
     coverage,
     cumulative,

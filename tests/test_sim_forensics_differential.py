@@ -19,6 +19,7 @@ from unittest import mock
 import pytest
 
 from edumatcher.config_deploy import deploy, resolve_example
+from edumatcher.engine.circuit_breaker import CircuitBreakerState
 from edumatcher.engine.config_loader import EngineConfig
 from edumatcher.models.order import OrderType, Side
 from tests.engine_harness import order_payload
@@ -85,10 +86,10 @@ def _symbol_day(sym: str, cfg: Any) -> list[tuple[str, dict[str, Any]]]:
     return cmds
 
 
-def write_day(data: Path) -> Path:
+def write_day(data: Path, example: str = "s3-basic") -> Path:
     data.mkdir()
     artifact = data.parent / "deployed" / "engine_config.json"
-    compiled = deploy(resolve_example("s3-basic"), artifact)
+    compiled = deploy(resolve_example(example), artifact)
     startup = {"run_seq": 1, "config": artifact.read_text(encoding="utf-8")}
     lines = [f"[2026-10-28T07:00:00.000+00:00] [system.startup] [seq=1 msg=M0 chain=M0] {json.dumps(startup)}\n"]  # fmt: skip
     for i, (topic, p) in enumerate(_day(compiled.engine), 1):
@@ -192,6 +193,49 @@ def test_e5_to_e7_are_slow(tmp_path: Path, open_ds: OpenDataset) -> None:
     results = run_checks(open_ds(data), [REGISTRY[i] for i in E], 10)
     assert {r.status for r in results} == {"SKIPPED"}
     assert results[0].note.startswith("slow:")
+
+
+def test_e6_finds_a_breaker_window_the_checkpoint_drops(
+    tmp_path: Path, open_ds: OpenDataset
+) -> None:
+    """A restarted breaker seeded afresh averages other trades than the
+    uninterrupted one's window (2026-11-07 run: EA, NET); s3-complex has
+    breakers."""
+    data = write_day(tmp_path / "data", "s3-complex")
+    assert run_e(open_ds, data, every=10)["E6"].samples == []
+    with mock.patch.object(CircuitBreakerState, "restore_window", lambda self, trades, ref: None):  # fmt: skip
+        out = run_e(open_ds, data, every=10)["E6"]
+    assert "restored breaker window differ" in errors(out)
+
+
+def test_e6_leaves_out_a_combo_on_a_reseeded_book(
+    tmp_path: Path, open_ds: OpenDataset
+) -> None:
+    """An all-or-none combo decides on all its legs at once: one leg on a
+    book re-seeded at the restart makes every leg's book differ (the
+    2026-11-07 run's E6 findings)."""
+    data = write_day(tmp_path / "data")
+    combo = {"combo_id": "CB1", "gateway_id": "TRADER01", "combo_type": "AON", "tif": "DAY",  # fmt: skip
+             "legs": [{"symbol": s, "side": "BUY", "order_type": "LIMIT", "quantity": 10, "tick_decimals": 2, "price_ticks": 100}  # fmt: skip
+                      for s in ("AAPL", "MSFT", "TSLA")]}  # fmt: skip
+    log = data / "audit.log"
+    log.write_text(log.read_text() + f"[2026-10-28T07:01:00.000+00:00] [order.combo] [seq=99 msg=M99 chain=M99] {json.dumps(combo)}\n")  # fmt: skip
+    out = run_e(open_ds, data, every=40)["E6"]
+    assert out.samples == []
+    assert "combos with a leg on a differing book not compared: 1" in out.note
+
+
+def test_e7_rename_maps_each_quoted_prefix_back_to_its_own_id() -> None:
+    """Two ids whose first renames share 8 characters, and an engine-made id
+    sharing a renamed id's 8 characters, each map back to themselves."""
+    r = differential._Rename(mock.Mock(participants={}))
+    a, b = "b63a9cb5d9cd025826d518de83521e51", "5376df1d80677712ca839e0a8d6f360f"
+    ra, rb = r._id(a), r._id(b)
+    assert ra[:8] != rb[:8] and r._id(b) == rb
+    assert r.output("t", {"reason": f"{ra[:8]} {rb[:8]}"})[1] == {"reason": f"{a[:8]} {b[:8]}"}  # fmt: skip
+    made = ra[:8] + "0" * 24  # an OCO leg the renamed engine numbered
+    r.output("oco.ack.X", {"order_id_1": made})
+    assert r.output("t", {"reason": f"OCO sibling {made[:8]}"})[1] == {"reason": f"OCO sibling {made[:8]}"}  # fmt: skip
 
 
 def test_snapped_equates_floats_a_decimal_apart_only() -> None:

@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -437,6 +438,49 @@ class TestMarketMakerComboSeeds:
         assert len(msft_orders) == 1
         assert aapl_orders[0].combo_parent_id == combo.id
         assert msft_orders[0].combo_parent_id == combo.id
+
+    def test_a_restored_live_seed_combo_is_not_seeded_again(
+        self, monkeypatch, tmp_path
+    ) -> None:
+        """A restart restores the live seeded combo with its legs; seeding it
+        again doubled the market maker's interest (s3-complex, E6)."""
+        cfg = EngineConfig(
+            symbols={"AAPL": SymbolConfig(name="AAPL"), "MSFT": SymbolConfig(name="MSFT")},  # fmt: skip
+            participants={"TRADER01": ParticipantConfig(id="TRADER01")},
+            market_maker_combos=[
+                ComboSeedConfig(
+                    combo_id="MM-PAIR",
+                    tif=TIF.DAY,
+                    legs=[
+                        ComboLeg(symbol="AAPL", side=Side.BUY, order_type=OrderType.LIMIT, quantity=10, tick_decimals=2, price_ticks=150),  # fmt: skip
+                        ComboLeg(symbol="MSFT", side=Side.SELL, order_type=OrderType.LIMIT, quantity=5, tick_decimals=2, price_ticks=300),  # fmt: skip
+                    ],
+                )
+            ],
+        )
+        cfg_path = tmp_path / "engine_config.yaml"
+        cfg_path.write_text("dummy: true\n")
+
+        def start(combos: list[Any], orders: list[Any]) -> Engine:
+            monkeypatch.setattr("edumatcher.engine.main.make_puller", lambda _: _DummySocket(sent=[]))  # fmt: skip
+            monkeypatch.setattr("edumatcher.engine.main.make_publisher", lambda _: _DummySocket(sent=[]))  # fmt: skip
+            monkeypatch.setattr("edumatcher.engine.main.load_engine_config", lambda _: cfg)  # fmt: skip
+            monkeypatch.setattr("edumatcher.engine.main.load_gtc_orders", lambda _: orders)  # fmt: skip
+            monkeypatch.setattr("edumatcher.engine.main.load_gtc_combos", lambda _: combos)  # fmt: skip
+            monkeypatch.setattr("edumatcher.engine.main.load_book_stats", lambda _: {})
+            monkeypatch.setattr("edumatcher.engine.main.time.sleep", lambda *_: None)
+            engine = Engine(config_path=str(cfg_path))
+            engine._restore_gtc()
+            engine._load_config()
+            return engine
+
+        first = start([], [])
+        combos = [ComboOrder.from_dict(c.to_dict()) for c in first._combos.values()]
+        orders = [Order.from_dict(o.to_dict()) for o in first._resting_gtc_orders()]
+        second = start(combos, orders)
+
+        assert [c.combo_id for c in second._combos.values()] == ["MM-PAIR"]
+        assert len(second.books["AAPL"].resting_orders()) == 1
 
 
 # ---------------------------------------------------------------

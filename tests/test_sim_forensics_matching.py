@@ -237,7 +237,11 @@ def violations(open_ds: OpenDataset, data: Path) -> dict[str, int]:
 def test_every_matching_check_passes_on_a_consistent_day(
     tmp_path: Path, open_ds: OpenDataset
 ) -> None:
-    assert sorted(i for i in REGISTRY if i[0] == "D" or i == "C7") == CHECKS
+    # D12 (the circuit breaker) has its own: tests/test_sim_forensics_breakers.py.
+    assert (
+        sorted(i for i in REGISTRY if (i[0] == "D" and i != "D12") or i == "C7")
+        == CHECKS
+    )
     data = continuous_day().write(tmp_path / "data")
     results = run_checks(open_ds(data), [REGISTRY[i] for i in CHECKS], 10)
     assert {r.check.id: (r.status, r.samples) for r in results} == {
@@ -341,9 +345,15 @@ def test_d5_a_cancel_in_the_same_dispatch_excuses_the_order_ahead(
     assert violations(open_ds, data) == {}
 
 
-def opening_auction() -> Tape:
+#: The engine's UNCROSS_PRICE for opening_auction() (S36): only 100.00
+#: executes 60.
+DECISION = {"symbol": SYM, "kind": "UNCROSS_PRICE", "eq_price_ticks": 10000, "eq_qty": 60, "surplus": 20, "rule": "VOLUME", "tied_prices_ticks": [10000], "tick_decimals": 2}  # fmt: skip
+
+
+def opening_auction(decision: dict[str, Any] | None = None) -> Tape:
     """Crossed interest collected in the auction; it uncrosses at 100.00,
-    the price that executes most (60) with the least surplus."""
+    the price that executes most (60) with the least surplus. With
+    *decision*, the uncross says why in an engine.trace."""
     t = Tape()
     t.phase("OPENING_AUCTION")
     t.order("B1", "BUY", 50, 10100, gw="GW2")
@@ -351,6 +361,8 @@ def opening_auction() -> Tape:
     t.order("S1", "SELL", 40, 9900)
     t.order("S2", "SELL", 20, 10000)
     t.put("session.transition", {"to_state": "CONTINUOUS"}, new_chain=True)
+    if decision is not None:
+        t.put(f"engine.trace.{SYM}", decision)
     t.trade("B1", "S1", 40, 10000, agg_side="AUCTION")
     t.trade("B1", "S2", 10, 10000, agg_side="AUCTION")
     t.trade("B2", "S2", 10, 10000, agg_side="AUCTION")
@@ -360,8 +372,38 @@ def opening_auction() -> Tape:
     return t
 
 
-def test_an_opening_uncross_passes(tmp_path: Path, open_ds: OpenDataset) -> None:
-    data = opening_auction().write(tmp_path / "data")
+@pytest.mark.parametrize("decision", [None, DECISION])
+def test_an_opening_uncross_passes(
+    tmp_path: Path, open_ds: OpenDataset, decision: dict[str, Any] | None
+) -> None:
+    data = opening_auction(decision).write(tmp_path / "data")
+    assert violations(open_ds, data) == {}
+
+
+@pytest.mark.parametrize(
+    "change, differs",
+    [
+        ({"rule": "SURPLUS", "tied_prices_ticks": [10000, 10100]}, {"rule": ("SURPLUS", "VOLUME"), "tied_prices_ticks": ([10000, 10100], [10000])}),  # fmt: skip
+        ({"surplus": 0}, {"surplus": (0, 20)}),
+    ],
+)
+def test_d6_names_the_step_where_the_uncross_decision_differs(
+    tmp_path: Path,
+    open_ds: OpenDataset,
+    change: dict[str, Any],
+    differs: dict[str, tuple[Any, Any]],
+) -> None:
+    data = opening_auction({**DECISION, **change}).write(tmp_path / "data")
+    (sample,) = run(open_ds, data, "D6").samples
+    assert sample["error"] == "uncross decision differs from the replay's"
+    assert sample["engine_replay"] == differs
+
+
+def test_d6_takes_an_imposed_price_as_given(
+    tmp_path: Path, open_ds: OpenDataset
+) -> None:
+    decision = {**DECISION, "rule": "OVERRIDE", "tied_prices_ticks": []}
+    data = opening_auction(decision).write(tmp_path / "data")
     assert violations(open_ds, data) == {}
 
 

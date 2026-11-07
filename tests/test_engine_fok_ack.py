@@ -33,12 +33,12 @@ def new_order(engine: Any, **kw: Any) -> str:
 
 def about(pub: Any, order_id: str) -> list[tuple[str, Any]]:
     """(topic, accepted / cancel_reason / reject_code) of every message
-    naming *order_id* as its own order."""
+    naming *order_id* as its own order (the audit-only engine.trace aside)."""
     out: list[tuple[str, Any]] = []
     for topic, p in all_msgs(pub):
-        if p.get("order_id") != order_id:
-            continue
         family = topic.rsplit(".", 1)[0]
+        if p.get("order_id") != order_id or family == "engine.trace":
+            continue
         if family == "order.ack":
             out.append((family, (p["accepted"], p.get("reject_code"))))
         elif family == "order.cancelled":

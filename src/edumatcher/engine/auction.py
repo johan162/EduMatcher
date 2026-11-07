@@ -62,6 +62,7 @@ from typing import TYPE_CHECKING
 
 from edumatcher.engine.order_book import _DEAD_STATUSES, _self_match_action
 from edumatcher.models.clock import now_ns
+from edumatcher.models.generated.order import EngineTraceRule
 
 from edumatcher.models.order import Order, OrderType, Side, SmpAction
 from edumatcher.models.trade import Trade
@@ -85,6 +86,11 @@ class AuctionResult:
     # still run at this price to cancel that interest, but it is NOT an
     # equilibrium and is never published.  Set by ``compute_equilibrium``.
     resolve_price: int | None = None
+    # What decided the price (VOLUME, SURPLUS, LOWEST_PRICE) and the prices
+    # still tied when it did, lowest first -- engine.trace UNCROSS_PRICE.
+    # Set by ``compute_equilibrium``.
+    rule: EngineTraceRule | None = None
+    tied_prices: tuple[int, ...] = ()
 
 
 def _auction_levels(book: "OrderBook") -> tuple[dict[int, int], dict[int, int]]:
@@ -387,6 +393,9 @@ def compute_equilibrium(book: "OrderBook") -> AuctionResult:  # noqa: F821
     best: tuple[int, int, int] | None = None  # (-qty, surplus, index): least wins
     best_price = 0
     imbalance_side = ""
+    # Every price walked, (-qty, surplus, price): all that tie on the most
+    # quantity are walked, since none of their bounds falls below it.
+    walked: list[tuple[int, int, int]] = []
     for index, price, buy_qty, sell_qty in sorted(
         candidates, key=lambda c: -min(c[2], c[3])
     ):
@@ -398,10 +407,19 @@ def compute_equilibrium(book: "OrderBook") -> AuctionResult:  # noqa: F821
             exec_qty, surplus = min(buy_qty, sell_qty), abs(buy_qty - sell_qty)
             side = "BUY" if buy_qty > sell_qty else "SELL" if sell_qty > buy_qty else ""
         key = (-exec_qty, surplus, index)
+        walked.append((-exec_qty, surplus, price))
         if best is None or key < best:
             best, best_price, imbalance_side = key, price, side
     assert best is not None  # candidates is not empty
     best_qty, best_surplus = -best[0], best[1]
+    most = sorted(p for q, _, p in walked if q == best[0])
+    least = sorted(p for q, s, p in walked if q == best[0] and s == best_surplus)
+    rule: EngineTraceRule
+    rule, tied = (
+        ("VOLUME", most)
+        if len(most) == 1
+        else ("SURPLUS", most) if len(least) == 1 else ("LOWEST_PRICE", least)
+    )
 
     log.debug(
         "uncross calc symbol=%s eq_price=%s eq_qty=%s surplus=%s imbalance_side=%s candidates=%d",
@@ -418,6 +436,8 @@ def compute_equilibrium(book: "OrderBook") -> AuctionResult:  # noqa: F821
         surplus=best_surplus,
         imbalance_side=imbalance_side,
         resolve_price=best_price,
+        rule=rule,
+        tied_prices=tuple(tied),
     )
 
 
@@ -488,6 +508,7 @@ def _resolve_self_match(
         return False
     aggressor = best_ask if from_ask else best_bid
     passive = best_bid if from_ask else best_ask
+    book._note("SMP_DECISION", aggressor.id, passive.id, action.value)
     if action in (SmpAction.CANCEL_AGGRESSOR, SmpAction.CANCEL_BOTH):
         book._smp_cancel_resting(aggressor, events)
         if aggressor.oco_group_id and book.on_oco_leg_done is not None:

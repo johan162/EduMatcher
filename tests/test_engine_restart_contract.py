@@ -15,9 +15,13 @@ from typing import Any
 import pytest
 
 import edumatcher.engine.main as engine_main
+from edumatcher.engine.circuit_breaker import CircuitBreakerConfig, CircuitBreakerLevel
+from edumatcher.engine.config_loader import SymbolConfig
 from edumatcher.engine.main import Engine
 from edumatcher.engine.order_book import _DEAD_STATUSES, OrderBook
+from edumatcher.engine import persistence
 from edumatcher.engine.persistence import load_book_stats, save_book_stats
+from edumatcher.models.clock import now_ns
 from edumatcher.models.order import Order, OrderType, Side
 from tests.engine_harness import (
     SYMBOL,
@@ -33,7 +37,7 @@ def restart(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, a: Engine, **kw: Any
 ) -> tuple[Engine, FakeSock]:
     orders = [Order.from_dict(o.to_dict()) for o in a._resting_gtc_orders()]
-    save_book_stats(a.books, tmp_path / "book_stats.json")
+    save_book_stats(a.books, a._circuit_breakers, tmp_path / "book_stats.json")
     stats = load_book_stats(tmp_path / "book_stats.json")
     monkeypatch.setattr(engine_main, "GTC_COMBOS_FILE", tmp_path / "no_combos.json")
     b, pub = make_engine(monkeypatch, tmp_path, gtc_orders=orders, book_stats=stats, **kw)  # fmt: skip
@@ -136,3 +140,53 @@ def test_x26_a_restart_keeps_time_priority_after_an_iceberg_refill(
 
     b, _ = restart(monkeypatch, tmp_path, a)
     assert priority(b.books[SYMBOL], "SELL") == [plain, ice]
+
+
+# --- the circuit breaker's reference window ----------------------------------
+
+MIN = 60_000_000_000
+
+
+def with_breaker() -> dict[str, SymbolConfig]:
+    cb = CircuitBreakerConfig(symbol=SYMBOL, levels=[CircuitBreakerLevel("L1", 0.05, 5 * MIN)])  # fmt: skip
+    return {SYMBOL: SymbolConfig(name=SYMBOL, last_buy_price=100.0, circuit_breaker=cb)}
+
+
+def traded(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Engine:
+    a, _ = make_engine(monkeypatch, tmp_path, symbol_configs=with_breaker())
+    a._load_config()
+    connect(a)
+    for price in (100.00, 101.00, 102.00):
+        new(a, Side.SELL, OrderType.LIMIT, 5, "GW01", price=price)
+        new(a, Side.BUY, OrderType.LIMIT, 5, "GW02", price=price)
+    return a
+
+
+def test_a_restart_keeps_the_breakers_reference_window(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The reference is the average of the window's trades: seeded afresh
+    from the last price, a restarted engine halted where the uninterrupted
+    one did not (EA, 2026-11-07 run, E6: 25325 against 25407)."""
+    a = traded(monkeypatch, tmp_path)
+    window = list(a._circuit_breakers[SYMBOL].trade_history)
+    assert len(window) == 4  # the seed and three trades
+
+    b, _ = restart(monkeypatch, tmp_path, a, symbol_configs=with_breaker())
+    cb = b._circuit_breakers[SYMBOL]
+    assert list(cb.trade_history) == window
+    assert cb.reference_price == a._circuit_breakers[SYMBOL].reference_price
+
+
+def test_a_restart_on_a_later_day_seeds_the_breaker_from_the_last_price(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Yesterday's window says nothing about today's market: as before, the
+    breaker starts from the last price."""
+    a = traded(monkeypatch, tmp_path)
+    day = 86_400 * 10**9
+    monkeypatch.setattr(persistence, "now_ns", lambda: now_ns() - day)
+    b, _ = restart(monkeypatch, tmp_path, a, symbol_configs=with_breaker())
+    cb = b._circuit_breakers[SYMBOL]
+    assert [p for _, p in cb.trade_history] == [b.books[SYMBOL].last_buy_price]
+    assert cb.reference_price == 10_200

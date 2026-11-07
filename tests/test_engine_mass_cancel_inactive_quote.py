@@ -75,6 +75,20 @@ def test_the_gateway_kill_switch_clears_the_leg_of_an_inactivated_quote(
     assert list(engine.books[SYMBOL].resting_orders()) == []
 
 
+def test_the_global_kill_switch_clears_the_leg_of_an_inactivated_quote(
+    monkeypatch, tmp_path
+):
+    """The market-wide stop walked the QuoteIndex and skipped quote-origin
+    orders in the books, as the two above once did (S31, C13)."""
+    engine, pub = _engine_with_a_half_filled_quote(monkeypatch, tmp_path)
+    engine._handle_kill_switch_global({"gateway_id": ADMIN})
+    (ack,) = msgs(pub, f"risk.kill_switch_global_ack.{ADMIN}")
+    assert ack["accepted"] is True
+    assert (ack["cancelled_orders"], ack["cancelled_quotes"]) == (0, 1)
+    assert ack["affected_gateway_ids"] == [MM]
+    assert list(engine.books[SYMBOL].resting_orders()) == []
+
+
 @pytest.mark.parametrize(
     ("behaviour", "ordinary_order_remains", "quote_remainder_remains"),
     [
@@ -146,3 +160,24 @@ def test_participant_kill_clears_and_acknowledges_inactivated_quote_remainder(
     assert ack["cancelled_order_ids"] == [ordinary["id"]]
     assert ack["cancelled_quote_order_ids"] == [quote_remainder.id]
     assert list(engine.books[SYMBOL].resting_orders()) == []
+
+
+@pytest.mark.parametrize("tif, ends", [("DAY", True), ("GTC", False)])
+def test_a_day_quote_ends_with_its_legs_at_the_close(
+    monkeypatch, tmp_path, tif: str, ends: bool
+) -> None:
+    """The close expired a DAY quote's legs but left the quote in the
+    QuoteIndex, ACTIVE to every subscriber (X41, C14). It now ends as a
+    halt or a kill switch ends one: quote.status CANCELLED."""
+    engine, pub = make_engine(
+        monkeypatch, tmp_path, gateways=(MM,), mm_gateways=(MM,), sessions_enabled=True
+    )
+    connect(engine, MM)
+    engine._handle_session_transition({"to_state": "PRE_OPEN"})
+    submit_quote(engine, MM, 100.0, 101.0, tif=tif)
+    for state in ("OPENING_AUCTION", "CONTINUOUS", "CLOSING_AUCTION", "CLOSED"):
+        engine._handle_session_transition({"to_state": state})
+    statuses = [p["status"] for p in msgs(pub, f"quote.status.{MM}")]
+    assert (statuses[-1] == "CANCELLED") is ends
+    assert (engine._quote_index.get(MM, SYMBOL) is None) is ends
+    assert len(msgs(pub, f"order.expired.{MM}")) == (2 if ends else 0)

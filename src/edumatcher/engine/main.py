@@ -152,6 +152,7 @@ from edumatcher.models.generated.order import (
     TOPIC_ORDER_OCO_CANCEL,
     TOPIC_ORDERS_REQUEST,
     TOPIC_PRICE_LEVEL_ORDERS_REQUEST,
+    EngineTraceOutcome,
     OrderFillLiquidityFlag,
     make_order_cancelled_unchecked,
     make_order_fill_unchecked,
@@ -1339,7 +1340,18 @@ class Engine:
                 )
 
         n_mm_combos = 0
+        # A live seed combo restored by _restore_gtc() (with its legs) is not
+        # seeded again: that would double the market maker's interest.
+        restored_seeds = {
+            c.combo_id
+            for c in self._combos.values()
+            if c.gateway_id == "MM"
+            and c.status in (ComboStatus.PENDING, ComboStatus.PARTIALLY_MATCHED)
+        }
         for combo_cfg in self._engine_config.market_maker_combos:
+            if combo_cfg.combo_id in restored_seeds:
+                log.info(f"Skipping seed combo {combo_cfg.combo_id} (restored live)")
+                continue
             combo = ComboOrder.create(
                 combo_id=combo_cfg.combo_id,
                 gateway_id="MM",
@@ -1397,7 +1409,17 @@ class Engine:
                     if book.last_buy_price is not None
                     else book.last_sell_price
                 )
-                if cb_ref_ticks is not None:
+                # A checkpoint of the same business day gives back the window
+                # the reference averages; seeded afresh, a restarted engine
+                # would halt where the uninterrupted one does not (E6).
+                window = self._book_stats.get(sym, {}).get("cb_window")
+                tz = self._session_tz()
+                if window and datetime.fromtimestamp(window["saved_ns"] / 1e9, tz).date() == datetime.now(tz).date():  # fmt: skip
+                    cb_state.restore_window(
+                        [(int(ts), int(price)) for ts, price in window["trades"]],
+                        window["reference_price"],
+                    )
+                elif cb_ref_ticks is not None:
                     cb_state.seed_reference(cb_ref_ticks, now_ns())
                 self._circuit_breakers[sym] = cb_state
 
@@ -1428,7 +1450,9 @@ class Engine:
         try:
             save_gtc_orders(self._resting_gtc_orders(), target / GTC_ORDERS_FILE.name)
             save_gtc_combos(list(self._combos.values()), target / GTC_COMBOS_FILE.name)
-            save_book_stats(self.books, target / BOOK_STATS_FILE.name)
+            save_book_stats(
+                self.books, self._circuit_breakers, target / BOOK_STATS_FILE.name
+            )
         except Exception as exc:
             self._dbg_count("eod_archive_errors")
             log.error("End-of-day archive to %s failed: %s", target, exc)
@@ -1473,6 +1497,8 @@ class Engine:
                 send(make_engine_trace_unchecked(symbol=rec[1], kind=kind, order_id=rec[2], priority_seq=rec[3]))  # fmt: skip
             elif kind == "ICEBERG_REFILL":
                 send(make_engine_trace_unchecked(symbol=rec[1], kind=kind, order_id=rec[2], priority_seq=rec[3], displayed_qty=rec[4]))  # fmt: skip
+            elif kind == "SMP_DECISION":
+                send(make_engine_trace_unchecked(symbol=rec[1], kind=kind, order_id=rec[2], other_order_id=rec[3], smp_action=rec[4]))  # fmt: skip
             else:  # TRAILING_RATCHET
                 send(make_engine_trace_unchecked(symbol=rec[1], kind=kind, order_id=rec[2], stop_price_ticks=rec[3], last_price_ticks=rec[4], tick_decimals=get_tick_decimals(rec[1])))  # fmt: skip
         self._trace.clear()
@@ -4689,16 +4715,21 @@ class Engine:
 
         for book in self.books.values():
             for order in list(book.resting_orders()):
-                if order.origin != OrderOrigin.QUOTE:
-                    owner = order.gateway_id
-                    cancelled = self._cancel_order_by_id(
-                        order.id,
-                        cancel_reason="KILL_SWITCH",
-                        command_id=command_id,
-                    )
-                    if cancelled is not None:
+                # A quote-origin order still resting has left the QuoteIndex
+                # (a hit leg's remainder, INACTIVATE_ON_ANY_FILL): the sweep
+                # above cannot see it, so it goes here, as a quote.
+                owner = order.gateway_id
+                cancelled = self._cancel_order_by_id(
+                    order.id,
+                    cancel_reason="KILL_SWITCH",
+                    command_id=command_id,
+                )
+                if cancelled is not None:
+                    if order.origin == OrderOrigin.QUOTE:
+                        cancelled_quote_order_ids.append(cancelled.id)
+                    else:
                         cancelled_order_ids.append(cancelled.id)
-                        affected_gateways.add(owner)
+                    affected_gateways.add(owner)
 
         cancelled_orders = len(cancelled_order_ids)
         cancelled_quotes = len(cancelled_quote_order_ids)
@@ -5477,23 +5508,42 @@ class Engine:
                 )
                 for leg in combo.legs
             ]
+            unprevented = [
+                self._book(leg.symbol).fillable_quantity(
+                    leg.side,
+                    leg.price_ticks,
+                    gateway_id=combo.gateway_id,
+                    smp_action=SmpAction.NONE,
+                )
+                for leg in combo.legs
+            ]
             aon_blocked = any(f < leg.quantity for f, leg in zip(fillable, combo.legs))
             aon_rejected = (
                 aon_blocked
                 and not is_seed
                 and is_matching_enabled(self._session_state)
                 and any(
-                    not self._halted_symbols.get(leg.symbol)
-                    and self._book(leg.symbol).fillable_quantity(
-                        leg.side,
-                        leg.price_ticks,
-                        gateway_id=combo.gateway_id,
-                        smp_action=SmpAction.NONE,
-                    )
-                    > 0
-                    for leg in combo.legs
+                    not self._halted_symbols.get(leg.symbol) and n > 0
+                    for n, leg in zip(unprevented, combo.legs)
                 )
             )
+            # Why (audit only): each leg's fillable quantity and the outcome.
+            outcome: EngineTraceOutcome = (
+                "REJECT" if aon_rejected else "REST" if aon_blocked else "MATCH"
+            )
+            for i, (leg, f, n) in enumerate(zip(combo.legs, fillable, unprevented)):
+                self.pub_sock.send_multipart(
+                    make_engine_trace_unchecked(
+                        symbol=leg.symbol,
+                        kind="AON_PREFLIGHT",
+                        combo_id=combo.combo_id,
+                        leg_index=i,
+                        quantity=leg.quantity,
+                        fillable_qty=f,
+                        fillable_no_smp_qty=n,
+                        outcome=outcome,
+                    )
+                )
 
         # Create child orders and post to books, one leg at a time, in order.
         # Each leg is processed (and published) completely before the next
@@ -5735,6 +5785,10 @@ class Engine:
         """
         if combo.is_fully_filled:
             combo.status = ComboStatus.MATCHED
+            # Its legs are done: unlinked as _cascade_cancel_combo unlinks a
+            # failed combo's, and as a restart (live combos only) leaves them.
+            for child_id in combo.child_order_ids:
+                self._order_to_combo.pop(child_id, None)
             self.pub_sock.send_multipart(
                 make_combo_status_msg(
                     combo.gateway_id, combo.combo_id, ComboStatus.MATCHED.value
@@ -6016,7 +6070,23 @@ class Engine:
                         self._order_symbol.pop(cancelled.id, None)
                         if cancelled.combo_parent_id:
                             self._check_combo_after_child_event(cancelled)
+                        if cancelled.quote_id:
+                            self._end_expired_quote(cancelled)
                         self._mark_dirty(book.symbol)
+
+    def _end_expired_quote(self, leg: Order) -> None:
+        """A quote whose leg expired is over (X41): it leaves the QuoteIndex
+        and its owner hears CANCELLED, as for a halt or a kill switch. The
+        other leg expires in the same sweep."""
+        entry = self._quote_index.get(leg.gateway_id, leg.symbol)
+        if entry is None or entry.quote_id != leg.quote_id:
+            return
+        self._quote_index.remove(leg.gateway_id, leg.symbol, reason="Expired")
+        self.pub_sock.send_multipart(
+            make_quote_status_msg(
+                leg.gateway_id, entry.quote_id, "CANCELLED", "Expired"
+            )
+        )
 
     def _uncross_match_type(self, reason: str) -> str:
         """``trade.executed.match_type`` of an uncross's prints. A scheduled
@@ -6092,6 +6162,7 @@ class Engine:
                     eq_qty=result.eq_qty,
                     surplus=result.surplus,
                     imbalance_side=result.imbalance_side,
+                    rule="OVERRIDE",
                 )
             trades: list[Any] = []
             # SMP or an OCO pair can consume the whole overlap, so the book
@@ -6105,6 +6176,20 @@ class Engine:
                 # Bind before any reassignment of `result` below, which would
                 # otherwise discard the `is not None` narrowing.
                 fill_px = uncross_price
+                # Why this price (audit only): the rule and the tied prices.
+                self.pub_sock.send_multipart(
+                    make_engine_trace_unchecked(
+                        symbol=symbol,
+                        kind="UNCROSS_PRICE",
+                        auction_id=auction_id,
+                        eq_price_ticks=fill_px,
+                        eq_qty=result.eq_qty,
+                        surplus=result.surplus,
+                        rule=result.rule,
+                        tied_prices_ticks=list(result.tied_prices),
+                        tick_decimals=get_tick_decimals(symbol),
+                    )
+                )
                 trades, events = execute_uncross(book, fill_px)
                 if price_override is not None:
                     # Fewer shares trade at a clamped price than at the true
@@ -7030,7 +7115,7 @@ class Engine:
         try:
             save_gtc_orders(self._resting_gtc_orders(), GTC_ORDERS_FILE)
             save_gtc_combos(list(self._combos.values()), GTC_COMBOS_FILE)
-            save_book_stats(self.books, BOOK_STATS_FILE)
+            save_book_stats(self.books, self._circuit_breakers, BOOK_STATS_FILE)
             self.metrics.gtc_flush_ms = (time.perf_counter() - started) * 1000.0
         except Exception as exc:
             # A failed checkpoint must not end the session — the previous
@@ -7076,7 +7161,7 @@ class Engine:
         if n_combos:
             log.info(f"Saved {n_combos} combo(s) to {GTC_COMBOS_FILE}")
 
-        save_book_stats(self.books, BOOK_STATS_FILE)
+        save_book_stats(self.books, self._circuit_breakers, BOOK_STATS_FILE)
         log.info(
             f"Saved book statistics for {len(self.books)} symbol(s) to {BOOK_STATS_FILE}"
         )

@@ -332,6 +332,37 @@ def test_the_rerun_engine_trades_on_the_live_clock(tmp_path: Path) -> None:
     assert live_ts and rerun_ts == live_ts
 
 
+def test_the_rerun_engine_accepts_on_the_live_clock(tmp_path: Path) -> None:
+    """S37: an input that trades nothing runs on the time the live engine
+    stamped it with (its ack), not on the last trade's -- a DAY order's
+    business day and a breaker's window are read off that clock."""
+    data = record(tmp_path / "data")
+    files = audit_files(data)
+    config = decode_artifact(run_config_text(files)).engine
+    live_ts: list[int] = []
+    rerun_ts: list[int] = []
+    quiet = 0  # acks of inputs that traded nothing
+    reset_trade_ids_for_tests()
+    set_run_seq(1)
+    sink = _Sink()
+    with live_clock(files) as clock:
+        engine = fresh_engine(config, sink, tmp_path / "empty")
+        sink.take()
+        for topic, _chain, payload, live, _ts in inputs(files):
+            if topic is None or topic == "startup" or topic.startswith("book."):
+                continue
+            clock.follow(live)
+            apply(engine, topic, payload)
+            acks = [p["ts_ns"] for t, p in live if t.startswith("order.ack.") and "ts_ns" in p]  # fmt: skip
+            live_ts += acks[:1]
+            rerun_ts += [p["ts_ns"] for t, p in sink.take() if t.startswith("order.ack.") and "ts_ns" in p][:1]  # fmt: skip
+            quiet += bool(acks) and not any(t == "trade.executed" for t, _ in live)
+    # now_ns keeps readings strictly rising (+1 ns on a tie), so a re-run
+    # stamp may sit a few ns after the live one -- never before, never far.
+    assert quiet and len(rerun_ts) == len(live_ts)
+    assert all(0 <= r - t < 1_000 for r, t in zip(rerun_ts, live_ts))
+
+
 def test_a_breaker_timer_fires_only_its_own_symbol() -> None:
     """On the live clock another halted symbol may be due too (2026-10-29
     run: 6); the live engine reopened each by its own timer input."""

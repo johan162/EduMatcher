@@ -20,9 +20,9 @@ makes every later one likely).
   The restarted engine is given what a restart gets from outside, not from
   the files: the session phase (the scheduler) and the connected gateways
   (which reconnect). Its books are compared with the reference's at once
-  -- priority order, quantities, armed stops and their triggers, OCO,
-  quote and combo links -- and its outputs for the next ``_E6_SPAN``
-  commands.
+  -- priority order, quantities, armed stops and their triggers, the
+  circuit breakers' reference windows, OCO, quote and combo links -- and
+  its outputs for the next ``_E6_SPAN`` commands.
 - **E7, metamorphic.** (a) Gateways swapped within groups of identical
   configuration, and every order id renamed; (b) every price of every
   symbol shifted up by ``_E7_SHIFT`` ticks. Collars and circuit breakers
@@ -74,6 +74,7 @@ from edumatcher.engine.circuit_breaker import CircuitBreakerState
 from edumatcher.engine.collar import CollarConfig, CollarResult, validate_collar
 from edumatcher.engine.config_loader import EngineConfig
 from edumatcher.engine.order_book import _DEAD_STATUSES, OrderBook
+from edumatcher.models.combo import ComboStatus
 from edumatcher.models.trade import reset_trade_ids_for_tests, set_run_seq
 
 #: Commands between two E6 restarts, and how many each restarted engine runs.
@@ -83,9 +84,6 @@ _E7_SHIFT = 7
 _KEEP = 50
 #: Numbers a restarted engine assigns afresh (E6).
 _RENUMBERED = frozenset({"priority_seq"})
-#: A restart seeds a breaker's reference from the last trade price: the
-#: window of trades the reference averages is not persisted (E6).
-_REBASED = frozenset({"reference_price", "corridor_high", "corridor_low"})
 #: Counted across the whole engine (AUC-<run>-<n>): a one-symbol engine
 #: numbers its auctions alone (E5).
 _ENGINE_WIDE = frozenset({"auction_id"})
@@ -95,6 +93,8 @@ _CROSS_SYMBOL_CODES = frozenset({"DUPLICATE_ORDER"})
 _ID_KEYS = ("order_id", "id", "quote_id", "oco_id", "cancelled_order_id", "bid_order_id", "ask_order_id", "order_id_1")  # fmt: skip
 #: Prices in ticks a client sends, and display prices the engine publishes.
 _TICK_KEYS = frozenset({"price_ticks", "stop_price_ticks", "bid_price_ticks", "ask_price_ticks", "eq_price_ticks", "trigger_price_ticks", "last_price_ticks"})  # fmt: skip
+#: Lists of prices in ticks (engine.trace UNCROSS_PRICE).
+_TICK_LIST_KEYS = frozenset({"tied_prices_ticks"})
 #: Σ price_ticks × qty, and the quantity each shifts with.
 _NOTIONAL_KEYS = {"fill_notional_ticks": "fill_qty", "cum_notional_ticks": "cum_qty"}
 _PRICE_KEYS = frozenset({"price", "stop_price", "eq_price", "indicative_price", "last_price", "old_price", "trigger_price", "reference_price", "corridor_low", "corridor_high", "print_price"})  # fmt: skip
@@ -169,7 +169,6 @@ class _Run:
         only: set[str | None] | None,
         exact: bool = True,
         ignore: frozenset[str] = frozenset(),
-        ignore_in_breaker: frozenset[str] = frozenset(),
         **context: object,
     ) -> None:
         """Compare *mine* with the reference's *ref* symbol by symbol (only
@@ -180,14 +179,9 @@ class _Run:
             ref = [(t, _rounded(p)) for t, p in ref]
             # Rounding alone splits a value that sits on a rounding boundary.
             mine = [(t, _snapped(p, r)) for (t, p), (_, r) in zip(mine, ref)] + mine[len(ref):]  # fmt: skip
-        if ignore or ignore_in_breaker:
-
-            def keep(t: str, p: dict[str, Any]) -> dict[str, Any]:
-                drop = ignore | (ignore_in_breaker if t.startswith("circuit_breaker.") else frozenset())  # fmt: skip
-                return {k: v for k, v in p.items() if k not in drop}
-
-            mine = [(t, keep(t, p)) for t, p in mine]
-            ref = [(t, keep(t, p)) for t, p in ref]
+        if ignore:
+            mine = [(t, {k: v for k, v in p.items() if k not in ignore}) for t, p in mine]  # fmt: skip
+            ref = [(t, {k: v for k, v in p.items() if k not in ignore}) for t, p in ref]  # fmt: skip
         mg, rg = self.where.group(mine), self.where.group(ref)
         keys = only if only is not None else set(mg) | set(rg)
         for g in sorted(keys, key=str):
@@ -352,6 +346,12 @@ def _book_state(b: OrderBook) -> dict[str, Any]:
     }
 
 
+def _breaker_state(e: engine_main.Engine, symbol: str) -> Any:
+    """The trades a symbol's circuit breaker averages, and its reference."""
+    cb = e._circuit_breakers.get(symbol)
+    return None if cb is None else (list(cb.trade_history), cb.reference_price)
+
+
 def _engine_state(e: engine_main.Engine, skip: set[str]) -> dict[str, Any]:
     """Links between orders the engine keeps outside its books (quotes of
     the symbols in *skip* left out)."""
@@ -375,15 +375,35 @@ class _Recovery:
         self.reseeded = 0
         #: Each gateway's last connect command, for the restarted engine.
         self.connects: dict[str, dict[str, Any]] = {}
+        #: Combos (client ids) with a leg on a book that already differs.
+        self.tainted: set[str] = set()
+
+    def taint(self, combo_id: str, symbols: list[str]) -> None:
+        """A combo with a leg on a differing book: an all-or-none combo
+        decides on every leg at once, so all its books and its own messages
+        differ from here on."""
+        assert self.lane is not None
+        if combo_id not in self.tainted and self.lane.diverged & set(symbols):
+            self.tainted.add(combo_id)
+            self.lane.diverged |= set(symbols)
+            self.run.notes["E6"]["combos with a leg on a differing book not compared"] += 1  # fmt: skip
 
     def step(self, ts: str, topic: str, p: dict[str, Any], ref: Msgs, chain: str) -> None:  # fmt: skip
         if topic == "system.gateway_connect":
             self.connects[str(p.get("gateway_id"))] = p
         if self.lane is not None:
+            if topic == "order.combo":
+                self.taint(str(p.get("combo_id")), [str(leg.get("symbol")) for leg in p.get("legs") or []])  # fmt: skip
             apply(self.lane.engine, topic, p)
+            mine = [(t, x) for t, x in self.lane.sink.take() if x.get("combo_id") not in self.tainted]  # fmt: skip
+            ref = [(t, x) for t, x in ref if x.get("combo_id") not in self.tainted]
+            if topic == "order.combo" and str(p.get("combo_id")) in self.tainted:
+                # Left out whole: a leg's refusal names neither its symbol
+                # nor the combo.
+                mine = ref = []
             # A restart numbers each book's queue afresh: the order of the
             # queue is compared at the restart, not the numbers after it.
-            self.run.compare("E6", self.lane, self.lane.sink.take(), ref, None, ignore=_RENUMBERED, ignore_in_breaker=_REBASED, restart=self.restarts, command=topic, chain=chain)  # fmt: skip
+            self.run.compare("E6", self.lane, mine, ref, None, ignore=_RENUMBERED, restart=self.restarts, command=topic, chain=chain)  # fmt: skip
             self.left -= 1
             if self.left <= 0:
                 self.lane = None
@@ -415,7 +435,11 @@ class _Recovery:
             if gw in self.connects:
                 engine._dispatch_pull_message("system.gateway_connect", self.connects[gw])  # fmt: skip
         sink.take()
-        lane = _Lane(engine, sink, diverged=set[str | None](reseeded))
+        lane = self.lane = _Lane(engine, sink, diverged=set[str | None](reseeded))
+        self.tainted = set()
+        for c in ref._combos.values():
+            if c.status in (ComboStatus.PENDING, ComboStatus.PARTIALLY_MATCHED):
+                self.taint(c.combo_id, [leg.symbol for leg in c.legs])
         # Engine-wide links first: one finding each, never cut by the sample cap.
         mine_e = _engine_state(engine, reseeded)
         theirs_e = _engine_state(ref, reseeded)
@@ -424,8 +448,8 @@ class _Recovery:
                 lost = sorted(set(theirs_e[key]) - set(mine_e[key]))
                 self.run.flag("E6", restart=self.restarts, error=f"restored {key} differ", missing=len(lost), example=str(lost[:2])[:300])  # fmt: skip
         for symbol in sorted(set(ref.books) - reseeded):
-            mine = _book_state(engine.books[symbol]) if symbol in engine.books else {}
-            theirs = _book_state(ref.books[symbol])
+            mine = {**_book_state(engine.books[symbol]), "breaker window": _breaker_state(engine, symbol)} if symbol in engine.books else {}  # fmt: skip
+            theirs = {**_book_state(ref.books[symbol]), "breaker window": _breaker_state(ref, symbol)}  # fmt: skip
             for key in theirs:
                 if mine.get(key) != theirs[key]:
                     lane.diverged.add(symbol)
@@ -472,13 +496,23 @@ class _Rename(_Transform):
             rng.shuffle(shuffled)
             self.gw.update(zip(sorted(members), shuffled))
         self.gw_back = {v: k for k, v in self.gw.items()}
+        self.ids: dict[str, str] = {}
         self.ids_back: dict[str, str] = {}
         self.prefix_back: dict[str, str] = {}
+        #: Prefixes of ids the engine made (OCO and combo legs): kept as they
+        #: are, even where a renamed id happens to share one.
+        self.generated: set[str] = set()
 
     def _id(self, oid: str) -> str:
-        new = hashlib.md5(b"E7" + oid.encode()).hexdigest()
-        self.ids_back[new] = oid
-        self.prefix_back[new[:8]] = oid[:8]
+        new = self.ids.get(oid)
+        if new is None:
+            new = hashlib.md5(b"E7" + oid.encode()).hexdigest()
+            # Reason text quotes 8 characters: each must map back to one id.
+            while new[:8] in self.prefix_back:
+                new = hashlib.md5(new.encode()).hexdigest()
+            self.ids[oid] = new
+            self.ids_back[new] = oid
+            self.prefix_back[new[:8]] = oid[:8]
         return new
 
     def _map(self, v: Any, forward: bool) -> Any:
@@ -491,9 +525,13 @@ class _Rename(_Transform):
             if v in gws:
                 return gws[v]
             if _ORDER_ID.match(v):
-                return self._id(v) if forward else self.ids_back.get(v, v)
+                if forward:
+                    return self._id(v)
+                if v not in self.ids_back:
+                    self.generated.add(v[:8])
+                return self.ids_back.get(v, v)
             if not forward:
-                return _ID_PREFIX.sub(lambda m: self.prefix_back.get(m.group(), m.group()), v)  # fmt: skip
+                return _ID_PREFIX.sub(lambda m: m.group() if m.group() in self.generated else self.prefix_back.get(m.group(), m.group()), v)  # fmt: skip
         return v
 
     def _topic(self, topic: str, forward: bool) -> str:
@@ -631,12 +669,16 @@ class _Shift(_Transform):
                     x + by
                     if k in _TICK_KEYS and isinstance(x, int)
                     else (
-                        (round(x * scale) + by) / scale
-                        if k in _PRICE_KEYS and isinstance(x, (int, float))
+                        [p + by for p in x]
+                        if k in _TICK_LIST_KEYS and isinstance(x, list)
                         else (
-                            x + by / scale
-                            if k in _VWAP_KEYS and isinstance(x, (int, float))
-                            else self._shift(x, by, scale)
+                            (round(x * scale) + by) / scale
+                            if k in _PRICE_KEYS and isinstance(x, (int, float))
+                            else (
+                                x + by / scale
+                                if k in _VWAP_KEYS and isinstance(x, (int, float))
+                                else self._shift(x, by, scale)
+                            )
                         )
                     )
                 )

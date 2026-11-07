@@ -2428,24 +2428,40 @@ A stop, stop-limit or trailing stop has fired: the trade that reached its trigge
 
 **Since:** 1.3
 
-What the book did that no trade or order message shows, for the audit trail (no gateway forwards it): an order resting or arming and the place in the queue it got, an iceberg refilling its slice at the back of its level, a trailing stop ratcheting its trigger. A replay can then compare its model of priority and of trailing triggers with the engine's own, instead of inferring them.
+What the book did that no trade or order message shows, for the audit trail (no gateway forwards it): an order resting or arming and the place in the queue it got, an iceberg refilling its slice at the back of its level, a trailing stop ratcheting its trigger. A replay can then compare its model of priority and of trailing triggers with the engine's own, instead of inferring them. Three kinds say why the engine decided (S36): UNCROSS_PRICE (which rule chose an uncross's price, among which tied prices), AON_PREFLIGHT (per leg of an all-or-none combo, what could fill, and whether the combo matches, rests or is rejected) and SMP_DECISION (the same-gateway pair self-match prevention met, and the policy applied).
 
 | Field | Type | Presence | Rules | Description |
 |---|---|---|---|---|
 | `symbol` | `string` | required | max_len 16 |  |
-| `kind` | enum: `RESTED`, `ICEBERG_REFILL`, `TRAILING_RATCHET` | required | — |  |
-| `order_id` | `string` | required | max_len 64 |  |
+| `kind` | enum: `RESTED`, `ICEBERG_REFILL`, `TRAILING_RATCHET`, `UNCROSS_PRICE`, `AON_PREFLIGHT`, `SMP_DECISION` | required | — |  |
+| `order_id` | `string` | omitted when unset | max_len 64 | The order the record is about; SMP_DECISION: the order whose policy applied (the aggressor; in an uncross the bid, unless only the ask has a policy). |
 | `priority_seq` | `int` | omitted when unset | ge 0, unit `dimensionless` |  |
 | `displayed_qty` | `int` | omitted when unset | ge 0, unit `shares` | ICEBERG_REFILL: the new visible slice. |
 | `tick_decimals` | `int` | omitted when unset | ge 0, le 9, unit `dimensionless` | Decimal scale of the `*_ticks` prices in this message (1 tick = 10^-tick_decimals) -- the symbol's. Every message that carries a tick price carries its scale, so a reader of one line, or of a window of the trail that begins long after the book snapshot that declared it, can turn it into money without guessing. Absent when the message carries no tick price. |
 | `stop_price_ticks` | `ticks` | omitted when unset | unit `ticks` | TRAILING_RATCHET: the new trigger. |
 | `last_price_ticks` | `ticks` | omitted when unset | unit `ticks` | TRAILING_RATCHET: the trade price that moved it. |
+| `auction_id` | `string` | omitted when unset | max_len 32 | UNCROSS_PRICE: the uncross, as on its `auction.result`. |
+| `eq_price_ticks` | `ticks` | omitted when unset | unit `ticks` | UNCROSS_PRICE: the price the uncross runs at (it prints nothing there when `eq_qty` is 0: SMP or an OCO pair took the whole overlap). |
+| `eq_qty` | `int` | omitted when unset | ge 0, unit `shares` | UNCROSS_PRICE: the executable quantity at that price. |
+| `surplus` | `int` | omitted when unset | ge 0, unit `shares` | UNCROSS_PRICE: the unmatched quantity at that price. |
+| `rule` | enum: `VOLUME`, `SURPLUS`, `LOWEST_PRICE`, `OVERRIDE` | omitted when unset | — | UNCROSS_PRICE: what decided -- the most volume (one price had it), then the least surplus among those, then the lowest price; OVERRIDE when the price was imposed (closing backstop, ADMIN_MANUAL). |
+| `tied_prices_ticks` | list of `int` | omitted when empty | — | UNCROSS_PRICE: the prices still tied when `rule` decided, lowest first (one price for VOLUME; the most-volume prices for SURPLUS; those with the least surplus too for LOWEST_PRICE). In ticks. |
+| `combo_id` | `string` | omitted when unset | max_len 64 | AON_PREFLIGHT: the client's combo id. |
+| `leg_index` | `int` | omitted when unset | ge 0, unit `dimensionless` | AON_PREFLIGHT: the leg, in the combo's order. |
+| `quantity` | `int` | omitted when unset | ge 0, unit `shares` | AON_PREFLIGHT: the leg's quantity. |
+| `fillable_qty` | `int` | omitted when unset | ge 0, unit `shares` | AON_PREFLIGHT: what the leg could fill now, the gateway's own orders left out under its SMP policy. |
+| `fillable_no_smp_qty` | `int` | omitted when unset | ge 0, unit `shares` | AON_PREFLIGHT: what the leg would trade now counting the gateway's own orders (more than 0 on a blocked combo is what rejects it). |
+| `outcome` | enum: `MATCH`, `REST`, `REJECT` | omitted when unset | — | AON_PREFLIGHT: the combo's outcome, the same on every leg -- every leg fills in full and the legs match; a leg is short and the legs rest unmatched; or a leg is short and one would trade now, so the combo fails at its first leg (INSUFFICIENT_LIQUIDITY). Halted symbols and phases without matching rest. |
+| `other_order_id` | `string` | omitted when unset | max_len 64 | SMP_DECISION: the same gateway's order on the other side. |
+| `smp_action` | enum: `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH` | omitted when unset | — | SMP_DECISION: the policy applied, of `order_id`'s order: which of the two was cancelled (both for CANCEL_BOTH). An unfillable FOK meets each same-gateway order in its range: one record each. |
 
 !!! note
 
     `priority_seq` is the book's arrival sequence; it orders orders at one price, nothing more.
 
     A trailing stop rests in a list checked in arming order, so its RESTED has no `priority_seq`.
+
+    UNCROSS_PRICE names no order; AON_PREFLIGHT names the combo and the leg, not an order (the leg's order does not exist yet).
 
 **See also:** `order.triggered.{GW_ID}`, `order.amended.{GW_ID}`
 

@@ -217,6 +217,9 @@ PHRASES: Mapping[str, Mapping[str, str]] = {
         "RESTED": "rested in the book",
         "ICEBERG_REFILL": "refilled its visible slice",
         "TRAILING_RATCHET": "moved its trailing trigger",
+        "UNCROSS_PRICE": "an uncross price decision",
+        "AON_PREFLIGHT": "an all-or-none combo check",
+        "SMP_DECISION": "a self-match prevention",
         "COLLAR": "a price collar",
         # news.event
         "EARNINGS": "earnings",
@@ -251,6 +254,17 @@ PHRASES: Mapping[str, Mapping[str, str]] = {
         "DISCARDED_STALE_DAY": "was discarded as a stale day order",
         "FAILED": "failed to restore",
         "QUOTE_REMNANT": "was restored as a quote remnant",
+        # engine.trace AON_PREFLIGHT
+        "MATCH": "matches",
+        "REST": "rests unmatched",
+        "REJECT": "is rejected",
+    },
+    # engine.trace UNCROSS_PRICE
+    "rule": {
+        "VOLUME": "the most volume",
+        "SURPLUS": "the least surplus",
+        "LOWEST_PRICE": "the lowest price",
+        "OVERRIDE": "an imposed price",
     },
     "component": {
         "UNROUTED_TOPIC": "a topic nothing routes",

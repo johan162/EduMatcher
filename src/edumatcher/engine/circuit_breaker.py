@@ -167,6 +167,16 @@ class CircuitBreakerState:
         self._history_len_synced += 1
         self.reference_price = price
 
+    def restore_window(
+        self, trades: list[tuple[int, int]], reference_price: int | None
+    ) -> None:
+        """Take back a checkpoint's reference window (``save_book_stats``):
+        the trades it averaged, in ticks, and the reference they gave."""
+        self.trade_history = deque(trades)
+        self._trade_price_sum = sum(price for _, price in trades)
+        self._history_len_synced = len(trades)
+        self.reference_price = reference_price
+
     def record_trade(
         self, price: int, now: int, *, may_trigger: bool = True
     ) -> CircuitBreakerLevel | None:

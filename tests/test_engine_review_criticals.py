@@ -203,7 +203,7 @@ class TestC1BookStatsRoundTrip:
         assert book1.last_buy_price == 15000, "precondition: trade must have printed"
 
         stats_path = tmp_path / "book_stats.json"
-        save_book_stats(engine1.books, stats_path)
+        save_book_stats(engine1.books, engine1._circuit_breakers, stats_path)
 
         # --- session 2: restart and restore ---
         engine2, _ = _make_engine(
