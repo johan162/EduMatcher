@@ -19,6 +19,10 @@ scheduler, order-entry and market-data gateways, clearing, audit and statistics
 services, browser front-ends, and its own wire protocols — all running as
 separate processes that talk to each other the way a real venue's do.
 
+## Main Web-site
+
+A full description and both on-line and off-line documentation can be found [here](https://tirnex.aditus.nu/index.html)
+
 ## Quick start
 
 ### A clean exchange with only you as a trader
@@ -211,7 +215,7 @@ If you use this tool in teaching or courses, please cite:
   author = {Johan Persson},
   year = {2026},
   url = {https://github.com/johan162/EduMatcher},
-  version = {0.76.2}
+  version = {0.76.3}
 }
 ```
 
