@@ -8611,7 +8611,8 @@ does not get an Active Orders blotter of its own.</p>
   anything.</li>
 <li><strong>Gaps are visible, not silent.</strong> The market-data socket tracks a sequence
   number per topic; the admin monitor feed marks any stretch it could not
-  replay after a reconnect with a red <code>GAP</code> row in the Monitor Log.</li>
+  replay after a reconnect, and any events the gateway dropped under load,
+  with a red <code>GAP</code> row in the Monitor Log.</li>
 </ul>
 <h2 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h2>
 <table>
@@ -10191,8 +10192,13 @@ and flags a degraded feed.</p>
 <strong>Gateway</strong>. <strong>Export CSV</strong> downloads exactly the rows currently visible under
 your filters.</p>
 <p>A red <strong><code>GAP</code></strong> row marks any boundary the feed could not replay after a
-reconnect. <code>GAP</code> rows are never filtered out, deliberately: a gap is worth
-noting before trusting the log as complete for that window.</p>
+reconnect. It also marks events the gateway dropped while the feed was
+overloaded (<em>"N events dropped by the gateway"</em>), detected from the per-topic
+sequence numbers. After such a gap the GUI re-reads the working orders from the
+gateway, at most once every 10 s, so the order counts and tables recover even
+though the dropped log rows themselves cannot be replayed. <code>GAP</code> rows are never
+filtered out, deliberately: a gap is worth noting before trusting the log as
+complete for that window.</p>
 <p>Rows carrying an order id are clickable through to the cross-gateway order
 drill-down.</p>
 <h4 id="cross-gateway-order-drill-down">Cross-gateway order drill-down<a class="headerlink" href="#cross-gateway-order-drill-down" title="Permanent link">&para;</a></h4>
@@ -11190,8 +11196,8 @@ outside that network, and it has to be told how to get back in.</p>
 </tr>
 <tr>
 <td>A red <code>GAP</code> row in the Monitor Log</td>
-<td>The monitor feed could not replay a stretch after a reconnect</td>
-<td>Expected after a disconnect; treat the log as incomplete for that window</td>
+<td>The monitor feed could not replay a stretch after a reconnect, or the gateway dropped events under load</td>
+<td>Expected after a disconnect or a load burst; treat the log as incomplete for that window (working orders are resynced automatically)</td>
 </tr>
 <tr>
 <td>Reloading the page returns to the login screen</td>

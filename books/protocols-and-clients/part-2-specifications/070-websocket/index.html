@@ -7815,7 +7815,7 @@ by that one prefix.</p>
 <tr>
 <td><code>/api/v1/ws/admin/monitor</code></td>
 <td>ADMIN</td>
-<td>Every engine event across all gateways, plus <code>admin.action</code></td>
+<td>Every engine event across all gateways except public market data and <code>engine.trace</code>, plus <code>admin.action</code></td>
 <td><code>512</code></td>
 </tr>
 <tr>
@@ -8399,6 +8399,12 @@ because a halt or a phase change alters the meaning of every other channel.</p>
 <h2 id="apiv1wsadminmonitor"><code>/api/v1/ws/admin/monitor</code><a class="headerlink" href="#apiv1wsadminmonitor" title="Permanent link">&para;</a></h2>
 <p>Every engine event this gateway receives, across all gateways, in the
 standard envelope, plus <code>admin.action</code>. ADMIN only.</p>
+<p>Two families are left out: public market data (<code>book</code>, <code>depth</code>, <code>trade</code>,
+<code>auction</code>, <code>auction.indicative</code>), which an ADMIN reads on
+<a href="#apiv1wsmarket-data"><code>/api/v1/ws/market-data</code></a>, and the audit-only
+<code>engine.trace.{symbol}</code>. Under load these were about half of the feed, and no
+monitor renders them. Whole topics are omitted, so the per-topic <code>seq</code> of
+everything that is sent stays contiguous.</p>
 <h3 id="opening-frames_1">Opening frames<a class="headerlink" href="#opening-frames_1" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
@@ -8422,7 +8428,8 @@ standard envelope, plus <code>admin.action</code>. ADMIN only.</p>
 </tbody>
 </table>
 <h3 id="events">Events<a class="headerlink" href="#events" title="Permanent link">&para;</a></h3>
-<p>All private and market-data event types above, for every gateway, and:</p>
+<p>All private event types above, for every gateway, <code>session</code> and
+<code>circuit_breaker</code>, and:</p>
 <table>
 <thead>
 <tr>
@@ -8445,6 +8452,12 @@ reference events) also arrive here, with <code>type</code> derived as in
 <h3 id="recovery_2">Recovery<a class="headerlink" href="#recovery_2" title="Permanent link">&para;</a></h3>
 <p>None by replay: on reconnect the snapshot is current state. History is the
 audit trail (<code>GET /api/v1/admin/orders/{order_id}/audit</code>, <code>pm-audit-cli</code>).</p>
+<p>A <code>seq</code> gap on a live connection means the gateway dropped events because this
+client's queue was full. A dropped fill or cancel leaves an order looking
+working. The monitor SHOULD repair its working-order view from
+<code>GET /api/v1/admin/orders?status=…</code> (one call per working status) rather than
+by reconnecting: the opening snapshot also carries every cached terminal order,
+which under the load that caused the gap is far larger than the working set.</p>
 <h2 id="apiv1wsadminsim"><code>/api/v1/ws/admin/sim</code><a class="headerlink" href="#apiv1wsadminsim" title="Permanent link">&para;</a></h2>
 <p><code>pm-market-sim</code>'s state and the model's true (hidden) fair values. ADMIN only.
 Frames carry <code>type</code> and <code>data</code> only, and are not numbered.</p>
