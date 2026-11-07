@@ -1717,6 +1717,20 @@ def refusals_justified(ds: Dataset) -> Outcome:
     return Outcome(sum(errors.values()), samples, note)
 
 
+@check(
+    "C13",
+    "lifecycle",
+    "A kill switch or a disconnect cancels exactly the live orders it names, for its reason",
+    needs=(),
+)
+def sweeps_complete(ds: Dataset) -> Outcome:
+    """``refusals.py``'s pass, which C12 shares."""
+    p = refusals.state_pass(ds)
+    note = ", ".join(f"{k} {n}" for k, n in sorted(p.sweeps.items())) or "no kill switch or disconnect"  # fmt: skip
+    note += "".join(f"; {e}: {n}" for e, n in p.sweep_errors.most_common())
+    return Outcome(sum(p.sweep_errors.values()), p.sweep_samples, note)
+
+
 @check("D7", "book-state", "No continuous self-trade under SMP", needs=())
 def self_trades(ds: Dataset) -> Outcome:
     r = _replay(ds)

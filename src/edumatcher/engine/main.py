@@ -4715,16 +4715,21 @@ class Engine:
 
         for book in self.books.values():
             for order in list(book.resting_orders()):
-                if order.origin != OrderOrigin.QUOTE:
-                    owner = order.gateway_id
-                    cancelled = self._cancel_order_by_id(
-                        order.id,
-                        cancel_reason="KILL_SWITCH",
-                        command_id=command_id,
-                    )
-                    if cancelled is not None:
+                # A quote-origin order still resting has left the QuoteIndex
+                # (a hit leg's remainder, INACTIVATE_ON_ANY_FILL): the sweep
+                # above cannot see it, so it goes here, as a quote.
+                owner = order.gateway_id
+                cancelled = self._cancel_order_by_id(
+                    order.id,
+                    cancel_reason="KILL_SWITCH",
+                    command_id=command_id,
+                )
+                if cancelled is not None:
+                    if order.origin == OrderOrigin.QUOTE:
+                        cancelled_quote_order_ids.append(cancelled.id)
+                    else:
                         cancelled_order_ids.append(cancelled.id)
-                        affected_gateways.add(owner)
+                    affected_gateways.add(owner)
 
         cancelled_orders = len(cancelled_order_ids)
         cancelled_quotes = len(cancelled_quote_order_ids)

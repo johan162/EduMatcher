@@ -75,6 +75,20 @@ def test_the_gateway_kill_switch_clears_the_leg_of_an_inactivated_quote(
     assert list(engine.books[SYMBOL].resting_orders()) == []
 
 
+def test_the_global_kill_switch_clears_the_leg_of_an_inactivated_quote(
+    monkeypatch, tmp_path
+):
+    """The market-wide stop walked the QuoteIndex and skipped quote-origin
+    orders in the books, as the two above once did (S31, C13)."""
+    engine, pub = _engine_with_a_half_filled_quote(monkeypatch, tmp_path)
+    engine._handle_kill_switch_global({"gateway_id": ADMIN})
+    (ack,) = msgs(pub, f"risk.kill_switch_global_ack.{ADMIN}")
+    assert ack["accepted"] is True
+    assert (ack["cancelled_orders"], ack["cancelled_quotes"]) == (0, 1)
+    assert ack["affected_gateway_ids"] == [MM]
+    assert list(engine.books[SYMBOL].resting_orders()) == []
+
+
 @pytest.mark.parametrize(
     ("behaviour", "ordinary_order_remains", "quote_remainder_remains"),
     [

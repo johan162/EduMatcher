@@ -1,4 +1,5 @@
-"""C12 — every refusal is justified, and every acceptance too (S30).
+"""C12 — every refusal is justified, and every acceptance too (S30); C13 —
+a kill switch or a disconnect cancels exactly what it names (S31).
 
 D8 checks the collar both ways; C12 does it for the refusals the engine
 decides from state the audit shows, each command judged on the state
@@ -24,6 +25,21 @@ counted, not checked: the collar (D8), a FOK's or an all-or-none combo's
 liquidity (the replay's books, ``matching.py``, under C12 too), a gateway
 not connected, the per-type field rules. ``INTERNAL_ERROR`` is always a
 finding. The set of live orders is reset from every book checkpoint.
+
+C13, on the same state: a kill switch -- a gateway's own (``risk.kill_switch``,
+one symbol or all), an administrator's on one gateway
+(``risk.kill_switch_gateway``: one symbol or all, its quotes only or
+everything) or on the market (``risk.kill_switch_global``) -- and a
+disconnect or a missed-heartbeat timeout (``system.gateway_bye``: the
+gateway's ``disconnect_behaviour``, LEAVE_ALL, CANCEL_QUOTES_ONLY or
+CANCEL_ALL) cancel every live order in their scope, quote legs included
+(also a hit quote's remainder), and nothing beyond it, each with its
+reason (KILL_SWITCH, GATEWAY_DISCONNECT); a cascade it sets off (an OCO
+sibling, a combo's other legs) is part of it. An accepted switch's ack lists
+exactly what it cancelled, quote legs apart, and counts its lists; a
+refused one cancels nothing; the administrator's two need an ADMIN caller.
+A kill switch is a mass cancel: nothing keeps the gateway from trading
+again (KILL_SWITCH_ACTIVE is in the spec's enum but no gate uses it).
 """
 
 from __future__ import annotations
@@ -41,11 +57,17 @@ from edumatcher.config_artifact import decode as decode_artifact
 from edumatcher.engine.config_loader import EngineConfig
 
 _KEEP = 50
-_COMMANDS = frozenset({"order.new", "order.cancel", "order.amend", "order.oco_cancel", "quote.new", "quote.cancel"})  # fmt: skip
+_COMMANDS = frozenset({"order.new", "order.cancel", "order.amend", "order.oco_cancel", "quote.new", "quote.cancel", "risk.kill_switch", "risk.kill_switch_gateway", "risk.kill_switch_global", "system.gateway_disconnect"})  # fmt: skip
 #: order.new codes this check derives; any other refusal is counted only.
 _NEW_CODES = frozenset({"GATEWAY_NOT_CONFIGURED", "UNKNOWN_SYMBOL", "DUPLICATE_ORDER", "QTY_OUT_OF_RANGE", "PRICE_OUT_OF_RANGE", "MAX_ORDER_QTY", "MAX_ORDER_VALUE", "MARKET_CLOSED", "SESSION_NOT_PERMITTED", "INSTRUMENT_HALTED", "CIRCUIT_BREAKER_ACTIVE"})  # fmt: skip
 _CANNOT_REST = frozenset({"MARKET", "FOK", "IOC"})
 _STAMPED_SIDES = ("bids", "asks", "buy_stops", "sell_stops", "trailing_stops")
+#: Kill-switch commands and the prefix of each's ack.
+_KILL_SWITCHES = {
+    "risk.kill_switch": "risk.kill_switch_ack.",
+    "risk.kill_switch_gateway": "risk.kill_switch_gateway_ack.",
+    "risk.kill_switch_global": "risk.kill_switch_global_ack.",
+}
 #: Messages that create the orders and pairs a dispatch's ends then name.
 _CREATING = ("order.ack.", "quote.ack.", "oco.ack.")
 
@@ -65,6 +87,10 @@ class _Pass:
     errors: Counter[str] = field(default_factory=Counter)
     judged: Counter[str] = field(default_factory=Counter)
     unjudged: Counter[str] = field(default_factory=Counter)
+    #: C13's own: kill switches and disconnects.
+    sweep_samples: list[Sample] = field(default_factory=list)
+    sweep_errors: Counter[str] = field(default_factory=Counter)
+    sweeps: Counter[str] = field(default_factory=Counter)
     phase: str | None = None
     #: Symbol → halt source (CB, ADMIN).
     halted: dict[str, str] = field(default_factory=dict)
@@ -100,6 +126,86 @@ class _Pass:
             self._quote(p, out, chain)
         elif topic == "quote.cancel":
             self._quote_cancel(p, out, chain)
+
+    # --- C13: kill switches and disconnects -----------------------------
+
+    def sweep_flag(self, error: str, **keys: Any) -> None:
+        self.sweep_errors[error] += 1
+        if len(self.sweep_samples) < _KEEP:
+            self.sweep_samples.append({"error": error, **keys})
+
+    def sweep(self, topic: str, p: dict[str, Any], out: list[tuple[str, dict[str, Any]]], chain: str) -> None:  # fmt: skip
+        """C13: a kill switch or a disconnect cancels exactly the live
+        orders it names, for its reason, and its ack lists them."""
+        # A cascade cancels with it: an OCO sibling, a combo's other legs
+        # (no reason).
+        cancels: dict[str, str | None] = {}
+        for t, x in out:
+            if t.startswith("order.cancelled."):
+                cancels[x["order_id"]] = x.get("cancel_reason")
+            elif t.startswith("oco.cancelled."):
+                cancels[x["cancelled_order_id"]] = "OCO_SIBLING"
+        if topic in _KILL_SWITCHES:
+            ack = next((x for t, x in out if t.startswith(_KILL_SWITCHES[topic])), None)  # fmt: skip
+            if ack is None:
+                self.unjudged[f"{topic} without an ack"] += 1
+                return
+            what = topic.removeprefix("risk.")
+            caller = str(p.get("gateway_id") or "").upper()
+            if not ack.get("accepted"):
+                if any(r == "KILL_SWITCH" for r in cancels.values()):
+                    self.sweep_flag(f"{what} refused, but it cancelled", chain=chain)
+                self.sweeps[f"{what} refused"] += 1
+                return
+            if topic != "risk.kill_switch" and self._role(caller) != "ADMIN":
+                self.sweep_flag(f"{what} accepted from {caller}, not an ADMIN", chain=chain)  # fmt: skip
+            target = None if topic == "risk.kill_switch_global" else caller if topic == "risk.kill_switch" else str(p.get("target_gateway_id") or "").upper()  # fmt: skip
+            symbol = None if topic == "risk.kill_switch_global" else p.get("symbol") or None  # fmt: skip
+            quotes_only = topic == "risk.kill_switch_gateway" and bool(p.get("quotes_only"))  # fmt: skip
+            self._swept(what, self._scope(target, symbol, quotes_only), cancels, "KILL_SWITCH", ack, chain)  # fmt: skip
+            return
+        bye = next((t.rsplit(".", 1)[1] for t, _ in out if t.startswith("system.gateway_bye.")), None)  # fmt: skip
+        if bye is not None:
+            cfg = self.config.participants.get(bye)
+            behaviour = cfg.disconnect_behaviour.value if cfg is not None else "CANCEL_QUOTES_ONLY"  # fmt: skip
+            scope = set() if behaviour == "LEAVE_ALL" else self._scope(bye, None, behaviour == "CANCEL_QUOTES_ONLY")  # fmt: skip
+            self._swept(f"disconnect {behaviour}", scope, cancels, "GATEWAY_DISCONNECT", None, chain)  # fmt: skip
+
+    def _role(self, gw: str) -> str:
+        cfg = self.config.participants.get(gw)
+        return cfg.role.value if cfg is not None else ""
+
+    def _scope(self, gw: str | None, symbol: str | None, quotes_only: bool) -> set[str]:  # fmt: skip
+        return {
+            oid
+            for oid, o in self.live.items()
+            if (gw is None or o.gw == gw) and (symbol is None or o.symbol == symbol) and (o.quote or not quotes_only)  # fmt: skip
+        }
+
+    def _swept(self, what: str, scope: set[str], cancels: dict[str, str | None], reason: str, ack: dict[str, Any] | None, chain: str) -> None:  # fmt: skip
+        self.sweeps[what] += 1
+        left = sorted(scope - cancels.keys())
+        if left:
+            self.sweep_flag(f"{what} left orders live", chain=chain, count=len(left), example=left[:3])  # fmt: skip
+        beyond = sorted(oid for oid, r in cancels.items() if oid not in scope and r == reason)  # fmt: skip
+        if beyond:
+            self.sweep_flag(f"{what} cancelled beyond its scope", chain=chain, count=len(beyond), example=beyond[:3])  # fmt: skip
+        wrong = sorted(oid for oid, r in cancels.items() if oid in scope and r not in (reason, None, "OCO_SIBLING"))  # fmt: skip
+        if wrong:
+            self.sweep_flag(f"{what} cancelled for another reason", chain=chain, count=len(wrong), reasons=sorted({str(cancels[o]) for o in wrong}))  # fmt: skip
+        if ack is None:
+            return
+        orders, quotes = ack.get("cancelled_order_ids") or [], ack.get("cancelled_quote_order_ids") or []  # fmt: skip
+        if (ack.get("cancelled_orders"), ack.get("cancelled_quotes")) != (len(orders), len(quotes)):  # fmt: skip
+            self.sweep_flag(f"{what} ack's counts are not its lists", chain=chain, counts=(ack.get("cancelled_orders"), ack.get("cancelled_quotes")), lists=(len(orders), len(quotes)))  # fmt: skip
+        listed = set(orders) | set(quotes)
+        own = {oid for oid, r in cancels.items() if r == reason}
+        if listed != own:
+            self.sweep_flag(f"{what} ack's lists are not what it cancelled", chain=chain, unlisted=sorted(own - listed)[:3], not_cancelled=sorted(listed - own)[:3])  # fmt: skip
+        misfiled = [o for o in orders if o in self.live and self.live[o].quote]
+        misfiled += [o for o in quotes if o in self.live and not self.live[o].quote]
+        if misfiled:
+            self.sweep_flag(f"{what} ack files a quote leg as an order or the reverse", chain=chain, example=misfiled[:3])  # fmt: skip
 
     def _verdict(self, what: str, refused: str | None, expected: str | None, modelled: frozenset[str], chain: str, **keys: Any) -> None:  # fmt: skip
         """Compare the engine's answer (*refused*: its code, None when it
@@ -366,7 +472,17 @@ def _config(files: list[Any]) -> EngineConfig:
 
 
 def state_pass(ds: Dataset) -> _Pass:
-    """The pass over the audit; ``matching.py`` registers C12 with it."""
+    """The pass over the audit (once per dataset); ``matching.py`` registers
+    C12 and C13 with it."""
+    cached = ds.cache.get("refusals")
+    if isinstance(cached, _Pass):
+        return cached
+    p = _state_pass(ds)
+    ds.cache["refusals"] = p
+    return p
+
+
+def _state_pass(ds: Dataset) -> _Pass:
     files = audit_files(ds.data_dir)
     if not files:
         raise Skipped("no audit.log in the data dir")
@@ -382,6 +498,7 @@ def state_pass(ds: Dataset) -> _Pass:
         if ln.chain != chain:
             if command:
                 p.judge(command, body, out, chain)
+            p.sweep(command, body, out, chain)
             p.apply_all(out)
             chain, command, body, out = ln.chain, "", {}, []
         if ln.topic in _COMMANDS and not command and not out:
@@ -392,4 +509,5 @@ def state_pass(ds: Dataset) -> _Pass:
         out.append((ln.topic, json.loads(ln.body)))
     if command:
         p.judge(command, body, out, chain)
+    p.sweep(command, body, out, chain)
     return p

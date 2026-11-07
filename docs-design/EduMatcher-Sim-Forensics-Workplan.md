@@ -54,7 +54,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 | 28 | S28 | Replay models amend, combos, circuit breaker/halts; D8 checks bands; C7/D5 use explicit events | S24, S27 | 2 d | ☑ (D9 on an S27 run open) | 2026-10-29 |
 | 29 | S29 | Long run on the 1.0 formats, full report, triage; then freeze | S21–S28 | open | ☐ | |
 | 30 | S30 | C12: every refusal is justified, and every acceptance too (all reject codes, D8 does collars) | — | 1.5 d | ☑ | 2026-11-07 |
-| 31 | S31 | C13: kill switches and disconnect behaviour sweep the gateway; nothing of it trades until reset | — | 0.5 d | ☐ | |
+| 31 | S31 | C13: kill switches and disconnect behaviour sweep exactly their scope (X40 found and fixed) | — | 0.5 d | ☑ | 2026-11-07 |
 | 32 | S32 | D12: circuit-breaker oracle (own reference window: halts justified, no trade outside the corridor, reopen on time) | — | 1 d | ☐ | |
 | 33 | S33 | C14: end-of-day expiry (every live DAY order, leg and quote expires once; no GTC does) | — | 0.5 d | ☐ | |
 | 34 | S34 | E7 time-shift lane: the day moved across a DST change and a UTC midnight changes nothing | — | 1 d | ☐ | |
@@ -232,6 +232,7 @@ Status column of the report = PASS / FAIL(n) / SKIPPED(reason).
 | C9 | (S18) IOC, FOK and MARKET end within their own dispatch (chain) and never rest; a FOK fills completely or not at all (or, accepted, ends CANCELLED `SELF_MATCH_PREVENTED` with no fill — the documented SMP case, see S17). |
 | C10 | (S18) One quote per (gateway, symbol): when a quote is accepted no earlier leg of that gateway and symbol is live (the engine cancels them `QUOTE_REPLACED` first, a filled leg's remainder included), and a replaced leg never trades. |
 | C12 | (S30) Every refusal holds on the state (and, for a FOK's or an all-or-none combo's liquidity, the replayed book) it was made on, and no acceptance meets a refusal's reason: `order.new` gates, cancel / amend / OCO cancel / quote cancel not found or not owner, the market maker's quote obligation, AON_PREFLIGHT against the book. Collars stay D8's. |
+| C13 | (S31) A kill switch (a gateway's own, an administrator's on one gateway, the global one; symbol / quotes-only scopes) or a disconnect / heartbeat timeout (per `disconnect_behaviour`) cancels every live order in its scope, quote legs and a hit quote's remainder included, nothing beyond it, each for its reason; an accepted switch's ack lists and counts exactly that; a refused one cancels nothing; the administrator's need an ADMIN caller. |
 
 ### D — Matching correctness (audit episodes; needs S1 retention)
 
@@ -800,6 +801,7 @@ Finding ids are X*n* (the catalogue's E1–E4 are replay checks).
 | X37 | E7 | 2026-11-07 | 1 day; 3 `oco.cancelled` reasons | Check bug: the rename maps the 8-character id prefix that reason text quotes back through `prefix_back`, one entry per renamed id (3.4 M ids, 1 251 colliding prefixes). An OCO leg id the renamed engine made itself (not renamed) whose prefix met a renamed one was rewritten to an unrelated original. Renamed ids now get unique prefixes (rehashed on collision) and the prefix of an id the engine made is left as it is | Fixed 2026-11-07 (uncommitted) |
 | X38 | E6 | 2026-11-07 | EA, NET (restarts 8, 11) | Engine: a restart seeded each circuit breaker's reference from the last trade price; the uninterrupted engine averages its 5-minute window (EA 25407 over 308 trades, restored 25325), so the corridor and the halts differed. On the 2026-11-07 data after the fix: E6 PASS (44 restarts, 0 findings; 1 441 combos on re-seeded books left out). Decided with Johan: `book_stats.json` now carries each breaker's window (`cb_window`: `saved_ns`, trades in ticks, reference); `_load_config` takes it back when saved on the same business day (`CircuitBreakerState.restore_window`), else seeds as before. E6 compares the windows at each restart; `_REBASED` and `compare(ignore_in_breaker=...)` removed | Fixed 2026-11-07 (uncommitted) |
 | X39 | E6 (s3-complex test day) | 2026-11-07 | every restart | Engine: a market maker's seeded combo restored live (DAY combos persist since aee90385, GTC ones always did) was seeded again at startup -- two copies of the market maker's interest. `_load_config` skips a seed combo whose `combo_id` was restored PENDING or PARTIALLY_MATCHED (no `seed_once` flag, as quotes have: a duplicate is never intended) | Fixed 2026-11-07 (uncommitted) |
+| X40 | C13 (S31, reading the engine; recorded run) | 2026-11-07 | the global kill switch | Engine: `_handle_kill_switch_global` swept the QuoteIndex and skipped quote-origin orders in the books, so the remainder a hit quote leaves resting (INACTIVATE_ON_ANY_FILL) survived the market-wide stop -- the bug `risk.cancel_symbol` and the gateway kill switch had and lost earlier (`tests/test_engine_mass_cancel_inactive_quote.py`). The book loop now cancels a quote-origin order too, listed among the quotes. C13 on the recorded run finds it on the old code (`kill_switch_global left orders live`) | Fixed 2026-11-07 (uncommitted) |
 
 **X1 — triggered stop orders trade without an `order.fill`.** B2: 749 orders
 traded but have no FILL event in pm-stats (traded − filled = +95 132; top
@@ -2430,4 +2432,34 @@ checkpoint -- X38.
   cancels, 185 k amends, 88 k OCO cancels, 215 k quotes, 27 k quote
   cancels, 25 163 FOK/AON refusals and combos on the books. The first run
   found two check bugs (the OCO ack order; the hit-leg remainder), fixed.
+
+### S31 — done 2026-11-07
+
+- **Correction to the plan above:** a kill switch in this engine is a mass
+  cancel, nothing more -- no gate keeps the gateway from trading again
+  (`KILL_SWITCH_ACTIVE` is in the reject enum, unused). So C13 checks the
+  sweep, not a block until a reset.
+- **C13** (`checks/refusals.py` `_Pass.sweep`, registered in `matching.py`
+  beside C12, the pass cached once per dataset): the scope is computed on
+  the live orders before the dispatch -- `risk.kill_switch` (the caller,
+  one symbol or all), `risk.kill_switch_gateway` (target, symbol,
+  `quotes_only`), `risk.kill_switch_global` (all), a `system.gateway_bye`
+  (disconnect or heartbeat timeout; LEAVE_ALL nothing, CANCEL_QUOTES_ONLY
+  the gateway's quote legs, CANCEL_ALL all of it). Findings: an order of
+  the scope left live; a cancel for the sweep's reason outside it; a
+  cancel in it for another reason (a cascade -- OCO sibling, a combo's
+  other legs, no reason -- is allowed); the ack's lists not exactly the
+  sweep's cancels, its counts not its lists, a quote leg filed as an order
+  or the reverse; a refused switch that cancelled; the administrator's
+  switches accepted from a caller not ADMIN.
+- **X40** found by reading the engine for C13 and fixed (ledger).
+- Tests: `tests/test_sim_forensics_sweeps.py` -- a real engine
+  (s3-complex) through a self switch on one symbol (with an OCO pair and an
+  armed stop), an administrator's on one gateway's quotes, a refused one, a
+  CANCEL_ALL disconnect and the global switch with a hit quote's remainder
+  resting: C12 and C13 PASS; three planted edits found. On the pre-X40
+  engine the same recording fails C13. Engine regression in
+  `tests/test_engine_mass_cancel_inactive_quote.py`.
+- The 2026-11-07 run had no kill switch or disconnect (S27's `sim_ops`
+  schedule was not running), so C13 is not yet seen on a sim run.
 
