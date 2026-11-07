@@ -21,6 +21,7 @@ import { TextInput } from "@/components/fields/inputs";
 import { CountryCombobox } from "@/components/fields/CountryCombobox";
 import { Select } from "@/components/ui/Select";
 import { SymbolEditorDialog } from "@/components/symbols/SymbolEditorDialog";
+import { SymbolFileActions } from "@/components/symbols/SymbolFileActions";
 import { GatewayAdvancedDialog } from "@/components/gateways/GatewayAdvancedDialog";
 import { ColumnHead } from "@/components/ui/ColumnHead";
 
@@ -195,13 +196,16 @@ export function BasicsTab() {
                 </tbody>
               </table>
             </div>
-            <button
-              type="button"
-              onClick={openCreate}
-              className="mt-2 rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted"
-            >
-              + Add symbol
-            </button>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={openCreate}
+                className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted"
+              >
+                + Add symbol
+              </button>
+              <SymbolFileActions />
+            </div>
           </div>
         </FieldRow>
       </Section>

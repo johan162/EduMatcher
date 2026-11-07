@@ -374,6 +374,57 @@ all (for example, one added outside the IPO dialog).
 spread and quote size and shown below them (bid 42.48 / ask 42.52, 500 × 500); an
 additional market-maker row gives MM02 its own explicit quote.*
 
+### Importing and exporting symbols
+
+Next to **"+ Add symbol"** on the Basics and Symbols tabs, **Import symbols…**
+reads a CSV or JSON file (chosen by its `.csv` / `.json` extension) and lists
+every symbol in it at once. **Export CSV** and **Export JSON** write the
+current symbols in the same format, so an exported file can be edited and
+imported into another draft.
+
+Each row holds exactly the IPO dialog's fields, and an imported row creates
+the same symbol the dialog would:
+
+| Column | Required | Blank means |
+|---|---|---|
+| `symbol` | yes | — |
+| `reference_price` | yes | — |
+| `outstanding_shares` | no | the dialog's default, 1,000,000,000 |
+| `tick_decimals` | no | the global tick decimals |
+| `mm_gateway` | no | no explicit market-maker quote ([mid-range seeding](#quote-seeding-mid-range-vs-explicit) applies) |
+| `spread_ticks` | no | 2 (needs `mm_gateway`) |
+| `quote_size` | no | 1000 (needs `mm_gateway`) |
+
+```csv
+symbol,reference_price,outstanding_shares,tick_decimals,mm_gateway,spread_ticks,quote_size
+AAPL,182.50,15000000000,2,MM01,2,500
+MSFT,410.00,,,,,
+```
+
+The JSON form is an array of objects with the same keys; a missing key or
+`null` counts as blank:
+
+```json
+[
+  { "symbol": "AAPL", "reference_price": 182.5, "mm_gateway": "MM01" },
+  { "symbol": "MSFT", "reference_price": 410 }
+]
+```
+
+An import is all-or-nothing. The whole file is checked first, and any problem
+rejects it: an unknown column or key, a symbol that already exists or appears
+twice, a value out of range, or an `mm_gateway` that is not a
+`MARKET_MAKER` gateway. The error dialog lists every problem with its line
+(CSV) or entry (JSON) number, and the draft is unchanged.
+
+Export writes only these fields. Per-symbol overrides such as risk level,
+collars, order limits and circuit-breaker settings are not included. After
+editing, a symbol may no longer fit the IPO fields: its last buy and last sell
+prices may differ, or it may have a hand-edited or second market-maker quote.
+Such a symbol is exported as closely as the fields allow (last buy becomes
+`reference_price`), and a dialog names it, because re-importing the file
+would not reproduce it.
+
 ### The Symbols workspace
 
 The **Symbols** tab (Intermediate+) has three parts, top to bottom.
