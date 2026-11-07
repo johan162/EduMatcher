@@ -556,7 +556,7 @@ the full event catalogue, recovery) is the normative
 |---|---|---|
 | `/api/v1/ws/private` | Private order, quote and risk events for one gateway | `{ "api_key": "key-trader-demo" }` |
 | `/api/v1/ws/market-data` | Public book, trades, depth, auctions, session, halts and news | `{ "api_key": "key-dashboard-demo" }` |
-| `/api/v1/ws/admin/monitor` | ADMIN-only feed of every engine event across all gateways | `{ "api_key": "key-admin-demo" }` |
+| `/api/v1/ws/admin/monitor` | ADMIN-only feed of every engine event across all gateways, except public market data and `engine.trace` | `{ "api_key": "key-admin-demo" }` |
 | `/api/v1/ws/admin/sim` | ADMIN-only `pm-market-sim` true values and heartbeat | `{ "api_key": "key-admin-demo" }` |
 
 What operators need to know:

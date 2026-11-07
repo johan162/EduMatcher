@@ -24,6 +24,14 @@ from edumatcher.api_gateway.engine_client import EngineClient
 from edumatcher.api_gateway.events import envelope
 from edumatcher.api_gateway.routers.ws import Subscription
 from edumatcher.api_gateway.schemas import ALWAYS_ON_CHANNELS, MarketDataControl
+from edumatcher.models.generated.auction import (
+    topic_auction_indicative,
+    topic_auction_result,
+)
+from edumatcher.models.generated.book import topic_book_snapshot, topic_depth
+from edumatcher.models.generated.order import topic_engine_trace
+from edumatcher.models.generated.session import TOPIC_SESSION_STATE
+from edumatcher.models.generated.trade import TOPIC_TRADE_EXECUTED
 
 
 @pytest.fixture
@@ -145,9 +153,82 @@ def test_every_sink_sees_the_same_seq_for_one_event(client: EngineClient) -> Non
     client.add_market_data_sink(md)
     client.add_admin_sink(admin)
 
-    client._handle_event("trade.executed", {"symbol": "AAPL"})
+    client._handle_event(TOPIC_SESSION_STATE, {"state": "CONTINUOUS"})
 
     assert _drain(md)[0]["seq"] == _drain(admin)[0]["seq"] == 1
+
+
+# ---------------------------------------------------------------------------
+# Admin monitor feed contents
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "topic",
+    [
+        TOPIC_TRADE_EXECUTED,
+        topic_book_snapshot("AAPL"),
+        topic_depth("AAPL"),
+        topic_auction_result("AAPL"),
+        topic_auction_indicative("AAPL"),
+        topic_engine_trace("AAPL"),
+    ],
+)
+def test_admin_feed_omits_public_market_data_and_trace(
+    client: EngineClient, topic: str
+) -> None:
+    """ADMIN reads market data on /ws/market-data; engine.trace is audit-only.
+
+    Carrying them as well made them about half of a feed no monitor renders,
+    and under the open burst they were what overflowed the admin queue.
+    """
+    admin: asyncio.Queue[dict[str, Any]] = asyncio.Queue(maxsize=8)
+    md: asyncio.Queue[dict[str, Any]] = asyncio.Queue(maxsize=8)
+    client.add_admin_sink(admin)
+    client.add_market_data_sink(md)
+
+    client._handle_event(topic, {"symbol": "AAPL"})
+
+    assert admin.empty()
+    assert client.dropped_events == {}
+    # Still market data for everyone who subscribed to it.
+    assert not md.empty()
+
+
+@pytest.mark.parametrize(
+    "topic",
+    [
+        "order.ack.GW01",
+        "order.fill.GW02",
+        TOPIC_SESSION_STATE,
+        "circuit_breaker.halt.AAPL",
+    ],
+)
+def test_admin_feed_keeps_private_and_session_events(
+    client: EngineClient, topic: str
+) -> None:
+    admin: asyncio.Queue[dict[str, Any]] = asyncio.Queue(maxsize=8)
+    client.add_admin_sink(admin)
+
+    client._handle_event(topic, {"order_id": "O1", "symbol": "AAPL"})
+
+    assert _drain(admin)[0]["topic"] == topic
+
+
+def test_public_market_data_is_not_folded_into_gateway_caches(
+    client: EngineClient,
+) -> None:
+    """Only trade.executed touches session state, via the shared price map."""
+    caches = client.get_caches("GW01")
+    before = repr(caches)
+
+    client._handle_event(topic_depth("AAPL"), {"symbol": "AAPL", "bids": []})
+    client._handle_event(topic_book_snapshot("AAPL"), {"symbol": "AAPL"})
+    client._handle_event(topic_engine_trace("AAPL"), {"symbol": "AAPL"})
+    assert repr(caches) == before
+
+    client._handle_event(TOPIC_TRADE_EXECUTED, {"symbol": "AAPL", "price": 101.5})
+    assert caches.last_prices["AAPL"] == 101.5
 
 
 def test_private_topics_are_sequenced_per_gateway(client: EngineClient) -> None:

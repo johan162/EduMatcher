@@ -1,12 +1,17 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+
+vi.mock("@/api/endpoints.js", () => ({ getAdminOrders: vi.fn() }));
+
+import { getAdminOrders } from "@/api/endpoints.js";
 import {
   FLUSH_MS,
   MAX_ORDERS,
+  RESYNC_MIN_MS,
   useMonitorStore,
   selectActiveOrderCount,
   selectOrderCountsBySymbol,
 } from "@/store/useMonitorStore";
-import type { WsEnvelope } from "@/types/index";
+import type { AdminOrder, WsEnvelope } from "@/types/index";
 
 function env(type: string, data: unknown, extra: Partial<WsEnvelope<unknown>> = {}): WsEnvelope<unknown> {
   return { type, topic: extra.topic ?? "", ts: extra.ts ?? "2026-08-14T10:00:00.000Z", data, ...extra } as WsEnvelope<unknown>;
@@ -109,6 +114,156 @@ describe("useMonitorStore (§6.9)", () => {
     useMonitorStore.getState().clear();
     flush();
     expect(useMonitorStore.getState().events).toHaveLength(0);
+  });
+
+  describe("seq gaps (gateway dropped events)", () => {
+    const mockOrders = vi.mocked(getAdminOrders);
+    const ack = (id: string, seq: number, topic = "order.ack.GW01") =>
+      env(
+        "order.ack",
+        { order_id: id, accepted: true, symbol: "AAPL" },
+        { gateway_id: "GW01", topic, seq },
+      );
+    /** The gateway answers each status query from this working set. */
+    const serve = (working: AdminOrder[]) =>
+      mockOrders.mockImplementation(async (params) => {
+        const orders = working.filter((o) => o.status === params?.status);
+        return { count: orders.length, orders, retention_sec: 300 };
+      });
+
+    beforeEach(() => {
+      vi.useFakeTimers();
+      mockOrders.mockReset();
+      serve([]);
+    });
+    afterEach(() => {
+      useMonitorStore.getState().clear();
+      vi.useRealTimers();
+    });
+
+    it("contiguous seq triggers nothing", async () => {
+      ingest(ack("o1", 1));
+      ingest(ack("o2", 2));
+      await vi.advanceTimersByTimeAsync(RESYNC_MIN_MS);
+      expect(mockOrders).not.toHaveBeenCalled();
+      expect(useMonitorStore.getState().events.some((e) => e.kind === "GAP")).toBe(false);
+    });
+
+    it("logs one GAP row per flush with the missed count, behind the batch", () => {
+      ingest(ack("o1", 1));
+      ingest(ack("o2", 5)); // 2..4 dropped
+      ingest(ack("o3", 8, "order.ack.GW02"));
+      ingest(ack("o4", 10, "order.ack.GW02")); // 9 dropped
+      flush();
+      const events = useMonitorStore.getState().events;
+      expect(events.map((e) => e.kind)).toEqual(["ACK", "ACK", "ACK", "ACK", "GAP"]);
+      expect(events[4]!.detail).toMatch(/^4 events dropped/);
+    });
+
+    it("a gap on a frame the log ignores still reports and resyncs", async () => {
+      const q = (seq: number) =>
+        env("quote.status", { quote_id: "q1" }, { topic: "quote.status.GW01", seq });
+      ingest(q(1));
+      ingest(q(3));
+      await vi.advanceTimersByTimeAsync(FLUSH_MS);
+      expect(useMonitorStore.getState().events.map((e) => e.kind)).toEqual(["GAP"]);
+      expect(mockOrders).toHaveBeenCalledTimes(3); // NEW, PARTIAL, AMENDED
+    });
+
+    it("removes a working order the gateway no longer has (its fill was dropped)", async () => {
+      serve([
+        { order_id: "o2", gateway_id: "GW01", status: "PARTIAL", symbol: "AAPL" },
+        { order_id: "o3", gateway_id: "GW01", status: "NEW", symbol: "AAPL" },
+      ]);
+      ingest(ack("o1", 1));
+      ingest(ack("o2", 2));
+      ingest(ack("o3", 9)); // gap; o1's fill and o2's partial were among the dropped
+      await vi.advanceTimersByTimeAsync(FLUSH_MS);
+      const orders = useMonitorStore.getState().orders;
+      expect(orders.o1).toBeUndefined();
+      expect(orders.o2!.status).toBe("PARTIAL"); // gateway state wins
+      expect(orders.o3!.status).toBe("NEW");
+      expect(selectActiveOrderCount(orders)).toBe(2);
+    });
+
+    it("leaves terminal orders alone", async () => {
+      ingest(
+        env(
+          "order.fill",
+          { order_id: "f1", status: "FILLED", symbol: "AAPL" },
+          { gateway_id: "GW01", topic: "order.fill.GW01", seq: 1 },
+        ),
+      );
+      ingest(
+        env(
+          "order.fill",
+          { order_id: "f2", status: "FILLED", symbol: "AAPL" },
+          { gateway_id: "GW01", topic: "order.fill.GW01", seq: 4 },
+        ),
+      );
+      await vi.advanceTimersByTimeAsync(FLUSH_MS);
+      expect(Object.keys(useMonitorStore.getState().orders).sort()).toEqual(["f1", "f2"]);
+    });
+
+    it("keeps an order updated live while the fetch was in flight", async () => {
+      const pending: (() => void)[] = [];
+      const release = () => pending.forEach((r) => r());
+      mockOrders.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            pending.push(() => resolve({ count: 0, orders: [], retention_sec: 300 }));
+          }),
+      );
+      ingest(ack("o1", 1));
+      flush();
+      ingest(ack("o2", 5)); // gap -> resync starts (fetch pending)
+      await vi.advanceTimersByTimeAsync(0);
+      ingest(
+        env(
+          "order.fill",
+          { order_id: "o1", status: "PARTIAL", symbol: "AAPL" },
+          { gateway_id: "GW01", topic: "order.fill.GW01", seq: 1 },
+        ),
+      );
+      release();
+      await vi.advanceTimersByTimeAsync(0);
+      const orders = useMonitorStore.getState().orders;
+      // o1 changed during the fetch: live state is newer than the answer.
+      expect(orders.o1!.status).toBe("PARTIAL");
+      // o2 was applied before the fetch began, so the gateway's answer wins.
+      expect(orders.o2).toBeUndefined();
+    });
+
+    it("resyncs at most once per RESYNC_MIN_MS however many gaps arrive", async () => {
+      ingest(ack("a", 1));
+      ingest(ack("b", 3));
+      await vi.advanceTimersByTimeAsync(0);
+      expect(mockOrders).toHaveBeenCalledTimes(3);
+      for (let i = 0; i < 20; i++) ingest(ack(`c${i}`, 10 + 2 * i));
+      await vi.advanceTimersByTimeAsync(RESYNC_MIN_MS - 1);
+      expect(mockOrders).toHaveBeenCalledTimes(3);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(mockOrders).toHaveBeenCalledTimes(6);
+    });
+
+    it("a snapshot resets seq baselines and cancels a pending resync", async () => {
+      ingest(ack("a", 1));
+      ingest(ack("b", 3));
+      await vi.advanceTimersByTimeAsync(0); // first resync runs
+      ingest(ack("c", 5)); // second one is now pending (throttled)
+      ingest(
+        env("monitor.snapshot", {
+          orders: [],
+          halts: null,
+          gateways: null,
+          last_seq: {},
+          incomplete: [],
+        }),
+      );
+      ingest(ack("d", 100)); // first seq after reconnect is a baseline, not a gap
+      await vi.advanceTimersByTimeAsync(RESYNC_MIN_MS * 2);
+      expect(mockOrders).toHaveBeenCalledTimes(3);
+    });
   });
 
   describe("order map bound", () => {

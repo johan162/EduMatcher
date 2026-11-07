@@ -14,7 +14,7 @@ import zmq
 from fastapi import HTTPException, status
 
 from edumatcher.api_gateway.caches import SessionCaches
-from edumatcher.api_gateway.market_cache import MarketDataCache
+from edumatcher.api_gateway.market_cache import MarketDataCache, channel_for_topic
 from edumatcher.api_gateway.events import (
     ADMIN_ACTION_PREFIX,
     COMMAND_TOPICS,
@@ -63,7 +63,7 @@ from edumatcher.models.message import (
     make_symbols_request_msg,
     make_volume_request_msg,
 )
-from edumatcher.models.generated.order import topic_order_ack
+from edumatcher.models.generated.order import PREFIX_ENGINE_TRACE, topic_order_ack
 from edumatcher.models.order import Order
 from edumatcher.models.price import register_tick_decimals
 from edumatcher.models.generated.risk import topic_kill_switch_ack
@@ -559,11 +559,12 @@ class EngineClient:
             self._dbg_count("market_data_events")
             if topic == TOPIC_TRADE_EXECUTED:
                 # Lands in the shared last-price map; one apply covers every
-                # session, present and future.
+                # session, present and future. It is the only public topic
+                # SessionCaches.apply acts on, so nothing else is folded into
+                # the per-gateway caches: the loop over every cache that used
+                # to sit here was a no-op for book/depth/trace and cost
+                # O(gateways) per event.
                 self._market_view.apply(topic, payload)
-            else:
-                for cache in self._caches.values():
-                    cache.apply(topic, payload)
             event = envelope(topic, payload, seq=seq)
             # Retain latest snapshot / recent trade tail so a (re)subscribing
             # or gap-detecting client can be served without waiting for the
@@ -575,7 +576,16 @@ class EngineClient:
                 else:
                     self._dbg_count("market_data_sink_drops")
                     self._record_drop("market_data", event)
-        # The ADMIN monitor feed sees every event regardless of routing branch.
+        # The ADMIN monitor feed sees every event regardless of routing branch,
+        # except public market data (an ADMIN has /ws/market-data for that)
+        # and the audit-only engine.trace. Together they were about half the
+        # feed and no monitor renders them; under a burst they were what
+        # overflowed the queue. Whole topics are skipped, so the per-topic
+        # seq a monitor checks stays contiguous.
+        if channel_for_topic(topic) is not None or topic.startswith(
+            PREFIX_ENGINE_TRACE
+        ):
+            return
         for queue in list(self._admin_sinks):
             if self._try_put(queue, event):
                 self._dbg_count("admin_sink_events")
