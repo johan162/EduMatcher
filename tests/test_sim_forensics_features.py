@@ -22,7 +22,21 @@ from edumatcher.models.order import Side
 from sim_forensics import checks  # noqa: F401,E402  (registers the checks)
 from sim_forensics.registry import REGISTRY, run_checks  # noqa: E402
 
-CHECKS = ["C7", "D1", "D10", "D11", "D2", "D3", "D4", "D5", "D6", "D7", "D8", "D9"]
+CHECKS = [
+    "C12",
+    "C7",
+    "D1",
+    "D10",
+    "D11",
+    "D2",
+    "D3",
+    "D4",
+    "D5",
+    "D6",
+    "D7",
+    "D8",
+    "D9",
+]
 
 
 @pytest.fixture
@@ -76,6 +90,20 @@ def test_the_recorded_run_replays_clean(
     assert REGISTRY["C7"].fn(open_ds(data)).note == "1 stops triggered"
     decided = re.search(r"(\d+) price decisions compared", REGISTRY["D6"].fn(open_ds(data)).note)  # fmt: skip
     assert decided is not None and int(decided.group(1)) > 0
+
+
+def test_c12_finds_an_aon_preflight_the_book_does_not_bear_out(
+    recorded: str, tmp_path: Path, open_ds: OpenDataset
+) -> None:
+    """S30: the engine's own account of an all-or-none combo's pre-check,
+    against the replayed book."""
+
+    def edit(lines: list[str]) -> list[str]:
+        i = first(lines, r'"kind": "AON_PREFLIGHT", "combo_id": "C1"')
+        lines[i] = with_payload(lines[i], fillable_qty=payload(lines[i])["fillable_qty"] + 1)  # fmt: skip
+        return lines
+
+    assert failing(open_ds, planted(tmp_path, recorded, edit)) == {"C12": ["AON_PREFLIGHT differs from the replay's"]}  # fmt: skip
 
 
 def test_d6_finds_an_uncross_the_engine_says_another_rule_decided(

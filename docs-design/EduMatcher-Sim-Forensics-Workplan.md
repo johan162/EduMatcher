@@ -53,7 +53,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 | 27 | S27 | Sim feature coverage: amend, combos, ATC, explicit SMP, bands/CB, halts, kill switch, one restart | S17 | 1.5 d | ☐ | |
 | 28 | S28 | Replay models amend, combos, circuit breaker/halts; D8 checks bands; C7/D5 use explicit events | S24, S27 | 2 d | ☑ (D9 on an S27 run open) | 2026-10-29 |
 | 29 | S29 | Long run on the 1.0 formats, full report, triage; then freeze | S21–S28 | open | ☐ | |
-| 30 | S30 | C12: every refusal is justified, and every acceptance too (all reject codes, D8 does collars) | — | 1.5 d | ☐ | |
+| 30 | S30 | C12: every refusal is justified, and every acceptance too (all reject codes, D8 does collars) | — | 1.5 d | ☑ | 2026-11-07 |
 | 31 | S31 | C13: kill switches and disconnect behaviour sweep the gateway; nothing of it trades until reset | — | 0.5 d | ☐ | |
 | 32 | S32 | D12: circuit-breaker oracle (own reference window: halts justified, no trade outside the corridor, reopen on time) | — | 1 d | ☐ | |
 | 33 | S33 | C14: end-of-day expiry (every live DAY order, leg and quote expires once; no GTC does) | — | 0.5 d | ☐ | |
@@ -231,6 +231,7 @@ Status column of the report = PASS / FAIL(n) / SKIPPED(reason).
 | C7 | Stops/trailing stops trigger only after a trade crossed the (trailing) stop price; icebergs: displayed ≤ peak, refill after peak exhausted. **Moved to S5**: `order_events` stores neither stop prices nor display quantities; needs the audit. (S28) Also: the replay's triggered stops, per dispatch and in order, are the engine's `order.triggered`. |
 | C9 | (S18) IOC, FOK and MARKET end within their own dispatch (chain) and never rest; a FOK fills completely or not at all (or, accepted, ends CANCELLED `SELF_MATCH_PREVENTED` with no fill — the documented SMP case, see S17). |
 | C10 | (S18) One quote per (gateway, symbol): when a quote is accepted no earlier leg of that gateway and symbol is live (the engine cancels them `QUOTE_REPLACED` first, a filled leg's remainder included), and a replaced leg never trades. |
+| C12 | (S30) Every refusal holds on the state (and, for a FOK's or an all-or-none combo's liquidity, the replayed book) it was made on, and no acceptance meets a refusal's reason: `order.new` gates, cancel / amend / OCO cancel / quote cancel not found or not owner, the market maker's quote obligation, AON_PREFLIGHT against the book. Collars stay D8's. |
 
 ### D — Matching correctness (audit episodes; needs S1 retention)
 
@@ -2394,3 +2395,39 @@ restart 11): a restart seeds the breaker reference from the last trade
 (EA 25407, 308 trades), so the corridor and the halts differ. By design
 today; decided with Johan: persist the breaker's trade window in the
 checkpoint -- X38.
+
+### S30 — done 2026-11-07
+
+- **C12** has two parts, registered in `matching.py` (one module's checks
+  share a process, and so the replay):
+  - the state part, `checks/refusals.py`: one pass over the audit keeping
+    the phase, halts (with their source), the live orders (reset from
+    every book checkpoint), OCO pairs, quotes and quote legs; each command
+    judged on the state before its dispatch, the dispatch's messages then
+    applied creations first (an OCO's legs are acked after its `oco.ack`).
+    `order.new` gates in the engine's order (gateway / symbol configured,
+    duplicate live id, quantity, price, iceberg slice, order limits,
+    MARKET_CLOSED, ATO/ATC windows, halts with CIRCUIT_BREAKER_ACTIVE vs
+    INSTRUMENT_HALTED, MARKET/FOK/IOC outside CONTINUOUS); cancel / amend
+    ORDER_NOT_FOUND (ORDER_ALREADY_TERMINAL) / NOT_OWNER; OCO cancel; the
+    market maker's spread and size obligation; quote cancel (an active
+    quote, or a hit leg's remainder). Both ways: a refusal must hold, an
+    acceptance must meet none. `INTERNAL_ERROR` always a finding.
+  - the book part, `_Replay._refusals`: a FOK refused for liquidity had
+    less than its quantity (`_Book.fillable`, the H8 rules: hidden iceberg
+    quantity behind its level, SMP skip or stop, one leg of an OCO pair);
+    an AON combo refused exactly when a leg was short and one would trade
+    now (X28), and S36's AON_PREFLIGHT matches the replayed book.
+- Not judged (counted in the note): collars (D8), a gateway not connected,
+  the per-type field rules, OCO/combo state gates (`oco.ack`/`combo.ack`
+  carry no reject code).
+- Tests: `tests/test_sim_forensics_refusals.py` (a justified day; six
+  planted wrong answers; an AON refused on empty books; the OCO ack order;
+  a quote cancel clearing a hit leg's remainder);
+  `tests/test_sim_forensics_features.py` (C12 on the recorded real engine,
+  a planted AON_PREFLIGHT found).
+- On the 2026-11-07 data: **C12 PASS** -- 2.72 M new orders, 1.12 M
+  cancels, 185 k amends, 88 k OCO cancels, 215 k quotes, 27 k quote
+  cancels, 25 163 FOK/AON refusals and combos on the books. The first run
+  found two check bugs (the OCO ack order; the hit-leg remainder), fixed.
+

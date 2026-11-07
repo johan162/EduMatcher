@@ -41,6 +41,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from sim_forensics.audit import Line, audit_files, lines, run_config_text
+from sim_forensics.checks import refusals
 from sim_forensics.dataset import Dataset
 from sim_forensics.registry import Outcome, Sample, Skipped, check
 
@@ -102,6 +103,7 @@ class _Order:
     triggered: bool = False
     armed_as: str = ""  # the stop type a triggered stop was
     traded: bool = False
+    oco: str | None = None  # the OCO pair it is a leg of
 
 
 class _Book:
@@ -198,6 +200,35 @@ class _Book:
             level[o.id] = o
             o.seq = seq
 
+    def fillable(self, side: str, limit: int | None, gw: str, smp: str) -> int:
+        """What an order on *side* from *gw* could execute against the book
+        now, as a FOK or an all-or-none combo's pre-check counts it: the
+        other side in priority up to *limit*; an iceberg's hidden rest
+        behind everything at its price; the gateway's own orders left out
+        under SMP -- under CANCEL_AGGRESSOR / CANCEL_BOTH the sweep stops at
+        the first, so nothing behind it counts; of an OCO pair only the leg
+        met first (the other goes with it)."""
+        other = SELL if side == BUY else BUY
+        total = 0
+        pairs: set[tuple[str, str]] = set()
+        for price in sorted(self.levels[other], reverse=other == BUY):
+            if limit is not None and (price > limit if side == BUY else price < limit):  # fmt: skip
+                break
+            hidden = 0
+            for o in self.levels[other][price].values():
+                if smp != "NONE" and o.gw == gw:
+                    if smp in ("CANCEL_AGGRESSOR", "CANCEL_BOTH"):
+                        return total
+                    continue
+                if o.oco is not None:
+                    if (o.gw, o.oco) in pairs:
+                        continue
+                    pairs.add((o.gw, o.oco))
+                total += o.shown
+                hidden += o.remaining - o.shown
+            total += hidden
+        return total
+
     def view(self, side: str) -> dict[int, tuple[int, int]]:
         return {
             price: (sum(o.shown for o in level.values()), len(level))
@@ -263,6 +294,9 @@ class _Replay:
         self.decisions = 0
         self.amends = 0
         self.combo_legs = 0
+        #: C12's refusals judged on the books, and what failed.
+        self.c12_judged = 0
+        self.c12_errors: Counter[str] = Counter()
         #: Whether the audit carries S24's explicit events (engine.trace on
         #: every resting order, so any run has them): C7 then compares the
         #: replay's triggers with the engine's order.triggered, per dispatch.
@@ -403,6 +437,7 @@ class _Replay:
         self.chain = d.chain
         self.dead = d.dead
         self.dead_symbol = d.dead_symbol
+        self._refusals(d)
         commands = self._commands(d)
         by_symbol: dict[str, list[_Order]] = defaultdict(list)
         for symbol, o in commands:
@@ -464,6 +499,59 @@ class _Replay:
         self.counts[cid] += 1
         if len(self.samples[cid]) < _KEEP:
             self.samples[cid].append({**sample, "chain": self.chain})
+
+    # --- C12: the refusals only a book can judge -------------------------
+
+    def _c12(self, error: str, **sample: object) -> None:
+        self.c12_errors[error] += 1
+        self._flag("C12", error=error, **sample)
+
+    def _refusals(self, d: _Dispatch) -> None:
+        """C12 on the book before the dispatch: a FOK refused for liquidity
+        had less than its quantity to execute; an all-or-none combo was
+        refused (its first leg, INSUFFICIENT_LIQUIDITY) exactly when a leg
+        was short and a leg would trade now (X28), and its AON_PREFLIGHT
+        (S36, where the audit has it) says what the book held."""
+        refused = {a["order_id"] for _, a in d.acks if a.get("reject_code") == "INSUFFICIENT_LIQUIDITY"}  # fmt: skip
+        if d.new is not None and d.new.get("order_type") == "FOK" and d.new["id"] in refused:  # fmt: skip
+            p = d.new
+            if p["symbol"] not in self.diverged:
+                self.c12_judged += 1
+                gw = p["gateway_id"]
+                held = self._book(p["symbol"]).fillable(p["side"], p.get("price_ticks"), gw, p.get("smp_action") or self.smp.get(gw, "NONE"))  # fmt: skip
+                if held >= int(p["quantity"]):
+                    self._c12("FOK refused for liquidity the book held", order_id=p["id"], symbol=p["symbol"], qty=p["quantity"], fillable=held)  # fmt: skip
+        if d.combo is not None and (d.combo.get("combo_type") or "AON") == "AON":
+            self._aon(d, d.combo, bool(refused))
+
+    def _aon(self, d: _Dispatch, c: dict[str, Any], refused: bool) -> None:
+        legs = c.get("legs") or []
+        traces = {int(t["leg_index"]): t for t in d.traces if t.get("kind") == "AON_PREFLIGHT"}  # fmt: skip
+        posted = refused or traces or any(a.get("accepted") for _, a in d.acks)
+        if not posted or any(leg["symbol"] in self.diverged for leg in legs):
+            return  # refused before the pre-check (gateway, session, collar)
+        self.c12_judged += 1
+        gw = str(c["gateway_id"]).upper()
+        mine = []
+        for leg in legs:
+            book = self._book(leg["symbol"])
+            smp = leg.get("smp_action") or self.smp.get(gw, "NONE")
+            price = leg.get("price_ticks")
+            mine.append((book.fillable(leg["side"], price, gw, smp), book.fillable(leg["side"], price, gw, "NONE")))  # fmt: skip
+        short = any(f < int(leg["quantity"]) for (f, _), leg in zip(mine, legs))
+        matching = self.phase in ("CONTINUOUS", None)
+        trades_now = any(n > 0 and leg["symbol"] not in self.halted for (_, n), leg in zip(mine, legs))  # fmt: skip
+        outcome = "REJECT" if short and matching and trades_now else "REST" if short else "MATCH"  # fmt: skip
+        if refused != (outcome == "REJECT"):
+            self._c12("AON combo refused for liquidity, but the book did not call for it" if refused else "AON combo accepted, but a leg was short and one would trade now", combo_id=c.get("combo_id"), fillable=mine, outcome=outcome)  # fmt: skip
+        for i, t in traces.items():
+            theirs = (
+                t.get("fillable_qty"),
+                t.get("fillable_no_smp_qty"),
+                t.get("outcome"),
+            )
+            if i < len(mine) and theirs != (*mine[i], outcome):
+                self._c12("AON_PREFLIGHT differs from the replay's", combo_id=c.get("combo_id"), leg_index=i, engine=theirs, replay=(*mine[i], outcome))  # fmt: skip
 
     # --- commands --------------------------------------------------------
 
@@ -553,6 +641,7 @@ class _Replay:
                     smp=smp,
                     stop=leg.get("stop_price_ticks"),
                     offset=leg.get("trail_offset_ticks"),
+                    oco=p["oco_id"],
                 )
                 out.append((p["symbol"], o))
         for symbol, o in out:
@@ -1228,6 +1317,7 @@ class _Replay:
             peak=a.get("visible_qty"),
             stop=a.get("stop_price_ticks"),
             offset=a.get("trail_offset_ticks"),
+            oco=a.get("oco_group_id"),
         )
 
     def _from_record(self, r: dict[str, Any]) -> _Order:
@@ -1242,6 +1332,7 @@ class _Replay:
             peak=r.get("visible_qty"),
             stop=r.get("stop_price_ticks"),
             offset=r.get("trail_offset_ticks"),
+            oco=r.get("oco_group_id"),
         )
         return o
 
@@ -1603,6 +1694,27 @@ def uncross(ds: Dataset) -> Outcome:
         "D6",
         f"{r.uncrosses} uncrosses with prints, {r.decisions} price decisions compared",
     )
+
+
+@check(
+    "C12",
+    "lifecycle",
+    "Every refusal holds on the state and book it was made on, and no acceptance meets one",
+    needs=(),
+)
+def refusals_justified(ds: Dataset) -> Outcome:
+    """The state part is ``refusals.py``'s pass; the book part this replay's
+    (``_Replay._refusals``)."""
+    p = refusals.state_pass(ds)
+    r = _replay(ds)
+    errors = p.errors + r.c12_errors
+    samples = (p.samples + r.samples.get("C12", []))[:_KEEP]
+    note = ", ".join(f"{k} {n}" for k, n in sorted(p.judged.items()))
+    note += f"; on the books: {r.c12_judged} FOK / AON refusals and combos"
+    note += "".join(f"; {e}: {n}" for e, n in errors.most_common())
+    if p.unjudged:
+        note += "; not judged here: " + ", ".join(f"{k} {n}" for k, n in p.unjudged.most_common(8))  # fmt: skip
+    return Outcome(sum(errors.values()), samples, note)
 
 
 @check("D7", "book-state", "No continuous self-trade under SMP", needs=())
