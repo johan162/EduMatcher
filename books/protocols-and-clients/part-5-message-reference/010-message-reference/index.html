@@ -17865,7 +17865,7 @@ wire-format specification in the
 <p><strong>Published by:</strong> <code>engine</code></p>
 <p><strong>Transport:</strong> <code>engine_pub</code></p>
 <p><strong>Since:</strong> 1.3</p>
-<p>What the book did that no trade or order message shows, for the audit trail (no gateway forwards it): an order resting or arming and the place in the queue it got, an iceberg refilling its slice at the back of its level, a trailing stop ratcheting its trigger. A replay can then compare its model of priority and of trailing triggers with the engine's own, instead of inferring them.</p>
+<p>What the book did that no trade or order message shows, for the audit trail (no gateway forwards it): an order resting or arming and the place in the queue it got, an iceberg refilling its slice at the back of its level, a trailing stop ratcheting its trigger. A replay can then compare its model of priority and of trailing triggers with the engine's own, instead of inferring them. Three kinds say why the engine decided (S36): UNCROSS_PRICE (which rule chose an uncross's price, among which tied prices), AON_PREFLIGHT (per leg of an all-or-none combo, what could fill, and whether the combo matches, rests or is rejected) and SMP_DECISION (the same-gateway pair self-match prevention met, and the policy applied).</p>
 <table>
 <thead>
 <tr>
@@ -17886,7 +17886,7 @@ wire-format specification in the
 </tr>
 <tr>
 <td><code>kind</code></td>
-<td>enum: <code>RESTED</code>, <code>ICEBERG_REFILL</code>, <code>TRAILING_RATCHET</code></td>
+<td>enum: <code>RESTED</code>, <code>ICEBERG_REFILL</code>, <code>TRAILING_RATCHET</code>, <code>UNCROSS_PRICE</code>, <code>AON_PREFLIGHT</code>, <code>SMP_DECISION</code></td>
 <td>required</td>
 <td>—</td>
 <td></td>
@@ -17894,9 +17894,9 @@ wire-format specification in the
 <tr>
 <td><code>order_id</code></td>
 <td><code>string</code></td>
-<td>required</td>
+<td>omitted when unset</td>
 <td>max_len 64</td>
-<td></td>
+<td>The order the record is about; SMP_DECISION: the order whose policy applied (the aggressor; in an uncross the bid, unless only the ask has a policy).</td>
 </tr>
 <tr>
 <td><code>priority_seq</code></td>
@@ -17933,12 +17933,111 @@ wire-format specification in the
 <td>unit <code>ticks</code></td>
 <td>TRAILING_RATCHET: the trade price that moved it.</td>
 </tr>
+<tr>
+<td><code>auction_id</code></td>
+<td><code>string</code></td>
+<td>omitted when unset</td>
+<td>max_len 32</td>
+<td>UNCROSS_PRICE: the uncross, as on its <code>auction.result</code>.</td>
+</tr>
+<tr>
+<td><code>eq_price_ticks</code></td>
+<td><code>ticks</code></td>
+<td>omitted when unset</td>
+<td>unit <code>ticks</code></td>
+<td>UNCROSS_PRICE: the price the uncross runs at (it prints nothing there when <code>eq_qty</code> is 0: SMP or an OCO pair took the whole overlap).</td>
+</tr>
+<tr>
+<td><code>eq_qty</code></td>
+<td><code>int</code></td>
+<td>omitted when unset</td>
+<td>ge 0, unit <code>shares</code></td>
+<td>UNCROSS_PRICE: the executable quantity at that price.</td>
+</tr>
+<tr>
+<td><code>surplus</code></td>
+<td><code>int</code></td>
+<td>omitted when unset</td>
+<td>ge 0, unit <code>shares</code></td>
+<td>UNCROSS_PRICE: the unmatched quantity at that price.</td>
+</tr>
+<tr>
+<td><code>rule</code></td>
+<td>enum: <code>VOLUME</code>, <code>SURPLUS</code>, <code>LOWEST_PRICE</code>, <code>OVERRIDE</code></td>
+<td>omitted when unset</td>
+<td>—</td>
+<td>UNCROSS_PRICE: what decided -- the most volume (one price had it), then the least surplus among those, then the lowest price; OVERRIDE when the price was imposed (closing backstop, ADMIN_MANUAL).</td>
+</tr>
+<tr>
+<td><code>tied_prices_ticks</code></td>
+<td>list of <code>int</code></td>
+<td>omitted when empty</td>
+<td>—</td>
+<td>UNCROSS_PRICE: the prices still tied when <code>rule</code> decided, lowest first (one price for VOLUME; the most-volume prices for SURPLUS; those with the least surplus too for LOWEST_PRICE). In ticks.</td>
+</tr>
+<tr>
+<td><code>combo_id</code></td>
+<td><code>string</code></td>
+<td>omitted when unset</td>
+<td>max_len 64</td>
+<td>AON_PREFLIGHT: the client's combo id.</td>
+</tr>
+<tr>
+<td><code>leg_index</code></td>
+<td><code>int</code></td>
+<td>omitted when unset</td>
+<td>ge 0, unit <code>dimensionless</code></td>
+<td>AON_PREFLIGHT: the leg, in the combo's order.</td>
+</tr>
+<tr>
+<td><code>quantity</code></td>
+<td><code>int</code></td>
+<td>omitted when unset</td>
+<td>ge 0, unit <code>shares</code></td>
+<td>AON_PREFLIGHT: the leg's quantity.</td>
+</tr>
+<tr>
+<td><code>fillable_qty</code></td>
+<td><code>int</code></td>
+<td>omitted when unset</td>
+<td>ge 0, unit <code>shares</code></td>
+<td>AON_PREFLIGHT: what the leg could fill now, the gateway's own orders left out under its SMP policy.</td>
+</tr>
+<tr>
+<td><code>fillable_no_smp_qty</code></td>
+<td><code>int</code></td>
+<td>omitted when unset</td>
+<td>ge 0, unit <code>shares</code></td>
+<td>AON_PREFLIGHT: what the leg would trade now counting the gateway's own orders (more than 0 on a blocked combo is what rejects it).</td>
+</tr>
+<tr>
+<td><code>outcome</code></td>
+<td>enum: <code>MATCH</code>, <code>REST</code>, <code>REJECT</code></td>
+<td>omitted when unset</td>
+<td>—</td>
+<td>AON_PREFLIGHT: the combo's outcome, the same on every leg -- every leg fills in full and the legs match; a leg is short and the legs rest unmatched; or a leg is short and one would trade now, so the combo fails at its first leg (INSUFFICIENT_LIQUIDITY). Halted symbols and phases without matching rest.</td>
+</tr>
+<tr>
+<td><code>other_order_id</code></td>
+<td><code>string</code></td>
+<td>omitted when unset</td>
+<td>max_len 64</td>
+<td>SMP_DECISION: the same gateway's order on the other side.</td>
+</tr>
+<tr>
+<td><code>smp_action</code></td>
+<td>enum: <code>CANCEL_AGGRESSOR</code>, <code>CANCEL_RESTING</code>, <code>CANCEL_BOTH</code></td>
+<td>omitted when unset</td>
+<td>—</td>
+<td>SMP_DECISION: the policy applied, of <code>order_id</code>'s order: which of the two was cancelled (both for CANCEL_BOTH). An unfillable FOK meets each same-gateway order in its range: one record each.</td>
+</tr>
 </tbody>
 </table>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p><code>priority_seq</code> is the book's arrival sequence; it orders orders at one price, nothing more.</p>
 <p>A trailing stop rests in a list checked in arming order, so its RESTED has no <code>priority_seq</code>.</p>
+<p>UNCROSS_PRICE names no order; AON_PREFLIGHT names the combo and the leg, not an order (the leg's order does not exist yet).</p>
 </div>
 <p><strong>See also:</strong> <code>order.triggered.{GW_ID}</code>, <code>order.amended.{GW_ID}</code></p>
 <h3 id="orderamendedgateway_id"><code>order.amended.{gateway_id}</code><a class="headerlink" href="#orderamendedgateway_id" title="Permanent link">&para;</a></h3>

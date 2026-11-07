@@ -7956,7 +7956,7 @@ startup so the market resumes where it left off.</p>
 <td><code>book_stats.json</code></td>
 <td><code>pm-engine</code></td>
 <td>Periodic checkpoint and clean shutdown</td>
-<td>Last buy/sell price and previous-close per symbol; seeds the collar and circuit-breaker reference at the next open, and the <code>SYMBOLS</code> command's <code>prev_close</code> field</td>
+<td>Last buy/sell price and previous-close per symbol; seeds the collar and circuit-breaker reference at the next open, and the <code>SYMBOLS</code> command's <code>prev_close</code> field. Also each circuit breaker's reference window (<code>cb_window</code>: the trades its reference averages): a restart on the same business day takes it back, so the breaker goes on with the reference the market had; a later day seeds the breaker from the last price</td>
 <td>JSON; loaded by the engine at startup</td>
 </tr>
 <tr>

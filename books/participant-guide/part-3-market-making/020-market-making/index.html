@@ -8754,15 +8754,18 @@ These can be referenced individually in cancellation or via book queries.</p>
     [*] --&gt; ACTIVE : QUOTE accepted
     ACTIVE --&gt; INACTIVE_BID_FILLED : bid leg fills
     ACTIVE --&gt; INACTIVE_ASK_FILLED : ask leg fills
-    ACTIVE --&gt; CANCELLED : QUOTE_CANCEL, gateway disconnect, or a new QUOTE replacing this one
+    ACTIVE --&gt; CANCELLED : QUOTE_CANCEL, gateway disconnect, a new QUOTE replacing this one, or a DAY quote's legs expiring at the close
     INACTIVE_BID_FILLED --&gt; [*] : ask leg cancelled by engine
     INACTIVE_ASK_FILLED --&gt; [*] : bid leg cancelled by engine
     CANCELLED --&gt; [*]</code></pre>
 <p>There is no separate <code>REPLACED</code> status: a new <code>QUOTE</code> on the same
 <code>(gateway_id, symbol)</code> cancels the old quote and the engine emits an ordinary
 <code>quote.status CANCELLED</code> for it (with reason <code>"Replaced by new quote"</code>)
-before installing the new one. The engine's only <code>quote.status</code> values are
-<code>ACTIVE</code>, <code>INACTIVE_BID_FILLED</code>, <code>INACTIVE_ASK_FILLED</code>, and <code>CANCELLED</code>.</p>
+before installing the new one. Likewise there is no <code>EXPIRED</code> status: when a
+<code>TIF=DAY</code> quote's legs expire at the close (<code>order.expired</code> for each), the
+quote ends with <code>quote.status CANCELLED</code>, reason <code>"Expired"</code>. The engine's
+only <code>quote.status</code> values are <code>ACTIVE</code>, <code>INACTIVE_BID_FILLED</code>,
+<code>INACTIVE_ASK_FILLED</code>, and <code>CANCELLED</code>.</p>
 <p>When inactivation occurs, the gateway receives a <code>quote.status</code> event:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>[HH:MM:SS] QUOTE INACTIVE_BID_FILLED  q-aapl-001
 </code></pre></div>
@@ -9213,7 +9216,7 @@ mechanics this relies on.</p>
 <tbody>
 <tr>
 <td><code>DAY</code></td>
-<td>Quote expires at end of trading day (scheduler-driven <code>CLOSED</code>, not a process exit)</td>
+<td>Quote expires at end of trading day (scheduler-driven <code>CLOSED</code>, not a process exit): <code>order.expired</code> for each leg, then <code>quote.status CANCELLED</code> (reason <code>"Expired"</code>)</td>
 <td>Survives a restart within the same business day; discarded at restore if the business day has rolled over</td>
 </tr>
 <tr>

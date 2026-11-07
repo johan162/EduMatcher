@@ -11001,14 +11001,28 @@ to <code>self.trace</code> through <code>_note(kind, *fields)</code> (and <code>
 <td><code>_note_trigger</code>, from <code>_check_stops</code>, <code>_check_trailing_stops</code> and <code>_trigger_stop_now</code></td>
 <td>the <code>Order</code>, armed type, stop price, <code>last_trade_id</code>, <code>last_trade_price</code>, what it <code>becomes</code> (<code>MARKET</code>/<code>LIMIT</code>)</td>
 </tr>
+<tr>
+<td><code>SMP_DECISION</code></td>
+<td><code>_sweep</code>, the FOK pre-check in <code>_match_fok</code> (one per same-gateway order in range), <code>auction._resolve_self_match</code></td>
+<td><code>order_id</code> whose policy applied, the other side's <code>order_id</code>, the policy</td>
+</tr>
 </tbody>
 </table>
 <p><code>TRIGGERED</code> is written <strong>before</strong> the order is converted, so it still holds
 the type it was armed as. The engine owns one list for all books
 (<code>Engine._trace</code>) and <code>_flush_trace</code> publishes it after each dispatch:
-<code>TRIGGERED</code> becomes <code>order.triggered.&lt;GW&gt;</code> for the owner, the other three
+<code>TRIGGERED</code> becomes <code>order.triggered.&lt;GW&gt;</code> for the owner, the others
 become <code>engine.trace.&lt;SYM&gt;</code> (audit only). The book never publishes; it only
-reports. See the <a href="../../../protocols-and-clients/part-5-message-reference/010-message-reference/">message reference</a>
+reports.</p>
+<p>Two more <code>engine.trace</code> kinds say why the engine decided, and the engine
+publishes them itself, outside the book's list: <code>UNCROSS_PRICE</code> from
+<code>Engine._run_uncross</code> just before the uncross runs (the price, its quantity
+and surplus, and the <code>rule</code> that chose it -- most volume, then least
+surplus, then lowest price, or <code>OVERRIDE</code> for an imposed price -- with the
+prices still tied when it did, from <code>AuctionResult.rule</code> / <code>tied_prices</code>),
+and <code>AON_PREFLIGHT</code> from <code>Engine._accept_combo</code>, one per leg of an
+all-or-none combo (what the leg could fill with and without the gateway's
+own orders, and whether the combo matches, rests or is rejected). See the <a href="../../../protocols-and-clients/part-5-message-reference/010-message-reference/">message reference</a>
 for the wire format.</p>
 <h2 id="read-only-views">Read-Only Views<a class="headerlink" href="#read-only-views" title="Permanent link">&para;</a></h2>
 <table>

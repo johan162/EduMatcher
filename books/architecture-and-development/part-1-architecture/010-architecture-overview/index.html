@@ -9994,7 +9994,7 @@ startup, and subscriber <strong>data stores</strong> written continuously during
 <td>engine</td>
 <td>clean shutdown</td>
 <td>reloaded at startup</td>
-<td>last buy/sell price per symbol; reseeds collar &amp; circuit-breaker references at the next open</td>
+<td>last buy/sell price per symbol; reseeds collar &amp; circuit-breaker references at the next open; each breaker's reference window (<code>cb_window</code>), taken back by a same-day restart</td>
 </tr>
 <tr>
 <td><code>stats.db</code> (SQLite)</td>
@@ -10052,7 +10052,10 @@ recovery and clean consumer flush possible:</p>
     Note over SUB: stats/clearing/audit flush their stores and exit</code></pre>
 <p>At startup the engine reloads <code>gtc_orders.json</code> / <code>gtc_combos.json</code>, restoring each
 order <strong>with its original timestamp</strong> so queue priority is unchanged, and reseeds
-each symbol's collar and circuit-breaker reference from <code>book_stats.json</code>.</p>
+each symbol's collar and circuit-breaker reference from <code>book_stats.json</code> — on
+the same business day the breaker takes back its whole reference window (the
+trades its reference averages), so a restart halts where an uninterrupted
+engine would. A market maker's seeded combo restored live is not seeded again.</p>
 <p><strong>Idempotency and gap detection</strong> guard the accumulating stores: trade events are
 inserted with <code>INSERT OR IGNORE</code> on trade id, so a replayed or duplicated event is
 harmless; the drop-copy feed carries a monotonic sequence number and CALF carries a
