@@ -138,7 +138,7 @@ export const HELP_TOPICS: HelpTopic[] = [
           },
           {
             "term": "Import",
-            "text": "Reads an existing engine_config.yaml into the forms. Problems are reported rather than silently dropped."
+            "text": "Reads an existing engine_config.yaml into the forms. For a file with an include: list or a credentials_file, select it together with the files it names. Problems are reported rather than silently dropped."
           },
           {
             "term": "New",

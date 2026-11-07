@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createBlankDraft, createGateway, type EngineConfigDraft } from "@edumatcher/schema";
+import { createApiGateway, createBlankDraft, createGateway, type EngineConfigDraft } from "@edumatcher/schema";
 import { evaluateDiagnostics, hasErrors } from "../src/index.js";
 
 function base(): EngineConfigDraft {
@@ -18,6 +18,40 @@ function ids(draft: EngineConfigDraft): string[] {
 }
 
 describe("diagnostics rules", () => {
+  it("checks API credentials file names and shared files", () => {
+    const draft = base();
+    const gw = (name: string, port: number, file: string, apiKey = "k1") => ({
+      ...createApiGateway(name),
+      port,
+      credentialsFile: file,
+      credentials: [{ apiKey, gatewayId: null, description: "" }],
+    });
+    const check = (files: string[]) => {
+      draft.apiGateways = files.map((f, i) => gw(`g${i}`, 9000 + i, f));
+      return evaluateDiagnostics(draft).filter((d) => d.id.startsWith("api-credentials-file"));
+    };
+    expect(check(["api_keys.yaml", "api_keys.yaml"])).toEqual([]);
+    for (const bad of ["../k.yaml", "/k.yaml", "market_sim.yaml", "./engine_config.json", "engine_config.yaml"]) {
+      expect(check([bad]).map((d) => d.id)).toEqual(["api-credentials-file-name"]);
+    }
+    expect(check(["symbols.yaml"])).toEqual([]);
+    draft.output.splitIncludes = true;
+    expect(check(["symbols.yaml"]).map((d) => d.id)).toEqual(["api-credentials-file-name"]);
+    expect(check(["conf/keys.yaml"]).map((d) => d.severity)).toEqual(["warning"]);
+    draft.apiGateways = [gw("a", 9000, "k.yaml"), gw("b", 9001, "k.yaml", "k2")];
+    expect(ids(draft)).toContain("api-credentials-file-shared-differs");
+  });
+
+  it("flags a split main file named like an included file", () => {
+    const draft = base();
+    draft.output.filename = "symbols.yaml";
+    expect(ids(draft)).not.toContain("split-filename-clash");
+    draft.output.splitIncludes = true;
+    expect(ids(draft)).toContain("split-filename-clash");
+    draft.output.filename = "engine_config.yaml";
+    expect(ids(draft)).not.toContain("split-filename-clash");
+  });
+
   it("flags an undefined risk level as an error", () => {
     const draft = base();
     draft.symbols.AAPL!.level = "GHOST";

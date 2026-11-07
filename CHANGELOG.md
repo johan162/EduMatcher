@@ -1,3 +1,24 @@
+## [v0.76.3] - 2026-11-07
+
+Release Type: minor
+
+### 📋 Summary
+This release expands the configuration GUI with faster participant and symbol workflows and better support for modular configuration files and credentials.
+
+### ✨ Additions
+- Added CSV and JSON import/export for participant and symbol lists
+- Added configuration GUI support for included YAML files and importing external credential files
+- Added automatic API-key generation for selected participants
+
+### 🚀 Improvements
+- Renamed the participant creation button to “Add participant”
+
+### 📚 Documentation
+- Updated the configuration GUI guide with import/export, include-file and API-key workflows
+
+### 🛠 Internal
+- Added tests for participant and symbol file handling, included YAML files and API-key generation
+
 ## [v0.76.2] - 2026-11-07
 
 Release Type: patch

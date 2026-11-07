@@ -374,6 +374,96 @@ all (for example, one added outside the IPO dialog).
 spread and quote size and shown below them (bid 42.48 / ask 42.52, 500 × 500); an
 additional market-maker row gives MM02 its own explicit quote.*
 
+### Importing and exporting symbols
+
+Next to **"+ Add symbol"** on the Basics and Symbols tabs, **Import symbols…**
+reads a CSV or JSON file (chosen by its `.csv` / `.json` extension) and lists
+every symbol in it at once. **Export CSV** and **Export JSON** write the
+current symbols in the same format, so an exported file can be edited and
+imported into another draft.
+
+Each row holds exactly the IPO dialog's fields, and an imported row creates
+the same symbol the dialog would:
+
+| Column | Required | Blank means |
+|---|---|---|
+| `symbol` | yes | — |
+| `reference_price` | yes | — |
+| `outstanding_shares` | no | the dialog's default, 1,000,000,000 |
+| `tick_decimals` | no | the global tick decimals |
+| `mm_gateway` | no | no explicit market-maker quote ([mid-range seeding](#quote-seeding-mid-range-vs-explicit) applies) |
+| `spread_ticks` | no | 2 (needs `mm_gateway`) |
+| `quote_size` | no | 1000 (needs `mm_gateway`) |
+
+```csv
+symbol,reference_price,outstanding_shares,tick_decimals,mm_gateway,spread_ticks,quote_size
+AAPL,182.50,15000000000,2,MM01,2,500
+MSFT,410.00,,,,,
+```
+
+The JSON form is an array of objects with the same keys; a missing key or
+`null` counts as blank:
+
+```json
+[
+  { "symbol": "AAPL", "reference_price": 182.5, "mm_gateway": "MM01" },
+  { "symbol": "MSFT", "reference_price": 410 }
+]
+```
+
+An import is all-or-nothing. The whole file is checked first, and any problem
+rejects it: an unknown column or key, a symbol that already exists or appears
+twice, a value out of range, or an `mm_gateway` that is not a
+`MARKET_MAKER` gateway. The error dialog lists every problem with its line
+(CSV) or entry (JSON) number, and the draft is unchanged.
+
+Export writes only these fields. Per-symbol overrides such as risk level,
+collars, order limits and circuit-breaker settings are not included. After
+editing, a symbol may no longer fit the IPO fields: its last buy and last sell
+prices may differ, or it may have a hand-edited or second market-maker quote.
+Such a symbol is exported as closely as the fields allow (last buy becomes
+`reference_price`), and a dialog names it and gives the reason, because
+re-importing the file would not reproduce it.
+
+CSV files follow the usual quoting rules: a cell that contains a comma or a
+double quote is wrapped in double quotes, and a double quote inside it is
+doubled (`"Says ""hi"", twice"`). Export writes cells this way, and import
+reads them.
+
+### Importing and exporting participants
+
+The Participants table on the Basics tab has the same three buttons next to
+**"+ Add gateway"**: **Import participants…**, **Export CSV** and
+**Export JSON**. Each row holds exactly the table's fields, and an imported
+row creates the gateway **"+ Add gateway"** would:
+
+| Column | Required | Blank means |
+|---|---|---|
+| `id` | yes | — |
+| `role` | no | `TRADER` |
+| `disconnect_behaviour` | no | the role's default (`CANCEL_ALL` for `TRADER`, `CANCEL_QUOTES_ONLY` for `MARKET_MAKER`, `LEAVE_ALL` for `ADMIN`) |
+| `smp_action` | no | inherit the participant default |
+| `description` | no | no description |
+
+```csv
+id,role,disconnect_behaviour,smp_action,description
+DESK01,TRADER,,CANCEL_AGGRESSOR,"Equities desk, floor 2"
+MM01,MARKET_MAKER,,,
+OPS,ADMIN,,,Operations
+```
+
+IDs and the `role`, `disconnect_behaviour` and `smp_action` values are
+uppercased on import. As for symbols, the import is all-or-nothing: an ID that
+already exists or appears twice, or a value that is not one of the allowed
+ones, rejects the whole file.
+
+Export writes only these fields. The Expert **⚙ Advanced** market-maker
+settings are not included. A participant whose disconnect behaviour is
+**(default)** is written with the value it inherits now, so the engine
+behaves the same after a re-import. The export dialog names it, because the
+re-imported participant no longer follows later changes to the participant
+default.
+
 ### The Symbols workspace
 
 The **Symbols** tab (Intermediate+) has three parts, top to bottom.
@@ -761,6 +851,37 @@ advanced tuning — only appear at Expert:
 *The `desk` instance on port 8080 with one credential per participant; **Generate** makes a
 fresh random key. A second instance, `dashboards`, follows below it with the read-only key.*
 
+**Generate keys for participants…** opens a list of every participant, all
+selected by default, with **Select all** / **Select none**. Each selected
+participant gets one random key bound to it, in pm-config-gen's
+`key-<id>-<token>` shape with the description `Generated key for <ID>`.
+**Key length** sets the number of random characters in the token. The default
+is 6, as pm-config-gen uses, which is easy to type in a class; use 24 or more
+for anything exposed to a network you do not control. A participant that
+already has a key, in this instance or another, is shown but cannot be
+selected, because a participant may have keys in only one instance. A row's
+**Generate** button and **+ Add credential** make keys in the same shape,
+labelled `readonly` for a read-only key (`key-readonly-…`). They use the
+length last used in the dialog, which this browser remembers (6 until then).
+
+The **API credentials in separate files** switch on the Review & Export tab
+turns credentials files on for every instance at once. A single instance
+writes to `api_keys.yaml`, as `pm-config-gen --api-keys-for` does. Several
+instances each get `api_keys_<instance>.yaml`, because instances sharing a
+file would each accept every key in it. A name an instance already has is
+kept. Turning the switch off writes all credentials inline again. An instance
+added while it is on gets a file too.
+
+An instance's **Credentials file** keeps its API keys out of the main file,
+as `pm-config-gen --api-keys-for` does. The main file then names the file with
+`credentials_file:`, and **Download** writes the keys to that file beside it.
+The file holds secrets, so keep it out of version control. Instances that name
+the same file all read the whole of it, so it is written once. The Review tab
+flags an error if they list different credentials, or if the name is
+absolute, contains `..`, is reserved (`engine_config.yaml`,
+`engine_config.json`, `market_sim.yaml`), or is the name of another output
+file.
+
 Each sub-tab (other than ALF, which is always present) has its own **"Write
 `<section>` section"** toggle: off omits that section from the exported file
 entirely, rather than writing it with defaults. Enabling a gateway reveals its
@@ -905,6 +1026,32 @@ schema — is preserved verbatim in a per-section **"unmapped YAML" passthrough*
 and re-emitted unchanged on export, so import → edit → export never silently
 drops data. A banner marks any tab that carries unmapped content.
 
+A config split with `include:` (from `pm-config-gen --split`, or this GUI's
+**Separate symbol and participant files** option) is imported by selecting
+the main file *together with* every file it includes in the same file dialog.
+The GUI merges them with the engine's rules: lists concatenate, mappings merge
+one level deep, and a key defined twice is an error. It then turns on
+**Separate symbol and participant files**, so exporting writes the split
+again. A split exported by this GUI or by `pm-config-gen --split` round-trips
+file for file. Any other layout, such as schedules in an included file or
+different file names, merges just as the engine would. A note then says that
+export writes the standard layout instead: symbols in `symbols.yaml`,
+participants in `participants.yaml`, and everything else in the main file.
+An API gateway's `credentials_file` works the same way: select the file
+together with the config, and the GUI reads the credentials from it. The path
+is relative to the file that defines the gateway. The GUI keeps the file
+name, so the export writes the keys to that file again, not into the main
+file.
+
+Import refuses what the engine refuses: an include or credentials file path
+that is absolute or contains `..`, a reserved name (`engine_config.yaml`,
+`engine_config.json` or `market_sim.yaml` beside the main file), an include
+listed twice, nested includes, and a gateway with both `credentials` and
+`credentials_file`. It also refuses a selection it cannot resolve: a file the
+config names that was not selected, a selected file the config does not name,
+or two named files with the same name in different directories. The browser
+sees only file names, not paths.
+
 A file written by an earlier `config-gui` may carry a top-level `country`,
 which no process reads. Import does not convert it (it is kept as unmapped
 YAML); set the country again on the Basics tab so it is written under
@@ -929,15 +1076,32 @@ The **Review & Export** tab (Beginner) is the final pass:
 2. **Output options** — the download filename and the
    "comment default fields" toggle (emits the full commented reference block,
    matching `pm-config-gen --comment-default-config-fields`; the top bar's
-   **Comment defaults** checkbox is the same setting).
+   **Comment defaults** checkbox is the same setting),
+   **Separate symbol and participant files** (see below), and **API credentials
+   in separate files** (see [Auxiliary gateways](#auxiliary-gateways)).
 3. **YAML preview** — a live, syntax-highlighted, read-only render of exactly
    what will be downloaded, with a copy-to-clipboard button. This preview *is*
-   the dry-run view.
+   the dry-run view. With separate files, buttons above it switch between
+   the files.
 4. **Export actions:**
-    - **Download** — writes `engine_config.yaml` (blocked while any error
-      exists; warnings require a one-time acknowledgement).
+    - **Download** — writes `engine_config.yaml`, plus the included files when
+      they are separate and any API [credentials file](#auxiliary-gateways)
+      (blocked while any error exists; warnings require a one-time
+      acknowledgement).
     - **Verify with pm-cverifier** — optional; see
       [server-side verification](#optional-server-side-verification).
+
+**Separate symbol and participant files** matches `pm-config-gen --split`.
+With it on, the symbols are written to `symbols.yaml` and the participants to
+`participants.yaml`. The main file lists both under `include:` and leaves the
+two keys out, which keeps a config with hundreds of symbols or participants
+readable. The engine merges the files back into the same configuration, so
+**Verify with pm-cverifier** checks the equivalent single file. **Download**
+saves all three files; your browser may ask once whether to allow multiple
+downloads. Keep the files in the same directory, and give the main file a
+name other than `symbols.yaml` or `participants.yaml` (the Review tab flags a
+clash as an error). `pm-config-deploy` installs the included files together
+with the main file.
 
 The download is an **authored** `engine_config.yaml` — the file you keep and
 version, not the one the exchange runs. Install it before starting anything:

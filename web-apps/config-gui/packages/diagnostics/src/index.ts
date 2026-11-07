@@ -14,6 +14,8 @@ import {
   engineConfigDraftSchema,
   INVERTED_THRESHOLD_RULES,
   MONITOR_THRESHOLD_RULES,
+  RESERVED_CONFIG_NAMES,
+  SPLIT_FILES,
   writtenLastPrices,
   writtenMmQuotes,
   type Diagnostic,
@@ -862,6 +864,62 @@ const apiGatewayRules: Rule = (draft) => {
   return out;
 };
 
+/**
+ * An API gateway's credentials file must be a name the engine accepts and the
+ * download can write: relative, not reserved, not another output file. Gateways
+ * sharing one each read all of it, so their credentials must agree.
+ */
+const credentialsFileRules: Rule = (draft) => {
+  const out: Diagnostic[] = [];
+  const otherFiles = [draft.output.filename, ...(draft.output.splitIncludes ? Object.values(SPLIT_FILES) : [])];
+  const firstUser = new Map<string, (typeof draft.apiGateways)[number]>();
+  for (const gw of draft.apiGateways) {
+    const file = gw.credentialsFile;
+    if (file === undefined) continue;
+    const at = { fieldPaths: [`apiGateways.${gw.name}.credentialsFile`], tab: "gateways" };
+    const path = file.split("/").filter((p) => p !== "" && p !== ".").join("/");
+    let problem: string | undefined;
+    if (file.startsWith("/") || file.split("/").includes("..")) problem = "must be a relative path without '..'";
+    else if (RESERVED_CONFIG_NAMES.includes(path)) problem = "is a reserved name (pm-config-deploy installs its own file there)";
+    else if (otherFiles.includes(path)) problem = "is also the name of another file this config is written to";
+    if (problem) {
+      out.push({ id: "api-credentials-file-name", severity: "error", message: `API gateway ${gw.name}: credentials file ${file} ${problem}.`, ...at });
+    } else if (path.includes("/")) {
+      out.push({
+        id: "api-credentials-file-subdirectory",
+        severity: "warning",
+        message: `API gateway ${gw.name}: credentials file ${file} is in a subdirectory. The browser saves it as a plain file; move it into ${path.slice(0, path.lastIndexOf("/"))}/ beside the main file yourself.`,
+        ...at,
+      });
+    }
+    const first = firstUser.get(path);
+    if (first === undefined) firstUser.set(path, gw);
+    else if (JSON.stringify(first.credentials) !== JSON.stringify(gw.credentials)) {
+      out.push({
+        id: "api-credentials-file-shared-differs",
+        severity: "error",
+        message: `API gateways ${first.name} and ${gw.name} share credentials file ${file} but list different credentials; the file can hold only one list, which both read.`,
+        ...at,
+      });
+    }
+  }
+  return out;
+};
+
+/** With split output, the main file must not share a name with an included one. */
+const splitFilenameClash: Rule = (draft) =>
+  draft.output.splitIncludes && Object.values(SPLIT_FILES).includes(draft.output.filename)
+    ? [
+        {
+          id: "split-filename-clash",
+          severity: "error",
+          message: `The download filename ${draft.output.filename} is also the name of an included file; choose another name.`,
+          fieldPaths: ["output.filename"],
+          tab: "review",
+        },
+      ]
+    : [];
+
 const largeSymbolUniverse: Rule = (draft) =>
   draft.symbolOrder.length > 10
     ? [
@@ -1212,6 +1270,8 @@ const RULES: Rule[] = [
   comboLegRules,
   apiGatewayRules,
   largeSymbolUniverse,
+  splitFilenameClash,
+  credentialsFileRules,
   symbolMissingReferencePrices,
   mmQuoteRules,
   priceTickGrid,

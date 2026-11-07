@@ -30,19 +30,22 @@ export function TopBar() {
   const [toast, setToast] = useState<string | null>(null);
   const [confirmNew, setConfirmNew] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
+  const [importNotes, setImportNotes] = useState<string[]>([]);
 
   const showToast = (message: string) => {
     setToast(message);
     window.setTimeout(() => setToast(null), 2500);
   };
 
-  const onImportFile = async (file: File) => {
+  const onImportFiles = async (files: File[]) => {
     setImportError(null);
     try {
-      const text = await file.text();
-      const { draft, unmapped } = await importYaml(text);
+      const contents = await Promise.all(files.map(async (f) => ({ name: f.name, text: await f.text() })));
+      const { draft, unmapped, notes } = await importYaml(contents);
       replaceDraft(draft, unmapped);
       navigate("/review");
+      // A note changes what export writes, so it must be read, not toasted away.
+      setImportNotes(notes);
       showToast(
         unmapped.length > 0
           ? `Imported. ${unmapped.length} unmapped section(s) preserved.`
@@ -95,10 +98,11 @@ export function TopBar() {
           ref={fileRef}
           type="file"
           accept=".yaml,.yml"
+          multiple
           className="hidden"
           onChange={(e) => {
-            const file = e.target.files?.[0];
-            if (file) void onImportFile(file);
+            const files = [...(e.target.files ?? [])];
+            if (files.length > 0) void onImportFiles(files);
             e.target.value = "";
           }}
         />
@@ -161,6 +165,15 @@ export function TopBar() {
         confirmLabel="OK"
         cancelLabel="Close"
         onConfirm={() => setImportError(null)}
+      />
+      <ConfirmDialog
+        open={importNotes.length > 0}
+        onOpenChange={(o) => !o && setImportNotes([])}
+        title="Imported, with a note"
+        description={importNotes.join(" ")}
+        confirmLabel="OK"
+        cancelLabel="Close"
+        onConfirm={() => setImportNotes([])}
       />
     </header>
   );

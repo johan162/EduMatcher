@@ -275,3 +275,19 @@ export function defaultDisconnectBehaviour(
       return "CANCEL_ALL";
   }
 }
+
+/** The files `pm-config-gen --split` writes the symbols and participants to. */
+export const SPLIT_FILES: Record<string, string> = {
+  symbols: "symbols.yaml",
+  participants: "participants.yaml",
+};
+
+/**
+ * Names pm-config-deploy writes beside the main file; an include or a
+ * credentials file may not use one (`_RESERVED_NAMES` in config_include.py).
+ */
+export const RESERVED_CONFIG_NAMES: readonly string[] = [
+  "engine_config.yaml",
+  "engine_config.json",
+  "market_sim.yaml",
+];

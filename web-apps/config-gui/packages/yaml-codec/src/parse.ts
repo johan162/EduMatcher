@@ -14,6 +14,8 @@ import {
   DEFAULT_MM_MIN_QTY,
   DEFAULT_STATIC_BAND_PCT,
   ENGINE_DEFAULT_MM_MAX_SPREAD_TICKS,
+  RESERVED_CONFIG_NAMES,
+  SPLIT_FILES,
   type ApiGatewayConfig,
   type BalfGatewayConfig,
   type CbLevel,
@@ -103,14 +105,214 @@ export interface ImportResult {
   draft: EngineConfigDraft;
   /** Top-level section names preserved as unmapped passthrough. */
   unmapped: string[];
+  /** Things the user should know about the import, e.g. a changed file layout. */
+  notes: string[];
 }
 
-export function parseYamlToDraft(text: string): ImportResult {
-  const raw = yaml.load(text, { json: true });
-  if (!isDict(raw)) {
-    throw new Error("Config root must be a YAML mapping.");
+export interface ConfigFile {
+  name: string;
+  text: string;
+}
+
+const INCLUDE_KEY = "include";
+
+const CREDENTIALS_FILE_KEY = "credentials_file";
+
+function loadYaml(file: ConfigFile): unknown {
+  try {
+    return yaml.load(file.text, { json: true }) ?? null;
+  } catch (err) {
+    throw new Error(`${file.name}: not valid YAML: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
+
+function asMapping(name: string, raw: unknown): Record<string, unknown> {
+  if (raw === null) return {};
+  if (!isDict(raw)) throw new Error(`${name}: must be a YAML mapping.`);
+  return raw;
+}
+
+/**
+ * The path, relative to the main file, that `entry` in the file `owner`
+ * names; refuses what the engine refuses.
+ *
+ * MAINTENANCE: keep aligned with `_relative_file` / `_refuse_reserved` in
+ * src/edumatcher/config_include.py.
+ */
+function resolveEntry(owner: string, entry: string, what: string, mainName: string): string {
+  if (entry.startsWith("/") || entry.split("/").includes("..")) {
+    throw new Error(`${owner}: ${what} '${entry}' must be a relative path without '..'.`);
+  }
+  const dir = owner.includes("/") ? owner.slice(0, owner.lastIndexOf("/") + 1) : "";
+  const path = (dir + entry).split("/").filter((p) => p !== "" && p !== ".").join("/");
+  if (RESERVED_CONFIG_NAMES.includes(path)) {
+    throw new Error(
+      `${mainName}: '${path}' is a reserved name (pm-config-deploy installs its own file there); rename it or move it into a subdirectory.`,
+    );
+  }
+  return path;
+}
+
+/**
+ * Merge an included file into `merged` the way the engine does: lists
+ * concatenate, mappings merge one level deep, anything else is an error.
+ *
+ * MAINTENANCE: keep aligned with `_merge` in src/edumatcher/config_include.py.
+ */
+function mergeInclude(
+  merged: Record<string, unknown>,
+  origin: Record<string, string>,
+  extra: Record<string, unknown>,
+  name: string,
+): void {
+  for (const [key, value] of Object.entries(extra)) {
+    if (!(key in merged)) {
+      merged[key] = value;
+      origin[key] = name;
+      continue;
+    }
+    const have = merged[key];
+    if (Array.isArray(have) && Array.isArray(value)) {
+      merged[key] = [...have, ...value];
+    } else if (isDict(have) && isDict(value)) {
+      const clash = Object.keys(value).filter((k) => k in have).sort();
+      if (clash.length > 0) throw new Error(`${name}: '${key}.${clash[0]}' is already defined in ${origin[key]}.`);
+      merged[key] = { ...have, ...value };
+    } else {
+      throw new Error(
+        `${name}: '${key}' is already defined in ${origin[key]} and cannot be merged (only lists and mappings merge).`,
+      );
+    }
+  }
+}
+
+/**
+ * Import a config given as one file, or as a main file plus the files its
+ * `include:` list and its API gateways' `credentials_file` keys name. The
+ * browser only knows file names, so such a path is matched to a selected
+ * file by its last component. Every selected file must be one of these.
+ *
+ * A config read from includes is exported split again; when its files are
+ * laid out differently from the SPLIT_FILES layout the export writes, a note
+ * says so. A gateway's credentials file is kept, and written back on export.
+ */
+export function parseConfigFiles(files: ConfigFile[]): ImportResult {
+  if (files.length === 0) throw new Error("No file selected.");
+  const loaded = files.map((file) => ({ name: file.name, raw: loadYaml(file) }));
+  // The main file is the one with `include:`; failing that, the only mapping
+  // (a credentials file is a list).
+  const withInclude = loaded.filter((f) => isDict(f.raw) && INCLUDE_KEY in f.raw);
+  const mappings = loaded.filter((f) => isDict(f.raw));
+  if (withInclude.length > 1) {
+    throw new Error(
+      `Only one selected file may have an 'include:' list; found one in ${withInclude.map((f) => f.name).join(", ")}.`,
+    );
+  }
+  if (files.length > 1 && withInclude.length === 0 && mappings.length !== 1) {
+    throw new Error(
+      "Several config files were selected but none has an 'include:' list. Select one config file, or a main file together with the files it names.",
+    );
+  }
+  const main = withInclude[0] ?? mappings[0] ?? loaded[0]!;
+  const mainRaw = asMapping(main.name, main.raw);
+  const byName = new Map(loaded.filter((f) => f !== main).map((f) => [f.name, f]));
+  // Selected file name -> the path it was taken for.
+  const used = new Map<string, string>();
+  const take = (path: string, owner: string, what: string, entry: string) => {
+    const name = path.split("/").pop()!;
+    const previous = used.get(name);
+    if (previous !== undefined && previous !== path) {
+      throw new Error(`${previous} and ${path} are both named ${name}; the browser cannot tell them apart.`);
+    }
+    const selected = byName.get(name);
+    if (!selected) {
+      throw new Error(`${owner} names ${what} '${entry}'. Import again and select it together with ${main.name}.`);
+    }
+    used.set(name, path);
+    return selected;
+  };
+
+  const entries = mainRaw[INCLUDE_KEY] ?? [];
+  if (!Array.isArray(entries) || !entries.every((e) => typeof e === "string")) {
+    throw new Error(`${main.name}: 'include' must be a list of file names.`);
+  }
+  const merged: Record<string, unknown> = { ...mainRaw };
+  delete merged[INCLUDE_KEY];
+  const origin: Record<string, string> = Object.fromEntries(Object.keys(merged).map((k) => [k, main.name]));
+  // The file each API gateway is defined in, which its credentials_file is relative to.
+  const apiOwner = new Map<string, string>();
+  const recordApiOwners = (raw: Record<string, unknown>, owner: string) => {
+    if (isDict(raw.api_gateways)) for (const name of Object.keys(raw.api_gateways)) apiOwner.set(name, owner);
+  };
+  recordApiOwners(mainRaw, main.name);
+  const includePaths: string[] = [];
+  for (const entry of entries as string[]) {
+    const path = resolveEntry(main.name, entry, "include", main.name);
+    if (includePaths.includes(path)) throw new Error(`${main.name}: include '${entry}' is listed twice.`);
+    includePaths.push(path);
+    const included = take(path, main.name, "the include", entry);
+    const raw = asMapping(included.name, included.raw);
+    if (INCLUDE_KEY in raw) {
+      throw new Error(`${included.name}: includes cannot be nested; list every file in ${main.name}.`);
+    }
+    mergeInclude(merged, origin, raw, path);
+    recordApiOwners(raw, path);
   }
 
+  // Replace each API gateway's credentials_file by the credentials it holds.
+  const credentialsFiles = new Map<string, string>();
+  if (isDict(merged.api_gateways)) {
+    const gateways: Record<string, unknown> = { ...merged.api_gateways };
+    for (const [name, value] of Object.entries(gateways)) {
+      if (!isDict(value) || !(CREDENTIALS_FILE_KEY in value)) continue;
+      const owner = apiOwner.get(name) ?? main.name;
+      const where = `api_gateways.${name}`;
+      const { [CREDENTIALS_FILE_KEY]: entry, ...block } = value;
+      if (typeof entry !== "string") throw new Error(`${owner}: ${where}.credentials_file must be a name.`);
+      if ("credentials" in block) throw new Error(`${owner}: ${where} has both 'credentials' and 'credentials_file'.`);
+      const path = resolveEntry(owner, entry, `${where}.credentials_file`, main.name);
+      const selected = take(path, owner, `the credentials file`, entry);
+      if (selected.raw !== null && !Array.isArray(selected.raw)) {
+        throw new Error(`${selected.name}: must be a YAML list of credentials.`);
+      }
+      gateways[name] = { ...block, credentials: selected.raw ?? [] };
+      credentialsFiles.set(name, entry);
+    }
+    merged.api_gateways = gateways;
+  }
+
+  const unused = [...byName.keys()].filter((name) => !used.has(name));
+  if (unused.length > 0) throw new Error(`${main.name} does not name ${unused.join(", ")}.`);
+
+  const result = draftFromMapping(merged);
+  for (const gw of result.draft.apiGateways) {
+    const file = credentialsFiles.get(gw.name);
+    if (file !== undefined) gw.credentialsFile = file;
+  }
+  if (entries.length > 0) {
+    result.draft.output.splitIncludes = true;
+    // Exact when each SPLIT_FILES file holds just its own key, as the export writes it.
+    const layoutMatches =
+      JSON.stringify(entries) === JSON.stringify(Object.values(SPLIT_FILES)) &&
+      Object.entries(SPLIT_FILES).every(([key, file]) => {
+        const keys = Object.keys(asMapping(file, byName.get(file)!.raw));
+        return keys.length === 1 && keys[0] === key && !(key in mainRaw);
+      });
+    if (!layoutMatches) {
+      result.notes.push(
+        `The included files are laid out differently from what this builder writes: export puts the symbols in ${SPLIT_FILES.symbols}, the participants in ${SPLIT_FILES.participants}, and everything else in the main file.`,
+      );
+    }
+  }
+  return result;
+}
+
+/** Import a single config file (no `include:` files available). */
+export function parseYamlToDraft(text: string): ImportResult {
+  return parseConfigFiles([{ name: "engine_config.yaml", text }]);
+}
+
+function draftFromMapping(raw: Record<string, unknown>): ImportResult {
   const draft = createBlankDraft();
   const unmapped: string[] = [];
 
@@ -167,7 +369,7 @@ export function parseYamlToDraft(text: string): ImportResult {
     }
   }
 
-  return { draft, unmapped };
+  return { draft, unmapped, notes: [] };
 }
 
 /** `locale.country` / `locale.session_timezone`. */

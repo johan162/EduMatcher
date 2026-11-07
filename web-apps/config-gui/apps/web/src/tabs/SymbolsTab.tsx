@@ -26,6 +26,7 @@ import { Switch } from "@/components/ui/Switch";
 import { ColumnHead } from "@/components/ui/ColumnHead";
 import { MmQuotesEditor } from "@/components/symbols/MmQuotesEditor";
 import { SymbolEditorDialog } from "@/components/symbols/SymbolEditorDialog";
+import { SymbolFileActions } from "@/components/symbols/SymbolFileActions";
 import { SymbolOverviewDialog } from "@/components/symbols/SymbolOverviewDialog";
 import { SymbolOverridesTable } from "@/components/symbols/SymbolOverridesTable";
 
@@ -129,16 +130,19 @@ export function SymbolsTab() {
                 <span className="text-sm text-fg-subtle">No symbols yet.</span>
               )}
             </div>
-            <button
-              type="button"
-              onClick={() => {
-                setEditingSymbol(undefined);
-                setDialogOpen(true);
-              }}
-              className="mt-2 rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted"
-            >
-              + Add symbol
-            </button>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingSymbol(undefined);
+                  setDialogOpen(true);
+                }}
+                className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted"
+              >
+                + Add symbol
+              </button>
+              <SymbolFileActions />
+            </div>
           </div>
         </FieldRow>
       </Section>

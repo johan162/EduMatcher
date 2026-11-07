@@ -6,6 +6,7 @@ import {
   type Persona,
 } from "@edumatcher/schema";
 import { evaluateDiagnostics } from "@edumatcher/diagnostics";
+import { DEFAULT_KEY_TOKEN_LENGTH, MAX_KEY_TOKEN_LENGTH, MIN_KEY_TOKEN_LENGTH } from "@/lib/apiKeys";
 
 export type Theme = "light" | "dark";
 
@@ -16,6 +17,7 @@ const DRAFT_KEY = "edumatcher.config-gui.draft.v3";
 const PERSONA_KEY = "edumatcher.config-gui.persona.v1";
 const THEME_KEY = "edumatcher.config-gui.theme.v1";
 const TOUR_KEY = "edumatcher.config-gui.tour-seen.v1";
+const KEY_LENGTH_KEY = "edumatcher.config-gui.api-key-length.v1";
 
 interface StoredDraft {
   draft: EngineConfigDraft;
@@ -31,6 +33,13 @@ function loadTheme(): Theme {
   const raw = localStorage.getItem(THEME_KEY);
   if (raw === "light" || raw === "dark") return raw;
   return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
+function loadKeyTokenLength(): number {
+  const n = Number(localStorage.getItem(KEY_LENGTH_KEY));
+  return Number.isInteger(n) && n >= MIN_KEY_TOKEN_LENGTH && n <= MAX_KEY_TOKEN_LENGTH
+    ? n
+    : DEFAULT_KEY_TOKEN_LENGTH;
 }
 
 function applyTheme(theme: Theme): void {
@@ -63,6 +72,8 @@ export function readAutosavedDraft(): StoredDraft | null {
 interface DraftState {
   draft: EngineConfigDraft;
   persona: Persona;
+  /** Token length of generated API keys: the last one used in the Generate keys dialog. */
+  keyTokenLength: number;
   theme: Theme;
   diagnostics: Diagnostic[];
   /** Field paths to briefly highlight (set by "Jump →" from diagnostics). */
@@ -76,6 +87,7 @@ interface DraftState {
   replaceDraft: (draft: EngineConfigDraft, unmapped?: string[]) => void;
   newDraft: () => void;
   setPersona: (persona: Persona) => void;
+  setKeyTokenLength: (length: number) => void;
   toggleTheme: () => void;
   setHighlightedPaths: (paths: string[]) => void;
   acknowledgeWarnings: () => void;
@@ -90,6 +102,7 @@ const initialDraft = createBlankDraft();
 export const useDraftStore = create<DraftState>((set, get) => ({
   draft: initialDraft,
   persona: loadPersona(),
+  keyTokenLength: loadKeyTokenLength(),
   theme: loadTheme(),
   diagnostics: recompute(initialDraft),
   highlightedPaths: [],
@@ -127,6 +140,11 @@ export const useDraftStore = create<DraftState>((set, get) => ({
   setPersona: (persona) => {
     localStorage.setItem(PERSONA_KEY, persona);
     set({ persona });
+  },
+
+  setKeyTokenLength: (keyTokenLength) => {
+    localStorage.setItem(KEY_LENGTH_KEY, String(keyTokenLength));
+    set({ keyTokenLength });
   },
 
   toggleTheme: () => {

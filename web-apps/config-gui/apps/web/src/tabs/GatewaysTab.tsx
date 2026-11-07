@@ -1,3 +1,4 @@
+import { useState } from "react";
 import * as Tabs from "@radix-ui/react-tabs";
 import {
   API_LOG_LEVELS,
@@ -10,6 +11,8 @@ import {
   type DuplicateSessionPolicy,
 } from "@edumatcher/schema";
 import { useDraftStore } from "@/store/draftStore";
+import { credentialsInFiles, randomApiKey, setCredentialsInFiles } from "@/lib/apiKeys";
+import { GenerateApiKeysDialog } from "@/components/gateways/GenerateApiKeysDialog";
 import { usePersona } from "@/lib/usePersona";
 import { Panel } from "@/components/layout/Panel";
 import { FieldRow, type FieldHelp } from "@/components/fields/FieldRow";
@@ -379,7 +382,10 @@ function ApiPanel() {
               let i = d.apiGateways.length + 1;
               let name = i === 1 ? "default" : `api${i}`;
               while (d.apiGateways.some((g) => g.name === name)) name = `api${++i}`;
+              // A new instance follows the Review tab's credentials-file setting.
+              const inFiles = credentialsInFiles(d);
               d.apiGateways.push(createApiGateway(name));
+              if (inFiles) setCredentialsInFiles(d, true);
             })
           }
           className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted"
@@ -411,6 +417,22 @@ function ApiPanel() {
           <NumField label="Port" path={`apiGateways.${gw.name}.port`} value={gw.port} onChange={(v) => update((d) => (d.apiGateways[i]!.port = v ?? gw.port))} help={{ text: "TCP port this instance's REST/WebSocket server listens on.", cliFlag: "--api-gateway-port" }} />
 
           <ApiCredentialsEditor index={i} />
+          <FieldRow
+            label="Credentials file"
+            path={`apiGateways.${gw.name}.credentialsFile`}
+            help={{
+              text: "Keep the credentials out of the main file: they are written to this file beside it, which the main file names with credentials_file. The file holds secrets, so keep it out of version control. Empty = credentials written inline.",
+              cliFlag: "--api-keys-for",
+            }}
+          >
+            <TextInput
+              aria-label="Credentials file"
+              value={gw.credentialsFile ?? ""}
+              onChange={(v) => update((d) => (d.apiGateways[i]!.credentialsFile = v || undefined))}
+              placeholder="e.g. api_keys.yaml"
+              className="w-64"
+            />
+          </FieldRow>
 
           <FieldRow label="Swagger UI" help={{ text: "Serve interactive /docs and /openapi.json pages alongside the API.", cliFlag: "--api-gateway-swagger-enabled" }}>
             <Switch aria-label="Swagger UI enabled" checked={gw.swaggerEnabled} onCheckedChange={(v) => update((d) => (d.apiGateways[i]!.swaggerEnabled = v))} />
@@ -478,10 +500,9 @@ function ApiPanel() {
 /** Radix Select cannot use "" as an option value; this stands for gateway_id: null. */
 const READ_ONLY_KEY = "__read_only__";
 
-function newApiKey(): string {
-  const bytes = new Uint8Array(24);
-  crypto.getRandomValues(bytes);
-  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+/** A generated key for a credential; a read-only one is labelled as pm-config-gen labels it. */
+function newApiKey(gatewayId: string | null, tokenLength: number): string {
+  return randomApiKey(gatewayId ?? "readonly", tokenLength);
 }
 
 /** `api_gateways.<name>.credentials` — one row per api_key. */
@@ -489,6 +510,8 @@ function ApiCredentialsEditor({ index }: { index: number }) {
   const gw = useDraftStore((s) => s.draft.apiGateways[index]!);
   const alfIds = useDraftStore((s) => s.draft.gateways.map((g) => g.id).join("\u0000"));
   const update = useDraftStore((s) => s.update);
+  const [generateOpen, setGenerateOpen] = useState(false);
+  const keyTokenLength = useDraftStore((s) => s.keyTokenLength);
   const setCred = (ci: number, fn: (c: (typeof gw.credentials)[number]) => void) =>
     update((d) => fn(d.apiGateways[index]!.credentials[ci]!));
   const baseOptions = [
@@ -518,7 +541,7 @@ function ApiCredentialsEditor({ index }: { index: number }) {
                 <td className="px-2 py-1">
                   <div className="flex items-center gap-1">
                     <TextInput aria-label={`Credential ${ci + 1} API key`} value={c.apiKey} onChange={(v) => setCred(ci, (x) => (x.apiKey = v))} className="w-64 font-mono" />
-                    <button type="button" onClick={() => setCred(ci, (x) => (x.apiKey = newApiKey()))} className="rounded-md border border-border px-2 py-1 text-xs hover:bg-muted">
+                    <button type="button" onClick={() => setCred(ci, (x) => (x.apiKey = newApiKey(x.gatewayId, keyTokenLength)))} className="rounded-md border border-border px-2 py-1 text-xs hover:bg-muted">
                       Generate
                     </button>
                   </div>
@@ -552,13 +575,23 @@ function ApiCredentialsEditor({ index }: { index: number }) {
             )}
           </tbody>
         </table>
-        <button
-          type="button"
-          onClick={() => update((d) => d.apiGateways[index]!.credentials.push({ apiKey: newApiKey(), gatewayId: null, description: "" }))}
-          className="mt-2 rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted"
-        >
-          + Add credential
-        </button>
+        <div className="mt-2 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => update((d) => d.apiGateways[index]!.credentials.push({ apiKey: newApiKey(null, keyTokenLength), gatewayId: null, description: "" }))}
+            className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted"
+          >
+            + Add credential
+          </button>
+          <button
+            type="button"
+            onClick={() => setGenerateOpen(true)}
+            className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted"
+          >
+            Generate keys for participants…
+          </button>
+        </div>
+        <GenerateApiKeysDialog open={generateOpen} onOpenChange={setGenerateOpen} index={index} />
       </div>
     </FieldRow>
   );
