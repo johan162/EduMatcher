@@ -7855,7 +7855,9 @@ are restored when the engine starts. Exercise 4's "<code>COUNT=0</code>" answers
 Exercise 8's "kill clears everything" assume <code>MM01</code> and the traders start
 with nothing resting. For a clean venue stop every process and run
 <code>pm-opctl-cli clear --state --yes</code> before starting the engine (this also
-deletes <code>clearing.db</code> and <code>stats.db</code>).</p>
+deletes <code>clearing.db</code> and <code>stats.db</code>). See
+<a href="../110-risk-controls/#starting-over">Starting over</a> for the reset matrix
+and preconditions.</p>
 </div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: <code>pm-alf-gwy</code> starts, logs that it is listening on port 5565, and reports a successful engine ZMQ connection.</p>
 <h2 id="exercise-2-verify-the-port-is-listening-with-cli-tools">Exercise 2: Verify the Port Is Listening with CLI Tools<a class="headerlink" href="#exercise-2-verify-the-port-is-listening-with-cli-tools" title="Permanent link">&para;</a></h2>

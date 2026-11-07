@@ -6210,10 +6210,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#b-sufficient-displayed-depth-can-still-be-your-own-liquidity" class="md-nav__link">
+  <a href="#b-aon-entry-preflight-and-later-child-matching-use-smp-differently" class="md-nav__link">
     <span class="md-ellipsis">
       
-        B. Sufficient displayed depth can still be your own liquidity
+        B. AON entry preflight and later child matching use SMP differently
       
     </span>
   </a>
@@ -8452,37 +8452,57 @@ books. Save the child order IDs. Instead of cancelling the parent, send:</p>
 <p>The parent becomes <code>FAILED</code> and its MSFT sibling is cancelled. Contrast
 this with <code>CANCEL|COMBO_ID=...</code>, which produces <code>CANCELLED</code>. Repeat after a
 10-share AAPL fill: failure cancels the remaining interest, not that fill.</p>
-<h3 id="b-sufficient-displayed-depth-can-still-be-your-own-liquidity">B. Sufficient displayed depth can still be your own liquidity<a class="headerlink" href="#b-sufficient-displayed-depth-can-still-be-your-own-liquidity" title="Permanent link">&para;</a></h3>
+<h3 id="b-aon-entry-preflight-and-later-child-matching-use-smp-differently">B. AON entry preflight and later child matching use SMP differently<a class="headerlink" href="#b-aon-entry-preflight-and-later-child-matching-use-smp-differently" title="Permanent link">&para;</a></h3>
 <p>Stage an AAPL offer <strong>owned by TRADER01</strong>, and an MSFT bid owned by
 <code>TRADER02</code>:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=150.00|TIF=DAY
 <a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a>[TRADER02]&gt; NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=50|PRICE=420.00|TIF=DAY
 <a id="__codelineno-27-3" name="__codelineno-27-3" href="#__codelineno-27-3"></a>[TRADER01]&gt; NEW|TYPE=COMBO|COMBO_ID=SMP-01|COMBO_TYPE=AON|SMP=CANCEL_AGGRESSOR|TIF=DAY|LEG_COUNT=2|LEG0.SYM=AAPL|LEG0.SIDE=BUY|LEG0.QTY=100|LEG0.PRICE=150.00|LEG1.SYM=MSFT|LEG1.SIDE=SELL|LEG1.QTY=50|LEG1.PRICE=420.00
 </code></pre></div>
-<p>The combo-level <code>SMP</code> applies to every child, and the entry check does not
-count your own resting orders as liquidity. So the AAPL offer, although 100
-shares sit at exactly the price, counts as <strong>zero</strong> here: the combo is
-accepted, then its first leg is rejected with <code>INSUFFICIENT_LIQUIDITY</code> and the
-parent shows <code>COMBO FAILED  SMP-01  Leg 0 (AAPL) REJECTED</code>. The MSFT child is
-not posted, there is no trade, and your own AAPL offer is still resting.</p>
+<p>The combo-level <code>SMP</code> applies to every child. For an AON entry, the
+preflight counts only liquidity the child could actually trade against under
+that policy. With <code>CANCEL_AGGRESSOR</code>, the AAPL offer counts as <strong>zero</strong> even
+though 100 shares sit at the exact price: the combo is accepted, then its
+first leg is rejected with <code>INSUFFICIENT_LIQUIDITY</code> and the parent shows
+<code>COMBO FAILED  SMP-01  Leg 0 (AAPL) REJECTED</code>. The MSFT child is not posted,
+there is no trade, and both the AAPL offer and external MSFT bid remain.</p>
 <p>Reset and send the same combo with <code>SMP=CANCEL_RESTING</code>, then
 <code>SMP=CANCEL_BOTH</code>: with any policy other than <code>NONE</code> the outcome is the same,
 because the entry check discounts own liquidity before any SMP action could
-run. Now reset once more and send it with <code>SMP=NONE</code>, or without <code>SMP=</code> at all
-when your gateway has no default (as in the configuration you wrote in chapter
-01): both legs fill, the AAPL leg <em>against your own offer</em>, and the parent
-reaches <code>MATCHED</code>. That is a self-trade, not hedge liquidity. Do not equate an
-accepted parent, displayed depth or a <code>MATCHED</code> parent with genuine external
-execution.</p>
+run; it does not cancel the resting offer. Now reset once more and send it
+with <code>SMP=NONE</code>, or omit <code>SMP=</code> when your gateway default is <code>NONE</code> (as in the
+configuration you wrote in chapter 01): both legs fill, the AAPL leg <em>against
+your own offer</em>, and the parent reaches <code>MATCHED</code>. That is a self-trade, not
+hedge liquidity. Do not equate an accepted parent, displayed depth or a
+<code>MATCHED</code> parent with genuine external execution.</p>
 <p>Omitting <code>SMP=</code> uses the gateway's configured default (<code>smp_action</code> in the
 participant's block; the bundled example configurations set
 <code>CANCEL_AGGRESSOR</code>, a hand-written one like yours sets nothing, which means
 <code>NONE</code>). OCO has no per-request SMP field: its legs use the gateway default.</p>
+<p>This entry preflight is different from a combo child that rests and later
+becomes marketable. To see the regular SMP actions at execution time, reset
+the books and submit an AON combo with its AAPL buy at 149.00, its MSFT sell
+at 420.00, and <code>SMP=CANCEL_RESTING</code>. After both children rest, place your own
+AAPL sell at 150.00, then amend the saved combo-child ID to 150.00:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a>[TRADER01]&gt; NEW|TYPE=COMBO|COMBO_ID=LATER-01|COMBO_TYPE=AON|SMP=CANCEL_RESTING|TIF=DAY|LEG_COUNT=2|LEG0.SYM=AAPL|LEG0.SIDE=BUY|LEG0.QTY=100|LEG0.PRICE=149.00|LEG1.SYM=MSFT|LEG1.SIDE=SELL|LEG1.QTY=50|LEG1.PRICE=420.00
+<a id="__codelineno-28-2" name="__codelineno-28-2" href="#__codelineno-28-2"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=150.00
+<a id="__codelineno-28-3" name="__codelineno-28-3" href="#__codelineno-28-3"></a>[TRADER01]&gt; AMEND|ID=&lt;aapl_child_id&gt;|PRICE=150.00
+</code></pre></div>
+<p>The amended combo child is now the aggressor. <code>CANCEL_RESTING</code> cancels your
+own offer, then leaves the amended child and its MSFT sibling resting; the
+parent remains <code>PENDING</code> and no trade prints. Repeat from clean books with
+<code>NONE</code>, <code>CANCEL_AGGRESSOR</code>, and <code>CANCEL_BOTH</code>: <code>NONE</code> permits the AAPL
+self-trade and moves the parent to <code>PARTIALLY_MATCHED</code>; <code>CANCEL_AGGRESSOR</code>
+cancels the amended child and its sibling but leaves your offer; <code>CANCEL_BOTH</code>
+cancels the offer and both combo children. The two cancel policies leave the
+parent <code>FAILED</code>. These policies differ when an actual child is matched, even
+though the AON entry preflight gives the same result for all non-<code>NONE</code>
+policies.</p>
 <h3 id="c-reprice-a-child-without-re-entering-the-parent">C. Reprice a child without re-entering the parent<a class="headerlink" href="#c-reprice-a-child-without-re-entering-the-parent" title="Permanent link">&para;</a></h3>
 <p>On empty books submit a fresh passive combo buying 100 AAPL at 149.00
 and selling 50 MSFT at 420.00. Then <code>TRADER02</code> offers 100 AAPL at 150.00.
 Amend the saved AAPL child ID:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a>[TRADER01]&gt; AMEND|ID=&lt;aapl_child_id&gt;|PRICE=150.00|RTAG=COMBO-REPRICE-01
+<div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a>[TRADER01]&gt; AMEND|ID=&lt;aapl_child_id&gt;|PRICE=150.00|RTAG=COMBO-REPRICE-01
 </code></pre></div>
 <p>The amended child can fill alone, moving the parent to <code>PARTIALLY_MATCHED</code>.
 Its sibling remains working. Complete it with a 50-share MSFT buy from
@@ -8491,10 +8511,10 @@ Its sibling remains working. Complete it with a 50-share MSFT buy from
 order amendment, not a resubmission of the original AON package. Apply
 <a href="../040-amending-orders/">Amending Orders</a>'s priority rules, and do not assume
 the other child limits were changed.</p>
-<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> explain why the same
-displayed depth gives a rejected combo under any SMP policy but a self-trade
-under <code>NONE</code>, why a child amend can create leg risk, and why cascade cancellation cannot
-roll back a previous execution.</p>
+<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> explain why AON entry
+preflight rejects own-only liquidity under any non-<code>NONE</code> policy, why an
+amended resting combo child applies its own SMP policy when it becomes the
+aggressor, and why cascade cancellation cannot roll back a previous execution.</p>
 <h2 id="exercise-14-validation-and-tif-when-should-nothing-be-posted">Exercise 14: Validation and TIF — When Should Nothing Be Posted?<a class="headerlink" href="#exercise-14-validation-and-tif-when-should-nothing-be-posted" title="Permanent link">&para;</a></h2>
 <h3 id="a-reject-malformed-intent-before-trading">A. Reject malformed intent before trading<a class="headerlink" href="#a-reject-malformed-intent-before-trading" title="Permanent link">&para;</a></h3>
 <p>Starting from a valid passive combo command, change <strong>one thing at a time</strong>.

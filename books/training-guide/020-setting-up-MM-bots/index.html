@@ -7826,7 +7826,7 @@ the block above. Two ways to use it:</p>
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="c1"># ask_price are left as `null` for you to fill in by hand</span>
 <a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>pm-config-gen<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">  </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span>MSFT<span class="w"> </span>TSLA<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">  </span>--participants<span class="w"> </span>TRADER01<span class="w"> </span>TRADER02<span class="w"> </span>GW_ADMIN:ADMIN<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">  </span>--participants<span class="w"> </span>TRADER01<span class="w"> </span>TRADER02<span class="w"> </span>GW_ADMIN:ADMIN<span class="w"> </span>ADMIN_CLI:ADMIN<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="w">    </span>MM_AAPL_01:MARKET_MAKER<span class="w"> </span>MM_MSFT_01:MARKET_MAKER<span class="w"> </span>MM_TSLA_01:MARKET_MAKER<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="w">  </span>--enforce-mm-obligations<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="w">  </span>--output<span class="w"> </span>mm-stub.yaml<span class="w"> </span>--force
@@ -7835,7 +7835,7 @@ the block above. Two ways to use it:</p>
 <a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="c1"># the given range, rounded to each symbol's tick grid</span>
 <a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a>pm-config-gen<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a><span class="w">  </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span>MSFT<span class="w"> </span>TSLA<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a><span class="w">  </span>--participants<span class="w"> </span>TRADER01<span class="w"> </span>TRADER02<span class="w"> </span>GW_ADMIN:ADMIN<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a><span class="w">  </span>--participants<span class="w"> </span>TRADER01<span class="w"> </span>TRADER02<span class="w"> </span>GW_ADMIN:ADMIN<span class="w"> </span>ADMIN_CLI:ADMIN<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a><span class="w">    </span>MM_AAPL_01:MARKET_MAKER<span class="w"> </span>MM_MSFT_01:MARKET_MAKER<span class="w"> </span>MM_TSLA_01:MARKET_MAKER<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a><span class="w">  </span>--enforce-mm-obligations<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-2-17" name="__codelineno-2-17" href="#__codelineno-2-17"></a><span class="w">  </span>--seed-mm-mid-range<span class="w"> </span><span class="m">100</span>:400<span class="w"> </span><span class="se">\</span>
@@ -7868,10 +7868,10 @@ nothing, because every process reads the compiled artifact:</p>
 </code></pre></div>
 <p>The copy is for the optional Exercise 8, which changes <code>engine_config.yaml</code>.</p>
 <p>Then restart <code>pm-engine</code> to pick up the new gateways (<code>Ctrl-C</code>, then
-<code>pm-engine --verbose</code>). A restarted engine starts in <code>CLOSED</code> again, and your
-open consoles are disconnected: <strong>restart <code>pm-admin</code> and your trader console</strong>,
-then reopen the market from the operator console (<code>SESSION|STATE=PRE_OPEN</code>,
-then <code>SESSION|STATE=CONTINUOUS</code>).</p>
+<code>pm-engine --verbose</code>). A restarted engine starts in <code>CLOSED</code> again. Your
+consoles log out when they detect the lost connection; start <code>pm-admin</code> and
+your trader console again, then reopen the market from the operator console
+(<code>SESSION|STATE=PRE_OPEN</code>, then <code>SESSION|STATE=CONTINUOUS</code>).</p>
 <p>Now look at the books before any market maker has connected:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>[GW_ADMIN|ADMIN]&gt; BOOK|SYM=AAPL
 </code></pre></div>

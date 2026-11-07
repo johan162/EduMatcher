@@ -7667,20 +7667,19 @@ operations, admins also need targeted controls for:</p>
 <li>Interactive admin console (<code>pm-admin</code> / ALF commands).</li>
 <li>One-shot scripting CLI (<code>pm-admin-cli</code>).</li>
 </ul>
-<div class="admonition warning">
-<p class="admonition-title">Use one or the other at a time</p>
-<p>Both log on as the same participant, <code>GW_ADMIN</code>, and the engine allows one
-connection per participant. While <code>pm-admin --id GW_ADMIN</code> is open, every
-<code>pm-admin-cli --id GW_ADMIN …</code> command below fails with
-<code>Auth refused: Gateway already connected: GW_ADMIN</code>. Try the console
-versions first, then leave <code>pm-admin</code> (<code>Ctrl-C</code>) before the CLI versions.</p>
+<div class="admonition note">
+<p class="admonition-title">Use a separate identity for each operator client</p>
+<p>The interactive console uses <code>GW_ADMIN</code>; one-shot commands use
+<code>ADMIN_CLI</code>. The chapter 01 configuration defines both as ADMIN so the
+console and CLI can stay connected at once. A duplicate live connection
+with the same participant ID is refused.</p>
 </div>
 <h2 id="exercise-1-disconnect-a-gateway-with-kick">Exercise 1: Disconnect a Gateway with KICK<a class="headerlink" href="#exercise-1-disconnect-a-gateway-with-kick" title="Permanent link">&para;</a></h2>
 <p>From admin console:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>[GW_ADMIN|ADMIN]&gt; KICK|GW=TRADER02|REASON=Training_disconnect_check
 </code></pre></div>
 <p>Or with CLI:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>kick<span class="w"> </span>--gw<span class="w"> </span>TRADER02<span class="w"> </span>--reason<span class="w"> </span><span class="s2">"Training disconnect check"</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>ADMIN_CLI<span class="w"> </span>kick<span class="w"> </span>--gw<span class="w"> </span>TRADER02<span class="w"> </span>--reason<span class="w"> </span><span class="s2">"Training disconnect check"</span>
 </code></pre></div>
 <p>Verification:</p>
 <ol>
@@ -7700,7 +7699,7 @@ versions first, then leave <code>pm-admin</code> (<code>Ctrl-C</code>) before th
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>[GW_ADMIN|ADMIN]&gt; QCANCEL|GW=MM_AAPL_01|SYM=AAPL
 </code></pre></div>
 <p>Or with CLI:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>qcancel<span class="w"> </span>--gw<span class="w"> </span>MM_AAPL_01<span class="w"> </span>--sym<span class="w"> </span>AAPL
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>ADMIN_CLI<span class="w"> </span>qcancel<span class="w"> </span>--gw<span class="w"> </span>MM_AAPL_01<span class="w"> </span>--sym<span class="w"> </span>AAPL
 </code></pre></div>
 <p>Verify from MM gateway:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>[MM_AAPL_01]&gt; QLEGS|SYM=AAPL|SHOW=ALL
@@ -7716,10 +7715,10 @@ intervention without relying on the MM terminal.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>[GW_ADMIN|ADMIN]&gt; CANCEL_SYM|SYM=TSLA
 </code></pre></div>
 <p>Or with CLI:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>cancel-sym<span class="w"> </span>--sym<span class="w"> </span>TSLA
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>ADMIN_CLI<span class="w"> </span>cancel-sym<span class="w"> </span>--sym<span class="w"> </span>TSLA
 </code></pre></div>
 <p>Verify:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>book<span class="w"> </span>--sym<span class="w"> </span>TSLA
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>ADMIN_CLI<span class="w"> </span>book<span class="w"> </span>--sym<span class="w"> </span>TSLA
 </code></pre></div>
 <p>Confirm TSLA resting orders were cleared while other symbols remain unchanged.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> symbol-scoped cancel works across gateways.</p>
@@ -7737,11 +7736,11 @@ only prints a timeout, so start from the step that matches <code>SESSION_STATUS<
 <a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>[GW_ADMIN|ADMIN]&gt; SESSION|STATE=CLOSED
 </code></pre></div>
 <p>Or with CLI:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>session<span class="w"> </span>--state<span class="w"> </span>PRE_OPEN
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>session<span class="w"> </span>--state<span class="w"> </span>CONTINUOUS
-<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>session<span class="w"> </span>--state<span class="w"> </span>CLOSING_AUCTION
-<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>session<span class="w"> </span>--state<span class="w"> </span>CLOSED
-<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>session-status
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>ADMIN_CLI<span class="w"> </span>session<span class="w"> </span>--state<span class="w"> </span>PRE_OPEN
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>ADMIN_CLI<span class="w"> </span>session<span class="w"> </span>--state<span class="w"> </span>CONTINUOUS
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>ADMIN_CLI<span class="w"> </span>session<span class="w"> </span>--state<span class="w"> </span>CLOSING_AUCTION
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>ADMIN_CLI<span class="w"> </span>session<span class="w"> </span>--state<span class="w"> </span>CLOSED
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>ADMIN_CLI<span class="w"> </span>session-status
 </code></pre></div>
 <p>Use this to reproduce auction and close transitions deterministically in training.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> forced session transitions are visible and verifiable.</p>
@@ -7755,10 +7754,10 @@ only prints a timeout, so start from the step that matches <code>SESSION_STATUS<
 <li><code>SESSION|STATE=CONTINUOUS</code> to restore normal operation if needed.</li>
 </ol>
 <p>Example CLI sequence:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>kick<span class="w"> </span>--gw<span class="w"> </span>TRADER02<span class="w"> </span>--reason<span class="w"> </span><span class="s2">"Training incident"</span>
-<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>qcancel<span class="w"> </span>--gw<span class="w"> </span>MM_AAPL_01<span class="w"> </span>--sym<span class="w"> </span>AAPL
-<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>cancel-sym<span class="w"> </span>--sym<span class="w"> </span>AAPL
-<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>session-status
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>ADMIN_CLI<span class="w"> </span>kick<span class="w"> </span>--gw<span class="w"> </span>TRADER02<span class="w"> </span>--reason<span class="w"> </span><span class="s2">"Training incident"</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>ADMIN_CLI<span class="w"> </span>qcancel<span class="w"> </span>--gw<span class="w"> </span>MM_AAPL_01<span class="w"> </span>--sym<span class="w"> </span>AAPL
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>ADMIN_CLI<span class="w"> </span>cancel-sym<span class="w"> </span>--sym<span class="w"> </span>AAPL
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>ADMIN_CLI<span class="w"> </span>session-status
 </code></pre></div>
 <p><code>TRADER02</code> is now disconnected: leave its console and start a new one before
 the next chapter, which needs it.</p>

@@ -11174,6 +11174,10 @@ which also pings the running <code>pm-clearing</code> on port <code>5563</code>.
 </tr>
 </tbody>
 </table>
+<p><code>daily</code> rows are per gateway, while <code>symbols</code> sums both counterparties'
+participant-side activity. A single 800-share trade therefore contributes 800
+to each gateway's <code>daily</code> row and 1,600 to the symbol's <code>traded_qty</code>; use
+<code>pm-stats-cli daily</code> for market volume counted once per executed trade.</p>
 <p><strong>Sort options:</strong></p>
 <table>
 <thead>

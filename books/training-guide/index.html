@@ -7791,17 +7791,11 @@ this is why.</p>
 <h3 id="after-every-engine-restart">After every engine restart<a class="headerlink" href="#after-every-engine-restart" title="Permanent link">&para;</a></h3>
 <p>Many exercises stop <code>pm-engine</code> and start it again to pick up a new
 configuration. A restarted engine knows nothing about the consoles that were
-connected to the old one, and <strong>a console never reconnects by itself</strong>:</p>
-<ul>
-<li>an open <code>pm-alf-console</code> answers every order with
-  <code>REJECTED … code=AUTH_REQUIRED  Gateway not connected: TRADER01</code>;</li>
-<li>an open <code>pm-admin</code> answers commands such as <code>KILL</code> with
-  <code>REJECTED  Gateway not connected: GW_ADMIN</code>, and <code>GATEWAYS</code> lists every
-  gateway, including itself, as <code>no</code>.</li>
-</ul>
-<p>So after each engine restart, <strong>leave every console (<code>EXIT</code> in <code>pm-alf-console</code>,
-<code>Ctrl-C</code> in <code>pm-admin</code>) and start it again</strong>, then reopen the market. A
-quote or order that is still resting from before the restart is still there.</p>
+connected to the old one. When either console detects that its engine
+connection was lost, it prints <code>Engine connection was lost; logging out.</code> and
+exits; <strong>consoles do not reconnect by themselves</strong>:</p>
+<p>After each engine restart, start the consoles again, then reopen the market.
+A quote or order that is still resting from before the restart is still there.</p>
 <div class="admonition note">
 <p class="admonition-title">Harmless warnings</p>
 <p>When you start the processes by hand, <code>pm-monitor</code> (the health monitor) is

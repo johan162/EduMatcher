@@ -7724,7 +7724,9 @@ cancelled, not the filled part.</p>
 <p><code>STATUS</code> gives a quick gateway summary: gateway ID, whether it is authenticated,
 known symbols (<code>—</code> until you have run <code>SYMBOLS</code> once in this console), cached
 order counts by lifecycle state (for example <code>CANCELLED=3, NEW=1</code>), cached and
-active quote legs, and position symbols.
+active quote legs from quote submissions made by this console, and position
+symbols. Ordinary order fills are not quote legs, and these counts are not a
+market-wide quote total.
 It is useful for a fast health check, but it is not the detailed order table.</p>
 <p>Now inspect the actual orders:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>[TRADER01]&gt; ORDERS

@@ -7826,7 +7826,14 @@ every command that reads one is run from it.</p>
 <a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">GW_ADMIN</span>
 <a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a><span class="w">    </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">"Exchange</span><span class="nv"> </span><span class="s">operator"</span>
 <a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a><span class="w">    </span><span class="nt">role</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ADMIN</span>
+<a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ADMIN_CLI</span>
+<a id="__codelineno-0-26" name="__codelineno-0-26" href="#__codelineno-0-26"></a><span class="w">    </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">"One-shot</span><span class="nv"> </span><span class="s">command-line</span><span class="nv"> </span><span class="s">operator"</span>
+<a id="__codelineno-0-27" name="__codelineno-0-27" href="#__codelineno-0-27"></a><span class="w">    </span><span class="nt">role</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ADMIN</span>
 </code></pre></div>
+<p>Use <code>GW_ADMIN</code> for the interactive <code>pm-admin</code> console and
+<code>ADMIN_CLI</code> for <code>pm-admin-cli</code>. Each configured participant ID can have only
+one live connection; attempting to use <code>GW_ADMIN</code> from both tools at once is
+refused with <code>Gateway already connected: GW_ADMIN</code>.</p>
 <div class="admonition note">
 <p class="admonition-title">Why <code>tick_decimals</code>, not <code>tick_size</code></p>
 <p>A symbol's price granularity is given as a <strong>number of decimal places</strong>,
@@ -7854,7 +7861,7 @@ scaffold a configuration. Try generating an equivalent config:</p>
 <a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">  </span>--symbol-opts<span class="w"> </span>AAPL:tick_decimals<span class="o">=</span><span class="m">2</span><span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">  </span>--symbol-opts<span class="w"> </span>MSFT:tick_decimals<span class="o">=</span><span class="m">2</span><span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">  </span>--symbol-opts<span class="w"> </span>TSLA:tick_decimals<span class="o">=</span><span class="m">2</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">  </span>--participants<span class="w"> </span>TRADER01:TRADER<span class="w"> </span>TRADER02:TRADER<span class="w"> </span>GW_ADMIN:ADMIN<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">  </span>--participants<span class="w"> </span>TRADER01:TRADER<span class="w"> </span>TRADER02:TRADER<span class="w"> </span>GW_ADMIN:ADMIN<span class="w"> </span>ADMIN_CLI:ADMIN<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">  </span>--static-band<span class="w"> </span><span class="m">0</span>.10<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">  </span>--dynamic-band<span class="w"> </span><span class="m">0</span>.05<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">  </span>--sessions-enabled<span class="w"> </span><span class="se">\</span>
@@ -7864,7 +7871,7 @@ scaffold a configuration. Try generating an equivalent config:</p>
 replace it — with:</p>
 <ul>
 <li>Three symbols (AAPL, MSFT, TSLA) with 2-decimal tick precision.</li>
-<li>Two trader gateways and one admin gateway.</li>
+<li>Two trader gateways and two admin gateways (one for each operator client).</li>
 <li>Static and dynamic price collars pre-configured.</li>
 <li>Session schedule enabled (PRE_OPEN → CONTINUOUS → CLOSED).</li>
 </ul>
@@ -7892,13 +7899,13 @@ reference.</p>
 <p>You can include MM gateways in the same command:
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>pm-config-gen<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">  </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span>MSFT<span class="w"> </span>TSLA<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">  </span>--participants<span class="w"> </span>TRADER01<span class="w"> </span>TRADER02<span class="w"> </span>GW_ADMIN:ADMIN<span class="w"> </span>MM_AAPL_01:MARKET_MAKER<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">  </span>--participants<span class="w"> </span>TRADER01<span class="w"> </span>TRADER02<span class="w"> </span>GW_ADMIN:ADMIN<span class="w"> </span>ADMIN_CLI:ADMIN<span class="w"> </span>MM_AAPL_01:MARKET_MAKER<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">  </span>--enforce-mm-obligations<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="w">  </span>--output<span class="w"> </span>mm-example.yaml<span class="w"> </span>--force
 </code></pre></div></p>
 <p>Chapter 02 explains what a market maker needs in the configuration.</p>
 </div>
-<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> <code>generated.yaml</code> has the same three symbols and three participants as your hand-written <code>engine_config.yaml</code>.</p>
+<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> <code>generated.yaml</code> has the same three symbols and four participants as your hand-written <code>engine_config.yaml</code>.</p>
 <h2 id="exercise-3-validate-the-config-with-pm-cverifier">Exercise 3: Validate the Config with pm-cverifier<a class="headerlink" href="#exercise-3-validate-the-config-with-pm-cverifier" title="Permanent link">&para;</a></h2>
 <p>Before starting runtime processes, verify the file:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>pm-cverifier<span class="w"> </span>engine_config.yaml
@@ -8188,10 +8195,11 @@ show on the <code>TRADER01</code> console as <code>CANCELLED … reason=KILL_SWI
 <div class="admonition warning">
 <p class="admonition-title">Engine restarts disconnect your consoles</p>
 <p>Several exercises below (and in later chapters) restart <code>pm-engine</code>. When
-you do, <strong>exit and restart your trader and operator consoles</strong> too — an
-open console is not reconnected, and its commands fail with
-<code>AUTH_REQUIRED</code> or <code>Gateway not connected</code>. See "After every engine
-restart" in the <a href="../#after-every-engine-restart">guide introduction</a>.</p>
+the engine connection is detected as lost, each console prints
+<code>Engine connection was lost; logging out.</code> and exits. Consoles do not
+reconnect by themselves, so start them again before continuing. See
+"After every engine restart" in the
+<a href="../#after-every-engine-restart">guide introduction</a>.</p>
 </div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> <code>pm-admin</code> is connected, <code>BOOK|SYM=AAPL</code>
 shows the book, and you can state which of the two consoles a given command
@@ -8200,7 +8208,7 @@ belongs to.</p>
 <p class="admonition-title">Keep both terminals open from here on</p>
 <p>Every later chapter assumes you have a trader console <em>and</em> an operator
 console available. Leaving both running saves restarting them — except
-after an engine restart, when each must be restarted (see above).</p>
+after an engine restart, when each must be started again (see above).</p>
 </div>
 <h2 id="exercise-11-inspect-enriched-symbols-metadata">Exercise 11: Inspect Enriched SYMBOLS Metadata<a class="headerlink" href="#exercise-11-inspect-enriched-symbols-metadata" title="Permanent link">&para;</a></h2>
 <p>From any connected gateway:</p>
@@ -8328,7 +8336,7 @@ them.</p>
 <a id="__codelineno-40-3" name="__codelineno-40-3" href="#__codelineno-40-3"></a><span class="w">  </span>--symbol-opts<span class="w"> </span>AAPL:tick_decimals<span class="o">=</span><span class="m">2</span><span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-40-4" name="__codelineno-40-4" href="#__codelineno-40-4"></a><span class="w">  </span>--symbol-opts<span class="w"> </span>MSFT:tick_decimals<span class="o">=</span><span class="m">2</span><span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-40-5" name="__codelineno-40-5" href="#__codelineno-40-5"></a><span class="w">  </span>--symbol-opts<span class="w"> </span>TSLA:tick_decimals<span class="o">=</span><span class="m">2</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-40-6" name="__codelineno-40-6" href="#__codelineno-40-6"></a><span class="w">  </span>--participants<span class="w"> </span>TRADER01:TRADER<span class="w"> </span>TRADER02:TRADER<span class="w"> </span>GW_ADMIN:ADMIN<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-40-6" name="__codelineno-40-6" href="#__codelineno-40-6"></a><span class="w">  </span>--participants<span class="w"> </span>TRADER01:TRADER<span class="w"> </span>TRADER02:TRADER<span class="w"> </span>GW_ADMIN:ADMIN<span class="w"> </span>ADMIN_CLI:ADMIN<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-40-7" name="__codelineno-40-7" href="#__codelineno-40-7"></a><span class="w">  </span>--static-band<span class="w"> </span><span class="m">0</span>.10<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-40-8" name="__codelineno-40-8" href="#__codelineno-40-8"></a><span class="w">  </span>--dynamic-band<span class="w"> </span><span class="m">0</span>.05<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-40-9" name="__codelineno-40-9" href="#__codelineno-40-9"></a><span class="w">  </span>--sessions-enabled<span class="w"> </span><span class="se">\</span>
@@ -8352,7 +8360,7 @@ close). This command is the previous one plus the <code>--holidays…</code> and
 <a id="__codelineno-41-3" name="__codelineno-41-3" href="#__codelineno-41-3"></a><span class="w">  </span>--symbol-opts<span class="w"> </span>AAPL:tick_decimals<span class="o">=</span><span class="m">2</span><span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-41-4" name="__codelineno-41-4" href="#__codelineno-41-4"></a><span class="w">  </span>--symbol-opts<span class="w"> </span>MSFT:tick_decimals<span class="o">=</span><span class="m">2</span><span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-41-5" name="__codelineno-41-5" href="#__codelineno-41-5"></a><span class="w">  </span>--symbol-opts<span class="w"> </span>TSLA:tick_decimals<span class="o">=</span><span class="m">2</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-41-6" name="__codelineno-41-6" href="#__codelineno-41-6"></a><span class="w">  </span>--participants<span class="w"> </span>TRADER01:TRADER<span class="w"> </span>TRADER02:TRADER<span class="w"> </span>GW_ADMIN:ADMIN<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-41-6" name="__codelineno-41-6" href="#__codelineno-41-6"></a><span class="w">  </span>--participants<span class="w"> </span>TRADER01:TRADER<span class="w"> </span>TRADER02:TRADER<span class="w"> </span>GW_ADMIN:ADMIN<span class="w"> </span>ADMIN_CLI:ADMIN<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-41-7" name="__codelineno-41-7" href="#__codelineno-41-7"></a><span class="w">  </span>--static-band<span class="w"> </span><span class="m">0</span>.10<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-41-8" name="__codelineno-41-8" href="#__codelineno-41-8"></a><span class="w">  </span>--dynamic-band<span class="w"> </span><span class="m">0</span>.05<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-41-9" name="__codelineno-41-9" href="#__codelineno-41-9"></a><span class="w">  </span>--sessions-enabled<span class="w"> </span><span class="se">\</span>

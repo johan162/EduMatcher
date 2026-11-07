@@ -7777,7 +7777,9 @@ As always, nothing changes until you deploy it and restart the engine:
 <p>Orders and market-maker quotes from earlier chapters are restored when the
 engine starts. For the empty AAPL book that Exercise 4B assumes, stop every
 process and run <code>pm-opctl-cli clear --state --yes</code> before you start the engine
-(it also deletes <code>clearing.db</code> and <code>stats.db</code>).</p>
+(it also deletes <code>clearing.db</code> and <code>stats.db</code>). See
+<a href="../110-risk-controls/#starting-over">Starting over</a> for the reset matrix and
+preconditions.</p>
 <p>Inspect the generated section:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>grep<span class="w"> </span>-A20<span class="w"> </span><span class="s1">'^balf_gateway:'</span><span class="w"> </span>engine_config.yaml
 </code></pre></div>

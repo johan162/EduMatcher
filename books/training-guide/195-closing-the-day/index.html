@@ -7804,7 +7804,9 @@ Look the <code>[FAIL]</code> message up in the operator chapter's
 table. On a training machine, an old day whose clearing data is damaged
 can be cleared away with <code>pm-opctl-cli clear --state</code> (with everything
 stopped). That deletes all working state (clearing history, GTC orders,
-statistics) but keeps <code>eod.db</code>, so the balances settled so far survive.</p>
+statistics) but keeps <code>eod.db</code>, so the balances settled so far survive.
+See <a href="../110-risk-controls/#starting-over">Starting over</a> for the full reset
+matrix and the <code>--all</code> data-loss warning.</p>
 </div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> <code>pm-eod run --pending</code> ended
 without a <code>[FAIL]</code> line, and a second <code>pm-eod run --pending</code> prints

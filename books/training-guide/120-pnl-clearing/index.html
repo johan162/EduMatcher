@@ -8185,7 +8185,7 @@ usable without knowing which symbols they traded.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> <code>gateways</code> returns a P&amp;L summary row for each active participant.</p>
 <hr />
 <h3 id="exercise-9-symbol-level-clearing-totals">Exercise 9: Symbol-level clearing totals<a class="headerlink" href="#exercise-9-symbol-level-clearing-totals" title="Permanent link">&para;</a></h3>
-<p>Query what was cleared per symbol across all gateways:</p>
+<p>Query clearing activity per symbol across all gateways:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a>pm-clearing-cli<span class="w"> </span>symbols
 </code></pre></div>
 <p>Sort by traded volume or P&amp;L:</p>
@@ -8194,7 +8194,12 @@ usable without knowing which symbols they traded.</p>
 </code></pre></div>
 <p>Fields include <code>symbol</code>, <code>traded_qty</code>, <code>traded_notional</code>, <code>realized_pnl</code>,
 <code>open_net_qty</code>, <code>open_unrealized_pnl</code>.</p>
-<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> <code>symbols</code> shows per-symbol volume and P&amp;L across all participants.</p>
+<p><code>traded_qty</code> and <code>traded_notional</code> here are <strong>gross participant-side
+activity</strong>: a trade is included once for the buyer and once for the seller.
+For example, one 800-share AAPL trade contributes 800 to each gateway's
+<code>daily</code> row and 1,600 to the symbol total. This is not market volume; use
+<code>pm-stats-cli daily</code> for volume counted once per executed trade.</p>
+<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> <code>symbols</code> shows per-symbol gross participant activity and P&amp;L across all participants; <code>pm-stats-cli daily</code> counts each market trade once.</p>
 <hr />
 <h3 id="exercise-10-normalized-vs-raw-output">Exercise 10: Normalized vs raw-output<a class="headerlink" href="#exercise-10-normalized-vs-raw-output" title="Permanent link">&para;</a></h3>
 <p>By default, price-derived fields are divided by <code>10^tick_decimals</code> to produce
@@ -8305,7 +8310,8 @@ whose mark changed at EOD, and say which price each version was marked against.<
 <div class="highlight"><pre><span></span><code><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a>pm-clearing-cli<span class="w"> </span>daily<span class="w"> </span>--date<span class="w"> </span><span class="s2">"</span><span class="k">$(</span>date<span class="w"> </span>+%F<span class="k">)</span><span class="s2">"</span><span class="w"> </span>--gateway<span class="w"> </span>TRADER01
 </code></pre></div>
 <p>Key fields:
-- <code>traded_qty</code>, <code>traded_notional</code> — total volume for the day
+- <code>traded_qty</code>, <code>traded_notional</code> — this gateway's activity for the day; across
+  gateways the same trade contributes once to each counterparty
 - <code>buy_qty</code>, <code>sell_qty</code>, <code>buy_notional</code>, <code>sell_notional</code> — side breakdown
 - <code>end_net_qty</code>, <code>end_avg_cost</code>, <code>end_unrealized_pnl</code> — official EOD position state</p>
 <p>Export the day's summary for settlement reporting:</p>
