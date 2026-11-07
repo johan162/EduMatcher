@@ -237,7 +237,11 @@ def violations(open_ds: OpenDataset, data: Path) -> dict[str, int]:
 def test_every_matching_check_passes_on_a_consistent_day(
     tmp_path: Path, open_ds: OpenDataset
 ) -> None:
-    assert sorted(i for i in REGISTRY if i[0] == "D" or i == "C7") == CHECKS
+    # D12 (the circuit breaker) has its own: tests/test_sim_forensics_breakers.py.
+    assert (
+        sorted(i for i in REGISTRY if (i[0] == "D" and i != "D12") or i == "C7")
+        == CHECKS
+    )
     data = continuous_day().write(tmp_path / "data")
     results = run_checks(open_ds(data), [REGISTRY[i] for i in CHECKS], 10)
     assert {r.check.id: (r.status, r.samples) for r in results} == {

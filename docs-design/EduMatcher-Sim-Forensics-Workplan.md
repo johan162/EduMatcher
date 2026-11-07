@@ -55,7 +55,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 | 29 | S29 | Long run on the 1.0 formats, full report, triage; then freeze | S21–S28 | open | ☐ | |
 | 30 | S30 | C12: every refusal is justified, and every acceptance too (all reject codes, D8 does collars) | — | 1.5 d | ☑ | 2026-11-07 |
 | 31 | S31 | C13: kill switches and disconnect behaviour sweep exactly their scope (X40 found and fixed) | — | 0.5 d | ☑ | 2026-11-07 |
-| 32 | S32 | D12: circuit-breaker oracle (own reference window: halts justified, no trade outside the corridor, reopen on time) | — | 1 d | ☐ | |
+| 32 | S32 | D12: circuit-breaker oracle (own reference window: halts justified, no trade outside the corridor, reopen on time) | — | 1 d | ☑ | 2026-11-07 |
 | 33 | S33 | C14: end-of-day expiry (every live DAY order, leg and quote expires once; no GTC does) | — | 0.5 d | ☐ | |
 | 34 | S34 | E7 time-shift lane: the day moved across a DST change and a UTC midnight changes nothing | — | 1 d | ☐ | |
 | 35 | S35 | A6: client view (`ai_swarm/*.jsonl` day totals) equals the exchange's, per gateway | — | 0.5 d | ☐ | |
@@ -247,6 +247,7 @@ Status column of the report = PASS / FAIL(n) / SKIPPED(reason).
 | D7 | SMP: no continuous self-trades; auction self-trade policy per Q2 (R4). |
 | D8 | All prices on the tick grid; every priced order enters inside its collar (risk.band's static band, the dynamic band around the last trade), whichever way it entered (order.new, amend, quote, OCO, combo); a COLLAR_BREACH refusal lies outside it. (S28) |
 | D11 | (S28) No continuous trade in a halted symbol (circuit breaker or administrator); a reopen prints only as an uncross. |
+| D12 | (S32) The circuit breaker recomputed from the trades and the config: every breaker halt follows a CONTINUOUS print that breached a level against the window's integer mean, with that level, trigger, reference, call end (duration plus at most the random tail) and corridor; every breach halts; each extension widens one rung and calls at least the rung's minimum; a timed reopen is not before its call's end and prints inside the corridor; the closing backstop prints inside it. |
 | D10 | (S18) Each `auction.indicative.*` (price, executable qty, imbalance qty and side) equals the uncross the replayed book makes at that point of the stream. ("`auction.result` = last indicative" dropped: D10 + D6 imply it.) |
 
 ### E — Replay differential
@@ -2462,4 +2463,38 @@ checkpoint -- X38.
   `tests/test_engine_mass_cancel_inactive_quote.py`.
 - The 2026-11-07 run had no kill switch or disconnect (S27's `sim_ops`
   schedule was not running), so C13 is not yet seen on a sim run.
+
+### S32 — done 2026-11-07
+
+- **D12** (`checks/breakers.py`, its own pass over the audit): per symbol
+  with a breaker, the reference window of the config's
+  `reference_window_ns` -- every print joins it (an auction's too) unless
+  the symbol is halted; seeded at the engine's start from the STARTUP
+  checkpoint's last buy (else sell) price while empty; kept across a
+  same-day restart (X38), cleared on a later day's. The reference is the
+  window's integer mean after trimming at the print's `ts_ns`; a CONTINUOUS
+  print at least a level's `price_shift_pct` away halts at the deepest such
+  level. Each `circuit_breaker.halt` (source CB) is matched with that
+  breach: level, trigger, reference, corridor (`reference ± band`, the
+  engine's rounding), call end in `[print + duration, + random_end_max_ns]`.
+  Extensions: indicative outside the old corridor, the new corridor the
+  ladder's (`band_pct_at`), the call at least the rung's minimum and at most
+  rung plus tail from the extension. Timed reopens (no administrator
+  command in the chain): not before the call's end (audit stamps, 2 ms
+  slack), the REOPEN print inside the corridor; the closing backstop's
+  print inside it. A reopen's prints join the window (the engine ends the
+  halt before its uncross). Operator halts only set the state (a level
+  named: a timed call on the reference as it stands; none: no reference).
+- Not judged: halts of a symbol D12 has no breaker for; anything before
+  the audit's start (D12 needs the engine's start or a checkpoint's last
+  prices to seed).
+- Tests: `tests/test_sim_forensics_breakers.py` -- a real engine
+  (s3-complex TSLA) on a clock the test moves, its audit stamped by it: a
+  print 8 % off halts at L1, interest 25 % off makes the corridor widen
+  twice, then it reopens: D12 PASS; five planted edits (reference, call
+  end, a dropped halt, the extended corridor, the extension's call) and an
+  early reopen found.
+- On the 2026-11-07 data: **D12 PASS** -- 1 053 breaker halts, all with
+  their breach and numbers; 1 053 reopens on time and inside the corridor;
+  1 491 161 prints in windows (no extension that day).
 
