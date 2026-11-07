@@ -33,7 +33,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 | 3 | T3 | Combo self-match prevention contract | Q3 | Contract decision | ☑ | 2026-11-06 |
 | 4 | T4 | Console logout after engine connection loss | Q4 | — | ☑ | 2026-11-07 |
 | 5 | T5 | Admin console identities and safe reset guidance | Q5, Q6 | — | ☑ | 2026-11-07 |
-| 6 | T6 | Clearing totals and gateway quote-status scope | Q7, Q8 | Contract decisions | ☐ | |
+| 6 | T6 | Clearing totals and gateway quote-status scope | Q7, Q8 | — | ☑ | 2026-11-07 |
 | 7 | T7 | Installed examples, C exercises and version metadata | Q9, Q10, Q21 | — | ☐ | |
 | 8 | T8 | Normal-use warnings and artifact errors | Q11 | Contract decision | ☐ | |
 | 9 | T9 | Swarm budget semantics | Q12 | Contract decision | ☐ | |
@@ -352,27 +352,27 @@ Verification:
 
 ### T6 — Clearing totals and gateway quote-status scope (Q7, Q8)
 
-**Question to resolve:** Is symbol `traded_qty` gross across both sides or
-trade volume counted once? Does a gateway's `STATUS` report only its own quote
-legs or a process-wide/public cache?
+**Decisions (2026-11-07):** `pm-clearing-cli symbols` reports gross
+participant-side activity, summing both counterparties. It is not market
+volume; market volume counts each executed trade once. `STATUS` quote-leg
+counts reflect only quote submissions made by the connected gateway, not
+market-wide activity.
 
 Steps:
-1. For Q7, write a failing test from a clean clearing database: execute one
-   800-share AAPL trade between two gateways, then query symbol totals,
-   per-gateway daily totals and stats volume. Assert the chosen accounting
-   invariant (count once at symbol level, or explicitly count both sides if
-   that is the declared contract).
-2. If once-per-trade is intended, change the aggregation and test several
-   trades plus a restart; otherwise rename or document the gross measure so
-   it cannot be confused with market volume.
-3. For Q8, write a failing console test with a non-market-maker gateway that
-   observes public quote broadcasts but never sends a quote. Query `STATUS`
-   and compare cached/active quote counts with the gateway's own submitted
-   quote IDs.
-4. Decide whether `STATUS` is gateway-local or global. If local, filter
-   by gateway ownership and test two gateways with interleaved quote events.
-   If global, rename/document the fields so the scope is explicit.
-5. Correct chapter 08 and clearing CLI guidance.
+1. For Q7, verify a single market trade against the ledger's per-gateway
+   summaries and symbol aggregation. Pin the chosen gross participant-side
+   accounting model with a clean clearing database and ensure it cannot be
+   confused with market volume.
+2. Keep the existing gross aggregation; clarify the field scope in CLI and
+   guide descriptions.
+3. For Q8, add a failing console test where a non-market-maker gateway gets a
+   normal fill without submitting a quote. Compare its `STATUS` quote-leg
+   counts with quote IDs acknowledged to that gateway.
+4. Fix quote-leg tracking to ignore non-quote fills and verify an acknowledged
+   quote leg still updates on fill. Clarify that `STATUS` is local to the
+   connected gateway and does not report market-wide quote totals.
+5. Correct chapter 08 and clearing CLI guidance to match the confirmed
+   accounting and ownership contracts.
 
 **Definition of done:**
 - Tests establish the exact accounting and ownership invariants using
@@ -380,6 +380,36 @@ Steps:
 - Any code change has a failing-before regression test and passes it after.
 - CLI output and the relevant guide chapters describe the same scope.
 - Targeted clearing/console tests and full project checks pass.
+
+**Result (2026-11-07):** Clearing calls `_apply_leg` once for each
+counterparty, accumulating the same quantity/notional into each gateway's
+daily summary. `query_symbols` sums those per-gateway rows, while `pm-stats`
+consumes one `trade.executed` print per market trade. The user confirmed the
+intended Q7 contract is gross participant-side activity, not once-per-trade
+market volume. A new SQLite-backed test records one 800-share trade, checks
+800 shares on each gateway's daily row, checks the symbol totals equal the sum
+of both gateway rows for quantity and notional, and confirms there is one raw
+trade event.
+
+For Q8, the review's public-broadcast hypothesis was not supported by the
+console's subscriptions: `order.fill.<gateway_id>` is a private per-gateway
+topic. Instead, the console's fill handler called quote-leg tracking for every
+fill and synthesized a cached quote leg with quote ID `?` for ordinary orders.
+A new regression test failed on that path; `_record_fill_for_quote_leg` now
+ignores fills whose order IDs were not introduced by a quote acknowledgement.
+The test also verifies a real acknowledged quote leg still updates on fill.
+Chapter 08 now describes those counters as this console's quote submissions,
+not a market-wide count.
+
+Verification:
+- `poetry run pytest tests/test_clearing_store.py tests/test_clearing_ledger.py tests/test_clearing_cli.py tests/test_alf_console_quote_ack.py -q --no-cov` — 202 passed
+- `poetry run pytest tests/test_alf_console_quote_ack.py tests/test_alf_console_heartbeat.py -q --no-cov` — 16 passed
+- Full suite — 13,490 passed, 1 skipped; 90.39% coverage (85% required)
+- Repository-wide Black, Flake8, mypy and pyright — passed
+- `poetry run mkdocs build` — passed
+- `poetry run python scripts/checkdocs.py` — links, CLI and anchors clean;
+  only the two pre-existing `Y005` missing `/tmp/symbols.yaml` and
+  `/tmp/desk-keys.yaml` warnings remain
 
 ### T7 — Installed examples, C exercises and version metadata (Q9, Q10, Q21)
 

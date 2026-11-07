@@ -45,6 +45,7 @@ from edumatcher.clearing.store import (
     validate_date,
     write_close_snapshot,
 )
+from edumatcher.clearing.ledger import Ledger
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -653,6 +654,60 @@ class TestQueryExposure:
 
 
 class TestQuerySymbols:
+    def test_symbol_totals_report_gross_activity_across_both_counterparties(
+        self, conn: sqlite3.Connection
+    ) -> None:
+        ts_ns = int(
+            datetime(2026, 7, 1, 12, tzinfo=timezone.utc).timestamp() * 1_000_000_000
+        )
+        ledger = Ledger()
+        ledger.apply_trade(
+            symbol="AAPL",
+            buy_gateway_id="GW_BUY",
+            sell_gateway_id="GW_SELL",
+            price=15000,
+            quantity=800,
+            ts_ns=ts_ns,
+            ingest_ts_ns=ts_ns + 1,
+        )
+        positions, daily_rows = ledger.get_flush_rows(updated_ts_ns=ts_ns + 2)
+        flush_batch(
+            conn,
+            [
+                _trade_row(
+                    trade_id="TRADE-800",
+                    price=15000,
+                    qty=800,
+                    trade_date="2026-07-01",
+                    ts_ns=ts_ns,
+                    ingest_ts_ns=ts_ns + 1,
+                )
+            ],
+            positions,
+            daily_rows,
+        )
+
+        per_gateway = {
+            row["gateway_id"]: row
+            for row in conn.execute(
+                "SELECT gateway_id, traded_qty, traded_notional "
+                "FROM gateway_daily_summary"
+            ).fetchall()
+        }
+        (symbol_row,) = query_symbols(conn, date_value="2026-07-01")
+
+        assert {gateway: row["traded_qty"] for gateway, row in per_gateway.items()} == {
+            "GW_BUY": 800,
+            "GW_SELL": 800,
+        }
+        assert symbol_row["traded_qty"] == sum(
+            row["traded_qty"] for row in per_gateway.values()
+        )
+        assert symbol_row["traded_notional"] == sum(
+            row["traded_notional"] for row in per_gateway.values()
+        )
+        assert conn.execute("SELECT COUNT(*) FROM trade_events").fetchone()[0] == 1
+
     def test_returns_symbols(self, seeded_conn: sqlite3.Connection) -> None:
         rows = query_symbols(seeded_conn)
         symbols = {r["symbol"] for r in rows}

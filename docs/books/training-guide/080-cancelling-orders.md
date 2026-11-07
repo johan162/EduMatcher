@@ -94,7 +94,9 @@ First run `STATUS`:
 `STATUS` gives a quick gateway summary: gateway ID, whether it is authenticated,
 known symbols (`—` until you have run `SYMBOLS` once in this console), cached
 order counts by lifecycle state (for example `CANCELLED=3, NEW=1`), cached and
-active quote legs, and position symbols.
+active quote legs from quote submissions made by this console, and position
+symbols. Ordinary order fills are not quote legs, and these counts are not a
+market-wide quote total.
 It is useful for a fast health check, but it is not the detailed order table.
 
 Now inspect the actual orders:

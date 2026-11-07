@@ -575,6 +575,9 @@ class Gateway:
         event_time: str,
         price: float | None = None,
     ) -> None:
+        if order_id not in self._quote_id_by_order_id:
+            return
+
         if order_id in self.quote_leg_cache:
             row = self.quote_leg_cache[order_id]
             row["remaining"] = remaining_qty
