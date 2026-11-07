@@ -456,7 +456,7 @@ export function BasicsTab() {
                 }
                 className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted"
               >
-                + Add gateway
+                + Add participant
               </button>
               <TableFileActions
                 noun="participants"
