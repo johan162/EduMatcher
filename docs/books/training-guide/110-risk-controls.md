@@ -34,11 +34,13 @@ Administrative controls can be sent through an admin gateway session, but the
 preferred operator tools are:
 
 - `pm-admin --id GW_ADMIN` — interactive admin console with tab completion.
-- `pm-admin-cli --id GW_ADMIN <command>` — one command, one response, useful for
-  scripts, demos, and operational runbooks.
+- `pm-admin-cli --id ADMIN_CLI <command>` — one command, one response,
+  useful for scripts, demos, and operational runbooks.
 
-Both require a gateway configured with `role: ADMIN`, such as the `GW_ADMIN`
-gateway from chapter 01.
+Both require a gateway configured with `role: ADMIN`. The chapter 01
+configuration uses distinct IDs so both tools can stay connected at once:
+`GW_ADMIN` for the console and `ADMIN_CLI` for the CLI. The engine allows
+only one live connection per participant ID.
 
  
 
@@ -261,29 +263,26 @@ Resume:
 Use the one-shot CLI form when you want an operation to run from a script or
 checklist without opening an interactive console.
 
-!!! warning "Close the interactive console first"
-    `pm-admin-cli --id GW_ADMIN` logs on as `GW_ADMIN`, and the engine allows
-    only one connection per participant ID. While `pm-admin --id GW_ADMIN` is
-    still open every `pm-admin-cli` command fails with
-    `Auth refused: Gateway already connected: GW_ADMIN`. Leave `pm-admin`
-    (`Ctrl-C`) before Exercises 7 and 8, and start it again for Exercise 9 and
-    later.
+!!! note "Use a separate identity for each operator client"
+    The interactive console remains connected as `GW_ADMIN`; one-shot commands
+    use `ADMIN_CLI`. If both tools use `GW_ADMIN`, the second connection is
+    refused with `Gateway already connected: GW_ADMIN`.
 
 ```bash
-pm-admin-cli --id GW_ADMIN halt
+pm-admin-cli --id ADMIN_CLI halt
 ```
 
 All symbols stop matching. Confirm status:
 
 ```bash
-pm-admin-cli --id GW_ADMIN session-status
-pm-admin-cli --id GW_ADMIN symbols
+pm-admin-cli --id ADMIN_CLI session-status
+pm-admin-cli --id ADMIN_CLI symbols
 ```
 
 Then resume:
 
 ```bash
-pm-admin-cli --id GW_ADMIN resume
+pm-admin-cli --id ADMIN_CLI resume
 ```
 
 :material-checkbox-blank-outline: **Checkpoint:** `pm-admin-cli` halts and resumes the exchange without entering a REPL.
@@ -295,18 +294,18 @@ pm-admin-cli --id GW_ADMIN resume
 Try the read-only commands first:
 
 ```bash
-pm-admin-cli --id GW_ADMIN book --sym AAPL
-pm-admin-cli --id GW_ADMIN orders --gw TRADER01
-pm-admin-cli --id GW_ADMIN gateways
-pm-admin-cli --id GW_ADMIN volume
-pm-admin-cli --id GW_ADMIN schedule
+pm-admin-cli --id ADMIN_CLI book --sym AAPL
+pm-admin-cli --id ADMIN_CLI orders --gw TRADER01
+pm-admin-cli --id ADMIN_CLI gateways
+pm-admin-cli --id ADMIN_CLI volume
+pm-admin-cli --id ADMIN_CLI schedule
 ```
 
 Now halt and resume one symbol through the CLI:
 
 ```bash
-pm-admin-cli --id GW_ADMIN halt-sym --sym TSLA
-pm-admin-cli --id GW_ADMIN resume-sym --sym TSLA
+pm-admin-cli --id ADMIN_CLI halt-sym --sym TSLA
+pm-admin-cli --id ADMIN_CLI resume-sym --sym TSLA
 ```
 
 :material-checkbox-blank-outline: **Checkpoint:** you can choose `pm-admin` for interactive operation and `pm-admin-cli` for repeatable one-shot commands.
@@ -348,7 +347,7 @@ Or scope to a single symbol:
 The same operation as a one-shot CLI command is:
 
 ```bash
-pm-admin-cli --id GW_ADMIN kill --gw TRADER02 --sym AAPL
+pm-admin-cli --id ADMIN_CLI kill --gw TRADER02 --sym AAPL
 ```
 
 :material-checkbox-blank-outline: **Checkpoint:** kill switch cancels targeted orders.
@@ -390,8 +389,9 @@ Before restarting, reset the prices the engine remembers. At shutdown it saves
 each symbol's reference price and last trade in `book_stats.json`; Exercise 4
 moved AAPL's to 164.50, and the **dynamic** band (measured from the last trade)
 rejects *any* order too far from it, buy or sell, resting or not. To test the
-static band alone, stop `pm-engine` with `Ctrl-C`, delete that file from the
-data directory, and start it again:
+static band alone, stop `pm-engine` with `Ctrl-C`, delete only that file from
+the data directory, and start it again. See [Starting over](#starting-over)
+for how this narrow reset differs from clearing all exchange state:
 
 ```bash
 rm "$EDUMATCHER_DATA_DIR/book_stats.json"     # container shell: rm /data/book_stats.json
@@ -444,7 +444,29 @@ before sending the orders, and can say which symbols the single line
 | Exchange halt | All symbols | `pm-admin` / `pm-admin-cli` | All trading paused |
 | Kill switch | Per gateway | `pm-admin` / `pm-admin-cli` | All orders cancelled |
 
- 
+## Starting over
+
+Stop every EduMatcher process before resetting data. The clear command only
+warns when it detects running `pm-*` processes; it does not block deletion,
+and `--yes` bypasses the confirmation prompt. Live processes may recreate or
+write files during or immediately after a reset.
+
+| Reset | Command/effect | Preserved |
+|---|---|---|
+| Reset only remembered reference/last-trade prices | Stop `pm-engine`, remove `$EDUMATCHER_DATA_DIR/book_stats.json` (container shell: `/data/book_stats.json`), then restart the engine. | Orders, quotes, clearing/statistics history, logs, audit, and configuration. |
+| Clear exchange working state | After stopping every process, run `pm-opctl-cli clear --state`. This removes `book_stats.json`, persisted GTC orders and combos, `stats.db`, `clearing.db`, and `indexes/`. Use `--yes` only when intentionally skipping the confirmation. | Configuration, audit/log data, EOD records, settlements, and backups. |
+| Clear all managed data | After stopping every process, run `pm-opctl-cli clear --all`. This removes all `--state` data plus the audit trail/index, log database/fallback logs, monitor metrics, operator process tracking, and EOD database/settlement/backup data. | Deployed configuration under `ref_data/` and `emo-config.yaml`. |
+
+Neither clear mode removes the deployed configuration or requires redeployment;
+restart the processes after clearing and they will load the existing deployed
+configuration. `--all` permanently deletes EOD balances and settlement
+records, so use it only when those records are intentionally disposable. For a
+fresh exchange with money records retained, use `--state`.
+
+The reset-scope regression test creates disposable files and directories for
+both modes, verifies exactly which paths are removed, and confirms that
+configuration remains. Active-process warning and non-interactive refusal
+behavior is covered separately by the CLI tests.
 
 ## Reflection
 

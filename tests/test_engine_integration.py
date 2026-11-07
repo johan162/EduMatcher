@@ -40,6 +40,16 @@ def engine_with_allowlists(monkeypatch, tmp_path) -> tuple[Engine, _DummySocket]
         participants={
             "TRADER01": ParticipantConfig(id="TRADER01", description="First trader"),
             "TRADER02": ParticipantConfig(id="TRADER02", description="Second trader"),
+            "GW_ADMIN": ParticipantConfig(
+                id="GW_ADMIN",
+                description="Interactive operator",
+                role=ParticipantRole.ADMIN,
+            ),
+            "ADMIN_CLI": ParticipantConfig(
+                id="ADMIN_CLI",
+                description="One-shot operator",
+                role=ParticipantRole.ADMIN,
+            ),
         },
     )
 
@@ -90,6 +100,40 @@ def test_gateway_connect_refuses_unknown_id(engine_with_allowlists) -> None:
     assert topic == "system.gateway_auth.TRADER99"
     assert payload["accepted"] is False
     assert payload["reason"] == "Gateway not configured: TRADER99"
+
+
+def test_separate_admin_identities_can_connect_while_duplicate_identity_is_refused(
+    engine_with_allowlists,
+) -> None:
+    engine, pub_sock = engine_with_allowlists
+
+    engine._handle_gateway_connect({"gateway_id": "GW_ADMIN"})
+    first_topic, first_auth = decode(pub_sock.sent[-1])
+    assert first_topic == "system.gateway_auth.GW_ADMIN"
+    assert first_auth["accepted"] is True
+    pub_sock.sent.clear()
+
+    engine._handle_gateway_connect({"gateway_id": "ADMIN_CLI"})
+    second_topic, second_auth = decode(pub_sock.sent[-1])
+    assert second_topic == "system.gateway_auth.ADMIN_CLI"
+    assert second_auth["accepted"] is True
+    assert engine._session_for_gateway("GW_ADMIN").role is ParticipantRole.ADMIN
+    assert engine._session_for_gateway("ADMIN_CLI").role is ParticipantRole.ADMIN
+
+    engine._handle_circuit_breaker_halt_all({"gateway_id": "GW_ADMIN"})
+    _first_ack_topic, first_ack = decode(pub_sock.sent[-1])
+    assert first_ack["accepted"] is True
+
+    engine._handle_circuit_breaker_halt_all({"gateway_id": "ADMIN_CLI"})
+    _second_ack_topic, second_ack = decode(pub_sock.sent[-1])
+    assert second_ack["accepted"] is True
+
+    pub_sock.sent.clear()
+    engine._handle_gateway_connect({"gateway_id": "GW_ADMIN"})
+    duplicate_topic, duplicate_auth = decode(pub_sock.sent[-1])
+    assert duplicate_topic == "system.gateway_auth.GW_ADMIN"
+    assert duplicate_auth["accepted"] is False
+    assert duplicate_auth["reason"] == "Gateway already connected: GW_ADMIN"
 
 
 def test_new_order_rejected_when_gateway_not_connected(engine_with_allowlists) -> None:

@@ -342,7 +342,7 @@ usable without knowing which symbols they traded.
 
 ### Exercise 9: Symbol-level clearing totals
 
-Query what was cleared per symbol across all gateways:
+Query clearing activity per symbol across all gateways:
 
 ```bash
 pm-clearing-cli symbols
@@ -358,7 +358,13 @@ pm-clearing-cli symbols --sort realized_pnl
 Fields include `symbol`, `traded_qty`, `traded_notional`, `realized_pnl`,
 `open_net_qty`, `open_unrealized_pnl`.
 
-:material-checkbox-blank-outline: **Checkpoint:** `symbols` shows per-symbol volume and P&L across all participants.
+`traded_qty` and `traded_notional` here are **gross participant-side
+activity**: a trade is included once for the buyer and once for the seller.
+For example, one 800-share AAPL trade contributes 800 to each gateway's
+`daily` row and 1,600 to the symbol total. This is not market volume; use
+`pm-stats-cli daily` for volume counted once per executed trade.
+
+:material-checkbox-blank-outline: **Checkpoint:** `symbols` shows per-symbol gross participant activity and P&L across all participants; `pm-stats-cli daily` counts each market trade once.
 
 ---
 
@@ -519,7 +525,8 @@ pm-clearing-cli daily --date "$(date +%F)" --gateway TRADER01
 ```
 
 Key fields:
-- `traded_qty`, `traded_notional` — total volume for the day
+- `traded_qty`, `traded_notional` — this gateway's activity for the day; across
+  gateways the same trade contributes once to each counterparty
 - `buy_qty`, `sell_qty`, `buy_notional`, `sell_notional` — side breakdown
 - `end_net_qty`, `end_avg_cost`, `end_unrealized_pnl` — official EOD position state
 

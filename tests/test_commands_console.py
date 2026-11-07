@@ -1,12 +1,16 @@
 from __future__ import annotations
 
+import asyncio
 from contextlib import nullcontext
 from dataclasses import dataclass, field
 import json
 import sys
+import time
 from typing import Any, cast
+from unittest.mock import MagicMock
 
 import pytest
+import zmq
 
 from edumatcher.commands import ExchangeCommandClient
 from prompt_toolkit.completion import CompleteEvent
@@ -14,6 +18,7 @@ from prompt_toolkit.document import Document
 
 from edumatcher.commands import CommandTimeoutError
 from edumatcher.commands import console as console_mod
+from edumatcher.messaging.bus import make_pusher
 
 
 @dataclass
@@ -150,6 +155,9 @@ class _FakeClient:
             {"symbol": "AAPL", "net_qty": 500, "avg_cost": 149.75},
             {"symbol": "MSFT", "net_qty": -200, "avg_cost": 310.10},
         ]
+
+    def engine_disconnect_monitor(self) -> MagicMock:
+        return MagicMock()
 
     def quote_bootstrap(self, target_gw: str, symbol: str = "") -> list[dict[str, Any]]:
         self.calls.append(("quote_bootstrap", (target_gw,), {"symbol": symbol}))
@@ -750,7 +758,7 @@ def test_admin_run_happy_path_disconnects(monkeypatch: pytest.MonkeyPatch) -> No
         def __init__(self, **kwargs: Any) -> None:
             self._count = 0
 
-        def prompt(self, prompt_str: Any) -> str:
+        def prompt(self, prompt_str: Any, **_kwargs: Any) -> str:
             self._count += 1
             if self._count == 1:
                 return "EXIT"
@@ -764,6 +772,115 @@ def test_admin_run_happy_path_disconnects(monkeypatch: pytest.MonkeyPatch) -> No
     names = [name for name, _, _ in happy_client.calls]
     assert "disconnect" in names
     assert "close" in names
+
+
+def test_admin_run_logs_out_when_engine_connection_is_lost(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    printed = _capture_print(monkeypatch)
+
+    class _ConnectedClient(_FakeClient):
+        def connect(self) -> dict[str, Any]:
+            return {"accepted": True}
+
+        def symbol_list(self) -> list[str]:
+            return []
+
+        def disconnect(self) -> None:
+            self.calls.append(("disconnect", (), {}))
+
+        def close(self) -> None:
+            self.calls.append(("close", (), {}))
+
+    client = _ConnectedClient()
+    monkeypatch.setattr(console_mod, "ExchangeCommandClient", lambda _gw: client)
+
+    def _lost_connection(*_args: Any, **_kwargs: Any) -> None:
+        raise zmq.Again()
+
+    monkeypatch.setattr(console_mod, "execute_command", _lost_connection)
+
+    class _FakePromptSession:
+        def __init__(self, **_kwargs: Any) -> None:
+            self.prompt_count = 0
+
+        def prompt(self, _prompt_str: Any, **_kwargs: Any) -> str:
+            self.prompt_count += 1
+            assert self.prompt_count == 1
+            return "KILL"
+
+    session = _FakePromptSession()
+    monkeypatch.setattr(console_mod, "PromptSession", lambda **_kwargs: session)
+    monkeypatch.setattr(console_mod, "pt_patch_stdout", lambda raw=True: nullcontext())
+
+    console_mod.AdminConsole("GW_ADMIN").run()
+
+    assert session.prompt_count == 1
+    assert any("Engine connection was lost" in str(args) for args, _ in printed)
+    names = [name for name, _, _ in client.calls]
+    assert "disconnect" not in names
+    assert "close" in names
+
+
+def test_admin_disconnect_monitor_logs_out_idle_console(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _capture_print(monkeypatch)
+    monkeypatch.setattr(console_mod, "ExchangeCommandClient", lambda _gw: _FakeClient())
+    monkeypatch.setattr(
+        console_mod,
+        "recv_monitor_message",
+        lambda _monitor: {"event": zmq.EVENT_DISCONNECTED},
+    )
+    monitor = MagicMock()
+    monitor.poll.return_value = 1
+    app = MagicMock()
+
+    admin = console_mod.AdminConsole("GW_ADMIN")
+    asyncio.run(admin._watch_engine_disconnect(app, monitor))
+
+    assert admin._connection_lost is True
+    app.exit.assert_called_once_with(exception=KeyboardInterrupt)
+
+
+def test_admin_engine_peer_disconnect_logs_out_idle_console(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _capture_print(monkeypatch)
+    context: zmq.Context[zmq.Socket[bytes]] = zmq.Context.instance()
+    peer = context.socket(zmq.PULL)
+    port = peer.bind_to_random_port("tcp://127.0.0.1")
+    push = make_pusher(f"tcp://127.0.0.1:{port}")
+    client = ExchangeCommandClient("GW_ADMIN", _push_sock=push, _sub_sock=MagicMock())
+    monitor = client.engine_disconnect_monitor()
+    monkeypatch.setattr(console_mod, "ExchangeCommandClient", lambda _gw: client)
+    admin = console_mod.AdminConsole("GW_ADMIN")
+    app = MagicMock()
+
+    try:
+        deadline = time.monotonic() + 5.0
+        while True:
+            try:
+                client._send([b"probe", b"{}"])
+                break
+            except zmq.Again:
+                assert time.monotonic() < deadline
+                time.sleep(0.01)
+        assert peer.poll(5000, zmq.POLLIN)
+        peer.recv_multipart()
+        peer.close(linger=0)
+
+        asyncio.run(
+            asyncio.wait_for(admin._watch_engine_disconnect(app, monitor), timeout=5.0)
+        )
+
+        assert admin._connection_lost is True
+        app.exit.assert_called_once_with(exception=KeyboardInterrupt)
+    finally:
+        monitor.close(linger=0)
+        client.close()
+        push.close(linger=0)
+        peer.close(linger=0)
 
 
 def test_main_parses_id_and_runs(monkeypatch: pytest.MonkeyPatch) -> None:

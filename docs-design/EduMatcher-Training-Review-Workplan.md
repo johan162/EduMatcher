@@ -30,10 +30,10 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 |---|----|---------|----------|------------|--------|---------|
 | 1 | T1 | Audit startup delivery and completeness | Q1 | — | ☑ | 2026-11-06 |
 | 2 | T2 | Orphaned quote remainders on disconnect and kill | Q2, Q20 | — | ☑ | 2026-11-06 |
-| 3 | T3 | Combo self-match prevention contract | Q3 | Contract decision | ☐ | |
-| 4 | T4 | Console authentication after engine restart | Q4 | — | ☐ | |
-| 5 | T5 | Admin console identities and safe reset guidance | Q5, Q6 | — | ☐ | |
-| 6 | T6 | Clearing totals and gateway quote-status scope | Q7, Q8 | Contract decisions | ☐ | |
+| 3 | T3 | Combo self-match prevention contract | Q3 | Contract decision | ☑ | 2026-11-06 |
+| 4 | T4 | Console logout after engine connection loss | Q4 | — | ☑ | 2026-11-07 |
+| 5 | T5 | Admin console identities and safe reset guidance | Q5, Q6 | — | ☑ | 2026-11-07 |
+| 6 | T6 | Clearing totals and gateway quote-status scope | Q7, Q8 | — | ☑ | 2026-11-07 |
 | 7 | T7 | Installed examples, C exercises and version metadata | Q9, Q10, Q21 | — | ☐ | |
 | 8 | T8 | Normal-use warnings and artifact errors | Q11 | Contract decision | ☐ | |
 | 9 | T9 | Swarm budget semantics | Q12 | Contract decision | ☐ | |
@@ -202,9 +202,14 @@ Verification:
 
 ### T3 — Combo self-match prevention contract (Q3)
 
-**Question to resolve:** Should AON combo entry discount the submitter's own
-resting liquidity under every SMP policy, and should resting combo children
-apply SMP when they later become executable?
+**Decision:** AON entry preflight must count only liquidity executable under
+the child's resolved SMP policy. With `NONE`, same-gateway liquidity counts
+and may self-trade; with any `CANCEL_*` policy, it does not count, and if
+that leaves a leg short while it would otherwise cross, the combo fails
+without cancelling or trading the resting order. Omitted per-leg SMP resolves
+to the gateway default, and explicit `NONE` overrides that default. Once a
+combo child is resting, it applies its own resolved SMP action whenever it
+later becomes the aggressor (including after a marketable amend).
 
 Steps:
 1. Record the expected semantics for `NONE`, `CANCEL_AGGRESSOR`,
@@ -231,56 +236,86 @@ Steps:
 - The guide's predictions and checkpoint agree with the contract tests.
 - Targeted combo tests and full project checks pass.
 
-### T4 — Console authentication after engine restart (Q4)
+**Result (2026-11-06):** Added entry contract tests for all four SMP actions,
+omitted SMP using the configured gateway default, and explicit `NONE`
+overriding a non-`NONE` default. Added execution tests that rest an AON combo,
+stage same-gateway liquidity, and amend a child across it. The tests confirm
+that current preflight and matching behavior satisfy the decision: non-`NONE`
+entry rejects the own-only AAPL liquidity without trades or cancellations;
+`NONE` fills both legs, including the self-trade. On a later marketable amend,
+`CANCEL_AGGRESSOR` cancels the combo child and sibling, `CANCEL_RESTING`
+cancels the own order and leaves the child resting, `CANCEL_BOTH` cancels both
+sides and the sibling, and `NONE` self-trades. No engine behavior change was
+needed. Updated Exercise 13B and its checkpoint with the two distinct
+behaviors and their outcomes.
 
-**Question to resolve:** Should long-running admin and ALF consoles
-automatically re-authenticate when the engine returns, or is reconnecting the
-console the intended lifecycle?
+Verification:
+- `poetry run pytest tests/test_combo.py -q --no-cov` — 34 passed
+- Targeted combo, gateway-integration, and engine-acceptance tests — 67 passed
+- Full suite — 13,477 passed, 1 skipped; 90.36% coverage (85% required)
+- Repository-wide Black, Flake8, mypy, pyright — passed
+- `poetry run mkdocs build` — passed
+
+### T4 — Console logout after engine connection loss (Q4)
+
+**Decision:** When an authenticated console detects that its engine connection
+was lost, it logs out and prints `Engine connection was lost; logging out.`
+It does not retry commands or authenticate again automatically; the operator
+starts a new console session after the engine is available.
 
 Steps:
-1. Add a failing end-to-end test that authenticates a console, restarts only
-   the engine while preserving the console process, waits for engine
-   readiness, then sends a write command (`KILL` for admin and a valid order
-   for ALF). Capture heartbeat, auth, reply and gateway-list behavior.
-2. Assert the agreed outcome: automatic re-authentication and successful
-   command after recovery, or an explicit disconnected state that requires a
-   documented console restart. Read-only success must not be mistaken for
-   write readiness.
-3. If automatic recovery is chosen, add bounded retry/backoff and ensure only
-   one live session is registered after recovery. Test repeated engine
-   restarts and a permanently unavailable engine.
-4. Update console help/troubleshooting and the guide's "after engine restart"
-   instructions.
+1. Add regression tests that reproduce a lost engine transport during an
+   admin command and during ALF command/heartbeat delivery.
+2. Assert both clients print the explicit connection-lost message and exit
+   without sending further commands or a misleading graceful disconnect.
+3. Update console troubleshooting and the guide's "after engine restart"
+   instructions to require starting a new console session.
 
 **Definition of done:**
-- The test reproduces the current post-restart write failure and verifies the
-  chosen recovery contract without manually restarting the console.
-- No duplicate gateway session or misleading connected status occurs.
-- Recovery and permanent-failure behavior are documented and targeted tests
-  pass.
+- Regression tests reproduce lost-transport behavior and verify logout for
+  both clients.
+- A lost session cannot continue issuing commands or appear connected.
+- The guide documents the message and the required new console session;
+  targeted tests pass.
+
+**Result (2026-11-07):** Both clients monitor their engine transport for a
+ZeroMQ disconnect and log out with the requested message, even while idle.
+`pm-admin` exits its prompt and closes without trying to send a graceful
+disconnect. `pm-alf-console` monitors the engine event socket and also logs
+out on a failed command send or heartbeat. Added a real ZMQ peer-disconnect
+test for the ALF listener plus admin command and idle-monitor tests. Updated
+the guide introduction and restart instructions.
+
+Verification:
+- `poetry run pytest tests/test_commands_console.py tests/test_alf_console_heartbeat.py -q --no-cov` — 48 passed
+- Full suite — 13,484 passed, 1 skipped; 90.38% coverage (85% required)
+- Black, Flake8, mypy, pyright, and MkDocs — passed
 
 ### T5 — Admin identities and safe reset guidance (Q5, Q6)
 
-**Question to resolve:** Should simultaneous `pm-admin` and `pm-admin-cli`
-sessions use separate configured identities, or should the guide require one
-to be closed? Which reset recipe is appropriate for each training scenario?
+**Decision (2026-11-07):** Simultaneous `pm-admin` and `pm-admin-cli` sessions
+use separate configured ADMIN identities: `GW_ADMIN` for the interactive
+console and `ADMIN_CLI` for the one-shot CLI. Reusing an already-connected ID
+is an error. For resets, stop all EduMatcher processes first; use the narrowest
+reset that meets the scenario's needs.
 
 Steps:
-1. Add a reproducible CLI/integration check that starts an admin console,
-   starts `pm-admin-cli` using the same configured identity, and records the
-   current `Gateway already connected` result. Use an isolated exchange.
-2. Decide whether the supported workflow is a second ADMIN identity or
-   sequential use. If simultaneous use is supported, add the second identity
-   to example configuration and test both sessions' authorization; otherwise
-   document and verify the close-one-before-starting-the-other workflow.
+1. Add an engine gateway-auth integration test that connects two distinct
+   configured ADMIN IDs concurrently, verifies both can issue an ADMIN-only
+   command, then attempts a second live connection with the first ID and
+   asserts the exact `Gateway already connected` refusal.
+2. Add both identities to example configurations and document which ID each
+   operator client uses. Ensure the chosen IDs pass the configuration
+   verifier's participant-ID checks.
 3. Create a reset matrix for `book_stats.json`, `pm-opctl-cli clear --state`,
    and `--all`: what each removes, required stopped processes, and what must be
    redeployed/restarted.
-4. Verify each reset only in a disposable data directory with all relevant
-   processes stopped. Include a negative/safety check that the documented
-   recipe refuses or warns before deleting state while services are active.
-5. Add a concise "Starting over" section and link it from the chapters that
-   need a clean exchange.
+4. Verify each reset's exact file/directory effects in a disposable data
+   directory. Include a safety check that both clear modes warn about active
+   processes and refuse a non-interactive request without `--yes`.
+5. Add a concise "Starting over" section, explain that the active-process
+   warning is not a hard block, and link it from chapters that need a clean
+   exchange.
 
 **Definition of done:**
 - The simultaneous-session behavior is explicitly selected and the scenario
@@ -289,29 +324,55 @@ Steps:
 - The guide has one linked reset reference instead of divergent instructions.
 - Relevant CLI tests and documentation checks pass.
 
+**Result (2026-11-07):** Separate ADMIN identities are supported by the
+engine's existing one-live-connection-per-ID rule. The engine integration
+test connects `GW_ADMIN` and `ADMIN_CLI` concurrently, confirms both are
+authorized for an ADMIN-only halt operation, and confirms a duplicate
+`GW_ADMIN` connection is refused with `Gateway already connected: GW_ADMIN`.
+Chapter 01 and the market-maker/capstone examples configure both identities;
+the risk-controls and advanced-admin chapters consistently use
+`GW_ADMIN` for `pm-admin` and `ADMIN_CLI` for `pm-admin-cli`.
+
+The risk-controls chapter now has the single reset matrix. It distinguishes
+deleting only `book_stats.json` from `clear --state` and `clear --all`, names
+the removed and preserved state, requires processes to be stopped, warns that
+the process check is advisory (and `--yes` bypasses confirmation), and
+highlights EOD/settlement data loss with `--all`. Chapters that require a clean
+exchange link to this matrix. A disposable-directory test verifies every
+listed data path for both scopes and confirms configuration remains; the CLI
+warning/refusal test covers both scopes.
+
+Verification:
+- `poetry run pytest tests/test_emo_cli.py tests/test_engine_integration.py -q --no-cov` — 104 passed
+- Black, Flake8, mypy and pyright on both changed test files — passed
+- `poetry run mkdocs build` — passed
+- `poetry run python scripts/checkdocs.py` — links, CLI, and anchors clean;
+  only the two pre-existing `Y005` missing `/tmp/symbols.yaml` and
+  `/tmp/desk-keys.yaml` warnings remain
+
 ### T6 — Clearing totals and gateway quote-status scope (Q7, Q8)
 
-**Question to resolve:** Is symbol `traded_qty` gross across both sides or
-trade volume counted once? Does a gateway's `STATUS` report only its own quote
-legs or a process-wide/public cache?
+**Decisions (2026-11-07):** `pm-clearing-cli symbols` reports gross
+participant-side activity, summing both counterparties. It is not market
+volume; market volume counts each executed trade once. `STATUS` quote-leg
+counts reflect only quote submissions made by the connected gateway, not
+market-wide activity.
 
 Steps:
-1. For Q7, write a failing test from a clean clearing database: execute one
-   800-share AAPL trade between two gateways, then query symbol totals,
-   per-gateway daily totals and stats volume. Assert the chosen accounting
-   invariant (count once at symbol level, or explicitly count both sides if
-   that is the declared contract).
-2. If once-per-trade is intended, change the aggregation and test several
-   trades plus a restart; otherwise rename or document the gross measure so
-   it cannot be confused with market volume.
-3. For Q8, write a failing console test with a non-market-maker gateway that
-   observes public quote broadcasts but never sends a quote. Query `STATUS`
-   and compare cached/active quote counts with the gateway's own submitted
-   quote IDs.
-4. Decide whether `STATUS` is gateway-local or global. If local, filter
-   by gateway ownership and test two gateways with interleaved quote events.
-   If global, rename/document the fields so the scope is explicit.
-5. Correct chapter 08 and clearing CLI guidance.
+1. For Q7, verify a single market trade against the ledger's per-gateway
+   summaries and symbol aggregation. Pin the chosen gross participant-side
+   accounting model with a clean clearing database and ensure it cannot be
+   confused with market volume.
+2. Keep the existing gross aggregation; clarify the field scope in CLI and
+   guide descriptions.
+3. For Q8, add a failing console test where a non-market-maker gateway gets a
+   normal fill without submitting a quote. Compare its `STATUS` quote-leg
+   counts with quote IDs acknowledged to that gateway.
+4. Fix quote-leg tracking to ignore non-quote fills and verify an acknowledged
+   quote leg still updates on fill. Clarify that `STATUS` is local to the
+   connected gateway and does not report market-wide quote totals.
+5. Correct chapter 08 and clearing CLI guidance to match the confirmed
+   accounting and ownership contracts.
 
 **Definition of done:**
 - Tests establish the exact accounting and ownership invariants using
@@ -319,6 +380,36 @@ Steps:
 - Any code change has a failing-before regression test and passes it after.
 - CLI output and the relevant guide chapters describe the same scope.
 - Targeted clearing/console tests and full project checks pass.
+
+**Result (2026-11-07):** Clearing calls `_apply_leg` once for each
+counterparty, accumulating the same quantity/notional into each gateway's
+daily summary. `query_symbols` sums those per-gateway rows, while `pm-stats`
+consumes one `trade.executed` print per market trade. The user confirmed the
+intended Q7 contract is gross participant-side activity, not once-per-trade
+market volume. A new SQLite-backed test records one 800-share trade, checks
+800 shares on each gateway's daily row, checks the symbol totals equal the sum
+of both gateway rows for quantity and notional, and confirms there is one raw
+trade event.
+
+For Q8, the review's public-broadcast hypothesis was not supported by the
+console's subscriptions: `order.fill.<gateway_id>` is a private per-gateway
+topic. Instead, the console's fill handler called quote-leg tracking for every
+fill and synthesized a cached quote leg with quote ID `?` for ordinary orders.
+A new regression test failed on that path; `_record_fill_for_quote_leg` now
+ignores fills whose order IDs were not introduced by a quote acknowledgement.
+The test also verifies a real acknowledged quote leg still updates on fill.
+Chapter 08 now describes those counters as this console's quote submissions,
+not a market-wide count.
+
+Verification:
+- `poetry run pytest tests/test_clearing_store.py tests/test_clearing_ledger.py tests/test_clearing_cli.py tests/test_alf_console_quote_ack.py -q --no-cov` — 202 passed
+- `poetry run pytest tests/test_alf_console_quote_ack.py tests/test_alf_console_heartbeat.py -q --no-cov` — 16 passed
+- Full suite — 13,490 passed, 1 skipped; 90.39% coverage (85% required)
+- Repository-wide Black, Flake8, mypy and pyright — passed
+- `poetry run mkdocs build` — passed
+- `poetry run python scripts/checkdocs.py` — links, CLI and anchors clean;
+  only the two pre-existing `Y005` missing `/tmp/symbols.yaml` and
+  `/tmp/desk-keys.yaml` warnings remain
 
 ### T7 — Installed examples, C exercises and version metadata (Q9, Q10, Q21)
 

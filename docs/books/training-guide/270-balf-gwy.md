@@ -85,7 +85,9 @@ pm-config-gen \
 Orders and market-maker quotes from earlier chapters are restored when the
 engine starts. For the empty AAPL book that Exercise 4B assumes, stop every
 process and run `pm-opctl-cli clear --state --yes` before you start the engine
-(it also deletes `clearing.db` and `stats.db`).
+(it also deletes `clearing.db` and `stats.db`). See
+[Starting over](110-risk-controls.md#starting-over) for the reset matrix and
+preconditions.
 
 Inspect the generated section:
 

@@ -83,7 +83,15 @@ participants:
   - id: GW_ADMIN
     description: "Exchange operator"
     role: ADMIN
+  - id: ADMIN_CLI
+    description: "One-shot command-line operator"
+    role: ADMIN
 ```
+
+Use `GW_ADMIN` for the interactive `pm-admin` console and
+`ADMIN_CLI` for `pm-admin-cli`. Each configured participant ID can have only
+one live connection; attempting to use `GW_ADMIN` from both tools at once is
+refused with `Gateway already connected: GW_ADMIN`.
 
 !!! note "Why `tick_decimals`, not `tick_size`"
     A symbol's price granularity is given as a **number of decimal places**,
@@ -120,7 +128,7 @@ pm-config-gen \
   --symbol-opts AAPL:tick_decimals=2 \
   --symbol-opts MSFT:tick_decimals=2 \
   --symbol-opts TSLA:tick_decimals=2 \
-  --participants TRADER01:TRADER TRADER02:TRADER GW_ADMIN:ADMIN \
+  --participants TRADER01:TRADER TRADER02:TRADER GW_ADMIN:ADMIN ADMIN_CLI:ADMIN \
   --static-band 0.10 \
   --dynamic-band 0.05 \
   --sessions-enabled \
@@ -131,7 +139,7 @@ This writes `generated.yaml` beside your hand-written file — it does **not**
 replace it — with:
 
 - Three symbols (AAPL, MSFT, TSLA) with 2-decimal tick precision.
-- Two trader gateways and one admin gateway.
+- Two trader gateways and two admin gateways (one for each operator client).
 - Static and dynamic price collars pre-configured.
 - Session schedule enabled (PRE_OPEN → CONTINUOUS → CLOSED).
 
@@ -163,14 +171,14 @@ reference.
     ```bash
     pm-config-gen \
       --symbols AAPL MSFT TSLA \
-      --participants TRADER01 TRADER02 GW_ADMIN:ADMIN MM_AAPL_01:MARKET_MAKER \
+      --participants TRADER01 TRADER02 GW_ADMIN:ADMIN ADMIN_CLI:ADMIN MM_AAPL_01:MARKET_MAKER \
       --enforce-mm-obligations \
       --output mm-example.yaml --force
     ```
 
     Chapter 02 explains what a market maker needs in the configuration.
 
-:material-checkbox-blank-outline: **Checkpoint:** `generated.yaml` has the same three symbols and three participants as your hand-written `engine_config.yaml`.
+:material-checkbox-blank-outline: **Checkpoint:** `generated.yaml` has the same three symbols and four participants as your hand-written `engine_config.yaml`.
 
  
 
@@ -552,10 +560,11 @@ show on the `TRADER01` console as `CANCELLED … reason=KILL_SWITCH`.
 
 !!! warning "Engine restarts disconnect your consoles"
     Several exercises below (and in later chapters) restart `pm-engine`. When
-    you do, **exit and restart your trader and operator consoles** too — an
-    open console is not reconnected, and its commands fail with
-    `AUTH_REQUIRED` or `Gateway not connected`. See "After every engine
-    restart" in the [guide introduction](index.md#after-every-engine-restart).
+    the engine connection is detected as lost, each console prints
+    `Engine connection was lost; logging out.` and exits. Consoles do not
+    reconnect by themselves, so start them again before continuing. See
+    "After every engine restart" in the
+    [guide introduction](index.md#after-every-engine-restart).
 
 :material-checkbox-blank-outline: **Checkpoint:** `pm-admin` is connected, `BOOK|SYM=AAPL`
 shows the book, and you can state which of the two consoles a given command
@@ -564,7 +573,7 @@ belongs to.
 !!! tip "Keep both terminals open from here on"
     Every later chapter assumes you have a trader console *and* an operator
     console available. Leaving both running saves restarting them — except
-    after an engine restart, when each must be restarted (see above).
+    after an engine restart, when each must be started again (see above).
 
  
 
@@ -736,7 +745,7 @@ pm-config-gen \
   --symbol-opts AAPL:tick_decimals=2 \
   --symbol-opts MSFT:tick_decimals=2 \
   --symbol-opts TSLA:tick_decimals=2 \
-  --participants TRADER01:TRADER TRADER02:TRADER GW_ADMIN:ADMIN \
+  --participants TRADER01:TRADER TRADER02:TRADER GW_ADMIN:ADMIN ADMIN_CLI:ADMIN \
   --static-band 0.10 \
   --dynamic-band 0.05 \
   --sessions-enabled \
@@ -765,7 +774,7 @@ pm-config-gen \
   --symbol-opts AAPL:tick_decimals=2 \
   --symbol-opts MSFT:tick_decimals=2 \
   --symbol-opts TSLA:tick_decimals=2 \
-  --participants TRADER01:TRADER TRADER02:TRADER GW_ADMIN:ADMIN \
+  --participants TRADER01:TRADER TRADER02:TRADER GW_ADMIN:ADMIN ADMIN_CLI:ADMIN \
   --static-band 0.10 \
   --dynamic-band 0.05 \
   --sessions-enabled \

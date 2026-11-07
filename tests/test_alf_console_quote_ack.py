@@ -77,6 +77,51 @@ def _ack(quote_id: str, bid_order_id: str, ask_order_id: str) -> dict[str, Any]:
 
 
 class TestQuoteAckCorrelation:
+    def test_regular_order_fill_is_not_counted_as_a_quote_leg(self) -> None:
+        gw, _push = _make_gateway("TRADER01")
+
+        gw._handle_event(
+            "order.fill.TRADER01",
+            {
+                "gateway_id": "TRADER01",
+                "order_id": "regular-order",
+                "symbol": "AAPL",
+                "side": "BUY",
+                "qty": 10,
+                "fill_qty": 10,
+                "fill_price": 99.0,
+                "price": 99.0,
+                "remaining_qty": 0,
+                "status": "FILLED",
+            },
+        )
+
+        assert gw.quote_leg_cache == {}
+
+    def test_fill_updates_quote_leg_created_by_this_console(self) -> None:
+        gw, _push = _make_gateway("MM01")
+        quote_id = _quote(gw, "AAPL", 99.0, 101.0)
+        gw._handle_event("quote.ack.MM01", _ack(quote_id, "bid-aapl", "ask-aapl"))
+
+        gw._handle_event(
+            "order.fill.MM01",
+            {
+                "gateway_id": "MM01",
+                "order_id": "bid-aapl",
+                "symbol": "AAPL",
+                "side": "BUY",
+                "qty": 100,
+                "fill_qty": 40,
+                "fill_price": 99.0,
+                "price": 99.0,
+                "remaining_qty": 60,
+                "status": "PARTIAL",
+            },
+        )
+
+        assert gw.quote_leg_cache["bid-aapl"]["filled"] == 40
+        assert gw.quote_leg_cache["bid-aapl"]["remaining"] == 60
+
     def test_the_console_sends_a_quote_id_even_when_the_operator_gives_none(
         self,
     ) -> None:

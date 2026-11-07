@@ -57,6 +57,7 @@ from datetime import datetime
 from typing import Any
 
 import zmq
+from zmq.utils.monitor import recv_monitor_message
 from prompt_toolkit import PromptSession
 from prompt_toolkit.filters import completion_is_selected
 from prompt_toolkit.history import InMemoryHistory
@@ -363,6 +364,7 @@ class Gateway:
         self._running = True
         self._heartbeat_stop = threading.Event()
         self._authenticated: bool = False
+        self._prompt_session: PromptSession[str] | None = None
 
         self.push_sock = make_pusher(ENGINE_PULL_ADDR)
         self._index_push_sock = make_pusher(INDEX_PULL_CONNECT_ADDR)
@@ -573,6 +575,9 @@ class Gateway:
         event_time: str,
         price: float | None = None,
     ) -> None:
+        if order_id not in self._quote_id_by_order_id:
+            return
+
         if order_id in self.quote_leg_cache:
             row = self.quote_leg_cache[order_id]
             row["remaining"] = remaining_qty
@@ -663,33 +668,63 @@ class Gateway:
         across threads, and push_sock belongs to the prompt thread."""
         push_sock = make_pusher(ENGINE_PULL_ADDR)
         try:
+            handshake_deadline = time.monotonic() + 3.0
             while True:
+                try:
+                    push_sock.send_multipart(
+                        make_gateway_heartbeat_msg(self.gateway_id)
+                    )
+                    break
+                except zmq.Again:
+                    if time.monotonic() >= handshake_deadline:
+                        self._engine_connection_lost()
+                        return
+                    if self._heartbeat_stop.wait(0.1):
+                        return
+
+            while True:
+                if self._heartbeat_stop.wait(GATEWAY_HEARTBEAT_INTERVAL_SEC):
+                    return
                 log.debug("engine heartbeat sent gateway_id=%s", self.gateway_id)
                 try:
                     push_sock.send_multipart(
                         make_gateway_heartbeat_msg(self.gateway_id)
                     )
                 except zmq.Again:
-                    log.warning(
-                        "gateway_id=%s heartbeat dropped: engine unreachable",
-                        self.gateway_id,
-                    )
-                if self._heartbeat_stop.wait(GATEWAY_HEARTBEAT_INTERVAL_SEC):
+                    self._engine_connection_lost()
                     return
         finally:
             push_sock.close()
 
+    def _engine_connection_lost(self) -> None:
+        if not self._running:
+            return
+        self._running = False
+        log.error("engine connection lost gateway_id=%s", self.gateway_id)
+        console.print("[red]Engine connection was lost; logging out.[/red]")
+
+        session = self._prompt_session
+        if session is None:
+            return
+        app = session.app
+        loop = app.loop
+        if loop is not None and loop.is_running():
+
+            def _exit_prompt() -> None:
+                if app.is_running:
+                    app.exit(exception=KeyboardInterrupt)
+
+            loop.call_soon_threadsafe(_exit_prompt)
+
     def _send(self, sock: PushSocket, frames: list[bytes]) -> bool:
         """Send on a PUSH socket, reporting a clean error instead of
-        crashing the console.
+        crashing the console. An unavailable engine ends this session.
 
         Every PUSH socket from ``make_pusher()`` is IMMEDIATE + non-
         blocking (see ``bus.py``), so a send raises ``zmq.Again`` whenever
         the peer connection isn't currently established — e.g. the engine
-        restarted or the network dropped mid-session. Post-handshake sends
-        (unlike the one in ``_authenticate``) aren't worth retrying here:
-        the command the user just typed would need to be resent anyway, so
-        we just report the failure and let them decide whether to retry.
+        restarted or the network dropped mid-session. The command cannot be
+        retried safely after the session is lost, so log out.
         Returns True on success, False if the send was dropped.
         """
         try:
@@ -699,9 +734,7 @@ class Gateway:
             log.warning(
                 "gateway_id=%s send dropped: engine unreachable", self.gateway_id
             )
-            console.print(
-                "[red]Send failed: engine unreachable (connection lost?)[/red]"
-            )
+            self._engine_connection_lost()
             return False
 
     # ------------------------------------------------------------------
@@ -709,10 +742,12 @@ class Gateway:
     # ------------------------------------------------------------------
 
     def _listen(self) -> None:
+        monitor_sock = self.sub_sock.get_monitor_socket(events=zmq.EVENT_DISCONNECTED)
         poller = zmq.Poller()
         poller.register(self.sub_sock, zmq.POLLIN)
         poller.register(self._index_sub_sock, zmq.POLLIN)
         poller.register(self._dc_sub_sock, zmq.POLLIN)
+        poller.register(monitor_sock, zmq.POLLIN)
         log.info("gateway listeners started gateway_id=%s", self.gateway_id)
         while self._running:
             try:
@@ -720,6 +755,11 @@ class Gateway:
             except zmq.ZMQError:
                 log.warning("listener poll interrupted gateway_id=%s", self.gateway_id)
                 break
+            if monitor_sock in socks:
+                event = recv_monitor_message(monitor_sock)
+                if event["event"] == zmq.EVENT_DISCONNECTED:
+                    self._engine_connection_lost()
+                    break
             if self.sub_sock in socks:
                 try:
                     frames = self.sub_sock.recv_multipart()
@@ -765,6 +805,7 @@ class Gateway:
                         console.print(
                             f"[dim][WARN] drop-copy listener error: {exc}[/dim]"
                         )
+        monitor_sock.close(linger=0)
         self._flush_debug_summary(force=True)
         log.info("gateway listeners stopped gateway_id=%s", self.gateway_id)
 
@@ -1983,6 +2024,7 @@ class Gateway:
             mouse_support=False,
             key_bindings=_completion_key_bindings(),
         )
+        self._prompt_session = session
         prompt_str = [("class:prompt", f"[{self.gateway_id}]> ")]
 
         try:
@@ -1995,6 +2037,7 @@ class Gateway:
                     if line.strip():
                         self._parse_and_send(line)
         finally:
+            self._prompt_session = None
             self._running = False
             self._heartbeat_stop.set()
             try:

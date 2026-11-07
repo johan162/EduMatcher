@@ -1,3 +1,25 @@
+## [v0.76.2] - 2026-11-07
+
+Release Type: patch
+
+### 📋 Summary
+This release improves console recovery, simulator throughput and operator guidance. It also clarifies clearing-volume semantics and fixes quote-leg counts for ordinary order fills.
+
+### 🚀 Improvements
+- Increased simulator order throughput to support approximately 3 million orders per day
+- Reduced deployment-screen flicker while parallel Podman image downloads are in progress
+
+### 🐛 Bug Fixes
+- Fixed admin and ALF consoles remaining open after losing their engine connection
+- Fixed ordinary order fills appearing as quote legs in ALF console status counts
+
+### 📚 Documentation
+- Clarified combo self-match prevention behavior, admin identity requirements and safe reset scopes
+- Explained that clearing symbol totals count activity for both trade counterparties, unlike market volume
+
+### 🛠 Internal
+- Added regression coverage for console disconnect handling, quote-leg tracking and gross clearing totals
+
 ## [v0.76.1] - 2026-11-06
 
 Release Type: minor

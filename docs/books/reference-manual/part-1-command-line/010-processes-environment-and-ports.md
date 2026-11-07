@@ -1134,6 +1134,11 @@ which also pings the running `pm-clearing` on port `5563`.
 | `eod`      | 100 | End-of-day sentinel events written by `pm-clearing` on `system.eod` | `--from`, `--to`, `--limit` |
 | `prune` | n/a | Deletes old `trade_events` rows by retention window | `--days`, `--dry-run` |
 
+`daily` rows are per gateway, while `symbols` sums both counterparties'
+participant-side activity. A single 800-share trade therefore contributes 800
+to each gateway's `daily` row and 1,600 to the symbol's `traded_qty`; use
+`pm-stats-cli daily` for market volume counted once per executed trade.
+
 **Sort options:**
 
 | Command | Allowed `--sort` values |

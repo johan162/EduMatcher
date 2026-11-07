@@ -178,12 +178,35 @@ start_guis() {
     info "These are only the GUIs. Start the exchange itself on this machine: pm-opctl-cli start"
 }
 
+# podman-compose pulls every image at once, each 'podman pull' redrawing its
+# own progress bars on the same terminal: the bars overwrite one another and
+# flicker. One image at a time keeps them readable.
+compose_pull() {
+    if [[ "$ENGINE" == "podman" ]]; then
+        COMPOSE_PARALLEL_LIMIT=1 $COMPOSE $COMPOSE_FILES pull "$@"
+    else
+        $COMPOSE $COMPOSE_FILES pull "$@"
+    fi
+}
+
+# What 'up' would pull for itself (in parallel, with the same flicker), one
+# image at a time, and only the ones this machine does not have yet.
+pull_missing() {
+    local img
+    for img in $(image_list); do
+        $ENGINE image inspect "$img" >/dev/null 2>&1 && continue
+        info "Pulling $img..."
+        $ENGINE pull "$img" || die "The pull of $img failed."
+    done
+}
+
 cmd_start() {
     detect_engine
-    [[ "$(stack)" == "guis" ]] && { info "Engine: $ENGINE ($COMPOSE)"; start_guis; return; }
+    [[ "$(stack)" == "guis" ]] && { info "Engine: $ENGINE ($COMPOSE)"; pull_missing; start_guis; return; }
     assert_no_foreign_stack
     mkdir -p data config
     info "Engine: $ENGINE ($COMPOSE)"
+    pull_missing
 
     # The simulation's configuration is fixed and its read-only key is already
     # in the compose file, so there is nothing to resolve: one phase.
@@ -461,7 +484,7 @@ cmd_share() {
 cmd_pull() {
     detect_engine
     info "Pulling images (${COMPOSE_FILES#-f })..."
-    $COMPOSE $COMPOSE_FILES pull
+    compose_pull
     ok "Images downloaded. Nothing was started."
 }
 
@@ -470,7 +493,7 @@ cmd_update() {
     local version="${1:-latest}"
     set_env EM_VERSION "$version"
     info "Pulling images for version '$version'..."
-    $COMPOSE $COMPOSE_FILES pull
+    compose_pull
     ok "Pulled. Restarting..."
     cmd_restart
 }
@@ -534,7 +557,7 @@ cmd_upgrade() {
     # The environment beats .env in compose, so this pulls the new release
     # without touching .env until the download has worked.
     info "Pulling release $latest..."
-    EM_VERSION="$latest" $COMPOSE $COMPOSE_FILES pull \
+    EM_VERSION="$latest" compose_pull \
         || die "The pull failed; nothing was stopped or changed."
 
     [[ "$running" -eq 1 ]] && cmd_stop

@@ -131,7 +131,7 @@ the quote you send replaces a seed that looks exactly the same.
     # ask_price are left as `null` for you to fill in by hand
     pm-config-gen \
       --symbols AAPL MSFT TSLA \
-      --participants TRADER01 TRADER02 GW_ADMIN:ADMIN \
+      --participants TRADER01 TRADER02 GW_ADMIN:ADMIN ADMIN_CLI:ADMIN \
         MM_AAPL_01:MARKET_MAKER MM_MSFT_01:MARKET_MAKER MM_TSLA_01:MARKET_MAKER \
       --enforce-mm-obligations \
       --output mm-stub.yaml --force
@@ -140,7 +140,7 @@ the quote you send replaces a seed that looks exactly the same.
     # the given range, rounded to each symbol's tick grid
     pm-config-gen \
       --symbols AAPL MSFT TSLA \
-      --participants TRADER01 TRADER02 GW_ADMIN:ADMIN \
+      --participants TRADER01 TRADER02 GW_ADMIN:ADMIN ADMIN_CLI:ADMIN \
         MM_AAPL_01:MARKET_MAKER MM_MSFT_01:MARKET_MAKER MM_TSLA_01:MARKET_MAKER \
       --enforce-mm-obligations \
       --seed-mm-mid-range 100:400 \
@@ -180,10 +180,10 @@ cp engine_config.yaml engine_config.ex1.yaml   # keep a copy of this state
 The copy is for the optional Exercise 8, which changes `engine_config.yaml`.
 
 Then restart `pm-engine` to pick up the new gateways (`Ctrl-C`, then
-`pm-engine --verbose`). A restarted engine starts in `CLOSED` again, and your
-open consoles are disconnected: **restart `pm-admin` and your trader console**,
-then reopen the market from the operator console (`SESSION|STATE=PRE_OPEN`,
-then `SESSION|STATE=CONTINUOUS`).
+`pm-engine --verbose`). A restarted engine starts in `CLOSED` again. Your
+consoles log out when they detect the lost connection; start `pm-admin` and
+your trader console again, then reopen the market from the operator console
+(`SESSION|STATE=PRE_OPEN`, then `SESSION|STATE=CONTINUOUS`).
 
 Now look at the books before any market maker has connected:
 
