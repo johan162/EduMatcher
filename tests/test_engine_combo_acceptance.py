@@ -154,6 +154,9 @@ def test_a_combo_that_fills_on_entry_is_acked_first_and_matched_once(
         "combo.status(MATCHED)",
     ]
     assert c.status is ComboStatus.MATCHED
+    # As for a failed or cancelled combo, and as a restart restores it: only
+    # a live combo's legs stay linked to it.
+    assert not set(c.child_order_ids) & set(engine._order_to_combo)
 
 
 # --- X28: an all-or-none combo is accepted only if it can fill in full ------

@@ -5735,6 +5735,10 @@ class Engine:
         """
         if combo.is_fully_filled:
             combo.status = ComboStatus.MATCHED
+            # Its legs are done: unlinked as _cascade_cancel_combo unlinks a
+            # failed combo's, and as a restart (live combos only) leaves them.
+            for child_id in combo.child_order_ids:
+                self._order_to_combo.pop(child_id, None)
             self.pub_sock.send_multipart(
                 make_combo_status_msg(
                     combo.gateway_id, combo.combo_id, ComboStatus.MATCHED.value

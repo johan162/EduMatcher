@@ -53,10 +53,21 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 | 27 | S27 | Sim feature coverage: amend, combos, ATC, explicit SMP, bands/CB, halts, kill switch, one restart | S17 | 1.5 d | ☐ | |
 | 28 | S28 | Replay models amend, combos, circuit breaker/halts; D8 checks bands; C7/D5 use explicit events | S24, S27 | 2 d | ☑ (D9 on an S27 run open) | 2026-10-29 |
 | 29 | S29 | Long run on the 1.0 formats, full report, triage; then freeze | S21–S28 | open | ☐ | |
+| 30 | S30 | C12: every refusal is justified, and every acceptance too (all reject codes, D8 does collars) | — | 1.5 d | ☐ | |
+| 31 | S31 | C13: kill switches and disconnect behaviour sweep the gateway; nothing of it trades until reset | — | 0.5 d | ☐ | |
+| 32 | S32 | D12: circuit-breaker oracle (own reference window: halts justified, no trade outside the corridor, reopen on time) | — | 1 d | ☐ | |
+| 33 | S33 | C14: end-of-day expiry (every live DAY order, leg and quote expires once; no GTC does) | — | 0.5 d | ☐ | |
+| 34 | S34 | E7 time-shift lane: the day moved across a DST change and a UTC midnight changes nothing | — | 1 d | ☐ | |
+| 35 | S35 | A6: client view (`ai_swarm/*.jsonl` day totals) equals the exchange's, per gateway | — | 0.5 d | ☐ | |
+| 36 | S36 | Decision traces in `engine.trace`: UNCROSS_PRICE, AON_PREFLIGHT, SMP_DECISION; D6/C12 use them | Q11 | 1 d | ☐ | |
+| 37 | S37 | The engine's clock on the audit: each dispatch's `now`; the re-run uses it instead of inferring | Q12 | 1 d | ☐ | |
+| 38 | S38 | E3, reduced: reference-matcher differential on plain chains (LIMIT/MARKET/IOC/FOK, no quotes) | Q13 | 2 d | ☐ | |
 
 Total ≈ 10 d plus fix WPs. S0 is **urgent** (see §2, R3: order events are
 pruned after 12 h). S17–S29 (≈ 16 d plus triage) are the pre-1.0 extension,
-see §10: after 1.0 the audit, bus and DB formats freeze.
+see §10: after 1.0 the audit, bus and DB formats freeze. S30–S38 (≈ 9 d,
+2026-11-07) close the gaps the 2026-11-07 review found, see §11; S36 and
+S37 change formats, so they go before S29's freeze.
 
 ---
 
@@ -573,7 +584,7 @@ E3 to T3 (see the catalogue). `tools/sim_forensics/checks/rerun.py`.
 
 **Done 2026-10-24:** F2–F4 in `checks/derived.py`, G1–G2 in
 `checks/persistence.py`, H1–H3 in `checks/ops.py`. F5 not built (no index in
-the sim profile). Decided with Johan: H checks report a new **INFO** status
+the sim profile). Decided: H checks report a new **INFO** status
 (oracle `statistical`), which never fails a run.
 
 - F2 and F3 share one audit pass (`market_pass`, 37 s on the 9 GB run; a book
@@ -665,7 +676,7 @@ Work the ledger; spin out fix WPs.
 
 **Done 2026-10-24.** Every open item is classified from code, docs or a
 repro on today's engine (probes against `tests/engine_harness.py`). Three
-decisions were taken with Johan (X5, X8a, X6). Each confirmed bug is a fix
+decisions (X5, X8a, X6). Each confirmed bug is a fix
 WP (S9–S13) that starts with the failing test and closes its ledger row.
 
 | ID | Verdict | Evidence | Action |
@@ -776,14 +787,16 @@ Finding ids are X*n* (the catalogue's E1–E4 are replay checks).
 | X25 | E6 | 2026-10-28 | restart 1 (PRE_OPEN): 825 trades, all 300 books | Engine: the restore's M3 RECOVERY uncross runs whatever the phase, so a restart during pre-open or an auction call prints the collected book before the auction | Fixed 2026-10-28 (S20b); E6 on the 2026-10-28 run: 26 restarts, 0 differences |
 | X26 | E6 | 2026-10-28 | 2 books at a restart in CONTINUOUS | Engine: the checkpoint lists orders in `_order_index` (first-arrival) order and the restore re-queues them so; a refilled iceberg (and any order that lost priority) gets its old place back | Fixed 2026-10-28 (S20b); E6 on the 2026-10-28 run: 26 restarts, 0 differences |
 | X27 | S19 (E5 routing) | 2026-10-28 | every `order.oco` | Wire: `order.oco.tick_decimals` is 0 on every OCO — the ALF gateway never sets it, the generated default goes out; the engine ignores it | Fixed 2026-10-28 (S20b): the ALF gateway fills it (the API gateway already did) |
-| X28 | S28 (recorded run) | 2026-10-29 | AON combo whose legs are not all fillable | Engine vs docs: `_accept_combo`'s AON pre-check posts every leg *without matching* -- in CONTINUOUS a marketable leg rests crossed (D2), and other orders, or a reopen uncross, then fill legs alone (`PARTIALLY_MATCHED`). The participant guide (combo orders) says such a leg "is rejected with `INSUFFICIENT_LIQUIDITY`" and the combo fails | Confirmed on the 2026-10-29 run: all 10 609 D2 rows have an AON leg on one side (1 670 crossing pairs, 296 symbols), every D1 crossed snapshot is at one of their prices. Decided with Johan 2026-10-29: a blocked AON combo with a leg that would trade now (marketable, in a matching symbol) is rejected -- its first leg `INSUFFICIENT_LIQUIDITY`, nothing posted; with no such leg the legs rest as before; seeds exempt. Fixed 2026-10-29 (uncommitted); participant + training guide reworded |
-| X29 | S28 (recorded run) | 2026-10-29 | administrator halt with crossing interest, then `risk.symbol_resume` / `resume_all` | Engine: an administrator's resume clears the halt with no uncross, so interest that crossed during it resumes into CONTINUOUS crossed (D2). `CircuitBreakerState.halt_source`'s docstring: a halt "always ends in an uncross ... resuming without one would start continuous trading on a crossed book"; the breaker's timed reopen does uncross | Decided with Johan 2026-10-29: an administrator's resume uncrosses unconditionally (REOPEN, no ACE corridor) before `circuit_breaker.resume`; outside a matching phase it only lifts the halt. `Engine._admin_reopen` for `risk.symbol_resume` and `resume_all`; E5 ignores the engine-wide `auction_id`. Fixed 2026-10-29 (uncommitted) |
-| X30 | S28 (reading the engine) | 2026-10-29 | quotes, OCO legs, combo legs | Engine: the collar is applied in `order.new` and amend only; quotes, OCO legs and combo legs enter without it. D8 reports each one outside its collar, by entry | Confirmed on the 2026-10-29 run: D8's 292 = 284 quotes, 5 combo legs, 3 OCO legs, no other entry. Decided with Johan 2026-10-29: OCO and combo legs are collared (a breach rejects the whole `oco.ack` / `combo.ack`, `Leg <n>:` reason), quotes and seeded combos exempt; D8 skips quotes. Fixed 2026-10-29 (uncommitted) |
+| X28 | S28 (recorded run) | 2026-10-29 | AON combo whose legs are not all fillable | Engine vs docs: `_accept_combo`'s AON pre-check posts every leg *without matching* -- in CONTINUOUS a marketable leg rests crossed (D2), and other orders, or a reopen uncross, then fill legs alone (`PARTIALLY_MATCHED`). The participant guide (combo orders) says such a leg "is rejected with `INSUFFICIENT_LIQUIDITY`" and the combo fails | Confirmed on the 2026-10-29 run: all 10 609 D2 rows have an AON leg on one side (1 670 crossing pairs, 296 symbols), every D1 crossed snapshot is at one of their prices. Decided  2026-10-29: a blocked AON combo with a leg that would trade now (marketable, in a matching symbol) is rejected -- its first leg `INSUFFICIENT_LIQUIDITY`, nothing posted; with no such leg the legs rest as before; seeds exempt. Fixed 2026-10-29 (uncommitted); participant + training guide reworded |
+| X29 | S28 (recorded run) | 2026-10-29 | administrator halt with crossing interest, then `risk.symbol_resume` / `resume_all` | Engine: an administrator's resume clears the halt with no uncross, so interest that crossed during it resumes into CONTINUOUS crossed (D2). `CircuitBreakerState.halt_source`'s docstring: a halt "always ends in an uncross ... resuming without one would start continuous trading on a crossed book"; the breaker's timed reopen does uncross | Decided 2026-10-29: an administrator's resume uncrosses unconditionally (REOPEN, no ACE corridor) before `circuit_breaker.resume`; outside a matching phase it only lifts the halt. `Engine._admin_reopen` for `risk.symbol_resume` and `resume_all`; E5 ignores the engine-wide `auction_id`. Fixed 2026-10-29 (uncommitted) |
+| X30 | S28 (reading the engine) | 2026-10-29 | quotes, OCO legs, combo legs | Engine: the collar is applied in `order.new` and amend only; quotes, OCO legs and combo legs enter without it. D8 reports each one outside its collar, by entry | Confirmed on the 2026-10-29 run: D8's 292 = 284 quotes, 5 combo legs, 3 OCO legs, no other entry. Decided 2026-10-29: OCO and combo legs are collared (a breach rejects the whole `oco.ack` / `combo.ack`, `Leg <n>:` reason), quotes and seeded combos exempt; D8 skips quotes. Fixed 2026-10-29 (uncommitted) |
 | X31 | C1, C2 | 2026-10-29 | 35 orders (`ACK REJECT CANCEL`) | Check bug: pm-stats files a refused amend's `order.ack accepted=false` under the order's id as REJECT; C1/C2 took it for the order's end. Nothing in the row tells it from an order reject, so a REJECT after the first event now leaves the order as it was (C9 finds X5 in the audit) | Fixed 2026-10-29 (uncommitted) |
 | X32 | G3 | 2026-10-29 | 1 day | Check bug: the engine started that morning in CLOSED (a STARTUP/CLOSED checkpoint round) and G3 took that start's empty book for the close's; the close is now the PHASE/CLOSED round | Fixed 2026-10-29 (uncommitted) |
 | X33 | E2, E4 | 2026-10-29 | 30 151 episodes, 44 symbols diverged; E4 91 | Check bug: the re-run engine ran on its own clock, so the breaker's 5-min reference window held other trades (6 h of commands re-run in minutes) and halts differed; every later difference (priority_seq, auction ids) followed. Two re-runs of the same audit even disagreed (30 151 vs 29 993). `rerun.live_clock` now drives `edumatcher.models.clock` from the engine's start and each input's live trade time (E2 and E5-E7); a breaker timer fires its own symbol only (on the live clock another was due too: 6). Re-run on the run's engine (v0.65.1 worktree): E1, E2, E4 PASS -- the run is fully reproducible | Fixed 2026-10-29 (uncommitted) |
 | X34 | G3 | 2026-10-30 | 1 day; 320 of 321 archived orders "missing" | Two bugs behind one false FAIL (the archive equals the shutdown's `gtc_orders.json` exactly). Recorder bug, X4's in pm-audit: the teardown's SIGTERM ends the receive loop at once, and the engine's shutdown EOD checkpoint round (published ~0.7 s later) kept 1 checkpoint of 300 in the trail — pm-audit now drains until the engine's last message, `system.eod` (bounded 5 s). Check bug, X32's sibling: G3 took `rounds[close + 1]` — here that torso of an EOD round — for "the next start"; it now takes the next STARTUP or PHASE/PRE_OPEN round and passes shutdown EOD rounds over | Fixed 2026-10-30 (uncommitted); G3 re-run on the 2026-10-30 data: PASS |
 | X35 | D1, D2, D6, D10 | 2026-11-04 | 1 day (v0.71.0); D1 14, D2 38, D6 213, D10 30 613 | One cause, two parts. Engine bug: SMP in the uncross (K1/K2) walks only orders at the equilibrium price, so a same-gateway bid above / ask below it that SMP kept from trading was left resting crossed or locked into CONTINUOUS (COST, DD, FCX, HCA, SHW at the 08:30 open; equal-volume tie-break picks the lower-surplus price where the pair is not met). `execute_uncross` now ends with a resolve pass: while best bid >= best ask, apply the pair's OCO/SMP policy (cancel, no trade) -- `auction._resolve_self_match`, also used by the main walk; `tests/reference_matcher.py` follows. Check gap: `_uncross_of` used the plain curves, so D10 and D6 disagreed wherever SMP changed the volume (ACN engine 56 vs curves 592, hand-traced legitimate). It now runs the engine's walk (`_walk`: bid policy wins, iceberg slices refill at the back) when a gateway with a policy is on both sides; D6's crossed-after-uncross test leaves out the dispatch's cancelled orders. `_uncross_of` agrees with `compute_equilibrium` on 400 random SMP/iceberg books. On the 2026-11-04 data D10 PASS (174 538 indicatives), D6 5 = the engine bug | Fixed 2026-11-04 (uncommitted); confirm D1/D2/D6 PASS on the next run |
+| X36 | E6 | 2026-11-07 | 1 day (v0.76.2); 44 restarts, 166 | Two parts. Engine (minor): a MATCHED combo kept its legs in `_order_to_combo` for the rest of the session (a FAILED or CANCELLED one is unlinked by `_cascade_cancel_combo`), so the links grew all day while a restart restores live combos only (`restored combo links differ`, 278 / 558 / 840 ... all MATCHED). `_update_combo_status` now unlinks the legs at MATCHED. Check bug: the post-restart differences were all on `order.combo` with a leg on a book the restart re-seeded (by design not compared): an AON combo decides on every leg at once, so its other legs' books and its own `combo.*` messages differ too (11 combos with no such leg matched exactly). `_Recovery.taint` now leaves out such a combo's legs and messages, also for live combos at the restart | Fixed 2026-11-07 (uncommitted) |
+| X37 | E7 | 2026-11-07 | 1 day; 3 `oco.cancelled` reasons | Check bug: the rename maps the 8-character id prefix that reason text quotes back through `prefix_back`, one entry per renamed id (3.4 M ids, 1 251 colliding prefixes). An OCO leg id the renamed engine made itself (not renamed) whose prefix met a renamed one was rewritten to an unrelated original. Renamed ids now get unique prefixes (rehashed on collision) and the prefix of an id the engine made is left as it is | Fixed 2026-11-07 (uncommitted) |
 
 **X1 — triggered stop orders trade without an `order.fill`.** B2: 749 orders
 traded but have no FILL event in pm-stats (traded − filled = +95 132; top
@@ -1303,7 +1316,7 @@ out of S15.
 
 ### S16 — X21: a combo leg ending on entry fails the combo
 
-**Done 2026-10-26.** Decided with Johan:
+**Done 2026-10-26.** Decided:
 
 - a leg that ends without filling — rejected, cancelled (an IOC's rest,
   SMP) or expired — fails the combo, on entry as later. The guide named
@@ -2010,7 +2023,7 @@ from the trades and circuit-breaker corridors are already on
 
 ### S28 — done 2026-10-29 (D9 on an S27 run still to see)
 
-- **Engine (decided with Johan):** a circuit-breaker reopen is one causal
+- **Engine:** a circuit-breaker reopen is one causal
   unit: `CausalPublisher.begin_unit()/end_unit()`, the first message is the
   root and the rest are caused by it. Before, its auction.result, prints,
   fills and resume each began a chain of their own, so no audit reader (the
@@ -2134,3 +2147,178 @@ For the 1 h run:
 3. Once continuous trading starts, run PYTHONPATH=tools poetry run python -m sim_ops and restart the engine by hand when it prints the reminder.
 4. Then run make forensics SLOW=1 and look at H5.
 
+
+---
+
+## 11. Gaps after the 2026-11-07 run (S30–S38)
+
+A review of the catalogue against the 2026-11-07 run (after X36/X37). The
+conservation, lifecycle and book-state checks are dense; what is left are
+engine decisions no check re-derives, rules only H5 counts, and three limits
+of the audit itself. Each WP starts with planted-fault tests in the style of
+`tests/test_sim_forensics_differential.py` (the fault is found, the clean
+day passes), then runs on the latest data.
+
+### S30 — C12: justified refusals and acceptances
+
+D8 checks the collar both ways: a refusal inside the collar and an
+acceptance outside it are findings. No other refusal is checked, and a
+wrong refusal is invisible to every conservation check (the order never
+trades). C12 does it for each `reject_code` of `order.ack` (and
+`oco.ack`, `combo.ack`, `quote.ack`, amend and cancel acks) the engine
+decides, against the replayed state at that command:
+
+- `MARKET_CLOSED`, `SESSION_NOT_PERMITTED`: the phase and the order type's
+  phase rules (from `system.session_status` and the config);
+- `INSTRUMENT_HALTED`, `CIRCUIT_BREAKER_ACTIVE`: the replayed halt state;
+- `KILL_SWITCH_ACTIVE`, `GATEWAY_NOT_CONFIGURED`: the gateway's state (S31);
+- `TICK_VIOLATION`, `LOT_VIOLATION`, `PRICE_OUT_OF_RANGE`,
+  `QTY_OUT_OF_RANGE`, `MAX_ORDER_QTY`, `MAX_ORDER_VALUE`,
+  `POSITION_LIMIT`: the config's limits (positions from the replayed fills);
+- `DUPLICATE_ORDER`: the id seen before; `ORDER_NOT_FOUND`,
+  `ORDER_ALREADY_TERMINAL`, `NOT_OWNER`, `AMEND_NOT_PERMITTED`: the
+  replayed order;
+- `INSUFFICIENT_LIQUIDITY` on an AON combo (X28): a leg short and a leg
+  that would trade now (from S36's AON_PREFLIGHT once it exists, else the
+  replayed book's fillable quantity with and without SMP).
+
+And the converse: an accepted command that meets one of these conditions.
+Codes the gateways decide (`MALFORMED_MESSAGE`, `AUTH_*`, `RATE_LIMITED`)
+never reach the audit and are out of scope. `INTERNAL_ERROR` is always a
+finding.
+
+Done when: one planted wrong refusal and one wrong acceptance per group
+found; PASS (or triaged) on the latest run.
+
+### S31 — C13: kill switches and disconnects
+
+Today only H5 counts them (AI001 alone was killed 114 times on
+2026-11-07). After `order.kill_switch` (per gateway, optionally a symbol),
+`risk.kill_switch_gateway`, `risk.kill_switch_global`, or a gateway
+disconnect / heartbeat timeout under `disconnect_behaviour: CANCEL_ALL`:
+
+- every order, quote leg and OCO/combo leg of that gateway (and symbol)
+  live in the replay is cancelled in the same chain, with the spec reason;
+- for the gateway and global switches: no command of the gateway is
+  accepted, and no order of it fills, until the reset;
+- a disconnect under another behaviour cancels nothing.
+
+Done when: planted faults (one leg left, one fill after the switch) found;
+PASS on a run with S27's kill-switch schedule.
+
+### S32 — D12: circuit-breaker oracle
+
+D11 checks only that nothing trades while halted; E2 and E7 run the
+engine's own `CircuitBreakerState`, so they prove determinism, not the
+rule. D12 keeps its own reference window (`reference_window_ns`, the
+levels, `reopening`) from the trades on the live clock and checks:
+
+- every `circuit_breaker.halt` follows a trade (or an incoming price) that
+  breaches a level, with the published reference and trigger price;
+- no CONTINUOUS trade prints outside the corridor without a halt;
+- each halt ends at the configured time (or an administrator's resume,
+  X29) with a reopening uncross, and the corridor is reseeded as specified.
+
+The restart rebases the reference (X36's `_REBASED`): the window restarts
+at a restart's first trade, as the engine documents.
+
+Done when: planted faults (halt one tick early, a trade outside the
+corridor, a late reopen) found; PASS on a run with breakers.
+
+### S33 — C14: end-of-day expiry
+
+At the CLOSED transition every live TIF=DAY order -- including OCO legs,
+combo legs (and their parent: FAILED/EXPIRED as the spec says) and quote
+legs -- gets exactly one `order.expired` (or the quote's status), in that
+transition's chain; no GTC order expires; nothing DAY reaches
+`gtc_orders.json` / `gtc_combos.json` or the next day's start (G3 sees
+the files, C14 the messages). Ties in with the open "DAY-order date" bug of
+the operator-guide audit.
+
+Done when: planted faults (one DAY leg survives, one GTC expires) found;
+PASS on a full-day run.
+
+### S34 — E7 time-shift lane
+
+A third E7 transform: every timestamp and the live clock moved so the day
+crosses a DST change and, separately, a UTC midnight inside the session
+(Europe/Stockholm). Session dates, DAY expiry, breaker windows and
+`AUC-<run>-<n>` must not change; outputs are shifted back before the
+comparison (`ts_ns` and dates). The scheduler's transitions are commands,
+so they move with the rest.
+
+Done when: a planted date-from-UTC fault (the class of the DAY-order date
+bug) is found by the lane and missed by the others; PASS on the latest run.
+
+### S35 — A6: client view against exchange view
+
+The audit sees only the bus between gateways and engine: what a client sent
+and received through ALF, BALF or the API is not recorded, so gateway bugs
+(X27, the 2026-11-07 api-gwy admin-sink drops) are invisible to A–H.
+`ai_swarm/<date>-*.jsonl` holds each agent's day totals (`submitted`,
+`fills`, `filled_qty`, `cancels`, `rejected`, `killed`, `gross_position`,
+`pnl_realized`). A6 reconciles them with stats/clearing per gateway:
+`filled_qty` and `gross_position` exactly; counts as defined in the agent
+(first pin down what `submitted`, `cancels` and `killed` count, e.g. OCO
+legs, kill-switch sweeps); `unseen_expiries` must be 0. A mismatch is a
+gateway or client finding, not an engine one.
+
+Done when: the definitions are written down; a planted dropped fill on the
+gateway path is found; PASS on the latest run.
+
+### S36 — Decision traces (format change, before the freeze)
+
+The audit records what the engine did, not why: X35 needed a hand trace of
+the uncross, and a combo's "Leg 0 (X) REJECTED" reads the same for a book
+reject and the X28 rule. Audit-only `engine.trace` events (the S24
+channel, not forwarded to clients):
+
+- `UNCROSS_PRICE`: candidate prices with executable volume and surplus,
+  and the rule that decided (max volume, min surplus, market pressure,
+  reference price);
+- `AON_PREFLIGHT`: per leg fillable quantity with and without SMP, and
+  the outcome (match, rest, reject);
+- `SMP_DECISION`: the pair, the policy that applied, what was cancelled.
+
+D6 compares its own uncross with UNCROSS_PRICE step by step (a difference
+names the step); C12 uses AON_PREFLIGHT.
+
+**Q11:** these three only, or also a reason on every refusal
+(`detail` beside `reject_code`)? Trace volume: uncrosses and combos are
+rare, SMP decisions a few per thousand orders.
+
+Done when: spec + generator updated, events published, D6/C12 read them;
+E1/E2 still PASS.
+
+### S37 — The engine's clock on the audit (format change, before the freeze)
+
+`rerun.live_clock` infers the engine's clock from the engine start and each
+input's live trade time (X33). A command that makes no trade gets an
+inferred time, so a bug at the edge of a breaker window or a GTD/DAY
+boundary might not re-run as it happened. The engine stamps the clock value
+it used for each dispatch on the audit and the re-run uses it.
+
+**Q12 :** where -- a field of the eseq frame (every engine message,
+cheap, but a new frame field) or one `engine.trace CLOCK` per dispatch
+(no frame change, more lines)?
+
+Done when: E2 re-runs with the recorded clock and still PASS; `live_clock`
+kept only for audits made before S37.
+
+### S38 — E3, reduced
+
+E3 was not built (S6, Q10): `tests/reference_matcher.py` has no quotes,
+OCO, combos or breakers. It remains the only oracle that predicts
+continuous fills independently (D3–D5 check properties of the fills the
+engine chose; only `_uncross_of` and D2 predict). Reduced scope: chains
+whose symbol's book holds only plain orders (LIMIT, MARKET, IOC, FOK,
+iceberg if the reference has it) in CONTINUOUS; the reference starts from
+the replayed book and predicts the dispatch's trades; any difference is
+shrunk into the matching test suite.
+
+**Q13 :** worth it now? On s300-sim the MM quotes most books, so
+the eligible share has to be measured first (H5); if it is small, the sim
+needs a few quote-free symbols.
+
+Done when: the eligible share measured; a planted priority fault found;
+PASS on the latest run.
