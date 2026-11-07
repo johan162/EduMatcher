@@ -74,6 +74,23 @@ def test_the_recorded_run_replays_clean(
     note = REGISTRY["D9"].fn(open_ds(data)).note
     assert "3 amends, 2 combo legs, 2 halts replayed" in note
     assert REGISTRY["C7"].fn(open_ds(data)).note == "1 stops triggered"
+    decided = re.search(r"(\d+) price decisions compared", REGISTRY["D6"].fn(open_ds(data)).note)  # fmt: skip
+    assert decided is not None and int(decided.group(1)) > 0
+
+
+def test_d6_finds_an_uncross_the_engine_says_another_rule_decided(
+    recorded: str, tmp_path: Path, open_ds: OpenDataset
+) -> None:
+    """S36: the engine's own account of an uncross price, against the
+    replay's."""
+
+    def edit(lines: list[str]) -> list[str]:
+        i = first(lines, r'"kind": "UNCROSS_PRICE".*"rule": "(VOLUME|SURPLUS|LOWEST_PRICE)"')  # fmt: skip
+        rule = payload(lines[i])["rule"]
+        lines[i] = with_payload(lines[i], rule="SURPLUS" if rule != "SURPLUS" else "VOLUME")  # fmt: skip
+        return lines
+
+    assert failing(open_ds, planted(tmp_path, recorded, edit)) == {"D6": ["uncross decision differs from the replay's"]}  # fmt: skip
 
 
 def test_d5_finds_an_amend_that_kept_priority_through_a_price_change(

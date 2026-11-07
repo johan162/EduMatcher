@@ -259,6 +259,8 @@ class _Replay:
         self.trades_replayed = 0
         self.stops_triggered = 0
         self.uncrosses = 0
+        #: Uncross price decisions (engine.trace UNCROSS_PRICE) compared.
+        self.decisions = 0
         self.amends = 0
         self.combo_legs = 0
         #: Whether the audit carries S24's explicit events (engine.trace on
@@ -443,6 +445,7 @@ class _Replay:
                 after if symbol not in halted_after else "HALTED",
                 amends.get(symbol, []),
                 fired.get(symbol),
+                next((t for t in traces.get(symbol, []) if t["kind"] == "UNCROSS_PRICE"), None),  # fmt: skip
             )
         for symbol, rows in traces.items():
             self._queue_order(symbol, rows)
@@ -595,6 +598,7 @@ class _Replay:
         after: str | None,
         amends: list[dict[str, Any]],
         fired: list[str] | None,
+        decision: dict[str, Any] | None,
     ) -> None:
         self.trades, self.ti = trades, 0
         self.triggered = []
@@ -607,7 +611,7 @@ class _Replay:
                 if t["aggressor_side"] != "AUCTION":
                     self._flag("D11", trade_id=t["id"], symbol=book.symbol, aggressor=_aggressor(t))  # fmt: skip
         if auction is not None or (trades and trades[0]["aggressor_side"] == "AUCTION"):
-            self._uncross(book, auction, dying)
+            self._uncross(book, auction, dying, decision)
         queue = list(commands)
         for amended in amends:
             self._amend(book, amended, queue)
@@ -981,10 +985,39 @@ class _Replay:
 
     # --- auctions --------------------------------------------------------
 
-    def _uncross(
-        self, book: _Book, auction: dict[str, Any] | None, dying: set[str]
+    def _decision(
+        self,
+        book: _Book,
+        decision: dict[str, Any],
+        decided: tuple[_Uncross, int, str, list[int]] | None,
+        auction: dict[str, Any] | None,
     ) -> None:
-        eq = _equilibrium(book)
+        """D6: the engine's UNCROSS_PRICE (S36) is the replay's, step by
+        step -- the differing fields name the step that went another way."""
+        self.decisions += 1
+        keys = ("eq_price_ticks", "eq_qty", "surplus", "rule", "tied_prices_ticks")
+        theirs = [decision.get(k, [] if k == "tied_prices_ticks" else None) for k in keys]  # fmt: skip
+        mine: list[Any] = [None] * len(keys)
+        if decided is not None:
+            (_, qty, surplus, _), price, rule, tied = decided
+            mine = [price, qty, surplus, rule, tied]
+        differs = {k: (t, m) for k, t, m in zip(keys, theirs, mine) if t != m}
+        if differs:
+            self._flag("D6", error="uncross decision differs from the replay's", symbol=book.symbol, auction_id=decision.get("auction_id"), engine_replay=differs)  # fmt: skip
+        if auction is not None and auction.get("auction_id") != decision.get("auction_id"):  # fmt: skip
+            self._flag("D6", error="UNCROSS_PRICE's auction_id is not its auction.result's", symbol=book.symbol, trace=decision.get("auction_id"), result=auction.get("auction_id"))  # fmt: skip
+
+    def _uncross(
+        self,
+        book: _Book,
+        auction: dict[str, Any] | None,
+        dying: set[str],
+        decision: dict[str, Any] | None,
+    ) -> None:
+        decided = _decided(book)
+        eq = None if decided is None or decided[0][0] is None else decided[0][:2]
+        if decision is not None and decision.get("rule") != "OVERRIDE":
+            self._decision(book, decision, decided, auction)
         prints: list[dict[str, Any]] = []
         while (
             self.ti < len(self.trades)
@@ -1409,6 +1442,15 @@ def _uncross_of(book: _Book) -> _Uncross | None:
     least surplus, then the lowest price; hidden iceberg quantity counts, and
     so does SMP -- an order that would trade its own gateway's is cancelled in
     the walk, so the quantity at a price is the walk's, not the curves'."""
+    decided = _decided(book)
+    return None if decided is None else decided[0]
+
+
+def _decided(book: _Book) -> tuple[_Uncross, int, str, list[int]] | None:
+    """``_uncross_of``'s uncross, the price it runs at (also when nothing
+    prints there), the rule that decided it (VOLUME, SURPLUS, LOWEST_PRICE)
+    and the prices still tied when it did -- what engine.trace UNCROSS_PRICE
+    says (S36)."""
     bids: dict[int, int] = defaultdict(int)
     asks: dict[int, int] = defaultdict(int)
     for o in book.orders.values():
@@ -1439,6 +1481,7 @@ def _uncross_of(book: _Book) -> _Uncross | None:
     simulate = bool(policy & sides[BUY] & sides[SELL])
     best: tuple[int, int, int] | None = None  # (-qty, surplus, price): least wins
     side = ""
+    walked: list[tuple[int, int, int]] = []
     # Best bound first; nothing after a bound below the best found can win.
     for i in sorted(candidates, key=lambda j: -min(buy[j], sell[j])):
         bound = min(buy[i], sell[i])
@@ -1449,17 +1492,19 @@ def _uncross_of(book: _Book) -> _Uncross | None:
         else:
             qty, b, a = bound, buy[i], sell[i]
         key = (-qty, abs(b - a), prices[i])
+        walked.append(key)
         if best is None or key < best:
             best, side = key, "BUY" if b > a else "SELL" if a > b else ""
     assert best is not None
     qty = -best[0]
-    return (best[2] if qty else None), qty, best[1], side
-
-
-def _equilibrium(book: _Book) -> tuple[int, int] | None:
-    """(price, qty) an uncross must print."""
-    u = _uncross_of(book)
-    return None if u is None or u[0] is None else (u[0], u[1])
+    most = sorted(p for q, _, p in walked if q == best[0])
+    least = sorted(p for q, s, p in walked if q == best[0] and s == best[1])
+    rule, tied = (
+        ("VOLUME", most)
+        if len(most) == 1
+        else ("SURPLUS", most) if len(least) == 1 else ("LOWEST_PRICE", least)
+    )
+    return ((best[2] if qty else None), qty, best[1], side), best[2], rule, tied
 
 
 def _replay(ds: Dataset) -> _Replay:
@@ -1553,7 +1598,11 @@ def priority(ds: Dataset) -> Outcome:
 )
 def uncross(ds: Dataset) -> Outcome:
     r = _replay(ds)
-    return _outcome(ds, "D6", f"{r.uncrosses} uncrosses with prints")
+    return _outcome(
+        ds,
+        "D6",
+        f"{r.uncrosses} uncrosses with prints, {r.decisions} price decisions compared",
+    )
 
 
 @check("D7", "book-state", "No continuous self-trade under SMP", needs=())

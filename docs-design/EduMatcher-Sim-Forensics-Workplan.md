@@ -59,8 +59,8 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 | 33 | S33 | C14: end-of-day expiry (every live DAY order, leg and quote expires once; no GTC does) | — | 0.5 d | ☐ | |
 | 34 | S34 | E7 time-shift lane: the day moved across a DST change and a UTC midnight changes nothing | — | 1 d | ☐ | |
 | 35 | S35 | A6: client view (`ai_swarm/*.jsonl` day totals) equals the exchange's, per gateway | — | 0.5 d | ☐ | |
-| 36 | S36 | Decision traces in `engine.trace`: UNCROSS_PRICE, AON_PREFLIGHT, SMP_DECISION; D6/C12 use them | Q11 | 1 d | ☐ | |
-| 37 | S37 | The engine's clock on the audit: each dispatch's `now`; the re-run uses it instead of inferring | Q12 | 1 d | ☐ | |
+| 36 | S36 | Decision traces in `engine.trace`: UNCROSS_PRICE, AON_PREFLIGHT, SMP_DECISION; D6/C12 use them | Q11 | 1 d | ☑ (C12 part with S30) | 2026-11-07 |
+| 37 | S37 | The re-run follows each input's first engine time stamp (no format change, Q12) | Q12 | 0.5 d | ☑ | 2026-11-07 |
 | 38 | S38 | E3, reduced: reference-matcher differential on plain chains (LIMIT/MARKET/IOC/FOK, no quotes) | Q13 | 2 d | ☐ | |
 
 Total ≈ 10 d plus fix WPs. S0 is **urgent** (see §2, R3: order events are
@@ -2285,7 +2285,10 @@ names the step); C12 uses AON_PREFLIGHT.
 
 **Q11:** these three only, or also a reason on every refusal
 (`detail` beside `reject_code`)? Trace volume: uncrosses and combos are
-rare, SMP decisions a few per thousand orders.
+rare, SMP decisions a few per thousand orders. **Settled 2026-11-07: the
+three only.** The engine's uncross rule has three steps (most volume, least
+surplus, lowest price) -- no market-pressure or reference-price step -- plus
+OVERRIDE for an imposed price.
 
 Done when: spec + generator updated, events published, D6/C12 read them;
 E1/E2 still PASS.
@@ -2300,7 +2303,11 @@ it used for each dispatch on the audit and the re-run uses it.
 
 **Q12 :** where -- a field of the eseq frame (every engine message,
 cheap, but a new frame field) or one `engine.trace CLOCK` per dispatch
-(no frame change, more lines)?
+(no frame change, more lines)? **Settled 2026-11-07: neither -- no format
+change.** The engine already stamps its clock reading for the dispatch on
+`order.ack`, `order.fill` and `trade.executed` (`ts_ns`); `LiveClock`
+follows the first of them in each input's outputs, not only a trade. So
+`live_clock` stays for every audit.
 
 Done when: E2 re-runs with the recorded clock and still PASS; `live_clock`
 kept only for audits made before S37.
@@ -2322,3 +2329,67 @@ needs a few quote-free symbols.
 
 Done when: the eligible share measured; a planted priority fault found;
 PASS on the latest run.
+
+### S36 — done 2026-11-07
+
+- **Spec** (`spec/messages/order.yaml` `engine_trace`): kinds
+  `UNCROSS_PRICE`, `AON_PREFLIGHT`, `SMP_DECISION`; `order_id` now optional
+  (an uncross names no order); new optional fields `auction_id`,
+  `eq_price_ticks`, `eq_qty`, `surplus`, `rule` (VOLUME, SURPLUS,
+  LOWEST_PRICE, OVERRIDE), `tied_prices_ticks` (omitted when empty),
+  `combo_id`, `leg_index`, `quantity`, `fillable_qty`,
+  `fillable_no_smp_qty`, `outcome` (MATCH, REST, REJECT), `other_order_id`,
+  `smp_action`. Bindings and the message reference regenerated; lexicon
+  glosses for the new enum values.
+- **Engine**: `compute_equilibrium` records every price it walks and sets
+  `AuctionResult.rule` / `tied_prices` (all prices tied on the most volume
+  are walked -- none of their bounds falls below it). `_run_uncross`
+  publishes UNCROSS_PRICE before `execute_uncross` (an imposed price is
+  OVERRIDE). `_accept_combo` publishes one AON_PREFLIGHT per leg after
+  `combo.ack` (the unprevented fillable is now computed for every leg; the
+  X28 rule reads it unchanged). SMP_DECISION is a book note from `_sweep`,
+  the FOK pre-check (one per same-gateway order in range) and
+  `auction._resolve_self_match`.
+- **D6** (`matching.py` `_decided`, `_decision`): the replay's own uncross
+  decision against UNCROSS_PRICE, field by field (the differing fields name
+  the step); also its `auction_id` against `auction.result`'s. OVERRIDE is
+  taken as given. The note counts the decisions compared. E7's price shift
+  moves `tied_prices_ticks`. `_equilibrium` removed (its last caller went).
+- C12's use of AON_PREFLIGHT comes with S30.
+- Tests: `tests/test_engine_trace.py` (12 new: the three rules, OVERRIDE, no
+  trace without a cross, SMP in continuous / FOK / uncross, AON outcomes);
+  `tests/test_sim_forensics_matching.py` (a correct trace passes, a wrong
+  rule or surplus named, OVERRIDE as given);
+  `tests/test_sim_forensics_features.py` (the recorded real engine's
+  decisions all agree with the replay; a planted rule is found).
+  `tests/test_engine_fok_ack.py` leaves the audit-only trace out of its
+  sequences.
+
+### S37 — done 2026-11-07
+
+- `LiveClock.follow` (`audit/replay/rerun.py`, shared by `pm-audit-replay
+  rerun` and E2/E5-E7) moves to the first engine stamp of the input's
+  outputs (`order.ack`, `order.fill`, `trade.executed` `ts_ns`), never back;
+  before, only a trade moved it, so an input that traded nothing ran on the
+  last trade's time (a DAY order's business day or a breaker window read
+  off a stale clock). For a new order the ack and its trades share one
+  reading, so trades stay exact.
+- Test: `tests/test_sim_forensics_rerun.py`
+  `test_the_rerun_engine_accepts_on_the_live_clock` (fails on the old
+  rule; a re-run stamp may sit a few ns after the live one: `now_ns` breaks
+  ties by +1 ns).
+- On the 2026-11-07 data (committed engine 84afc6c1 + the new `LiveClock`
+  only): E2 PASS (4.48 M commands, 0 diverged), E4 PASS.
+
+### X36 follow-up — 2026-11-07
+
+E6 re-run on the full day with the fix: 2 left (from 166). The 44 others
+(one per restart) were the check's: a refused combo leg's ack names neither
+symbol nor combo -- a tainted combo's own `order.combo` is now left out
+whole. The 2 are circuit breakers after a restart (EA restart 8, NET
+restart 11): a restart seeds the breaker reference from the last trade
+(EA 25325) while the uninterrupted engine averages its 5-minute window
+(EA 25407, 308 trades), so the corridor and the halts differ. By design
+today; **open for Johan:** persist the breaker's trade window in the
+checkpoint (format change, before the freeze -- recommended) or let E6
+treat a breaker symbol as diverged for one window after a restart.

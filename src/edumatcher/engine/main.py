@@ -152,6 +152,7 @@ from edumatcher.models.generated.order import (
     TOPIC_ORDER_OCO_CANCEL,
     TOPIC_ORDERS_REQUEST,
     TOPIC_PRICE_LEVEL_ORDERS_REQUEST,
+    EngineTraceOutcome,
     OrderFillLiquidityFlag,
     make_order_cancelled_unchecked,
     make_order_fill_unchecked,
@@ -1473,6 +1474,8 @@ class Engine:
                 send(make_engine_trace_unchecked(symbol=rec[1], kind=kind, order_id=rec[2], priority_seq=rec[3]))  # fmt: skip
             elif kind == "ICEBERG_REFILL":
                 send(make_engine_trace_unchecked(symbol=rec[1], kind=kind, order_id=rec[2], priority_seq=rec[3], displayed_qty=rec[4]))  # fmt: skip
+            elif kind == "SMP_DECISION":
+                send(make_engine_trace_unchecked(symbol=rec[1], kind=kind, order_id=rec[2], other_order_id=rec[3], smp_action=rec[4]))  # fmt: skip
             else:  # TRAILING_RATCHET
                 send(make_engine_trace_unchecked(symbol=rec[1], kind=kind, order_id=rec[2], stop_price_ticks=rec[3], last_price_ticks=rec[4], tick_decimals=get_tick_decimals(rec[1])))  # fmt: skip
         self._trace.clear()
@@ -5477,23 +5480,42 @@ class Engine:
                 )
                 for leg in combo.legs
             ]
+            unprevented = [
+                self._book(leg.symbol).fillable_quantity(
+                    leg.side,
+                    leg.price_ticks,
+                    gateway_id=combo.gateway_id,
+                    smp_action=SmpAction.NONE,
+                )
+                for leg in combo.legs
+            ]
             aon_blocked = any(f < leg.quantity for f, leg in zip(fillable, combo.legs))
             aon_rejected = (
                 aon_blocked
                 and not is_seed
                 and is_matching_enabled(self._session_state)
                 and any(
-                    not self._halted_symbols.get(leg.symbol)
-                    and self._book(leg.symbol).fillable_quantity(
-                        leg.side,
-                        leg.price_ticks,
-                        gateway_id=combo.gateway_id,
-                        smp_action=SmpAction.NONE,
-                    )
-                    > 0
-                    for leg in combo.legs
+                    not self._halted_symbols.get(leg.symbol) and n > 0
+                    for n, leg in zip(unprevented, combo.legs)
                 )
             )
+            # Why (audit only): each leg's fillable quantity and the outcome.
+            outcome: EngineTraceOutcome = (
+                "REJECT" if aon_rejected else "REST" if aon_blocked else "MATCH"
+            )
+            for i, (leg, f, n) in enumerate(zip(combo.legs, fillable, unprevented)):
+                self.pub_sock.send_multipart(
+                    make_engine_trace_unchecked(
+                        symbol=leg.symbol,
+                        kind="AON_PREFLIGHT",
+                        combo_id=combo.combo_id,
+                        leg_index=i,
+                        quantity=leg.quantity,
+                        fillable_qty=f,
+                        fillable_no_smp_qty=n,
+                        outcome=outcome,
+                    )
+                )
 
         # Create child orders and post to books, one leg at a time, in order.
         # Each leg is processed (and published) completely before the next
@@ -6096,6 +6118,7 @@ class Engine:
                     eq_qty=result.eq_qty,
                     surplus=result.surplus,
                     imbalance_side=result.imbalance_side,
+                    rule="OVERRIDE",
                 )
             trades: list[Any] = []
             # SMP or an OCO pair can consume the whole overlap, so the book
@@ -6109,6 +6132,20 @@ class Engine:
                 # Bind before any reassignment of `result` below, which would
                 # otherwise discard the `is not None` narrowing.
                 fill_px = uncross_price
+                # Why this price (audit only): the rule and the tied prices.
+                self.pub_sock.send_multipart(
+                    make_engine_trace_unchecked(
+                        symbol=symbol,
+                        kind="UNCROSS_PRICE",
+                        auction_id=auction_id,
+                        eq_price_ticks=fill_px,
+                        eq_qty=result.eq_qty,
+                        surplus=result.surplus,
+                        rule=result.rule,
+                        tied_prices_ticks=list(result.tied_prices),
+                        tick_decimals=get_tick_decimals(symbol),
+                    )
+                )
                 trades, events = execute_uncross(book, fill_px)
                 if price_override is not None:
                     # Fewer shares trade at a clamped price than at the true

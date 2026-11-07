@@ -961,20 +961,31 @@ messages:
         and the place in the queue it got, an iceberg refilling its slice
         at the back of its level, a trailing stop ratcheting its trigger.
         A replay can then compare its model of priority and of trailing
-        triggers with the engine's own, instead of inferring them.
+        triggers with the engine's own, instead of inferring them. Three
+        kinds say why the engine decided (S36): UNCROSS_PRICE (which rule
+        chose an uncross's price, among which tied prices), AON_PREFLIGHT
+        (per leg of an all-or-none combo, what could fill, and whether the
+        combo matches, rests or is rejected) and SMP_DECISION (the
+        same-gateway pair self-match prevention met, and the policy
+        applied).
       published_by: [engine]
       since: "1.3"
       see_also: ["order.triggered.{GW_ID}", "order.amended.{GW_ID}"]
       example_note: >
         `priority_seq` is the book's arrival sequence; it orders orders at
         one price, nothing more. A trailing stop rests in a list checked
-        in arming order, so its RESTED has no `priority_seq`.
+        in arming order, so its RESTED has no `priority_seq`. UNCROSS_PRICE
+        names no order; AON_PREFLIGHT names the combo and the leg, not an
+        order (the leg's order does not exist yet).
     fields:
       - { name: symbol, type: string, validate: { max_len: 16 } }
       - name: kind
         type: enum
-        values: [RESTED, ICEBERG_REFILL, TRAILING_RATCHET]
-      - { name: order_id, type: string, validate: { max_len: 64 } }
+        values: [RESTED, ICEBERG_REFILL, TRAILING_RATCHET, UNCROSS_PRICE,
+                 AON_PREFLIGHT, SMP_DECISION]
+      - { name: order_id, type: string, required: false, nullable: true,
+          omit_when_none: true, validate: { max_len: 64 },
+          doc: "The order the record is about; SMP_DECISION: the order whose policy applied (the aggressor; in an uncross the bid, unless only the ask has a policy)." }
       - { name: priority_seq, type: int, unit: dimensionless, required: false,
           nullable: true, omit_when_none: true, validate: { ge: 0 } }
       - { name: displayed_qty, type: int, unit: shares, required: false,
@@ -1000,11 +1011,86 @@ messages:
       - { name: last_price_ticks, type: ticks, unit: ticks, required: false,
           nullable: true, omit_when_none: true,
           doc: "TRAILING_RATCHET: the trade price that moved it." }
+      - { name: auction_id, type: string, required: false, nullable: true,
+          omit_when_none: true, validate: { max_len: 32 },
+          doc: "UNCROSS_PRICE: the uncross, as on its `auction.result`." }
+      - { name: eq_price_ticks, type: ticks, unit: ticks, required: false,
+          nullable: true, omit_when_none: true,
+          doc: "UNCROSS_PRICE: the price the uncross runs at (it prints nothing there when `eq_qty` is 0: SMP or an OCO pair took the whole overlap)." }
+      - { name: eq_qty, type: int, unit: shares, required: false,
+          nullable: true, omit_when_none: true, validate: { ge: 0 },
+          doc: "UNCROSS_PRICE: the executable quantity at that price." }
+      - { name: surplus, type: int, unit: shares, required: false,
+          nullable: true, omit_when_none: true, validate: { ge: 0 },
+          doc: "UNCROSS_PRICE: the unmatched quantity at that price." }
+      - name: rule
+        type: enum
+        values: [VOLUME, SURPLUS, LOWEST_PRICE, OVERRIDE]
+        required: false
+        nullable: true
+        omit_when_none: true
+        doc: >
+          UNCROSS_PRICE: what decided -- the most volume (one price had it),
+          then the least surplus among those, then the lowest price; OVERRIDE
+          when the price was imposed (closing backstop, ADMIN_MANUAL).
+      - name: tied_prices_ticks
+        type: list
+        item: int
+        required: false
+        omit_when_empty: true
+        doc: >
+          UNCROSS_PRICE: the prices still tied when `rule` decided, lowest
+          first (one price for VOLUME; the most-volume prices for SURPLUS;
+          those with the least surplus too for LOWEST_PRICE). In ticks.
+      - { name: combo_id, type: string, required: false, nullable: true,
+          omit_when_none: true, validate: { max_len: 64 },
+          doc: "AON_PREFLIGHT: the client's combo id." }
+      - { name: leg_index, type: int, unit: dimensionless, required: false,
+          nullable: true, omit_when_none: true, validate: { ge: 0 },
+          doc: "AON_PREFLIGHT: the leg, in the combo's order." }
+      - { name: quantity, type: int, unit: shares, required: false,
+          nullable: true, omit_when_none: true, validate: { ge: 0 },
+          doc: "AON_PREFLIGHT: the leg's quantity." }
+      - { name: fillable_qty, type: int, unit: shares, required: false,
+          nullable: true, omit_when_none: true, validate: { ge: 0 },
+          doc: "AON_PREFLIGHT: what the leg could fill now, the gateway's own orders left out under its SMP policy." }
+      - { name: fillable_no_smp_qty, type: int, unit: shares, required: false,
+          nullable: true, omit_when_none: true, validate: { ge: 0 },
+          doc: "AON_PREFLIGHT: what the leg would trade now counting the gateway's own orders (more than 0 on a blocked combo is what rejects it)." }
+      - name: outcome
+        type: enum
+        values: [MATCH, REST, REJECT]
+        required: false
+        nullable: true
+        omit_when_none: true
+        doc: >
+          AON_PREFLIGHT: the combo's outcome, the same on every leg -- every
+          leg fills in full and the legs match; a leg is short and the legs
+          rest unmatched; or a leg is short and one would trade now, so the
+          combo fails at its first leg (INSUFFICIENT_LIQUIDITY). Halted
+          symbols and phases without matching rest.
+      - { name: other_order_id, type: string, required: false, nullable: true,
+          omit_when_none: true, validate: { max_len: 64 },
+          doc: "SMP_DECISION: the same gateway's order on the other side." }
+      - name: smp_action
+        type: enum
+        values: [CANCEL_AGGRESSOR, CANCEL_RESTING, CANCEL_BOTH]
+        required: false
+        nullable: true
+        omit_when_none: true
+        doc: >
+          SMP_DECISION: the policy applied, of `order_id`'s order: which of
+          the two was cancelled (both for CANCEL_BOTH). An unfillable FOK
+          meets each same-gateway order in its range: one record each.
     encoding:
       engine_pub:
         frames: [topic, json_payload]
         include: [symbol, kind, order_id, priority_seq, displayed_qty,
-                  stop_price_ticks, last_price_ticks, tick_decimals]
+                  stop_price_ticks, last_price_ticks, tick_decimals,
+                  auction_id, eq_price_ticks, eq_qty, surplus, rule,
+                  tied_prices_ticks, combo_id, leg_index, quantity,
+                  fillable_qty, fillable_no_smp_qty, outcome,
+                  other_order_id, smp_action]
 
   - name: order_amended
     topic: "order.amended.{gateway_id}"

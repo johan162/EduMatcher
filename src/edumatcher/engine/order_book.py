@@ -1384,6 +1384,9 @@ class OrderBook:
                     )
                 )
             ]
+            if smp != SmpAction.NONE:
+                for resting in same_gw_conflicts:
+                    self._note("SMP_DECISION", order.id, resting.id, smp.value)
             # CANCEL_RESTING / CANCEL_BOTH removes the conflicting resting orders.
             if smp in (SmpAction.CANCEL_RESTING, SmpAction.CANCEL_BOTH):
                 for resting in same_gw_conflicts:
@@ -1803,6 +1806,7 @@ class OrderBook:
             # on the policy the order (or its gateway) carries.
             smp_action = _self_match_action(aggressor, best)
             if smp_action != SmpAction.NONE:
+                self._note("SMP_DECISION", aggressor.id, best.id, smp_action.value)
                 if smp_action == SmpAction.CANCEL_AGGRESSOR:
                     log.debug(
                         "SMP cancel aggressor order_id=%s symbol=%s vs resting_id=%s gateway=%s",

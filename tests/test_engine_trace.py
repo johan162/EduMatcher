@@ -11,7 +11,7 @@ import pytest
 from edumatcher.engine.collar import CollarConfig
 from edumatcher.engine.config_loader import SymbolConfig
 from edumatcher.engine.main import Engine
-from edumatcher.models.order import OrderType, Side
+from edumatcher.models.order import OrderType, Side, SmpAction
 from tests.engine_harness import (
     SYMBOL,
     FakeSock,
@@ -137,3 +137,145 @@ def test_a_collared_symbol_announces_its_band_at_startup(
         "static_low_ticks": 8_000, "static_high_ticks": 12_000, "dynamic_band_pct": 0.02,
         "tick_decimals": 2,
     }  # fmt: skip
+
+
+# --- S36: why the engine decided ---------------------------------------------
+
+
+def in_call(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> tuple[Engine, FakeSock]:  # fmt: skip
+    e, pub = make_engine(monkeypatch, tmp_path, sessions_enabled=True)
+    connect(e)
+    for state in ("PRE_OPEN", "OPENING_AUCTION"):
+        e._handle_session_transition({"to_state": state})
+    return e, pub
+
+
+@pytest.mark.parametrize(
+    "bids, asks, eq, rule, tied",
+    [
+        ([(101.00, 10)], [(100.00, 4), (101.00, 6)], 10_100, "VOLUME", [10_100]),
+        ([(101.00, 10), (100.00, 5)], [(100.00, 10)], 10_100, "SURPLUS", [10_000, 10_100]),  # fmt: skip
+        ([(101.00, 10)], [(100.00, 10)], 10_000, "LOWEST_PRICE", [10_000, 10_100]),
+    ],
+)
+def test_an_uncross_says_which_rule_chose_its_price(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    bids: list[tuple[float, int]],
+    asks: list[tuple[float, int]],
+    eq: int,
+    rule: str,
+    tied: list[int],
+) -> None:
+    e, pub = in_call(monkeypatch, tmp_path)
+    for side, book in ((Side.BUY, bids), (Side.SELL, asks)):
+        for i, (price, qty) in enumerate(book):
+            new(e, side, OrderType.LIMIT, qty, ("GW01", "GW02", "GW03")[i + (side == Side.SELL)], price=price)  # fmt: skip
+    e._handle_session_transition({"to_state": "CONTINUOUS"})
+    (trace,) = traces(pub, "UNCROSS_PRICE")
+    (result,) = msgs(pub, f"auction.result.{SYMBOL}")
+    assert trace == {
+        "symbol": SYMBOL, "kind": "UNCROSS_PRICE", "auction_id": result["auction_id"],
+        "eq_price_ticks": eq, "eq_qty": 10, "surplus": result["imbalance_qty"],
+        "rule": rule, "tied_prices_ticks": tied, "tick_decimals": 2,
+    }  # fmt: skip
+    topics = [t for t, _ in all_msgs(pub)]
+    assert topics.index(f"engine.trace.{SYMBOL}") < topics.index("trade.executed")
+
+
+def test_an_imposed_uncross_price_says_so(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    e, pub = in_call(monkeypatch, tmp_path)
+    new(e, Side.BUY, OrderType.LIMIT, 10, "GW01", price=101.00)
+    new(e, Side.SELL, OrderType.LIMIT, 10, "GW02", price=100.00)
+    e._run_uncross(SYMBOL, reason="ADMIN_MANUAL", price_override=10_050)
+    (trace,) = traces(pub, "UNCROSS_PRICE")
+    assert (trace["rule"], trace["eq_price_ticks"]) == ("OVERRIDE", 10_050)
+    assert "tied_prices_ticks" not in trace
+
+
+def test_a_book_that_does_not_cross_has_no_uncross_trace(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    e, pub = in_call(monkeypatch, tmp_path)
+    new(e, Side.BUY, OrderType.LIMIT, 10, "GW01", price=99.00)
+    new(e, Side.SELL, OrderType.LIMIT, 10, "GW02", price=100.00)
+    e._handle_session_transition({"to_state": "CONTINUOUS"})
+    assert traces(pub, "UNCROSS_PRICE") == []
+
+
+@pytest.mark.parametrize("smp", ["CANCEL_AGGRESSOR", "CANCEL_RESTING", "CANCEL_BOTH"])
+def test_a_continuous_self_match_names_the_pair_and_the_policy(
+    rig: tuple[Engine, FakeSock], smp: str
+) -> None:
+    e, pub = rig
+    resting = new(e, Side.SELL, OrderType.LIMIT, 5, "GW01", price=100.00)
+    incoming = new(e, Side.BUY, OrderType.LIMIT, 5, "GW01", price=100.00, smp_action=SmpAction(smp))  # fmt: skip
+    (trace,) = traces(pub, "SMP_DECISION")
+    assert trace == {
+        "symbol": SYMBOL, "kind": "SMP_DECISION", "order_id": incoming,
+        "other_order_id": resting, "smp_action": smp,
+    }  # fmt: skip
+
+
+def test_an_unfillable_fok_names_each_own_order_it_met(
+    rig: tuple[Engine, FakeSock],
+) -> None:
+    e, pub = rig
+    own = [new(e, Side.SELL, OrderType.LIMIT, 5, "GW01", price=p) for p in (100.00, 100.10)]  # fmt: skip
+    new(e, Side.SELL, OrderType.LIMIT, 5, "GW02", price=100.20)
+    fok = new(e, Side.BUY, OrderType.FOK, 50, "GW01", price=100.20, smp_action=SmpAction.CANCEL_RESTING)  # fmt: skip
+    pairs = [(t["order_id"], t["other_order_id"], t["smp_action"]) for t in traces(pub, "SMP_DECISION")]  # fmt: skip
+    assert pairs == [(fok, o, "CANCEL_RESTING") for o in own]
+
+
+def test_an_uncross_self_match_names_the_pair(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    e, pub = in_call(monkeypatch, tmp_path)
+    bid = new(e, Side.BUY, OrderType.LIMIT, 5, "GW01", price=101.00, smp_action=SmpAction.CANCEL_BOTH)  # fmt: skip
+    ask = new(e, Side.SELL, OrderType.LIMIT, 5, "GW01", price=100.00)
+    new(e, Side.SELL, OrderType.LIMIT, 5, "GW02", price=101.00)
+    e._handle_session_transition({"to_state": "CONTINUOUS"})
+    pairs = [(t["order_id"], t["other_order_id"], t["smp_action"]) for t in traces(pub, "SMP_DECISION")]  # fmt: skip
+    assert pairs == [(bid, ask, "CANCEL_BOTH")]
+
+
+@pytest.mark.parametrize(
+    "liquidity, outcome, fillable, fillable_no_smp",
+    [
+        ({"AAPL": ("GW02", 10), "MSFT": ("GW02", 10)}, "MATCH", [10, 10], [10, 10]),
+        ({}, "REST", [0, 0], [0, 0]),
+        ({"AAPL": ("GW02", 10), "MSFT": ("GW01", 10)}, "REJECT", [10, 0], [10, 10]),
+    ],
+)
+def test_an_aon_combo_reports_each_legs_fillable_and_its_outcome(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    liquidity: dict[str, tuple[str, int]],
+    outcome: str,
+    fillable: list[int],
+    fillable_no_smp: list[int],
+) -> None:
+    e, pub = make_engine(monkeypatch, tmp_path, symbols=("AAPL", "MSFT"))
+    connect(e)
+    for sym, (gw, qty) in liquidity.items():
+        new(e, Side.SELL, OrderType.LIMIT, qty, gw, price=100.00, symbol=sym)
+    e._handle_combo_order(
+        {"combo_id": "C1", "gateway_id": "GW01", "combo_type": "AON", "tif": "DAY",
+         "legs": [{"symbol": s, "side": "BUY", "order_type": "LIMIT", "quantity": 10,
+                   "price_ticks": 10_000, "smp_action": "CANCEL_RESTING"} for s in ("AAPL", "MSFT")]}  # fmt: skip
+    )
+    got = [
+        (t["symbol"], t["leg_index"], t["quantity"], t["fillable_qty"], t["fillable_no_smp_qty"], t["outcome"])  # fmt: skip
+        for sym in ("AAPL", "MSFT")
+        for t in msgs(pub, f"engine.trace.{sym}")
+        if t["kind"] == "AON_PREFLIGHT" and t["combo_id"] == "C1"
+    ]
+    assert got == [
+        (s, i, 10, f, n, outcome)
+        for i, (s, f, n) in enumerate(zip(("AAPL", "MSFT"), fillable, fillable_no_smp))  # fmt: skip
+    ]
+    kinds = [p.get("kind") or t for t, p in all_msgs(pub)]
+    assert kinds.index("combo.ack.GW01") < kinds.index("AON_PREFLIGHT")

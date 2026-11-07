@@ -2120,13 +2120,24 @@ to `self.trace` through `_note(kind, *fields)` (and `_note_trigger` for stops).
 | `ICEBERG_REFILL` | `_reinsert_iceberg` | `order_id`, new `arrival_seq`, new peak |
 | `TRAILING_RATCHET` | `_check_trailing_stops` | `order_id`, new stop price, trade price |
 | `TRIGGERED` | `_note_trigger`, from `_check_stops`, `_check_trailing_stops` and `_trigger_stop_now` | the `Order`, armed type, stop price, `last_trade_id`, `last_trade_price`, what it `becomes` (`MARKET`/`LIMIT`) |
+| `SMP_DECISION` | `_sweep`, the FOK pre-check in `_match_fok` (one per same-gateway order in range), `auction._resolve_self_match` | `order_id` whose policy applied, the other side's `order_id`, the policy |
 
 `TRIGGERED` is written **before** the order is converted, so it still holds
 the type it was armed as. The engine owns one list for all books
 (`Engine._trace`) and `_flush_trace` publishes it after each dispatch:
-`TRIGGERED` becomes `order.triggered.<GW>` for the owner, the other three
+`TRIGGERED` becomes `order.triggered.<GW>` for the owner, the others
 become `engine.trace.<SYM>` (audit only). The book never publishes; it only
-reports. See the [message reference](../../protocols-and-clients/part-5-message-reference/010-message-reference.md)
+reports.
+
+Two more `engine.trace` kinds say why the engine decided, and the engine
+publishes them itself, outside the book's list: `UNCROSS_PRICE` from
+`Engine._run_uncross` just before the uncross runs (the price, its quantity
+and surplus, and the `rule` that chose it -- most volume, then least
+surplus, then lowest price, or `OVERRIDE` for an imposed price -- with the
+prices still tied when it did, from `AuctionResult.rule` / `tied_prices`),
+and `AON_PREFLIGHT` from `Engine._accept_combo`, one per leg of an
+all-or-none combo (what the leg could fill with and without the gateway's
+own orders, and whether the combo matches, rests or is rejected). See the [message reference](../../protocols-and-clients/part-5-message-reference/010-message-reference.md)
 for the wire format.
 
 

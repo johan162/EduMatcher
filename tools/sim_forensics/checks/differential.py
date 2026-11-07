@@ -96,6 +96,8 @@ _CROSS_SYMBOL_CODES = frozenset({"DUPLICATE_ORDER"})
 _ID_KEYS = ("order_id", "id", "quote_id", "oco_id", "cancelled_order_id", "bid_order_id", "ask_order_id", "order_id_1")  # fmt: skip
 #: Prices in ticks a client sends, and display prices the engine publishes.
 _TICK_KEYS = frozenset({"price_ticks", "stop_price_ticks", "bid_price_ticks", "ask_price_ticks", "eq_price_ticks", "trigger_price_ticks", "last_price_ticks"})  # fmt: skip
+#: Lists of prices in ticks (engine.trace UNCROSS_PRICE).
+_TICK_LIST_KEYS = frozenset({"tied_prices_ticks"})
 #: Σ price_ticks × qty, and the quantity each shifts with.
 _NOTIONAL_KEYS = {"fill_notional_ticks": "fill_qty", "cum_notional_ticks": "cum_qty"}
 _PRICE_KEYS = frozenset({"price", "stop_price", "eq_price", "indicative_price", "last_price", "old_price", "trigger_price", "reference_price", "corridor_low", "corridor_high", "print_price"})  # fmt: skip
@@ -398,6 +400,10 @@ class _Recovery:
             apply(self.lane.engine, topic, p)
             mine = [(t, x) for t, x in self.lane.sink.take() if x.get("combo_id") not in self.tainted]  # fmt: skip
             ref = [(t, x) for t, x in ref if x.get("combo_id") not in self.tainted]
+            if topic == "order.combo" and str(p.get("combo_id")) in self.tainted:
+                # Left out whole: a leg's refusal names neither its symbol
+                # nor the combo.
+                mine = ref = []
             # A restart numbers each book's queue afresh: the order of the
             # queue is compared at the restart, not the numbers after it.
             self.run.compare("E6", self.lane, mine, ref, None, ignore=_RENUMBERED, ignore_in_breaker=_REBASED, restart=self.restarts, command=topic, chain=chain)  # fmt: skip
@@ -666,12 +672,16 @@ class _Shift(_Transform):
                     x + by
                     if k in _TICK_KEYS and isinstance(x, int)
                     else (
-                        (round(x * scale) + by) / scale
-                        if k in _PRICE_KEYS and isinstance(x, (int, float))
+                        [p + by for p in x]
+                        if k in _TICK_LIST_KEYS and isinstance(x, list)
                         else (
-                            x + by / scale
-                            if k in _VWAP_KEYS and isinstance(x, (int, float))
-                            else self._shift(x, by, scale)
+                            (round(x * scale) + by) / scale
+                            if k in _PRICE_KEYS and isinstance(x, (int, float))
+                            else (
+                                x + by / scale
+                                if k in _VWAP_KEYS and isinstance(x, (int, float))
+                                else self._shift(x, by, scale)
+                            )
                         )
                     )
                 )

@@ -206,6 +206,10 @@ class _Sink:
         return out
 
 
+#: Messages that carry the engine's clock reading for the input in ``ts_ns``.
+_STAMPED = (PREFIX_ORDER_ACK, PREFIX_ORDER_FILL, TOPIC_TRADE_EXECUTED)
+
+
 class LiveClock:
     """Stands in for ``time`` in :mod:`edumatcher.models.clock`, the source
     of the engine's timestamps (``now_ns``), so a re-run engine reads the
@@ -214,10 +218,12 @@ class LiveClock:
     run's hours pass in minutes, the window holds other trades, and halts
     differ (2026-10-29 run: 24 halts).
 
-    It reads the engine's start, then each input's first live trade time
-    (``follow``). Audit line times are the audit's receive times and may pass
-    the engine's next trade; between trades the engine decides nothing by
-    the clock (a breaker reopens by its timer input, BREAKER_TIMER)."""
+    It reads the engine's start, then each input's first engine time stamp
+    (``follow``): the clock the live engine read for that input, as its
+    ``order.ack``, ``order.fill`` or ``trade.executed`` carries it (S37). An
+    input that publishes none (a cancel) keeps the time before it; audit line
+    times are the audit's receive times and may pass the engine's next
+    stamp. A breaker reopens by its timer input (BREAKER_TIMER)."""
 
     def __init__(self, ns: int) -> None:
         self.ns = ns
@@ -226,11 +232,11 @@ class LiveClock:
         return self.ns
 
     def follow(self, live: Live) -> None:
-        """Move to the time the live engine traded at for the input that
-        published *live*, if it traded."""
+        """Move to the time the live engine stamped first for the input that
+        published *live*, if it stamped one; never back."""
         for topic, p in live:
-            if topic == TOPIC_TRADE_EXECUTED:
-                self.ns = int(p["ts_ns"])
+            if topic.startswith(_STAMPED) and isinstance(p.get("ts_ns"), int):
+                self.ns = max(self.ns, int(p["ts_ns"]))
                 return
 
 
