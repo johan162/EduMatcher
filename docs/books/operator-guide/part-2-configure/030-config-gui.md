@@ -422,8 +422,47 @@ collars, order limits and circuit-breaker settings are not included. After
 editing, a symbol may no longer fit the IPO fields: its last buy and last sell
 prices may differ, or it may have a hand-edited or second market-maker quote.
 Such a symbol is exported as closely as the fields allow (last buy becomes
-`reference_price`), and a dialog names it, because re-importing the file
-would not reproduce it.
+`reference_price`), and a dialog names it and gives the reason, because
+re-importing the file would not reproduce it.
+
+CSV files follow the usual quoting rules: a cell that contains a comma or a
+double quote is wrapped in double quotes, and a double quote inside it is
+doubled (`"Says ""hi"", twice"`). Export writes cells this way, and import
+reads them.
+
+### Importing and exporting participants
+
+The Participants table on the Basics tab has the same three buttons next to
+**"+ Add gateway"**: **Import participants…**, **Export CSV** and
+**Export JSON**. Each row holds exactly the table's fields, and an imported
+row creates the gateway **"+ Add gateway"** would:
+
+| Column | Required | Blank means |
+|---|---|---|
+| `id` | yes | — |
+| `role` | no | `TRADER` |
+| `disconnect_behaviour` | no | the role's default (`CANCEL_ALL` for `TRADER`, `CANCEL_QUOTES_ONLY` for `MARKET_MAKER`, `LEAVE_ALL` for `ADMIN`) |
+| `smp_action` | no | inherit the participant default |
+| `description` | no | no description |
+
+```csv
+id,role,disconnect_behaviour,smp_action,description
+DESK01,TRADER,,CANCEL_AGGRESSOR,"Equities desk, floor 2"
+MM01,MARKET_MAKER,,,
+OPS,ADMIN,,,Operations
+```
+
+IDs and the `role`, `disconnect_behaviour` and `smp_action` values are
+uppercased on import. As for symbols, the import is all-or-nothing: an ID that
+already exists or appears twice, or a value that is not one of the allowed
+ones, rejects the whole file.
+
+Export writes only these fields. The Expert **⚙ Advanced** market-maker
+settings are not included. A participant whose disconnect behaviour is
+**(default)** is written with the value it inherits now, so the engine
+behaves the same after a re-import. The export dialog names it, because the
+re-imported participant no longer follows later changes to the participant
+default.
 
 ### The Symbols workspace
 

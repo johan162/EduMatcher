@@ -19,8 +19,8 @@ function draftWithMm(): EngineConfigDraft {
 }
 
 function importInto(d: EngineConfigDraft, text: string, format: "csv" | "json" = "csv"): string[] {
-  const { symbols, errors } = readSymbolFile(text, format, d);
-  if (errors.length === 0) addImportedSymbols(d, symbols);
+  const { items, errors } = readSymbolFile(text, format, d);
+  if (errors.length === 0) addImportedSymbols(d, items);
   return errors;
 }
 
@@ -117,7 +117,7 @@ describe("symbol file import", () => {
   it("rejects empty files, bad JSON and unknown JSON keys", () => {
     const d = draftWithMm();
     expect(readSymbolFile("", "csv", d).errors).toEqual(["The file is empty."]);
-    expect(readSymbolFile(`${HEADER}\n`, "csv", d).errors).toEqual(["The file holds no symbols."]);
+    expect(readSymbolFile(`${HEADER}\n`, "csv", d).errors).toEqual(["The file holds no rows."]);
     expect(readSymbolFile("{}", "json", d).errors).toEqual([
       "The JSON file must hold an array of symbol objects.",
     ]);
@@ -155,7 +155,12 @@ describe("symbol file export", () => {
     d.symbols.NOPRICE!.lastBuyPrice = null;
     d.symbols.NOPRICE!.lastSellPrice = null;
     const { text, warnings } = writeSymbolFile(d, "csv");
-    expect(warnings).toEqual(["SPLIT", "EDITED", "TWO", "NOPRICE"]);
+    expect(warnings).toEqual([
+      "SPLIT: last buy and last sell prices differ.",
+      "EDITED: market-maker quote not derived from the reference price.",
+      "TWO: more than one market-maker quote.",
+      "NOPRICE: no last price.",
+    ]);
     // Written as near as the fields allow: last buy is the reference price.
     expect(text).toContain("\nSPLIT,10,");
     expect(text).toContain("\nNOPRICE,,");

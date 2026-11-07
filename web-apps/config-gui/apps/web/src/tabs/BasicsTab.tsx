@@ -15,6 +15,12 @@ import { useDraftStore } from "@/store/draftStore";
 import { usePersona } from "@/lib/usePersona";
 import { uppercaseId } from "@/lib/format";
 import { removeSymbol } from "@/lib/symbols";
+import {
+  PARTICIPANT_FILE_COLUMNS,
+  addImportedParticipants,
+  readParticipantFile,
+  writeParticipantFile,
+} from "@/lib/participantFile";
 import { Panel, Section } from "@/components/layout/Panel";
 import { FieldRow } from "@/components/fields/FieldRow";
 import { TextInput } from "@/components/fields/inputs";
@@ -24,6 +30,7 @@ import { SymbolEditorDialog } from "@/components/symbols/SymbolEditorDialog";
 import { SymbolFileActions } from "@/components/symbols/SymbolFileActions";
 import { GatewayAdvancedDialog } from "@/components/gateways/GatewayAdvancedDialog";
 import { ColumnHead } from "@/components/ui/ColumnHead";
+import { TableFileActions } from "@/components/ui/TableFileActions";
 
 /** Select value for "key omitted": the gateway inherits the gateway default. */
 const INHERIT = "__inherit__";
@@ -438,18 +445,28 @@ export function BasicsTab() {
                 </tbody>
               </table>
             </div>
-            <button
-              type="button"
-              onClick={() =>
-                update((d) => {
-                  const id = `GW${String(d.gateways.length + 1).padStart(2, "0")}`;
-                  d.gateways.push(createGateway(id));
-                })
-              }
-              className="mt-2 rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted"
-            >
-              + Add gateway
-            </button>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() =>
+                  update((d) => {
+                    const id = `GW${String(d.gateways.length + 1).padStart(2, "0")}`;
+                    d.gateways.push(createGateway(id));
+                  })
+                }
+                className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted"
+              >
+                + Add gateway
+              </button>
+              <TableFileActions
+                noun="participants"
+                columns={PARTICIPANT_FILE_COLUMNS}
+                empty={draft.gateways.length === 0}
+                read={readParticipantFile}
+                add={addImportedParticipants}
+                write={writeParticipantFile}
+              />
+            </div>
           </div>
         </FieldRow>
       </Section>

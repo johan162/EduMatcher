@@ -5,6 +5,7 @@ import {
   type SymbolConfig,
 } from "@edumatcher/schema";
 import { uppercaseId } from "./format";
+import { readTable, toNumber, writeTable, type TableFileFormat } from "./tableFile";
 
 /**
  * Bulk symbol import/export as CSV or JSON. A row carries exactly the IPO
@@ -24,110 +25,27 @@ export const SYMBOL_FILE_COLUMNS = [
 ] as const;
 
 type Column = (typeof SYMBOL_FILE_COLUMNS)[number];
-type Row = Partial<Record<Column, unknown>>;
-
-export type SymbolFileFormat = "csv" | "json";
 
 export interface ImportedSymbol {
   name: string;
   config: SymbolConfig;
 }
 
-const isColumn = (key: string): key is Column =>
-  (SYMBOL_FILE_COLUMNS as readonly string[]).includes(key);
-
-const unquote = (cell: string): string => {
-  const t = cell.trim();
-  return t.length >= 2 && t.startsWith('"') && t.endsWith('"') ? t.slice(1, -1).trim() : t;
-};
-
-/** Rows keyed by the label errors use ("line 3", "entry 2"). */
-function parseCsv(text: string, errors: string[]): Array<[string, Row]> {
-  const lines = text.replace(/^﻿/, "").split(/\r?\n/);
-  const header = (lines[0] ?? "").split(",").map(unquote);
-  if (header.length === 1 && header[0] === "") {
-    errors.push("The file is empty.");
-    return [];
-  }
-  for (const [i, key] of header.entries()) {
-    if (!isColumn(key)) errors.push(`Unknown column "${key}".`);
-    else if (header.indexOf(key) !== i) errors.push(`Column "${key}" appears twice.`);
-  }
-  for (const key of ["symbol", "reference_price"]) {
-    if (!header.includes(key)) errors.push(`Missing required column "${key}".`);
-  }
-  if (errors.length > 0) return [];
-
-  const rows: Array<[string, Row]> = [];
-  lines.slice(1).forEach((line, i) => {
-    if (line.trim() === "") return;
-    const label = `line ${i + 2}`;
-    const cells = line.split(",").map(unquote);
-    if (cells.length !== header.length) {
-      errors.push(`${label}: expected ${header.length} fields, found ${cells.length}.`);
-      return;
-    }
-    const row: Row = {};
-    header.forEach((key, j) => {
-      if (cells[j] !== "") row[key as Column] = cells[j];
-    });
-    rows.push([label, row]);
-  });
-  return rows;
-}
-
-function parseJson(text: string, errors: string[]): Array<[string, Row]> {
-  let data: unknown;
-  try {
-    data = JSON.parse(text);
-  } catch (err) {
-    errors.push(`Not valid JSON: ${err instanceof Error ? err.message : String(err)}`);
-    return [];
-  }
-  if (!Array.isArray(data)) {
-    errors.push("The JSON file must hold an array of symbol objects.");
-    return [];
-  }
-  const rows: Array<[string, Row]> = [];
-  data.forEach((item: unknown, i) => {
-    const label = `entry ${i + 1}`;
-    if (typeof item !== "object" || item === null || Array.isArray(item)) {
-      errors.push(`${label}: not an object.`);
-      return;
-    }
-    const row: Row = {};
-    for (const [key, value] of Object.entries(item)) {
-      if (!isColumn(key)) errors.push(`${label}: unknown key "${key}".`);
-      else if (value !== null) row[key] = value;
-    }
-    rows.push([label, row]);
-  });
-  return rows;
-}
-
-/** A number, or a string holding one; anything else is invalid. */
-function toNumber(value: unknown): number | undefined | "invalid" {
-  if (value === undefined) return undefined;
-  const n = typeof value === "string" ? Number(value) : value;
-  return typeof n === "number" && Number.isFinite(n) ? n : "invalid";
-}
-
 /**
  * Parse and validate a whole file against the draft. Any error rejects the
- * file: `symbols` is only meaningful when `errors` is empty.
+ * file: `items` is only meaningful when `errors` is empty.
  */
 export function readSymbolFile(
   text: string,
-  format: SymbolFileFormat,
+  format: TableFileFormat,
   draft: EngineConfigDraft,
-): { symbols: ImportedSymbol[]; errors: string[] } {
+): { items: ImportedSymbol[]; errors: string[] } {
   const errors: string[] = [];
-  const rows = format === "json" ? parseJson(text, errors) : parseCsv(text, errors);
-  if (errors.length === 0 && rows.length === 0) errors.push("The file holds no symbols.");
+  const rows = readTable(text, format, SYMBOL_FILE_COLUMNS, ["symbol", "reference_price"], "symbol", errors);
 
   const mmGatewayIds = draft.gateways.filter((g) => g.role === "MARKET_MAKER").map((g) => g.id);
   const seen = new Set<string>();
-  const symbols: ImportedSymbol[] = [];
+  const items: ImportedSymbol[] = [];
 
   for (const [label, row] of rows) {
     const rowErrors: string[] = [];
@@ -177,9 +95,9 @@ export function readSymbolFile(
     };
     if (gateway) config.marketMakerQuotes = [deriveIpoQuote(gateway, price, tickDecimals, spreadTicks, quoteSize)];
     seen.add(name);
-    symbols.push({ name, config });
+    items.push({ name, config });
   }
-  return { symbols: errors.length === 0 ? symbols : [], errors };
+  return { items: errors.length === 0 ? items : [], errors };
 }
 
 /** Append imported symbols in file order. */
@@ -192,12 +110,12 @@ export function addImportedSymbols(d: EngineConfigDraft, symbols: ImportedSymbol
 
 /**
  * Write every symbol's IPO fields. A symbol the IPO fields cannot describe
- * exactly (last buy != last sell, a hand-edited or second quote, no price)
- * is written as near as they allow and named in `warnings`.
+ * exactly is written as near as they allow and named, with the reason, in
+ * `warnings`.
  */
 export function writeSymbolFile(
   draft: EngineConfigDraft,
-  format: SymbolFileFormat,
+  format: TableFileFormat,
 ): { text: string; warnings: string[] } {
   const warnings: string[] = [];
   const rows = draft.symbolOrder.map((name) => {
@@ -214,9 +132,13 @@ export function writeSymbolFile(
       outstanding_shares: cfg.outstandingShares,
       tick_decimals: cfg.tickDecimals,
     };
+    const reasons: string[] = [];
+    if (ref === undefined) reasons.push("no last price");
+    else if (cfg.lastBuyPrice !== cfg.lastSellPrice) reasons.push("last buy and last sell prices differ");
+
     const quotes = cfg.marketMakerQuotes ?? [];
     const q = quotes[0];
-    let exact = ref !== undefined && cfg.lastBuyPrice === cfg.lastSellPrice && quotes.length <= 1;
+    if (quotes.length > 1) reasons.push("more than one market-maker quote");
     if (q) {
       row.mm_gateway = q.gatewayId;
       row.quote_size = q.bidQty;
@@ -225,26 +147,22 @@ export function writeSymbolFile(
           ? Math.round((q.askPrice - q.bidPrice) * Math.pow(10, cfg.tickDecimals))
           : undefined;
       row.spread_ticks = spreadTicks;
-      if (exact && spreadTicks !== undefined) {
-        const derived = deriveIpoQuote(q.gatewayId, ref!, cfg.tickDecimals, spreadTicks, q.bidQty);
-        exact =
-          q.quoteId === undefined &&
-          q.bidPrice === derived.bidPrice &&
-          q.askPrice === derived.askPrice &&
-          q.askQty === derived.askQty &&
-          q.tif === derived.tif &&
-          q.seedOnce === derived.seedOnce;
-      } else {
-        exact = false;
-      }
+      const derived =
+        spreadTicks !== undefined && ref !== undefined
+          ? deriveIpoQuote(q.gatewayId, ref, cfg.tickDecimals, spreadTicks, q.bidQty)
+          : undefined;
+      const matches =
+        derived !== undefined &&
+        q.quoteId === undefined &&
+        q.bidPrice === derived.bidPrice &&
+        q.askPrice === derived.askPrice &&
+        q.askQty === derived.askQty &&
+        q.tif === derived.tif &&
+        q.seedOnce === derived.seedOnce;
+      if (!matches && ref !== undefined) reasons.push("market-maker quote not derived from the reference price");
     }
-    if (!exact) warnings.push(name);
+    if (reasons.length > 0) warnings.push(`${name}: ${reasons.join("; ")}.`);
     return row;
   });
-
-  const text =
-    format === "json"
-      ? JSON.stringify(rows, null, 2) + "\n"
-      : [SYMBOL_FILE_COLUMNS.join(","), ...rows.map((r) => SYMBOL_FILE_COLUMNS.map((c) => r[c] ?? "").join(","))].join("\n") + "\n";
-  return { text, warnings };
+  return { text: writeTable(rows, SYMBOL_FILE_COLUMNS, format), warnings };
 }
