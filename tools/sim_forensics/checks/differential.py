@@ -20,9 +20,9 @@ makes every later one likely).
   The restarted engine is given what a restart gets from outside, not from
   the files: the session phase (the scheduler) and the connected gateways
   (which reconnect). Its books are compared with the reference's at once
-  -- priority order, quantities, armed stops and their triggers, OCO,
-  quote and combo links -- and its outputs for the next ``_E6_SPAN``
-  commands.
+  -- priority order, quantities, armed stops and their triggers, the
+  circuit breakers' reference windows, OCO, quote and combo links -- and
+  its outputs for the next ``_E6_SPAN`` commands.
 - **E7, metamorphic.** (a) Gateways swapped within groups of identical
   configuration, and every order id renamed; (b) every price of every
   symbol shifted up by ``_E7_SHIFT`` ticks. Collars and circuit breakers
@@ -84,9 +84,6 @@ _E7_SHIFT = 7
 _KEEP = 50
 #: Numbers a restarted engine assigns afresh (E6).
 _RENUMBERED = frozenset({"priority_seq"})
-#: A restart seeds a breaker's reference from the last trade price: the
-#: window of trades the reference averages is not persisted (E6).
-_REBASED = frozenset({"reference_price", "corridor_high", "corridor_low"})
 #: Counted across the whole engine (AUC-<run>-<n>): a one-symbol engine
 #: numbers its auctions alone (E5).
 _ENGINE_WIDE = frozenset({"auction_id"})
@@ -172,7 +169,6 @@ class _Run:
         only: set[str | None] | None,
         exact: bool = True,
         ignore: frozenset[str] = frozenset(),
-        ignore_in_breaker: frozenset[str] = frozenset(),
         **context: object,
     ) -> None:
         """Compare *mine* with the reference's *ref* symbol by symbol (only
@@ -183,14 +179,9 @@ class _Run:
             ref = [(t, _rounded(p)) for t, p in ref]
             # Rounding alone splits a value that sits on a rounding boundary.
             mine = [(t, _snapped(p, r)) for (t, p), (_, r) in zip(mine, ref)] + mine[len(ref):]  # fmt: skip
-        if ignore or ignore_in_breaker:
-
-            def keep(t: str, p: dict[str, Any]) -> dict[str, Any]:
-                drop = ignore | (ignore_in_breaker if t.startswith("circuit_breaker.") else frozenset())  # fmt: skip
-                return {k: v for k, v in p.items() if k not in drop}
-
-            mine = [(t, keep(t, p)) for t, p in mine]
-            ref = [(t, keep(t, p)) for t, p in ref]
+        if ignore:
+            mine = [(t, {k: v for k, v in p.items() if k not in ignore}) for t, p in mine]  # fmt: skip
+            ref = [(t, {k: v for k, v in p.items() if k not in ignore}) for t, p in ref]  # fmt: skip
         mg, rg = self.where.group(mine), self.where.group(ref)
         keys = only if only is not None else set(mg) | set(rg)
         for g in sorted(keys, key=str):
@@ -355,6 +346,12 @@ def _book_state(b: OrderBook) -> dict[str, Any]:
     }
 
 
+def _breaker_state(e: engine_main.Engine, symbol: str) -> Any:
+    """The trades a symbol's circuit breaker averages, and its reference."""
+    cb = e._circuit_breakers.get(symbol)
+    return None if cb is None else (list(cb.trade_history), cb.reference_price)
+
+
 def _engine_state(e: engine_main.Engine, skip: set[str]) -> dict[str, Any]:
     """Links between orders the engine keeps outside its books (quotes of
     the symbols in *skip* left out)."""
@@ -406,7 +403,7 @@ class _Recovery:
                 mine = ref = []
             # A restart numbers each book's queue afresh: the order of the
             # queue is compared at the restart, not the numbers after it.
-            self.run.compare("E6", self.lane, mine, ref, None, ignore=_RENUMBERED, ignore_in_breaker=_REBASED, restart=self.restarts, command=topic, chain=chain)  # fmt: skip
+            self.run.compare("E6", self.lane, mine, ref, None, ignore=_RENUMBERED, restart=self.restarts, command=topic, chain=chain)  # fmt: skip
             self.left -= 1
             if self.left <= 0:
                 self.lane = None
@@ -451,8 +448,8 @@ class _Recovery:
                 lost = sorted(set(theirs_e[key]) - set(mine_e[key]))
                 self.run.flag("E6", restart=self.restarts, error=f"restored {key} differ", missing=len(lost), example=str(lost[:2])[:300])  # fmt: skip
         for symbol in sorted(set(ref.books) - reseeded):
-            mine = _book_state(engine.books[symbol]) if symbol in engine.books else {}
-            theirs = _book_state(ref.books[symbol])
+            mine = {**_book_state(engine.books[symbol]), "breaker window": _breaker_state(engine, symbol)} if symbol in engine.books else {}  # fmt: skip
+            theirs = {**_book_state(ref.books[symbol]), "breaker window": _breaker_state(ref, symbol)}  # fmt: skip
             for key in theirs:
                 if mine.get(key) != theirs[key]:
                     lane.diverged.add(symbol)

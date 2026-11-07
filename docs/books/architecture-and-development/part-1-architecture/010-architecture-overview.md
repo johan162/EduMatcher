@@ -1256,7 +1256,7 @@ startup, and subscriber **data stores** written continuously during the session.
 |---|---|---|---|---|
 | `gtc_orders.json` | engine | clean shutdown | reloaded at startup | resting GTC orders (price-time priority preserved) |
 | `gtc_combos.json` | engine | clean shutdown | reloaded at startup | resting GTC combo parents + child links |
-| `book_stats.json` | engine | clean shutdown | reloaded at startup | last buy/sell price per symbol; reseeds collar & circuit-breaker references at the next open |
+| `book_stats.json` | engine | clean shutdown | reloaded at startup | last buy/sell price per symbol; reseeds collar & circuit-breaker references at the next open; each breaker's reference window (`cb_window`), taken back by a same-day restart |
 | `stats.db` (SQLite) | pm-stats | per trade · snapshot every 15 min · EOD · every index.update tick | accumulates | OHLCV, intraday snapshots, trade log, index level snapshots & daily OHLC |
 | `clearing.db` (SQLite) | pm-clearing | per trade · connect/disconnect · EOD | accumulates | positions, VWAP, realised/unrealised P&L |
 | `audit.log` | pm-audit | continuous (rotating) | accumulates | full chronological event trail |
@@ -1287,7 +1287,10 @@ sequenceDiagram
 
 At startup the engine reloads `gtc_orders.json` / `gtc_combos.json`, restoring each
 order **with its original timestamp** so queue priority is unchanged, and reseeds
-each symbol's collar and circuit-breaker reference from `book_stats.json`.
+each symbol's collar and circuit-breaker reference from `book_stats.json` — on
+the same business day the breaker takes back its whole reference window (the
+trades its reference averages), so a restart halts where an uninterrupted
+engine would. A market maker's seeded combo restored live is not seeded again.
 
 **Idempotency and gap detection** guard the accumulating stores: trade events are
 inserted with `INSERT OR IGNORE` on trade id, so a replayed or duplicated event is

@@ -23,6 +23,8 @@ import os
 import tempfile
 from pathlib import Path
 
+from edumatcher.engine.circuit_breaker import CircuitBreakerState
+from edumatcher.models.clock import now_ns
 from edumatcher.models.combo import ComboOrder, ComboStatus
 from edumatcher.models.order import Order, OrderStatus, TIF
 from edumatcher.models.price import from_ticks
@@ -149,9 +151,14 @@ def load_gtc_orders(path: Path) -> list[Order]:
 
 def save_book_stats(
     books: dict[str, Any],  # dict[symbol, OrderBook]
+    breakers: dict[str, CircuitBreakerState],
     path: Path,
 ) -> None:
-    """Persist per-symbol last_buy_price / last_sell_price / prev_close."""
+    """Persist per-symbol last_buy_price / last_sell_price / prev_close, and
+    each circuit breaker's reference window (``cb_window``: when it was
+    saved, its trades in ticks, its reference), so a restart the same day
+    goes on with the reference the market had."""
+    saved_ns = now_ns()
     stats: dict[str, dict[str, Any]] = {}
     for symbol, book in books.items():
         prev_close = (
@@ -176,6 +183,13 @@ def save_book_stats(
             ),
             "prev_close": prev_close,
         }
+        cb = breakers.get(symbol)
+        if cb is not None:
+            stats[symbol]["cb_window"] = {
+                "saved_ns": saved_ns,
+                "trades": [[ts, price] for ts, price in cb.trade_history],
+                "reference_price": cb.reference_price,
+            }
     path.parent.mkdir(parents=True, exist_ok=True)
     atomic_write_text(path, json.dumps(stats, indent=2))
 

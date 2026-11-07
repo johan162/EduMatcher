@@ -206,7 +206,7 @@ class TestEngineShutdown:
         )
         monkeypatch.setattr(
             "edumatcher.engine.main.save_book_stats",
-            lambda books, path: None,
+            lambda books, breakers, path: None,
         )
 
         engine, pub_sock = _make_engine(monkeypatch, tmp_path)

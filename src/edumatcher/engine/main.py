@@ -1340,7 +1340,18 @@ class Engine:
                 )
 
         n_mm_combos = 0
+        # A live seed combo restored by _restore_gtc() (with its legs) is not
+        # seeded again: that would double the market maker's interest.
+        restored_seeds = {
+            c.combo_id
+            for c in self._combos.values()
+            if c.gateway_id == "MM"
+            and c.status in (ComboStatus.PENDING, ComboStatus.PARTIALLY_MATCHED)
+        }
         for combo_cfg in self._engine_config.market_maker_combos:
+            if combo_cfg.combo_id in restored_seeds:
+                log.info(f"Skipping seed combo {combo_cfg.combo_id} (restored live)")
+                continue
             combo = ComboOrder.create(
                 combo_id=combo_cfg.combo_id,
                 gateway_id="MM",
@@ -1398,7 +1409,17 @@ class Engine:
                     if book.last_buy_price is not None
                     else book.last_sell_price
                 )
-                if cb_ref_ticks is not None:
+                # A checkpoint of the same business day gives back the window
+                # the reference averages; seeded afresh, a restarted engine
+                # would halt where the uninterrupted one does not (E6).
+                window = self._book_stats.get(sym, {}).get("cb_window")
+                tz = self._session_tz()
+                if window and datetime.fromtimestamp(window["saved_ns"] / 1e9, tz).date() == datetime.now(tz).date():  # fmt: skip
+                    cb_state.restore_window(
+                        [(int(ts), int(price)) for ts, price in window["trades"]],
+                        window["reference_price"],
+                    )
+                elif cb_ref_ticks is not None:
                     cb_state.seed_reference(cb_ref_ticks, now_ns())
                 self._circuit_breakers[sym] = cb_state
 
@@ -1429,7 +1450,9 @@ class Engine:
         try:
             save_gtc_orders(self._resting_gtc_orders(), target / GTC_ORDERS_FILE.name)
             save_gtc_combos(list(self._combos.values()), target / GTC_COMBOS_FILE.name)
-            save_book_stats(self.books, target / BOOK_STATS_FILE.name)
+            save_book_stats(
+                self.books, self._circuit_breakers, target / BOOK_STATS_FILE.name
+            )
         except Exception as exc:
             self._dbg_count("eod_archive_errors")
             log.error("End-of-day archive to %s failed: %s", target, exc)
@@ -7071,7 +7094,7 @@ class Engine:
         try:
             save_gtc_orders(self._resting_gtc_orders(), GTC_ORDERS_FILE)
             save_gtc_combos(list(self._combos.values()), GTC_COMBOS_FILE)
-            save_book_stats(self.books, BOOK_STATS_FILE)
+            save_book_stats(self.books, self._circuit_breakers, BOOK_STATS_FILE)
             self.metrics.gtc_flush_ms = (time.perf_counter() - started) * 1000.0
         except Exception as exc:
             # A failed checkpoint must not end the session — the previous
@@ -7117,7 +7140,7 @@ class Engine:
         if n_combos:
             log.info(f"Saved {n_combos} combo(s) to {GTC_COMBOS_FILE}")
 
-        save_book_stats(self.books, BOOK_STATS_FILE)
+        save_book_stats(self.books, self._circuit_breakers, BOOK_STATS_FILE)
         log.info(
             f"Saved book statistics for {len(self.books)} symbol(s) to {BOOK_STATS_FILE}"
         )

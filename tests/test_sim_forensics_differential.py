@@ -19,6 +19,7 @@ from unittest import mock
 import pytest
 
 from edumatcher.config_deploy import deploy, resolve_example
+from edumatcher.engine.circuit_breaker import CircuitBreakerState
 from edumatcher.engine.config_loader import EngineConfig
 from edumatcher.models.order import OrderType, Side
 from tests.engine_harness import order_payload
@@ -85,10 +86,10 @@ def _symbol_day(sym: str, cfg: Any) -> list[tuple[str, dict[str, Any]]]:
     return cmds
 
 
-def write_day(data: Path) -> Path:
+def write_day(data: Path, example: str = "s3-basic") -> Path:
     data.mkdir()
     artifact = data.parent / "deployed" / "engine_config.json"
-    compiled = deploy(resolve_example("s3-basic"), artifact)
+    compiled = deploy(resolve_example(example), artifact)
     startup = {"run_seq": 1, "config": artifact.read_text(encoding="utf-8")}
     lines = [f"[2026-10-28T07:00:00.000+00:00] [system.startup] [seq=1 msg=M0 chain=M0] {json.dumps(startup)}\n"]  # fmt: skip
     for i, (topic, p) in enumerate(_day(compiled.engine), 1):
@@ -192,6 +193,19 @@ def test_e5_to_e7_are_slow(tmp_path: Path, open_ds: OpenDataset) -> None:
     results = run_checks(open_ds(data), [REGISTRY[i] for i in E], 10)
     assert {r.status for r in results} == {"SKIPPED"}
     assert results[0].note.startswith("slow:")
+
+
+def test_e6_finds_a_breaker_window_the_checkpoint_drops(
+    tmp_path: Path, open_ds: OpenDataset
+) -> None:
+    """A restarted breaker seeded afresh averages other trades than the
+    uninterrupted one's window (2026-11-07 run: EA, NET); s3-complex has
+    breakers."""
+    data = write_day(tmp_path / "data", "s3-complex")
+    assert run_e(open_ds, data, every=10)["E6"].samples == []
+    with mock.patch.object(CircuitBreakerState, "restore_window", lambda self, trades, ref: None):  # fmt: skip
+        out = run_e(open_ds, data, every=10)["E6"]
+    assert "restored breaker window differ" in errors(out)
 
 
 def test_e6_leaves_out_a_combo_on_a_reseeded_book(
