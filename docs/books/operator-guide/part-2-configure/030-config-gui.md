@@ -851,6 +851,27 @@ advanced tuning — only appear at Expert:
 *The `desk` instance on port 8080 with one credential per participant; **Generate** makes a
 fresh random key. A second instance, `dashboards`, follows below it with the read-only key.*
 
+**Generate keys for participants…** opens a list of every participant, all
+selected by default, with **Select all** / **Select none**. Each selected
+participant gets one random key bound to it, in pm-config-gen's
+`key-<id>-<token>` shape with the description `Generated key for <ID>`.
+**Key length** sets the number of random characters in the token. The default
+is 6, as pm-config-gen uses, which is easy to type in a class; use 24 or more
+for anything exposed to a network you do not control. A participant that
+already has a key, in this instance or another, is shown but cannot be
+selected, because a participant may have keys in only one instance. A row's
+**Generate** button and **+ Add credential** make keys in the same shape,
+labelled `readonly` for a read-only key (`key-readonly-…`). They use the
+length last used in the dialog, which this browser remembers (6 until then).
+
+The **API credentials in separate files** switch on the Review & Export tab
+turns credentials files on for every instance at once. A single instance
+writes to `api_keys.yaml`, as `pm-config-gen --api-keys-for` does. Several
+instances each get `api_keys_<instance>.yaml`, because instances sharing a
+file would each accept every key in it. A name an instance already has is
+kept. Turning the switch off writes all credentials inline again. An instance
+added while it is on gets a file too.
+
 An instance's **Credentials file** keeps its API keys out of the main file,
 as `pm-config-gen --api-keys-for` does. The main file then names the file with
 `credentials_file:`, and **Download** writes the keys to that file beside it.
@@ -1055,8 +1076,9 @@ The **Review & Export** tab (Beginner) is the final pass:
 2. **Output options** — the download filename and the
    "comment default fields" toggle (emits the full commented reference block,
    matching `pm-config-gen --comment-default-config-fields`; the top bar's
-   **Comment defaults** checkbox is the same setting), and
-   **Separate symbol and participant files** (see below).
+   **Comment defaults** checkbox is the same setting),
+   **Separate symbol and participant files** (see below), and **API credentials
+   in separate files** (see [Auxiliary gateways](#auxiliary-gateways)).
 3. **YAML preview** — a live, syntax-highlighted, read-only render of exactly
    what will be downloaded, with a copy-to-clipboard button. This preview *is*
    the dry-run view. With separate files, buttons above it switch between

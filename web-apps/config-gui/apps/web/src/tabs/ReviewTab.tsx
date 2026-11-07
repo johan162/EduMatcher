@@ -11,6 +11,7 @@ import { FieldRow } from "@/components/fields/FieldRow";
 import { TextInput } from "@/components/fields/inputs";
 import { Switch } from "@/components/ui/Switch";
 import { tabById } from "@/lib/tabs";
+import { credentialsInFiles, setCredentialsInFiles } from "@/lib/apiKeys";
 
 export function ReviewTab() {
   const draft = useDraftStore((s) => s.draft);
@@ -137,6 +138,27 @@ export function ReviewTab() {
             checked={draft.output.splitIncludes}
             onCheckedChange={(v) => update((d) => (d.output.splitIncludes = v))}
           />
+        </FieldRow>
+        <FieldRow
+          label="API credentials in separate files"
+          help={{
+            text:
+              draft.apiGateways.length === 0
+                ? "No API gateway is configured (Auxiliary Gateways), so there are no credentials to move."
+                : "Keep the API keys out of the main file: each API gateway instance writes its credentials to its own file beside it, named with credentials_file (api_keys.yaml for a single instance, else api_keys_<instance>.yaml; rename one on the Auxiliary Gateways tab). The files hold secrets, so keep them out of version control. Off writes the credentials inline.",
+            cliFlag: "--api-keys-for",
+          }}
+          path="apiGateways"
+        >
+          <Switch
+            aria-label="API credentials in separate files"
+            checked={credentialsInFiles(draft)}
+            disabled={draft.apiGateways.length === 0}
+            onCheckedChange={(v) => update((d) => setCredentialsInFiles(d, v))}
+          />
+          {draft.apiGateways.some((gw) => gw.credentialsFile !== undefined) && !credentialsInFiles(draft) && (
+            <span className="text-sm text-fg-subtle">Some instances already use a file; on gives the rest one.</span>
+          )}
         </FieldRow>
       </Section>
 
