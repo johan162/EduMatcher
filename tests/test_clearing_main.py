@@ -2,9 +2,9 @@
 Tests for the pm-clearing v2 main process.
 
 ZMQ strategy: real in-process sockets (inproc://) for integration tests.
-The test creates a PUB socket, binds it to an inproc address, starts the
-clearing process in a thread with a matching SUB socket, then publishes
-trade messages and asserts the DB is updated correctly.
+The tests create an XPUB socket, bind it to an inproc address, start the
+clearing process in a thread with a matching SUB socket, then publish trade
+messages and assert the DB is updated correctly.
 """
 
 from __future__ import annotations
@@ -87,15 +87,30 @@ def _seed_position(process: ClearingProcess, net_qty: int) -> None:
 
 class _InprocPublisher:
     """
-    Thin wrapper that manages an inproc PUB socket for one test.
+    Thin wrapper that manages an inproc XPUB socket for one test.
 
     Uses a unique address per test to avoid cross-test interference.
     """
 
     def __init__(self, addr: str) -> None:
         self._ctx: zmq.Context[zmq.Socket[bytes]] = zmq.Context.instance()
-        self._pub: zmq.Socket = self._ctx.socket(zmq.PUB)
+        self._pub: zmq.Socket = self._ctx.socket(zmq.XPUB)
+        self._pub.setsockopt(zmq.XPUB_VERBOSE, 1)
         self._pub.bind(addr)
+
+    def wait_for_subscription(self, topic: bytes, timeout: float = 5.0) -> None:
+        """Wait until a subscriber confirms its topic filter is installed."""
+        expected = b"\x01" + topic
+        deadline = time.monotonic() + timeout
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0 or not self._pub.poll(int(remaining * 1000)):
+                raise AssertionError(
+                    f"no subscriber registered for topic {topic!r} within {timeout}s"
+                )
+            event = self._pub.recv()
+            if event == expected:
+                return
 
     def publish(self, trade: Trade) -> None:
         self._pub.send_multipart(_encode_trade(trade))
@@ -175,12 +190,12 @@ class TestClearingProcessIntegration:
     Integration tests using real inproc:// ZMQ sockets.
 
     Pattern for each test:
-    1. Bind a PUB socket to an inproc address.
+    1. Bind an XPUB socket to an inproc address.
     2. Create ClearingProcess (not yet running).
     3. Start process.run() in a daemon thread so the SUB connects.
-    4. Sleep briefly to allow the SUB socket to connect to the PUB.
+    4. Wait for the SUB socket to install its topic subscription when needed.
     5. Publish trade messages.
-    6. Sleep briefly for receive + flush.
+    6. Wait for receive + flush when the test needs persistence confirmation.
     7. Stop process and join thread.
     8. Assert DB state.
     """
@@ -253,13 +268,19 @@ class TestClearingProcessIntegration:
             retention_days=3650,
         )
         t = self._start(process)
-        time.sleep(0.2)  # allow SUB to connect
+        try:
+            pub.wait_for_subscription(b"trade.executed")
 
-        pub.publish(_make_trade("T-SINGLE"))
-        time.sleep(0.3)
-
-        self._stop(process, t)
-        pub.close()
+            pub.publish(_make_trade("T-SINGLE"))
+            deadline = time.monotonic() + 5.0
+            while process._trades_settled == 0 and time.monotonic() < deadline:
+                time.sleep(0.01)
+            assert (
+                process._trades_settled == 1
+            ), "clearing did not flush the published trade"
+        finally:
+            self._stop(process, t)
+            pub.close()
 
         conn = open_writer_connection(db_path)
         ids = [r["id"] for r in query_trades(conn)]
