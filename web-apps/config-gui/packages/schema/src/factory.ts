@@ -380,7 +380,7 @@ export function createBlankDraft(): EngineConfigDraft {
     logServer: createLogServer(),
     apiGateways: [],
     monitor: createMonitor(),
-    output: { filename: "engine_config.yaml", commentDefaultFields: false },
+    output: { filename: "engine_config.yaml", commentDefaultFields: false, splitIncludes: false },
     unmappedYaml: {},
   };
 }

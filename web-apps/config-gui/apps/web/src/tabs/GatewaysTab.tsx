@@ -411,6 +411,22 @@ function ApiPanel() {
           <NumField label="Port" path={`apiGateways.${gw.name}.port`} value={gw.port} onChange={(v) => update((d) => (d.apiGateways[i]!.port = v ?? gw.port))} help={{ text: "TCP port this instance's REST/WebSocket server listens on.", cliFlag: "--api-gateway-port" }} />
 
           <ApiCredentialsEditor index={i} />
+          <FieldRow
+            label="Credentials file"
+            path={`apiGateways.${gw.name}.credentialsFile`}
+            help={{
+              text: "Keep the credentials out of the main file: they are written to this file beside it, which the main file names with credentials_file. The file holds secrets, so keep it out of version control. Empty = credentials written inline.",
+              cliFlag: "--api-keys-for",
+            }}
+          >
+            <TextInput
+              aria-label="Credentials file"
+              value={gw.credentialsFile ?? ""}
+              onChange={(v) => update((d) => (d.apiGateways[i]!.credentialsFile = v || undefined))}
+              placeholder="e.g. api_keys.yaml"
+              className="w-64"
+            />
+          </FieldRow>
 
           <FieldRow label="Swagger UI" help={{ text: "Serve interactive /docs and /openapi.json pages alongside the API.", cliFlag: "--api-gateway-swagger-enabled" }}>
             <Switch aria-label="Swagger UI enabled" checked={gw.swaggerEnabled} onCheckedChange={(v) => update((d) => (d.apiGateways[i]!.swaggerEnabled = v))} />

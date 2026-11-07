@@ -32,7 +32,7 @@ import {
   engineConfigDraftSchema,
 } from "@edumatcher/schema";
 import { evaluateDiagnostics } from "@edumatcher/diagnostics";
-import { generateYaml, parseYamlToDraft } from "@edumatcher/yaml-codec";
+import { generateYaml, parseConfigFiles } from "@edumatcher/yaml-codec";
 import { loadServerConfig } from "./config.js";
 import { CverifierUnavailableError, verifyYaml } from "./verify.js";
 
@@ -47,7 +47,12 @@ const app = Fastify({
 await app.register(helmet, { contentSecurityPolicy: false });
 await app.register(cors, { origin: serverConfig.corsOrigin });
 
-const importBody = z.object({ yaml: z.string().max(serverConfig.maxImportBytes) });
+// A main file plus the files its `include:` list names; the body limit caps the total.
+const importBody = z.object({
+  files: z
+    .array(z.object({ name: z.string().min(1), text: z.string().max(serverConfig.maxImportBytes) }))
+    .min(1),
+});
 const validateBody = z.object({ draft: engineConfigDraftSchema });
 const generateBody = z.object({
   draft: engineConfigDraftSchema,
@@ -91,8 +96,7 @@ app.post("/api/config/import", async (request, reply) => {
   const parsed = importBody.safeParse(request.body);
   if (!parsed.success) return badRequest(reply, parsed.error);
   try {
-    const { draft, unmapped } = parseYamlToDraft(parsed.data.yaml);
-    return { draft, unmapped };
+    return parseConfigFiles(parsed.data.files);
   } catch (err) {
     return reply.status(422).send({
       error: "parse_failed",

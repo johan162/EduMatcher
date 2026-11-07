@@ -23,10 +23,12 @@ async function postJson<T>(path: string, body: unknown): Promise<T> {
 export interface ImportResponse {
   draft: EngineConfigDraft;
   unmapped: string[];
+  notes: string[];
 }
 
-export function importYaml(yaml: string): Promise<ImportResponse> {
-  return postJson<ImportResponse>("/api/config/import", { yaml });
+/** Import one config file, or a main file together with the files it includes. */
+export function importYaml(files: Array<{ name: string; text: string }>): Promise<ImportResponse> {
+  return postJson<ImportResponse>("/api/config/import", { files });
 }
 
 export function generate(

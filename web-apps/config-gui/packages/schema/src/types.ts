@@ -530,6 +530,11 @@ export interface ApiGatewayConfig {
   indexPullAddr?: string;
   indexPubAddr?: string;
   credentials: ApiCredential[];
+  /**
+   * File beside the main one that holds `credentials` (`credentials_file`).
+   * Undefined = the credentials are written inline.
+   */
+  credentialsFile?: string;
   rateLimitWritesPerSecond: number;
   rateLimitBurst: number;
   engineAuthSec: number;
@@ -637,6 +642,11 @@ export interface EngineConfigDraft {
   output: {
     filename: string;
     commentDefaultFields: boolean;
+    /**
+     * Write symbols and participants to symbols.yaml / participants.yaml,
+     * listed under `include:` in the main file (pm-config-gen --split).
+     */
+    splitIncludes: boolean;
   };
 
   /** YAML this GUI version does not model; preserved on export keyed by top-level section. */

@@ -2,7 +2,8 @@ import { useMemo, useState } from "react";
 import CodeMirror from "@uiw/react-codemirror";
 import { yaml as yamlLang } from "@codemirror/lang-yaml";
 import { githubLight, githubDark } from "@uiw/codemirror-theme-github";
-import { generateYaml } from "@edumatcher/yaml-codec";
+import { SPLIT_FILES } from "@edumatcher/schema";
+import { generateFiles, generateYaml, inlineCredentials } from "@edumatcher/yaml-codec";
 import { useDraftStore } from "@/store/draftStore";
 import { verify as verifyApi } from "@/api/client";
 import { Panel, Section } from "@/components/layout/Panel";
@@ -21,8 +22,12 @@ export function ReviewTab() {
 
   const [verifyState, setVerifyState] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [previewIndex, setPreviewIndex] = useState(0);
 
-  const yamlText = useMemo(() => generateYaml(draft), [draft]);
+  const files = useMemo(() => generateFiles(draft), [draft]);
+  const preview = files[Math.min(previewIndex, files.length - 1)]!;
+  // The files merge back into exactly this one, so it is what gets verified.
+  const yamlText = useMemo(() => generateYaml(inlineCredentials(draft)), [draft]);
 
   const errors = diagnostics.filter((d) => d.severity === "error");
   const warnings = diagnostics.filter((d) => d.severity === "warning");
@@ -39,14 +44,16 @@ export function ReviewTab() {
   }, [diagnostics]);
 
   const download = () => {
-    const blob = new Blob([yamlText], { type: "text/yaml" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = draft.output.filename || "engine_config.yaml";
-    a.click();
-    // Revoking synchronously can cancel the download in some browsers.
-    window.setTimeout(() => URL.revokeObjectURL(url), 0);
+    for (const file of files) {
+      const blob = new Blob([file.text], { type: "text/yaml" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = file.name;
+      a.click();
+      // Revoking synchronously can cancel the download in some browsers.
+      window.setTimeout(() => URL.revokeObjectURL(url), 0);
+    }
   };
 
   const runVerify = async () => {
@@ -117,12 +124,46 @@ export function ReviewTab() {
             onCheckedChange={(v) => update((d) => (d.output.commentDefaultFields = v))}
           />
         </FieldRow>
+        <FieldRow
+          label="Separate symbol and participant files"
+          help={{
+            text: `Write the symbols to ${SPLIT_FILES.symbols} and the participants to ${SPLIT_FILES.participants}, listed under 'include:' in the main file. Keeps a config with hundreds of either readable. Keep all three files in the same directory.`,
+            cliFlag: "--split",
+          }}
+          path="output.splitIncludes"
+        >
+          <Switch
+            aria-label="Separate symbol and participant files"
+            checked={draft.output.splitIncludes}
+            onCheckedChange={(v) => update((d) => (d.output.splitIncludes = v))}
+          />
+        </FieldRow>
       </Section>
 
       <Section title="YAML preview" description="Comments in an imported file are not preserved on export; the GUI is a structural editor.">
+        {files.length > 1 && (
+          <div className="mb-2 flex gap-1" role="tablist" aria-label="Previewed file">
+            {files.map((file, i) => (
+              <button
+                key={file.name}
+                type="button"
+                role="tab"
+                aria-selected={file === preview}
+                onClick={() => setPreviewIndex(i)}
+                className={
+                  file === preview
+                    ? "rounded-md bg-accent px-3 py-1 text-sm text-accent-fg"
+                    : "rounded-md border border-border px-3 py-1 text-sm hover:bg-muted"
+                }
+              >
+                {file.name}
+              </button>
+            ))}
+          </div>
+        )}
         <div className="overflow-hidden rounded-md border border-border">
           <CodeMirror
-            value={yamlText}
+            value={preview.text}
             height="380px"
             readOnly
             theme={theme === "dark" ? githubDark : githubLight}
@@ -132,7 +173,7 @@ export function ReviewTab() {
         <button
           type="button"
           onClick={() => {
-            void navigator.clipboard.writeText(yamlText);
+            void navigator.clipboard.writeText(preview.text);
             setCopied(true);
             window.setTimeout(() => setCopied(false), 1500);
           }}
@@ -161,7 +202,7 @@ export function ReviewTab() {
             onClick={download}
             className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-accent-fg disabled:opacity-40"
           >
-            Download {draft.output.filename}
+            Download {files.map((f) => f.name).join(", ")}
           </button>
           <button
             type="button"

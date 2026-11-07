@@ -342,6 +342,7 @@ export const apiGatewaySchema = z.object({
   indexPullAddr: z.string().min(1).optional(),
   indexPubAddr: z.string().min(1).optional(),
   credentials: z.array(apiCredentialSchema),
+  credentialsFile: z.string().min(1).optional(),
   rateLimitWritesPerSecond: z.number().int().positive(),
   rateLimitBurst: z.number().int().positive(),
   engineAuthSec: z.number().positive(),
@@ -407,6 +408,7 @@ export const engineConfigDraftSchema = z.object({
   output: z.object({
     filename: z.string().min(1),
     commentDefaultFields: z.boolean(),
+    splitIncludes: z.boolean(),
   }),
   unmappedYaml: z.record(z.string(), z.unknown()),
 });

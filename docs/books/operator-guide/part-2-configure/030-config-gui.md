@@ -851,6 +851,16 @@ advanced tuning — only appear at Expert:
 *The `desk` instance on port 8080 with one credential per participant; **Generate** makes a
 fresh random key. A second instance, `dashboards`, follows below it with the read-only key.*
 
+An instance's **Credentials file** keeps its API keys out of the main file,
+as `pm-config-gen --api-keys-for` does. The main file then names the file with
+`credentials_file:`, and **Download** writes the keys to that file beside it.
+The file holds secrets, so keep it out of version control. Instances that name
+the same file all read the whole of it, so it is written once. The Review tab
+flags an error if they list different credentials, or if the name is
+absolute, contains `..`, is reserved (`engine_config.yaml`,
+`engine_config.json`, `market_sim.yaml`), or is the name of another output
+file.
+
 Each sub-tab (other than ALF, which is always present) has its own **"Write
 `<section>` section"** toggle: off omits that section from the exported file
 entirely, rather than writing it with defaults. Enabling a gateway reveals its
@@ -995,6 +1005,32 @@ schema — is preserved verbatim in a per-section **"unmapped YAML" passthrough*
 and re-emitted unchanged on export, so import → edit → export never silently
 drops data. A banner marks any tab that carries unmapped content.
 
+A config split with `include:` (from `pm-config-gen --split`, or this GUI's
+**Separate symbol and participant files** option) is imported by selecting
+the main file *together with* every file it includes in the same file dialog.
+The GUI merges them with the engine's rules: lists concatenate, mappings merge
+one level deep, and a key defined twice is an error. It then turns on
+**Separate symbol and participant files**, so exporting writes the split
+again. A split exported by this GUI or by `pm-config-gen --split` round-trips
+file for file. Any other layout, such as schedules in an included file or
+different file names, merges just as the engine would. A note then says that
+export writes the standard layout instead: symbols in `symbols.yaml`,
+participants in `participants.yaml`, and everything else in the main file.
+An API gateway's `credentials_file` works the same way: select the file
+together with the config, and the GUI reads the credentials from it. The path
+is relative to the file that defines the gateway. The GUI keeps the file
+name, so the export writes the keys to that file again, not into the main
+file.
+
+Import refuses what the engine refuses: an include or credentials file path
+that is absolute or contains `..`, a reserved name (`engine_config.yaml`,
+`engine_config.json` or `market_sim.yaml` beside the main file), an include
+listed twice, nested includes, and a gateway with both `credentials` and
+`credentials_file`. It also refuses a selection it cannot resolve: a file the
+config names that was not selected, a selected file the config does not name,
+or two named files with the same name in different directories. The browser
+sees only file names, not paths.
+
 A file written by an earlier `config-gui` may carry a top-level `country`,
 which no process reads. Import does not convert it (it is kept as unmapped
 YAML); set the country again on the Basics tab so it is written under
@@ -1019,15 +1055,31 @@ The **Review & Export** tab (Beginner) is the final pass:
 2. **Output options** — the download filename and the
    "comment default fields" toggle (emits the full commented reference block,
    matching `pm-config-gen --comment-default-config-fields`; the top bar's
-   **Comment defaults** checkbox is the same setting).
+   **Comment defaults** checkbox is the same setting), and
+   **Separate symbol and participant files** (see below).
 3. **YAML preview** — a live, syntax-highlighted, read-only render of exactly
    what will be downloaded, with a copy-to-clipboard button. This preview *is*
-   the dry-run view.
+   the dry-run view. With separate files, buttons above it switch between
+   the files.
 4. **Export actions:**
-    - **Download** — writes `engine_config.yaml` (blocked while any error
-      exists; warnings require a one-time acknowledgement).
+    - **Download** — writes `engine_config.yaml`, plus the included files when
+      they are separate and any API [credentials file](#auxiliary-gateways)
+      (blocked while any error exists; warnings require a one-time
+      acknowledgement).
     - **Verify with pm-cverifier** — optional; see
       [server-side verification](#optional-server-side-verification).
+
+**Separate symbol and participant files** matches `pm-config-gen --split`.
+With it on, the symbols are written to `symbols.yaml` and the participants to
+`participants.yaml`. The main file lists both under `include:` and leaves the
+two keys out, which keeps a config with hundreds of symbols or participants
+readable. The engine merges the files back into the same configuration, so
+**Verify with pm-cverifier** checks the equivalent single file. **Download**
+saves all three files; your browser may ask once whether to allow multiple
+downloads. Keep the files in the same directory, and give the main file a
+name other than `symbols.yaml` or `participants.yaml` (the Review tab flags a
+clash as an error). `pm-config-deploy` installs the included files together
+with the main file.
 
 The download is an **authored** `engine_config.yaml` — the file you keep and
 version, not the one the exchange runs. Install it before starting anything:

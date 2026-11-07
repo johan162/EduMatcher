@@ -19,6 +19,7 @@ import {
   effectiveDefaultCollar,
   writtenLastPrices,
   writtenMmQuotes,
+  type ApiGatewayConfig,
   type EngineConfigDraft,
   type Schedule,
   type SymbolConfig,
@@ -455,11 +456,10 @@ function buildApiGateways(draft: EngineConfigDraft): PlainConfig {
       ...(gw.indexPullAddr !== undefined ? { index_pull_addr: gw.indexPullAddr } : {}),
       ...(gw.indexPubAddr !== undefined ? { index_pub_addr: gw.indexPubAddr } : {}),
       order_retention_sec: gw.orderRetentionSec,
-      credentials: gw.credentials.map((c) => ({
-        api_key: c.apiKey,
-        gateway_id: c.gatewayId,
-        description: c.description ?? "",
-      })),
+      // A credentials file is written beside the main one (generateFiles).
+      ...(gw.credentialsFile !== undefined
+        ? { credentials_file: gw.credentialsFile }
+        : { credentials: credentialPayload(gw) }),
       rate_limit: {
         writes_per_second: gw.rateLimitWritesPerSecond,
         burst: gw.rateLimitBurst,
@@ -475,6 +475,15 @@ function buildApiGateways(draft: EngineConfigDraft): PlainConfig {
 }
 
 /** Build the ordered engine_config document from a draft. */
+/** An API gateway's credentials as written to the file. */
+export function credentialPayload(gw: ApiGatewayConfig): PlainConfig[] {
+  return gw.credentials.map((c) => ({
+    api_key: c.apiKey,
+    gateway_id: c.gatewayId,
+    description: c.description ?? "",
+  }));
+}
+
 export function buildConfigDocument(draft: EngineConfigDraft): PlainConfig {
   const cfg: PlainConfig = {
     sessions_enabled: draft.sessionsEnabled,
