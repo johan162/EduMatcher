@@ -1,3 +1,30 @@
+## [v0.76.5] - 2026-11-07
+
+Release Type: minor
+
+### 📋 Summary
+This release expands simulator forensics with engine decision traces and checks for order lifecycle, refusal and circuit-breaker behavior. It also fixes several order-cancellation and recovery edge cases.
+
+### ✨ Additions
+- Added forensic checks for refusal decisions, circuit-breaker transitions, order expiry and exact-scope cancellation
+- Added engine decision traces for uncross pricing, all-or-none preflight and self-match prevention decisions
+
+### 🚀 Improvements
+- Improved replay timing by anchoring reruns to each input's first engine timestamp
+- Preserved circuit-breaker reference windows in checkpoints and excluded tainted combo commands from reruns
+
+### 🐛 Bug Fixes
+- Fixed DAY quotes not being cancelled when their legs expire at the close
+- Fixed the global kill switch leaving a hit quote's remainder in the book
+- Fixed combo handling on re-seeded books and ensured matched combo legs are unlinked
+
+### 📚 Documentation
+- Expanded the simulator forensics workplan and updated order-lifecycle and engine-trace documentation
+
+### 🛠 Internal
+- Added forensic regression coverage for matching, refusals, circuit breakers, order expiry and rerun behavior
+- Replaced the clearing integration test's timing-based startup assumption with subscriber-readiness synchronization
+
 ## [v0.76.4] - 2026-11-07
 
 Release Type: patch
