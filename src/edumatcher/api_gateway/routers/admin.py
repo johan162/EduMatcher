@@ -935,26 +935,10 @@ async def admin_orders(  # pyright: ignore[reportUnusedFunction]
     engine holds them, `GET /admin/gateways/{gateway_id}/orders`.
     """
     await require_admin(request, session)
-    orders = request.app.state.engine.all_orders()
-
-    wanted_symbol = symbol.upper() if symbol else None
-    wanted_gateway = gateway_id.upper() if gateway_id else None
-    wanted_status = status_filter.upper() if status_filter else None
-
     filtered = [
         {"client_tag": None, **order}
-        for order in orders
-        if (
-            wanted_symbol is None
-            or str(order.get("symbol", "")).upper() == wanted_symbol
-        )
-        and (
-            wanted_gateway is None
-            or str(order.get("gateway_id", "")).upper() == wanted_gateway
-        )
-        and (
-            wanted_status is None
-            or str(order.get("status", "")).upper() == wanted_status
+        for order in request.app.state.engine.all_orders(
+            symbol=symbol, gateway_id=gateway_id, status=status_filter
         )
     ]
     return {

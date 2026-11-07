@@ -18,7 +18,7 @@ by that one prefix.
 |---|---|---|---|
 | `/api/v1/ws/private` | Trading key | The caller gateway's order, quote and risk events | `256` |
 | `/api/v1/ws/market-data` | Any key | Public book, depth, trades, auctions, session, halts and news, by subscription | `512` |
-| `/api/v1/ws/admin/monitor` | ADMIN | Every engine event across all gateways, plus `admin.action` | `512` |
+| `/api/v1/ws/admin/monitor` | ADMIN | Every engine event across all gateways except public market data and `engine.trace`, plus `admin.action` | `512` |
 | `/api/v1/ws/admin/sim` | ADMIN | `pm-market-sim` state and the model's true values | `64` |
 
 **Queue** is the number of events the gateway holds for one socket that has
@@ -280,6 +280,13 @@ The client sends control frames as JSON objects at any time after
 Every engine event this gateway receives, across all gateways, in the
 standard envelope, plus `admin.action`. ADMIN only.
 
+Two families are left out: public market data (`book`, `depth`, `trade`,
+`auction`, `auction.indicative`), which an ADMIN reads on
+[`/api/v1/ws/market-data`](#apiv1wsmarket-data), and the audit-only
+`engine.trace.{symbol}`. Under load these were about half of the feed, and no
+monitor renders them. Whole topics are omitted, so the per-topic `seq` of
+everything that is sent stays contiguous.
+
 ### Opening frames
 
 | `type` | Fields | Meaning |
@@ -289,7 +296,8 @@ standard envelope, plus `admin.action`. ADMIN only.
 
 ### Events
 
-All private and market-data event types above, for every gateway, and:
+All private event types above, for every gateway, `session` and
+`circuit_breaker`, and:
 
 | `type` | Engine topic | Payload |
 |---|---|---|
@@ -303,6 +311,13 @@ reference events) also arrive here, with `type` derived as in
 
 None by replay: on reconnect the snapshot is current state. History is the
 audit trail (`GET /api/v1/admin/orders/{order_id}/audit`, `pm-audit-cli`).
+
+A `seq` gap on a live connection means the gateway dropped events because this
+client's queue was full. A dropped fill or cancel leaves an order looking
+working. The monitor SHOULD repair its working-order view from
+`GET /api/v1/admin/orders?status=…` (one call per working status) rather than
+by reconnecting: the opening snapshot also carries every cached terminal order,
+which under the load that caused the gap is far larger than the working set.
 
 ## `/api/v1/ws/admin/sim`
 

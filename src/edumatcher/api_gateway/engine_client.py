@@ -14,7 +14,7 @@ import zmq
 from fastapi import HTTPException, status
 
 from edumatcher.api_gateway.caches import SessionCaches
-from edumatcher.api_gateway.market_cache import MarketDataCache
+from edumatcher.api_gateway.market_cache import MarketDataCache, channel_for_topic
 from edumatcher.api_gateway.events import (
     ADMIN_ACTION_PREFIX,
     COMMAND_TOPICS,
@@ -63,7 +63,7 @@ from edumatcher.models.message import (
     make_symbols_request_msg,
     make_volume_request_msg,
 )
-from edumatcher.models.generated.order import topic_order_ack
+from edumatcher.models.generated.order import PREFIX_ENGINE_TRACE, topic_order_ack
 from edumatcher.models.order import Order
 from edumatcher.models.price import register_tick_decimals
 from edumatcher.models.generated.risk import topic_kill_switch_ack
@@ -81,6 +81,8 @@ from edumatcher.models.generated.system import (
 
 log = logging.getLogger(__name__)
 _DEBUG_SUMMARY_INTERVAL_SEC = 5.0
+#: Most engine messages handed to the event loop in one callback.
+_RECV_BATCH_MAX = 256
 
 
 @dataclass
@@ -413,14 +415,26 @@ class EngineClient:
                     break
                 if self._sub not in ready:
                     continue
-                try:
-                    topic, payload = decode(self._sub.recv_multipart())
-                except Exception as exc:
-                    self._dbg_count("decode_errors")
-                    log.warning("Dropping malformed engine PUB message: %s", exc)
-                    continue
-                self._dbg_count("pub_messages")
-                self._loop.call_soon_threadsafe(self._handle_event, topic, payload)
+                # Drain what is already queued and hand it over in one call.
+                # call_soon_threadsafe per message wrote to the loop's wakeup
+                # pipe and took the GIL hand-off once per event, which at the
+                # open burst (~6k msgs/s) was a cost of its own on a loop
+                # already short of CPU. The cap keeps one batch from holding
+                # the loop for long.
+                batch: list[tuple[str, dict[str, Any]]] = []
+                while len(batch) < _RECV_BATCH_MAX:
+                    try:
+                        frames = self._sub.recv_multipart(zmq.NOBLOCK)
+                    except zmq.Again:
+                        break
+                    try:
+                        batch.append(decode(frames))
+                    except Exception as exc:
+                        self._dbg_count("decode_errors")
+                        log.warning("Dropping malformed engine PUB message: %s", exc)
+                if batch:
+                    self._dbg_count("pub_messages", len(batch))
+                    self._loop.call_soon_threadsafe(self._handle_events, batch)
         finally:
             self._flush_debug_summary(force=True)
             # Ensure is_running()/`/healthz` reflect reality even if this thread
@@ -489,6 +503,19 @@ class EngineClient:
                 event.get("topic", "?"),
                 total,
             )
+
+    def _handle_events(self, batch: list[tuple[str, dict[str, Any]]]) -> None:
+        """Apply one receive-thread batch, in order.
+
+        Each event is isolated as it was when every event was its own loop
+        callback: one that raises is logged and the rest of the batch still
+        runs.
+        """
+        for topic, payload in batch:
+            try:
+                self._handle_event(topic, payload)
+            except Exception:
+                log.exception("engine event %s failed in the gateway", topic)
 
     def _handle_event(self, topic: str, payload: dict[str, Any]) -> None:
         self._dbg_count("events_handled")
@@ -559,11 +586,12 @@ class EngineClient:
             self._dbg_count("market_data_events")
             if topic == TOPIC_TRADE_EXECUTED:
                 # Lands in the shared last-price map; one apply covers every
-                # session, present and future.
+                # session, present and future. It is the only public topic
+                # SessionCaches.apply acts on, so nothing else is folded into
+                # the per-gateway caches: the loop over every cache that used
+                # to sit here was a no-op for book/depth/trace and cost
+                # O(gateways) per event.
                 self._market_view.apply(topic, payload)
-            else:
-                for cache in self._caches.values():
-                    cache.apply(topic, payload)
             event = envelope(topic, payload, seq=seq)
             # Retain latest snapshot / recent trade tail so a (re)subscribing
             # or gap-detecting client can be served without waiting for the
@@ -575,7 +603,16 @@ class EngineClient:
                 else:
                     self._dbg_count("market_data_sink_drops")
                     self._record_drop("market_data", event)
-        # The ADMIN monitor feed sees every event regardless of routing branch.
+        # The ADMIN monitor feed sees every event regardless of routing branch,
+        # except public market data (an ADMIN has /ws/market-data for that)
+        # and the audit-only engine.trace. Together they were about half the
+        # feed and no monitor renders them; under a burst they were what
+        # overflowed the queue. Whole topics are skipped, so the per-topic
+        # seq a monitor checks stays contiguous.
+        if channel_for_topic(topic) is not None or topic.startswith(
+            PREFIX_ENGINE_TRACE
+        ):
+            return
         for queue in list(self._admin_sinks):
             if self._try_put(queue, event):
                 self._dbg_count("admin_sink_events")
@@ -651,7 +688,13 @@ class EngineClient:
             for cache in list(self._caches.values())
         )
 
-    def all_orders(self) -> list[dict[str, Any]]:
+    def all_orders(
+        self,
+        *,
+        symbol: str | None = None,
+        gateway_id: str | None = None,
+        status: str | None = None,
+    ) -> list[dict[str, Any]]:
         """Every cached order across every gateway, tagged with its owner.
 
         `_caches` accumulates an entry for each gateway whose events pass
@@ -659,11 +702,33 @@ class EngineClient:
         it just was not reachable. `gateway_id` is added on the way out
         because the order payloads themselves do not carry it; it is the
         dictionary key.
+
+        The optional filters compare case-insensitively and are applied
+        *before* the copy. The cache holds every terminal order for
+        `order_retention_sec` — about 200k at the open burst — and the admin
+        monitor's gap resync asks for the few thousand working ones every
+        10 s while the gateway is overloaded, so copying everything and
+        filtering afterwards was the expensive half of the call.
         """
+        wanted_symbol = symbol.upper() if symbol else None
+        wanted_gateway = gateway_id.upper() if gateway_id else None
+        wanted_status = status.upper() if status else None
         out: list[dict[str, Any]] = []
-        for gateway_id, cache in self._caches.items():
+        for gid, cache in self._caches.items():
+            if wanted_gateway is not None and gid.upper() != wanted_gateway:
+                continue
             for order in cache.orders.values():
-                out.append({**order, "gateway_id": gateway_id})
+                if (
+                    wanted_symbol is not None
+                    and str(order.get("symbol", "")).upper() != wanted_symbol
+                ):
+                    continue
+                if (
+                    wanted_status is not None
+                    and str(order.get("status", "")).upper() != wanted_status
+                ):
+                    continue
+                out.append({**order, "gateway_id": gid})
         return out
 
     def send_new_order(self, order: Order) -> None:

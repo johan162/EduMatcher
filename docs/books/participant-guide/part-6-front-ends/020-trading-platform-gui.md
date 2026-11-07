@@ -97,7 +97,8 @@ Three details shape how the screens behave:
   anything.
 - **Gaps are visible, not silent.** The market-data socket tracks a sequence
   number per topic; the admin monitor feed marks any stretch it could not
-  replay after a reconnect with a red `GAP` row in the Monitor Log.
+  replay after a reconnect, and any events the gateway dropped under load,
+  with a red `GAP` row in the Monitor Log.
 
 ## Prerequisites
 
@@ -1279,8 +1280,13 @@ Filter by **Event Type** — `ALL`, `ACK`, `FILL`, `CANCEL`, `AMEND`, `REJECT`,
 your filters.
 
 A red **`GAP`** row marks any boundary the feed could not replay after a
-reconnect. `GAP` rows are never filtered out, deliberately: a gap is worth
-noting before trusting the log as complete for that window.
+reconnect. It also marks events the gateway dropped while the feed was
+overloaded (*"N events dropped by the gateway"*), detected from the per-topic
+sequence numbers. After such a gap the GUI re-reads the working orders from the
+gateway, at most once every 10 s, so the order counts and tables recover even
+though the dropped log rows themselves cannot be replayed. `GAP` rows are never
+filtered out, deliberately: a gap is worth noting before trusting the log as
+complete for that window.
 
 Rows carrying an order id are clickable through to the cross-gateway order
 drill-down.
@@ -1730,7 +1736,7 @@ outside that network, and it has to be told how to get back in.
 | Circuit-breaker Level selector is empty for a symbol | That symbol has no configured CB ladder | Check `circuit_breaker.levels` for the symbol in `engine_config.yaml`; an empty ladder is valid, just leaves only the indefinite-halt option |
 | Active halts show blank Trigger/Reference price | The halt was restored from the bootstrap, not observed live | Expected; the halt is real, the prices populate only for halts seen on the live `circuit_breaker` channel |
 | Admin order drill-down says "Audit trail unavailable" | `pm-audit` is not running or has not built its index | Start `pm-audit`; the Monitor Log tail itself is unaffected |
-| A red `GAP` row in the Monitor Log | The monitor feed could not replay a stretch after a reconnect | Expected after a disconnect; treat the log as incomplete for that window |
+| A red `GAP` row in the Monitor Log | The monitor feed could not replay a stretch after a reconnect, or the gateway dropped events under load | Expected after a disconnect or a load burst; treat the log as incomplete for that window (working orders are resynced automatically) |
 | Reloading the page returns to the login screen | Expected — the API key is held in memory only, never in browser storage | Re-enter the key; this is by design for a localhost classroom system |
 
 ## Related documentation
