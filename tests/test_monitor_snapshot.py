@@ -478,3 +478,35 @@ def test_api_load_per_key_and_throttling(mon: Monitor, clocks: _Clocks) -> None:
     # Any throttling in 5 minutes is a WARN on the gateway.
     breach = [b for b in snap.thresholds if b.rule == "api_throttled"]
     assert [b.subject for b in breach] == ["pm-api-gwy@box"]
+
+
+def test_a_key_gone_after_a_gateway_restart_leaves_the_table(
+    mon: Monitor, clocks: _Clocks
+) -> None:
+    """The restarted gateway no longer reports "Old": no frozen total lingers
+    in the table or in the shares."""
+    started = int((OPEN - 3600) * 1e9)
+    before = [
+        _c("api.http_requests", 30),
+        _c("api.key_requests", 10, "Desk A"),
+        _c("api.key_requests", 20, "Old"),
+    ]
+    mon.receive(
+        _beacon_frames(process="pm-api-gwy", metrics=before, started_at_ns=started),
+        clocks.mono,
+    )
+    clocks.advance(2.0)
+    after = [_c("api.http_requests", 4), _c("api.key_requests", 4, "Desk A")]
+    mon.receive(
+        _beacon_frames(
+            process="pm-api-gwy",
+            boot_id="b" * 16,
+            metrics=after,
+            started_at_ns=started + int(3e9),
+        ),
+        clocks.mono,
+    )
+    (api,) = _snapshot(mon).api
+    assert [(k.label, k.requests_total, k.share_pct) for k in api.keys] == [
+        ("Desk A", 4, 100.0)
+    ]

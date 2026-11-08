@@ -276,6 +276,9 @@ class Activity:
         if gateway_metrics is not None:
             gateway = self.gateways.setdefault(key, Gateway(process))
             gateway.gauges = {}
+            # Every beacon carries every counter: a label the gateway no
+            # longer reports (a key gone after a restart) must not linger.
+            gateway.totals = {}
             if gateway.since is None:
                 gateway.since = now
         for sample in beacon.metrics:

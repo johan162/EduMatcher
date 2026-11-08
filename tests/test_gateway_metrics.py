@@ -491,6 +491,45 @@ def test_requests_and_throttles_are_counted_per_key() -> None:
     assert _value(samples, "api.http_requests") == 5
 
 
+def test_the_key_auth_resolves_is_the_one_counted() -> None:
+    """The real app and `auth`: the label `auth` leaves reaches the middleware,
+    and a 429 from the write-rate limiter counts against that key."""
+    from edumatcher.api_gateway.metrics import UNAUTH_LABEL
+    from edumatcher.api_gateway.rate_limit import RateLimiter
+    from tests.api_gateway_harness import call, make_app
+
+    class Engine:
+        async def authenticate(
+            self, gateway_id: str, timeout: float = 3.0
+        ) -> tuple[bool, str]:
+            return True, ""
+
+    app = make_app(Engine())
+    app.state.rate_limiter = RateLimiter(1, 1)
+    order = {
+        "symbol": "X",
+        "side": "BUY",
+        "order_type": "LIMIT",
+        "quantity": 1,
+        "price": 1.0,
+    }
+
+    async def scenario() -> list[int]:
+        codes = [(await call(app, "POST", "/api/v1/orders", body=order))[0]]
+        codes.append((await call(app, "POST", "/api/v1/orders", body=order))[0])
+        codes.append(
+            (await call(app, "GET", "/api/v1/orders", authorization="Bearer x"))[0]
+        )
+        return codes
+
+    codes = asyncio.run(scenario())
+    assert codes[1:] == [429, 401]
+    samples = app.state.health_metrics.samples(None)
+    assert _value(samples, "api.key_requests", "trader") == 2
+    assert _value(samples, "api.key_throttled", "trader") == 1
+    assert _value(samples, "api.key_requests", UNAUTH_LABEL) == 1
+
+
 def test_peak_is_the_busiest_second_and_names_the_key() -> None:
     clock = [100.0]
     m = ApiMetrics(clock=lambda: clock[0])

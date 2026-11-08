@@ -86,7 +86,9 @@ function ApiCharts() {
   );
 }
 
-function Gateway({ api, throttledLevel }: { api: ApiStats; throttledLevel: ReturnType<typeof useBreachLevel> }) {
+function Gateway({ api }: { api: ApiStats }) {
+  // This instance's breach only: another instance being throttled is its own tile.
+  const throttledLevel = useBreachLevel("api_throttled", api.key);
   const rows = useMemo(() => api.keys.map((k): KeyRow => ({ ...k, holdsPeak: k.label === api.peak_key })), [api.keys, api.peak_key]);
   return (
     <section aria-label={`REST API ${shortKey(api.key)}`} className="min-w-0">
@@ -118,7 +120,6 @@ function Gateway({ api, throttledLevel }: { api: ApiStats; throttledLevel: Retur
 
 export function ApiRow() {
   const api = useDashStore((s) => s.snapshot?.api ?? null);
-  const throttledLevel = useBreachLevel("api_throttled");
   const throttled = api?.reduce((sum, a) => sum + a.throttled_5m, 0) ?? 0;
 
   return (
@@ -130,7 +131,7 @@ export function ApiRow() {
           <ApiCharts />
           <div className="space-y-5">
             {api.map((a) => (
-              <Gateway key={a.key} api={a} throttledLevel={throttledLevel} />
+              <Gateway key={a.key} api={a} />
             ))}
           </div>
         </div>

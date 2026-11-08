@@ -294,6 +294,18 @@ describe("rows 3-7 (D3.4)", () => {
     expect([...table.querySelectorAll("tbody tr")].map((r) => r.getAttribute("data-row"))).toEqual(["Desk A", "Bot"]);
   });
 
+  it("REST API: a throttling breach colours only its own instance", () => {
+    const socket = renderAt();
+    const [desk] = CAPTURED.api;
+    const quiet = { ...desk!, key: "pm-api-gwy/dashboards@kappa1", throttled_total: 0, throttled_5m: 0 };
+    const breach = { rule: "api_throttled", subject: desk!.key, level: "WARN" as const, value: 2, threshold: 0, since: CAPTURED.ts };
+    socket.deliver(hello, frame(fixtureSnapshot({ api: [desk!, quiet], thresholds: [breach] })));
+    const throttledTile = (instance: string) =>
+      within(screen.getByRole("region", { name: `REST API ${instance}` })).getByRole("region", { name: "API throttled" }).getAttribute("data-level");
+    expect(throttledTile("pm-api-gwy/desk")).toBe("WARN");
+    expect(throttledTile("pm-api-gwy/dashboards")).not.toBe("WARN");
+  });
+
   it("books, gateways and the event log", async () => {
     const socket = renderAt();
     socket.deliver(hello, frame(CAPTURED));
