@@ -210,11 +210,9 @@ class Detector:
         #: log from an engine with no drop-copy publisher configured would
         #: report every trade as missing both of its copies.
         self._drop_copy_seen = False
-        #: The payload ``seq`` of the last drop copy read, and the run it
-        #: belonged to. One counter, not one per gateway:
-        #: ``engine/drop_copy.py`` counts on a module-level ``itertools.count``
-        #: shared by every gateway's feed.
-        self._last_drop_copy: int | None = None
+        #: Last payload sequence observed per gateway, and the engine run
+        #: those counters belong to.
+        self._last_drop_copy: dict[str, int] = {}
         self._drop_copy_run: int | None = None
         self._last_trade_seq: dict[int, int] = {}
         self._last_arrival: int | None = None
@@ -561,23 +559,24 @@ class Detector:
         """The feed's own counter, which is why the feed is sequenced.
 
         ``SEQ_GAP`` does not cover it: that reads the audit metadata's
-        per-topic sequence, and this is the payload's -- one process-wide
-        counter across every gateway's topic, so it is followed as one stream.
-        A repeat counts as much as a gap, because a recipient "detects loss
-        from a gap and a duplicate from a repeat" is the whole reason
+        per-topic sequence, and this is the payload's per-gateway sequence.
+        A repeat counts as much as a gap, because a recipient detects both
+        from its own stream, which is the whole reason
         ``drop_copy.yaml`` gives for having it.
         """
         seq = _int(fact.payload, "seq")
-        if seq is None:
+        gateway_id = _str(fact.payload, "gateway_id")
+        if seq is None or gateway_id is None:
             return
         run = self.state.run.run_seq
         if run != self._drop_copy_run:
             # The counter lives and dies with the engine process, so nothing
             # may be compared across a restart -- the same boundary
             # :meth:`_arrival` respects.
-            self._drop_copy_run, self._last_drop_copy = run, seq
-            return
-        previous, self._last_drop_copy = self._last_drop_copy, seq
+            self._drop_copy_run = run
+            self._last_drop_copy.clear()
+        previous = self._last_drop_copy.get(gateway_id)
+        self._last_drop_copy[gateway_id] = seq
         if previous is None or seq == previous + 1:
             return
         if seq > previous:

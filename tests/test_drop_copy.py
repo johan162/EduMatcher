@@ -14,15 +14,20 @@ sequence, the buffer bound, the replay window — and now use real fill fields.
 
 from __future__ import annotations
 
+import json
+import time
 from typing import Any
 
 import pytest
+import zmq
 
 from edumatcher.engine.drop_copy import (
     DROP_COPY_BUFFER_SIZE,
     DropCopyMessage,
     DropCopyPublisher,
 )
+from edumatcher.models.message import decode
+from tests.conftest import free_ports
 
 
 class _FakeSocket:
@@ -147,8 +152,8 @@ class TestPublish:
     ) -> None:
         pub, _ = publisher
         pub.publish_fill("GW01", **_fill(order_id="X4"))
-        assert len(pub._log) == 1
-        msg = pub._log[0]
+        assert len(pub._log_by_gateway["GW01"]) == 1
+        msg = pub._log_by_gateway["GW01"][0]
         assert isinstance(msg, DropCopyMessage)
         assert msg.gateway_id == "GW01"
         assert msg.event_type == "order.fill"
@@ -160,7 +165,7 @@ class TestPublish:
         pub, _ = publisher
         for i in range(DROP_COPY_BUFFER_SIZE + 10):
             pub.publish_fill("GW01", **_fill(order_id=f"X{i}"))
-        assert len(pub._log) == DROP_COPY_BUFFER_SIZE
+        assert len(pub._log_by_gateway["GW01"]) == DROP_COPY_BUFFER_SIZE
 
 
 class TestReplay:
@@ -172,10 +177,10 @@ class TestReplay:
         pub.publish_fill("GW01", **_fill(order_id="X2"))
         pub.publish_fill("GW01", **_fill(order_id="X3"))
 
-        first_seq = pub._log[0].seq
+        first_seq = pub._log_by_gateway["GW01"][0].seq
         sock.sent.clear()
 
-        replayed = pub.replay("CLIENT1", from_seq=first_seq + 1)
+        replayed = pub.replay("CLIENT1", from_seq=first_seq + 1, gateway_id="GW01")
         assert replayed == 2  # messages 2 and 3
 
     def test_replay_uses_replay_topic(
@@ -183,10 +188,10 @@ class TestReplay:
     ) -> None:
         pub, sock = publisher
         pub.publish_fill("GW01", **_fill())
-        first_seq = pub._log[0].seq
+        first_seq = pub._log_by_gateway["GW01"][0].seq
         sock.sent.clear()
 
-        pub.replay("CLIENT2", from_seq=first_seq)
+        pub.replay("CLIENT2", from_seq=first_seq, gateway_id="GW01")
         assert sock.sent[0][0] == b"drop_copy.replay.CLIENT2"
         import json
 
@@ -199,7 +204,7 @@ class TestReplay:
         for i in range(5):
             pub.publish_fill("GW01", **_fill(order_id=f"X{i}"))
         sock.sent.clear()
-        replayed = pub.replay("CLIENT3", from_seq=0)
+        replayed = pub.replay("CLIENT3", from_seq=0, gateway_id="GW01")
         assert replayed == 5
 
     def test_replay_from_beyond_last_seq_replays_nothing(
@@ -207,10 +212,83 @@ class TestReplay:
     ) -> None:
         pub, sock = publisher
         pub.publish_fill("GW01", **_fill())
-        last_seq = pub._log[-1].seq
+        last_seq = pub._log_by_gateway["GW01"][-1].seq
         sock.sent.clear()
-        replayed = pub.replay("CLIENT4", from_seq=last_seq + 1000)
+        replayed = pub.replay("CLIENT4", from_seq=last_seq + 1000, gateway_id="GW01")
         assert replayed == 0
+
+
+def test_recipient_subscribers_get_independent_contiguous_sequences() -> None:
+    ctx: zmq.Context[zmq.Socket[bytes]] = zmq.Context.instance()
+    (port,) = free_ports(1)
+    pub = DropCopyPublisher(ctx, addr=f"tcp://127.0.0.1:{port}")
+    subscribers: dict[str, zmq.Socket[bytes]] = {}
+    try:
+        for gateway_id in ("GW01", "GW02"):
+            sub = ctx.socket(zmq.SUB)
+            sub.connect(f"tcp://127.0.0.1:{port}")
+            sub.setsockopt(zmq.SUBSCRIBE, f"drop_copy.event.{gateway_id}".encode())
+            subscribers[gateway_id] = sub
+        time.sleep(0.1)
+
+        for gateway_id, order_id in (
+            ("GW01", "A1"),
+            ("GW02", "B1"),
+            ("GW01", "A2"),
+            ("GW02", "B2"),
+        ):
+            pub.publish_fill(gateway_id, **_fill(order_id=order_id))
+
+        received: dict[str, list[int]] = {"GW01": [], "GW02": []}
+        for gateway_id, sub in subscribers.items():
+            for _ in range(2):
+                assert sub.poll(timeout=1000)
+                topic, payload = sub.recv_multipart()
+                assert topic == f"drop_copy.event.{gateway_id}".encode()
+                received[gateway_id].append(json.loads(payload)["seq"])
+
+        assert received == {"GW01": [1, 2], "GW02": [1, 2]}
+    finally:
+        for sub in subscribers.values():
+            sub.close(linger=0)
+        pub.close()
+
+
+def test_new_publisher_starts_each_gateway_sequence_at_one() -> None:
+    ctx = _FakeContext()
+    pub = DropCopyPublisher(ctx, addr="tcp://127.0.0.1:15558")  # type: ignore[arg-type]
+    pub._pub = ctx._socket
+    pub.publish_fill("GW01", **_fill(order_id="before-restart"))
+    pub.close()
+
+    restarted_ctx = _FakeContext()
+    restarted_pub = DropCopyPublisher(
+        restarted_ctx, addr="tcp://127.0.0.1:15559"  # type: ignore[arg-type]
+    )
+    restarted_pub._pub = restarted_ctx._socket
+    restarted_pub.publish_fill("GW01", **_fill(order_id="after-restart"))
+
+    assert json.loads(restarted_ctx._socket.sent[0][1])["seq"] == 1
+    restarted_pub.close()
+
+
+def test_replay_is_scoped_to_the_gateway_sequence(
+    publisher: tuple[DropCopyPublisher, _FakeSocket],
+) -> None:
+    pub, sock = publisher
+    pub.publish_fill("GW01", **_fill(order_id="A1"))
+    pub.publish_fill("GW02", **_fill(order_id="B1"))
+    pub.publish_fill("GW01", **_fill(order_id="A2"))
+    sock.sent.clear()
+
+    replayed = pub.replay("RISK01", from_seq=2, gateway_id="GW01")
+
+    assert replayed == 1
+    topic, payload = decode(sock.sent[0])
+    assert topic == "drop_copy.replay.RISK01"
+    assert payload["gateway_id"] == "GW01"
+    assert payload["seq"] == 2
+    assert payload["order_id"] == "A2"
 
 
 class TestClose:

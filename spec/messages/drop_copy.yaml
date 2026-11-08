@@ -68,10 +68,10 @@ messages:
         unit: dimensionless
         validate: { gt: 0 }
         doc: >
-          Process-wide monotone counter, starting at 1 so that 0 can mean "no
-          events yet". Never resets while the engine lives. A recipient
-          detects loss from a gap and a duplicate from a repeat, which is the
-          whole reason the feed is sequenced.
+          Monotone counter for this gateway's stream, starting at 1 so that 0
+          can mean "no events yet". Independent of other gateways and resets
+          when the engine restarts. A recipient detects loss from a gap and a
+          duplicate from a repeat within this stream.
       - name: timestamp
         type: int
         unit: epoch_nanos
@@ -146,7 +146,9 @@ messages:
         the gateway, so two simultaneous replays do not interleave.
 
         `recipient_id` is therefore not the same thing as `gateway_id`, which
-        is why the body keeps carrying the latter.
+        is why the body keeps carrying the latter. The in-process replay method
+        selects one gateway's sequence and buffer; when those IDs differ, the
+        caller supplies `gateway_id` explicitly.
 
         There is no request message. `DropCopyPublisher.replay()` is
         in-process only, callable from the engine and reachable by no
@@ -156,7 +158,11 @@ messages:
       - { name: recipient_id, type: string, validate: { max_len: 32 },
           doc: "Who asked for the replay. Topic-only — deliberately not in
                 the body, which is byte-identical to the live event." }
-      - { name: seq, type: int, unit: dimensionless, validate: { gt: 0 } }
+      - name: seq
+        type: int
+        unit: dimensionless
+        validate: { gt: 0 }
+        doc: "Original sequence number in this gateway's live stream."
       - { name: timestamp, type: int, unit: epoch_nanos }
       - { name: gateway_id, type: string, validate: { max_len: 32 },
           doc: "Whose fill this was — not the recipient the topic names." }

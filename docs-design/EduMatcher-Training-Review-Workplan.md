@@ -744,29 +744,27 @@ Steps:
 
 ### T15 — Per-recipient drop-copy sequence (Q19)
 
-**Question to resolve:** Is `seq` required to be contiguous for each
-participant subscription, as promised by the protocol and chapter 21, or is
-it explicitly a global sequence whose per-recipient gaps must be interpreted
-differently?
+**Status:** Complete. Regression tests cover interleaved gateway live
+sequences, replay isolation, audit sequence tracking, and restart boundaries.
+
+**Decision:** Per-gateway (per-recipient stream) sequences are contiguous,
+start at 1, and reset when the engine restarts. Replay is restricted to that
+gateway's buffer, while its topic may name a distinct recipient ID.
 
 Steps:
-1. Add a failing multi-recipient protocol test: two gateways receive a trade;
-   each subscribes only to its own `drop_copy.event.<GW>` topic. Interleave
-   additional events for both gateways and assert the sequence contract for
-   each recipient independently.
-2. Test replay using each recipient's buffer, including a missing range and
-   engine restart. Verify sequence values are meaningful to the consumer of
-   that recipient's stream and do not imply false gaps.
-3. If the promised per-recipient gap detector is the contract, maintain
-   recipient-scoped sequence state and use it consistently for live delivery
-   and replay. If global sequence is intentional, amend protocol and chapter
-   language and define how consumers detect loss on filtered streams.
-4. Update the drop-copy specification, examples and chapter 21 with the
-   tested semantics, including restart behavior.
+1. Add a multi-recipient protocol test: two gateways publish interleaved
+   events, and each filtered subscriber receives its own contiguous sequence.
+2. Test replay against the selected gateway's buffer and ensure interleaved
+   events from another gateway are excluded. Verify audit replay tracks each
+   gateway independently and resets on an engine restart.
+3. Maintain gateway-scoped sequence state consistently for live delivery,
+   replay, and audit detection.
+4. Update the drop-copy specification, generated references, examples and
+   chapter 21 with the tested semantics, including restart behavior.
 
 **Definition of done:**
-- A two-gateway test reproduces the stride-2 observation and validates the
-  chosen sequence contract for both live and replayed events.
+- A two-gateway test reproduces the stride-2 observation and validates
+  independent contiguous sequences for live events and gateway-scoped replay.
 - No false gap is reported for a complete recipient stream.
 - Protocol, implementation and chapter agree on scope and reset behavior.
 - Targeted drop-copy tests and docs checks pass.

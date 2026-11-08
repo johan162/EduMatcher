@@ -173,12 +173,12 @@ pm-dc-spy --format json | jq 'select(.symbol == "AAPL")'
 
 ## Observing replay
 
-`DropCopyPublisher.replay(recipient_id, from_seq)` is currently an
-in-process method with no external wire protocol to trigger it (see
-[Drop Copy — Replay](../part-3-session-behaviour/060-drop-copy.md#replay)). `pm-dc-spy` cannot request a
-replay itself, but `--replay-of RECIPIENT_ID` lets you *watch* one happen —
-useful when a test or embedded consumer calls `replay()` and you want to
-see exactly what gets re-published:
+`DropCopyPublisher.replay(recipient_id, from_seq, gateway_id=...)` is
+currently an in-process method with no external wire protocol to trigger it
+(see [Drop Copy — Replay](../part-3-session-behaviour/060-drop-copy.md#replay)).
+`pm-dc-spy` cannot request a replay itself, but `--replay-of RECIPIENT_ID`
+lets you *watch* one happen — useful when a test or embedded consumer calls
+`replay()` and you want to see exactly what gets re-published:
 
 ```bash
 pm-dc-spy --replay-of MY_RISK_SYS

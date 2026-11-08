@@ -1478,7 +1478,7 @@ matters.
 | `MSG_ID_DUPLICATE` | error | Two messages with the same `msg_id`. Should be impossible; would mean the ULID generator was shared unsafely across threads |
 | `TRADE_COUNTER_GAP` | error | A gap in the per-run trade counter: trades specifically are missing. Redundant with `SEQ_GAP`, but kept — it localises the loss to the trade stream |
 | `ARRIVAL_SEQ_REUSED` | error | A repeated or decreasing `arrival_seq` within one run: two orders claiming one queue position. Always reported, unlike `ARRIVAL_SEQ_GAP` — a *gap* is expected whenever the window omits another gateway's orders, a *reuse* is expected never (AR-8.5) |
-| `DROP_COPY_SEQ_GAP` | error | A gap or a repeat in `drop_copy.seq`, the feed's own counter — one process-wide stream across every gateway's topic, not one per gateway. Not covered by `SEQ_GAP`, which keys on the audit metadata's per-topic sequence; and repeats count, because the spec names duplicate detection as half the reason the counter exists (AR-8.4) |
+| `DROP_COPY_SEQ_GAP` | error | A gap or a repeat in `drop_copy.seq`, tracked independently per gateway. Not covered by `SEQ_GAP`, which keys on the audit metadata's per-topic sequence; and repeats count, because the spec names duplicate detection as half the reason the counter exists (AR-8.4) |
 
 `SEQ_GAP` and `ESEQ_GAP` deserve emphasis. The per-topic and socket-wide
 counters are dense, so the tool can **prove** that messages are missing from
@@ -2258,9 +2258,9 @@ declares for it, rather than assuming.
 `state._HANDLERS` and no branch in `Detector.observe`**. The tool has no
 opinion about the feed clearing and prime brokers reconcile on.
 
-`drop_copy.seq` is documented as a *"process-wide monotone counter … a
-recipient detects loss from a gap and a duplicate from a repeat, which is the
-whole reason the feed is sequenced"* — and nothing reads it. `SEQ_GAP` does
+`drop_copy.seq` is documented as a *per-gateway monotone counter … a
+recipient detects loss from a gap and a duplicate from a repeat within its
+stream* — and nothing reads it. `SEQ_GAP` does
 not cover it: that keys on the audit metadata's per-topic `seq`, not the
 payload's.
 
@@ -2271,8 +2271,8 @@ Reproduced: payload `seq` 1 → 9 with a `fill_qty` of 999 beside an
 cross-message checks, which is what that class is for, and a `StateModel`
 handler would keep a counter nothing else in the model reads.
 
-- `DROP_COPY_SEQ_GAP` (error, §12.3) — a gap or a repeat in the payload `seq`.
-  Followed as **one stream**, not one per gateway: `engine/drop_copy.py`
+- `DROP_COPY_SEQ_GAP` (error, §12.3) — a gap or a repeat in the payload `seq`,
+  tracked independently for each gateway: `engine/drop_copy.py`
   counts on a module-level `itertools.count`, so consecutive events on two
   gateways' topics carry consecutive numbers and a per-gateway reading would
   report every second event as a gap. Repeats count, unlike `SEQ_GAP`: the

@@ -436,7 +436,7 @@ reader should look at, **info** is something expected at a window edge.
 | `CLOCK_SKEW` | warn | The engine's own clock and `pm-audit`'s receipt clock differ by more than `--clock-skew-warn` |
 | `LATE_ARRIVAL` | info | A fact arrived after its reorder window had closed |
 | `CLIENT_CLOCK_ABSURD` | info | An `order.new` client clock more than an hour from receipt. Harmless — priority is `arrival_seq` — but worth knowing |
-| `DROP_COPY_SEQ_GAP` | error | A gap **or a repeat** in the drop-copy feed's own payload `seq` — one process-wide counter across every gateway's topic. Not covered by `SEQ_GAP`, which reads the audit metadata's per-topic sequence |
+| `DROP_COPY_SEQ_GAP` | error | A gap **or a repeat** in the drop-copy feed's own payload `seq`, tracked independently per gateway. Not covered by `SEQ_GAP`, which reads the audit metadata's per-topic sequence |
 | `ARRIVAL_SEQ_REUSED` | error | A repeated or decreasing `arrival_seq` within one run: two orders claiming one queue position. Always reported, unlike the gap below |
 | `ARRIVAL_SEQ_GAP` | info | A gap in `arrival_seq` within one run. Expected whenever the window omits another gateway's orders, so `--strict` only |
 | `RUN_SEQ_CHANGE` | info | An engine restart observed mid-window. Not a fault, but nothing may be compared across it |

@@ -1019,7 +1019,7 @@ Engine to a participant's clearing broker, prime broker or in-house risk system:
 
 | Field | Type | Presence | Rules | Description |
 |---|---|---|---|---|
-| `seq` | `int` | required | gt 0, unit `dimensionless` | Process-wide monotone counter, starting at 1 so that 0 can mean "no events yet". Never resets while the engine lives. A recipient detects loss from a gap and a duplicate from a repeat, which is the whole reason the feed is sequenced. |
+| `seq` | `int` | required | gt 0, unit `dimensionless` | Monotone counter for this gateway's stream, starting at 1 so that 0 can mean "no events yet". Independent of other gateways and resets when the engine restarts. A recipient detects loss from a gap and a duplicate from a repeat within this stream. |
 | `timestamp` | `int` | required | unit `epoch_nanos` | When the engine published the event (`models/clock.py::now_ns`). |
 | `gateway_id` | `string` | required | max_len 32 | The participant whose order executed. Carried in the body as well as in the topic, because `drop_copy.replay` names the *recipient* in its topic instead and a replayed event would otherwise not say whose fill it was. |
 | `event_type` | enum: `order.fill` | required | — | One value today. An enum rather than a free string so that a second event type is a spec change with a regenerated binding, rather than a new dict key no reader knows about -- `DropCopyPublisher`'s own docstring promised "every fill and cancel" while only fills existed, which is how the gap went unnoticed. Section 27.3. |
@@ -1057,7 +1057,7 @@ Engine to one named recipient: buffered events re-published on request, so a par
 | Field | Type | Presence | Rules | Description |
 |---|---|---|---|---|
 | `recipient_id` | `string` | required | max_len 32 | Who asked for the replay. Topic-only — deliberately not in the body, which is byte-identical to the live event. |
-| `seq` | `int` | required | gt 0, unit `dimensionless` |  |
+| `seq` | `int` | required | gt 0, unit `dimensionless` | Original sequence number in this gateway's live stream. |
 | `timestamp` | `int` | required | unit `epoch_nanos` |  |
 | `gateway_id` | `string` | required | max_len 32 | Whose fill this was — not the recipient the topic names. |
 | `event_type` | enum: `order.fill` | required | — |  |
@@ -1075,6 +1075,8 @@ Engine to one named recipient: buffered events re-published on request, so a par
     Only the topic differs, and it names the *recipient* rather than the gateway, so two simultaneous replays do not interleave.
 
     `recipient_id` is therefore not the same thing as `gateway_id`, which is why the body keeps carrying the latter.
+
+    The in-process replay method selects one gateway's sequence and buffer; when those IDs differ, the caller supplies `gateway_id` explicitly.
 
     There is no request message.
 

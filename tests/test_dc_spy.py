@@ -561,7 +561,7 @@ def test_integration_replay_topic_received_when_requested(
             fill_price=150.25,
             liquidity_flag="MAKER",
         )
-        pub.replay("MY_RISK_SYS", from_seq=1)
+        pub.replay("MY_RISK_SYS", from_seq=1, gateway_id="TRADER01")
 
     t = threading.Thread(target=publish_and_replay)
     t.start()

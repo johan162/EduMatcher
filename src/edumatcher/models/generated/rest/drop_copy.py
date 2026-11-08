@@ -27,10 +27,10 @@ class DropCopyEvent(BaseModel):
     model_config = ConfigDict(use_attribute_docstrings=True)
 
     seq: int = Field(gt=0)
-    """Process-wide monotone counter, starting at 1 so that 0 can mean "no events
-    yet". Never resets while the engine lives. A recipient detects loss from a gap
-    and a duplicate from a repeat, which is the whole reason the feed is
-    sequenced.
+    """Monotone counter for this gateway's stream, starting at 1 so that 0 can mean
+    "no events yet". Independent of other gateways and resets when the engine
+    restarts. A recipient detects loss from a gap and a duplicate from a repeat
+    within this stream.
     """
     timestamp: int
     """When the engine published the event (`models/clock.py::now_ns`). Unit:
@@ -77,6 +77,7 @@ class DropCopyReplay(BaseModel):
     model_config = ConfigDict(use_attribute_docstrings=True)
 
     seq: int = Field(gt=0)
+    """Original sequence number in this gateway's live stream."""
     timestamp: int
     """Unit: epoch_nanos."""
     gateway_id: str = Field(max_length=32)
