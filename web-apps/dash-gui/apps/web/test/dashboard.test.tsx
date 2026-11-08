@@ -271,6 +271,29 @@ describe("rows 3-7 (D3.4)", () => {
     expect(usePrefsStore.getState().participantsPageSize).toBe(0);
   });
 
+  it("REST API: load and throttling per gateway and per key", async () => {
+    const socket = renderAt();
+    const breach = { rule: "api_throttled", subject: "pm-api-gwy/desk@kappa1", level: "WARN" as const, value: 2, threshold: 0, since: CAPTURED.ts };
+    socket.deliver(hello, frame(fixtureSnapshot({ thresholds: [breach] })));
+    const api = row("REST API");
+    expect(api.textContent).toContain("2 throttled in 5 min"); // the row badge
+    const within_ = within(api);
+    expect(tile("API requests / s")).toBe("4.50 /s");
+    expect(screen.getByRole("region", { name: "API peak / s" }).textContent).toContain("Bot");
+    const table = within_.getByRole("table", { name: "API keys" });
+    const cells = (label: string) => [...table.querySelector(`[data-row="${label}"]`)!.querySelectorAll("td")].map((td) => td.textContent);
+    expect(cells("Bot")[6]).toBe("40 ▲"); // the key behind the peak
+    expect(cells("Desk A")[6]).toBe("25");
+    expect(cells("Bot")[7]).toBe("7");
+    // The history charts: requests per second by key, and throttling by key.
+    expect(within_.getByRole("figure", { name: "API requests / s by key" })).toBeTruthy();
+    expect(within_.getByRole("figure", { name: "API throttled by key" })).toBeTruthy();
+    await waitFor(() => expect(bridge.count("/api/rate/by-label?name=api.key_requests")).toBe(1));
+    expect(bridge.count("/api/rate/by-label?name=api.key_throttled")).toBe(1);
+    // Sorted by load now, busiest first.
+    expect([...table.querySelectorAll("tbody tr")].map((r) => r.getAttribute("data-row"))).toEqual(["Desk A", "Bot"]);
+  });
+
   it("books, gateways and the event log", async () => {
     const socket = renderAt();
     socket.deliver(hello, frame(CAPTURED));
@@ -311,7 +334,7 @@ describe("history wiring (D3.5)", () => {
     const socket = renderAt();
     socket.deliver(hello, frame(CAPTURED));
     await waitFor(() => expect(bridge.count("/api/series/multi")).toBe(3)); // memory, CPU, engine latency
-    expect(bridge.count("/api/rate/by-label")).toBe(1);
+    expect(bridge.count("/api/rate/by-label")).toBe(3); // orders per participant, API requests and throttles per key
     expect(bridge.count("/api/rate?")).toBe(4); // trades, value, rejects, requests
     expect(bridge.count("/api/series?")).toBe(0); // the drawers' charts, none open
     expect(bridge.calls.find((c) => c.startsWith("/api/series/multi") && c.includes("proc.cpu_pct"))).toContain("range=1h");
@@ -321,7 +344,7 @@ describe("history wiring (D3.5)", () => {
     await waitFor(() => expect(bridge.count("/api/series/multi")).toBe(6));
     await new Promise((r) => setTimeout(r, 50));
     expect(bridge.count("/api/series/multi")).toBe(6); // once, not more
-    expect(bridge.count("/api/rate/by-label")).toBe(2);
+    expect(bridge.count("/api/rate/by-label")).toBe(6);
     expect(bridge.calls.filter((c) => c.startsWith("/api/series/multi")).slice(-1)[0]).toContain("range=6h");
   });
 

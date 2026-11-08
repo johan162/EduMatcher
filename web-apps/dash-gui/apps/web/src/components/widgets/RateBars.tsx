@@ -30,6 +30,8 @@ export interface RateBarsProps {
   n?: number;
   height?: number;
   width?: number;
+  /** Fractional ticks on the value axis: for rates per second, not for counts. */
+  allowDecimals?: boolean;
 }
 
 /** More buckets than this are not laid out one by one (the bridge allows 1 000). */
@@ -76,7 +78,7 @@ export function rateRows(series: readonly Series[], range: TimeRangeMs, bucketMs
  * data or window does -- so callers pass a stable `series` and `format`
  * (I118).
  */
-export const RateBars = memo(function RateBars({ label, series, range, bucketMs, tz, format, n = 8, height = 180, width }: RateBarsProps) {
+export const RateBars = memo(function RateBars({ label, series, range, bucketMs, tz, format, n = 8, height = 180, width, allowDecimals = false }: RateBarsProps) {
   const shown = topNSeries(series, Math.min(n, 8));
   const rows = rateRows(shown, range, bucketMs);
   const span = range.toMs - range.fromMs;
@@ -93,7 +95,7 @@ export const RateBars = memo(function RateBars({ label, series, range, bucketMs,
             <BarChart {...size} data={rows} margin={MARGIN} barCategoryGap={1}>
               <CartesianGrid stroke="var(--border-subtle)" vertical={false} />
               <XAxis dataKey="ts" tick={AXIS_TICK} tickFormatter={(ts: number) => formatAxisTime(ts, tz, span)} stroke="var(--border)" minTickGap={16} />
-              <YAxis tick={AXIS_TICK} tickFormatter={oneLine(format)} width={Y_AXIS_WIDTH} allowDecimals={false} stroke="var(--border)" />
+              <YAxis tick={AXIS_TICK} tickFormatter={oneLine(format)} width={Y_AXIS_WIDTH} allowDecimals={allowDecimals} stroke="var(--border)" />
               <Tooltip
                 contentStyle={TOOLTIP_STYLE}
                 cursor={{ fill: "var(--bg-inset)" }}

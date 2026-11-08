@@ -61,7 +61,8 @@ Vite proxies `/api` and `/ws` to the bridge, so open the Vite URL.
 ## Using it
 
 - **Rows.** Overview (is the exchange OK?), processes, trading activity,
-  participants, order books, gateways and infrastructure, and the event log.
+  participants, order books, the REST API's load per key, gateways and
+  infrastructure, and the event log.
   Each row folds away and the browser remembers it.
 - **Time.** The picker sets the window for every chart and is in the URL
   (`?from=now-6h`); live figures arrive once a second whatever it says, and
