@@ -2100,7 +2100,7 @@ class StatsProcess:
         # This handles the race where the engine seeded MM orders before we started.
         time.sleep(0.3)
         if not self._request_startup_symbols():
-            log.warning("pm-stats waiting for pm-engine to start")
+            log.info("pm-stats waiting for pm-engine to start")
             while self._running and not self._request_startup_symbols():
                 time.sleep(_ENGINE_RETRY_SEC)
         if not self._running:

@@ -169,8 +169,10 @@ class HealthReporter:
             # The sampler has reported the previous interval's worst gap.
             self._gap_epoch_seen = self._gap_epoch
             self._max_gap = 0.0
+        # The first tick ends set-up (``starting``), which is not a loop
+        # iteration: counting it read every slow start-up as a late loop.
         gap = now - self._last_tick
-        if gap > self._max_gap:
+        if gap > self._max_gap and self._last_tick != self._started_at:
             self._max_gap = gap
         self._last_tick = now
 

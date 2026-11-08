@@ -267,6 +267,16 @@ class TestHungSemantics:
 
 
 class TestStarting:
+    def test_slow_setup_is_not_loop_lag(self, collector: Collector) -> None:
+        """The first tick ends set-up; the time before it is not a late loop."""
+        rep = _reporter(collector.port)
+        time.sleep(0.05)
+        rep.tick()
+        assert rep._max_gap == 0.0
+        time.sleep(0.05)
+        rep.tick()
+        assert rep._max_gap >= 0.05
+
     def test_starting_until_the_first_tick(self, collector: Collector) -> None:
         """Set-up before the loop exists is reported as starting, not as a
         hung loop -- loop_age_ms still grows, so a stuck start stays visible."""
