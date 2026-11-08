@@ -1,3 +1,31 @@
+## [v0.77.0] - 2026-11-08
+
+Release Type: major
+
+### 📋 Summary
+This release changes drop-copy sequencing to support independent per-gateway gap detection and replay. It also improves event delivery and auction-expiry reporting, adds bulk alert acknowledgement, and refines training and index workflows.
+
+### ⚠️ Breaking Changes
+- Changed drop-copy sequence numbers from a process-wide counter to per-gateway counters and made `gateway_id` required for replay; consumers must track sequence state per gateway and provide the gateway ID when requesting replay
+
+### ✨ Additions
+- Added bulk acknowledgement for log GUI alerts
+- Added an optional reason to `order.expired` events to identify opening- and closing-auction expiries
+
+### 🚀 Improvements
+- Increased API gateway WebSocket event buffering and filtered delivery to subscribed event types, avoiding queued events clients would discard
+- Improved index history, listing and restored-session phase handling
+
+### 🐛 Bug Fixes
+- Returned HTTP 409 for illegal session transitions in the REST API
+
+### 📚 Documentation
+- Updated drop-copy protocol documentation and examples for per-gateway sequence tracking
+- Clarified training guidance for API-key creation and C examples, and updated the index and risk-control exercises
+
+### 🛠 Internal
+- Added regression coverage for drop-copy sequencing, auction-expiry reasons, WebSocket delivery and index restoration
+
 ## [v0.76.5] - 2026-11-07
 
 Release Type: minor
