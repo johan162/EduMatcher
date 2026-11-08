@@ -8998,7 +8998,7 @@ was over-counting.</p>
 <tr>
 <td><code>DROP_COPY_SEQ_GAP</code></td>
 <td>error</td>
-<td>A gap <strong>or a repeat</strong> in the drop-copy feed's own payload <code>seq</code> — one process-wide counter across every gateway's topic. Not covered by <code>SEQ_GAP</code>, which reads the audit metadata's per-topic sequence</td>
+<td>A gap <strong>or a repeat</strong> in the drop-copy feed's own payload <code>seq</code>, tracked independently per gateway. Not covered by <code>SEQ_GAP</code>, which reads the audit metadata's per-topic sequence</td>
 </tr>
 <tr>
 <td><code>ARRIVAL_SEQ_REUSED</code></td>

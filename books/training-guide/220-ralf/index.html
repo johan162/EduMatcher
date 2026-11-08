@@ -6567,10 +6567,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#exercise-3-use-the-c-example-as-a-drop_copy-consumer" class="md-nav__link">
+  <a href="#optional-exercise-3-use-the-c-example-as-a-drop_copy-consumer" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Exercise 3: Use the C Example as a DROP_COPY Consumer
+        Optional Exercise 3: Use the C Example as a DROP_COPY Consumer
       
     </span>
   </a>
@@ -7816,7 +7816,11 @@ the market from the operator console (<code>pm-admin --id OPS01</code>, then
 <li>live <code>EXEC|...</code> / <code>EOD|...</code> once trades are produced</li>
 </ul>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: manual nc session can establish, subscribe, and receive at least one post-trade message.</p>
-<h2 id="exercise-3-use-the-c-example-as-a-drop_copy-consumer">Exercise 3: Use the C Example as a DROP_COPY Consumer<a class="headerlink" href="#exercise-3-use-the-c-example-as-a-drop_copy-consumer" title="Permanent link">&para;</a></h2>
+<h2 id="optional-exercise-3-use-the-c-example-as-a-drop_copy-consumer">Optional Exercise 3: Use the C Example as a DROP_COPY Consumer<a class="headerlink" href="#optional-exercise-3-use-the-c-example-as-a-drop_copy-consumer" title="Permanent link">&para;</a></h2>
+<p>This C exercise requires <code>make</code> and a C compiler, which are not installed in
+the container image. Skip it there, or build it on a host with those tools.
+Exercise 2's Python subscriber can also consume RALF channels without a
+compiler.</p>
 <p>Build and run the C subscriber:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="nb">cd</span><span class="w"> </span>docs/examples/ralf
 <a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>make
@@ -7830,7 +7834,8 @@ the market from the operator console (<code>pm-admin --id OPS01</code>, then
 </ul>
 <p>Even though the example subscribes broadly for demonstration, run it with a
 DROP_COPY role argument and validate that role is accepted.</p>
-<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: C subscriber connects, parses, and prints live RALF events.</p>
+<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Optional checkpoint: C subscriber connects,
+parses, and prints live RALF events.</p>
 <h2 id="exercise-4-run-an-audit-session-and-compare-view-semantics">Exercise 4: Run an AUDIT Session and Compare View Semantics<a class="headerlink" href="#exercise-4-run-an-audit-session-and-compare-view-semantics" title="Permanent link">&para;</a></h2>
 <p>Run another Python subscriber in a second client terminal:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>python3<span class="w"> </span>docs/examples/ralf/ralf_subscriber.py<span class="w"> </span><span class="se">\</span>

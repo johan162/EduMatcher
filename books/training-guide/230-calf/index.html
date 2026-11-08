@@ -6595,10 +6595,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#exercise-3-use-the-c-example-subscriber" class="md-nav__link">
+  <a href="#optional-exercise-3-use-the-c-example-subscriber" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Exercise 3: Use the C Example Subscriber
+        Optional Exercise 3: Use the C Example Subscriber
       
     </span>
   </a>
@@ -7866,7 +7866,10 @@ trade ID when recording the tape: a <code>RESUME</code> response can overlap liv
 and two lines with the same <code>TRADE_ID</code> are the same execution even when their
 delivery sequence differs.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: manual nc session can establish, subscribe, and receive at least one live market-data line.</p>
-<h2 id="exercise-3-use-the-c-example-subscriber">Exercise 3: Use the C Example Subscriber<a class="headerlink" href="#exercise-3-use-the-c-example-subscriber" title="Permanent link">&para;</a></h2>
+<h2 id="optional-exercise-3-use-the-c-example-subscriber">Optional Exercise 3: Use the C Example Subscriber<a class="headerlink" href="#optional-exercise-3-use-the-c-example-subscriber" title="Permanent link">&para;</a></h2>
+<p>This C exercise requires <code>make</code> and a C compiler, which are not installed in
+the container image. Skip it there, or build it on a host with those tools.
+Exercise 2's Python subscriber provides the same market-data client workflow.</p>
 <p>Build and run the C subscriber:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="nb">cd</span><span class="w"> </span>docs/examples/calf
 <a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>make
@@ -7878,7 +7881,8 @@ delivery sequence differs.</p>
 <li>SUB flow</li>
 <li>MSG lines for live traffic</li>
 </ul>
-<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: C subscriber connects, parses, and prints live CALF events.</p>
+<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Optional checkpoint: C subscriber connects,
+parses, and prints live CALF events.</p>
 <h2 id="exercise-3b-pm-calf-spy-the-read-only-diagnostic-cli">Exercise 3B: <code>pm-calf-spy</code> — the Read-Only Diagnostic CLI<a class="headerlink" href="#exercise-3b-pm-calf-spy-the-read-only-diagnostic-cli" title="Permanent link">&para;</a></h2>
 <p><code>calf_subscriber.py</code>/<code>.c</code> are example <em>libraries</em> to build on; <code>pm-calf-spy</code>
 is a ready-made, read-only diagnostic client for watching the wire directly,

@@ -8040,12 +8040,12 @@ price that traded and the <em>seeded</em> reference prices of the other two cons
 </tr>
 </tbody>
 </table>
-<p>The <code>INDEX</code> command works in <code>pm-alf-console</code> under any gateway role (TRADER,
-ADMIN, or read-only). The operator console <code>pm-admin</code> has no <code>INDEX</code> command
-(<code>Unknown command 'INDEX'</code>): use <code>pm-alf-console --id OPS01</code> when you want it
-as the operator. It prints only the <strong>most recent</strong> index update this console
-has received, as a single line, so it is a spot check, not a list of
-constituents or of indices.</p>
+<p>The <code>INDEX</code> command works in <code>pm-alf-console</code> under any authenticated gateway
+role (TRADER, ADMIN, or read-only). The separate <code>pm-admin</code> operator console
+has no <code>INDEX</code> command (<code>Unknown command 'INDEX'</code>); use
+<code>pm-alf-console --id OPS01</code> when you want it as the operator. It prints only
+the <strong>most recent</strong> index update this console has received, as a single line,
+so it is a spot check, not a list of constituents or of indices.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> <code>INDEX</code> command returns a level for <code>EDU100</code>.</p>
 <h2 id="exercise-4-watch-the-index-move">Exercise 4: Watch the Index Move<a class="headerlink" href="#exercise-4-watch-the-index-move" title="Permanent link">&para;</a></h2>
 <p>Move the session into <code>CONTINUOUS</code> (if the scheduler hasn't already done so —
@@ -8307,11 +8307,14 @@ TRADER terminal:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-38-1" name="__codelineno-38-1" href="#__codelineno-38-1"></a>[15:52:12.376] EDU100 1001.83 +0.00 +0.00% O=1001.83 H=1001.83 L=1001.83 PRE_OPEN
 </code></pre></div>
 <p>You see one line, for whichever index published last. <code>TECH2</code> is throttled to
-one publish every 2 seconds, so <code>EDU100</code> is usually the one shown; use the
-history commands below to see both. The session state on that line is also
-only as good as <code>pm-index</code>'s last session broadcast: a <code>pm-index</code> started
-after the market opened reports <code>PRE_OPEN</code> (its default) until the next
-session change, even though the engine is in <code>CONTINUOUS</code>.</p>
+one publish every 2 seconds, so <code>EDU100</code> is usually the one shown. <code>INDEX</code> is
+not a multi-index listing; use <code>pm-index-cli indices</code> to list both indices
+and <code>pm-stats-cli index-daily</code> to verify recorded daily data. On startup,
+<code>pm-index</code> requests the engine's current session status and publishes an
+initial update for each configured index, so a restart during <code>CONTINUOUS</code>
+does not leave the index reporting the default phase until the next
+transition. Before that status reply arrives, its phase is <code>UNKNOWN</code>, not a
+misleading <code>PRE_OPEN</code>.</p>
 <p>Use <code>pm-index-cli</code> to list both configured indices, and <code>pm-stats-cli</code> to
 confirm <code>pm-stats</code> is capturing ticks for both:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-39-1" name="__codelineno-39-1" href="#__codelineno-39-1"></a>pm-index-cli<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml<span class="w"> </span>indices
@@ -8324,7 +8327,7 @@ index <code>pm-stats</code> has recorded — useful here to confirm both <code>E
 <code>TECH2</code> are being tracked. <code>pm-stats-cli index-snapshots</code>, by contrast,
 requires an explicit <code>--index-id</code> (it returns raw ticks, not a summary, so a
 single-index scope keeps the output meaningful).</p>
-<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> both <code>EDU100</code> and <code>TECH2</code> reported by <code>INDEX</code> command, <code>pm-index-cli indices</code>, and <code>pm-stats-cli index-daily</code>.</p>
+<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> <code>INDEX</code> shows the most recently received update; <code>pm-index-cli indices</code> lists both <code>EDU100</code> and <code>TECH2</code>; <code>pm-stats-cli index-daily</code> confirms daily rows for both.</p>
 <h2 id="exercise-11-history-query-via-the-gateway">Exercise 11: History Query via the Gateway<a class="headerlink" href="#exercise-11-history-query-via-the-gateway" title="Permanent link">&para;</a></h2>
 <p><code>pm-index</code> also accepts history requests directly through the ADMIN gateway.
 These go over the PULL socket (port 5559) and return records inline:</p>
@@ -8342,9 +8345,10 @@ saw an <code>INDEX</code> update for (or pass <code>INDEX=&lt;id&gt;</code> expl
 <div class="highlight"><pre><span></span><code><a id="__codelineno-41-1" name="__codelineno-41-1" href="#__codelineno-41-1"></a>[OPS01]&gt; INDEX|HISTORY|INDEX=EDU100|FROM=2026-06-25|TO=2026-06-26
 </code></pre></div>
 <p>Returns structural/audit records within the specified date range, newest
-last. <code>TO</code> is the <em>start</em> of that date, so <code>FROM=2026-06-25|TO=2026-06-25</code>
-returns nothing: to include a whole day, end the range on the next date (use
-today's date as <code>FROM</code> and tomorrow's as <code>TO</code> to see this session's records).</p>
+last. <code>FROM</code> is local midnight at the start of its date; date-only <code>TO</code>
+includes the entire date, through the final nanosecond before the next local
+midnight. <code>FROM=2026-06-25|TO=2026-06-25</code> therefore returns records from that
+day. Exact timestamp bounds on the history request are inclusive.</p>
 <div class="admonition warning">
 <p class="admonition-title">No level or EOD ticks here</p>
 <p><code>INDEX|HISTORY</code> never returns intraday level ticks or end-of-day OHLC

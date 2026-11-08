@@ -8567,10 +8567,12 @@ records returned" hint instead.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>INDEX|HISTORY|INDEX=EDU100|FROM=2026-06-01|TO=2026-06-12
 </code></pre></div>
 <p>Returns records within the given date range, oldest first. <code>FROM</code> and <code>TO</code>
-are dates (<code>YYYY-MM-DD</code>) read as <strong>local midnight at the start of that day</strong>,
-so <code>TO=2026-06-12</code> stops at the start of 12 June and does not include that
-day's records — use the following day to include it. An unparseable date is
-silently ignored and the default (30 days back / now) is used.</p>
+are dates (<code>YYYY-MM-DD</code>) read as <strong>local dates</strong>: <code>FROM</code> starts at local
+midnight, and <code>TO</code> includes the whole date, through the final nanosecond before
+the next local midnight. Thus <code>FROM=2026-06-12|TO=2026-06-12</code> includes records
+from 12 June. Exact timestamp bounds on the history request are inclusive. An
+unparseable date is silently ignored and the default (30 days back / now) is
+used.</p>
 <div class="admonition tip">
 <p class="admonition-title">Level/EOD history is a different tool</p>
 <p><code>INDEX|HISTORY</code> only returns structural/audit events. For index level or

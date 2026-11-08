@@ -6673,10 +6673,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#exercise-7-use-the-c-rest-example" class="md-nav__link">
+  <a href="#optional-exercise-7-use-the-c-rest-example" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Exercise 7: Use the C REST Example
+        Optional Exercise 7: Use the C REST Example
       
     </span>
   </a>
@@ -7770,8 +7770,10 @@ event handling, and multi-process logical separation.</p>
 <li>REST examples available in <code>docs/examples/REST</code>. On a container or <code>pipx</code>
   install that directory is inside the package: set
   <code>EX=$(python -c "from edumatcher.config_deploy import examples_root; print(examples_root().parent)")</code>
-  and read <code>docs/examples</code> as <code>$EX</code> in Exercises 6, 7 and 12. The C example
-  needs <code>make</code> and a C compiler (not in the container image).</li>
+  and read <code>docs/examples</code> as <code>$EX</code> in Exercises 6, 7 and 12. Exercise 7's C
+  example is optional: it needs <code>make</code> and a C compiler, neither of which is
+  installed in the container image. Exercise 6's Python client provides the
+  equivalent API workflow.</li>
 <li>The <code>curl</code> commands below assume the lab config from Exercise 1 and are run
   from the directory holding <code>engine_config.yaml</code>.</li>
 <li>A terminal for <code>pm-engine</code>, one for <code>pm-stats</code>, one for <code>pm-api-gwy</code>, and one or more client terminals.</li>
@@ -7861,11 +7863,15 @@ configured refuses it with <code>HALT_REJECTED</code>, <code>AAPL has no circuit
 <a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">  </span>--cb-levels<span class="w"> </span>L1:0.05:30<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">  </span>--api-gateway<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">  </span>--api-gateway-name<span class="w"> </span>desk<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="w">  </span>--api-gateway-readonly-key<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="w">  </span>--api-gateway-host<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="w">  </span>--api-gateway-port<span class="w"> </span><span class="m">8080</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="w">  </span>--seed<span class="w"> </span><span class="m">20260624</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="w">  </span>--output<span class="w"> </span>engine_config.yaml<span class="w"> </span>--force
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="w">  </span>--api-key<span class="w"> </span>key-trader-demo:TRADER01<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="w">  </span>--api-key<span class="w"> </span>key-trader02-demo:TRADER02<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="w">  </span>--api-key<span class="w"> </span>key-ops-demo:OPS01<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="w">  </span>--api-key<span class="w"> </span>key-readonly-demo:null<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="w">  </span>--no-api-gateway-generate-keys<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a><span class="w">  </span>--api-gateway-host<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a><span class="w">  </span>--api-gateway-port<span class="w"> </span><span class="m">8080</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a><span class="w">  </span>--seed<span class="w"> </span><span class="m">20260624</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a><span class="w">  </span>--output<span class="w"> </span>engine_config.yaml<span class="w"> </span>--force
 </code></pre></div>
 <div class="admonition note">
 <p class="admonition-title">Back up, check, deploy — then restart</p>
@@ -7882,22 +7888,22 @@ As always, nothing changes until you deploy it and restart the engine:
 <ul>
 <li>top-level <code>api_gateways:</code> exists</li>
 <li><code>desk:</code> has <code>port: 8080</code></li>
-<li>generated credentials exist for <code>TRADER01</code>, <code>TRADER02</code>, <code>OPS01</code>, and one read-only key</li>
+<li>credentials exist for <code>TRADER01</code>, <code>TRADER02</code>, <code>OPS01</code>, and one read-only key</li>
 </ul>
-<p>The keys are random (for example <code>key-trader01-r0yzyj</code>; <code>--seed</code> does not fix
-them), so the commands in this chapter read them from the file instead of
-using fixed names. Define three shell variables once in each terminal you use
-for <code>curl</code> (the function reads <code>engine_config.yaml</code> in the current directory):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>key<span class="o">()</span><span class="w"> </span><span class="o">{</span><span class="w"> </span>awk<span class="w"> </span>-v<span class="w"> </span><span class="nv">g</span><span class="o">=</span><span class="s2">"</span><span class="nv">$1</span><span class="s2">"</span><span class="w"> </span><span class="s1">'$1=="-" &amp;&amp; $2=="api_key:" {k=$3} $1=="gateway_id:" &amp;&amp; $2==g {print k; exit}'</span><span class="w"> </span>engine_config.yaml<span class="p">;</span><span class="w"> </span><span class="o">}</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="nv">KEY_TRADER</span><span class="o">=</span><span class="k">$(</span>key<span class="w"> </span>TRADER01<span class="k">)</span><span class="w">    </span><span class="c1"># trading key for TRADER01</span>
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="nv">KEY_OPS</span><span class="o">=</span><span class="k">$(</span>key<span class="w"> </span>OPS01<span class="k">)</span><span class="w">          </span><span class="c1"># OPS01's key: its resolved engine role is ADMIN</span>
-<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="nv">KEY_RO</span><span class="o">=</span><span class="k">$(</span>key<span class="w"> </span>null<span class="k">)</span><span class="w">            </span><span class="c1"># the read-only key</span>
-<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="nb">echo</span><span class="w"> </span><span class="s2">"</span><span class="nv">$KEY_TRADER</span><span class="s2"> </span><span class="nv">$KEY_OPS</span><span class="s2"> </span><span class="nv">$KEY_RO</span><span class="s2">"</span>
+<p>For this training exercise, the command supplies fixed, easy-to-type demo
+keys. Define shell variables once in each terminal you use for <code>curl</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nv">KEY_TRADER</span><span class="o">=</span>key-trader-demo
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="nv">KEY_OPS</span><span class="o">=</span>key-ops-demo<span class="w">          </span><span class="c1"># OPS01's resolved engine role is ADMIN</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="nv">KEY_RO</span><span class="o">=</span>key-readonly-demo
 </code></pre></div>
+<p>You can also use the <a href="../../operator-guide/part-2-configure/030-config-gui/">Config GUI's API subtab</a>
+to generate keys for selected participants and choose the generated key length.</p>
 <p>Exercise 10 uses <code>$KEY_OPS</code> for every admin REST call. Where a tool cannot
-expand shell variables (the WebSocket sessions in Exercise 9, the Python
-default in Exercise 12), paste the value that <code>echo</code> printed.</p>
-<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: you can identify one trading key, one read-only key, and the <code>OPS01</code> admin key in the config.</p>
+expand shell variables (the WebSocket sessions in Exercise 9), enter the
+matching demo key shown above.</p>
+<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: the config contains the
+<code>key-trader-demo</code>, <code>key-ops-demo</code>, and <code>key-readonly-demo</code> credentials bound to
+the expected gateway identities.</p>
 <h2 id="exercise-2-start-the-api-gateway-process">Exercise 2: Start the API Gateway Process<a class="headerlink" href="#exercise-2-start-the-api-gateway-process" title="Permanent link">&para;</a></h2>
 <p>Start the core processes with the generated config:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>pm-engine<span class="w"> </span>--verbose
@@ -7921,7 +7927,8 @@ Exercise 10 shows the REST equivalent.</p>
 <p>Open Swagger in a browser:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>http://127.0.0.1:8080/docs
 </code></pre></div>
-<p>Use the Authorize control and paste a generated bearer token (<code>echo $KEY_TRADER</code>). Then run:</p>
+<p>Use the Authorize control and enter the trading key <code>key-trader-demo</code>. Then
+run:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>curl<span class="w"> </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer </span><span class="nv">$KEY_TRADER</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">  </span>http://127.0.0.1:8080/api/v1/status
 </code></pre></div>
@@ -8015,7 +8022,7 @@ and port from your config:</p>
 <p>Use the example source as a reference for adding status, order-entry, and cancel
 calls to a test harness.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: the Python client reaches the gateway and sends authenticated requests.</p>
-<h2 id="exercise-7-use-the-c-rest-example">Exercise 7: Use the C REST Example<a class="headerlink" href="#exercise-7-use-the-c-rest-example" title="Permanent link">&para;</a></h2>
+<h2 id="optional-exercise-7-use-the-c-rest-example">Optional Exercise 7: Use the C REST Example<a class="headerlink" href="#optional-exercise-7-use-the-c-rest-example" title="Permanent link">&para;</a></h2>
 <p>Build and run the C example from the REST example directory:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="nb">cd</span><span class="w"> </span>docs/examples/REST/c<span class="w">             </span><span class="c1"># or: cd $EX/REST/c</span>
 <a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>make
@@ -8027,7 +8034,8 @@ calls to a test harness.</p>
 <li>status or order-entry responses are printed as JSON</li>
 <li>connection errors identify an unavailable gateway process or wrong port</li>
 </ul>
-<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: the C example can call the running API gateway with a configured key.</p>
+<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Optional checkpoint: the C example can call
+the running API gateway with a configured key.</p>
 <h2 id="exercise-8-query-order-and-trade-history">Exercise 8: Query Order and Trade History<a class="headerlink" href="#exercise-8-query-order-and-trade-history" title="Permanent link">&para;</a></h2>
 <p>History endpoints read from <code>pm-stats</code>'s database, so <code>pm-stats</code> must be
 running and must have been running while your orders and trades happened —

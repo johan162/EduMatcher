@@ -10159,10 +10159,12 @@ which is how a multi-day auto-scheduled run (and the daily volume-counter
 reset above) keeps going without restarting the engine.</p>
 <p>An <strong>accepted</strong> transition is confirmed by the <code>session.state</code> broadcast,
 which carries the <em>actual</em> new state — check <code>result["state"]</code> to verify it.
-An <strong>invalid</strong> transition (one not allowed from the current state) gets no
-reply at all: the engine rejects it before publishing anything, so
-<code>session_advance()</code> blocks until <code>--timeout</code> and then raises
-<code>CommandTimeoutError</code>.</p>
+An <strong>invalid</strong> transition (one not allowed from the current state) publishes
+no <code>session.state</code> broadcast. The legacy <code>session_advance()</code> client does not
+request an addressed acknowledgement, so it blocks until <code>--timeout</code> and
+then raises <code>CommandTimeoutError</code>. By contrast, the REST
+<code>POST /api/v1/admin/session/transition</code> endpoint waits for the engine's
+addressed rejection and returns <code>409 TRANSITION_REJECTED</code> with its reason.</p>
 <h2 id="full-admin-operator-workflow">Full ADMIN operator workflow<a class="headerlink" href="#full-admin-operator-workflow" title="Permanent link">&para;</a></h2>
 <p>The example below shows a complete emergency halt-and-resume sequence using
 the command client:</p>

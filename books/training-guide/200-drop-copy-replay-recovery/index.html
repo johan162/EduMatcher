@@ -7659,25 +7659,17 @@ and does not exist in the current EduMatcher runtime.</p>
 <ul>
 <li><code>drop_copy.event.&lt;gateway_id&gt;</code> (live stream)</li>
 </ul>
-<p>Each message carries a monotonically increasing <code>seq</code> field. Consumers use this
-to detect gaps and de-duplicate messages.</p>
-<p>Two properties of <code>seq</code> matter for gap detection:</p>
-<ul>
-<li><strong>One counter for the whole engine, not one per gateway.</strong> Every fill produces
-  two events (one per counterparty), numbered consecutively, so a subscriber
-  to <em>all</em> <code>drop_copy.event.</code> topics sees <code>1, 2, 3, …</code>. A subscriber filtered
-  to one gateway (say <code>drop_copy.event.TRADER01</code>) sees only every other number
-  in a two-party market and would report a "gap" on every event. The exercises
-  below therefore subscribe to the whole prefix.</li>
-<li><strong>The counter restarts at 1 when the engine restarts.</strong> After a restart
-  <code>seq</code> goes backwards; treat that as a new stream, not as a duplicate.</li>
-</ul>
+<p>Each message carries a <code>seq</code> field that increases contiguously within its
+gateway's stream. Consumers use it to detect gaps and de-duplicate messages.
+Each gateway has an independent counter, starting at 1; it resets when the
+engine restarts. A consumer listening to multiple gateways must track the last
+sequence separately for each <code>gateway_id</code>.</p>
 <p>Important current limitation:</p>
 <ul>
 <li>Replay exists as an in-process publisher method
-  (<code>DropCopyPublisher.replay(recipient_id, from_seq)</code>), backed by a
-  circular in-memory buffer of the last 10,000 events (roughly 16 minutes
-  of history at a sustained ~10 fills/second).</li>
+  (<code>DropCopyPublisher.replay(recipient_id, from_seq, gateway_id=...)</code>), backed
+  by one circular in-memory buffer of the last 10,000 events across all
+  gateways (roughly 16 minutes of history at a sustained ~10 fills/second).</li>
 <li>There is currently no external ZMQ replay-request handler for downstream
   clients to call directly — and even once one exists, replay is bounded by
   that 10,000-event buffer, not unlimited history.</li>
@@ -7697,9 +7689,9 @@ to detect gaps and de-duplicate messages.</p>
 <a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="s">ctx = zmq.Context()</span>
 <a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="s">sock = ctx.socket(zmq.SUB)</span>
 <a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="s">sock.connect("tcp://127.0.0.1:5557")</span>
-<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="s">sock.subscribe(b"drop_copy.event.")</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="s">sock.subscribe(b"drop_copy.event.TRADER01")</span>
 <a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>
-<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="s">print("listening on drop_copy.event.*")</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="s">print("listening on drop_copy.event.TRADER01")</span>
 <a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="s">for _ in range(10):</span>
 <a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="s">    topic, payload = sock.recv_multipart()</span>
 <a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="s">    msg = json.loads(payload)</span>
@@ -7718,17 +7710,19 @@ to detect gaps and de-duplicate messages.</p>
 <a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="s">ctx = zmq.Context()</span>
 <a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="s">sock = ctx.socket(zmq.SUB)</span>
 <a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="s">sock.connect("tcp://127.0.0.1:5557")</span>
-<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="s">sock.subscribe(b"drop_copy.event.")</span>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="s">sock.subscribe(b"drop_copy.event.TRADER01")</span>
 <a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>
 <a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="s">print("watching for sequence gaps")</span>
 <a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="s">for _ in range(30):</span>
 <a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="s">    topic, payload = sock.recv_multipart()</span>
-<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="s">    msg = json.loads(payload)</span>
-<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a><span class="s">    seq = msg.get("seq")</span>
-<a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a><span class="s">    if last is not None and seq is not None and seq != last + 1:</span>
-<a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a><span class="s">        print(f"GAP detected: expected {last + 1}, got {seq}")</span>
-<a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a><span class="s">    last = seq</span>
-<a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a><span class="s">PY</span>
+<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="s">    if topic != b"drop_copy.event.TRADER01":  # prefix match: skip TRADER010...</span>
+<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a><span class="s">        continue</span>
+<a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a><span class="s">    msg = json.loads(payload)</span>
+<a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a><span class="s">    seq = msg.get("seq")</span>
+<a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a><span class="s">    if last is not None and seq is not None and seq != last + 1:</span>
+<a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a><span class="s">        print(f"GAP detected: expected {last + 1}, got {seq}")</span>
+<a id="__codelineno-1-20" name="__codelineno-1-20" href="#__codelineno-1-20"></a><span class="s">    last = seq</span>
+<a id="__codelineno-1-21" name="__codelineno-1-21" href="#__codelineno-1-21"></a><span class="s">PY</span>
 </code></pre></div>
 <div class="admonition warning">
 <p class="admonition-title">Restarting the subscriber will <em>not</em> show you a gap</p>
@@ -7748,20 +7742,22 @@ version discards every fifth event it receives, simulating lost datagrams:</p>
 <a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="s">ctx = zmq.Context()</span>
 <a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="s">sock = ctx.socket(zmq.SUB)</span>
 <a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="s">sock.connect("tcp://127.0.0.1:5557")</span>
-<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="s">sock.subscribe(b"drop_copy.event.")</span>
+<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="s">sock.subscribe(b"drop_copy.event.TRADER01")</span>
 <a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a>
 <a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a><span class="s">print("watching for gaps (deliberately dropping every 5th event)")</span>
 <a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a><span class="s">for _ in range(30):</span>
 <a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a><span class="s">    topic, payload = sock.recv_multipart()</span>
-<a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a><span class="s">    seen += 1</span>
-<a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a><span class="s">    if seen % 5 == 0:          # simulate a lost message</span>
-<a id="__codelineno-2-17" name="__codelineno-2-17" href="#__codelineno-2-17"></a><span class="s">        continue</span>
-<a id="__codelineno-2-18" name="__codelineno-2-18" href="#__codelineno-2-18"></a><span class="s">    msg = json.loads(payload)</span>
-<a id="__codelineno-2-19" name="__codelineno-2-19" href="#__codelineno-2-19"></a><span class="s">    seq = msg.get("seq")</span>
-<a id="__codelineno-2-20" name="__codelineno-2-20" href="#__codelineno-2-20"></a><span class="s">    if last is not None and seq is not None and seq != last + 1:</span>
-<a id="__codelineno-2-21" name="__codelineno-2-21" href="#__codelineno-2-21"></a><span class="s">        print(f"GAP detected: expected {last + 1}, got {seq}")</span>
-<a id="__codelineno-2-22" name="__codelineno-2-22" href="#__codelineno-2-22"></a><span class="s">    last = seq</span>
-<a id="__codelineno-2-23" name="__codelineno-2-23" href="#__codelineno-2-23"></a><span class="s">EOF</span>
+<a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a><span class="s">    if topic != b"drop_copy.event.TRADER01":  # prefix match: skip TRADER010...</span>
+<a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a><span class="s">        continue</span>
+<a id="__codelineno-2-17" name="__codelineno-2-17" href="#__codelineno-2-17"></a><span class="s">    seen += 1</span>
+<a id="__codelineno-2-18" name="__codelineno-2-18" href="#__codelineno-2-18"></a><span class="s">    if seen % 5 == 0:          # simulate a lost message</span>
+<a id="__codelineno-2-19" name="__codelineno-2-19" href="#__codelineno-2-19"></a><span class="s">        continue</span>
+<a id="__codelineno-2-20" name="__codelineno-2-20" href="#__codelineno-2-20"></a><span class="s">    msg = json.loads(payload)</span>
+<a id="__codelineno-2-21" name="__codelineno-2-21" href="#__codelineno-2-21"></a><span class="s">    seq = msg.get("seq")</span>
+<a id="__codelineno-2-22" name="__codelineno-2-22" href="#__codelineno-2-22"></a><span class="s">    if last is not None and seq is not None and seq != last + 1:</span>
+<a id="__codelineno-2-23" name="__codelineno-2-23" href="#__codelineno-2-23"></a><span class="s">        print(f"GAP detected: expected {last + 1}, got {seq}")</span>
+<a id="__codelineno-2-24" name="__codelineno-2-24" href="#__codelineno-2-24"></a><span class="s">    last = seq</span>
+<a id="__codelineno-2-25" name="__codelineno-2-25" href="#__codelineno-2-25"></a><span class="s">EOF</span>
 </code></pre></div>
 <p>With trades flowing you should now see a <code>GAP detected</code> line roughly every
 fifth event. That is the whole mechanism: the <strong>consumer</strong>, not the publisher,

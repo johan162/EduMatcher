@@ -7797,12 +7797,13 @@ exits; <strong>consoles do not reconnect by themselves</strong>:</p>
 <p>After each engine restart, start the consoles again, then reopen the market.
 A quote or order that is still resting from before the restart is still there.</p>
 <div class="admonition note">
-<p class="admonition-title">Harmless warnings</p>
-<p>When you start the processes by hand, <code>pm-monitor</code> (the health monitor) is
-not running, and you may see lines such as
-<code>WARNING … pm-monitor at tcp://127.0.0.1:5610 not accepting beacons</code> or
-<code>WARNING … heartbeat dropped: engine unreachable</code> (also whenever the
-engine is restarted). They do not affect the exercises.</p>
+<p class="admonition-title">Expected health diagnostics</p>
+<p>When monitoring is disabled, processes send no health beacons. If monitoring
+is configured but <code>pm-monitor</code> is not running, the rate-limited
+<code>pm-monitor … not accepting beacons</code> diagnostic is DEBUG and appears only
+with <code>-vv</code>. The same DEBUG-level policy applies to dropped engine heartbeats
+during a restart. The console still prints its logout message when it loses
+the engine connection; restart the console after restarting the engine.</p>
 </div>
 <h3 id="conventions">Conventions<a class="headerlink" href="#conventions" title="Permanent link">&para;</a></h3>
 <ul>

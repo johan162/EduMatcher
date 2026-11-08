@@ -7742,7 +7742,11 @@ only prints a timeout, so start from the step that matches <code>SESSION_STATUS<
 <a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>ADMIN_CLI<span class="w"> </span>session<span class="w"> </span>--state<span class="w"> </span>CLOSED
 <a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>ADMIN_CLI<span class="w"> </span>session-status
 </code></pre></div>
-<p>Use this to reproduce auction and close transitions deterministically in training.</p>
+<p>Use this to reproduce auction and close transitions deterministically in training.
+For example, after reaching <code>CONTINUOUS</code>, requesting <code>CONTINUOUS</code> again is an
+invalid transition: the engine does not publish a new <code>session.state</code>, so the
+CLI waits until its timeout. The REST transition endpoint instead returns
+<code>409 TRANSITION_REJECTED</code> with the engine's reason.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> forced session transitions are visible and verifiable.</p>
 <h2 id="exercise-5-run-an-incident-micro-runbook">Exercise 5: Run an Incident Micro-Runbook<a class="headerlink" href="#exercise-5-run-an-incident-micro-runbook" title="Permanent link">&para;</a></h2>
 <p>Simulate a short incident response sequence:</p>

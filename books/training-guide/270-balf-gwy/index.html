@@ -6740,10 +6740,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#exercise-5-validate-parser-libraries-python-and-c" class="md-nav__link">
+  <a href="#exercise-5-validate-parser-libraries-python-and-optional-c" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Exercise 5: Validate Parser Libraries (Python and C)
+        Exercise 5: Validate Parser Libraries (Python and Optional C)
       
     </span>
   </a>
@@ -7732,7 +7732,8 @@ CLI tools, a minimal Python client, and the BALF parser reference libraries.</p>
 <li>Support parser examples available in <code>docs/examples/balf</code> (in a repository
   checkout; on a container or <code>pipx</code> install use <code>$EX/balf</code>, with
   <code>EX=$(python -c "from edumatcher.config_deploy import examples_root; print(examples_root().parent)")</code>;
-  Exercise 5's C build needs a C compiler, which the container image does not have):</li>
+  Exercise 5's C check is optional and needs a C compiler, which the container
+  image does not have):</li>
 <li><code>balf_parser.py</code></li>
 <li><code>balf_parser.c</code></li>
 </ul>
@@ -8101,8 +8102,9 @@ AAPL's book empty (the configuration from Exercise 1 has no seed quotes).</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: you decoded an <code>AMEND_ACK</code> with <code>priority_reset=True</code> and the two
 <code>EXECUTION_REPORT</code> frames of one trade, and can say why the resting side's
 <code>remaining</code> is 80.</p>
-<h2 id="exercise-5-validate-parser-libraries-python-and-c">Exercise 5: Validate Parser Libraries (Python and C)<a class="headerlink" href="#exercise-5-validate-parser-libraries-python-and-c" title="Permanent link">&para;</a></h2>
-<p>Run the provided parser self-tests to verify your local BALF decode tooling.</p>
+<h2 id="exercise-5-validate-parser-libraries-python-and-optional-c">Exercise 5: Validate Parser Libraries (Python and Optional C)<a class="headerlink" href="#exercise-5-validate-parser-libraries-python-and-optional-c" title="Permanent link">&para;</a></h2>
+<p>Run the Python parser self-test to verify your BALF decode tooling. The C
+parser check below is optional; the container image has no C compiler.</p>
 <p>Python parser:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="nb">cd</span><span class="w"> </span>docs/examples/balf
 <a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>python3<span class="w"> </span>balf_parser.py
@@ -8128,7 +8130,8 @@ AAPL's book empty (the configuration from Exercise 1 has no seed quotes).</p>
 <p>The second <code>LOGON_ACK</code> is the one to know: <code>SYMBOLS_UNAVAILABLE</code> means the
 engine accepted the connection but never sent its symbol list in time. The
 gateway closes the connection after it, so retry with a new connection.</p>
-<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: both parser examples run successfully.</p>
+<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: the Python parser self-test
+passes; the optional C self-test also passes when a compiler is available.</p>
 <h2 id="exercise-6-duplicate-session-policy-and-heartbeat-behaviour">Exercise 6: Duplicate Session Policy and Heartbeat Behaviour<a class="headerlink" href="#exercise-6-duplicate-session-policy-and-heartbeat-behaviour" title="Permanent link">&para;</a></h2>
 <p>Set <code>duplicate_session_policy</code> in <code>balf_gateway:</code> and observe behaviour by
 connecting two clients using the same gateway ID.</p>

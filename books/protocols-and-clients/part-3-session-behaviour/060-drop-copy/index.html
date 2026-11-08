@@ -7882,7 +7882,7 @@ below), which does enforce per-connection role entitlement.</p>
 <tr>
 <td><code>seq</code></td>
 <td>int</td>
-<td>Monotonically increasing sequence number (starts at 1, never resets)</td>
+<td>Monotonically increasing per-gateway sequence (starts at 1; resets when the engine restarts)</td>
 </tr>
 <tr>
 <td><code>timestamp</code></td>
@@ -7973,13 +7973,19 @@ payload does not include <code>remaining_qty</code>, <code>side</code>, or <code
 quotes, combo legs, OCO legs, auction uncrosses, stop cascades, and
 amend-rematches — not just plain new-order fills.</p>
 <h2 id="sequence-numbers">Sequence numbers<a class="headerlink" href="#sequence-numbers" title="Permanent link">&para;</a></h2>
-<p>The <code>seq</code> field comes from a <strong>process-wide</strong> counter (<code>itertools.count(1)</code>
-at module scope in <code>drop_copy.py</code>), shared by every <code>DropCopyPublisher</code>
-instance created in the same process — not scoped to one engine instance.
-It increments by 1 for every event, starts at 1, and is never reset while
-the process is alive. Tests or tools that construct more than one
-<code>DropCopyPublisher</code> in the same process will see <code>seq</code> continue counting up
-across instances rather than restarting at 1.</p>
+<p>The <code>seq</code> field is an independent counter for each <code>gateway_id</code>. It starts at
+1 for each gateway and increments by 1 for every event in that gateway's
+<code>drop_copy.event.&lt;gateway_id&gt;</code> stream. Each gateway's counter restarts at 1
+when the engine restarts. A subscriber to one gateway can therefore detect
+gaps and duplicates directly; a subscriber to multiple gateways must track a
+separate last-seen sequence for each gateway.</p>
+<div class="admonition warning">
+<p class="admonition-title">Subscriptions match by prefix</p>
+<p>Subscribing to <code>drop_copy.event.TRADER1</code> also delivers the events of
+<code>TRADER10</code>, <code>TRADER11</code>, … — each with its own <code>seq</code> stream. A consumer
+that checks sequences must compare the topic (or the payload's
+<code>gateway_id</code>) exactly, or it will report false gaps.</p>
+</div>
 <p>Sequence numbers allow downstream consumers to:</p>
 <ol>
 <li><strong>Detect gaps</strong> — if the consumer receives <code>seq=5</code> after <code>seq=3</code>, it knows
@@ -7989,11 +7995,12 @@ across instances rather than restarting at 1.</p>
    already been processed.</li>
 </ol>
 <h2 id="in-memory-buffer">In-memory buffer<a class="headerlink" href="#in-memory-buffer" title="Permanent link">&para;</a></h2>
-<p>The drop copy publisher maintains a <strong>circular in-memory buffer</strong> of the last
-10,000 events.  This buffer supports replay requests from consumers that
-reconnect after a gap.</p>
-<p>The buffer is implemented as a <code>collections.deque</code> with <code>maxlen=10_000</code>.  When
-the buffer is full, the oldest event is discarded automatically.</p>
+<p>The drop copy publisher maintains one <strong>circular in-memory buffer</strong> of the
+last 10,000 events, shared by all gateways. This buffer supports replay of a
+gateway's events after a gap.</p>
+<p>The buffer is implemented as a <code>collections.deque</code> with <code>maxlen=10_000</code>. When
+the buffer is full, the oldest event is discarded automatically, whichever
+gateway it belongs to — so a busy gateway shortens a quiet gateway's history.</p>
 <p>At a sustained rate of ~10 fills/second, 10,000 buffered messages covers
 roughly 16 minutes of history before the oldest events start being dropped.</p>
 <h2 id="replay">Replay<a class="headerlink" href="#replay" title="Permanent link">&para;</a></h2>
@@ -8002,15 +8009,16 @@ replay of events it missed.</p>
 <div class="admonition warning">
 <p class="admonition-title">In-process only — no external replay protocol</p>
 <p>Replay is implemented as a publisher method
-(<code>DropCopyPublisher.replay(recipient_id, from_seq)</code>).  There is currently
+(<code>DropCopyPublisher.replay(recipient_id, from_seq, gateway_id=...)</code>). There is currently
 <strong>no</strong> ZMQ message handler that accepts replay requests from external
 consumers.  It is useful for tests and embedded consumers but not yet a
 full reconnect protocol.</p>
 </div>
 <h3 id="replay-request-programmatic">Replay request (programmatic)<a class="headerlink" href="#replay-request-programmatic" title="Permanent link">&para;</a></h3>
-<p>Call <code>DropCopyPublisher.replay(recipient_id, from_seq)</code> from within the
-engine.  This publishes all buffered events with <code>seq &gt;= from_seq</code> on a
-dedicated replay topic:</p>
+<p>Call <code>DropCopyPublisher.replay(recipient_id, from_seq, gateway_id=...)</code> from
+within the engine. This publishes buffered events for that gateway with
+<code>seq &gt;= from_seq</code> on a dedicated replay topic. <code>gateway_id</code> is required:
+<code>from_seq</code> only means something within one gateway's stream.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>Frame 0 (topic):    b"drop_copy.replay.&lt;recipient_id&gt;"
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>Frame 1 (payload):  same format as live events
 </code></pre></div>
@@ -8021,10 +8029,11 @@ messages (<code>drop_copy.event.*</code>).  A consumer subscribes to its own rep
 so that replay messages from one reconnecting client do not pollute the live
 stream received by other consumers.</p>
 <h3 id="replay-limitations">Replay limitations<a class="headerlink" href="#replay-limitations" title="Permanent link">&para;</a></h3>
-<p>The buffer holds only the last 10,000 events.  If a consumer has been
-disconnected long enough that its <code>from_seq</code> predates the oldest buffered
-message, it will receive only the available subset.  In production systems this
-gap would typically be filled from a persistent audit log (see
+<p>The buffer holds only the last 10,000 events across all gateways. If a
+consumer has been disconnected long enough that its <code>from_seq</code> predates the
+oldest buffered message for that gateway, it will receive only the available
+subset. In
+production systems this gap would typically be filled from a persistent audit log (see
 <a href="../../../operator-guide/part-6-observe-and-recover/010-persistence/">Persistence</a>).</p>
 <h2 id="topic-subscription-patterns">Topic subscription patterns<a class="headerlink" href="#topic-subscription-patterns" title="Permanent link">&para;</a></h2>
 <p>ZeroMQ PUB/SUB uses prefix-based topic filtering.  Common subscription patterns
@@ -8043,7 +8052,7 @@ for the drop copy stream:</p>
 </tr>
 <tr>
 <td><code>b"drop_copy.event.TRADER01"</code></td>
-<td>Live fills from gateway TRADER01 only</td>
+<td>Live fills from TRADER01 — and from any ID it prefixes, such as TRADER010</td>
 </tr>
 <tr>
 <td><code>b"drop_copy.replay.MY_RISK_SYS"</code></td>
@@ -8103,14 +8112,15 @@ at the wire.</p>
 <p>Example output:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>Listening for drop-copy events on :5557 ...
 <a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>[drop_copy.event.TRADER01] seq=1  AAPL  100@150.05  gateway=TRADER01
-<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>[drop_copy.event.TRADER02] seq=2  AAPL  100@150.05  gateway=TRADER02
-<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>[drop_copy.event.TRADER01] seq=3  MSFT  50@415.20   gateway=TRADER01
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>[drop_copy.event.TRADER02] seq=1  AAPL  100@150.05  gateway=TRADER02
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>[drop_copy.event.TRADER01] seq=2  MSFT  50@415.20   gateway=TRADER01
 </code></pre></div>
 <div class="admonition tip">
 <p class="admonition-title">Tip</p>
 <p>For production use, subscribe to a specific gateway prefix
 (e.g., <code>b"drop_copy.event.TRADER01"</code>) to limit traffic to only
-fills relevant to your risk system.</p>
+fills relevant to your risk system, and drop any message whose topic is
+not exactly <code>drop_copy.event.TRADER01</code>.</p>
 </div>
 <h2 id="alternative-relayed-through-your-own-alf-session">Alternative: relayed through your own ALF session<a class="headerlink" href="#alternative-relayed-through-your-own-alf-session" title="Permanent link">&para;</a></h2>
 <p>Connecting directly to port 5557 (above) is the most general option and the

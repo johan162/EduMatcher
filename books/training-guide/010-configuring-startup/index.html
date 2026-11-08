@@ -8022,9 +8022,10 @@ prints only warnings and errors. Expected output includes lines like these
 <p><code>Session handling: enabled</code> means the engine starts in the <code>CLOSED</code> phase and
 waits to be told when the day begins: your configuration does not set
 <code>sessions_enabled</code>, and its default is <code>true</code>.</p>
-<p>If you also see a <code>WARNING … pm-monitor … not accepting beacons</code> line from any
-process, ignore it: that is the health monitor, which is not running when you
-start processes by hand.</p>
+<p>If monitoring is configured but <code>pm-monitor</code> is not running, the
+<code>pm-monitor … not accepting beacons</code> diagnostic is DEBUG and appears only when
+you start a process with <code>-vv</code>. It is rate-limited and does not affect the
+exchange.</p>
 <p>The stable way to confirm the engine actually loaded your config, independent
 of log wording, is to query it from a gateway once connected (Exercise 8) with
 <code>SYMBOLS</code> — if it lists <code>AAPL</code>, <code>MSFT</code>, and <code>TSLA</code>, the engine started correctly

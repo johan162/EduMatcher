@@ -6723,10 +6723,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#exercise-7-build-and-run-the-c-client" class="md-nav__link">
+  <a href="#optional-exercise-7-build-and-run-the-c-client" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Exercise 7: Build and Run the C Client
+        Optional Exercise 7: Build and Run the C Client
       
     </span>
   </a>
@@ -7783,7 +7783,8 @@ CLI tools, the example parser libraries, and the interactive example clients.</p
   checkout; on a container or <code>pipx</code> install they are under
   <code>$EX/alf</code>, with
   <code>EX=$(python -c "from edumatcher.config_deploy import examples_root; print(examples_root().parent)")</code>;
-  the C client needs <code>make</code>, a C compiler and the readline headers):</li>
+  the C client needs <code>make</code>, a C compiler and the readline headers, so its
+  exercise is optional in the container image):</li>
 <li><code>python/alf_parser.py</code>, <code>python/alf_client.py</code></li>
 <li><code>c/alf_parser.h</code>, <code>c/alf_parser.c</code>, <code>c/alf_client.c</code>, <code>c/Makefile</code></li>
 </ul>
@@ -8046,7 +8047,10 @@ use the <a href="../../protocols-and-clients/part-4-writing-clients/030-example-
 which includes periodic <code>PING</code>, a query deadline, error handling, and
 reconciliation responsibilities.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: <code>AlfSession.connect</code> completes the HELLO/WELCOME handshake and <code>recv_msg</code> returns a parsed message.</p>
-<h2 id="exercise-7-build-and-run-the-c-client">Exercise 7: Build and Run the C Client<a class="headerlink" href="#exercise-7-build-and-run-the-c-client" title="Permanent link">&para;</a></h2>
+<h2 id="optional-exercise-7-build-and-run-the-c-client">Optional Exercise 7: Build and Run the C Client<a class="headerlink" href="#optional-exercise-7-build-and-run-the-c-client" title="Permanent link">&para;</a></h2>
+<p>The container image does not include <code>make</code>, a C compiler, or readline
+development headers. Skip this exercise there; Exercise 5's Python interactive
+client provides the same gateway workflow.</p>
 <p><strong>macOS</strong> — install Homebrew readline for full callback support if not already present:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>brew<span class="w"> </span>install<span class="w"> </span>readline
 </code></pre></div>
@@ -8076,7 +8080,8 @@ reconciliation responsibilities.</p>
 <p>Try connecting to a remote host:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>./alf_client<span class="w"> </span>--host<span class="w"> </span><span class="m">10</span>.0.0.5<span class="w"> </span>--port<span class="w"> </span><span class="m">5565</span><span class="w"> </span>--id<span class="w"> </span>TRADER01
 </code></pre></div>
-<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: C client connects, shows <code>WELCOME</code>, and a <code>NEW</code> order returns an <code>ACK</code>.</p>
+<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Optional checkpoint: the C client connects,
+shows <code>WELCOME</code>, and a <code>NEW</code> order returns an <code>ACK</code>.</p>
 <h2 id="exercise-8-control-commands-and-the-kill-switch">Exercise 8: Control Commands and the Kill-Switch<a class="headerlink" href="#exercise-8-control-commands-and-the-kill-switch" title="Permanent link">&para;</a></h2>
 <h3 id="ping-pong">PING / PONG<a class="headerlink" href="#ping-pong" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>nc<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span><span class="m">5565</span>

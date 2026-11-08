@@ -8860,9 +8860,10 @@ participant's fills as unsolicited <code>DC_FILL</code> lines; there is no <code
 <p>The example subscribers keep a running per-symbol tally of fills, executed
 quantity, VWAP and the <code>MAKER</code>/<code>TAKER</code> split (<code>DC_FILL</code> carries no side, so
 it is an activity tally, not a net position), and print it on Ctrl-C
-shutdown. Drop-copy <code>SEQ</code> is one engine-wide counter shared by every gateway
-ID, so a per-ID session sees gaps routinely; the examples report only a <code>SEQ</code>
-that goes backwards, which means the engine restarted.</p>
+shutdown. Drop-copy <code>SEQ</code> is a separate counter for each gateway ID, so a
+per-ID session sees <code>1, 2, 3, …</code> with no gaps. The examples report a <code>SEQ</code>
+that skips ahead (lost fills) and one that goes backwards (the engine
+restarted and the counter began again at 1).</p>
 <h3 id="source-files_3">Source files<a class="headerlink" href="#source-files_3" title="Permanent link">&para;</a></h3>
 <table>
 <thead>

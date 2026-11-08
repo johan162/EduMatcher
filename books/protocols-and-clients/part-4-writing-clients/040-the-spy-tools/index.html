@@ -7816,12 +7816,12 @@ the top level; <code>topic</code>, <code>recv_ts</code>, and a derived <code>rep
 <a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>pm-dc-spy<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span><span class="s1">'select(.symbol == "AAPL")'</span>
 </code></pre></div>
 <h2 id="observing-replay">Observing replay<a class="headerlink" href="#observing-replay" title="Permanent link">&para;</a></h2>
-<p><code>DropCopyPublisher.replay(recipient_id, from_seq)</code> is currently an
-in-process method with no external wire protocol to trigger it (see
-<a href="../../part-3-session-behaviour/060-drop-copy/#replay">Drop Copy — Replay</a>). <code>pm-dc-spy</code> cannot request a
-replay itself, but <code>--replay-of RECIPIENT_ID</code> lets you <em>watch</em> one happen —
-useful when a test or embedded consumer calls <code>replay()</code> and you want to
-see exactly what gets re-published:</p>
+<p><code>DropCopyPublisher.replay(recipient_id, from_seq, gateway_id=...)</code> is
+currently an in-process method with no external wire protocol to trigger it
+(see <a href="../../part-3-session-behaviour/060-drop-copy/#replay">Drop Copy — Replay</a>).
+<code>pm-dc-spy</code> cannot request a replay itself, but <code>--replay-of RECIPIENT_ID</code>
+lets you <em>watch</em> one happen — useful when a test or embedded consumer calls
+<code>replay()</code> and you want to see exactly what gets re-published:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>pm-dc-spy<span class="w"> </span>--replay-of<span class="w"> </span>MY_RISK_SYS
 </code></pre></div>
 <p>Replayed messages are tagged <code>REPLAY</code> instead of <code>FILL</code> (yellow instead of

@@ -12926,7 +12926,7 @@ wire-format specification in the
 <td><code>int</code></td>
 <td>required</td>
 <td>gt 0, unit <code>dimensionless</code></td>
-<td>Process-wide monotone counter, starting at 1 so that 0 can mean "no events yet". Never resets while the engine lives. A recipient detects loss from a gap and a duplicate from a repeat, which is the whole reason the feed is sequenced.</td>
+<td>Monotone counter for this gateway's stream, starting at 1 so that 0 can mean "no events yet". Independent of other gateways and resets when the engine restarts. A recipient detects loss from a gap and a duplicate from a repeat within this stream.</td>
 </tr>
 <tr>
 <td><code>timestamp</code></td>
@@ -13030,7 +13030,7 @@ wire-format specification in the
 <td><code>int</code></td>
 <td>required</td>
 <td>gt 0, unit <code>dimensionless</code></td>
-<td></td>
+<td>Original sequence number in this gateway's live stream.</td>
 </tr>
 <tr>
 <td><code>timestamp</code></td>
@@ -13102,6 +13102,7 @@ wire-format specification in the
 <p>The body is byte-identical to the live event, including the original <code>seq</code> and <code>timestamp</code> -- a replayed fill is the same fill, not a new one.</p>
 <p>Only the topic differs, and it names the <em>recipient</em> rather than the gateway, so two simultaneous replays do not interleave.</p>
 <p><code>recipient_id</code> is therefore not the same thing as <code>gateway_id</code>, which is why the body keeps carrying the latter.</p>
+<p>The in-process replay method takes <code>gateway_id</code> as a required argument and replays only that gateway's events.</p>
 <p>There is no request message.</p>
 <p><code>DropCopyPublisher.replay()</code> is in-process only, callable from the engine and reachable by no protocol -- the module docstring described a <code>drop_copy.replay_request</code> that was never built.</p>
 <p>Section 27.3.</p>
@@ -17688,7 +17689,7 @@ wire-format specification in the
 <p><strong>Published by:</strong> <code>engine</code></p>
 <p><strong>Transport:</strong> <code>engine_pub</code></p>
 <p><strong>Since:</strong> 1.0</p>
-<p>A DAY order that never filled has expired at session end. Same shape as order.cancelled - the difference is who ended the order, not what the consumer needs to know about it.</p>
+<p>An order has expired because its time-in-force window ended. The optional reason distinguishes auction-only expiry from end-of-day expiry while remaining compatible with existing consumers.</p>
 <table>
 <thead>
 <tr>
@@ -17769,6 +17770,13 @@ wire-format specification in the
 <td>omitted when unset</td>
 <td>ge 0, unit <code>shares</code></td>
 <td>Quantity the order had filled before it expired.</td>
+</tr>
+<tr>
+<td><code>reason</code></td>
+<td><code>string</code></td>
+<td>omitted when unset</td>
+<td>—</td>
+<td>Why the order expired: "Opening auction ended", "Closing auction ended", or "Trading day ended".</td>
 </tr>
 </tbody>
 </table>

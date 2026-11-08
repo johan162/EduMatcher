@@ -8752,6 +8752,10 @@ it is not a level/EOD time series. For level and EOD history, use
 <p>If <code>INDEX=</code> is omitted and no <code>index.update</code> has been seen yet, <code>INDEX|HISTORY</code>
 prints <code>INDEX|HISTORY requires INDEX=&lt;id&gt; or prior index.update.</code> and sends
 nothing.</p>
+<p><code>FROM</code> is local midnight at the start of its date. Date-only <code>TO</code> includes
+the entire date, through the final nanosecond before the next local midnight;
+the same date can be used for both bounds to query one full day. Exact
+timestamp bounds on the history request are inclusive.</p>
 <p>Example:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>[TRADER01]&gt; INDEX
 <a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>[09:31:00.512] TECH100  4213.55 [green]+12.30 +0.29%[/green] [dim]O=4201.25 H=4220.10 L=4198.00[/dim] OPEN

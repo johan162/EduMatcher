@@ -8269,7 +8269,7 @@ Execution feedback currently arrives only through strategy-facing channels. Ther
 <p>Technical details:</p>
 <ul>
 <li>Add a <code>dropcopy.*</code> topic namespace mirroring all order lifecycle events: <code>dropcopy.new</code>, <code>dropcopy.ack</code>, <code>dropcopy.fill</code>, <code>dropcopy.cancel</code>, <code>dropcopy.expire</code>, <code>dropcopy.reject</code>.</li>
-<li>Each drop-copy event includes: <code>seq</code> (int, session-global monotonically increasing, starting at 1), <code>ts</code> (microsecond timestamp), and the full original event payload unchanged.</li>
+<li>Each drop-copy event includes: <code>seq</code> (int, monotonically increasing per gateway, starting at 1), <code>ts</code> (microsecond timestamp), and the full original event payload unchanged.</li>
 <li>Write all drop-copy events to a durable append-only log file <code>dropcopy_YYYYMMDD.log</code> in JSON-lines format (one event per line). The file is closed and renamed at session end.</li>
 <li>Provide a <code>dropcopy_reconcile.py</code> utility that reads the log file and a participant's local fill records and outputs three lists: missing events (gap in sequence), duplicate events (seq appears twice), quantity mismatches (fill qty in log differs from local record).</li>
 <li>Sequence numbers reset to 1 at each session start.</li>

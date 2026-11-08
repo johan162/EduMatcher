@@ -7787,7 +7787,7 @@ minimal ZMQ subscriber to the same socket <code>pm-dc-spy</code> reads:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=100
 </code></pre></div>
 <p>You should see one <code>drop_copy.event.&lt;gateway_id&gt;</code> message per participant on
-each side of the trade, stamped with a monotonically increasing <code>seq</code> (one counter for the whole feed, so the two sides of one trade get consecutive numbers).
+each side of the trade, stamped with a <code>seq</code> that counts that gateway's own events (each gateway has its own counter starting at 1, so the two sides of one trade carry numbers from different streams).
 Each message also carries <code>trade_ids</code>, the durable public trade ID that lets a
 risk or clearing consumer correlate its private execution with <code>trade.executed</code>.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> you received at least one drop-copy message directly from port 5557, distinct from anything <code>pm-audit</code> printed on port 5556.</p>

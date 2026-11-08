@@ -7922,9 +7922,12 @@ summary below and the rule you saw in Exercise 4.</p>
 <li><code>ATC</code> is only accepted while the session state is exactly
   <code>CLOSING_AUCTION</code>.</li>
 <li>Unfilled <code>ATO</code>/<code>ATC</code> orders are expired the moment the session <em>leaves</em>
-  their respective auction phase (not on any other transition).</li>
+  their respective auction phase (not on any other transition). The
+  <code>order.expired</code> event reports <code>Opening auction ended</code> for ATO and
+  <code>Closing auction ended</code> for ATC.</li>
 <li>All resting <code>DAY</code> orders (regardless of when they were placed) are expired
-  the moment the session transitions <em>into</em> <code>CLOSED</code>.</li>
+  the moment the session transitions <em>into</em> <code>CLOSED</code>, with reason
+  <code>Trading day ended</code>.</li>
 </ul>
 <h2 id="reflection">Reflection<a class="headerlink" href="#reflection" title="Permanent link">&para;</a></h2>
 <p>Why does GTC survive every phase transition while DAY does not? If you were

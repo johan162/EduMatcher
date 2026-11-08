@@ -7928,7 +7928,8 @@ one peak at a time, and each refilled peak goes to the back of the queue,
 exactly as in continuous trading.</p>
 </div>
 <p>After the uncross, ATO orders that didn't fill are <strong>expired</strong> (not cancelled
-by the trader — automatically removed by the engine). The market transitions
+by the trader — automatically removed by the engine). The <code>order.expired</code>
+event identifies the reason as <code>Opening auction ended</code>. The market transitions
 to CONTINUOUS.</p>
 <h2 id="phase-3-continuous">Phase 3 — CONTINUOUS<a class="headerlink" href="#phase-3-continuous" title="Permanent link">&para;</a></h2>
 <p>This is the main trading session. Every new order is immediately swept against
