@@ -224,6 +224,27 @@ describe("rows 3-7 (D3.4)", () => {
     expect(garbage("AAPL")).toBe("2.00×"); // above the band, but pm-monitor has not judged it
   });
 
+  it("books: paged, page size selectable, and the filter searches every book", () => {
+    const socket = renderAt();
+    const template = CAPTURED.books[0]!;
+    const books = Array.from({ length: 75 }, (_, i) => ({ ...template, symbol: `S${String(i).padStart(3, "0")}` }));
+    socket.deliver(hello, frame(fixtureSnapshot({ books })));
+    const rows = () => screen.getByRole("table", { name: "Order books" }).querySelectorAll("tbody tr").length;
+    expect(rows()).toBe(30);
+    fireEvent.click(screen.getByRole("button", { name: "Next page" }));
+    expect(screen.getByText("Page 2/3")).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Rows per page"), { target: { value: "10" } });
+    expect(rows()).toBe(10);
+    expect(screen.getByText("Page 1/8")).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Rows per page"), { target: { value: "0" } });
+    expect(rows()).toBe(75);
+    // S074 would be on the last page of 10; the search finds it from anywhere.
+    fireEvent.change(screen.getByLabelText("Rows per page"), { target: { value: "10" } });
+    fireEvent.change(screen.getByLabelText("Find symbol"), { target: { value: "s07" } });
+    expect(rows()).toBe(5);
+    expect(screen.getByText("5 symbols of 75")).toBeTruthy();
+  });
+
   it("books, gateways and the event log", async () => {
     const socket = renderAt();
     socket.deliver(hello, frame(CAPTURED));
