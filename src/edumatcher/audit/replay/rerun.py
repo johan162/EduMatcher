@@ -58,7 +58,7 @@ from __future__ import annotations
 import json
 import re
 import tempfile
-from collections import Counter
+from collections import Counter, deque
 from collections.abc import Callable, Generator, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -222,10 +222,19 @@ class LiveClock:
     ``order.ack``, ``order.fill`` or ``trade.executed`` carries it (S37). An
     input that publishes none (a cancel) keeps the time before it; audit line
     times are the audit's receive times and may pass the engine's next
-    stamp. A breaker reopens by its timer input (BREAKER_TIMER)."""
+    stamp. A breaker reopens by its timer input (BREAKER_TIMER).
+
+    One input can span much engine time: a session transition uncrosses 300
+    books in 0.6 s, and each print carries its own stamp. The breaker's window
+    is cut by the prints' stamps, so ``trade_stamps`` holds each symbol's
+    ``trade.executed`` stamps of the input, and :func:`live_clock` gives them
+    to the re-run's trades in turn (a print 0.4 s after the first, 5 minutes
+    on, is inside or outside the window with it: one tick on the reference,
+    2026-11-08 IR)."""
 
     def __init__(self, ns: int) -> None:
         self.ns = ns
+        self.trade_stamps: dict[str, deque[int]] = {}
 
     def time_ns(self) -> int:
         return self.ns
@@ -233,6 +242,10 @@ class LiveClock:
     def follow(self, live: Live) -> None:
         """Move to the time the live engine stamped first for the input that
         published *live*, if it stamped one; never back."""
+        self.trade_stamps = {}
+        for topic, p in live:
+            if topic == TOPIC_TRADE_EXECUTED and isinstance(p.get("ts_ns"), int):
+                self.trade_stamps.setdefault(p["symbol"], deque()).append(p["ts_ns"])
         for topic, p in live:
             if topic.startswith(_STAMPED) and isinstance(p.get("ts_ns"), int):
                 self.ns = max(self.ns, int(p["ts_ns"]))
@@ -246,7 +259,18 @@ def live_clock(files: list[Path]) -> Generator[LiveClock]:
     first = next(lines(files), None)
     clock = LiveClock(iso_ns(first.ts) if first is not None else 0)
     reset_clock_for_tests()
-    with mock.patch.object(models_clock, "time", clock):
+    publish_trade = engine_main.Engine._publish_trade
+
+    def stamped(engine: engine_main.Engine, trade: Any) -> None:
+        stamps = clock.trade_stamps.get(trade.symbol)
+        if stamps:
+            trade.ts_ns = stamps.popleft()
+        publish_trade(engine, trade)
+
+    with (
+        mock.patch.object(models_clock, "time", clock),
+        mock.patch.object(engine_main.Engine, "_publish_trade", stamped),
+    ):
         yield clock
 
 

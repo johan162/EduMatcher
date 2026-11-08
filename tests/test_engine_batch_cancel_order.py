@@ -11,6 +11,7 @@ order with negligible probability, so each test fails on the old code.
 from __future__ import annotations
 
 from edumatcher.engine.order_book import OrderBook
+from edumatcher.models.message import decode
 from edumatcher.models.order import TIF, Order, OrderType, Side
 from edumatcher.models.quote import QuoteEntry, QuoteIndex
 from tests.engine_harness import connect, make_engine, msgs, order_payload
@@ -73,3 +74,26 @@ def test_x11_kill_switch_cancels_in_arrival_order(monkeypatch, tmp_path) -> None
         ids.append(payload["id"])
     engine._handle_kill_switch({"gateway_id": "GW01", "command_id": "c1"})
     assert [m["order_id"] for m in msgs(pub, "order.cancelled.GW01")] == ids
+
+
+def test_expiry_follows_gateway_and_order_id_not_arrival(monkeypatch, tmp_path) -> None:
+    """A restored book is rebuilt in price priority, so the expiries cannot
+    follow the book's own order: they follow (gateway_id, order_id)."""
+    engine, pub = make_engine(monkeypatch, tmp_path)
+    connect(engine)
+    keys = []
+    for i in range(N):
+        gw = "GW02" if i % 2 else "GW01"
+        payload = order_payload(Side.BUY, OrderType.LIMIT, 1, gw, price=50.0 + i / 100)
+        engine._handle_new_order(payload)
+        keys.append((gw, payload["id"]))
+    assert keys != sorted(keys)
+    pub.sent.clear()
+    engine._expire_tif(TIF.DAY)
+    expired = [
+        (t.rsplit(".", 1)[1], m["order_id"])
+        for f in pub.sent
+        for t, m in [decode(f)]
+        if t.startswith("order.expired.")
+    ]
+    assert expired == sorted(keys)

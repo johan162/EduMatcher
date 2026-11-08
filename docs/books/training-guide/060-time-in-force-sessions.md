@@ -303,6 +303,10 @@ Notes:
 - All resting `DAY` orders (regardless of when they were placed) are expired
   the moment the session transitions *into* `CLOSED`, with reason
   `Trading day ended`.
+- Within one symbol, a sweep publishes its `order.expired` events sorted by
+  gateway and then order id, not by arrival. A restarted engine rebuilds its
+  books in price priority, so any order tied to the book's own sequence would
+  differ between a live and a restarted engine; this one does not.
 
  
 
