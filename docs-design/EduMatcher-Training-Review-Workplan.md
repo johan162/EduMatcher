@@ -40,7 +40,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 | 10 | T10 | Teaching configuration, persisted orders and collars | Q13 | Contract decision | ☐ | |
 | 11 | T11 | Session-transition rejection replies | Q14 | — | ☑ | 2026-11-08 |
 | 12 | T12 | Index history, listing and restored session phase | Q15, Q16 | Contract decision | ☑ | 2026-11-08 |
-| 13 | T13 | ATO expiry reason | Q17 | — | ☐ | |
+| 13 | T13 | ATO expiry reason | Q17 | — | ☑ | 2026-11-08 |
 | 14 | T14 | Generated API-key usability and safety | Q18 | Contract decision | ☐ | |
 | 15 | T15 | Per-recipient drop-copy sequence | Q19 | Contract decision | ☐ | |
 | 16 | T16 | Close training-route and exercise verification gaps | §§3–4 | T7 for installed routes | ☐ | |
@@ -666,6 +666,27 @@ Steps:
 - Order state, trade state and expiry event agree.
 - Relevant clients/specification/examples are updated and targeted auction
   tests pass.
+
+**Contract:** `order.expired` carries an optional `reason` field so existing
+consumers remain compatible. New engine events identify ATO expiry as
+`Opening auction ended`, ATC expiry as `Closing auction ended`, and DAY expiry
+as `Trading day ended`. The ALF console uses the event reason, or derives it
+from cached TIF for events from older engines; if neither is available it
+prints the neutral `Order expired`.
+
+**Result (2026-11-08):** The regression reproduced the missing event reason
+and the console's incorrect DAY explanation. The engine now attaches the
+appropriate reason when expiring ATO, ATC, or DAY orders. The additive,
+optional field is generated from `spec/messages/order.yaml`; the ALF console
+renders it and retains a TIF-based fallback for old events. The opening-auction
+test verifies the ATO order is removed, no trade occurs, and the event says
+`Opening auction ended`. Tests also pin ATC and DAY reasons. The training,
+participant, and generated protocol guides now describe the correct reason.
+
+Verification:
+- Targeted auction, expiry-field, ALF-console and message tests — 136 passed
+- Full suite — 13,586 passed, 1 skipped; 90.43% coverage
+- Black, Flake8, mypy, pyright, MkDocs build and `pm-msgen check` — passed
 
 ### T14 — Generated API-key usability and safety (Q18)
 

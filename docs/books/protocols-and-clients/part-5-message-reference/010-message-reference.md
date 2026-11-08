@@ -2380,7 +2380,7 @@ Confirm that a resting order has been cancelled.
 
 **Since:** 1.0
 
-A DAY order that never filled has expired at session end. Same shape as order.cancelled - the difference is who ended the order, not what the consumer needs to know about it.
+An order has expired because its time-in-force window ended. The optional reason distinguishes auction-only expiry from end-of-day expiry while remaining compatible with existing consumers.
 
 | Field | Type | Presence | Rules | Description |
 |---|---|---|---|---|
@@ -2394,6 +2394,7 @@ A DAY order that never filled has expired at session end. Same shape as order.ca
 | `leg_index` | `int` | omitted when unset | unit `dimensionless` |  |
 | `remaining_qty` | `int` | omitted when unset | ge 0, unit `shares` | Quantity left unfilled when the order expired. |
 | `cum_qty` | `int` | omitted when unset | ge 0, unit `shares` | Quantity the order had filled before it expired. |
+| `reason` | `string` | omitted when unset | — | Why the order expired: "Opening auction ended", "Closing auction ended", or "Trading day ended". |
 
 ### `order.triggered.{gateway_id}`
 

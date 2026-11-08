@@ -6058,7 +6058,12 @@ class Engine:
         self._next_session_at = next_at
 
     def _expire_tif(self, tif: TIF) -> None:
-        """Expire all resting orders with the given TIF."""
+        """Expire all resting orders with the given TIF and its expiry reason."""
+        reason = {
+            TIF.ATO: "Opening auction ended",
+            TIF.ATC: "Closing auction ended",
+            TIF.DAY: "Trading day ended",
+        }[tif]
         for book in self.books.values():
             for order in book.resting_orders():
                 if order.tif == tif:
@@ -6070,6 +6075,7 @@ class Engine:
                                 cancelled.gateway_id,
                                 cancelled.id,
                                 order=cancelled.to_dict(),
+                                reason=reason,
                             )
                         )
                         self._order_symbol.pop(cancelled.id, None)

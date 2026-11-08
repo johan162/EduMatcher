@@ -93,6 +93,28 @@ class TestEventLinesShowTheFullOrderId:
         printed = str(mock_print.call_args.args[0])
         assert FULL_ID in printed
 
+    def test_expired_line_shows_the_event_reason(self) -> None:
+        gw = _make_gateway()
+        with patch("edumatcher.alf_console.main.console.print") as mock_print:
+            gw._handle_event(
+                "order.expired.GW01",
+                {"order_id": FULL_ID, "reason": "Opening auction ended"},
+            )
+        printed = str(mock_print.call_args.args[0])
+        assert FULL_ID in printed
+        assert "Opening auction ended" in printed
+        assert "DAY order" not in printed
+        assert "trading day ended" not in printed
+
+    def test_expired_legacy_event_uses_cached_time_in_force(self) -> None:
+        gw = _make_gateway()
+        gw.order_cache[FULL_ID] = {"tif": "ATO"}
+        with patch("edumatcher.alf_console.main.console.print") as mock_print:
+            gw._handle_event("order.expired.GW01", {"order_id": FULL_ID})
+        printed = str(mock_print.call_args.args[0])
+        assert "Opening auction ended" in printed
+        assert "trading day ended" not in printed
+
     def test_oco_ack_line_shows_both_full_leg_ids(self) -> None:
         gw = _make_gateway()
         other_id = "c" * 32

@@ -980,11 +980,20 @@ class Gateway:
                     self.order_cache[full_id]["remaining"] = rem
 
         elif PREFIX_ORDER_EXPIRED in topic:
-            console.print(
-                f"[{ts}] [dim]EXPIRED[/dim]   {oid}  (DAY order — trading day ended)"
-            )
+            full_id = str(payload.get("order_id", "?"))
+            reason = payload.get("reason")
+            if not isinstance(reason, str) or not reason:
+                cached = self.order_cache.get(full_id, {})
+                cached_tif = cached.get("tif")
+                reason = {
+                    "ATO": "Opening auction ended",
+                    "ATC": "Closing auction ended",
+                    "DAY": "Trading day ended",
+                }.get(
+                    cached_tif if isinstance(cached_tif, str) else "", "Order expired"
+                )
+            console.print(f"[{ts}] [dim]EXPIRED[/dim]   {oid}  ({reason})")
             log.debug("order expired order_id=%s", oid)
-            full_id = payload.get("order_id", "?")
             if full_id in self.order_cache:
                 self.order_cache[full_id]["status"] = "EXPIRED"
 

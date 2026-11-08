@@ -655,9 +655,9 @@ class OrderCancelled(BaseModel):
 
 
 class OrderExpired(BaseModel):
-    """A DAY order that never filled has expired at session end. Same shape as
-    order.cancelled - the difference is who ended the order, not what the consumer
-    needs to know about it.
+    """An order has expired because its time-in-force window ended. The optional
+    reason distinguishes auction-only expiry from end-of-day expiry while
+    remaining compatible with existing consumers.
     """
 
     model_config = ConfigDict(use_attribute_docstrings=True)
@@ -677,6 +677,10 @@ class OrderExpired(BaseModel):
     """Quantity left unfilled when the order expired. Unit: shares."""
     cum_qty: int | None = Field(default=None, ge=0)
     """Quantity the order had filled before it expired. Unit: shares."""
+    reason: str | None = Field(default=None)
+    """Why the order expired: "Opening auction ended", "Closing auction ended", or
+    "Trading day ended".
+    """
 
 
 class OrderTriggered(BaseModel):

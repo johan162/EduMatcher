@@ -562,6 +562,7 @@ def make_expired_msg(
     order: dict[str, Any] | None = None,
     *,
     symbol: str | None = None,
+    reason: str | None = None,
 ) -> list[bytes]:
     """Generated from ``spec/messages/order.yaml``.
 
@@ -574,6 +575,7 @@ def make_expired_msg(
         order_id=order_id,
         symbol=order_symbol(symbol, order),
         client_tag=order_client_tag(client_tag, order),
+        reason=reason,
         **left_and_filled(order),
         **group_ids(order),
     )

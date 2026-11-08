@@ -157,8 +157,7 @@ console reported it `EXPIRED` in the same burst as the AAPL fills. Confirm it:
 ```
 
 The MSFT order is listed with status `EXPIRED`. (The console's explanation
-reads *DAY order — trading day ended*; for an `ATO` order, read it as *the
-opening auction ended*.)
+reads *Opening auction ended*, identifying why the `ATO` remainder expired.
 
 :material-checkbox-blank-outline: **Checkpoint:** the unmatched ATO order expired at the start of CONTINUOUS.
 

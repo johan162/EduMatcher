@@ -376,9 +376,12 @@ class TestOrderMessages:
         assert payload["order_id"] == "ORD1"
 
     def test_make_expired_msg(self) -> None:
-        topic, payload = _rt(make_expired_msg("GW02", "ORD99"))
+        topic, payload = _rt(
+            make_expired_msg("GW02", "ORD99", reason="Opening auction ended")
+        )
         assert topic == "order.expired.GW02"
         assert payload["order_id"] == "ORD99"
+        assert payload["reason"] == "Opening auction ended"
 
 
 class TestSystemMessages:
