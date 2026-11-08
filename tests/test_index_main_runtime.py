@@ -3,24 +3,26 @@ from __future__ import annotations
 import errno
 from pathlib import Path
 from collections.abc import Generator
-from typing import Any
+from typing import Any, cast
 
 import pytest
 import zmq
 
 import edumatcher.index.main as index_main
 from edumatcher.index.config_loader import IndexRuntimeConfig
+from edumatcher.models.message import decode as decode_message
 
 
 class _FakeSocket:
     def __init__(self) -> None:
         self.closed = False
+        self.sent: list[list[bytes]] = []
 
     def recv_multipart(self) -> list[bytes]:
         return [b"topic", b"payload"]
 
-    def send_multipart(self, _frames: list[bytes]) -> None:
-        return None
+    def send_multipart(self, frames: list[bytes]) -> None:
+        self.sent.append(frames)
 
     def close(self) -> None:
         self.closed = True
@@ -55,8 +57,10 @@ def proc(
     sub = _FakeSocket()
     pull = _FakeSocket()
     pub = _FakeSocket()
+    engine_push = _FakeSocket()
 
     monkeypatch.setattr(index_main, "make_subscriber", lambda *_a, **_k: sub)
+    monkeypatch.setattr(index_main, "make_pusher", lambda *_a, **_k: engine_push)
     monkeypatch.setattr(index_main, "make_puller", lambda *_a, **_k: pull)
     monkeypatch.setattr(index_main, "make_publisher", lambda *_a, **_k: pub)
     monkeypatch.setattr(index_main, "make_replier", lambda *_a, **_k: _FakeSocket())
@@ -116,6 +120,11 @@ def test_run_dispatches_sub_and_pull_topics(
     assert history_calls == [
         {"gateway_id": "GW1", "index_id": "EDU100", "from_ts": 0.0}
     ]
+    engine_push = cast(_FakeSocket, proc._engine_push)
+    assert decode_message(engine_push.sent[0]) == (
+        "system.session_state_request",
+        {"gateway_id": "PM_INDEX"},
+    )
 
 
 def test_run_ignores_malformed_frames_without_crashing(

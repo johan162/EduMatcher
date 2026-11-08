@@ -82,6 +82,17 @@ export const api = {
     return body.ack;
   },
 
+  ackAllIssues: async (ackedBy: string, minLevel?: string): Promise<number> => {
+    const res = await fetch("/api/issues/ack-all", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ackedBy, minLevel }),
+    });
+    if (!res.ok) throw new Error(`ack-all failed: ${res.status}`);
+    const body = (await res.json()) as { acked: number };
+    return body.acked;
+  },
+
   unackIssue: async (fingerprint: string, by: string): Promise<void> => {
     await fetch(`/api/issues/${fingerprint}/ack`, {
       method: "DELETE",

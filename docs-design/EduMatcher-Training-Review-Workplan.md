@@ -34,16 +34,16 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 | 4 | T4 | Console logout after engine connection loss | Q4 | — | ☑ | 2026-11-07 |
 | 5 | T5 | Admin console identities and safe reset guidance | Q5, Q6 | — | ☑ | 2026-11-07 |
 | 6 | T6 | Clearing totals and gateway quote-status scope | Q7, Q8 | — | ☑ | 2026-11-07 |
-| 7 | T7 | Installed examples, C exercises and version metadata | Q9, Q10, Q21 | — | ☐ | |
-| 8 | T8 | Normal-use warnings and artifact errors | Q11 | Contract decision | ☐ | |
+| 7 | T7 | Installed examples, C exercises and version metadata | Q9, Q10, Q21 | — | ☑ | 2026-11-08 |
+| 8 | T8 | Normal-use warnings and artifact errors | Q11 | Contract decision | ☑ | 2026-11-08 |
 | 9 | T9 | Swarm budget semantics | Q12 | Contract decision | ☐ | |
-| 10 | T10 | Teaching configuration, persisted orders and collars | Q13 | Contract decision | ☐ | |
-| 11 | T11 | Session-transition rejection replies | Q14 | — | ☐ | |
-| 12 | T12 | Index history, listing and restored session phase | Q15, Q16 | Contract decision for Q15 | ☐ | |
-| 13 | T13 | ATO expiry reason | Q17 | — | ☐ | |
-| 14 | T14 | Generated API-key usability and safety | Q18 | Contract decision | ☐ | |
-| 15 | T15 | Per-recipient drop-copy sequence | Q19 | Contract decision | ☐ | |
-| 16 | T16 | Close training-route and exercise verification gaps | §§3–4 | T7 for installed routes | ☐ | |
+| 10 | T10 | Teaching configuration, persisted orders and collars | Q13 | Contract decision | ☑ | 2026-11-08 |
+| 11 | T11 | Session-transition rejection replies | Q14 | — | ☑ | 2026-11-08 |
+| 12 | T12 | Index history, listing and restored session phase | Q15, Q16 | Contract decision | ☑ | 2026-11-08 |
+| 13 | T13 | ATO expiry reason | Q17 | — | ☑ | 2026-11-08 |
+| 14 | T14 | Training API-key usability | Q18 | Contract decision | ☑ | 2026-11-08 |
+| 15 | T15 | Per-recipient drop-copy sequence | Q19 | Contract decision | ☑ | 2026-11-08 |
+| 16 | T16 | Close training-route and exercise verification gaps | §§3–4 | T7 for installed routes | ☑ | 2026-11-08 |
 
 ### 1.1 Question → WP index
 
@@ -413,11 +413,12 @@ Verification:
 
 ### T7 — Installed examples, C exercises and version metadata (Q9, Q10, Q21)
 
-**Question to resolve:** What is the supported way to locate packaged examples
-for `pm-ai-swarm` and `pm-news play`, and should C exercises be optional in
-images without a compiler or should compiled clients ship? Q9 additionally
-asks whether stale Poetry version output is packaging metadata or an
-installation issue.
+**Decision:** Use the packaged `docs/examples` tree located through
+`examples_root().parent`; keep swarm and news scenario arguments as file paths
+and do not add name-based CLI aliases. C exercises are optional in the
+container, with Python alternatives identified wherever available; do not
+ship platform-specific compiled binaries. A Poetry environment reporting a
+stale version must be refreshed with `poetry install --with dev,docs`.
 
 Steps:
 1. Build a wheel from the current source, install it into a clean environment
@@ -446,11 +447,33 @@ Steps:
 - Chosen packaging/C-exercise behavior has automated or scripted verification.
 - Packaging checks and relevant documentation tests pass.
 
+**Verification (2026-11-08):** Built `edumatcher-0.76.5` as a wheel and
+installed it into a clean virtualenv outside the checkout. `pm-engine`,
+`pm-eod`, `pm-ai-swarm` and `pm-news` all reported 0.76.5. The installed
+`examples_root()` resolved to `site-packages/docs/examples`; the packaged
+`s150-nominal-setup/swarm.yaml` loaded, and `pm-news play` parsed the packaged
+`chip-race.yaml` scenario (three steps) with the network handoff stubbed. A
+regression test simulates the installed layout without a checkout. The current
+Poetry environment reports 0.76.2 against `pyproject.toml` 0.76.5, confirming
+stale editable metadata; installation guidance now says to rerun `poetry
+install --with dev,docs`. C builds are explicitly optional in chapters 23–25
+and 27–28, with Python equivalents noted. Black, Flake8, mypy, pyright,
+`mkdocs build`, and the targeted 106 tests passed. `scripts/checkdocs.py`
+passes CLI, anchor and link checks; it retains the two unrelated baseline
+Y005 missing `/tmp/symbols.yaml` and `/tmp/desk-keys.yaml` warnings.
+
 ### T8 — Normal-use warnings and artifact errors (Q11)
 
 **Question to resolve:** Should missing-monitor beacon warnings and expected
 engine-unreachable heartbeats be quiet below WARNING? Should invalid artifact
 startup show a concise error rather than a traceback?
+
+**Contract decision (2026-11-08):** Missing or unavailable monitoring and
+engine-unreachable heartbeat sends during restarts are expected operational
+noise: log them at DEBUG, retaining the existing beacon rate limit. Disabled
+monitoring sends no beacons and emits no warning. An invalid deployed artifact
+must stop `pm-engine` with status 1 and one actionable error; traceback
+diagnostics are available at DEBUG.
 
 Steps:
 1. Add log-capture tests first for: (a) a process with no monitor configured,
@@ -472,6 +495,20 @@ Steps:
 - Invalid artifacts still fail startup with a nonzero result and no
   success-shaped fallback.
 - Targeted tests and docs checks pass.
+
+**Evidence:**
+- `poetry run pytest tests/test_health_reporter.py tests/test_alf_console_heartbeat.py tests/test_engine_main.py tests/test_config_runtime_readers.py -q --no-cov`
+  — 77 passed. With monitoring disabled, no reporter/log is created; a
+  configured monitor rejecting beacons over three sampler intervals logs at
+  DEBUG without stopping the reporter. Repeated controlled send attempts verify
+  the 60-second rate limit. A heartbeat send failure during engine loss logs
+  the drop at DEBUG, retains the single logout error/message, and stops the
+  console. Malformed JSON (`{ not json`) makes `pm-engine` exit 1 with one
+  actionable error; `-vv` retains exception details at DEBUG.
+- `poetry run mkdocs build` — passed; the Training Guide index and Chapter 01
+  describe the normal and debug output.
+- `poetry run black --check src tests`, `poetry run flake8 src tests`,
+  `poetry run mypy src tests`, and `poetry run pyright src tests` — passed.
 
 ### T9 — Swarm budget semantics (Q12)
 
@@ -501,9 +538,12 @@ Steps:
 
 ### T10 — Teaching configuration and persisted exchange history (Q13)
 
-**Question to resolve:** Should teaching examples isolate learners from
-persisted same-day `DAY` orders and historical reference prices, or teach the
-operator-documented persistence/collar behavior explicitly?
+**Decision (2026-11-08):** Keep the named-level exercise's fixed collar
+predictions repeatable by clearing exchange working state before Exercise 11.
+Do not widen teaching collars or alter production persistence semantics.
+`pm-opctl-cli clear --state` removes both persisted same-day DAY orders and
+historical reference prices while preserving the deployed configuration,
+logs, audit data and settlements.
 
 Steps:
 1. Add a deterministic scenario test that runs the relevant chapter setup
@@ -527,11 +567,41 @@ Steps:
 - Relevant examples and chapter predictions are verified from a clean
    checkout/data directory and a second run.
 
+**Result (2026-11-08):** Added a deterministic same-business-day restart
+scenario covering the chapter's AAPL reference-price path to 164.50 and a
+resting DAY order. The second startup restores both; the old DAY order remains
+on the book and the 143.00 example is rejected against the restored reference
+instead of the configured 150.00 seed. The test then invokes the actual
+`clear --state` path, restarts with the same configuration, and verifies the
+order is gone, the seed prices are restored, and all six Exercise 11 AAPL,
+MSFT and TSLA accept/reject predictions match the guide.
+
+The chapter now uses the documented state reset instead of deleting only
+`book_stats.json`. It warns that all processes must be stopped first, explains
+which histories `--state` clears and preserves, and notes that the deployed
+configuration does not need redeployment. The exercise's price bands and
+production persistence behavior are unchanged.
+
+Verification:
+- `poetry run pytest tests/test_gtc_interday.py tests/test_emo_cli.py -q
+   --no-cov` — 99 passed
+- Full suite — 13,587 passed, 1 skipped; 90.43% coverage (85% required)
+- Repository-wide Black, Flake8, mypy and pyright — passed
+- `poetry run mkdocs build` and `git diff --check` — passed
+
 ### T11 — Session-transition rejection replies (Q14)
 
 **Finding:** The engine logs and returns without replying when a requested
 transition is invalid from the current phase; REST then times out instead of
 returning the documented rejection.
+
+**Contract decision:** REST's addressed transition request returns
+`409 TRANSITION_REJECTED` with the engine's reason and emits no
+`session.state` broadcast when the phase change is invalid. The legacy
+`pm-admin-cli session` command remains broadcast-confirmed: it does not request
+an addressed acknowledgement, so an invalid transition still waits for
+`session.state` and times out. This preserves the CLI's documented behavior
+while distinguishing it from REST's rejection response.
 
 Steps:
 1. Add a failing engine/API integration test: set the market to
@@ -554,39 +624,64 @@ Steps:
 - CLI behavior is intentionally tested and documented.
 - Targeted session/API tests and full project checks pass.
 
+**Verification:** With the engine in `CONTINUOUS`, request `CONTINUOUS` again
+using command id `cmd-14` and gateway `GW01`. The engine promptly publishes
+`accepted=false` on `session.transition_ack.GW01` with the invalid-transition
+reason and publishes no `session.state`; REST maps a negative ack to
+`409 TRANSITION_REJECTED`. The CLI sends no `reply_to` and continues to wait
+for `session.state`. `poetry run pytest tests/ -n logical
+--cov=src/edumatcher --cov-report=term-missing --cov-fail-under=85` passed
+13577 tests with 1 skipped.
+
 ### T12 — Index history, listing and restored session phase (Q15, Q16)
 
-**Questions to resolve:** Is date-only `TO=` inclusive or exclusive? Should
-`INDEX` list every configured index? How does a restarted `pm-index` learn the
-current session phase? Which gateway roles support `INDEX`?
+**Contract decisions (2026-11-08, confirmed by user):**
+- A date-only `TO` includes the whole local date; exact timestamp bounds remain
+  inclusive.
+- `INDEX` remains a one-line spot check showing the most recently received
+  update. Use `pm-index-cli indices` to list all configured indices.
+- On startup, `pm-index` requests the engine's authoritative session status
+  and publishes an initial update for each configured index with that phase.
+- `INDEX` is available from `pm-alf-console` for authenticated gateway roles.
+  `pm-admin` is a separate operator console and does not gain this command.
 
 Steps:
-1. For Q15, add a failing history-query test with records on the `TO` date and
-   on the following date. Test equal `FROM`/`TO` values and a timestamp-valued
-   `TO`; agree and assert inclusive-date or exclusive-date semantics, then
-   align operator/participant docs and training chapter.
-2. For Q16 index listing, publish updates for two indices with different
-   throttling intervals and query `INDEX`. Assert that the response lists both
-   IDs if the command is documented as a list; otherwise change help/docs to
-   say it returns only the latest update.
-3. Add a failing restart test that opens the market, starts or resets
-   `pm-index`, and checks update events and daily roll-up session state before
-   any subsequent phase change. Make the service obtain the current phase
-   from an authoritative initial state/snapshot if required by the contract.
-4. Check `INDEX` availability through each documented role, including
-   `pm-admin`; either implement the supported command or correct the
-   "any gateway role" documentation.
-5. Re-run the chapter 26 second-index exercise with explicit deployment and
-   verify the output through the documented interface.
+1. Cover exact timestamp inclusivity and date-only equal-bound queries; align
+   operator, participant and training documentation with whole-local-date
+   `TO` semantics.
+2. Test two indices with different publish throttles; pin `INDEX` to the latest
+   update while the index CLI and stats surface report both.
+3. On restart, request `system.session_status`, publish each configured
+   index's current phase before a subsequent phase transition, and verify that
+   `pm-stats` persists that update's session state into its daily roll-up.
+4. Verify the supported `pm-alf-console` and `pm-admin` interfaces and make
+   their distinction explicit in the training guide.
+5. Update the chapter 26 second-index exercise to verify the two indices via
+   the documented listing and stats commands, not the one-line `INDEX`.
 
 **Definition of done:**
-- Date boundary behavior is tested with records on both sides of the
-  boundary and documented consistently.
-- Multi-index output and restart phase are correct under the selected
-  contracts, including before the next broadcast.
-- Every documented role's command availability is verified.
-- Chapter 26 is runnable from a clean, deployed configuration; targeted index
-  tests and docs checks pass.
+- Date-only and exact timestamp bounds are tested and documented consistently.
+- The multi-index stream and restarted session phase are correct under the
+  selected contracts, including before the next phase broadcast.
+- Every documented interface's command availability is verified.
+- Chapter 26's second-index exercise uses a clean deployment and supported
+  output surfaces; targeted index tests and docs checks pass.
+
+**Verification:** A one-day `FROM=2024-06-25|TO=2024-06-25` request encodes
+the upper bound as one nanosecond before the next local midnight; exact query
+timestamps include a record at `TO` and exclude the following nanosecond. A
+two-index AAPL scenario verifies `EDU100` and throttled `TECH2` each publish
+on their own interval, while `INDEX` displays only the latest received update.
+After restart, `pm-index` requests `system.session_status`; the
+`CONTINUOUS` snapshot produces an `index.update` with that phase before another
+phase transition, and `pm-stats` persists it in the daily roll-up. The
+`pm-admin` command map excludes `INDEX`; the training chapter directs operators
+to `pm-alf-console` and `pm-index-cli` for the supported interfaces.
+`poetry run pytest tests/ -n logical --cov=src/edumatcher
+--cov-report=term-missing --cov-report=html --cov-report=xml
+--cov-fail-under=85` passed 13584 tests with 1 skipped. Black, flake8, mypy,
+pyright and `mkdocs build` passed. `checkdocs.py` still reports two missing
+example include files in the unrelated configuration guide.
 
 ### T13 — ATO expiry reason (Q17)
 
@@ -613,63 +708,94 @@ Steps:
 - Relevant clients/specification/examples are updated and targeted auction
   tests pass.
 
-### T14 — Generated API-key usability and safety (Q18)
+**Contract:** `order.expired` carries an optional `reason` field so existing
+consumers remain compatible. New engine events identify ATO expiry as
+`Opening auction ended`, ATC expiry as `Closing auction ended`, and DAY expiry
+as `Trading day ended`. The ALF console uses the event reason, or derives it
+from cached TIF for events from older engines; if neither is available it
+prints the neutral `Order expired`.
 
-**Question to resolve:** How should a user obtain random generated API keys
-for documentation and examples without making secrets predictable from
-`--seed` or exposing them in unsafe output?
+**Result (2026-11-08):** The regression reproduced the missing event reason
+and the console's incorrect DAY explanation. The engine now attaches the
+appropriate reason when expiring ATO, ATC, or DAY orders. The additive,
+optional field is generated from `spec/messages/order.yaml`; the ALF console
+renders it and retains a TIF-based fallback for old events. The opening-auction
+test verifies the ATO order is removed, no trade occurs, and the event says
+`Opening auction ended`. Tests also pin ATC and DAY reasons. The training,
+participant, and generated protocol guides now describe the correct reason.
+
+Verification:
+- Targeted auction, expiry-field, ALF-console and message tests — 136 passed
+- Full suite — 13,586 passed, 1 skipped; 90.43% coverage
+- Black, Flake8, mypy, pyright, MkDocs build and `pm-msgen check` — passed
+
+### T14 — Training API-key usability (Q18)
+
+**Status:** Completed (2026-11-08).
+
+**Decision:** Use fixed, readable, explicitly configured demo keys in the
+Training Guide's API exercise. Keep `pm-config-gen` defaults and key-generation
+behavior unchanged; this choice is scoped to the training workflow.
 
 Steps:
-1. Add a failing config-generation test showing that `--seed` reproduces
-   non-secret configuration but generated keys are random and the generated
-   credentials are not readily discoverable by the documented workflow.
-2. Choose a secure contract. Prefer cryptographically random keys independent
-   of `--seed`, written to a credentials file with restrictive permissions
-   and clearly disclosed to the invoking user. Do not derive live credentials
-   from a reproducibility seed. Decide whether user-supplied
-   `--api-gateway-key GW=KEY` is also needed.
-3. Implement the selected output path and test that generated keys match the
-   deployed config, are not printed to general logs, are not overwritten
-   silently, and the credentials file permissions are appropriate.
-4. Update REST examples to read keys from the generated credentials file or
-   use explicit placeholders with clear substitution instructions.
+1. Replace generated API keys in the training config-generation command with
+   explicit, easy-to-type demo keys for TRADER01, TRADER02, OPS01, and the
+   read-only client.
+2. Test that the generated config contains those exact keys bound to the
+   intended gateway identities, with automatic key generation disabled.
+3. Update REST and WebSocket examples to use the matching fixed demo keys
+   directly, removing the YAML key-extraction function. Mention the Config
+   GUI's participant selection and key-length option as an alternative.
 
 **Definition of done:**
-- A clean generation/deploy exercise can authenticate using the documented
-  procedure without guessing a key.
-- Repeating `--seed` does not make credentials predictable or identical
-  unless explicitly overridden by a user-provided test key.
-- Secret handling, file permissions and error cases are covered by tests.
+- The API training config produces the documented credentials with no lookup
+  or parsing step.
+- Each demo key is bound to the expected participant or read-only identity.
+- Existing general `pm-config-gen` key-generation behavior remains unchanged.
 - Documentation and config-generator tests pass.
+
+**Verification (2026-11-08):** Chapter 25 now passes fixed demo keys through
+`--api-key` and `--no-api-gateway-generate-keys`; shell variables and WebSocket
+examples use those values directly. It also links to the Config GUI's API
+subtab, which generates keys for selected participants at a chosen length. A
+config-generator integration test checks the four generated key-to-identity
+bindings. All 92 tests in `tests/test_config_gen_integration.py` passed.
+Black, Flake8, mypy, pyright, `mkdocs build`, and `git diff --check` passed.
+`scripts/checkdocs.py` reports clean CLI, anchor, and link checks, with only
+its two existing Y005 missing `/tmp/symbols.yaml` and `/tmp/desk-keys.yaml`
+warnings.
 
 ### T15 — Per-recipient drop-copy sequence (Q19)
 
-**Question to resolve:** Is `seq` required to be contiguous for each
-participant subscription, as promised by the protocol and chapter 21, or is
-it explicitly a global sequence whose per-recipient gaps must be interpreted
-differently?
+**Status:** Completed (2026-11-08). Regression tests cover interleaved gateway
+live sequences, replay isolation, audit sequence tracking, and restart
+boundaries.
+
+**Decision:** Per-gateway (per-recipient stream) sequences are contiguous,
+start at 1, and reset when the engine restarts. Replay is restricted to that
+gateway's buffer, while its topic may name a distinct recipient ID.
 
 Steps:
-1. Add a failing multi-recipient protocol test: two gateways receive a trade;
-   each subscribes only to its own `drop_copy.event.<GW>` topic. Interleave
-   additional events for both gateways and assert the sequence contract for
-   each recipient independently.
-2. Test replay using each recipient's buffer, including a missing range and
-   engine restart. Verify sequence values are meaningful to the consumer of
-   that recipient's stream and do not imply false gaps.
-3. If the promised per-recipient gap detector is the contract, maintain
-   recipient-scoped sequence state and use it consistently for live delivery
-   and replay. If global sequence is intentional, amend protocol and chapter
-   language and define how consumers detect loss on filtered streams.
-4. Update the drop-copy specification, examples and chapter 21 with the
-   tested semantics, including restart behavior.
+1. Add a multi-recipient protocol test: two gateways publish interleaved
+   events, and each filtered subscriber receives its own contiguous sequence.
+2. Test replay against the selected gateway's buffer and ensure interleaved
+   events from another gateway are excluded. Verify audit replay tracks each
+   gateway independently and resets on an engine restart.
+3. Maintain gateway-scoped sequence state consistently for live delivery,
+   replay, and audit detection.
+4. Update the drop-copy specification, generated references, examples and
+   chapter 21 with the tested semantics, including restart behavior.
 
 **Definition of done:**
-- A two-gateway test reproduces the stride-2 observation and validates the
-  chosen sequence contract for both live and replayed events.
+- A two-gateway test reproduces the stride-2 observation and validates
+  independent contiguous sequences for live events and gateway-scoped replay.
 - No false gap is reported for a complete recipient stream.
 - Protocol, implementation and chapter agree on scope and reset behavior.
 - Targeted drop-copy tests and docs checks pass.
+
+**Verification (2026-11-08):** 154 targeted drop-copy, audit replay, spy and
+message-generation tests passed. Black, Flake8, mypy, pyright, `pm-msgen
+check`, and `mkdocs build` passed.
 
 ### T16 — Close training-route and exercise verification gaps (§§3–4)
 
@@ -681,27 +807,32 @@ Steps:
    command/input, expected result and captured result. Use disposable
    directories and a private network namespace; do not operate on a shared
    simulation.
-2. Verify container chapters 04 onward; the Multipass route; pipx install; and
-   the real installer in a disposable environment. For deployment steps that
-   could affect global processes or state (including `pm-opctl-cli stop` or
-   `start`), replace them with a safe isolated validation or document them as
-   manual checks that must not be run on a shared host.
-3. Finish the unplayed chapter 10 Exercises 14B/15B and chapter 14
-   retracted-rumour/chip-race scenarios; create deterministic fixtures for
-   chapter 24 Exercise 4D corridor expansion and 4E non-default
-   `tick_decimals`; run chapter 28 Exercise 6 with `EVICT_OLD`.
-4. Validate chapter 29's interactive key bindings, pick-lists, 120-column
-   layout and PDF/`p` workflow in a controlled terminal. Verify the chapter
-   22 design-exercise limitations, chapter 27 `RATE_LIMITED`, and chapter 23
-   `BAD_MESSAGE`/`SLOW_CLIENT` using deterministic, bounded tests instead of
-   unreliable manual timing where possible.
+2. Verify the container route with an isolated package-image smoke test and
+   check all chapter commands with the guide-wide CLI checker. Verify pipx in
+   a temporary environment. Inspect Multipass read-only and run installer
+   syntax/help checks; do not start a non-disposable VM or install into shared
+   runtime state. For deployment steps that could affect global processes or
+   state (including `pm-opctl-cli stop` or `start`), document manual checks
+   that must not be run on a shared host.
+3. Verify bounded combo regression coverage associated with
+   `100-combo-orders.md` Exercises 14B/15B and validate the retracted-rumour
+   and chip-race scenarios in `140-ai-traders.md`. Verify deterministic tests
+   for Exercise 4D corridor expansion and 4E non-default `tick_decimals` in
+   `230-calf.md`, and Exercise 6 with `EVICT_OLD` in `270-balf-gwy.md`.
+4. Verify `280-ipo-valuation.md`'s interactive key bindings, pick-lists,
+   120-column layout and PDF/`p` workflow with controlled terminal tests.
+   Verify the learner-authored nature of Exercise 6 in
+   `210-automation-commandclient-mm-bot.md`, `RATE_LIMITED` in
+   `260-alf-gwy.md`, and `BAD_MESSAGE`/`SLOW_CLIENT` in `230-calf.md` using
+   deterministic, bounded tests instead of unreliable manual timing.
 5. Run `scripts/checkdocs.py`; fix and regression-check the two reported
    `Y005` snippets in the operator configuration guide if they remain present.
    Run a full `mkdocs build` and resolve newly introduced failures, keeping
    unrelated pre-existing failures clearly separated.
-6. Re-run representative chapters 00–29 from the supported Python and
-   packaged/container routes after T1–T15 changes. Confirm every command
-   block's stated starting state, output and recovery steps.
+6. Run guide-wide documentation checks, targeted Python/package tests and
+   isolated package-route smoke tests after T1–T15 changes. Record manual
+   chapter workflows that require a disposable exchange rather than replaying
+   them against shared state.
 
 **Definition of done:**
 - Every listed unverified route/exercise has a recorded pass, a bounded
@@ -712,6 +843,28 @@ Steps:
   reviewed training/operator examples; any unrelated baseline is recorded.
 - `mkdocs build` succeeds and the final chapter verification matrix matches
   the committed guide.
+
+**Verification matrix (2026-11-08):**
+
+| Route / exercise | Environment and evidence | Captured result / limitation |
+|---|---|---|
+| Container package | Fresh `podman run --rm --network none` processes using the locally available `ghcr.io/johan162/edumatcher-ai-sim:0.76.5`; queried `pm-engine --version` and `examples_root()` without mounts or service control. | `pm-engine 0.76.5`; packaged `docs/examples/news/chip-race.yaml` exists. This older image was locally available; no running container or shared data was touched. |
+| pipx package | Built the current 0.77.0 wheel and installed it under temporary `PIPX_HOME`, `PIPX_BIN_DIR`, and `PIPX_MAN_DIR`; checked the installed CLI and packaged examples. | `pm-engine 0.77.0`; installed examples found. Temporary pipx environment and wheel were removed. |
+| Multipass and real installer | Read-only `multipass info` showed the existing `pm-devnode` VM stopped with a snapshot. Ran shell syntax checks on both installer scripts and `deployment/curl/install.sh --help`. | No VM was started or created: the available VM is not a disposable training VM. No real host install was run: it would download images/change runtime state. Both installer scripts passed `bash -n`; the host installer help exited successfully. |
+| Combo Exercises 14B/15B | `test_combo.py`, `test_combo_gateway_integration.py`, and `test_engine_combo_acceptance.py`. | Combo validation, matching, DAY/GTC persistence, restore, and cancellation tests passed. The full manual auction/recovery/liquidity-provider walkthrough was not run against the shared simulation. |
+| News scenarios | `test_news_scenarios_examples.py` loads all four shipped scenarios against all eight supported market examples. | All 32 scenario/example combinations passed; no shared market was played. |
+| CALF Exercises 4D/4E | `test_md_normaliser.py`, `test_md_gateway_unit.py`, and `test_calf_client.py`. | Deterministic extension-event/corridor and `REF` precision assertions passed, including a non-default four-decimal symbol. |
+| BALF Exercise 6 | `test_balf_gwy_k11_k12.py` and `test_balf_gwy_integration.py`. | `EVICT_OLD` integration and pending-session regressions passed. |
+| Valuation TUI | `test_valuation_tui.py` uses a controlled 120×40 terminal and temporary report paths. | Key navigation, pick-lists, layout, save/back/compare, PDF export, and `p` workflow tests passed. |
+| Exercise 6 and gateway errors | `210-automation-commandclient-mm-bot.md` is a learner-authored exercise; `test_alf_gwy_integration.py`, `test_md_gateway_runtime_paths.py`, `test_md_gateway_unit.py`, and `test_calf_examples.py`. | Bounded tests passed for ALF `RATE_LIMITED` and CALF `BAD_MESSAGE`/`SLOW_CLIENT`. The learner-written command-client flow was not run against an exchange. |
+| Guide-wide consistency | `scripts/checkdocs.py` (all checks) and `poetry run mkdocs build`. | All documentation links, anchors, CLI flags, config examples, and help anchors passed; MkDocs built successfully. Its only informational note was the pre-existing unnav protocol preamble. The operator config snippets identify separately created companion files, so checkdocs suppresses only those exact acknowledged `Y005` missing-file results and still reports other validation errors. |
+
+**T16 closeout:** The shared `edumatcher-sim` containers and the stopped
+`pm-devnode` VM were not started, stopped, or modified. Manual market exercises
+remain deliberately unplayed on that shared state; bounded regression
+coverage and the route limitations are recorded above. A real installer run
+and a current-version container install remain manual checks for a disposable
+environment.
 
 ---
 

@@ -1796,6 +1796,25 @@ class TestIndexDisplay:
         }
         gw._parse_and_send("INDEX")  # No day_open — no change % shown
 
+    def test_index_command_shows_only_latest_update(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        gw = _make_gateway()
+        gw._handle_event(
+            "index.update",
+            {"index_id": "EDU100", "level": 1000.0, "session_state": "CONTINUOUS"},
+        )
+        gw._handle_event(
+            "index.update",
+            {"index_id": "TECH2", "level": 500.0, "session_state": "CONTINUOUS"},
+        )
+
+        gw._parse_and_send("INDEX")
+
+        output = capsys.readouterr().out
+        assert "TECH2" in output
+        assert "EDU100" not in output
+
     def test_index_history_command_no_default_id(self) -> None:
         gw = _make_gateway()
         gw._parse_and_send("INDEX|HISTORY")  # No default index_id → error msg
@@ -1936,12 +1955,30 @@ class TestParseDate:
 
         assert Gateway._parse_date("not-a-date") is None
 
-    def test_valid_date_returns_float(self) -> None:
+    def test_valid_date_returns_datetime(self) -> None:
         from edumatcher.alf_console.main import Gateway
 
         result = Gateway._parse_date("2024-01-15")
-        assert isinstance(result, float)
-        assert result > 0
+        assert result is not None
+        assert result.year == 2024
+        assert result.month == 1
+        assert result.day == 15
+
+    def test_history_to_includes_the_entire_local_date(self) -> None:
+        from edumatcher.alf_console.main import Gateway
+        from edumatcher.models.message import decode
+
+        gw = _make_gateway()
+        gw._parse_and_send("INDEX|HISTORY|INDEX=EDU100|FROM=2024-06-25|TO=2024-06-25")
+
+        _topic, payload = decode(gw._index_push_sock.send_multipart.call_args.args[0])
+        from_date = Gateway._parse_date("2024-06-25")
+        to_date = Gateway._parse_date("2024-06-26")
+        assert from_date is not None
+        assert to_date is not None
+        expected_midnight_after_date = int(to_date.timestamp()) * 1_000_000_000
+        assert payload["from_ts_ns"] == int(from_date.timestamp()) * 1_000_000_000
+        assert payload["to_ts_ns"] == expected_midnight_after_date - 1
 
 
 # ---------------------------------------------------------------------------

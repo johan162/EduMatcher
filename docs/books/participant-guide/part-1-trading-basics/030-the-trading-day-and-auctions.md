@@ -217,7 +217,8 @@ auction.result.AAPL: price=149.80 volume=500
     exactly as in continuous trading.
 
 After the uncross, ATO orders that didn't fill are **expired** (not cancelled
-by the trader — automatically removed by the engine). The market transitions
+by the trader — automatically removed by the engine). The `order.expired`
+event identifies the reason as `Opening auction ended`. The market transitions
 to CONTINUOUS.
 
 

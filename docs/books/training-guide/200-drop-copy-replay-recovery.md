@@ -27,26 +27,18 @@ Drop copy publishes per-participant fill events on:
 
 - `drop_copy.event.<gateway_id>` (live stream)
 
-Each message carries a monotonically increasing `seq` field. Consumers use this
-to detect gaps and de-duplicate messages.
-
-Two properties of `seq` matter for gap detection:
-
-- **One counter for the whole engine, not one per gateway.** Every fill produces
-  two events (one per counterparty), numbered consecutively, so a subscriber
-  to *all* `drop_copy.event.` topics sees `1, 2, 3, …`. A subscriber filtered
-  to one gateway (say `drop_copy.event.TRADER01`) sees only every other number
-  in a two-party market and would report a "gap" on every event. The exercises
-  below therefore subscribe to the whole prefix.
-- **The counter restarts at 1 when the engine restarts.** After a restart
-  `seq` goes backwards; treat that as a new stream, not as a duplicate.
+Each message carries a `seq` field that increases contiguously within its
+gateway's stream. Consumers use it to detect gaps and de-duplicate messages.
+Each gateway has an independent counter, starting at 1; it resets when the
+engine restarts. A consumer listening to multiple gateways must track the last
+sequence separately for each `gateway_id`.
 
 Important current limitation:
 
 - Replay exists as an in-process publisher method
-  (`DropCopyPublisher.replay(recipient_id, from_seq)`), backed by a
-  circular in-memory buffer of the last 10,000 events (roughly 16 minutes
-  of history at a sustained ~10 fills/second).
+  (`DropCopyPublisher.replay(recipient_id, from_seq, gateway_id=...)`), backed
+  by one circular in-memory buffer of the last 10,000 events across all
+  gateways (roughly 16 minutes of history at a sustained ~10 fills/second).
 - There is currently no external ZMQ replay-request handler for downstream
   clients to call directly — and even once one exists, replay is bounded by
   that 10,000-event buffer, not unlimited history.
@@ -71,9 +63,9 @@ import zmq
 ctx = zmq.Context()
 sock = ctx.socket(zmq.SUB)
 sock.connect("tcp://127.0.0.1:5557")
-sock.subscribe(b"drop_copy.event.")
+sock.subscribe(b"drop_copy.event.TRADER01")
 
-print("listening on drop_copy.event.*")
+print("listening on drop_copy.event.TRADER01")
 for _ in range(10):
     topic, payload = sock.recv_multipart()
     msg = json.loads(payload)
@@ -100,11 +92,13 @@ last = None
 ctx = zmq.Context()
 sock = ctx.socket(zmq.SUB)
 sock.connect("tcp://127.0.0.1:5557")
-sock.subscribe(b"drop_copy.event.")
+sock.subscribe(b"drop_copy.event.TRADER01")
 
 print("watching for sequence gaps")
 for _ in range(30):
     topic, payload = sock.recv_multipart()
+    if topic != b"drop_copy.event.TRADER01":  # prefix match: skip TRADER010...
+        continue
     msg = json.loads(payload)
     seq = msg.get("seq")
     if last is not None and seq is not None and seq != last + 1:
@@ -132,11 +126,13 @@ seen = 0
 ctx = zmq.Context()
 sock = ctx.socket(zmq.SUB)
 sock.connect("tcp://127.0.0.1:5557")
-sock.subscribe(b"drop_copy.event.")
+sock.subscribe(b"drop_copy.event.TRADER01")
 
 print("watching for gaps (deliberately dropping every 5th event)")
 for _ in range(30):
     topic, payload = sock.recv_multipart()
+    if topic != b"drop_copy.event.TRADER01":  # prefix match: skip TRADER010...
+        continue
     seen += 1
     if seen % 5 == 0:          # simulate a lost message
         continue

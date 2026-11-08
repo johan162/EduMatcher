@@ -150,6 +150,9 @@ EduMatcher defines a small one: the top-level key `include` lists other files
 whose contents are merged into the configuration.
 
 ```yaml
+# These companion files are created beside this config.
+# checkdocs: allow-missing-file symbols.yaml
+# checkdocs: allow-missing-file participants.yaml
 include:
   - symbols.yaml
   - participants.yaml
@@ -1125,6 +1128,8 @@ grows as long as the participant list, and the keys are secrets that do not
 belong in a file you keep under version control. Name a file instead:
 
 ```yaml
+# This companion file is created beside this config.
+# checkdocs: allow-missing-file desk-keys.yaml
 api_gateways:
   desk:
     port: 8080

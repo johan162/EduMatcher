@@ -385,20 +385,28 @@ symbols:
 
 AAPL and TSLA name no level, so both get `default_level: L2`. Check and deploy.
 
-Before restarting, reset the prices the engine remembers. At shutdown it saves
-each symbol's reference price and last trade in `book_stats.json`; Exercise 4
-moved AAPL's to 164.50, and the **dynamic** band (measured from the last trade)
-rejects *any* order too far from it, buy or sell, resting or not. To test the
-static band alone, stop `pm-engine` with `Ctrl-C`, delete only that file from
-the data directory, and start it again. See [Starting over](#starting-over)
-for how this narrow reset differs from clearing all exchange state:
+For repeatable predictions, reset the exchange's working state before this
+exercise. A same-business-day engine restart restores resting `DAY` orders
+(and quote legs) as well as persisted reference and last-trade prices.
+Deleting only `book_stats.json` resets the prices but leaves those orders, so a
+second run would not start from the same book. After deploying the configuration,
+stop every EduMatcher process (`pm-opctl-cli stop` for managed processes and
+`Ctrl-C` for any manually started ones), then run:
 
 ```bash
-rm "$EDUMATCHER_DATA_DIR/book_stats.json"     # container shell: rm /data/book_stats.json
+pm-opctl-cli clear --state
 ```
 
-The reference prices are then 150, 420 and 250 again (from your configuration)
-and there is no last trade. Restart your consoles and reopen the market.
+This removes persisted orders and prices along with statistics, clearing, and
+index state, but preserves configuration, logs, audit data, and settlement
+records. It does not remove the deployed configuration or require redeployment.
+See [Starting over](#starting-over) for the reset scopes. Restart the exchange
+and its consoles, reopen the market, and continue below.
+
+The reference prices are now 150, 420 and 250 again (from your configuration)
+and there is no last trade. **Predict** the outcome of each order before
+sending it. Use buys below the market, which rest instead of trading, so that
+only the *static* band is being tested:
 **Predict** the outcome of each order before sending it. Use buys below the
 market, which rest instead of trading, so that only the *static* band is being
 tested:

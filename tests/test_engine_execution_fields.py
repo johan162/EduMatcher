@@ -114,6 +114,7 @@ def test_an_expiry_says_what_was_left_and_what_had_filled(
     e._handle_session_transition({"to_state": "CLOSED"})
     (expired,) = [x for x in msgs(pub, "order.expired.GW01") if x["order_id"] == day]
     assert (expired["remaining_qty"], expired["cum_qty"]) == (6, 4)
+    assert expired["reason"] == "Trading day ended"
 
 
 def test_an_amend_carries_its_price_in_ticks_and_its_new_priority(engine: Rig) -> None:

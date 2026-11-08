@@ -44,8 +44,10 @@ def proc_with_fakes(
     fake_sub = _FakeSocket()
     fake_pull = _FakeSocket()
     fake_pub = _FakeSocket()
+    fake_engine_push = _FakeSocket()
 
     monkeypatch.setattr(index_main, "make_subscriber", lambda *_a, **_k: fake_sub)
+    monkeypatch.setattr(index_main, "make_pusher", lambda *_a, **_k: fake_engine_push)
     monkeypatch.setattr(index_main, "make_puller", lambda *_a, **_k: fake_pull)
     monkeypatch.setattr(index_main, "make_publisher", lambda *_a, **_k: fake_pub)
     monkeypatch.setattr(index_main, "make_replier", lambda *_a, **_k: _FakeSocket())
@@ -90,6 +92,63 @@ def test_handle_trade_publishes_index_update(
     topic, payload = decode(fake_pub.sent[-1])
     assert topic == "index.update"
     assert payload["index_id"] == "EDU100"
+
+
+def test_each_configured_index_publishes_on_its_own_throttle(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    sub = _FakeSocket()
+    engine_push = _FakeSocket()
+    pull = _FakeSocket()
+    pub = _FakeSocket()
+    monkeypatch.setattr(index_main, "make_subscriber", lambda *_a, **_k: sub)
+    monkeypatch.setattr(index_main, "make_pusher", lambda *_a, **_k: engine_push)
+    monkeypatch.setattr(index_main, "make_puller", lambda *_a, **_k: pull)
+    monkeypatch.setattr(index_main, "make_publisher", lambda *_a, **_k: pub)
+    monkeypatch.setattr(index_main, "make_replier", lambda *_a, **_k: _FakeSocket())
+    configs = [
+        IndexRuntimeConfig(
+            id="EDU100",
+            description="Education 100",
+            base_value=1000.0,
+            publish_interval_sec=0.0,
+            history_file=str(tmp_path / "edu-history.jsonl"),
+            state_file=str(tmp_path / "edu-state.json"),
+            constituents=["AAPL"],
+            outstanding_shares={"AAPL": 10_000},
+            reference_prices={"AAPL": 100.0},
+        ),
+        IndexRuntimeConfig(
+            id="TECH2",
+            description="Technology pair",
+            base_value=500.0,
+            publish_interval_sec=2.0,
+            history_file=str(tmp_path / "tech-history.jsonl"),
+            state_file=str(tmp_path / "tech-state.json"),
+            constituents=["AAPL"],
+            outstanding_shares={"AAPL": 10_000},
+            reference_prices={"AAPL": 100.0},
+        ),
+    ]
+    monkeypatch.setattr(index_main, "load_index_runtime_configs", lambda _p: configs)
+    proc = index_main.IndexProcess(config_path=tmp_path / "engine.yaml")
+    try:
+        proc._initialise()
+        now = time.monotonic()
+        proc._indices["EDU100"].last_publish_time = now
+        proc._indices["TECH2"].last_publish_time = now
+
+        proc._handle_trade({"symbol": "AAPL", "price": 101.0})
+        first_ids = [decode(frames)[1]["index_id"] for frames in pub.sent]
+        assert first_ids == ["EDU100"]
+
+        proc._indices["TECH2"].last_publish_time = time.monotonic() - 3.0
+        proc._handle_trade({"symbol": "AAPL", "price": 102.0})
+        all_ids = [decode(frames)[1]["index_id"] for frames in pub.sent]
+        assert all_ids[0] == "EDU100"
+        assert set(all_ids[1:]) == {"EDU100", "TECH2"}
+    finally:
+        proc.close()
 
 
 def test_handle_trade_ignores_invalid_payload(
@@ -368,8 +427,10 @@ def test_close_closes_sockets(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -
     fake_sub = _FakeSocket()
     fake_pull = _FakeSocket()
     fake_pub = _FakeSocket()
+    fake_engine_push = _FakeSocket()
 
     monkeypatch.setattr(index_main, "make_subscriber", lambda *_a, **_k: fake_sub)
+    monkeypatch.setattr(index_main, "make_pusher", lambda *_a, **_k: fake_engine_push)
     monkeypatch.setattr(index_main, "make_puller", lambda *_a, **_k: fake_pull)
     monkeypatch.setattr(index_main, "make_publisher", lambda *_a, **_k: fake_pub)
     monkeypatch.setattr(index_main, "make_replier", lambda *_a, **_k: _FakeSocket())
@@ -384,16 +445,18 @@ def test_close_closes_sockets(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -
     assert fake_sub.closed is True
     assert fake_pull.closed is True
     assert fake_pub.closed is True
+    assert fake_engine_push.closed is True
     assert fake_health.closed is True
 
 
 def test_failed_health_socket_setup_closes_the_other_sockets(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    fakes = [_FakeSocket(), _FakeSocket(), _FakeSocket()]
+    fakes = [_FakeSocket(), _FakeSocket(), _FakeSocket(), _FakeSocket()]
     monkeypatch.setattr(index_main, "make_subscriber", lambda *_a, **_k: fakes[0])
-    monkeypatch.setattr(index_main, "make_puller", lambda *_a, **_k: fakes[1])
-    monkeypatch.setattr(index_main, "make_publisher", lambda *_a, **_k: fakes[2])
+    monkeypatch.setattr(index_main, "make_pusher", lambda *_a, **_k: fakes[1])
+    monkeypatch.setattr(index_main, "make_puller", lambda *_a, **_k: fakes[2])
+    monkeypatch.setattr(index_main, "make_publisher", lambda *_a, **_k: fakes[3])
 
     def _addr_in_use(*_a: Any, **_k: Any) -> Any:
         raise zmq.ZMQError(errno.EADDRINUSE)
@@ -439,7 +502,7 @@ def test_run_loop_answers_health_ping_with_utc_timestamp(
                 return [(health, zmq.POLLIN)]
             raise zmq.ZMQError(errno.EINTR)
 
-    for name in ("make_subscriber", "make_puller", "make_publisher"):
+    for name in ("make_subscriber", "make_pusher", "make_puller", "make_publisher"):
         monkeypatch.setattr(index_main, name, lambda *_a, **_k: _FakeSocket())
     monkeypatch.setattr(index_main, "make_replier", lambda *_a, **_k: health)
     monkeypatch.setattr(index_main, "load_index_runtime_configs", lambda _p: [])
@@ -475,7 +538,9 @@ def test_load_state_reset_deletes_file(
     fake_sub = _FakeSocket()
     fake_pull = _FakeSocket()
     fake_pub = _FakeSocket()
+    fake_engine_push = _FakeSocket()
     monkeypatch.setattr(index_main, "make_subscriber", lambda *_a, **_k: fake_sub)
+    monkeypatch.setattr(index_main, "make_pusher", lambda *_a, **_k: fake_engine_push)
     monkeypatch.setattr(index_main, "make_puller", lambda *_a, **_k: fake_pull)
     monkeypatch.setattr(index_main, "make_publisher", lambda *_a, **_k: fake_pub)
     monkeypatch.setattr(index_main, "make_replier", lambda *_a, **_k: _FakeSocket())
@@ -702,7 +767,13 @@ def test_build_parser_and_main(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) 
 def test_stop_ends_the_run_loop(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    for name in ("make_subscriber", "make_puller", "make_publisher", "make_replier"):
+    for name in (
+        "make_subscriber",
+        "make_pusher",
+        "make_puller",
+        "make_publisher",
+        "make_replier",
+    ):
         monkeypatch.setattr(index_main, name, lambda *_a, **_k: _FakeSocket())
     monkeypatch.setattr(index_main, "load_index_runtime_configs", lambda _p: [])
     proc = index_main.IndexProcess(config_path=tmp_path / "x.yaml", reset=False)

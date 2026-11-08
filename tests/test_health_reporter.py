@@ -8,10 +8,12 @@ does not depend on the interval's size.
 
 from __future__ import annotations
 
+import logging
 import threading
 import time
 from collections.abc import Iterator
 from typing import Any
+from unittest.mock import MagicMock, patch
 
 import pytest
 import zmq
@@ -339,14 +341,16 @@ class TestBadSamplesCostOnlyThemselves:
 
 class TestFromCompiledConfig:
     def test_disabled_monitoring_means_no_reporter(
-        self, monkeypatch: pytest.MonkeyPatch
+        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
     ) -> None:
         monkeypatch.setattr(
             reporter_module,
             "load_default_monitor_config",
             lambda: MonitorConfig(enabled=False),
         )
-        assert HealthReporter.from_compiled_config("pm-engine") is None
+        with caplog.at_level(logging.DEBUG, logger=reporter_module.__name__):
+            assert HealthReporter.from_compiled_config("pm-engine") is None
+        assert caplog.records == []
 
     def test_the_section_supplies_endpoint_and_interval(
         self, monkeypatch: pytest.MonkeyPatch
@@ -369,3 +373,70 @@ class TestFromCompiledConfig:
 def test_a_non_positive_interval_is_refused(bad: float) -> None:
     with pytest.raises(ValueError, match="interval_sec"):
         HealthReporter("p", host="127.0.0.1", port=1, interval_sec=bad)
+
+
+def test_an_unavailable_monitor_is_debug_logged_and_rate_limited(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    reporter = _reporter(1, interval=1.0)
+    sock = MagicMock()
+    sock.send_multipart.side_effect = zmq.Again()
+    proc = MagicMock()
+    proc.pid = 123
+    proc.memory_info.return_value.rss = 4096
+    proc.cpu_percent.return_value = 0.0
+    proc.num_threads.return_value = 1
+    proc.num_fds.return_value = 3
+    now = [100.0]
+    monkeypatch.setattr(time, "monotonic", lambda: now[0])
+
+    with caplog.at_level(logging.DEBUG, logger=reporter_module.__name__):
+        for _ in range(3):
+            reporter._send(sock, proc, "test-host", 1_000_000_000, final=False)
+            now[0] += 1.0
+
+        assert reporter._beacons_dropped == 3
+        assert [(record.levelno, record.getMessage()) for record in caplog.records] == [
+            (
+                logging.DEBUG,
+                "pm-monitor at tcp://127.0.0.1:1 not accepting beacons "
+                "(1 dropped so far)",
+            )
+        ]
+
+        now[0] += reporter_module.LOG_EVERY_SEC
+        reporter._send(sock, proc, "test-host", 1_000_000_000, final=False)
+
+    assert reporter._beacons_dropped == 4
+    assert len(caplog.records) == 2
+    assert caplog.records[-1].levelno == logging.DEBUG
+    assert caplog.records[-1].getMessage().endswith("(4 dropped so far)")
+
+
+def test_reporter_thread_keeps_running_when_monitor_is_unavailable(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    reporter = _reporter(1, interval=0.01)
+    sock = MagicMock()
+    sock.send_multipart.side_effect = zmq.Again()
+
+    with (
+        caplog.at_level(logging.DEBUG, logger=reporter_module.__name__),
+        patch.object(zmq.Context, "socket", return_value=sock),
+    ):
+        reporter.start()
+        try:
+            deadline = time.monotonic() + 2.0
+            while sock.send_multipart.call_count < 3 and time.monotonic() < deadline:
+                time.sleep(0.01)
+            assert sock.send_multipart.call_count >= 3
+        finally:
+            reporter.stop()
+
+    assert [(record.levelno, record.getMessage()) for record in caplog.records] == [
+        (
+            logging.DEBUG,
+            "pm-monitor at tcp://127.0.0.1:1 not accepting beacons "
+            "(1 dropped so far)",
+        )
+    ]

@@ -1097,16 +1097,26 @@ class TestTheDropCopyFeed:
         log.line("drop_copy.event." + GATEWAY, _copy())
         log.line(
             "drop_copy.event.TRADER09",
-            _copy(seq=2, gateway_id="TRADER09", order_id=OTHER, liquidity_flag="MAKER"),
+            _copy(seq=1, gateway_id="TRADER09", order_id=OTHER, liquidity_flag="MAKER"),
         )
         return log
 
     def test_a_complete_execution_is_silent(self) -> None:
         assert self._matched().codes() == []
 
+    def test_interleaved_gateway_sequences_do_not_create_false_gap(self) -> None:
+        log = Log().line("drop_copy.event." + GATEWAY, _copy(seq=1))
+        log.line(
+            "drop_copy.event.TRADER09",
+            _copy(seq=1, gateway_id="TRADER09", order_id=OTHER),
+        )
+        log.line("drop_copy.event." + GATEWAY, _copy(seq=2))
+
+        assert DROP_COPY_SEQ_GAP not in log.codes()
+
     def test_a_gap_in_the_feed_counter(self) -> None:
         log = Log().line("drop_copy.event." + GATEWAY, _copy(seq=1))
-        log.line("drop_copy.event.TRADER09", _copy(seq=9, gateway_id="TRADER09"))
+        log.line("drop_copy.event." + GATEWAY, _copy(seq=9))
 
         assert DROP_COPY_SEQ_GAP in log.codes()
         assert "7 event(s) missing" in log.detail(DROP_COPY_SEQ_GAP)
@@ -1116,19 +1126,15 @@ class TestTheDropCopyFeed:
         duplicate from a repeat", which is the whole reason it is sequenced --
         so a repeat counts, unlike ``SEQ_GAP``."""
         log = Log().line("drop_copy.event." + GATEWAY, _copy(seq=4))
-        log.line("drop_copy.event.TRADER09", _copy(seq=4, gateway_id="TRADER09"))
+        log.line("drop_copy.event." + GATEWAY, _copy(seq=4))
 
         assert DROP_COPY_SEQ_GAP in log.codes()
         assert "repeated an event" in log.detail(DROP_COPY_SEQ_GAP)
 
-    def test_the_counter_is_one_stream_across_the_gateways(self) -> None:
-        """``engine/drop_copy.py`` counts on a module-level
-        ``itertools.count``, so consecutive events on two gateways' topics are
-        consecutive numbers -- reading it per gateway would report every
-        second event as a gap."""
+    def test_each_gateway_has_an_independent_sequence(self) -> None:
         log = Log().line("drop_copy.event." + GATEWAY, _copy(seq=1))
-        log.line("drop_copy.event.TRADER09", _copy(seq=2, gateway_id="TRADER09"))
-        log.line("drop_copy.event." + GATEWAY, _copy(seq=3))
+        log.line("drop_copy.event.TRADER09", _copy(seq=1, gateway_id="TRADER09"))
+        log.line("drop_copy.event." + GATEWAY, _copy(seq=2))
 
         assert DROP_COPY_SEQ_GAP not in log.codes()
 

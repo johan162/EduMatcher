@@ -590,7 +590,7 @@ New terms:
 Technical details:
 
 - Add a `dropcopy.*` topic namespace mirroring all order lifecycle events: `dropcopy.new`, `dropcopy.ack`, `dropcopy.fill`, `dropcopy.cancel`, `dropcopy.expire`, `dropcopy.reject`.
-- Each drop-copy event includes: `seq` (int, session-global monotonically increasing, starting at 1), `ts` (microsecond timestamp), and the full original event payload unchanged.
+- Each drop-copy event includes: `seq` (int, monotonically increasing per gateway, starting at 1), `ts` (microsecond timestamp), and the full original event payload unchanged.
 - Write all drop-copy events to a durable append-only log file `dropcopy_YYYYMMDD.log` in JSON-lines format (one event per line). The file is closed and renamed at session end.
 - Provide a `dropcopy_reconcile.py` utility that reads the log file and a participant's local fill records and outputs three lists: missing events (gap in sequence), duplicate events (seq appears twice), quantity mismatches (fill qty in log differs from local record).
 - Sequence numbers reset to 1 at each session start.

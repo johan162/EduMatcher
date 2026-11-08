@@ -12,6 +12,8 @@ Three independent checks, all against ground truth rather than a word list:
 
 A fenced block that deliberately shows wrong usage can opt out of the `cli`
 check with a `# checkdocs: ignore` comment inside it.
+An engine-config block can mark a separately created companion file with
+`# checkdocs: allow-missing-file <name>` to acknowledge that specific Y005.
 
 Run it from the repository root:
 
@@ -20,6 +22,7 @@ Run it from the repository root:
 
 Exit code is non-zero if any check fails, so it works in CI.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -44,7 +47,9 @@ GREEN, RED, YELLOW, RESET = "\033[32m", "\033[31m", "\033[33m", "\033[0m"
 def doc_files() -> list[str]:
     out: list[str] = []
     for pat in DOCS:
-        out += [p for p in glob.glob(pat, recursive=True) if not any(s in p for s in SKIP)]
+        out += [
+            p for p in glob.glob(pat, recursive=True) if not any(s in p for s in SKIP)
+        ]
     return sorted(set(out))
 
 
@@ -59,7 +64,9 @@ def check_links() -> list[str]:
     try:
         import markdown
     except ImportError:
-        return ["links: the 'markdown' package is not installed (poetry install --with docs)"]
+        return [
+            "links: the 'markdown' package is not installed (poetry install --with docs)"
+        ]
 
     exts = ["admonition", "attr_list", "tables", "toc", "fenced_code"]
     cache: dict[str, set[str]] = {}
@@ -67,7 +74,8 @@ def check_links() -> list[str]:
     def ids_for(path: str) -> set[str]:
         if path not in cache:
             html = markdown.Markdown(extensions=exts).convert(
-                Path(path).read_text(encoding="utf-8"))
+                Path(path).read_text(encoding="utf-8")
+            )
             cache[path] = set(re.findall(r'\bid="([^"]+)"', html))
         return cache[path]
 
@@ -76,11 +84,17 @@ def check_links() -> list[str]:
         text = FENCE.sub("", Path(p).read_text(encoding="utf-8"))
         for m in LINK.finditer(text):
             target, anchor = m.group(1), m.group(2)
-            tgt = p if not target else os.path.normpath(os.path.join(os.path.dirname(p), target))
+            tgt = (
+                p
+                if not target
+                else os.path.normpath(os.path.join(os.path.dirname(p), target))
+            )
             if not os.path.exists(tgt):
                 problems.append(f"{p}: link to missing file {target!r}")
             elif anchor and tgt.endswith(".md") and anchor not in ids_for(tgt):
-                problems.append(f"{p}: no anchor #{anchor} in {target or '(this file)'}")
+                problems.append(
+                    f"{p}: no anchor #{anchor} in {target or '(this file)'}"
+                )
     return problems
 
 
@@ -110,8 +124,13 @@ def help_text(cmd: str, spec: str, args: list[str]) -> str:
         "    except BaseException: pass\n"
         "sys.stdout.write(out.getvalue())\n"
     )
-    r = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True,
-                       cwd=ROOT, timeout=180)
+    r = subprocess.run(
+        [sys.executable, "-c", code],
+        capture_output=True,
+        text=True,
+        cwd=ROOT,
+        timeout=180,
+    )
     return r.stdout if r.returncode == 0 else ""
 
 
@@ -154,8 +173,8 @@ def join_continuations(block: str) -> list[tuple[int, str]]:
 
 def check_cli() -> list[str]:
     ep = entry_points()
-    known: dict[str, set[str]] = {}      # every flag the command accepts anywhere
-    top_only: dict[str, set[str]] = {}   # flags accepted ONLY before the subcommand
+    known: dict[str, set[str]] = {}  # every flag the command accepts anywhere
+    top_only: dict[str, set[str]] = {}  # flags accepted ONLY before the subcommand
     subs: dict[str, set[str]] = {}
     for cmd, spec in ep.items():
         top = help_text(cmd, spec, [])
@@ -203,13 +222,16 @@ def check_cli() -> list[str]:
                         problems.append(f"{p}:{ln}: {cmd} has no flag {fl}  ({line})")
                 # a global-only option must come before the subcommand
                 tokens = rest.split()
-                sub_at = next((i for i, t in enumerate(tokens) if t in subs.get(cmd, ())), None)
+                sub_at = next(
+                    (i for i, t in enumerate(tokens) if t in subs.get(cmd, ())), None
+                )
                 if sub_at is not None:
                     for i, t in enumerate(tokens):
                         if i > sub_at and t in top_only.get(cmd, ()):
                             problems.append(
                                 f"{p}:{ln}: {cmd} {t} is a global option and must come "
-                                f"before the subcommand  ({line})")
+                                f"before the subcommand  ({line})"
+                            )
     return problems
 
 
@@ -237,10 +259,23 @@ def check_config() -> list[str]:
 
     base = yaml.safe_load(base_path.read_text())
     known_keys = set(base) | {
-        "sessions_enabled", "country", "schedule", "collars", "circuit_breakers",
-        "engine_tuning", "alf_gateway", "balf_gateway", "market_data_gateway",
-        "post_trade_gateway", "dc_gateway", "log_server", "api_gateways",
-        "indices", "market_maker_combos", "risk", "combos",
+        "sessions_enabled",
+        "country",
+        "schedule",
+        "collars",
+        "circuit_breakers",
+        "engine_tuning",
+        "alf_gateway",
+        "balf_gateway",
+        "market_data_gateway",
+        "post_trade_gateway",
+        "dc_gateway",
+        "log_server",
+        "api_gateways",
+        "indices",
+        "market_maker_combos",
+        "risk",
+        "combos",
     }
 
     from edumatcher.cverifier.cli import main as cverifier_main
@@ -253,7 +288,9 @@ def check_config() -> list[str]:
             try:
                 doc = yaml.safe_load(m.group(1))
             except Exception as exc:
-                problems.append(f"{p}:{ln}: YAML does not parse: {exc.__class__.__name__}")
+                problems.append(
+                    f"{p}:{ln}: YAML does not parse: {exc.__class__.__name__}"
+                )
                 continue
             if not isinstance(doc, dict) or not (set(doc) & known_keys):
                 continue
@@ -273,7 +310,10 @@ def check_config() -> list[str]:
             argv = sys.argv
             try:
                 sys.argv = ["pm-cverifier", "--format", "json", tmp]
-                with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(io.StringIO()):
+                with (
+                    contextlib.redirect_stdout(buf),
+                    contextlib.redirect_stderr(io.StringIO()),
+                ):
                     try:
                         cverifier_main()
                     except SystemExit:
@@ -288,9 +328,26 @@ def check_config() -> list[str]:
             # M0xx are cross-reference checks against the merged baseline's own
             # gateways, which a partial example legitimately replaces. Only
             # schema-level errors indicate a broken example.
+            expected_external_files = {
+                Path(name).name
+                for name in re.findall(
+                    r"(?m)^\s*#\s*checkdocs: allow-missing-file\s+(\S+)\s*$",
+                    m.group(1),
+                )
+            }
             for chk in report.get("checks", []):
-                if chk.get("severity") == "ERROR" and not str(chk.get("code", "")).startswith("M"):
-                    problems.append(f"{p}:{ln}: {chk.get('code')} {chk.get('message')}")
+                code = str(chk.get("code", ""))
+                message = str(chk.get("message", ""))
+                acknowledged_y005 = code == "Y005" and any(
+                    re.search(rf"(?:^|[/\\]){re.escape(name)}(?:$|[.:,\s])", message)
+                    for name in expected_external_files
+                )
+                if (
+                    chk.get("severity") == "ERROR"
+                    and not code.startswith("M")
+                    and not acknowledged_y005
+                ):
+                    problems.append(f"{p}:{ln}: {code} {message}")
     return problems
 
 
@@ -316,12 +373,14 @@ def check_help_anchors() -> list[str]:
         if not command.doc_anchor:
             continue
         if path not in cache:
-            html = markdown.Markdown(extensions=["admonition", "attr_list", "tables", "toc", "fenced_code"]).convert(
-                path.read_text(encoding="utf-8")
-            )
+            html = markdown.Markdown(
+                extensions=["admonition", "attr_list", "tables", "toc", "fenced_code"]
+            ).convert(path.read_text(encoding="utf-8"))
             cache[path] = set(re.findall(r'\bid="([^"]+)"', html))
         if command.doc_anchor not in cache[path]:
-            problems.append(f"{command.name}: no anchor #{command.doc_anchor} in {page}")
+            problems.append(
+                f"{command.name}: no anchor #{command.doc_anchor} in {page}"
+            )
     return problems
 
 
@@ -334,10 +393,15 @@ CHECKS = {
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description=__doc__,
-                                 formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("checks", nargs="*", choices=sorted(CHECKS) or None,
-                    help="which checks to run (default: all)")
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    ap.add_argument(
+        "checks",
+        nargs="*",
+        choices=sorted(CHECKS) or None,
+        help="which checks to run (default: all)",
+    )
     args = ap.parse_args()
     selected = args.checks or sorted(CHECKS)
 

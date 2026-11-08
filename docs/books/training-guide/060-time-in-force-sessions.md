@@ -297,9 +297,12 @@ Notes:
 - `ATC` is only accepted while the session state is exactly
   `CLOSING_AUCTION`.
 - Unfilled `ATO`/`ATC` orders are expired the moment the session *leaves*
-  their respective auction phase (not on any other transition).
+  their respective auction phase (not on any other transition). The
+  `order.expired` event reports `Opening auction ended` for ATO and
+  `Closing auction ended` for ATC.
 - All resting `DAY` orders (regardless of when they were placed) are expired
-  the moment the session transitions *into* `CLOSED`.
+  the moment the session transitions *into* `CLOSED`, with reason
+  `Trading day ended`.
 
  
 

@@ -309,7 +309,11 @@ def report_deployment(log: logging.Logger) -> None:
     try:
         config = load_compiled_config()
     except ArtifactError as exc:
-        log.error("cannot read the deployed configuration: %s", exc)
+        log.error(
+            "cannot read the deployed configuration: %s. Check the source config "
+            "and run pm-config-deploy to regenerate the artifact.",
+            exc,
+        )
         raise
 
     if config is None:

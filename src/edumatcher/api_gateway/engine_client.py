@@ -8,7 +8,7 @@ import logging
 import threading
 from collections import defaultdict
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Callable
 
 import zmq
 from fastapi import HTTPException, status
@@ -132,6 +132,11 @@ class EngineClient:
         self._market_view = SessionCaches(last_prices=self._market_prices)
         self._sinks: dict[str, set[asyncio.Queue[dict[str, Any]]]] = defaultdict(set)
         self._market_data_sinks: set[asyncio.Queue[dict[str, Any]]] = set()
+        # Optional per-sink admission test, applied before the event is queued
+        # so a narrow subscriber's queue is not spent on traffic it will discard.
+        self._market_data_filters: dict[
+            asyncio.Queue[dict[str, Any]], Callable[[dict[str, Any]], bool]
+        ] = {}
         # Latest-snapshot-per-topic plus a bounded trades tail, feeding the
         # snapshot/resume verbs on WS /api/v1/ws/market-data.
         self._market_cache = MarketDataCache(market_cache_sec)
@@ -597,7 +602,17 @@ class EngineClient:
             # or gap-detecting client can be served without waiting for the
             # next live tick.
             self._market_cache.record(event)
-            for queue in list(self._market_data_sinks):
+            # engine.trace is audit-only: no market-data client can subscribe to
+            # it, so queueing it only crowds out events that can be delivered.
+            sinks = (
+                ()
+                if topic.startswith(PREFIX_ENGINE_TRACE)
+                else list(self._market_data_sinks)
+            )
+            for queue in sinks:
+                accepts = self._market_data_filters.get(queue)
+                if accepts is not None and not accepts(event):
+                    continue
                 if self._try_put(queue, event):
                     self._dbg_count("market_data_sink_events")
                 else:
@@ -651,11 +666,18 @@ class EngineClient:
     ) -> None:
         self._sinks[gateway_id].discard(queue)
 
-    def add_market_data_sink(self, queue: asyncio.Queue[dict[str, Any]]) -> None:
+    def add_market_data_sink(
+        self,
+        queue: asyncio.Queue[dict[str, Any]],
+        accepts: Callable[[dict[str, Any]], bool] | None = None,
+    ) -> None:
         self._market_data_sinks.add(queue)
+        if accepts is not None:
+            self._market_data_filters[queue] = accepts
 
     def remove_market_data_sink(self, queue: asyncio.Queue[dict[str, Any]]) -> None:
         self._market_data_sinks.discard(queue)
+        self._market_data_filters.pop(queue, None)
 
     @property
     def market_cache(self) -> MarketDataCache:

@@ -523,6 +523,16 @@ class TestOnIndexUpdate:
         ).fetchall()
         assert rows == [("EDU100", 1048.73, "CONTINUOUS")]
 
+    def test_initial_session_snapshot_updates_daily_rollup_state(
+        self, sp: StatsProcess
+    ) -> None:
+        sp._on_index_update(self._payload(session_state="CONTINUOUS"))
+        row = sp._conn.execute(
+            "SELECT close_session_state FROM index_daily_stats "
+            "WHERE index_id = 'EDU100'"
+        ).fetchone()
+        assert row == ("CONTINUOUS",)
+
     def test_index_update_upserts_daily_rollup(self, sp: StatsProcess) -> None:
         sp._on_index_update(self._payload(level=1000.0))
         sp._on_index_update(self._payload(level=1010.0))

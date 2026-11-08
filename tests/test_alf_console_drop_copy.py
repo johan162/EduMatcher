@@ -200,3 +200,17 @@ def test_handle_dc_event_prints_dc_fill_line() -> None:
     assert "150.05" in rendered
     assert "TAKER" in rendered
     assert "#42" in rendered
+
+
+def test_handle_dc_event_ignores_a_gateway_it_only_prefixes() -> None:
+    """``SUBSCRIBE`` matches by prefix, so GW01's socket also receives GW010's
+    fills -- another participant's, numbered in another ``seq`` stream."""
+    gw, _sub, _index_sub, _dc_sub = _make_gateway("GW01")
+
+    with patch("edumatcher.alf_console.main.console.print") as mock_print:
+        gw._handle_dc_event(
+            "drop_copy.event.GW010",
+            {"seq": 1, "gateway_id": "GW010", "symbol": "AAPL"},
+        )
+
+    mock_print.assert_not_called()

@@ -3,6 +3,7 @@ participant ID instead of locking it."""
 
 from __future__ import annotations
 
+import logging
 import threading
 import time
 from unittest.mock import MagicMock, patch
@@ -36,21 +37,30 @@ def test_heartbeat_loop_sends_beat_on_its_own_socket_then_stops() -> None:
     own_push.close.assert_called_once()
 
 
-def test_send_logs_out_when_engine_connection_is_lost() -> None:
+def test_send_logs_out_when_engine_connection_is_lost(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     gw = _make_gateway()
     gw.push_sock.send_multipart.side_effect = zmq.Again()
 
-    with patch("edumatcher.alf_console.main.console.print") as print_message:
+    with (
+        caplog.at_level(logging.DEBUG, logger="edumatcher.alf_console.main"),
+        patch("edumatcher.alf_console.main.console.print") as print_message,
+    ):
         sent = gw._send(gw.push_sock, [])
 
     assert sent is False
     assert gw._running is False
     print_message.assert_called_once()
     assert "Engine connection was lost" in str(print_message.call_args.args)
+    assert [(record.levelno, record.getMessage()) for record in caplog.records] == [
+        (logging.DEBUG, "gateway_id=GW01 send dropped: engine unreachable"),
+        (logging.ERROR, "engine connection lost gateway_id=GW01"),
+    ]
 
 
 def test_heartbeat_logs_out_after_engine_disconnect(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
     gw = _make_gateway()
     own_push = MagicMock()
@@ -60,6 +70,7 @@ def test_heartbeat_logs_out_after_engine_disconnect(
     with (
         patch("edumatcher.alf_console.main.make_pusher", return_value=own_push),
         patch("edumatcher.alf_console.main.console.print") as print_message,
+        caplog.at_level(logging.DEBUG, logger="edumatcher.alf_console.main"),
     ):
         gw._heartbeat_loop()
 
@@ -67,6 +78,10 @@ def test_heartbeat_logs_out_after_engine_disconnect(
     print_message.assert_called_once()
     assert "Engine connection was lost" in str(print_message.call_args.args)
     own_push.close.assert_called_once()
+    assert [(record.levelno, record.getMessage()) for record in caplog.records] == [
+        (logging.DEBUG, "gateway_id=GW01 heartbeat dropped: engine unreachable"),
+        (logging.ERROR, "engine connection lost gateway_id=GW01"),
+    ]
 
 
 def test_engine_disconnect_interrupts_an_idle_prompt() -> None:

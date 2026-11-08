@@ -31,7 +31,8 @@ You will practise:
 - Support parser examples available in `docs/examples/balf` (in a repository
   checkout; on a container or `pipx` install use `$EX/balf`, with
   `EX=$(python -c "from edumatcher.config_deploy import examples_root; print(examples_root().parent)")`;
-  Exercise 5's C build needs a C compiler, which the container image does not have):
+  Exercise 5's C check is optional and needs a C compiler, which the container
+  image does not have):
   - `balf_parser.py`
   - `balf_parser.c`
 
@@ -469,9 +470,10 @@ Read it against the [BALF specification](../protocols-and-clients/part-2-specifi
 
  
 
-## Exercise 5: Validate Parser Libraries (Python and C)
+## Exercise 5: Validate Parser Libraries (Python and Optional C)
 
-Run the provided parser self-tests to verify your local BALF decode tooling.
+Run the Python parser self-test to verify your BALF decode tooling. The C
+parser check below is optional; the container image has no C compiler.
 
 Python parser:
 
@@ -509,7 +511,8 @@ The second `LOGON_ACK` is the one to know: `SYMBOLS_UNAVAILABLE` means the
 engine accepted the connection but never sent its symbol list in time. The
 gateway closes the connection after it, so retry with a new connection.
 
-:material-checkbox-blank-outline: Checkpoint: both parser examples run successfully.
+:material-checkbox-blank-outline: Checkpoint: the Python parser self-test
+passes; the optional C self-test also passes when a compiler is available.
 
  
 

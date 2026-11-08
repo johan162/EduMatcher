@@ -217,12 +217,12 @@ Fields shown:
 | O / H / L | Day open, high, low (empty before continuous trading begins) |
 | Session state | Current engine session state |
 
-The `INDEX` command works in `pm-alf-console` under any gateway role (TRADER,
-ADMIN, or read-only). The operator console `pm-admin` has no `INDEX` command
-(`Unknown command 'INDEX'`): use `pm-alf-console --id OPS01` when you want it
-as the operator. It prints only the **most recent** index update this console
-has received, as a single line, so it is a spot check, not a list of
-constituents or of indices.
+The `INDEX` command works in `pm-alf-console` under any authenticated gateway
+role (TRADER, ADMIN, or read-only). The separate `pm-admin` operator console
+has no `INDEX` command (`Unknown command 'INDEX'`); use
+`pm-alf-console --id OPS01` when you want it as the operator. It prints only
+the **most recent** index update this console has received, as a single line,
+so it is a spot check, not a list of constituents or of indices.
 
 :material-checkbox-blank-outline: **Checkpoint:** `INDEX` command returns a level for `EDU100`.
 
@@ -605,11 +605,14 @@ TRADER terminal:
 ```
 
 You see one line, for whichever index published last. `TECH2` is throttled to
-one publish every 2 seconds, so `EDU100` is usually the one shown; use the
-history commands below to see both. The session state on that line is also
-only as good as `pm-index`'s last session broadcast: a `pm-index` started
-after the market opened reports `PRE_OPEN` (its default) until the next
-session change, even though the engine is in `CONTINUOUS`.
+one publish every 2 seconds, so `EDU100` is usually the one shown. `INDEX` is
+not a multi-index listing; use `pm-index-cli indices` to list both indices
+and `pm-stats-cli index-daily` to verify recorded daily data. On startup,
+`pm-index` requests the engine's current session status and publishes an
+initial update for each configured index, so a restart during `CONTINUOUS`
+does not leave the index reporting the default phase until the next
+transition. Before that status reply arrives, its phase is `UNKNOWN`, not a
+misleading `PRE_OPEN`.
 
 Use `pm-index-cli` to list both configured indices, and `pm-stats-cli` to
 confirm `pm-stats` is capturing ticks for both:
@@ -627,7 +630,7 @@ index `pm-stats` has recorded — useful here to confirm both `EDU100` and
 requires an explicit `--index-id` (it returns raw ticks, not a summary, so a
 single-index scope keeps the output meaningful).
 
-:material-checkbox-blank-outline: **Checkpoint:** both `EDU100` and `TECH2` reported by `INDEX` command, `pm-index-cli indices`, and `pm-stats-cli index-daily`.
+:material-checkbox-blank-outline: **Checkpoint:** `INDEX` shows the most recently received update; `pm-index-cli indices` lists both `EDU100` and `TECH2`; `pm-stats-cli index-daily` confirms daily rows for both.
 
  
 
@@ -655,9 +658,10 @@ saw an `INDEX` update for (or pass `INDEX=<id>` explicitly, e.g.
 ```
 
 Returns structural/audit records within the specified date range, newest
-last. `TO` is the *start* of that date, so `FROM=2026-06-25|TO=2026-06-25`
-returns nothing: to include a whole day, end the range on the next date (use
-today's date as `FROM` and tomorrow's as `TO` to see this session's records).
+last. `FROM` is local midnight at the start of its date; date-only `TO`
+includes the entire date, through the final nanosecond before the next local
+midnight. `FROM=2026-06-25|TO=2026-06-25` therefore returns records from that
+day. Exact timestamp bounds on the history request are inclusive.
 
 !!! warning "No level or EOD ticks here"
     `INDEX|HISTORY` never returns intraday level ticks or end-of-day OHLC

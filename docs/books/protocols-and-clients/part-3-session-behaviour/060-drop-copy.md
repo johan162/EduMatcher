@@ -105,7 +105,7 @@ Payloads are serialized with `orjson` when it is installed (the normal case);
 
 | Field                | Type   | Description                                                          |
 |----------------------|--------|----------------------------------------------------------------------|
-| `seq`                | int    | Monotonically increasing sequence number (starts at 1, never resets) |
+| `seq`                | int    | Monotonically increasing per-gateway sequence (starts at 1; resets when the engine restarts) |
 | `timestamp`          | int    | Nanosecond timestamp from `now_ns()`                                 |
 | `gateway_id`         | str    | ID of the gateway that submitted the order                           |
 | `event_type`         | str    | Type of event (currently `"order.fill"`)                             |
@@ -168,13 +168,18 @@ amend-rematches — not just plain new-order fills.
 
 ## Sequence numbers
 
-The `seq` field comes from a **process-wide** counter (`itertools.count(1)`
-at module scope in `drop_copy.py`), shared by every `DropCopyPublisher`
-instance created in the same process — not scoped to one engine instance.
-It increments by 1 for every event, starts at 1, and is never reset while
-the process is alive. Tests or tools that construct more than one
-`DropCopyPublisher` in the same process will see `seq` continue counting up
-across instances rather than restarting at 1.
+The `seq` field is an independent counter for each `gateway_id`. It starts at
+1 for each gateway and increments by 1 for every event in that gateway's
+`drop_copy.event.<gateway_id>` stream. Each gateway's counter restarts at 1
+when the engine restarts. A subscriber to one gateway can therefore detect
+gaps and duplicates directly; a subscriber to multiple gateways must track a
+separate last-seen sequence for each gateway.
+
+!!! warning "Subscriptions match by prefix"
+    Subscribing to `drop_copy.event.TRADER1` also delivers the events of
+    `TRADER10`, `TRADER11`, … — each with its own `seq` stream. A consumer
+    that checks sequences must compare the topic (or the payload's
+    `gateway_id`) exactly, or it will report false gaps.
 
 Sequence numbers allow downstream consumers to:
 
@@ -188,12 +193,13 @@ Sequence numbers allow downstream consumers to:
 
 ## In-memory buffer
 
-The drop copy publisher maintains a **circular in-memory buffer** of the last
-10,000 events.  This buffer supports replay requests from consumers that
-reconnect after a gap.
+The drop copy publisher maintains one **circular in-memory buffer** of the
+last 10,000 events, shared by all gateways. This buffer supports replay of a
+gateway's events after a gap.
 
-The buffer is implemented as a `collections.deque` with `maxlen=10_000`.  When
-the buffer is full, the oldest event is discarded automatically.
+The buffer is implemented as a `collections.deque` with `maxlen=10_000`. When
+the buffer is full, the oldest event is discarded automatically, whichever
+gateway it belongs to — so a busy gateway shortens a quiet gateway's history.
 
 At a sustained rate of ~10 fills/second, 10,000 buffered messages covers
 roughly 16 minutes of history before the oldest events start being dropped.
@@ -207,16 +213,17 @@ replay of events it missed.
 
 !!! warning "In-process only — no external replay protocol"
     Replay is implemented as a publisher method
-    (`DropCopyPublisher.replay(recipient_id, from_seq)`).  There is currently
+    (`DropCopyPublisher.replay(recipient_id, from_seq, gateway_id=...)`). There is currently
     **no** ZMQ message handler that accepts replay requests from external
     consumers.  It is useful for tests and embedded consumers but not yet a
     full reconnect protocol.
 
 ### Replay request (programmatic)
 
-Call `DropCopyPublisher.replay(recipient_id, from_seq)` from within the
-engine.  This publishes all buffered events with `seq >= from_seq` on a
-dedicated replay topic:
+Call `DropCopyPublisher.replay(recipient_id, from_seq, gateway_id=...)` from
+within the engine. This publishes buffered events for that gateway with
+`seq >= from_seq` on a dedicated replay topic. `gateway_id` is required:
+`from_seq` only means something within one gateway's stream.
 
 ```
 Frame 0 (topic):    b"drop_copy.replay.<recipient_id>"
@@ -234,10 +241,11 @@ stream received by other consumers.
 
 ### Replay limitations
 
-The buffer holds only the last 10,000 events.  If a consumer has been
-disconnected long enough that its `from_seq` predates the oldest buffered
-message, it will receive only the available subset.  In production systems this
-gap would typically be filled from a persistent audit log (see
+The buffer holds only the last 10,000 events across all gateways. If a
+consumer has been disconnected long enough that its `from_seq` predates the
+oldest buffered message for that gateway, it will receive only the available
+subset. In
+production systems this gap would typically be filled from a persistent audit log (see
 [Persistence](../../operator-guide/part-6-observe-and-recover/010-persistence.md)).
 
 
@@ -250,7 +258,7 @@ for the drop copy stream:
 | Pattern                           | Receives                                 |
 |-----------------------------------|------------------------------------------|
 | `b"drop_copy.event."`             | All live fill events from all gateways   |
-| `b"drop_copy.event.TRADER01"`     | Live fills from gateway TRADER01 only    |
+| `b"drop_copy.event.TRADER01"`     | Live fills from TRADER01 — and from any ID it prefixes, such as TRADER010 |
 | `b"drop_copy.replay.MY_RISK_SYS"` | Replay messages addressed to MY_RISK_SYS |
 
 
@@ -326,14 +334,15 @@ Example output:
 ```
 Listening for drop-copy events on :5557 ...
 [drop_copy.event.TRADER01] seq=1  AAPL  100@150.05  gateway=TRADER01
-[drop_copy.event.TRADER02] seq=2  AAPL  100@150.05  gateway=TRADER02
-[drop_copy.event.TRADER01] seq=3  MSFT  50@415.20   gateway=TRADER01
+[drop_copy.event.TRADER02] seq=1  AAPL  100@150.05  gateway=TRADER02
+[drop_copy.event.TRADER01] seq=2  MSFT  50@415.20   gateway=TRADER01
 ```
 
 !!! tip
     For production use, subscribe to a specific gateway prefix
     (e.g., `b"drop_copy.event.TRADER01"`) to limit traffic to only
-    fills relevant to your risk system.
+    fills relevant to your risk system, and drop any message whose topic is
+    not exactly `drop_copy.event.TRADER01`.
 
 
 

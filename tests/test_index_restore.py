@@ -25,6 +25,7 @@ import pytest
 
 import edumatcher.index.main as index_main
 from edumatcher.index.config_loader import IndexRuntimeConfig
+from edumatcher.models.message import decode, make_session_status_msg
 
 from tests.support.restart import restart_equivalence
 
@@ -48,6 +49,7 @@ def make_process(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> Generator[Any, None, None]:
     monkeypatch.setattr(index_main, "make_subscriber", lambda *_a, **_k: _Sock())
+    monkeypatch.setattr(index_main, "make_pusher", lambda *_a, **_k: _Sock())
     monkeypatch.setattr(index_main, "make_puller", lambda *_a, **_k: _Sock())
     monkeypatch.setattr(index_main, "make_publisher", lambda *_a, **_k: _Sock())
     monkeypatch.setattr(index_main, "make_replier", lambda *_a, **_k: _Sock())
@@ -228,6 +230,29 @@ def test_restart_equivalence_over_a_full_scenario(make_process: Any) -> None:
         snapshot=_observed,
         durable=durable,
     )
+
+
+def test_restart_applies_engine_phase_snapshot_before_next_transition(
+    make_process: Any,
+) -> None:
+    first = make_process()
+    first._handle_session_state({"state": "CONTINUOUS"})
+    first.close()
+    make_process.made.remove(first)
+
+    restarted = make_process()
+    idx = restarted._indices["EDU100"]
+    assert idx.session_state == "UNKNOWN"
+
+    restarted._handle_sub_message(
+        make_session_status_msg("PM_INDEX", "CONTINUOUS", sessions_enabled=True)
+    )
+
+    assert idx.session_state == "CONTINUOUS"
+    topic, payload = decode(restarted._pub_sock.sent[-1])
+    assert topic == "index.update"
+    assert payload["index_id"] == "EDU100"
+    assert payload["session_state"] == "CONTINUOUS"
 
 
 @pytest.mark.parametrize("crash_in", ["write", "rename"])

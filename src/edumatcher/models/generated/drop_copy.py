@@ -39,7 +39,7 @@ _DROP_COPY_EVENT_FIELDS: tuple[dict[str, Any], ...] = (
         "type": "int",
         "unit": "dimensionless",
         "required": True,
-        "doc": 'Process-wide monotone counter, starting at 1 so that 0 can mean "no events yet". Never resets while the engine lives. A recipient detects loss from a gap and a duplicate from a repeat, which is the whole reason the feed is sequenced.',
+        "doc": 'Monotone counter for this gateway\'s stream, starting at 1 so that 0 can mean "no events yet". Independent of other gateways and resets when the engine restarts. A recipient detects loss from a gap and a duplicate from a repeat within this stream.',
         "constraints": {"gt": 0},
     },
     {
@@ -329,7 +329,7 @@ _DROP_COPY_REPLAY_FIELDS: tuple[dict[str, Any], ...] = (
         "type": "int",
         "unit": "dimensionless",
         "required": True,
-        "doc": "",
+        "doc": "Original sequence number in this gateway's live stream.",
         "constraints": {"gt": 0},
     },
     {
@@ -414,10 +414,11 @@ class DropCopyReplay:
     `timestamp` -- a replayed fill is the same fill, not a new one. Only the topic
     differs, and it names the *recipient* rather than the gateway, so two simultaneous
     replays do not interleave. `recipient_id` is therefore not the same thing as
-    `gateway_id`, which is why the body keeps carrying the latter. There is no request
-    message. `DropCopyPublisher.replay()` is in-process only, callable from the engine
-    and reachable by no protocol -- the module docstring described a
-    `drop_copy.replay_request` that was never built. Section 27.3.
+    `gateway_id`, which is why the body keeps carrying the latter. The in-process replay
+    method takes `gateway_id` as a required argument and replays only that gateway's
+    events. There is no request message. `DropCopyPublisher.replay()` is in-process
+    only, callable from the engine and reachable by no protocol -- the module docstring
+    described a `drop_copy.replay_request` that was never built. Section 27.3.
     """
 
     recipient_id: str

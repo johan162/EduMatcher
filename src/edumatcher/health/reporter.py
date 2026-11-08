@@ -62,9 +62,9 @@ SNDHWM = 10
 #: The design's LINGER 0 holds for every other beacon; the last one is the
 #: only one whose loss changes a verdict (STOPPED instead of DEAD).
 FINAL_LINGER_MS = 500
-#: At most one warning per this many seconds from the sampler thread, so a
+#: At most one report per this many seconds from the sampler thread, so a
 #: down pm-monitor cannot flood the log server.
-WARN_EVERY_SEC = 60.0
+LOG_EVERY_SEC = 60.0
 #: Bound on the host field, as LogRow.host (spec/messages/health.yaml).
 MAX_HOST_LEN = 128
 
@@ -102,7 +102,7 @@ class HealthReporter:
         self._seq = 0
         self._beacons_dropped = 0
         self._samples_rejected = 0
-        self._last_warning = float("-inf")
+        self._last_report = float("-inf")
 
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
@@ -298,7 +298,8 @@ class HealthReporter:
             sock.send_multipart(frames, flags=zmq.NOBLOCK)
         except zmq.Again:
             self._beacons_dropped += 1
-            self._warn(
+            self._log_rate_limited(
+                logging.DEBUG,
                 "pm-monitor at %s not accepting beacons (%d dropped so far)",
                 self.endpoint,
                 self._beacons_dropped,
@@ -322,7 +323,10 @@ class HealthReporter:
         return valid
 
     def _warn(self, msg: str, *args: object) -> None:
+        self._log_rate_limited(logging.WARNING, msg, *args)
+
+    def _log_rate_limited(self, level: int, msg: str, *args: object) -> None:
         now = time.monotonic()
-        if now - self._last_warning >= WARN_EVERY_SEC:
-            self._last_warning = now
-            log.warning(msg, *args)
+        if now - self._last_report >= LOG_EVERY_SEC:
+            self._last_report = now
+            log.log(level, msg, *args)

@@ -2908,14 +2908,21 @@ _ORDER_EXPIRED_FIELDS: tuple[dict[str, Any], ...] = (
         "doc": "Quantity the order had filled before it expired.",
         "constraints": {"ge": 0},
     },
+    {
+        "name": "reason",
+        "type": "string",
+        "unit": None,
+        "required": False,
+        "doc": 'Why the order expired: "Opening auction ended", "Closing auction ended", or "Trading day ended".',
+    },
 )
 
 
 @dataclass(frozen=True, slots=True)
 class OrderExpired:
-    """A DAY order that never filled has expired at session end. Same shape as
-    order.cancelled - the difference is who ended the order, not what the consumer
-    needs to know about it.
+    """An order has expired because its time-in-force window ended. The optional
+    reason distinguishes auction-only expiry from end-of-day expiry while
+    remaining compatible with existing consumers.
     """
 
     gateway_id: str
@@ -2928,6 +2935,7 @@ class OrderExpired:
     leg_index: int | None = None  # unit: dimensionless
     remaining_qty: int | None = None  # unit: shares
     cum_qty: int | None = None  # unit: shares
+    reason: str | None = None
 
     def validate(self) -> None:
         """Raise MessageValidationError if any declared rule fails.
@@ -3003,6 +3011,7 @@ class OrderExpired:
                 None if p.get("remaining_qty") is None else int(p["remaining_qty"])
             ),
             cum_qty=None if p.get("cum_qty") is None else int(p["cum_qty"]),
+            reason=None if p.get("reason") is None else str(p["reason"]),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -3026,6 +3035,8 @@ class OrderExpired:
             payload["remaining_qty"] = self.remaining_qty
         if self.cum_qty is not None:
             payload["cum_qty"] = self.cum_qty
+        if self.reason is not None:
+            payload["reason"] = self.reason
         return payload
 
 
@@ -3067,6 +3078,7 @@ def make_order_expired_unchecked(
     leg_index: int | None = None,
     remaining_qty: int | None = None,
     cum_qty: int | None = None,
+    reason: str | None = None,
 ) -> list[bytes]:
     """Identical frames to ``make_order_expired``, without ``validate()``.
 
@@ -3097,6 +3109,8 @@ def make_order_expired_unchecked(
         payload["remaining_qty"] = int(remaining_qty)
     if cum_qty is not None:
         payload["cum_qty"] = int(cum_qty)
+    if reason is not None:
+        payload["reason"] = str(reason)
     return [
         topic_order_expired(gateway_id).encode(),
         _msg.dumps(payload),

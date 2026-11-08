@@ -348,10 +348,14 @@ async def market_data(websocket: WebSocket) -> None:
     try:
         await _authenticate_ws(websocket)
         await websocket.send_json({"type": "authenticated"})
-        queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue(maxsize=512)
-        websocket.app.state.engine.add_market_data_sink(queue)
-        websocket.app.state.sim.add_news_sink(queue)
+        # Sized for the open: the uncross and the first continuous orders arrive
+        # in one burst, and 512 overflowed it on a loaded host.
+        queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue(maxsize=4096)
         subscription = Subscription()
+        websocket.app.state.engine.add_market_data_sink(
+            queue, lambda event: _wanted(event, subscription)
+        )
+        websocket.app.state.sim.add_news_sink(queue)
         try:
             sender = asyncio.create_task(
                 _send_market_data(websocket, queue, subscription)
@@ -554,19 +558,29 @@ async def _send_market_data(
 ) -> None:
     while True:
         event = await queue.get()
-        event_type = str(event.get("type", ""))
-        data = event.get("data", {})
-        topic_channel = _event_channel(event_type)
-        symbol = market_data_symbol(
-            _topic_from_event(event), data if isinstance(data, dict) else {}
-        )
-        # Venue-wide status bypasses the subscription entirely — see
-        # ALWAYS_ON_CHANNELS for why, and `describe()["always"]` for how a
-        # client learns that it will receive these without asking.
-        if topic_channel in ALWAYS_ON_CHANNELS:
+        if _wanted(event, subscription):
             await websocket.send_json(event)
-        elif subscription.matches(symbol, topic_channel):
-            await websocket.send_json(event)
+
+
+def _wanted(event: dict[str, Any], subscription: Subscription) -> bool:
+    """Whether a market-data socket with *subscription* should receive *event*.
+
+    Applied when the event is queued, to keep the bounded queue for events the
+    client will actually be sent, and again when it is dequeued, because the
+    subscription can change in between and news arrives by another route.
+    """
+    event_type = str(event.get("type", ""))
+    data = event.get("data", {})
+    topic_channel = _event_channel(event_type)
+    # Venue-wide status bypasses the subscription entirely — see
+    # ALWAYS_ON_CHANNELS for why, and `describe()["always"]` for how a
+    # client learns that it will receive these without asking.
+    if topic_channel in ALWAYS_ON_CHANNELS:
+        return True
+    symbol = market_data_symbol(
+        _topic_from_event(event), data if isinstance(data, dict) else {}
+    )
+    return subscription.matches(symbol, topic_channel)
 
 
 def _event_channel(event_type: str) -> str | None:

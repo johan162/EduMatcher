@@ -598,8 +598,8 @@ class TestAtoAtcOrders:
         topic, msg = decode(pub_sock.sent[0])
         assert msg["accepted"] is True
 
-    def test_ato_expired_on_opening_auction_end(self, session_engine) -> None:
-        """ATO orders that don't fill should expire when leaving opening auction."""
+    def test_ato_expiry_reports_opening_auction_reason(self, session_engine) -> None:
+        """An ATO remainder expires for the auction ending, not the day ending."""
         engine, pub_sock = session_engine
 
         # Navigate to OPENING_AUCTION
@@ -616,9 +616,16 @@ class TestAtoAtcOrders:
         # Transition to CONTINUOUS — should trigger uncross + expire unfilled ATOs
         engine._handle_session_transition({"to_state": "CONTINUOUS"})
 
-        topics = _topics(pub_sock)
-        expired = [t for t in topics if "expired" in t]
-        assert len(expired) >= 1
+        events = [decode(frames) for frames in pub_sock.sent]
+        expired = [
+            payload
+            for topic, payload in events
+            if topic == f"order.expired.{order.gateway_id}"
+        ]
+        assert len(expired) == 1
+        assert expired[0]["reason"] == "Opening auction ended"
+        assert engine.books["AAPL"].resting_orders() == []
+        assert not any(topic == "trade.executed" for topic, _ in events)
 
     def test_atc_expired_on_closing_auction_end(self, session_engine) -> None:
         engine, pub_sock = session_engine
@@ -634,6 +641,12 @@ class TestAtoAtcOrders:
         topics = _topics(pub_sock)
         expired = [t for t in topics if "expired" in t]
         assert len(expired) >= 1
+        expiry_event = next(
+            payload
+            for topic, payload in (decode(frames) for frames in pub_sock.sent)
+            if topic == "order.expired.TRADER01"
+        )
+        assert expiry_event["reason"] == "Closing auction ended"
 
 
 # ---------------------------------------------------------------

@@ -5935,12 +5935,17 @@ class Engine:
         # Validate transition
         allowed = VALID_TRANSITIONS.get(from_state, set())
         if to_state not in allowed:
+            reason = (
+                f"Invalid transition {from_state.value} → {to_state.value} "
+                f"(allowed: {', '.join(sorted(s.value for s in allowed))})"
+            )
             log.warning(
                 "Invalid transition %s → %s (allowed: %s)",
                 from_state.value,
                 to_state.value,
                 ", ".join(s.value for s in allowed),
             )
+            self._reply_session_transition(payload, False, reason=reason)
             return
 
         # Adopted from this command, whatever it says -- including nothing --
@@ -6053,7 +6058,12 @@ class Engine:
         self._next_session_at = next_at
 
     def _expire_tif(self, tif: TIF) -> None:
-        """Expire all resting orders with the given TIF."""
+        """Expire all resting orders with the given TIF and its expiry reason."""
+        reason = {
+            TIF.ATO: "Opening auction ended",
+            TIF.ATC: "Closing auction ended",
+            TIF.DAY: "Trading day ended",
+        }[tif]
         for book in self.books.values():
             for order in book.resting_orders():
                 if order.tif == tif:
@@ -6065,6 +6075,7 @@ class Engine:
                                 cancelled.gateway_id,
                                 cancelled.id,
                                 order=cancelled.to_dict(),
+                                reason=reason,
                             )
                         )
                         self._order_symbol.pop(cancelled.id, None)
@@ -7864,13 +7875,17 @@ def _configure_logging(args: argparse.Namespace) -> int:
 
 
 def main() -> None:
-    from edumatcher.config_artifact import report_deployment
+    from edumatcher.config_artifact import ArtifactError, report_deployment
 
     parser = build_parser()
     args = parser.parse_args()
     log_level = _configure_logging(args)
     log.info("starting pm-engine with log level %s", logging.getLevelName(log_level))
-    report_deployment(log)
+    try:
+        report_deployment(log)
+    except ArtifactError:
+        log.debug("deployed configuration startup failure details", exc_info=True)
+        raise SystemExit(1) from None
     engine = Engine()
     reporter = HealthReporter.from_compiled_config(_CLIENT_NAME)
     if reporter is not None:

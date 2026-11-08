@@ -3,8 +3,8 @@
  * Goes beyond printing raw lines: connects to pm-dc-gwy for one
  * participant's gateway ID, then puts the received DC_FILL lines to use the
  * way a risk or back-office system would -- a running per-symbol tally of
- * fills, executed quantity, VWAP and the MAKER/TAKER split, a check that the
- * drop-copy SEQ only ever moves forward, and a clean SIGINT shutdown that
+ * fills, executed quantity, VWAP and the MAKER/TAKER split, a check of the
+ * drop-copy SEQ for gaps and restarts, and a clean SIGINT shutdown that
  * prints the final tally before exiting.
  *
  * DC1 has no SUB step: the ID in HELLO is the whole subscription, and fills
@@ -52,13 +52,12 @@ static void handle_sigint(int signum) {
 }
 
 /* ------------------------------------------------------------------ */
-/* SEQ direction check.
+/* SEQ gap and restart check.
  *
- * Unlike RALF and CALF, a gap here is *normal*: SEQ is one engine-wide
- * counter shared by the fills of every gateway ID, and this session only
- * sees its own ID's share. The useful check is the other direction -- a SEQ
- * at or below the last one seen. DC1 has no replay, so that is not a
- * duplicate: the engine restarted and its counter began again from 1.
+ * SEQ is a separate counter for each gateway ID, so this session's fills are
+ * numbered 1, 2, 3, ... A SEQ that skips ahead means fills were lost. A SEQ
+ * at or below the last one seen is not a duplicate -- DC1 has no replay --
+ * but an engine restart, which starts the counter again from 1.
  * ------------------------------------------------------------------ */
 
 static long g_last_seq = -1; /* -1: nothing seen yet */
@@ -72,7 +71,10 @@ static void check_sequence(const char *seq_str) {
     if (*end != '\0') {
         return;
     }
-    if (g_last_seq >= 0 && seq <= g_last_seq) {
+    if (g_last_seq >= 0 && seq > g_last_seq + 1) {
+        fprintf(stderr, "!! SEQ gap: %ld fill(s) missing between %ld and %ld\n", seq - g_last_seq - 1,
+                g_last_seq, seq);
+    } else if (g_last_seq >= 0 && seq <= g_last_seq) {
         fprintf(stderr, "!! SEQ went backwards: %ld after %ld (engine restarted?); re-baselining\n", seq,
                 g_last_seq);
     }

@@ -19,6 +19,7 @@ from edumatcher.health import HealthReporter
 from edumatcher.config import (
     COMPILED_CONFIG_FILE,
     ENGINE_PUB_ADDR,
+    ENGINE_PULL_ADDR,
     INDEX_HEALTH_BIND_ADDR,
     INDEX_PUB_ADDR,
     INDEX_PULL_ADDR,
@@ -41,6 +42,7 @@ from edumatcher.logclient.discovery import resolve_handler
 from edumatcher.messaging.bus import (
     make_publisher,
     make_puller,
+    make_pusher,
     make_replier,
     make_subscriber,
 )
@@ -52,6 +54,7 @@ from edumatcher.models.message import (
     make_index_history_msg,
     make_index_rebalance_ack_msg,
     make_index_update_msg,
+    make_session_state_request_msg,
 )
 from edumatcher.models.generated.trade import TOPIC_TRADE_EXECUTED
 from edumatcher.models.generated.session import TOPIC_SESSION_STATE
@@ -62,12 +65,14 @@ from edumatcher.models.generated.index import (
     TOPIC_INDEX_REBALANCE,
     DaySummary,
 )
-from edumatcher.models.generated.system import (
-    TOPIC_EOD,
-)
+from edumatcher.models.generated.system import TOPIC_EOD, topic_session_status
+from edumatcher.models.session import SessionState
 
 log = logging.getLogger(__name__)
 _DEBUG_SUMMARY_INTERVAL_SEC = 5.0
+_SESSION_STATUS_GATEWAY_ID = "PM_INDEX"
+_SESSION_STATUS_RETRY_SEC = 1.0
+_SESSION_STATUS_WARNING_SEC = 3.0
 
 #: Longest a trade-driven price change stays unwritten while trading. Writing
 #: the state file on every trade would cost a file write per print; every
@@ -144,7 +149,7 @@ class _ManagedIndex:
     cfg: IndexRuntimeConfig
     calc: IndexCalculator
     history: IndexHistory
-    session_state: str = "PRE_OPEN"
+    session_state: str = "UNKNOWN"
     last_publish_time: float = 0.0
     eod_finalized_for_session: bool = False
     #: The session's open/high/low, or None before the first level is
@@ -183,6 +188,8 @@ class IndexProcess:
         self._config_path = config_path
         self._reset = reset
         self._running = True
+        self._session_status_received = False
+        self._session_status_warning_logged = False
         # Health beacon, attached by main(); vitals only (design A6.6).
         self._reporter: HealthReporter | None = None
 
@@ -194,7 +201,9 @@ class IndexProcess:
             TOPIC_TRADE_EXECUTED,
             TOPIC_SESSION_STATE,
             TOPIC_EOD,
+            topic_session_status(_SESSION_STATUS_GATEWAY_ID),
         )
+        self._engine_push = make_pusher(ENGINE_PULL_ADDR)
         self._pull_sock = make_puller(INDEX_PULL_ADDR)
         self._pub_sock = make_publisher(INDEX_PUB_ADDR)
         # Bound, not connected: pm-index-cli health's ZMQ ping is the only
@@ -204,6 +213,7 @@ class IndexProcess:
             self._health_rep = make_replier(INDEX_HEALTH_BIND_ADDR)
         except BaseException:
             self._sub_sock.close()
+            self._engine_push.close()
             self._pull_sock.close()
             self._pub_sock.close()
             raise
@@ -524,6 +534,29 @@ class IndexProcess:
         if state == "CLOSED":
             self._finalize_eod()
         self._checkpoint(force=True)
+
+    def _request_session_status(self) -> None:
+        try:
+            self._engine_push.send_multipart(
+                make_session_state_request_msg(_SESSION_STATUS_GATEWAY_ID)
+            )
+        except zmq.Again as exc:
+            if not self._session_status_warning_logged:
+                log.warning("could not request engine session status: %s", exc)
+                self._session_status_warning_logged = True
+
+    def _handle_session_status(self, payload: dict[str, Any]) -> None:
+        try:
+            state = SessionState(str(payload.get("state", "")).upper()).value
+        except ValueError:
+            log.warning("invalid initial session status: %s", payload)
+            return
+
+        log.info("received initial engine session status=%s", state)
+        self._session_status_received = True
+        for idx in self._indices.values():
+            idx.session_state = state
+            self._publish_level(idx, idx.calc.recalculate(), force=True)
 
     def _handle_history_request(self, payload: dict[str, Any]) -> None:
         gateway_id = _clamp_id(payload.get("gateway_id", ""))
@@ -895,6 +928,8 @@ class IndexProcess:
                 self._handle_trade(payload)
             elif topic == TOPIC_SESSION_STATE:
                 self._handle_session_state(payload)
+            elif topic == topic_session_status(_SESSION_STATUS_GATEWAY_ID):
+                self._handle_session_status(payload)
             elif topic == TOPIC_EOD:
                 self._finalize_eod()
         except Exception as exc:
@@ -936,6 +971,9 @@ class IndexProcess:
 
     def run(self) -> None:
         self._initialise()
+        self._request_session_status()
+        next_status_request = time.monotonic() + _SESSION_STATUS_RETRY_SEC
+        status_warning_at = time.monotonic() + _SESSION_STATUS_WARNING_SEC
         log.info("index process entering main poll loop")
 
         poller = zmq.Poller()
@@ -947,6 +985,16 @@ class IndexProcess:
         while self._running:
             if reporter is not None:
                 reporter.tick()
+            now = time.monotonic()
+            if not self._session_status_received and now >= next_status_request:
+                if now >= status_warning_at and not self._session_status_warning_logged:
+                    log.warning(
+                        "engine session status has not been received; index updates "
+                        "may report an unknown current phase until the engine replies"
+                    )
+                    self._session_status_warning_logged = True
+                self._request_session_status()
+                next_status_request = now + _SESSION_STATUS_RETRY_SEC
             try:
                 socks = dict(poller.poll(timeout=200))
             except zmq.ZMQError as exc:
@@ -987,6 +1035,7 @@ class IndexProcess:
             idx.history.flush()
             idx.history.close()
         self._sub_sock.close()
+        self._engine_push.close()
         self._pull_sock.close()
         self._pub_sock.close()
         self._health_rep.close()

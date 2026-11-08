@@ -26,6 +26,7 @@ from edumatcher.config_artifact import (
 from edumatcher.ai_trader.swarm_config import load_swarm_config
 from edumatcher.market_sim.config import load_sim_config
 from edumatcher.setup_cmd import DEFAULT_EXAMPLE_CONFIG, main as setup_main
+import edumatcher.config_deploy as config_deploy
 from edumatcher.config_deploy import (
     CompileError,
     compile_config,
@@ -263,6 +264,32 @@ class TestShippedSample:
 
 class TestExamples:
     """`--example NAME` resolves to a bundled docs/examples/ref_data config."""
+
+    def test_installed_examples_resolve_outside_a_repository_checkout(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        site_packages = tmp_path / "site-packages"
+        package_file = site_packages / "edumatcher" / "config_deploy.py"
+        package_file.parent.mkdir(parents=True)
+        examples = site_packages / "docs" / "examples"
+        config = examples / "ref_data" / "s150-nominal-setup" / "engine_config.yaml"
+        swarm = config.with_name("swarm.yaml")
+        news = examples / "news" / "chip-race.yaml"
+        config.parent.mkdir(parents=True)
+        news.parent.mkdir(parents=True)
+        config.write_text("symbols: {}\n", encoding="utf-8")
+        swarm.write_text("version: 1\n", encoding="utf-8")
+        news.write_text(
+            "version: 1\nsteps: [{inject: {market: true}}]\n", encoding="utf-8"
+        )
+        monkeypatch.setattr(config_deploy, "__file__", str(package_file))
+
+        assert config_deploy.resolve_example("s150-nominal") == config
+        examples = config_deploy.examples_root().parent
+        assert examples / "ref_data" / "s150-nominal-setup" / "swarm.yaml" == swarm
+        assert examples / "news" / "chip-race.yaml" == news
+        assert swarm.is_file()
+        assert news.is_file()
 
     @pytest.mark.parametrize(
         "name,folder",

@@ -53,7 +53,7 @@ from collections import OrderedDict, defaultdict, deque
 import logging
 import threading
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
 import zmq
@@ -685,14 +685,18 @@ class Gateway:
             while True:
                 if self._heartbeat_stop.wait(GATEWAY_HEARTBEAT_INTERVAL_SEC):
                     return
-                log.debug("engine heartbeat sent gateway_id=%s", self.gateway_id)
                 try:
                     push_sock.send_multipart(
                         make_gateway_heartbeat_msg(self.gateway_id)
                     )
                 except zmq.Again:
+                    log.debug(
+                        "gateway_id=%s heartbeat dropped: engine unreachable",
+                        self.gateway_id,
+                    )
                     self._engine_connection_lost()
                     return
+                log.debug("engine heartbeat sent gateway_id=%s", self.gateway_id)
         finally:
             push_sock.close()
 
@@ -731,9 +735,7 @@ class Gateway:
             sock.send_multipart(frames)
             return True
         except zmq.Again:
-            log.warning(
-                "gateway_id=%s send dropped: engine unreachable", self.gateway_id
-            )
+            log.debug("gateway_id=%s send dropped: engine unreachable", self.gateway_id)
             self._engine_connection_lost()
             return False
 
@@ -818,6 +820,10 @@ class Gateway:
         pm-alf-gwy sends its own TCP clients for the same event (see
         ../../../docs/books/protocols-and-clients/part-5-message-reference/010-message-reference.md).
         """
+        # SUBSCRIBE matches by prefix: GW1 also receives GW10's events, which
+        # are another gateway's fills with their own seq stream.
+        if topic.encode() != self._dc_topic:
+            return
         ts = datetime.now().strftime("%H:%M:%S.%f")[:-3]
         seq = payload.get("seq", "?")
         symbol = payload.get("symbol", "?")
@@ -978,11 +984,20 @@ class Gateway:
                     self.order_cache[full_id]["remaining"] = rem
 
         elif PREFIX_ORDER_EXPIRED in topic:
-            console.print(
-                f"[{ts}] [dim]EXPIRED[/dim]   {oid}  (DAY order — trading day ended)"
-            )
+            full_id = str(payload.get("order_id", "?"))
+            reason = payload.get("reason")
+            if not isinstance(reason, str) or not reason:
+                cached = self.order_cache.get(full_id, {})
+                cached_tif = cached.get("tif")
+                reason = {
+                    "ATO": "Opening auction ended",
+                    "ATC": "Closing auction ended",
+                    "DAY": "Trading day ended",
+                }.get(
+                    cached_tif if isinstance(cached_tif, str) else "", "Order expired"
+                )
+            console.print(f"[{ts}] [dim]EXPIRED[/dim]   {oid}  ({reason})")
             log.debug("order expired order_id=%s", oid)
-            full_id = payload.get("order_id", "?")
             if full_id in self.order_cache:
                 self.order_cache[full_id]["status"] = "EXPIRED"
 
@@ -1401,21 +1416,29 @@ class Gateway:
                         "[red]INDEX|HISTORY requires INDEX=<id> or prior index.update.[/red]"
                     )
                     return
-                from_ts = self._parse_date(kv.get("FROM"))
-                to_ts = self._parse_date(kv.get("TO"))
-                if from_ts is None:
-                    from_ts = time.time() - 30 * 86400
-                if to_ts is None:
-                    to_ts = time.time()
-                # AR-0.3: FROM/TO stay seconds at this CLI's own surface;
-                # converted to the wire message's from_ts_ns/to_ts_ns here.
+                from_dt = self._parse_date(kv.get("FROM"))
+                to_dt = self._parse_date(kv.get("TO"))
+                now_ns = time.time_ns()
+                from_ts_ns = (
+                    int(from_dt.timestamp()) * 1_000_000_000
+                    if from_dt is not None
+                    else now_ns - 30 * 86400 * 1_000_000_000
+                )
+                to_ts_ns = (
+                    int((to_dt + timedelta(days=1)).timestamp()) * 1_000_000_000 - 1
+                    if to_dt is not None
+                    else now_ns
+                )
+                # Date filters are converted directly to epoch nanoseconds;
+                # subtract one nanosecond from the next local midnight so
+                # the inclusive wire bound covers the full TO date.
                 self._send(
                     self._index_push_sock,
                     make_index_history_request_msg(
                         gateway_id=self.gateway_id,
                         index_id=index_id,
-                        from_ts_ns=int(from_ts * 1_000_000_000),
-                        to_ts_ns=int(to_ts * 1_000_000_000),
+                        from_ts_ns=from_ts_ns,
+                        to_ts_ns=to_ts_ns,
                     ),
                 )
                 return
@@ -1966,14 +1989,13 @@ class Gateway:
         self._dbg_count("combo_submitted")
 
     @staticmethod
-    def _parse_date(raw: str | None) -> float | None:
+    def _parse_date(raw: str | None) -> datetime | None:
         if not raw:
             return None
         try:
-            dt = datetime.strptime(raw, "%Y-%m-%d")
+            return datetime.strptime(raw, "%Y-%m-%d")
         except ValueError:
             return None
-        return dt.timestamp()
 
     # ------------------------------------------------------------------
     # Run
