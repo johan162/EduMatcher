@@ -92,6 +92,7 @@ class TestProtocol:
         assert p.cancel("abc123", "CXL-1") == b"CANCEL|ID=abc123|RTAG=CXL-1\n"
         assert p.cancel("abc123") == b"CANCEL|ID=abc123\n"
         assert p.cancel_oco("O1") == b"CANCEL|OCO_ID=O1\n"
+        assert p.cancel_combo("C1") == b"CANCEL|COMBO_ID=C1\n"
         assert p.position_request("AI001") == b"POS|GW=AI001\n"
         assert p.ping() == b"PING\n" and p.bye() == b"EXIT\n"
 

@@ -184,6 +184,10 @@ def cancel_oco(oco_id: str) -> bytes:
     return build_line("CANCEL", {"OCO_ID": oco_id})
 
 
+def cancel_combo(combo_id: str) -> bytes:
+    return build_line("CANCEL", {"COMBO_ID": combo_id})
+
+
 def position_request(gateway_id: str) -> bytes:
     return build_line("POS", {"GW": gateway_id})
 
