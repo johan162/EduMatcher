@@ -43,7 +43,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 | 13 | T13 | ATO expiry reason | Q17 | — | ☑ | 2026-11-08 |
 | 14 | T14 | Training API-key usability | Q18 | Contract decision | ☑ | 2026-11-08 |
 | 15 | T15 | Per-recipient drop-copy sequence | Q19 | Contract decision | ☑ | 2026-11-08 |
-| 16 | T16 | Close training-route and exercise verification gaps | §§3–4 | T7 for installed routes | ☐ | |
+| 16 | T16 | Close training-route and exercise verification gaps | §§3–4 | T7 for installed routes | ☑ | 2026-11-08 |
 
 ### 1.1 Question → WP index
 
@@ -807,27 +807,32 @@ Steps:
    command/input, expected result and captured result. Use disposable
    directories and a private network namespace; do not operate on a shared
    simulation.
-2. Verify container chapters 04 onward; the Multipass route; pipx install; and
-   the real installer in a disposable environment. For deployment steps that
-   could affect global processes or state (including `pm-opctl-cli stop` or
-   `start`), replace them with a safe isolated validation or document them as
-   manual checks that must not be run on a shared host.
-3. Finish the unplayed chapter 10 Exercises 14B/15B and chapter 14
-   retracted-rumour/chip-race scenarios; create deterministic fixtures for
-   chapter 24 Exercise 4D corridor expansion and 4E non-default
-   `tick_decimals`; run chapter 28 Exercise 6 with `EVICT_OLD`.
-4. Validate chapter 29's interactive key bindings, pick-lists, 120-column
-   layout and PDF/`p` workflow in a controlled terminal. Verify the chapter
-   22 design-exercise limitations, chapter 27 `RATE_LIMITED`, and chapter 23
-   `BAD_MESSAGE`/`SLOW_CLIENT` using deterministic, bounded tests instead of
-   unreliable manual timing where possible.
+2. Verify the container route with an isolated package-image smoke test and
+   check all chapter commands with the guide-wide CLI checker. Verify pipx in
+   a temporary environment. Inspect Multipass read-only and run installer
+   syntax/help checks; do not start a non-disposable VM or install into shared
+   runtime state. For deployment steps that could affect global processes or
+   state (including `pm-opctl-cli stop` or `start`), document manual checks
+   that must not be run on a shared host.
+3. Verify bounded combo regression coverage associated with
+   `100-combo-orders.md` Exercises 14B/15B and validate the retracted-rumour
+   and chip-race scenarios in `140-ai-traders.md`. Verify deterministic tests
+   for Exercise 4D corridor expansion and 4E non-default `tick_decimals` in
+   `230-calf.md`, and Exercise 6 with `EVICT_OLD` in `270-balf-gwy.md`.
+4. Verify `280-ipo-valuation.md`'s interactive key bindings, pick-lists,
+   120-column layout and PDF/`p` workflow with controlled terminal tests.
+   Verify the learner-authored nature of Exercise 6 in
+   `210-automation-commandclient-mm-bot.md`, `RATE_LIMITED` in
+   `260-alf-gwy.md`, and `BAD_MESSAGE`/`SLOW_CLIENT` in `230-calf.md` using
+   deterministic, bounded tests instead of unreliable manual timing.
 5. Run `scripts/checkdocs.py`; fix and regression-check the two reported
    `Y005` snippets in the operator configuration guide if they remain present.
    Run a full `mkdocs build` and resolve newly introduced failures, keeping
    unrelated pre-existing failures clearly separated.
-6. Re-run representative chapters 00–29 from the supported Python and
-   packaged/container routes after T1–T15 changes. Confirm every command
-   block's stated starting state, output and recovery steps.
+6. Run guide-wide documentation checks, targeted Python/package tests and
+   isolated package-route smoke tests after T1–T15 changes. Record manual
+   chapter workflows that require a disposable exchange rather than replaying
+   them against shared state.
 
 **Definition of done:**
 - Every listed unverified route/exercise has a recorded pass, a bounded
@@ -838,6 +843,28 @@ Steps:
   reviewed training/operator examples; any unrelated baseline is recorded.
 - `mkdocs build` succeeds and the final chapter verification matrix matches
   the committed guide.
+
+**Verification matrix (2026-11-08):**
+
+| Route / exercise | Environment and evidence | Captured result / limitation |
+|---|---|---|
+| Container package | Fresh `podman run --rm --network none` processes using the locally available `ghcr.io/johan162/edumatcher-ai-sim:0.76.5`; queried `pm-engine --version` and `examples_root()` without mounts or service control. | `pm-engine 0.76.5`; packaged `docs/examples/news/chip-race.yaml` exists. This older image was locally available; no running container or shared data was touched. |
+| pipx package | Built the current 0.77.0 wheel and installed it under temporary `PIPX_HOME`, `PIPX_BIN_DIR`, and `PIPX_MAN_DIR`; checked the installed CLI and packaged examples. | `pm-engine 0.77.0`; installed examples found. Temporary pipx environment and wheel were removed. |
+| Multipass and real installer | Read-only `multipass info` showed the existing `pm-devnode` VM stopped with a snapshot. Ran shell syntax checks on both installer scripts and `deployment/curl/install.sh --help`. | No VM was started or created: the available VM is not a disposable training VM. No real host install was run: it would download images/change runtime state. Both installer scripts passed `bash -n`; the host installer help exited successfully. |
+| Combo Exercises 14B/15B | `test_combo.py`, `test_combo_gateway_integration.py`, and `test_engine_combo_acceptance.py`. | Combo validation, matching, DAY/GTC persistence, restore, and cancellation tests passed. The full manual auction/recovery/liquidity-provider walkthrough was not run against the shared simulation. |
+| News scenarios | `test_news_scenarios_examples.py` loads all four shipped scenarios against all eight supported market examples. | All 32 scenario/example combinations passed; no shared market was played. |
+| CALF Exercises 4D/4E | `test_md_normaliser.py`, `test_md_gateway_unit.py`, and `test_calf_client.py`. | Deterministic extension-event/corridor and `REF` precision assertions passed, including a non-default four-decimal symbol. |
+| BALF Exercise 6 | `test_balf_gwy_k11_k12.py` and `test_balf_gwy_integration.py`. | `EVICT_OLD` integration and pending-session regressions passed. |
+| Valuation TUI | `test_valuation_tui.py` uses a controlled 120×40 terminal and temporary report paths. | Key navigation, pick-lists, layout, save/back/compare, PDF export, and `p` workflow tests passed. |
+| Exercise 6 and gateway errors | `210-automation-commandclient-mm-bot.md` is a learner-authored exercise; `test_alf_gwy_integration.py`, `test_md_gateway_runtime_paths.py`, `test_md_gateway_unit.py`, and `test_calf_examples.py`. | Bounded tests passed for ALF `RATE_LIMITED` and CALF `BAD_MESSAGE`/`SLOW_CLIENT`. The learner-written command-client flow was not run against an exchange. |
+| Guide-wide consistency | `scripts/checkdocs.py` (all checks) and `poetry run mkdocs build`. | All documentation links, anchors, CLI flags, config examples, and help anchors passed; MkDocs built successfully. Its only informational note was the pre-existing unnav protocol preamble. The operator config snippets identify separately created companion files, so checkdocs suppresses only those exact acknowledged `Y005` missing-file results and still reports other validation errors. |
+
+**T16 closeout:** The shared `edumatcher-sim` containers and the stopped
+`pm-devnode` VM were not started, stopped, or modified. Manual market exercises
+remain deliberately unplayed on that shared state; bounded regression
+coverage and the route limitations are recorded above. A real installer run
+and a current-version container install remain manual checks for a disposable
+environment.
 
 ---
 
