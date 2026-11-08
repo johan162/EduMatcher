@@ -480,6 +480,11 @@ If `INDEX=` is omitted and no `index.update` has been seen yet, `INDEX|HISTORY`
 prints `INDEX|HISTORY requires INDEX=<id> or prior index.update.` and sends
 nothing.
 
+`FROM` is local midnight at the start of its date. Date-only `TO` includes
+the entire date, through the final nanosecond before the next local midnight;
+the same date can be used for both bounds to query one full day. Exact
+timestamp bounds on the history request are inclusive.
+
 Example:
 
 ```text

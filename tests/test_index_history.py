@@ -43,6 +43,25 @@ def test_append_and_query(tmp_path: Path) -> None:
     assert history.path == path
 
 
+def test_query_includes_exact_timestamp_upper_bound(tmp_path: Path) -> None:
+    history = IndexHistory(str(tmp_path / "index_history.jsonl"))
+    for ts_ns in (100, 200, 201):
+        history.append(
+            {
+                "type": "CORP_ACTION",
+                "ts_ns": ts_ns,
+                "index_id": "IDX",
+                "level": float(ts_ns),
+            }
+        )
+    history.flush()
+
+    records, warnings = history.query(100, 200, {"CORP_ACTION"})
+
+    assert warnings == []
+    assert [record["ts_ns"] for record in records] == [100, 200]
+
+
 def test_query_type_filter(tmp_path: Path) -> None:
     path = tmp_path / "index_history.jsonl"
     history = IndexHistory(str(path))

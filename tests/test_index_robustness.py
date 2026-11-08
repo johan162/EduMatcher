@@ -47,6 +47,7 @@ def proc(
 ) -> Generator[index_main.IndexProcess, None, None]:
     pub = _Sock()
     monkeypatch.setattr(index_main, "make_subscriber", lambda *_a, **_k: _Sock())
+    monkeypatch.setattr(index_main, "make_pusher", lambda *_a, **_k: _Sock())
     monkeypatch.setattr(index_main, "make_puller", lambda *_a, **_k: _Sock())
     monkeypatch.setattr(index_main, "make_publisher", lambda *_a, **_k: pub)
     monkeypatch.setattr(index_main, "make_replier", lambda *_a, **_k: _Sock())

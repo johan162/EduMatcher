@@ -39,7 +39,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 | 9 | T9 | Swarm budget semantics | Q12 | Contract decision | ☐ | |
 | 10 | T10 | Teaching configuration, persisted orders and collars | Q13 | Contract decision | ☐ | |
 | 11 | T11 | Session-transition rejection replies | Q14 | — | ☑ | 2026-11-08 |
-| 12 | T12 | Index history, listing and restored session phase | Q15, Q16 | Contract decision for Q15 | ☐ | |
+| 12 | T12 | Index history, listing and restored session phase | Q15, Q16 | Contract decision | ☑ | 2026-11-08 |
 | 13 | T13 | ATO expiry reason | Q17 | — | ☐ | |
 | 14 | T14 | Generated API-key usability and safety | Q18 | Contract decision | ☐ | |
 | 15 | T15 | Per-recipient drop-copy sequence | Q19 | Contract decision | ☐ | |
@@ -594,37 +594,53 @@ for `session.state`. `poetry run pytest tests/ -n logical
 
 ### T12 — Index history, listing and restored session phase (Q15, Q16)
 
-**Questions to resolve:** Is date-only `TO=` inclusive or exclusive? Should
-`INDEX` list every configured index? How does a restarted `pm-index` learn the
-current session phase? Which gateway roles support `INDEX`?
+**Contract decisions (2026-11-08, confirmed by user):**
+- A date-only `TO` includes the whole local date; exact timestamp bounds remain
+  inclusive.
+- `INDEX` remains a one-line spot check showing the most recently received
+  update. Use `pm-index-cli indices` to list all configured indices.
+- On startup, `pm-index` requests the engine's authoritative session status
+  and publishes an initial update for each configured index with that phase.
+- `INDEX` is available from `pm-alf-console` for authenticated gateway roles.
+  `pm-admin` is a separate operator console and does not gain this command.
 
 Steps:
-1. For Q15, add a failing history-query test with records on the `TO` date and
-   on the following date. Test equal `FROM`/`TO` values and a timestamp-valued
-   `TO`; agree and assert inclusive-date or exclusive-date semantics, then
-   align operator/participant docs and training chapter.
-2. For Q16 index listing, publish updates for two indices with different
-   throttling intervals and query `INDEX`. Assert that the response lists both
-   IDs if the command is documented as a list; otherwise change help/docs to
-   say it returns only the latest update.
-3. Add a failing restart test that opens the market, starts or resets
-   `pm-index`, and checks update events and daily roll-up session state before
-   any subsequent phase change. Make the service obtain the current phase
-   from an authoritative initial state/snapshot if required by the contract.
-4. Check `INDEX` availability through each documented role, including
-   `pm-admin`; either implement the supported command or correct the
-   "any gateway role" documentation.
-5. Re-run the chapter 26 second-index exercise with explicit deployment and
-   verify the output through the documented interface.
+1. Cover exact timestamp inclusivity and date-only equal-bound queries; align
+   operator, participant and training documentation with whole-local-date
+   `TO` semantics.
+2. Test two indices with different publish throttles; pin `INDEX` to the latest
+   update while the index CLI and stats surface report both.
+3. On restart, request `system.session_status`, publish each configured
+   index's current phase before a subsequent phase transition, and verify that
+   `pm-stats` persists that update's session state into its daily roll-up.
+4. Verify the supported `pm-alf-console` and `pm-admin` interfaces and make
+   their distinction explicit in the training guide.
+5. Update the chapter 26 second-index exercise to verify the two indices via
+   the documented listing and stats commands, not the one-line `INDEX`.
 
 **Definition of done:**
-- Date boundary behavior is tested with records on both sides of the
-  boundary and documented consistently.
-- Multi-index output and restart phase are correct under the selected
-  contracts, including before the next broadcast.
-- Every documented role's command availability is verified.
-- Chapter 26 is runnable from a clean, deployed configuration; targeted index
-  tests and docs checks pass.
+- Date-only and exact timestamp bounds are tested and documented consistently.
+- The multi-index stream and restarted session phase are correct under the
+  selected contracts, including before the next phase broadcast.
+- Every documented interface's command availability is verified.
+- Chapter 26's second-index exercise uses a clean deployment and supported
+  output surfaces; targeted index tests and docs checks pass.
+
+**Verification:** A one-day `FROM=2024-06-25|TO=2024-06-25` request encodes
+the upper bound as one nanosecond before the next local midnight; exact query
+timestamps include a record at `TO` and exclude the following nanosecond. A
+two-index AAPL scenario verifies `EDU100` and throttled `TECH2` each publish
+on their own interval, while `INDEX` displays only the latest received update.
+After restart, `pm-index` requests `system.session_status`; the
+`CONTINUOUS` snapshot produces an `index.update` with that phase before another
+phase transition, and `pm-stats` persists it in the daily roll-up. The
+`pm-admin` command map excludes `INDEX`; the training chapter directs operators
+to `pm-alf-console` and `pm-index-cli` for the supported interfaces.
+`poetry run pytest tests/ -n logical --cov=src/edumatcher
+--cov-report=term-missing --cov-report=html --cov-report=xml
+--cov-fail-under=85` passed 13584 tests with 1 skipped. Black, flake8, mypy,
+pyright and `mkdocs build` passed. `checkdocs.py` still reports two missing
+example include files in the unrelated configuration guide.
 
 ### T13 — ATO expiry reason (Q17)
 

@@ -8,6 +8,7 @@ import pytest
 
 from edumatcher.commands import CommandTimeoutError
 from edumatcher.commands import cli as cli_mod
+from edumatcher.commands.console import _COMMAND_HANDLERS
 
 
 @dataclass
@@ -41,6 +42,10 @@ def test_build_parser_parses_session_status_and_defaults() -> None:
     assert args.id == "GW_ADMIN"
     assert args.command == "session-status"
     assert args.timeout == 3000
+
+
+def test_pm_admin_does_not_expose_alf_console_index_command() -> None:
+    assert "INDEX" not in _COMMAND_HANDLERS
 
 
 def test_build_parser_enforces_required_fields_and_state_upper() -> None:

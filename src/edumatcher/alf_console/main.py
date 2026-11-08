@@ -53,7 +53,7 @@ from collections import OrderedDict, defaultdict, deque
 import logging
 import threading
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
 import zmq
@@ -1403,21 +1403,29 @@ class Gateway:
                         "[red]INDEX|HISTORY requires INDEX=<id> or prior index.update.[/red]"
                     )
                     return
-                from_ts = self._parse_date(kv.get("FROM"))
-                to_ts = self._parse_date(kv.get("TO"))
-                if from_ts is None:
-                    from_ts = time.time() - 30 * 86400
-                if to_ts is None:
-                    to_ts = time.time()
-                # AR-0.3: FROM/TO stay seconds at this CLI's own surface;
-                # converted to the wire message's from_ts_ns/to_ts_ns here.
+                from_dt = self._parse_date(kv.get("FROM"))
+                to_dt = self._parse_date(kv.get("TO"))
+                now_ns = time.time_ns()
+                from_ts_ns = (
+                    int(from_dt.timestamp()) * 1_000_000_000
+                    if from_dt is not None
+                    else now_ns - 30 * 86400 * 1_000_000_000
+                )
+                to_ts_ns = (
+                    int((to_dt + timedelta(days=1)).timestamp()) * 1_000_000_000 - 1
+                    if to_dt is not None
+                    else now_ns
+                )
+                # Date filters are converted directly to epoch nanoseconds;
+                # subtract one nanosecond from the next local midnight so
+                # the inclusive wire bound covers the full TO date.
                 self._send(
                     self._index_push_sock,
                     make_index_history_request_msg(
                         gateway_id=self.gateway_id,
                         index_id=index_id,
-                        from_ts_ns=int(from_ts * 1_000_000_000),
-                        to_ts_ns=int(to_ts * 1_000_000_000),
+                        from_ts_ns=from_ts_ns,
+                        to_ts_ns=to_ts_ns,
                     ),
                 )
                 return
@@ -1968,14 +1976,13 @@ class Gateway:
         self._dbg_count("combo_submitted")
 
     @staticmethod
-    def _parse_date(raw: str | None) -> float | None:
+    def _parse_date(raw: str | None) -> datetime | None:
         if not raw:
             return None
         try:
-            dt = datetime.strptime(raw, "%Y-%m-%d")
+            return datetime.strptime(raw, "%Y-%m-%d")
         except ValueError:
             return None
-        return dt.timestamp()
 
     # ------------------------------------------------------------------
     # Run

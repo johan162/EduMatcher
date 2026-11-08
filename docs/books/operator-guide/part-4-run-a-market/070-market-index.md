@@ -528,10 +528,12 @@ INDEX|HISTORY|INDEX=EDU100|FROM=2026-06-01|TO=2026-06-12
 ```
 
 Returns records within the given date range, oldest first. `FROM` and `TO`
-are dates (`YYYY-MM-DD`) read as **local midnight at the start of that day**,
-so `TO=2026-06-12` stops at the start of 12 June and does not include that
-day's records — use the following day to include it. An unparseable date is
-silently ignored and the default (30 days back / now) is used.
+are dates (`YYYY-MM-DD`) read as **local dates**: `FROM` starts at local
+midnight, and `TO` includes the whole date, through the final nanosecond before
+the next local midnight. Thus `FROM=2026-06-12|TO=2026-06-12` includes records
+from 12 June. Exact timestamp bounds on the history request are inclusive. An
+unparseable date is silently ignored and the default (30 days back / now) is
+used.
 
 !!! tip "Level/EOD history is a different tool"
     `INDEX|HISTORY` only returns structural/audit events. For index level or
