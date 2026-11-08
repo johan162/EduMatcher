@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import time
+from collections import deque
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -330,6 +331,37 @@ def test_the_rerun_engine_trades_on_the_live_clock(tmp_path: Path) -> None:
             live_ts += [p["ts_ns"] for t, p in live if t == "trade.executed"]
             rerun_ts += [p["ts_ns"] for t, p in sink.take() if t == "trade.executed"]
     assert live_ts and rerun_ts == live_ts
+
+
+def test_each_print_of_an_input_keeps_its_own_live_stamp(tmp_path: Path) -> None:
+    """A session transition uncrosses every book in 0.6 s, each print stamped
+    when it was made; the 300 s breaker window is cut by those stamps, so a
+    print 0.4 s after the input's first falls out of the window 0.4 s later
+    (2026-11-08 IR: reference 207.7 for 207.69)."""
+    data = record(tmp_path / "data")
+    files = audit_files(data)
+    config = decode_artifact(run_config_text(files)).engine
+    seed = config.symbols["AAPL"].market_maker_quotes[0]
+    ask = seed.ask_price_ticks / 100
+    reset_trade_ids_for_tests()
+    set_run_seq(1)
+    sink = _Sink()
+    with live_clock(files) as clock:
+        engine = fresh_engine(config, sink, tmp_path / "empty")
+        apply(engine, "system.gateway_connect", {"gateway_id": "TRADER01"})
+        apply(engine, "system.gateway_connect", {"gateway_id": "TRADER02"})
+        for i in range(3):
+            sell = order_payload(Side.SELL, OrderType.LIMIT, 5, "TRADER02", price=ask)
+            apply(engine, "order.new", sell)
+        sink.take()
+        stamps = [clock.ns + 1_000_000 * (i + 1) for i in range(20)]
+        clock.trade_stamps = {"AAPL": deque(stamps)}
+        # The seed ask first, then the three resting sells.
+        qty = seed.ask_qty + 15
+        buy = order_payload(Side.BUY, OrderType.LIMIT, qty, "TRADER01", price=ask + 5)
+        apply(engine, "order.new", buy)
+        prints = [p["ts_ns"] for t, p in sink.take() if t == "trade.executed"]
+    assert len(prints) > 1 and prints == stamps[: len(prints)]
 
 
 def test_the_rerun_engine_accepts_on_the_live_clock(tmp_path: Path) -> None:
