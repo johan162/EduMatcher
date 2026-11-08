@@ -17,7 +17,7 @@ by that one prefix.
 | Path | Access | Purpose | Queue |
 |---|---|---|---|
 | `/api/v1/ws/private` | Trading key | The caller gateway's order, quote and risk events | `256` |
-| `/api/v1/ws/market-data` | Any key | Public book, depth, trades, auctions, session, halts and news, by subscription | `512` |
+| `/api/v1/ws/market-data` | Any key | Public book, depth, trades, auctions, session, halts and news, by subscription | `4096` |
 | `/api/v1/ws/admin/monitor` | ADMIN | Every engine event across all gateways except public market data and `engine.trace`, plus `admin.action` | `512` |
 | `/api/v1/ws/admin/sim` | ADMIN | `pm-market-sim` state and the model's true values | `64` |
 

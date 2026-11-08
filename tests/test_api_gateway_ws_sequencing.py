@@ -191,8 +191,8 @@ def test_admin_feed_omits_public_market_data_and_trace(
 
     assert admin.empty()
     assert client.dropped_events == {}
-    # Still market data for everyone who subscribed to it.
-    assert not md.empty()
+    # Public market data still reaches market-data sinks; engine.trace does not.
+    assert md.empty() == (topic == topic_engine_trace("AAPL"))
 
 
 @pytest.mark.parametrize(
@@ -385,3 +385,32 @@ def test_healthz_exposes_drop_counters(client: EngineClient) -> None:
         client._handle_event("trade.executed", {"symbol": "AAPL"})
     # A plain dict of ints, JSON-serialisable straight into /healthz.
     assert client.dropped_events["market_data"] == 2
+
+
+def test_engine_trace_reaches_no_market_data_sink(client: EngineClient) -> None:
+    queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue(maxsize=64)
+    client.add_market_data_sink(queue)
+
+    client._handle_event("engine.trace.AAPL", {"symbol": "AAPL"})
+    client._handle_event("depth.AAPL", {"symbol": "AAPL"})
+
+    assert [e["topic"] for e in _drain(queue)] == ["depth.AAPL"]
+
+
+def test_a_sink_filter_keeps_unwanted_events_out_without_counting_a_drop(
+    client: EngineClient,
+) -> None:
+    queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue(maxsize=1)
+    client.add_market_data_sink(queue, lambda e: e["topic"] == "depth.AAPL")
+
+    for _ in range(5):
+        client._handle_event("depth.MSFT", {"symbol": "MSFT"})
+    client._handle_event("depth.AAPL", {"symbol": "AAPL"})
+    client._handle_event("depth.AAPL", {"symbol": "AAPL"})
+
+    assert [e["topic"] for e in _drain(queue)] == ["depth.AAPL"]
+    # Only the second AAPL event overflowed; the five filtered ones did not.
+    assert client._dropped_events["market_data"] == 1
+    # Filtered events still consume their sequence number.
+    client.remove_market_data_sink(queue)
+    assert client._topic_seq["depth.MSFT"] == 5
