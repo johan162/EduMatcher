@@ -30,8 +30,10 @@ You will practice:
 - REST examples available in `docs/examples/REST`. On a container or `pipx`
   install that directory is inside the package: set
   `EX=$(python -c "from edumatcher.config_deploy import examples_root; print(examples_root().parent)")`
-  and read `docs/examples` as `$EX` in Exercises 6, 7 and 12. The C example
-  needs `make` and a C compiler (not in the container image).
+  and read `docs/examples` as `$EX` in Exercises 6, 7 and 12. Exercise 7's C
+  example is optional: it needs `make` and a C compiler, neither of which is
+  installed in the container image. Exercise 6's Python client provides the
+  equivalent API workflow.
 - The `curl` commands below assume the lab config from Exercise 1 and are run
   from the directory holding `engine_config.yaml`.
 - A terminal for `pm-engine`, one for `pm-stats`, one for `pm-api-gwy`, and one or more client terminals.
@@ -336,7 +338,7 @@ calls to a test harness.
 
  
 
-## Exercise 7: Use the C REST Example
+## Optional Exercise 7: Use the C REST Example
 
 Build and run the C example from the REST example directory:
 
@@ -352,7 +354,8 @@ Expected behavior:
 - status or order-entry responses are printed as JSON
 - connection errors identify an unavailable gateway process or wrong port
 
-:material-checkbox-blank-outline: Checkpoint: the C example can call the running API gateway with a configured key.
+:material-checkbox-blank-outline: Optional checkpoint: the C example can call
+the running API gateway with a configured key.
 
  
 

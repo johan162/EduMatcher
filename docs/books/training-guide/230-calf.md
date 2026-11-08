@@ -165,7 +165,11 @@ delivery sequence differs.
 
  
 
-## Exercise 3: Use the C Example Subscriber
+## Optional Exercise 3: Use the C Example Subscriber
+
+This C exercise requires `make` and a C compiler, which are not installed in
+the container image. Skip it there, or build it on a host with those tools.
+Exercise 2's Python subscriber provides the same market-data client workflow.
 
 Build and run the C subscriber:
 
@@ -181,7 +185,8 @@ Observe in output:
 - SUB flow
 - MSG lines for live traffic
 
-:material-checkbox-blank-outline: Checkpoint: C subscriber connects, parses, and prints live CALF events.
+:material-checkbox-blank-outline: Optional checkpoint: C subscriber connects,
+parses, and prints live CALF events.
 
  
 
@@ -608,4 +613,3 @@ events vs. price/quote state) rather than just their names.
 - [CALF Protocol Appendix](../protocols-and-clients/part-2-specifications/030-calf.md)
 - [Protocol Support Library Examples](../protocols-and-clients/part-4-writing-clients/030-example-libraries.md)
 - [Processes, Environment and Ports](../reference-manual/part-1-command-line/010-processes-environment-and-ports.md)
-

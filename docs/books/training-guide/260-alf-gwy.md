@@ -32,7 +32,8 @@ You will practise:
   checkout; on a container or `pipx` install they are under
   `$EX/alf`, with
   `EX=$(python -c "from edumatcher.config_deploy import examples_root; print(examples_root().parent)")`;
-  the C client needs `make`, a C compiler and the readline headers):
+  the C client needs `make`, a C compiler and the readline headers, so its
+  exercise is optional in the container image):
   - `python/alf_parser.py`, `python/alf_client.py`
   - `c/alf_parser.h`, `c/alf_parser.c`, `c/alf_client.c`, `c/Makefile`
 
@@ -397,7 +398,11 @@ reconciliation responsibilities.
 
  
 
-## Exercise 7: Build and Run the C Client
+## Optional Exercise 7: Build and Run the C Client
+
+The container image does not include `make`, a C compiler, or readline
+development headers. Skip this exercise there; Exercise 5's Python interactive
+client provides the same gateway workflow.
 
 **macOS** — install Homebrew readline for full callback support if not already present:
 
@@ -446,7 +451,8 @@ Try connecting to a remote host:
 ./alf_client --host 10.0.0.5 --port 5565 --id TRADER01
 ```
 
-:material-checkbox-blank-outline: Checkpoint: C client connects, shows `WELCOME`, and a `NEW` order returns an `ACK`.
+:material-checkbox-blank-outline: Optional checkpoint: the C client connects,
+shows `WELCOME`, and a `NEW` order returns an `ACK`.
 
  
 

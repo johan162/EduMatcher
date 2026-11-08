@@ -34,7 +34,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 | 4 | T4 | Console logout after engine connection loss | Q4 | — | ☑ | 2026-11-07 |
 | 5 | T5 | Admin console identities and safe reset guidance | Q5, Q6 | — | ☑ | 2026-11-07 |
 | 6 | T6 | Clearing totals and gateway quote-status scope | Q7, Q8 | — | ☑ | 2026-11-07 |
-| 7 | T7 | Installed examples, C exercises and version metadata | Q9, Q10, Q21 | — | ☐ | |
+| 7 | T7 | Installed examples, C exercises and version metadata | Q9, Q10, Q21 | — | ☑ | 2026-11-08 |
 | 8 | T8 | Normal-use warnings and artifact errors | Q11 | Contract decision | ☑ | 2026-11-08 |
 | 9 | T9 | Swarm budget semantics | Q12 | Contract decision | ☐ | |
 | 10 | T10 | Teaching configuration, persisted orders and collars | Q13 | Contract decision | ☑ | 2026-11-08 |
@@ -42,7 +42,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 | 12 | T12 | Index history, listing and restored session phase | Q15, Q16 | Contract decision | ☑ | 2026-11-08 |
 | 13 | T13 | ATO expiry reason | Q17 | — | ☑ | 2026-11-08 |
 | 14 | T14 | Generated API-key usability and safety | Q18 | Contract decision | ☐ | |
-| 15 | T15 | Per-recipient drop-copy sequence | Q19 | Contract decision | ☐ | |
+| 15 | T15 | Per-recipient drop-copy sequence | Q19 | Contract decision | ☑ | 2026-11-08 |
 | 16 | T16 | Close training-route and exercise verification gaps | §§3–4 | T7 for installed routes | ☐ | |
 
 ### 1.1 Question → WP index
@@ -413,11 +413,12 @@ Verification:
 
 ### T7 — Installed examples, C exercises and version metadata (Q9, Q10, Q21)
 
-**Question to resolve:** What is the supported way to locate packaged examples
-for `pm-ai-swarm` and `pm-news play`, and should C exercises be optional in
-images without a compiler or should compiled clients ship? Q9 additionally
-asks whether stale Poetry version output is packaging metadata or an
-installation issue.
+**Decision:** Use the packaged `docs/examples` tree located through
+`examples_root().parent`; keep swarm and news scenario arguments as file paths
+and do not add name-based CLI aliases. C exercises are optional in the
+container, with Python alternatives identified wherever available; do not
+ship platform-specific compiled binaries. A Poetry environment reporting a
+stale version must be refreshed with `poetry install --with dev,docs`.
 
 Steps:
 1. Build a wheel from the current source, install it into a clean environment
@@ -445,6 +446,21 @@ Steps:
 - The container instructions do not imply unavailable `make`/`cc` tools.
 - Chosen packaging/C-exercise behavior has automated or scripted verification.
 - Packaging checks and relevant documentation tests pass.
+
+**Verification (2026-11-08):** Built `edumatcher-0.76.5` as a wheel and
+installed it into a clean virtualenv outside the checkout. `pm-engine`,
+`pm-eod`, `pm-ai-swarm` and `pm-news` all reported 0.76.5. The installed
+`examples_root()` resolved to `site-packages/docs/examples`; the packaged
+`s150-nominal-setup/swarm.yaml` loaded, and `pm-news play` parsed the packaged
+`chip-race.yaml` scenario (three steps) with the network handoff stubbed. A
+regression test simulates the installed layout without a checkout. The current
+Poetry environment reports 0.76.2 against `pyproject.toml` 0.76.5, confirming
+stale editable metadata; installation guidance now says to rerun `poetry
+install --with dev,docs`. C builds are explicitly optional in chapters 23–25
+and 27–28, with Python equivalents noted. Black, Flake8, mypy, pyright,
+`mkdocs build`, and the targeted 106 tests passed. `scripts/checkdocs.py`
+passes CLI, anchor and link checks; it retains the two unrelated baseline
+Y005 missing `/tmp/symbols.yaml` and `/tmp/desk-keys.yaml` warnings.
 
 ### T8 — Normal-use warnings and artifact errors (Q11)
 
@@ -744,8 +760,9 @@ Steps:
 
 ### T15 — Per-recipient drop-copy sequence (Q19)
 
-**Status:** Complete. Regression tests cover interleaved gateway live
-sequences, replay isolation, audit sequence tracking, and restart boundaries.
+**Status:** Completed (2026-11-08). Regression tests cover interleaved gateway
+live sequences, replay isolation, audit sequence tracking, and restart
+boundaries.
 
 **Decision:** Per-gateway (per-recipient stream) sequences are contiguous,
 start at 1, and reset when the engine restarts. Replay is restricted to that
@@ -768,6 +785,10 @@ Steps:
 - No false gap is reported for a complete recipient stream.
 - Protocol, implementation and chapter agree on scope and reset behavior.
 - Targeted drop-copy tests and docs checks pass.
+
+**Verification (2026-11-08):** 154 targeted drop-copy, audit replay, spy and
+message-generation tests passed. Black, Flake8, mypy, pyright, `pm-msgen
+check`, and `mkdocs build` passed.
 
 ### T16 — Close training-route and exercise verification gaps (§§3–4)
 

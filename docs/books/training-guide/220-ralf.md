@@ -155,7 +155,12 @@ Expected behavior:
 
  
 
-## Exercise 3: Use the C Example as a DROP_COPY Consumer
+## Optional Exercise 3: Use the C Example as a DROP_COPY Consumer
+
+This C exercise requires `make` and a C compiler, which are not installed in
+the container image. Skip it there, or build it on a host with those tools.
+Exercise 2's Python subscriber can also consume RALF channels without a
+compiler.
 
 Build and run the C subscriber:
 
@@ -174,7 +179,8 @@ Observe in output:
 Even though the example subscribes broadly for demonstration, run it with a
 DROP_COPY role argument and validate that role is accepted.
 
-:material-checkbox-blank-outline: Checkpoint: C subscriber connects, parses, and prints live RALF events.
+:material-checkbox-blank-outline: Optional checkpoint: C subscriber connects,
+parses, and prints live RALF events.
 
  
 
