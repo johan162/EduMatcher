@@ -96,6 +96,11 @@ RSS_GROWTH_MIN_BYTES = 100 * 1024 * 1024
 #: filled at the open, then flat) is a step, not a leak.
 RSS_RISING_WINDOW_SEC = 900.0
 RSS_RISING_MIN_PCT = 1.0
+#: ... and when the hour's growth is not all in the last ``RSS_RISING_WINDOW_SEC``:
+#: a ramp that starts there (continuous trading opening, books and caches
+#: filling over a minute or two) is a step still settling, not a leak. A
+#: steady leak adds about a quarter of its hour in that window.
+RSS_RAMP_MAX_SHARE = 0.5
 
 #: Participant bots: clients of the exchange, shown in their own group and
 #: never counted in the exchange status (design Q2).
@@ -393,6 +398,8 @@ class ProcessState:
         it), when the hour added less than ``RSS_GROWTH_MIN_BYTES``, and when
         RSS has not risen ``RSS_RISING_MIN_PCT`` in the last
         ``RSS_RISING_WINDOW_SEC``: a step that has levelled off is not a leak.
+        Nor is growth that is more than ``RSS_RAMP_MAX_SHARE`` of the hour's
+        within that window: a step that has only just happened.
         """
         base = self._rss_at(now - RSS_GROWTH_WINDOW_SEC)
         if not base:
@@ -402,6 +409,8 @@ class ProcessState:
             return None
         recent = self._rss_at(now - RSS_RISING_WINDOW_SEC)
         if recent and 100.0 * (rss - recent) / recent < RSS_RISING_MIN_PCT:
+            return None
+        if recent and (rss - recent) > RSS_RAMP_MAX_SHARE * (rss - base):
             return None
         return 100.0 * (rss - base) / base
 
