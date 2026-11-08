@@ -666,6 +666,48 @@ def test_api_gateway_explicit_key_output(
     assert "key-trader01-" not in content
 
 
+def test_training_demo_keys_are_written_inline_and_bound_to_gateways(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from edumatcher.api_gateway.config import load_named_api_gateway_configs
+
+    out_file = tmp_path / "engine_config.yaml"
+    _run_main(
+        monkeypatch,
+        [
+            "--symbols",
+            "AAPL",
+            "--participants",
+            "TRADER01",
+            "TRADER02",
+            "OPS01:ADMIN",
+            "--api-gateway",
+            "--api-key",
+            "key-trader-demo:TRADER01",
+            "--api-key",
+            "key-trader02-demo:TRADER02",
+            "--api-key",
+            "key-ops-demo:OPS01",
+            "--api-key",
+            "key-readonly-demo:null",
+            "--no-api-gateway-generate-keys",
+            "--output",
+            str(out_file),
+        ],
+    )
+
+    credentials = load_named_api_gateway_configs(out_file)["default"].credentials
+    assert [
+        (credential.api_key, credential.gateway_id) for credential in credentials
+    ] == [
+        ("key-trader-demo", "TRADER01"),
+        ("key-trader02-demo", "TRADER02"),
+        ("key-ops-demo", "OPS01"),
+        ("key-readonly-demo", None),
+    ]
+
+
 def test_api_gateway_multiple_instances_output(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

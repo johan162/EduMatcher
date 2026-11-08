@@ -124,7 +124,11 @@ pm-config-gen \
   --cb-levels L1:0.05:30 \
   --api-gateway \
   --api-gateway-name desk \
-  --api-gateway-readonly-key \
+  --api-key key-trader-demo:TRADER01 \
+  --api-key key-trader02-demo:TRADER02 \
+  --api-key key-ops-demo:OPS01 \
+  --api-key key-readonly-demo:null \
+  --no-api-gateway-generate-keys \
   --api-gateway-host 127.0.0.1 \
   --api-gateway-port 8080 \
   --seed 20260624 \
@@ -148,26 +152,27 @@ Expected behavior:
 
 - top-level `api_gateways:` exists
 - `desk:` has `port: 8080`
-- generated credentials exist for `TRADER01`, `TRADER02`, `OPS01`, and one read-only key
+- credentials exist for `TRADER01`, `TRADER02`, `OPS01`, and one read-only key
 
-The keys are random (for example `key-trader01-r0yzyj`; `--seed` does not fix
-them), so the commands in this chapter read them from the file instead of
-using fixed names. Define three shell variables once in each terminal you use
-for `curl` (the function reads `engine_config.yaml` in the current directory):
+For this training exercise, the command supplies fixed, easy-to-type demo
+keys. Define shell variables once in each terminal you use for `curl`:
 
 ```bash
-key() { awk -v g="$1" '$1=="-" && $2=="api_key:" {k=$3} $1=="gateway_id:" && $2==g {print k; exit}' engine_config.yaml; }
-KEY_TRADER=$(key TRADER01)    # trading key for TRADER01
-KEY_OPS=$(key OPS01)          # OPS01's key: its resolved engine role is ADMIN
-KEY_RO=$(key null)            # the read-only key
-echo "$KEY_TRADER $KEY_OPS $KEY_RO"
+KEY_TRADER=key-trader-demo
+KEY_OPS=key-ops-demo          # OPS01's resolved engine role is ADMIN
+KEY_RO=key-readonly-demo
 ```
 
-Exercise 10 uses `$KEY_OPS` for every admin REST call. Where a tool cannot
-expand shell variables (the WebSocket sessions in Exercise 9, the Python
-default in Exercise 12), paste the value that `echo` printed.
+You can also use the [Config GUI's API subtab](../operator-guide/part-2-configure/030-config-gui.md)
+to generate keys for selected participants and choose the generated key length.
 
-:material-checkbox-blank-outline: Checkpoint: you can identify one trading key, one read-only key, and the `OPS01` admin key in the config.
+Exercise 10 uses `$KEY_OPS` for every admin REST call. Where a tool cannot
+expand shell variables (the WebSocket sessions in Exercise 9), enter the
+matching demo key shown above.
+
+:material-checkbox-blank-outline: Checkpoint: the config contains the
+`key-trader-demo`, `key-ops-demo`, and `key-readonly-demo` credentials bound to
+the expected gateway identities.
 
  
 
@@ -207,7 +212,8 @@ Open Swagger in a browser:
 http://127.0.0.1:8080/docs
 ```
 
-Use the Authorize control and paste a generated bearer token (`echo $KEY_TRADER`). Then run:
+Use the Authorize control and enter the trading key `key-trader-demo`. Then
+run:
 
 ```bash
 curl -H "Authorization: Bearer $KEY_TRADER" \

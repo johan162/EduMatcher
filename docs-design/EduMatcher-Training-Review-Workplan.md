@@ -41,7 +41,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 | 11 | T11 | Session-transition rejection replies | Q14 | — | ☑ | 2026-11-08 |
 | 12 | T12 | Index history, listing and restored session phase | Q15, Q16 | Contract decision | ☑ | 2026-11-08 |
 | 13 | T13 | ATO expiry reason | Q17 | — | ☑ | 2026-11-08 |
-| 14 | T14 | Generated API-key usability and safety | Q18 | Contract decision | ☐ | |
+| 14 | T14 | Training API-key usability | Q18 | Contract decision | ☑ | 2026-11-08 |
 | 15 | T15 | Per-recipient drop-copy sequence | Q19 | Contract decision | ☑ | 2026-11-08 |
 | 16 | T16 | Close training-route and exercise verification gaps | §§3–4 | T7 for installed routes | ☐ | |
 
@@ -729,34 +729,41 @@ Verification:
 - Full suite — 13,586 passed, 1 skipped; 90.43% coverage
 - Black, Flake8, mypy, pyright, MkDocs build and `pm-msgen check` — passed
 
-### T14 — Generated API-key usability and safety (Q18)
+### T14 — Training API-key usability (Q18)
 
-**Question to resolve:** How should a user obtain random generated API keys
-for documentation and examples without making secrets predictable from
-`--seed` or exposing them in unsafe output?
+**Status:** Completed (2026-11-08).
+
+**Decision:** Use fixed, readable, explicitly configured demo keys in the
+Training Guide's API exercise. Keep `pm-config-gen` defaults and key-generation
+behavior unchanged; this choice is scoped to the training workflow.
 
 Steps:
-1. Add a failing config-generation test showing that `--seed` reproduces
-   non-secret configuration but generated keys are random and the generated
-   credentials are not readily discoverable by the documented workflow.
-2. Choose a secure contract. Prefer cryptographically random keys independent
-   of `--seed`, written to a credentials file with restrictive permissions
-   and clearly disclosed to the invoking user. Do not derive live credentials
-   from a reproducibility seed. Decide whether user-supplied
-   `--api-gateway-key GW=KEY` is also needed.
-3. Implement the selected output path and test that generated keys match the
-   deployed config, are not printed to general logs, are not overwritten
-   silently, and the credentials file permissions are appropriate.
-4. Update REST examples to read keys from the generated credentials file or
-   use explicit placeholders with clear substitution instructions.
+1. Replace generated API keys in the training config-generation command with
+   explicit, easy-to-type demo keys for TRADER01, TRADER02, OPS01, and the
+   read-only client.
+2. Test that the generated config contains those exact keys bound to the
+   intended gateway identities, with automatic key generation disabled.
+3. Update REST and WebSocket examples to use the matching fixed demo keys
+   directly, removing the YAML key-extraction function. Mention the Config
+   GUI's participant selection and key-length option as an alternative.
 
 **Definition of done:**
-- A clean generation/deploy exercise can authenticate using the documented
-  procedure without guessing a key.
-- Repeating `--seed` does not make credentials predictable or identical
-  unless explicitly overridden by a user-provided test key.
-- Secret handling, file permissions and error cases are covered by tests.
+- The API training config produces the documented credentials with no lookup
+  or parsing step.
+- Each demo key is bound to the expected participant or read-only identity.
+- Existing general `pm-config-gen` key-generation behavior remains unchanged.
 - Documentation and config-generator tests pass.
+
+**Verification (2026-11-08):** Chapter 25 now passes fixed demo keys through
+`--api-key` and `--no-api-gateway-generate-keys`; shell variables and WebSocket
+examples use those values directly. It also links to the Config GUI's API
+subtab, which generates keys for selected participants at a chosen length. A
+config-generator integration test checks the four generated key-to-identity
+bindings. All 92 tests in `tests/test_config_gen_integration.py` passed.
+Black, Flake8, mypy, pyright, `mkdocs build`, and `git diff --check` passed.
+`scripts/checkdocs.py` reports clean CLI, anchor, and link checks, with only
+its two existing Y005 missing `/tmp/symbols.yaml` and `/tmp/desk-keys.yaml`
+warnings.
 
 ### T15 — Per-recipient drop-copy sequence (Q19)
 
