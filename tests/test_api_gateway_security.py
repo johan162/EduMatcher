@@ -69,7 +69,8 @@ def _fake_request(
                 engine=engine or _AcceptingEngine(),
                 config=ApiGatewayConfig(),
             )
-        )
+        ),
+        state=SimpleNamespace(),
     )
 
 

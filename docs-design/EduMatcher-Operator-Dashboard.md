@@ -627,6 +627,8 @@ stop the circuit-breaker timers behind it.
 | | `api.http_requests` / `api.http_5xx` | C | | A one-line Starlette middleware |
 | | `api.dropped_events` | C | sink | The existing `EngineClient.dropped_events` — already a `dict[str, int]` keyed by sink (F10) |
 | | `api.engine_timeouts` | C | | `TimeoutError` in `await_topic` |
+| | `api.key_requests`, `api.key_throttled` | C | key | Requests answered and 429s per API key, counted when the request ends. The label is the key's configured description (else its gateway id, else `RO`+hash prefix), never the key; requests that did not authenticate are `(unauth)`. Every configured key is listed from start, idle ones at 0 |
+| | `api.rps_peak`, `api.key_rps_peak` | G | key | Busiest one-second bucket since the process started, in total and per key (1 s buckets, so beacon-rate differencing cannot see it). The key with the highest `key_rps_peak` is the one behind the peak |
 | `pm-log-srv` | `log.events_in` | C | | Existing `total_log_events` path |
 | | `log.sessions` | G | | Authenticated LALF sessions |
 | | `log.writer_queue` | G | | `LogWriter._queue.qsize()` (a `queue.Queue`; approximate, which is fine for a gauge) |

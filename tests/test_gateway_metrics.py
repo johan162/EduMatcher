@@ -19,7 +19,7 @@ from typing import Any
 
 import pytest
 import zmq
-from fastapi import WebSocket
+from fastapi import Request, WebSocket
 
 from edumatcher.alf_gwy.config import AlfGatewayConfig
 from edumatcher.alf_gwy.gateway import AlfGateway
@@ -452,6 +452,75 @@ def test_http_requests_and_5xx_are_counted() -> None:
 
     assert asyncio.run(scenario()) == (200, 500)
     assert (metrics.http_requests, metrics.http_5xx) == (2, 1)
+
+
+def test_requests_and_throttles_are_counted_per_key() -> None:
+    from fastapi import FastAPI, HTTPException
+
+    from edumatcher.api_gateway.metrics import UNAUTH_LABEL, install
+
+    app = FastAPI()
+    metrics = install(app)
+    metrics.register_keys(["desk", "idle"])
+
+    @app.get("/as/{who}")
+    async def as_(
+        who: str, request: Request
+    ) -> dict[str, bool]:  # pyright: ignore[reportUnusedFunction]
+        request.state.api_key_label = who
+        if who == "desk-limited":
+            raise HTTPException(status_code=429, detail="slow down")
+        return {"ok": True}
+
+    @app.get("/anon")
+    async def anon() -> dict[str, bool]:  # pyright: ignore[reportUnusedFunction]
+        return {"ok": True}
+
+    async def scenario() -> None:
+        for path in ("/as/desk", "/as/desk", "/as/desk-limited", "/anon", "/nope"):
+            await _get(app, path)
+
+    asyncio.run(scenario())
+    samples = metrics.samples(None)
+    assert _value(samples, "api.key_requests", "desk") == 2
+    assert _value(samples, "api.key_requests", "desk-limited") == 1
+    assert _value(samples, "api.key_throttled", "desk-limited") == 1
+    assert _value(samples, "api.key_throttled", "desk") == 0
+    assert _value(samples, "api.key_requests", UNAUTH_LABEL) == 2
+    assert _value(samples, "api.key_requests", "idle") == 0  # listed while idle
+    assert _value(samples, "api.http_requests") == 5
+
+
+def test_peak_is_the_busiest_second_and_names_the_key() -> None:
+    clock = [100.0]
+    m = ApiMetrics(clock=lambda: clock[0])
+    for _ in range(3):
+        m.record("a", 200)
+    m.record("b", 200)
+    # The second in progress already counts towards the peak.
+    samples = m.samples(None)
+    assert _value(samples, "api.rps_peak") == 4
+    assert _value(samples, "api.key_rps_peak", "a") == 3
+    clock[0] = 101.0
+    m.record("b", 200)  # a quieter second does not lower it
+    m.record("b", 200)
+    samples = m.samples(None)
+    assert _value(samples, "api.rps_peak") == 4
+    assert _value(samples, "api.key_rps_peak", "a") == 3
+    assert _value(samples, "api.key_rps_peak", "b") == 2
+    # Sampling twice in one second does not split it.
+    assert _value(m.samples(None), "api.rps_peak") == 4
+
+
+def test_key_label_is_never_the_key() -> None:
+    from edumatcher.api_gateway.config import ApiCredential
+    from edumatcher.api_gateway.sessions import key_label
+
+    assert key_label(ApiCredential("k1", "GW01", "Desk A")) == "Desk A"
+    assert key_label(ApiCredential("k1", "GW01")) == "GW01"
+    anon = key_label(ApiCredential("sekrit-key", None))
+    assert anon.startswith("RO") and "sekrit" not in anon and len(anon) <= 32
+    assert len(key_label(ApiCredential("k", None, "x" * 80))) == 32
 
 
 def test_websocket_sessions_are_counted_per_channel() -> None:

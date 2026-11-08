@@ -155,6 +155,7 @@ def create_app(config: ApiGatewayConfig, *, instance: str | None = None) -> Fast
         app.state.rejects = RejectReporter("REST", lambda frames: engine.report(frames))
         app.state.index_client = index_client
         app.state.sessions = SessionRegistry.from_config(config)
+        metrics.register_keys(app.state.sessions.labels())
         app.state.rate_limiter = RateLimiter(
             config.rate_limit.writes_per_second,
             config.rate_limit.burst,
