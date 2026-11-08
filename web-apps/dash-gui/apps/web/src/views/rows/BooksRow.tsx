@@ -6,20 +6,17 @@
  */
 
 import { useCallback, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { ActiveBreach, BookStats } from "@edumatcher/dash-types";
 import { HealthTable, StateBadge, type Column } from "../../components/widgets/HealthTable.js";
 import { Row } from "../../components/widgets/Row.js";
+import { pagination, TablePager } from "../../components/widgets/TablePager.js";
 import { StatTile } from "../../components/widgets/StatTile.js";
 import { formatBytes, formatCount, formatPercent, formatRatio } from "../../lib/format.js";
 import { LEVEL, TONE } from "../../lib/status.js";
 import { useOpenDrawer } from "../../hooks/drawer.js";
 import { useDashStore } from "../../store/useDashStore.js";
+import { usePrefsStore } from "../../store/usePrefsStore.js";
 import { breachLevel, useBreaches } from "./common.js";
-
-/** Rows per page; 0 is all of them. */
-const PAGE_SIZES = [10, 30, 50, 100, 0];
-const DEFAULT_PAGE_SIZE = 30;
 
 const HALTED = { glyph: "■", label: "HALTED", ...TONE.warning };
 const TRADING = { glyph: "●", label: "trading", ...TONE.ok };
@@ -61,16 +58,15 @@ export function BooksRow() {
   const cols = useMemo(() => columns(breaches), [breaches]);
   const onRowClick = useCallback((b: BookStats) => open("book", b.symbol), [open]);
   const [search, setSearch] = useState("");
-  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const pageSize = usePrefsStore((s) => s.booksPageSize);
+  const setPageSize = usePrefsStore((s) => s.setBooksPageSize);
   const [requestedPage, setRequestedPage] = useState(0);
   // The search covers every book, not just the page on show.
   const shown = useMemo(() => {
     const needle = search.trim().toUpperCase();
     return needle ? (books ?? []).filter((b) => b.symbol.toUpperCase().includes(needle)) : (books ?? []);
   }, [books, search]);
-  const pageCount = pageSize ? Math.max(1, Math.ceil(shown.length / pageSize)) : 1;
-  // Books come and go under a viewer: hold them at the last real page.
-  const pageIndex = Math.min(requestedPage, pageCount - 1);
+  const { pageCount, pageIndex } = pagination(shown.length, pageSize, requestedPage);
   const memory = books?.reduce((sum, b) => sum + b.est_bytes, 0) ?? null;
   const halted = books?.filter((b) => b.halted).length ?? 0;
 
@@ -103,43 +99,17 @@ export function BooksRow() {
               {shown.length} symbol{shown.length === 1 ? "" : "s"}
               {shown.length !== (books?.length ?? 0) && ` of ${books?.length ?? 0}`}
             </span>
-            <div className="ml-auto flex items-center gap-3">
-              <span className="tabular text-fg-subtle">
-                Page {pageIndex + 1}/{pageCount}
-              </span>
-              <button
-                type="button"
-                disabled={pageIndex === 0}
-                onClick={() => setRequestedPage(pageIndex - 1)}
-                aria-label="Previous page"
-                className="rounded p-1 text-fg-subtle hover:bg-bg-inset hover:text-fg disabled:opacity-40"
-              >
-                <ChevronLeft size={14} />
-              </button>
-              <button
-                type="button"
-                disabled={pageIndex >= pageCount - 1}
-                onClick={() => setRequestedPage(pageIndex + 1)}
-                aria-label="Next page"
-                className="rounded p-1 text-fg-subtle hover:bg-bg-inset hover:text-fg disabled:opacity-40"
-              >
-                <ChevronRight size={14} />
-              </button>
-              <select
-                value={pageSize}
-                onChange={(e) => {
-                  setPageSize(Number(e.target.value));
+            <div className="ml-auto">
+              <TablePager
+                pageIndex={pageIndex}
+                pageCount={pageCount}
+                pageSize={pageSize}
+                onPage={setRequestedPage}
+                onPageSize={(n) => {
+                  setPageSize(n);
                   setRequestedPage(0);
                 }}
-                aria-label="Rows per page"
-                className="rounded border border-border bg-bg-inset px-1 py-0.5 text-xs text-fg-subtle"
-              >
-                {PAGE_SIZES.map((n) => (
-                  <option key={n} value={n}>
-                    {n ? `${n} rows` : "All rows"}
-                  </option>
-                ))}
-              </select>
+              />
             </div>
           </div>
           <HealthTable

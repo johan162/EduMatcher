@@ -12,6 +12,7 @@ import type { HealthSnapshot, ProcessHealth, ProcessState, ServerFrame } from "@
 import App from "../src/App.js";
 import { useLiveSeries } from "../src/hooks/history.js";
 import { useDashStore } from "../src/store/useDashStore.js";
+import { usePrefsStore } from "../src/store/usePrefsStore.js";
 import { fakeBridge, NOW } from "./fake-bridge.js";
 import { FakeSocket } from "./fake-socket.js";
 import { CAPTURED, fixtureSnapshot } from "./fixtures/snapshots.js";
@@ -226,23 +227,48 @@ describe("rows 3-7 (D3.4)", () => {
 
   it("books: paged, page size selectable, and the filter searches every book", () => {
     const socket = renderAt();
+    usePrefsStore.setState({ booksPageSize: 30 });
     const template = CAPTURED.books[0]!;
     const books = Array.from({ length: 75 }, (_, i) => ({ ...template, symbol: `S${String(i).padStart(3, "0")}` }));
     socket.deliver(hello, frame(fixtureSnapshot({ books })));
     const rows = () => screen.getByRole("table", { name: "Order books" }).querySelectorAll("tbody tr").length;
     expect(rows()).toBe(30);
-    fireEvent.click(screen.getByRole("button", { name: "Next page" }));
-    expect(screen.getByText("Page 2/3")).toBeTruthy();
-    fireEvent.change(screen.getByLabelText("Rows per page"), { target: { value: "10" } });
+    fireEvent.click(within(row("Order books")).getByRole("button", { name: "Next page" }));
+    expect(within(row("Order books")).getByText("Page 2/3")).toBeTruthy();
+    fireEvent.change(within(row("Order books")).getByLabelText("Rows per page"), { target: { value: "10" } });
     expect(rows()).toBe(10);
-    expect(screen.getByText("Page 1/8")).toBeTruthy();
-    fireEvent.change(screen.getByLabelText("Rows per page"), { target: { value: "0" } });
+    expect(usePrefsStore.getState().booksPageSize).toBe(10);
+    expect(within(row("Order books")).getByText("Page 1/8")).toBeTruthy();
+    fireEvent.change(within(row("Order books")).getByLabelText("Rows per page"), { target: { value: "0" } });
     expect(rows()).toBe(75);
     // S074 would be on the last page of 10; the search finds it from anywhere.
-    fireEvent.change(screen.getByLabelText("Rows per page"), { target: { value: "10" } });
-    fireEvent.change(screen.getByLabelText("Find symbol"), { target: { value: "s07" } });
+    fireEvent.change(within(row("Order books")).getByLabelText("Rows per page"), { target: { value: "10" } });
+    fireEvent.change(within(row("Order books")).getByLabelText("Find symbol"), { target: { value: "s07" } });
     expect(rows()).toBe(5);
-    expect(screen.getByText("5 symbols of 75")).toBeTruthy();
+    expect(within(row("Order books")).getByText("5 symbols of 75")).toBeTruthy();
+  });
+
+  it("participants: paged, and filtered by role across every page", () => {
+    const socket = renderAt();
+    usePrefsStore.setState({ participantsPageSize: 10 });
+    const template = CAPTURED.participants[0]!;
+    const participants = Array.from({ length: 25 }, (_, i) => ({ ...template, id: `P${String(i).padStart(2, "0")}`, role: i % 5 === 0 ? "MARKET_MAKER" : "TRADER" }));
+    socket.deliver(hello, frame(fixtureSnapshot({ participants })));
+    const rows = () => screen.getByRole("table", { name: "Participants" }).querySelectorAll("tbody tr").length;
+    const pager = () => within(row("Participants"));
+    expect(rows()).toBe(10);
+    expect(pager().getByText("Page 1/3")).toBeTruthy();
+    fireEvent.change(pager().getByLabelText("Filter by role"), { target: { value: "MARKET_MAKER" } });
+    expect(rows()).toBe(5);
+    expect(pager().getByText("5 participants of 25")).toBeTruthy();
+    // P20 is a market maker on the last page of the unfiltered table; the search finds it from anywhere.
+    fireEvent.change(pager().getByLabelText("Find ID"), { target: { value: "p2" } });
+    expect(rows()).toBe(1);
+    fireEvent.change(pager().getByLabelText("Find ID"), { target: { value: "" } });
+    fireEvent.change(pager().getByLabelText("Filter by role"), { target: { value: "" } });
+    fireEvent.change(pager().getByLabelText("Rows per page"), { target: { value: "0" } });
+    expect(rows()).toBe(25);
+    expect(usePrefsStore.getState().participantsPageSize).toBe(0);
   });
 
   it("books, gateways and the event log", async () => {

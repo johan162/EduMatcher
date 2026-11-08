@@ -14,10 +14,11 @@
  */
 
 import clsx from "clsx";
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import type { EventsResponse, HealthEvent, ParticipantStats, Point } from "@edumatcher/dash-types";
 import { HealthTable, StateBadge, type Column } from "../../components/widgets/HealthTable.js";
 import { Row } from "../../components/widgets/Row.js";
+import { pagination, TablePager } from "../../components/widgets/TablePager.js";
 import { LaneBar, type Lane, type TimeRangeMs } from "../../components/widgets/StateTimeline.js";
 import { TimeSeries } from "../../components/widgets/TimeSeries.js";
 import { useOpenDrawer } from "../../hooks/drawer.js";
@@ -27,6 +28,7 @@ import { formatCount, formatDuration, formatPercent, formatRate, NO_VALUE } from
 import { TONE } from "../../lib/status.js";
 import { formatTime } from "../../lib/time.js";
 import { useDashStore } from "../../store/useDashStore.js";
+import { usePrefsStore } from "../../store/usePrefsStore.js";
 import { CONNECTED, connectedCount, connectionLanes, disconnectedMs, HEARTBEAT, heartbeatTimes } from "./common.js";
 
 const CONN = { glyph: "●", label: "yes", ...TONE.ok };
@@ -109,13 +111,80 @@ export function ParticipantsRow() {
   const count = useMemo(() => [{ label: "connected", points: JSON.parse(countKey) as Point[] }], [countKey]);
   const marksKey = JSON.stringify(heartbeatTimes(lanes, range));
   const marks = useMemo(() => ({ ts: JSON.parse(marksKey) as number[], ...MARKS[HEARTBEAT] }), [marksKey]);
+  const [role, setRole] = useState("");
+  const [search, setSearch] = useState("");
+  const pageSize = usePrefsStore((s) => s.participantsPageSize);
+  const setPageSize = usePrefsStore((s) => s.setParticipantsPageSize);
+  const [requestedPage, setRequestedPage] = useState(0);
+  const roles = useMemo(() => [...new Set(rows.map((p) => p.role))].sort(), [rows]);
+  // A role nobody holds any more filters nothing rather than everything out.
+  const activeRole = roles.includes(role) ? role : "";
+  // The search and the role cover every participant, not just the page on show.
+  const shown = useMemo(() => {
+    const needle = search.trim().toUpperCase();
+    return rows.filter((p) => (!activeRole || p.role === activeRole) && (!needle || p.id.toUpperCase().includes(needle)));
+  }, [rows, activeRole, search]);
+  const { pageCount, pageIndex } = pagination(shown.length, pageSize, requestedPage);
   const connected = participants?.filter((p) => p.connected).length ?? 0;
 
   return (
     <Row id="participants" title="Participants" badge={participants ? `${connected} / ${participants.length} connected` : undefined}>
       <TimeSeries label="Participants connected" series={count} range={range} tz={tz} format={formatCount} integer step marks={marks} height={120} />
       <div className="mt-4">
-        <HealthTable label="Participants" columns={cols} rows={rows} rowKey={(p) => p.id} initialSort={{ id: "id", dir: "asc" }} onRowClick={onRowClick} />
+        <div className="mb-2 flex flex-wrap items-center gap-3 text-xs">
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setRequestedPage(0);
+            }}
+            placeholder="Find ID"
+            aria-label="Find ID"
+            className="w-28 rounded border border-border bg-bg-inset px-2 py-0.5 text-xs placeholder:text-fg-faint"
+          />
+          <select
+            value={activeRole}
+            onChange={(e) => {
+              setRole(e.target.value);
+              setRequestedPage(0);
+            }}
+            aria-label="Filter by role"
+            className="rounded border border-border bg-bg-inset px-1 py-0.5 text-xs text-fg-subtle"
+          >
+            <option value="">All roles</option>
+            {roles.map((r) => (
+              <option key={r} value={r}>
+                {r}
+              </option>
+            ))}
+          </select>
+          <span className="tabular text-fg-subtle">
+            {shown.length} participant{shown.length === 1 ? "" : "s"}
+            {shown.length !== rows.length && ` of ${rows.length}`}
+          </span>
+          <div className="ml-auto">
+            <TablePager
+              pageIndex={pageIndex}
+              pageCount={pageCount}
+              pageSize={pageSize}
+              onPage={setRequestedPage}
+              onPageSize={(n) => {
+                setPageSize(n);
+                setRequestedPage(0);
+              }}
+            />
+          </div>
+        </div>
+        <HealthTable
+          label="Participants"
+          columns={cols}
+          rows={shown}
+          rowKey={(p) => p.id}
+          initialSort={{ id: "id", dir: "asc" }}
+          onRowClick={onRowClick}
+          page={pageSize ? { index: pageIndex, size: pageSize } : undefined}
+        />
         {/* Four windows side by side: say which is which. */}
         <p className="mb-0 mt-2 text-[11px] text-fg-faint">
           Orders: /min now over the last 60 s · avg/min over the last 60 min · avg/h today per hour open · avg/day over the last 7 trading days. Rej % and C/D/HB are today.
