@@ -66,7 +66,7 @@ seed: 1000
 symbols:
   per_agent: 30       # each agent trades 30 of the 300 symbols
 composition:
-  noise-retail: 15
+  noise-retail: 13
   value-investor: 22
   news-trader: 5
   institutional: 8
@@ -78,6 +78,7 @@ composition:
   block-taker: 2
   auction-player: 2
   patient-liquidity: 10
+  combo-trader: 2
 ```
 
 | Setting | What it does | Raise it | Lower it |
