@@ -849,6 +849,17 @@ class TestSessionControl:
 
         assert result["state"] == "CONTINUOUS"
         assert result["prev_state"] == "OPENING_AUCTION"
+        assert "reply_to" not in payload
+
+    def test_session_advance_times_out_without_state_broadcast(self) -> None:
+        client, push = _client()
+        with pytest.raises(CommandTimeoutError):
+            client.session_advance("continuous")
+
+        topic, payload = _last_sent(push)
+        assert topic == "session.transition"
+        assert payload["to_state"] == "CONTINUOUS"
+        assert "reply_to" not in payload
 
 
 # ---------------------------------------------------------------------------

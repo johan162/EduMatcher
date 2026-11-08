@@ -5935,12 +5935,17 @@ class Engine:
         # Validate transition
         allowed = VALID_TRANSITIONS.get(from_state, set())
         if to_state not in allowed:
+            reason = (
+                f"Invalid transition {from_state.value} → {to_state.value} "
+                f"(allowed: {', '.join(sorted(s.value for s in allowed))})"
+            )
             log.warning(
                 "Invalid transition %s → %s (allowed: %s)",
                 from_state.value,
                 to_state.value,
                 ", ".join(s.value for s in allowed),
             )
+            self._reply_session_transition(payload, False, reason=reason)
             return
 
         # Adopted from this command, whatever it says -- including nothing --

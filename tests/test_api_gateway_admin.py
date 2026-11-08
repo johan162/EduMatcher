@@ -215,6 +215,20 @@ async def test_require_admin_allows_admin_role() -> None:
 
 
 @pytest.mark.anyio
+async def test_invalid_session_transition_is_409_with_engine_reason() -> None:
+    engine = AdminFakeEngine(ack_accepted=False)
+    body = SessionTransitionRequest(to_state=SessionState.CONTINUOUS)
+
+    with pytest.raises(HTTPException) as exc:
+        await admin.session_transition(body, admin_request(engine), admin_session())
+
+    assert exc.value.status_code == 409
+    error = cast(dict[str, Any], exc.value.detail)["error"]
+    assert error["code"] == "TRANSITION_REJECTED"
+    assert error["message"] == "Sessions are not enabled"
+
+
+@pytest.mark.anyio
 async def test_require_admin_rejects_non_admin_role() -> None:
     engine = AdminFakeEngine(role="TRADER")
     request = admin_request(engine)

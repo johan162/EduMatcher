@@ -38,7 +38,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 | 8 | T8 | Normal-use warnings and artifact errors | Q11 | Contract decision | ☑ | 2026-11-08 |
 | 9 | T9 | Swarm budget semantics | Q12 | Contract decision | ☐ | |
 | 10 | T10 | Teaching configuration, persisted orders and collars | Q13 | Contract decision | ☐ | |
-| 11 | T11 | Session-transition rejection replies | Q14 | — | ☐ | |
+| 11 | T11 | Session-transition rejection replies | Q14 | — | ☑ | 2026-11-08 |
 | 12 | T12 | Index history, listing and restored session phase | Q15, Q16 | Contract decision for Q15 | ☐ | |
 | 13 | T13 | ATO expiry reason | Q17 | — | ☐ | |
 | 14 | T14 | Generated API-key usability and safety | Q18 | Contract decision | ☐ | |
@@ -554,6 +554,14 @@ Steps:
 transition is invalid from the current phase; REST then times out instead of
 returning the documented rejection.
 
+**Contract decision:** REST's addressed transition request returns
+`409 TRANSITION_REJECTED` with the engine's reason and emits no
+`session.state` broadcast when the phase change is invalid. The legacy
+`pm-admin-cli session` command remains broadcast-confirmed: it does not request
+an addressed acknowledgement, so an invalid transition still waits for
+`session.state` and times out. This preserves the CLI's documented behavior
+while distinguishing it from REST's rejection response.
+
 Steps:
 1. Add a failing engine/API integration test: set the market to
    `CONTINUOUS`, request transition to `CONTINUOUS`, and assert a prompt
@@ -574,6 +582,15 @@ Steps:
   timeout; no false transition broadcast is emitted.
 - CLI behavior is intentionally tested and documented.
 - Targeted session/API tests and full project checks pass.
+
+**Verification:** With the engine in `CONTINUOUS`, request `CONTINUOUS` again
+using command id `cmd-14` and gateway `GW01`. The engine promptly publishes
+`accepted=false` on `session.transition_ack.GW01` with the invalid-transition
+reason and publishes no `session.state`; REST maps a negative ack to
+`409 TRANSITION_REJECTED`. The CLI sends no `reply_to` and continues to wait
+for `session.state`. `poetry run pytest tests/ -n logical
+--cov=src/edumatcher --cov-report=term-missing --cov-fail-under=85` passed
+13577 tests with 1 skipped.
 
 ### T12 — Index history, listing and restored session phase (Q15, Q16)
 

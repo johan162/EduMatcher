@@ -9144,7 +9144,7 @@
           "admin"
         ],
         "summary": "Change session state",
-        "description": "Force the venue into another session phase (PRE_OPEN, OPENING_AUCTION, CONTINUOUS, CLOSING_AUCTION, CLOSED). Normally pm-scheduler drives these; this is the manual override. Entering an auction phase opens the call period, leaving it uncrosses. Waits for the engine's ack; 409 if the engine refuses (e.g. sessions are disabled).",
+        "description": "Force the venue into another session phase (PRE_OPEN, OPENING_AUCTION, CONTINUOUS, CLOSING_AUCTION, CLOSED). Normally pm-scheduler drives these; this is the manual override. Entering an auction phase opens the call period, leaving it uncrosses. Waits for the engine's ack; 409 if the engine refuses (e.g. sessions are disabled or the transition is invalid from the current phase).",
         "operationId": "session_transition",
         "requestBody": {
           "content": {

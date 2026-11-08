@@ -163,6 +163,10 @@ pm-admin-cli --id ADMIN_CLI session-status
 ```
 
 Use this to reproduce auction and close transitions deterministically in training.
+For example, after reaching `CONTINUOUS`, requesting `CONTINUOUS` again is an
+invalid transition: the engine does not publish a new `session.state`, so the
+CLI waits until its timeout. The REST transition endpoint instead returns
+`409 TRANSITION_REJECTED` with the engine's reason.
 
 :material-checkbox-blank-outline: **Checkpoint:** forced session transitions are visible and verifiable.
 

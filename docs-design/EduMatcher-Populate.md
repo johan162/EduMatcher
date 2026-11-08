@@ -168,7 +168,7 @@ design.
 |---|---|---|
 | F14 | The engine is single-threaded: a PULL poll loop (200 ms timeout), then `_run_maintenance()`. One PUB socket, plus a separate drop-copy PUB on :5557. | `engine/main.py::run` |
 | F15 | With sessions enabled the engine starts CLOSED. Valid transitions: CLOSED→PRE_OPEN→(OPENING_AUCTION→)CONTINUOUS→(CLOSING_AUCTION→)CLOSED. | `models/session.py::VALID_TRANSITIONS` |
-| F16 | **An invalid transition is logged and dropped with no reply.** A valid one publishes `session.state`, plus `session.transition_ack.{gw}` when `reply_to` is set. | `engine/main.py::_handle_session_transition` |
+| F16 | **An invalid transition is logged and dropped.** If `reply_to` is set, the engine publishes `session.transition_ack.{gw}` with the rejection reason; scheduler requests without `reply_to` get no ack. A valid transition publishes `session.state` and, when `reply_to` is set, its addressed ack. | `engine/main.py::_handle_session_transition` |
 | F17 | **MARKET, FOK and IOC are rejected (`SESSION_NOT_PERMITTED`) in every state except CONTINUOUS, and while a symbol is halted.** ATO is accepted only in OPENING_AUCTION, ATC only in CLOSING_AUCTION. | `engine/main.py::_handle_new_order` |
 | F18 | Uncross runs when leaving a non-matching state. DAY orders expire on →CLOSED. Daily counters reset on →PRE_OPEN. | `engine/main.py::_handle_session_transition` |
 | F19 | **`system.eod` is published only in `_shutdown()`.** Its consumers are clearing (mark-to-market, EOD row, prune), stats (close bid/ask, flush), index (`_finalize_eod`) and ralf-gwy (EOD lines). | `engine/main.py` around line 6306 |

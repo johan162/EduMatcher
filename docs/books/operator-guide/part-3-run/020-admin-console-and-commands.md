@@ -1481,10 +1481,12 @@ reset above) keeps going without restarting the engine.
 
 An **accepted** transition is confirmed by the `session.state` broadcast,
 which carries the *actual* new state — check `result["state"]` to verify it.
-An **invalid** transition (one not allowed from the current state) gets no
-reply at all: the engine rejects it before publishing anything, so
-`session_advance()` blocks until `--timeout` and then raises
-`CommandTimeoutError`.
+An **invalid** transition (one not allowed from the current state) publishes
+no `session.state` broadcast. The legacy `session_advance()` client does not
+request an addressed acknowledgement, so it blocks until `--timeout` and
+then raises `CommandTimeoutError`. By contrast, the REST
+`POST /api/v1/admin/session/transition` endpoint waits for the engine's
+addressed rejection and returns `409 TRANSITION_REJECTED` with its reason.
 
 
 

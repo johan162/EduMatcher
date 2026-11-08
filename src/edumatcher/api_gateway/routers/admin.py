@@ -168,7 +168,8 @@ def _require_accepted(ack: dict[str, Any], code: str) -> dict[str, Any]:
         "CONTINUOUS, CLOSING_AUCTION, CLOSED). Normally pm-scheduler drives these; "
         "this is the manual override. Entering an auction phase opens the call "
         "period, leaving it uncrosses. Waits for the engine's ack; 409 if the engine "
-        "refuses (e.g. sessions are disabled)."
+        "refuses (e.g. sessions are disabled or the transition is invalid from "
+        "the current phase)."
     ),
     responses=docs.merge(
         docs.ok(docs.ADMIN_TRANSITION, "The transition was applied."),

@@ -25,6 +25,7 @@ from edumatcher.models.message import (
     make_session_transition_ack_msg,
     make_session_transition_msg,
 )
+from edumatcher.models.session import SessionState
 
 
 def _payload(frames: list[bytes]) -> dict[str, Any]:
@@ -177,6 +178,27 @@ def test_session_transition_rejection_is_reported_not_silent() -> None:
     ack = _payload(published[0])
     assert ack["accepted"] is False
     assert "not enabled" in ack["reason"]
+
+
+def test_same_phase_transition_is_rejected_without_state_broadcast() -> None:
+    engine = _engine()
+    engine._sessions_enabled = True
+    engine._session_state = SessionState.CONTINUOUS
+    engine._handle_session_transition(
+        {
+            "to_state": "CONTINUOUS",
+            "reply_to": {"command_id": "cmd-14", "gateway_id": "GW01"},
+        }
+    )
+
+    published = _published(engine)
+    assert len(published) == 1
+    assert _topic(published[0]) == "session.transition_ack.GW01"
+    ack = _payload(published[0])
+    assert ack["command_id"] == "cmd-14"
+    assert ack["accepted"] is False
+    assert "CONTINUOUS → CONTINUOUS" in ack["reason"]
+    assert not any(_topic(message).startswith("session.state") for message in published)
 
 
 def test_an_unknown_state_is_rejected_with_a_reason() -> None:
