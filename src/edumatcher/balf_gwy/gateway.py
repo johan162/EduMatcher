@@ -1213,8 +1213,11 @@ class BalfGateway:
         lost = [
             s for s in self._clients.values() if s.authenticated or s.logon_in_progress
         ]
-        log.warning(
-            "engine restarted; closing %d BALF session(s) so their clients log on again",
+        # A first start also announces itself; with no session to lose it is
+        # not news.
+        log.log(
+            logging.WARNING if lost else logging.INFO,
+            "engine (re)started; closing %d BALF session(s) so their clients log on again",
             len(lost),
         )
         # Its symbol configuration may have changed with it.

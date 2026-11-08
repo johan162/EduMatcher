@@ -46,6 +46,10 @@ export const HELP_TOPICS: HelpTopic[] = [
             "text": "One row per symbol: resting orders, depth, memory, halt state."
           },
           {
+            "term": "REST API",
+            "text": "Requests per second now and over the last hour, the peak since start, what was throttled, and the load per API key."
+          },
+          {
             "term": "Gateways & infrastructure",
             "text": "Client counts, dropped events, log ingest, data files, engine diagnostics."
           },

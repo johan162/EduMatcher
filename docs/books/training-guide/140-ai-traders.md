@@ -52,6 +52,7 @@ them all:
 | `contrarian`, `auction-player` | reversion | Fades moves; trades the opening and closing auctions |
 | `value-investor`, `institutional` | the true value | Buys below its own (imperfect) estimate of the value, sells above it |
 | `news-trader` | headlines | Trades a headline within seconds, hard, in its direction |
+| `combo-trader` | baskets of symbols | Sends 2–5 leg all-or-none combos: pairs, long or short baskets, hedged books, sector rotation |
 
 The value and news traders are why prices end up near the values and react
 to news; the noise and momentum traders are why they never sit exactly on

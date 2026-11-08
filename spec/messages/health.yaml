@@ -241,6 +241,53 @@ types:
           validate: { ge: 0 },
           doc: "Clients cut off for not reading; the back-pressure signal." }
 
+  ApiKeyStats:
+    doc: >
+      One API key of one API gateway as the dashboard's REST API row shows it.
+      The key is named by its configured description (else its gateway id),
+      never by the key itself.
+    fields:
+      - { name: label, type: string, validate: { max_len: 32 },
+          doc: "The key's description; `(unauth)` for requests that did not authenticate." }
+      - { name: requests_total, type: int, unit: dimensionless, validate: { ge: 0 },
+          doc: "Requests answered since the API gateway started." }
+      - { name: requests_today, type: int, unit: dimensionless, validate: { ge: 0 } }
+      - { name: per_sec_now, type: float, unit: dimensionless, validate: { ge: 0 },
+          doc: "Over the last 60 s." }
+      - { name: per_sec_hour, type: float, unit: dimensionless, validate: { ge: 0 },
+          doc: "Over the last 60 min, or as long as pm-monitor has known the gateway if that is shorter (at least 60 s)." }
+      - { name: share_pct, type: float, unit: percent, validate: { ge: 0 },
+          doc: "Of all the gateway's requests since it started." }
+      - { name: peak_per_sec, type: int, unit: dimensionless, validate: { ge: 0 },
+          doc: "This key's busiest one-second bucket since the gateway started." }
+      - { name: throttled_total, type: int, unit: dimensionless, validate: { ge: 0 },
+          doc: "Writes refused (429) by the rate limiter since the gateway started." }
+      - { name: throttled_today, type: int, unit: dimensionless, validate: { ge: 0 } }
+      - { name: throttled_5m, type: int, unit: dimensionless, validate: { ge: 0 } }
+
+  ApiStats:
+    doc: >
+      One API gateway process (one per `--instance`): its HTTP request load
+      in total and per API key, and how much the rate limiter refused.
+    fields:
+      - { name: key, type: string, validate: { min_len: 1, max_len: 200 },
+          doc: "The ProcessHealth key of the same process." }
+      - { name: requests_total, type: int, unit: dimensionless, validate: { ge: 0 },
+          doc: "api.http_requests: every HTTP request since the gateway started, authenticated or not." }
+      - { name: requests_today, type: int, unit: dimensionless, validate: { ge: 0 } }
+      - { name: per_sec_now, type: float, unit: dimensionless, validate: { ge: 0 },
+          doc: "Over the last 60 s." }
+      - { name: per_sec_hour, type: float, unit: dimensionless, validate: { ge: 0 },
+          doc: "Over the last 60 min, or as long as pm-monitor has known the gateway if that is shorter (at least 60 s)." }
+      - { name: peak_per_sec, type: int, unit: dimensionless, validate: { ge: 0 },
+          doc: "The busiest one-second bucket since the gateway started." }
+      - { name: peak_key, type: string, validate: { max_len: 32 },
+          doc: "The key with the highest own peak; empty before any request." }
+      - { name: throttled_total, type: int, unit: dimensionless, validate: { ge: 0 },
+          doc: "Writes refused (429) since the gateway started, over all keys." }
+      - { name: throttled_5m, type: int, unit: dimensionless, validate: { ge: 0 } }
+      - { name: keys, type: list, ref: ApiKeyStats }
+
   ActiveBreach:
     doc: "One threshold currently in breach (design section 9.6)."
     fields:
@@ -349,6 +396,8 @@ messages:
       - { name: participants, type: list, ref: ParticipantStats }
       - { name: books, type: list, ref: BookStats }
       - { name: gateways, type: list, ref: GatewayStats }
+      - { name: api, type: list, ref: ApiStats,
+          doc: "One per API gateway process; empty without one." }
       - { name: thresholds, type: list, ref: ActiveBreach,
           doc: "Breaches active now; empty when all is well." }
     encoding:

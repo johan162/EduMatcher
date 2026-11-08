@@ -431,3 +431,82 @@ def test_a_stopped_gateway_has_no_clients(mon: Monitor, clocks: _Clocks) -> None
         clocks.mono,
     )
     assert _snapshot(mon).gateways[0].clients == 0
+
+
+def test_api_load_per_key_and_throttling(mon: Monitor, clocks: _Clocks) -> None:
+    """Beacons 2 s apart for a minute: the desk sends 15 requests per beacon,
+    the bot 5 and is throttled once in each; the bot's own peak is the highest."""
+    started = int((OPEN - 3600) * 1e9)
+    for i in range(31):
+        metrics = [
+            _c("api.http_requests", 20 * i + 7),
+            _c("api.key_requests", 15 * i + 4, "Desk A"),
+            _c("api.key_requests", 5 * i + 3, "Bot"),
+            _c("api.key_requests", 0, "(unauth)"),
+            _c("api.key_throttled", 0, "Desk A"),
+            _c("api.key_throttled", i, "Bot"),
+            _g("api.rps_peak", 12),
+            _g("api.key_rps_peak", 9, "Desk A"),
+            _g("api.key_rps_peak", 12, "Bot"),
+            _g("api.ws_sessions", 0, "private"),
+        ]
+        mon.receive(
+            _beacon_frames(
+                process="pm-api-gwy", seq=i, metrics=metrics, started_at_ns=started
+            ),
+            clocks.mono,
+        )
+        if i < 30:
+            clocks.advance(2.0)
+    snap = _snapshot(mon)
+    (api,) = snap.api
+    assert api.key == "pm-api-gwy@box"
+    # Since start is the beacon's own total, whatever the windows saw.
+    assert api.requests_total == 20 * 30 + 7
+    assert api.per_sec_now == pytest.approx(10.0)
+    assert api.per_sec_hour == pytest.approx(10.0)
+    assert (api.peak_per_sec, api.peak_key) == (12, "Bot")
+    assert (api.throttled_total, api.throttled_5m) == (30, 30)
+    unauth, bot, desk = api.keys  # sorted by label
+    assert [k.label for k in (unauth, bot, desk)] == ["(unauth)", "Bot", "Desk A"]
+    assert (desk.requests_total, desk.throttled_total) == (15 * 30 + 4, 0)
+    assert (bot.requests_total, bot.peak_per_sec) == (5 * 30 + 3, 12)
+    assert bot.per_sec_now == pytest.approx(150 / 60.0)
+    assert bot.share_pct == pytest.approx(100.0 * 153 / (153 + 454))
+    assert (bot.throttled_total, bot.throttled_today) == (30, 30)
+    assert unauth.requests_total == 0 and unauth.share_pct == 0.0
+    # Any throttling in 5 minutes is a WARN on the gateway.
+    breach = [b for b in snap.thresholds if b.rule == "api_throttled"]
+    assert [b.subject for b in breach] == ["pm-api-gwy@box"]
+
+
+def test_a_key_gone_after_a_gateway_restart_leaves_the_table(
+    mon: Monitor, clocks: _Clocks
+) -> None:
+    """The restarted gateway no longer reports "Old": no frozen total lingers
+    in the table or in the shares."""
+    started = int((OPEN - 3600) * 1e9)
+    before = [
+        _c("api.http_requests", 30),
+        _c("api.key_requests", 10, "Desk A"),
+        _c("api.key_requests", 20, "Old"),
+    ]
+    mon.receive(
+        _beacon_frames(process="pm-api-gwy", metrics=before, started_at_ns=started),
+        clocks.mono,
+    )
+    clocks.advance(2.0)
+    after = [_c("api.http_requests", 4), _c("api.key_requests", 4, "Desk A")]
+    mon.receive(
+        _beacon_frames(
+            process="pm-api-gwy",
+            boot_id="b" * 16,
+            metrics=after,
+            started_at_ns=started + int(3e9),
+        ),
+        clocks.mono,
+    )
+    (api,) = _snapshot(mon).api
+    assert [(k.label, k.requests_total, k.share_pct) for k in api.keys] == [
+        ("Desk A", 4, 100.0)
+    ]

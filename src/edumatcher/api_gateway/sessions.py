@@ -23,6 +23,20 @@ _bearer = HTTPBearer(
 )
 
 
+def key_label(credential: ApiCredential) -> str:
+    """The name a key goes by on the dashboard: never the key itself.
+
+    Its configured description, else its gateway id, else a hash prefix. At most
+    32 characters, the longest label a health metric can carry. Two keys with the
+    same description share a label and so a line on the dashboard.
+    """
+    if credential.description:
+        return credential.description[:32]
+    if credential.gateway_id is not None:
+        return credential.gateway_id[:32]
+    return "RO" + hashlib.sha256(credential.api_key.encode()).hexdigest()[:8].upper()
+
+
 @dataclass(frozen=True)
 class Session:
     """Authenticated API session returned to route handlers."""
@@ -50,6 +64,10 @@ class SessionRegistry:
 
     def get(self, api_key: str) -> ApiCredential | None:
         return self._credentials.get(api_key)
+
+    def labels(self) -> list[str]:
+        """The dashboard label of every configured key."""
+        return [key_label(c) for c in self._credentials.values()]
 
 
 def report_refusal(
@@ -91,6 +109,8 @@ async def auth(
         report_refusal(request, "AUTH_FAILED", "unknown API key")
         raise _unauthorized("Unknown API key")
 
+    # For the metrics middleware, which runs outside this dependency.
+    request.state.api_key_label = key_label(credential)
     session = Session(
         api_key=token,
         gateway_id=credential.gateway_id,

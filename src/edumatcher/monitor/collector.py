@@ -647,6 +647,7 @@ class Monitor:
             ),
             "books": a.book_records(),
             "gateways": a.gateway_records(now, process_keys, gone),
+            "api": a.api_records(now, process_keys),
             "thresholds": self.thresholds.active(),
         }
 

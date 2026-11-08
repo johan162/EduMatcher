@@ -5,15 +5,17 @@
  * threshold, trades today, and whether it is halted -- in words.
  */
 
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import type { ActiveBreach, BookStats } from "@edumatcher/dash-types";
 import { HealthTable, StateBadge, type Column } from "../../components/widgets/HealthTable.js";
 import { Row } from "../../components/widgets/Row.js";
+import { pagination, TablePager } from "../../components/widgets/TablePager.js";
 import { StatTile } from "../../components/widgets/StatTile.js";
 import { formatBytes, formatCount, formatPercent, formatRatio } from "../../lib/format.js";
 import { LEVEL, TONE } from "../../lib/status.js";
 import { useOpenDrawer } from "../../hooks/drawer.js";
 import { useDashStore } from "../../store/useDashStore.js";
+import { usePrefsStore } from "../../store/usePrefsStore.js";
 import { breachLevel, useBreaches } from "./common.js";
 
 const HALTED = { glyph: "■", label: "HALTED", ...TONE.warning };
@@ -55,6 +57,16 @@ export function BooksRow() {
   const open = useOpenDrawer();
   const cols = useMemo(() => columns(breaches), [breaches]);
   const onRowClick = useCallback((b: BookStats) => open("book", b.symbol), [open]);
+  const [search, setSearch] = useState("");
+  const pageSize = usePrefsStore((s) => s.booksPageSize);
+  const setPageSize = usePrefsStore((s) => s.setBooksPageSize);
+  const [requestedPage, setRequestedPage] = useState(0);
+  // The search covers every book, not just the page on show.
+  const shown = useMemo(() => {
+    const needle = search.trim().toUpperCase();
+    return needle ? (books ?? []).filter((b) => b.symbol.toUpperCase().includes(needle)) : (books ?? []);
+  }, [books, search]);
+  const { pageCount, pageIndex } = pagination(shown.length, pageSize, requestedPage);
   const memory = books?.reduce((sum, b) => sum + b.est_bytes, 0) ?? null;
   const halted = books?.filter((b) => b.halted).length ?? 0;
 
@@ -70,7 +82,46 @@ export function BooksRow() {
             sub={memory !== null && engineRss ? `${formatPercent((100 * memory) / engineRss)} of the engine` : undefined}
           />
         </div>
-        <HealthTable label="Order books" columns={cols} rows={books ?? []} rowKey={(b) => b.symbol} initialSort={{ id: "symbol", dir: "asc" }} onRowClick={onRowClick} />
+        <div className="min-w-0">
+          <div className="mb-2 flex flex-wrap items-center gap-3 text-xs">
+            <input
+              type="search"
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setRequestedPage(0);
+              }}
+              placeholder="Find symbol"
+              aria-label="Find symbol"
+              className="w-28 rounded border border-border bg-bg-inset px-2 py-0.5 text-xs placeholder:text-fg-faint"
+            />
+            <span className="tabular text-fg-subtle">
+              {shown.length} symbol{shown.length === 1 ? "" : "s"}
+              {shown.length !== (books?.length ?? 0) && ` of ${books?.length ?? 0}`}
+            </span>
+            <div className="ml-auto">
+              <TablePager
+                pageIndex={pageIndex}
+                pageCount={pageCount}
+                pageSize={pageSize}
+                onPage={setRequestedPage}
+                onPageSize={(n) => {
+                  setPageSize(n);
+                  setRequestedPage(0);
+                }}
+              />
+            </div>
+          </div>
+          <HealthTable
+            label="Order books"
+            columns={cols}
+            rows={shown}
+            rowKey={(b) => b.symbol}
+            initialSort={{ id: "symbol", dir: "asc" }}
+            onRowClick={onRowClick}
+            page={pageSize ? { index: pageIndex, size: pageSize } : undefined}
+          />
+        </div>
       </div>
     </Row>
   );

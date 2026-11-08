@@ -36,6 +36,8 @@ export interface HealthTableProps<T> {
   /** Rows are shown in these groups, in the order they first appear. */
   group?: (row: T) => string;
   onRowClick?: (row: T) => void;
+  /** Show only this zero-based page of the sorted rows (for an ungrouped table). */
+  page?: { index: number; size: number };
 }
 
 /** No sort value: sorted last whatever the direction. */
@@ -54,10 +56,12 @@ export function sortRows<T>(rows: readonly T[], key: (row: T) => number | string
   });
 }
 
-export function HealthTable<T>({ label, columns, rows, rowKey, initialSort, group, onRowClick }: HealthTableProps<T>) {
+export function HealthTable<T>({ label, columns, rows, rowKey, initialSort, group, onRowClick, page }: HealthTableProps<T>) {
   const [sort, setSort] = useState(initialSort);
   const column = columns.find((c) => c.id === sort?.id);
   const sorted = column?.sortKey && sort ? (r: readonly T[]) => sortRows(r, column.sortKey!, sort.dir) : (r: readonly T[]) => [...r];
+
+  const paged = (r: T[]) => (page ? r.slice(page.index * page.size, (page.index + 1) * page.size) : r);
 
   const groups = new Map<string, T[]>();
   for (const row of rows) {
@@ -104,7 +108,7 @@ export function HealthTable<T>({ label, columns, rows, rowKey, initialSort, grou
               </th>
             </tr>
           )}
-          {sorted(groupRows).map((row) => (
+          {paged(sorted(groupRows)).map((row) => (
             <TableRow key={rowKey(row)} id={rowKey(row)} row={row} signature={JSON.stringify(row)} columns={columns} onRowClick={onRowClick} />
           ))}
         </tbody>

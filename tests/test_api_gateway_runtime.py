@@ -510,7 +510,8 @@ async def test_auth_dependency_success_and_failures() -> None:
                 engine=AuthEngine(),
                 config=ApiGatewayConfig(),
             )
-        )
+        ),
+        state=SimpleNamespace(),
     )
 
     def bearer(token: str) -> HTTPAuthorizationCredentials:
@@ -518,6 +519,7 @@ async def test_auth_dependency_success_and_failures() -> None:
 
     session = await auth(request, bearer("good"))  # type: ignore[arg-type]  # test double
     assert session.gateway_id == "GW01"
+    assert request.state.api_key_label == "desk"
     with pytest.raises(HTTPException) as no_header:
         await auth(request, None)  # type: ignore[arg-type]  # test double
     assert no_header.value.status_code == 401

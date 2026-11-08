@@ -35,6 +35,9 @@ export const COUNTER = {
   tradedValue: "engine.traded_value",
   rejects: "engine.rejects",
   fills: "engine.fills",
+  /** pm-api-gwy, labelled by API key (the key's description). */
+  apiKeyRequests: "api.key_requests",
+  apiKeyThrottled: "api.key_throttled",
 } as const;
 
 /** Engine gauges in metrics.db, read through /api/series (label: participant or symbol). */

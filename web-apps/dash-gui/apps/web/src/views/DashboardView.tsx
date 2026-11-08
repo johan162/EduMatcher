@@ -8,6 +8,7 @@
  */
 
 import { Outlet } from "react-router-dom";
+import { ApiRow } from "./rows/ApiRow.js";
 import { BooksRow } from "./rows/BooksRow.js";
 import { EngineLatencyRow } from "./rows/EngineLatencyRow.js";
 import { EventsRow } from "./rows/EventsRow.js";
@@ -31,6 +32,7 @@ export function DashboardView() {
         <TradingRow />
         <ParticipantsRow />
         <BooksRow />
+        <ApiRow />
         <GatewaysRow />
         <EventsRow />
       </section>

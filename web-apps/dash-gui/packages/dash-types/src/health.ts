@@ -162,6 +162,32 @@ export interface GatewayStats {
   slow_disconnects_today: number;
 }
 
+export interface ApiKeyStats {
+  label: string;
+  requests_total: number;
+  requests_today: number;
+  per_sec_now: number;
+  per_sec_hour: number;
+  share_pct: number;
+  peak_per_sec: number;
+  throttled_total: number;
+  throttled_today: number;
+  throttled_5m: number;
+}
+
+export interface ApiStats {
+  key: string;
+  requests_total: number;
+  requests_today: number;
+  per_sec_now: number;
+  per_sec_hour: number;
+  peak_per_sec: number;
+  peak_key: string;
+  throttled_total: number;
+  throttled_5m: number;
+  keys: ApiKeyStats[];
+}
+
 export interface ActiveBreach {
   rule: string;
   subject: string;
@@ -182,6 +208,7 @@ export interface HealthSnapshot {
   participants: ParticipantStats[];
   books: BookStats[];
   gateways: GatewayStats[];
+  api: ApiStats[];
   thresholds: ActiveBreach[];
 }
 

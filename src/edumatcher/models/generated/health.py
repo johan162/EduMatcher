@@ -1003,6 +1003,211 @@ class GatewayStats:
         }
 
 
+@dataclass(frozen=True, slots=True)
+class ApiKeyStats:
+    """One API key of one API gateway as the dashboard's REST API row shows it. The
+    key is named by its configured description (else its gateway id), never by the
+    key itself.
+    """
+
+    label: str
+    requests_total: int  # unit: dimensionless
+    requests_today: int  # unit: dimensionless
+    per_sec_now: float  # unit: dimensionless
+    per_sec_hour: float  # unit: dimensionless
+    share_pct: float  # unit: percent
+    peak_per_sec: int  # unit: dimensionless
+    throttled_total: int  # unit: dimensionless
+    throttled_today: int  # unit: dimensionless
+    throttled_5m: int  # unit: dimensionless
+
+    def validate(self) -> None:
+        """Raise MessageValidationError if any declared rule fails.
+
+        The only strictness gate: ``from_dict`` coerces but never validates, so a reader
+        of historical data can opt out of the rules by calling ``from_dict`` alone
+        (design section 5.1.1).
+        """
+        if len(self.label) > 32:
+            raise MessageValidationError(
+                f"label: length {len(self.label)} exceeds max_len 32"
+            )
+        if self.requests_total < 0:
+            raise MessageValidationError(
+                f"requests_total: {self.requests_total!r} must be >= 0"
+            )
+        if self.requests_today < 0:
+            raise MessageValidationError(
+                f"requests_today: {self.requests_today!r} must be >= 0"
+            )
+        if self.per_sec_now < 0:
+            raise MessageValidationError(
+                f"per_sec_now: {self.per_sec_now!r} must be >= 0"
+            )
+        if self.per_sec_hour < 0:
+            raise MessageValidationError(
+                f"per_sec_hour: {self.per_sec_hour!r} must be >= 0"
+            )
+        if self.share_pct < 0:
+            raise MessageValidationError(f"share_pct: {self.share_pct!r} must be >= 0")
+        if self.peak_per_sec < 0:
+            raise MessageValidationError(
+                f"peak_per_sec: {self.peak_per_sec!r} must be >= 0"
+            )
+        if self.throttled_total < 0:
+            raise MessageValidationError(
+                f"throttled_total: {self.throttled_total!r} must be >= 0"
+            )
+        if self.throttled_today < 0:
+            raise MessageValidationError(
+                f"throttled_today: {self.throttled_today!r} must be >= 0"
+            )
+        if self.throttled_5m < 0:
+            raise MessageValidationError(
+                f"throttled_5m: {self.throttled_5m!r} must be >= 0"
+            )
+
+    @classmethod
+    def from_dict(cls, p: Mapping[str, Any]) -> "ApiKeyStats":
+        """Coerce a payload mapping into this message. Does NOT validate.
+
+        Mirrors the hand-written payload's coercion exactly, including its lenient
+        fallbacks, so it is a drop-in replacement for readers of already-published data
+        (design section 5.1.1).
+        """
+        return cls(
+            label=str(p["label"]),
+            requests_total=int(p["requests_total"]),
+            requests_today=int(p["requests_today"]),
+            per_sec_now=float(p["per_sec_now"]),
+            per_sec_hour=float(p["per_sec_hour"]),
+            share_pct=float(p["share_pct"]),
+            peak_per_sec=int(p["peak_per_sec"]),
+            throttled_total=int(p["throttled_total"]),
+            throttled_today=int(p["throttled_today"]),
+            throttled_5m=int(p["throttled_5m"]),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return the bus payload, in the spec's declared field order."""
+        return {
+            "label": self.label,
+            "requests_total": self.requests_total,
+            "requests_today": self.requests_today,
+            "per_sec_now": self.per_sec_now,
+            "per_sec_hour": self.per_sec_hour,
+            "share_pct": self.share_pct,
+            "peak_per_sec": self.peak_per_sec,
+            "throttled_total": self.throttled_total,
+            "throttled_today": self.throttled_today,
+            "throttled_5m": self.throttled_5m,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class ApiStats:
+    """One API gateway process (one per `--instance`): its HTTP request load in total
+    and per API key, and how much the rate limiter refused.
+    """
+
+    key: str
+    requests_total: int  # unit: dimensionless
+    requests_today: int  # unit: dimensionless
+    per_sec_now: float  # unit: dimensionless
+    per_sec_hour: float  # unit: dimensionless
+    peak_per_sec: int  # unit: dimensionless
+    peak_key: str
+    throttled_total: int  # unit: dimensionless
+    throttled_5m: int  # unit: dimensionless
+    keys: list[ApiKeyStats]
+
+    def validate(self) -> None:
+        """Raise MessageValidationError if any declared rule fails.
+
+        The only strictness gate: ``from_dict`` coerces but never validates, so a reader
+        of historical data can opt out of the rules by calling ``from_dict`` alone
+        (design section 5.1.1).
+        """
+        if len(self.key) < 1:
+            raise MessageValidationError(
+                f"key: length {len(self.key)} is below min_len 1"
+            )
+        if len(self.key) > 200:
+            raise MessageValidationError(
+                f"key: length {len(self.key)} exceeds max_len 200"
+            )
+        if self.requests_total < 0:
+            raise MessageValidationError(
+                f"requests_total: {self.requests_total!r} must be >= 0"
+            )
+        if self.requests_today < 0:
+            raise MessageValidationError(
+                f"requests_today: {self.requests_today!r} must be >= 0"
+            )
+        if self.per_sec_now < 0:
+            raise MessageValidationError(
+                f"per_sec_now: {self.per_sec_now!r} must be >= 0"
+            )
+        if self.per_sec_hour < 0:
+            raise MessageValidationError(
+                f"per_sec_hour: {self.per_sec_hour!r} must be >= 0"
+            )
+        if self.peak_per_sec < 0:
+            raise MessageValidationError(
+                f"peak_per_sec: {self.peak_per_sec!r} must be >= 0"
+            )
+        if len(self.peak_key) > 32:
+            raise MessageValidationError(
+                f"peak_key: length {len(self.peak_key)} exceeds max_len 32"
+            )
+        if self.throttled_total < 0:
+            raise MessageValidationError(
+                f"throttled_total: {self.throttled_total!r} must be >= 0"
+            )
+        if self.throttled_5m < 0:
+            raise MessageValidationError(
+                f"throttled_5m: {self.throttled_5m!r} must be >= 0"
+            )
+        for keys_item in self.keys:
+            keys_item.validate()
+
+    @classmethod
+    def from_dict(cls, p: Mapping[str, Any]) -> "ApiStats":
+        """Coerce a payload mapping into this message. Does NOT validate.
+
+        Mirrors the hand-written payload's coercion exactly, including its lenient
+        fallbacks, so it is a drop-in replacement for readers of already-published data
+        (design section 5.1.1).
+        """
+        return cls(
+            key=str(p["key"]),
+            requests_total=int(p["requests_total"]),
+            requests_today=int(p["requests_today"]),
+            per_sec_now=float(p["per_sec_now"]),
+            per_sec_hour=float(p["per_sec_hour"]),
+            peak_per_sec=int(p["peak_per_sec"]),
+            peak_key=str(p["peak_key"]),
+            throttled_total=int(p["throttled_total"]),
+            throttled_5m=int(p["throttled_5m"]),
+            keys=[ApiKeyStats.from_dict(item) for item in p["keys"]],
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return the bus payload, in the spec's declared field order."""
+        return {
+            "key": self.key,
+            "requests_total": self.requests_total,
+            "requests_today": self.requests_today,
+            "per_sec_now": self.per_sec_now,
+            "per_sec_hour": self.per_sec_hour,
+            "peak_per_sec": self.peak_per_sec,
+            "peak_key": self.peak_key,
+            "throttled_total": self.throttled_total,
+            "throttled_5m": self.throttled_5m,
+            "keys": [item.to_dict() for item in self.keys],
+        }
+
+
 _ACTIVE_BREACH_LEVEL_VALUES = ("WARN", "CRIT")
 ActiveBreachLevel = Literal["WARN", "CRIT"]
 
@@ -1476,6 +1681,13 @@ _HEALTH_SNAPSHOT_FIELDS: tuple[dict[str, Any], ...] = (
         "doc": "",
     },
     {
+        "name": "api",
+        "type": "list",
+        "unit": None,
+        "required": True,
+        "doc": "One per API gateway process; empty without one.",
+    },
+    {
         "name": "thresholds",
         "type": "list",
         "unit": None,
@@ -1507,6 +1719,7 @@ class HealthSnapshot:
     participants: list[ParticipantStats]
     books: list[BookStats]
     gateways: list[GatewayStats]
+    api: list[ApiStats]
     thresholds: list[ActiveBreach]
 
     def validate(self) -> None:
@@ -1533,6 +1746,8 @@ class HealthSnapshot:
             books_item.validate()
         for gateways_item in self.gateways:
             gateways_item.validate()
+        for api_item in self.api:
+            api_item.validate()
         for thresholds_item in self.thresholds:
             thresholds_item.validate()
 
@@ -1556,6 +1771,7 @@ class HealthSnapshot:
             ),
             books=[BookStats.from_dict(item) for item in p["books"]],
             gateways=[GatewayStats.from_dict(item) for item in p["gateways"]],
+            api=[ApiStats.from_dict(item) for item in p["api"]],
             thresholds=[ActiveBreach.from_dict(item) for item in p["thresholds"]],
         )
 
@@ -1571,6 +1787,7 @@ class HealthSnapshot:
             "participants": [item.to_dict() for item in self.participants],
             "books": [item.to_dict() for item in self.books],
             "gateways": [item.to_dict() for item in self.gateways],
+            "api": [item.to_dict() for item in self.api],
             "thresholds": [item.to_dict() for item in self.thresholds],
         }
 

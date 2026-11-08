@@ -183,6 +183,33 @@ def _snapshot(**overrides: Any) -> dict[str, Any]:
                 "slow_disconnects_today": 0,
             }
         ],
+        "api": [
+            {
+                "key": "pm-api-gwy@exchange-host",
+                "requests_total": 120_000,
+                "requests_today": 90_000,
+                "per_sec_now": 41.5,
+                "per_sec_hour": 38.0,
+                "peak_per_sec": 210,
+                "peak_key": "Desk A",
+                "throttled_total": 12,
+                "throttled_5m": 0,
+                "keys": [
+                    {
+                        "label": "Desk A",
+                        "requests_total": 100_000,
+                        "requests_today": 80_000,
+                        "per_sec_now": 40.0,
+                        "per_sec_hour": 36.0,
+                        "share_pct": 83.3,
+                        "peak_per_sec": 200,
+                        "throttled_total": 12,
+                        "throttled_today": 12,
+                        "throttled_5m": 0,
+                    }
+                ],
+            }
+        ],
         "thresholds": [
             {
                 "rule": "engine_handle_p99_us",
@@ -324,6 +351,7 @@ class TestValidationRejects:
             (("exchange", "status"), "FINE"),
             (("thresholds", 0, "level"), "INFO"),
             (("gateways", 0, "kind"), "CALF"),
+            (("api", 0, "keys", 0, "share_pct"), -1.0),
             (("books", 0, "heap_bloat_ratio"), -0.5),
         ],
     )
@@ -362,7 +390,12 @@ class TestTheSnapshotShape:
         """A fresh pm-monitor with nothing seen yet still publishes."""
         G.make_health_snapshot(
             **_snapshot(
-                processes=[], participants=[], books=[], gateways=[], thresholds=[]
+                processes=[],
+                participants=[],
+                books=[],
+                gateways=[],
+                api=[],
+                thresholds=[],
             )
         )
 

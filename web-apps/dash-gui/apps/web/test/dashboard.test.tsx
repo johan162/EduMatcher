@@ -12,6 +12,7 @@ import type { HealthSnapshot, ProcessHealth, ProcessState, ServerFrame } from "@
 import App from "../src/App.js";
 import { useLiveSeries } from "../src/hooks/history.js";
 import { useDashStore } from "../src/store/useDashStore.js";
+import { usePrefsStore } from "../src/store/usePrefsStore.js";
 import { fakeBridge, NOW } from "./fake-bridge.js";
 import { FakeSocket } from "./fake-socket.js";
 import { CAPTURED, fixtureSnapshot } from "./fixtures/snapshots.js";
@@ -224,6 +225,87 @@ describe("rows 3-7 (D3.4)", () => {
     expect(garbage("AAPL")).toBe("2.00×"); // above the band, but pm-monitor has not judged it
   });
 
+  it("books: paged, page size selectable, and the filter searches every book", () => {
+    const socket = renderAt();
+    usePrefsStore.setState({ booksPageSize: 30 });
+    const template = CAPTURED.books[0]!;
+    const books = Array.from({ length: 75 }, (_, i) => ({ ...template, symbol: `S${String(i).padStart(3, "0")}` }));
+    socket.deliver(hello, frame(fixtureSnapshot({ books })));
+    const rows = () => screen.getByRole("table", { name: "Order books" }).querySelectorAll("tbody tr").length;
+    expect(rows()).toBe(30);
+    fireEvent.click(within(row("Order books")).getByRole("button", { name: "Next page" }));
+    expect(within(row("Order books")).getByText("Page 2/3")).toBeTruthy();
+    fireEvent.change(within(row("Order books")).getByLabelText("Rows per page"), { target: { value: "10" } });
+    expect(rows()).toBe(10);
+    expect(usePrefsStore.getState().booksPageSize).toBe(10);
+    expect(within(row("Order books")).getByText("Page 1/8")).toBeTruthy();
+    fireEvent.change(within(row("Order books")).getByLabelText("Rows per page"), { target: { value: "0" } });
+    expect(rows()).toBe(75);
+    // S074 would be on the last page of 10; the search finds it from anywhere.
+    fireEvent.change(within(row("Order books")).getByLabelText("Rows per page"), { target: { value: "10" } });
+    fireEvent.change(within(row("Order books")).getByLabelText("Find symbol"), { target: { value: "s07" } });
+    expect(rows()).toBe(5);
+    expect(within(row("Order books")).getByText("5 symbols of 75")).toBeTruthy();
+  });
+
+  it("participants: paged, and filtered by role across every page", () => {
+    const socket = renderAt();
+    usePrefsStore.setState({ participantsPageSize: 10 });
+    const template = CAPTURED.participants[0]!;
+    const participants = Array.from({ length: 25 }, (_, i) => ({ ...template, id: `P${String(i).padStart(2, "0")}`, role: i % 5 === 0 ? "MARKET_MAKER" : "TRADER" }));
+    socket.deliver(hello, frame(fixtureSnapshot({ participants })));
+    const rows = () => screen.getByRole("table", { name: "Participants" }).querySelectorAll("tbody tr").length;
+    const pager = () => within(row("Participants"));
+    expect(rows()).toBe(10);
+    expect(pager().getByText("Page 1/3")).toBeTruthy();
+    fireEvent.change(pager().getByLabelText("Filter by role"), { target: { value: "MARKET_MAKER" } });
+    expect(rows()).toBe(5);
+    expect(pager().getByText("5 participants of 25")).toBeTruthy();
+    // P20 is a market maker on the last page of the unfiltered table; the search finds it from anywhere.
+    fireEvent.change(pager().getByLabelText("Find ID"), { target: { value: "p2" } });
+    expect(rows()).toBe(1);
+    fireEvent.change(pager().getByLabelText("Find ID"), { target: { value: "" } });
+    fireEvent.change(pager().getByLabelText("Filter by role"), { target: { value: "" } });
+    fireEvent.change(pager().getByLabelText("Rows per page"), { target: { value: "0" } });
+    expect(rows()).toBe(25);
+    expect(usePrefsStore.getState().participantsPageSize).toBe(0);
+  });
+
+  it("REST API: load and throttling per gateway and per key", async () => {
+    const socket = renderAt();
+    const breach = { rule: "api_throttled", subject: "pm-api-gwy/desk@kappa1", level: "WARN" as const, value: 2, threshold: 0, since: CAPTURED.ts };
+    socket.deliver(hello, frame(fixtureSnapshot({ thresholds: [breach] })));
+    const api = row("REST API");
+    expect(api.textContent).toContain("2 throttled in 5 min"); // the row badge
+    const within_ = within(api);
+    expect(tile("API requests / s")).toBe("4.50 /s");
+    expect(screen.getByRole("region", { name: "API peak / s" }).textContent).toContain("Bot");
+    const table = within_.getByRole("table", { name: "API keys" });
+    const cells = (label: string) => [...table.querySelector(`[data-row="${label}"]`)!.querySelectorAll("td")].map((td) => td.textContent);
+    expect(cells("Bot")[6]).toBe("40 ▲"); // the key behind the peak
+    expect(cells("Desk A")[6]).toBe("25");
+    expect(cells("Bot")[7]).toBe("7");
+    // The history charts: requests per second by key, and throttling by key.
+    expect(within_.getByRole("figure", { name: "API requests / s by key" })).toBeTruthy();
+    expect(within_.getByRole("figure", { name: "API throttled by key" })).toBeTruthy();
+    await waitFor(() => expect(bridge.count("/api/rate/by-label?name=api.key_requests")).toBe(1));
+    expect(bridge.count("/api/rate/by-label?name=api.key_throttled")).toBe(1);
+    // Sorted by load now, busiest first.
+    expect([...table.querySelectorAll("tbody tr")].map((r) => r.getAttribute("data-row"))).toEqual(["Desk A", "Bot"]);
+  });
+
+  it("REST API: a throttling breach colours only its own instance", () => {
+    const socket = renderAt();
+    const [desk] = CAPTURED.api;
+    const quiet = { ...desk!, key: "pm-api-gwy/dashboards@kappa1", throttled_total: 0, throttled_5m: 0 };
+    const breach = { rule: "api_throttled", subject: desk!.key, level: "WARN" as const, value: 2, threshold: 0, since: CAPTURED.ts };
+    socket.deliver(hello, frame(fixtureSnapshot({ api: [desk!, quiet], thresholds: [breach] })));
+    const throttledTile = (instance: string) =>
+      within(screen.getByRole("region", { name: `REST API ${instance}` })).getByRole("region", { name: "API throttled" }).getAttribute("data-level");
+    expect(throttledTile("pm-api-gwy/desk")).toBe("WARN");
+    expect(throttledTile("pm-api-gwy/dashboards")).not.toBe("WARN");
+  });
+
   it("books, gateways and the event log", async () => {
     const socket = renderAt();
     socket.deliver(hello, frame(CAPTURED));
@@ -264,7 +346,7 @@ describe("history wiring (D3.5)", () => {
     const socket = renderAt();
     socket.deliver(hello, frame(CAPTURED));
     await waitFor(() => expect(bridge.count("/api/series/multi")).toBe(3)); // memory, CPU, engine latency
-    expect(bridge.count("/api/rate/by-label")).toBe(1);
+    expect(bridge.count("/api/rate/by-label")).toBe(3); // orders per participant, API requests and throttles per key
     expect(bridge.count("/api/rate?")).toBe(4); // trades, value, rejects, requests
     expect(bridge.count("/api/series?")).toBe(0); // the drawers' charts, none open
     expect(bridge.calls.find((c) => c.startsWith("/api/series/multi") && c.includes("proc.cpu_pct"))).toContain("range=1h");
@@ -274,7 +356,7 @@ describe("history wiring (D3.5)", () => {
     await waitFor(() => expect(bridge.count("/api/series/multi")).toBe(6));
     await new Promise((r) => setTimeout(r, 50));
     expect(bridge.count("/api/series/multi")).toBe(6); // once, not more
-    expect(bridge.count("/api/rate/by-label")).toBe(2);
+    expect(bridge.count("/api/rate/by-label")).toBe(6);
     expect(bridge.calls.filter((c) => c.startsWith("/api/series/multi")).slice(-1)[0]).toContain("range=6h");
   });
 
