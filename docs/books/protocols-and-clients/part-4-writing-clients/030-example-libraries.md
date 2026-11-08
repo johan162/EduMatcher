@@ -652,9 +652,10 @@ participant's fills as unsolicited `DC_FILL` lines; there is no `SUB` step.
 The example subscribers keep a running per-symbol tally of fills, executed
 quantity, VWAP and the `MAKER`/`TAKER` split (`DC_FILL` carries no side, so
 it is an activity tally, not a net position), and print it on Ctrl-C
-shutdown. Drop-copy `SEQ` is one engine-wide counter shared by every gateway
-ID, so a per-ID session sees gaps routinely; the examples report only a `SEQ`
-that goes backwards, which means the engine restarted.
+shutdown. Drop-copy `SEQ` is a separate counter for each gateway ID, so a
+per-ID session sees `1, 2, 3, …` with no gaps. The examples report a `SEQ`
+that skips ahead (lost fills) and one that goes backwards (the engine
+restarted and the counter began again at 1).
 
 ### Source files
 

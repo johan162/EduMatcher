@@ -415,11 +415,10 @@ class DropCopyReplay:
     differs, and it names the *recipient* rather than the gateway, so two simultaneous
     replays do not interleave. `recipient_id` is therefore not the same thing as
     `gateway_id`, which is why the body keeps carrying the latter. The in-process replay
-    method selects one gateway's sequence and buffer; when those IDs differ, the caller
-    supplies `gateway_id` explicitly. There is no request message.
-    `DropCopyPublisher.replay()` is in-process only, callable from the engine and
-    reachable by no protocol -- the module docstring described a
-    `drop_copy.replay_request` that was never built. Section 27.3.
+    method takes `gateway_id` as a required argument and replays only that gateway's
+    events. There is no request message. `DropCopyPublisher.replay()` is in-process
+    only, callable from the engine and reachable by no protocol -- the module docstring
+    described a `drop_copy.replay_request` that was never built. Section 27.3.
     """
 
     recipient_id: str

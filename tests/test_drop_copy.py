@@ -111,8 +111,6 @@ class TestPublish:
     def test_publish_payload_contains_fields(
         self, publisher: tuple[DropCopyPublisher, _FakeSocket]
     ) -> None:
-        import json
-
         pub, sock = publisher
         pub.publish_fill("GW01", **_fill(order_id="X3", fill_qty=50))
         payload = json.loads(sock.sent[0][1])
@@ -125,8 +123,6 @@ class TestPublish:
     def test_publish_adds_seq_and_timestamp(
         self, publisher: tuple[DropCopyPublisher, _FakeSocket]
     ) -> None:
-        import json
-
         pub, sock = publisher
         pub.publish_fill("GW01", **_fill())
         payload = json.loads(sock.sent[0][1])
@@ -138,8 +134,6 @@ class TestPublish:
     def test_seq_monotonically_increases(
         self, publisher: tuple[DropCopyPublisher, _FakeSocket]
     ) -> None:
-        import json
-
         pub, sock = publisher
         pub.publish_fill("GW01", **_fill(order_id="X1"))
         pub.publish_fill("GW01", **_fill(order_id="X2"))
@@ -152,8 +146,8 @@ class TestPublish:
     ) -> None:
         pub, _ = publisher
         pub.publish_fill("GW01", **_fill(order_id="X4"))
-        assert len(pub._log_by_gateway["GW01"]) == 1
-        msg = pub._log_by_gateway["GW01"][0]
+        assert len(pub._log) == 1
+        msg = pub._log[0]
         assert isinstance(msg, DropCopyMessage)
         assert msg.gateway_id == "GW01"
         assert msg.event_type == "order.fill"
@@ -165,7 +159,18 @@ class TestPublish:
         pub, _ = publisher
         for i in range(DROP_COPY_BUFFER_SIZE + 10):
             pub.publish_fill("GW01", **_fill(order_id=f"X{i}"))
-        assert len(pub._log_by_gateway["GW01"]) == DROP_COPY_BUFFER_SIZE
+        assert len(pub._log) == DROP_COPY_BUFFER_SIZE
+
+    def test_buffer_bound_is_shared_across_gateways(
+        self, publisher: tuple[DropCopyPublisher, _FakeSocket]
+    ) -> None:
+        pub, _ = publisher
+        for i in range(DROP_COPY_BUFFER_SIZE):
+            pub.publish_fill("GW01", **_fill(order_id=f"X{i}"))
+        pub.publish_fill("GW02", **_fill(order_id="Y1"))
+        assert len(pub._log) == DROP_COPY_BUFFER_SIZE
+        assert pub._log[0].order_id == "X1"
+        assert pub._log[-1].gateway_id == "GW02"
 
 
 class TestReplay:
@@ -177,7 +182,7 @@ class TestReplay:
         pub.publish_fill("GW01", **_fill(order_id="X2"))
         pub.publish_fill("GW01", **_fill(order_id="X3"))
 
-        first_seq = pub._log_by_gateway["GW01"][0].seq
+        first_seq = pub._log[0].seq
         sock.sent.clear()
 
         replayed = pub.replay("CLIENT1", from_seq=first_seq + 1, gateway_id="GW01")
@@ -188,13 +193,11 @@ class TestReplay:
     ) -> None:
         pub, sock = publisher
         pub.publish_fill("GW01", **_fill())
-        first_seq = pub._log_by_gateway["GW01"][0].seq
+        first_seq = pub._log[0].seq
         sock.sent.clear()
 
         pub.replay("CLIENT2", from_seq=first_seq, gateway_id="GW01")
         assert sock.sent[0][0] == b"drop_copy.replay.CLIENT2"
-        import json
-
         assert json.loads(sock.sent[0][1])["trade_ids"] == ["000001-000000001"]
 
     def test_replay_from_seq_zero_replays_all(
@@ -212,10 +215,27 @@ class TestReplay:
     ) -> None:
         pub, sock = publisher
         pub.publish_fill("GW01", **_fill())
-        last_seq = pub._log_by_gateway["GW01"][-1].seq
+        last_seq = pub._log[-1].seq
         sock.sent.clear()
         replayed = pub.replay("CLIENT4", from_seq=last_seq + 1000, gateway_id="GW01")
         assert replayed == 0
+
+
+def _probe_until_subscribed(
+    pub: DropCopyPublisher, subs: list[zmq.Socket[bytes]]
+) -> None:
+    """Defeat the PUB/SUB slow-joiner: probe until every subscriber hears it.
+
+    The probe goes out on the publisher's own socket but not through
+    ``publish_fill``, so it consumes no drop-copy sequence number. Probes
+    left queued are skipped by the reader.
+    """
+    deadline = time.monotonic() + 5.0
+    pending = list(subs)
+    while pending:
+        assert time.monotonic() < deadline, "subscribers never joined"
+        pub._pub.send_multipart([b"probe", b"{}"])
+        pending = [sub for sub in pending if not sub.poll(timeout=20)]
 
 
 def test_recipient_subscribers_get_independent_contiguous_sequences() -> None:
@@ -228,8 +248,9 @@ def test_recipient_subscribers_get_independent_contiguous_sequences() -> None:
             sub = ctx.socket(zmq.SUB)
             sub.connect(f"tcp://127.0.0.1:{port}")
             sub.setsockopt(zmq.SUBSCRIBE, f"drop_copy.event.{gateway_id}".encode())
+            sub.setsockopt(zmq.SUBSCRIBE, b"probe")
             subscribers[gateway_id] = sub
-        time.sleep(0.1)
+        _probe_until_subscribed(pub, list(subscribers.values()))
 
         for gateway_id, order_id in (
             ("GW01", "A1"),
@@ -241,9 +262,11 @@ def test_recipient_subscribers_get_independent_contiguous_sequences() -> None:
 
         received: dict[str, list[int]] = {"GW01": [], "GW02": []}
         for gateway_id, sub in subscribers.items():
-            for _ in range(2):
+            while len(received[gateway_id]) < 2:
                 assert sub.poll(timeout=1000)
                 topic, payload = sub.recv_multipart()
+                if topic == b"probe":
+                    continue
                 assert topic == f"drop_copy.event.{gateway_id}".encode()
                 received[gateway_id].append(json.loads(payload)["seq"])
 

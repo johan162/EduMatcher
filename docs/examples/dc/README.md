@@ -12,8 +12,8 @@ Both subscribers connect to `pm-dc-gwy` for one participant's gateway ID and
 put the received `DC_FILL` lines to use the way a risk or back-office system
 would: a running per-symbol tally of fills, executed quantity, VWAP and the
 `MAKER`/`TAKER` split. `DC_FILL` carries no side, so this is an activity
-tally, not a net position. Both examples also check that the drop-copy `SEQ`
-only moves forward, and shut down cleanly on Ctrl-C with a final summary.
+tally, not a net position. Both examples also check the drop-copy `SEQ` for
+gaps and restarts, and shut down cleanly on Ctrl-C with a final summary.
 
 See [Drop-Copy TCP Gateway](../../books/operator-guide/part-5-gateways/060-drop-copy-gateway.md)
 for the wire contract both clients follow, and
@@ -55,12 +55,16 @@ sends `EXIT`, then prints the final per-symbol tally.
 
 ## Sequence numbers
 
-`SEQ` is one engine-wide counter shared by the fills of **every** gateway ID,
-and a DC1 session only sees its own ID's share. Gaps are therefore normal and
-are not reported. What the examples do report is a `SEQ` at or below the last
-one seen: DC1 has no replay, so that is not a duplicate but an engine restart
-(the counter starts again from 1). They print `!! SEQ went backwards` on
-stderr and take the new value as the baseline.
+`SEQ` is a separate counter for each gateway ID, starting at 1, so a DC1
+session sees its own ID's fills numbered `1, 2, 3, …`. The examples report two
+things on stderr:
+
+- a `SEQ` that skips ahead: fills were lost (`!! SEQ gap`). DC1 has no
+  replay, so the missing fills have to be recovered some other way;
+- a `SEQ` at or below the last one seen: not a duplicate but an engine
+  restart, which starts the counter again from 1 (`!! SEQ went backwards`).
+
+Either way the new value becomes the baseline.
 
 ## Session behaviour
 

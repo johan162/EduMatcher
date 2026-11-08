@@ -357,7 +357,7 @@ while True:
     Never assume one `recv()` equals one line. Always buffer and split on `\n`.
 
 For full working Python and C subscribers (per-symbol volume/VWAP tally,
-`SEQ` direction check, clean Ctrl-C shutdown) see `docs/examples/dc/` and
+`SEQ` gap and restart check, clean Ctrl-C shutdown) see `docs/examples/dc/` and
 [Protocol Support Library Examples](../../protocols-and-clients/part-4-writing-clients/030-example-libraries.md#dc-support-library-and-examples).
 
 

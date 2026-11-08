@@ -31,9 +31,9 @@ design section 27.3.
 
 Buffer
 ~~~~~~
-``DROP_COPY_BUFFER_SIZE = 10_000`` messages per gateway are retained in
-bounded deques. Once a gateway's deque is full, its oldest messages are
-automatically dropped.
+``DROP_COPY_BUFFER_SIZE = 10_000`` messages, across all gateways, are
+retained in one bounded deque. Once the deque is full, the oldest messages are
+automatically dropped, so a busy gateway can push out a quiet one's history.
 At ~10 fills/second, 10,000 messages covers roughly 16 minutes.
 """
 
@@ -110,9 +110,9 @@ class DropCopyPublisher:
         bind_addr = addr if addr is not None else DROP_COPY_PUB_BIND_ADDR
         self._pub: zmq.Socket[bytes] = context.socket(zmq.PUB)
         self._pub.bind(bind_addr)
-        self._buffer_size = buffer_size
         self._seq_by_gateway: dict[str, int] = {}
-        self._log_by_gateway: dict[str, deque[DropCopyMessage]] = {}
+        # Bounded deque: when full, oldest messages are silently dropped
+        self._log: deque[DropCopyMessage] = deque(maxlen=buffer_size)
 
     def publish_fill(
         self,
@@ -165,14 +165,10 @@ class DropCopyPublisher:
             fill_price=fill_price,
             liquidity_flag=liquidity_flag,
         )
-        self._log_by_gateway.setdefault(
-            gateway_id, deque(maxlen=self._buffer_size)
-        ).append(msg)
+        self._log.append(msg)
         self._pub.send_multipart(make_drop_copy_event(**asdict(msg)))
 
-    def replay(
-        self, recipient_id: str, from_seq: int, *, gateway_id: str | None = None
-    ) -> int:
+    def replay(self, recipient_id: str, from_seq: int, *, gateway_id: str) -> int:
         """
         Re-publish one gateway's buffered messages with ``seq >= from_seq``.
 
@@ -184,20 +180,17 @@ class DropCopyPublisher:
         ----------
         recipient_id : Identifier for the subscriber requesting replay.
                        Used in the replay topic so multiple simultaneous
-                       replays do not interleave. Defaults to the stream's
-                       gateway_id when both identities are the same.
+                       replays do not interleave.
         from_seq     : Lowest sequence number in that gateway's stream.
-        gateway_id   : Gateway whose stream is being replayed. Defaults to
-                       recipient_id for a subscriber serving one gateway.
+        gateway_id   : Gateway whose stream is being replayed.
 
         Returns
         -------
         Number of messages replayed.
         """
         replayed = 0
-        stream_gateway = gateway_id if gateway_id is not None else recipient_id
-        for msg in self._log_by_gateway.get(stream_gateway, ()):
-            if msg.seq < from_seq:
+        for msg in self._log:
+            if msg.gateway_id != gateway_id or msg.seq < from_seq:
                 continue
             self._pub.send_multipart(
                 make_drop_copy_replay(recipient_id=recipient_id, **asdict(msg))

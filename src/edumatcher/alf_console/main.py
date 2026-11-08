@@ -820,6 +820,10 @@ class Gateway:
         pm-alf-gwy sends its own TCP clients for the same event (see
         ../../../docs/books/protocols-and-clients/part-5-message-reference/010-message-reference.md).
         """
+        # SUBSCRIBE matches by prefix: GW1 also receives GW10's events, which
+        # are another gateway's fills with their own seq stream.
+        if topic.encode() != self._dc_topic:
+            return
         ts = datetime.now().strftime("%H:%M:%S.%f")[:-3]
         seq = payload.get("seq", "?")
         symbol = payload.get("symbol", "?")

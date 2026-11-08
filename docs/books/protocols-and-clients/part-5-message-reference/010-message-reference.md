@@ -1076,7 +1076,7 @@ Engine to one named recipient: buffered events re-published on request, so a par
 
     `recipient_id` is therefore not the same thing as `gateway_id`, which is why the body keeps carrying the latter.
 
-    The in-process replay method selects one gateway's sequence and buffer; when those IDs differ, the caller supplies `gateway_id` explicitly.
+    The in-process replay method takes `gateway_id` as a required argument and replays only that gateway's events.
 
     There is no request message.
 

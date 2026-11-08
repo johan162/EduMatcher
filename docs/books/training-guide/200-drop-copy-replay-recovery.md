@@ -37,8 +37,8 @@ Important current limitation:
 
 - Replay exists as an in-process publisher method
   (`DropCopyPublisher.replay(recipient_id, from_seq, gateway_id=...)`), backed
-  by a per-gateway circular in-memory buffer of the last 10,000 events
-  (roughly 16 minutes of history at a sustained ~10 fills/second).
+  by one circular in-memory buffer of the last 10,000 events across all
+  gateways (roughly 16 minutes of history at a sustained ~10 fills/second).
 - There is currently no external ZMQ replay-request handler for downstream
   clients to call directly — and even once one exists, replay is bounded by
   that 10,000-event buffer, not unlimited history.
@@ -97,6 +97,8 @@ sock.subscribe(b"drop_copy.event.TRADER01")
 print("watching for sequence gaps")
 for _ in range(30):
     topic, payload = sock.recv_multipart()
+    if topic != b"drop_copy.event.TRADER01":  # prefix match: skip TRADER010...
+        continue
     msg = json.loads(payload)
     seq = msg.get("seq")
     if last is not None and seq is not None and seq != last + 1:
@@ -129,6 +131,8 @@ sock.subscribe(b"drop_copy.event.TRADER01")
 print("watching for gaps (deliberately dropping every 5th event)")
 for _ in range(30):
     topic, payload = sock.recv_multipart()
+    if topic != b"drop_copy.event.TRADER01":  # prefix match: skip TRADER010...
+        continue
     seen += 1
     if seen % 5 == 0:          # simulate a lost message
         continue

@@ -163,7 +163,7 @@ While this is running, execute a trade from `TRADER01` in another terminal:
 ```
 
 You should see one `drop_copy.event.<gateway_id>` message per participant on
-each side of the trade, stamped with a monotonically increasing `seq` (one counter for the whole feed, so the two sides of one trade get consecutive numbers).
+each side of the trade, stamped with a `seq` that counts that gateway's own events (each gateway has its own counter starting at 1, so the two sides of one trade carry numbers from different streams).
 Each message also carries `trade_ids`, the durable public trade ID that lets a
 risk or clearing consumer correlate its private execution with `trade.executed`.
 

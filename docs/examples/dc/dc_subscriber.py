@@ -4,8 +4,8 @@
 Goes beyond printing raw lines: connects to pm-dc-gwy for one participant's
 gateway ID, then puts the received `DC_FILL` lines to use the way a risk or
 back-office system would -- a running per-symbol tally of fills, executed
-quantity, VWAP and the MAKER/TAKER split, plus a check that the drop-copy
-`SEQ` only ever moves forward.
+quantity, VWAP and the MAKER/TAKER split, plus a check of the drop-copy
+`SEQ` for gaps and restarts.
 
 DC1 has no SUB step: the `ID` in `HELLO` is the whole subscription, and
 fills start arriving straight after `WELCOME`. A risk system watching several
@@ -68,15 +68,14 @@ def send_line(sock: socket.socket, msg_type: str, fields: dict[str, str]) -> Non
 
 
 class SequenceTracker:
-    """Checks that drop-copy SEQ values only move forward.
+    """Checks drop-copy SEQ values for gaps and restarts.
 
-    Unlike RALF and CALF, a gap here is *normal*: SEQ is one engine-wide
-    counter shared by the fills of every gateway ID, and this session only
-    sees its own ID's share of them (see "Sequence numbers" in the drop-copy
-    chapter). So the useful check is the other direction -- a SEQ at or below
-    the last one seen. DC1 has no replay, so that is not a duplicate: it means
-    the engine restarted and its counter began again from 1. The tracker
-    reports it and takes the new value as its baseline.
+    SEQ is a separate counter for each gateway ID (see "Sequence numbers" in
+    the drop-copy chapter), so this session's fills are numbered 1, 2, 3, ...
+    A SEQ that skips ahead means fills were lost. A SEQ at or below the last
+    one seen is not a duplicate -- DC1 has no replay -- but an engine restart,
+    which starts the counter again from 1. The tracker reports either and
+    takes the new value as its baseline.
     """
 
     def __init__(self) -> None:
@@ -89,7 +88,13 @@ class SequenceTracker:
             seq = int(seq_field)
         except ValueError:
             return
-        if self.last_seq is not None and seq <= self.last_seq:
+        if self.last_seq is not None and seq > self.last_seq + 1:
+            print(
+                f"!! SEQ gap: {seq - self.last_seq - 1} fill(s) missing "
+                f"between {self.last_seq} and {seq}",
+                file=sys.stderr,
+            )
+        elif self.last_seq is not None and seq <= self.last_seq:
             print(
                 f"!! SEQ went backwards: {seq} after {self.last_seq} "
                 f"(engine restarted?); re-baselining",
