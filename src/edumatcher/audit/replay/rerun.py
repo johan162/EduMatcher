@@ -105,7 +105,6 @@ from edumatcher.models.generated.structure import PREFIX_OCO_ACK
 from edumatcher.models.generated.system import (
     PREFIX_BOOK_CHECKPOINT,
     PREFIX_GATEWAY_BYE,
-    TOPIC_EOD,
     TOPIC_GATEWAY_HEARTBEAT,
     TOPIC_STARTUP,
     TOPIC_STARTUP_RECOVERY,
@@ -669,9 +668,10 @@ def inputs(files: list[Path]) -> Iterator[Input]:
     Raises :class:`Unavailable` where the trail is provably not the engine's
     whole output: it does not begin at an engine start, the engine-wide
     sequence (``eseq``) jumps, or pm-audit restarted while the engine ran: a
-    recorder-start marker anywhere but before the first line, between an
-    engine's ``system.eod`` and the next start, or before a line whose
-    ``eseq`` continues the one before (nothing was published meanwhile)."""
+    recorder-start marker anywhere but before the first line, before an
+    engine start (the recorder was up before the new engine's first line,
+    whatever ended the old one), or before a line whose ``eseq`` continues
+    the one before (nothing was published meanwhile)."""
     commands = _command_topics()
     first = True
     startup: Live | None = []
@@ -699,7 +699,7 @@ def inputs(files: list[Path]) -> Iterator[Input]:
         if (
             marker is not None
             and previous is not None
-            and not (ln.topic == STARTUP and previous == TOPIC_EOD)
+            and ln.topic != STARTUP
             and not (eseq is not None and ln.eseq == eseq + 1)
         ):
             raise Unavailable(

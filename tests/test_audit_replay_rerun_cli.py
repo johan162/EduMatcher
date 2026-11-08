@@ -195,6 +195,22 @@ class TestAnIncompleteTrail:
         code, out = run(data, capsys)
         assert code == 0, out
 
+    def test_a_recorder_restarted_with_an_engine_that_never_said_eod_is_whole(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """The stack stopped while the exchange was closed: the old engine's
+        trail ends without system.eod, and the new one's begins after the
+        new recorder's start."""
+        data = record(tmp_path / "data", restart=True)
+        lines = (data / "audit.log").read_text().splitlines(keepends=True)
+        lines = [ln for ln in lines if "[system.eod]" not in ln]
+        second = [k for k, ln in enumerate(lines) if "[system.startup]" in ln][1]
+        lines.insert(second, recorder_start_line() + "\n")
+        lines.insert(0, recorder_start_line() + "\n")
+        (data / "audit.log").write_text("".join(lines))
+        code, out = run(data, capsys)
+        assert code == 0, out
+
 
 def test_a_run_that_is_not_the_first_start_of_its_data_dir_reruns_clean(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
