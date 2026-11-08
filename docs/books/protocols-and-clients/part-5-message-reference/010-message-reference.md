@@ -1265,6 +1265,40 @@ One process that holds client connections: the ALF, BALF, MD, RALF and drop-copy
 | `disconnects_today` | `int` | required | ge 0, unit `dimensionless` |  |
 | `slow_disconnects_today` | `int` | required | ge 0, unit `dimensionless` | Clients cut off for not reading; the back-pressure signal. |
 
+#### `ApiKeyStats`
+
+One API key of one API gateway as the dashboard's REST API row shows it. The key is named by its configured description (else its gateway id), never by the key itself.
+
+| Field | Type | Presence | Rules | Description |
+|---|---|---|---|---|
+| `label` | `string` | required | max_len 32 | The key's description; `(unauth)` for requests that did not authenticate. |
+| `requests_total` | `int` | required | ge 0, unit `dimensionless` | Requests answered since the API gateway started. |
+| `requests_today` | `int` | required | ge 0, unit `dimensionless` |  |
+| `per_sec_now` | `float` | required | ge 0, unit `dimensionless` | Over the last 60 s. |
+| `per_sec_hour` | `float` | required | ge 0, unit `dimensionless` | Over the last 60 min, or as long as pm-monitor has known the gateway if that is shorter (at least 60 s). |
+| `share_pct` | `float` | required | ge 0, unit `percent` | Of all the gateway's requests since it started. |
+| `peak_per_sec` | `int` | required | ge 0, unit `dimensionless` | This key's busiest one-second bucket since the gateway started. |
+| `throttled_total` | `int` | required | ge 0, unit `dimensionless` | Writes refused (429) by the rate limiter since the gateway started. |
+| `throttled_today` | `int` | required | ge 0, unit `dimensionless` |  |
+| `throttled_5m` | `int` | required | ge 0, unit `dimensionless` |  |
+
+#### `ApiStats`
+
+One API gateway process (one per `--instance`): its HTTP request load in total and per API key, and how much the rate limiter refused.
+
+| Field | Type | Presence | Rules | Description |
+|---|---|---|---|---|
+| `key` | `string` | required | max_len 200, min_len 1 | The ProcessHealth key of the same process. |
+| `requests_total` | `int` | required | ge 0, unit `dimensionless` | api.http_requests: every HTTP request since the gateway started, authenticated or not. |
+| `requests_today` | `int` | required | ge 0, unit `dimensionless` |  |
+| `per_sec_now` | `float` | required | ge 0, unit `dimensionless` | Over the last 60 s. |
+| `per_sec_hour` | `float` | required | ge 0, unit `dimensionless` | Over the last 60 min, or as long as pm-monitor has known the gateway if that is shorter (at least 60 s). |
+| `peak_per_sec` | `int` | required | ge 0, unit `dimensionless` | The busiest one-second bucket since the gateway started. |
+| `peak_key` | `string` | required | max_len 32 | The key with the highest own peak; empty before any request. |
+| `throttled_total` | `int` | required | ge 0, unit `dimensionless` | Writes refused (429) since the gateway started, over all keys. |
+| `throttled_5m` | `int` | required | ge 0, unit `dimensionless` |  |
+| `keys` | list of [`ApiKeyStats`](#apikeystats) | required | — |  |
+
 #### `ActiveBreach`
 
 One threshold currently in breach (design section 9.6).
@@ -1337,6 +1371,7 @@ pm-monitor to the dashboard bridge, once a second: everything the dashboard show
 | `participants` | list of [`ParticipantStats`](#participantstats) | required | — |  |
 | `books` | list of [`BookStats`](#bookstats) | required | — |  |
 | `gateways` | list of [`GatewayStats`](#gatewaystats) | required | — |  |
+| `api` | list of [`ApiStats`](#apistats) | required | — | One per API gateway process; empty without one. |
 | `thresholds` | list of [`ActiveBreach`](#activebreach) | required | — | Breaches active now; empty when all is well. |
 
 !!! note

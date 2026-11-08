@@ -343,6 +343,65 @@ class GatewayStats(BaseModel):
     """Clients cut off for not reading; the back-pressure signal."""
 
 
+class ApiKeyStats(BaseModel):
+    """One API key of one API gateway as the dashboard's REST API row shows it. The
+    key is named by its configured description (else its gateway id), never by the
+    key itself.
+    """
+
+    model_config = ConfigDict(use_attribute_docstrings=True)
+
+    label: str = Field(max_length=32)
+    """The key's description; `(unauth)` for requests that did not authenticate."""
+    requests_total: int = Field(ge=0)
+    """Requests answered since the API gateway started."""
+    requests_today: int = Field(ge=0)
+    per_sec_now: float = Field(ge=0)
+    """Over the last 60 s."""
+    per_sec_hour: float = Field(ge=0)
+    """Over the last 60 min, or as long as pm-monitor has known the gateway if that
+    is shorter (at least 60 s).
+    """
+    share_pct: float = Field(ge=0)
+    """Of all the gateway's requests since it started. Unit: percent."""
+    peak_per_sec: int = Field(ge=0)
+    """This key's busiest one-second bucket since the gateway started."""
+    throttled_total: int = Field(ge=0)
+    """Writes refused (429) by the rate limiter since the gateway started."""
+    throttled_today: int = Field(ge=0)
+    throttled_5m: int = Field(ge=0)
+
+
+class ApiStats(BaseModel):
+    """One API gateway process (one per `--instance`): its HTTP request load in total
+    and per API key, and how much the rate limiter refused.
+    """
+
+    model_config = ConfigDict(use_attribute_docstrings=True)
+
+    key: str = Field(min_length=1, max_length=200)
+    """The ProcessHealth key of the same process."""
+    requests_total: int = Field(ge=0)
+    """api.http_requests: every HTTP request since the gateway started, authenticated
+    or not.
+    """
+    requests_today: int = Field(ge=0)
+    per_sec_now: float = Field(ge=0)
+    """Over the last 60 s."""
+    per_sec_hour: float = Field(ge=0)
+    """Over the last 60 min, or as long as pm-monitor has known the gateway if that
+    is shorter (at least 60 s).
+    """
+    peak_per_sec: int = Field(ge=0)
+    """The busiest one-second bucket since the gateway started."""
+    peak_key: str = Field(max_length=32)
+    """The key with the highest own peak; empty before any request."""
+    throttled_total: int = Field(ge=0)
+    """Writes refused (429) since the gateway started, over all keys."""
+    throttled_5m: int = Field(ge=0)
+    keys: list[ApiKeyStats]
+
+
 class ActiveBreach(BaseModel):
     """One threshold currently in breach (design section 9.6)."""
 
@@ -438,6 +497,8 @@ class HealthSnapshot(BaseModel):
     participants: list[ParticipantStats]
     books: list[BookStats]
     gateways: list[GatewayStats]
+    api: list[ApiStats]
+    """One per API gateway process; empty without one."""
     thresholds: list[ActiveBreach]
     """Breaches active now; empty when all is well."""
 

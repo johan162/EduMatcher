@@ -858,7 +858,7 @@ so `log-gui` alerting already covers notification. No second alerting system.
 
 As implemented in B3 (`monitor/thresholds.py`, I62–I65): rule names are
 the configuration keys, plus five fixed ones — `loop_age_ms` (warn only), `audit_archive_errors`,
-`slow_client_disconnects`, `api_dropped_events`, `stats_feed_gaps`, and
+`slow_client_disconnects`, `api_dropped_events`, `api_throttled`, `stats_feed_gaps`, and
 `audit_archive_errors` (pm-audit's archiver failed; Zstd-Audit Z4) (any
 increase in 5 min). A level rises at once and eases after three
 consecutive lower seconds, to the highest level of that run; a reading that
@@ -948,7 +948,7 @@ never re-derives a figure. Summary of the generated records:
 
 | Record | Fields |
 |---|---|
-| `health.snapshot` | `ts` (ISO-8601 UTC ms), `seq`, `exchange`, `host`, `processes[]`, `trading`, `participants[]`, `books[]`, `gateways[]`, `thresholds[]` |
+| `health.snapshot` | `ts` (ISO-8601 UTC ms), `seq`, `exchange`, `host`, `processes[]`, `trading`, `participants[]`, `books[]`, `gateways[]`, `api[]`, `thresholds[]` |
 | `ExchangeStatus` | `status` (OPERATIONAL/DEGRADED/IMPAIRED/DOWN), `session_state`, `trading_date`, `session_timezone` |
 | `HostStats` | `cpu_pct`, `cpu_per_core[]`, `load1`/`load5`/`load15`, `mem_total/used/available_bytes`, `swap_used_bytes`, `disk_free/total_bytes`, `files[]` of `FileSize{name, size_bytes}` |
 | `ProcessHealth` | `key`, `process`, `instance` (null), `host`, `group` (EXCHANGE/BOT), `pid`, `state` (7 values, §10), `restarted_recently`, `starting` (B2), `uptime_sec`, `rss_bytes`, `cpu_pct`, `threads`, `fds` (null), `loop_age_ms`, `loop_lag_ms`, `last_beacon_age_ms`, `spark{rss[], cpu[]}` (≤ 60 each), `metrics[]` (the latest beacon's `MetricSample`s, as sent) |
@@ -956,6 +956,8 @@ never re-derives a figure. Summary of the generated records:
 | `TradingStats` | `orders: RateStats`, `trades: RateStats`, `traded_value_today`, `reject_pct_5m`, `handle_p50_us`, `handle_p99_us`, `busy_pct` |
 | `ParticipantStats` | `id`, `role`, `connected`, `connected_since` (null), `orders: RateStats`, `reject_pct`, `fills_today`, `resting_orders`, `connects_today`, `disconnects_today`, `heartbeat_timeouts_today` |
 | `BookStats` | `symbol`, `resting_orders`, `gtc_orders`, `stop_orders`, `bid_levels`, `ask_levels`, `est_bytes`, `heap_bloat_ratio`, `trades_today`, `halted` |
+| `ApiStats` | `key`, `requests_total` (since the gateway started), `requests_today`, `per_sec_now` (60 s), `per_sec_hour` (60 min), `peak_per_sec`, `peak_key`, `throttled_total`, `throttled_5m`, `keys[]` — one per API gateway process |
+| `ApiKeyStats` | `label` (the key's description), `requests_total`, `requests_today`, `per_sec_now`, `per_sec_hour`, `share_pct`, `peak_per_sec`, `throttled_total`, `throttled_today`, `throttled_5m` |
 | `GatewayStats` | `key`, `kind` (ALF/BALF/MD/RALF/DC/API/LOG), `clients`, `clients_max` (null), `msgs_per_sec`, `disconnects_today`, `slow_disconnects_today` |
 | `ActiveBreach` | `rule`, `subject`, `level` (WARN/CRIT), `value`, `threshold`, `since` |
 | `health.event` | `seq` (= `metrics.db` `events.seq`), `ts`, `kind` (§9.2 kinds + PROCESS_STATUS/THRESHOLD), `severity` (INFO/WARN/CRIT), `subject`, `detail` |
@@ -2722,7 +2724,7 @@ carries only active breaches, so the rows take the rules from
 `lib/thresholds.ts` `fromRule()`. The endpoint returns every rule
 `ActiveBreach.rule` can name, each `{warn, crit, invert, configurable}`:
 - **The seven configurable rules:** from the deployed artifact's `monitor.thresholds`, which is what pm-monitor read when it started. With no artifact deployed they are pm-monitor's built-in defaults, which is what it then runs on.
-- **Rules fixed in pm-monitor's code:** `loop_age_ms` (WARN above 1 s), and `api_dropped_events`, `stats_feed_gaps`, `audit_archive_errors` and `slow_client_disconnects` (any increase over 5 min).
+- **Rules fixed in pm-monitor's code:** `loop_age_ms` (WARN above 1 s), and `api_dropped_events`, `api_throttled` (the REST API's rate limiter refused a write), `stats_feed_gaps`, `audit_archive_errors` and `slow_client_disconnects` (any increase over 5 min).
 - **The bridge's own copy:** of the defaults, inverted rules and fixed rules, pinned to the Python by `tests/test_dash_thresholds_mirror.py`.
 - **A broken artifact:** an artifact that is there but cannot be used is a 503 `thresholds_unavailable`, never a quiet fallback to defaults.
 - **A redeployed artifact:** shows at once, but pm-monitor uses the new values only after its restart, as for every process.

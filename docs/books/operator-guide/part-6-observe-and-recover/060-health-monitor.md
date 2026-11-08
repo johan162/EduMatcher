@@ -180,7 +180,7 @@ and nothing is MISSING.
 | `rss_growth_pct_1h` — judged once a process has been watched for 10 min, only when the hour added at least 100 MB and RSS rose at least 1 % in the last 15 min, with less than half of the hour's growth falling in those 15 min (a step, such as the ramp when continuous trading starts, is not a leak, neither while it happens nor after it has levelled off) | a process | > 50 % | > 100 % |
 | `heap_bloat_ratio` — a book's heap size over the size compaction tolerates; 1 is the limit | a symbol | > 1.5 | > 3 |
 | `loop_age_ms` (fixed) | a process | > 1 000 ms | (HUNG) |
-| `slow_client_disconnects`, `api_dropped_events`, `stats_feed_gaps` (fixed) | a process | any increase in 5 min | — |
+| `slow_client_disconnects`, `api_dropped_events`, `api_throttled`, `stats_feed_gaps` (fixed) | a process | any increase in 5 min | — |
 | `audit_archive_errors` (fixed) — `pm-audit`'s archiver exited with an error | `pm-audit` | any increase in 5 min | — |
 | `metrics_store_errors` (fixed) — history `pm-monitor` could not write | `pm-monitor` | any increase in 5 min | — |
 

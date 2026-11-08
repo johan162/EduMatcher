@@ -26,6 +26,7 @@ from edumatcher.monitor.timefmt import iso_utc
 from edumatcher.stats.trading_day import trading_date
 
 ENGINE = "pm-engine"
+API_GATEWAY = "pm-api-gwy"
 
 #: Receives every increment counted into today, per series:
 #: ``(date, source key, name, label, delta, now_wall)`` -- metrics.db's
@@ -46,7 +47,16 @@ class GatewayMetrics:
     disconnects: str | None = None  # counter, summed over labels
     slow: str | None = None  # counter
     slow_label: str | None = None  # only this label of ``slow``; None = all
+    #: Counters kept as one rate per label (the API gateway's per-key figures).
+    per_label: frozenset[str] = frozenset()
 
+
+API_KEY_REQUESTS = "api.key_requests"
+API_KEY_THROTTLED = "api.key_throttled"
+#: Longest span the "last hour" average is taken over.
+_HOUR_SEC = 3600.0
+#: Shortest, so the first seconds of data do not read as a spike.
+_MIN_AVG_SEC = 60.0
 
 GATEWAYS: dict[str, GatewayMetrics] = {
     "pm-alf-gwy": GatewayMetrics(
@@ -90,8 +100,11 @@ GATEWAYS: dict[str, GatewayMetrics] = {
         disconnects="gwy.disconnects",
         slow="gwy.slow_clients",
     ),
-    "pm-api-gwy": GatewayMetrics(
-        "API", clients="api.ws_sessions", traffic="api.http_requests"
+    API_GATEWAY: GatewayMetrics(
+        "API",
+        clients="api.ws_sessions",
+        traffic="api.http_requests",
+        per_label=frozenset({API_KEY_REQUESTS, API_KEY_THROTTLED}),
     ),
     "pm-log-srv": GatewayMetrics(
         "LOG", clients="log.sessions", traffic="log.events_in"
@@ -103,6 +116,8 @@ GATEWAYS: dict[str, GatewayMetrics] = {
 #: through :data:`GATEWAYS` as ``slow_client_disconnects``.
 WATCHED_INCREASES = {
     "api.dropped_events": "api_dropped_events",
+    # A write-rate limiter said no to some API key.
+    API_KEY_THROTTLED: "api_throttled",
     "stats.feed_gaps": "stats_feed_gaps",
     # pm-audit's archiver child failed; the day's parts stay readable.
     "audit.archive_errors": "audit_archive_errors",
@@ -158,6 +173,13 @@ class Gateway:
     traffic: Rate = field(default_factory=Rate)
     disconnects: float = 0.0
     slow: Rate = field(default_factory=Rate)
+    #: Every counter as its latest beacon reported it: the total since the
+    #: process started, whatever pm-monitor knew of it. (name, label) -> value.
+    totals: dict[tuple[str, str], float] = field(default_factory=dict)
+    #: One rate per (name, label) of the ``GatewayMetrics.per_label`` counters.
+    labelled: dict[tuple[str, str], Rate] = field(default_factory=dict)
+    #: pm-monitor's clock when it first heard from this gateway.
+    since: float | None = None
 
     def gauge_sum(self, name: str | None) -> float | None:
         if name is None or name not in self.gauges:
@@ -223,6 +245,8 @@ class Activity:
             for g in self.gateways.values():
                 g.traffic.new_day()
                 g.slow.new_day()
+                for rate in g.labelled.values():
+                    rate.new_day()
                 g.disconnects = 0.0
         return True
 
@@ -252,6 +276,8 @@ class Activity:
         if gateway_metrics is not None:
             gateway = self.gateways.setdefault(key, Gateway(process))
             gateway.gauges = {}
+            if gateway.since is None:
+                gateway.since = now
         for sample in beacon.metrics:
             name, label, value = sample.name, sample.label, sample.value
             if sample.kind == "GAUGE":
@@ -260,6 +286,8 @@ class Activity:
                 elif gateway is not None:
                     gateway.gauges.setdefault(name, {})[label] = value
                 continue
+            if gateway is not None:
+                gateway.totals[(name, label)] = value
             delta, step = self.tracker.step((key, name, label), beacon.boot_id, value)
             windowed = step is Step.LIVE
             if step is Step.FIRST and not started_today:
@@ -373,6 +401,10 @@ class Activity:
     ) -> None:
         if name == spec.traffic:
             gateway.traffic.add(now, delta, windowed=windowed)
+        if name in spec.per_label:
+            gateway.labelled.setdefault((name, label), Rate()).add(
+                now, delta, windowed=windowed
+            )
         if name == spec.disconnects:
             gateway.disconnects += delta
         if name == spec.slow and (spec.slow_label is None or label == spec.slow_label):
@@ -533,6 +565,74 @@ class Activity:
                     "msgs_per_sec": g.traffic.minute.total(now) / 60.0,
                     "disconnects_today": int(g.disconnects),
                     "slow_disconnects_today": int(g.slow.today),
+                }
+            )
+        return out
+
+    def api_records(self, now: float, keys: Iterable[str]) -> list[dict[str, Any]]:
+        """``ApiStats`` for the API gateways among ``keys``: the request load
+        in total and per API key, and the throttling."""
+        out = []
+        for key in keys:
+            g = self.gateways.get(key)
+            if g is None or g.process != API_GATEWAY:
+                continue
+            span = min(_HOUR_SEC, max(_MIN_AVG_SEC, now - (g.since or now)))
+
+            def rate(name: str, label: str, g: Gateway = g) -> Rate:
+                return g.labelled.get((name, label)) or Rate()
+
+            labels = sorted(
+                {label for name, label in g.totals if name == API_KEY_REQUESTS}
+            )
+            peaks = g.gauges.get("api.key_rps_peak", {})
+            requests = {
+                label: g.totals.get((API_KEY_REQUESTS, label), 0.0) for label in labels
+            }
+            all_requests = sum(requests.values())
+            keyed: list[dict[str, Any]] = []
+            peak_key, peak_max = "", 0
+            throttled_total = throttled_5m = 0
+            for label in labels:
+                served = rate(API_KEY_REQUESTS, label)
+                throttled = rate(API_KEY_THROTTLED, label)
+                peak = int(peaks.get(label, 0.0))
+                total_throttled = int(g.totals.get((API_KEY_THROTTLED, label), 0.0))
+                recent_throttled = int(round(throttled.last_5m(now)))
+                if peak > peak_max:
+                    peak_key, peak_max = label[:32], peak
+                throttled_total += total_throttled
+                throttled_5m += recent_throttled
+                keyed.append(
+                    {
+                        "label": label[:32],
+                        "requests_total": int(requests[label]),
+                        "requests_today": int(round(served.today)),
+                        "per_sec_now": served.minute.total(now) / 60.0,
+                        "per_sec_hour": served.hour.total(now) / span,
+                        "share_pct": (
+                            100.0 * requests[label] / all_requests
+                            if all_requests > 0
+                            else 0.0
+                        ),
+                        "peak_per_sec": peak,
+                        "throttled_total": total_throttled,
+                        "throttled_today": int(round(throttled.today)),
+                        "throttled_5m": recent_throttled,
+                    }
+                )
+            out.append(
+                {
+                    "key": key,
+                    "requests_total": int(g.totals.get(("api.http_requests", ""), 0.0)),
+                    "requests_today": int(round(g.traffic.today)),
+                    "per_sec_now": g.traffic.minute.total(now) / 60.0,
+                    "per_sec_hour": g.traffic.hour.total(now) / span,
+                    "peak_per_sec": int(g.gauge_sum("api.rps_peak") or 0),
+                    "peak_key": peak_key,
+                    "throttled_total": throttled_total,
+                    "throttled_5m": throttled_5m,
+                    "keys": keyed,
                 }
             )
         return out
