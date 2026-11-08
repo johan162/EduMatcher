@@ -37,6 +37,10 @@ export function AlertsView() {
       });
     },
   });
+  const ackAllMutation = useMutation({
+    mutationFn: () => api.ackAllIssues(operatorName || "unknown", "WARNING"),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["issues"] }),
+  });
   const unackMutation = useMutation({
     mutationFn: (fingerprint: string) => api.unackIssue(fingerprint, operatorName || "unknown"),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["issues"] }),
@@ -57,6 +61,16 @@ export function AlertsView() {
             {t}
           </button>
         ))}
+        <button
+          type="button"
+          disabled={tab === "acked" || ackAllMutation.isPending}
+          onClick={() => {
+            if (window.confirm("Acknowledge all unacknowledged alerts?")) ackAllMutation.mutate();
+          }}
+          className="rounded bg-accent px-2 py-1 font-semibold text-white disabled:opacity-50"
+        >
+          ✓ Acknowledge all
+        </button>
         <input
           className="ml-auto rounded border border-border bg-bg px-2 py-1 text-sm"
           placeholder="your name (for ack attribution)"

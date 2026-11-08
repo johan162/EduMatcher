@@ -60,6 +60,31 @@ export function registerIssuesRoutes(
     return { ack };
   });
 
+  app.post("/api/issues/ack-all", async (request, reply) => {
+    const body = request.body as { ackedBy?: string; note?: string; minLevel?: string } | undefined;
+    if (!body?.ackedBy) {
+      return reply.status(400).send({ error: "invalid_request", message: "ackedBy is required" });
+    }
+
+    const minLevel = body.minLevel ? body.minLevel.toUpperCase() : undefined;
+    const pending = issueIndex.list({ acked: false, minLevel });
+    for (const issue of pending) {
+      const ack = ackStore.ack({
+        fingerprint: issue.fingerprint,
+        ackedBy: body.ackedBy,
+        note: body.note ?? null,
+        ackedThroughSeq: issue.lastSeq,
+        level: issue.level,
+        process: issue.process,
+        logger: issue.logger,
+        sampleMessage: issue.sampleMessage,
+      });
+      const frame: ServerFrame = { t: "ack", fingerprint: issue.fingerprint, ack };
+      wsHub.broadcastAll(frame);
+    }
+    return { acked: pending.length };
+  });
+
   app.delete("/api/issues/:fingerprint/ack", async (request) => {
     const { fingerprint } = request.params as { fingerprint: string };
     const body = request.body as { by?: string } | undefined;
