@@ -37,7 +37,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 | 7 | T7 | Installed examples, C exercises and version metadata | Q9, Q10, Q21 | — | ☐ | |
 | 8 | T8 | Normal-use warnings and artifact errors | Q11 | Contract decision | ☑ | 2026-11-08 |
 | 9 | T9 | Swarm budget semantics | Q12 | Contract decision | ☐ | |
-| 10 | T10 | Teaching configuration, persisted orders and collars | Q13 | Contract decision | ☐ | |
+| 10 | T10 | Teaching configuration, persisted orders and collars | Q13 | Contract decision | ☑ | 2026-11-08 |
 | 11 | T11 | Session-transition rejection replies | Q14 | — | ☑ | 2026-11-08 |
 | 12 | T12 | Index history, listing and restored session phase | Q15, Q16 | Contract decision | ☑ | 2026-11-08 |
 | 13 | T13 | ATO expiry reason | Q17 | — | ☑ | 2026-11-08 |
@@ -522,9 +522,12 @@ Steps:
 
 ### T10 — Teaching configuration and persisted exchange history (Q13)
 
-**Question to resolve:** Should teaching examples isolate learners from
-persisted same-day `DAY` orders and historical reference prices, or teach the
-operator-documented persistence/collar behavior explicitly?
+**Decision (2026-11-08):** Keep the named-level exercise's fixed collar
+predictions repeatable by clearing exchange working state before Exercise 11.
+Do not widen teaching collars or alter production persistence semantics.
+`pm-opctl-cli clear --state` removes both persisted same-day DAY orders and
+historical reference prices while preserving the deployed configuration,
+logs, audit data and settlements.
 
 Steps:
 1. Add a deterministic scenario test that runs the relevant chapter setup
@@ -547,6 +550,28 @@ Steps:
    persistence documentation.
 - Relevant examples and chapter predictions are verified from a clean
    checkout/data directory and a second run.
+
+**Result (2026-11-08):** Added a deterministic same-business-day restart
+scenario covering the chapter's AAPL reference-price path to 164.50 and a
+resting DAY order. The second startup restores both; the old DAY order remains
+on the book and the 143.00 example is rejected against the restored reference
+instead of the configured 150.00 seed. The test then invokes the actual
+`clear --state` path, restarts with the same configuration, and verifies the
+order is gone, the seed prices are restored, and all six Exercise 11 AAPL,
+MSFT and TSLA accept/reject predictions match the guide.
+
+The chapter now uses the documented state reset instead of deleting only
+`book_stats.json`. It warns that all processes must be stopped first, explains
+which histories `--state` clears and preserves, and notes that the deployed
+configuration does not need redeployment. The exercise's price bands and
+production persistence behavior are unchanged.
+
+Verification:
+- `poetry run pytest tests/test_gtc_interday.py tests/test_emo_cli.py -q
+   --no-cov` — 99 passed
+- Full suite — 13,587 passed, 1 skipped; 90.43% coverage (85% required)
+- Repository-wide Black, Flake8, mypy and pyright — passed
+- `poetry run mkdocs build` and `git diff --check` — passed
 
 ### T11 — Session-transition rejection replies (Q14)
 
