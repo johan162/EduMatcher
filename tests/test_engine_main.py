@@ -12,9 +12,12 @@ from __future__ import annotations
 
 from argparse import Namespace
 import logging
+from pathlib import Path
+import sys
 
 import pytest
 
+import edumatcher.engine.main as engine_main
 from edumatcher.engine.main import (
     build_parser,
     _configure_logging,
@@ -75,3 +78,41 @@ def test_country_wire_code_accepts_configured_country_names() -> None:
     assert _country_wire_code("Sweden") == "SE"
     assert _country_wire_code("SE") == "SE"
     assert _country_wire_code(None) is None
+
+
+@pytest.mark.parametrize(
+    ("arguments", "debug_enabled"),
+    [([], False), (["-vv"], True)],
+    ids=["normal", "verbose"],
+)
+def test_invalid_deployed_artifact_exits_without_a_traceback(
+    arguments: list[str],
+    debug_enabled: bool,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    artifact = tmp_path / "engine_config.json"
+    artifact.write_text("{ not json")
+    monkeypatch.setattr(
+        "edumatcher.config_artifact.COMPILED_CONFIG_FILE", artifact, raising=True
+    )
+    monkeypatch.setattr(sys, "argv", ["pm-engine", *arguments])
+    monkeypatch.setattr(
+        engine_main,
+        "_configure_logging",
+        lambda args: logging.DEBUG if args.verbose else logging.WARNING,
+    )
+
+    level = logging.DEBUG if debug_enabled else logging.WARNING
+    with caplog.at_level(level, logger="edumatcher.engine.main"):
+        with pytest.raises(SystemExit) as exc_info:
+            engine_main.main()
+
+    assert exc_info.value.code == 1
+    errors = [record for record in caplog.records if record.levelno == logging.ERROR]
+    assert len(errors) == 1
+    assert "cannot read the deployed configuration" in errors[0].getMessage()
+    assert "pm-config-deploy" in errors[0].getMessage()
+    debug_errors = [record for record in caplog.records if record.exc_info]
+    assert bool(debug_errors) is debug_enabled

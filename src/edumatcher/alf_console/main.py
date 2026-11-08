@@ -685,14 +685,18 @@ class Gateway:
             while True:
                 if self._heartbeat_stop.wait(GATEWAY_HEARTBEAT_INTERVAL_SEC):
                     return
-                log.debug("engine heartbeat sent gateway_id=%s", self.gateway_id)
                 try:
                     push_sock.send_multipart(
                         make_gateway_heartbeat_msg(self.gateway_id)
                     )
                 except zmq.Again:
+                    log.debug(
+                        "gateway_id=%s heartbeat dropped: engine unreachable",
+                        self.gateway_id,
+                    )
                     self._engine_connection_lost()
                     return
+                log.debug("engine heartbeat sent gateway_id=%s", self.gateway_id)
         finally:
             push_sock.close()
 
@@ -731,9 +735,7 @@ class Gateway:
             sock.send_multipart(frames)
             return True
         except zmq.Again:
-            log.warning(
-                "gateway_id=%s send dropped: engine unreachable", self.gateway_id
-            )
+            log.debug("gateway_id=%s send dropped: engine unreachable", self.gateway_id)
             self._engine_connection_lost()
             return False
 

@@ -35,7 +35,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 | 5 | T5 | Admin console identities and safe reset guidance | Q5, Q6 | — | ☑ | 2026-11-07 |
 | 6 | T6 | Clearing totals and gateway quote-status scope | Q7, Q8 | — | ☑ | 2026-11-07 |
 | 7 | T7 | Installed examples, C exercises and version metadata | Q9, Q10, Q21 | — | ☐ | |
-| 8 | T8 | Normal-use warnings and artifact errors | Q11 | Contract decision | ☐ | |
+| 8 | T8 | Normal-use warnings and artifact errors | Q11 | Contract decision | ☑ | 2026-11-08 |
 | 9 | T9 | Swarm budget semantics | Q12 | Contract decision | ☐ | |
 | 10 | T10 | Teaching configuration, persisted orders and collars | Q13 | Contract decision | ☐ | |
 | 11 | T11 | Session-transition rejection replies | Q14 | — | ☐ | |
@@ -452,6 +452,13 @@ Steps:
 engine-unreachable heartbeats be quiet below WARNING? Should invalid artifact
 startup show a concise error rather than a traceback?
 
+**Contract decision (2026-11-08):** Missing or unavailable monitoring and
+engine-unreachable heartbeat sends during restarts are expected operational
+noise: log them at DEBUG, retaining the existing beacon rate limit. Disabled
+monitoring sends no beacons and emits no warning. An invalid deployed artifact
+must stop `pm-engine` with status 1 and one actionable error; traceback
+diagnostics are available at DEBUG.
+
 Steps:
 1. Add log-capture tests first for: (a) a process with no monitor configured,
    (b) a configured but unavailable monitor over at least two reporting
@@ -472,6 +479,20 @@ Steps:
 - Invalid artifacts still fail startup with a nonzero result and no
   success-shaped fallback.
 - Targeted tests and docs checks pass.
+
+**Evidence:**
+- `poetry run pytest tests/test_health_reporter.py tests/test_alf_console_heartbeat.py tests/test_engine_main.py tests/test_config_runtime_readers.py -q --no-cov`
+  — 77 passed. With monitoring disabled, no reporter/log is created; a
+  configured monitor rejecting beacons over three sampler intervals logs at
+  DEBUG without stopping the reporter. Repeated controlled send attempts verify
+  the 60-second rate limit. A heartbeat send failure during engine loss logs
+  the drop at DEBUG, retains the single logout error/message, and stops the
+  console. Malformed JSON (`{ not json`) makes `pm-engine` exit 1 with one
+  actionable error; `-vv` retains exception details at DEBUG.
+- `poetry run mkdocs build` — passed; the Training Guide index and Chapter 01
+  describe the normal and debug output.
+- `poetry run black --check src tests`, `poetry run flake8 src tests`,
+  `poetry run mypy src tests`, and `poetry run pyright src tests` — passed.
 
 ### T9 — Swarm budget semantics (Q12)
 

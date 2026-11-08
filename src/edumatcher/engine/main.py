@@ -7864,13 +7864,17 @@ def _configure_logging(args: argparse.Namespace) -> int:
 
 
 def main() -> None:
-    from edumatcher.config_artifact import report_deployment
+    from edumatcher.config_artifact import ArtifactError, report_deployment
 
     parser = build_parser()
     args = parser.parse_args()
     log_level = _configure_logging(args)
     log.info("starting pm-engine with log level %s", logging.getLevelName(log_level))
-    report_deployment(log)
+    try:
+        report_deployment(log)
+    except ArtifactError:
+        log.debug("deployed configuration startup failure details", exc_info=True)
+        raise SystemExit(1) from None
     engine = Engine()
     reporter = HealthReporter.from_compiled_config(_CLIENT_NAME)
     if reporter is not None:

@@ -88,12 +88,13 @@ exits; **consoles do not reconnect by themselves**:
 After each engine restart, start the consoles again, then reopen the market.
 A quote or order that is still resting from before the restart is still there.
 
-!!! note "Harmless warnings"
-    When you start the processes by hand, `pm-monitor` (the health monitor) is
-    not running, and you may see lines such as
-    `WARNING … pm-monitor at tcp://127.0.0.1:5610 not accepting beacons` or
-    `WARNING … heartbeat dropped: engine unreachable` (also whenever the
-    engine is restarted). They do not affect the exercises.
+!!! note "Expected health diagnostics"
+    When monitoring is disabled, processes send no health beacons. If monitoring
+    is configured but `pm-monitor` is not running, the rate-limited
+    `pm-monitor … not accepting beacons` diagnostic is DEBUG and appears only
+    with `-vv`. The same DEBUG-level policy applies to dropped engine heartbeats
+    during a restart. The console still prints its logout message when it loses
+    the engine connection; restart the console after restarting the engine.
 
 ### Conventions
 

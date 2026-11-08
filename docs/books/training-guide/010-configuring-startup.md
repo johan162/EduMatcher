@@ -344,9 +344,10 @@ prints only warnings and errors. Expected output includes lines like these
 waits to be told when the day begins: your configuration does not set
 `sessions_enabled`, and its default is `true`.
 
-If you also see a `WARNING … pm-monitor … not accepting beacons` line from any
-process, ignore it: that is the health monitor, which is not running when you
-start processes by hand.
+If monitoring is configured but `pm-monitor` is not running, the
+`pm-monitor … not accepting beacons` diagnostic is DEBUG and appears only when
+you start a process with `-vv`. It is rate-limited and does not affect the
+exchange.
 
 The stable way to confirm the engine actually loaded your config, independent
 of log wording, is to query it from a gateway once connected (Exercise 8) with
