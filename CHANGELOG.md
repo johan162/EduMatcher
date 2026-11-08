@@ -1,3 +1,24 @@
+## [v0.77.2] - 2026-11-08
+
+Release Type: minor
+
+### 📋 Summary
+This release adds simulated combo traders and makes dashboard participant and symbol lists easier to navigate. It also reduces noisy operational warnings and adds REST API statistics to the Dashboard GUI.
+
+### ✨ Additions
+- Added combo traders to the simulation
+- Added REST API Metrics to the pm-dash GUI
+
+### 🚀 Improvements
+- Added pagination and filtering to the dashboard participant list and pagination to the symbol list
+- Reduced noisy warnings by adjusting log levels for routine gateway, health and statistics messages
+
+### 📚 Documentation
+- Updated AI-trader and training guides to cover combo traders
+
+### 🛠 Internal
+- Added dashboard pagination regression tests and health-reporter logging coverage
+
 ## [v0.77.1] - 2026-11-08
 
 Release Type: minor
