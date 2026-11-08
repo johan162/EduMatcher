@@ -54,6 +54,7 @@ predictable.
 | `reversion` | the same way | the price is below its slow average | `strength`, `sample`, `urgency` |
 | `value` | `sample` random symbols, acts on the widest gap | the price is below its view of the true value by more than `threshold` | `threshold`, `bias_std`, `redraw`, `sample`, `urgency`, `rumour_shift` |
 | `news` | the news touching its symbols | the headline is good news | `lag_sec`, `lag_sigma`, `half_life_sec`, `threshold`, `urgency`, `move` |
+| `basket` | two to five random symbols at once | by shape, see below | `max_legs`, `shapes`, `urgency` |
 
 **Trend and reversion** need about 30 seconds and 20 prices of a symbol
 before they have an opinion on it. Both scale the difference by the symbol's
@@ -82,6 +83,20 @@ on the headline. A confirmation
 turns a rumour into news known to be true; a retraction leaves an impulse the
 other way, as large as the rumour was believable.
 
+**Basket** is the one strategy that wants several symbols at once. Each
+decision draws one of its `shapes` and up to `max_legs` (2–5, default 5)
+different symbols:
+
+| Shape | Legs |
+|---|---|
+| `pair` | one BUY, one SELL |
+| `long-basket` | all BUY |
+| `short-basket` | all SELL |
+| `hedged` | some BUY, the rest SELL, at least one of each |
+| `rotation` | BUY symbols of one sector, SELL symbols of another (needs `pm-market-sim`'s sectors; without them, no decision) |
+
+It goes with the `combo` execution style, and only with it.
+
 ## Execution styles: how to trade it
 
 | Style | Sends | Parameters |
@@ -91,6 +106,7 @@ other way, as large as the rumour was believable.
 | `sweep` | A MARKET, IOC or FOK order against the other side | `sweep_type`, `cross_ticks` |
 | `iceberg` | An ICEBERG behind the touch showing `visible_fraction` of its size | `offset_ticks`, `visible_fraction` |
 | `twap` | A parent order cut into `slices` child orders over `horizon_sec` | `slices`, `horizon_sec`, `child_style` |
+| `combo` | A `basket` as one all-or-none COMBO, one LIMIT leg per symbol at its touch (a BUY at the ask, a SELL at the bid), a quarter of the sampled size per leg and never more than the touch holds. Continuous trading only; a leg that cannot be sent (halted, no touch, no room under `max_position`) drops the whole basket. Not tracked afterwards | none |
 
 Any style becomes marketable when the intent's urgency reaches
 `urgency_cross`. A crossing order (marketable, IOC, FOK) is priced at the

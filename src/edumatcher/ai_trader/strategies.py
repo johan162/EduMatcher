@@ -35,6 +35,22 @@ class Intent:
     limit: int | None = None
 
 
+#: Named leg patterns of the ``basket`` strategy (see BasketStrategy).
+SHAPES = ("pair", "long-basket", "short-basket", "hedged", "rotation")
+
+
+@dataclass(frozen=True)
+class BasketIntent:
+    """A wish to trade several symbols at once: one (symbol, side) per leg,
+    no symbol twice. Sent as one all-or-none combo by the ``combo`` style."""
+
+    shape: str
+    legs: tuple[tuple[str, str], ...]
+    urgency: float = 0.5
+    #: Multiplies the tempo's order size, as for an Intent.
+    size: float = 1.0
+
+
 @dataclass
 class DecisionContext:
     rng: random.Random
@@ -47,7 +63,7 @@ class DecisionContext:
 class Strategy(Protocol):
     name: str
 
-    def decide(self, ctx: DecisionContext) -> Intent | None: ...
+    def decide(self, ctx: DecisionContext) -> Intent | BasketIntent | None: ...
 
 
 def _priced(ctx: DecisionContext, symbol: str) -> SymbolState | None:
@@ -267,10 +283,76 @@ class NewsStrategy:
         )
 
 
+@dataclass(frozen=True)
+class BasketStrategy:
+    """Trades symbols together, as a multi-leg combo of 2 to ``max_legs``.
+
+    Each decision draws one of ``shapes`` and that many random symbols:
+
+    ``pair``          one BUY, one SELL
+    ``long-basket``   all BUY
+    ``short-basket``  all SELL
+    ``hedged``        some BUY, the rest SELL, at least one of each
+    ``rotation``      BUY symbols of one sector, SELL symbols of another
+                      (no decision without sectors from pm-market-sim)
+
+    Fewer symbols than legs wanted are available: the basket is smaller.
+    """
+
+    max_legs: int = 5
+    shapes: tuple[str, ...] = SHAPES
+    urgency: float = 0.5
+    name: str = "basket"
+
+    def decide(self, ctx: DecisionContext) -> BasketIntent | None:
+        shape = ctx.rng.choice(self.shapes)
+        n = 2 if shape == "pair" else ctx.rng.randint(2, self.max_legs)
+        if shape == "rotation":
+            legs = self._rotation(ctx, n)
+        else:
+            priced = [s for s in ctx.universe if _priced(ctx, s) is not None]
+            if len(priced) < 2:
+                return None
+            symbols = ctx.rng.sample(priced, min(n, len(priced)))
+            if shape == "long-basket":
+                buys = len(symbols)
+            elif shape == "short-basket":
+                buys = 0
+            elif shape == "pair":
+                buys = 1
+            else:  # hedged
+                buys = ctx.rng.randint(1, len(symbols) - 1)
+            legs = tuple(
+                (sym, "BUY" if i < buys else "SELL") for i, sym in enumerate(symbols)
+            )
+        if not legs:
+            return None
+        return BasketIntent(shape, legs, self.urgency)
+
+    @staticmethod
+    def _rotation(ctx: DecisionContext, n: int) -> tuple[tuple[str, str], ...]:
+        by_sector = {
+            name: [s for s in ctx.universe if s in members and _priced(ctx, s)]
+            for name, members in ctx.market.sectors.items()
+        }
+        usable = sorted(name for name, syms in by_sector.items() if syms)
+        if len(usable) < 2:
+            return ()
+        buy_sector, sell_sector = ctx.rng.sample(usable, 2)
+        buy_pool, sell_pool = by_sector[buy_sector], by_sector[sell_sector]
+        n_buy = ctx.rng.randint(1, min(len(buy_pool), n - 1))
+        n_sell = min(len(sell_pool), n - n_buy)
+        return tuple(
+            [(s, "BUY") for s in ctx.rng.sample(buy_pool, n_buy)]
+            + [(s, "SELL") for s in ctx.rng.sample(sell_pool, n_sell)]
+        )
+
+
 STRATEGIES: dict[str, type] = {
     "noise": NoiseStrategy,
     "trend": TrendStrategy,
     "reversion": ReversionStrategy,
     "value": ValueStrategy,
     "news": NewsStrategy,
+    "basket": BasketStrategy,
 }

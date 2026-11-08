@@ -22,6 +22,8 @@ from edumatcher.ai_trader.actions import (
     AMEND_RTAG_PREFIX,
     Action,
     AmendOrder,
+    CancelCombo,
+    CancelOco,
     CancelOrder,
     NewCombo,
     NewOco,
@@ -310,6 +312,9 @@ class AlfTransport:
                 tick_decimals=decimals,
                 legs=(legs[0], legs[1]),
             )
+        if isinstance(action, CancelCombo):
+            return alf.cancel_combo(action.tag)
+        assert isinstance(action, CancelOco)
         return alf.cancel_oco(action.tag)
 
     # --- inbound -----------------------------------------------------------------

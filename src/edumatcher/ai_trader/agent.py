@@ -37,7 +37,7 @@ from edumatcher.ai_trader.orders import LiveOrder, OrderManager, OrderState, Pur
 from edumatcher.ai_trader.preset import Preset
 from edumatcher.ai_trader.risk import RejectBreaker, allowed_qty
 from edumatcher.ai_trader.session_policy import is_call_phase, order_allowed
-from edumatcher.ai_trader.strategies import DecisionContext
+from edumatcher.ai_trader.strategies import BasketIntent, DecisionContext
 from edumatcher.models.order import TIF, OrderType
 
 log = logging.getLogger(__name__)
@@ -169,6 +169,8 @@ class Agent:
         intent = self.strategy.decide(ctx)
         if intent is None:
             return []
+        if isinstance(intent, BasketIntent):
+            return self._basket(intent, phase, market)
         st = market.symbols[intent.symbol]
         live = [o for o in self.orders.live(intent.symbol) if o.tif != TIF.GTC]
         if len(live) >= self.preset.risk.max_live_orders_per_symbol:
@@ -182,6 +184,19 @@ class Agent:
             intent, st, qty, phase, now, self.rng, self.new_tag
         )
         return self._send_trade_orders(orders, now)
+
+    def _basket(
+        self, intent: BasketIntent, phase: str, market: MarketState
+    ) -> list[Action]:
+        """A basket as one all-or-none combo, a quarter of the sampled size
+        per leg (the pair of ``_combo`` sizes its legs the same way)."""
+        size = max(1, round(self.preset.tempo.sample_qty(self.rng) * intent.size))
+        qtys = {s: self._risk_qty(s, side, max(1, size // 4)) for s, side in intent.legs}  # fmt: skip
+        combo = self.executor.combo_for(intent, market.symbols, qtys, phase, self.new_tag)  # fmt: skip
+        if combo is None:
+            return []
+        self.stats.combos += 1
+        return [combo]
 
     def _combo(
         self, symbol: str, side: str, qty: int, phase: str, market: MarketState

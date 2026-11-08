@@ -6,6 +6,7 @@ import random
 
 import pytest
 
+from edumatcher.ai_trader.actions import NewCombo
 from edumatcher.ai_trader.execution import (
     ExecutionSpec,
     Executor,
@@ -19,7 +20,7 @@ from edumatcher.ai_trader.session_policy import (
     is_call_phase,
     order_allowed,
 )
-from edumatcher.ai_trader.strategies import Intent
+from edumatcher.ai_trader.strategies import BasketIntent, Intent
 from edumatcher.models.order import TIF, OrderType
 
 PHASES = ["PRE_OPEN", "OPENING_AUCTION", "CONTINUOUS", "CLOSING_AUCTION", "CLOSED"]
@@ -369,3 +370,49 @@ def test_tags_differ_between_starts() -> None:
     first, second = TagFactory("AI001", "AAA"), TagFactory("AI001", "AAB")
     assert first() == "AI001-AAA-1" and first() != second()
     assert set(TagFactory("AI001", RUN_TOKEN)()) <= allowed
+
+
+class TestComboFor:
+    """The ``combo`` style: a BasketIntent as one all-or-none combo."""
+
+    def _symbols(self) -> dict[str, SymbolState]:
+        out = {}
+        for sym in ("A", "B", "C"):
+            st = SymbolState(sym)
+            st.best_bid, st.best_ask, st.bid_qty, st.ask_qty = 990, 1010, 30, 20
+            out[sym] = st
+        return out
+
+    def _combo(
+        self, symbols: dict[str, SymbolState], phase: str = "CONTINUOUS"
+    ) -> NewCombo | None:
+        intent = BasketIntent("hedged", (("A", "BUY"), ("B", "SELL"), ("C", "SELL")))
+        qtys = {"A": 50, "B": 25, "C": 5}
+        ex = Executor(ExecutionSpec(style="combo"))
+        return ex.combo_for(intent, symbols, qtys, phase, TagFactory("AI001"))
+
+    def test_each_leg_at_its_touch_capped_to_the_touch_size(self) -> None:
+        combo = self._combo(self._symbols())
+        assert combo is not None and combo.tif == TIF.DAY and combo.symbol == "A"
+        assert [(x.symbol, x.side, x.price_ticks, x.qty) for x in combo.legs] == [
+            ("A", "BUY", 1010, 20),  # the ask holds 20
+            ("B", "SELL", 990, 25),
+            ("C", "SELL", 990, 5),
+        ]
+
+    @pytest.mark.parametrize("phase", [p for p in PHASES if p != "CONTINUOUS"])
+    def test_only_in_continuous_trading(self, phase: str) -> None:
+        assert self._combo(self._symbols(), phase) is None
+
+    def test_one_unsendable_leg_drops_the_basket(self) -> None:
+        for change in ("halt", "no touch", "empty touch", "unknown"):
+            symbols = self._symbols()
+            if change == "halt":
+                symbols["C"].halted = True
+            elif change == "no touch":
+                symbols["B"].best_bid = None
+            elif change == "empty touch":
+                symbols["A"].ask_qty = 0
+            else:
+                del symbols["C"]
+            assert self._combo(symbols) is None, change

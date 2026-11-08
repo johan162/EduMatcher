@@ -46,6 +46,7 @@ def test_builtins_load_and_build_agents() -> None:
         "market-taker",
         "block-taker",
         "patient-liquidity",
+        "combo-trader",
     } <= set(presets)
     for preset in presets.values():
         Agent("AI001", preset, ["AAPL"], seed=1, now=0.0)
@@ -61,6 +62,7 @@ def test_builtins_cover_every_order_type_and_protection() -> None:
         "sweep",
         "iceberg",
         "twap",
+        "combo",
     }
     assert {p.risk.protection for p in presets} >= {
         "stop",
@@ -120,6 +122,35 @@ def test_inline_tempo() -> None:
         (
             {"execution": {"offset_ticks": 3, "offset_max": 2}},
             "offset_max must not be below offset_ticks",
+        ),
+        (
+            {"strategy": {"name": "basket"}},
+            "strategy basket and execution style combo go together",
+        ),
+        (
+            {"execution": {"style": "combo"}},
+            "strategy basket and execution style combo go together",
+        ),
+        (
+            {
+                "strategy": {"name": "basket", "max_legs": 6},
+                "execution": {"style": "combo"},
+            },
+            "strategy.max_legs=6 is outside",
+        ),
+        (
+            {
+                "strategy": {"name": "basket", "shapes": ["pair", "straddle"]},
+                "execution": {"style": "combo"},
+            },
+            "strategy.shapes='straddle'",
+        ),
+        (
+            {
+                "strategy": {"name": "basket", "shapes": []},
+                "execution": {"style": "combo"},
+            },
+            "strategy.shapes must be a non-empty list",
         ),
         ({"tempo": "glacial"}, "tempo='glacial'"),
         (

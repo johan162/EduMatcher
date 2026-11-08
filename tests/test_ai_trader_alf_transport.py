@@ -11,6 +11,7 @@ import pytest
 import zmq
 
 from edumatcher.ai_trader.actions import (
+    CancelCombo,
     CancelOco,
     CancelOrder,
     NewOco,
@@ -273,6 +274,13 @@ def test_cancel_oco_and_cancel_oco(exchange: _Exchange) -> None:
     assert p["leg2"] == {"side": "SELL", "order_type": "STOP", "stop_price_ticks": 9000}
     t.send("AI001", CancelOco("AI001-B", "AAPL"), 2)
     assert exchange.wait_for("order.oco_cancel")["oco_id"] == "AI001-B"
+    t.close()
+
+
+def test_cancel_combo(exchange: _Exchange) -> None:
+    t = _connected(exchange)
+    t.send("AI001", CancelCombo("AI001-C", "AAPL"), 2)
+    assert exchange.wait_for("order.combo_cancel")["combo_id"] == "AI001-C"
     t.close()
 
 

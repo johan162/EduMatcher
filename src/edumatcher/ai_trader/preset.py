@@ -21,7 +21,7 @@ import yaml
 
 from edumatcher.ai_trader.execution import STYLES, SWEEP_TYPES, ExecutionSpec
 from edumatcher.ai_trader.risk import RiskSpec
-from edumatcher.ai_trader.strategies import STRATEGIES
+from edumatcher.ai_trader.strategies import SHAPES, STRATEGIES
 
 SIZE_DISTRIBUTIONS = ("balanced", "small-heavy", "block-heavy")
 PROTECTIONS = ("none", "stop", "stop_limit", "trailing", "bracket")
@@ -65,7 +65,7 @@ class Preset:
     name: str
     description: str
     strategy: str
-    strategy_params: dict[str, float]
+    strategy_params: dict[str, Any]
     execution: ExecutionSpec
     tempo: TempoSpec
     risk: RiskSpec
@@ -81,6 +81,7 @@ _STRATEGY_PARAMS = {
     "reversion": {"strength", "sample", "urgency"},
     "value": {"threshold", "bias_std", "redraw", "sample", "urgency", "rumour_shift"},
     "news": {"lag_sec", "lag_sigma", "half_life_sec", "threshold", "urgency", "move"},
+    "basket": {"max_legs", "shapes", "urgency"},
 }
 #: Strategy parameters that are not in [0, 1]: (low, high).
 _STRATEGY_RANGES = {
@@ -141,12 +142,20 @@ def parse_preset(raw: Any, source: str) -> Preset:
     strat = _mapping(source, "strategy", top["strategy"])
     sname = _choice(source, "strategy.name", strat.get("name"), tuple(STRATEGIES))
     _unknown(source, "strategy", strat, {"name"} | _STRATEGY_PARAMS[sname])
-    params: dict[str, float] = {}
+    params: dict[str, Any] = {}
     for key, value in strat.items():
         if key == "name":
             continue
         if key == "sample":
             params[key] = _integer(source, f"strategy.{key}", value, 1, 50)
+        elif key == "max_legs":
+            params[key] = _integer(source, f"strategy.{key}", value, 2, 5)
+        elif key == "shapes":
+            if not isinstance(value, list) or not value:
+                raise _fail(source, "strategy.shapes must be a non-empty list")
+            params[key] = tuple(
+                _choice(source, "strategy.shapes", v, SHAPES) for v in value
+            )
         else:
             lo, hi = _STRATEGY_RANGES.get(key, (0.0, 1.0))
             params[key] = _number(source, f"strategy.{key}", value, lo, hi)
@@ -174,6 +183,8 @@ def parse_preset(raw: Any, source: str) -> Preset:
         else:  # visible_fraction, urgency_cross, auction_participation, *_fraction
             ex_kwargs[key] = _number(source, path, value, 0.0, 1.0)
     execution = ExecutionSpec(**ex_kwargs)
+    if (sname == "basket") != (execution.style == "combo"):
+        raise _fail(source, "strategy basket and execution style combo go together")
     if "offset_max" in ex and execution.offset_max < execution.offset_ticks:
         raise _fail(source, "execution.offset_max must not be below offset_ticks")
 

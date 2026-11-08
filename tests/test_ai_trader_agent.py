@@ -554,3 +554,47 @@ class TestAmendsCombosAndSmp:
             assert leg.price_ticks == (
                 1010 if leg.side == "BUY" else 990
             )  # at the touch
+
+
+class TestComboTrader:
+    """The ``combo-trader`` preset: multi-leg all-or-none baskets."""
+
+    SYMBOLS = ("AAPL", "MSFT", "IBM", "ORCL", "SAP", "INTC")
+
+    def _agent(self, **risk: Any) -> Agent:
+        p = get_preset("combo-trader")
+        p = replace(p, risk=replace(p.risk, **risk))
+        p = replace(p, tempo=TempoSpec(decisions_per_min=600, size_min=40, size_max=200))  # fmt: skip
+        return Agent("AI001", p, list(self.SYMBOLS), seed=3, now=0.0)
+
+    def _market(self) -> MarketState:
+        m = _market(self.SYMBOLS)
+        for st in m.symbols.values():
+            st.bid_qty = st.ask_qty = 100
+        m.sectors = {"a": frozenset(self.SYMBOLS[:3]), "b": frozenset(self.SYMBOLS[3:])}
+        return m
+
+    def test_sends_only_combos_of_two_to_five_mixed_legs(self) -> None:
+        agent = self._agent()
+        out = _run(agent, self._market(), 20.0)
+        assert out and all(isinstance(a, NewCombo) for a in out)
+        assert {len(c.legs) for c in out} == {2, 3, 4, 5}
+        assert {leg.side for c in out for leg in c.legs} == {"BUY", "SELL"}
+        for c in out:
+            symbols = [leg.symbol for leg in c.legs]
+            assert len(set(symbols)) == len(symbols) and c.symbol == symbols[0]
+        assert agent.stats.combos == len(out)
+
+    def test_a_leg_without_room_under_the_position_limit_drops_the_basket(self) -> None:  # fmt: skip
+        agent = self._agent(max_position=1)
+        # a quarter of 40+ is 10+ per leg; only 1 fits: every leg is clamped to 1
+        out = _run(agent, self._market(), 5.0)
+        assert out and all(leg.qty == 1 for c in out for leg in c.legs)
+        for sym in self.SYMBOLS:
+            agent.orders.position(sym).qty = 1
+        longs = [
+            c
+            for c in _run(agent, self._market(), 5.0, t0=5.0)
+            if any(leg.side == "BUY" for leg in c.legs)
+        ]
+        assert not longs  # no basket may buy what the agent is full of
