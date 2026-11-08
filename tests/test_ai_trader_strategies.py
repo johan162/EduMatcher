@@ -7,6 +7,9 @@ import random
 
 from edumatcher.ai_trader.market_state import MarketState, SymbolState
 from edumatcher.ai_trader.strategies import (
+    SHAPES,
+    BasketIntent,
+    BasketStrategy,
     DecisionContext,
     NoiseStrategy,
     ReversionStrategy,
@@ -267,3 +270,73 @@ def test_news_limit_is_anchored_on_the_price_it_first_saw() -> None:
     m.symbols["A"].best_bid, m.symbols["A"].best_ask = 1049, 1051
     again = s.decide(ctx)
     assert again is not None and again.limit == first.limit
+
+
+class TestBasketStrategy:
+    """The ``basket`` strategy: named leg patterns over distinct symbols."""
+
+    SYMBOLS = ("A", "B", "C", "D", "E", "F")
+
+    def _decisions(
+        self, strategy: BasketStrategy, m: MarketState, n: int = 400
+    ) -> list[BasketIntent]:
+        ctx = _ctx(m)
+        out = [strategy.decide(ctx) for _ in range(n)]
+        assert all(isinstance(i, BasketIntent) for i in out)
+        return out  # type: ignore[return-value]
+
+    def _sectors(self, m: MarketState) -> None:
+        m.sectors = {"tech": frozenset("ABC"), "oil": frozenset("DEF")}
+
+    def test_every_shape_and_leg_count_up_to_five_occurs(self) -> None:
+        m = _trending_market(True, self.SYMBOLS)
+        self._sectors(m)
+        out = self._decisions(BasketStrategy(max_legs=5), m)
+        assert {i.shape for i in out} == set(SHAPES)
+        assert {len(i.legs) for i in out} == {2, 3, 4, 5}
+        # mixed sides: at least one of each count of BUYs among 5-leg baskets
+        mixes = {
+            sum(side == "BUY" for _, side in i.legs) for i in out if len(i.legs) == 5
+        }
+        assert mixes == {0, 1, 2, 3, 4, 5}
+
+    def test_legs_are_distinct_symbols_within_max_legs(self) -> None:
+        m = _trending_market(True, self.SYMBOLS)
+        self._sectors(m)
+        for i in self._decisions(BasketStrategy(max_legs=3), m):
+            symbols = [s for s, _ in i.legs]
+            assert len(set(symbols)) == len(symbols) and 2 <= len(symbols) <= 3
+
+    def test_shape_sides(self) -> None:
+        m = _trending_market(True, self.SYMBOLS)
+        self._sectors(m)
+        for shape in SHAPES:
+            for i in self._decisions(BasketStrategy(shapes=(shape,)), m, 100):
+                sides = [side for _, side in i.legs]
+                buys = sides.count("BUY")
+                if shape == "pair":
+                    assert sides == ["BUY", "SELL"]
+                elif shape == "long-basket":
+                    assert buys == len(sides)
+                elif shape == "short-basket":
+                    assert buys == 0
+                else:  # hedged, rotation: both sides
+                    assert 0 < buys < len(sides)
+
+    def test_rotation_buys_one_sector_and_sells_another(self) -> None:
+        m = _trending_market(True, self.SYMBOLS)
+        self._sectors(m)
+        for i in self._decisions(BasketStrategy(shapes=("rotation",)), m, 100):
+            bought = {s for s, side in i.legs if side == "BUY"}
+            sold = {s for s, side in i.legs if side == "SELL"}
+            assert any(bought <= sec and sold.isdisjoint(sec) for sec in m.sectors.values())  # fmt: skip
+
+    def test_rotation_without_sectors_does_not_trade(self) -> None:
+        m = _trending_market(True, self.SYMBOLS)
+        assert BasketStrategy(shapes=("rotation",)).decide(_ctx(m)) is None
+
+    def test_needs_two_priced_symbols(self) -> None:
+        assert BasketStrategy().decide(_ctx(_trending_market(True, ("A",)))) is None
+        m = _trending_market(True, ("A", "B"))
+        m.symbols["B"].halted = True
+        assert BasketStrategy().decide(_ctx(m)) is None

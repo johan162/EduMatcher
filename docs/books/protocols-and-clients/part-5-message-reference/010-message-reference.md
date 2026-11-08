@@ -2382,7 +2382,7 @@ Confirm that a resting order has been cancelled.
 
 **Since:** 1.0
 
-An order has expired because its time-in-force window ended. The optional reason distinguishes auction-only expiry from end-of-day expiry while remaining compatible with existing consumers.
+An order has expired because its time-in-force window ended. The optional reason distinguishes auction-only expiry from end-of-day expiry while remaining compatible with existing consumers. A sweep publishes its orders in (gateway_id, order_id) order, per symbol book, so the sequence does not depend on how the book was built (arrival order live, price priority after a restart).
 
 | Field | Type | Presence | Rules | Description |
 |---|---|---|---|---|

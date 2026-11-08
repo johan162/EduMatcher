@@ -1,3 +1,26 @@
+## [v0.77.1] - 2026-11-08
+
+Release Type: minor
+
+### 📋 Summary
+This release expands AI trading with combo-order tools and improves matching-engine garbage-collection scheduling during continuous trading. It also fixes audit replay and memory-monitor behavior.
+
+### ✨ Additions
+- Added a combo-trader preset for placing more advanced combo orders with additional legs
+- Added combo cancellation support to the AI-sim ALF client
+- Added engine garbage-collection scheduling that defers collection during active trading and runs it during idle or near-idle periods, with a memory backstop
+
+### 🐛 Bug Fixes
+- Fixed audit replay restart handling while the exchange is closed
+- Fixed the health monitor warning about expected memory growth when continuous trading starts
+
+### 📚 Documentation
+- Added a performance-engineering guide covering optimizations made to EduMatcher
+- Documented combo cancellation support and updated AI-trader guidance
+
+### 🛠 Internal
+- Added regression tests for garbage-collection scheduling, audit replay, monitor behavior and combo-trader workflows
+
 ## [v0.77.0] - 2026-11-08
 
 Release Type: major

@@ -6,6 +6,8 @@
 ``sweep``       MARKET, IOC or FOK (``sweep_type``) against the opposite side
 ``iceberg``     ICEBERG behind the touch showing ``visible_fraction``
 ``twap``        a parent order worked in ``slices`` child orders over ``horizon_sec``
+``combo``       a BasketIntent (strategy ``basket``) as one all-or-none combo, one
+                LIMIT leg per symbol at its touch; the only style for that strategy
 
 Any style turns marketable when the intent's urgency reaches
 ``urgency_cross``. In call phases (pre-open and the auctions) every style
@@ -22,17 +24,17 @@ import random
 import time
 from dataclasses import dataclass, field
 
-from edumatcher.ai_trader.actions import NewOrder
+from edumatcher.ai_trader.actions import ComboLegSpec, NewCombo, NewOrder
 from edumatcher.ai_trader.market_state import SymbolState
 from edumatcher.ai_trader.session_policy import (
     auction_tif,
     is_call_phase,
     order_allowed,
 )
-from edumatcher.ai_trader.strategies import Intent
+from edumatcher.ai_trader.strategies import BasketIntent, Intent
 from edumatcher.models.order import TIF, OrderType
 
-STYLES = ("passive", "marketable", "sweep", "iceberg", "twap")
+STYLES = ("passive", "marketable", "sweep", "iceberg", "twap", "combo")
 SWEEP_TYPES = {"MARKET": OrderType.MARKET, "IOC": OrderType.IOC, "FOK": OrderType.FOK}
 
 
@@ -133,6 +135,43 @@ class Executor:
             limit=intent.limit,
         )
         return [order] if order else []
+
+    def combo_for(
+        self,
+        intent: BasketIntent,
+        symbols: dict[str, SymbolState],
+        qtys: dict[str, int],
+        phase: str,
+        new_tag: "TagFactory",
+    ) -> NewCombo | None:
+        """The basket as one combo, each leg at its own touch (a BUY at the
+        ask, a SELL at the bid) and ``qtys[symbol]`` big, or the touch's size. All or nothing: a
+        leg that cannot be sent -- halted, no touch, no room under the
+        position limit -- drops the basket, for a basket without one of its
+        legs is a different trade."""
+        if phase != "CONTINUOUS":
+            return None
+        legs: list[ComboLegSpec] = []
+        for sym, side in intent.legs:
+            st = symbols.get(sym)
+            if st is None or st.halted:
+                return None
+            price = st.best_ask if side == "BUY" else st.best_bid
+            if price is None:
+                return None
+            band = st.collar_band()
+            if band is not None:
+                price = min(max(price, band[0]), band[1])
+            # No more than the touch holds: the engine rejects an AON combo
+            # with a leg that would trade now but cannot fill in full.
+            touch_qty = st.ask_qty if side == "BUY" else st.bid_qty
+            qty = clamp_qty(st, min(qtys[sym], touch_qty), price)
+            if qty <= 0:
+                return None
+            legs.append(ComboLegSpec(sym, side, qty, price, st.tick_decimals))
+        return NewCombo(
+            tag=new_tag(), symbol=legs[0].symbol, legs=tuple(legs), tif=TIF.DAY
+        )
 
     def due_twap_slices(
         self,

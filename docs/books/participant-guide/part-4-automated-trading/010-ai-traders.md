@@ -48,8 +48,8 @@ What a trader does is set by its *preset*, four parts:
 
 | Part | Decides | Choices |
 |---|---|---|
-| **Strategy** | *What* it wants to trade, which way, how urgently | `noise`, `trend`, `reversion`, `value`, `news` |
-| **Execution** | *How* a wish becomes orders | `passive`, `marketable`, `sweep`, `iceberg`, `twap` |
+| **Strategy** | *What* it wants to trade, which way, how urgently | `noise`, `trend`, `reversion`, `value`, `news`, `basket` |
+| **Execution** | *How* a wish becomes orders | `passive`, `marketable`, `sweep`, `iceberg`, `twap`, `combo` |
 | **Tempo** | How often it decides, and how big its orders are | `many-small`, `aggressive`, `cautious`, `few-large`, or your own |
 | **Risk** | Position limit, live orders per symbol, order age, protective orders | per preset |
 
@@ -70,10 +70,11 @@ detail. The built-in presets (`pm-ai-trader --list-presets`):
 | `value-investor` | value | passive | cautious | — | Buys below its view of the true value, sells above |
 | `institutional` | value | twap | few-large | — | Large parent orders toward the value, worked in slices over minutes |
 | `news-trader` | news | marketable | aggressive | — | Trades headlines within seconds, in their direction |
+| `combo-trader` | basket | combo | own | — | Baskets of two to five symbols as one all-or-none combo: pairs, long or short baskets, hedged books, sector rotation |
 
 Between them the presets send every order type and time in force the
 exchange has: LIMIT, MARKET, IOC, FOK, ICEBERG, STOP, STOP_LIMIT,
-TRAILING_STOP, OCO; DAY, GTC, ATO, ATC.
+TRAILING_STOP, OCO, COMBO; DAY, GTC, ATO, ATC.
 
 ### Value and news need the market model
 

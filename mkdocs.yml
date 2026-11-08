@@ -220,6 +220,7 @@ nav:
     - "Part II: Inside the engine":
       - "The Order Book: Deep Dive": books/architecture-and-development/part-2-inside-the-engine/010-order-book-deep-dive.md
       - "Order Flow Through the Engine: A NEW LIMIT Order, Step by Step": books/architecture-and-development/part-2-inside-the-engine/020-order-flow-end-to-end.md
+      - "Performance Engineering in a Python Matching Engine": books/architecture-and-development/part-2-inside-the-engine/030-performance-engineering.md
     - "Part III: Developing":
       - "Development Practice": books/architecture-and-development/part-4-developing/010-development-practice.md
       - "The Development Loop": books/architecture-and-development/part-4-developing/020-development-workflow.md

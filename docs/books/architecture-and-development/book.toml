@@ -21,6 +21,7 @@ dir = "part-2-inside-the-engine"
 files = [
   "010-order-book-deep-dive.md",
   "020-order-flow-end-to-end.md",
+  "030-performance-engineering.md",
 ]
 
 [[parts]]

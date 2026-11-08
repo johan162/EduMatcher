@@ -95,4 +95,12 @@ class NewCombo:
     tif: TIF
 
 
-Action = NewOrder | CancelOrder | NewOco | CancelOco | AmendOrder | NewCombo
+@dataclass(frozen=True)
+class CancelCombo:
+    tag: str  # the combo id given to NewCombo
+    symbol: str  # the first leg's (the transport's routing key)
+
+
+Action = (
+    NewOrder | CancelOrder | NewOco | CancelOco | AmendOrder | NewCombo | CancelCombo
+)

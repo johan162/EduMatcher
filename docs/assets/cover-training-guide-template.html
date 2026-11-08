@@ -2,11 +2,11 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>EduMatcher — Training Material</title>
+<title>EduMatcher — @@COVER_PLAIN_TITLE@@</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Playfair+Display:ital,wght@0,700;1,400;1,700&family=DM+Mono:wght@300;400;500&family=Barlow+Condensed:wght@300;400;600;700&display=swap" rel="stylesheet">
 <style>
-
+/* ─── Print setup ─────────────────────────────────────────── */
 @page { size: 210mm 297mm; margin: 0; }
 @media print {
   * { -webkit-print-color-adjust: exact !important;
@@ -15,166 +15,584 @@
 
 *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
-html, body {
+html {
   width: 210mm; height: 297mm;
-  background: #ffffff;
+  background: #020c1b;
+}
+body {
+  width: 210mm; height: 297mm;
+  overflow: hidden;
+  font-family: 'Barlow Condensed', sans-serif;
+  background: #020c1b;
 }
 
+/* Training accent: amber "lab light" on top of the shared cyan palette */
+
+/* ─── Cover shell ─────────────────────────────────────────── */
 .cover {
   position: relative;
   width: 210mm; height: 297mm;
-  background: #fcfbf9;
-  font-family: 'Inter', sans-serif;
-  color: #1c1c1a;
+  overflow: hidden;
+  background: #020c1b;
+}
+
+/* ─── Gradient mesh background ────────────────────────────── */
+.bg {
+  position: absolute; inset: 0; z-index: 0;
+  background:
+    radial-gradient(ellipse 130% 70% at 28% 28%,
+      rgba(0, 70, 160, 0.45) 0%, transparent 55%),
+    radial-gradient(ellipse 70% 45% at 72% 22%,
+      rgba(255, 170, 60, 0.07) 0%, transparent 50%),
+    radial-gradient(ellipse 90% 60% at 80% 65%,
+      rgba(0, 35, 100, 0.35) 0%, transparent 50%),
+    radial-gradient(ellipse 50% 35% at 15% 85%,
+      rgba(0, 50, 110, 0.25) 0%, transparent 50%),
+    linear-gradient(168deg, #020c1b 0%, #040f22 45%, #020c1b 100%);
+}
+
+/* ─── Fine grid overlay ───────────────────────────────────── */
+.grid {
+  position: absolute; inset: 0; z-index: 1;
+  background-image:
+    linear-gradient(rgba(0, 190, 255, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 190, 255, 0.045) 1px, transparent 1px);
+  background-size: 18mm 18mm;
+}
+
+/* ─── Curriculum track ────────────────────────────────────── */
+#track {
+  position: absolute;
+  top: 0; left: 0;
+  width: 210mm; height: 152mm;
+  z-index: 2;
+}
+
+/* ─── Fade from track into title zone ─────────────────────── */
+.fade {
+  position: absolute;
+  top: 115mm; left: 0; right: 0; height: 37mm;
+  z-index: 3;
+  background: linear-gradient(to bottom,
+    transparent 0%, rgba(2, 12, 27, 0.55) 20%, #020c1b 42%, #020c1b 100%);
+}
+
+/* ─── Top header bar ──────────────────────────────────────── */
+.header {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 17mm;
+  display: flex; align-items: center;
+  padding: 0 8mm;
+  z-index: 20;
+  border-bottom: 0.35mm solid rgba(0, 210, 255, 0.22);
+  background: linear-gradient(to bottom,
+    rgba(2, 12, 27, 0.88) 0%, rgba(2, 12, 27, 0.60) 100%);
+}
+
+.brand {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 9.5mm;
+  letter-spacing: 2.8mm;
+  color: #ffffff;
+  line-height: 1;
+}
+.brand em { color: #00d4ff; font-style: normal; }
+
+.header-mid { flex: 1; }
+
+.header-tag {
+  font-family: 'DM Mono', monospace;
+  font-size: 4mm;
+  color: rgba(255, 181, 71, 0.85);
+  letter-spacing: 0.55mm;
+  text-transform: uppercase;
+  border: 0.28mm solid rgba(255, 181, 71, 0.40);
+  padding: 0.9mm 2.4mm;
+}
+
+/* ─── Lesson ticker bar ───────────────────────────────────── */
+.ticker {
+  position: absolute;
+  top: 17mm; left: 0; right: 0;
+  height: 7.5mm;
+  display: flex; align-items: center;
+  padding: 0 8mm; gap: 4mm;
+  z-index: 20;
+  background: rgba(0, 18, 40, 0.72);
+  border-bottom: 0.28mm solid rgba(0, 210, 255, 0.13);
   overflow: hidden;
 }
+.t { font-family: 'DM Mono', monospace; font-size: 2.4mm;
+     display: flex; gap: 1.6mm; align-items: baseline; white-space: nowrap; }
+.ts { color: rgba(200, 225, 255, 0.8); }
+.tn { color: rgba(0, 210, 255, 0.55); }
+.tu { color: #00e676; }
+.ta { color: #ffb547; }
+.tl { color: rgba(200, 225, 255, 0.30); }
+.tk { color: rgba(0, 210, 255, 0.28); font-size: 2mm; }
 
-/* ── Margins guide: consistent 22mm side margin throughout ── */
-
-/* ── Top label row ── */
-.top-row {
+/* ─── Solid backdrop behind title (above track/fade, below title text) ─ */
+.title-backdrop {
   position: absolute;
-  top: 22mm; left: 22mm; right: 22mm;
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-}
-.top-label {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 3mm;
-  letter-spacing: 0.6mm;
-  text-transform: uppercase;
-  color: #6b6a64;
+  top: 108mm; left: 0; right: 0; bottom: 0;
+  background: linear-gradient(to bottom, transparent 0%, #020c1b 14%);
+  z-index: 7;
 }
 
-/* ── Thin rule under header ── */
-.top-rule {
+/* ─── Title section ───────────────────────────────────────── */
+.title-zone {
   position: absolute;
-  top: 30mm; left: 22mm; right: 22mm;
-  height: 0.25mm;
-  background: #c9c6bc;
-}
-
-/* ── Title block, vertically centred in upper-middle ── */
-.title-block {
-  position: absolute;
-  top: 108mm; left: 22mm; right: 22mm;
+  top: 135mm; left: 0; right: 0;
+  padding: 0 9mm;
+  z-index: 10;
 }
 
 .eyebrow {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 3.2mm;
-  letter-spacing: 0.5mm;
+  font-family: 'DM Mono', monospace;
+  font-size: 2.6mm;
+  color: #ffb547;
+  letter-spacing: 1.4mm;
   text-transform: uppercase;
-  color: #9a3324;
-  margin-bottom: 6mm;
+  margin-bottom: 3.5mm;
+  display: flex; align-items: center; gap: 3mm;
+}
+.eyebrow::before {
+  content: '';
+  width: 7mm; height: 0.4mm;
+  background: #ffb547;
+  display: inline-block;
+  flex-shrink: 0;
 }
 
-.title-main {
-  font-family: 'Source Serif 4', serif;
-  font-weight: 600;
-  font-size: 19mm;
-  line-height: 1.05;
-  color: #1c1c1a;
-  letter-spacing: -0.2mm;
-  margin-bottom: 8mm;
+.main-title {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 19.5mm;
+  line-height: 0.88;
+  color: #ffffff;
+  letter-spacing: 0.8mm;
+  margin-bottom: 4.5mm;
+  text-shadow: 0 0 50mm rgba(0, 180, 255, 0.25);
 }
-
-.title-rule {
-  width: 24mm;
-  height: 0.6mm;
-  background: #9a3324;
-  margin-bottom: 8mm;
+.main-title .accent {
+  color: #ffb547;
+  text-shadow: 0 0 40mm rgba(255, 170, 60, 0.30);
 }
 
 .subtitle {
-  font-family: 'Source Serif 4', serif;
+  font-family: 'Playfair Display', serif;
   font-style: italic;
-  font-weight: 400;
-  font-size: 6mm;
-  line-height: 1.5;
-  color: #4a4946;
+  font-size: 5mm;
+  color: rgba(210, 230, 255, 0.80);
+  line-height: 1.45;
+  letter-spacing: 0.1mm;
+  margin-bottom: 5mm;
   max-width: 140mm;
 }
 
-/* ── Edition / metadata block, lower third ── */
-.meta-block {
+/* ─── Course stamp (right of title) ───────────────────────── */
+.stamp {
   position: absolute;
-  top: 196mm; left: 22mm; right: 22mm;
+  top: 140mm; right: 12mm;
+  width: 46mm; height: 46mm;
+  z-index: 10;
 }
 
-.meta-row {
-  display: flex;
-  gap: 14mm;
-}
-
-.meta-item {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5mm;
-}
-
-.meta-label {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 2.6mm;
-  letter-spacing: 0.4mm;
-  text-transform: uppercase;
-  color: #9a9890;
-}
-
-.meta-value {
-  font-family: 'Inter', sans-serif;
-  font-weight: 500;
-  font-size: 3.6mm;
-  color: #1c1c1a;
-}
-
-/* ── Bottom rule and footer ── */
-.bottom-rule {
+/* ─── Divider ─────────────────────────────────────────────── */
+.divider {
   position: absolute;
-  bottom: 28mm; left: 22mm; right: 22mm;
-  height: 0.25mm;
-  background: #c9c6bc;
+  top: 231mm; left: 9mm; right: 9mm;
+  height: 0.3mm;
+  background: linear-gradient(to right,
+    transparent, rgba(0,210,255,0.35) 20%,
+    rgba(255,181,71,0.35) 80%, transparent);
+  z-index: 10;
 }
 
-.footer {
+/* ─── Lab console section ─────────────────────────────────── */
+.lab-zone {
   position: absolute;
-  bottom: 22mm; left: 22mm; right: 22mm;
+  top: 232.5mm; left: 0; right: 0;
+  height: 42mm;
+  z-index: 10;
+  padding: 3.5mm 9mm 0;
+}
+
+.lab-header {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
+  margin-bottom: 2.5mm;
+}
+.lab-label {
+  font-family: 'DM Mono', monospace;
+  font-size: 2.2mm;
+  color: rgba(0,210,255,0.5);
+  letter-spacing: 0.6mm;
+  text-transform: uppercase;
+}
+.lab-label b { color: #ffb547; font-weight: 400; }
+.lab-status {
+  font-family: 'DM Mono', monospace;
+  font-size: 3mm;
+  color: #ffb547;
 }
 
-.footer-text {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 2.8mm;
-  letter-spacing: 0.3mm;
-  color: #9a9890;
-}
+.lab-chart { width: 100%; }
 
+/* ─── Footer ──────────────────────────────────────────────── */
+.footer {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 16mm;
+  display: flex; align-items: center;
+  padding: 0 9mm;
+  z-index: 10;
+  border-top: 0.28mm solid rgba(0,210,255,0.15);
+  background: rgba(2,12,27,0.5);
+  gap: 3mm;
+}
+.f-left, .f-right {
+  font-family: 'DM Mono', monospace;
+  font-size: 3.5mm;
+  color: rgba(0,210,255,0.38);
+  letter-spacing: 0.35mm;
+}
+.f-left { flex: 1; }
+.f-center {
+  font-family: 'Playfair Display', serif;
+  font-style: italic;
+  font-size: 5mm;
+  color: rgba(180,210,255,0.38);
+  text-align: center;
+  flex: 1;
+}
+.f-right { text-align: right; flex: 1; }
+
+/* ─── Corner brackets (amber on the training book) ────────── */
+.br { position: absolute; width: 10mm; height: 10mm; z-index: 25; }
+.br-tl { top: 3mm; left: 3mm;
+  border-top: 0.5mm solid rgba(255,181,71,0.55);
+  border-left: 0.5mm solid rgba(255,181,71,0.55); }
+.br-tr { top: 3mm; right: 3mm;
+  border-top: 0.5mm solid rgba(255,181,71,0.55);
+  border-right: 0.5mm solid rgba(255,181,71,0.55); }
+.br-bl { bottom: 3mm; left: 3mm;
+  border-bottom: 0.5mm solid rgba(255,181,71,0.55);
+  border-left: 0.5mm solid rgba(255,181,71,0.55); }
+.br-br { bottom: 3mm; right: 3mm;
+  border-bottom: 0.5mm solid rgba(255,181,71,0.55);
+  border-right: 0.5mm solid rgba(255,181,71,0.55); }
+
+/* ─── Scan-line vignette ──────────────────────────────────── */
+.vignette {
+  position: absolute; inset: 0; z-index: 4; pointer-events: none;
+  background: radial-gradient(ellipse 110% 100% at 50% 50%,
+    transparent 55%, rgba(2,8,20,0.65) 100%);
+}
 </style>
 </head>
 <body>
 <div class="cover">
 
-  <div class="top-row">
-    <div class="top-label">EduMatcher</div>
-    <div class="top-label">Training Material</div>
-  </div>
-  <div class="top-rule"></div>
+  <!-- Background layers -->
+  <div class="bg"></div>
+  <div class="grid"></div>
 
-  <div class="title-block">
-    <div class="eyebrow">Training Guide for edumatcher @@VERSION@@</div>
-    <div class="title-main">Running and Operating<br>EduMatcher</div>
-    <div class="title-rule"></div>
-    <div class="subtitle">A hands-on and self-paced training guide for EduMatcher.</div>
+  <!-- Curriculum track: 30 lessons in five parts, drawn by the script below -->
+  <svg id="track" viewBox="0 0 210 152" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+        <feGaussianBlur stdDeviation="1.2" result="b"/>
+        <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+      <filter id="glow-wide" x="-100%" y="-100%" width="300%" height="300%">
+        <feGaussianBlur stdDeviation="2.6"/>
+      </filter>
+      <radialGradient id="pool-cyan">
+        <stop offset="0" stop-color="rgba(0,110,220,0.40)"/>
+        <stop offset="1" stop-color="rgba(2,12,27,0)"/>
+      </radialGradient>
+      <radialGradient id="pool-amber">
+        <stop offset="0" stop-color="rgba(255,170,60,0.22)"/>
+        <stop offset="1" stop-color="rgba(2,12,27,0)"/>
+      </radialGradient>
+    </defs>
+    <circle cx="70" cy="50" r="70" fill="url(#pool-cyan)"/>
+    <g id="track-layer"></g>
+  </svg>
+
+  <!-- Fade zone -->
+  <div class="fade"></div>
+  <div class="vignette"></div>
+
+  <!-- Corner brackets -->
+  <div class="br br-tl"></div>
+  <div class="br br-tr"></div>
+  <div class="br br-bl"></div>
+  <div class="br br-br"></div>
+
+  <!-- Header -->
+  <div class="header">
+    <div class="brand">EDU<em>MATCHER</em></div>
+    <div class="header-mid"></div>
+    <div class="header-tag">Training Course</div>
   </div>
 
-  <div class="bottom-rule"></div>
+  <!-- Lesson ticker -->
+  <div class="ticker">
+    <div class="t"><span class="tn">03</span><span class="ts">FIRST TRADE</span><span class="tu">PASS</span></div>
+    <div class="tk">·</div>
+    <div class="t"><span class="tn">04</span><span class="ts">AMEND</span><span class="tu">PASS</span></div>
+    <div class="tk">·</div>
+    <div class="t"><span class="tn">05</span><span class="ts">ORDER TYPES</span><span class="tu">PASS</span></div>
+    <div class="tk">·</div>
+    <div class="t"><span class="tn">06</span><span class="ts">TIME-IN-FORCE</span><span class="tu">PASS</span></div>
+    <div class="tk">·</div>
+    <div class="t"><span class="tn">07</span><span class="ts">AUCTIONS</span><span class="ta">&#9654; IN PROGRESS</span></div>
+    <div class="tk">·</div>
+    <div class="t"><span class="tn">08</span><span class="tl">CANCELLING</span></div>
+    <div class="tk">·</div>
+    <div class="t"><span class="tn">09</span><span class="tl">MARKET MAKING</span></div>
+    <div class="tk">·</div>
+    <div class="t"><span class="tn">10</span><span class="tl">COMBOS</span></div>
+  </div>
+
+  <!-- Guaranteed dark backdrop behind title zone -->
+  <div class="title-backdrop"></div>
+
+  <!-- Title -->
+  <div class="title-zone">
+    <div class="eyebrow">Hands-on &nbsp;·&nbsp; Self-paced &nbsp;·&nbsp; Lab-based</div>
+    <div class="main-title">
+      @@COVER_TITLE@@
+    </div>
+    <div class="subtitle">
+      Learn the exchange by running it:<br>
+      from the first order to a full trading day
+    </div>
+  </div>
+
+  <!-- Course stamp -->
+  <svg class="stamp" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <path id="stamp-ring" d="M50,50 m-37,0 a37,37 0 1,1 74,0 a37,37 0 1,1 -74,0"/>
+    </defs>
+    <circle cx="50" cy="50" r="47" fill="none" stroke="rgba(255,181,71,0.55)" stroke-width="0.8"/>
+    <circle cx="50" cy="50" r="43.5" fill="none" stroke="rgba(255,181,71,0.30)"
+            stroke-width="0.5" stroke-dasharray="1.2,2.2"/>
+    <circle cx="50" cy="50" r="29" fill="rgba(255,181,71,0.06)"
+            stroke="rgba(255,181,71,0.55)" stroke-width="0.7"/>
+    <text font-family="DM Mono,monospace" font-size="6.4" letter-spacing="1.55"
+          fill="rgba(255,181,71,0.80)">
+      <textPath href="#stamp-ring">5 PARTS · 30 LABS · CHECKPOINTS · CAPSTONE ·</textPath>
+    </text>
+    <!-- Mortarboard -->
+    <g transform="translate(50,45)" fill="none" stroke="#ffb547" stroke-width="1.6"
+       stroke-linejoin="round" stroke-linecap="round">
+      <path d="M-15,-3 L0,-10 L15,-3 L0,4 Z" fill="rgba(255,181,71,0.18)"/>
+      <path d="M-9,0 L-9,7 Q0,12 9,7 L9,0"/>
+      <path d="M15,-3 L15,7"/>
+      <circle cx="15" cy="8.5" r="1.4" fill="#ffb547" stroke="none"/>
+    </g>
+    <text x="50" y="68" text-anchor="middle" font-family="Bebas Neue,sans-serif"
+          font-size="9" letter-spacing="1.2" fill="#ffffff">SELF-STUDY</text>
+  </svg>
+
+  <!-- Divider -->
+  <div class="divider"></div>
+
+  <!-- Lab console -->
+  <div class="lab-zone">
+    <div class="lab-header">
+      <div class="lab-label"><b>Lab 07</b> &nbsp;·&nbsp; Auctions &nbsp;·&nbsp; Exercise 2 of 5</div>
+      <div class="lab-status">&#9654; Checkpoint 2 / 5</div>
+    </div>
+    <svg class="lab-chart" viewBox="0 0 760 130" xmlns="http://www.w3.org/2000/svg"
+         preserveAspectRatio="none">
+      <!-- Console pane -->
+      <rect x="0.5" y="2.5" width="478" height="118" rx="3"
+            fill="rgba(0,18,40,0.70)" stroke="rgba(0,210,255,0.22)" stroke-width="0.8"/>
+      <rect x="0.5" y="2.5" width="478" height="14" rx="3" fill="rgba(0,210,255,0.08)"/>
+      <circle cx="11" cy="9.5" r="2.4" fill="#ff3d5a" opacity="0.7"/>
+      <circle cx="19" cy="9.5" r="2.4" fill="#ffb547" opacity="0.7"/>
+      <circle cx="27" cy="9.5" r="2.4" fill="#00e676" opacity="0.7"/>
+      <text x="240" y="12.5" text-anchor="middle" font-family="DM Mono,monospace"
+            font-size="7" fill="rgba(0,210,255,0.50)" letter-spacing="1">LAB CONSOLE</text>
+
+      <g font-family="DM Mono,monospace" font-size="7.6">
+        <text x="9" y="31"><tspan fill="#ffb547">[GW_ADMIN|ADMIN]&gt;</tspan><tspan fill="rgba(220,235,255,0.90)"> SESSION|STATE=OPENING_AUCTION</tspan></text>
+        <text x="9" y="44"><tspan fill="#00d4ff">[TRADER01]&gt;</tspan><tspan fill="rgba(220,235,255,0.90)"> NEW|SYM=AAPL|SIDE=</tspan><tspan fill="#00e676">BUY</tspan><tspan fill="rgba(220,235,255,0.90)">|TYPE=LIMIT|QTY=300|PRICE=150.50|TIF=ATO</tspan></text>
+        <text x="9" y="57"><tspan fill="#00d4ff">[TRADER01]&gt;</tspan><tspan fill="rgba(220,235,255,0.90)"> NEW|SYM=AAPL|SIDE=</tspan><tspan fill="#00e676">BUY</tspan><tspan fill="rgba(220,235,255,0.90)">|TYPE=LIMIT|QTY=200|PRICE=150.20|TIF=ATO</tspan></text>
+        <text x="9" y="70"><tspan fill="#00d4ff">[TRADER02]&gt;</tspan><tspan fill="rgba(220,235,255,0.90)"> NEW|SYM=AAPL|SIDE=</tspan><tspan fill="#ff3d5a">SELL</tspan><tspan fill="rgba(220,235,255,0.90)">|TYPE=LIMIT|QTY=400|PRICE=149.80|TIF=ATO</tspan></text>
+        <text x="9" y="83"><tspan fill="#00d4ff">[TRADER02]&gt;</tspan><tspan fill="rgba(220,235,255,0.90)"> NEW|SYM=AAPL|SIDE=</tspan><tspan fill="#ff3d5a">SELL</tspan><tspan fill="rgba(220,235,255,0.90)">|TYPE=LIMIT|QTY=100|PRICE=150.30|TIF=ATO</tspan></text>
+        <text x="9" y="98" fill="#00e676">&#10003; Checkpoint: orders accepted, resting in auction book.</text>
+        <text x="9" y="112"><tspan fill="#ffb547">[GW_ADMIN|ADMIN]&gt;</tspan><tspan fill="rgba(220,235,255,0.90)"> SESSION|STATE=CONTINUOUS</tspan><tspan fill="#ffb547">&#9608;</tspan></text>
+      </g>
+
+      <!-- Exercise checklist -->
+      <g font-family="DM Mono,monospace" font-size="8.4">
+        <text x="500" y="12" font-size="7" fill="rgba(0,210,255,0.55)" letter-spacing="1">EXERCISES</text>
+
+        <rect x="500" y="22" width="9" height="9" rx="1.5" fill="rgba(0,230,118,0.20)" stroke="#00e676" stroke-width="0.8"/>
+        <path d="M502,26.5 l2,2 l3.5,-4" fill="none" stroke="#00e676" stroke-width="1.2"/>
+        <text x="516" y="30" fill="rgba(200,225,255,0.60)">Set up an opening auction</text>
+
+        <rect x="500" y="38" width="9" height="9" rx="1.5" fill="rgba(255,181,71,0.20)" stroke="#ffb547" stroke-width="0.8"/>
+        <path d="M503,39.8 l4,2.7 l-4,2.7 Z" fill="#ffb547"/>
+        <text x="516" y="46" fill="#ffffff">Trigger the uncrossing</text>
+
+        <rect x="500" y="54" width="9" height="9" rx="1.5" fill="none" stroke="rgba(0,210,255,0.35)" stroke-width="0.8"/>
+        <text x="516" y="62" fill="rgba(200,225,255,0.45)">Unfilled auction orders</text>
+
+        <rect x="500" y="70" width="9" height="9" rx="1.5" fill="none" stroke="rgba(0,210,255,0.35)" stroke-width="0.8"/>
+        <text x="516" y="78" fill="rgba(200,225,255,0.45)">Closing auction</text>
+
+        <rect x="500" y="86" width="9" height="9" rx="1.5" fill="none" stroke="rgba(0,210,255,0.35)" stroke-width="0.8"/>
+        <text x="516" y="94" fill="rgba(200,225,255,0.45)">GTC orders in auctions</text>
+
+        <!-- Course progress -->
+        <text x="500" y="110" font-size="7" fill="rgba(0,210,255,0.55)" letter-spacing="1">COURSE</text>
+        <text x="760" y="110" text-anchor="end" font-size="7" fill="#ffb547" letter-spacing="1">07 / 30</text>
+        <rect x="500" y="115" width="260" height="5" rx="2.5" fill="rgba(0,210,255,0.10)"/>
+        <rect x="500" y="115" width="61" height="5" rx="2.5" fill="#00d4ff"/>
+        <rect x="559" y="115" width="9" height="5" rx="2.5" fill="#ffb547"/>
+      </g>
+    </svg>
+  </div>
+
+  <!-- Footer -->
   <div class="footer">
-    <div class="footer-text">EduMatcher</div>
+    <div class="f-left">EduMatcher Training-Guide</div>
+    <div class="f-center">Grokking Trading</div>
+    <div class="f-right">@@VERSION@@</div>
   </div>
 
-</div>
+</div><!-- /cover -->
+
+<script>
+// ─── Curriculum track: a serpentine route through the 30 labs ───────────────
+(function () {
+  const NS = 'http://www.w3.org/2000/svg';
+  const layer = document.getElementById('track-layer');
+
+  const ROWS = [42, 70, 98];          // row y (mm)
+  const X0 = 26, X1 = 184, R = 14;    // row extent and U-turn radius
+  const PER_ROW = 10;
+  const LESSONS = 30;
+  const CURRENT = 7;                  // 07 Auctions
+  const DX = (X1 - X0) / (PER_ROW - 1);
+
+  // Part start index → label (mirrors book.toml)
+  const PARTS = {
+    0:  ['I',   'FOUNDATIONS',           'start', -6.5],
+    4:  ['II',  'TRADING MECHANICS',     'middle', -6.5],
+    9:  ['III', 'LIQUIDITY & RISK',      'end',   -6.5],
+    15: ['IV',  'RUNNING A FULL SESSION','middle', -6.5],
+    21: ['V',   'INTEGRATION & ADVANCED','start', -6.5],
+  };
+
+  function at(i) {
+    const r = Math.floor(i / PER_ROW), k = i % PER_ROW;
+    return { x: r % 2 === 0 ? X0 + k * DX : X1 - k * DX, y: ROWS[r] };
+  }
+
+  function el(name, attrs, parent) {
+    const e = document.createElementNS(NS, name);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    (parent || layer).appendChild(e);
+    return e;
+  }
+
+  const route =
+    `M${X0},${ROWS[0]} H${X1} A${R},${R} 0 0 1 ${X1},${ROWS[1]} ` +
+    `H${X0} A${R},${R} 0 0 0 ${X0},${ROWS[2]} H${X1}`;
+  const cur = at(CURRENT);
+
+  // Upcoming route: faint dashed rail
+  el('path', { d: route, fill: 'none', stroke: 'rgba(0,170,255,0.22)',
+               'stroke-width': 0.55, 'stroke-dasharray': '1.6,2.2' });
+
+  // Completed route: glowing cyan
+  const done = `M${X0},${ROWS[0]} H${cur.x}`;
+  el('path', { d: done, fill: 'none', stroke: 'rgba(0,200,255,0.55)',
+               'stroke-width': 2.2, filter: 'url(#glow-wide)' });
+  el('path', { d: done, fill: 'none', stroke: '#00d4ff', 'stroke-width': 0.8 });
+
+  // Amber halo around the current lesson
+  el('circle', { cx: cur.x, cy: cur.y, r: 22, fill: 'url(#pool-amber)' });
+
+  for (let i = 0; i < LESSONS; i++) {
+    const p = at(i);
+    const part = PARTS[i];
+    const isDone = i < CURRENT, isCur = i === CURRENT;
+    const last = i === LESSONS - 1;
+
+    if (part) {
+      // Part station: larger ring with roman numeral
+      el('circle', { cx: p.x, cy: p.y, r: 3.6,
+                     fill: isDone ? 'rgba(0,212,255,0.25)' : 'rgba(2,12,27,0.95)',
+                     stroke: isDone ? '#00d4ff' : 'rgba(0,200,255,0.55)',
+                     'stroke-width': 0.5, filter: isDone ? 'url(#glow)' : '' });
+      const n = el('text', { x: p.x, y: p.y + 1.05, 'text-anchor': 'middle',
+                     'font-family': 'DM Mono, monospace', 'font-size': 2.6,
+                     'font-weight': 500, fill: isDone ? '#ffffff' : 'rgba(200,230,255,0.75)' });
+      n.textContent = part[0];
+      const lx = part[2] === 'start' ? p.x - 3.6 : part[2] === 'end' ? p.x + 3.6 : p.x;
+      const lbl = el('text', { x: lx, y: p.y + part[3], 'text-anchor': part[2],
+                     'font-family': 'DM Mono, monospace', 'font-size': 2.3,
+                     'letter-spacing': 0.45,
+                     fill: isDone || i === 4 ? 'rgba(0,212,255,0.85)' : 'rgba(0,212,255,0.45)' });
+      lbl.textContent = 'PART ' + part[0] + ' · ' + part[1];
+    } else if (isCur) {
+      el('circle', { cx: p.x, cy: p.y, r: 5.2, fill: 'none',
+                     stroke: 'rgba(255,181,71,0.35)', 'stroke-width': 0.35 });
+      el('circle', { cx: p.x, cy: p.y, r: 3.4, fill: 'none',
+                     stroke: 'rgba(255,181,71,0.75)', 'stroke-width': 0.45 });
+      el('circle', { cx: p.x, cy: p.y, r: 1.9, fill: '#ffb547', filter: 'url(#glow)' });
+    } else if (last) {
+      // Finish line: chequered flag
+      el('circle', { cx: p.x, cy: p.y, r: 3.6, fill: 'rgba(2,12,27,0.95)',
+                     stroke: 'rgba(255,181,71,0.55)', 'stroke-width': 0.5 });
+      for (let a = 0; a < 3; a++) for (let b = 0; b < 2; b++)
+        el('rect', { x: p.x - 1.5 + a, y: p.y - 1.6 + b, width: 1, height: 1,
+                     fill: (a + b) % 2 ? 'rgba(255,181,71,0.25)' : '#ffb547' });
+      el('line', { x1: p.x - 1.5, y1: p.y - 1.6, x2: p.x - 1.5, y2: p.y + 1.9,
+                   stroke: '#ffb547', 'stroke-width': 0.35 });
+      const f = el('text', { x: p.x + 3.6, y: p.y - 6.5, 'text-anchor': 'end',
+                   'font-family': 'DM Mono, monospace', 'font-size': 2.3,
+                   'letter-spacing': 0.45, fill: 'rgba(255,181,71,0.75)' });
+      f.textContent = 'GRADUATION';
+    } else if (isDone) {
+      el('circle', { cx: p.x, cy: p.y, r: 1.55, fill: '#00d4ff', filter: 'url(#glow)' });
+      el('circle', { cx: p.x, cy: p.y, r: 0.6, fill: '#ffffff' });
+    } else {
+      el('circle', { cx: p.x, cy: p.y, r: 1.35, fill: 'rgba(2,12,27,0.95)',
+                     stroke: 'rgba(0,200,255,0.45)', 'stroke-width': 0.35 });
+    }
+
+    // Lesson number under every stop
+    const num = el('text', { x: p.x, y: p.y + (part || last ? 6.6 : 5.0), 'text-anchor': 'middle',
+                   'font-family': 'DM Mono, monospace', 'font-size': 1.9,
+                   fill: isCur ? '#ffb547' : isDone ? 'rgba(0,212,255,0.70)' : 'rgba(150,190,230,0.35)' });
+    num.textContent = String(i).padStart(2, '0');
+  }
+
+  // "You are here" callout below the current lesson
+  const cx = cur.x, cy = cur.y;
+  el('line', { x1: cx, y1: cy + 6.8, x2: cx, y2: cy + 9.5,
+               stroke: 'rgba(255,181,71,0.6)', 'stroke-width': 0.3 });
+  el('rect', { x: cx - 19, y: cy + 9.5, width: 38, height: 10.5, rx: 0.8,
+               fill: 'rgba(30,20,6,0.85)', stroke: 'rgba(255,181,71,0.55)', 'stroke-width': 0.3 });
+  const t1 = el('text', { x: cx, y: cy + 13.6, 'text-anchor': 'middle',
+                 'font-family': 'DM Mono, monospace', 'font-size': 2.1,
+                 'letter-spacing': 0.5, fill: 'rgba(255,181,71,0.85)' });
+  t1.textContent = 'YOU ARE HERE';
+  const t2 = el('text', { x: cx, y: cy + 17.9, 'text-anchor': 'middle',
+                 'font-family': 'Bebas Neue, sans-serif', 'font-size': 3.6,
+                 'letter-spacing': 0.35, fill: '#ffffff' });
+  t2.textContent = 'LAB 07 · AUCTIONS';
+})();
+</script>
 </body>
 </html>

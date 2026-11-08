@@ -650,8 +650,10 @@ when:
   `CONFIG_NOT_RECORDED`);
 - the trail provably misses engine output: the engine-wide sequence (`eseq`)
   jumps, or `pm-audit` restarted while the engine ran. A recorder restart
-  between an engine's `system.eod` and its next start loses nothing, and
-  neither does one after which `eseq` simply continues.
+  directly before an engine's start loses nothing of the new run, even when
+  the old engine never wrote `system.eod` (the stack was stopped while the
+  exchange was closed), and neither does one after which `eseq` simply
+  continues.
 
 It reads the whole trail in one pass, so allow minutes for a full simulated day.
 

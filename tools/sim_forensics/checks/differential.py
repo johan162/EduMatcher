@@ -22,7 +22,8 @@ makes every later one likely).
   (which reconnect). Its books are compared with the reference's at once
   -- priority order, quantities, armed stops and their triggers, the
   circuit breakers' reference windows, OCO, quote and combo links -- and
-  its outputs for the next ``_E6_SPAN`` commands.
+  its outputs for the next ``_E6_SPAN`` commands. Numbers a restart assigns
+  afresh (``priority_seq``, ``auction_id``) are not compared.
 - **E7, metamorphic.** (a) Gateways swapped within groups of identical
   configuration, and every order id renamed; (b) every price of every
   symbol shifted up by ``_E7_SHIFT`` ticks. Collars and circuit breakers
@@ -82,8 +83,13 @@ _E6_EVERY = 100_000
 _E6_SPAN = 20_000
 _E7_SHIFT = 7
 _KEEP = 50
-#: Numbers a restarted engine assigns afresh (E6).
-_RENUMBERED = frozenset({"priority_seq"})
+#: Numbers a restarted engine assigns afresh (E6). ``auction_id`` is
+#: ``AUC-<run_seq>-<n>`` with ``n`` an in-memory count of the engine run's
+#: uncrosses: a restart starts it at 1 (and bumps ``run_seq``), so the
+#: uninterrupted reference is at 1429 where the restored engine is at 2. The
+#: id only has to tie an ``auction.result`` to its prints, which D-checks
+#: test within one run's output; its value carries no state to recover.
+_RENUMBERED = frozenset({"priority_seq", "auction_id"})
 #: Counted across the whole engine (AUC-<run>-<n>): a one-symbol engine
 #: numbers its auctions alone (E5).
 _ENGINE_WIDE = frozenset({"auction_id"})

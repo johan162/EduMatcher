@@ -1,0 +1,6 @@
+name: combo-trader
+description: Trades baskets of two to five symbols as one all-or-none combo with mixed buy and sell legs; pairs, long or short baskets, hedged books, sector rotation.
+strategy: {name: basket, max_legs: 5, urgency: 0.5}
+execution: {style: combo}
+tempo: {decisions_per_min: 3, size_min: 40, size_max: 200, size_distribution: small-heavy}
+risk: {max_position: 2000}

@@ -251,6 +251,20 @@ class TestRssGrowth:
         assert state is not None
         assert state.rss_growth_pct(80 * 60.0) is None
 
+    def test_a_fresh_ramp_is_not_a_leak(self) -> None:
+        """Idle, then a 5x ramp over two minutes ten minutes ago (continuous
+        trading starting): the growth is all inside the last 15 minutes."""
+        table = ProcessTable()
+        self._run(
+            table,
+            80,
+            lambda m: (100 if m < 70 else min(500, 100 + 200 * (m - 70))) * MB,
+        )
+        state = table.get("pm-stats", None, "box")
+        assert state is not None
+        assert state.rss_growth_pct(80 * 60.0) is None
+        assert state.rss_growth_pct(72 * 60.0) is None
+
     def test_a_step_still_rising_is_reported(self) -> None:
         table = ProcessTable()
         self._run(table, 80, lambda m: (100 if m < 65 else 500 + m) * MB)

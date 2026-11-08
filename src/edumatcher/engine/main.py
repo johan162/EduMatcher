@@ -91,6 +91,7 @@ from edumatcher.engine.auction import (
 )
 from edumatcher.cli_version import add_version_argument, package_version, source_commit
 from edumatcher.engine.circuit_breaker import CircuitBreakerLevel, CircuitBreakerState
+from edumatcher.engine.gc_policy import GcPolicy
 from edumatcher.engine.collar import CollarConfig, validate_collar
 from edumatcher.engine.order_limits import (
     OrderLimitsConfig,
@@ -710,6 +711,8 @@ class Engine:
         # Session state (auction / continuous matching)
         self._sessions_enabled: bool = False
         self._session_state: SessionState = SessionState.CONTINUOUS
+        # Set by run(); unit tests that call handlers directly never have one.
+        self._gc_policy: GcPolicy | None = None
         # The next scheduled transition, as told by whoever drove the last
         # one, or as the scheduler announced it (`session.next`). Empty
         # unless the scheduler supplied it -- see
@@ -5983,6 +5986,8 @@ class Engine:
 
         # --- Apply the transition ---
         self._session_state = to_state
+        if to_state == SessionState.CONTINUOUS and self._gc_policy is not None:
+            self._gc_policy.arm_freeze()
 
         if to_state == SessionState.CLOSED:
             # M14: the close is the day boundary — expire all resting DAY orders
@@ -6065,7 +6070,12 @@ class Engine:
             TIF.DAY: "Trading day ended",
         }[tif]
         for book in self.books.values():
-            for order in book.resting_orders():
+            # Ordered by (gateway, id), not by the book's insertion order: a
+            # restored book is rebuilt in price priority, a live one is in
+            # arrival order, and the expiries must not depend on which it is.
+            for order in sorted(
+                book.resting_orders(), key=lambda o: (o.gateway_id, o.id)
+            ):
                 if order.tif == tif:
                     cancelled = book.cancel_order(order.id)
                     if cancelled:
@@ -7676,6 +7686,11 @@ class Engine:
         msg_count = 0
         pass_count = 0
         metrics.watch_gc()
+        gc_policy = GcPolicy()
+        self._gc_policy = gc_policy
+        gc_policy.start()
+        if self._session_state == SessionState.CONTINUOUS:
+            gc_policy.arm_freeze()
 
         while self._running:
             if tick is not None:
@@ -7780,7 +7795,11 @@ class Engine:
                 metrics.record_maintenance(
                     clock_ns() - started_ns, pass_count, msg_count
                 )
+            idle = self.pull_sock not in socks
+            if idle or gc_policy.freeze_at:
+                gc_policy.tick(idle)
 
+        gc_policy.stop()
         metrics.unwatch_gc()
         self._flush_debug_summary(force=True)
         self._shutdown()

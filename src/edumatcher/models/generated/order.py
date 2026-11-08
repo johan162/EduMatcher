@@ -2922,7 +2922,10 @@ _ORDER_EXPIRED_FIELDS: tuple[dict[str, Any], ...] = (
 class OrderExpired:
     """An order has expired because its time-in-force window ended. The optional
     reason distinguishes auction-only expiry from end-of-day expiry while
-    remaining compatible with existing consumers.
+    remaining compatible with existing consumers. A sweep publishes its orders in
+    (gateway_id, order_id) order, per symbol book, so the sequence does not depend
+    on how the book was built (arrival order live, price priority after a
+    restart).
     """
 
     gateway_id: str
