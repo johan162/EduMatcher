@@ -5578,6 +5578,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../architecture-and-development/part-2-inside-the-engine/030-performance-engineering/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Performance Engineering in a Python Matching Engine
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -9269,8 +9297,10 @@ when:</p>
   <code>CONFIG_NOT_RECORDED</code>);</li>
 <li>the trail provably misses engine output: the engine-wide sequence (<code>eseq</code>)
   jumps, or <code>pm-audit</code> restarted while the engine ran. A recorder restart
-  between an engine's <code>system.eod</code> and its next start loses nothing, and
-  neither does one after which <code>eseq</code> simply continues.</li>
+  directly before an engine's start loses nothing of the new run, even when
+  the old engine never wrote <code>system.eod</code> (the stack was stopped while the
+  exchange was closed), and neither does one after which <code>eseq</code> simply
+  continues.</li>
 </ul>
 <p>It reads the whole trail in one pass, so allow minutes for a full simulated day.</p>
 <h3 id="where-was-my-order-in-the-queue">Where was my order in the queue?<a class="headerlink" href="#where-was-my-order-in-the-queue" title="Permanent link">&para;</a></h3>

@@ -4925,6 +4925,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture-and-development/part-2-inside-the-engine/030-performance-engineering/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Performance Engineering in a Python Matching Engine
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -7928,6 +7956,10 @@ summary below and the rule you saw in Exercise 4.</p>
 <li>All resting <code>DAY</code> orders (regardless of when they were placed) are expired
   the moment the session transitions <em>into</em> <code>CLOSED</code>, with reason
   <code>Trading day ended</code>.</li>
+<li>Within one symbol, a sweep publishes its <code>order.expired</code> events sorted by
+  gateway and then order id, not by arrival. A restarted engine rebuilds its
+  books in price priority, so any order tied to the book's own sequence would
+  differ between a live and a restarted engine; this one does not.</li>
 </ul>
 <h2 id="reflection">Reflection<a class="headerlink" href="#reflection" title="Permanent link">&para;</a></h2>
 <p>Why does GTC survive every phase transition while DAY does not? If you were

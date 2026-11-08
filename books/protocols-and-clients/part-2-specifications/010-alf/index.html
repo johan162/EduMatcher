@@ -6034,6 +6034,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../architecture-and-development/part-2-inside-the-engine/030-performance-engineering/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Performance Engineering in a Python Matching Engine
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -9332,6 +9360,11 @@ request behind them and therefore omit <code>RTAG</code>.</p>
 <p>Example:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-39-1" name="__codelineno-39-1" href="#__codelineno-39-1"></a>CANCEL|COMBO_ID=PAIR-001
 </code></pre></div>
+<p><code>RTAG</code> is not accepted on a combo cancel (<code>UNSUPPORTED_FIELD</code>). Success has no
+frame of its own: it shows as a <code>CANCELLED</code> event per resting leg followed by
+<code>COMBO_STATUS</code> with <code>STATUS=CANCELLED</code>. A refusal (unknown label, not your
+combo, or already terminal) arrives as <code>COMBO_ACK</code> with <code>ACCEPTED=FALSE</code> and a
+<code>REASON</code>.</p>
 <h3 id="oco-cancel">OCO cancel<a class="headerlink" href="#oco-cancel" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-40-1" name="__codelineno-40-1" href="#__codelineno-40-1"></a>CANCEL|OCO_ID=&lt;oco-label&gt;
 </code></pre></div>

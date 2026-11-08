@@ -5074,6 +5074,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../architecture-and-development/part-2-inside-the-engine/030-performance-engineering/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Performance Engineering in a Python Matching Engine
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -7679,6 +7707,12 @@ predictable.</p>
 <td>the headline is good news</td>
 <td><code>lag_sec</code>, <code>lag_sigma</code>, <code>half_life_sec</code>, <code>threshold</code>, <code>urgency</code>, <code>move</code></td>
 </tr>
+<tr>
+<td><code>basket</code></td>
+<td>two to five random symbols at once</td>
+<td>by shape, see below</td>
+<td><code>max_legs</code>, <code>shapes</code>, <code>urgency</code></td>
+</tr>
 </tbody>
 </table>
 <p><strong>Trend and reversion</strong> need about 30 seconds and 20 prices of a symbol
@@ -7705,6 +7739,40 @@ direction, urgently and in up to three times its usual size, paying up to
 on the headline. A confirmation
 turns a rumour into news known to be true; a retraction leaves an impulse the
 other way, as large as the rumour was believable.</p>
+<p><strong>Basket</strong> is the one strategy that wants several symbols at once. Each
+decision draws one of its <code>shapes</code> and up to <code>max_legs</code> (2–5, default 5)
+different symbols:</p>
+<table>
+<thead>
+<tr>
+<th>Shape</th>
+<th>Legs</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pair</code></td>
+<td>one BUY, one SELL</td>
+</tr>
+<tr>
+<td><code>long-basket</code></td>
+<td>all BUY</td>
+</tr>
+<tr>
+<td><code>short-basket</code></td>
+<td>all SELL</td>
+</tr>
+<tr>
+<td><code>hedged</code></td>
+<td>some BUY, the rest SELL, at least one of each</td>
+</tr>
+<tr>
+<td><code>rotation</code></td>
+<td>BUY symbols of one sector, SELL symbols of another (needs <code>pm-market-sim</code>'s sectors; without them, no decision)</td>
+</tr>
+</tbody>
+</table>
+<p>It goes with the <code>combo</code> execution style, and only with it.</p>
 <h2 id="execution-styles-how-to-trade-it">Execution styles: how to trade it<a class="headerlink" href="#execution-styles-how-to-trade-it" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -7739,6 +7807,11 @@ other way, as large as the rumour was believable.</p>
 <td><code>twap</code></td>
 <td>A parent order cut into <code>slices</code> child orders over <code>horizon_sec</code></td>
 <td><code>slices</code>, <code>horizon_sec</code>, <code>child_style</code></td>
+</tr>
+<tr>
+<td><code>combo</code></td>
+<td>A <code>basket</code> as one all-or-none COMBO, one LIMIT leg per symbol at its touch (a BUY at the ask, a SELL at the bid), a quarter of the sampled size per leg and never more than the touch holds. Continuous trading only; a leg that cannot be sent (halted, no touch, no room under <code>max_position</code>) drops the whole basket. Not tracked afterwards</td>
+<td>none</td>
 </tr>
 </tbody>
 </table>

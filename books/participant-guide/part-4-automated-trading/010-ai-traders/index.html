@@ -5091,6 +5091,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../architecture-and-development/part-2-inside-the-engine/030-performance-engineering/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Performance Engineering in a Python Matching Engine
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -7677,12 +7705,12 @@ book.</p>
 <tr>
 <td><strong>Strategy</strong></td>
 <td><em>What</em> it wants to trade, which way, how urgently</td>
-<td><code>noise</code>, <code>trend</code>, <code>reversion</code>, <code>value</code>, <code>news</code></td>
+<td><code>noise</code>, <code>trend</code>, <code>reversion</code>, <code>value</code>, <code>news</code>, <code>basket</code></td>
 </tr>
 <tr>
 <td><strong>Execution</strong></td>
 <td><em>How</em> a wish becomes orders</td>
-<td><code>passive</code>, <code>marketable</code>, <code>sweep</code>, <code>iceberg</code>, <code>twap</code></td>
+<td><code>passive</code>, <code>marketable</code>, <code>sweep</code>, <code>iceberg</code>, <code>twap</code>, <code>combo</code></td>
 </tr>
 <tr>
 <td><strong>Tempo</strong></td>
@@ -7806,11 +7834,19 @@ detail. The built-in presets (<code>pm-ai-trader --list-presets</code>):</p>
 <td>—</td>
 <td>Trades headlines within seconds, in their direction</td>
 </tr>
+<tr>
+<td><code>combo-trader</code></td>
+<td>basket</td>
+<td>combo</td>
+<td>own</td>
+<td>—</td>
+<td>Baskets of two to five symbols as one all-or-none combo: pairs, long or short baskets, hedged books, sector rotation</td>
+</tr>
 </tbody>
 </table>
 <p>Between them the presets send every order type and time in force the
 exchange has: LIMIT, MARKET, IOC, FOK, ICEBERG, STOP, STOP_LIMIT,
-TRAILING_STOP, OCO; DAY, GTC, ATO, ATC.</p>
+TRAILING_STOP, OCO, COMBO; DAY, GTC, ATO, ATC.</p>
 <h3 id="value-and-news-need-the-market-model">Value and news need the market model<a class="headerlink" href="#value-and-news-need-the-market-model" title="Permanent link">&para;</a></h3>
 <p>The <code>value</code> and <code>news</code> strategies trade on what
 <a href="../../../operator-guide/part-4-run-a-market/090-market-model/"><code>pm-market-sim</code></a>
