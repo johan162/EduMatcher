@@ -23,7 +23,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 |---|---|---|---|---|---|---|
 | 1 | L1 | Template id end to end: logclient → LALF `TPL` → `log_events.tpl` → LALF-PS → bridge `LogRow.tpl`; `schema_version` table (v2) checked at startup; constant templates at the dynamic call sites | — | 1 d | ☑ | 2026-11-09 |
 | 2 | L2 | `edumatcher.log_ledger`: format, loader, AST call-site scanner, coverage test; `pm-log-cli ledger list/show/check/export`, `explain <seq>`, `--explain` on `query`/`tail`; seed entries for `log_srv` (`logclient` has no WARNING+ call) | L1 | 1 d | ☑ | 2026-11-09 |
-| 3 | L3 | log-GUI: bridge loads the ledger, `GET /api/ledger`; drawer panels *Explanation* + *Suggested actions*; "no ledger entry" state | L2 | 0.5 d | ☐ | |
+| 3 | L3 | log-GUI: bridge loads the ledger, `GET /api/ledger`; drawer panels *Explanation* + *Suggested actions*; "no ledger entry" state | L2 | 0.5 d | ☑ | 2026-11-09 |
 | 4 | L4 | Content: engine, orders, board, messaging, ticker | L2 | 0.5 d | ☐ | |
 | 5 | L5 | Content: gateways (alf_gwy, balf_gwy, api_gateway, md_gateway, dc_gateway, ralf_gateway, calf_client, ralf_spy, dc_spy) | L2 | 1 d | ☐ | |
 | 6 | L6 | Content: alf_console, clearing, audit, stats | L2 | 0.5 d | ☐ | |
@@ -217,6 +217,22 @@ in L2.
   hot reload, because the ledger only changes with a release.
 * Vitest: the drawer renders both panels, the no-entry state and the
   unavailable state. Bridge test for the export parsing and the 503 fallback.
+
+Notes from L3:
+
+* The bridge loads the ledger lazily, on the first `GET /api/ledger`, not at
+  startup. A successful export is kept until the bridge restarts. A failed one
+  is not kept, so the next drawer that opens tries again; the bridge logs a
+  warning, and the route answers 200 with `available: false` and the reason.
+* The container image installs `edumatcher` from PyPI when no wheel is placed
+  in `.wheel/`. A release older than L2 has no `ledger` subcommand, so the
+  drawer then says "No explanations available: … ledger export failed". This
+  is correct and needs no code.
+* e2e (`tests/test_log_ledger_e2e.py`): the real bridge on the mini exchange's
+  `log.db` serves exactly the shipped ledger, and headless Chrome opens a real
+  scheduler WARNING in the Explorer and finds the drawer's ledger text. Until
+  L8 that is the no-entry line. The test reuses `Page`/`until` from
+  `test_monitor_e2e.py`.
 
 Out of scope for this plan, noted for later: the Alerts view issue detail could
 show the same panels, and the bridge fingerprint could use `tpl` instead of the

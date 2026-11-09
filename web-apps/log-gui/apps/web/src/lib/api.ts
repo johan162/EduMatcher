@@ -6,6 +6,7 @@ import type {
   ByProcessResponse,
   DiagnosticsResponse,
   Issue,
+  LedgerResponse,
   LogFilter,
   LogRow,
   ProcessRow,
@@ -41,6 +42,8 @@ function filterToQuery(filter: LogFilter, extra: Record<string, string | number 
 
 export const api = {
   uiConfig: () => getJson<UiConfig>("/api/ui-config"),
+
+  ledger: () => getJson<LedgerResponse>("/api/ledger"),
 
   logs: (filter: LogFilter, opts: { cursor?: number; limit?: number; direction?: "ASC" | "DESC" } = {}) =>
     getJson<{ rows: LogRow[] }>(`/api/logs?${filterToQuery(filter, opts)}`),

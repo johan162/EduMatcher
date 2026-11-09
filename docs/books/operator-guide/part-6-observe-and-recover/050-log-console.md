@@ -494,7 +494,23 @@ The rows are not lost, they simply were not rendered.
 
 Clicking any row opens a **detail pane** on the right with the full `LOG`
 header field set — logger, module and line, pid and host, session and sequence
-number — plus the untruncated message. Two actions there:
+number — plus the untruncated message.
+
+For a `WARNING`, `ERROR` or `CRITICAL` row, two panels below the message say
+what it means and what to do:
+
+- **Explanation** — what happened and what it means for the exchange.
+- **Suggested actions** — a numbered list; commands are shown in `code`.
+
+The text comes from the **log ledger** that ships with EduMatcher. It is the
+same text `pm-log-cli explain SEQ` prints (see
+[`explain`, `ledger`](040-log-server.md#explain-ledger-what-a-warning-means-and-what-to-do)).
+The bridge loads it once with `pm-log-cli ledger export`. A message without an
+entry shows "No ledger entry for this message (tpl=…)"; quote the `tpl` when
+you report it. Without `pm-log-cli` on the bridge host, the pane says no
+explanations are available, and everything else works as before.
+
+Two actions follow:
 
 - **Copy** — the message text to the clipboard.
 - **Filter to this process** — rewrites the URL filter, which is usually the
