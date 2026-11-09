@@ -20,11 +20,22 @@ def package_version() -> str:
 def source_commit() -> str:
     """``git describe --always --dirty`` of the source this code runs from,
     or "unknown" (an installed wheel, no git). The package version stays put
-    between releases; the commit says which code it was."""
+    between releases; the commit says which code it was. Tags are excluded:
+    a release merged back into develop makes ``describe`` count hundreds of
+    commits from the release tag."""
     src = Path(__file__).resolve().parent
     try:
         return subprocess.run(
-            ["git", "-C", str(src), "describe", "--always", "--dirty"],
+            [
+                "git",
+                "-C",
+                str(src),
+                "describe",
+                "--always",
+                "--dirty",
+                "--exclude",
+                "*",
+            ],
             capture_output=True,
             text=True,
             timeout=10,

@@ -6070,12 +6070,11 @@ class Engine:
             TIF.DAY: "Trading day ended",
         }[tif]
         for book in self.books.values():
-            # Ordered by (gateway, id), not by the book's insertion order: a
+            # In the book's matching priority, not its insertion order: a
             # restored book is rebuilt in price priority, a live one is in
             # arrival order, and the expiries must not depend on which it is.
-            for order in sorted(
-                book.resting_orders(), key=lambda o: (o.gateway_id, o.id)
-            ):
+            # Ids and gateway names are no key: a replay assigns its own.
+            for order in book.resting_orders_by_priority():
                 if order.tif == tif:
                     cancelled = book.cancel_order(order.id)
                     if cancelled:

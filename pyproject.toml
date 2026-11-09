@@ -8,7 +8,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
 name = "edumatcher"
-version = "0.77.2"
+version = "0.77.3"
 description = "Educational multi-process trading system with order matching"
 authors = ["Johan Persson <johan162@gmail.com>"]
 readme = "README.md"
@@ -28,20 +28,20 @@ repository = "https://github.com/johan162/EduMatcher"
 
 [tool.poetry.dependencies]
 python = "^3.14"
-pyzmq = "^27.2.0"
+pyzmq = "^27.3.0"
 rich = "^15.0.0"
 prompt_toolkit = "^3.0"
 pyyaml = "^6.0.3"
 orjson = "^3.12.0"
-fastapi = ">=0.162.0"
+fastapi = ">=0.162.2"
 uvicorn = { version = ">=0.34", extras = ["standard"] }
-holidays = ">=0.107"
-reportlab = ">=4.2"
+holidays = ">=0.108"
+reportlab = ">=5.1.0"
 psutil = "^7.2.2"
 
 [tool.poetry.group.dev.dependencies]
 mkdocs = "^1.6"
-mkdocs-material = "^9.8.0"
+mkdocs-material = "^9.8.1"
 pytest = "^9.2.0"
 types-PyYAML = "^6.0.12.20260518"
 pytest-cov = "^7.1.0"

@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 from sim_forensics.dataset import Dataset
+from sim_forensics.explain import EXPLAIN, INTRO
 from sim_forensics.registry import Result
 
 
@@ -48,6 +49,7 @@ def markdown(ds: Dataset, results: list[Result]) -> str:
         f"- Session timezone: {ds.session_tz.key}",
         f"- Cut (highest trade id in every trade store): `{ds.cut_trade_id}`",
         "",
+        INTRO,
         "| Check | Oracle | Title | Status | Violations | Seconds |",
         "|---|---|---|---|---|---|",
     ]
@@ -57,9 +59,9 @@ def markdown(ds: Dataset, results: list[Result]) -> str:
             f"| {r.violations} | {r.seconds:.2f} |"
         )
     for r in results:
-        if r.status == "PASS" and not r.note:
-            continue
         lines += ["", f"## {r.check.id} — {r.status}", ""]
+        if explanation := EXPLAIN.get(r.check.id):
+            lines += [f"*{explanation}*", ""]
         if r.status == "ERROR":
             lines += ["```", r.note.rstrip(), "```"]
         elif r.note:

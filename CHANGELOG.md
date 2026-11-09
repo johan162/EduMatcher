@@ -1,3 +1,24 @@
+## [v0.77.3] - 2026-11-09
+
+Release Type: patch
+
+### 📋 Summary
+This release makes order-expiry behavior deterministic across live runs and audit replays. It also improves simulator-forensics reports and updates ReportLab.
+
+### ✨ Additions
+- Added optional progress output to simulator-forensics checks
+
+### 🚀 Improvements
+- Improved simulator-forensics reports with an overview of the checks and explanations for their results
+- Updated audit-replay version reporting to use the current source checkout version
+
+### 🐛 Bug Fixes
+- Fixed order-expiry events varying with gateway IDs or order IDs instead of following book priority
+
+### 🛠 Internal
+- Updated ReportLab to 5.1.0
+- Added regression coverage for deterministic order-expiry ordering
+
 ## [v0.77.2] - 2026-11-08
 
 Release Type: minor

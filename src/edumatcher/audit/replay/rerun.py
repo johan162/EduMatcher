@@ -58,6 +58,7 @@ from __future__ import annotations
 import json
 import re
 import tempfile
+import tomllib
 from collections import Counter, deque
 from collections.abc import Callable, Generator, Iterator
 from contextlib import contextmanager
@@ -885,13 +886,15 @@ def fresh_engine(
 
 def _engine_version() -> str:
     """The re-running engine's version, and its source commit if it runs
-    from a git checkout (the package version stays put between releases)."""
+    from a git checkout. The checkout's ``pyproject.toml`` is the version
+    there: the installed metadata keeps the version of the last
+    ``poetry install``, however many releases the checkout has moved on."""
     commit = source_commit()
-    return (
-        version("edumatcher")
-        if commit == "unknown"
-        else f"{version('edumatcher')} ({commit})"
-    )
+    if commit == "unknown":
+        return version("edumatcher")
+    pyproject = Path(__file__).resolve().parents[4] / "pyproject.toml"
+    declared = tomllib.loads(pyproject.read_text(encoding="utf-8"))
+    return f"{declared['tool']['poetry']['version']} ({commit})"
 
 
 def _command_topics() -> frozenset[str]:
