@@ -1,0 +1,182 @@
+# Log ledger entries for pm-alf-gwy (edumatcher.alf_gwy).
+# Format: docs-design/EduMatcher-Log-Ledger.md §3. Check with `pm-log-cli ledger check`.
+# Actions are double-quoted: a bare YAML string must not contain ": " or start with a backtick.
+
+# --- startup ---------------------------------------------------------------
+
+- logger: edumatcher.alf_gwy.main
+  template: "failed to resolve configuration: %s"
+  level: ERROR
+  explanation: >
+    pm-alf-gwy could not build its configuration from the compiled exchange
+    config and its command-line options, so it did not start. ALF clients
+    cannot log on until it does.
+  actions:
+    - "Read the reason in the message; it names the bad value or missing file."
+    - "Check the deployed `alf_gateway` block with `pm-config-show`, fix the source config and run `pm-config-deploy`."
+    - "Start pm-alf-gwy again."
+
+- logger: edumatcher.alf_gwy.main
+  template: "alf_gateway.enabled is false; refusing to start"
+  level: WARNING
+  explanation: >
+    The deployed configuration has `alf_gateway.enabled: false`, so
+    pm-alf-gwy exited. No ALF client can connect.
+  actions:
+    - "If the ALF gateway is meant to be off, remove it from the process profile so it is not started."
+    - "Otherwise set `alf_gateway.enabled: true`, run `pm-config-deploy` and start pm-alf-gwy again."
+
+- logger: edumatcher.alf_gwy.main
+  template: "fatal runtime error: %s"
+  level: ERROR
+  explanation: >
+    pm-alf-gwy stopped because of an unexpected error in its main loop. Every
+    ALF session is gone; the engine applies each participant's disconnect
+    behaviour, which may cancel their resting orders.
+  actions:
+    - "Read the error and the traceback in pm-alf-gwy's console or log file."
+    - "Restart pm-alf-gwy."
+    - "Report it as a gateway bug with the traceback."
+
+# --- connections -----------------------------------------------------------
+
+- logger: edumatcher.alf_gwy.gateway
+  template: "ALF accept failed: %s"
+  level: WARNING
+  explanation: >
+    pm-alf-gwy could not accept a new client connection. It retries on the next
+    pass; the client sees a refused or reset connection and retries too.
+  actions:
+    - "\"Too many open files\" means the file-descriptor limit is too low: raise `ulimit -n` for pm-alf-gwy."
+    - "If it repeats with other errors, check the host's network and memory."
+
+- logger: edumatcher.alf_gwy.gateway
+  template: "ALF dropping connection from %s: %s"
+  level: WARNING
+  explanation: >
+    A client connected, but setting up its socket failed, usually because the
+    client had already gone away. The connection was closed; the client can
+    simply connect again.
+  actions:
+    - "Nothing needs doing for a single case. If one client address repeats, check that client's network."
+
+- logger: edumatcher.alf_gwy.gateway
+  template: "ALF max_connections reached, rejecting %s"
+  level: WARNING
+  explanation: >
+    pm-alf-gwy already holds as many connections as `alf_gateway.max_connections`
+    allows, so it closed a new one at once. That client cannot log on.
+  actions:
+    - "Check for clients that open many connections or never close them."
+    - "If the load is genuine, raise `alf_gateway.max_connections`, run `pm-config-deploy` and restart pm-alf-gwy."
+
+- logger: edumatcher.alf_gwy.gateway
+  template: "[%s] unexpected error handling %s"
+  level: ERROR
+  explanation: >
+    Handling one client command raised an unexpected error. The session stays
+    open, but that command was not carried out, and the client may not have
+    had a reply.
+  actions:
+    - "Read the traceback; the gateway id or address and the command are in the message."
+    - "Ask the participant to check the state of what they sent, for example with an ORDERS request."
+    - "Report it as a gateway bug with the traceback."
+
+# --- engine and drop-copy feeds --------------------------------------------
+
+- logger: edumatcher.alf_gwy.gateway
+  template: "ALF gateway SUB recv error (errno=%s); dropping remaining events for this tick"
+  level: WARNING
+  explanation: >
+    Reading the engine's event stream failed for one pass of the main loop.
+    Events still queued are read on the next pass; any that were lost are
+    reported to the affected sessions as EVENTS_LOST.
+  actions:
+    - "If it happens once, nothing needs doing."
+    - "If it repeats, check that pm-engine is running and restart pm-alf-gwy."
+
+- logger: edumatcher.alf_gwy.gateway
+  template: "decode error on engine SUB event"
+  level: WARNING
+  explanation: >
+    An event from the engine could not be decoded and was dropped. The client
+    it was meant for is told about the gap when the next event on that topic
+    arrives.
+  actions:
+    - "Make sure pm-engine and pm-alf-gwy run the same EduMatcher release."
+    - "Report it with the traceback if the releases match."
+
+- logger: edumatcher.alf_gwy.gateway
+  template: "ALF gateway dropped unhandled engine event %s"
+  level: ERROR
+  explanation: >
+    Handling an event from the engine raised an unexpected error, so it was
+    not passed on to the client. That client may now hold a wrong picture of
+    its orders.
+  actions:
+    - "Ask the affected participant to reconcile with an ORDERS request."
+    - "Report it as a gateway bug with the topic and traceback."
+
+- logger: edumatcher.alf_gwy.gateway
+  template: "engine dropped %d event(s) on %s"
+  level: WARNING
+  explanation: >
+    Events from the engine were lost before reaching pm-alf-gwy (a gap in the
+    sequence numbers). The session concerned got an EVENTS_LOST error and must
+    reconcile its orders. Usually the gateway or the host was too slow to keep
+    up with the engine's output.
+  actions:
+    - "Check the host's CPU load at that time; another heavy process on the same host is a common cause."
+    - "The participant should reconcile with an ORDERS request; their client is told so."
+
+- logger: edumatcher.alf_gwy.gateway
+  template: "ALF gateway drop-copy SUB recv error (errno=%s); dropping remaining DC events for this tick"
+  level: WARNING
+  explanation: >
+    Reading the engine's drop-copy stream failed for one pass of the main loop.
+    Drop-copy fills that were lost are not resent to the ALF sessions that
+    subscribed to them.
+  actions:
+    - "If it happens once, nothing needs doing; subscribers can reconcile with the drop-copy gateway."
+    - "If it repeats, check that pm-engine is running and restart pm-alf-gwy."
+
+- logger: edumatcher.alf_gwy.gateway
+  template: "decode error on drop-copy SUB event"
+  level: WARNING
+  explanation: >
+    A drop-copy event from the engine could not be decoded and was dropped, so
+    subscribed sessions miss that fill on their drop-copy feed.
+  actions:
+    - "Make sure pm-engine and pm-alf-gwy run the same EduMatcher release."
+    - "Report it with the traceback if the releases match."
+
+- logger: edumatcher.alf_gwy.gateway
+  template: "ALF gateway dropped unhandled drop-copy event %s"
+  level: ERROR
+  explanation: >
+    Passing a drop-copy event on to subscribed sessions raised an unexpected
+    error, so they miss that fill on their drop-copy feed.
+  actions:
+    - "Subscribers should reconcile their fills, for example through the drop-copy gateway."
+    - "Report it as a gateway bug with the topic and traceback."
+
+- logger: edumatcher.alf_gwy.gateway
+  template: "engine sent symbol(s) longer than the %d-character wire limit; orders for them will be refused: %s"
+  level: ERROR
+  explanation: >
+    The engine's symbol list contains names longer than ALF allows. ALF clients
+    cannot trade those symbols: every order for them is refused.
+  actions:
+    - "Rename the symbols in the message to at most the allowed length in the source config."
+    - "Run `pm-config-deploy` and restart the exchange."
+
+- logger: edumatcher.alf_gwy.gateway
+  template: "engine (re)started; closing %d session(s) so their clients log on again"
+  level: WARNING
+  explanation: >
+    pm-engine restarted, and a restarted engine knows none of the gateway's
+    sessions. pm-alf-gwy closed them so that each client logs on again and
+    reconciles.
+  actions:
+    - "Check why the engine restarted: look for its CRITICAL or ERROR rows just before, or a planned restart."
+    - "Participants should log on again and reconcile with an ORDERS request; most clients do this by themselves."

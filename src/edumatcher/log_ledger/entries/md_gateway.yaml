@@ -1,0 +1,150 @@
+# Log ledger entries for pm-md-gwy (edumatcher.md_gateway), the CALF market-data gateway.
+# Format: docs-design/EduMatcher-Log-Ledger.md §3. Check with `pm-log-cli ledger check`.
+# Actions are double-quoted: a bare YAML string must not contain ": " or start with a backtick.
+
+# --- startup ---------------------------------------------------------------
+
+- logger: edumatcher.md_gateway.main
+  template: "failed to resolve configuration: %s"
+  level: ERROR
+  explanation: >
+    pm-md-gwy could not build its configuration from the compiled exchange
+    config and its command-line options, so it did not start. No CALF client
+    gets market data until it does.
+  actions:
+    - "Read the reason in the message; it names the bad value or missing file."
+    - "Check the deployed `market_data_gateway` block with `pm-config-show`, fix the source config and run `pm-config-deploy`."
+    - "Start pm-md-gwy again."
+
+- logger: edumatcher.md_gateway.main
+  template: "market_data_gateway.enabled=false; exiting"
+  level: WARNING
+  explanation: >
+    The deployed configuration has `market_data_gateway.enabled: false`, so
+    pm-md-gwy exited. No CALF client gets market data.
+  actions:
+    - "If the market-data gateway is meant to be off, remove it from the process profile so it is not started."
+    - "Otherwise set `market_data_gateway.enabled: true`, run `pm-config-deploy` and start pm-md-gwy again."
+
+- logger: edumatcher.md_gateway.main
+  template: "no compiled configuration at %s — starting with no known symbols, so SUB symbol validation is disabled and WELCOME will carry no SYMBOLS= list. Run pm-config-deploy to install one."
+  level: WARNING
+  explanation: >
+    pm-md-gwy found no installed exchange configuration. It runs, but does not
+    know the symbols: clients get no symbol list or price precision at logon,
+    and subscriptions to symbols that do not exist are not refused.
+  actions:
+    - "Run `pm-config-deploy` to install the configuration, then restart pm-md-gwy."
+    - "If the exchange runs elsewhere, set EDUMATCHER_DATA_DIR to its data directory."
+
+- logger: edumatcher.md_gateway.main
+  template: "the compiled configuration defines no symbols — WELCOME will carry no SYMBOLS= list"
+  level: WARNING
+  explanation: >
+    The installed configuration lists no symbols, so CALF clients get no symbol
+    list at logon. The exchange has nothing to trade.
+  actions:
+    - "Add symbols to the source config (for example with `pm-new-symbol`) and run `pm-config-deploy`."
+
+- logger: edumatcher.md_gateway.main
+  template: "fatal runtime error: %s"
+  level: ERROR
+  explanation: >
+    pm-md-gwy stopped because of an unexpected error in its main loop. Every
+    CALF client is disconnected and gets no market data until it is restarted.
+  actions:
+    - "Read the error and the traceback in pm-md-gwy's console or log file."
+    - "Restart pm-md-gwy."
+    - "Report it as a gateway bug with the traceback."
+
+# --- connections -----------------------------------------------------------
+
+- logger: edumatcher.md_gateway.gateway
+  template: "accept failed: %s"
+  level: WARNING
+  explanation: >
+    pm-md-gwy could not accept a new client connection. It retries on the next
+    pass; the client sees a refused or reset connection and retries too.
+  actions:
+    - "\"Too many open files\" means the file-descriptor limit is too low: raise `ulimit -n` for pm-md-gwy."
+
+- logger: edumatcher.md_gateway.gateway
+  template: "connection rejected: max_connections=%d reached"
+  level: WARNING
+  explanation: >
+    pm-md-gwy already holds as many clients as
+    `market_data_gateway.max_connections` allows, so it refused a new one.
+    That client gets no market data.
+  actions:
+    - "Check for clients that open many connections or never close them (`pm-calf-spy` and dashboards each hold one)."
+    - "If the load is genuine, raise `market_data_gateway.max_connections`, run `pm-config-deploy` and restart pm-md-gwy."
+
+- logger: edumatcher.md_gateway.gateway
+  template: "read select failed: %s"
+  level: WARNING
+  explanation: >
+    Waiting for data from the connected clients failed for one pass of the main
+    loop. It is retried at once.
+  actions:
+    - "If it happens once, nothing needs doing. If it repeats, restart pm-md-gwy and report the error."
+
+- logger: edumatcher.md_gateway.gateway
+  template: "dropping client fd=%d: inbound line exceeds %d bytes"
+  level: WARNING
+  explanation: >
+    A client sent a line longer than CALF allows, so it was disconnected.
+    Usually something that does not speak CALF connected to the port, or a
+    client that never sends a newline.
+  actions:
+    - "Check which program connected; a CALF client sends short text lines ending in a newline."
+
+- logger: edumatcher.md_gateway.gateway
+  template: "disconnecting slow client fd=%d queue=%d max=%d"
+  level: WARNING
+  explanation: >
+    A client read its market data more slowly than it arrived, and its queue
+    passed `market_data_gateway.max_client_queue`, so it was disconnected. It
+    can reconnect and resubscribe.
+  actions:
+    - "Check the client's host and network; it must read its socket continuously."
+    - "If many clients are dropped at once, check pm-md-gwy's own CPU; the gateway may be the slow side."
+
+# --- engine and index feeds ------------------------------------------------
+
+- logger: edumatcher.md_gateway.gateway
+  template: "md_gateway decode error on engine SUB event: %s"
+  level: WARNING
+  explanation: >
+    A market-data event from the engine could not be decoded and was dropped.
+    Clients miss that update; the next one for the symbol corrects prices and
+    depth.
+  actions:
+    - "Make sure pm-engine and pm-md-gwy run the same EduMatcher release."
+
+- logger: edumatcher.md_gateway.gateway
+  template: "md_gateway handler error on engine topic=%s"
+  level: WARNING
+  explanation: >
+    Turning an engine event into CALF market data raised an unexpected error,
+    so clients missed that update. The next update for the symbol corrects
+    it.
+  actions:
+    - "If it repeats for the same topic, report it as a gateway bug with the traceback."
+
+- logger: edumatcher.md_gateway.gateway
+  template: "md_gateway decode error on index SUB event: %s"
+  level: WARNING
+  explanation: >
+    An index update from pm-index could not be decoded and was dropped.
+    Clients see the index one update late.
+  actions:
+    - "Make sure pm-index and pm-md-gwy run the same EduMatcher release."
+
+- logger: edumatcher.md_gateway.gateway
+  template: "md_gateway handler error on index topic=%s"
+  level: WARNING
+  explanation: >
+    Turning an index update into CALF market data raised an unexpected error,
+    so clients missed that update. The next one corrects it.
+  actions:
+    - "If it repeats, report it as a gateway bug with the traceback."

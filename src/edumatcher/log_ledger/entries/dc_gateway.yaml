@@ -1,0 +1,95 @@
+# Log ledger entries for pm-dc-gwy (edumatcher.dc_gateway).
+# Format: docs-design/EduMatcher-Log-Ledger.md §3. Check with `pm-log-cli ledger check`.
+# Actions are double-quoted: a bare YAML string must not contain ": " or start with a backtick.
+
+- logger: edumatcher.dc_gateway.main
+  template: "failed to resolve configuration: %s"
+  level: ERROR
+  explanation: >
+    pm-dc-gwy could not build its configuration from the compiled exchange config
+    and its command-line options, so it did not start. Its clients get no
+    drop-copy fills until it does.
+  actions:
+    - "Read the reason in the message; it names the bad value or missing file."
+    - "Check the deployed `dc_gateway` block with `pm-config-show`, fix the source config and run `pm-config-deploy`."
+    - "Start pm-dc-gwy again."
+
+- logger: edumatcher.dc_gateway.main
+  template: "fatal runtime error: %s"
+  level: ERROR
+  explanation: >
+    pm-dc-gwy stopped because of an unexpected error in its main loop. Every
+    client is disconnected and gets no drop-copy fills until it is restarted.
+  actions:
+    - "Read the error and the traceback in pm-dc-gwy's console or log file."
+    - "Restart pm-dc-gwy. Fills from the outage are not replayed; clients must reconcile them, for example from pm-clearing."
+    - "Report it as a gateway bug with the traceback."
+
+- logger: edumatcher.dc_gateway.gateway
+  template: "accept failed: %s"
+  level: WARNING
+  explanation: >
+    pm-dc-gwy could not accept a new client connection. It retries on the next
+    pass; the client sees a refused or reset connection and retries too.
+  actions:
+    - "\"Too many open files\" means the file-descriptor limit is too low: raise `ulimit -n` for pm-dc-gwy."
+
+- logger: edumatcher.dc_gateway.gateway
+  template: "connection rejected: max_connections=%d reached"
+  level: WARNING
+  explanation: >
+    pm-dc-gwy already holds as many clients as `dc_gateway.max_connections`
+    allows, so it refused a new one. That client gets no drop-copy fills.
+  actions:
+    - "Check for clients that open many connections or never close them."
+    - "If the load is genuine, raise `dc_gateway.max_connections`, run `pm-config-deploy` and restart pm-dc-gwy."
+
+- logger: edumatcher.dc_gateway.gateway
+  template: "read select failed: %s"
+  level: WARNING
+  explanation: >
+    Waiting for data from the connected clients failed for one pass of the main
+    loop. It is retried at once.
+  actions:
+    - "If it happens once, nothing needs doing. If it repeats, restart pm-dc-gwy and report the error."
+
+- logger: edumatcher.dc_gateway.gateway
+  template: "dropping client fd=%d: inbound line exceeds %d bytes"
+  level: WARNING
+  explanation: >
+    A client sent a line longer than the protocol allows, so it was
+    disconnected. Usually something that does not speak the protocol connected
+    to the port, or a client that never sends a newline.
+  actions:
+    - "Check which program connected; a client sends short text lines ending in a newline."
+
+- logger: edumatcher.dc_gateway.gateway
+  template: "disconnecting slow client fd=%d queue=%d max=%d"
+  level: WARNING
+  explanation: >
+    A client read its drop-copy fills more slowly than it arrived, and its queue passed
+    `dc_gateway.max_client_queue`, so it was disconnected. Fills sent while it was away are not replayed; the client must reconcile them another way (for example from pm-clearing).
+  actions:
+    - "Check the client's host and network; it must read its socket continuously."
+    - "If many clients are dropped at once, check pm-dc-gwy's own CPU; the gateway may be the slow side."
+
+- logger: edumatcher.dc_gateway.gateway
+  template: "drop-copy SUB recv error errno=%s; dropping remaining events for this tick"
+  level: WARNING
+  explanation: >
+    Reading the engine's drop-copy stream failed for one pass of the main loop.
+    Fills still queued are read on the next pass; any that were lost do not
+    reach the clients, and the drop copy has no replay.
+  actions:
+    - "If it happens once, clients should still reconcile their fills, for example from pm-clearing."
+    - "If it repeats, check that pm-engine is running and restart pm-dc-gwy."
+
+- logger: edumatcher.dc_gateway.gateway
+  template: "decode error on drop-copy SUB event"
+  level: WARNING
+  explanation: >
+    A drop-copy fill from the engine could not be decoded and was dropped, so
+    the clients miss that fill.
+  actions:
+    - "Make sure pm-engine and pm-dc-gwy run the same EduMatcher release."
+    - "Clients should reconcile their fills, for example from pm-clearing."

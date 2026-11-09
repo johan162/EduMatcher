@@ -1,0 +1,12 @@
+# Log ledger entries for pm-ralf-spy (edumatcher.ralf_spy).
+# Format: docs-design/EduMatcher-Log-Ledger.md §3. Check with `pm-log-cli ledger check`.
+# Actions are double-quoted: a bare YAML string must not contain ": " or start with a backtick.
+
+- logger: edumatcher.ralf_spy.client
+  template: "unparseable line from gateway: %r (%s)"
+  level: WARNING
+  explanation: >
+    pm-ralf-spy got a line from pm-ralf-gwy that it cannot parse, and skipped
+    it. Usually the two are from different EduMatcher releases.
+  actions:
+    - "Run the same EduMatcher release for pm-ralf-spy and pm-ralf-gwy."

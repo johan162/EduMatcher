@@ -5,16 +5,16 @@
 # --- startup ---------------------------------------------------------------
 
 - logger: edumatcher.engine.main
-  template: "Config file %s could not be read — running without symbol restrictions. (%s)"
-  level: WARNING
+  template: "FATAL: Config file %s could not be read: %s"
+  level: CRITICAL
   explanation: >
-    pm-engine found the compiled configuration but could not read it, so it is
-    running on built-in defaults: none of the configured symbols, participants
-    or risk settings apply. Do not trade on an engine in this state.
+    The compiled configuration exists but pm-engine could not read it, so it
+    refused to start rather than trade without the configured symbols,
+    participants and risk settings.
   actions:
-    - "Check that the file in the message exists and is readable by the user running pm-engine (`ls -l`)."
-    - "If it is missing, run `pm-config-deploy` to install the configuration again."
-    - "Restart pm-engine and check for \"Session handling\" and \"Risk enforcement\" lines in its startup log."
+    - "Check that the file in the message is readable by the user running pm-engine (`ls -l`)."
+    - "If it is missing or damaged, run `pm-config-deploy` to install the configuration again."
+    - "Start pm-engine again."
 
 - logger: edumatcher.engine.main
   template: "FATAL: Invalid config %s: %s"
@@ -261,77 +261,79 @@
     - "Before the next session starts, copy gtc_orders.json, gtc_combos.json and book_stats.json from the data directory into the folder named in the message."
 
 - logger: edumatcher.engine.persistence
-  template: "Cannot parse GTC orders file %s: %s"
-  level: ERROR
-  explanation: >
-    The saved resting orders could not be read, so pm-engine started with no
-    GTC or DAY orders restored. Its first checkpoint, a few seconds after
-    startup, overwrites the unreadable file.
-  actions:
-    - "Copy the file at once (`cp <file> <file>.bad`); it may already have been overwritten."
-    - "The last trading day's copy is in `eod/<date>/gtc_orders.json` under the data directory."
-    - "Tell participants that their resting orders were not restored."
-
-- logger: edumatcher.engine.persistence
-  template: "GTC orders file %s has unexpected root type %s — expected list"
-  level: ERROR
-  explanation: >
-    The saved resting orders file is valid JSON but not a list of orders, so
-    pm-engine started with no GTC or DAY orders restored. Its first checkpoint,
-    a few seconds after startup, overwrites the file.
-  actions:
-    - "Copy the file at once (`cp <file> <file>.bad`); it may already have been overwritten."
-    - "The last trading day's copy is in `eod/<date>/gtc_orders.json` under the data directory."
-    - "Tell participants that their resting orders were not restored."
-
-- logger: edumatcher.engine.persistence
-  template: "Skipping corrupt GTC order at index %d (id=%r): %s — check %s for manual recovery"
+  template: "Cannot parse GTC orders file %s: %s — none restored; the file is kept as %s"
   level: CRITICAL
   explanation: >
-    One saved resting order could not be read and was not restored; the other
-    orders were. The engine's first checkpoint, a few seconds after startup,
-    rewrites the file without it, so the file named in the message no longer
-    holds it after that.
+    The saved resting orders could not be read, so pm-engine started with none
+    of them restored. Before going on, it copied the unreadable file to the
+    name at the end of the message, because its first checkpoint overwrites
+    the original.
   actions:
-    - "Copy the file at once (`cp <file> <file>.bad`); it may already have been rewritten."
-    - "The last trading day's copy is in `eod/<date>/gtc_orders.json` under the data directory."
+    - "Tell participants that their resting orders were not restored."
+    - "Look at the kept copy to see what was lost; the last trading day's state is in `eod/<date>/gtc_orders.json` under the data directory."
+    - "Report it: a saved file that cannot be read is a bug, unless the disk failed."
+
+- logger: edumatcher.engine.persistence
+  template: "GTC orders file %s has unexpected root type %s — expected list; none restored; the file is kept as %s"
+  level: CRITICAL
+  explanation: >
+    The saved resting orders file is valid JSON but not a list, so pm-engine
+    started with none of them restored. Before going on, it copied the file to
+    the name at the end of the message, because its first checkpoint
+    overwrites the original.
+  actions:
+    - "Tell participants that their resting orders were not restored."
+    - "Look at the kept copy; a file edited by hand or written by another program causes this."
+    - "The last trading day's state is in `eod/<date>/gtc_orders.json` under the data directory."
+
+- logger: edumatcher.engine.persistence
+  template: "Skipping corrupt GTC order at index %d (id=%r): %s — the original file is kept as %s"
+  level: CRITICAL
+  explanation: >
+    One saved order could not be read and was not restored; the others were.
+    Before going on, pm-engine copied the file to the name at the end of the
+    message, because its first checkpoint rewrites the original without the
+    skipped order.
+  actions:
     - "Tell the order's owner (the id is in the message) that it was not restored."
+    - "The order as it was saved is at the index in the message in the kept copy."
     - "Report it: a saved order that cannot be read is a bug."
 
 - logger: edumatcher.engine.persistence
-  template: "Cannot parse GTC combos file %s: %s"
-  level: ERROR
-  explanation: >
-    The saved resting combo orders could not be read, so pm-engine started
-    with no combos restored. Its first checkpoint, a few seconds after startup,
-    overwrites the unreadable file.
-  actions:
-    - "Copy the file at once (`cp <file> <file>.bad`); it may already have been overwritten."
-    - "The last trading day's copy is in `eod/<date>/gtc_combos.json` under the data directory."
-    - "Tell participants that their resting combos were not restored."
-
-- logger: edumatcher.engine.persistence
-  template: "GTC combos file %s has unexpected root type %s — expected list"
-  level: ERROR
-  explanation: >
-    The saved resting combos file is valid JSON but not a list, so pm-engine
-    started with no combos restored. Its first checkpoint, a few seconds after
-    startup, overwrites the file.
-  actions:
-    - "Copy the file at once (`cp <file> <file>.bad`); it may already have been overwritten."
-    - "The last trading day's copy is in `eod/<date>/gtc_combos.json` under the data directory."
-    - "Tell participants that their resting combos were not restored."
-
-- logger: edumatcher.engine.persistence
-  template: "Skipping corrupt GTC combo at index %d (id=%r): %s — check %s for manual recovery"
+  template: "Cannot parse GTC combos file %s: %s — none restored; the file is kept as %s"
   level: CRITICAL
   explanation: >
-    One saved combo order could not be read and was not restored; the other
-    combos were. The engine's first checkpoint, a few seconds after startup,
-    rewrites the file without it, so the file named in the message no longer
-    holds it after that.
+    The saved resting combos could not be read, so pm-engine started with none
+    of them restored. Before going on, it copied the unreadable file to the
+    name at the end of the message, because its first checkpoint overwrites
+    the original.
   actions:
-    - "Copy the file at once (`cp <file> <file>.bad`); it may already have been rewritten."
-    - "The last trading day's copy is in `eod/<date>/gtc_combos.json` under the data directory."
+    - "Tell participants that their resting combos were not restored."
+    - "Look at the kept copy to see what was lost; the last trading day's state is in `eod/<date>/gtc_combos.json` under the data directory."
+    - "Report it: a saved file that cannot be read is a bug, unless the disk failed."
+
+- logger: edumatcher.engine.persistence
+  template: "GTC combos file %s has unexpected root type %s — expected list; none restored; the file is kept as %s"
+  level: CRITICAL
+  explanation: >
+    The saved resting combos file is valid JSON but not a list, so pm-engine
+    started with none of them restored. Before going on, it copied the file to
+    the name at the end of the message, because its first checkpoint
+    overwrites the original.
+  actions:
+    - "Tell participants that their resting combos were not restored."
+    - "Look at the kept copy; a file edited by hand or written by another program causes this."
+    - "The last trading day's state is in `eod/<date>/gtc_combos.json` under the data directory."
+
+- logger: edumatcher.engine.persistence
+  template: "Skipping corrupt GTC combo at index %d (id=%r): %s — the original file is kept as %s"
+  level: CRITICAL
+  explanation: >
+    One saved combo could not be read and was not restored; the others were.
+    Before going on, pm-engine copied the file to the name at the end of the
+    message, because its first checkpoint rewrites the original without the
+    skipped combo.
+  actions:
     - "Tell the combo's owner (the id is in the message) that it was not restored."
+    - "The combo as it was saved is at the index in the message in the kept copy."
     - "Report it: a saved combo that cannot be read is a bug."

@@ -217,7 +217,6 @@ def main() -> None:
 
     if not config.enabled:
         log.warning("market_data_gateway.enabled=false; exiting")
-        log.info("market_data_gateway.enabled=false; exiting")
         return
 
     log.debug(

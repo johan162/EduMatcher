@@ -25,7 +25,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 | 2 | L2 | `edumatcher.log_ledger`: format, loader, AST call-site scanner, coverage test; `pm-log-cli ledger list/show/check/export`, `explain <seq>`, `--explain` on `query`/`tail`; seed entries for `log_srv` (`logclient` has no WARNING+ call) | L1 | 1 d | ☑ | 2026-11-09 |
 | 3 | L3 | log-GUI: bridge loads the ledger, `GET /api/ledger`; drawer panels *Explanation* + *Suggested actions*; "no ledger entry" state | L2 | 0.5 d | ☑ | 2026-11-09 |
 | 4 | L4 | Content: engine, orders, board, messaging, ticker | L2 | 0.5 d | ☑ | 2026-11-09 |
-| 5 | L5 | Content: gateways (alf_gwy, balf_gwy, api_gateway, md_gateway, dc_gateway, ralf_gateway, calf_client, ralf_spy, dc_spy) | L2 | 1 d | ☐ | |
+| 5 | L5 | Content: gateways (alf_gwy, balf_gwy, api_gateway, md_gateway, dc_gateway, ralf_gateway, calf_client, ralf_spy, dc_spy) | L2 | 1 d | ☑ | 2026-11-09 |
 | 6 | L6 | Content: alf_console, clearing, audit, stats | L2 | 0.5 d | ☐ | |
 | 7 | L7 | Content: ai_trader, mm_bot, market_sim, index, viewer | L2 | 0.5 d | ☐ | |
 | 8 | L8 | Content: monitor, scheduler, health, config*, setup, the rest. Coverage test becomes a hard failure, docs | L4–L7 | 0.5 d | ☐ | |
@@ -292,24 +292,46 @@ review step (3) is part of the WP, not a side effect.
 * **L2 tests no longer depend on content progress:** two CLI tests assumed
   `engine` still had gaps. They now run `ledger check` against an empty
   ledger.
-* **Finding F1, not fixed (needs a decision): restored GTC orders can be
-  lost.** `load_gtc_orders`/`load_gtc_combos` skip an unreadable entry, or
-  the whole file if it does not parse. The engine's first checkpoint
-  (`_last_persist` starts at 0) then rewrites the file within seconds without
-  them. The CRITICAL message's advice, "check <file> for manual recovery",
-  points at a file that no longer holds the order. The entries tell the
-  operator to copy the file at once and to fall back to `eod/<date>/`.
-  Possible code fixes: copy the file aside (`<file>.corrupt-<ts>`) before
-  continuing, or refuse to start.
-* **Finding F2, not fixed (needs a decision):** when the compiled config
-  exists but cannot be read (`FileNotFoundError`/`PermissionError`), the
-  engine logs a WARNING and runs on built-in defaults with no configured
-  symbols or risk settings. An invalid config is fatal, while an unreadable
-  one only warns. Should it be fatal too?
+* **Finding F1, fixed 2026-11-09 (decision (a)): restored GTC orders could
+  be lost.** `load_gtc_orders`/`load_gtc_combos` skipped an unreadable entry
+  (or the whole file), and the engine's first checkpoint rewrote the file
+  within seconds without them, while the message said "check <file> for manual
+  recovery". Now `keep_corrupt_copy()` copies the file to
+  `<name>.corrupt-<UTC timestamp>` once per load before anything else
+  happens, and the messages name the copy. A copy that fails raises, so the
+  engine does not start rather than destroy the evidence. The whole-file
+  messages are now CRITICAL like the per-entry ones, since every resting order
+  is lost. Tests: `tests/test_engine_corrupt_startup_state.py`.
+* **Finding F2, fixed 2026-11-09:** a compiled config that exists but cannot
+  be read (`FileNotFoundError`/`PermissionError`) used to log a WARNING and
+  run on built-in defaults. It is now `FATAL: Config file %s could not be
+  read: %s` at CRITICAL, followed by exit 1, like an invalid config. When no
+  config file exists at all, the engine still runs without one and logs INFO,
+  as before.
 * **For L8:** pm-scheduler's startup WARNINGs ("no confirmation that the
   engine applied CLOSING_AUCTION/CLOSED") may be the scheduler catching up
   phases that the engine, which starts in CLOSED, refuses as invalid
   transitions. Check the engine's "Invalid transition" rows from the same run.
+
+### 6.3 Notes from L5 (gateways)
+
+89 entries in `alf_gwy.yaml`, `balf_gwy.yaml`, `api_gateway.yaml`,
+`md_gateway.yaml`, `dc_gateway.yaml`, `ralf_gateway.yaml`, `calf_client.yaml`,
+`ralf_spy.yaml` and `dc_spy.yaml`. The ledger now has 148 entries.
+
+* **Source fix:** `md_gateway/main.py` logged `market_data_gateway.enabled=false;
+  exiting` twice, at WARNING and again at INFO. The INFO duplicate is removed.
+* **Entries name the real config keys:** `post_trade_gateway.*` for
+  pm-ralf-gwy (not `ralf_gateway`), and `dc_gateway.*`, `balf_gateway.*`,
+  `alf_gateway.*`, `market_data_gateway.*` and `api_gateways.<name>`.
+* **Recovery differs per gateway, and the entries say so:** RALF clients can
+  replay with `LASTSEQ` within `post_trade_gateway.replay_retention_sec`; DC
+  has no replay, so its clients reconcile from pm-clearing; ALF sessions get an
+  `EVENTS_LOST` error and reconcile with ORDERS.
+* **Proposal for L8 (not done):** every gateway's `fatal runtime error: %s`
+  (and pm-log-srv's) is logged at ERROR and then re-raised, so the process
+  ends. L4 made the engine's process-ending messages CRITICAL. A sweep in L8
+  could do the same for every `fatal runtime error`, for consistency.
 
 ## 7. Open questions
 
