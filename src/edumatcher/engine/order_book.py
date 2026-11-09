@@ -904,6 +904,21 @@ class OrderBook:
             if o.status in (OrderStatus.NEW, OrderStatus.PARTIAL)
         ]
 
+    def resting_orders_by_priority(self) -> list[Order]:
+        """Resting orders as a restored book would hold them: plain orders,
+        then stops, then trailing stops; each side in matching priority.
+        Independent of ids and gateway names, and of arrival order across
+        price levels (a restore rebuilds in price priority)."""
+
+        def rank(o: Order) -> tuple[int, str, tuple[int, int]]:
+            entry = self._entry_index.get(o.id)
+            if entry is None:
+                return (2, o.side.value, (0, o.arrival_seq))
+            stop = o.order_type in (OrderType.STOP, OrderType.STOP_LIMIT)
+            return (int(stop), o.side.value, entry.key)
+
+        return sorted(self.resting_orders(), key=rank)
+
     def checkpoint(self) -> dict[str, Any]:
         """The whole book for ``system.book_checkpoint`` (S25): resting
         orders in matching priority, armed stops in trigger order, trailing
