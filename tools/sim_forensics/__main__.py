@@ -10,7 +10,7 @@ from pathlib import Path
 from sim_forensics import checks  # noqa: F401  (registers the checks)
 from sim_forensics import report
 from sim_forensics.dataset import Dataset
-from sim_forensics.registry import REGISTRY, run_checks
+from sim_forensics.registry import REGISTRY, Result, run_checks
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -41,6 +41,9 @@ def main(argv: list[str] | None = None) -> int:
         help="Processes to run checks in, one module's checks together "
         "(default: one per CPU; 1 = in this process)",
     )
+    parser.add_argument(
+        "-q", "--quiet", action="store_true", help="No progress output on stderr"
+    )
     parser.add_argument("--list", action="store_true", help="List checks and exit")
     args = parser.parse_args(argv)
 
@@ -59,6 +62,19 @@ def main(argv: list[str] | None = None) -> int:
     selected = [
         REGISTRY[i] for i in sorted(REGISTRY) if not args.check or i in args.check
     ]
+    total = sum(1 for c in selected if args.slow or args.check or not c.slow)
+    count = 0
+
+    def progress(r: Result) -> None:
+        nonlocal count
+        count += 1
+        print(
+            f"[{count}/{total}] {r.check.id:5} {r.status:8} {r.seconds:6.1f}s  "
+            f"{r.check.title}",
+            file=sys.stderr,
+            flush=True,
+        )
+
     with Dataset.open(args.data.expanduser()) as ds:
         # A check named with --check runs even if slow.
         results = run_checks(
@@ -67,6 +83,7 @@ def main(argv: list[str] | None = None) -> int:
             args.samples,
             args.slow or bool(args.check),
             args.jobs or os.cpu_count() or 1,
+            None if args.quiet else progress,
         )
         report.write(ds, results, args.out.expanduser())
     for r in results:

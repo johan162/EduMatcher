@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import time
 import traceback
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from multiprocessing import get_context
@@ -100,18 +100,22 @@ def run_checks(
     max_samples: int,
     slow: bool = False,
     jobs: int = 1,
+    progress: Callable[[Result], None] | None = None,
 ) -> list[Result]:
     """Run *checks*; a slow one only if *slow*. With *jobs* > 1 the checks
     run in that many processes, one module's checks together (they share the
-    results of their expensive passes), and come back in the order given."""
+    results of their expensive passes), and come back in the order given.
+    *progress* is called with each result as it completes."""
     chosen = list(checks)
     runnable = [c for c in chosen if slow or not c.slow]
     done: dict[str, Result] = {}
     if jobs > 1:
-        done = _run_parallel(ds, runnable, max_samples, jobs)
+        done = _run_parallel(ds, runnable, max_samples, jobs, progress)
     else:
         for c in runnable:
             done[c.id] = _run_one(ds, c, max_samples)
+            if progress:
+                progress(done[c.id])
     skipped = "slow: run with --slow, or name it with --check"
     return [done.get(c.id) or Result(c, "SKIPPED", 0, [], skipped, 0.0) for c in chosen]
 
@@ -131,7 +135,11 @@ def _run_group(
 
 
 def _run_parallel(
-    ds: Dataset, checks: list[Check], max_samples: int, jobs: int
+    ds: Dataset,
+    checks: list[Check],
+    max_samples: int,
+    jobs: int,
+    progress: Callable[[Result], None] | None = None,
 ) -> dict[str, Result]:
     groups: dict[str, list[Check]] = {}
     for c in checks:
@@ -149,15 +157,19 @@ def _run_parallel(
             )
             for g in groups.values()
         ]
-        for future in futures:
+        for future in as_completed(futures):
             rows, failed = future.result()
             findings.update(failed)
             for i, status, violations, samples, note, seconds in rows:
                 done[i] = Result(
                     REGISTRY[i], status, violations, samples, note, seconds
                 )
+                if progress:
+                    progress(done[i])
     for c in last:
         done[c.id] = _run_one(ds, c, max_samples)
+        if progress:
+            progress(done[c.id])
     return done
 
 
