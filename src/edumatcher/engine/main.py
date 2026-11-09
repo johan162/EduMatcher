@@ -795,12 +795,11 @@ class Engine:
                 )
                 self._rebuild_reference_cache()
             except (FileNotFoundError, PermissionError) as exc:
-                log.warning(
-                    "Config file %s could not be read — "
-                    "running without symbol restrictions. (%s)",
-                    path,
-                    exc,
-                )
+                # Fatal like an invalid config: running on built-in defaults
+                # would trade with none of the configured symbols, participants
+                # or risk settings.
+                log.critical("FATAL: Config file %s could not be read: %s", path, exc)
+                sys.exit(1)
             except Exception as exc:
                 log.critical("FATAL: Invalid config %s: %s", path, exc)
                 sys.exit(1)

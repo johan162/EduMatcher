@@ -20,7 +20,9 @@ from typing import Any
 
 import json
 import os
+import shutil
 import tempfile
+from datetime import UTC, datetime
 from pathlib import Path
 
 from edumatcher.engine.circuit_breaker import CircuitBreakerState
@@ -101,6 +103,20 @@ def save_gtc_orders(orders: list[Order], path: Path) -> None:
     atomic_write_text(path, json.dumps(gtc, indent=2))
 
 
+def keep_corrupt_copy(path: Path) -> Path:
+    """Copy an unreadable persistence file aside before the engine overwrites it.
+
+    The engine's first checkpoint rewrites ``path`` seconds after startup, so
+    whatever could not be restored would otherwise be lost for good. The copy
+    is ``<name>.corrupt-<UTC timestamp>`` beside it. A failed copy raises: the
+    engine then does not start, rather than start and destroy the evidence.
+    """
+    stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+    copy = path.with_name(f"{path.name}.corrupt-{stamp}")
+    shutil.copy2(path, copy)
+    return copy
+
+
 def load_gtc_orders(path: Path) -> list[Order]:
     """
     Load previously persisted GTC and DAY orders.
@@ -110,22 +126,32 @@ def load_gtc_orders(path: Path) -> list[Order]:
       (truncated, binary garbage, wrong root type).
     - Individual corrupt entries are logged at CRITICAL level and skipped;
       the remaining valid orders are still returned so the engine can start.
+    - Either way the file is first copied aside by :func:`keep_corrupt_copy`,
+      since the engine's first checkpoint overwrites it.
     """
     if not path.exists():
         return []
     try:
         data = json.loads(path.read_text())
     except Exception as exc:
-        log.error("Cannot parse GTC orders file %s: %s", path, exc)
+        log.critical(
+            "Cannot parse GTC orders file %s: %s — none restored; the file is kept as %s",
+            path,
+            exc,
+            keep_corrupt_copy(path),
+        )
         return []
     if not isinstance(data, list):
-        log.error(
-            "GTC orders file %s has unexpected root type %s — expected list",
+        log.critical(
+            "GTC orders file %s has unexpected root type %s — expected list; "
+            "none restored; the file is kept as %s",
             path,
             type(data).__name__,
+            keep_corrupt_copy(path),
         )
         return []
     orders: list[Order] = []
+    kept: Path | None = None
     for idx, d in enumerate(data):
         try:
             orders.append(Order.from_dict(d))
@@ -133,13 +159,15 @@ def load_gtc_orders(path: Path) -> list[Order]:
             order_id = (
                 d.get("id", "<unknown>") if isinstance(d, dict) else "<not a dict>"
             )
+            if kept is None:
+                kept = keep_corrupt_copy(path)
             log.critical(
                 "Skipping corrupt GTC order at index %d (id=%r): %s — "
-                "check %s for manual recovery",
+                "the original file is kept as %s",
                 idx,
                 order_id,
                 exc,
-                path,
+                kept,
             )
     return orders
 
@@ -235,22 +263,31 @@ def load_gtc_combos(path: Path) -> list[ComboOrder]:
 
     - Returns an empty list if the file does not exist or is unparseable.
     - Individual corrupt entries are logged at CRITICAL level and skipped.
+    - Either way the file is first copied aside by :func:`keep_corrupt_copy`.
     """
     if not path.exists():
         return []
     try:
         data = json.loads(path.read_text())
     except Exception as exc:
-        log.error("Cannot parse GTC combos file %s: %s", path, exc)
+        log.critical(
+            "Cannot parse GTC combos file %s: %s — none restored; the file is kept as %s",
+            path,
+            exc,
+            keep_corrupt_copy(path),
+        )
         return []
     if not isinstance(data, list):
-        log.error(
-            "GTC combos file %s has unexpected root type %s — expected list",
+        log.critical(
+            "GTC combos file %s has unexpected root type %s — expected list; "
+            "none restored; the file is kept as %s",
             path,
             type(data).__name__,
+            keep_corrupt_copy(path),
         )
         return []
     combos: list[ComboOrder] = []
+    kept: Path | None = None
     for idx, d in enumerate(data):
         try:
             combos.append(ComboOrder.from_dict(d))
@@ -258,12 +295,14 @@ def load_gtc_combos(path: Path) -> list[ComboOrder]:
             combo_id = (
                 d.get("id", "<unknown>") if isinstance(d, dict) else "<not a dict>"
             )
+            if kept is None:
+                kept = keep_corrupt_copy(path)
             log.critical(
                 "Skipping corrupt GTC combo at index %d (id=%r): %s — "
-                "check %s for manual recovery",
+                "the original file is kept as %s",
                 idx,
                 combo_id,
                 exc,
-                path,
+                kept,
             )
     return combos
