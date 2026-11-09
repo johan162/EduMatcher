@@ -229,8 +229,9 @@ class TradingStats(BaseModel):
     """Unit: money."""
     reject_pct_5m: float = Field(ge=0)
     """Rejected acks over inbound requests (new orders, combos, OCOs, cancels,
-    amends, quotes) in the last 5 minutes, the same set engine.rejects counts; 0
-    when none. Unit: percent.
+    amends, quotes) in the last 5 minutes, the same set engine.rejects counts,
+    except that MARKET_CLOSED rejects and their requests are left out; 0 when
+    none. Unit: percent.
     """
     handle_p50_us: float = Field(ge=0)
     """engine.handle_us_p50: order-entry messages, sampled 1 in 16, over the last

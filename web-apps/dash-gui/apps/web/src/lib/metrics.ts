@@ -34,6 +34,8 @@ export const COUNTER = {
   trades: "engine.trades",
   tradedValue: "engine.traded_value",
   rejects: "engine.rejects",
+  /** Labelled by reject code. */
+  rejectsByCode: "engine.rejects_by_code",
   fills: "engine.fills",
   /** pm-api-gwy, labelled by API key (the key's description). */
   apiKeyRequests: "api.key_requests",
@@ -61,6 +63,12 @@ export const LATENCY = {
  * (monitor/activity.py), so the chart's ratio is the one it judges.
  */
 export const REQUEST_COUNTERS = ["engine.orders_in", "engine.cancels_in", "engine.amends_in", "engine.quotes_in"] as const;
+
+/**
+ * The reject code pm-monitor leaves out of the reject ratio, with the requests
+ * it answers: an order in flight when the market closed (monitor/activity.py).
+ */
+export const MARKET_CLOSED = "MARKET_CLOSED";
 
 /** Requests below which there is no reject ratio: monitor/thresholds.py MIN_REQUESTS_5M. */
 export const MIN_REQUESTS = 20;

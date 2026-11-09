@@ -296,8 +296,8 @@ class MarketDataGateway:
             session = ClientSession(sock=conn, addr=addr)
             session.rate_tokens = float(self.config.max_messages_per_second)
             self._clients[conn.fileno()] = session
-            log.info(
-                "client connected addr=%s:%s fd=%d", addr[0], addr[1], conn.fileno()
+            log.debug(
+                "connection accepted addr=%s:%s fd=%d", addr[0], addr[1], conn.fileno()
             )
 
     def _read_client_data(self) -> None:
@@ -332,6 +332,14 @@ class MarketDataGateway:
                 self._disconnect(session, reason="peer_closed")
                 continue
 
+            if not session.heard_from:
+                session.heard_from = True
+                log.info(
+                    "client connected addr=%s:%s fd=%d",
+                    session.addr[0],
+                    session.addr[1],
+                    session.sock.fileno(),
+                )
             session.in_buffer.extend(chunk)
             session.last_activity = time.monotonic()
             self._drain_lines(session)
@@ -1154,7 +1162,9 @@ class MarketDataGateway:
         return True
 
     def _disconnect(self, session: ClientSession, reason: str = "unspecified") -> None:
-        self._disconnects[reason] = self._disconnects.get(reason, 0) + 1
+        silent = reason == "peer_closed" and not session.heard_from
+        if not silent:
+            self._disconnects[reason] = self._disconnects.get(reason, 0) + 1
         fd = session.sock.fileno()
         client_id = session.client_id or "-"
         try:
@@ -1163,7 +1173,9 @@ class MarketDataGateway:
             pass
         self._clients.pop(fd, None)
         self._subs.remove_client(fd)
-        log.info("client disconnected fd=%d client=%s reason=%s", fd, client_id, reason)
+        (log.debug if silent else log.info)(
+            "client disconnected fd=%d client=%s reason=%s", fd, client_id, reason
+        )
 
     def _close_after_flush(
         self, session: ClientSession, reason: str = "close_after_flush"

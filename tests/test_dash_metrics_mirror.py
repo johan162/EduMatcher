@@ -41,7 +41,7 @@ def test_every_beacon_metric_is_emitted_by_its_process() -> None:
 def test_every_counter_is_an_engine_counter() -> None:
     names = re.findall(r'"(engine\.\w+)"', _block("COUNTER"))
     emitted = _emitted("pm-engine")
-    assert len(names) == 5
+    assert len(names) == 6
     for name in names:
         assert emitted.get(name) == COUNTER, name
 

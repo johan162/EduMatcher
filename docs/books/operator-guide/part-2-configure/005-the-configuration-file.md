@@ -1286,7 +1286,7 @@ The seven threshold rules and their defaults:
 | `host_mem_pct` | 80 | 92 | Host memory use, % |
 | `disk_free_pct` | 15 | 5 | Free disk, % — **lower is worse**, so `warn` is above `crit` |
 | `engine_handle_p99_us` | 5000 | 20000 | Engine message-handling 99th percentile, µs |
-| `reject_pct_5m` | 10 | 30 | Order rejects over five minutes, % |
+| `reject_pct_5m` | 10 | 30 | Rejects over all inbound requests in five minutes, %; `MARKET_CLOSED` rejects are not counted |
 | `rss_growth_pct_1h` | 50 | 100 | Process memory growth over an hour, % |
 | `heap_bloat_ratio` | 1.5 | 3 | Book heap size over the size compaction tolerates (1 = at the limit) |
 

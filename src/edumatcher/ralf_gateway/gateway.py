@@ -63,6 +63,9 @@ class ClientSession:
     client_id: str = ""
     role: str = ""
     authenticated: bool = False
+    #: Set at the first bytes received. A connection closed before that (a
+    #: TCP liveness probe) is logged at DEBUG and not counted as a disconnect.
+    heard_from: bool = False
     last_seq_seen: int = 0
     subscriptions: set[tuple[str, str]] = field(default_factory=set)
     in_buffer: bytearray = field(default_factory=bytearray)
@@ -218,8 +221,8 @@ class RalfGateway:
             conn.setblocking(False)
             conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
             self._clients[conn.fileno()] = ClientSession(sock=conn, addr=addr)
-            log.info(
-                "client connected addr=%s:%s fd=%d", addr[0], addr[1], conn.fileno()
+            log.debug(
+                "connection accepted addr=%s:%s fd=%d", addr[0], addr[1], conn.fileno()
             )
 
     def _read_client_data(self) -> None:
@@ -250,6 +253,14 @@ class RalfGateway:
             if not chunk:
                 self._disconnect(sess, reason="peer_closed")
                 continue
+            if not sess.heard_from:
+                sess.heard_from = True
+                log.info(
+                    "client connected addr=%s:%s fd=%d",
+                    sess.addr[0],
+                    sess.addr[1],
+                    sess.sock.fileno(),
+                )
             sess.in_buffer.extend(chunk)
             sess.last_activity = time.monotonic()
             self._drain_lines(sess)
@@ -735,7 +746,9 @@ class RalfGateway:
         self._msgs_out += 1
 
     def _disconnect(self, sess: ClientSession, reason: str = "unspecified") -> None:
-        self._disconnects[reason] = self._disconnects.get(reason, 0) + 1
+        silent = reason == "peer_closed" and not sess.heard_from
+        if not silent:
+            self._disconnects[reason] = self._disconnects.get(reason, 0) + 1
         fileno = sess.sock.fileno()
         client_id = sess.client_id or "-"
         try:
@@ -743,7 +756,7 @@ class RalfGateway:
         except OSError:
             pass
         self._clients.pop(fileno, None)
-        log.info(
+        (log.debug if silent else log.info)(
             "client disconnected fd=%d client=%s reason=%s", fileno, client_id, reason
         )
 

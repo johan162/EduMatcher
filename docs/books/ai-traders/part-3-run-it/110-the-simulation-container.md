@@ -51,7 +51,8 @@ The image's entry point (`entrypoint.sh`) does five things:
    each simulated day is settled and written up on its own — see
    [End of day](#end-of-day) below.
 4. **Watches it**: once a minute it restarts any process of the profile that
-   has died, and says so in the container log (`docker logs edumatcher-sim`):
+   has died (it only looks for a running process; it does not connect to the
+   gateways' ports, so it never shows up as a client in their logs), and says so in the container log (`docker logs edumatcher-sim`):
 
     ```text
     ==> 2026-11-03 09:00:41 Restarting: mm-bot

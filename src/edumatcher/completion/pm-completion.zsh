@@ -4388,6 +4388,7 @@ _shtab_pm_opctl_cli_list_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
   {-y,--restart}"[restart dead processes without asking]"
   "--no-restart[never offer to restart dead processes]"
+  "--no-tcp-probe[do not connect to the processes\' ports to check them (a connect-and-close is seen by a gateway as a client)]"
 )
 
 # guard to ensure default positional specs are added only once per session

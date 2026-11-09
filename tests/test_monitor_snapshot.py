@@ -333,6 +333,58 @@ def test_todays_rejects_by_reason_most_first(mon: Monitor, clocks: _Clocks) -> N
     assert reasons == [("MM_MAX_SPREAD", 9), ("MARKET_CLOSED", 1)]
 
 
+def test_market_closed_rejects_are_not_in_the_reject_ratio(
+    mon: Monitor, clocks: _Clocks
+) -> None:
+    """Orders in flight when the closing auction ends are refused as
+    MARKET_CLOSED: neither those rejects nor their requests count, so the end
+    of the day alone cannot raise the exchange's reject alarm."""
+    started = int((OPEN - 3600) * 1e9)
+    for i in range(11):
+        mon.receive(
+            _beacon_frames(
+                seq=i,
+                started_at_ns=started,
+                metrics=[
+                    _c("engine.orders_in", 10 * i, "GW1"),
+                    _c("engine.rejects", 5 * i, "GW1"),
+                    _c("engine.rejects_by_code", 4 * i, "MARKET_CLOSED"),
+                    _c("engine.rejects_by_code", i, "ORDER_NOT_FOUND"),
+                ],
+            ),
+            clocks.mono,
+        )
+        clocks.advance(2.0)
+    # 100 requests, 50 rejects, 40 of them MARKET_CLOSED: 10 of 60 remain
+    assert _snapshot(mon).trading.reject_pct_5m == pytest.approx(100.0 * 10 / 60)
+    (gw1,) = [p for p in _snapshot(mon).participants if p.id == "GW1"]
+    assert gw1.reject_pct == pytest.approx(50.0)  # the participant's own figure
+
+
+def test_only_market_closed_rejects_leave_no_reject_ratio_to_judge(
+    mon: Monitor, clocks: _Clocks
+) -> None:
+    """A burst refused entirely as MARKET_CLOSED has no requests left to
+    judge, so it cannot trip the 20-request minimum either."""
+    started = int((OPEN - 3600) * 1e9)
+    for i in range(11):
+        mon.receive(
+            _beacon_frames(
+                seq=i,
+                started_at_ns=started,
+                metrics=[
+                    _c("engine.orders_in", 3 * i, "GW1"),
+                    _c("engine.rejects", 3 * i, "GW1"),
+                    _c("engine.rejects_by_code", 3 * i, "MARKET_CLOSED"),
+                ],
+            ),
+            clocks.mono,
+        )
+        clocks.advance(2.0)
+    assert _snapshot(mon).trading.reject_pct_5m == 0.0
+    assert mon.activity.requests_5m(clocks.mono) == 0.0
+
+
 def _mm_stream(mon: Monitor, clocks: _Clocks, beacons: int, per_beacon: int) -> None:
     """A market maker whose quotes are refused half the time, no orders."""
     started = int((OPEN - 3600) * 1e9)

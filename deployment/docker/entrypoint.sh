@@ -106,7 +106,7 @@ if [ "${EM_RESTART_DEAD:-0}" = "1" ]; then
     log "restarting dead processes once a minute (EM_RESTART_DEAD=1)"
     while true; do
         sleep 60 & wait $!
-        pm-opctl-cli list --restart 2>&1 | sed -n '/^Restarting:/,$p' | while IFS= read -r line; do
+        pm-opctl-cli list --restart --no-tcp-probe 2>&1 | sed -n '/^Restarting:/,$p' | while IFS= read -r line; do
             log "$(date '+%F %T') ${line}"
         done
     done

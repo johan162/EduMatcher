@@ -1205,7 +1205,7 @@ Exchange-wide trading activity, summed over gateways and symbols.
 | `orders` | [`RateStats`](#ratestats) | required | — | engine.orders_in: inbound new orders, including those then rejected. |
 | `trades` | [`RateStats`](#ratestats) | required | — |  |
 | `traded_value_today` | `float` | required | ge 0, unit `money` |  |
-| `reject_pct_5m` | `float` | required | ge 0, unit `percent` | Rejected acks over inbound requests (new orders, combos, OCOs, cancels, amends, quotes) in the last 5 minutes, the same set engine.rejects counts; 0 when none. |
+| `reject_pct_5m` | `float` | required | ge 0, unit `percent` | Rejected acks over inbound requests (new orders, combos, OCOs, cancels, amends, quotes) in the last 5 minutes, the same set engine.rejects counts, except that MARKET_CLOSED rejects and their requests are left out; 0 when none. |
 | `handle_p50_us` | `float` | required | ge 0, unit `duration_micros` | engine.handle_us_p50: order-entry messages, sampled 1 in 16, over the last minute. |
 | `handle_p99_us` | `float` | required | ge 0, unit `duration_micros` | engine.handle_us_p99, over the same samples. |
 | `handle_p99_ex_gc_us` | `float` | required | ge 0, unit `duration_micros` | engine.handle_us_p99_ex_gc: the same p99 with each sample's garbage-collection time taken out. |

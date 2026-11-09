@@ -92,7 +92,9 @@ Commands
     uptime as ``HH:MM`` and resident memory in MiB, and offer to restart any
     dead entries. Use ``-y`` to restart without asking or ``--no-restart`` to
     suppress the offer; the prompt is skipped automatically when stdin is not
-    a terminal.
+    a terminal. ``--no-tcp-probe`` leaves out the connect to each process's
+    port (a gateway sees that as a client that logs on nothing); a live
+    process then reads as running.
 ``health [-q]``
     Same checks as ``list``, but exits ``0`` only when every process is
     running. ``-q`` suppresses output for use in monitoring scripts.
@@ -746,7 +748,9 @@ def check_tcp(address: str) -> tuple[str, str]:
     return "running", f"tcp connect to {address} ok"
 
 
-def check_health(process: dict[str, Any], pid: int | None) -> tuple[str, str]:
+def check_health(
+    process: dict[str, Any], pid: int | None, probe_tcp: bool = True
+) -> tuple[str, str]:
     if pid is None:
         return "dead", "process is not running"
     healthcheck = process.get("healthcheck")
@@ -767,7 +771,7 @@ def check_health(process: dict[str, Any], pid: int | None) -> tuple[str, str]:
             return "running", "healthcheck passed"
         return "not responding", f"healthcheck exit {result.returncode}"
     tcp = process.get("tcp")
-    if tcp is not None:
+    if tcp is not None and probe_tcp:
         return check_tcp(tcp)
     return "running", "no healthcheck or tcp check configured"
 
@@ -824,7 +828,7 @@ def format_uptime(minutes: float | None) -> str:
     return f"{total // 60:02d}:{total % 60:02d}"
 
 
-def list_profile(restart: str = "ask") -> int:
+def list_profile(restart: str = "ask", probe_tcp: bool = True) -> int:
     profile_name = read_active_profile()
     if profile_name is None:
         print("No pm-opctl profile is recorded as started.")
@@ -848,7 +852,7 @@ def list_profile(restart: str = "ask") -> int:
     for process in processes:
         name = process["name"]
         pid, adopted = resolve_pid(process, claimed)
-        state, detail = check_health(process, pid)
+        state, detail = check_health(process, pid, probe_tcp)
         if adopted:
             detail = f"{detail} (re-adopted restarted process)"
         if state == "dead":
@@ -1309,6 +1313,12 @@ def build_parser() -> argparse.ArgumentParser:
         const="never",
         help="never offer to restart dead processes",
     )
+    listing.add_argument(
+        "--no-tcp-probe",
+        action="store_true",
+        help="do not connect to the processes' ports to check them (a "
+        "connect-and-close is seen by a gateway as a client)",
+    )
     listing.set_defaults(restart="ask")
     health = subparsers.add_parser(
         "health", help="check health of every process in the active profile"
@@ -1370,7 +1380,7 @@ def main() -> int:
         if args.command == "kill":
             return kill_all_processes()
         if args.command == "list":
-            return list_profile(args.restart)
+            return list_profile(args.restart, not args.no_tcp_probe)
         if args.command == "health":
             return health_profile(args.quiet)
         if args.command == "show":

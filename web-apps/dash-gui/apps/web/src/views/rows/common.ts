@@ -222,19 +222,28 @@ export function heartbeatTimes(lanes: readonly Lane[], range: TimeRangeMs): numb
  * The reject ratio in percent per bucket, as pm-monitor judges it
  * (reject_pct_5m): rejects over requests across the last five minutes,
  * and only from 20 requests up (MIN_REQUESTS_5M) -- below that there is
- * no ratio, and the line has a gap. With hourly buckets, per hour.
+ * no ratio, and the line has a gap. The MARKET_CLOSED rejects (`closed`) and
+ * the requests they answer are left out of both, as pm-monitor leaves them
+ * out. With hourly buckets, per hour.
  */
-export function rejectRatio(rejects: readonly Point[], requests: readonly Point[], bucketMs: number): Point[] {
+export function rejectRatio(
+  rejects: readonly Point[],
+  requests: readonly Point[],
+  closed: readonly Point[],
+  bucketMs: number,
+): Point[] {
   const window = bucketMs === 60_000 ? 5 : 1;
   const rej = new Map(rejects);
   const req = new Map(requests);
+  const shut = new Map(closed);
   const out: Point[] = [];
   for (const ts of [...req.keys()].sort((a, b) => a - b)) {
     let n = 0;
     let r = 0;
     for (let k = 0; k < window; k++) {
-      n += req.get(ts - k * bucketMs) ?? 0;
-      r += rej.get(ts - k * bucketMs) ?? 0;
+      const c = shut.get(ts - k * bucketMs) ?? 0;
+      n += (req.get(ts - k * bucketMs) ?? 0) - c;
+      r += (rej.get(ts - k * bucketMs) ?? 0) - c;
     }
     if (n >= MIN_REQUESTS) out.push([ts, (100 * r) / n]);
   }

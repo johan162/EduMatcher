@@ -374,6 +374,12 @@ For full working Python and C subscribers (per-symbol volume/VWAP tally,
 
 ## Troubleshooting
 
+A connection that closes before sending a single byte, such as a TCP
+liveness probe, is not a client: `pm-md-gwy`, `pm-ralf-gwy` and `pm-dc-gwy`
+log its accept and its `peer_closed` disconnect at `DEBUG` only, and do not
+count it in `gwy.disconnects`. A client is logged (`client connected`) at
+`INFO` when its first bytes arrive.
+
 ### Check whether the port is in use
 
 **macOS:**

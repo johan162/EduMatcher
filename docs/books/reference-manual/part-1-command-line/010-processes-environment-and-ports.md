@@ -3744,7 +3744,7 @@ instead of launching each process by hand in its own terminal — see
 
 ```bash
 pm-opctl-cli start [PROFILE] [-d]
-pm-opctl-cli list [-y | --no-restart]
+pm-opctl-cli list [-y | --no-restart] [--no-tcp-probe]
 pm-opctl-cli health [-q]
 pm-opctl-cli stop
 pm-opctl-cli kill
@@ -3777,7 +3777,7 @@ once that file exists its profiles replace the built-ins entirely (a missing
 | Subcommand | Aliases | Options | Purpose |
 |---|---|---|---|
 | `start [PROFILE]` | `up` | `-d`/`--debug`/`-vv` (append `--log-level DEBUG` to every process's command) | Start a profile (`default` when omitted), skipping entries already running |
-| `list` | — | `-y`/`--restart` (restart dead entries without asking), `--no-restart` (never offer) | Status table for the active profile: uptime (`HH:MM`) and resident memory (MiB) per process |
+| `list` | — | `-y`/`--restart` (restart dead entries without asking), `--no-restart` (never offer), `--no-tcp-probe` (do not connect to each process's port; a live process reads as running) | Status table for the active profile: uptime (`HH:MM`) and resident memory (MiB) per process |
 | `health` | — | `-q`/`--quiet` (print nothing) | Same checks as `list`; exits `0` only when every process is running — for monitoring scripts |
 | `stop` | `down` | — | Send `SIGTERM` to processes this tool started (recorded in the PID directory) |
 | `kill` | — | — | Emergency stop: `pkill -15 -f -i -l pm-` — signals every process whose command line contains `pm-`, including ones this tool did not start |

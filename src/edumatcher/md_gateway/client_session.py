@@ -26,6 +26,9 @@ class ClientSession:
     # Authentication/session state
     authenticated: bool = False
     client_id: str = ""
+    #: Set at the first bytes received. A connection closed before that (a
+    #: TCP liveness probe) is logged at DEBUG and not counted as a disconnect.
+    heard_from: bool = False
 
     # Absolute connection timestamp for handshake-timeout checks.
     connected_at: float = field(default_factory=time.monotonic)
