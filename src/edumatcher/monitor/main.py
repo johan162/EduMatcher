@@ -191,7 +191,7 @@ def main() -> None:
     args = parser.parse_args()
     log_level = _configure_logging(args)
     log.info("starting pm-monitor with log level %s", logging.getLevelName(log_level))
-    report_deployment(log)
+    report_deployment()
 
     compiled = load_compiled_config()
     config = MonitorConfig() if compiled is None else compiled.monitor

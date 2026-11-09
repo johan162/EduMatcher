@@ -9,7 +9,6 @@ same defaults the YAML loaders used to fall back to.
 
 from __future__ import annotations
 
-import logging
 from pathlib import Path
 from typing import Any, Callable
 
@@ -267,7 +266,7 @@ class TestDeploymentReport:
         self, nothing_deployed: None, caplog: pytest.LogCaptureFixture
     ) -> None:
         with caplog.at_level("INFO"):
-            report_deployment(logging.getLogger("test"))
+            report_deployment()
 
         assert "no compiled configuration" in caplog.text
         assert "pm-config-deploy" in caplog.text
@@ -281,7 +280,7 @@ class TestDeploymentReport:
         deployed(CONFIGURED)
 
         with caplog.at_level("INFO"):
-            report_deployment(logging.getLogger("test"))
+            report_deployment()
 
         assert "using compiled config" in caplog.text
         assert "authored.yaml" in caplog.text
@@ -296,7 +295,7 @@ class TestDeploymentReport:
         (tmp_path / "authored.yaml").write_text(CONFIGURED + "\n")
 
         with caplog.at_level("INFO"):
-            report_deployment(logging.getLogger("test"))
+            report_deployment()
 
         assert "still running the previous one" in caplog.text
 
@@ -312,4 +311,4 @@ class TestDeploymentReport:
         )
 
         with pytest.raises(ArtifactError):
-            report_deployment(logging.getLogger("test"))
+            report_deployment()

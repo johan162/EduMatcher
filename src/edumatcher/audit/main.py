@@ -552,7 +552,7 @@ class AuditProcess:
                     raise
                 break  # EINTR — honour _running flag
             if self.health_rep in socks:
-                answer_health_ping(self.health_rep, log)
+                answer_health_ping(self.health_rep)
             if self.sub in socks:
                 self._receive_one_message()
             if self._file.sync_due():

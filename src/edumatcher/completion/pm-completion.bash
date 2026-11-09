@@ -5517,27 +5517,37 @@ complete -o bashdefault -F _shtab_pm_ipo pm-ipo
 #    source ~/.local/share/bash_completion/pm-log-cli
 # See also: https://github.com/scop/bash-completion/blob/main/doc/configuration.md
 
-_shtab_pm_log_cli_subparsers=(tail query processes stats diagnose prune)
+_shtab_pm_log_cli_ledger_subparsers=(list show check export)
+_shtab_pm_log_cli_subparsers=(tail query processes stats diagnose prune explain ledger)
 
-_shtab_pm_log_cli_tail_option_strings=(-h --help --process --level --logger --interval --before)
-_shtab_pm_log_cli_query_option_strings=(-h --help --process --level --logger --since --until --grep --has-exception --limit --reverse)
+_shtab_pm_log_cli_tail_option_strings=(-h --help --process --level --logger --interval --before --explain)
+_shtab_pm_log_cli_query_option_strings=(-h --help --process --level --logger --since --until --grep --has-exception --limit --reverse --explain)
 _shtab_pm_log_cli_processes_option_strings=(-h --help --active)
 _shtab_pm_log_cli_stats_option_strings=(-h --help)
 _shtab_pm_log_cli_diagnose_option_strings=(-h --help --since --process)
 _shtab_pm_log_cli_prune_option_strings=(-h --help --days)
+_shtab_pm_log_cli_explain_option_strings=(-h --help)
+_shtab_pm_log_cli_ledger_list_option_strings=(-h --help --logger --level)
+_shtab_pm_log_cli_ledger_show_option_strings=(-h --help)
+_shtab_pm_log_cli_ledger_check_option_strings=(-h --help --package)
+_shtab_pm_log_cli_ledger_export_option_strings=(-h --help)
+_shtab_pm_log_cli_ledger_option_strings=(-h --help)
 _shtab_pm_log_cli_option_strings=(-h --help --version --db --format)
 
 
 
-_shtab_pm_log_cli_pos_0_choices=(tail query processes stats diagnose prune)
+_shtab_pm_log_cli_ledger_pos_0_choices=(list show check export)
+_shtab_pm_log_cli_pos_0_choices=(tail query processes stats diagnose prune explain ledger)
 _shtab_pm_log_cli___format_choices=(human json)
 
 _shtab_pm_log_cli_tail__h_nargs=0
 _shtab_pm_log_cli_tail___help_nargs=0
+_shtab_pm_log_cli_tail___explain_nargs=0
 _shtab_pm_log_cli_query__h_nargs=0
 _shtab_pm_log_cli_query___help_nargs=0
 _shtab_pm_log_cli_query___has_exception_nargs=0
 _shtab_pm_log_cli_query___reverse_nargs=0
+_shtab_pm_log_cli_query___explain_nargs=0
 _shtab_pm_log_cli_processes__h_nargs=0
 _shtab_pm_log_cli_processes___help_nargs=0
 _shtab_pm_log_cli_processes___active_nargs=0
@@ -5547,6 +5557,19 @@ _shtab_pm_log_cli_diagnose__h_nargs=0
 _shtab_pm_log_cli_diagnose___help_nargs=0
 _shtab_pm_log_cli_prune__h_nargs=0
 _shtab_pm_log_cli_prune___help_nargs=0
+_shtab_pm_log_cli_explain__h_nargs=0
+_shtab_pm_log_cli_explain___help_nargs=0
+_shtab_pm_log_cli_ledger_list__h_nargs=0
+_shtab_pm_log_cli_ledger_list___help_nargs=0
+_shtab_pm_log_cli_ledger_show__h_nargs=0
+_shtab_pm_log_cli_ledger_show___help_nargs=0
+_shtab_pm_log_cli_ledger_check__h_nargs=0
+_shtab_pm_log_cli_ledger_check___help_nargs=0
+_shtab_pm_log_cli_ledger_export__h_nargs=0
+_shtab_pm_log_cli_ledger_export___help_nargs=0
+_shtab_pm_log_cli_ledger_pos_0_nargs=A...
+_shtab_pm_log_cli_ledger__h_nargs=0
+_shtab_pm_log_cli_ledger___help_nargs=0
 _shtab_pm_log_cli_pos_0_nargs=A...
 _shtab_pm_log_cli__h_nargs=0
 _shtab_pm_log_cli___help_nargs=0

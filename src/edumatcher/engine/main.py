@@ -7902,7 +7902,7 @@ def main() -> None:
     log_level = _configure_logging(args)
     log.info("starting pm-engine with log level %s", logging.getLevelName(log_level))
     try:
-        report_deployment(log)
+        report_deployment()
     except ArtifactError:
         log.debug("deployed configuration startup failure details", exc_info=True)
         raise SystemExit(1) from None

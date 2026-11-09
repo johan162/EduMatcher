@@ -83,7 +83,7 @@ def test_ping_is_answered_with_a_utc_timestamp() -> None:
     try:
         responder = threading.Thread(
             target=answer_health_ping,
-            args=(sock, logging.getLogger("test")),
+            args=(sock,),
             daemon=True,
         )
         responder.start()
@@ -118,7 +118,7 @@ def test_answer_logs_rather_than_raises_on_socket_error(
     sock.bind("inproc://healthcheck-error-test")
     try:
         with caplog.at_level(logging.WARNING):
-            answer_health_ping(sock, logging.getLogger("test"))
+            answer_health_ping(sock)
     finally:
         sock.close(0)
 

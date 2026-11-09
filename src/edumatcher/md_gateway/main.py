@@ -207,7 +207,7 @@ def main() -> None:
     args = parser.parse_args()
     log_level = _configure_logging(args)
     log.info("starting pm-md-gwy with log level %s", logging.getLevelName(log_level))
-    report_deployment(log)
+    report_deployment()
 
     try:
         config, known_symbols, tick_decimals = _resolve_config(args)

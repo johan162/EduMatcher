@@ -1878,7 +1878,7 @@ class StatsProcess:
             self._prune_if_due()
 
             if self.health_rep in socks:
-                answer_health_ping(self.health_rep, log)
+                answer_health_ping(self.health_rep)
 
             if self.index_sub in socks:
                 self._receive_one_index_message()

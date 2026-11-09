@@ -168,7 +168,7 @@ def main() -> None:
     args = parser.parse_args()
     log_level = _configure_logging(args)
     log.info("starting pm-balf-gwy with log level %s", logging.getLevelName(log_level))
-    report_deployment(log)
+    report_deployment()
 
     try:
         config = _resolve_config(args)

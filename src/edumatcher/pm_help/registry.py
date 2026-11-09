@@ -2561,6 +2561,14 @@ _LOGGING: tuple[CommandInfo, ...] = (
                 purpose="Rule-based troubleshooting heuristics with concrete recommendations",
             ),
             Subcommand("prune", purpose="Manual retention maintenance"),
+            Subcommand(
+                "explain",
+                purpose="One row with its log-ledger explanation and suggested actions",
+            ),
+            Subcommand(
+                "ledger",
+                purpose="list/show/check/export the log ledger (needs no log.db)",
+            ),
         ),
         related=("pm-log-srv",),
         doc_anchor="pm-log-cli-log-server-querytroubleshooting-cli",

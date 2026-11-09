@@ -42,9 +42,7 @@ def test_main_runs_server_with_resolved_config(
         "LogServer",
         lambda config: _DummyServer(config, called),
     )
-    monkeypatch.setattr(
-        "edumatcher.config_artifact.report_deployment", lambda _log: None
-    )
+    monkeypatch.setattr("edumatcher.config_artifact.report_deployment", lambda: None)
     monkeypatch.setattr(sys, "argv", ["pm-log-srv", "--host", "127.0.0.1"])
 
     log_srv_main.main()
@@ -76,9 +74,7 @@ def test_main_exits_cleanly_when_log_server_disabled(
         return _DummyServer(_config, {})
 
     monkeypatch.setattr(log_srv_main, "LogServer", _unexpected_server)
-    monkeypatch.setattr(
-        "edumatcher.config_artifact.report_deployment", lambda _log: None
-    )
+    monkeypatch.setattr("edumatcher.config_artifact.report_deployment", lambda: None)
     monkeypatch.setattr(sys, "argv", ["pm-log-srv"])
 
     log_srv_main.main()
@@ -99,9 +95,7 @@ def test_main_validates_port_collisions_before_starting(
             pull_port=5603,
         ),
     )
-    monkeypatch.setattr(
-        "edumatcher.config_artifact.report_deployment", lambda _log: None
-    )
+    monkeypatch.setattr("edumatcher.config_artifact.report_deployment", lambda: None)
     monkeypatch.setattr(
         sys,
         "argv",
@@ -128,9 +122,7 @@ def test_main_closes_server_even_on_runtime_error(
         "LogServer",
         lambda config: _ExplodingServer(config, called),
     )
-    monkeypatch.setattr(
-        "edumatcher.config_artifact.report_deployment", lambda _log: None
-    )
+    monkeypatch.setattr("edumatcher.config_artifact.report_deployment", lambda: None)
     monkeypatch.setattr(sys, "argv", ["pm-log-srv"])
 
     with pytest.raises(RuntimeError, match="boom"):
@@ -159,9 +151,7 @@ def test_main_rejects_out_of_range_flags(
         "load_default_log_server_config",
         lambda: LogServerConfig(db_path=tmp_path / "log.db"),
     )
-    monkeypatch.setattr(
-        "edumatcher.config_artifact.report_deployment", lambda _log: None
-    )
+    monkeypatch.setattr("edumatcher.config_artifact.report_deployment", lambda: None)
     monkeypatch.setattr(sys, "argv", ["pm-log-srv", *argv])
 
     with pytest.raises(SystemExit) as excinfo:

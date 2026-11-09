@@ -454,7 +454,7 @@ class ClearingProcess:
                 break
 
             if health_rep is not None and health_rep in socks:
-                answer_health_ping(health_rep, log)
+                answer_health_ping(health_rep)
 
             if sub not in socks:
                 if draining:

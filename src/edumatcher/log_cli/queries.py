@@ -114,6 +114,15 @@ def query_events(
     return result
 
 
+def get_event(conn: sqlite3.Connection, seq: int) -> dict[str, Any] | None:
+    """One ``log_events`` row by ``seq``, or ``None`` (``explain``)."""
+    rows = conn.execute(
+        f"SELECT {', '.join(_QUERY_COLUMNS)} FROM log_events WHERE seq = ?", (seq,)
+    ).fetchall()
+    result = _rows_to_dicts(rows)
+    return result[0] if result else None
+
+
 def max_seq(conn: sqlite3.Connection) -> int:
     row = conn.execute("SELECT COALESCE(MAX(seq), 0) AS m FROM log_events").fetchone()
     return int(row["m"])

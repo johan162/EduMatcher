@@ -22,13 +22,13 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 | # | WP | Content | Depends on | Est. | Status | Done on |
 |---|---|---|---|---|---|---|
 | 1 | L1 | Template id end to end: logclient → LALF `TPL` → `log_events.tpl` → LALF-PS → bridge `LogRow.tpl`; `schema_version` table (v2) checked at startup; constant templates at the dynamic call sites | — | 1 d | ☑ | 2026-11-09 |
-| 2 | L2 | `edumatcher.log_ledger`: format, loader, AST call-site scanner, coverage test; `pm-log-cli ledger list/show/check/export`, `explain <seq>`, `--explain` on `query`/`tail`; seed entries for `log_srv` + `logclient` | L1 | 1 d | ☐ | |
+| 2 | L2 | `edumatcher.log_ledger`: format, loader, AST call-site scanner, coverage test; `pm-log-cli ledger list/show/check/export`, `explain <seq>`, `--explain` on `query`/`tail`; seed entries for `log_srv` (`logclient` has no WARNING+ call) | L1 | 1 d | ☑ | 2026-11-09 |
 | 3 | L3 | log-GUI: bridge loads the ledger, `GET /api/ledger`; drawer panels *Explanation* + *Suggested actions*; "no ledger entry" state | L2 | 0.5 d | ☐ | |
 | 4 | L4 | Content: engine, orders, board, messaging, ticker | L2 | 0.5 d | ☐ | |
 | 5 | L5 | Content: gateways (alf_gwy, balf_gwy, api_gateway, md_gateway, dc_gateway, ralf_gateway, calf_client, ralf_spy, dc_spy) | L2 | 1 d | ☐ | |
 | 6 | L6 | Content: alf_console, clearing, audit, stats | L2 | 0.5 d | ☐ | |
 | 7 | L7 | Content: ai_trader, mm_bot, market_sim, index, viewer | L2 | 0.5 d | ☐ | |
-| 8 | L8 | Content: log_srv (rest), monitor, scheduler, health, config*, setup, the rest. Coverage test becomes a hard failure, docs | L4–L7 | 0.5 d | ☐ | |
+| 8 | L8 | Content: monitor, scheduler, health, config*, setup, the rest. Coverage test becomes a hard failure, docs | L4–L7 | 0.5 d | ☐ | |
 
 ## 1. Decisions
 
@@ -130,6 +130,10 @@ per package group so each content WP edits its own file.
 * `explanation` is 1–3 sentences of plain text. `actions` is 1–4 imperative
   lines. Backticks mark commands; the GUI renders them in monospace and the CLI
   prints them as is.
+* Each action is written as a double-quoted YAML string. A bare string that
+  contains `: ` becomes a mapping, and one that starts with a backtick is a YAML
+  error. The loader rejects the first ("actions must be a list of 1-4
+  non-empty strings"), and it names the file and entry index.
 * No Markdown, no HTML, no links. The text has to read well in a terminal.
 
 ### 3.1 Loader API
@@ -165,9 +169,10 @@ a logger:
 
 `tests/test_log_ledger.py`:
 
-1. Every call site has an entry. Missing entries for a package listed in
-   `PENDING_PACKAGES` are reported with `pytest.warns`/a printed list instead
-   of failing. L4–L7 remove their packages from the set, and L8 deletes it.
+1. Every call site has an entry, except in packages listed in
+   `PENDING_PACKAGES`. A companion test fails when a pending package has no
+   gaps left, so a finished package has to leave the set and the gate closes
+   on it. L4–L7 remove their packages, and L8 deletes the set.
 2. Every entry has a call site, so a stale entry fails.
 3. The entry `level` equals the call-site level.
 4. No template is non-constant at WARNING+.
@@ -233,6 +238,30 @@ Each content WP:
 
 Writing entries often uncovers wrong log levels and unclear messages. The
 review step (3) is part of the WP, not a side effect.
+
+### 6.1 Notes from L2 for the content WPs
+
+* **pm-log-srv's own messages never reach `log.db`.** Its `--log-target` is
+  stdout or a file, never itself. Its entries (`log_srv.yaml`) are therefore
+  only reachable through `pm-log-cli ledger list/show`, never through `explain`
+  or the GUI drawer. They are kept for completeness. If operators need it, a
+  later `ledger search TEXT` could find the entry for a line from pm-log-srv's
+  console.
+* **Logger-parameter helpers removed.** `config_artifact.report_deployment()`
+  and `healthcheck.answer_health_ping()` took the caller's logger, so one
+  message had a different `tpl` in each of 13 processes. They now log
+  through their own module loggers. The `logger` column for those messages
+  changes from e.g. `edumatcher.engine.main` to `edumatcher.config_artifact`;
+  `process` still says which process logged them.
+* **Scanner coverage at L2:** 302 WARNING+ call sites, 301 distinct keys, no
+  unresolved site. Relay table: board/orders startup warnings, `monitor`
+  `_warn`, and `health.reporter` `_warn`/`_log_rate_limited`. `log.log(level,
+  …)` levels resolve through `logging.X`, `a if c else b`, and module-level
+  dicts of `logging.X`.
+* **Seen on a real `mini` exchange (e2e):** pm-scheduler logs two WARNINGs at
+  every start ("no confirmation that the engine applied CLOSING_AUCTION/CLOSED
+  …"). L8 should check whether they are real or noise before writing their
+  entry.
 
 ## 7. Open questions
 

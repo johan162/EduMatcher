@@ -159,9 +159,7 @@ def _compiled(monitor_cfg: MonitorConfig, tz: str = "Europe/Stockholm") -> Any:
 def deployed(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Any:
     """Point main() at a fake compiled artifact and a private metrics.db;
     returns a setter."""
-    monkeypatch.setattr(
-        "edumatcher.config_artifact.report_deployment", lambda log: None
-    )
+    monkeypatch.setattr("edumatcher.config_artifact.report_deployment", lambda: None)
     monkeypatch.setattr(monitor_main, "METRICS_DB_FILE", tmp_path / "metrics.db")
 
     def deploy(compiled: Any) -> None:

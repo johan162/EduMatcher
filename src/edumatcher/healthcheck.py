@@ -20,6 +20,8 @@ from typing import Any, Callable, TypeVar
 
 import zmq
 
+log = logging.getLogger(__name__)
+
 T = TypeVar("T")
 
 PING_TIMEOUT_MS = 1000
@@ -85,7 +87,7 @@ def ping_health_endpoint(
         sock.close(0)
 
 
-def answer_health_ping(sock: zmq.Socket[bytes], log: logging.Logger) -> None:
+def answer_health_ping(sock: zmq.Socket[bytes]) -> None:
     """Answer one health ping on a REP socket with the current UTC time.
 
     REP sockets must reply before another recv is allowed, so this always
