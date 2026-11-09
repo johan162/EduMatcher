@@ -2822,14 +2822,14 @@ md = ["comrak (>=0.0.13)"]
 
 [[package]]
 name = "reportlab"
-version = "5.0.1"
+version = "5.1.0"
 description = "The Reportlab Toolkit"
 optional = false
 python-versions = "<4,>=3.9"
 groups = ["main"]
 files = [
-    {file = "reportlab-5.0.1-py3-none-any.whl", hash = "sha256:1c36e6bb0e71780c72331eba60da7f602e8d4389a8723825af71342e49d791e8"},
-    {file = "reportlab-5.0.1.tar.gz", hash = "sha256:ebd13154be1c8515e665de70bd2d303ae9ddc3ef47e44afd5116441ca0283a26"},
+    {file = "reportlab-5.1.0-py3-none-any.whl", hash = "sha256:59fdbaec5efe437095ad1d7292ec9a271c8ca2d3ec75e889c6e61400929b90df"},
+    {file = "reportlab-5.1.0.tar.gz", hash = "sha256:6878200464527e87672d19e9f7cfc6bb890e3a6931e74ac6a1a8d1754aa55671"},
 ]
 
 [package.dependencies]
@@ -3473,4 +3473,4 @@ files = [
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.14"
-content-hash = "a67a93004274a0c82bd9eb957717b5296e3b154a42bef404013e9289a15928b0"
+content-hash = "9d2d9c5cd5de28bb72cb472c08e0966acc8221b2e05a8418f91e3af42be5ff5f"
