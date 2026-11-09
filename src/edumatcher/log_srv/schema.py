@@ -8,7 +8,7 @@ query patterns ``pm-log-cli`` actually needs (§9), and TEXT columns for
 timestamps in the same UTC ISO-8601-with-milliseconds format every other
 EduMatcher SQLite store already uses.
 
-Three tables (§6.2-§6.4):
+Four tables (§6.2-§6.4):
 
   log_events     One row per received LOG message — the append-only heart
                  of the database.
@@ -16,6 +16,10 @@ Three tables (§6.2-§6.4):
                  connect/disconnect registry.
   server_stats   Single-row (id=1) table of pm-log-srv's own lifetime
                  operational counters.
+  schema_version Single-row (id=1) table holding :data:`SCHEMA_VERSION`.
+
+An existing ``log.db`` written under another schema version is refused,
+never migrated: the operator deletes it and the server starts a fresh one.
 """
 
 from __future__ import annotations
@@ -23,7 +27,17 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
+#: Bumped whenever a table's shape changes. Version 1 was every ``log.db``
+#: written before the ``schema_version`` table existed; version 2 added
+#: ``log_events.tpl`` (the log-ledger template id).
+SCHEMA_VERSION = 2
+
 SCHEMA = """
+CREATE TABLE IF NOT EXISTS schema_version (
+    id      INTEGER PRIMARY KEY CHECK (id = 1),
+    version INTEGER NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS log_events (
     seq             INTEGER PRIMARY KEY AUTOINCREMENT,
     client_ts       TEXT NOT NULL,
@@ -39,7 +53,8 @@ CREATE TABLE IF NOT EXISTS log_events (
     line            INTEGER,
     has_exception   INTEGER NOT NULL DEFAULT 0,
     truncated       INTEGER NOT NULL DEFAULT 0,
-    message         TEXT NOT NULL
+    message         TEXT NOT NULL,
+    tpl             TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_le_process_ts ON log_events(process, client_ts);
@@ -79,8 +94,8 @@ CREATE TABLE IF NOT EXISTS server_stats (
 INSERT_LOG_EVENT = """
 INSERT INTO log_events
     (client_ts, server_ts, process, instance, pid, host, session,
-     level, logger, module, line, has_exception, truncated, message)
-VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+     level, logger, module, line, has_exception, truncated, message, tpl)
+VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 """
 
 UPSERT_PROCESS_CONNECT = """
@@ -158,25 +173,42 @@ PRUNE_CHUNK_ROWS = 5000
 BUSY_TIMEOUT_MS = 10_000
 
 
+class LogDbSchemaError(RuntimeError):
+    """An existing ``log.db`` was written under another :data:`SCHEMA_VERSION`."""
+
+
 def initialize_schema(conn: sqlite3.Connection) -> None:
     """Create the current log-server schema on an open SQLite connection."""
     conn.executescript(SCHEMA)
-    _migrate(conn)
+    conn.execute(
+        "INSERT OR IGNORE INTO schema_version (id, version) VALUES (1, ?)",
+        (SCHEMA_VERSION,),
+    )
 
 
-def _migrate(conn: sqlite3.Connection) -> None:
-    """Bring a database created by an older build up to the current schema.
+def check_schema_version(conn: sqlite3.Connection, path: Path) -> None:
+    """Raise :class:`LogDbSchemaError` unless ``conn`` is empty or current.
 
-    ``CREATE TABLE IF NOT EXISTS`` leaves an existing table alone, so a
-    column added after a deployment first ran would never appear without
-    this. Additive only: every column added here is nullable, so an older
-    ``pm-log-cli`` reading the same file keeps working.
+    A database with no tables at all is a brand-new file and passes. Any
+    other database must carry ``schema_version`` = :data:`SCHEMA_VERSION`; a
+    file older than the table itself counts as version 1.
     """
-    have = {row[1] for row in conn.execute("PRAGMA table_info(processes)")}
-    if "last_heartbeat_at" not in have:
-        conn.execute("ALTER TABLE processes ADD COLUMN last_heartbeat_at TEXT")
-    if "disconnect_reason" not in have:
-        conn.execute("ALTER TABLE processes ADD COLUMN disconnect_reason TEXT")
+    tables = {
+        row[0]
+        for row in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")
+    }
+    if not tables:
+        return
+    version = 1
+    if "schema_version" in tables:
+        row = conn.execute("SELECT version FROM schema_version WHERE id = 1").fetchone()
+        version = row[0] if row is not None else 1
+    if version != SCHEMA_VERSION:
+        raise LogDbSchemaError(
+            f"{path} has log.db schema version {version}, this build needs "
+            f"{SCHEMA_VERSION}; old log databases are not migrated — delete "
+            f"{path} (and its -wal/-shm files) and start pm-log-srv again"
+        )
 
 
 def open_db(path: Path, *, read_only: bool = False) -> sqlite3.Connection:
@@ -185,7 +217,9 @@ def open_db(path: Path, *, read_only: bool = False) -> sqlite3.Connection:
     ``read_only`` opens the file via SQLite's URI ``mode=ro`` — used by
     ``pm-log-cli``, which never writes and must not block on or interfere
     with ``pm-log-srv``'s own writer connection (§4.1, §9). The schema is
-    only created/verified on a writable open; a read-only open against a
+    only created on a writable open, but both modes raise
+    :class:`LogDbSchemaError` for an existing file of another
+    :data:`SCHEMA_VERSION`; a read-only open against a
     database that has never been created raises, which callers translate
     into ``pm-log-cli``'s documented exit code 1 (§9.8).
     """
@@ -193,6 +227,11 @@ def open_db(path: Path, *, read_only: bool = False) -> sqlite3.Connection:
         uri = f"file:{path}?mode=ro"
         conn = sqlite3.connect(uri, uri=True, check_same_thread=False)
         conn.execute(f"PRAGMA busy_timeout = {BUSY_TIMEOUT_MS}")
+        try:
+            check_schema_version(conn, path)
+        except LogDbSchemaError:
+            conn.close()
+            raise
         return conn
 
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -201,6 +240,11 @@ def open_db(path: Path, *, read_only: bool = False) -> sqlite3.Connection:
     # block the writer's commits, as every other EduMatcher store does.
     conn.execute("PRAGMA journal_mode = WAL")
     conn.execute(f"PRAGMA busy_timeout = {BUSY_TIMEOUT_MS}")
+    try:
+        check_schema_version(conn, path)
+    except LogDbSchemaError:
+        conn.close()
+        raise
     initialize_schema(conn)
     conn.commit()
     return conn

@@ -250,6 +250,7 @@ class TestTheRowShapeIsSharedByBothPaths:
             "has_exception": False,
             "truncated": False,
             "message": "started",
+            "tpl": None,
         }
 
     def test_a_live_batch_round_trips(self) -> None:

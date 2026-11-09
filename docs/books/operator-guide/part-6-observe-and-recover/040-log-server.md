@@ -107,6 +107,17 @@ export EDUMATCHER_DATA_DIR="$HOME/sessions/morning"
 pm-log-srv  # writes to $HOME/sessions/morning/log.db
 ```
 
+### Schema version
+
+`log.db` records its schema version in a `schema_version` table. The
+current version is **2**. Each time `pm-log-srv` or `pm-log-cli` opens an
+existing `log.db`, it checks that version. Old log databases are never
+migrated: if the file was written by an older release, `pm-log-srv` logs a
+CRITICAL `refusing to start: ... has log.db schema version 1, this build
+needs 2 ...` and exits with status 1. Delete `log.db` and its `-wal`/`-shm`
+files, then start `pm-log-srv` again. It creates a fresh database at the
+current version.
+
 
 
 ## pm-log-srv — Log Collector

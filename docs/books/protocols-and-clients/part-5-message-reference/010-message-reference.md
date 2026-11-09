@@ -1770,6 +1770,7 @@ One persisted log line, exactly the columns log_events stores. Carried by both l
 | `has_exception` | `bool` | required | — |  |
 | `truncated` | `bool` | required | — |  |
 | `message` | `string` | required | — |  |
+| `tpl` | `string` | required | max_len 12 | Log-ledger template id of the call site; set on WARNING+ rows only. |
 
 #### `SubscriptionStatus`
 

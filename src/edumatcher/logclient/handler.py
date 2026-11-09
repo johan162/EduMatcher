@@ -39,6 +39,7 @@ from edumatcher.logclient.protocol import (
     iso_utc,
     parse_header_line,
     parse_welcome,
+    template_id,
 )
 
 _RECV_BUFFER_BYTES = 4096
@@ -147,6 +148,13 @@ class TcpLogHandler(logging.Handler):
             module=record.module,
             line=record.lineno,
             has_exception=has_exception,
+            # Only WARNING+ rows are looked up in the log ledger, so the
+            # INFO/DEBUG bulk skips the hash.
+            tpl=(
+                template_id(record.name, str(record.msg))
+                if record.levelno >= logging.WARNING
+                else None
+            ),
         )
 
     # -- fallback file -----------------------------------------------------------

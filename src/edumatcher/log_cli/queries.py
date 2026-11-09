@@ -47,6 +47,7 @@ _QUERY_COLUMNS = [
     "has_exception",
     "truncated",
     "message",
+    "tpl",
 ]
 
 

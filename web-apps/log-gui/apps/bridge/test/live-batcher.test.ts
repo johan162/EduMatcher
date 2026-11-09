@@ -27,6 +27,7 @@ function row(seq: number): LogRow {
     line: null,
     has_exception: false,
     truncated: false,
+    tpl: null,
     message: `m${seq}`,
   };
 }

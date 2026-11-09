@@ -24,6 +24,7 @@ and deliberately avoids any socket or server state logic, exactly like
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
@@ -195,6 +196,18 @@ def parse_welcome(fields: dict[str, str]) -> WelcomeInfo:
     return WelcomeInfo(srv=fields["SRV"], hbint=hbint, session=fields["SESSION"])
 
 
+def template_id(logger: str, template: str) -> str:
+    """Return the log-ledger key for one log call site.
+
+    ``template`` is the call's format string before ``%``-formatting
+    (``record.msg``), so every occurrence of the same call site shares an
+    id however its arguments vary (docs-design/EduMatcher-Log-Ledger.md §2).
+    The separator is the same U+241F the log-GUI bridge fingerprint uses.
+    """
+    key = f"{logger}\u241f{template}"
+    return hashlib.sha1(key.encode("utf-8")).hexdigest()[:12]
+
+
 def build_log_frame(
     *,
     seq: int,
@@ -205,6 +218,7 @@ def build_log_frame(
     module: str | None = None,
     line: int | None = None,
     has_exception: bool = False,
+    tpl: str | None = None,
     max_message_bytes: int = DEFAULT_MAX_MESSAGE_BYTES,
 ) -> bytes:
     """Build a complete ``LOG`` frame: header line + LEN-prefixed payload.
@@ -235,6 +249,8 @@ def build_log_frame(
         fields["LINE"] = str(line)
     if has_exception:
         fields["EXC"] = "1"
+    if tpl is not None:
+        fields["TPL"] = tpl
     fields["LEN"] = str(len(payload))
 
     header = build_header_line("LOG", fields)

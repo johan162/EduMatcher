@@ -11,7 +11,7 @@ from typing import Any
 import pytest
 
 from edumatcher.log_srv.config import LogServerConfig
-from edumatcher.log_srv.schema import initialize_schema, open_db
+from edumatcher.log_srv.schema import SCHEMA_VERSION, LogDbSchemaError, open_db
 from edumatcher.log_srv.server import LogServer
 from edumatcher.log_srv.session import LogSession
 from edumatcher.log_srv.writer import LogEventRow, WriterThread
@@ -224,30 +224,104 @@ def test_ping_pong(running_server: _RunningServer) -> None:
     s.close()
 
 
-def test_migration_adds_heartbeat_column_to_an_existing_db(tmp_path: Path) -> None:
-    """A log.db written before the column existed must survive the upgrade."""
-    db_path = tmp_path / "old.db"
+def test_a_new_log_db_is_stamped_with_the_current_schema_version(
+    tmp_path: Path,
+) -> None:
+    db_path = tmp_path / "log.db"
+    open_db(db_path).close()
+
+    conn = open_db(db_path)  # reopening a current file is fine
+    assert conn.execute("SELECT version FROM schema_version").fetchall() == [
+        (SCHEMA_VERSION,)
+    ]
+    conn.close()
+    open_db(db_path, read_only=True).close()
+
+
+def test_log_gui_bridge_reads_the_same_schema_version() -> None:
+    """The bridge refuses any other version, so the two must move together."""
+    import re
+
+    bridge = Path(__file__).parent.parent / "web-apps/log-gui/apps/bridge/src/log-db.ts"
+    match = re.search(r"LOG_DB_SCHEMA_VERSION = (\d+);", bridge.read_text())
+    assert match is not None
+    assert int(match.group(1)) == SCHEMA_VERSION
+
+
+def _write_v1_log_db(db_path: Path) -> None:
+    """A log.db as written before the schema_version table existed."""
     conn = sqlite3.connect(str(db_path))
     conn.executescript(
-        "CREATE TABLE processes (session TEXT, process TEXT, instance TEXT, "
-        "pid INTEGER, host TEXT, connected_at TEXT, last_seen_at TEXT, "
-        "disconnected_at TEXT, log_count INTEGER);"
-    )
-    conn.execute(
-        "INSERT INTO processes (session, process, log_count) VALUES ('s1', 'pm-x', 7)"
+        "CREATE TABLE log_events (seq INTEGER PRIMARY KEY, message TEXT);"
+        "INSERT INTO log_events (message) VALUES ('old');"
     )
     conn.commit()
-
-    initialize_schema(conn)
-
-    cols = {row[1] for row in conn.execute("PRAGMA table_info(processes)")}
-    assert "last_heartbeat_at" in cols
-    assert "disconnect_reason" in cols
-    row = conn.execute(
-        "SELECT log_count, last_heartbeat_at FROM processes WHERE session = 's1'"
-    ).fetchone()
-    assert row == (7, None)
     conn.close()
+
+
+@pytest.mark.parametrize("read_only", [False, True])
+def test_a_log_db_without_a_version_table_is_refused(
+    tmp_path: Path, read_only: bool
+) -> None:
+    db_path = tmp_path / "log.db"
+    _write_v1_log_db(db_path)
+
+    with pytest.raises(LogDbSchemaError, match="schema version 1.*delete"):
+        open_db(db_path, read_only=read_only)
+
+    # Refused, not migrated: the old file is left exactly as it was.
+    conn = sqlite3.connect(str(db_path))
+    tables = {
+        r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
+    }
+    conn.close()
+    assert tables == {"log_events"}
+
+
+def test_a_log_db_of_another_version_is_refused(tmp_path: Path) -> None:
+    db_path = tmp_path / "log.db"
+    open_db(db_path).close()
+    conn = sqlite3.connect(str(db_path))
+    conn.execute("UPDATE schema_version SET version = ?", (SCHEMA_VERSION + 1,))
+    conn.commit()
+    conn.close()
+
+    with pytest.raises(LogDbSchemaError, match=f"schema version {SCHEMA_VERSION + 1}"):
+        open_db(db_path)
+
+
+def test_pm_log_srv_exits_on_an_old_log_db(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    from edumatcher.log_srv import main as log_srv_main
+
+    db_path = tmp_path / "log.db"
+    _write_v1_log_db(db_path)
+    monkeypatch.setattr("sys.argv", ["pm-log-srv", "--db", str(db_path)])
+
+    with caplog.at_level("CRITICAL"), pytest.raises(SystemExit) as excinfo:
+        log_srv_main.main()
+
+    assert excinfo.value.code == 1
+    assert "refusing to start" in caplog.text
+
+
+def test_log_frame_template_id_is_persisted(running_server: _RunningServer) -> None:
+    s = running_server.connect()
+    s.sendall(b"HELLO|CLIENT=pm-x|PID=1|HOST=h|PROTO=LALF1\n")
+    _recv_all(s)
+    for level, tpl_field in (("WARNING", "|TPL=0123456789ab"), ("INFO", "")):
+        header = f"LOG|SEQ=1|TS=x|LEVEL={level}|LOGGER=y{tpl_field}|LEN=1\n"
+        s.sendall(header.encode() + b"z")
+    time.sleep(0.5)
+    s.close()
+
+    rows = (
+        running_server.db()
+        .execute("SELECT level, tpl FROM log_events ORDER BY seq")
+        .fetchall()
+    )
+    assert rows == [("WARNING", "0123456789ab"), ("INFO", None)]
 
 
 def test_heartbeat_advances_last_heartbeat_at(tmp_path: Path) -> None:
@@ -564,7 +638,21 @@ def test_log_db_uses_wal(tmp_path: Path) -> None:
 def _event(i: int) -> LogEventRow:
     ts = iso_utc(time.time())
     return LogEventRow(
-        ts, ts, "p", None, 1, "h", "s", "INFO", "l", None, None, False, False, f"m{i}"
+        ts,
+        ts,
+        "p",
+        None,
+        1,
+        "h",
+        "s",
+        "INFO",
+        "l",
+        None,
+        None,
+        False,
+        False,
+        f"m{i}",
+        None,
     )
 
 

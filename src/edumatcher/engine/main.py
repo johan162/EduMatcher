@@ -4767,9 +4767,11 @@ class Engine:
             accepted=True,
         )
         log.warning(
-            f"ADMIN KILL SWITCH (global) by {gateway_id}: "
-            f"orders={cancelled_orders} quotes={cancelled_quotes} "
-            f"gateways={len(affected_gateways)}"
+            "ADMIN KILL SWITCH (global) by %s: orders=%s quotes=%s gateways=%s",
+            gateway_id,
+            cancelled_orders,
+            cancelled_quotes,
+            len(affected_gateways),
         )
 
     def _handle_circuit_breaker_halt_all(self, payload: dict[str, Any]) -> None:

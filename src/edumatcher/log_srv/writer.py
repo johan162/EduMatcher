@@ -48,6 +48,7 @@ class LogEventRow:
     has_exception: bool
     truncated: bool
     message: str
+    tpl: str | None
 
 
 PersistedBatchCallback = Callable[[list[tuple[int, LogEventRow]]], None]
@@ -185,6 +186,7 @@ class WriterThread:
                             int(r.has_exception),
                             int(r.truncated),
                             r.message,
+                            r.tpl,
                         )
                         for r in rows
                     ],

@@ -585,6 +585,7 @@ class LogServer:
             has_exception=fields.get("EXC") == "1",
             truncated=truncated,
             message=message,
+            tpl=fields.get("TPL"),
         )
         self._writer.enqueue(row)
         self._events_in += 1

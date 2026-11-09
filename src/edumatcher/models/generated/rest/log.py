@@ -82,6 +82,8 @@ class LogRow(BaseModel):
     has_exception: bool
     truncated: bool
     message: str
+    tpl: str | None = Field(max_length=12)
+    """Log-ledger template id of the call site; set on WARNING+ rows only."""
 
 
 class SubscriptionStatus(BaseModel):

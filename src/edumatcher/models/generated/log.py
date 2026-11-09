@@ -159,6 +159,7 @@ class LogRow:
     has_exception: bool
     truncated: bool
     message: str
+    tpl: str | None
 
     def validate(self) -> None:
         """Raise MessageValidationError if any declared rule fails.
@@ -195,6 +196,11 @@ class LogRow:
             raise MessageValidationError(
                 f"module: length {len(self.module)} exceeds max_len 128"
             )
+        if self.tpl is not None:
+            if len(self.tpl) > 12:
+                raise MessageValidationError(
+                    f"tpl: length {len(self.tpl)} exceeds max_len 12"
+                )
 
     @classmethod
     def from_dict(cls, p: Mapping[str, Any]) -> "LogRow":
@@ -220,6 +226,7 @@ class LogRow:
             has_exception=bool(p["has_exception"]),
             truncated=bool(p["truncated"]),
             message=str(p["message"]),
+            tpl=None if p.get("tpl") is None else str(p["tpl"]),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -240,6 +247,7 @@ class LogRow:
             "has_exception": self.has_exception,
             "truncated": self.truncated,
             "message": self.message,
+            "tpl": self.tpl,
         }
 
 

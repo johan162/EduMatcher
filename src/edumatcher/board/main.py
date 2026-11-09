@@ -100,9 +100,14 @@ _FLAT = "white"
 # own _DEFAULT_TICK_DECIMALS.
 _DEFAULT_TICK_DECIMALS = 2
 
+# A warning collected before logging is configured: the format string and
+# its arguments, kept apart so the replayed log record carries a constant
+# template (docs-design/EduMatcher-Log-Ledger.md §2.2).
+_StartupWarning = tuple[str, tuple[object, ...]]
+
 
 def _resolve_compiled_config_path(
-    warnings: list[str],
+    warnings: list[_StartupWarning],
 ) -> Path | None:
     """Find engine_config.json, tolerating a host/container split.
 
@@ -134,24 +139,30 @@ def _resolve_compiled_config_path(
     cwd_candidate = Path.cwd() / "data" / "ref_data" / "engine_config.json"
     if cwd_candidate.exists():
         warnings.append(
-            f"engine config not found at {COMPILED_CONFIG_FILE} (checked "
-            f"EDUMATCHER_DATA_DIR / the usual defaults); using "
-            f"{cwd_candidate} found in the current directory instead."
+            (
+                "engine config not found at %s (checked EDUMATCHER_DATA_DIR / "
+                "the usual defaults); using %s found in the current directory "
+                "instead.",
+                (COMPILED_CONFIG_FILE, cwd_candidate),
+            )
         )
         return cwd_candidate
 
     warnings.append(
-        f"engine config not found at {COMPILED_CONFIG_FILE}, and no "
-        "./data/ref_data/engine_config.json in the current directory "
-        f"either. Prices will fall back to {_DEFAULT_TICK_DECIMALS} "
-        "decimals for every symbol until this is fixed — set "
-        "EDUMATCHER_DATA_DIR to the exchange's data directory, or run "
-        "pm-board from a directory containing ./data/ref_data/."
+        (
+            "engine config not found at %s, and no "
+            "./data/ref_data/engine_config.json in the current directory "
+            "either. Prices will fall back to %d decimals for every symbol "
+            "until this is fixed — set EDUMATCHER_DATA_DIR to the exchange's "
+            "data directory, or run pm-board from a directory containing "
+            "./data/ref_data/.",
+            (COMPILED_CONFIG_FILE, _DEFAULT_TICK_DECIMALS),
+        )
     )
     return None
 
 
-def _load_tick_decimals() -> tuple[dict[str, int], list[str]]:
+def _load_tick_decimals() -> tuple[dict[str, int], list[_StartupWarning]]:
     """Symbol -> tick_decimals, read from the compiled engine config.
 
     Mirrors pm-orders' loader of the same name: book.* and trade.executed
@@ -169,7 +180,7 @@ def _load_tick_decimals() -> tuple[dict[str, int], list[str]]:
     decimals map alongside any warnings collected along the way — see
     _resolve_compiled_config_path for why these aren't logged directly.
     """
-    warnings: list[str] = []
+    warnings: list[_StartupWarning] = []
     config_path = _resolve_compiled_config_path(warnings)
     if config_path is None:
         return {}, warnings  # already warned above — nothing left to try
@@ -184,21 +195,24 @@ def _load_tick_decimals() -> tuple[dict[str, int], list[str]]:
         }, warnings
     except Exception as exc:  # pragma: no cover - defensive
         warnings.append(
-            f"could not read tick_decimals from {config_path}: {exc} "
-            f"(prices will fall back to {_DEFAULT_TICK_DECIMALS} decimals)"
+            (
+                "could not read tick_decimals from %s: %s "
+                "(prices will fall back to %d decimals)",
+                (config_path, exc, _DEFAULT_TICK_DECIMALS),
+            )
         )
         return {}, warnings
 
 
-def _log_startup_warnings(warnings: list[str]) -> None:
+def _log_startup_warnings(warnings: list[_StartupWarning]) -> None:
     """Send collected startup warnings to the logger.
 
     main() prints the stderr copy before logging is configured. Call this
     once from main(), right after _configure_logging() has wired up the
     pm-log-srv-backed handler, so the same messages also reach the
     central log."""
-    for msg in warnings:
-        log.warning(msg)
+    for template, args in warnings:
+        log.warning(template, *args)
 
 
 # Loaded once at import time — same convention as pm-orders. tick_decimals is
@@ -769,8 +783,8 @@ def _configure_logging(args: argparse.Namespace) -> int:
 def main() -> None:
     parser = build_parser()
     args = parser.parse_args()
-    for msg in _startup_warnings:
-        print(f"[pm-board] WARNING: {msg}", file=sys.stderr)
+    for template, warning_args in _startup_warnings:
+        print(f"[pm-board] WARNING: {template % warning_args}", file=sys.stderr)
     log_level = _configure_logging(args)
     log.info("starting pm-board with log level %s", logging.getLevelName(log_level))
     _log_startup_warnings(_startup_warnings)

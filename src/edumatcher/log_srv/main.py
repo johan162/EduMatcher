@@ -13,6 +13,7 @@ from edumatcher.log_srv.config import (
     load_default_log_server_config,
 )
 from edumatcher.config import resolve_data_path
+from edumatcher.log_srv.schema import LogDbSchemaError
 from edumatcher.log_srv.server import LogServer
 
 log = logging.getLogger(__name__)
@@ -255,7 +256,11 @@ def main() -> None:
         config.lease_sec,
     )
 
-    server = LogServer(config=config)
+    try:
+        server = LogServer(config=config)
+    except LogDbSchemaError as exc:
+        log.critical("refusing to start: %s", exc)
+        raise SystemExit(1) from exc
     reporter = HealthReporter.start_from_compiled_config("pm-log-srv")
     if reporter is not None:
         server.attach_reporter(reporter)
