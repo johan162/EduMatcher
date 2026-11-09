@@ -1,0 +1,337 @@
+# Log ledger entries for pm-engine (edumatcher.engine).
+# Format: docs-design/EduMatcher-Log-Ledger.md §3. Check with `pm-log-cli ledger check`.
+# Actions are double-quoted: a bare YAML string must not contain ": " or start with a backtick.
+
+# --- startup ---------------------------------------------------------------
+
+- logger: edumatcher.engine.main
+  template: "Config file %s could not be read — running without symbol restrictions. (%s)"
+  level: WARNING
+  explanation: >
+    pm-engine found the compiled configuration but could not read it, so it is
+    running on built-in defaults: none of the configured symbols, participants
+    or risk settings apply. Do not trade on an engine in this state.
+  actions:
+    - "Check that the file in the message exists and is readable by the user running pm-engine (`ls -l`)."
+    - "If it is missing, run `pm-config-deploy` to install the configuration again."
+    - "Restart pm-engine and check for \"Session handling\" and \"Risk enforcement\" lines in its startup log."
+
+- logger: edumatcher.engine.main
+  template: "FATAL: Invalid config %s: %s"
+  level: CRITICAL
+  explanation: >
+    The compiled configuration could not be loaded or failed validation, so
+    pm-engine refused to start. The exchange cannot trade until it does.
+  actions:
+    - "Read the reason in the message. It names the setting that is wrong."
+    - "Fix the source configuration and run `pm-config-deploy` again; it reports the same problem before installing."
+    - "Start pm-engine again."
+
+- logger: edumatcher.engine.main
+  template: "FATAL: Cannot bind sockets — %s\n         Is another engine instance already running?"
+  level: CRITICAL
+  explanation: >
+    pm-engine could not open its order port (5555) or its market-data port
+    (5556), so it stopped. Usually another pm-engine is still running, or
+    another program holds one of the ports.
+  actions:
+    - "Run `pm-opctl-cli list` to see whether an engine is already running."
+    - "Find what holds the ports with `ss -ltnp | grep -E ':555[56]'` and stop it."
+    - "Start pm-engine again."
+
+- logger: edumatcher.engine.main
+  template: "Drop copy unavailable — %s"
+  level: WARNING
+  explanation: >
+    pm-engine could not open its drop-copy port (5557). Trading goes on, but
+    nothing receives the drop copy: pm-dc-gwy and its clients see no
+    executions until the engine is restarted with the port free.
+  actions:
+    - "Find what holds the port with `ss -ltnp | grep :5557`."
+    - "Free the port, then restart pm-engine outside trading hours, or at once if drop-copy clients depend on it."
+
+# --- session phases --------------------------------------------------------
+
+- logger: edumatcher.engine.main
+  template: "Invalid session transition: %s"
+  level: WARNING
+  explanation: >
+    A session-phase change request named no phase, or a phase the engine does
+    not know. It was refused and the phase did not change.
+  actions:
+    - "Check the current phase with `pm-admin-cli --id <admin> session-status`."
+    - "If pm-scheduler sent it, make sure the scheduler and the engine run the same EduMatcher release."
+
+- logger: edumatcher.engine.main
+  template: "Invalid transition %s → %s (allowed: %s)"
+  level: WARNING
+  explanation: >
+    A request asked for a phase that cannot follow the current one, so it was
+    refused and the phase did not change. This is common after pm-engine was
+    restarted during the day, because it starts in CLOSED while the schedule
+    expects a later phase.
+  actions:
+    - "Compare `pm-admin-cli --id <admin> session-status` with `pm-admin-cli --id <admin> schedule`."
+    - "Move the phase on step by step with `pm-admin-cli --id <admin> session --state <PHASE>`, using the allowed phases in the message."
+
+- logger: edumatcher.engine.main
+  template: "Invalid session announcement: %s"
+  level: WARNING
+  explanation: >
+    pm-scheduler announced the next phase change, but the announcement named an
+    unknown phase. It was ignored. Only the countdown that clients show is
+    affected; the change itself still arrives as a normal request.
+  actions:
+    - "Make sure pm-scheduler and pm-engine run the same EduMatcher release."
+
+- logger: edumatcher.engine.main
+  template: "Ignoring announced transition %s → %s at %r"
+  level: WARNING
+  explanation: >
+    pm-scheduler announced a phase change that cannot follow the engine's
+    current phase, so the engine ignored it and clients see no countdown. The
+    scheduler and the engine disagree about the current phase, usually after
+    a restart or a manual phase change.
+  actions:
+    - "Compare `pm-admin-cli --id <admin> session-status` with `pm-admin-cli --id <admin> schedule`."
+    - "If the engine's phase is wrong, set it with `pm-admin-cli --id <admin> session --state <PHASE>`."
+
+# --- gateways and administration -------------------------------------------
+
+- logger: edumatcher.engine.main
+  template: "Gateway %s missed %d heartbeats (interval %ds) — disconnecting"
+  level: WARNING
+  explanation: >
+    A gateway sent nothing for three heartbeat intervals, so the engine
+    disconnected it. Its configured disconnect behaviour applies, which may
+    cancel its resting orders. It can log on again as soon as it is back.
+  actions:
+    - "Check the gateway process with `pm-monitor-cli status` or `pm-opctl-cli list`."
+    - "Look at that gateway's own log rows around the same time for the cause."
+    - "An overloaded host (CPU at 100%) also causes this; check the load if several gateways drop at once."
+
+- logger: edumatcher.engine.main
+  template: "ADMIN KILL SWITCH (global) by %s: orders=%s quotes=%s gateways=%s"
+  level: WARNING
+  explanation: >
+    An administrator used the global kill switch: every resting order and
+    quote of every participant was cancelled. Trading is not halted, and new
+    orders are accepted as before.
+  actions:
+    - "Confirm with the administrator named in the message that this was intended."
+    - "Read the note they gave with `pm-audit-cli events --topic admin.action`."
+    - "Tell participants that their resting orders and quotes were cancelled."
+    - "If the market must stay closed, halt it with `pm-admin-cli --id <admin> halt`."
+
+- logger: edumatcher.engine.main
+  template: "Command %s not recorded in the audit trail (%s) (#%d)"
+  level: WARNING
+  explanation: >
+    The engine processed a command but could not record it in the audit trail,
+    so the trail is incomplete for it. Logged for the first case and then every
+    thousandth, so the count in the message is the running total.
+  actions:
+    - "\"carried no envelope\" means the sender is from another EduMatcher release; run the same release everywhere."
+    - "\"echo failed\" means the engine's publish socket failed; check the engine host and `pm-audit-cli health`."
+
+# --- request handling ------------------------------------------------------
+
+- logger: edumatcher.engine.main
+  template: "No dispatch handler for topic %s (#%d) — message dropped"
+  level: WARNING
+  explanation: >
+    The engine received a request type it does not handle and dropped it. The
+    sender gets no reply. Usually a client from another EduMatcher release, or
+    a program sending to the engine's order port by mistake.
+  actions:
+    - "Find the sender from the topic in the message; the engine also publishes it as a `system.diagnostic` (UNROUTED_TOPIC)."
+    - "Run the same EduMatcher release on every process."
+
+- logger: edumatcher.engine.main
+  template: "Error processing %s (#%d): %s"
+  level: ERROR
+  explanation: >
+    Handling a request raised an unexpected error. If it was an order, its
+    sender got an INTERNAL_ERROR reject, which says whether anything had
+    already executed. The engine carries on with the next message.
+  actions:
+    - "Read the error in the message and note the topic and time."
+    - "Check the affected symbol's book with `pm-admin-cli --id <admin> book --sym <SYMBOL>`."
+    - "Report it as an engine bug. The `system.diagnostic` (DISPATCH_ERROR) in the audit trail has the same error."
+
+- logger: edumatcher.engine.main
+  template: "Diagnostic publish for %s failed"
+  level: ERROR
+  explanation: >
+    After a request failed, the engine could not publish the diagnostic marker
+    for it either, so this log row is the only record of the failure.
+  actions:
+    - "Keep this row together with the \"Error processing\" row just before it when reporting the bug."
+    - "Check that the engine's publish port (5556) is healthy; other processes would show missing data too."
+
+- logger: edumatcher.engine.main
+  template: "No reject sent for %s — payload carries no gateway_id/order_id"
+  level: ERROR
+  explanation: >
+    A request failed, and it had no gateway or order id to answer, so its
+    sender got no reply at all. The client may wait for an acknowledgement that
+    never comes.
+  actions:
+    - "Read the \"Error processing\" row just before this one for the cause."
+    - "Find the client that sent it and fix its messages; every order message needs gateway_id and order_id."
+
+- logger: edumatcher.engine.main
+  template: "Reject for %s could not be sent: %s"
+  level: ERROR
+  explanation: >
+    A request failed, and the reject telling its sender could not be
+    published. The participant may believe the order is still pending.
+  actions:
+    - "Tell the participant to check the order's status, or list it with `pm-admin-cli --id <admin> orders --gw <GATEWAY>`."
+    - "Check that the engine's publish port (5556) is healthy."
+
+- logger: edumatcher.engine.main
+  template: "Discarding undecodable PULL message (#%d): %s"
+  level: WARNING
+  explanation: >
+    Something sent the engine's order port (5555) a message that is not a valid
+    EduMatcher message. It was dropped, and no reply was possible. Usually a
+    misconfigured client, a port scanner or a program from another release.
+  actions:
+    - "Find which program connects to port 5555, for example with `ss -tnp | grep :5555`."
+    - "Run the same EduMatcher release on every process."
+
+- logger: edumatcher.engine.main
+  template: "Diagnostic publish for undecodable message failed"
+  level: ERROR
+  explanation: >
+    The engine dropped an undecodable message and could not publish the
+    diagnostic marker for it, so this log row is the only record.
+  actions:
+    - "Read the \"Discarding undecodable PULL message\" row just before this one."
+    - "Check that the engine's publish port (5556) is healthy."
+
+# --- maintenance and persistence -------------------------------------------
+
+- logger: edumatcher.engine.main
+  template: "Maintenance flush %s failed (#%d): %s"
+  level: ERROR
+  explanation: >
+    One of the engine's periodic tasks raised an error. The others keep
+    running, but the named task did not do its work this time. If it repeats,
+    that work stops: halted symbols do not resume (_flush_circuit_breakers),
+    the resting book is not saved (_flush_persistence), or silent gateways are
+    not dropped (_expire_silent_gateways).
+  actions:
+    - "Note which task failed (its name is in the message) and whether the error repeats."
+    - "For _flush_circuit_breakers, check halted symbols and resume them with `pm-admin-cli --id <admin> resume-sym --sym <SYMBOL>` if needed."
+    - "Report it as an engine bug with the task name and error."
+
+- logger: edumatcher.engine.main
+  template: "Diagnostic publish for flush %s failed"
+  level: ERROR
+  explanation: >
+    After a periodic task failed, the engine could not publish the diagnostic
+    marker for it either, so this log row is the only record.
+  actions:
+    - "Keep this row together with the \"Maintenance flush\" row just before it when reporting."
+    - "Check that the engine's publish port (5556) is healthy."
+
+- logger: edumatcher.engine.main
+  template: "Checkpoint failed: %s"
+  level: ERROR
+  explanation: >
+    The periodic save of resting orders, combos and book statistics failed.
+    The previous save is still intact, but if the engine stops now, changes
+    since that save are lost when it starts again. It retries every few
+    seconds.
+  actions:
+    - "Read the error. \"No space left\" or \"Permission denied\" point at the data directory (`df -h`, `ls -l`)."
+    - "Fix the disk, then check that the error stops."
+
+- logger: edumatcher.engine.main
+  template: "End-of-day archive to %s failed: %s"
+  level: ERROR
+  explanation: >
+    At end of day the engine could not copy its closing state (resting orders,
+    combos, book statistics) into the day's archive folder. Trading is not
+    affected, but that day has no archived closing state.
+  actions:
+    - "Read the error; usually disk space or permissions on the data directory."
+    - "Before the next session starts, copy gtc_orders.json, gtc_combos.json and book_stats.json from the data directory into the folder named in the message."
+
+- logger: edumatcher.engine.persistence
+  template: "Cannot parse GTC orders file %s: %s"
+  level: ERROR
+  explanation: >
+    The saved resting orders could not be read, so pm-engine started with no
+    GTC or DAY orders restored. Its first checkpoint, a few seconds after
+    startup, overwrites the unreadable file.
+  actions:
+    - "Copy the file at once (`cp <file> <file>.bad`); it may already have been overwritten."
+    - "The last trading day's copy is in `eod/<date>/gtc_orders.json` under the data directory."
+    - "Tell participants that their resting orders were not restored."
+
+- logger: edumatcher.engine.persistence
+  template: "GTC orders file %s has unexpected root type %s — expected list"
+  level: ERROR
+  explanation: >
+    The saved resting orders file is valid JSON but not a list of orders, so
+    pm-engine started with no GTC or DAY orders restored. Its first checkpoint,
+    a few seconds after startup, overwrites the file.
+  actions:
+    - "Copy the file at once (`cp <file> <file>.bad`); it may already have been overwritten."
+    - "The last trading day's copy is in `eod/<date>/gtc_orders.json` under the data directory."
+    - "Tell participants that their resting orders were not restored."
+
+- logger: edumatcher.engine.persistence
+  template: "Skipping corrupt GTC order at index %d (id=%r): %s — check %s for manual recovery"
+  level: CRITICAL
+  explanation: >
+    One saved resting order could not be read and was not restored; the other
+    orders were. The engine's first checkpoint, a few seconds after startup,
+    rewrites the file without it, so the file named in the message no longer
+    holds it after that.
+  actions:
+    - "Copy the file at once (`cp <file> <file>.bad`); it may already have been rewritten."
+    - "The last trading day's copy is in `eod/<date>/gtc_orders.json` under the data directory."
+    - "Tell the order's owner (the id is in the message) that it was not restored."
+    - "Report it: a saved order that cannot be read is a bug."
+
+- logger: edumatcher.engine.persistence
+  template: "Cannot parse GTC combos file %s: %s"
+  level: ERROR
+  explanation: >
+    The saved resting combo orders could not be read, so pm-engine started
+    with no combos restored. Its first checkpoint, a few seconds after startup,
+    overwrites the unreadable file.
+  actions:
+    - "Copy the file at once (`cp <file> <file>.bad`); it may already have been overwritten."
+    - "The last trading day's copy is in `eod/<date>/gtc_combos.json` under the data directory."
+    - "Tell participants that their resting combos were not restored."
+
+- logger: edumatcher.engine.persistence
+  template: "GTC combos file %s has unexpected root type %s — expected list"
+  level: ERROR
+  explanation: >
+    The saved resting combos file is valid JSON but not a list, so pm-engine
+    started with no combos restored. Its first checkpoint, a few seconds after
+    startup, overwrites the file.
+  actions:
+    - "Copy the file at once (`cp <file> <file>.bad`); it may already have been overwritten."
+    - "The last trading day's copy is in `eod/<date>/gtc_combos.json` under the data directory."
+    - "Tell participants that their resting combos were not restored."
+
+- logger: edumatcher.engine.persistence
+  template: "Skipping corrupt GTC combo at index %d (id=%r): %s — check %s for manual recovery"
+  level: CRITICAL
+  explanation: >
+    One saved combo order could not be read and was not restored; the other
+    combos were. The engine's first checkpoint, a few seconds after startup,
+    rewrites the file without it, so the file named in the message no longer
+    holds it after that.
+  actions:
+    - "Copy the file at once (`cp <file> <file>.bad`); it may already have been rewritten."
+    - "The last trading day's copy is in `eod/<date>/gtc_combos.json` under the data directory."
+    - "Tell the combo's owner (the id is in the message) that it was not restored."
+    - "Report it: a saved combo that cannot be read is a bug."

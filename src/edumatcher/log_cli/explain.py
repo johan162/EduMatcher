@@ -81,6 +81,10 @@ def print_explain(
     if entry is None:
         print(f"No ledger entry for this message (tpl={row.get('tpl') or 'none'}).")
         return
+    _print_explanation_and_actions(entry)
+
+
+def _print_explanation_and_actions(entry: LedgerEntry) -> None:
     print("Explanation:")
     print(
         textwrap.fill(
@@ -121,8 +125,7 @@ def print_ledger_entry(entry: LedgerEntry, fmt: str) -> None:
     print(f"template: {entry.template}")
     print(f"file:     {entry.source}")
     print()
-    print("Explanation:")
-    print("\n".join(explanation_lines(entry)))
+    _print_explanation_and_actions(entry)
 
 
 def export_json(ledger: dict[str, LedgerEntry]) -> str:

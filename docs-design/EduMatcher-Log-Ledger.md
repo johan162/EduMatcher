@@ -24,7 +24,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 | 1 | L1 | Template id end to end: logclient → LALF `TPL` → `log_events.tpl` → LALF-PS → bridge `LogRow.tpl`; `schema_version` table (v2) checked at startup; constant templates at the dynamic call sites | — | 1 d | ☑ | 2026-11-09 |
 | 2 | L2 | `edumatcher.log_ledger`: format, loader, AST call-site scanner, coverage test; `pm-log-cli ledger list/show/check/export`, `explain <seq>`, `--explain` on `query`/`tail`; seed entries for `log_srv` (`logclient` has no WARNING+ call) | L1 | 1 d | ☑ | 2026-11-09 |
 | 3 | L3 | log-GUI: bridge loads the ledger, `GET /api/ledger`; drawer panels *Explanation* + *Suggested actions*; "no ledger entry" state | L2 | 0.5 d | ☑ | 2026-11-09 |
-| 4 | L4 | Content: engine, orders, board, messaging, ticker | L2 | 0.5 d | ☐ | |
+| 4 | L4 | Content: engine, orders, board, messaging, ticker | L2 | 0.5 d | ☑ | 2026-11-09 |
 | 5 | L5 | Content: gateways (alf_gwy, balf_gwy, api_gateway, md_gateway, dc_gateway, ralf_gateway, calf_client, ralf_spy, dc_spy) | L2 | 1 d | ☐ | |
 | 6 | L6 | Content: alf_console, clearing, audit, stats | L2 | 0.5 d | ☐ | |
 | 7 | L7 | Content: ai_trader, mm_bot, market_sim, index, viewer | L2 | 0.5 d | ☐ | |
@@ -278,6 +278,38 @@ review step (3) is part of the WP, not a side effect.
   every start ("no confirmation that the engine applied CLOSING_AUCTION/CLOSED
   …"). L8 should check whether they are real or noise before writing their
   entry.
+
+### 6.2 Notes from L4 (engine, orders, board, messaging, ticker)
+
+42 entries in `engine.yaml`, `board.yaml`, `orders.yaml`, `ticker.yaml` and
+`messaging.yaml`.
+
+* **Level fixes:** `FATAL: Invalid config` and `FATAL: Cannot bind sockets`
+  were logged at ERROR and then `sys.exit(1)`. Both are now CRITICAL.
+* **Fixed L2 output bug:** `pm-log-cli ledger show` printed the numbered
+  actions straight after the explanation, with no `Actions:` heading. It now
+  uses the same printer as `explain`, and a test checks the heading.
+* **L2 tests no longer depend on content progress:** two CLI tests assumed
+  `engine` still had gaps. They now run `ledger check` against an empty
+  ledger.
+* **Finding F1, not fixed (needs a decision): restored GTC orders can be
+  lost.** `load_gtc_orders`/`load_gtc_combos` skip an unreadable entry, or
+  the whole file if it does not parse. The engine's first checkpoint
+  (`_last_persist` starts at 0) then rewrites the file within seconds without
+  them. The CRITICAL message's advice, "check <file> for manual recovery",
+  points at a file that no longer holds the order. The entries tell the
+  operator to copy the file at once and to fall back to `eod/<date>/`.
+  Possible code fixes: copy the file aside (`<file>.corrupt-<ts>`) before
+  continuing, or refuse to start.
+* **Finding F2, not fixed (needs a decision):** when the compiled config
+  exists but cannot be read (`FileNotFoundError`/`PermissionError`), the
+  engine logs a WARNING and runs on built-in defaults with no configured
+  symbols or risk settings. An invalid config is fatal, while an unreadable
+  one only warns. Should it be fatal too?
+* **For L8:** pm-scheduler's startup WARNINGs ("no confirmation that the
+  engine applied CLOSING_AUCTION/CLOSED") may be the scheduler catching up
+  phases that the engine, which starts in CLOSED, refuses as invalid
+  transitions. Check the engine's "Invalid transition" rows from the same run.
 
 ## 7. Open questions
 

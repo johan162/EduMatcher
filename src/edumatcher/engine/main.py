@@ -802,7 +802,7 @@ class Engine:
                     exc,
                 )
             except Exception as exc:
-                log.error("FATAL: Invalid config %s: %s", path, exc)
+                log.critical("FATAL: Invalid config %s: %s", path, exc)
                 sys.exit(1)
         else:
             log.info(f"No config file at {path} — running without symbol restrictions.")
@@ -811,7 +811,7 @@ class Engine:
             self.pull_sock = make_puller(ENGINE_PULL_BIND_ADDR)
             self.pub_sock = make_publisher(ENGINE_PUB_BIND_ADDR)
         except zmq.ZMQError as exc:
-            log.error(
+            log.critical(
                 "FATAL: Cannot bind sockets — %s\n"
                 "         Is another engine instance already running?",
                 exc,

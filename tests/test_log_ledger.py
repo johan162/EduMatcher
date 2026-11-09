@@ -33,8 +33,6 @@ from edumatcher.logclient.protocol import FrameReader, iso_utc, template_id
 #: becomes a hard failure for everything.
 PENDING_PACKAGES = frozenset(
     {
-        # L4
-        "engine", "orders", "board", "messaging", "ticker",
         # L5
         "alf_gwy", "balf_gwy", "api_gateway", "md_gateway", "dc_gateway",
         "ralf_gateway", "calf_client", "ralf_spy", "dc_spy",
@@ -344,7 +342,9 @@ def test_ledger_commands_need_no_log_db(
     assert exported[entry.tpl]["actions"] == list(entry.actions)
 
     _run(monkeypatch, "--db", nowhere, "ledger", "show", entry.tpl)
-    assert entry.template in capsys.readouterr().out
+    shown = capsys.readouterr().out
+    assert entry.template in shown
+    assert "Explanation:" in shown and "\nActions:\n  1. " in shown
 
     _run(monkeypatch, "ledger", "list", "--logger", entry.logger, "--format", "json")
     listed = json.loads(capsys.readouterr().out)
@@ -353,6 +353,8 @@ def test_ledger_commands_need_no_log_db(
     _run(monkeypatch, "ledger", "check", "--package", "log_srv")
     assert "ledger check: OK" in capsys.readouterr().out
 
+    # An empty ledger: every call site is missing, whatever content exists.
+    monkeypatch.setattr(log_cli_main, "load_ledger", lambda: {})
     with pytest.raises(SystemExit) as excinfo:
         _run(monkeypatch, "ledger", "check")
     assert excinfo.value.code == 1
@@ -370,6 +372,7 @@ def test_ledger_list_and_check_output_formats(
     _run(monkeypatch, "ledger", "list", "--logger", "edumatcher.nowhere")
     assert capsys.readouterr().out == "No ledger entries match.\n"
 
+    monkeypatch.setattr(log_cli_main, "load_ledger", lambda: {})
     with pytest.raises(SystemExit):
         _run(monkeypatch, "ledger", "check", "--format", "json")
     report = json.loads(capsys.readouterr().out)
