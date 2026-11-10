@@ -1,259 +1,428 @@
-# EduMatcher — Clearing GUI, Margin Accounts and Client Accounts: Design Draft
+# EduMatcher — Clearing GUI: Participant Obligations and Release 1.0 Design
 
-Status: **DRAFT / investigation (2026-11-02)**. Nothing here is implemented.
-Open decisions are marked **[Dn]** and collected in §9.
+Version: 1.0.0-design
 
-## 1. What we have today
+Date: 2026-11-09
 
-| Piece | What it does | Gap for a clearing GUI |
+Status: **Design and repository audit.** `clearing-gui` and the clearing REST
+surface described here are not implemented. This document separates shipped
+behaviour from required release-1.0 work. Code is the authority where this
+document, older designs, and comments disagree.
+
+## 1. Purpose and release boundary
+
+`pm-clearing` already maintains a durable, gateway-scoped post-trade ledger.
+The release-1.0 clearing client is a **read-only operations and participant
+reporting application** over that ledger and the existing end-of-day (EOD)
+settlement ledger. It answers the questions the shipped system can answer:
+
+- What position, realized P&L, unrealized P&L, and marked exposure does each
+  participant gateway currently have?
+- Which retained executions created that position?
+- Has clearing observed a feed gap, session close, or gateway lifecycle event
+  that affects confidence in the displayed record?
+- What was each participant's close snapshot and daily realized P&L?
+- What EOD settlement amount and running balance has `pm-eod` recorded?
+- For a market maker, what quote obligation settings are currently resolved
+  for its symbols?
+
+This is deliberately narrower than a collateral or margin system. The current
+repository has no margin configuration, margin calculation, margin snapshot,
+credit limit, account registry, client-account order field, or account-aware
+clearing key. A GUI or REST adapter cannot derive those facts safely. Margin,
+client accounts, and pre-trade enforcement are therefore outside the 1.0
+release and have explicit prerequisites in §13.
+
+## 2. Audited current state
+
+| Component | Shipped behaviour | 1.0 consequence |
 |---|---|---|
-| `pm-clearing` (`clearing/main.py`, `ledger.py`, `store.py`) | Subscribes to `trade.executed`, keeps `(gateway_id, symbol)` positions with VWAP `avg_cost`, cumulative `realized_pnl`, `unrealized_pnl`; writes `clearing.db` every 5 s / 100 trades; `position_close_snapshot` at each close | No margin, no equity, no intraday history (only the latest position row and daily rows) |
-| `pm-eod` (`eod/`, `eod.db`, `roster.yaml`) | Daily mark-to-market settlement through a central pool; balance = `opening_balance` + Σ day amounts; statements per gateway | Effectively *variation margin* settlement, but no *requirement* side: a participant with $100 can hold any position (the §19.3 objection in `EduMatcher-Clearing.md`) |
-| `pm-api-gwy` | REST/WS backend of `trader-gui`; already reads `clearing.db` read-only for `realized_pnl_session/mtd/ytd` on `GET /positions` | No clearing-wide endpoints |
-| `trader-gui` | React/TS SPA, Vite, Zustand, TanStack Query, recharts/lightweight-charts, `serve.ts` static server proxying `/api` to `pm-api-gwy` | — template for the new app |
-| Engine | Participant == gateway id (`participants[].id`); per-symbol `order_limits` only | No credit/margin check; no account concept anywhere |
-| `EduMatcher-Clearing.md` §19 | **Proposed, not built**: full DVP cash+securities accounts, participant→many gateways, obligations | Superseded in practice by `pm-eod`'s P&L settlement; explicitly excludes margin **[D1]** |
+| `pm-clearing` | Ingests `trade.executed`; persists raw events, latest `(gateway_id, symbol)` positions, daily summaries, session events, gateway sessions, and close snapshots in `clearing.db`. | The source data for position, P&L, exposure, trade, close, session, and lifecycle views exists. |
+| Clearing writer | Flushes at 100 trades or after five seconds. It deduplicates on durable trade ID and records an observed `GAP` event when a trade-ID sequence jumps. | The GUI must show data freshness and GAP alarms. It must not label its state as real time or complete without qualification. |
+| `pm-eod` | Calculates change in close-to-close cumulative P&L, records a zero-sum daily settlement in `eod.db`, and derives balances from roster opening balances plus settlements. | Settlement and balance are available source facts, but only at gateway level. The GUI needs an API read model for them. |
+| `pm-api-gwy` | Exposes the caller's engine positions and enriches each row with clearing realized P&L for session, month-to-date, and year-to-date. | This is useful participant data but is not a clearing API and cannot power an operator view. |
+| `pm-clearing-cli` | Already queries clearing gateways, positions, P&L, daily rows, trades, exposure, symbols, dates, close snapshots, sessions, EOD markers, health, and reconciliation. | Its read-only SQLite queries are the implementation source for the new typed REST routes. |
+| Market-maker obligations | The engine enforces configured maximum spread and minimum quote quantity when the resolved policy enables it. `/api/v1/symbols` returns these resolved fields to the requesting trading gateway. | Release 1.0 can display configuration and the existing enforcement inputs. It cannot claim quote-presence or re-quote compliance analytics. |
+| `trader-gui` | Uses a role-aware React/TypeScript SPA directly against `pm-api-gwy`, with React Router, TanStack Query, Zustand, Zod, shadcn/Radix, Tailwind, and a same-origin `/api` proxy for production. | `clearing-gui` follows this architecture and visual/application conventions. |
+| `terminal-gui` | Uses a Fastify bridge only because browsers cannot speak its raw TCP CALF uplink. Credentials for its optional history proxy stay server-side. | A clearing bridge is not justified: clearing data will be REST from `pm-api-gwy`, as it is for `trader-gui`. |
 
-## 2. Goals
+### 2.1 Identity and scope
 
-1. A **clearing GUI** (`clearing-gui`, mirroring `trader-gui`) showing, per
-   participant, a **margin account**: equity, requirement, excess/deficit,
-   status, positions, and **history with graphs**.
-2. **Client accounts**: a participant may act as a broker for retail clients
-   who have no exchange access. Each order carries an **account id**;
-   clearing tracks positions, P&L and margin **per account**.
-3. Accounts are **opt-in per participant**.
+A **participant** is a configured gateway identity. The configured roles are
+`TRADER`, `MARKET_MAKER`, and `ADMIN`. Current positions, snapshots, daily
+summaries, and settlement keys have the gateway as their account dimension.
+There is no participant-to-many-gateway hierarchy and no client subaccount.
+The clearing client must therefore use **participant gateway** consistently in
+UI labels and API fields; it must not call gateway IDs brokers, funds, or
+client accounts.
 
-Non-goals (for now): real collateral types/haircuts, interest, SPAN/VaR
-models, default waterfall, multiple currencies, participant→many-gateway
-grouping (§19.4) — participant stays == gateway id.
+`eod_settlement.account` currently contains either a gateway ID or the reserved
+`EXCHANGE` rounding account. It does not represent a client account.
 
-## 3. Terminology
+### 2.2 Money, marks, and history
 
-- **Participant** — a gateway id in `participants[]` (unchanged).
-- **Client account** (just *account*) — a sub-ledger under a participant,
-  identified by a short string carried on orders. `""` = the participant's own
-  **house** account.
-- **Margin account** — the collateral view (equity vs requirement) kept by
-  clearing for each participant *and* each client account.
-- Naming collision: `eod.db.eod_settlement.account` today means "gateway id
-  or EXCHANGE". It should become `gateway_id` + `account` when E-accounts land.
+`trade.executed.price` arrives as display money, but clearing converts it to
+integer ticks. `trade_events`, positions, daily summaries, and close snapshots
+persist `tick_decimals` with the tick-unit amounts. The REST API must return
+that precision for every money-bearing row and normalize each row to display
+currency before presenting or aggregating it. Raw P&L or notional ticks from
+different symbols must never be summed.
 
-## 4. Margin model (recommended)
+Current positions are the latest marked state. `pm-clearing` marks all open
+holders of a symbol on new trades and applies EOD last-price or bid/ask-midpoint
+marks when present. The durable history is:
 
-Keep `pm-eod`'s daily mark-to-market settlement and add a **requirement**
-side — i.e. the futures-style model: variation margin moves cash daily,
-initial/maintenance margin limits how large a position the equity supports.
-It closes the §19.3 hole without building full DVP **[D1]**.
+- raw execution events, retained for 90 days by default;
+- per-symbol, per-gateway daily summaries, retained after raw-event pruning;
+- one close snapshot per participant/symbol for each closing session;
+- session events and gateway connection records.
 
-Per margin account (display currency, tick-normalised per symbol):
+There is no sampled intraday position/P&L history. Release 1.0 charts must use
+daily close snapshots only. An intraday equity or P&L chart would require a new
+durable sample series and is not a valid 1.0 display.
 
-```
-equity        = opening_balance + Σ_symbols (realized_pnl + unrealized_pnl)
-gross_mv      = Σ_symbols |net_qty| × mark × multiplier
-maint_req     = Σ_symbols |net_qty| × mark × maint_pct(symbol, side)
-initial_req   = Σ_symbols |net_qty| × mark × initial_pct(symbol, side)
-excess        = equity − maint_req
-utilisation   = maint_req / equity
-buying_power  = max(0, equity − initial_req) / initial_pct(default)
-status        = OK | WARNING (utilisation ≥ warning_pct) | MARGIN_CALL (excess < 0)
-```
+## 3. What “participant obligations” mean in 1.0
 
-`equity` is computed from `clearing.db` alone (cumulative realized +
-unrealized since genesis equals opening + Σ settled day amounts + today's
-change), so the GUI does not depend on `pm-eod` having run. `pm-eod`'s
-settled balance is shown alongside as "settled cash" and the difference as
-"unsettled P&L" — a teaching point in itself.
+The term has three distinct code-supported meanings. The UI must keep them
+separate rather than folding them into a single risk score.
 
-Configuration (new `clearing.margin` section in `engine_config.yaml`, so
-`pm-config-gen`, `pm-cverifier` and `config-gui` see it):
-
-```yaml
-clearing:
-  margin:
-    initial_pct: 50
-    maintenance_pct: 25
-    short_maintenance_pct: 30
-    warning_pct: 80
-    snapshot_interval_sec: 60
-    symbols:
-      TSLA: { initial_pct: 60, maintenance_pct: 40 }
-```
-
-Opening balances stay in `roster.yaml` (already used by `pm-eod`).
-
-**Enforcement [D2].** Recommended phase 1 is *monitor only*: status in the
-GUI, a `MARGIN_CALL` event row, a line on the EOD statement. Pre-trade
-enforcement would require the engine (or the gateways) to know clearing
-state — a cross-process dependency on the hot path — and is left as an
-optional later WP (e.g. clearing triggers `risk.kill_switch_gateway` and an
-"opening orders blocked" flag).
-
-## 5. Client accounts
-
-### 5.1 Configuration [D3]
-
-```yaml
-participants:
-- id: BROKER01
-  role: TRADER
-  disconnect_behaviour: CANCEL_ALL
-  accounts:
-    enabled: true
-    house_trading: true        # may also trade with no account [D5]
-    ids: [C1001, C1002, C1003]
-```
-
-`roster.yaml` gains per-account name and `opening_balance` under the
-participant. Recommended: the **engine config owns the list** (the engine
-has to validate it); the roster only annotates it.
-
-### 5.2 Order semantics
-
-- New optional field `account` on `order.new` (string, `max_len: 16`,
-  `^[A-Z0-9_-]+$`).
-- Engine validation, new reject codes:
-  - accounts disabled and `account` present → `ACCOUNT_NOT_ALLOWED`
-  - accounts enabled, `account` absent and `house_trading: false` → `ACCOUNT_REQUIRED`
-  - not in `ids` → `UNKNOWN_ACCOUNT`
-- `account` is **immutable on amend**; cancel needs no account.
-- Echoed on `order.ack / fill / cancelled / expired` and drop copy (same
-  path as `client_tag`).
-- Combo/OCO: legs inherit the parent's account. MM quotes: house only.
-- `trade.executed` grows `buy_account` / `sell_account` (nullable). Like the
-  gateway ids, they must be **stripped from the public CALF projection**
-  (`project_trade_executed_calf`).
-- **Self-match prevention [D6]:** today keyed on gateway. A cross between two
-  clients of the same broker is a legitimate trade; a match within one
-  account is a wash. Recommended: SMP keyed on `(gateway_id, account)`.
-
-### 5.3 Ingress protocols that need the field
-
-| Path | Change | Effort |
+| Obligation view | Source and evidence | 1.0 presentation |
 |---|---|---|
-| REST `POST /orders` (`pm-api-gwy`) | JSON field + schema | S |
-| ALF text (`alf_gwy`, `alf_console`) | optional token | S |
-| BALF binary (`balf_gwy/codec.py`, NEW_ORDER 0x10, fixed 60-byte frame) | new frame size, codec + spec + size tests | M |
-| Internal producers (`ai_trader`, `mm_bot`, `market_sim`) | none required; optional "broker" persona later | — |
+| Post-trade position and P&L | `gateway_symbol_positions`, `gateway_daily_summary`, `position_close_snapshot`, and `trade_events` in `clearing/store.py` | Positions, exposure, daily P&L, retained trade audit, and close history. |
+| Daily settlement | `eod/settle.py` computes a gateway's close-to-close P&L; `eod/ledger.py` records a daily minor-unit amount and derives balance from opening balance plus amounts. | Settlement amount, per-symbol settlement detail, settlement-run status, and running balance. |
+| Market-maker quote obligation | `engine/config_loader.py` resolves `enforce_mm_obligation`, `mm_max_spread_ticks`, and `mm_min_qty`; `engine/main.py` applies the enabled spread/quantity checks. | Read-only settings table for the authenticated MM's symbols. |
 
-### 5.4 Margin at two levels [D4]
+The richer `MarketMakerObligation` model also names presence percentage and
+re-quote delay fields, but the configuration policy used by quote enforcement
+contains only enablement, maximum spread, and minimum quantity. No persisted
+quote-presence series or compliance calculation was found. Those metrics are
+not release-1.0 obligations.
 
-Each client account is its own margin account. The participant's
-requirement at the CCP is recommended to be **gross** — the sum of its
-accounts' requirements (plus house) — rather than **omnibus net**, where
-client A long 100 and client B short 100 net to zero margin while the broker
-still carries both risks. The GUI can show the "net would have been" figure
-as a teaching aid.
+A settlement amount is a mark-to-market transfer, not evidence of collateral,
+initial margin, maintenance margin, buying power, a margin call, or payment
+completion. The UI must label it **EOD settlement amount** and **derived
+running balance**, not cash, equity, or margin.
 
-## 6. Clearing data model changes
+## 4. Data-source and capability matrix
 
-No migration (pre-1.0 policy): a new schema means a fresh `clearing.db`.
+| View/data | Authoritative source | Existing gateway REST exposure | 1.0 API work | Freshness / retention |
+|---|---|---|---|---|
+| Caller's realized P&L periods | `clearing.db` daily summary | Partial: `GET /api/v1/positions` only | Keep current enrichment; clearing routes add full detail | May lag fills by the five-second clearing flush. |
+| Current positions and P&L | `gateway_symbol_positions` | None | New `GET /clearing/positions` and participant detail | Latest committed flush; no point-in-time intraday history. |
+| Marked exposure | Current position rows, scaled per row | None | New `GET /clearing/exposure` | Latest committed flush. |
+| Retained executions | `trade_events` | None | New `GET /clearing/trades` | Default raw-event retention: 90 days. |
+| Daily activity and realized P&L | `gateway_daily_summary` | None | New `GET /clearing/daily` | Durable beyond raw-event retention. |
+| Close-time positions/P&L | `position_close_snapshot` | None | New `GET /clearing/close-snapshots` | One row per closing participant/symbol/date. |
+| Feed, close, and lifecycle evidence | `session_events`, `gateway_sessions` | None | New event and session routes | Durable; event timestamps are clearing-observed ingest times. |
+| Reconciliation | Clearing raw-event versus summary query | None | New `GET /clearing/reconciliation` | Reconciliation can only inspect retained raw events. |
+| Clearing freshness | Clearing DB health query | None | New `GET /clearing/health` | Includes latest trade/flush timestamps and row counts, not process liveness. |
+| EOD settlement and balance | `eod.db`, opening roster data | None | New settlement and balance routes | Exists after `pm-eod` has run; balance is derived, not stored. |
+| MM configuration | Engine resolved symbols response | `GET /api/v1/symbols`, requester scoped | Reuse that endpoint in MM self-view; no new clearing aggregate | Current engine configuration. |
 
-- `trade_events`: `+ buy_account TEXT NOT NULL DEFAULT ''`, `+ sell_account …`
-- `gateway_symbol_positions`, `gateway_daily_summary`,
-  `position_close_snapshot`: key becomes `(…, gateway_id, account, symbol)`;
-  the existing `gateway_pnl_totals` view sums over `account`.
-- `Ledger._positions` key → `(gateway_id, account, symbol)`.
-- New, the history behind the graphs:
+## 5. Release-1.0 REST API
 
-```sql
-CREATE TABLE margin_snapshots (
-  ts_ns          INTEGER NOT NULL,
-  trade_date     TEXT    NOT NULL,
-  gateway_id     TEXT    NOT NULL,
-  account        TEXT    NOT NULL DEFAULT '',   -- '' = house; '*' = participant total
-  equity         REAL    NOT NULL,
-  realized_pnl   REAL    NOT NULL,
-  unrealized_pnl REAL    NOT NULL,
-  gross_mv       REAL    NOT NULL,
-  maint_req      REAL    NOT NULL,
-  initial_req    REAL    NOT NULL,
-  status         TEXT    NOT NULL,
-  PRIMARY KEY (gateway_id, account, ts_ns)
-);
-CREATE TABLE margin_events (            -- status transitions only
-  ts_ns INTEGER NOT NULL, trade_date TEXT NOT NULL, gateway_id TEXT NOT NULL,
-  account TEXT NOT NULL DEFAULT '', old_status TEXT, new_status TEXT NOT NULL,
-  equity REAL NOT NULL, maint_req REAL NOT NULL
-);
+### 5.1 Placement and access
+
+Add a read-only `routers/clearing.py` to `pm-api-gwy` and register it in the
+same application that registers orders, reference, market, history, admin,
+bootstrap, and WebSocket routers today. Use the existing `/api/v1` versioning,
+authentication, error envelope, pagination limits, and typed response-model
+patterns.
+
+Do not add a separately exposed clearing process, and do not allow the browser
+to open `clearing.db` or `eod.db` directly. The API owns SQLite read-only
+connections and validates all filters before query execution.
+
+Visibility must be enforced at the API boundary:
+
+| Authenticated role | Read scope |
+|---|---|
+| `ADMIN` | Venue-wide clearing and EOD data, including `EXCHANGE` settlement row. |
+| `TRADER` | Its own `gateway_id` only. A caller-supplied `gateway` filter must be rejected or ignored in favour of its authenticated ID. |
+| `MARKET_MAKER` | Its own `gateway_id` only, plus its existing requester-scoped symbol obligation metadata. |
+| Read-only key without a gateway identity | No clearing route in 1.0. |
+
+There is no code-supported broker/client scope to authorize. That scope must
+not be introduced as a UI-only convention.
+
+### 5.2 Route inventory
+
+All routes below are proposed release-1.0 additions. None exists at the time
+of this audit. List rows return `count`, apply a bounded `limit`, and use
+cursor pagination where raw trades or events can exceed the response limit.
+Dates are `YYYY-MM-DD` in the clearing session timezone.
+
+| Route | Scope | Backing query/data | Required response information |
+|---|---|---|---|
+| `GET /clearing/summary` | ADMIN | position totals, health, current GAP events, EOD run state | Participant count, open-position count, normalized aggregate P&L where meaningful, latest flush/trade timestamps, active GAP count, last EOD run status. Do not expose a fake venue-wide net notional across symbols. |
+| `GET /clearing/participants` | ADMIN | `query_gateways` plus positions/exposure | Gateway ID, realized/unrealized/total P&L, open-position count, timestamp of latest position update. |
+| `GET /clearing/participants/{gateway_id}` | ADMIN or self | positions, exposure, daily/close summary | Gateway ID, current P&L totals, latest position update, and links/data for its positions, settlement, and lifecycle tabs. |
+| `GET /clearing/positions?gateway=&symbol=` | ADMIN or self | `query_positions` | Gateway ID, symbol, signed quantity, average cost, mark, `tick_decimals`, realized/unrealized P&L, buy/sell quantities and notionals, last trade and update timestamps. |
+| `GET /clearing/exposure?gateway=&symbol=&sort=` | ADMIN or self | `query_exposure` | Per-row normalized gross/net notional and P&L, plus source tick fields/precision where audit display requires them. |
+| `GET /clearing/trades?gateway=&symbol=&date=&from=&to=` | ADMIN or self | `query_trades` | Execution ID, exchange and ingest timestamps, date, symbol, quantity, display price plus precision, buy/sell gateway IDs subject to scope, order IDs, aggressor side, match type, and audit message ID when stored. |
+| `GET /clearing/daily?gateway=&symbol=&from=&to=` | ADMIN or self | `query_daily` | Date, gateway, symbol, traded quantities/notionals, net amount, realized P&L, end position/average cost/unrealized P&L, precision and update timestamp. |
+| `GET /clearing/symbols?date=&from=&to=` | ADMIN | `query_symbols` | Symbol activity totals, realized P&L, current aggregate open quantity, and precision. No claim of gross open interest until the API explicitly computes long and short quantities. |
+| `GET /clearing/close-snapshots?gateway=&symbol=&from=&to=` | ADMIN or self | `query_close_snapshots` | Close date, gateway, symbol, position, cumulative realized/unrealized P&L, mark and precision. |
+| `GET /clearing/session-events?type=&from=&to=` | ADMIN | `query_session_events` | Event type (`EOD`, `PHASE`, `GAP`), clearing-observed timestamp/date, and typed payload. GAP payload includes the observed missing-trade count. |
+| `GET /clearing/gateway-sessions?gateway=&from=&to=&connected_only=` | ADMIN or self | `query_sessions` | Gateway ID, connect/disconnect timestamps, and disconnect reason. |
+| `GET /clearing/reconciliation?gateway=&symbol=&from=&to=` | ADMIN | `query_reconcile` | Discrepancy rows and explicit retained-raw-data limitation. An empty list means no discrepancy in the queried retained data, not proof of a complete venue history. |
+| `GET /clearing/health` | ADMIN | `query_health` plus process health check if available | DB row counts, WAL mode, latest trade timestamp, latest flush timestamp, and a separately named process-liveness result. |
+| `GET /clearing/settlements?date=&from=&to=&gateway=` | ADMIN or self | new read-only `eod.db` query | Date, gateway account, daily `amount_minor`, display amount, per-symbol detail, and EOD run status. |
+| `GET /clearing/balances?as_of=&gateway=` | ADMIN or self | `eod.ledger.balances` plus roster openings | Gateway account, opening balance, summed settlement amount, derived balance, and as-of date. |
+
+`query_trades` currently does not select `match_type` and `msg_id`, despite
+those columns being persisted. The 1.0 API work must extend its typed query
+and response rather than silently omitting available audit information.
+
+The present `query_health` inspects database state only. The existing
+`pm-clearing-cli health` socket proves receive-loop liveness. If an API health
+response presents process liveness, it must query that health interface with a
+bounded timeout and report database availability separately. A successful
+SQLite read alone is not proof that the clearing subscriber is alive.
+
+### 5.3 EOD read model
+
+No REST route currently reads `eod.db`. The new routes need small, typed,
+read-only EOD query helpers, not reuse of CLI text output. `GET
+/clearing/settlements` is the machine-readable statement view for 1.0. A PDF,
+CSV export, or new `/statements/{date}/{gateway}` endpoint is not required to
+ship the GUI and must not be specified as if a statement serialization exists.
+
+The response must preserve these EOD semantics:
+
+- `amount_minor` is an integer in 2-decimal display-currency minor units;
+- positive means the exchange owes the gateway, and negative means the gateway
+  owes the exchange;
+- per-symbol detail is the unrounded display-currency calculation;
+- `EXCHANGE` is the rounding residual account and is visible only to ADMIN;
+- a balance is calculated from the configured opening balance and settlement
+  rows. It is not a ledger column; and
+- a settlement run can be `ok`, `failed`, or `report-failed`.
+
+## 6. Clearing GUI architecture
+
+Create `web-apps/clearing-gui` with the `trader-gui` monorepo layout:
+
+```
+clearing-gui/
+  apps/
+    web/       React/TypeScript SPA
+    serve/     static server with optional same-origin /api proxy
+  Dockerfile
+  docker-compose.yml
+  Makefile
+  .env.example
 ```
 
-Sampled by `pm-clearing` every `snapshot_interval_sec` and at every close
-(≈ 500 rows/day per margin account at 60 s; intraday rows can be thinned to
-one per day after `--retention-days`). Daily graphs read
-`position_close_snapshot` + the close-time `margin_snapshots` row.
+Use the existing Trading GUI technology choices: React, TypeScript, Vite,
+React Router, shadcn/Radix, Tailwind, TanStack Query, Zustand, React Hook Form
+with Zod, the established chart libraries, and Vitest/React Testing Library.
+Reuse the existing application-shell conventions: login via `GET /api/v1/status`,
+role-derived landing page, `RoleGuard`, command/help patterns, loading/empty/
+error states, and a same-origin `/api` production proxy.
 
-`pm-eod`: settle and print statements per `(gateway_id, account)`; a broker
-receives one statement with a section per client.
+The app has no bus connection, direct SQLite connection, or clearing-specific
+WebSocket in 1.0. Poll current-state queries every five seconds only after the
+REST API is implemented. Daily, close, and EOD data should use normal query
+cache invalidation after the poll detects a later flush/EOD run; it should not
+be fetched at the current-state cadence.
 
-## 7. Backend: `pm-api-gwy` clearing routes
+The terminal GUI's bridge architecture is intentionally not reused. Its bridge
+exists for a raw TCP live-data protocol. A clearing SPA can use the established
+HTTP/API-key flow of `trader-gui`; adding a bridge would create another
+credential, deployment, and health surface without an identified protocol
+need.
 
-Mirrors how `trader-gui` uses `pm-api-gwy`: a new `api_gateways.clearing`
-instance (e.g. port 8082) and `routers/clearing.py`, **read-only** over
-`clearing.db` (+ `eod.db`). Visibility: ADMIN sees everything; TRADER/MM see
-their own participant and its accounts (a broker sees its clients) **[D7]**.
+## 7. Screens and information design
 
-```
-GET /clearing/summary                          exchange totals, invariant check (Σ VM = 0), counts by status
-GET /clearing/participants                     one row per participant: equity, req, excess, utilisation, status
-GET /clearing/participants/{gw}                detail + accounts list
-GET /clearing/positions?gateway=&account=&symbol=
-GET /clearing/margin/history?gateway=&account=&from=&to=&resolution=intraday|daily
-GET /clearing/pnl/daily?gateway=&account=&from=&to=
-GET /clearing/trades?gateway=&account=&date=
-GET /clearing/symbols/{symbol}/open-interest   long/short per participant (concentration)
-GET /clearing/margin-events?status=&date=
-GET /clearing/statements/{date}/{gw}           pm-eod output
-```
+### 7.1 Role landing pages and navigation
 
-Live refresh: poll every 5 s (= the clearing flush interval). A
-`clearing.*` bus message + WS push is a later optimisation, not needed for v1.
-
-## 8. `clearing-gui`
-
-Same stack and layout as `trader-gui` (`apps/web`, `apps/serve`,
-Dockerfile, Makefile, `make up`), ports **8096** (container) / **8196** (dev).
-
-Screens:
-
-1. **Overview (CCP view)** — participants table: equity, maint req, excess,
-   utilisation bar, status badge, intraday equity sparkline; tiles for total
-   open interest, Σ equity, # in WARNING / MARGIN_CALL; the zero-sum check.
-2. **Participant** — margin tiles (equity, settled cash, unsettled P&L,
-   requirement, excess, buying power); positions table; charts: equity vs
-   maintenance requirement (intraday + daily), cumulative realized/unrealized
-   P&L, gross exposure by symbol; trades; statements; **Accounts** tab when
-   enabled.
-3. **Account** — the same as Participant, scoped to one client account; on
-   the participant page, a gross-vs-net requirement comparison.
-4. **Symbol** — open interest and long/short concentration by participant.
-5. **Margin events** — status transitions, filterable; deep links to 2/3.
-
-## 9. Open decisions
-
-| # | Question | Recommendation |
+| Role | Landing page | Permitted navigation |
 |---|---|---|
-| D1 | Settlement model: keep `pm-eod` mark-to-market + margin requirement, or build §19 full DVP cash/securities | Keep MTM + add requirement; mark §19 superseded |
-| D2 | Margin enforcement | Monitor only first; enforcement as a later optional WP |
-| D3 | Account registry: pre-registered list in engine config, or free-form ids | Pre-registered (engine can reject, GUI can show idle clients) |
-| D4 | Participant requirement over accounts: gross or omnibus net | Gross |
-| D5 | May an accounts-enabled participant also trade house (no account)? | Yes, via `house_trading` flag, default true |
-| D6 | SMP scope with accounts | `(gateway_id, account)` |
-| D7 | GUI audience: clearing operator only, or also each participant for itself | Both, enforced by API key role |
+| `ADMIN` | Clearing Overview | Overview, Participants, Symbols, Events, Reconciliation, EOD Settlement, Gateway Sessions. |
+| `TRADER` | My Clearing | My positions, exposure, retained trades, daily/close history, my EOD settlement and balance. |
+| `MARKET_MAKER` | My Clearing | The trader self-view plus My Quote Obligations. |
 
-## 10. Work packages (proposed order)
+A route that receives a gateway ID must run through the API scope check even
+when the navigation hides that route. Hiding an admin link is not authorization.
 
-Margin first: it gives the GUI value without touching the engine or any
-wire protocol; accounts then ride on an already-working view.
+### 7.2 Clearing Overview (ADMIN)
 
-| WP | Content | Verify |
+The overview is an operational dashboard, not a margin dashboard. It contains:
+
+- latest clearing flush and trade timestamps, database/process health, and the
+  five-second committed-data qualifier;
+- an unmistakable GAP alarm with observed sequence interval and missing count;
+- participant table with current P&L, open position count, and latest update;
+- recent `PHASE` and `EOD` events;
+- latest EOD run status and the daily zero-sum settlement result; and
+- a link to reconciliation discrepancies.
+
+Avoid tiles for total equity, margin requirement, buying power, warning counts,
+or open interest. None is currently calculated or stored. Do not sum position
+notionals across symbols with different `tick_decimals` into a venue amount.
+
+### 7.3 Participant and My Clearing
+
+A participant page is scoped to one gateway and uses tabs or panels for:
+
+1. **Current positions** — signed quantity, average cost, mark, realized and
+   unrealized P&L, gross/net exposure, and update time.
+2. **Trades** — retained execution audit, with date/symbol filters and clearly
+   labelled exchange time versus clearing ingest time.
+3. **Daily and close history** — daily summary table and a daily close chart
+   assembled from close snapshots. The chart is labelled close-to-close, not
+   intraday.
+4. **EOD settlement** — daily settlement amount, balance calculation inputs,
+   per-symbol detail, and run state.
+5. **Gateway sessions** — connect/disconnect history, where the role allows it.
+
+The participant page must show the raw-data retention window when users filter
+trades. It must distinguish unavailable clearing data from a genuine zero: for
+example, an API/database failure is an error state, while an empty position
+array is a zero-position state.
+
+### 7.4 Symbols, events, reconciliation, and MM obligations
+
+- **Symbols (ADMIN):** activity and current aggregate net quantity by symbol.
+  It is a venue activity/exposure index, not an open-interest or concentration
+  page until long/short aggregation is implemented and exposed.
+- **Events (ADMIN):** filterable `GAP`, `PHASE`, and `EOD` event feed. Event
+  timestamps reflect when clearing observed an event, as documented by the
+  clearing process.
+- **Reconciliation (ADMIN):** filters for gateway/symbol/date and a plain
+  description of what raw-vs-summary reconciliation can prove within retained
+  trade history.
+- **My Quote Obligations (MARKET_MAKER):** one row per symbol showing the
+  already resolved `enforce_mm_obligation`, maximum spread ticks, and minimum
+  quantity. The copy must say these are configured enforcement parameters; it
+  must not imply an observed compliance rate.
+
+## 8. UI data contracts and formatting rules
+
+The frontend API client should define Zod-validated TypeScript contracts for
+every new route. Each money rendering helper accepts a tick value and
+`tick_decimals`; it normalizes an individual row before format or aggregation.
+Settlement values use `amount_minor` rather than clearing tick units and need a
+separate minor-unit formatter.
+
+Every table supports explicit filtering, sort direction, a visible applied
+scope, bounded pagination, skeleton loading, empty state, retryable error
+state, and accessible keyboard focus. The trade audit table must make its
+retention date and result count visible. Any CSV export added later must export
+the API response's explicit units and precision; it must not scrape formatted
+screen values.
+
+## 9. Release-1.0 implementation order and acceptance gates
+
+| Package | Scope | Required evidence before completion |
 |---|---|---|
-| CG1 | Margin config + computation + `margin_snapshots`/`margin_events` in `pm-clearing`; `pm-clearing-cli margin` | unit tests for the formulas; Σ VM = 0 property test |
-| CG2 | `routers/clearing.py` + `api_gateways.clearing` | API tests incl. role scoping |
-| CG3 | `clearing-gui` skeleton, Overview, Participant, charts | vitest; run against a live sim |
-| CA1 | `account` in spec, `Order`, engine validation, config (`participants[].accounts`), cverifier, config-gen | engine tests per reject code |
-| CA2 | Echo on lifecycle + drop copy; `trade.executed` buy/sell_account; CALF strip; REST/ALF/BALF ingress | protocol round-trip tests; BALF frame-size test |
-| CA3 | Clearing keyed by account; `pm-eod` per account | ledger tests with mixed house/client fills |
-| CA4 | GUI Accounts tab + Account page + gross-vs-net view | vitest |
-| CA5 | Optional: `ai_trader` "broker" persona trading for N clients | sim run |
-| CE1 | Optional: enforcement (D2) | — |
+| CL-API-1 | Typed clearing read routes over `clearing.db`; query additions for persisted audit fields; role/scope enforcement. | Route tests prove ADMIN venue access, TRADER/MM self-only access, validation of filters/limits, display normalization, and unavailable/locked DB error handling. |
+| CL-API-2 | Typed EOD settlement/balance routes over `eod.db`; health/liveness composition. | Tests prove minor-unit signs, `EXCHANGE` visibility, opening-plus-settlement balance derivation, EOD run states, and separately reported DB versus process health. |
+| CL-GUI-1 | `clearing-gui` shell, authentication, role guard, API client, query state, and production `/api` proxy. | Typecheck, component tests for login/role redirects/scope error states, and production proxy smoke test. |
+| CL-GUI-2 | ADMIN overview, participant detail, positions, exposure, trades, daily/close history, events, sessions, reconciliation, and EOD screens. | Component tests cover money precision, dates, retention messaging, GAP visibility, no-data/error distinction, and API-backed filters. |
+| CL-GUI-3 | Participant self-view and MM settings view. | Tests prove role navigation and absence of unsupported margin/compliance claims. |
+| CL-DOC-1 | API reference, deployment/configuration, and user guide updated from the implemented route schemas. | Docs list each shipped route, scopes, units, freshness, retention, and known limitations. |
+
+Release 1.0 is blocked until every 1.0 screen gets all of its data from a
+shipped, authenticated route. The CLI is not a browser backend. A screen that
+needs a missing route must remain out of the release rather than query SQLite
+from the frontend or fabricate a value from unrelated engine data.
+
+## 10. Explicit non-goals for release 1.0
+
+- Margin, collateral, equity, margin-call, requirement, buying-power, and
+  credit-limit calculations or labels.
+- Client accounts, broker omnibus views, account-level authorization, or
+  account-specific EOD settlement.
+- Pre-trade clearing/risk enforcement, kill-switch automation, or a clearing
+  write path.
+- Intraday equity/P&L history and sparklines that imply an unpersisted history.
+- Open-interest/concentration claims that need long/short aggregate data.
+- Market-maker quote presence, re-quote delay, or compliance-rate analytics.
+- Clearing REST WebSocket push. Five-second REST polling matches the writer's
+  normal maximum flush interval; push needs a new authoritative event contract.
+
+## 11. Operational limitations shown to users
+
+The GUI must expose, not conceal, these limitations:
+
+1. **Commit lag:** a fill can take up to the clearing flush interval to appear.
+2. **Feed completeness:** a GAP event means clearing observed an ID jump on its
+   PUB/SUB feed. Absence of a GAP does not prove transport completeness.
+3. **Retention:** raw execution audit is pruned after the configured window;
+   aggregate/daily/close data remains.
+4. **Session timing:** clearing's session and gateway lifecycle timestamps are
+   observation timestamps, not engine event timestamps.
+5. **Settlement timing:** EOD settlement/balance exists only after `pm-eod`
+   succeeds. A current clearing P&L is not a settlement result.
+6. **Unit safety:** positions and P&L are symbol-specific tick values until
+   normalized with their supplied precision; cross-symbol raw sums are invalid.
+
+## 12. Code references used for this design
+
+- `src/edumatcher/clearing/main.py` — ingestion, five-second/100-trade flush,
+  trade conversion, GAP recording, EOD marks, close snapshots, and lifecycle
+  observation.
+- `src/edumatcher/clearing/store.py` — clearing schema, retention, aggregate
+  views, close/session tables, and the CLI's read-only query surface.
+- `src/edumatcher/clearing/ledger.py` — current gateway/symbol position and
+  mark-to-market behaviour.
+- `src/edumatcher/clearing/cli.py` — currently implemented operational read
+  commands and filter vocabulary.
+- `src/edumatcher/eod/settle.py` and `src/edumatcher/eod/ledger.py` —
+  close-to-close settlement arithmetic, minor-unit ledger, balance derivation,
+  zero-sum protection, and run statuses.
+- `src/edumatcher/api_gateway/main.py` and
+  `src/edumatcher/api_gateway/routers/reference.py` — current router registry,
+  authentication path, and the only existing clearing-db REST enrichment.
+- `src/edumatcher/engine/config_loader.py`, `src/edumatcher/engine/main.py`,
+  and `src/edumatcher/models/mm_obligation.py` — participant roles and actual
+  versus modelled market-maker obligation fields.
+- `web-apps/trader-gui/README.md` and `web-apps/trader-gui/apps/web/src/App.tsx`
+  — GUI stack, same-origin proxy, authentication, role routing, and app-shell
+  conventions.
+- `web-apps/terminal-gui/apps/bridge/src/server.ts` — the specific raw-TCP
+  reason the terminal uses a bridge, which clearing does not share.
+
+## 13. Post-1.0 prerequisites: margin and client accounts
+
+These items are intentionally not a feature commitment. They record the
+minimum source-of-truth work required before a later design can describe a
+margin or client-account UI as factual.
+
+### 13.1 Margin requirements
+
+A margin view needs, at minimum:
+
+- an authoritative configuration and validation path for initial and
+  maintenance requirements, warning thresholds, and any instrument multiplier;
+- a documented mark and currency model;
+- a durable calculation/snapshot schema and status-transition event model;
+- a calculation service with formula and rounding tests; and
+- a clear decision whether the state is monitor-only or participates in
+  pre-trade enforcement.
+
+`SymbolConfig` currently has price precision but no multiplier field, so a
+formula that uses multipliers cannot be implemented from current symbol data.
+Opening balances in the current EOD roster are gateway metadata, not collateral
+data. Neither should be reinterpreted by a GUI.
+
+### 13.2 Client accounts
+
+Account-level clearing requires a coherent end-to-end change, not database
+columns alone:
+
+- an account registry and validation authority;
+- an immutable account field through every order ingress and lifecycle path;
+- account ownership on the authoritative `trade.executed` event;
+- account-aware order, self-match-prevention, clearing-ledger, close-snapshot,
+  EOD-settlement, and authorization keys; and
+- migration/rebuild and protocol compatibility plans for REST, ALF, BALF, drop
+  copy, bots, and simulators.
+
+The current `trade.executed` contract identifies buy/sell gateway IDs but has
+no account ID. Existing clearing and settlement primary keys are gateway/symbol
+or gateway/date oriented. Adding a REST field cannot recover account ownership
+for already emitted trades. Any future account design must start at that
+execution contract and revisit every downstream identity key.
