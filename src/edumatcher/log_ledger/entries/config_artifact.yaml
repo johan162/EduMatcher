@@ -1,0 +1,40 @@
+# Log ledger entries for the deployed-configuration check every process runs at startup (edumatcher.config_artifact).
+# Format: docs-design/EduMatcher-Log-Ledger.md §3. Check with `pm-log-cli ledger check`.
+# Actions are double-quoted: a bare YAML string must not contain ": " or start with a backtick.
+# The process column says which process logged the row; the messages are the same in all of them.
+
+- logger: edumatcher.config_artifact
+  template: "cannot read the deployed configuration: %s. Check the source config and run pm-config-deploy to regenerate the artifact."
+  level: CRITICAL
+  explanation: >
+    The compiled configuration (engine_config.json in the reference-data
+    directory) exists but could not be read: it is damaged, from another
+    EduMatcher release, or unreadable. The process that logged this did not
+    start.
+  actions:
+    - "Run `pm-config-deploy` with the source config to write a fresh artifact, then start the process again."
+    - "If deploy fails, fix the error it reports in the source config first."
+    - "Check that the process runs the same EduMatcher release that deployed the configuration."
+
+- logger: edumatcher.config_artifact
+  template: "no compiled configuration at %s — running on built-in defaults. Run pm-config-deploy to install one."
+  level: WARNING
+  explanation: >
+    No configuration has been deployed, so the process runs on its built-in
+    defaults. On a fresh install this is expected until the first deploy.
+  actions:
+    - "Run `pm-config-deploy` to install the configuration, then restart the process."
+    - "If the exchange runs elsewhere, set EDUMATCHER_DATA_DIR to its data directory."
+
+- logger: edumatcher.config_artifact
+  template: "the running configuration is out of date: %s"
+  level: WARNING
+  explanation: >
+    The source config file has changed since the running configuration was
+    compiled, so the exchange still runs the previous version. The message
+    says whether the edited file still loads; if it does not, deploying it
+    would fail as well.
+  actions:
+    - "If the edit is meant to take effect, run `pm-config-deploy` and restart the processes it concerns."
+    - "If the message says the file no longer loads, fix the error it names first."
+    - "If the edit was not meant to be deployed yet, nothing needs doing; the exchange keeps the previous configuration."

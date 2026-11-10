@@ -916,7 +916,8 @@ consistent config, and restart.
 Check these in order:
 
 1. Is `pm-scheduler` running?
-2. Is `sessions_enabled: true` in the deployed config?
+2. Is `sessions_enabled: true` in the deployed config? With `false`, the
+   scheduler logs "sessions are disabled" at start and sends nothing.
 3. Does the schedule use the `locale.session_timezone` and `locale.country` you expect?
 4. Is today a trading day under that country calendar?
 5. Did the scheduler start before the transition time passed?

@@ -679,8 +679,8 @@ class Monitor:
             )
             severity = STATE_SEVERITY[state]
             log.log(
-                logging.INFO if severity == "INFO" else logging.WARNING,
-                "%s: %s",
+                logging.INFO if severity == "INFO" else THRESHOLD_LOG_LEVEL[severity],
+                "process %s: %s",
                 key,
                 detail,
             )

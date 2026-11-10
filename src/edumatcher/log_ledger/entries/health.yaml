@@ -1,0 +1,45 @@
+# Log ledger entries for the health beacon every process sends to pm-monitor (edumatcher.health, edumatcher.healthcheck).
+# Format: docs-design/EduMatcher-Log-Ledger.md §3. Check with `pm-log-cli ledger check`.
+# Actions are double-quoted: a bare YAML string must not contain ": " or start with a backtick.
+# The process column says which process logged the row. The beacon messages are logged at most once a minute.
+
+- logger: edumatcher.health.reporter
+  template: "health beacon failed: %s"
+  level: WARNING
+  explanation: >
+    Building or sending this process's health beacon to pm-monitor raised an
+    unexpected error. The process itself carries on, but if it keeps failing
+    pm-monitor marks the process SILENT on the dashboard.
+  actions:
+    - "Read the error; if it repeats, report it as a bug with the process name."
+
+- logger: edumatcher.health.reporter
+  template: "health beacon invalid, dropped: %s"
+  level: WARNING
+  explanation: >
+    This process built a health beacon that does not follow the beacon format,
+    so it was not sent. If every beacon fails, pm-monitor marks the process
+    SILENT.
+  actions:
+    - "Report it as a bug with the process name and the error."
+
+- logger: edumatcher.health.reporter
+  template: "health sample %r rejected: %s"
+  level: WARNING
+  explanation: >
+    One metric this process reports (named in the message) does not follow the
+    format, so it was left out of the beacon. The rest of the beacon is sent;
+    only that metric is missing from the dashboard.
+  actions:
+    - "Report it as a bug with the process name and the metric name."
+
+- logger: edumatcher.healthcheck
+  template: "failed to answer health ping: %s"
+  level: WARNING
+  explanation: >
+    The process could not answer a health ping on its health port, so the
+    tool that asked (the `health` command of pm-clearing-cli, pm-audit-cli,
+    pm-index-cli or pm-stats-cli) reported it as not answering. The process
+    itself carries on.
+  actions:
+    - "Run the same `health` command again; if the process still does not answer, restart it."

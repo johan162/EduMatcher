@@ -993,7 +993,11 @@ itself, has no entry, and `explain` says so.
 `ledger check` is for anyone who adds or changes a WARNING+ log call. It scans
 the installed source and lists every call site without an entry, every entry
 whose message is no longer logged, and every entry whose level differs from
-the code. Entries live in `src/edumatcher/log_ledger/entries/*.yaml`.
+the code. Entries live in `src/edumatcher/log_ledger/entries/*.yaml`. It also
+prints a `GENERIC` line for a call whose format string has no fixed text, such
+as `log.warning("%s", message)`: every message from it shares one `tpl`, so
+one entry would have to explain all of them. Give such a call fixed text
+instead. The test suite fails on any of these findings.
 
 
 

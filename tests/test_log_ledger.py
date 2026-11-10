@@ -28,17 +28,6 @@ from edumatcher.log_srv.schema import open_db
 from edumatcher.logclient.handler import TcpLogHandler
 from edumatcher.logclient.protocol import FrameReader, iso_utc, template_id
 
-#: Packages whose entries are not written yet (content WPs L4-L8). Each
-#: content WP removes its packages; L8 deletes this set and the gap check
-#: becomes a hard failure for everything.
-PENDING_PACKAGES = frozenset(
-    {
-        # L8
-        "monitor", "scheduler", "health", "healthcheck", "config_artifact",
-    }
-)  # fmt: skip
-
-
 # ---------------------------------------------------------------------------
 # The shipped ledger against the source
 # ---------------------------------------------------------------------------
@@ -49,19 +38,16 @@ def report() -> CheckReport:
     return check_ledger(load_ledger())
 
 
-def test_every_call_site_outside_pending_packages_has_an_entry(
-    report: CheckReport,
-) -> None:
-    missing = [s for s in report.missing if s.package not in PENDING_PACKAGES]
-    assert not missing, "\n".join(
-        f"{s.where} {s.logger}: {s.template!r}" for s in missing
+def test_every_call_site_has_an_entry(report: CheckReport) -> None:
+    assert not report.missing, "\n".join(
+        f"{s.where} {s.logger}: {s.template!r}" for s in report.missing
     )
 
 
-def test_pending_packages_still_have_gaps(report: CheckReport) -> None:
-    """A finished package must leave PENDING_PACKAGES, so the gate closes on it."""
-    done = PENDING_PACKAGES - {s.package for s in report.missing}
-    assert not done, f"complete, remove from PENDING_PACKAGES: {sorted(done)}"
+def test_no_call_site_has_a_generic_template(report: CheckReport) -> None:
+    """One ``tpl`` for many different messages could only get a vague entry
+    (design Q3), so the source keeps fixed text in every WARNING+ template."""
+    assert not report.generic, [f"{s.where}: {s.template!r}" for s in report.generic]
 
 
 def test_no_stale_entries(report: CheckReport) -> None:
@@ -154,6 +140,21 @@ def _scan(tmp_path: Path, source: str, name: str = "mod.py") -> list[CallSite]:
     pkg.mkdir(exist_ok=True)
     (pkg / name).write_text(textwrap.dedent(source))
     return scan_package(pkg)
+
+
+def test_a_template_without_fixed_text_is_reported_generic(tmp_path: Path) -> None:
+    sites = _scan(
+        tmp_path,
+        """
+        import logging
+        log = logging.getLogger(__name__)
+        log.warning("%s: %s", a, b)
+        log.warning("disk %s full", a)
+        """,
+    )
+    report = check_ledger({}, sites)
+    assert [s.template for s in report.generic] == ["%s: %s"]
+    assert len(report.missing) == 2
 
 
 def test_scanner_finds_templates_and_levels(tmp_path: Path) -> None:
@@ -372,7 +373,7 @@ def test_ledger_list_and_check_output_formats(
     assert report["ok"] is False
     assert {"stale", "level_mismatch", "problems"} <= set(report)
     assert any(m["where"].startswith("edumatcher/engine/") for m in report["missing"])
-    assert {g["template"] for g in report["generic"]} >= {"%s"}
+    assert report["generic"] == []  # the source keeps none (L8)
 
 
 def test_ledger_show_unknown_tpl_exits_1(monkeypatch: pytest.MonkeyPatch) -> None:

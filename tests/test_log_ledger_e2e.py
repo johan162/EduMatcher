@@ -15,6 +15,7 @@ End-to-end: runs only with ``-m e2e`` (``make test-e2e``).
 from __future__ import annotations
 
 import json
+import socket
 import sqlite3
 import subprocess
 import sys
@@ -65,14 +66,32 @@ def _rows(exchange: Exchange, where: str) -> list[dict[str, Any]]:
 
 @pytest.fixture(scope="module")
 def warnings(exchange: Exchange) -> list[dict[str, Any]]:
-    """WARNING+ rows; the scheduler logs some at every start of ``mini``."""
+    """WARNING+ rows, first the one this provokes: ``mini`` starts cleanly,
+    so a line longer than CALF allows is sent to pm-md-gwy, which drops the
+    client with a WARNING."""
+    compiled = json.loads(
+        (exchange.data_dir / "ref_data" / "engine_config.json").read_text()
+    )
+    port = compiled["market_data_gateway"]["port"]
+
+    def send_oversized_line() -> bool:
+        try:
+            with socket.create_connection(("127.0.0.1", port), timeout=2) as sock:
+                sock.sendall(b"x" * 8192)
+        except OSError:
+            return False  # pm-md-gwy is not listening yet
+        return True
+
+    until(send_oversized_line, "pm-md-gwy to accept a connection", 30)
+    provoked = "inbound line exceeds"
     deadline = time.monotonic() + 30
     while True:
         rows = _rows(exchange, "level IN ('WARNING', 'ERROR', 'CRITICAL')")
-        if rows or time.monotonic() > deadline:
+        if any(provoked in r["message"] for r in rows) or time.monotonic() > deadline:
             break
         time.sleep(0.5)
-    assert rows, "the mini exchange logged no WARNING+ row within 30 s"
+    rows.sort(key=lambda r: provoked not in r["message"])
+    assert rows and provoked in rows[0]["message"], rows
     return rows
 
 

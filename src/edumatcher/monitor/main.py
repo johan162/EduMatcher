@@ -202,7 +202,7 @@ def main() -> None:
             "redeploy to collect health"
         )
         print(f"{parser.prog}: {message}", file=sys.stderr)
-        log.warning("%s", message)
+        log.warning("monitoring is disabled; pm-monitor idles until stopped")
         _idle_until_stopped()
         sys.exit(0)
     session_tz_name = (
@@ -237,7 +237,7 @@ def main() -> None:
     except zmq.ZMQError as exc:
         if store is not None:
             store.close(time.time())
-        log.error(
+        log.critical(
             "cannot bind pm-monitor sockets (pull_port %d, pub_port %d): %s",
             config.pull_port,
             config.pub_port,

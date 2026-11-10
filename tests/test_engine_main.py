@@ -110,7 +110,7 @@ def test_invalid_deployed_artifact_exits_without_a_traceback(
             engine_main.main()
 
     assert exc_info.value.code == 1
-    errors = [record for record in caplog.records if record.levelno == logging.ERROR]
+    errors = [r for r in caplog.records if r.levelno == logging.CRITICAL]
     assert len(errors) == 1
     assert "cannot read the deployed configuration" in errors[0].getMessage()
     assert "pm-config-deploy" in errors[0].getMessage()

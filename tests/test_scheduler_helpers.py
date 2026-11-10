@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import logging
+import os
+import signal
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -18,12 +21,12 @@ from edumatcher.scheduler.main import (
 )
 
 
-def _deploy(tmp_path: Path) -> Path:
+def _deploy(tmp_path: Path, extra: str = "") -> Path:
     """Compile a minimal configuration into tmp_path and return the artifact."""
     source = tmp_path / "authored.yaml"
     source.write_text(
         "symbols:\n  AAPL: {tick_decimals: 2, last_buy_price: 150.0}\n"
-        "participants: [{id: TRADER01, role: TRADER}]\n"
+        "participants: [{id: TRADER01, role: TRADER}]\n" + extra
     )
     dest = tmp_path / "engine_config.json"
     deploy(source, dest)
@@ -159,6 +162,46 @@ class TestSchedulerMain:
             main()
         mock_run_scheduled.assert_called_once()
         mock_pusher.return_value.close.assert_called_once()
+
+    @patch("edumatcher.scheduler.main.make_subscriber", return_value=MagicMock())
+    @patch("edumatcher.scheduler.main._run_scheduled")
+    @patch("edumatcher.scheduler.main.make_pusher", return_value=MagicMock())
+    def test_sessions_disabled_idles_without_transitions(
+        self,
+        mock_pusher: MagicMock,
+        mock_run_scheduled: MagicMock,
+        mock_subscriber: MagicMock,
+        tmp_path: Path,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        # The engine refuses every transition with sessions off, so sending
+        # the schedule only produced "no confirmation" warnings at each start.
+        _deploy(tmp_path, "sessions_enabled: false\n")
+
+        def stop_on_first_wait(_: float) -> None:
+            os.kill(os.getpid(), signal.SIGTERM)
+
+        with (
+            patch("sys.argv", ["pm-scheduler"]),
+            patch(
+                "edumatcher.config_artifact.COMPILED_CONFIG_FILE",
+                tmp_path / "engine_config.json",
+            ),
+            patch(
+                "edumatcher.scheduler.main.time.sleep", side_effect=stop_on_first_wait
+            ) as mock_sleep,
+            caplog.at_level(logging.INFO, logger="edumatcher.scheduler.main"),
+        ):
+            from edumatcher.scheduler.main import main
+
+            main()
+        mock_sleep.assert_called_once()
+        mock_run_scheduled.assert_not_called()
+        mock_subscriber.assert_not_called()
+        mock_pusher.return_value.send_multipart.assert_not_called()
+        mock_pusher.return_value.close.assert_called_once()
+        assert "sessions are disabled" in caplog.text
+        assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
 
     @patch("edumatcher.scheduler.main.time.sleep")
     @patch("edumatcher.scheduler.main.make_pusher", return_value=MagicMock())

@@ -28,7 +28,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 | 5 | L5 | Content: gateways (alf_gwy, balf_gwy, api_gateway, md_gateway, dc_gateway, ralf_gateway, calf_client, ralf_spy, dc_spy) | L2 | 1 d | ☑ | 2026-11-09 |
 | 6 | L6 | Content: alf_console, clearing, audit, stats | L2 | 0.5 d | ☑ | 2026-11-09 |
 | 7 | L7 | Content: ai_trader, mm_bot, market_sim, index, viewer | L2 | 0.5 d | ☑ | 2026-11-10 |
-| 8 | L8 | Content: monitor, scheduler, health, config*, setup, the rest. Coverage test becomes a hard failure, docs | L4–L7 | 0.5 d | ☐ | |
+| 8 | L8 | Content: monitor, scheduler, health, config*, setup, the rest. Coverage test becomes a hard failure, docs | L4–L7 | 0.5 d | ☑ | 2026-11-10 |
 
 ## 1. Decisions
 
@@ -230,9 +230,9 @@ Notes from L3:
   is correct and needs no code.
 * e2e (`tests/test_log_ledger_e2e.py`): the real bridge on the mini exchange's
   `log.db` serves exactly the shipped ledger, and headless Chrome opens a real
-  scheduler WARNING in the Explorer and finds the drawer's ledger text. Until
-  L8 that is the no-entry line. The test reuses `Page`/`until` from
-  `test_monitor_e2e.py`.
+  WARNING (pm-md-gwy dropping a client the test sends an oversized line) in the
+  Explorer and finds the drawer's Explanation and Suggested actions. The test
+  reuses `Page`/`until` from `test_monitor_e2e.py`.
 
 Out of scope for this plan, noted for later: the Alerts view issue detail could
 show the same panels, and the bridge fingerprint could use `tpl` instead of the
@@ -372,6 +372,45 @@ review step (3) is part of the WP, not a side effect.
   that rather than the override case pm-stats-cli can hit.
 * Nothing in these packages needed a level change beyond the Q4 sweep.
 
+### 6.6 Notes from L8 (monitor, scheduler, health, healthcheck, config_artifact)
+
+40 entries in `monitor.yaml`, `scheduler.yaml`, `health.yaml` (health
+reporter and healthcheck) and `config_artifact.yaml`. The ledger has 280
+entries and covers every WARNING+ call site; `PENDING_PACKAGES` is gone, so a
+missing, stale or wrong-level entry fails `tests/test_log_ledger.py`, and so
+does a generic template.
+
+* **The scheduler's startup WARNINGs were real, and are fixed.** The `mini`
+  exchange runs the bundled `s10-basic` config, which, like every bundled
+  example, has `sessions_enabled: false`. pm-scheduler ignored that flag,
+  reconciled the always-CONTINUOUS engine to CLOSED, and the engine refused
+  the transition ("Sessions are not enabled on this engine", sent only to a
+  `reply_to` the scheduler does not give), so the scheduler logged "no
+  confirmation". pm-scheduler now reads `sessions_enabled` from the compiled
+  config, logs "sessions are disabled …" at INFO and idles (still beaconing)
+  instead of sending transitions. INFO, not WARNING: the profiles start
+  pm-scheduler with every example, so it is the normal case, not a mistake.
+  `--now` mode does not read the config and is unchanged.
+* **Q3 done:** the three generic templates got fixed text.
+  `config_artifact.report_deployment` logs "the running configuration is out
+  of date: %s" (one entry covers both staleness texts); pm-monitor's disabled
+  message is a literal; pm-monitor's process-state line is "process %s: %s".
+  `test_no_call_site_has_a_generic_template` keeps it so.
+* **Levels:**
+  * By the Q4 rule, these are now CRITICAL: pm-scheduler's `FATAL: no
+    compiled configuration`, pm-monitor's `cannot bind pm-monitor sockets`,
+    and `cannot read the deployed configuration` in `report_deployment`.
+    Every caller of `report_deployment` exits on that error.
+  * pm-monitor's process-state line logged HUNG/SILENT/DEAD/MISSING at
+    WARNING, below a CRIT threshold breach (ERROR). It now uses the threshold
+    map: DEGRADED is WARNING, the CRIT states are ERROR.
+* **e2e:** with the scheduler quiet, `mini` starts without a WARNING+ row, so
+  `tests/test_log_ledger_e2e.py` provokes one: it sends pm-md-gwy a line
+  longer than CALF allows. The drawer test now opens a row with an entry.
+* **Docs:** operator guide 040 (the generic-template rule), the sessions and
+  scheduling chapter, the troubleshooting list in 010-running-the-exchange,
+  and the stale-config example in 010-the-configuration-workflow.
+
 ## 7. Open questions
 
 | # | Question | Answer |
@@ -379,4 +418,4 @@ review step (3) is part of the WP, not a side effect.
 | Q1 | An existing `log.db` lacks the `tpl` column. | Decided 2026-11-09: the `schema_version` table plus a fail-fast check. See D4. |
 | Q2 | Should `has_exception` rows key on the exception type instead of the template? | No. `log.exception("x failed")` already has a constant template, and the traceback stays in the message. |
 | Q4 | Messages that end the process but are not labelled fatal: `failed to resolve configuration: %s` (pm-alf-gwy, pm-balf-gwy, pm-md-gwy, pm-dc-gwy, pm-ralf-gwy, pm-log-srv, pm-api-gwy), pm-mm-bot's config errors, pm-monitor's `cannot open %s: %s`, pm-stats's `pm-stats stopped recording: %s`. Raise them to CRITICAL too? | Yes, decided 2026-11-10 and done before L7 (§6.5). |
-| Q3 | Templates with no literal text, such as `log.warning("%s", warning)` in `config_artifact.py`. | They give one `tpl` for many different messages, so one generic entry has to cover all of them. L2's `ledger check` lists them, and the content WP rewrites each one to a specific template or splits the call. |
+| Q3 | Templates with no literal text, such as `log.warning("%s", warning)` in `config_artifact.py`. | They give one `tpl` for many different messages, so one generic entry has to cover all of them. L2's `ledger check` lists them, and the content WP rewrites each one to a specific template or splits the call. Done in L8 (§6.6); the test suite now rejects new ones. |

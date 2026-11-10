@@ -313,7 +313,7 @@ def report_deployment() -> None:
     try:
         config = load_compiled_config()
     except ArtifactError as exc:
-        log.error(
+        log.critical(
             "cannot read the deployed configuration: %s. Check the source config "
             "and run pm-config-deploy to regenerate the artifact.",
             exc,
@@ -336,7 +336,7 @@ def report_deployment() -> None:
     )
     warning = staleness(config)
     if warning:
-        log.warning("%s", warning)
+        log.warning("the running configuration is out of date: %s", warning)
 
 
 def source_digest(text: str) -> str:
