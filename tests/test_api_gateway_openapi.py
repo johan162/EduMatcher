@@ -191,6 +191,7 @@ def test_every_success_example_is_exactly_its_response_model() -> None:
     from edumatcher.api_gateway.routers import (
         admin,
         bootstrap,
+        clearing,
         history,
         market,
         orders,
@@ -198,7 +199,7 @@ def test_every_success_example_is_exactly_its_response_model() -> None:
     )
 
     failures: list[str] = []
-    for module in (orders, reference, market, history, admin, bootstrap):
+    for module in (orders, reference, market, history, clearing, admin, bootstrap):
         for route in module.router.routes:
             if not isinstance(route, APIRoute) or route.response_model is None:
                 continue

@@ -23,6 +23,7 @@ from edumatcher.api_gateway.errors import ERROR_CODES
 from edumatcher.api_gateway.routers import (
     admin,
     bootstrap,
+    clearing,
     history,
     market,
     orders,
@@ -62,7 +63,7 @@ def _hidden_routes() -> set[tuple[str, str]]:
     """Documented in the spec but kept out of the contract (``/healthz``)."""
     return {
         (method, route.path)
-        for module in (orders, reference, market, history, admin, bootstrap)
+        for module in (orders, reference, market, history, clearing, admin, bootstrap)
         for route in module.router.routes
         if isinstance(route, APIRoute) and not route.include_in_schema
         for method in route.methods or ()

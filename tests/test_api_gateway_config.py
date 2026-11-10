@@ -49,6 +49,23 @@ api_gateways:
     assert cfg.audit_db == DATA_DIR / "audit" / "custom.db"
 
 
+def test_eod_db_resolves_in_the_data_directory_and_finds_its_roster(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "engine_config.yaml"
+    path.write_text("""
+api_gateways:
+  desk:
+    eod_db: data/settle/eod.db
+""")
+
+    cfg = load_api_gateway_config(path)
+
+    assert cfg.eod_db == DATA_DIR / "settle" / "eod.db"
+    # Where pm-eod --datapath keeps it: ref_data/ beside the ledger.
+    assert cfg.eod_roster == DATA_DIR / "settle" / "ref_data" / "roster.yaml"
+
+
 def test_load_single_named_api_gateway_block(tmp_path: Path) -> None:
     path = tmp_path / "engine_config.yaml"
     path.write_text("""

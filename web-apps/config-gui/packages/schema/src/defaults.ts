@@ -223,6 +223,7 @@ export const DEFAULT_MONITOR_THRESHOLDS: Readonly<
 /** API instance fields the GUI writes only when set (ApiGatewayConfig). */
 export const DEFAULT_API_BUS = {
   clearingDb: "data/clearing.db",
+  eodDb: "data/eod.db",
   marketDataCacheSec: 60,
   enginePullAddr: "tcp://127.0.0.1:5555",
   enginePubAddr: "tcp://127.0.0.1:5556",

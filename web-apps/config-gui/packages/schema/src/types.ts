@@ -522,6 +522,8 @@ export interface ApiGatewayConfig {
   auditDb?: string;
   /** Undefined = key omitted (default data/clearing.db, read by /history). */
   clearingDb?: string;
+  /** Undefined = key omitted (default data/eod.db, read by /clearing/settlements and /clearing/balances). */
+  eodDb?: string;
   /** Undefined = key omitted (default 60 s market-data cache). */
   marketDataCacheSec?: number;
   /** Bus addresses; undefined = key omitted (the local engine/index defaults). */

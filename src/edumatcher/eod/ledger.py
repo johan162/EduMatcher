@@ -15,6 +15,8 @@ import sqlite3
 from collections.abc import Mapping
 from decimal import Decimal
 from pathlib import Path
+from typing import Any
+from urllib.parse import quote
 
 from edumatcher.eod.settle import EXCHANGE, Settlement
 
@@ -69,6 +71,21 @@ def open_ledger(path: Path) -> sqlite3.Connection:
     except Exception:
         conn.close()
         raise
+    return conn
+
+
+def open_ledger_readonly(path: Path) -> sqlite3.Connection:
+    """Open an existing ``eod.db`` read-only (the API gateway's reader).
+
+    Never creates the file: a missing ledger means pm-eod has not run here,
+    which a reader must report, not paper over with an empty database.
+    """
+    if not path.exists():
+        raise FileNotFoundError(f"EOD ledger not found: {path}")
+    # Percent-encoded: a '?' in the path would otherwise end the URI path.
+    conn = sqlite3.connect(f"file:{quote(str(path.resolve()))}?mode=ro", uri=True)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA busy_timeout = 5000")
     return conn
 
 
@@ -209,6 +226,81 @@ def run_for(conn: sqlite3.Connection, trade_date: str) -> dict[str, str] | None:
         (trade_date,),
     ).fetchone()
     return dict(row) if row else None
+
+
+def query_settlements(
+    conn: sqlite3.Connection,
+    *,
+    account: str | None = None,
+    include_exchange: bool = True,
+    date_value: str | None = None,
+    from_date: str | None = None,
+    to_date: str | None = None,
+    limit: int = 1000,
+) -> list[dict[str, Any]]:
+    """Settlement rows, newest date first, then account.
+
+    ``include_exchange=False`` leaves out the rounding account even when
+    ``account`` names it.
+    """
+    rows = conn.execute(
+        "SELECT trade_date, account, amount_minor, detail_json FROM eod_settlement"
+        " WHERE (:account IS NULL OR account = :account)"
+        "   AND (:exchange OR account != :exchange_account)"
+        "   AND (:date_value IS NULL OR trade_date = :date_value)"
+        "   AND (:from_date IS NULL OR trade_date >= :from_date)"
+        "   AND (:to_date IS NULL OR trade_date <= :to_date)"
+        " ORDER BY trade_date DESC, account ASC"
+        " LIMIT :limit",
+        {
+            "account": account,
+            "exchange": 1 if include_exchange else 0,
+            "exchange_account": EXCHANGE,
+            "date_value": date_value,
+            "from_date": from_date,
+            "to_date": to_date,
+            "limit": limit,
+        },
+    )
+    return [dict(r) for r in rows]
+
+
+def query_runs(
+    conn: sqlite3.Connection,
+    *,
+    date_value: str | None = None,
+    from_date: str | None = None,
+    to_date: str | None = None,
+    limit: int = 1000,
+) -> list[dict[str, str]]:
+    """Recorded runs in a date range, newest date first."""
+    rows = conn.execute(
+        "SELECT trade_date, status, started_at, finished_at, steps_json"
+        " FROM eod_runs"
+        " WHERE (:date_value IS NULL OR trade_date = :date_value)"
+        "   AND (:from_date IS NULL OR trade_date >= :from_date)"
+        "   AND (:to_date IS NULL OR trade_date <= :to_date)"
+        " ORDER BY trade_date DESC LIMIT :limit",
+        {
+            "date_value": date_value,
+            "from_date": from_date,
+            "to_date": to_date,
+            "limit": limit,
+        },
+    )
+    return [dict(r) for r in rows]
+
+
+def last_settled_on_or_before(
+    conn: sqlite3.Connection, as_of: str | None
+) -> str | None:
+    """The latest settled date up to ``as_of`` (any, when ``None``)."""
+    row = conn.execute(
+        "SELECT MAX(trade_date) FROM eod_settlement"
+        " WHERE (:as_of IS NULL OR trade_date <= :as_of)",
+        {"as_of": as_of},
+    ).fetchone()
+    return row[0] if row else None
 
 
 def check_zero_sum(conn: sqlite3.Connection) -> list[str]:

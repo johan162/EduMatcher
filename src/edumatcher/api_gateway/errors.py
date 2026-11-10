@@ -56,6 +56,13 @@ ERROR_CODES: dict[str, ErrorCode] = {
         "`MARKET_MAKER` for `/bootstrap/mm`).",
         "ADMIN role required",
     ),
+    "SCOPE_DENIED": ErrorCode(
+        403,
+        "ROLE_DENIED",
+        "A `TRADER` or `MARKET_MAKER` key asked for another gateway's clearing or "
+        "settlement data; only `ADMIN` reads beyond its own gateway.",
+        "Gateway TRADER01 may read only its own clearing data, not MM01",
+    ),
     "NOT_FOUND": ErrorCode(404, "UNKNOWN", "No such path.", "Not Found"),
     "UNKNOWN_ORDER": ErrorCode(
         404,
@@ -184,6 +191,20 @@ ERROR_CODES: dict[str, ErrorCode] = {
         "UNKNOWN",
         "The `pm-stats` database is not present.",
         "Stats DB not found at /var/lib/edumatcher/stats.db",
+    ),
+    "CLEARING_DB": ErrorCode(
+        503,
+        "UNKNOWN",
+        "The `pm-clearing` ledger is missing, locked or unreadable. Not an empty "
+        "ledger: retry, or check that `pm-clearing` is deployed.",
+        "Clearing ledger unavailable: not found",
+    ),
+    "EOD_DB": ErrorCode(
+        503,
+        "UNKNOWN",
+        "The `pm-eod` ledger is missing or unreadable, or its roster is "
+        "malformed. A day without settlement is an empty list, not this.",
+        "EOD ledger unavailable: not found",
     ),
     "AUDIT_INDEX_UNAVAILABLE": ErrorCode(
         503,

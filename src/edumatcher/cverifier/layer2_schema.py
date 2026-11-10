@@ -3080,6 +3080,7 @@ _API_INSTANCE_KEYS = frozenset(
         "stats_db",
         "audit_db",
         "clearing_db",
+        "eod_db",
         "order_retention_sec",
         "market_data_cache_sec",
         "engine_pull_addr",

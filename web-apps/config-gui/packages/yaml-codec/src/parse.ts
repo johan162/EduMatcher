@@ -895,6 +895,7 @@ function parseApiGateways(node: unknown, draft: EngineConfigDraft): void {
     const auditDb = asString(value.audit_db);
     const optional = {
       clearingDb: asString(value.clearing_db),
+      eodDb: asString(value.eod_db),
       marketDataCacheSec: asNumber(value.market_data_cache_sec),
       enginePullAddr: asString(value.engine_pull_addr),
       enginePubAddr: asString(value.engine_pub_addr),

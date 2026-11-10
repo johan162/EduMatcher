@@ -39,7 +39,9 @@ class PeriodRealizedPnl:
     ytd: float
 
 
-def open_readonly_connection(db_path: Path) -> sqlite3.Connection:
+def open_readonly_connection(
+    db_path: Path, busy_timeout_ms: int = 5000
+) -> sqlite3.Connection:
     """Open the clearing ledger read-only.
 
     ``busy_timeout`` matters even for a reader: pm-clearing is writing in
@@ -55,7 +57,7 @@ def open_readonly_connection(db_path: Path) -> sqlite3.Connection:
     uri = f"file:{quote(str(resolved_path))}?mode=ro"
     conn = sqlite3.connect(uri, uri=True)
     conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA busy_timeout = 5000")
+    conn.execute(f"PRAGMA busy_timeout = {int(busy_timeout_ms)}")
     return conn
 
 

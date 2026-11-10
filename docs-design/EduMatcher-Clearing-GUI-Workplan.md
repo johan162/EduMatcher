@@ -2,7 +2,7 @@
 
 Companion design: [EduMatcher-Clearing-GUI.md](EduMatcher-Clearing-GUI.md)
 
-Status: **Planned.** No work package (WP) below has started. The ordered plan
+Status: **In progress.** CG0–CG4 done (2026-11-10, uncommitted): the release-1.0 REST surface is complete; CG5 (GUI) is next. The ordered plan
 ships the read-only clearing client defined in the companion design, without
 introducing margin, client accounts, or a clearing write path.
 
@@ -33,11 +33,11 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit) �
 
 | # | WP | Content | Depends on | Est. | Status | Done on |
 |---|---|---|---|---|---|---|
-| 0 | CG0 | Contract fixtures, API test harness, and scope-policy test seam | — | 1 d | ☐ | |
-| 1 | CG1 | Clearing current-state read API: participants, positions, exposure, daily, closes, symbols, trades | CG0 | 2 d | ☐ | |
-| 2 | CG2 | Clearing operational-evidence API: events, gateway sessions, reconciliation, DB/process health | CG0, CG1 | 1.5 d | ☐ | |
-| 3 | CG3 | EOD read API: settlements, derived balances, and run status | CG0 | 1.5 d | ☐ | |
-| 4 | CG4 | API integration and reference: route schemas, query bounds, role matrix, and documented units | CG1–CG3 | 1 d | ☐ | |
+| 0 | CG0 | Contract fixtures, API test harness, and scope-policy test seam | — | 1 d | ☑ | 2026-11-10 |
+| 1 | CG1 | Clearing current-state read API: participants, positions, exposure, daily, closes, symbols, trades | CG0 | 2 d | ☑ | 2026-11-10 |
+| 2 | CG2 | Clearing operational-evidence API: events, gateway sessions, reconciliation, DB/process health | CG0, CG1 | 1.5 d | ☑ | 2026-11-10 |
+| 3 | CG3 | EOD read API: settlements, derived balances, and run status | CG0 | 1.5 d | ☑ | 2026-11-10 |
+| 4 | CG4 | API integration and reference: route schemas, query bounds, role matrix, and documented units | CG1–CG3 | 1 d | ☑ | 2026-11-10 |
 | 5 | CG5 | `clearing-gui` foundation: workspace, auth, role routes, typed client, shell, proxy | CG4 | 2 d | ☐ | |
 | 6 | CG6 | Participant self-service screens: current state, trade audit, daily/close history | CG5, CG1 | 2 d | ☐ | |
 | 7 | CG7 | Operator screens: overview, participant drill-down, symbols, events, sessions, reconciliation | CG5, CG1, CG2 | 2.5 d | ☐ | |
@@ -103,9 +103,12 @@ path to a clearing or EOD database.
 
 ## 3 Route inventory
 
-All routes below are proposed additions. None exists at the present time. 
-List rows return `count`, apply a bounded `limit`, and use
-cursor pagination where raw trades or events can exceed the response limit.
+All routes below are implemented (CG1–CG3, frozen in CG4, 2026-11-10); the
+normative contract is the "Clearing" chapter of
+`docs/books/protocols-and-clients/part-2-specifications/060-rest-and-websocket.md`
+and `spec/rest/openapi.json`, which supersede this table where they differ.
+List rows return `count` and `has_more` and apply a bounded `limit`; only
+`trades` needed cursor pagination.
 
 Dates are `YYYY-MM-DD` in the clearing session timezone.
 
@@ -205,6 +208,32 @@ tests become green when CG0's scope resolver exists and enforces the policy.
 per-test isolated so they do not lengthen the API suite materially. The scope
 resolver performs constant-time session checks and creates no database load.
 
+**Done 2026-11-10.** First run: 11 failing (`NotImplementedError` from the
+stubbed resolver/read-only opener, `TypeError` for the absent `eod_db`), 5
+fixture-shape tests passing; then all 16 green; full suite and `make _check`
+clean.
+
+- `tests/clearing_api_fixture.py` builds `clearing.db` by feeding generated
+  `TradeExecuted` messages (with envelopes, so `msg_id` is stored), session
+  phases, gateway connect/bye and `system.eod` through the real
+  `ClearingProcess` dispatch at a patched clearing clock; `eod.db` is settled
+  from those snapshots by pm-eod's own `settle_date`/`record_day`, with one
+  hand-added `EXCHANGE` rounding cent on the second day (real snapshots cancel
+  exactly). `make_clearing_app` wires the real app with ADMIN (OPS01), TRADER
+  (TRADER01), MARKET_MAKER (MM01) and read-only keys.
+- `api_gateway/clearing_scope.py`: `clearing_scope(request, session,
+  requested)` → `ClearingScope(caller, admin, gateway)`. Role from
+  `engine.resolve_role` (an unanswered lookup is `TRADER`: fails closed);
+  foreign gateway → `403 SCOPE_DENIED` (new registry code; audited as
+  `ROLE_DENIED`); read-only → `403 READ_ONLY`.
+- `eod.ledger.open_ledger_readonly` (never creates the file).
+- New config key `api_gateways.<name>.eod_db` (default `data/eod.db`);
+  `ApiGatewayConfig.eod_roster` derives `ref_data/roster.yaml` beside it,
+  as `pm-eod --datapath` does. Mirrored in the verifier, config-gen comments
+  and config-gui (types, zod, defaults, codec, Gateways tab).
+- Decision: the clearing health address is **not** a config key; it is the
+  env-derived `CLEARING_HEALTH_ADDR` that `pm-clearing-cli health` pings.
+
 ---
 
 ### CG1 — Clearing current-state read API
@@ -264,6 +293,34 @@ limit. Trades can be large, so date/gateway/symbol indexes and a strict limit
 are mandatory; no unbounded trade export route is introduced. SQLite reads run
 off the async event loop where the gateway's existing patterns require it.
 
+**Done 2026-11-10.** First run: 33 failing, all on the absent routes (`404`
+against a route-less stub router); then green, plus the contract suites
+(layout, error codes, OpenAPI examples, spec tables) and the full suite.
+
+- `api_gateway/routers/clearing.py` (tag `clearing`, `/api/v1/clearing`):
+  `summary`, `participants`, `participants/{gateway_id}`, `positions`,
+  `exposure`, `trades`, `daily`, `close-snapshots`, `symbols`. Response
+  models in `responses.py` (Clearing section); examples in `openapi_docs.py`.
+- Units decision: every row money column is `<name>_ticks` (as stored) +
+  `<name>` (display, the row's own precision) beside `tick_decimals` — the
+  `/book` `price`/`price_ticks` convention. Cross-symbol totals
+  (`participants`, `summary`) are display-currency sums only, computed per
+  row in SQL (`store.query_participants`).
+- Lists: `{"<plural>", "count", "has_more"}` with `limit` 1-5000 (query run
+  with `limit + 1`). Only `trades` is cursor-paginated (`next_cursor`/`after`
+  over `(ts_ns, ingest_ts_ns, id)`); it also reports `retained_from`
+  (`store.query_retained_from`).
+- `store.query_trades` now selects `match_type`, `msg_id` and takes `after`.
+  A participant's trade rows null the counterparty's gateway and order id.
+- `503 CLEARING_DB` for a missing, locked (busy timeout `_BUSY_TIMEOUT_MS`)
+  or unreadable ledger; the message never carries the path. `400` for a bad
+  date, `from > to`, `limit`, `sort` or cursor. `summary` reads `eod.db`
+  optionally: `eod_db_available: false` instead of failing.
+- Summary GAP semantics: `session_date` = latest `trade_date` in
+  `session_events`; `gap_count` = GAP rows on it; `latest_gap` = newest ever.
+- Log-ledger entries for the two new WARNING sites; normative spec chapter
+  "Clearing" in `060-rest-and-websocket.md`.
+
 ---
 
 ### CG2 — Clearing operational-evidence API
@@ -312,6 +369,27 @@ not run on every participant-table refresh. Reconciliation can scan retained
 raw trades; it remains an explicit operator action with date/filter bounds,
 not a dashboard polling query.
 
+**Done 2026-11-10.** First run: 19 failing on the absent routes; one test
+defect (expected event order ignored that a GAP is stamped with the trade
+after it) fixed in the test; then green with the full suite and checks.
+
+- `session-events` (ADMIN): `type` (case-insensitive, unknown → `400`),
+  `from`/`to`, bounded. Each row has exactly one of `phase` / `gap` / `eod`;
+  the stored JSON is not exposed. Store order gained an `id DESC` tie-break.
+- `gateway-sessions` (scoped): `from`/`to` are trading days **in the session
+  timezone** (`store.query_sessions` gained exact `from_ns`/`to_ns`; its
+  `from_date`/`to_date` still compare the UTC date for the CLI);
+  `connected_only`.
+- `reconciliation` (ADMIN): `from` and `to` are **required** (an explicit,
+  bounded operator action); rows carry `tick_decimals` (added to
+  `store.query_reconcile`) and `*_ticks`/display notionals; the range is
+  clamped to `retained_from` and the reply names the window compared
+  (`compared_from`/`compared_to`, `null` when nothing is left to compare).
+- `health` (ADMIN): always `200` with `database` (available/detail, journal
+  mode, row counts, latest trade/flush) and `process` (alive/detail from a
+  0.5 s ping of `CLEARING_HEALTH_ADDR`, run concurrently with the DB read).
+  `query_health`'s `db_path` is dropped; no address is returned.
+
 ---
 
 ### CG3 — EOD read API
@@ -355,6 +433,27 @@ Balance calculation scans settlement rows up to the requested date; cache
 results in the client by as-of date and require an explicit bound if the ledger
 becomes large. This route is not part of five-second current-state polling.
 
+**Done 2026-11-10.** First run: 20 failing on the absent routes; then green
+with the full suite and checks.
+
+- `eod.ledger`: read-only `query_settlements` (account filter,
+  `include_exchange`), `query_runs`, `last_settled_on_or_before`; balances
+  reuse `ledger.balances`, openings `roster.load_roster`.
+- `settlements` (scoped): rows `trade_date, account, amount_minor, amount`
+  (decimal string via `report.fmt_minor`), `detail` (per-symbol unrounded
+  decimal strings), `run_status`; plus `runs` for the date range (failed
+  days without rows included). Participants get runs **without** `steps`
+  (operator messages); `EXCHANGE` is filtered in SQL for non-ADMIN and
+  naming it is `SCOPE_DENIED`.
+- `balances` (scoped): `opening_balance_minor` (roster), 
+  `settlement_total_minor`, `balance_minor` with decimal-string twins,
+  `as_of`, `last_settled_date`. A gateway on neither roster nor ledger gets
+  zeros (true zero).
+- `503 EOD_DB` for a missing/unreadable `eod.db` **or** a malformed roster
+  (the roster error names a file path, so it is logged, not returned); a
+  missing roster is an empty roster, as in pm-eod. A date pm-eod has not
+  settled is an empty list.
+
 ---
 
 ### CG4 — API integration and reference contract
@@ -396,6 +495,41 @@ separate tick/minor-unit fields expected by consumers.
 **Performance impact.** Documentation and contract tests add no runtime cost.
 Route/limit review prevents an accidental unbounded query becoming a UI polling
 load. OpenAPI generation runs only in test/build workflows.
+
+**Done 2026-11-10.** `tests/test_api_gateway_clearing_contract.py` first ran
+7 failing: the operator guide, participant guide and four configuration
+references did not name the routes / `eod_db` (genuine), and one test defect
+(a phrase split by a docstring line break; whitespace now normalised). The
+registration, read-only, authorization-docs, role-matrix, unit and bound
+tests passed at once because CG1–CG3 had been built against the same
+conventions — recorded here rather than claimed as red-first.
+
+- Contract test: exactly the 15 routes, `GET` only (other methods `405` with
+  `Allow: GET`), each with a `$ref` 200 model, `401`, and a `403` listing
+  `READ_ONLY` plus its role/scope code; role matrix ADMIN/TRADER/MM/read-only
+  /no key through the app; every `*_ticks` has `tick_decimals` and a display
+  twin; `*_minor` schemas carry no ticks and have a decimal-string twin; no
+  margin/equity/collateral/buying-power/open-interest field; every growing
+  list has `limit` 1..5000; reconciliation range required; tag and route
+  descriptions state flush lag, retention, observation time, the
+  reconciliation and settlement limits; `/positions` row pinned and its
+  period query run against the fixture ledger.
+- Stable order of every list (store `ORDER BY` reviewed; ties broken on the
+  key): participants by gateway; positions gateway/symbol; exposure measure
+  then gateway/symbol; daily and close snapshots date desc/gateway/symbol
+  (the primary key); symbols by symbol; events `ts_ns, id`; sessions
+  `connected_at_ns, gateway_id` (the key); settlements date desc/account
+  (the key); reconciliation date/side/gateway/symbol. Only `trades` needs a
+  continuation parameter; `balances` is bounded by the roster and ledger
+  accounts and has no `limit`.
+- Docs: spec `060-rest-and-websocket.md` (Clearing chapter, index, common
+  error codes, auth bullet), operator guide `050-api-gateway.md` (config,
+  route table, operating limits, key classes), participant guide
+  `010-positions-and-pnl.md` ("Your clearing record over REST"), config
+  references (`005`, `010`, `030`), process reference `--clearing-db`, zsh
+  completion; `make openapi`, `make docs-site` (no warnings on these pages).
+  `make -C docs docs-check` reports one pre-existing, unrelated problem
+  (`040-log-server.md`: `pm-log-cli ledger check --package`).
 
 ---
 
@@ -646,7 +780,15 @@ passes.
 
 | ID | Found in WP | Observation and evidence | Impact | Classification | Test-first action | Status |
 |---|---|---|---|---|---|---|
-| — | — | _No findings recorded yet._ | — | — | — | — |
+| F1 | CG1 | `query_trades` ordered by `ts_ns DESC, ingest_ts_ns DESC` has no total order, so a keyset cursor could repeat/skip prints sharing a timestamp (auctions). First fix (`ts_ns, id`) broke the existing CL-L3 test (newest ingest first for equal `ts_ns`). | Duplicate or missing trades across pages. | implementation defect | CL-L3 test failed; key is now `(ts_ns, ingest_ts_ns, id)`; new `test_after_continues_inside_one_timestamp`. | closed |
+| F2 | CG1 | The store's optional-filter form (`:gateway IS NULL OR …`) lets SQLite skip the gateway/date indexes on `trade_events`; `ORDER BY ts_ns` has no index. | Trade pages on a large retained table may scan it. Bounded by `limit`, not by cost. | performance constraint | Measure query plans on a realistic DB in CG9 step 4 before adding indexes or specialised SQL. | open (CG9) |
+| F3 | CG1 | `symbols.open_net_qty` sums signed positions of all gateways; every buy has a seller, so it is identically 0 in this venue. | The design's "current aggregate open quantity" carries no information. | contract ambiguity | Documented as "not open interest; zero while every holder is a gateway" in model and spec; `test_symbols_is_admin_only_activity` pins 0. | closed (documented) |
+| F4 | CG2 | The `EOD` session-event payload stores `eod_marks` as ticks without `tick_decimals`. | Exposing them would break the "precision on every money value" rule. | data-quality/observability gap | Not exposed: `eod: {symbols_count, marked_symbols}`; closing marks with precision are in `close-snapshots`. `test_session_events_decode_each_payload`. | closed |
+| F5 | CG2 | `query_sessions` filters `from`/`to` on the connect time's **UTC** date (`date(…,'unixepoch')`), while the API's dates are session-timezone trading days. | Wrong rows for a non-UTC venue near midnight. | contract ambiguity | Exact ns bounds from session-timezone midnights; `test_the_connect_day_is_the_session_timezone_day` (Honolulu copy of the fixture) would select nothing under the UTC filter. | closed |
+| F6 | CG4 review | `/clearing/summary` (the five-second overview poll) called `query_health`, i.e. `COUNT(*)` and `MAX(ts_ns)` over all of `trade_events`, which has no `ts_ns` index. | Every poll scans the raw-trade table; cost grows with the 90-day retention. | performance constraint | `test_the_polled_summary_never_reads_the_raw_trade_table` (SQL trace) failed; summary now uses `store.query_freshness` over `gateway_symbol_positions` (newest `last_trade_ts_ns`, latest `updated_ts_ns`); `/health` keeps the full facts. | closed |
+| F7 | CG4 review | A blank filter (`?gateway=%20`, `?symbol=`) became `""`: a participant got `SCOPE_DENIED … not `, an ADMIN an empty list. | Spurious refusal / false empty result. | implementation defect | `test_a_blank_filter_is_no_filter` failed; blank is now no filter in `clearing_scope` and `_upper`. | closed |
+| F8 | CG4 review | `participants/{gateway_id}` built `links` without URL-encoding the gateway id. | A gateway id with `&` or a space yields a wrong link. | implementation defect | `test_participant_links_are_url_encoded` failed; `quote(…, safe='')`. | closed |
+| F9 | CG4 review | `query_reconcile` (shared with `pm-clearing-cli reconcile`) compares raw `quantity * price` in each trade's own ticks with daily rows that K6 rescales to the latest precision. | After a symbol's `tick_decimals` changes, its days report false notional discrepancies. Pre-existing; the API now at least returns `tick_decimals` per row. | data-quality/observability gap | Not fixed here (no tick-precision change in 1.0 scope); revisit with K6 if precision changes become an operator action. | open |
 
 Classification: **implementation defect**, **contract ambiguity**,
 **data-quality/observability gap**, **performance constraint**,
@@ -656,6 +798,25 @@ When a finding expands the release scope, add a new WP to the Status table,
 state its dependency, and preserve the original WP's exit criteria. Do not
 silently fold unplanned capability such as margin or client accounts into a
 clearing-GUI WP.
+
+### 5.1 Holistic review of CG0–CG4 (2026-11-10)
+
+Read end to end after CG4: router, scope resolver, store/ledger query
+changes, models, examples and docs. Checked in particular: scope is resolved
+from the session before any client-supplied gateway is read, and every
+gateway-bearing route goes through it; `EXCHANGE` is filtered in SQL for
+non-ADMIN and refused when named; a participant's trades never carry the
+counterparty; no response carries a file path or socket address; every
+store failure is a 503 (never an empty list) and every empty list is a real
+zero; tick and minor units never meet in one schema; every growing list is
+bounded with a total order; only `/health` pings the process, `/summary`
+reads only aggregate tables. Findings F6–F9 above came out of it; F6–F8
+were fixed test-first, F9 is pre-existing and left open.
+
+Limits carried into CG5–CG9: `/health` costs one ≤0.5 s ping per call and
+`/reconciliation` a raw-trade scan of its range — neither belongs on a
+five-second poll; `/clearing/trades` pages need the F2 query-plan check on a
+realistic database (CG9 step 4).
 
 ## 6. Release checklist
 

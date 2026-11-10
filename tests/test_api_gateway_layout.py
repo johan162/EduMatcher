@@ -16,6 +16,7 @@ from edumatcher.api_gateway.caches import SessionCaches
 from edumatcher.api_gateway.routers import (
     admin,
     bootstrap,
+    clearing,
     history,
     market,
     orders,
@@ -72,6 +73,22 @@ REST_ROUTES = {
     ("GET", "/history/index-snapshots"),
     ("GET", "/history/indexes"),
     ("GET", "/history/index-events"),
+    # clearing (read-only)
+    ("GET", "/clearing/summary"),
+    ("GET", "/clearing/participants"),
+    ("GET", "/clearing/participants/{gateway_id}"),
+    ("GET", "/clearing/positions"),
+    ("GET", "/clearing/exposure"),
+    ("GET", "/clearing/trades"),
+    ("GET", "/clearing/daily"),
+    ("GET", "/clearing/close-snapshots"),
+    ("GET", "/clearing/symbols"),
+    ("GET", "/clearing/session-events"),
+    ("GET", "/clearing/gateway-sessions"),
+    ("GET", "/clearing/reconciliation"),
+    ("GET", "/clearing/health"),
+    ("GET", "/clearing/settlements"),
+    ("GET", "/clearing/balances"),
     # bootstrap
     ("GET", "/bootstrap/trader"),
     ("GET", "/bootstrap/mm"),
@@ -104,7 +121,7 @@ REST_ROUTES = {
 
 WS_ROUTES = {"/ws/private", "/ws/market-data", "/ws/admin/monitor", "/ws/admin/sim"}
 
-_ROUTERS = (orders, reference, market, history, admin, bootstrap, ws)
+_ROUTERS = (orders, reference, market, history, clearing, admin, bootstrap, ws)
 
 
 def test_rest_routes_are_exactly_the_v1_surface() -> None:

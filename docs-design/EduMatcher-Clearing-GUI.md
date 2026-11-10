@@ -4,8 +4,9 @@ Version: 1.0.0-design
 
 Date: 2026-11-09
 
-Status: **Design and repository audit.** `clearing-gui` and the clearing REST
-surface described here are not implemented. This document separates shipped
+Status: **Design and repository audit.** The clearing REST surface (§5) is
+implemented (workplan CG0–CG4, 2026-11-10; contract in the REST spec's
+"Clearing" chapter); `clearing-gui` is not. This document separates shipped
 behaviour from required release-1.0 work. Code is the authority where this
 document, older designs, and comments disagree.
 

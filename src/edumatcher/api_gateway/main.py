@@ -41,6 +41,7 @@ from edumatcher.messaging.reject_report import RejectReporter
 from edumatcher.api_gateway.routers import (
     admin,
     bootstrap,
+    clearing,
     history,
     market,
     orders,
@@ -363,6 +364,7 @@ def create_app(config: ApiGatewayConfig, *, instance: str | None = None) -> Fast
     app.include_router(reference.router)
     app.include_router(market.router)
     app.include_router(history.router)
+    app.include_router(clearing.router)
     app.include_router(admin.router)
     app.include_router(bootstrap.router)
     app.include_router(ws.router)
@@ -430,7 +432,8 @@ def build_parser() -> argparse.ArgumentParser:
         "--clearing-db",
         default=None,
         metavar="PATH",
-        help="Path to clearing.db, read-only, for period realized P&L on /positions",
+        help="Path to clearing.db, read-only, for period realized P&L on /positions "
+        "and the /clearing routes",
     )
     parser.add_argument(
         "--log-level",

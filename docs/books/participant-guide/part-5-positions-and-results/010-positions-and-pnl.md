@@ -14,6 +14,7 @@
     - How to query clearing data using every `pm-clearing-cli` command verb
     - How to inspect end-of-day marks and gateway session history
     - A practical cookbook for answering clearing-house questions from the command line
+    - How to read your own clearing record over the REST API
 
     **Prerequisite**: Complete [Your First Trade](../../quick-start/part-1-see-it-run/030-your-first-trade.md).
 
@@ -751,6 +752,54 @@ position transitions in sequence:
 | 6 | BUY 20 @ 105 | 15 | 15 | Cross-zero: close 15 short + open 5 long | +5 | 105.00 | 245 |
 
 Row 6 is cross-zero: the BUY 20 closes 15 units of the short (realizing `(108−105)×15 = 45`) and opens a new 5-unit long at 105, accounting for the cumulative jump from 200 to 245.
+
+
+## Your clearing record over REST
+
+`pm-clearing-cli` reads the database directly, which only an operator on the
+exchange host can do. As a participant you read the same ledger through the
+API gateway, with your own API key: every `/clearing` route that returns
+gateway rows answers with **your gateway's rows only**. Leave out `gateway`
+and you are scoped to yourself; name another gateway (or the `EXCHANGE`
+account) and the answer is `403 SCOPE_DENIED` — you are never silently given
+your own rows instead. A read-only key reads no clearing data.
+
+| Route | What you get |
+|---|---|
+| `GET /api/v1/clearing/participants/{gateway_id}` | Your totals and positions (`gateway_id` must be yours) |
+| `GET /api/v1/clearing/positions` | Your current positions at their marks |
+| `GET /api/v1/clearing/exposure` | Net and gross notional and P&L per position |
+| `GET /api/v1/clearing/trades` | Your retained executions, newest first, with `match_type` and the audit `msg_id`; the counterparty's gateway and order id are `null` |
+| `GET /api/v1/clearing/daily` | Per day and symbol: traded quantities and values, realized P&L, end-of-day position |
+| `GET /api/v1/clearing/close-snapshots` | Your position and cumulative P&L at every close (the close-to-close series your settlement is computed from) |
+| `GET /api/v1/clearing/gateway-sessions` | When clearing saw you connect and disconnect |
+| `GET /api/v1/clearing/settlements` | Your daily [end-of-day settlement](020-your-end-of-day-statement.md) amounts and the run status |
+| `GET /api/v1/clearing/balances` | Your opening balance, settlements to date, and the derived balance |
+
+```bash
+curl -s -H "Authorization: Bearer $KEY" \
+  "http://localhost:8080/api/v1/clearing/trades?date=2026-11-03&limit=50"
+```
+
+Read the numbers with these rules:
+
+- **Two money units.** Clearing values come as `<name>_ticks` (stored, in
+  ticks of the row's `tick_decimals`) and `<name>` (display currency).
+  Add display values across symbols, never ticks: a tick of a 4-decimal
+  symbol is a hundredth of a tick of a 2-decimal one. Settlement values are
+  integer minor units (`amount_minor`: `1234` is `12.34`) with a decimal
+  string beside them.
+- **Lag.** `pm-clearing` writes fills in batches, so a fill can take up to
+  5 seconds (one flush) to appear.
+- **Retention.** Raw trades are kept for 90 days by default
+  (`retained_from` on `/trades`); daily rows and close snapshots stay.
+- **Settlement is not margin.** A settlement moves the day's close-to-close
+  P&L; the balance is your opening balance plus those amounts. Neither is
+  cash, equity or collateral, and neither exists until `pm-eod` has run.
+
+The field-by-field contract is the
+[Clearing](../../protocols-and-clients/part-2-specifications/060-rest-and-websocket.md#clearing)
+chapter of the REST reference.
 
 
 ## Using pm-clearing-cli

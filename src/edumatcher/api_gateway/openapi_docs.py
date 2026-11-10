@@ -42,7 +42,8 @@ in the engine config. A key maps to one of two things:
 * a **trading gateway** (`gateway_id` set) -- may submit, amend and cancel
   orders and read its own orders, fills and positions. What it may do beyond
   that depends on the engine **role** of that gateway: `TRADER`,
-  `MARKET_MAKER` (adds quoting) or `ADMIN` (adds the `/admin` endpoints);
+  `MARKET_MAKER` (adds quoting) or `ADMIN` (adds the `/admin` endpoints and
+  the venue-wide `/clearing` views; other roles read their own gateway's);
 * a **read-only key** (`gateway_id` null) -- may read public data only:
   `/reference/*`, `/book`, `/news`, `/companies/{symbol}`, `/history/trades`,
   `/history/daily` and the other public history endpoints, `/bootstrap/trader`.
@@ -141,6 +142,21 @@ TAGS_METADATA: list[dict[str, str]] = [
             "page; `has_more` says whether another page may exist. "
             "`retained_from` on order-event endpoints is the point pm-stats "
             "prunes at (null when nothing is pruned)."
+        ),
+    },
+    {
+        "name": "clearing",
+        "description": (
+            "Read-only post-trade data from the pm-clearing ledger and pm-eod's "
+            "settlement ledger. A TRADER or MARKET_MAKER key reads its own "
+            "gateway (naming another is `403 SCOPE_DENIED`); an ADMIN key reads "
+            "the venue; a read-only key reads nothing. Money on a row comes as "
+            "`<name>_ticks` (as stored, ticks of `tick_decimals`) and `<name>` "
+            "(display currency); only display values are summed across symbols. "
+            "Settlement amounts are integer minor units (`*_minor`, 2 decimals). "
+            "Data lags fills by up to one clearing flush (5 s by default); raw "
+            "trades are pruned after the retention window (90 days by default) "
+            "while daily rows and close snapshots stay."
         ),
     },
     {
@@ -1803,4 +1819,418 @@ BOOTSTRAP_ADMIN: dict[str, Any] = {
     "active_order_counts": {"TRADER01": 2, "MM01": 2, "OPS01": 0},
     "monitor_last_seq": {"TRADER01": 1843, "MM01": 5120, "OPS01": 77},
     "capabilities": _CAPABILITIES,
+}
+
+
+# ---------------------------------------------------------------------------
+# Clearing (rows as clearing.db stores them, then as the routes return them)
+# ---------------------------------------------------------------------------
+
+_CL_DAY = "2026-08-29"
+_CL_PREV_DAY = "2026-08-28"
+_FLUSH = _T0 + 4_200_000_000
+
+
+def _clearing_money(row: dict[str, Any], *money: str) -> dict[str, Any]:
+    """*row* as a clearing route returns it: ``<name>_ticks`` as stored and
+    ``<name>`` in display currency, per the row's ``tick_decimals``."""
+    scale = 10 ** row["tick_decimals"]
+    out = dict(row)
+    for name in money:
+        out[f"{name}_ticks"] = row[name]
+        out[name] = None if row[name] is None else row[name] / scale
+    return out
+
+
+def _bounded(key: str, items: list[dict[str, Any]]) -> dict[str, Any]:
+    return {key: items, "count": len(items), "has_more": False}
+
+
+_POSITION_STORED: list[dict[str, Any]] = [
+    {
+        "gateway_id": "TRADER01",
+        "symbol": "AAPL",
+        "net_qty": 110,
+        "tick_decimals": 2,
+        "avg_cost": 18733.333333333332,
+        "mark_price": 18800,
+        "realized_pnl": 2666.666666666715,
+        "unrealized_pnl": 7333.333333333467,
+        "buy_qty": 150,
+        "sell_qty": 40,
+        "buy_notional": 2810000,
+        "sell_notional": 752000,
+        "last_trade_ts_ns": _T0,
+        "updated_ts_ns": _FLUSH,
+    },
+    {
+        "gateway_id": "TRADER01",
+        "symbol": "MSFT",
+        "net_qty": -20,
+        "tick_decimals": 2,
+        "avg_cost": 41210.0,
+        "mark_price": 41150,
+        "realized_pnl": 0.0,
+        "unrealized_pnl": 1200.0,
+        "buy_qty": 0,
+        "sell_qty": 20,
+        "buy_notional": 0,
+        "sell_notional": 824200,
+        "last_trade_ts_ns": _T0 - 3_600_000_000_000,
+        "updated_ts_ns": _FLUSH,
+    },
+]
+_POSITION_MONEY = (
+    "avg_cost",
+    "mark_price",
+    "realized_pnl",
+    "unrealized_pnl",
+    "buy_notional",
+    "sell_notional",
+)
+CLEARING_POSITIONS = [_clearing_money(r, *_POSITION_MONEY) for r in _POSITION_STORED]
+CLEARING_POSITIONS_REPLY = _bounded("positions", CLEARING_POSITIONS)
+
+CLEARING_EXPOSURE_REPLY = _bounded(
+    "exposure",
+    [
+        _clearing_money(
+            {
+                "gateway_id": r["gateway_id"],
+                "symbol": r["symbol"],
+                "net_qty": r["net_qty"],
+                "tick_decimals": r["tick_decimals"],
+                "mark_price": r["mark_price"],
+                "net_notional": r["net_qty"] * r["mark_price"],
+                "gross_notional": abs(r["net_qty"] * r["mark_price"]),
+                "realized_pnl": r["realized_pnl"],
+                "unrealized_pnl": r["unrealized_pnl"],
+                "total_pnl": r["realized_pnl"] + r["unrealized_pnl"],
+            },
+            "mark_price",
+            "net_notional",
+            "gross_notional",
+            "realized_pnl",
+            "unrealized_pnl",
+            "total_pnl",
+        )
+        for r in _POSITION_STORED
+    ],
+)
+
+_CLEARING_TRADE = _clearing_money(
+    {
+        "trade_id": "000007-000000412",
+        "ts_ns": _T0,
+        "ingest_ts_ns": _T0 + 1_250_000_000,
+        "trade_date": _CL_DAY,
+        "symbol": "AAPL",
+        "quantity": 40,
+        "tick_decimals": 2,
+        "price": 18800,
+        "buy_gateway_id": None,
+        "sell_gateway_id": "TRADER01",
+        "buy_order_id": None,
+        "sell_order_id": _ORDER_1,
+        "aggressor_side": "SELL",
+        "match_type": "CONTINUOUS",
+        "msg_id": "01K3QH4Z7T6R2W9X8V5N3M1B0C",
+    },
+    "price",
+)
+CLEARING_TRADES_REPLY: dict[str, Any] = {
+    "trades": [_CLEARING_TRADE],
+    "count": 1,
+    "has_more": True,
+    "next_cursor": "MTc4ODAxMzgwMDAwMDAwMDAwMDoxNzg4MDEzODAxMjUwMDAwMDAwOjAwMDAwNy0wMDAwMDA0MTI",
+    "retained_from": "2026-06-01",
+}
+
+CLEARING_DAILY_REPLY = _bounded(
+    "daily",
+    [
+        _clearing_money(
+            {
+                "trade_date": _CL_DAY,
+                "gateway_id": "TRADER01",
+                "symbol": "AAPL",
+                "tick_decimals": 2,
+                "traded_qty": 40,
+                "traded_notional": 752000,
+                "buy_qty": 0,
+                "sell_qty": 40,
+                "buy_notional": 0,
+                "sell_notional": 752000,
+                "net_amount": -752000,
+                "realized_pnl": 2666.666666666715,
+                "end_net_qty": 110,
+                "end_avg_cost": 18733.333333333332,
+                "end_unrealized_pnl": 7333.333333333467,
+                "last_trade_ts_ns": _T0,
+                "updated_ts_ns": _FLUSH,
+            },
+            "traded_notional",
+            "buy_notional",
+            "sell_notional",
+            "net_amount",
+            "realized_pnl",
+            "end_avg_cost",
+            "end_unrealized_pnl",
+        )
+    ],
+)
+
+CLEARING_CLOSE_SNAPSHOTS_REPLY = _bounded(
+    "snapshots",
+    [
+        _clearing_money(
+            {
+                "trade_date": day,
+                "gateway_id": "TRADER01",
+                "symbol": "AAPL",
+                "net_qty": qty,
+                "tick_decimals": 2,
+                "realized_pnl": realized,
+                "unrealized_pnl": unrealized,
+                "mark_price": mark,
+            },
+            "realized_pnl",
+            "unrealized_pnl",
+            "mark_price",
+        )
+        for day, qty, realized, unrealized, mark in (
+            (_CL_DAY, 110, 2666.666666666715, 7333.333333333467, 18800),
+            (_CL_PREV_DAY, 150, 0.0, 2500.0000000002, 18750),
+        )
+    ],
+)
+
+CLEARING_SYMBOLS_REPLY = _bounded(
+    "symbols",
+    [
+        _clearing_money(
+            {
+                "symbol": "AAPL",
+                "tick_decimals": 2,
+                "traded_qty": 380,
+                "traded_notional": 7124000.0,
+                "realized_pnl": 0.0,
+                "open_net_qty": 0,
+                "open_unrealized_pnl": 0.0,
+            },
+            "traded_notional",
+            "realized_pnl",
+            "open_unrealized_pnl",
+        )
+    ],
+)
+
+_PARTICIPANT = {
+    "gateway_id": "TRADER01",
+    "realized_pnl": 26.666666666667,
+    "unrealized_pnl": 85.333333333335,
+    "total_pnl": 112.000000000002,
+    "position_count": 2,
+    "open_position_count": 2,
+    "last_update_ts_ns": _FLUSH,
+}
+CLEARING_PARTICIPANTS_REPLY = _bounded(
+    "participants",
+    [
+        _PARTICIPANT,
+        {
+            **_PARTICIPANT,
+            "gateway_id": "MM01",
+            "realized_pnl": -26.666666666667,
+            "unrealized_pnl": -85.333333333335,
+            "total_pnl": -112.000000000002,
+        },
+    ],
+)
+
+
+def _participant_links(gateway_id: str) -> dict[str, str]:
+    base = "/api/v1/clearing"
+    names = {
+        "positions": "positions",
+        "exposure": "exposure",
+        "trades": "trades",
+        "daily": "daily",
+        "close_snapshots": "close-snapshots",
+        "gateway_sessions": "gateway-sessions",
+        "settlements": "settlements",
+        "balances": "balances",
+    }
+    return {key: f"{base}/{path}?gateway={gateway_id}" for key, path in names.items()}
+
+
+CLEARING_PARTICIPANT: dict[str, Any] = {
+    **_PARTICIPANT,
+    "positions": CLEARING_POSITIONS,
+    "latest_close_date": _CL_PREV_DAY,
+    "links": _participant_links("TRADER01"),
+}
+
+CLEARING_GAP: dict[str, Any] = {
+    "trade_date": _CL_DAY,
+    "ts_ns": _T0 - 600_000_000_000,
+    "run_seq": 7,
+    "last_seq": 398,
+    "next_seq": 401,
+    "missing_trades": 2,
+}
+EOD_RUN: dict[str, Any] = {
+    "trade_date": _CL_PREV_DAY,
+    "status": "ok",
+    "started_at": "2026-08-28T15:35:00+00:00",
+    "finished_at": "2026-08-28T15:35:02+00:00",
+    "steps": [
+        {"step": "settle", "status": "ok", "message": "3 accounts"},
+        {"step": "report", "status": "ok", "message": "3 statements"},
+    ],
+}
+CLEARING_SUMMARY: dict[str, Any] = {
+    "participant_count": 2,
+    "open_position_count": 4,
+    "realized_pnl": 0.0,
+    "unrealized_pnl": 0.0,
+    "last_trade_ts_ns": _T0,
+    "last_flush_ts_ns": _FLUSH,
+    "session_date": _CL_DAY,
+    "gap_count": 1,
+    "latest_gap": CLEARING_GAP,
+    "eod_db_available": True,
+    "last_eod_run": EOD_RUN,
+}
+
+CLEARING_SESSION_EVENTS_REPLY = _bounded(
+    "events",
+    [
+        {
+            "id": 42,
+            "event_type": "PHASE",
+            "ts_ns": _T0 + 9_000_000_000_000,
+            "trade_date": _CL_DAY,
+            "phase": {"state": "CLOSED", "prev_state": "CLOSING_AUCTION"},
+        },
+        {
+            "id": 41,
+            "event_type": "GAP",
+            "ts_ns": CLEARING_GAP["ts_ns"],
+            "trade_date": _CL_DAY,
+            "gap": {
+                key: CLEARING_GAP[key]
+                for key in ("run_seq", "last_seq", "next_seq", "missing_trades")
+            },
+        },
+        {
+            "id": 37,
+            "event_type": "EOD",
+            "ts_ns": _T0 - 77_000_000_000_000,
+            "trade_date": _CL_PREV_DAY,
+            "eod": {"symbols_count": 3, "marked_symbols": ["AAPL", "MSFT", "TSLA"]},
+        },
+    ],
+)
+
+CLEARING_GATEWAY_SESSIONS_REPLY = _bounded(
+    "sessions",
+    [
+        {
+            "gateway_id": "TRADER01",
+            "connected_at_ns": _T0 - 14_400_000_000_000,
+            "disconnected_at_ns": None,
+            "disconnect_reason": None,
+        },
+        {
+            "gateway_id": "TRADER01",
+            "connected_at_ns": _T0 - 100_800_000_000_000,
+            "disconnected_at_ns": _T0 - 72_000_000_000_000,
+            "disconnect_reason": "logout",
+        },
+    ],
+)
+
+CLEARING_RECONCILIATION_REPLY: dict[str, Any] = {
+    **_bounded(
+        "discrepancies",
+        [
+            _clearing_money(
+                {
+                    "side": "BUY",
+                    "trade_date": _CL_PREV_DAY,
+                    "gateway_id": "TRADER01",
+                    "symbol": "AAPL",
+                    "raw_qty": 150,
+                    "summary_qty": 140,
+                    "qty_diff": 10,
+                    "tick_decimals": 2,
+                    "raw_notional": 2810000,
+                    "summary_notional": 2622500,
+                    "notional_diff": 187500,
+                },
+                "raw_notional",
+                "summary_notional",
+                "notional_diff",
+            )
+        ],
+    ),
+    "retained_from": "2026-06-01",
+    "compared_from": _CL_PREV_DAY,
+    "compared_to": _CL_DAY,
+}
+
+CLEARING_HEALTH: dict[str, Any] = {
+    "database": {
+        "available": True,
+        "detail": "readable",
+        "wal_mode": "wal",
+        "trade_events_rows": 18452,
+        "gateway_symbol_positions_rows": 9,
+        "gateway_daily_summary_rows": 512,
+        "last_trade_ts_ns": _T0,
+        "last_flush_ts_ns": _FLUSH,
+    },
+    "process": {"alive": True, "detail": "replied at 2026-08-29T13:30:05.118+00:00"},
+}
+
+CLEARING_SETTLEMENTS_REPLY: dict[str, Any] = {
+    "settlements": [
+        {
+            "trade_date": _CL_PREV_DAY,
+            "account": "TRADER01",
+            "amount_minor": 2500,
+            "amount": "25.00",
+            "detail": {"AAPL": "25.0000000000002", "MSFT": "0"},
+            "run_status": "ok",
+        },
+        {
+            "trade_date": _CL_PREV_DAY,
+            "account": "MM01",
+            "amount_minor": -2500,
+            "amount": "-25.00",
+            "detail": {"AAPL": "-25.0000000000002", "MSFT": "0"},
+            "run_status": "ok",
+        },
+    ],
+    "count": 2,
+    "has_more": False,
+    "runs": [EOD_RUN],
+}
+
+CLEARING_BALANCES_REPLY: dict[str, Any] = {
+    "balances": [
+        {
+            "account": "TRADER01",
+            "opening_balance_minor": 1000000,
+            "opening_balance": "10000.00",
+            "settlement_total_minor": 2500,
+            "settlement_total": "25.00",
+            "balance_minor": 1002500,
+            "balance": "10025.00",
+        }
+    ],
+    "count": 1,
+    "as_of": _CL_PREV_DAY,
+    "last_settled_date": _CL_PREV_DAY,
 }

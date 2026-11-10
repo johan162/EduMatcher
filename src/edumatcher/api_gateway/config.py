@@ -20,6 +20,7 @@ from edumatcher.config_include import load_config_mapping
 from edumatcher.config import (
     AUDIT_INDEX_DB_FILE,
     CLEARING_DB_FILE,
+    EOD_DB_FILE,
     ENGINE_PUB_ADDR,
     ENGINE_PULL_ADDR,
     INDEX_PUB_ADDR,
@@ -79,13 +80,19 @@ class ApiGatewayConfig:
     #: lifecycle store of its own.
     audit_db: Path = AUDIT_INDEX_DB_FILE
     #: `pm-clearing`'s ledger, opened **read-only** for the period realized
-    #: P&L on `GET /positions`. The gateway never writes it and never
-    #: requires it: when the file is absent — because `pm-clearing` is not
-    #: deployed — those three fields report `null` and the rest of the row
-    #: is unaffected. Realized P&L has to come from here because the
+    #: P&L on `GET /positions` and for the `/clearing` routes. The gateway
+    #: never writes it and never requires it: when the file is absent —
+    #: because `pm-clearing` is not deployed — those three `/positions`
+    #: fields report `null` and the `/clearing` routes answer
+    #: `503 CLEARING_DB`. Realized P&L has to come from here because the
     #: gateway's own fill cache is in-memory and reads flat after a restart,
     #: while clearing records it per trading day and keeps it for good.
     clearing_db: Path = CLEARING_DB_FILE
+    #: `pm-eod`'s settlement ledger, opened **read-only** for
+    #: `/clearing/settlements` and `/clearing/balances` (`503 EOD_DB` when
+    #: absent). The roster with the opening balances is read from beside it,
+    #: where `pm-eod` keeps it: see `eod_roster`.
+    eod_db: Path = EOD_DB_FILE
     #: How long a *terminal* order (FILLED, CANCELLED, EXPIRED, REJECTED)
     #: stays in the in-memory order cache before being evicted.
     #:
@@ -108,6 +115,12 @@ class ApiGatewayConfig:
     credentials: tuple[ApiCredential, ...] = ()
     rate_limit: RateLimitConfig = RateLimitConfig()
     timeouts: TimeoutConfig = TimeoutConfig()
+
+    @property
+    def eod_roster(self) -> Path:
+        """`roster.yaml` as `pm-eod` finds it: `ref_data/` in the ledger's
+        data directory."""
+        return self.eod_db.parent / "ref_data" / "roster.yaml"
 
 
 def _as_int(raw: object, section: str, field: str) -> int:
@@ -205,6 +218,9 @@ def _load_api_gateway_section(
     clearing_db_raw = section.get("clearing_db", CLEARING_DB_FILE)
     clearing_db = resolve_data_path(str(clearing_db_raw))
 
+    eod_db_raw = section.get("eod_db", EOD_DB_FILE)
+    eod_db = resolve_data_path(str(eod_db_raw))
+
     order_retention_sec = _as_int(
         section.get("order_retention_sec", 3600), section_name, "order_retention_sec"
     )
@@ -229,6 +245,7 @@ def _load_api_gateway_section(
         stats_db=stats_db,
         audit_db=audit_db,
         clearing_db=clearing_db,
+        eod_db=eod_db,
         order_retention_sec=order_retention_sec,
         market_data_cache_sec=market_data_cache_sec,
         log_level=str(section.get("log_level", "info")),
