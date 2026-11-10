@@ -27,7 +27,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 | 4 | L4 | Content: engine, orders, board, messaging, ticker | L2 | 0.5 d | ☑ | 2026-11-09 |
 | 5 | L5 | Content: gateways (alf_gwy, balf_gwy, api_gateway, md_gateway, dc_gateway, ralf_gateway, calf_client, ralf_spy, dc_spy) | L2 | 1 d | ☑ | 2026-11-09 |
 | 6 | L6 | Content: alf_console, clearing, audit, stats | L2 | 0.5 d | ☑ | 2026-11-09 |
-| 7 | L7 | Content: ai_trader, mm_bot, market_sim, index, viewer | L2 | 0.5 d | ☐ | |
+| 7 | L7 | Content: ai_trader, mm_bot, market_sim, index, viewer | L2 | 0.5 d | ☑ | 2026-11-10 |
 | 8 | L8 | Content: monitor, scheduler, health, config*, setup, the rest. Coverage test becomes a hard failure, docs | L4–L7 | 0.5 d | ☐ | |
 
 ## 1. Decisions
@@ -333,7 +333,8 @@ review step (3) is part of the WP, not a side effect.
   processes (the six gateways, pm-log-srv, pm-index, pm-monitor), `fatal
   startup error: %s` in pm-index, pm-clearing, pm-audit and pm-stats, and
   pm-scheduler's `FATAL: invalid schedule: %s`. Other messages that are
-  followed by an exit but are not labelled fatal are still ERROR (Q4).
+  followed by an exit but are not labelled fatal were raised to CRITICAL on
+  2026-11-10 (Q4).
 
 ### 6.4 Notes from L6 (alf_console, clearing, audit, stats)
 
@@ -353,11 +354,29 @@ review step (3) is part of the WP, not a side effect.
   history and `eod` shows EOD events only). pm-stats has `pm-stats-cli gaps`.
   A `pm-clearing-cli gaps` would let the entry point at a command.
 
+### 6.5 Notes from L7 (ai_trader, mm_bot, market_sim, index, viewer)
+
+45 entries in `ai_trader.yaml`, `mm_bot.yaml`, `market_sim.yaml`,
+`index.yaml` and `viewer.yaml`. The ledger now has 240 entries.
+
+* **Q4 done first:** `failed to resolve configuration: %s` in the seven
+  processes, pm-mm-bot's five startup exits, pm-monitor's `cannot open %s: %s`
+  (store locked or incompatible) and `pm-stats stopped recording: %s` are
+  CRITICAL. pm-ai-swarm's three startup exits (`--count`, no symbols, ids that
+  are not participants) were raised with them, by the same rule. A worker that
+  cannot start stays ERROR: the swarm restarts it, so the process does not end.
+* **pm-index's `error handling %s: %s`** has two call sites (engine feed and
+  command socket) with the same template, so one entry covers both.
+* **pm-viewer's `stats DB: %s`** only fires when stats.db records a timezone
+  name that is not known (pm-viewer passes no override), so the entry says
+  that rather than the override case pm-stats-cli can hit.
+* Nothing in these packages needed a level change beyond the Q4 sweep.
+
 ## 7. Open questions
 
 | # | Question | Answer |
 |---|---|---|
 | Q1 | An existing `log.db` lacks the `tpl` column. | Decided 2026-11-09: the `schema_version` table plus a fail-fast check. See D4. |
 | Q2 | Should `has_exception` rows key on the exception type instead of the template? | No. `log.exception("x failed")` already has a constant template, and the traceback stays in the message. |
-| Q4 | Messages that end the process but are not labelled fatal: `failed to resolve configuration: %s` (pm-alf-gwy, pm-balf-gwy, pm-md-gwy, pm-dc-gwy, pm-ralf-gwy, pm-log-srv, pm-api-gwy), pm-mm-bot's config errors, pm-monitor's `cannot open %s: %s`, pm-stats's `pm-stats stopped recording: %s`. Raise them to CRITICAL too? | Open |
+| Q4 | Messages that end the process but are not labelled fatal: `failed to resolve configuration: %s` (pm-alf-gwy, pm-balf-gwy, pm-md-gwy, pm-dc-gwy, pm-ralf-gwy, pm-log-srv, pm-api-gwy), pm-mm-bot's config errors, pm-monitor's `cannot open %s: %s`, pm-stats's `pm-stats stopped recording: %s`. Raise them to CRITICAL too? | Yes, decided 2026-11-10 and done before L7 (§6.5). |
 | Q3 | Templates with no literal text, such as `log.warning("%s", warning)` in `config_artifact.py`. | They give one `tpl` for many different messages, so one generic entry has to cover all of them. L2's `ledger check` lists them, and the content WP rewrites each one to a specific template or splits the call. |

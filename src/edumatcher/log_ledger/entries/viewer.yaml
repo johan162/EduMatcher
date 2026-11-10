@@ -1,0 +1,36 @@
+# Log ledger entries for pm-viewer (edumatcher.viewer), the terminal order-book viewer.
+# Format: docs-design/EduMatcher-Log-Ledger.md §3. Check with `pm-log-cli ledger check`.
+# Actions are double-quoted: a bare YAML string must not contain ": " or start with a backtick.
+
+- logger: edumatcher.viewer.main
+  template: "could not reach engine at %s for %s; live updates will still populate the book once the engine is reachable"
+  level: WARNING
+  explanation: >
+    pm-viewer could not send its book-snapshot or symbol-list request to
+    pm-engine, so the book starts empty. It fills in from live updates once
+    the engine publishes them.
+  actions:
+    - "Check that pm-engine is running (`pm-opctl-cli list`) and that the address in the message is the engine's order port."
+    - "Restart pm-viewer once the engine is up to get a full book at once."
+
+- logger: edumatcher.viewer.main
+  template: "stats DB: %s"
+  level: WARNING
+  explanation: >
+    pm-stats' database records a session timezone that is not a known
+    timezone name, so pm-viewer used UTC. The day's statistics in the header
+    (volume, open, high, low) may be for a different trading day.
+  actions:
+    - "Check the session timezone in the source config (`locale.session_timezone`) and that it is a valid name such as Europe/Stockholm."
+    - "A database recorded with a bad timezone stays that way; the fix applies to the next one."
+
+- logger: edumatcher.viewer.main
+  template: "unexpected error reading stats DB for %s: %s"
+  level: WARNING
+  explanation: >
+    pm-viewer could not read the day's statistics for the symbol from
+    pm-stats' database, so the header shows "—" for them. The book and live
+    trades are not affected.
+  actions:
+    - "Check pm-stats and its database with `pm-stats-cli health`."
+    - "Check that the database is readable by the user running pm-viewer."

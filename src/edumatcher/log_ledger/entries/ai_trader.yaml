@@ -1,0 +1,200 @@
+# Log ledger entries for pm-ai-trader and pm-ai-swarm (edumatcher.ai_trader), the AI trading agents.
+# Format: docs-design/EduMatcher-Log-Ledger.md §3. Check with `pm-log-cli ledger check`.
+# Actions are double-quoted: a bare YAML string must not contain ": " or start with a backtick.
+
+# --- swarm startup -----------------------------------------------------------
+
+- logger: edumatcher.ai_trader.swarm
+  template: "invalid startup value: --count must be > 0 (got %s)"
+  level: CRITICAL
+  explanation: >
+    pm-ai-swarm was asked for zero or a negative number of agents, so it did
+    not start.
+  actions:
+    - "Give `--count` (or `agents.count` in the swarm file) a positive number and start pm-ai-swarm again."
+
+- logger: edumatcher.ai_trader.swarm
+  template: "no symbols available for swarm"
+  level: CRITICAL
+  explanation: >
+    After applying the swarm's symbol include and exclude lists to the
+    deployed configuration, no symbol was left to trade, so pm-ai-swarm did
+    not start.
+  actions:
+    - "Check `--symbols` and `symbols.include`/`symbols.exclude` in the swarm file against the deployed symbols (`pm-config-show`)."
+    - "If the deployed configuration has no symbols, add some and run `pm-config-deploy`."
+
+- logger: edumatcher.ai_trader.swarm
+  template: "swarm bot ids are not configured participants: %s"
+  level: CRITICAL
+  explanation: >
+    The gateway ids the swarm would use (prefix plus number) are not all
+    configured participants, so the engine would refuse their logons.
+    pm-ai-swarm did not start.
+  actions:
+    - "Add the listed ids to `participants:` with role TRADER (for example with `pm-config-gen --participants`) and run `pm-config-deploy`."
+    - "Or change `--prefix`, `--start-index` or `--count` so the ids match participants that exist."
+
+# --- swarm workers -----------------------------------------------------------
+
+- logger: edumatcher.ai_trader.swarm
+  template: "[%s] worker exited (code %s); restarting in %.0f s"
+  level: WARNING
+  explanation: >
+    One of pm-ai-swarm's worker processes stopped before its time was up. The
+    swarm restarts it after a back-off that doubles with each restart (up to a
+    minute); its agents trade again once it has logged on.
+  actions:
+    - "Look at the worker's rows just before this one (the worker name is in the message) for the reason it stopped."
+    - "Exit code 1 usually means its agents could not log on; check pm-alf-gwy and pm-engine."
+
+- logger: edumatcher.ai_trader.swarm
+  template: "[%s] worker exited (code %s) and was restarted %d times in the last hour; giving up on its %d agents"
+  level: ERROR
+  explanation: >
+    A worker process kept stopping, and after 10 restarts within an hour the
+    swarm stopped restarting it. Its agents no longer trade; the rest of the
+    swarm runs on, and pm-ai-swarm exits with code 1 when it ends.
+  actions:
+    - "Look at the worker's earlier rows (the worker name is in the message) for why it keeps stopping."
+    - "Fix the cause, then restart pm-ai-swarm to bring the agents back."
+
+- logger: edumatcher.ai_trader.swarm
+  template: "[%s] worker did not stop; killing it"
+  level: WARNING
+  explanation: >
+    While pm-ai-swarm shut down, a worker process did not stop within 10
+    seconds of being asked, so it was killed. Its agents did not log off
+    cleanly; the engine applies their disconnect behaviour.
+  actions:
+    - "If it happens on every shutdown, run the swarm with `--log-level DEBUG` to see what the worker was doing."
+
+# --- worker startup and engine -----------------------------------------------
+
+- logger: edumatcher.ai_trader.worker
+  template: "[%s] no participant could log on"
+  level: ERROR
+  explanation: >
+    None of the agents in this worker could log on to the ALF gateway, so the
+    worker stopped. In pm-ai-swarm it is restarted; pm-ai-trader exits.
+  actions:
+    - "Read the logon rows just before this one; their entries say what to do."
+    - "Check that pm-alf-gwy and pm-engine are running (`pm-opctl-cli list`)."
+
+- logger: edumatcher.ai_trader.worker
+  template: "[%s] no symbols/session reply from the engine"
+  level: ERROR
+  explanation: >
+    The agents logged on, but the engine did not send the symbol list and
+    session state the agents need within the timeout, so the worker stopped.
+    In pm-ai-swarm it is restarted; pm-ai-trader exits.
+  actions:
+    - "Check that pm-engine is running and responsive (`pm-monitor-cli status`)."
+    - "Check that this host can reach the engine's publish port (5556)."
+
+- logger: edumatcher.ai_trader.worker
+  template: "[%s] %s: none of its symbols exist"
+  level: ERROR
+  explanation: >
+    None of the symbols this agent was given exist in the engine, so the agent
+    does not trade. The other agents in the worker carry on.
+  actions:
+    - "Compare the agent's symbols (in the preset or swarm file) with the deployed symbols (`pm-config-show`)."
+
+- logger: edumatcher.ai_trader.worker
+  template: "[%s] engine restarted; re-reading reference data"
+  level: WARNING
+  explanation: >
+    pm-engine restarted. The worker asks it again for symbols, session state,
+    reference prices and halts, and the agents carry on once they have them.
+  actions:
+    - "Check why the engine restarted: look for its CRITICAL or ERROR rows just before, or a planned restart."
+
+- logger: edumatcher.ai_trader.worker
+  template: "[%s] cannot write the daily summary %s: %s"
+  level: ERROR
+  explanation: >
+    At the end of the trading day the worker could not write its agents'
+    daily summary file, so that day's summary is lost. Trading is not
+    affected.
+  actions:
+    - "Check that the directory in the message exists, is writable and that the disk is not full."
+
+# --- ALF sessions ------------------------------------------------------------
+
+- logger: edumatcher.ai_trader.transport
+  template: "[%s] cannot reach ALF gateway %s:%s: %s"
+  level: WARNING
+  explanation: >
+    An agent could not open a connection to pm-alf-gwy at the address in the
+    message. At startup the agent does not log on; after a lost session it
+    keeps retrying.
+  actions:
+    - "Check that pm-alf-gwy is running (`pm-opctl-cli list`)."
+    - "Check the address and port; `--alf-port` overrides the configured ALF gateway port."
+
+- logger: edumatcher.ai_trader.transport
+  template: "[%s] logon refused: %s %s"
+  level: ERROR
+  explanation: >
+    pm-alf-gwy refused an agent's logon, for the reason in the message (a code
+    and detail). The agent does not trade.
+  actions:
+    - "Check that the agent's gateway id is a configured participant (`pm-admin-cli --id <admin> gateways`)."
+    - "If it is already connected elsewhere (another swarm with the same ids), stop that one first."
+
+- logger: edumatcher.ai_trader.transport
+  template: "[%s] no logon within %.0fs"
+  level: ERROR
+  explanation: >
+    An agent connected to pm-alf-gwy but got no logon answer within the
+    timeout, so it gave up and does not trade.
+  actions:
+    - "Check that pm-engine is running and responsive (`pm-monitor-cli status`); pm-alf-gwy waits for the engine to accept the logon."
+    - "A swarm logging on many agents at once can be slow on a busy engine; start it again once the exchange is quiet."
+
+- logger: edumatcher.ai_trader.transport
+  template: "[%s] ALF session lost (%s)"
+  level: WARNING
+  explanation: >
+    An agent's connection to pm-alf-gwy closed, for the reason in the
+    message. The engine applies the participant's disconnect behaviour. The
+    agent reconnects by itself, waiting up to 10 seconds between tries, and an
+    INFO row says when the session is restored.
+  actions:
+    - "If many agents lose their session together, check pm-alf-gwy and pm-engine for a restart."
+    - "If one agent keeps losing it, read pm-alf-gwy's rows for that gateway id (slow client, too many errors)."
+
+- logger: edumatcher.ai_trader.transport
+  template: "ALF error: %s %s"
+  level: WARNING
+  explanation: >
+    pm-alf-gwy refused a command it could not tie to any of the agent's
+    orders, with the code and detail in the message. Nothing reached the
+    engine.
+  actions:
+    - "If it repeats, make sure the agents and pm-alf-gwy run the same EduMatcher release."
+
+# --- agents ------------------------------------------------------------------
+
+- logger: edumatcher.ai_trader.agent
+  template: "[%s] cancel of %s never answered; forgetting it"
+  level: WARNING
+  explanation: >
+    An agent asked to cancel an order and had no answer after 15 seconds, so
+    it stopped tracking the order. If the cancel was lost, the order may still
+    rest on the book without the agent knowing.
+  actions:
+    - "Check whether the engine or pm-alf-gwy was slow or restarting at that time (`pm-monitor-cli status`)."
+    - "If it repeats, check the participant's resting orders in the trader-GUI or with pm-alf-console's ORDERS."
+
+- logger: edumatcher.ai_trader.agent
+  template: "[%s] reject breaker tripped; pausing %.0fs"
+  level: WARNING
+  explanation: >
+    An agent had 25 orders refused within 10 seconds (not counting "order not
+    found" or "market closed"), so it stops sending orders for the time in
+    the message. It then carries on as before.
+  actions:
+    - "Run with `--log-level DEBUG` to see each refused order and its reason code."
+    - "If one reason dominates, adjust the agent's preset or the exchange setting it keeps running into."

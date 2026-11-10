@@ -513,7 +513,7 @@ def main() -> None:
         raise SystemExit(f"pm-ai-swarm: {exc}") from exc
     _configure_logging(args)
     if args.count <= 0:
-        log.error("invalid startup value: --count must be > 0 (got %s)", args.count)
+        log.critical("invalid startup value: --count must be > 0 (got %s)", args.count)
         raise SystemExit("--count must be > 0")
 
     include = [s.strip().upper() for s in str(args.symbols).split(",") if s.strip()]
@@ -530,11 +530,11 @@ def main() -> None:
     except ValueError as exc:
         raise SystemExit(f"pm-ai-swarm: {exc}") from exc
     if not symbols:
-        log.error("no symbols available for swarm")
+        log.critical("no symbols available for swarm")
         raise SystemExit("No symbols available for swarm")
     missing = missing_participants(gateway_ids, ENGINE_CONFIG_FILE)
     if missing:
-        log.error("swarm bot ids are not configured participants: %s", missing)
+        log.critical("swarm bot ids are not configured participants: %s", missing)
         raise SystemExit(
             f"{len(missing)} bot id(s) are not participants in "
             f"{ENGINE_CONFIG_FILE}: {', '.join(missing)}. Add them to "
