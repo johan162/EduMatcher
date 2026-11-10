@@ -718,7 +718,7 @@ def main() -> None:
             fsync_interval=args.fsync_interval,
         )
     except Exception as exc:
-        log.error("fatal startup error: %s", exc)
+        log.critical("fatal startup error: %s", exc)
         sys.exit(1)
     reporter = HealthReporter.start_from_compiled_config(_CLIENT_NAME)
     if reporter is not None:

@@ -487,7 +487,7 @@ class ClearingProcess:
             try:
                 trade = _trade_from_payload(payload)
             except Exception as exc:
-                log.warning("failed to parse trade: %s", exc)
+                log.error("failed to parse trade: %s", exc)
                 return
 
             with self._lock:
@@ -669,7 +669,7 @@ class ClearingProcess:
                         }
                     ),
                 )
-                log.warning(
+                log.error(
                     "trade feed gap — %d trade(s) missing between id %s and %s",
                     missing,
                     last_seq,
@@ -1283,7 +1283,7 @@ def main() -> None:
             sql_trace=args.sql_trace,
         )
     except Exception as exc:
-        log.error("fatal startup error: %s", exc)
+        log.critical("fatal startup error: %s", exc)
         raise SystemExit(1) from exc
 
     reporter = HealthReporter.start_from_compiled_config(_CLIENT_NAME)

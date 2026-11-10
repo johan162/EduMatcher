@@ -26,7 +26,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 | 3 | L3 | log-GUI: bridge loads the ledger, `GET /api/ledger`; drawer panels *Explanation* + *Suggested actions*; "no ledger entry" state | L2 | 0.5 d | ☑ | 2026-11-09 |
 | 4 | L4 | Content: engine, orders, board, messaging, ticker | L2 | 0.5 d | ☑ | 2026-11-09 |
 | 5 | L5 | Content: gateways (alf_gwy, balf_gwy, api_gateway, md_gateway, dc_gateway, ralf_gateway, calf_client, ralf_spy, dc_spy) | L2 | 1 d | ☑ | 2026-11-09 |
-| 6 | L6 | Content: alf_console, clearing, audit, stats | L2 | 0.5 d | ☐ | |
+| 6 | L6 | Content: alf_console, clearing, audit, stats | L2 | 0.5 d | ☑ | 2026-11-09 |
 | 7 | L7 | Content: ai_trader, mm_bot, market_sim, index, viewer | L2 | 0.5 d | ☐ | |
 | 8 | L8 | Content: monitor, scheduler, health, config*, setup, the rest. Coverage test becomes a hard failure, docs | L4–L7 | 0.5 d | ☐ | |
 
@@ -328,10 +328,30 @@ review step (3) is part of the WP, not a side effect.
   replay with `LASTSEQ` within `post_trade_gateway.replay_retention_sec`; DC
   has no replay, so its clients reconcile from pm-clearing; ALF sessions get an
   `EVENTS_LOST` error and reconcile with ORDERS.
-* **Proposal for L8 (not done):** every gateway's `fatal runtime error: %s`
-  (and pm-log-srv's) is logged at ERROR and then re-raised, so the process
-  ends. L4 made the engine's process-ending messages CRITICAL. A sweep in L8
-  could do the same for every `fatal runtime error`, for consistency.
+* **Done 2026-11-09 (decided by the maintainer), originally proposed for L8:**
+  every message labelled fatal is CRITICAL: `fatal runtime error: %s` in nine
+  processes (the six gateways, pm-log-srv, pm-index, pm-monitor), `fatal
+  startup error: %s` in pm-index, pm-clearing, pm-audit and pm-stats, and
+  pm-scheduler's `FATAL: invalid schedule: %s`. Other messages that are
+  followed by an exit but are not labelled fatal are still ERROR (Q4).
+
+### 6.4 Notes from L6 (alf_console, clearing, audit, stats)
+
+47 entries in `alf_console.yaml`, `clearing.yaml`, `audit.yaml` and
+`stats.yaml`. The ledger now has 195 entries.
+
+* **pm-alf-console typing mistakes moved to INFO (21 sites):** `unknown
+  command`, `NEW/QUOTE/OCO/COMBO parse error`, `order rejected … reason=missing_*`
+  and similar. The trader already sees them in red at the prompt, and nothing
+  reaches the exchange, so they are not operational problems; at WARNING they
+  only added to the log-GUI's alert noise. They have no ledger entries.
+* **pm-clearing trade loss raised to ERROR:** `failed to parse trade` and
+  `trade feed gap — %d trade(s) missing` were WARNING. Both leave trades
+  unbooked, so positions and P&L are wrong, and nothing re-books them.
+* **Gaps in tooling:** pm-clearing stores feed gaps as GAP session events, but
+  no `pm-clearing-cli` subcommand lists them (`sessions` shows connection
+  history and `eod` shows EOD events only). pm-stats has `pm-stats-cli gaps`.
+  A `pm-clearing-cli gaps` would let the entry point at a command.
 
 ## 7. Open questions
 
@@ -339,4 +359,5 @@ review step (3) is part of the WP, not a side effect.
 |---|---|---|
 | Q1 | An existing `log.db` lacks the `tpl` column. | Decided 2026-11-09: the `schema_version` table plus a fail-fast check. See D4. |
 | Q2 | Should `has_exception` rows key on the exception type instead of the template? | No. `log.exception("x failed")` already has a constant template, and the traceback stays in the message. |
+| Q4 | Messages that end the process but are not labelled fatal: `failed to resolve configuration: %s` (pm-alf-gwy, pm-balf-gwy, pm-md-gwy, pm-dc-gwy, pm-ralf-gwy, pm-log-srv, pm-api-gwy), pm-mm-bot's config errors, pm-monitor's `cannot open %s: %s`, pm-stats's `pm-stats stopped recording: %s`. Raise them to CRITICAL too? | Open |
 | Q3 | Templates with no literal text, such as `log.warning("%s", warning)` in `config_artifact.py`. | They give one `tpl` for many different messages, so one generic entry has to cover all of them. L2's `ledger check` lists them, and the content WP rewrites each one to a specific template or splits the call. |

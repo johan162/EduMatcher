@@ -438,7 +438,7 @@ def _deployed_symbols(parser: argparse.ArgumentParser) -> list[str]:
     try:
         compiled = load_compiled_config()
     except ArtifactError as exc:
-        log.error("cannot read the deployed configuration: %s", exc)
+        log.critical("cannot read the deployed configuration: %s", exc)
         raise SystemExit(1)
     if compiled is None:
         parser.error(
@@ -479,7 +479,7 @@ def main(argv: list[str] | None = None) -> None:
                 Path(args.config), symbols_required=not args.all_symbols
             )
         except ValueError as exc:
-            log.error("invalid config file: %s", exc)
+            log.critical("invalid config file: %s", exc)
             raise SystemExit(1)
 
     if scopes.symbol_argv and args.symbols:
@@ -515,7 +515,7 @@ def main(argv: list[str] | None = None) -> None:
     except NoSymbolsError as exc:
         parser.error(str(exc))
     except ValueError as exc:
-        log.error("invalid configuration: %s", exc)
+        log.critical("invalid configuration: %s", exc)
         raise SystemExit(1)
 
     for flag, value in (
@@ -523,7 +523,7 @@ def main(argv: list[str] | None = None) -> None:
         ("--shutdown-timeout-sec", args.shutdown_timeout_sec),
     ):
         if value <= 0:
-            log.error(
+            log.critical(
                 "invalid startup value: %s must be positive (got %s)", flag, value
             )
             raise SystemExit(1)
@@ -586,7 +586,7 @@ def main(argv: list[str] | None = None) -> None:
             overrides=resolved.params,
         )
     except Exception as exc:
-        log.error("failed to create mm_bot runtime: %s", exc)
+        log.critical("failed to create mm_bot runtime: %s", exc)
         raise SystemExit(1)
     # No --instance: the emo roster expects the program by name (B2), so a
     # second bot on one host shows as the newer one (I48).

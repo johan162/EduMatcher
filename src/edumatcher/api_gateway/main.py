@@ -540,7 +540,7 @@ def main() -> None:
     try:
         config = _config_with_overrides(args)
     except Exception as exc:
-        log.error("failed to resolve configuration: %s", exc)
+        log.critical("failed to resolve configuration: %s", exc)
         sys.exit(1)
     if not config.enabled:
         log.warning("selected api_gateways entry is disabled")
@@ -556,7 +556,7 @@ def main() -> None:
             log_config=None,
         )
     except Exception as exc:
-        log.error("fatal runtime error: %s", exc)
+        log.critical("fatal runtime error: %s", exc)
         raise
 
 

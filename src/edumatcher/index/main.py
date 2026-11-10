@@ -1147,7 +1147,7 @@ def main() -> None:
     try:
         proc = IndexProcess(reset=bool(args.reset))
     except Exception as exc:
-        log.error("fatal startup error: %s", exc)
+        log.critical("fatal startup error: %s", exc)
         sys.exit(1)
     # Without these, SIGTERM (docker stop, pm-opctl stop) killed the process
     # outright: close() never ran, so pending history writes were never flushed
@@ -1161,7 +1161,7 @@ def main() -> None:
     try:
         proc.run()
     except Exception as exc:
-        log.error("fatal runtime error: %s", exc)
+        log.critical("fatal runtime error: %s", exc)
         raise
     finally:
         proc.close()

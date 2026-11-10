@@ -33,8 +33,6 @@ from edumatcher.logclient.protocol import FrameReader, iso_utc, template_id
 #: becomes a hard failure for everything.
 PENDING_PACKAGES = frozenset(
     {
-        # L6
-        "alf_console", "clearing", "audit", "stats",
         # L7
         "ai_trader", "mm_bot", "market_sim", "index", "viewer",
         # L8

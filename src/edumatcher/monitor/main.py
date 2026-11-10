@@ -176,7 +176,7 @@ def open_store(
             minute_days=config.retention.minute_days,
         )
     except (StoreLockedError, IncompatibleStoreError) as exc:
-        log.error("cannot open %s: %s", path, exc)
+        log.critical("cannot open %s: %s", path, exc)
         sys.exit(1)
     except (sqlite3.Error, OSError) as exc:
         log.error("cannot open %s: %s -- running without history", path, exc)
@@ -256,7 +256,7 @@ def main() -> None:
     try:
         monitor.run()
     except Exception as exc:
-        log.error("fatal runtime error: %s", exc)
+        log.critical("fatal runtime error: %s", exc)
         raise
     finally:
         monitor.close()

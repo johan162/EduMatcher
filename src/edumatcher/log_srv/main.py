@@ -234,7 +234,7 @@ def main() -> None:
     try:
         config = _resolve_config(args)
     except Exception as exc:
-        log.error("failed to resolve configuration: %s", exc)
+        log.critical("failed to resolve configuration: %s", exc)
         parser.error(str(exc))
 
     if not config.enabled:
@@ -267,7 +267,7 @@ def main() -> None:
     try:
         server.run()
     except Exception as exc:
-        log.error("fatal runtime error: %s", exc)
+        log.critical("fatal runtime error: %s", exc)
         raise
     finally:
         server.close()

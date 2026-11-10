@@ -2124,7 +2124,7 @@ class StatsProcess:
             self.close()
 
         if self._receive_failure is not None:
-            log.error("pm-stats stopped recording: %s", self._receive_failure)
+            log.critical("pm-stats stopped recording: %s", self._receive_failure)
             return 1
         return 0
 
@@ -2570,7 +2570,7 @@ def main() -> None:
             keep_human_order_events_days=args.keep_human_order_events_days,
         )
     except Exception as exc:
-        log.error("fatal startup error: %s", exc)
+        log.critical("fatal startup error: %s", exc)
         sys.exit(1)
     reporter = HealthReporter.start_from_compiled_config(_CLIENT_NAME)
     if reporter is not None:

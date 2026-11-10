@@ -6,7 +6,7 @@
 
 - logger: edumatcher.balf_gwy.main
   template: "failed to resolve configuration: %s"
-  level: ERROR
+  level: CRITICAL
   explanation: >
     pm-balf-gwy could not build its configuration from the compiled exchange
     config and its command-line options, so it did not start. BALF clients
@@ -28,7 +28,7 @@
 
 - logger: edumatcher.balf_gwy.main
   template: "fatal runtime error: %s"
-  level: ERROR
+  level: CRITICAL
   explanation: >
     pm-balf-gwy stopped because of an unexpected error in its main loop. Every
     BALF session is gone; the engine applies each participant's disconnect

@@ -4,7 +4,7 @@
 
 - logger: edumatcher.ralf_gateway.main
   template: "failed to resolve configuration: %s"
-  level: ERROR
+  level: CRITICAL
   explanation: >
     pm-ralf-gwy could not build its configuration from the compiled exchange config
     and its command-line options, so it did not start. Its clients get no
@@ -16,7 +16,7 @@
 
 - logger: edumatcher.ralf_gateway.main
   template: "fatal runtime error: %s"
-  level: ERROR
+  level: CRITICAL
   explanation: >
     pm-ralf-gwy stopped because of an unexpected error in its main loop. Every
     client is disconnected and gets no post-trade reports until it is restarted.

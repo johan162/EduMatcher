@@ -4,7 +4,7 @@
 
 - logger: edumatcher.log_srv.main
   template: "failed to resolve configuration: %s"
-  level: ERROR
+  level: CRITICAL
   explanation: >
     pm-log-srv could not build its configuration from the compiled exchange
     config and the command-line options, so it did not start. No process can
@@ -39,7 +39,7 @@
 
 - logger: edumatcher.log_srv.main
   template: "fatal runtime error: %s"
-  level: ERROR
+  level: CRITICAL
   explanation: >
     pm-log-srv stopped because of an unexpected error in its main loop.
     Processes that were logging to it switch to their local fallback files

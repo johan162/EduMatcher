@@ -1382,7 +1382,7 @@ def main() -> None:
             errors = _validate_schedule_config(schedule_cfg)
             if errors:
                 for err in errors:
-                    log.error("FATAL: invalid schedule: %s", err)
+                    log.critical("FATAL: invalid schedule: %s", err)
                 sys.exit(1)
 
             # Subscribe to the engine's session.state broadcasts (to confirm

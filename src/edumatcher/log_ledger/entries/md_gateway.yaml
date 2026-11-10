@@ -6,7 +6,7 @@
 
 - logger: edumatcher.md_gateway.main
   template: "failed to resolve configuration: %s"
-  level: ERROR
+  level: CRITICAL
   explanation: >
     pm-md-gwy could not build its configuration from the compiled exchange
     config and its command-line options, so it did not start. No CALF client
@@ -48,7 +48,7 @@
 
 - logger: edumatcher.md_gateway.main
   template: "fatal runtime error: %s"
-  level: ERROR
+  level: CRITICAL
   explanation: >
     pm-md-gwy stopped because of an unexpected error in its main loop. Every
     CALF client is disconnected and gets no market data until it is restarted.
