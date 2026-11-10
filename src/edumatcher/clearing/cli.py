@@ -21,6 +21,7 @@ from edumatcher.clearing.store import (
     query_dates,
     query_close_snapshots,
     query_exposure,
+    query_feed_gaps,
     query_gateways,
     query_health,
     query_pnl,
@@ -206,6 +207,14 @@ _SESSION_EVENTS_COLS = [
     "ts_ns",
     "trade_date",
     "payload_json",
+]
+_FEED_GAPS_COLS = [
+    "trade_date",
+    "ts_ns",
+    "run_seq",
+    "last_seq",
+    "next_seq",
+    "missing_trades",
 ]
 _SNAPSHOTS_COLS = [
     "trade_date",
@@ -468,6 +477,15 @@ def build_parser() -> argparse.ArgumentParser:
     eod.add_argument("--to", dest="to_date", metavar="YYYY-MM-DD")
     eod.add_argument("--limit", type=int, default=100, metavar="N")
 
+    # gaps
+    gaps = sub.add_parser(
+        "gaps",
+        help="Trade-feed gaps: trades pm-clearing never received, so never booked",
+    )
+    gaps.add_argument("--from", dest="from_date", metavar="YYYY-MM-DD")
+    gaps.add_argument("--to", dest="to_date", metavar="YYYY-MM-DD")
+    gaps.add_argument("--limit", type=int, default=500, metavar="N")
+
     # prune
     prune = sub.add_parser(
         "prune",
@@ -708,6 +726,12 @@ def _run_query(
             limit=args.limit,
         )
         return _SESSION_EVENTS_COLS, rows
+
+    if cmd == "gaps":
+        rows = query_feed_gaps(
+            conn, from_date=args.from_date, to_date=args.to_date, limit=args.limit
+        )
+        return _FEED_GAPS_COLS, rows
 
     assert (
         cmd == "reconcile"

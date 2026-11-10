@@ -1503,6 +1503,95 @@ class TestEodVerb:
         assert "No rows" in out or out.strip() == "" or len(out.splitlines()) <= 2
 
 
+class TestGapsVerb:
+    """`gaps` lists the GAP rows pm-clearing records, one column per field."""
+
+    @pytest.fixture()
+    def gaps_db(self, tmp_path: Path) -> Path:
+        from edumatcher.clearing.store import record_session_event
+
+        path = tmp_path / "gaps.db"
+        conn = open_writer_connection(path)
+        for date, ts_ns, last, nxt in (
+            ("2026-07-01", 1_751_371_200_000_000_000, 100, 105),
+            ("2026-07-02", 1_751_457_600_000_000_000, 7, 9),
+        ):
+            record_session_event(
+                conn,
+                event_type="GAP",
+                ts_ns=ts_ns,
+                trade_date=date,
+                payload_json=json.dumps(
+                    {
+                        "run_seq": 42,
+                        "last_seq": last,
+                        "next_seq": nxt,
+                        "missing_trades": nxt - last - 1,
+                    }
+                ),
+            )
+        record_session_event(
+            conn,
+            event_type="EOD",
+            ts_ns=1_751_457_700_000_000_000,
+            trade_date="2026-07-02",
+            payload_json=json.dumps({"eod_marks": {}, "symbols_count": 0}),
+        )
+        conn.close()
+        return path
+
+    def test_lists_gaps_newest_first_without_other_events(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture,
+        gaps_db: Path,
+    ) -> None:
+        out = _run_capture(monkeypatch, capsys, gaps_db, ["--format", "json", "gaps"])
+        assert json.loads(out) == [
+            {
+                "trade_date": "2026-07-02",
+                "ts_ns": 1_751_457_600_000_000_000,
+                "run_seq": 42,
+                "last_seq": 7,
+                "next_seq": 9,
+                "missing_trades": 1,
+            },
+            {
+                "trade_date": "2026-07-01",
+                "ts_ns": 1_751_371_200_000_000_000,
+                "run_seq": 42,
+                "last_seq": 100,
+                "next_seq": 105,
+                "missing_trades": 4,
+            },
+        ]
+
+    def test_table_and_date_filter(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture,
+        gaps_db: Path,
+    ) -> None:
+        out = _run_capture(
+            monkeypatch,
+            capsys,
+            gaps_db,
+            ["gaps", "--from", "2026-07-01", "--to", "2026-07-01"],
+        )
+        assert "missing_trades" in out.splitlines()[0]
+        assert "2026-07-01" in out
+        assert "2026-07-02" not in out
+
+    def test_empty_db_returns_no_rows(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture,
+        empty_db: Path,
+    ) -> None:
+        out = _run_capture(monkeypatch, capsys, empty_db, ["--format", "json", "gaps"])
+        assert json.loads(out) == []
+
+
 class TestSnapshotsCommand:
     @pytest.fixture()
     def snap_db(self, db_path: Path) -> Path:

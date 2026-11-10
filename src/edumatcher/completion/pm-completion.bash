@@ -2719,7 +2719,7 @@ complete -o bashdefault -F _shtab_pm_clearing pm-clearing
 #    source ~/.local/share/bash_completion/pm-clearing-cli
 # See also: https://github.com/scop/bash-completion/blob/main/doc/configuration.md
 
-_shtab_pm_clearing_cli_subparsers=(gateways positions pnl daily trades exposure symbols dates snapshots health reconcile sessions eod prune)
+_shtab_pm_clearing_cli_subparsers=(gateways positions pnl daily trades exposure symbols dates snapshots health reconcile sessions eod gaps prune)
 
 _shtab_pm_clearing_cli_gateways_option_strings=(-h --help --gateway --limit)
 _shtab_pm_clearing_cli_positions_option_strings=(-h --help --gateway --symbol --limit)
@@ -2734,12 +2734,13 @@ _shtab_pm_clearing_cli_health_option_strings=(-h --help -q --quiet --extended -v
 _shtab_pm_clearing_cli_reconcile_option_strings=(-h --help --gateway --symbol --from --to --retention-days)
 _shtab_pm_clearing_cli_sessions_option_strings=(-h --help --gateway --from --to --connected-only --limit)
 _shtab_pm_clearing_cli_eod_option_strings=(-h --help --from --to --limit)
+_shtab_pm_clearing_cli_gaps_option_strings=(-h --help --from --to --limit)
 _shtab_pm_clearing_cli_prune_option_strings=(-h --help --days --dry-run)
 _shtab_pm_clearing_cli_option_strings=(-h --help --version --datapath --db-name --format --no-header --raw-output)
 
 
 
-_shtab_pm_clearing_cli_pos_0_choices=(gateways positions pnl daily trades exposure symbols dates snapshots health reconcile sessions eod prune)
+_shtab_pm_clearing_cli_pos_0_choices=(gateways positions pnl daily trades exposure symbols dates snapshots health reconcile sessions eod gaps prune)
 _shtab_pm_clearing_cli___format_choices=(table json csv)
 
 _shtab_pm_clearing_cli_gateways__h_nargs=0
@@ -2775,6 +2776,8 @@ _shtab_pm_clearing_cli_sessions___help_nargs=0
 _shtab_pm_clearing_cli_sessions___connected_only_nargs=0
 _shtab_pm_clearing_cli_eod__h_nargs=0
 _shtab_pm_clearing_cli_eod___help_nargs=0
+_shtab_pm_clearing_cli_gaps__h_nargs=0
+_shtab_pm_clearing_cli_gaps___help_nargs=0
 _shtab_pm_clearing_cli_prune__h_nargs=0
 _shtab_pm_clearing_cli_prune___help_nargs=0
 _shtab_pm_clearing_cli_prune___dry_run_nargs=0

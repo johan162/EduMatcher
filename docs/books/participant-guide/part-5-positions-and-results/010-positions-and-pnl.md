@@ -344,11 +344,11 @@ Append-only log of clearing-significant events. Three event types are written:
 | `trade_date` | TEXT | Session-timezone date derived from `ts_ns` (default `Europe/Stockholm`; see `locale.session_timezone`) |
 | `payload_json` | TEXT | Event-specific JSON (see table above) |
 
-`EOD` rows are surfaced by `pm-clearing-cli eod`. `PHASE` and `GAP` are not
-currently surfaced by any `pm-clearing-cli` verb — `GAP` is a durable integrity
-alarm, recorded so a dropped-trade event is visible after the fact rather than
-silently corrupting positions; query both directly from `session_events` by
-`event_type`. A trade id that is re-sent is silently ignored by the archive
+`EOD` rows are surfaced by `pm-clearing-cli eod` and `GAP` rows by
+`pm-clearing-cli gaps`. `GAP` is a durable integrity alarm, recorded so a
+dropped trade is visible after the fact rather than silently corrupting
+positions. `PHASE` is not surfaced by any `pm-clearing-cli` verb; query it
+directly from `session_events` by `event_type`. A trade id that is re-sent is silently ignored by the archive
 (`INSERT OR IGNORE` on the trade-id primary key); no alarm row is written.
 
 ### `position_close_snapshot`
@@ -796,6 +796,7 @@ themselves do not accept them.
 | `sessions` | `gateway_sessions` | Gateway connect and disconnect history written from the engine's `system.gateway_auth` / `system.gateway_bye` broadcasts | `--gateway`, `--from`, `--to`, `--connected-only`, `--limit` |
 | `snapshots` | `position_close_snapshot` | Every position saved at each session close (quantity, cumulative realized and unrealized P&L, closing price) | `--gateway`, `--symbol`, `--date`, `--from`, `--to`, `--limit` |
 | `eod` | `session_events` | End-of-day sentinel rows written on `system.eod`, including mark prices applied | `--from`, `--to`, `--limit` |
+| `gaps` | `session_events` | Trade-feed gaps: trades the engine executed that never reached `pm-clearing`, so were never booked | `--from`, `--to`, `--limit` |
 | `prune` | `trade_events` | Deletes rows older than N days (default 90); write-access verb (does not VACUUM) | `--days`, `--dry-run` |
 
 
@@ -1227,6 +1228,35 @@ print('AAPL EOD mark:', marks.get('AAPL', 'n/a'))
     `EOD` rows are only written when `pm-clearing` receives `system.eod` from a
     graceful engine shutdown. If the engine was killed hard (e.g. `kill -9`),
     no EOD row is written and the positions retain the last intraday mark.
+
+
+### gaps — trades pm-clearing never received
+
+Returns the `GAP` rows `pm-clearing` writes to `session_events` when the
+engine's trade numbering jumps: trades between `last_seq` and `next_seq` were
+executed but never reached `pm-clearing`, so they are not booked and the
+positions and P&L of the participants in them are wrong. Nothing re-books them.
+An empty result means no trade was lost.
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `--from YYYY-MM-DD` | date | — | Inclusive start date |
+| `--to YYYY-MM-DD` | date | — | Inclusive end date |
+| `--limit N` | integer | 500 | Maximum rows returned |
+
+```bash
+# Every recorded gap, newest first
+pm-clearing-cli gaps
+
+# One trading day
+pm-clearing-cli gaps --from 2026-07-04 --to 2026-07-04
+```
+
+Output fields: `trade_date`, `ts_ns` (the trade after the gap), `run_seq` (the
+engine run the trade ids belong to), `last_seq` and `next_seq` (the trade ids
+either side of the gap), `missing_trades`. A trade id is the run and the
+sequence, zero-padded (`000042-000000101` is run 42, trade 101), so the missing
+trades can be looked up in `pm-stats-cli trades` or `pm-audit-cli trades`.
 
 
 ### snapshots — positions as they stood at each close

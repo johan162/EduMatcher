@@ -352,7 +352,10 @@ review step (3) is part of the WP, not a side effect.
 * **Gaps in tooling:** pm-clearing stores feed gaps as GAP session events, but
   no `pm-clearing-cli` subcommand lists them (`sessions` shows connection
   history and `eod` shows EOD events only). pm-stats has `pm-stats-cli gaps`.
-  A `pm-clearing-cli gaps` would let the entry point at a command.
+  A `pm-clearing-cli gaps` would let the entry point at a command. Done
+  2026-11-10: `pm-clearing-cli gaps [--from] [--to] [--limit]` lists the GAP
+  rows with their payload as columns, and the "trade feed gap" entry points
+  at it.
 
 ### 6.5 Notes from L7 (ai_trader, mm_bot, market_sim, index, viewer)
 

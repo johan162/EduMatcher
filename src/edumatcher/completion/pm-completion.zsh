@@ -1708,6 +1708,7 @@ _shtab_pm_clearing_cli_commands() {
     dates:'Available trading dates'
     eod:'End-of-day sentinel events written by pm-clearing on system.eod'
     exposure:'Net/gross notional exposure'
+    gaps:'Trade-feed gaps: trades pm-clearing never received, so never booked'
     gateways:'List gateways with P&L totals'
     health:'Check the pm-clearing process and clearing database read/write health'
     pnl:'Realized/unrealized/total P&L'
@@ -1781,6 +1782,16 @@ _shtab_pm_clearing_cli_exposure_options=(
 
 # guard to ensure default positional specs are added only once per session
 _shtab_pm_clearing_cli_exposure_defaults_added=0
+
+_shtab_pm_clearing_cli_gaps_options=(
+  "(- : *)"{-h,--help}"[show this help message and exit]"
+  "--from[YYYY-MM-DD]:YYYY-MM-DD:"
+  "--to[YYYY-MM-DD]:YYYY-MM-DD:"
+  "--limit[N]:N:"
+)
+
+# guard to ensure default positional specs are added only once per session
+_shtab_pm_clearing_cli_gaps_defaults_added=0
 
 _shtab_pm_clearing_cli_gateways_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
@@ -1915,6 +1926,7 @@ _shtab_pm_clearing_cli() {
         dates) _arguments -C -s $_shtab_pm_clearing_cli_dates_options ;;
         eod) _arguments -C -s $_shtab_pm_clearing_cli_eod_options ;;
         exposure) _arguments -C -s $_shtab_pm_clearing_cli_exposure_options ;;
+        gaps) _arguments -C -s $_shtab_pm_clearing_cli_gaps_options ;;
         gateways) _arguments -C -s $_shtab_pm_clearing_cli_gateways_options ;;
         health) _arguments -C -s $_shtab_pm_clearing_cli_health_options ;;
         pnl) _arguments -C -s $_shtab_pm_clearing_cli_pnl_options ;;

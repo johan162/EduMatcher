@@ -1276,6 +1276,37 @@ def query_session_events(
     return [dict(r) for r in rows]
 
 
+def query_feed_gaps(
+    conn: sqlite3.Connection,
+    *,
+    from_date: str | None = None,
+    to_date: str | None = None,
+    limit: int = 500,
+) -> list[dict[str, Any]]:
+    """Return the trade-feed gaps pm-clearing recorded, newest first.
+
+    Each gap is a ``GAP`` row in session_events; its payload is spread into
+    columns so the missing trade ids can be read off directly.
+    """
+    rows = query_session_events(
+        conn, event_type="GAP", from_date=from_date, to_date=to_date, limit=limit
+    )
+    gaps = []
+    for r in rows:
+        payload = json.loads(r["payload_json"])
+        gaps.append(
+            {
+                "trade_date": r["trade_date"],
+                "ts_ns": r["ts_ns"],
+                "run_seq": payload.get("run_seq"),
+                "last_seq": payload.get("last_seq"),
+                "next_seq": payload.get("next_seq"),
+                "missing_trades": payload.get("missing_trades"),
+            }
+        )
+    return gaps
+
+
 def query_close_snapshots(
     conn: sqlite3.Connection,
     *,
