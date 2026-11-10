@@ -1528,6 +1528,11 @@ _QUERY_CLIS: tuple[CommandInfo, ...] = (
                 purpose="End-of-day sentinel events written by pm-clearing (limit 100)",
             ),
             Subcommand(
+                "gaps",
+                args="[--from D] [--to D]",
+                purpose="Trade-feed gaps: trades pm-clearing never received (limit 500)",
+            ),
+            Subcommand(
                 "prune",
                 args="[--days N] [--dry-run]",
                 purpose="Delete old trade_events rows by retention window",

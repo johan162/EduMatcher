@@ -47,9 +47,10 @@
   explanation: >
     pm-clearing saw a gap in the engine's trade numbering: trades were executed
     but never reached it, so they are not booked. Positions and P&L of the
-    participants in those trades are wrong. The gap is also stored as a GAP
-    row among the clearing database's session events.
+    participants in those trades are wrong. The gap is also stored in the
+    clearing database, where `pm-clearing-cli gaps` lists it.
   actions:
+    - "Run `pm-clearing-cli gaps` to see every gap recorded, with the trade ids either side."
     - "List the missing trades by id range with `pm-stats-cli trades` or `pm-audit-cli trades`."
     - "Treat the positions of the participants in those trades as wrong until settled (`pm-clearing-cli positions`)."
     - "Check pm-clearing's host load at that time; a slow consumer is the usual cause."

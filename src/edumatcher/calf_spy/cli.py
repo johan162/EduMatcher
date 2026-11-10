@@ -376,7 +376,9 @@ def main() -> None:
         client.connect()
         welcome = client.handshake()
     except CalfSpyConnectionError as exc:
-        session.console.print(f"[bold red]pm-calf-spy: {exc}[/bold red]")
+        session.console.print(
+            f"[bold red]pm-calf-spy: {exc}[/bold red]", soft_wrap=True
+        )
         raise SystemExit(1) from exc
 
     session.console.print(
@@ -409,7 +411,9 @@ def main() -> None:
     try:
         client.run(session.on_frame, max_frames=args.count)
     except CalfSpyConnectionError as exc:
-        session.console.print(f"[bold red]pm-calf-spy: {exc}[/bold red]")
+        session.console.print(
+            f"[bold red]pm-calf-spy: {exc}[/bold red]", soft_wrap=True
+        )
         raise SystemExit(1) from exc
     except KeyboardInterrupt:
         pass

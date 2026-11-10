@@ -1,3 +1,30 @@
+## [v0.77.4] - 2026-11-10
+
+Release Type: minor
+
+### 📋 Summary
+This release adds a log ledger that explains warnings and errors and suggests operator actions across the system. It also adds a clearing trade-gap query and improves startup safety and routine log handling.
+
+### ✨ Additions
+- Added `pm-log-cli explain` and `ledger` commands, with a catalog of warning and error explanations and suggested actions
+- Added log-ledger explanations and suggested actions to the log GUI Explorer
+- Added `pm-clearing-cli gaps` to list missing trade-feed intervals
+
+### 🚀 Improvements
+- Reduced routine log noise by avoiding TCP/IP health probes and excluding post-close order rejections from trading warning counts
+- Let the scheduler idle when trading sessions are disabled
+- Raised process-ending fatal messages to CRITICAL severity
+
+### 🐛 Bug Fixes
+- Fixed unreadable configuration files being treated as if symbol restrictions were disabled
+- Preserved unreadable GTC state files for recovery instead of silently proceeding without them
+
+### 📚 Documentation
+- Added operator guidance for the log ledger, log explanations and clearing trade-feed gaps
+
+### 🛠 Internal
+- Added log database schema versioning and regression and end-to-end coverage for the log ledger, GUI, clearing gaps and startup recovery
+
 ## [v0.77.3] - 2026-11-09
 
 Release Type: patch
