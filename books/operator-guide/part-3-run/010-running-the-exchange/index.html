@@ -9495,7 +9495,8 @@ consistent config, and restart.</p>
 <p>Check these in order:</p>
 <ol>
 <li>Is <code>pm-scheduler</code> running?</li>
-<li>Is <code>sessions_enabled: true</code> in the deployed config?</li>
+<li>Is <code>sessions_enabled: true</code> in the deployed config? With <code>false</code>, the
+   scheduler logs "sessions are disabled" at start and sends nothing.</li>
 <li>Does the schedule use the <code>locale.session_timezone</code> and <code>locale.country</code> you expect?</li>
 <li>Is today a trading day under that country calendar?</li>
 <li>Did the scheduler start before the transition time passed?</li>

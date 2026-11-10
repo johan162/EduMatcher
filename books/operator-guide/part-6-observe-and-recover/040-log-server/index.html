@@ -3367,6 +3367,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Data Directory">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#schema-version" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Schema version
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -3673,6 +3690,17 @@
     <span class="md-ellipsis">
       
         prune — Manual retention pruning
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#explain-ledger-what-a-warning-means-and-what-to-do" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        explain, ledger — what a warning means and what to do
       
     </span>
   </a>
@@ -8137,6 +8165,15 @@ persistent files:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">EDUMATCHER_DATA_DIR</span><span class="o">=</span><span class="s2">"</span><span class="nv">$HOME</span><span class="s2">/sessions/morning"</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>pm-log-srv<span class="w">  </span><span class="c1"># writes to $HOME/sessions/morning/log.db</span>
 </code></pre></div>
+<h3 id="schema-version">Schema version<a class="headerlink" href="#schema-version" title="Permanent link">&para;</a></h3>
+<p><code>log.db</code> records its schema version in a <code>schema_version</code> table. The
+current version is <strong>2</strong>. Each time <code>pm-log-srv</code> or <code>pm-log-cli</code> opens an
+existing <code>log.db</code>, it checks that version. Old log databases are never
+migrated: if the file was written by an older release, <code>pm-log-srv</code> logs a
+CRITICAL <code>refusing to start: ... has log.db schema version 1, this build
+needs 2 ...</code> and exits with status 1. Delete <code>log.db</code> and its <code>-wal</code>/<code>-shm</code>
+files, then start <code>pm-log-srv</code> again. It creates a fresh database at the
+current version.</p>
 <h2 id="pm-log-srv-log-collector">pm-log-srv — Log Collector<a class="headerlink" href="#pm-log-srv-log-collector" title="Permanent link">&para;</a></h2>
 <p><code>pm-log-srv</code> binds a TCP listen socket, accepts any number of concurrent
 LALF connections, and appends every accepted <code>LOG</code> record to <code>log.db</code>. It
@@ -8847,6 +8884,10 @@ since a value given after the subcommand always wins if both are present.</p>
 <td>Argument error (invalid flag combination)</td>
 </tr>
 <tr>
+<td><code>1</code></td>
+<td><code>ledger check</code> found missing, stale or wrong-level entries, or a call site it cannot read; <code>explain</code> was given a <code>seq</code> that does not exist</td>
+</tr>
+<tr>
 <td><code>3</code></td>
 <td><code>diagnose</code> found at least one warning- or error-level finding; <code>[INFO]</code> observations alone still exit <code>0</code> (only meaningful for scripting; <code>query</code>/<code>tail</code>/<code>stats</code>/<code>processes</code>/<code>prune</code> never use this code)</td>
 </tr>
@@ -8912,6 +8953,11 @@ free text, or exception presence.</p>
 <td>off</td>
 <td>Oldest-first instead of newest-first</td>
 </tr>
+<tr>
+<td><code>--explain</code></td>
+<td>off</td>
+<td>Print the log-ledger explanation and numbered actions under each WARNING+ row that has an entry (see <a href="#explain-ledger-what-a-warning-means-and-what-to-do"><code>explain</code>, <code>ledger</code></a>). With <code>--format json</code>, those rows get an <code>explain</code> object</td>
+</tr>
 </tbody>
 </table>
 <p><strong>Output columns:</strong> <code>seq</code>, <code>client_ts</code>, <code>process</code>, <code>instance</code>, <code>level</code>,
@@ -8970,6 +9016,11 @@ polls on <code>--interval</code> seconds.</p>
 <td><code>--interval SEC</code></td>
 <td><code>1.0</code></td>
 <td>Polling interval</td>
+</tr>
+<tr>
+<td><code>--explain</code></td>
+<td>off</td>
+<td>As for <code>query</code>: explanation and actions under each WARNING+ row</td>
 </tr>
 </tbody>
 </table>
@@ -9201,17 +9252,60 @@ immediately rather than waiting for the next scheduled pass).</p>
 <p><code>prune</code> is the one subcommand that opens <code>log.db</code> for writing rather than
 read-only, since it needs to delete rows; it is still safe to run while
 <code>pm-log-srv</code> is running, since SQLite serializes the two writers.</p>
+<h3 id="explain-ledger-what-a-warning-means-and-what-to-do"><code>explain</code>, <code>ledger</code> — what a warning means and what to do<a class="headerlink" href="#explain-ledger-what-a-warning-means-and-what-to-do" title="Permanent link">&para;</a></h3>
+<p>Every WARNING, ERROR and CRITICAL message EduMatcher logs has an entry in the
+<strong>log ledger</strong>, a catalogue shipped with EduMatcher. Each entry has a short
+explanation of what happened and what it means for the exchange, and a list
+of suggested actions. The log-GUI shows the same text in its row drawer.</p>
+<p>Each WARNING+ row carries a template id, <code>tpl</code>. It is derived from the
+logger and the message's format string before the values are filled in, so
+every occurrence of the same message shares one id. The ledger is keyed by
+that id.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>pm-log-cli<span class="w"> </span>explain<span class="w"> </span>SEQ<span class="w">                    </span><span class="c1"># one row, then Explanation: and Actions:</span>
+<a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a>pm-log-cli<span class="w"> </span>query<span class="w"> </span>--level<span class="w"> </span>ERROR<span class="w"> </span>--explain<span class="w">  </span><span class="c1"># explanations under every known row</span>
+<a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a>pm-log-cli<span class="w"> </span>ledger<span class="w"> </span>list<span class="w"> </span><span class="o">[</span>--logger<span class="w"> </span>PREFIX<span class="o">]</span><span class="w"> </span><span class="o">[</span>--level<span class="w"> </span>LEVEL<span class="o">]</span>
+<a id="__codelineno-23-4" name="__codelineno-23-4" href="#__codelineno-23-4"></a>pm-log-cli<span class="w"> </span>ledger<span class="w"> </span>show<span class="w"> </span>TPL<span class="w">                </span><span class="c1"># one entry in full</span>
+<a id="__codelineno-23-5" name="__codelineno-23-5" href="#__codelineno-23-5"></a>pm-log-cli<span class="w"> </span>ledger<span class="w"> </span>check<span class="w"> </span><span class="o">[</span>--package<span class="w"> </span>NAME<span class="o">]</span><span class="w">  </span><span class="c1"># ledger vs. the source (for developers)</span>
+<a id="__codelineno-23-6" name="__codelineno-23-6" href="#__codelineno-23-6"></a>pm-log-cli<span class="w"> </span>ledger<span class="w"> </span><span class="nb">export</span><span class="w">                  </span><span class="c1"># the whole ledger as JSON</span>
+</code></pre></div>
+<p>The <code>ledger</code> commands read only the ledger shipped with the installed
+package, so they work without a <code>log.db</code>.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>$ pm-log-cli explain 48213
+<a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a>seq 48213  2026-11-09T14:02:11.204Z  ERROR  pm-log-srv  edumatcher.log_srv.writer
+<a id="__codelineno-24-3" name="__codelineno-24-3" href="#__codelineno-24-3"></a>  writer thread: failed to persist batch of 50 rows (will retry): database or disk is full
+<a id="__codelineno-24-4" name="__codelineno-24-4" href="#__codelineno-24-4"></a>
+<a id="__codelineno-24-5" name="__codelineno-24-5" href="#__codelineno-24-5"></a>Explanation:
+<a id="__codelineno-24-6" name="__codelineno-24-6" href="#__codelineno-24-6"></a>  Writing a batch of log rows to log.db failed. The rows are kept and retried. Until the
+<a id="__codelineno-24-7" name="__codelineno-24-7" href="#__codelineno-24-7"></a>  write succeeds, pm-log-srv reads more slowly from all processes, so their logging slows
+<a id="__codelineno-24-8" name="__codelineno-24-8" href="#__codelineno-24-8"></a>  down too.
+<a id="__codelineno-24-9" name="__codelineno-24-9" href="#__codelineno-24-9"></a>
+<a id="__codelineno-24-10" name="__codelineno-24-10" href="#__codelineno-24-10"></a>Actions:
+<a id="__codelineno-24-11" name="__codelineno-24-11" href="#__codelineno-24-11"></a>  1. Read the SQLite error. "disk I/O error" or "database or disk is full" means the disk
+<a id="__codelineno-24-12" name="__codelineno-24-12" href="#__codelineno-24-12"></a>     needs attention (`df -h`).
+<a id="__codelineno-24-13" name="__codelineno-24-13" href="#__codelineno-24-13"></a>  2. Free space or lower `log_server.retention_days`, then watch for the error to stop.
+<a id="__codelineno-24-14" name="__codelineno-24-14" href="#__codelineno-24-14"></a>  3. If log.db is corrupt, stop `pm-log-srv`, move the file aside and start again.
+</code></pre></div>
+<p>A row below WARNING, or a message from a library rather than EduMatcher
+itself, has no entry, and <code>explain</code> says so.</p>
+<p><code>ledger check</code> is for anyone who adds or changes a WARNING+ log call. It scans
+the installed source and lists every call site without an entry, every entry
+whose message is no longer logged, and every entry whose level differs from
+the code. Entries live in <code>src/edumatcher/log_ledger/entries/*.yaml</code>. It also
+prints a <code>GENERIC</code> line for a call whose format string has no fixed text, such
+as <code>log.warning("%s", message)</code>: every message from it shares one <code>tpl</code>, so
+one entry would have to explain all of them. Give such a call fixed text
+instead. The test suite fails on any of these findings.</p>
 <h2 id="cookbook-common-log-server-workflows">Cookbook — Common Log-Server Workflows<a class="headerlink" href="#cookbook-common-log-server-workflows" title="Permanent link">&para;</a></h2>
 <p>Examples below are grouped by the kind of question you're trying to answer.</p>
 <h3 id="watching-a-live-session">Watching a live session<a class="headerlink" href="#watching-a-live-session" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a><span class="c1"># Follow everything as it happens</span>
-<a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a>pm-log-cli<span class="w"> </span>tail
-<a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a>
-<a id="__codelineno-23-4" name="__codelineno-23-4" href="#__codelineno-23-4"></a><span class="c1"># Follow just the warnings and errors across every process</span>
-<a id="__codelineno-23-5" name="__codelineno-23-5" href="#__codelineno-23-5"></a>pm-log-cli<span class="w"> </span>tail<span class="w"> </span>--level<span class="w"> </span>WARNING,ERROR,CRITICAL
-<a id="__codelineno-23-6" name="__codelineno-23-6" href="#__codelineno-23-6"></a>
-<a id="__codelineno-23-7" name="__codelineno-23-7" href="#__codelineno-23-7"></a><span class="c1"># Follow one specific gateway</span>
-<a id="__codelineno-23-8" name="__codelineno-23-8" href="#__codelineno-23-8"></a>pm-log-cli<span class="w"> </span>tail<span class="w"> </span>--process<span class="w"> </span>pm-md-gwy
+<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a><span class="c1"># Follow everything as it happens</span>
+<a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a>pm-log-cli<span class="w"> </span>tail
+<a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a>
+<a id="__codelineno-25-4" name="__codelineno-25-4" href="#__codelineno-25-4"></a><span class="c1"># Follow just the warnings and errors across every process</span>
+<a id="__codelineno-25-5" name="__codelineno-25-5" href="#__codelineno-25-5"></a>pm-log-cli<span class="w"> </span>tail<span class="w"> </span>--level<span class="w"> </span>WARNING,ERROR,CRITICAL
+<a id="__codelineno-25-6" name="__codelineno-25-6" href="#__codelineno-25-6"></a>
+<a id="__codelineno-25-7" name="__codelineno-25-7" href="#__codelineno-25-7"></a><span class="c1"># Follow one specific gateway</span>
+<a id="__codelineno-25-8" name="__codelineno-25-8" href="#__codelineno-25-8"></a>pm-log-cli<span class="w"> </span>tail<span class="w"> </span>--process<span class="w"> </span>pm-md-gwy
 </code></pre></div>
 <p><code>pm-log-cli tail</code> polls <code>log.db</code>, which is exactly right for a terminal
 you are watching for a few minutes. For anything long-lived and
@@ -9219,48 +9313,48 @@ interactive — a viewer window, a dashboard — subscribe over
 <a href="#lalf-ps-the-zeromq-log-distribution-interface">LALF-PS</a> instead and be
 pushed rows as they land.</p>
 <h3 id="investigating-an-error-after-the-fact">Investigating an error after the fact<a class="headerlink" href="#investigating-an-error-after-the-fact" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a><span class="c1"># All errors in the last hour</span>
-<a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a>pm-log-cli<span class="w"> </span>query<span class="w"> </span>--level<span class="w"> </span>ERROR,CRITICAL<span class="w"> </span>--since<span class="w"> </span><span class="m">2026</span>-07-28T13:00:00.000Z
-<a id="__codelineno-24-3" name="__codelineno-24-3" href="#__codelineno-24-3"></a>
-<a id="__codelineno-24-4" name="__codelineno-24-4" href="#__codelineno-24-4"></a><span class="c1"># All rows with an attached traceback</span>
-<a id="__codelineno-24-5" name="__codelineno-24-5" href="#__codelineno-24-5"></a>pm-log-cli<span class="w"> </span>query<span class="w"> </span>--has-exception
-<a id="__codelineno-24-6" name="__codelineno-24-6" href="#__codelineno-24-6"></a>
-<a id="__codelineno-24-7" name="__codelineno-24-7" href="#__codelineno-24-7"></a><span class="c1"># Full traceback text for one specific event, exported for a support ticket</span>
-<a id="__codelineno-24-8" name="__codelineno-24-8" href="#__codelineno-24-8"></a>pm-log-cli<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span>query<span class="w"> </span>--process<span class="w"> </span>pm-md-gwy<span class="w"> </span>--has-exception<span class="w"> </span>--limit<span class="w"> </span><span class="m">1</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a><span class="c1"># All errors in the last hour</span>
+<a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a>pm-log-cli<span class="w"> </span>query<span class="w"> </span>--level<span class="w"> </span>ERROR,CRITICAL<span class="w"> </span>--since<span class="w"> </span><span class="m">2026</span>-07-28T13:00:00.000Z
+<a id="__codelineno-26-3" name="__codelineno-26-3" href="#__codelineno-26-3"></a>
+<a id="__codelineno-26-4" name="__codelineno-26-4" href="#__codelineno-26-4"></a><span class="c1"># All rows with an attached traceback</span>
+<a id="__codelineno-26-5" name="__codelineno-26-5" href="#__codelineno-26-5"></a>pm-log-cli<span class="w"> </span>query<span class="w"> </span>--has-exception
+<a id="__codelineno-26-6" name="__codelineno-26-6" href="#__codelineno-26-6"></a>
+<a id="__codelineno-26-7" name="__codelineno-26-7" href="#__codelineno-26-7"></a><span class="c1"># Full traceback text for one specific event, exported for a support ticket</span>
+<a id="__codelineno-26-8" name="__codelineno-26-8" href="#__codelineno-26-8"></a>pm-log-cli<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span>query<span class="w"> </span>--process<span class="w"> </span>pm-md-gwy<span class="w"> </span>--has-exception<span class="w"> </span>--limit<span class="w"> </span><span class="m">1</span>
 </code></pre></div>
 <h3 id="checking-whether-every-process-is-still-reporting-in">Checking whether every process is still reporting in<a class="headerlink" href="#checking-whether-every-process-is-still-reporting-in" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a><span class="c1"># Everything currently connected</span>
-<a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a>pm-log-cli<span class="w"> </span>processes<span class="w"> </span>--active
-<a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a>
-<a id="__codelineno-25-4" name="__codelineno-25-4" href="#__codelineno-25-4"></a><span class="c1"># Everything ever seen, to spot a process that connected once and vanished</span>
-<a id="__codelineno-25-5" name="__codelineno-25-5" href="#__codelineno-25-5"></a>pm-log-cli<span class="w"> </span>processes
-<a id="__codelineno-25-6" name="__codelineno-25-6" href="#__codelineno-25-6"></a>
-<a id="__codelineno-25-7" name="__codelineno-25-7" href="#__codelineno-25-7"></a><span class="c1"># Automated health check — flags process silence and fallback-to-file events</span>
-<a id="__codelineno-25-8" name="__codelineno-25-8" href="#__codelineno-25-8"></a>pm-log-cli<span class="w"> </span>diagnose
+<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a><span class="c1"># Everything currently connected</span>
+<a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a>pm-log-cli<span class="w"> </span>processes<span class="w"> </span>--active
+<a id="__codelineno-27-3" name="__codelineno-27-3" href="#__codelineno-27-3"></a>
+<a id="__codelineno-27-4" name="__codelineno-27-4" href="#__codelineno-27-4"></a><span class="c1"># Everything ever seen, to spot a process that connected once and vanished</span>
+<a id="__codelineno-27-5" name="__codelineno-27-5" href="#__codelineno-27-5"></a>pm-log-cli<span class="w"> </span>processes
+<a id="__codelineno-27-6" name="__codelineno-27-6" href="#__codelineno-27-6"></a>
+<a id="__codelineno-27-7" name="__codelineno-27-7" href="#__codelineno-27-7"></a><span class="c1"># Automated health check — flags process silence and fallback-to-file events</span>
+<a id="__codelineno-27-8" name="__codelineno-27-8" href="#__codelineno-27-8"></a>pm-log-cli<span class="w"> </span>diagnose
 </code></pre></div>
 <h3 id="free-text-searching-across-the-whole-system">Free-text searching across the whole system<a class="headerlink" href="#free-text-searching-across-the-whole-system" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a><span class="c1"># Find every mention of a specific error string, any process</span>
-<a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a>pm-log-cli<span class="w"> </span>query<span class="w"> </span>--grep<span class="w"> </span><span class="s2">"Connection reset"</span>
-<a id="__codelineno-26-3" name="__codelineno-26-3" href="#__codelineno-26-3"></a>
-<a id="__codelineno-26-4" name="__codelineno-26-4" href="#__codelineno-26-4"></a><span class="c1"># Narrow to one subsystem's loggers</span>
-<a id="__codelineno-26-5" name="__codelineno-26-5" href="#__codelineno-26-5"></a>pm-log-cli<span class="w"> </span>query<span class="w"> </span>--grep<span class="w"> </span><span class="s2">"timeout"</span><span class="w"> </span>--logger<span class="w"> </span><span class="s2">"edumatcher.api_gateway.%"</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a><span class="c1"># Find every mention of a specific error string, any process</span>
+<a id="__codelineno-28-2" name="__codelineno-28-2" href="#__codelineno-28-2"></a>pm-log-cli<span class="w"> </span>query<span class="w"> </span>--grep<span class="w"> </span><span class="s2">"Connection reset"</span>
+<a id="__codelineno-28-3" name="__codelineno-28-3" href="#__codelineno-28-3"></a>
+<a id="__codelineno-28-4" name="__codelineno-28-4" href="#__codelineno-28-4"></a><span class="c1"># Narrow to one subsystem's loggers</span>
+<a id="__codelineno-28-5" name="__codelineno-28-5" href="#__codelineno-28-5"></a>pm-log-cli<span class="w"> </span>query<span class="w"> </span>--grep<span class="w"> </span><span class="s2">"timeout"</span><span class="w"> </span>--logger<span class="w"> </span><span class="s2">"edumatcher.api_gateway.%"</span>
 </code></pre></div>
 <h3 id="exporting-for-external-analysis">Exporting for external analysis<a class="headerlink" href="#exporting-for-external-analysis" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a><span class="c1"># Export a whole day's logging for one process</span>
-<a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a>pm-log-cli<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span>query<span class="w"> </span>--process<span class="w"> </span>pm-engine<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-27-3" name="__codelineno-27-3" href="#__codelineno-27-3"></a><span class="w">  </span>--since<span class="w"> </span><span class="m">2026</span>-07-28T00:00:00.000Z<span class="w"> </span>--until<span class="w"> </span><span class="m">2026</span>-07-28T23:59:59.000Z<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-27-4" name="__codelineno-27-4" href="#__codelineno-27-4"></a><span class="w">  </span>--limit<span class="w"> </span><span class="m">100000</span><span class="w"> </span>&gt;<span class="w"> </span>pm-engine_2026-07-28.json
-<a id="__codelineno-27-5" name="__codelineno-27-5" href="#__codelineno-27-5"></a>
-<a id="__codelineno-27-6" name="__codelineno-27-6" href="#__codelineno-27-6"></a><span class="c1"># Export the full stats snapshot for a dashboard</span>
-<a id="__codelineno-27-7" name="__codelineno-27-7" href="#__codelineno-27-7"></a>pm-log-cli<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span>stats<span class="w"> </span>&gt;<span class="w"> </span>log_stats.json
+<div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a><span class="c1"># Export a whole day's logging for one process</span>
+<a id="__codelineno-29-2" name="__codelineno-29-2" href="#__codelineno-29-2"></a>pm-log-cli<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span>query<span class="w"> </span>--process<span class="w"> </span>pm-engine<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-29-3" name="__codelineno-29-3" href="#__codelineno-29-3"></a><span class="w">  </span>--since<span class="w"> </span><span class="m">2026</span>-07-28T00:00:00.000Z<span class="w"> </span>--until<span class="w"> </span><span class="m">2026</span>-07-28T23:59:59.000Z<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-29-4" name="__codelineno-29-4" href="#__codelineno-29-4"></a><span class="w">  </span>--limit<span class="w"> </span><span class="m">100000</span><span class="w"> </span>&gt;<span class="w"> </span>pm-engine_2026-07-28.json
+<a id="__codelineno-29-5" name="__codelineno-29-5" href="#__codelineno-29-5"></a>
+<a id="__codelineno-29-6" name="__codelineno-29-6" href="#__codelineno-29-6"></a><span class="c1"># Export the full stats snapshot for a dashboard</span>
+<a id="__codelineno-29-7" name="__codelineno-29-7" href="#__codelineno-29-7"></a>pm-log-cli<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span>stats<span class="w"> </span>&gt;<span class="w"> </span>log_stats.json
 </code></pre></div>
 <h3 id="routine-maintenance">Routine maintenance<a class="headerlink" href="#routine-maintenance" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a><span class="c1"># Quick health check before end of day</span>
-<a id="__codelineno-28-2" name="__codelineno-28-2" href="#__codelineno-28-2"></a>pm-log-cli<span class="w"> </span>stats
-<a id="__codelineno-28-3" name="__codelineno-28-3" href="#__codelineno-28-3"></a>pm-log-cli<span class="w"> </span>diagnose
-<a id="__codelineno-28-4" name="__codelineno-28-4" href="#__codelineno-28-4"></a>
-<a id="__codelineno-28-5" name="__codelineno-28-5" href="#__codelineno-28-5"></a><span class="c1"># Prune early if log.db is getting large before its scheduled hourly prune</span>
-<a id="__codelineno-28-6" name="__codelineno-28-6" href="#__codelineno-28-6"></a>pm-log-cli<span class="w"> </span>prune<span class="w"> </span>--days<span class="w"> </span><span class="m">30</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a><span class="c1"># Quick health check before end of day</span>
+<a id="__codelineno-30-2" name="__codelineno-30-2" href="#__codelineno-30-2"></a>pm-log-cli<span class="w"> </span>stats
+<a id="__codelineno-30-3" name="__codelineno-30-3" href="#__codelineno-30-3"></a>pm-log-cli<span class="w"> </span>diagnose
+<a id="__codelineno-30-4" name="__codelineno-30-4" href="#__codelineno-30-4"></a>
+<a id="__codelineno-30-5" name="__codelineno-30-5" href="#__codelineno-30-5"></a><span class="c1"># Prune early if log.db is getting large before its scheduled hourly prune</span>
+<a id="__codelineno-30-6" name="__codelineno-30-6" href="#__codelineno-30-6"></a>pm-log-cli<span class="w"> </span>prune<span class="w"> </span>--days<span class="w"> </span><span class="m">30</span>
 </code></pre></div>
 <h2 id="error-handling">Error Handling<a class="headerlink" href="#error-handling" title="Permanent link">&para;</a></h2>
 <table>
@@ -9278,6 +9372,10 @@ pushed rows as they land.</p>
 <tr>
 <td><code>1</code></td>
 <td>Database not found or not readable — has <code>pm-log-srv</code> ever run?</td>
+</tr>
+<tr>
+<td><code>1</code></td>
+<td><code>ledger check</code> found a gap, a stale or wrong-level entry, or an unreadable call site; <code>explain</code> got an unknown <code>seq</code></td>
 </tr>
 <tr>
 <td><code>2</code></td>

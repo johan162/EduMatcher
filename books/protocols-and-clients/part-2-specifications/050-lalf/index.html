@@ -8261,6 +8261,12 @@ length-prefixed message body.</p>
 <td>Set when the payload includes a formatted exception/traceback</td>
 </tr>
 <tr>
+<td><code>TPL</code></td>
+<td>No</td>
+<td>string</td>
+<td>Log-ledger template id: the first 12 hex characters of <code>sha1(LOGGER + "\u241f" + LogRecord.msg)</code>, the format string before <code>%</code>-formatting. The stock handler sets it on <code>WARNING</code> and above. Stored in <code>log_events.tpl</code></td>
+</tr>
+<tr>
 <td><code>LEN</code></td>
 <td>Yes</td>
 <td>int</td>

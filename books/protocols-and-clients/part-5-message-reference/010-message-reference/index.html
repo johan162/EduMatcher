@@ -13669,7 +13669,7 @@ wire-format specification in the
 <td><code>float</code></td>
 <td>required</td>
 <td>ge 0, unit <code>percent</code></td>
-<td>Rejected acks over inbound requests (new orders, combos, OCOs, cancels, amends, quotes) in the last 5 minutes, the same set engine.rejects counts; 0 when none.</td>
+<td>Rejected acks over inbound requests (new orders, combos, OCOs, cancels, amends, quotes) in the last 5 minutes, the same set engine.rejects counts, except that MARKET_CLOSED rejects and their requests are left out; 0 when none.</td>
 </tr>
 <tr>
 <td><code>handle_p50_us</code></td>
@@ -15622,6 +15622,13 @@ wire-format specification in the
 <td>required</td>
 <td>—</td>
 <td></td>
+</tr>
+<tr>
+<td><code>tpl</code></td>
+<td><code>string</code></td>
+<td>required</td>
+<td>max_len 12</td>
+<td>Log-ledger template id of the call site; set on WARNING+ rows only.</td>
 </tr>
 </tbody>
 </table>

@@ -8512,7 +8512,21 @@ rows queue behind it even if the rate drops back.</p>
 </div>
 <p>Clicking any row opens a <strong>detail pane</strong> on the right with the full <code>LOG</code>
 header field set — logger, module and line, pid and host, session and sequence
-number — plus the untruncated message. Two actions there:</p>
+number — plus the untruncated message.</p>
+<p>For a <code>WARNING</code>, <code>ERROR</code> or <code>CRITICAL</code> row, two panels below the message say
+what it means and what to do:</p>
+<ul>
+<li><strong>Explanation</strong> — what happened and what it means for the exchange.</li>
+<li><strong>Suggested actions</strong> — a numbered list; commands are shown in <code>code</code>.</li>
+</ul>
+<p>The text comes from the <strong>log ledger</strong> that ships with EduMatcher. It is the
+same text <code>pm-log-cli explain SEQ</code> prints (see
+<a href="../040-log-server/#explain-ledger-what-a-warning-means-and-what-to-do"><code>explain</code>, <code>ledger</code></a>).
+The bridge loads it once with <code>pm-log-cli ledger export</code>. A message without an
+entry shows "No ledger entry for this message (tpl=…)"; quote the <code>tpl</code> when
+you report it. Without <code>pm-log-cli</code> on the bridge host, the pane says no
+explanations are available, and everything else works as before.</p>
+<p>Two actions follow:</p>
 <ul>
 <li><strong>Copy</strong> — the message text to the clipboard.</li>
 <li><strong>Filter to this process</strong> — rewrites the URL filter, which is usually the

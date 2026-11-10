@@ -16538,7 +16538,7 @@ the recommended way to bring up (or tear down) a full EduMatcher stack,
 instead of launching each process by hand in its own terminal — see
 <a href="../../../operator-guide/part-3-run/010-running-the-exchange/#starting-the-stack-with-pm-opctl-cli">Running the Exchange → Starting the stack with pm-opctl-cli</a>.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-60-1" name="__codelineno-60-1" href="#__codelineno-60-1"></a>pm-opctl-cli<span class="w"> </span>start<span class="w"> </span><span class="o">[</span>PROFILE<span class="o">]</span><span class="w"> </span><span class="o">[</span>-d<span class="o">]</span>
-<a id="__codelineno-60-2" name="__codelineno-60-2" href="#__codelineno-60-2"></a>pm-opctl-cli<span class="w"> </span>list<span class="w"> </span><span class="o">[</span>-y<span class="w"> </span><span class="p">|</span><span class="w"> </span>--no-restart<span class="o">]</span>
+<a id="__codelineno-60-2" name="__codelineno-60-2" href="#__codelineno-60-2"></a>pm-opctl-cli<span class="w"> </span>list<span class="w"> </span><span class="o">[</span>-y<span class="w"> </span><span class="p">|</span><span class="w"> </span>--no-restart<span class="o">]</span><span class="w"> </span><span class="o">[</span>--no-tcp-probe<span class="o">]</span>
 <a id="__codelineno-60-3" name="__codelineno-60-3" href="#__codelineno-60-3"></a>pm-opctl-cli<span class="w"> </span>health<span class="w"> </span><span class="o">[</span>-q<span class="o">]</span>
 <a id="__codelineno-60-4" name="__codelineno-60-4" href="#__codelineno-60-4"></a>pm-opctl-cli<span class="w"> </span>stop
 <a id="__codelineno-60-5" name="__codelineno-60-5" href="#__codelineno-60-5"></a>pm-opctl-cli<span class="w"> </span><span class="nb">kill</span>
@@ -16607,7 +16607,7 @@ once that file exists its profiles replace the built-ins entirely (a missing
 <tr>
 <td><code>list</code></td>
 <td>—</td>
-<td><code>-y</code>/<code>--restart</code> (restart dead entries without asking), <code>--no-restart</code> (never offer)</td>
+<td><code>-y</code>/<code>--restart</code> (restart dead entries without asking), <code>--no-restart</code> (never offer), <code>--no-tcp-probe</code> (do not connect to each process's port; a live process reads as running)</td>
 <td>Status table for the active profile: uptime (<code>HH:MM</code>) and resident memory (MiB) per process</td>
 </tr>
 <tr>

@@ -8000,7 +8000,7 @@ and nothing is MISSING.</p>
 <td>&gt; 20 000 µs</td>
 </tr>
 <tr>
-<td><code>reject_pct_5m</code> — rejected over all inbound requests (orders, cancels, amends, quotes), judged from 20 requests in 5 min</td>
+<td><code>reject_pct_5m</code> — rejected over all inbound requests (orders, cancels, amends, quotes), judged from 20 requests in 5 min; <code>MARKET_CLOSED</code> rejects are left out (see below)</td>
 <td><code>exchange</code></td>
 <td>&gt; 10 %</td>
 <td>&gt; 30 %</td>
@@ -8043,6 +8043,18 @@ and nothing is MISSING.</p>
 </tr>
 </tbody>
 </table>
+<p><code>reject_pct_5m</code> does not count requests the engine refused as
+<code>MARKET_CLOSED</code>: neither the reject nor the request it answers is in the
+ratio, and they do not count towards the 20 requests it needs. Agents and
+clients that send an order in the last moments of the closing auction see the
+session still open; if the order reaches the engine after the close it is
+refused as <code>MARKET_CLOSED</code>. That is an ordinary race at the end of every
+trading day, not a sign of trouble, and counting it made the exchange
+DEGRADED a few minutes after the close, when the busy minutes had left the
+window. Orders sent while the market is closed for longer are no race, but
+they are not counted either; "Rejects today by reason" on the dashboard still
+lists every <code>MARKET_CLOSED</code> reject, and the participants table's own reject
+percentage still includes them.</p>
 <p>The configurable rules take their levels from <code>monitor.thresholds</code>. A breach
 is raised after five consecutive seconds over a warn level (a critical level
 is raised at once), so one noisy sample is not a breach. It clears (or eases

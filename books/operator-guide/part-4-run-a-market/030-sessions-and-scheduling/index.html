@@ -8365,6 +8365,13 @@ stdout (the engine's <code>logging</code> output stream, not stderr).</p>
 messages to the engine at configured wall-clock times over a ZeroMQ PUSH
 socket. It only does so on days that resolve to a schedule — see
 <a href="#bank-holidays-and-weekends">Bank holidays and weekends</a> below.</p>
+<p>With <code>sessions_enabled: false</code> in the deployed config the engine has no
+phases and refuses every transition, so <code>pm-scheduler</code> sends none: it logs
+"sessions are disabled in the deployed configuration" at INFO and idles until
+stopped, still reporting to <code>pm-monitor</code>. The bundled examples run this way,
+and the process profiles start <code>pm-scheduler</code> regardless, so it needs no
+special handling. (<code>--now</code> mode does not read the configuration and always
+sends its transitions.)</p>
 <h3 id="starting-the-scheduler">Starting the scheduler<a class="headerlink" href="#starting-the-scheduler" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># Use times from engine_config.yaml (or built-in defaults); run today's</span>
 <a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="c1"># schedule once (catching up on any times already passed) and then exit</span>

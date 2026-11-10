@@ -10773,21 +10773,25 @@ into place so a crash mid-write can never leave a truncated, unreadable file:</p
 <p>Loading is deliberately fail-soft, not fail-hard: a missing or unparseable file
 yields an empty list (the engine just starts with no resting orders) rather than
 crashing, and an individual corrupt entry is logged and skipped so the rest of the
-file can still be restored:</p>
+file can still be restored. Whatever cannot be restored is not thrown away: the
+engine's first checkpoint overwrites the file seconds after startup, so the loader
+first copies it aside as <code>gtc_orders.json.corrupt-&lt;UTC timestamp&gt;</code> and names the
+copy in its CRITICAL message. If even that copy fails, the engine does not start:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-72-1" name="__codelineno-72-1" href="#__codelineno-72-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">load_gtc_orders</span><span class="p">(</span><span class="n">path</span><span class="p">:</span> <span class="n">Path</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">Order</span><span class="p">]:</span>
 <a id="__codelineno-72-2" name="__codelineno-72-2" href="#__codelineno-72-2"></a>    <span class="k">if</span> <span class="ow">not</span> <span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
 <a id="__codelineno-72-3" name="__codelineno-72-3" href="#__codelineno-72-3"></a>        <span class="k">return</span> <span class="p">[]</span>
 <a id="__codelineno-72-4" name="__codelineno-72-4" href="#__codelineno-72-4"></a>    <span class="k">try</span><span class="p">:</span>
 <a id="__codelineno-72-5" name="__codelineno-72-5" href="#__codelineno-72-5"></a>        <span class="n">data</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">path</span><span class="o">.</span><span class="n">read_text</span><span class="p">())</span>
 <a id="__codelineno-72-6" name="__codelineno-72-6" href="#__codelineno-72-6"></a>    <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
-<a id="__codelineno-72-7" name="__codelineno-72-7" href="#__codelineno-72-7"></a>        <span class="k">return</span> <span class="p">[]</span>  <span class="c1"># truncated / corrupt — start with no resting orders</span>
-<a id="__codelineno-72-8" name="__codelineno-72-8" href="#__codelineno-72-8"></a>    <span class="n">orders</span> <span class="o">=</span> <span class="p">[]</span>
-<a id="__codelineno-72-9" name="__codelineno-72-9" href="#__codelineno-72-9"></a>    <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">data</span><span class="p">:</span>
-<a id="__codelineno-72-10" name="__codelineno-72-10" href="#__codelineno-72-10"></a>        <span class="k">try</span><span class="p">:</span>
-<a id="__codelineno-72-11" name="__codelineno-72-11" href="#__codelineno-72-11"></a>            <span class="n">orders</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Order</span><span class="o">.</span><span class="n">from_dict</span><span class="p">(</span><span class="n">d</span><span class="p">))</span>
-<a id="__codelineno-72-12" name="__codelineno-72-12" href="#__codelineno-72-12"></a>        <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
-<a id="__codelineno-72-13" name="__codelineno-72-13" href="#__codelineno-72-13"></a>            <span class="k">pass</span>  <span class="c1"># logged at CRITICAL and skipped; other entries still load</span>
-<a id="__codelineno-72-14" name="__codelineno-72-14" href="#__codelineno-72-14"></a>    <span class="k">return</span> <span class="n">orders</span>
+<a id="__codelineno-72-7" name="__codelineno-72-7" href="#__codelineno-72-7"></a>        <span class="n">keep_corrupt_copy</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>  <span class="c1"># before the first checkpoint overwrites it</span>
+<a id="__codelineno-72-8" name="__codelineno-72-8" href="#__codelineno-72-8"></a>        <span class="k">return</span> <span class="p">[]</span>  <span class="c1"># truncated / corrupt — start with no resting orders</span>
+<a id="__codelineno-72-9" name="__codelineno-72-9" href="#__codelineno-72-9"></a>    <span class="n">orders</span> <span class="o">=</span> <span class="p">[]</span>
+<a id="__codelineno-72-10" name="__codelineno-72-10" href="#__codelineno-72-10"></a>    <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">data</span><span class="p">:</span>
+<a id="__codelineno-72-11" name="__codelineno-72-11" href="#__codelineno-72-11"></a>        <span class="k">try</span><span class="p">:</span>
+<a id="__codelineno-72-12" name="__codelineno-72-12" href="#__codelineno-72-12"></a>            <span class="n">orders</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Order</span><span class="o">.</span><span class="n">from_dict</span><span class="p">(</span><span class="n">d</span><span class="p">))</span>
+<a id="__codelineno-72-13" name="__codelineno-72-13" href="#__codelineno-72-13"></a>        <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+<a id="__codelineno-72-14" name="__codelineno-72-14" href="#__codelineno-72-14"></a>            <span class="n">keep_corrupt_copy</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>  <span class="c1"># once; then logged at CRITICAL and skipped</span>
+<a id="__codelineno-72-15" name="__codelineno-72-15" href="#__codelineno-72-15"></a>    <span class="k">return</span> <span class="n">orders</span>
 </code></pre></div>
 <p>On the next startup, they are restored before any new orders are accepted. A
 restored <code>TIF.DAY</code> order is discarded instead if its original business day (derived

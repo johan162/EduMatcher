@@ -7768,7 +7768,8 @@ simulation image is a fork: every program in it is the ordinary
    <a href="#end-of-day">End of day</a> below.</li>
 <li>
 <p><strong>Watches it</strong>: once a minute it restarts any process of the profile that
-   has died, and says so in the container log (<code>docker logs edumatcher-sim</code>):</p>
+   has died (it only looks for a running process; it does not connect to the
+   gateways' ports, so it never shows up as a client in their logs), and says so in the container log (<code>docker logs edumatcher-sim</code>):</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>==&gt; 2026-11-03 09:00:41 Restarting: mm-bot
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>==&gt; 2026-11-03 09:00:41   started mm-bot (pid 812): pm-mm-bot --gateway-id MM01 ...
 </code></pre></div>

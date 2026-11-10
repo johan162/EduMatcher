@@ -8321,6 +8321,11 @@ the connection after at most 5 seconds. On idle timeout the final line is
 </tbody>
 </table>
 <h2 id="troubleshooting">Troubleshooting<a class="headerlink" href="#troubleshooting" title="Permanent link">&para;</a></h2>
+<p>A connection that closes before sending a single byte, such as a TCP
+liveness probe, is not a client: <code>pm-md-gwy</code>, <code>pm-ralf-gwy</code> and <code>pm-dc-gwy</code>
+log its accept and its <code>peer_closed</code> disconnect at <code>DEBUG</code> only, and do not
+count it in <code>gwy.disconnects</code>. A client is logged (<code>client connected</code>) at
+<code>INFO</code> when its first bytes arrive.</p>
 <h3 id="check-whether-the-port-is-in-use">Check whether the port is in use<a class="headerlink" href="#check-whether-the-port-is-in-use" title="Permanent link">&para;</a></h3>
 <p><strong>macOS:</strong></p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>sudo<span class="w"> </span>lsof<span class="w"> </span>-iTCP:5590<span class="w"> </span>-sTCP:LISTEN

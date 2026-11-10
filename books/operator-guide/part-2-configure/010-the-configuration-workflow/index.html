@@ -11025,9 +11025,10 @@ the YAML was read from, and the SHA-256 of its text (of the main file followed b
 <em>does</em> look at your YAML, and it catches the one failure compiling introduces:
 editing the authored file and forgetting to deploy, so the exchange keeps
 running the previous configuration while the file on disk says otherwise.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-54-1" name="__codelineno-54-1" href="#__codelineno-54-1"></a>engine_config.yaml has changed since the running configuration was compiled
-<a id="__codelineno-54-2" name="__codelineno-54-2" href="#__codelineno-54-2"></a>at 2026-09-04T09:43:28.000Z — this exchange is still running the previous
-<a id="__codelineno-54-3" name="__codelineno-54-3" href="#__codelineno-54-3"></a>one. Run pm-config-deploy to pick up the edit.
+<div class="highlight"><pre><span></span><code><a id="__codelineno-54-1" name="__codelineno-54-1" href="#__codelineno-54-1"></a>the running configuration is out of date: engine_config.yaml has changed since
+<a id="__codelineno-54-2" name="__codelineno-54-2" href="#__codelineno-54-2"></a>the running configuration was compiled at 2026-09-04T09:43:28.000Z — this
+<a id="__codelineno-54-3" name="__codelineno-54-3" href="#__codelineno-54-3"></a>exchange is still running the previous one. Run pm-config-deploy to pick up
+<a id="__codelineno-54-4" name="__codelineno-54-4" href="#__codelineno-54-4"></a>the edit.
 </code></pre></div>
 <p>It only warns. It also stays silent when the source is unreachable — a
 configuration compiled on another machine, or from a file since moved, is not
