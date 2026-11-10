@@ -137,6 +137,12 @@ REQUEST_COUNTERS = frozenset(
 )
 
 
+#: Rejected because the session was closed: an order sent in the last moments
+#: of the closing auction that reached the engine after the close. Not a
+#: sign of trouble, so ``reject_pct_5m`` counts neither it nor its request.
+MARKET_CLOSED_CODE = "MARKET_CLOSED"
+
+
 @dataclass
 class Participant:
     """One gateway id as the engine counts it."""
@@ -200,6 +206,8 @@ class Activity:
         self.trades = Rate()
         self.rejects = Rate()
         self.requests = Rate()
+        #: ``MARKET_CLOSED`` rejects, which ``reject_pct_5m`` leaves out.
+        self.closed_rejects = Rate()
         self.traded_value = 0.0
         #: Today's rejects by reason (``engine.rejects_by_code``).
         self.reject_codes: dict[str, float] = {}
@@ -235,6 +243,7 @@ class Activity:
             self.trades.new_day()
             self.rejects.new_day()
             self.requests.new_day()
+            self.closed_rejects.new_day()
             self.traded_value = 0.0
             self.reject_codes = {}
             self.session_opened_at = None
@@ -361,6 +370,8 @@ class Activity:
             self._participant(label).rejects += delta
         elif name == "engine.rejects_by_code":
             self.reject_codes[label] = self.reject_codes.get(label, 0.0) + delta
+            if label == MARKET_CLOSED_CODE:
+                self.closed_rejects.add(now, delta, windowed=windowed)
         elif name == "engine.fills":
             self._participant(label).fills += delta
         elif name == "engine.connects":
@@ -448,12 +459,16 @@ class Activity:
     # ------------------------------------------------------------------
 
     def requests_5m(self, now: float) -> float:
-        return self.requests.last_5m(now)
+        """Inbound requests in the last 5 minutes, those rejected as
+        ``MARKET_CLOSED`` left out (the sample ``reject_pct_5m`` is judged on)."""
+        return self.requests.last_5m(now) - self.closed_rejects.last_5m(now)
 
     def reject_pct_5m(self, now: float) -> float:
-        """Rejected over all inbound requests in the last 5 minutes."""
-        requests = self.requests.last_5m(now)
-        return 0.0 if requests <= 0 else 100.0 * self.rejects.last_5m(now) / requests
+        """Rejected over all inbound requests in the last 5 minutes, leaving
+        out the ``MARKET_CLOSED`` rejects and the requests they answer."""
+        requests = self.requests_5m(now)
+        rejects = self.rejects.last_5m(now) - self.closed_rejects.last_5m(now)
+        return 0.0 if requests <= 0 else 100.0 * max(rejects, 0.0) / requests
 
     def trading(
         self, now: float, now_wall: float, *, engine_live: bool = True

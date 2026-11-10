@@ -1,0 +1,192 @@
+# Log ledger entries for pm-monitor (edumatcher.monitor), the health collector behind the operator dashboard.
+# Format: docs-design/EduMatcher-Log-Ledger.md §3. Check with `pm-log-cli ledger check`.
+# Actions are double-quoted: a bare YAML string must not contain ": " or start with a backtick.
+# The collector's warnings are logged at most once a minute per kind; its counters keep the totals.
+
+# --- startup ---------------------------------------------------------------
+
+- logger: edumatcher.monitor.main
+  template: "monitoring is disabled; pm-monitor idles until stopped"
+  level: WARNING
+  explanation: >
+    The deployed configuration has `monitor.enabled: false`. pm-monitor runs
+    but collects nothing, so the operator dashboard and `pm-monitor-cli` show
+    no health.
+  actions:
+    - "If monitoring is meant to be off, remove pm-monitor from the process profile."
+    - "Otherwise set `monitor.enabled: true`, run `pm-config-deploy` and restart pm-monitor."
+
+- logger: edumatcher.monitor.main
+  template: "cannot open %s: %s"
+  level: CRITICAL
+  explanation: >
+    pm-monitor could not open its history database (metrics.db), either
+    because another pm-monitor is already writing it or because it was
+    recorded with a different session timezone. pm-monitor did not start.
+  actions:
+    - "If another pm-monitor runs (`pm-opctl-cli list`, or `ps`), stop the extra one."
+    - "If the session timezone was changed on purpose, move the old metrics.db aside and start pm-monitor again; it creates a new one."
+
+- logger: edumatcher.monitor.main
+  template: "cannot open %s: %s -- running without history"
+  level: ERROR
+  explanation: >
+    pm-monitor could not open or create its history database, typically
+    because the data directory is read-only or full. It runs on and the live
+    dashboard works, but nothing is recorded for charts, averages or
+    `pm-monitor-cli events`, and pm-monitor reports itself DEGRADED.
+  actions:
+    - "Check that the data directory is writable and has space, then restart pm-monitor."
+
+- logger: edumatcher.monitor.main
+  template: "cannot bind pm-monitor sockets (pull_port %d, pub_port %d): %s"
+  level: CRITICAL
+  explanation: >
+    pm-monitor could not open its ports, so it did not start. Usually another
+    process (often a second pm-monitor) already holds one of them.
+  actions:
+    - "Find what holds the ports in the message with `ss -ltnp`."
+    - "Stop the other process, or change `monitor.pull_port`/`monitor.pub_port`, run `pm-config-deploy` and start pm-monitor again."
+
+- logger: edumatcher.monitor.main
+  template: "fatal runtime error: %s"
+  level: CRITICAL
+  explanation: >
+    pm-monitor stopped because of an unexpected error in its main loop. The
+    exchange keeps trading, but the operator dashboard and health alerts stop
+    until it is restarted.
+  actions:
+    - "Read the error and the traceback in pm-monitor's console or log file."
+    - "Restart pm-monitor."
+    - "Report it as a bug with the traceback."
+
+# --- process and threshold events ------------------------------------------
+
+- logger: edumatcher.monitor.collector
+  template: "process %s: %s"
+  level: ERROR
+  explanation: >
+    A process on the exchange changed health state, as shown in the message
+    (for example "HEALTHY -> HUNG"). DEGRADED is logged as WARNING; HUNG
+    (alive but its main loop stopped), SILENT (no beacons although the process
+    still runs), DEAD (no beacons and the process is gone) and MISSING (expected by the active profile but never seen) as
+    ERROR.
+  actions:
+    - "Look at the process's own rows around this time for the cause."
+    - "Check the process with `pm-monitor-cli status` and `pm-opctl-cli list`; restart it if it is HUNG or DEAD."
+    - "MISSING means the active profile expects the process but it was not started; start it or switch profile."
+
+- logger: edumatcher.monitor.collector
+  template: "threshold %s on %s"
+  level: ERROR
+  explanation: >
+    A monitored value crossed one of the configured limits (the rule and the
+    process are in the message). WARN is logged as WARNING, CRIT as ERROR.
+  actions:
+    - "Open the operator dashboard or run `pm-monitor-cli status` to see the value and the limit."
+    - "If the limit is wrong for this exchange, change it under `monitor.thresholds` in the source config and run `pm-config-deploy`."
+
+# --- collector -------------------------------------------------------------
+
+- logger: edumatcher.monitor.collector
+  template: "pm-monitor %s step failed; continuing"
+  level: ERROR
+  explanation: >
+    One step of pm-monitor's loop (named in the message) raised an unexpected
+    error. pm-monitor carries on; that step's work for this round is lost,
+    for example one snapshot or one round of history.
+  actions:
+    - "Read the traceback; if it repeats, report it as a pm-monitor bug."
+
+- logger: edumatcher.monitor.collector
+  template: "metrics.db not closed cleanly: %s"
+  level: ERROR
+  explanation: >
+    While stopping, pm-monitor could not write its last history and close
+    metrics.db. The last few seconds of history may be missing; the database
+    itself stays usable.
+  actions:
+    - "Check that the data directory has space."
+
+- logger: edumatcher.monitor.collector
+  template: "invalid health beacon dropped: %s"
+  level: WARNING
+  explanation: >
+    pm-monitor received a health beacon it could not parse and dropped it.
+    Usually a process from another EduMatcher release, or something that is
+    not an EduMatcher process sending to pm-monitor's port.
+  actions:
+    - "Make sure every process runs the same EduMatcher release as pm-monitor."
+
+- logger: edumatcher.monitor.collector
+  template: "tracking %d sources already; beacon from %s/%s@%s rejected"
+  level: WARNING
+  explanation: >
+    pm-monitor already tracks the most processes it allows (256), so a beacon
+    from a new process was rejected and that process does not appear on the
+    dashboard.
+  actions:
+    - "Check for processes that restart with a new instance name each time; each one counts as a new source."
+    - "Restart pm-monitor to forget sources that are gone."
+
+- logger: edumatcher.monitor.collector
+  template: "engine bus message not understood: %s"
+  level: WARNING
+  explanation: >
+    pm-monitor could not interpret a message from the engine's publish
+    stream, which it uses to follow sessions and trading activity. It was
+    skipped.
+  actions:
+    - "Make sure pm-engine and pm-monitor run the same EduMatcher release."
+
+- logger: edumatcher.monitor.collector
+  template: "health event invalid, not published: %s"
+  level: WARNING
+  explanation: >
+    pm-monitor built a health event (a state change or threshold breach) that
+    does not follow the event format, so it was not published. Dashboards did
+    not get it, though it is still in metrics.db.
+  actions:
+    - "Report it as a pm-monitor bug with the error."
+
+- logger: edumatcher.monitor.collector
+  template: "health snapshot invalid, not published: %s"
+  level: WARNING
+  explanation: >
+    pm-monitor built a health snapshot that does not follow the snapshot
+    format, so it was not published. Dashboards keep the previous snapshot
+    until a valid one arrives.
+  actions:
+    - "Report it as a pm-monitor bug with the error."
+
+- logger: edumatcher.monitor.collector
+  template: "metrics.db write failed: %s"
+  level: WARNING
+  explanation: >
+    pm-monitor could not write history to metrics.db. The live dashboard
+    works, but charts and averages have a gap, and pm-monitor reports itself
+    DEGRADED while writes fail.
+  actions:
+    - "Check that the data directory has space and is writable."
+    - "A locked database is usually another program holding it open; close it."
+
+# --- process roster --------------------------------------------------------
+
+- logger: edumatcher.monitor.roster
+  template: "cannot read emo profiles, roster unchanged: %s"
+  level: WARNING
+  explanation: >
+    pm-monitor could not read the process profiles (emo-config.yaml), so it
+    keeps the list of expected processes it had. Processes added to or removed
+    from the profile are not reflected as MISSING or expected.
+  actions:
+    - "Fix the error in emo-config.yaml named in the message; pm-monitor rereads it when it changes."
+
+- logger: edumatcher.monitor.roster
+  template: "active emo profile %r is not defined: nothing is expected"
+  level: WARNING
+  explanation: >
+    The active process profile is not defined in emo-config.yaml, so
+    pm-monitor expects no processes and never reports one as MISSING.
+  actions:
+    - "Start the exchange with a defined profile (`pm-opctl-cli start <profile>`), or add the profile to emo-config.yaml."

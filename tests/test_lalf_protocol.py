@@ -9,6 +9,7 @@ from edumatcher.logclient.protocol import (
     build_log_frame,
     parse_header_line,
     payload_len,
+    template_id,
     validate_log_fields,
 )
 
@@ -168,3 +169,28 @@ def test_frame_reader_rejects_oversized_header_line() -> None:
     with pytest.raises(LalfProtocolError):
         reader.feed(b"HB|TS=" + b"x" * 100 + b"\n")
         reader.next_frame()
+
+
+def test_template_id_is_a_stable_12_hex_key_per_logger_and_template() -> None:
+    a = template_id("edumatcher.engine.main", "order %s rejected")
+    assert len(a) == 12
+    assert all(ch in "0123456789abcdef" for ch in a)
+    assert template_id("edumatcher.engine.main", "order %s rejected") == a
+    assert template_id("edumatcher.orders.main", "order %s rejected") != a
+    assert template_id("edumatcher.engine.main", "order %s accepted") != a
+
+
+def test_build_log_frame_carries_tpl_only_when_given() -> None:
+    def fields(tpl: str | None) -> dict[str, str]:
+        reader = FrameReader()
+        reader.feed(
+            build_log_frame(
+                seq=1, ts="x", level="WARNING", logger="y", message="z", tpl=tpl
+            )
+        )
+        frame = reader.next_frame()
+        assert frame is not None
+        return frame.fields
+
+    assert fields("0123456789ab")["TPL"] == "0123456789ab"
+    assert "TPL" not in fields(None)

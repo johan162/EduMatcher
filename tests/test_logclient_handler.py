@@ -12,6 +12,7 @@ import pytest
 from edumatcher.log_srv.config import LogServerConfig
 from edumatcher.log_srv.server import LogServer
 from edumatcher.logclient.handler import TcpLogHandler
+from edumatcher.logclient.protocol import template_id
 from tests.conftest import free_port, free_ports
 
 _HOST = "127.0.0.1"
@@ -41,6 +42,15 @@ class _RunningServer:
     def stop(self) -> None:
         self.server.stop()
         time.sleep(0.4)
+
+    def tpl_by_message(self) -> dict[str, str | None]:
+        import sqlite3
+
+        conn = sqlite3.connect(str(self.db_path))
+        try:
+            return dict(conn.execute("SELECT message, tpl FROM log_events").fetchall())
+        finally:
+            conn.close()
 
     def row_count(self) -> int:
         import sqlite3
@@ -111,6 +121,46 @@ def test_delivers_log_record_to_running_server(
         assert running_server.row_count() >= 1
     finally:
         handler.close()
+
+
+def test_warning_rows_carry_the_template_id_of_their_call_site(
+    running_server: _RunningServer, tmp_path: Path
+) -> None:
+    """The key is the unformatted template, so every occurrence shares it."""
+    handler = TcpLogHandler(
+        _HOST,
+        running_server.port,
+        "pm-test",
+        connect_timeout_sec=0.5,
+        failover_timeout_sec=5.0,
+        failover_dir=tmp_path,
+    )
+    records = [
+        logging.LogRecord(
+            "edumatcher.t", logging.WARNING, __file__, 1, "slow %s", ("a",), None
+        ),
+        logging.LogRecord(
+            "edumatcher.t", logging.ERROR, __file__, 1, "slow %s", ("b",), None
+        ),
+        logging.LogRecord(
+            "edumatcher.t", logging.INFO, __file__, 1, "fine %s", ("c",), None
+        ),
+    ]
+    try:
+        for record in records:
+            handler.emit(record)
+        deadline = time.monotonic() + 2.0
+        while time.monotonic() < deadline and running_server.row_count() < 3:
+            time.sleep(0.1)
+    finally:
+        handler.close()
+
+    expected = template_id("edumatcher.t", "slow %s")
+    assert running_server.tpl_by_message() == {
+        "slow a": expected,
+        "slow b": expected,
+        "fine c": None,
+    }
 
 
 def test_failover_writes_to_fallback_file_after_grace_window(tmp_path: Path) -> None:

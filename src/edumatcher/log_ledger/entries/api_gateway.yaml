@@ -1,0 +1,179 @@
+# Log ledger entries for pm-api-gwy (edumatcher.api_gateway).
+# Format: docs-design/EduMatcher-Log-Ledger.md §3. Check with `pm-log-cli ledger check`.
+# Actions are double-quoted: a bare YAML string must not contain ": " or start with a backtick.
+
+# --- startup ---------------------------------------------------------------
+
+- logger: edumatcher.api_gateway.main
+  template: "failed to resolve configuration: %s"
+  level: CRITICAL
+  explanation: >
+    pm-api-gwy could not build its configuration from the compiled exchange
+    config and its command-line options, so it did not start. REST and
+    WebSocket clients of this instance cannot connect until it does.
+  actions:
+    - "Read the reason in the message; an unknown `--instance` name or a bad value is typical."
+    - "Check the deployed `api_gateways` block with `pm-config-show`, fix the source config and run `pm-config-deploy`."
+    - "Start pm-api-gwy again."
+
+- logger: edumatcher.api_gateway.main
+  template: "selected api_gateways entry is disabled"
+  level: WARNING
+  explanation: >
+    The `api_gateways` entry this pm-api-gwy was started for has
+    `enabled: false`, so it exited.
+  actions:
+    - "If that instance is meant to be off, remove it from the process profile so it is not started."
+    - "Otherwise set `enabled: true` on that entry, run `pm-config-deploy` and start it again."
+
+- logger: edumatcher.api_gateway.main
+  template: "fatal runtime error: %s"
+  level: CRITICAL
+  explanation: >
+    pm-api-gwy stopped because of an unexpected error in its web server. Its
+    REST and WebSocket clients are disconnected, and the engine applies each
+    participant's disconnect behaviour.
+  actions:
+    - "Read the error and the traceback in pm-api-gwy's console or log file."
+    - "\"Address already in use\" means another process holds the port; find it with `ss -ltnp`."
+    - "Restart pm-api-gwy."
+
+# --- engine connection ------------------------------------------------------
+
+- logger: edumatcher.api_gateway.engine_client
+  template: "auth handshake timed out gateway_id=%s"
+  level: WARNING
+  explanation: >
+    pm-api-gwy asked the engine to connect a participant and got no answer in
+    time, so that client's request failed with "Engine authentication timed
+    out". The client can retry.
+  actions:
+    - "Check that pm-engine is running and responsive (`pm-monitor-cli status`)."
+    - "If the engine is busy (an opening burst), retries usually succeed a moment later."
+
+- logger: edumatcher.api_gateway.engine_client
+  template: "Dropping malformed engine PUB message: %s"
+  level: WARNING
+  explanation: >
+    A message from the engine's publish stream could not be decoded and was
+    dropped. Clients it concerned see a sequence gap on that topic.
+  actions:
+    - "Make sure pm-engine and pm-api-gwy run the same EduMatcher release."
+    - "Report it with the error if the releases match."
+
+- logger: edumatcher.api_gateway.engine_client
+  template: "%s sink full — dropped event (topic=%s, %d dropped on this sink). A client is slower than the feed; it can detect this from the per-topic seq gap."
+  level: WARNING
+  explanation: >
+    A WebSocket client (a participant's private stream, or the admin monitor
+    feed) read its events more slowly than the engine produced them, so its
+    queue filled and events were dropped. The client sees a sequence gap and
+    should resynchronise. Logged for the first drop and then every hundredth.
+  actions:
+    - "Check the gateway's CPU at that time; a saturated pm-api-gwy (for example at the opening burst) is the usual cause."
+    - "The REST API row on the operator dashboard shows dropped events per gateway."
+    - "If one client is always slow, check that client's host and network."
+
+- logger: edumatcher.api_gateway.engine_client
+  template: "engine event %s failed in the gateway"
+  level: ERROR
+  explanation: >
+    Applying an engine event inside pm-api-gwy raised an unexpected error. The
+    rest of the batch was still applied, but this event did not reach its
+    clients or the gateway's own order cache.
+  actions:
+    - "Clients concerned should resynchronise their orders (a fresh snapshot, or GET /orders)."
+    - "Report it as a gateway bug with the topic and traceback."
+
+- logger: edumatcher.api_gateway.engine_client
+  template: "engine restart: de-authenticating %s"
+  level: WARNING
+  explanation: >
+    pm-engine restarted and no longer knows the gateway's connected
+    participants. pm-api-gwy forgot them, so each one's next request connects
+    it to the engine again.
+  actions:
+    - "Check why the engine restarted: look for its CRITICAL or ERROR rows just before, or a planned restart."
+    - "Clients should resynchronise their orders; nothing else needs doing."
+
+- logger: edumatcher.api_gateway.index_client
+  template: "Dropping malformed index PUB message: %s"
+  level: WARNING
+  explanation: >
+    A message from pm-index could not be decoded and was dropped. Index values
+    served by the API may be one update behind.
+  actions:
+    - "Make sure pm-index and pm-api-gwy run the same EduMatcher release."
+
+- logger: edumatcher.api_gateway.sim_client
+  template: "Dropping malformed sim PUB message: %s"
+  level: WARNING
+  explanation: >
+    A message from pm-market-sim could not be decoded and was dropped.
+    Simulation data served by the API (such as news) may miss that update.
+  actions:
+    - "Make sure pm-market-sim and pm-api-gwy run the same EduMatcher release."
+
+# --- request handlers -------------------------------------------------------
+
+- logger: edumatcher.api_gateway.routers.bootstrap
+  template: "bootstrap fills: %s"
+  level: WARNING
+  explanation: >
+    While building a client's start-up snapshot, the session timezone recorded
+    in stats.db could not be used, and UTC was used instead. Today's fills in
+    the snapshot may be cut at the wrong time of day.
+  actions:
+    - "Check the session timezone in the source config (`locale.session_timezone`) and that it is a valid name such as Europe/Stockholm."
+    - "If stats.db was recorded with a wrong timezone, it stays wrong for that database; fix the config for the next one."
+
+- logger: edumatcher.api_gateway.routers.history
+  template: "history: %s"
+  level: WARNING
+  explanation: >
+    A history request could not use the session timezone recorded in
+    stats.db, and used UTC instead, so the "date" in the request may select a
+    different trading day than pm-stats recorded.
+  actions:
+    - "Check the session timezone in the source config (`locale.session_timezone`) and that it is a valid name such as Europe/Stockholm."
+
+- logger: edumatcher.api_gateway.routers.reference
+  template: "positions: cannot open clearing DB %s"
+  level: WARNING
+  explanation: >
+    A positions request could not open pm-clearing's database, so the reply
+    has no realized profit and loss.
+  actions:
+    - "Check pm-clearing and its database with `pm-clearing-cli health`."
+    - "Check that the database in the message is readable by the user running pm-api-gwy."
+
+- logger: edumatcher.api_gateway.routers.reference
+  template: "positions: clearing DB read failed"
+  level: WARNING
+  explanation: >
+    A positions request opened pm-clearing's database but reading it failed,
+    so the reply has no realized profit and loss.
+  actions:
+    - "A locked database during heavy clearing load is usually transient; retry."
+    - "If it repeats, read the traceback and check the clearing database's health."
+
+- logger: edumatcher.api_gateway.routers.ws
+  template: "[%s] private stream snapshot/setup failed"
+  level: ERROR
+  explanation: >
+    Opening a participant's private WebSocket stream failed while sending the
+    initial snapshot, so the connection was closed. The client can reconnect.
+  actions:
+    - "Read the traceback; the gateway id is in the message."
+    - "If it repeats for the same participant, report it as a gateway bug."
+
+- logger: edumatcher.api_gateway.routers.ws
+  template: "[%s] admin monitor snapshot/setup failed"
+  level: ERROR
+  explanation: >
+    Opening the admin monitor WebSocket feed failed while sending the initial
+    snapshot, so the connection was closed. The admin client (such as the
+    trader-GUI's admin pages) can reconnect.
+  actions:
+    - "Read the traceback; the admin gateway id is in the message."
+    - "If it repeats, report it as a gateway bug."

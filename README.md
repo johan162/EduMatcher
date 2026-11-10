@@ -8,7 +8,7 @@
 | **Package**       | [![GitHub release](https://img.shields.io/github/v/release/johan162/edumatcher?include_prereleases)](https://github.com/johan162/edumatcher/releases) [![PyPI version](https://img.shields.io/pypi/v/edumatcher.svg)](https://pypi.org/project/edumatcher/) [![Python 3.13+](https://img.shields.io/badge/python-3.13+-blue.svg)](https://www.python.org/downloads/) |
 | **Documentation** | [![Documentation](https://img.shields.io/badge/docs-mkdocs-blue)](https://johan162.github.io/EduMatcher/) |
 | **CI/CD**         | [![CI](https://github.com/johan162/EduMatcher/actions/workflows/ci.yml/badge.svg)](https://github.com/johan162/EduMatcher/actions/workflows/ci.yml) |
-| **Code Quality**  | [![Coverage](https://img.shields.io/badge/coverage-90%25-darkgreen.svg)](https://github.com/johan162/EduMatcher/actions/workflows/ci.yml)  [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black) [![Checked with mypy](https://www.mypy-lang.org/static/mypy_badge.svg)](https://mypy-lang.org/) [![Linting: flake8](https://img.shields.io/badge/linting-flake8-yellowgreen)](https://flake8.pycqa.org/) |
+| **Code Quality**  | [![Coverage](https://img.shields.io/badge/coverage-91%25-darkgreen.svg)](https://github.com/johan162/EduMatcher/actions/workflows/ci.yml)  [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black) [![Checked with mypy](https://www.mypy-lang.org/static/mypy_badge.svg)](https://mypy-lang.org/) [![Linting: flake8](https://img.shields.io/badge/linting-flake8-yellowgreen)](https://flake8.pycqa.org/) |
 | **License**       | [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)  |
 
 EduMatcher is an educational trading system that teaches market microstructure,
@@ -19,16 +19,34 @@ scheduler, order-entry and market-data gateways, clearing, audit and statistics
 services, browser front-ends, and its own wire protocols — all running as
 separate processes that talk to each other the way a real venue's do.
 
-## Main Web-site
-
-A full description and both on-line and off-line documentation can be found [here](https://tirnex.aditus.nu/index.html)
-
 ## Quick start
+
+### A buzzling and hustling live simulated exchange with 100 of other traders
+
+With Podman or Docker installed, one command gets you a running exchange with 300 made up symbols for fictious companies in different sectors and 100 automated traders that you can watch live and connect to and trade to/with. This is a sophisticated simulation with an advanced market model including news and roumours that affects price discovery. Its the best way to get a feeling of trading in a market. The simulation
+itself produces around 3 million orders per day.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/curl/install.sh \
+| bash -s -- --sim
+cd ~/.edumatcher-sim
+```
+
+The install script will print outmore information at startup. To get started run:
+
+```
+cd ~/.edumatcher-sim     # Everything lives in this directory
+./edumatcher.sh shell    # Open a shell within the container
+pm-help                  # Print help of all available commands
+```
+
+
 
 ### A clean exchange with only you as a trader
 
 With Podman or Docker installed, one command gets you a running exchange and
-five web applications:
+five web applications with only two default trader. This will be a silent marke as only the
+orders you send will move it. 
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/curl/install.sh \
@@ -38,19 +56,7 @@ cd ~/.edumatcher
 
 The exchange is now running on a bundled configuration.  
 The `pm-*` commands, the control plane of the exchange, lives *inside* the container. The exchage now
-waits for you to make a move! If you feel it is lonely inthe exchange being the only trader, read the next
-section!
-
-### A buzzling and hustling live simulated exchange with 100 of other traders
-
-With Podman or Docker installed, one command gets you a running exchange with 300 symbols and 100 of automated traders that you can watch live and connect to. This is a sophisticated simulation with an advanced market
-model including news and roumours that affects price discovery.
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/curl/install.sh \
-| bash -s -- --sim
-cd ~/.edumatcher-sim
-```
+waits for you to make a move! 
 
 ### Commands to try 
 
@@ -215,7 +221,7 @@ If you use this tool in teaching or courses, please cite:
   author = {Johan Persson},
   year = {2026},
   url = {https://github.com/johan162/EduMatcher},
-  version = {0.77.3}
+  version = {0.77.4}
 }
 ```
 

@@ -263,7 +263,7 @@ def main() -> None:
     try:
         client.connect()
     except DcSpyConnectionError as exc:
-        session.console.print(f"[bold red]pm-dc-spy: {exc}[/bold red]")
+        session.console.print(f"[bold red]pm-dc-spy: {exc}[/bold red]", soft_wrap=True)
         raise SystemExit(1) from exc
 
     target = options.event_topic if gateway else f"{EVENT_TOPIC_PREFIX}* (all gateways)"
@@ -279,7 +279,7 @@ def main() -> None:
     try:
         client.run(session.on_message, max_messages=args.count)
     except DcSpyConnectionError as exc:
-        session.console.print(f"[bold red]pm-dc-spy: {exc}[/bold red]")
+        session.console.print(f"[bold red]pm-dc-spy: {exc}[/bold red]", soft_wrap=True)
         raise SystemExit(1) from exc
     except KeyboardInterrupt:
         pass

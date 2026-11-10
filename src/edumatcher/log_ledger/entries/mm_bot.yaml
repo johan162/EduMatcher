@@ -1,0 +1,62 @@
+# Log ledger entries for pm-mm-bot (edumatcher.mm_bot), the market-making bot.
+# Format: docs-design/EduMatcher-Log-Ledger.md §3. Check with `pm-log-cli ledger check`.
+# Actions are double-quoted: a bare YAML string must not contain ": " or start with a backtick.
+
+- logger: edumatcher.mm_bot.main
+  template: "%s is gateway-wide; the value given after --symbol %s applies to every symbol"
+  level: WARNING
+  explanation: >
+    An option that applies to the whole bot (such as a logging or engine
+    address option) was given after `--symbol`, as if it were per symbol. The
+    bot uses it for every symbol, which may not be what was meant.
+  actions:
+    - "Move the option before the first `--symbol` on the command line, or into the top level of the bot's config file."
+
+- logger: edumatcher.mm_bot.main
+  template: "cannot read the deployed configuration: %s"
+  level: CRITICAL
+  explanation: >
+    pm-mm-bot was started with `--all-symbols`, which takes its symbols from
+    the deployed configuration, but that configuration could not be read. The
+    bot did not start.
+  actions:
+    - "Read the reason in the message, then check the deployment with `pm-config-show`."
+    - "Run `pm-config-deploy` again if the installed configuration is damaged, and start the bot again."
+
+- logger: edumatcher.mm_bot.main
+  template: "invalid config file: %s"
+  level: CRITICAL
+  explanation: >
+    The file given with `--config` is not a valid pm-mm-bot configuration, so
+    the bot did not start. The reason names the bad key or value.
+  actions:
+    - "Fix the file and start the bot again; `pm-mm-bot --help` lists the settings."
+
+- logger: edumatcher.mm_bot.main
+  template: "invalid configuration: %s"
+  level: CRITICAL
+  explanation: >
+    The bot's settings, after merging the config file, the command line and
+    the per-symbol options, contain a value that is not allowed, so the bot did
+    not start.
+  actions:
+    - "Read the reason in the message; it names the symbol and setting."
+    - "Fix the value on the command line or in the config file and start the bot again."
+
+- logger: edumatcher.mm_bot.main
+  template: "invalid startup value: %s must be positive (got %s)"
+  level: CRITICAL
+  explanation: >
+    A timeout option was zero or negative, so the bot did not start.
+  actions:
+    - "Give the option in the message a positive number of seconds and start the bot again."
+
+- logger: edumatcher.mm_bot.main
+  template: "failed to create mm_bot runtime: %s"
+  level: CRITICAL
+  explanation: >
+    The bot's settings were valid but setting up the bot failed, for example
+    because its engine sockets could not be opened. The bot did not start.
+  actions:
+    - "Read the reason in the message."
+    - "Check the `--engine-pull` and `--engine-pub` addresses if they were given."

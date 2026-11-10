@@ -33,6 +33,8 @@ export interface LogRow {
   has_exception: boolean;
   truncated: boolean;
   message: string;
+  /** Log-ledger template id; set for WARNING+ rows only. */
+  tpl: string | null;
 }
 
 /**

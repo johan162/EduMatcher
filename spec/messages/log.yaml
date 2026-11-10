@@ -83,6 +83,8 @@ types:
       - { name: has_exception, type: bool }
       - { name: truncated, type: bool }
       - { name: message, type: string }
+      - { name: tpl, type: string, nullable: true, validate: { max_len: 12 },
+          doc: "Log-ledger template id of the call site; set on WARNING+ rows only." }
 
   SubscriptionStatus:
     doc: >

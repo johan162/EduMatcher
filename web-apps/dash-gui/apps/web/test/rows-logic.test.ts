@@ -110,7 +110,7 @@ describe("reject ratio, as pm-monitor judges it", () => {
   const minutes = (values: number[]): Point[] => values.map((v, i) => [T0 + i * MIN, v]);
 
   it("rejects over requests across five minutes, in percent", () => {
-    const out = new Map(rejectRatio(minutes([1, 0, 0, 0, 1, 0]), minutes([10, 10, 10, 10, 10, 10]), MIN));
+    const out = new Map(rejectRatio(minutes([1, 0, 0, 0, 1, 0]), minutes([10, 10, 10, 10, 10, 10]), [], MIN));
     expect(out.has(T0)).toBe(false); // 10 requests so far: too few
     expect(out.get(T0 + MIN)).toBe(5); // 1 of 20
     expect(out.get(T0 + 4 * MIN)).toBe(4); // 2 of 50
@@ -118,13 +118,21 @@ describe("reject ratio, as pm-monitor judges it", () => {
   });
 
   it("no ratio below 20 requests: the line has a gap", () => {
-    expect(rejectRatio(minutes([5]), minutes([19]), MIN)).toEqual([]);
-    expect(rejectRatio(minutes([5]), minutes([20]), MIN)).toEqual([[T0, 25]]);
+    expect(rejectRatio(minutes([5]), minutes([19]), [], MIN)).toEqual([]);
+    expect(rejectRatio(minutes([5]), minutes([20]), [], MIN)).toEqual([[T0, 25]]);
+  });
+
+  it("MARKET_CLOSED rejects and their requests are left out", () => {
+    // 50 requests, 5 rejects, 40 of the requests refused as MARKET_CLOSED -> 5 of 10 remain: too few
+    expect(rejectRatio(minutes([45]), minutes([50]), minutes([40]), MIN)).toEqual([]);
+    // 100 requests, 50 rejects, 40 MARKET_CLOSED -> 10 of 60
+    const out = rejectRatio(minutes([50]), minutes([100]), minutes([40]), MIN);
+    expect(out[0]?.[1]).toBeCloseTo(100 / 6);
   });
 
   it("hourly buckets are judged on their own", () => {
     const H = 3600_000;
-    expect(rejectRatio([[T0, 3], [T0 + H, 0]], [[T0, 30], [T0 + H, 30]], H)).toEqual([
+    expect(rejectRatio([[T0, 3], [T0 + H, 0]], [[T0, 30], [T0 + H, 30]], [], H)).toEqual([
       [T0, 10],
       [T0 + H, 0],
     ]);

@@ -48,7 +48,26 @@ const QUERY_COLUMNS = [
   "has_exception",
   "truncated",
   "message",
+  "tpl",
 ] as const;
+
+/**
+ * The `log.db` schema version this bridge reads. Must equal
+ * `edumatcher.log_srv.schema.SCHEMA_VERSION` (a Python test checks this);
+ * a file of any other version is refused, never read.
+ */
+export const LOG_DB_SCHEMA_VERSION = 2;
+
+function schemaVersionOf(db: DatabaseSync): number {
+  const hasTable = db
+    .prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'schema_version'")
+    .get();
+  if (!hasTable) return 1;
+  const row = db.prepare("SELECT version FROM schema_version WHERE id = 1").get() as
+    | { version: number }
+    | undefined;
+  return row ? Number(row.version) : 1;
+}
 
 function rowToLogRow(raw: Record<string, unknown>): LogRow {
   return {
@@ -67,6 +86,7 @@ function rowToLogRow(raw: Record<string, unknown>): LogRow {
     has_exception: Boolean(raw.has_exception),
     truncated: Boolean(raw.truncated),
     message: String(raw.message),
+    tpl: raw.tpl == null ? null : String(raw.tpl),
   };
 }
 
@@ -84,7 +104,16 @@ export class LogDb {
       return false;
     }
     try {
-      this.db = new DatabaseSync(this.path, { readOnly: true });
+      const db = new DatabaseSync(this.path, { readOnly: true });
+      const version = schemaVersionOf(db);
+      if (version !== LOG_DB_SCHEMA_VERSION) {
+        db.close();
+        this.lastError =
+          `${resolve(this.path)} has log.db schema version ${version}, this bridge needs ` +
+          `${LOG_DB_SCHEMA_VERSION}; old log databases are not migrated — delete it and restart pm-log-srv`;
+        return false;
+      }
+      this.db = db;
       this.lastError = null;
       return true;
     } catch (err) {

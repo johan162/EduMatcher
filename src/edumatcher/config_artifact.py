@@ -44,6 +44,8 @@ from edumatcher.md_gateway.config import MarketDataGatewayConfig
 from edumatcher.monitor.config import MonitorConfig
 from edumatcher.ralf_gateway.config import RalfGatewayConfig
 
+log = logging.getLogger(__name__)
+
 # Bumped whenever the artifact's shape changes in a way an older reader would
 # misinterpret. A process that meets an unknown version refuses to start rather
 # than guessing — see `load_compiled_config`.
@@ -298,18 +300,20 @@ def staleness(config: CompiledConfig) -> str | None:
     )
 
 
-def report_deployment(log: logging.Logger) -> None:
+def report_deployment() -> None:
     """Log which configuration a starting process is about to run.
 
     Called by every process that reads the exchange configuration, so that
     "which config is this running?" is answerable from the log alone — the
     question that took an afternoon to answer when each process resolved its
-    own path.
+    own path. Logs through this module's own logger, not the caller's, so
+    each message has one log-ledger key whichever process emits it (the
+    row's ``process`` column still says which).
     """
     try:
         config = load_compiled_config()
     except ArtifactError as exc:
-        log.error(
+        log.critical(
             "cannot read the deployed configuration: %s. Check the source config "
             "and run pm-config-deploy to regenerate the artifact.",
             exc,
@@ -332,7 +336,7 @@ def report_deployment(log: logging.Logger) -> None:
     )
     warning = staleness(config)
     if warning:
-        log.warning("%s", warning)
+        log.warning("the running configuration is out of date: %s", warning)
 
 
 def source_digest(text: str) -> str:

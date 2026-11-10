@@ -107,6 +107,17 @@ export EDUMATCHER_DATA_DIR="$HOME/sessions/morning"
 pm-log-srv  # writes to $HOME/sessions/morning/log.db
 ```
 
+### Schema version
+
+`log.db` records its schema version in a `schema_version` table. The
+current version is **2**. Each time `pm-log-srv` or `pm-log-cli` opens an
+existing `log.db`, it checks that version. Old log databases are never
+migrated: if the file was written by an older release, `pm-log-srv` logs a
+CRITICAL `refusing to start: ... has log.db schema version 1, this build
+needs 2 ...` and exits with status 1. Delete `log.db` and its `-wal`/`-shm`
+files, then start `pm-log-srv` again. It creates a fresh database at the
+current version.
+
 
 
 ## pm-log-srv — Log Collector
@@ -637,6 +648,7 @@ since a value given after the subcommand always wins if both are present.
 | `0` | Success |
 | `1` | Database error — `log.db` not found or not readable (has `pm-log-srv` ever run?) |
 | `2` | Argument error (invalid flag combination) |
+| `1` | `ledger check` found missing, stale or wrong-level entries, or a call site it cannot read; `explain` was given a `seq` that does not exist |
 | `3` | `diagnose` found at least one warning- or error-level finding; `[INFO]` observations alone still exit `0` (only meaningful for scripting; `query`/`tail`/`stats`/`processes`/`prune` never use this code) |
 
 
@@ -663,6 +675,7 @@ pm-log-cli query [options]
 | `--has-exception` | off | Only rows with a formatted exception/traceback attached |
 | `--limit N` | `500` | Maximum rows returned |
 | `--reverse` | off | Oldest-first instead of newest-first |
+| `--explain` | off | Print the log-ledger explanation and numbered actions under each WARNING+ row that has an entry (see [`explain`, `ledger`](#explain-ledger-what-a-warning-means-and-what-to-do)). With `--format json`, those rows get an `explain` object |
 
 **Output columns:** `seq`, `client_ts`, `process`, `instance`, `level`,
 `logger`, `message`.
@@ -709,6 +722,7 @@ pm-log-cli tail [options]
 | `--level LEVEL[,LEVEL...]` | (all) | Filter by one or more levels |
 | `--logger PATTERN` | (all) | SQL `LIKE` pattern on logger |
 | `--interval SEC` | `1.0` | Polling interval |
+| `--explain` | off | As for `query`: explanation and actions under each WARNING+ row |
 
 **Examples:**
 
@@ -932,6 +946,61 @@ read-only, since it needs to delete rows; it is still safe to run while
 
 
 
+### `explain`, `ledger` — what a warning means and what to do
+
+Every WARNING, ERROR and CRITICAL message EduMatcher logs has an entry in the
+**log ledger**, a catalogue shipped with EduMatcher. Each entry has a short
+explanation of what happened and what it means for the exchange, and a list
+of suggested actions. The log-GUI shows the same text in its row drawer.
+
+Each WARNING+ row carries a template id, `tpl`. It is derived from the
+logger and the message's format string before the values are filled in, so
+every occurrence of the same message shares one id. The ledger is keyed by
+that id.
+
+```bash
+pm-log-cli explain SEQ                    # one row, then Explanation: and Actions:
+pm-log-cli query --level ERROR --explain  # explanations under every known row
+pm-log-cli ledger list [--logger PREFIX] [--level LEVEL]
+pm-log-cli ledger show TPL                # one entry in full
+pm-log-cli ledger check [--package NAME]  # ledger vs. the source (for developers)
+pm-log-cli ledger export                  # the whole ledger as JSON
+```
+
+The `ledger` commands read only the ledger shipped with the installed
+package, so they work without a `log.db`.
+
+```text
+$ pm-log-cli explain 48213
+seq 48213  2026-11-09T14:02:11.204Z  ERROR  pm-log-srv  edumatcher.log_srv.writer
+  writer thread: failed to persist batch of 50 rows (will retry): database or disk is full
+
+Explanation:
+  Writing a batch of log rows to log.db failed. The rows are kept and retried. Until the
+  write succeeds, pm-log-srv reads more slowly from all processes, so their logging slows
+  down too.
+
+Actions:
+  1. Read the SQLite error. "disk I/O error" or "database or disk is full" means the disk
+     needs attention (`df -h`).
+  2. Free space or lower `log_server.retention_days`, then watch for the error to stop.
+  3. If log.db is corrupt, stop `pm-log-srv`, move the file aside and start again.
+```
+
+A row below WARNING, or a message from a library rather than EduMatcher
+itself, has no entry, and `explain` says so.
+
+`ledger check` is for anyone who adds or changes a WARNING+ log call. It scans
+the installed source and lists every call site without an entry, every entry
+whose message is no longer logged, and every entry whose level differs from
+the code. Entries live in `src/edumatcher/log_ledger/entries/*.yaml`. It also
+prints a `GENERIC` line for a call whose format string has no fixed text, such
+as `log.warning("%s", message)`: every message from it shares one `tpl`, so
+one entry would have to explain all of them. Give such a call fixed text
+instead. The test suite fails on any of these findings.
+
+
+
 ## Cookbook — Common Log-Server Workflows
 
 Examples below are grouped by the kind of question you're trying to answer.
@@ -1022,6 +1091,7 @@ pm-log-cli prune --days 30
 |---|---|
 | `0` | Success |
 | `1` | Database not found or not readable — has `pm-log-srv` ever run? |
+| `1` | `ledger check` found a gap, a stale or wrong-level entry, or an unreadable call site; `explain` got an unknown `seq` |
 | `2` | Argument error |
 | `3` | `diagnose` found at least one warning- or error-level finding |
 

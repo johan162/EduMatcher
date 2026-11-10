@@ -18,6 +18,7 @@ function row(overrides: Partial<LogRow> = {}): LogRow {
     line: 412,
     has_exception: false,
     truncated: false,
+    tpl: null,
     message: "hello world",
     ...overrides,
   };

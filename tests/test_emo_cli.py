@@ -403,6 +403,20 @@ def test_health_distinguishes_dead_failed_probe_and_unchecked_process(
     )
 
 
+def test_check_health_without_a_tcp_probe_never_connects(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A gateway sees a connect-and-close as a client, so the restart loop
+    asks for no connect: a live process then reads as running."""
+    tcp = Mock(return_value=("not responding", "refused"))
+    monkeypatch.setattr(emo_cli, "check_tcp", tcp)
+    process = {"name": "md-gwy", "tcp": "127.0.0.1:5570"}
+    assert emo_cli.check_health(process, 7, probe_tcp=False)[0] == "running"
+    tcp.assert_not_called()
+    assert emo_cli.check_health(process, 7)[0] == "not responding"
+    assert emo_cli.check_health(process, None, probe_tcp=False)[0] == "dead"
+
+
 def test_tcp_probe_reports_acceptance_and_refusal(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -441,7 +455,9 @@ def test_health_profile_exit_status_reflects_every_process(
     monkeypatch.setattr(emo_cli, "load_profiles", lambda: {"demo": processes})
     monkeypatch.setattr(emo_cli, "resolve_pid", lambda process, claimed: (1, False))
     states = iter([("running", "ok"), ("not responding", "timeout")])
-    monkeypatch.setattr(emo_cli, "check_health", lambda process, pid: next(states))
+    monkeypatch.setattr(
+        emo_cli, "check_health", lambda process, pid, probe_tcp=True: next(states)
+    )
 
     assert emo_cli.health_profile(quiet=False) == 1
     output = capsys.readouterr().out
@@ -449,7 +465,9 @@ def test_health_profile_exit_status_reflects_every_process(
     assert "health: FAIL" in output
 
     states = iter([("running", "ok"), ("running", "ok")])
-    monkeypatch.setattr(emo_cli, "check_health", lambda process, pid: next(states))
+    monkeypatch.setattr(
+        emo_cli, "check_health", lambda process, pid, probe_tcp=True: next(states)
+    )
     assert emo_cli.health_profile(quiet=True) == 0
     assert capsys.readouterr().out == ""
 
@@ -465,7 +483,9 @@ def test_list_restarts_only_dead_processes_when_requested(
     monkeypatch.setattr(
         emo_cli,
         "check_health",
-        lambda process, pid: ("running", "ok") if pid else ("dead", "gone"),
+        lambda process, pid, probe_tcp=True: (
+            ("running", "ok") if pid else ("dead", "gone")
+        ),
     )
     monkeypatch.setattr(emo_cli, "process_stats", lambda pid: (61.0, 12.5))
     restart = Mock()
@@ -979,7 +999,8 @@ def test_interactive_clear_respects_operator_decision(
         (["stop"], "stop_profile", ()),
         (["down"], "stop_profile", ()),
         (["kill"], "kill_all_processes", ()),
-        (["list", "--no-restart"], "list_profile", ("never",)),
+        (["list", "--no-restart"], "list_profile", ("never", True)),
+        (["list", "--restart", "--no-tcp-probe"], "list_profile", ("always", False)),
         (["health", "--quiet"], "health_profile", (True,)),
         (["show", "--json"], "show_info", ()),
     ],

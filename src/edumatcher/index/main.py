@@ -1003,7 +1003,7 @@ class IndexProcess:
                 break
 
             if self._health_rep in socks:
-                answer_health_ping(self._health_rep, log)
+                answer_health_ping(self._health_rep)
 
             if self._sub_sock in socks:
                 self._handle_sub_message(self._sub_sock.recv_multipart())
@@ -1143,11 +1143,11 @@ def main() -> None:
     args = parser.parse_args()
     log_level = _configure_logging(args)
     log.info("starting pm-index with log level %s", logging.getLevelName(log_level))
-    report_deployment(log)
+    report_deployment()
     try:
         proc = IndexProcess(reset=bool(args.reset))
     except Exception as exc:
-        log.error("fatal startup error: %s", exc)
+        log.critical("fatal startup error: %s", exc)
         sys.exit(1)
     # Without these, SIGTERM (docker stop, pm-opctl stop) killed the process
     # outright: close() never ran, so pending history writes were never flushed
@@ -1161,7 +1161,7 @@ def main() -> None:
     try:
         proc.run()
     except Exception as exc:
-        log.error("fatal runtime error: %s", exc)
+        log.critical("fatal runtime error: %s", exc)
         raise
     finally:
         proc.close()

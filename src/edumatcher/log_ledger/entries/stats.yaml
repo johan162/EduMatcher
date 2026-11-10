@@ -1,0 +1,210 @@
+# Log ledger entries for pm-stats (edumatcher.stats).
+# Format: docs-design/EduMatcher-Log-Ledger.md §3. Check with `pm-log-cli ledger check`.
+# Actions are double-quoted: a bare YAML string must not contain ": " or start with a backtick.
+
+# --- startup and shutdown --------------------------------------------------
+
+- logger: edumatcher.stats.main
+  template: "fatal startup error: %s"
+  level: CRITICAL
+  explanation: >
+    pm-stats could not start, for the reason in the message. While it is down,
+    no trades, prices or order events are recorded in stats.db, and that gap
+    cannot be filled later.
+  actions:
+    - "Read the reason; a database that cannot be opened (disk, permissions) is typical."
+    - "Fix it and start pm-stats again before trading continues, if you can."
+
+- logger: edumatcher.stats.main
+  template: "stats receive loop terminated"
+  level: ERROR
+  explanation: >
+    pm-stats's receive loop stopped on an unexpected error, so it records
+    nothing more, and the process exits with an error. Everything from now
+    until it is restarted is missing from stats.db.
+  actions:
+    - "Read the traceback in the message."
+    - "Restart pm-stats at once, and report the traceback."
+
+- logger: edumatcher.stats.main
+  template: "pm-stats stopped recording: %s"
+  level: CRITICAL
+  explanation: >
+    pm-stats exits with an error because its receive loop failed (see the
+    "stats receive loop terminated" row just before). Nothing is recorded
+    until it is restarted.
+  actions:
+    - "Restart pm-stats, and report the error together with the traceback row before it."
+
+- logger: edumatcher.stats.main
+  template: "receive thread did not stop within 1s; closing anyway may abort an in-flight write"
+  level: ERROR
+  explanation: >
+    At shutdown pm-stats closed its database while a write could still be
+    running, so the last few records may not have been saved.
+  actions:
+    - "Check the database with `pm-stats-cli health`."
+    - "If it repeats at every shutdown, report it; the host may be very slow at that moment."
+
+# --- feed gaps -------------------------------------------------------------
+
+- logger: edumatcher.stats.main
+  template: "detected %d missing trade(s): expected id %d, received %d"
+  level: ERROR
+  explanation: >
+    Trades were executed but never reached pm-stats, so they are missing from
+    stats.db. Today's volume, trade count and OHLC figures are too low for the
+    affected symbols. The gap is stored in the feed_gaps table.
+  actions:
+    - "See the missing id ranges with `pm-stats-cli gaps`."
+    - "Find the trades themselves in the audit trail with `pm-audit-cli trades`."
+    - "Check pm-stats's host load at that time; a slow consumer is the usual cause."
+
+- logger: edumatcher.stats.main
+  template: "%d trade(s) were never received this session; see the feed_gaps table for the affected id ranges"
+  level: ERROR
+  explanation: >
+    At shutdown pm-stats sums up the trades it never received during this run.
+    They are missing from stats.db (see the "detected missing trade(s)" rows).
+  actions:
+    - "See the id ranges with `pm-stats-cli gaps`, and the trades in `pm-audit-cli trades`."
+
+- logger: edumatcher.stats.main
+  template: "detected %d missing message(s) on %s: expected %d, received %d"
+  level: ERROR
+  explanation: >
+    Messages on the named topic were lost before reaching pm-stats (a gap in
+    the topic's sequence numbers), so what they carried, such as book
+    snapshots or order events, is missing from stats.db.
+  actions:
+    - "Check pm-stats's host load at that time; a slow consumer is the usual cause."
+    - "For trades, see `pm-stats-cli gaps`; other topics have no repair."
+
+- logger: edumatcher.stats.main
+  template: "topic %s carries no sequence frame; loss on it cannot be detected"
+  level: WARNING
+  explanation: >
+    Messages on the named topic arrive without a sequence number, so pm-stats
+    cannot tell whether any are lost. Logged once per topic.
+  actions:
+    - "Make sure the publisher (usually pm-engine or pm-index) runs the same EduMatcher release as pm-stats."
+
+- logger: edumatcher.stats.main
+  template: "trade id %r is not the engine's durable counter; trade-gap detection disabled for this run"
+  level: WARNING
+  explanation: >
+    A trade arrived with an id that is not the engine's numbering, so pm-stats
+    can no longer detect missing trades for the rest of this run.
+  actions:
+    - "If trades are injected by a test or replay tool, nothing needs doing."
+    - "If they come from pm-engine, make sure it runs the same EduMatcher release as pm-stats."
+
+# --- recording ------------------------------------------------------------
+
+- logger: edumatcher.stats.main
+  template: "failed to record topic=%s err=%s"
+  level: ERROR
+  explanation: >
+    A message was received but could not be written to stats.db, so it is
+    missing there. pm-stats carries on with the next message.
+  actions:
+    - "Read the error; disk space or a locked database are typical."
+    - "Check the database with `pm-stats-cli health`."
+
+- logger: edumatcher.stats.main
+  template: "%s tick_decimals changed from %d to %d mid-day; keeping %d so today's stored ticks stay comparable"
+  level: ERROR
+  explanation: >
+    A symbol's price precision changed during the trading day, usually because
+    a new configuration was deployed while trading. pm-stats keeps the old
+    precision for today, so today's figures for that symbol stay consistent;
+    the new one applies from tomorrow.
+  actions:
+    - "Do not change a symbol's tick size during the trading day; deploy such changes after the close."
+    - "Check today's figures for the symbol with `pm-stats-cli daily`."
+
+- logger: edumatcher.stats.main
+  template: "%s carries no 'accepted' flag; recording %s rather than assuming a rejection"
+  level: ERROR
+  explanation: >
+    An order acknowledgement arrived without saying whether it was accepted,
+    so pm-stats recorded it as UNKNOWN rather than guess. That order's history
+    in stats.db is incomplete.
+  actions:
+    - "Make sure pm-engine and pm-stats run the same EduMatcher release."
+    - "If they do, report it: every acknowledgement should carry the flag."
+
+- logger: edumatcher.stats.main
+  template: "trade %s has no engine timestamp; using receipt time"
+  level: WARNING
+  explanation: >
+    A trade arrived without the engine's timestamp, so pm-stats stored the
+    time it received it. Near midnight this can put the trade on the wrong
+    trading day.
+  actions:
+    - "Make sure pm-engine and pm-stats run the same EduMatcher release."
+
+- logger: edumatcher.stats.main
+  template: "book %s has no engine timestamp; using receipt time"
+  level: WARNING
+  explanation: >
+    A book snapshot arrived without the engine's timestamp, so pm-stats used
+    the time it received it.
+  actions:
+    - "Make sure pm-engine and pm-stats run the same EduMatcher release."
+
+- logger: edumatcher.stats.main
+  template: "ignoring %s: not a book snapshot for a single symbol"
+  level: WARNING
+  explanation: >
+    A message arrived on a book topic that is not a single symbol's snapshot,
+    so pm-stats ignored it. No current EduMatcher publisher sends such topics.
+  actions:
+    - "Make sure every process runs the same EduMatcher release."
+    - "If something else publishes on the engine's port, find and stop it."
+
+- logger: edumatcher.stats.main
+  template: "failed to decode engine message: %s"
+  level: WARNING
+  explanation: >
+    A message from the engine could not be decoded and was dropped, so it is
+    missing from stats.db.
+  actions:
+    - "Make sure pm-engine and pm-stats run the same EduMatcher release."
+
+# --- index feed -------------------------------------------------------------
+
+- logger: edumatcher.stats.main
+  template: "failed to decode index_sub message: %s"
+  level: WARNING
+  explanation: >
+    A message from pm-index could not be decoded and was dropped, so that
+    index level is missing from the index history.
+  actions:
+    - "Make sure pm-index and pm-stats run the same EduMatcher release."
+
+- logger: edumatcher.stats.main
+  template: "error handling index topic=%s err=%s"
+  level: WARNING
+  explanation: >
+    Recording an index update raised an error, so that index level is missing
+    from the index history.
+  actions:
+    - "If it repeats, check the database with `pm-stats-cli health` and report the error."
+
+- logger: edumatcher.stats.main
+  template: "ignoring malformed index.update payload (missing index_id/level): %s"
+  level: WARNING
+  explanation: >
+    An index update arrived without an index id or level, so it was ignored.
+  actions:
+    - "Make sure pm-index and pm-stats run the same EduMatcher release."
+
+- logger: edumatcher.stats.main
+  template: "index.update for %s has no ts_ns; using receipt time"
+  level: WARNING
+  explanation: >
+    An index update arrived without its timestamp, so pm-stats used the time it
+    received it. That point in the index history may be slightly out of place.
+  actions:
+    - "Make sure pm-index and pm-stats run the same EduMatcher release."

@@ -23,6 +23,7 @@ import { LiveBatcher } from "./live-batcher.js";
 import { LogDb } from "./log-db.js";
 import { registerDiagnosticsRoutes } from "./routes/diagnostics.js";
 import { registerIssuesRoutes } from "./routes/issues.js";
+import { registerLedgerRoutes } from "./routes/ledger.js";
 import { registerLogsRoutes } from "./routes/logs.js";
 import { registerProcessesRoutes } from "./routes/processes.js";
 import { registerStatsRoutes } from "./routes/stats.js";
@@ -173,7 +174,9 @@ registerUiConfigRoutes(app, config);
 registerStatsRoutes(app, logDb);
 registerProcessesRoutes(app, logDb);
 registerIssuesRoutes(app, issueIndex, ackStore, logDb, wsHub);
-registerDiagnosticsRoutes(app, config.logDb.path, (process.env.LOG_CLI_COMMAND ?? "pm-log-cli").split(" "));
+const logCliCommand = (process.env.LOG_CLI_COMMAND ?? "pm-log-cli").split(" ");
+registerDiagnosticsRoutes(app, config.logDb.path, logCliCommand);
+registerLedgerRoutes(app, logCliCommand);
 registerStatusRoutes(app, uplink, logDb, ackStore, wsHub, () => issueIndex.list().length);
 
 // Single-container mode: serve the built frontend (design mirrors config-gui's deployment).

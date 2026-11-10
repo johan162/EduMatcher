@@ -1,0 +1,95 @@
+# Log ledger entries for pm-alf-console (edumatcher.alf_console), the interactive trader console.
+# Format: docs-design/EduMatcher-Log-Ledger.md §3. Check with `pm-log-cli ledger check`.
+# Actions are double-quoted: a bare YAML string must not contain ": " or start with a backtick.
+# Typing mistakes at the console prompt are logged at INFO and have no entries.
+
+- logger: edumatcher.alf_console.main
+  template: "gateway authentication failed to reach engine gateway_id=%s (connection not established)"
+  level: ERROR
+  explanation: >
+    pm-alf-console could not deliver its logon to pm-engine within the
+    timeout, because the connection to the engine's order port (5555) never
+    came up. The console did not start.
+  actions:
+    - "Check that pm-engine is running (`pm-opctl-cli list`)."
+    - "On another host or in a container, check that the engine address the console uses is reachable."
+
+- logger: edumatcher.alf_console.main
+  template: "gateway authentication rejected gateway_id=%s reason=%s"
+  level: WARNING
+  explanation: >
+    pm-engine refused the console's logon. The reason is in the message; the
+    usual ones are an unknown participant id or one that is already connected.
+  actions:
+    - "Check that the gateway id is a configured participant (`pm-admin-cli --id <admin> gateways`)."
+    - "If it is already connected elsewhere, log that session off first, or disconnect it with `pm-admin-cli --id <admin> kick --gw <GATEWAY>`."
+
+- logger: edumatcher.alf_console.main
+  template: "gateway authentication timed out gateway_id=%s"
+  level: WARNING
+  explanation: >
+    pm-alf-console sent its logon but pm-engine did not answer in time, so the
+    console did not start.
+  actions:
+    - "Check that pm-engine is running and responsive (`pm-monitor-cli status`)."
+    - "Check that the console can reach the engine's publish port (5556) as well as its order port (5555)."
+
+- logger: edumatcher.alf_console.main
+  template: "gateway startup refused gateway_id=%s reason=%s"
+  level: ERROR
+  explanation: >
+    pm-alf-console could not log on to the engine, for the reason in the
+    message, and exited. One of the authentication rows just before it has
+    the details.
+  actions:
+    - "Read the authentication row just before this one; its entry says what to do."
+
+- logger: edumatcher.alf_console.main
+  template: "engine connection lost gateway_id=%s"
+  level: ERROR
+  explanation: >
+    pm-alf-console could no longer reach pm-engine and logged the trader out.
+    The engine applies the participant's disconnect behaviour, which may
+    cancel their resting orders.
+  actions:
+    - "Check whether pm-engine stopped or restarted; look for its CRITICAL or ERROR rows at the same time."
+    - "Start the console again once the engine is up, and check the participant's orders."
+
+- logger: edumatcher.alf_console.main
+  template: "listener poll interrupted gateway_id=%s"
+  level: WARNING
+  explanation: >
+    The console's event listener stopped waiting for engine events, so the
+    console no longer shows new fills, acks or market data. Commands can still
+    be typed but their results do not appear.
+  actions:
+    - "Restart pm-alf-console."
+
+- logger: edumatcher.alf_console.main
+  template: "listener error gateway_id=%s: %s"
+  level: WARNING
+  explanation: >
+    An event from the engine could not be handled by the console and was
+    skipped. The console may show an order or fill state that is out of date.
+  actions:
+    - "Type ORDERS in the console to see the current state of the orders."
+    - "If it repeats, make sure the console and pm-engine run the same EduMatcher release."
+
+- logger: edumatcher.alf_console.main
+  template: "index listener error gateway_id=%s: %s"
+  level: WARNING
+  explanation: >
+    An index update from pm-index could not be handled by the console and was
+    skipped. The index value shown may be one update behind.
+  actions:
+    - "If it repeats, make sure the console and pm-index run the same EduMatcher release."
+
+- logger: edumatcher.alf_console.main
+  template: "drop-copy listener error gateway_id=%s: %s"
+  level: WARNING
+  explanation: >
+    A drop-copy fill could not be handled by the console and was skipped, so
+    the console's drop-copy view misses that fill. The fill itself happened.
+  actions:
+    - "Check the participant's fills another way, for example with `pm-stats-cli trades`."
+    - "If it repeats, make sure the console and pm-engine run the same EduMatcher release."

@@ -207,17 +207,16 @@ def main() -> None:
     args = parser.parse_args()
     log_level = _configure_logging(args)
     log.info("starting pm-md-gwy with log level %s", logging.getLevelName(log_level))
-    report_deployment(log)
+    report_deployment()
 
     try:
         config, known_symbols, tick_decimals = _resolve_config(args)
     except Exception as exc:
-        log.error("failed to resolve configuration: %s", exc)
+        log.critical("failed to resolve configuration: %s", exc)
         parser.error(str(exc))
 
     if not config.enabled:
         log.warning("market_data_gateway.enabled=false; exiting")
-        log.info("market_data_gateway.enabled=false; exiting")
         return
 
     log.debug(
@@ -237,7 +236,7 @@ def main() -> None:
     try:
         gateway.run()
     except Exception as exc:
-        log.error("fatal runtime error: %s", exc)
+        log.critical("fatal runtime error: %s", exc)
         raise
     finally:
         gateway.close()

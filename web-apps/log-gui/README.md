@@ -8,9 +8,10 @@ list with shared acknowledgement, a process registry, and the existing
 
 **Dependencies:** `pm-log-srv` must be running and reachable (its LALF-PS
 publish/pull ports, default `5601`/`5602`) with `log.db` on a filesystem
-path the bridge can read. The Diagnostics view additionally needs
-`pm-log-cli` on `PATH` wherever the bridge runs; without it, that one
-endpoint returns a friendly 503 and every other view keeps working.
+path the bridge can read. The Diagnostics view and the explanations in the
+Explorer's row drawer additionally need `pm-log-cli` on `PATH` wherever the
+bridge runs. Without it, Diagnostics returns a friendly 503, the drawer says
+no explanations are available, and every other view keeps working.
 
 ## Project layout
 
@@ -89,7 +90,7 @@ PULL) and `data/log.db` exists. Run `make help` for the full target list.
 | `QUERY_MAX_ROWS`            | `5000`                                          | Row cap on interactive queries                             |
 | `EXPORT_MAX_ROWS`           | `1000000`                                       | Row cap on CSV/export queries                              |
 | `LIVE_BATCH_THRESHOLD_PER_SEC` | `50`                                          | Live-tail rows/sec above which the bridge batches WS frames |
-| `LOG_CLI_COMMAND`           | `pm-log-cli`                                    | Command used to invoke `pm-log-cli --format json diagnose` |
+| `LOG_CLI_COMMAND`           | `pm-log-cli`                                    | Command used to invoke `pm-log-cli` (`diagnose` for Diagnostics, `ledger export` for the drawer's explanations) |
 | `EDUMATCHER_DATA_DIR`       | _(auto-detected)_                               | Overrides the data directory `LOG_DB_PATH`/`ACK_STORE_PATH` default from |
 
 `<data dir>` resolves the same way the Python side does: `$EDUMATCHER_DATA_DIR`
@@ -104,7 +105,8 @@ explicitly via its Dockerfile, so the two never conflict.
 
 1. Start `pm-log-srv` first (it must already be publishing on its LALF-PS
    ports and have created `log.db`).
-2. Optionally have `pm-log-cli` on `PATH` if you want the Diagnostics view.
+2. Optionally have `pm-log-cli` on `PATH` if you want the Diagnostics view
+   and the explanations in the Explorer's row drawer.
 3. Start this GUI: `make up` (container) or `make dev` (development). The
    bridge connects to `pm-log-srv` on startup; if it's unreachable, retry by
    restarting the bridge once `pm-log-srv` is up.

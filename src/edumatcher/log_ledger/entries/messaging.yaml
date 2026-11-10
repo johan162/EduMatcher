@@ -1,0 +1,14 @@
+# Log ledger entries for the gateways (edumatcher.messaging).
+# Format: docs-design/EduMatcher-Log-Ledger.md §3. Check with `pm-log-cli ledger check`.
+# Actions are double-quoted: a bare YAML string must not contain ": " or start with a backtick.
+
+- logger: edumatcher.messaging.reject_report
+  template: "cannot report %s from %s to the engine: %s"
+  level: WARNING
+  explanation: >
+    A gateway refused a client (a failed or missing login, a role it does not
+    have, or a rate limit) and could not pass that refusal on to the engine.
+    The refusal itself worked; it is only missing from the audit trail.
+  actions:
+    - "If it repeats, check that the gateway is connected to pm-engine (`pm-monitor-cli status`)."
+    - "The client and reason are in the message, in case the refusal needs following up."

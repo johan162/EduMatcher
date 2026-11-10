@@ -1343,7 +1343,7 @@ def main() -> None:
                 # seen is worse than not starting, so this is fatal here even
                 # though absence is tolerable for processes that only need
                 # their logging settings.
-                log.error(
+                log.critical(
                     "FATAL: no compiled configuration at %s — "
                     "run pm-config-deploy to install one",
                     COMPILED_CONFIG_FILE,
@@ -1351,6 +1351,18 @@ def main() -> None:
                 sys.exit(1)
 
             engine_cfg = compiled.engine
+            if not engine_cfg.sessions_enabled:
+                # The engine refuses every transition when sessions are off,
+                # so a schedule would only log unconfirmed transitions. The
+                # bundled examples run this way under profiles that start
+                # pm-scheduler, so idle (still beaconing) instead of exiting.
+                log.info(
+                    "sessions are disabled in the deployed configuration "
+                    "(sessions_enabled: false); no transitions will be sent"
+                )
+                while _is_running():
+                    time.sleep(LIVENESS_CHUNK_SEC)
+                return
             global _clock
             _clock = _Clock(session_timezone=engine_cfg.locale.session_timezone)
             if args.speed is not None or args.start is not None:
@@ -1382,7 +1394,7 @@ def main() -> None:
             errors = _validate_schedule_config(schedule_cfg)
             if errors:
                 for err in errors:
-                    log.error("FATAL: invalid schedule: %s", err)
+                    log.critical("FATAL: invalid schedule: %s", err)
                 sys.exit(1)
 
             # Subscribe to the engine's session.state broadcasts (to confirm

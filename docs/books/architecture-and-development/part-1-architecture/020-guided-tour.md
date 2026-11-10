@@ -2435,7 +2435,10 @@ def save_gtc_orders(orders: list[Order], path: Path) -> None:
 Loading is deliberately fail-soft, not fail-hard: a missing or unparseable file
 yields an empty list (the engine just starts with no resting orders) rather than
 crashing, and an individual corrupt entry is logged and skipped so the rest of the
-file can still be restored:
+file can still be restored. Whatever cannot be restored is not thrown away: the
+engine's first checkpoint overwrites the file seconds after startup, so the loader
+first copies it aside as `gtc_orders.json.corrupt-<UTC timestamp>` and names the
+copy in its CRITICAL message. If even that copy fails, the engine does not start:
 
 ```python
 def load_gtc_orders(path: Path) -> list[Order]:
@@ -2444,13 +2447,14 @@ def load_gtc_orders(path: Path) -> list[Order]:
     try:
         data = json.loads(path.read_text())
     except Exception:
+        keep_corrupt_copy(path)  # before the first checkpoint overwrites it
         return []  # truncated / corrupt — start with no resting orders
     orders = []
     for d in data:
         try:
             orders.append(Order.from_dict(d))
         except Exception:
-            pass  # logged at CRITICAL and skipped; other entries still load
+            keep_corrupt_copy(path)  # once; then logged at CRITICAL and skipped
     return orders
 ```
 

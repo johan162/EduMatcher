@@ -1,0 +1,177 @@
+# Log ledger entries for pm-scheduler (edumatcher.scheduler), which drives the engine through the trading day.
+# Format: docs-design/EduMatcher-Log-Ledger.md §3. Check with `pm-log-cli ledger check`.
+# Actions are double-quoted: a bare YAML string must not contain ": " or start with a backtick.
+
+# --- startup ---------------------------------------------------------------
+
+- logger: edumatcher.scheduler.main
+  template: "FATAL: no compiled configuration at %s — run pm-config-deploy to install one"
+  level: CRITICAL
+  explanation: >
+    No configuration has been deployed, so pm-scheduler has no timetable and
+    did not start. It refuses rather than run a schedule the engine has never
+    seen. The engine stays in its current session state.
+  actions:
+    - "Run `pm-config-deploy` to install the configuration, then start pm-scheduler again."
+    - "If the exchange runs elsewhere, set EDUMATCHER_DATA_DIR to its data directory."
+
+- logger: edumatcher.scheduler.main
+  template: "FATAL: invalid schedule: %s"
+  level: CRITICAL
+  explanation: >
+    The deployed schedule has a problem the engine could never follow (named
+    in the message, for example times out of order), so pm-scheduler did not
+    start. One row is logged per problem.
+  actions:
+    - "Fix the `schedule` block of the source config, run `pm-config-deploy` and start pm-scheduler again."
+
+- logger: edumatcher.scheduler.main
+  template: "unrecognised country %r for holiday calendar; using default %r"
+  level: WARNING
+  explanation: >
+    The configured country is not one the holiday calendar knows, so
+    pm-scheduler uses the default country's public holidays to decide which
+    days to trade.
+  actions:
+    - "Set `locale.country` to a country name or two-letter ISO code (such as Sweden or SE), run `pm-config-deploy` and restart pm-scheduler."
+
+- logger: edumatcher.scheduler.main
+  template: "--delay is ignored outside --now mode"
+  level: WARNING
+  explanation: >
+    `--delay` only sets the pause between transitions in `--now` mode, so it
+    has no effect here.
+  actions:
+    - "Remove `--delay`, or add `--now` if a quick run through the day was meant."
+
+- logger: edumatcher.scheduler.main
+  template: "--on-close is ignored in --now mode"
+  level: WARNING
+  explanation: >
+    `--on-close` runs an end-of-day command after a scheduled close, which
+    `--now` mode does not have, so the command will not run.
+  actions:
+    - "Remove `--on-close`, or run without `--now` if the end-of-day command is needed."
+
+- logger: edumatcher.scheduler.main
+  template: "could not determine engine state; assuming a CLOSED start"
+  level: WARNING
+  explanation: >
+    At startup pm-scheduler asked the engine for its session state and got no
+    answer within 2 seconds, so it assumes the engine is CLOSED and replays
+    the day's transitions so far. If the engine is in fact further on, some of
+    them are refused.
+  actions:
+    - "Check that pm-engine is running (`pm-opctl-cli list`) and started before pm-scheduler."
+    - "Check the engine's session state with `pm-monitor-cli status`; restart pm-scheduler once the engine is up."
+
+- logger: edumatcher.scheduler.main
+  template: "engine is already in %s ahead of the schedule; resuming the schedule after it"
+  level: WARNING
+  explanation: >
+    At startup the engine was already in an early phase (PRE_OPEN or
+    OPENING_AUCTION) that the schedule only reaches later today, usually
+    after a manual transition. pm-scheduler leaves it there and carries on
+    with the schedule after that phase.
+  actions:
+    - "Nothing needs doing if the phase was set on purpose; otherwise check who moved the engine (operator commands in the audit log)."
+
+- logger: edumatcher.scheduler.main
+  template: "engine is in %s but the schedule says %s; reconciling via %s"
+  level: WARNING
+  explanation: >
+    At startup the engine's session state did not match the schedule, for
+    example because the previous day never closed or a manual transition was
+    made. pm-scheduler moves the engine along the route in the message to the
+    phase the schedule says is current.
+  actions:
+    - "Check that the engine reached the scheduled phase (`pm-monitor-cli status`)."
+    - "If the engine was left open overnight, check why the previous close did not happen."
+
+# --- transitions -----------------------------------------------------------
+
+- logger: edumatcher.scheduler.main
+  template: "engine not reachable; transition to %s was not delivered (send timed out)"
+  level: WARNING
+  explanation: >
+    pm-scheduler could not hand a session transition to the engine within 2
+    seconds, so the engine did not change phase. The schedule carries on with
+    its next transition, which the engine may refuse from the wrong phase.
+  actions:
+    - "Check that pm-engine is running and responsive (`pm-monitor-cli status`)."
+    - "Once the engine is back, restart pm-scheduler; it reconciles the engine to the current phase."
+
+- logger: edumatcher.scheduler.main
+  template: "failed to send transition to %s: %s"
+  level: ERROR
+  explanation: >
+    Sending a session transition to the engine failed with a messaging error,
+    so the engine did not change phase.
+  actions:
+    - "Read the error; then restart pm-scheduler, which reconciles the engine to the current phase."
+
+- logger: edumatcher.scheduler.main
+  template: "no confirmation that the engine applied %s (it may have been rejected or the engine is unreachable)"
+  level: WARNING
+  explanation: >
+    pm-scheduler sent a session transition but did not see the engine announce
+    the new phase within 2 seconds. Either the engine refused it (look for an
+    "Invalid transition" row from pm-engine at the same time) or it is not
+    running or responding.
+  actions:
+    - "Look for pm-engine's \"Invalid transition\" row at the same time; it names the phase the engine is in."
+    - "Check the engine's session state with `pm-monitor-cli status`; restart pm-scheduler to reconcile it."
+
+- logger: edumatcher.scheduler.main
+  template: "could not announce the next transition (%s): %s"
+  level: WARNING
+  explanation: >
+    pm-scheduler could not tell the engine when the next transition is due, so
+    clients show no countdown to it. The transition itself still happens on
+    time.
+  actions:
+    - "Check that pm-engine is running (`pm-opctl-cli list`)."
+
+# --- end-of-day command ----------------------------------------------------
+
+- logger: edumatcher.scheduler.main
+  template: "CLOSED not confirmed; --on-close not triggered"
+  level: WARNING
+  explanation: >
+    The scheduled close was not confirmed by the engine, so the end-of-day
+    command given with `--on-close` was not started. It runs after the next
+    confirmed close, or at pm-scheduler's next start.
+  actions:
+    - "Check the engine's session state with `pm-monitor-cli status`; the previous row says why the close was not confirmed."
+    - "Run the end-of-day command by hand if today's run is needed now."
+
+- logger: edumatcher.scheduler.main
+  template: "--on-close command is still running; trigger skipped"
+  level: WARNING
+  explanation: >
+    The end-of-day command was due again while the previous run of it had not
+    finished, so it was not started a second time.
+  actions:
+    - "Check why the previous run takes so long; it may be stuck."
+    - "In compressed mode (`--speed`), days can end faster than the command finishes; use a lower speed."
+
+- logger: edumatcher.scheduler.main
+  template: "could not start --on-close command %r: %s"
+  level: ERROR
+  explanation: >
+    The end-of-day command given with `--on-close` could not be started, for
+    example because the program does not exist or is not executable. Today's
+    end-of-day work did not run.
+  actions:
+    - "Check the command in the message; it must be a program on the PATH or a full path."
+    - "Run it by hand for today, then fix `--on-close` and restart pm-scheduler."
+
+- logger: edumatcher.scheduler.main
+  template: "--on-close command exited %d"
+  level: WARNING
+  explanation: >
+    The end-of-day command ran but exited with the non-zero code in the
+    message, so its work may be incomplete.
+  actions:
+    - "Read the command's own output; it goes to pm-scheduler's standard output and error."
+    - "Fix the cause and run the command again by hand for today."

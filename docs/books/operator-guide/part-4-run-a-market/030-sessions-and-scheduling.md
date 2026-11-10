@@ -243,6 +243,14 @@ messages to the engine at configured wall-clock times over a ZeroMQ PUSH
 socket. It only does so on days that resolve to a schedule — see
 [Bank holidays and weekends](#bank-holidays-and-weekends) below.
 
+With `sessions_enabled: false` in the deployed config the engine has no
+phases and refuses every transition, so `pm-scheduler` sends none: it logs
+"sessions are disabled in the deployed configuration" at INFO and idles until
+stopped, still reporting to `pm-monitor`. The bundled examples run this way,
+and the process profiles start `pm-scheduler` regardless, so it needs no
+special handling. (`--now` mode does not read the configuration and always
+sends its transitions.)
+
 ### Starting the scheduler
 
 ```bash

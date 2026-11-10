@@ -20,7 +20,7 @@ import { TimeSeries } from "../../components/widgets/TimeSeries.js";
 import { useChartRange, useHistory } from "../../hooks/history.js";
 import { getJson, query, rateBucket } from "../../lib/api.js";
 import { formatCompact, formatCount, formatPercent, formatRate } from "../../lib/format.js";
-import { COUNTER, REQUEST_COUNTERS } from "../../lib/metrics.js";
+import { COUNTER, MARKET_CLOSED, REQUEST_COUNTERS } from "../../lib/metrics.js";
 import { useDashStore } from "../../store/useDashStore.js";
 import { useMemo } from "react";
 import { CounterBars, NO_SERIES } from "../charts.js";
@@ -44,18 +44,19 @@ function RejectRatio() {
   const tz = useDashStore((s) => s.sessionTz);
   const { bucketMs } = useBucket();
   const rule = useRule("reject_pct_5m");
-  const history = useHistory<{ rejects: RateResponse; requests: RateResponse }>("reject-ratio", async (range, signal) => {
+  const history = useHistory<{ rejects: RateResponse; requests: RateResponse; closed: RateResponse }>("reject-ratio", async (range, signal) => {
     const bucket = rateBucket(range).bucket;
-    const [rejects, requests] = await Promise.all([
+    const [rejects, requests, closed] = await Promise.all([
       getJson<RateResponse>(`/api/rate?${query({ name: COUNTER.rejects, range, bucket })}`, signal),
       getJson<RateResponse>(`/api/rate?${query({ names: REQUEST_COUNTERS.join(","), range, bucket })}`, signal),
+      getJson<RateResponse>(`/api/rate?${query({ name: COUNTER.rejectsByCode, label: MARKET_CLOSED, range, bucket })}`, signal),
     ]);
-    return { rejects, requests };
+    return { rejects, requests, closed };
   });
   const range = useChartRange(bucketMs);
   // Once per fetch, not per snapshot: a new series each render would redraw the chart every second (I118).
   const series = useMemo(() => {
-    const points = history.data ? rejectRatio(history.data.rejects.points, history.data.requests.points, bucketMs) : [];
+    const points = history.data ? rejectRatio(history.data.rejects.points, history.data.requests.points, history.data.closed.points, bucketMs) : [];
     return points.length > 0 ? [{ label: "reject ratio", points }] : NO_SERIES;
   }, [history.data, bucketMs]);
   return (

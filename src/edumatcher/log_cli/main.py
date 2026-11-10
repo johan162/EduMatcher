@@ -16,6 +16,8 @@ Commands
   stats       Server + database health summary
   diagnose    Rule-based troubleshooting report (§9.6)
   prune       Manual retention pruning (§6.5)
+  explain     One row with its log-ledger explanation and suggested actions
+  ledger      Browse and check the log ledger (needs no log.db)
 """
 
 from __future__ import annotations
@@ -28,7 +30,8 @@ from typing import Any
 
 from edumatcher.config import LOG_DB_FILE, resolve_data_path
 from edumatcher.log_cli.diagnose import Finding, run_diagnostics
-from edumatcher.log_cli import queries
+from edumatcher.log_cli import explain, queries
+from edumatcher.log_ledger import LedgerEntry, LedgerError, check_ledger, load_ledger
 from edumatcher.log_srv.config import DEFAULT_RETENTION_DAYS
 from edumatcher.log_srv.schema import open_db
 
@@ -147,6 +150,13 @@ def build_parser() -> argparse.ArgumentParser:
             help=argparse.SUPPRESS,
         )
 
+    def _add_explain(p: argparse.ArgumentParser) -> None:
+        p.add_argument(
+            "--explain",
+            action="store_true",
+            help="Show the log-ledger explanation and actions under each WARNING+ row",
+        )
+
     # ------------------------------------------------------------------ tail
     tl = sub.add_parser("tail", help="Follow new log_events rows in real time")
     tl.add_argument("--process", metavar="NAME", help="Filter by process name")
@@ -172,6 +182,7 @@ def build_parser() -> argparse.ArgumentParser:
             "(1-999). Shorthand: -NNN, e.g. -50."
         ),
     )
+    _add_explain(tl)
     _add_format(tl)
 
     # ----------------------------------------------------------------- query
@@ -197,6 +208,7 @@ def build_parser() -> argparse.ArgumentParser:
     qy.add_argument(
         "--reverse", action="store_true", help="Oldest-first instead of newest-first"
     )
+    _add_explain(qy)
     _add_format(qy)
 
     # ------------------------------------------------------------- processes
@@ -230,6 +242,37 @@ def build_parser() -> argparse.ArgumentParser:
         help=f"Delete rows older than N days (default: {DEFAULT_RETENTION_DAYS})",
     )
 
+    # ---------------------------------------------------------------- explain
+    ex = sub.add_parser(
+        "explain", help="One row with its log-ledger explanation and actions"
+    )
+    ex.add_argument("seq", type=int, metavar="SEQ", help="The row's seq")
+    _add_format(ex)
+
+    # ----------------------------------------------------------------- ledger
+    lg = sub.add_parser("ledger", help="Browse and check the log ledger")
+    lg_sub = lg.add_subparsers(dest="ledger_command", required=True, metavar="ACTION")
+    ll = lg_sub.add_parser("list", help="List entries: tpl, level, logger, template")
+    ll.add_argument(
+        "--logger", metavar="PREFIX", help="Only loggers starting with this"
+    )
+    ll.add_argument("--level", metavar="LEVEL", help="Only this level")
+    _add_format(ll)
+    ls_ = lg_sub.add_parser("show", help="One entry in full")
+    ls_.add_argument("tpl", metavar="TPL", help="The entry's template id")
+    _add_format(ls_)
+    lc = lg_sub.add_parser(
+        "check", help="Compare the ledger with the call sites in the source"
+    )
+    lc.add_argument(
+        "--package",
+        action="append",
+        metavar="NAME",
+        help="Only report missing entries for this package (repeatable), e.g. engine",
+    )
+    _add_format(lc)
+    lg_sub.add_parser("export", help="The whole ledger as JSON (for the log-GUI)")
+
     return parser
 
 
@@ -244,7 +287,11 @@ def _resolve_format(args: argparse.Namespace) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _print_table(rows: list[dict[str, Any]], columns: list[str]) -> None:
+def _print_table(
+    rows: list[dict[str, Any]],
+    columns: list[str],
+    ledger: dict[str, LedgerEntry] | None = None,
+) -> None:
     if not rows:
         print("No matching log events found.")
         return
@@ -265,12 +312,17 @@ def _print_table(rows: list[dict[str, Any]], columns: list[str]) -> None:
             else:
                 cells.append(text.ljust(w))
         print(" | ".join(cells))
+        entry = explain.entry_for(row, ledger) if ledger else None
+        if entry is not None:
+            print("\n".join(explain.explanation_lines(entry, indent="    ")))
 
 
-def _print_json_rows(rows: list[dict[str, Any]]) -> None:
+def _print_json_rows(
+    rows: list[dict[str, Any]], ledger: dict[str, LedgerEntry] | None = None
+) -> None:
     import json
 
-    for row in rows:
+    for row in explain.with_explain(rows, ledger) if ledger else rows:
         print(json.dumps(row))
 
 
@@ -341,7 +393,12 @@ def _handle_query(args: argparse.Namespace, conn: Any) -> list[dict[str, Any]]:
     )
 
 
-def _handle_tail(args: argparse.Namespace, conn: Any, fmt: str) -> None:
+def _handle_tail(
+    args: argparse.Namespace,
+    conn: Any,
+    fmt: str,
+    ledger: dict[str, LedgerEntry] | None,
+) -> None:
     levels = _parse_levels(args.level)
     before = getattr(args, "before", None)
 
@@ -355,9 +412,9 @@ def _handle_tail(args: argparse.Namespace, conn: Any, fmt: str) -> None:
         )
         if backfill:
             if fmt == "json":
-                _print_json_rows(backfill)
+                _print_json_rows(backfill, ledger)
             else:
-                _print_table(backfill, _QUERY_COLS)
+                _print_table(backfill, _QUERY_COLS, ledger)
             last_seq = max(r["seq"] for r in backfill)
         else:
             last_seq = queries.max_seq(conn)
@@ -377,12 +434,53 @@ def _handle_tail(args: argparse.Namespace, conn: Any, fmt: str) -> None:
             if rows:
                 last_seq = max(r["seq"] for r in rows)
                 if fmt == "json":
-                    _print_json_rows(rows)
+                    _print_json_rows(rows, ledger)
                 else:
-                    _print_table(rows, _QUERY_COLS)
+                    _print_table(rows, _QUERY_COLS, ledger)
             time.sleep(args.interval)
     except KeyboardInterrupt:
         pass
+
+
+def _handle_ledger(args: argparse.Namespace, fmt: str) -> None:
+    """``pm-log-cli ledger ...``: reads the shipped ledger, never log.db."""
+    ledger = _load_ledger_or_exit()
+    if args.ledger_command == "list":
+        level = args.level.upper() if args.level else None
+        entries = sorted(
+            (
+                e
+                for e in ledger.values()
+                if (not args.logger or e.logger.startswith(args.logger))
+                and (level is None or e.level == level)
+            ),
+            key=lambda e: (e.logger, e.template),
+        )
+        explain.print_ledger_list(entries, fmt)
+    elif args.ledger_command == "show":
+        entry = ledger.get(args.tpl)
+        if entry is None:
+            print(f"[ERROR] No ledger entry with tpl {args.tpl}", file=sys.stderr)
+            raise SystemExit(1)
+        explain.print_ledger_entry(entry, fmt)
+    elif args.ledger_command == "check":
+        report = check_ledger(ledger)
+        explain.print_check(report, args.package, fmt)
+        missing = [
+            s for s in report.missing if not args.package or s.package in args.package
+        ]
+        if missing or report.stale or report.level_mismatch or report.problems:
+            raise SystemExit(1)
+    else:
+        print(explain.export_json(ledger))
+
+
+def _load_ledger_or_exit() -> dict[str, LedgerEntry]:
+    try:
+        return load_ledger()
+    except LedgerError as exc:
+        print(f"[ERROR] Log ledger is invalid: {exc}", file=sys.stderr)
+        raise SystemExit(1) from exc
 
 
 def _handle_diagnose(args: argparse.Namespace, conn: Any) -> list[Finding]:
@@ -409,6 +507,15 @@ def main() -> None:
             )
             raise SystemExit(2)
 
+    if args.command == "ledger":
+        _handle_ledger(args, fmt)
+        return
+    ledger = (
+        _load_ledger_or_exit()
+        if args.command == "explain" or getattr(args, "explain", False)
+        else None
+    )
+
     db_path = resolve_data_path(args.db)
 
     if args.command != "stats" and not db_path.exists():
@@ -430,15 +537,24 @@ def main() -> None:
 
     try:
         if args.command == "tail":
-            _handle_tail(args, conn, fmt)
+            _handle_tail(args, conn, fmt, ledger)
             return
 
         if args.command == "query":
             rows = _handle_query(args, conn)
             if fmt == "json":
-                _print_json_rows(rows)
+                _print_json_rows(rows, ledger)
             else:
-                _print_table(rows, _QUERY_COLS)
+                _print_table(rows, _QUERY_COLS, ledger)
+            return
+
+        if args.command == "explain":
+            assert ledger is not None
+            row = queries.get_event(conn, args.seq)
+            if row is None:
+                print(f"[ERROR] No log row with seq {args.seq}", file=sys.stderr)
+                raise SystemExit(1)
+            explain.print_explain(row, ledger, fmt)
             return
 
         if args.command == "processes":

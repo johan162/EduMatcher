@@ -1,0 +1,13 @@
+# Log ledger entries for pm-dc-spy (edumatcher.dc_spy).
+# Format: docs-design/EduMatcher-Log-Ledger.md §3. Check with `pm-log-cli ledger check`.
+# Actions are double-quoted: a bare YAML string must not contain ": " or start with a backtick.
+
+- logger: edumatcher.dc_spy.client
+  template: "unparseable drop-copy message: %r (%s)"
+  level: WARNING
+  explanation: >
+    pm-dc-spy got a message on the engine's drop-copy feed that it cannot
+    decode, and skipped it. Usually pm-dc-spy and pm-engine are from different
+    EduMatcher releases.
+  actions:
+    - "Run the same EduMatcher release for pm-dc-spy and pm-engine."

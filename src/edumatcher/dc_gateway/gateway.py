@@ -68,6 +68,9 @@ class ClientSession:
     gateway_id: str = ""
     client_name: str = ""
     authenticated: bool = False
+    #: Set at the first bytes received. A connection closed before that (a
+    #: TCP liveness probe) is logged at DEBUG and not counted as a disconnect.
+    heard_from: bool = False
     in_buffer: bytearray = field(default_factory=bytearray)
     out_queue: deque[bytes] = field(default_factory=deque)
     out_offset: int = 0
@@ -219,8 +222,8 @@ class DcGateway:
             conn.setblocking(False)
             conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
             self._clients[conn.fileno()] = ClientSession(sock=conn, addr=addr)
-            log.info(
-                "client connected addr=%s:%s fd=%d", addr[0], addr[1], conn.fileno()
+            log.debug(
+                "connection accepted addr=%s:%s fd=%d", addr[0], addr[1], conn.fileno()
             )
 
     def _read_client_data(self) -> None:
@@ -251,6 +254,14 @@ class DcGateway:
             if not chunk:
                 self._disconnect(sess, reason="peer_closed")
                 continue
+            if not sess.heard_from:
+                sess.heard_from = True
+                log.info(
+                    "client connected addr=%s:%s fd=%d",
+                    sess.addr[0],
+                    sess.addr[1],
+                    sess.sock.fileno(),
+                )
             sess.in_buffer.extend(chunk)
             sess.last_activity = time.monotonic()
             self._drain_lines(sess)
@@ -526,7 +537,9 @@ class DcGateway:
         self._msgs_out += 1
 
     def _disconnect(self, sess: ClientSession, reason: str = "unspecified") -> None:
-        self._disconnects[reason] = self._disconnects.get(reason, 0) + 1
+        silent = reason == "peer_closed" and not sess.heard_from
+        if not silent:
+            self._disconnects[reason] = self._disconnects.get(reason, 0) + 1
         fileno = sess.sock.fileno()
         if sess.gateway_id:
             self._dc_unsubscribe(sess.gateway_id, fileno)
@@ -535,7 +548,7 @@ class DcGateway:
         except OSError:
             pass
         self._clients.pop(fileno, None)
-        log.info(
+        (log.debug if silent else log.info)(
             "client disconnected fd=%d client=%s gateway_id=%s reason=%s",
             fileno,
             sess.client_name or "-",

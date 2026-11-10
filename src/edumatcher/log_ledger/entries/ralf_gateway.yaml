@@ -1,0 +1,95 @@
+# Log ledger entries for pm-ralf-gwy (edumatcher.ralf_gateway).
+# Format: docs-design/EduMatcher-Log-Ledger.md §3. Check with `pm-log-cli ledger check`.
+# Actions are double-quoted: a bare YAML string must not contain ": " or start with a backtick.
+
+- logger: edumatcher.ralf_gateway.main
+  template: "failed to resolve configuration: %s"
+  level: CRITICAL
+  explanation: >
+    pm-ralf-gwy could not build its configuration from the compiled exchange config
+    and its command-line options, so it did not start. Its clients get no
+    post-trade reports until it does.
+  actions:
+    - "Read the reason in the message; it names the bad value or missing file."
+    - "Check the deployed `post_trade_gateway` block with `pm-config-show`, fix the source config and run `pm-config-deploy`."
+    - "Start pm-ralf-gwy again."
+
+- logger: edumatcher.ralf_gateway.main
+  template: "fatal runtime error: %s"
+  level: CRITICAL
+  explanation: >
+    pm-ralf-gwy stopped because of an unexpected error in its main loop. Every
+    client is disconnected and gets no post-trade reports until it is restarted.
+  actions:
+    - "Read the error and the traceback in pm-ralf-gwy's console or log file."
+    - "Restart pm-ralf-gwy. Events from the outage are not in its replay buffer; clients reconcile them against pm-clearing or the audit trail."
+    - "Report it as a gateway bug with the traceback."
+
+- logger: edumatcher.ralf_gateway.gateway
+  template: "accept failed: %s"
+  level: WARNING
+  explanation: >
+    pm-ralf-gwy could not accept a new client connection. It retries on the next
+    pass; the client sees a refused or reset connection and retries too.
+  actions:
+    - "\"Too many open files\" means the file-descriptor limit is too low: raise `ulimit -n` for pm-ralf-gwy."
+
+- logger: edumatcher.ralf_gateway.gateway
+  template: "connection rejected: max_connections=%d reached"
+  level: WARNING
+  explanation: >
+    pm-ralf-gwy already holds as many clients as `post_trade_gateway.max_connections`
+    allows, so it refused a new one. That client gets no post-trade reports.
+  actions:
+    - "Check for clients that open many connections or never close them."
+    - "If the load is genuine, raise `post_trade_gateway.max_connections`, run `pm-config-deploy` and restart pm-ralf-gwy."
+
+- logger: edumatcher.ralf_gateway.gateway
+  template: "read select failed: %s"
+  level: WARNING
+  explanation: >
+    Waiting for data from the connected clients failed for one pass of the main
+    loop. It is retried at once.
+  actions:
+    - "If it happens once, nothing needs doing. If it repeats, restart pm-ralf-gwy and report the error."
+
+- logger: edumatcher.ralf_gateway.gateway
+  template: "dropping client fd=%d: inbound line exceeds %d bytes"
+  level: WARNING
+  explanation: >
+    A client sent a line longer than the protocol allows, so it was
+    disconnected. Usually something that does not speak the protocol connected
+    to the port, or a client that never sends a newline.
+  actions:
+    - "Check which program connected; a client sends short text lines ending in a newline."
+
+- logger: edumatcher.ralf_gateway.gateway
+  template: "disconnecting slow client fd=%d queue=%d max=%d"
+  level: WARNING
+  explanation: >
+    A client read its post-trade reports more slowly than it arrived, and its queue passed
+    `post_trade_gateway.max_client_queue`, so it was disconnected. It can reconnect with LASTSEQ to replay what it missed, within `post_trade_gateway.replay_retention_sec`.
+  actions:
+    - "Check the client's host and network; it must read its socket continuously."
+    - "If many clients are dropped at once, check pm-ralf-gwy's own CPU; the gateway may be the slow side."
+
+- logger: edumatcher.ralf_gateway.gateway
+  template: "engine SUB recv error errno=%s"
+  level: WARNING
+  explanation: >
+    Reading the engine's event stream failed for one pass of the main loop.
+    Events still queued are read on the next pass; any that were lost are not
+    in pm-ralf-gwy's replay buffer either.
+  actions:
+    - "If it happens once, nothing needs doing."
+    - "If it repeats, check that pm-engine is running and restart pm-ralf-gwy."
+
+- logger: edumatcher.ralf_gateway.gateway
+  template: "decode error on engine SUB event"
+  level: WARNING
+  explanation: >
+    An event from the engine could not be decoded and was dropped, so
+    post-trade clients never get that report.
+  actions:
+    - "Make sure pm-engine and pm-ralf-gwy run the same EduMatcher release."
+    - "Clients should reconcile against pm-clearing or the audit trail for the time of the message."

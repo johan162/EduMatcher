@@ -797,6 +797,7 @@ CREATE TABLE eod_settlement (
 | `table: log_events` | `has_exception` | `INTEGER` | yes | `0` |  |
 | `table: log_events` | `truncated` | `INTEGER` | yes | `0` |  |
 | `table: log_events` | `message` | `TEXT` | yes |  |  |
+| `table: log_events` | `tpl` | `TEXT` | no |  |  |
 | `table: processes` | `session` | `TEXT` | no |  | 1 |
 | `table: processes` | `process` | `TEXT` | yes |  |  |
 | `table: processes` | `instance` | `TEXT` | no |  |  |
@@ -808,6 +809,8 @@ CREATE TABLE eod_settlement (
 | `table: processes` | `disconnected_at` | `TEXT` | no |  |  |
 | `table: processes` | `disconnect_reason` | `TEXT` | no |  |  |
 | `table: processes` | `log_count` | `INTEGER` | yes | `0` |  |
+| `table: schema_version` | `id` | `INTEGER` | no |  | 1 |
+| `table: schema_version` | `version` | `INTEGER` | yes |  |  |
 | `table: server_stats` | `id` | `INTEGER` | no |  | 1 |
 | `table: server_stats` | `started_at` | `TEXT` | yes |  |  |
 | `table: server_stats` | `total_log_events` | `INTEGER` | yes | `0` |  |
@@ -835,7 +838,8 @@ CREATE TABLE log_events (
     line            INTEGER,
     has_exception   INTEGER NOT NULL DEFAULT 0,
     truncated       INTEGER NOT NULL DEFAULT 0,
-    message         TEXT NOT NULL
+    message         TEXT NOT NULL,
+    tpl             TEXT
 )
 ```
 
@@ -854,6 +858,15 @@ CREATE TABLE processes (
     disconnected_at TEXT,
     disconnect_reason TEXT,
     log_count       INTEGER NOT NULL DEFAULT 0
+)
+```
+
+#### `table schema_version`
+
+```sql
+CREATE TABLE schema_version (
+    id      INTEGER PRIMARY KEY CHECK (id = 1),
+    version INTEGER NOT NULL
 )
 ```
 

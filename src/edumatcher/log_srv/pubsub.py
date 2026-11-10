@@ -137,6 +137,7 @@ _ROW_COLUMNS = (
     "has_exception",
     "truncated",
     "message",
+    "tpl",
 )
 
 _SELECT_BACKFILL = f"SELECT {', '.join(_ROW_COLUMNS)} FROM log_events"
@@ -419,6 +420,7 @@ def row_to_dict(seq: int, row: LogEventRow) -> dict[str, Any]:
         "has_exception": bool(row.has_exception),
         "truncated": bool(row.truncated),
         "message": row.message,
+        "tpl": row.tpl,
     }
 
 

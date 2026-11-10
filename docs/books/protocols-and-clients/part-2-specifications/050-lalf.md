@@ -255,6 +255,7 @@ length-prefixed message body.
 | `MODULE` | No | string | `LogRecord.module`, when available |
 | `LINE` | No | int | `LogRecord.lineno`, when available |
 | `EXC` | No | bool (`1` or absent) | Set when the payload includes a formatted exception/traceback |
+| `TPL` | No | string | Log-ledger template id: the first 12 hex characters of `sha1(LOGGER + "\u241f" + LogRecord.msg)`, the format string before `%`-formatting. The stock handler sets it on `WARNING` and above. Stored in `log_events.tpl` |
 | `LEN` | Yes | int | Byte length of the UTF-8 payload following this header line's `\n` |
 
 ```text

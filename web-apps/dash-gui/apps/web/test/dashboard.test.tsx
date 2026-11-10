@@ -347,7 +347,7 @@ describe("history wiring (D3.5)", () => {
     socket.deliver(hello, frame(CAPTURED));
     await waitFor(() => expect(bridge.count("/api/series/multi")).toBe(3)); // memory, CPU, engine latency
     expect(bridge.count("/api/rate/by-label")).toBe(3); // orders per participant, API requests and throttles per key
-    expect(bridge.count("/api/rate?")).toBe(4); // trades, value, rejects, requests
+    expect(bridge.count("/api/rate?")).toBe(5); // trades, value, rejects, requests, MARKET_CLOSED rejects
     expect(bridge.count("/api/series?")).toBe(0); // the drawers' charts, none open
     expect(bridge.calls.find((c) => c.startsWith("/api/series/multi") && c.includes("proc.cpu_pct"))).toContain("range=1h");
 

@@ -1,0 +1,58 @@
+# Log ledger entries for pm-market-sim (edumatcher.market_sim), the fundamental-value and news simulator.
+# Format: docs-design/EduMatcher-Log-Ledger.md §3. Check with `pm-log-cli ledger check`.
+# Actions are double-quoted: a bare YAML string must not contain ": " or start with a backtick.
+
+- logger: edumatcher.market_sim.main
+  template: "ignoring unreadable state file %s: %s"
+  level: WARNING
+  explanation: >
+    pm-market-sim could not read its saved state (fundamental values, news
+    numbering and open rumours), so it starts as on a first run: values come
+    from the engine's previous closes or the configured prices. The file is
+    overwritten at the next save.
+  actions:
+    - "If the previous values matter, copy the file in the message aside before the simulator saves again."
+    - "Check the reason in the message; a disk that filled up while saving is a common cause."
+
+- logger: edumatcher.market_sim.main
+  template: "saved values are for other symbols; new symbols start fresh"
+  level: WARNING
+  explanation: >
+    The saved state covers a different set of symbols than the simulator's
+    configuration, usually after symbols were added or removed. Symbols with
+    no saved value start from the engine's previous close or the configured
+    price.
+  actions:
+    - "Nothing needs doing if the symbol list was changed on purpose."
+    - "Otherwise compare the simulator's configuration with the deployed symbols (`pm-config-show`)."
+
+- logger: edumatcher.market_sim.main
+  template: "could not append value jumps to history"
+  level: ERROR
+  explanation: >
+    pm-market-sim could not record a set of unannounced value jumps in its
+    news history database. The jumps still happened in the market, but a
+    forensic review of the run will not see them.
+  actions:
+    - "Read the traceback; a full disk or a locked or damaged market_sim_news.db are typical."
+    - "Check the database's directory is writable and has space."
+
+- logger: edumatcher.market_sim.main
+  template: "could not append news event %s to history"
+  level: ERROR
+  explanation: >
+    pm-market-sim published a news event but could not record it in its news
+    history database. Traders saw the news, but `pm-news past` and forensic
+    reviews will not list it.
+  actions:
+    - "Read the traceback; a full disk or a locked or damaged market_sim_news.db are typical."
+    - "Check the database's directory is writable and has space."
+
+- logger: edumatcher.market_sim.main
+  template: "engine restarted; re-reading its session"
+  level: WARNING
+  explanation: >
+    pm-engine restarted. pm-market-sim stops moving values until the engine
+    reports its session state again, then carries on.
+  actions:
+    - "Check why the engine restarted: look for its CRITICAL or ERROR rows just before, or a planned restart."

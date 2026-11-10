@@ -1,0 +1,149 @@
+# Log ledger entries for pm-clearing (edumatcher.clearing).
+# Format: docs-design/EduMatcher-Log-Ledger.md §3. Check with `pm-log-cli ledger check`.
+# Actions are double-quoted: a bare YAML string must not contain ": " or start with a backtick.
+
+# --- startup ---------------------------------------------------------------
+
+- logger: edumatcher.clearing.main
+  template: "fatal startup error: %s"
+  level: CRITICAL
+  explanation: >
+    pm-clearing could not start, for the reason in the message. While it is
+    down, trades are not booked: positions, P&L and the end-of-day snapshots
+    miss everything traded in the meantime.
+  actions:
+    - "Read the reason; a database that cannot be opened (disk, permissions) is typical."
+    - "Fix it and start pm-clearing again before trading continues, if you can."
+
+- logger: edumatcher.clearing.main
+  template: "warm-start hydration failed, refusing to start: %s"
+  level: ERROR
+  explanation: >
+    pm-clearing could not reload today's positions from its database, and
+    refused to start rather than continue from flat positions, which would
+    overwrite the real ones.
+  actions:
+    - "Read the error; check the clearing database with `pm-clearing-cli health`."
+    - "Do not delete the database to get going: it holds the day's positions."
+    - "Report it with the error if the database itself is healthy."
+
+# --- trade feed ------------------------------------------------------------
+
+- logger: edumatcher.clearing.main
+  template: "failed to parse trade: %s"
+  level: ERROR
+  explanation: >
+    A trade from the engine could not be read, so pm-clearing did not book it.
+    Positions and P&L of both counterparties are now wrong, and nothing
+    re-books the trade automatically.
+  actions:
+    - "Find the trade in `pm-stats-cli trades` or `pm-audit-cli trades` at the time of the message."
+    - "Check the affected positions with `pm-clearing-cli positions` and treat them as wrong until settled."
+    - "Report it: the trade message and the error are needed to fix the cause."
+
+- logger: edumatcher.clearing.main
+  template: "trade feed gap — %d trade(s) missing between id %s and %s"
+  level: ERROR
+  explanation: >
+    pm-clearing saw a gap in the engine's trade numbering: trades were executed
+    but never reached it, so they are not booked. Positions and P&L of the
+    participants in those trades are wrong. The gap is also stored in the
+    clearing database, where `pm-clearing-cli gaps` lists it.
+  actions:
+    - "Run `pm-clearing-cli gaps` to see every gap recorded, with the trade ids either side."
+    - "List the missing trades by id range with `pm-stats-cli trades` or `pm-audit-cli trades`."
+    - "Treat the positions of the participants in those trades as wrong until settled (`pm-clearing-cli positions`)."
+    - "Check pm-clearing's host load at that time; a slow consumer is the usual cause."
+
+- logger: edumatcher.clearing.main
+  template: "failed to record feed gap: %s"
+  level: WARNING
+  explanation: >
+    pm-clearing detected a gap in the trade feed (see the "trade feed gap" row)
+    but could not write the GAP event to its database, so the gap is only in
+    this log.
+  actions:
+    - "Keep this row with the \"trade feed gap\" row; it is the only record."
+    - "Check the clearing database with `pm-clearing-cli health`."
+
+- logger: edumatcher.clearing.main
+  template: "failed to decode frame: %s"
+  level: WARNING
+  explanation: >
+    A message from the engine could not be decoded and was dropped. If it was
+    a trade, the next trade shows up as a feed gap.
+  actions:
+    - "Make sure pm-engine and pm-clearing run the same EduMatcher release."
+    - "Look for a \"trade feed gap\" row soon after this one."
+
+- logger: edumatcher.clearing.main
+  template: "error handling %s: %s"
+  level: WARNING
+  explanation: >
+    Handling one message from the engine raised an error; the topic is in the
+    message. pm-clearing carries on, but what that message should have
+    changed (a trade, a session event) is missing.
+  actions:
+    - "If the topic is trade.executed, treat the affected positions as wrong and compare with `pm-stats-cli trades`."
+    - "Report it with the topic and error."
+
+- logger: edumatcher.clearing.main
+  template: "timer flush failed, will retry: %s"
+  level: WARNING
+  explanation: >
+    Writing the buffered trades and positions to the clearing database failed.
+    They stay in memory and are retried; if pm-clearing stops before a flush
+    succeeds, they are lost.
+  actions:
+    - "Read the error; \"database is locked\" during heavy reads is usually transient."
+    - "If it repeats, check disk space and `pm-clearing-cli health`, and do not stop pm-clearing until a flush succeeds."
+
+- logger: edumatcher.clearing.main
+  template: "error handling system.eod: %s"
+  level: WARNING
+  explanation: >
+    pm-clearing failed while handling end of day, so its end-of-day record or
+    the retention prune may not have run.
+  actions:
+    - "Check the day's end-of-day record with `pm-clearing-cli eod`."
+    - "Run `pm-clearing-cli prune` by hand if the database keeps growing."
+
+- logger: edumatcher.clearing.main
+  template: "error handling session.state: %s"
+  level: WARNING
+  explanation: >
+    pm-clearing failed while handling a session-phase change. At the close
+    this is when the position snapshot used for settlement is taken, so that
+    snapshot may be missing.
+  actions:
+    - "Check that today's snapshot exists with `pm-clearing-cli snapshots`."
+    - "Report it with the error."
+
+- logger: edumatcher.clearing.main
+  template: "error handling gateway_connect: %s"
+  level: WARNING
+  explanation: >
+    pm-clearing could not record that a participant connected. Only its
+    connection history is affected; trades are booked as normal.
+  actions:
+    - "If it repeats, check the clearing database with `pm-clearing-cli health`."
+
+- logger: edumatcher.clearing.main
+  template: "error handling gateway_disconnect: %s"
+  level: WARNING
+  explanation: >
+    pm-clearing could not record that a participant disconnected. Only its
+    connection history is affected; trades are booked as normal.
+  actions:
+    - "If it repeats, check the clearing database with `pm-clearing-cli health`."
+
+- logger: edumatcher.clearing.query
+  template: "clearing: unknown session timezone %r, using UTC"
+  level: WARNING
+  explanation: >
+    The clearing database records a session timezone this system does not
+    know, so queries cut trading days at UTC midnight. Day totals and "today"
+    may cover the wrong hours.
+  actions:
+    - "Check `locale.session_timezone` in the source config; it must be a name such as Europe/Stockholm."
+    - "The value recorded in an existing clearing database does not change; fix the config for the next one."

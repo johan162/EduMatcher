@@ -48,6 +48,7 @@ function rowFromWire(raw: Record<string, unknown>): LogRow {
     has_exception: Boolean(raw.has_exception),
     truncated: Boolean(raw.truncated),
     message: String(raw.message),
+    tpl: raw.tpl == null ? null : String(raw.tpl),
   };
 }
 

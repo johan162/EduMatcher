@@ -160,7 +160,7 @@ types:
       - { name: trades, type: nested, ref: RateStats }
       - { name: traded_value_today, type: float, unit: money, validate: { ge: 0 } }
       - { name: reject_pct_5m, type: float, unit: percent, validate: { ge: 0 },
-          doc: "Rejected acks over inbound requests (new orders, combos, OCOs, cancels, amends, quotes) in the last 5 minutes, the same set engine.rejects counts; 0 when none." }
+          doc: "Rejected acks over inbound requests (new orders, combos, OCOs, cancels, amends, quotes) in the last 5 minutes, the same set engine.rejects counts, except that MARKET_CLOSED rejects and their requests are left out; 0 when none." }
       - { name: handle_p50_us, type: float, unit: duration_micros, validate: { ge: 0 },
           doc: "engine.handle_us_p50: order-entry messages, sampled 1 in 16, over the last minute." }
       - { name: handle_p99_us, type: float, unit: duration_micros, validate: { ge: 0 },

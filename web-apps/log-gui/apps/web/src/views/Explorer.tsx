@@ -11,6 +11,7 @@ import { api } from "../lib/api.js";
 import { formatRowTs } from "../lib/formatTs.js";
 import { useUiConfig } from "../lib/useUiConfig.js";
 import { useLiveStore } from "../store/useLiveStore.js";
+import { LedgerPanels } from "../components/LedgerPanels.js";
 import { SeverityBadge } from "../components/SeverityBadge.js";
 
 function filterFromParams(params: URLSearchParams): LogFilter {
@@ -223,6 +224,7 @@ export function ExplorerView() {
             <div className="rounded bg-bg-inset p-2 font-mono text-xs whitespace-pre-wrap">
               {selected.message}
             </div>
+            <LedgerPanels row={selected} />
             <div className="mt-3 flex flex-col gap-1">
               <button
                 type="button"

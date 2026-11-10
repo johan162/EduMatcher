@@ -1,0 +1,224 @@
+# Log ledger entries for pm-balf-gwy (edumatcher.balf_gwy).
+# Format: docs-design/EduMatcher-Log-Ledger.md §3. Check with `pm-log-cli ledger check`.
+# Actions are double-quoted: a bare YAML string must not contain ": " or start with a backtick.
+
+# --- startup ---------------------------------------------------------------
+
+- logger: edumatcher.balf_gwy.main
+  template: "failed to resolve configuration: %s"
+  level: CRITICAL
+  explanation: >
+    pm-balf-gwy could not build its configuration from the compiled exchange
+    config and its command-line options, so it did not start. BALF clients
+    cannot log on until it does.
+  actions:
+    - "Read the reason in the message; it names the bad value or missing file."
+    - "Check the deployed `balf_gateway` block with `pm-config-show`, fix the source config and run `pm-config-deploy`."
+    - "Start pm-balf-gwy again."
+
+- logger: edumatcher.balf_gwy.main
+  template: "balf_gateway.enabled is false; refusing to start"
+  level: WARNING
+  explanation: >
+    The deployed configuration has `balf_gateway.enabled: false`, so
+    pm-balf-gwy exited. No BALF client can connect.
+  actions:
+    - "If the BALF gateway is meant to be off, remove it from the process profile so it is not started."
+    - "Otherwise set `balf_gateway.enabled: true`, run `pm-config-deploy` and start pm-balf-gwy again."
+
+- logger: edumatcher.balf_gwy.main
+  template: "fatal runtime error: %s"
+  level: CRITICAL
+  explanation: >
+    pm-balf-gwy stopped because of an unexpected error in its main loop. Every
+    BALF session is gone; the engine applies each participant's disconnect
+    behaviour, which may cancel their resting orders.
+  actions:
+    - "Read the error and the traceback in pm-balf-gwy's console or log file."
+    - "Restart pm-balf-gwy."
+    - "Report it as a gateway bug with the traceback."
+
+# --- connections and framing -----------------------------------------------
+
+- logger: edumatcher.balf_gwy.gateway
+  template: "BALF max_connections reached, rejecting %s"
+  level: WARNING
+  explanation: >
+    pm-balf-gwy already holds as many connections as
+    `balf_gateway.max_connections` allows, so it closed a new one at once.
+    That client cannot log on.
+  actions:
+    - "Check for clients that open many connections or never close them."
+    - "If the load is genuine, raise `balf_gateway.max_connections`, run `pm-config-deploy` and restart pm-balf-gwy."
+
+- logger: edumatcher.balf_gwy.gateway
+  template: "BALF bad magic 0x%02X from %s — hard-closing"
+  level: WARNING
+  explanation: >
+    A client sent bytes that do not start like a BALF frame, so the connection
+    was closed at once. Usually something that does not speak BALF connected to
+    the BALF port, such as a text-protocol client, a browser or a port scanner.
+  actions:
+    - "Check which program connects from the address in the message."
+    - "Make sure ALF (text) clients use the ALF port, not the BALF port."
+
+- logger: edumatcher.balf_gwy.gateway
+  template: "BALF bad version 0x%02X from %s"
+  level: WARNING
+  explanation: >
+    A client sent a BALF frame with a protocol version this gateway does not
+    speak, so the connection was closed.
+  actions:
+    - "Update the client library to the version shipped with this EduMatcher release."
+
+- logger: edumatcher.balf_gwy.gateway
+  template: "BALF unknown msg_type 0x%02X from %s — hard-closing"
+  level: WARNING
+  explanation: >
+    A client sent a BALF message type the gateway does not know, so the
+    connection was closed. Usually a client built for another protocol release,
+    or a client that lost track of frame boundaries.
+  actions:
+    - "Update the client library to the version shipped with this EduMatcher release."
+    - "If the client is your own code, check how it frames messages (see the BALF specification)."
+
+- logger: edumatcher.balf_gwy.gateway
+  template: "BALF pre-auth msg_type 0x%02X from %s — closing"
+  level: WARNING
+  explanation: >
+    A client sent a message other than LOGON before logging on, so the
+    connection was closed.
+  actions:
+    - "The client must send LOGON first and wait for the logon reply before anything else."
+
+- logger: edumatcher.balf_gwy.gateway
+  template: "BALF malformed LOGON from %s: %s"
+  level: WARNING
+  explanation: >
+    A client's LOGON frame could not be parsed, so the connection was closed
+    and the client is not logged on.
+  actions:
+    - "Read the reason in the message and fix the client's LOGON encoding."
+    - "Update the client library to the version shipped with this EduMatcher release."
+
+- logger: edumatcher.balf_gwy.gateway
+  template: "BALF malformed NEW_ORDER from %s: %s"
+  level: WARNING
+  explanation: >
+    A client's NEW_ORDER frame could not be parsed, so the order was not
+    entered and the connection was closed. The engine applies the
+    participant's disconnect behaviour.
+  actions:
+    - "Read the reason in the message and fix the client's NEW_ORDER encoding."
+    - "The participant should log on again and reconcile their orders."
+
+- logger: edumatcher.balf_gwy.gateway
+  template: "BALF malformed CANCEL_ORDER from %s: %s"
+  level: WARNING
+  explanation: >
+    A client's CANCEL_ORDER frame could not be parsed, so nothing was cancelled
+    and the connection was closed. The order it meant may still be live.
+  actions:
+    - "Read the reason in the message and fix the client's CANCEL_ORDER encoding."
+    - "The participant should log on again and check whether the order is still resting."
+
+- logger: edumatcher.balf_gwy.gateway
+  template: "BALF malformed AMEND_ORDER from %s: %s"
+  level: WARNING
+  explanation: >
+    A client's AMEND_ORDER frame could not be parsed, so the order was not
+    changed and the connection was closed.
+  actions:
+    - "Read the reason in the message and fix the client's AMEND_ORDER encoding."
+    - "The participant should log on again and check the order's current state."
+
+- logger: edumatcher.balf_gwy.gateway
+  template: "BALF unexpected error from %s: %s"
+  level: ERROR
+  explanation: >
+    Handling one client frame raised an unexpected error. The frame was
+    rejected and counts towards the session's error limit; the session stays
+    open.
+  actions:
+    - "Read the traceback; the client address is in the message."
+    - "Report it as a gateway bug with the traceback."
+
+- logger: edumatcher.balf_gwy.gateway
+  template: "BALF too many errors from %s (%s) — hard-closing"
+  level: WARNING
+  explanation: >
+    A session reached `balf_gateway.max_errors_before_disconnect` rejected
+    frames within `balf_gateway.error_window_sec`, so it was disconnected. The
+    engine applies the participant's disconnect behaviour.
+  actions:
+    - "Look at the session's earlier rejects to see what the client keeps getting wrong."
+    - "Fix the client before it logs on again."
+
+- logger: edumatcher.balf_gwy.gateway
+  template: "BALF outbound queue full for %s — SLOW_CLIENT close"
+  level: WARNING
+  explanation: >
+    The client did not read its messages fast enough and its outbound queue
+    reached `balf_gateway.max_client_queue`, so the gateway disconnected it.
+    The engine applies the participant's disconnect behaviour.
+  actions:
+    - "The client must read its socket continuously; check that client's host and code."
+    - "The participant should log on again and reconcile their orders."
+
+# --- logon ----------------------------------------------------------------
+
+- logger: edumatcher.balf_gwy.gateway
+  template: "BALF auth timeout from %s — hard-closing"
+  level: WARNING
+  explanation: >
+    A client connected but did not send LOGON within
+    `balf_gateway.auth_timeout_sec`, so the connection was closed.
+  actions:
+    - "Check that the client sends LOGON straight after connecting."
+    - "Repeated cases from unknown addresses are usually port scanners or health checks; nothing needs doing."
+
+- logger: edumatcher.balf_gwy.gateway
+  template: "BALF symbol request for %s refused by the engine"
+  level: WARNING
+  explanation: >
+    During logon the gateway asks the engine for the symbol list, and that
+    request could not be sent. The logon was refused with
+    SYMBOLS_UNAVAILABLE.
+  actions:
+    - "Check that pm-engine is running and reachable from pm-balf-gwy."
+    - "The client can log on again once the engine is up."
+
+- logger: edumatcher.balf_gwy.gateway
+  template: "BALF no symbol metadata for %s — rejecting logon"
+  level: WARNING
+  explanation: >
+    The engine accepted the participant but never sent the symbol list the
+    BALF logon needs, within `balf_gateway.auth_timeout_sec`. The logon was
+    refused with SYMBOLS_UNAVAILABLE.
+  actions:
+    - "Check that pm-engine is running and responsive (`pm-monitor-cli status`)."
+    - "The client can log on again; if it keeps failing, restart pm-balf-gwy."
+
+# --- engine feed -----------------------------------------------------------
+
+- logger: edumatcher.balf_gwy.gateway
+  template: "BALF error dispatching engine event %s: %s"
+  level: ERROR
+  explanation: >
+    Passing an engine event on to a BALF client raised an unexpected error, so
+    the client did not get it. That client may now hold a wrong picture of
+    its orders.
+  actions:
+    - "Ask the affected participant to reconcile their orders."
+    - "Report it as a gateway bug with the topic and traceback."
+
+- logger: edumatcher.balf_gwy.gateway
+  template: "engine (re)started; closing %d BALF session(s) so their clients log on again"
+  level: WARNING
+  explanation: >
+    pm-engine restarted, and a restarted engine knows none of the gateway's
+    sessions. pm-balf-gwy closed them so that each client logs on again and
+    reconciles.
+  actions:
+    - "Check why the engine restarted: look for its CRITICAL or ERROR rows just before, or a planned restart."
+    - "Participants should log on again and reconcile their orders; most clients do this by themselves."

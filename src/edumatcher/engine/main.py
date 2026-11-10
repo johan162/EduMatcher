@@ -795,14 +795,13 @@ class Engine:
                 )
                 self._rebuild_reference_cache()
             except (FileNotFoundError, PermissionError) as exc:
-                log.warning(
-                    "Config file %s could not be read — "
-                    "running without symbol restrictions. (%s)",
-                    path,
-                    exc,
-                )
+                # Fatal like an invalid config: running on built-in defaults
+                # would trade with none of the configured symbols, participants
+                # or risk settings.
+                log.critical("FATAL: Config file %s could not be read: %s", path, exc)
+                sys.exit(1)
             except Exception as exc:
-                log.error("FATAL: Invalid config %s: %s", path, exc)
+                log.critical("FATAL: Invalid config %s: %s", path, exc)
                 sys.exit(1)
         else:
             log.info(f"No config file at {path} — running without symbol restrictions.")
@@ -811,7 +810,7 @@ class Engine:
             self.pull_sock = make_puller(ENGINE_PULL_BIND_ADDR)
             self.pub_sock = make_publisher(ENGINE_PUB_BIND_ADDR)
         except zmq.ZMQError as exc:
-            log.error(
+            log.critical(
                 "FATAL: Cannot bind sockets — %s\n"
                 "         Is another engine instance already running?",
                 exc,
@@ -4767,9 +4766,11 @@ class Engine:
             accepted=True,
         )
         log.warning(
-            f"ADMIN KILL SWITCH (global) by {gateway_id}: "
-            f"orders={cancelled_orders} quotes={cancelled_quotes} "
-            f"gateways={len(affected_gateways)}"
+            "ADMIN KILL SWITCH (global) by %s: orders=%s quotes=%s gateways=%s",
+            gateway_id,
+            cancelled_orders,
+            cancelled_quotes,
+            len(affected_gateways),
         )
 
     def _handle_circuit_breaker_halt_all(self, payload: dict[str, Any]) -> None:
@@ -7900,7 +7901,7 @@ def main() -> None:
     log_level = _configure_logging(args)
     log.info("starting pm-engine with log level %s", logging.getLevelName(log_level))
     try:
-        report_deployment(log)
+        report_deployment()
     except ArtifactError:
         log.debug("deployed configuration startup failure details", exc_info=True)
         raise SystemExit(1) from None

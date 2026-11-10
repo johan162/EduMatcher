@@ -552,7 +552,7 @@ class AuditProcess:
                     raise
                 break  # EINTR — honour _running flag
             if self.health_rep in socks:
-                answer_health_ping(self.health_rep, log)
+                answer_health_ping(self.health_rep)
             if self.sub in socks:
                 self._receive_one_message()
             if self._file.sync_due():
@@ -718,7 +718,7 @@ def main() -> None:
             fsync_interval=args.fsync_interval,
         )
     except Exception as exc:
-        log.error("fatal startup error: %s", exc)
+        log.critical("fatal startup error: %s", exc)
         sys.exit(1)
     reporter = HealthReporter.start_from_compiled_config(_CLIENT_NAME)
     if reporter is not None:

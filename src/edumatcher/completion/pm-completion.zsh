@@ -1708,6 +1708,7 @@ _shtab_pm_clearing_cli_commands() {
     dates:'Available trading dates'
     eod:'End-of-day sentinel events written by pm-clearing on system.eod'
     exposure:'Net/gross notional exposure'
+    gaps:'Trade-feed gaps: trades pm-clearing never received, so never booked'
     gateways:'List gateways with P&L totals'
     health:'Check the pm-clearing process and clearing database read/write health'
     pnl:'Realized/unrealized/total P&L'
@@ -1781,6 +1782,16 @@ _shtab_pm_clearing_cli_exposure_options=(
 
 # guard to ensure default positional specs are added only once per session
 _shtab_pm_clearing_cli_exposure_defaults_added=0
+
+_shtab_pm_clearing_cli_gaps_options=(
+  "(- : *)"{-h,--help}"[show this help message and exit]"
+  "--from[YYYY-MM-DD]:YYYY-MM-DD:"
+  "--to[YYYY-MM-DD]:YYYY-MM-DD:"
+  "--limit[N]:N:"
+)
+
+# guard to ensure default positional specs are added only once per session
+_shtab_pm_clearing_cli_gaps_defaults_added=0
 
 _shtab_pm_clearing_cli_gateways_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
@@ -1915,6 +1926,7 @@ _shtab_pm_clearing_cli() {
         dates) _arguments -C -s $_shtab_pm_clearing_cli_dates_options ;;
         eod) _arguments -C -s $_shtab_pm_clearing_cli_eod_options ;;
         exposure) _arguments -C -s $_shtab_pm_clearing_cli_exposure_options ;;
+        gaps) _arguments -C -s $_shtab_pm_clearing_cli_gaps_options ;;
         gateways) _arguments -C -s $_shtab_pm_clearing_cli_gateways_options ;;
         health) _arguments -C -s $_shtab_pm_clearing_cli_health_options ;;
         pnl) _arguments -C -s $_shtab_pm_clearing_cli_pnl_options ;;
@@ -3336,6 +3348,8 @@ fi
 _shtab_pm_log_cli_commands() {
   local _commands=(
     diagnose:'Rule-based troubleshooting report'
+    explain:'One row with its log-ledger explanation and actions'
+    ledger:'Browse and check the log ledger'
     processes:'List connected/recently-connected pm-* processes'
     prune:'Manually prune log_events older than N days'
     query:'Filtered historical search'
@@ -3343,6 +3357,16 @@ _shtab_pm_log_cli_commands() {
     tail:'Follow new log_events rows in real time'
   )
   _describe 'pm-log-cli commands' _commands
+}
+
+_shtab_pm_log_cli_ledger_commands() {
+  local _commands=(
+    check:'Compare the ledger with the call sites in the source'
+    export:'The whole ledger as JSON (for the log-GUI)'
+    list:'List entries: tpl, level, logger, template'
+    show:'One entry in full'
+  )
+  _describe 'pm-log-cli ledger commands' _commands
 }
 
 _shtab_pm_log_cli_options=(
@@ -3363,6 +3387,53 @@ _shtab_pm_log_cli_diagnose_options=(
 
 # guard to ensure default positional specs are added only once per session
 _shtab_pm_log_cli_diagnose_defaults_added=0
+
+_shtab_pm_log_cli_explain_options=(
+  "(- : *)"{-h,--help}"[show this help message and exit]"
+  ":The row\'s seq:"
+)
+
+# guard to ensure default positional specs are added only once per session
+_shtab_pm_log_cli_explain_defaults_added=0
+
+_shtab_pm_log_cli_ledger_options=(
+  "(- : *)"{-h,--help}"[show this help message and exit]"
+)
+
+# guard to ensure default positional specs are added only once per session
+_shtab_pm_log_cli_ledger_defaults_added=0
+
+_shtab_pm_log_cli_ledger_check_options=(
+  "(- : *)"{-h,--help}"[show this help message and exit]"
+  "*--package[Only report missing entries for this package (repeatable), e.g. engine]:NAME:"
+)
+
+# guard to ensure default positional specs are added only once per session
+_shtab_pm_log_cli_ledger_check_defaults_added=0
+
+_shtab_pm_log_cli_ledger_export_options=(
+  "(- : *)"{-h,--help}"[show this help message and exit]"
+)
+
+# guard to ensure default positional specs are added only once per session
+_shtab_pm_log_cli_ledger_export_defaults_added=0
+
+_shtab_pm_log_cli_ledger_list_options=(
+  "(- : *)"{-h,--help}"[show this help message and exit]"
+  "--logger[Only loggers starting with this]:PREFIX:"
+  "--level[Only this level]:LEVEL:"
+)
+
+# guard to ensure default positional specs are added only once per session
+_shtab_pm_log_cli_ledger_list_defaults_added=0
+
+_shtab_pm_log_cli_ledger_show_options=(
+  "(- : *)"{-h,--help}"[show this help message and exit]"
+  ":The entry\'s template id:"
+)
+
+# guard to ensure default positional specs are added only once per session
+_shtab_pm_log_cli_ledger_show_defaults_added=0
 
 _shtab_pm_log_cli_processes_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
@@ -3391,6 +3462,7 @@ _shtab_pm_log_cli_query_options=(
   "--has-exception[Only rows with an exception]"
   "--limit[Maximum rows (default\: 500)]:N:"
   "--reverse[Oldest-first instead of newest-first]"
+  "--explain[Show the log-ledger explanation and actions under each WARNING\+ row]"
 )
 
 # guard to ensure default positional specs are added only once per session
@@ -3410,6 +3482,7 @@ _shtab_pm_log_cli_tail_options=(
   "--logger[SQL LIKE pattern on logger]:PATTERN:"
   "--interval[Polling interval in seconds (default\: 1.0)]:SEC:"
   "--before[Show this many existing rows before switching to live tail (1-999). Shorthand\: -NNN, e.g. -50.]:NNN:"
+  "--explain[Show the log-ledger explanation and actions under each WARNING\+ row]"
 )
 
 # guard to ensure default positional specs are added only once per session
@@ -3435,11 +3508,39 @@ _shtab_pm_log_cli() {
       curcontext="${curcontext%:*:*}:_shtab_pm_log_cli-$line[1]:"
       case $line[1] in
         diagnose) _arguments -C -s $_shtab_pm_log_cli_diagnose_options ;;
+        explain) _arguments -C -s $_shtab_pm_log_cli_explain_options ;;
+        ledger) _shtab_pm_log_cli_ledger ;;
         processes) _arguments -C -s $_shtab_pm_log_cli_processes_options ;;
         prune) _arguments -C -s $_shtab_pm_log_cli_prune_options ;;
         query) _arguments -C -s $_shtab_pm_log_cli_query_options ;;
         stats) _arguments -C -s $_shtab_pm_log_cli_stats_options ;;
         tail) _arguments -C -s $_shtab_pm_log_cli_tail_options ;;
+      esac
+  esac
+}
+
+_shtab_pm_log_cli_ledger() {
+  local context state line curcontext="$curcontext" one_or_more='(*)' remainder='(-)*:' default='*::: :->ledger'
+
+  # Add default positional/remainder specs only if none exist, and only once per session
+  if (( ! _shtab_pm_log_cli_ledger_defaults_added )); then
+    if (( ${_shtab_pm_log_cli_ledger_options[(I)${(q)one_or_more}*]} +          ${_shtab_pm_log_cli_ledger_options[(I)${(q)remainder}*]} +          ${_shtab_pm_log_cli_ledger_options[(I)${(q)default}]} == 0 )); then
+      _shtab_pm_log_cli_ledger_options+=(': :_shtab_pm_log_cli_ledger_commands' '*::: :->ledger')
+    fi
+    _shtab_pm_log_cli_ledger_defaults_added=1
+  fi
+  _arguments -C -s $_shtab_pm_log_cli_ledger_options
+
+  case $state in
+    ledger)
+      words=($line[1] "${words[@]}")
+      (( CURRENT += 1 ))
+      curcontext="${curcontext%:*:*}:_shtab_pm_log_cli_ledger-$line[1]:"
+      case $line[1] in
+        check) _arguments -C -s $_shtab_pm_log_cli_ledger_check_options ;;
+        export) _arguments -C -s $_shtab_pm_log_cli_ledger_export_options ;;
+        list) _arguments -C -s $_shtab_pm_log_cli_ledger_list_options ;;
+        show) _arguments -C -s $_shtab_pm_log_cli_ledger_show_options ;;
       esac
   esac
 }
@@ -4388,6 +4489,7 @@ _shtab_pm_opctl_cli_list_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
   {-y,--restart}"[restart dead processes without asking]"
   "--no-restart[never offer to restart dead processes]"
+  "--no-tcp-probe[do not connect to the processes\' ports to check them (a connect-and-close is seen by a gateway as a client)]"
 )
 
 # guard to ensure default positional specs are added only once per session

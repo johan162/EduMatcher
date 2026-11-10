@@ -1,0 +1,35 @@
+# Log ledger entries for the CALF client library used by pm-calf-spy (edumatcher.calf_client).
+# Format: docs-design/EduMatcher-Log-Ledger.md §3. Check with `pm-log-cli ledger check`.
+# Actions are double-quoted: a bare YAML string must not contain ": " or start with a backtick.
+
+- logger: edumatcher.calf_client.client
+  template: "connect failed: %s; retrying in %.1fs"
+  level: WARNING
+  explanation: >
+    The CALF client (pm-calf-spy) could not reach the market-data gateway and
+    will try again after the delay in the message. It shows no market data
+    until it connects.
+  actions:
+    - "Check that pm-md-gwy is running (`pm-opctl-cli list`) and that host and port are right."
+    - "If the gateway was only restarting, nothing needs doing; the client reconnects by itself."
+
+- logger: edumatcher.calf_client.client
+  template: "unparseable line from gateway: %r (%s)"
+  level: WARNING
+  explanation: >
+    The CALF client got a line from the gateway that it cannot parse, and
+    skipped it. Usually the client and pm-md-gwy are from different
+    EduMatcher releases.
+  actions:
+    - "Run the same EduMatcher release for pm-calf-spy and pm-md-gwy."
+
+- logger: edumatcher.calf_client.client
+  template: "gateway ERR %s: %s"
+  level: WARNING
+  explanation: >
+    The market-data gateway sent the client an error. The code and detail are
+    in the message. REPLAY_MISS means the gateway could not replay a gap, and
+    the client reports that gap; other codes usually point at a bad request.
+  actions:
+    - "Read the code and detail; the CALF specification lists every error code."
+    - "For REPLAY_MISS, the messages in that gap are lost to this client; later updates arrive normally."

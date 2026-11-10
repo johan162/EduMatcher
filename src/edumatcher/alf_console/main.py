@@ -1561,7 +1561,7 @@ class Gateway:
                 self._send_new(parts[1:])
             return
 
-        log.warning("unknown command gateway_id=%s command=%s", self.gateway_id, cmd)
+        log.info("unknown command gateway_id=%s command=%s", self.gateway_id, cmd)
         console.print(f"[red]Unknown command: {cmd}[/red]  (type HELP)")
 
     # Keys whose values are opaque, case-sensitive identifiers or free-text
@@ -1607,7 +1607,7 @@ class Gateway:
             smp_action = SmpAction(kv["SMP"]) if "SMP" in kv else None
             client_tag = kv.get("TAG")
         except (KeyError, ValueError) as exc:
-            log.warning(
+            log.info(
                 "NEW parse error gateway_id=%s input=%s error=%s",
                 self.gateway_id,
                 "|".join(parts),
@@ -1622,7 +1622,7 @@ class Gateway:
             in (OrderType.LIMIT, OrderType.FOK, OrderType.ICEBERG, OrderType.IOC)
             and price is None
         ):
-            log.warning(
+            log.info(
                 "order rejected gateway_id=%s reason=missing_price order_type=%s",
                 self.gateway_id,
                 order_type.value,
@@ -1630,7 +1630,7 @@ class Gateway:
             console.print("[red]LIMIT / FOK / ICEBERG / IOC require PRICE=[/red]")
             return
         if order_type in (OrderType.STOP, OrderType.STOP_LIMIT) and stop_price is None:
-            log.warning(
+            log.info(
                 "order rejected gateway_id=%s reason=missing_stop_price order_type=%s",
                 self.gateway_id,
                 order_type.value,
@@ -1638,7 +1638,7 @@ class Gateway:
             console.print("[red]STOP / STOP_LIMIT require STOP=[/red]")
             return
         if order_type == OrderType.STOP_LIMIT and price is None:
-            log.warning(
+            log.info(
                 "order rejected gateway_id=%s reason=missing_price order_type=STOP_LIMIT",
                 self.gateway_id,
             )
@@ -1647,7 +1647,7 @@ class Gateway:
             )
             return
         if order_type == OrderType.ICEBERG and visible is None:
-            log.warning(
+            log.info(
                 "order rejected gateway_id=%s reason=missing_visible_qty order_type=ICEBERG",
                 self.gateway_id,
             )
@@ -1658,7 +1658,7 @@ class Gateway:
             and visible is not None
             and visible >= quantity
         ):
-            log.warning(
+            log.info(
                 "order rejected gateway_id=%s reason=visible_not_less_than_qty visible=%s qty=%s",
                 self.gateway_id,
                 visible,
@@ -1669,7 +1669,7 @@ class Gateway:
         if order_type == OrderType.TRAILING_STOP:
             trail_offset_raw = kv.get("TRAIL")
             if trail_offset_raw is None:
-                log.warning(
+                log.info(
                     "order rejected gateway_id=%s reason=missing_trail_offset order_type=TRAILING_STOP",
                     self.gateway_id,
                 )
@@ -1736,14 +1736,12 @@ class Gateway:
             ask_qty = int(kv["ASK_QTY"])
             tif = TIF(kv.get("TIF", "DAY"))
         except (KeyError, ValueError) as exc:
-            log.warning(
-                "QUOTE parse error gateway_id=%s error=%s", self.gateway_id, exc
-            )
+            log.info("QUOTE parse error gateway_id=%s error=%s", self.gateway_id, exc)
             console.print(f"[red]QUOTE parse error: {exc}[/red]")
             return
 
         if bid_qty <= 0 or ask_qty <= 0:
-            log.warning(
+            log.info(
                 "QUOTE rejected gateway_id=%s reason=non_positive_qty bid_qty=%s ask_qty=%s",
                 self.gateway_id,
                 bid_qty,
@@ -1752,7 +1750,7 @@ class Gateway:
             console.print("[red]QUOTE requires positive BID_QTY and ASK_QTY[/red]")
             return
         if bid_price >= ask_price:
-            log.warning(
+            log.info(
                 "QUOTE rejected gateway_id=%s reason=bid_not_less_than_ask bid=%s ask=%s",
                 self.gateway_id,
                 bid_price,
@@ -1804,13 +1802,13 @@ class Gateway:
         tif_str = kv.get("TIF", "DAY")
 
         if not oco_id:
-            log.warning(
+            log.info(
                 "OCO rejected gateway_id=%s reason=missing_oco_id", self.gateway_id
             )
             console.print("[red]OCO requires OCO_ID=<label>[/red]")
             return
         if not symbol:
-            log.warning(
+            log.info(
                 "OCO rejected gateway_id=%s reason=missing_symbol", self.gateway_id
             )
             console.print("[red]OCO requires SYM=<symbol>[/red]")
@@ -1820,7 +1818,7 @@ class Gateway:
             quantity = int(kv["QTY"])
             tif_val = TIF(tif_str)
         except (KeyError, ValueError) as exc:
-            log.warning("OCO parse error gateway_id=%s error=%s", self.gateway_id, exc)
+            log.info("OCO parse error gateway_id=%s error=%s", self.gateway_id, exc)
             console.print(f"[red]Parse error: {exc}[/red]")
             return
 
@@ -1856,7 +1854,7 @@ class Gateway:
         leg2 = _parse_leg("LEG2_")
 
         if leg1 is None or leg2 is None:
-            log.warning(
+            log.info(
                 "OCO rejected gateway_id=%s reason=missing_required_legs",
                 self.gateway_id,
             )
@@ -1891,7 +1889,7 @@ class Gateway:
         smp_str = kv.get("SMP")
 
         if not combo_id:
-            log.warning(
+            log.info(
                 "COMBO rejected gateway_id=%s reason=missing_combo_id", self.gateway_id
             )
             console.print("[red]COMBO requires COMBO_ID=<label>[/red]")
@@ -1901,9 +1899,7 @@ class Gateway:
             combo_type_val = ComboType(combo_type)
             tif_val = TIF(tif_str)
         except ValueError as exc:
-            log.warning(
-                "COMBO parse error gateway_id=%s error=%s", self.gateway_id, exc
-            )
+            log.info("COMBO parse error gateway_id=%s error=%s", self.gateway_id, exc)
             console.print(f"[red]Parse error: {exc}[/red]")
             return
 
@@ -1911,7 +1907,7 @@ class Gateway:
         try:
             leg_count = int(leg_count_str)
         except ValueError:
-            log.warning(
+            log.info(
                 "COMBO rejected gateway_id=%s reason=invalid_leg_count value=%s",
                 self.gateway_id,
                 leg_count_str,
@@ -1922,7 +1918,7 @@ class Gateway:
             return
 
         if leg_count < 2 or leg_count > 10:
-            log.warning(
+            log.info(
                 "COMBO rejected gateway_id=%s reason=leg_count_out_of_range count=%d",
                 self.gateway_id,
                 leg_count,
@@ -1941,7 +1937,7 @@ class Gateway:
             leg_type = kv.get(f"{prefix}.TYPE", "LIMIT")
 
             if not sym or not side or not qty:
-                log.warning(
+                log.info(
                     "COMBO rejected gateway_id=%s reason=missing_leg_fields leg=%d",
                     self.gateway_id,
                     i,
@@ -1964,7 +1960,7 @@ class Gateway:
                     smp_action=SmpAction(smp_str) if smp_str is not None else None,
                 )
             except (ValueError, KeyError) as exc:
-                log.warning(
+                log.info(
                     "COMBO leg parse error gateway_id=%s leg=%d error=%s",
                     self.gateway_id,
                     i,

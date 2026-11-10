@@ -1,0 +1,148 @@
+# Log ledger entries for pm-index (edumatcher.index), the index calculator.
+# Format: docs-design/EduMatcher-Log-Ledger.md §3. Check with `pm-log-cli ledger check`.
+# Actions are double-quoted: a bare YAML string must not contain ": " or start with a backtick.
+
+# --- startup ---------------------------------------------------------------
+
+- logger: edumatcher.index.main
+  template: "no compiled configuration at %s — no indices will be calculated. Run pm-config-deploy to install one."
+  level: WARNING
+  explanation: >
+    pm-index found no installed exchange configuration, so it knows no indices
+    and calculates nothing. It keeps running.
+  actions:
+    - "Run `pm-config-deploy` to install the configuration, then restart pm-index."
+    - "If the exchange runs elsewhere, set EDUMATCHER_DATA_DIR to its data directory."
+
+- logger: edumatcher.index.main
+  template: "index %s: the persisted constituent set %s differs from the configured %s (runtime ADD/DELIST); keeping the persisted one. Use --reset to return to the configuration."
+  level: WARNING
+  explanation: >
+    The index's saved state lists different constituents than the
+    configuration. This is expected after constituents were added or delisted
+    at runtime, which the configuration does not record. pm-index keeps the
+    saved set.
+  actions:
+    - "If the runtime changes were intended, nothing needs doing; consider adding them to the source config so the two agree."
+    - "To return to the configured constituents, restart pm-index with `--reset`; this also resets the index level and divisor."
+
+- logger: edumatcher.index.main
+  template: "fatal startup error: %s"
+  level: CRITICAL
+  explanation: >
+    pm-index could not set up its indices, so it did not start. Common causes
+    are a state file that belongs to another index or cannot be parsed, or a
+    bad index definition.
+  actions:
+    - "Read the reason in the message; it names the file or the index."
+    - "Check pm-index's files with `pm-index-cli health`."
+    - "If a state file is beyond repair, start pm-index with `--reset` to rebuild the indices from the configuration."
+
+- logger: edumatcher.index.main
+  template: "fatal runtime error: %s"
+  level: CRITICAL
+  explanation: >
+    pm-index stopped because of an unexpected error in its main loop. No index
+    values are published until it is restarted.
+  actions:
+    - "Read the error and the traceback in pm-index's console or log file."
+    - "Restart pm-index; it resumes from its saved state."
+    - "Report it as a bug with the traceback."
+
+# --- engine session ----------------------------------------------------------
+
+- logger: edumatcher.index.main
+  template: "could not request engine session status: %s"
+  level: WARNING
+  explanation: >
+    pm-index could not send its request for the engine's session state,
+    because the engine is not accepting messages. It keeps asking; index
+    updates show an unknown session phase until the engine answers.
+  actions:
+    - "Check that pm-engine is running (`pm-opctl-cli list`)."
+
+- logger: edumatcher.index.main
+  template: "engine session status has not been received; index updates may report an unknown current phase until the engine replies"
+  level: WARNING
+  explanation: >
+    pm-index asked the engine for its session state and has had no answer, so
+    index updates show an unknown session phase. Index values are still
+    calculated from trades.
+  actions:
+    - "Check that pm-engine is running and responsive (`pm-monitor-cli status`)."
+    - "Check that pm-index can reach the engine's publish port (5556)."
+
+- logger: edumatcher.index.main
+  template: "invalid initial session status: %s"
+  level: WARNING
+  explanation: >
+    The engine's answer to pm-index's session-state request had a state
+    pm-index does not know, so it was ignored.
+  actions:
+    - "Make sure pm-engine and pm-index run the same EduMatcher release."
+
+# --- messages ----------------------------------------------------------------
+
+- logger: edumatcher.index.main
+  template: "malformed sub frame: %s"
+  level: WARNING
+  explanation: >
+    A message from the engine's publish stream could not be decoded and was
+    dropped. If it was a trade, the index missed that price until the next
+    trade in the symbol.
+  actions:
+    - "Make sure pm-engine and pm-index run the same EduMatcher release."
+
+- logger: edumatcher.index.main
+  template: "malformed pull frame: %s"
+  level: WARNING
+  explanation: >
+    A command sent to pm-index (from pm-index-admin-cli, pm-api-gwy or another
+    client) could not be decoded and was dropped. The sender gets no answer.
+  actions:
+    - "Make sure the sending tool and pm-index run the same EduMatcher release."
+
+- logger: edumatcher.index.main
+  template: "error handling %s: %s"
+  level: WARNING
+  explanation: >
+    Handling a message on the topic in the message raised an error, so it was
+    skipped. For an engine trade the index misses that price; for a corporate
+    action, constituent change or rebalance the change was not applied and
+    the sender may get no answer.
+  actions:
+    - "For a command, check with `pm-index-admin-cli history --index <INDEX>` whether it was applied, and send it again if not."
+    - "If it repeats, report it as a bug with the topic and error."
+
+- logger: edumatcher.index.main
+  template: "rebalance partially applied before failure index_id=%s applied=%s: %s"
+  level: ERROR
+  explanation: >
+    A rebalance (new shares outstanding for several constituents) failed part
+    of the way through. The constituents listed as applied have their new
+    shares and are saved; the rest are unchanged.
+  actions:
+    - "Check the index with `pm-index-admin-cli history --index <INDEX>`."
+    - "Send a corrected rebalance for the constituents that were not applied."
+
+# --- history file ------------------------------------------------------------
+
+- logger: edumatcher.index.history
+  template: "index history record failed validation, storing as-is: %s | record=%s"
+  level: ERROR
+  explanation: >
+    pm-index wrote a structural history record (an initialisation, corporate
+    action or constituent change) that does not follow the history format.
+    It was stored as it is; readers of the history skip it.
+  actions:
+    - "Report it as a pm-index bug with the record in the message."
+
+- logger: edumatcher.index.history
+  template: "index history file unreadable: path=%s error=%s"
+  level: ERROR
+  explanation: >
+    The index history file exists but could not be read, so a history request
+    returned nothing.
+  actions:
+    - "Check the file in the message: its permissions and the disk it is on."
+    - "Check pm-index's files with `pm-index-cli health`."

@@ -176,7 +176,7 @@ def open_store(
             minute_days=config.retention.minute_days,
         )
     except (StoreLockedError, IncompatibleStoreError) as exc:
-        log.error("cannot open %s: %s", path, exc)
+        log.critical("cannot open %s: %s", path, exc)
         sys.exit(1)
     except (sqlite3.Error, OSError) as exc:
         log.error("cannot open %s: %s -- running without history", path, exc)
@@ -191,7 +191,7 @@ def main() -> None:
     args = parser.parse_args()
     log_level = _configure_logging(args)
     log.info("starting pm-monitor with log level %s", logging.getLevelName(log_level))
-    report_deployment(log)
+    report_deployment()
 
     compiled = load_compiled_config()
     config = MonitorConfig() if compiled is None else compiled.monitor
@@ -202,7 +202,7 @@ def main() -> None:
             "redeploy to collect health"
         )
         print(f"{parser.prog}: {message}", file=sys.stderr)
-        log.warning("%s", message)
+        log.warning("monitoring is disabled; pm-monitor idles until stopped")
         _idle_until_stopped()
         sys.exit(0)
     session_tz_name = (
@@ -237,7 +237,7 @@ def main() -> None:
     except zmq.ZMQError as exc:
         if store is not None:
             store.close(time.time())
-        log.error(
+        log.critical(
             "cannot bind pm-monitor sockets (pull_port %d, pub_port %d): %s",
             config.pull_port,
             config.pub_port,
@@ -256,7 +256,7 @@ def main() -> None:
     try:
         monitor.run()
     except Exception as exc:
-        log.error("fatal runtime error: %s", exc)
+        log.critical("fatal runtime error: %s", exc)
         raise
     finally:
         monitor.close()

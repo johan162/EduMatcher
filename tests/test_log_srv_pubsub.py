@@ -128,25 +128,23 @@ class _PubSubHarness:
         message: str,
         level: str = "INFO",
         logger: str = "edumatcher.engine",
+        tpl: str | None = None,
     ) -> None:
         assert self.producer is not None
         self._seq += 1
         body = message.encode()
-        self.producer.sendall(
-            build_header_line(
-                "LOG",
-                {
-                    "SEQ": str(self._seq),
-                    "TS": iso_utc(time.time()),
-                    "LEVEL": level,
-                    "LOGGER": logger,
-                    "MODULE": "mod",
-                    "LINE": "1",
-                    "LEN": str(len(body)),
-                },
-            )
-            + body
-        )
+        fields = {
+            "SEQ": str(self._seq),
+            "TS": iso_utc(time.time()),
+            "LEVEL": level,
+            "LOGGER": logger,
+            "MODULE": "mod",
+            "LINE": "1",
+        }
+        if tpl is not None:
+            fields["TPL"] = tpl
+        fields["LEN"] = str(len(body))
+        self.producer.sendall(build_header_line("LOG", fields) + body)
 
     # -- LALF-PS subscriber side --------------------------------------------
 
@@ -201,6 +199,7 @@ def _row(**overrides: Any) -> dict[str, Any]:
         "has_exception": False,
         "truncated": False,
         "message": "order accepted",
+        "tpl": None,
     }
     base.update(overrides)
     return row_to_dict(1, LogEventRow(**base))
@@ -329,6 +328,27 @@ def test_stream_mode_delivers_matching_rows_live(harness: _PubSubHarness) -> Non
     assert [r["message"] for r in rows] == ["event-0", "event-2", "event-4"]
     assert all(r["level"] == "ERROR" for r in rows)
     assert [r["seq"] for r in rows] == sorted(r["seq"] for r in rows)
+
+
+def test_template_id_reaches_live_and_backfill_rows(harness: _PubSubHarness) -> None:
+    harness.send(make_log_subscribe_msg("v1", "STREAM"))
+    time.sleep(0.4)
+    harness.drain(0.3)
+
+    harness.emit("slow", level="WARNING", tpl="0123456789ab")
+    harness.emit("fine")
+    time.sleep(0.6)
+    live = [r for t, p in harness.drain(0.8) if t == "log.event.v1" for r in p["rows"]]
+
+    harness.send(make_log_backfill_request_msg("v1", minutes=10))
+    time.sleep(0.5)
+    history = [
+        r for t, p in harness.drain(0.8) if t == "log.backfill.v1" for r in p["rows"]
+    ]
+
+    expected = [("slow", "0123456789ab"), ("fine", None)]
+    assert [(r["message"], r["tpl"]) for r in live] == expected
+    assert [(r["message"], r["tpl"]) for r in history] == expected
 
 
 def test_notify_mode_coalesces_into_counts(harness: _PubSubHarness) -> None:

@@ -1,0 +1,57 @@
+# Log ledger entries for pm-audit (edumatcher.audit).
+# Format: docs-design/EduMatcher-Log-Ledger.md §3. Check with `pm-log-cli ledger check`.
+# Actions are double-quoted: a bare YAML string must not contain ": " or start with a backtick.
+
+- logger: edumatcher.audit.main
+  template: "fatal startup error: %s"
+  level: CRITICAL
+  explanation: >
+    pm-audit could not start, for the reason in the message. While it is down,
+    nothing is written to the audit trail, and that gap cannot be filled
+    later.
+  actions:
+    - "Read the reason; a log directory that cannot be written (disk, permissions) is typical."
+    - "Fix it and start pm-audit again before trading continues, if you can."
+
+- logger: edumatcher.audit.main
+  template: "failed to decode/log message: %s"
+  level: WARNING
+  explanation: >
+    A message on the bus could not be decoded or written, so it is missing
+    from the audit trail. pm-audit carries on with the next message.
+  actions:
+    - "Make sure every process runs the same EduMatcher release."
+    - "If it repeats, check the audit log disk with `pm-audit-cli health`."
+
+- logger: edumatcher.audit.main
+  template: "audit archiver exited %s: %s"
+  level: ERROR
+  explanation: >
+    The background job that compresses closed days into one verified .zst
+    archive per day failed. The day parts are still on disk and nothing is
+    lost; the next archiver run tries them again.
+  actions:
+    - "Read the error at the end of the message."
+    - "Run `pm-audit-cli archive --pending` by hand to see the full output."
+    - "Check free disk space; archiving needs room for the archive beside the parts."
+
+- logger: edumatcher.audit.main
+  template: "cannot start the audit archiver: %s"
+  level: ERROR
+  explanation: >
+    pm-audit could not start its background archiving job. Closed days stay
+    as uncompressed parts until a later run succeeds; nothing is lost.
+  actions:
+    - "Read the error; it is about starting a Python process (`nice`, the interpreter or memory)."
+    - "Run `pm-audit-cli archive --pending` by hand."
+
+- logger: edumatcher.audit.writer
+  template: "cannot close %s as a day part: %s"
+  level: ERROR
+  explanation: >
+    At the day boundary pm-audit could not rename the live audit.log into the
+    closed day's part. It keeps appending to audit.log, so no message is lost,
+    and tries again on the next write.
+  actions:
+    - "Read the error; disk space or permissions on the audit directory are typical (`df -h`)."
+    - "Check with `pm-audit-cli health` that the error stops."

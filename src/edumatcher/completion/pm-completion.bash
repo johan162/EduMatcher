@@ -2719,7 +2719,7 @@ complete -o bashdefault -F _shtab_pm_clearing pm-clearing
 #    source ~/.local/share/bash_completion/pm-clearing-cli
 # See also: https://github.com/scop/bash-completion/blob/main/doc/configuration.md
 
-_shtab_pm_clearing_cli_subparsers=(gateways positions pnl daily trades exposure symbols dates snapshots health reconcile sessions eod prune)
+_shtab_pm_clearing_cli_subparsers=(gateways positions pnl daily trades exposure symbols dates snapshots health reconcile sessions eod gaps prune)
 
 _shtab_pm_clearing_cli_gateways_option_strings=(-h --help --gateway --limit)
 _shtab_pm_clearing_cli_positions_option_strings=(-h --help --gateway --symbol --limit)
@@ -2734,12 +2734,13 @@ _shtab_pm_clearing_cli_health_option_strings=(-h --help -q --quiet --extended -v
 _shtab_pm_clearing_cli_reconcile_option_strings=(-h --help --gateway --symbol --from --to --retention-days)
 _shtab_pm_clearing_cli_sessions_option_strings=(-h --help --gateway --from --to --connected-only --limit)
 _shtab_pm_clearing_cli_eod_option_strings=(-h --help --from --to --limit)
+_shtab_pm_clearing_cli_gaps_option_strings=(-h --help --from --to --limit)
 _shtab_pm_clearing_cli_prune_option_strings=(-h --help --days --dry-run)
 _shtab_pm_clearing_cli_option_strings=(-h --help --version --datapath --db-name --format --no-header --raw-output)
 
 
 
-_shtab_pm_clearing_cli_pos_0_choices=(gateways positions pnl daily trades exposure symbols dates snapshots health reconcile sessions eod prune)
+_shtab_pm_clearing_cli_pos_0_choices=(gateways positions pnl daily trades exposure symbols dates snapshots health reconcile sessions eod gaps prune)
 _shtab_pm_clearing_cli___format_choices=(table json csv)
 
 _shtab_pm_clearing_cli_gateways__h_nargs=0
@@ -2775,6 +2776,8 @@ _shtab_pm_clearing_cli_sessions___help_nargs=0
 _shtab_pm_clearing_cli_sessions___connected_only_nargs=0
 _shtab_pm_clearing_cli_eod__h_nargs=0
 _shtab_pm_clearing_cli_eod___help_nargs=0
+_shtab_pm_clearing_cli_gaps__h_nargs=0
+_shtab_pm_clearing_cli_gaps___help_nargs=0
 _shtab_pm_clearing_cli_prune__h_nargs=0
 _shtab_pm_clearing_cli_prune___help_nargs=0
 _shtab_pm_clearing_cli_prune___dry_run_nargs=0
@@ -5517,27 +5520,37 @@ complete -o bashdefault -F _shtab_pm_ipo pm-ipo
 #    source ~/.local/share/bash_completion/pm-log-cli
 # See also: https://github.com/scop/bash-completion/blob/main/doc/configuration.md
 
-_shtab_pm_log_cli_subparsers=(tail query processes stats diagnose prune)
+_shtab_pm_log_cli_ledger_subparsers=(list show check export)
+_shtab_pm_log_cli_subparsers=(tail query processes stats diagnose prune explain ledger)
 
-_shtab_pm_log_cli_tail_option_strings=(-h --help --process --level --logger --interval --before)
-_shtab_pm_log_cli_query_option_strings=(-h --help --process --level --logger --since --until --grep --has-exception --limit --reverse)
+_shtab_pm_log_cli_tail_option_strings=(-h --help --process --level --logger --interval --before --explain)
+_shtab_pm_log_cli_query_option_strings=(-h --help --process --level --logger --since --until --grep --has-exception --limit --reverse --explain)
 _shtab_pm_log_cli_processes_option_strings=(-h --help --active)
 _shtab_pm_log_cli_stats_option_strings=(-h --help)
 _shtab_pm_log_cli_diagnose_option_strings=(-h --help --since --process)
 _shtab_pm_log_cli_prune_option_strings=(-h --help --days)
+_shtab_pm_log_cli_explain_option_strings=(-h --help)
+_shtab_pm_log_cli_ledger_list_option_strings=(-h --help --logger --level)
+_shtab_pm_log_cli_ledger_show_option_strings=(-h --help)
+_shtab_pm_log_cli_ledger_check_option_strings=(-h --help --package)
+_shtab_pm_log_cli_ledger_export_option_strings=(-h --help)
+_shtab_pm_log_cli_ledger_option_strings=(-h --help)
 _shtab_pm_log_cli_option_strings=(-h --help --version --db --format)
 
 
 
-_shtab_pm_log_cli_pos_0_choices=(tail query processes stats diagnose prune)
+_shtab_pm_log_cli_ledger_pos_0_choices=(list show check export)
+_shtab_pm_log_cli_pos_0_choices=(tail query processes stats diagnose prune explain ledger)
 _shtab_pm_log_cli___format_choices=(human json)
 
 _shtab_pm_log_cli_tail__h_nargs=0
 _shtab_pm_log_cli_tail___help_nargs=0
+_shtab_pm_log_cli_tail___explain_nargs=0
 _shtab_pm_log_cli_query__h_nargs=0
 _shtab_pm_log_cli_query___help_nargs=0
 _shtab_pm_log_cli_query___has_exception_nargs=0
 _shtab_pm_log_cli_query___reverse_nargs=0
+_shtab_pm_log_cli_query___explain_nargs=0
 _shtab_pm_log_cli_processes__h_nargs=0
 _shtab_pm_log_cli_processes___help_nargs=0
 _shtab_pm_log_cli_processes___active_nargs=0
@@ -5547,6 +5560,19 @@ _shtab_pm_log_cli_diagnose__h_nargs=0
 _shtab_pm_log_cli_diagnose___help_nargs=0
 _shtab_pm_log_cli_prune__h_nargs=0
 _shtab_pm_log_cli_prune___help_nargs=0
+_shtab_pm_log_cli_explain__h_nargs=0
+_shtab_pm_log_cli_explain___help_nargs=0
+_shtab_pm_log_cli_ledger_list__h_nargs=0
+_shtab_pm_log_cli_ledger_list___help_nargs=0
+_shtab_pm_log_cli_ledger_show__h_nargs=0
+_shtab_pm_log_cli_ledger_show___help_nargs=0
+_shtab_pm_log_cli_ledger_check__h_nargs=0
+_shtab_pm_log_cli_ledger_check___help_nargs=0
+_shtab_pm_log_cli_ledger_export__h_nargs=0
+_shtab_pm_log_cli_ledger_export___help_nargs=0
+_shtab_pm_log_cli_ledger_pos_0_nargs=A...
+_shtab_pm_log_cli_ledger__h_nargs=0
+_shtab_pm_log_cli_ledger___help_nargs=0
 _shtab_pm_log_cli_pos_0_nargs=A...
 _shtab_pm_log_cli__h_nargs=0
 _shtab_pm_log_cli___help_nargs=0
@@ -7507,7 +7533,7 @@ _shtab_pm_opctl_cli_init_option_strings=(-h --help)
 _shtab_pm_opctl_cli_stop_option_strings=(-h --help)
 _shtab_pm_opctl_cli_down_option_strings=(-h --help)
 _shtab_pm_opctl_cli_kill_option_strings=(-h --help)
-_shtab_pm_opctl_cli_list_option_strings=(-h --help -y --restart --no-restart)
+_shtab_pm_opctl_cli_list_option_strings=(-h --help -y --restart --no-restart --no-tcp-probe)
 _shtab_pm_opctl_cli_health_option_strings=(-h --help -q --quiet)
 _shtab_pm_opctl_cli_show_option_strings=(-h --help --json)
 _shtab_pm_opctl_cli_clear_option_strings=(-h --help --state --all --yes)
@@ -7540,6 +7566,7 @@ _shtab_pm_opctl_cli_list___help_nargs=0
 _shtab_pm_opctl_cli_list__y_nargs=0
 _shtab_pm_opctl_cli_list___restart_nargs=0
 _shtab_pm_opctl_cli_list___no_restart_nargs=0
+_shtab_pm_opctl_cli_list___no_tcp_probe_nargs=0
 _shtab_pm_opctl_cli_health__h_nargs=0
 _shtab_pm_opctl_cli_health___help_nargs=0
 _shtab_pm_opctl_cli_health__q_nargs=0

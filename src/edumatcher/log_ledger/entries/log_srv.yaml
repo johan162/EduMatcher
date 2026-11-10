@@ -1,0 +1,193 @@
+# Log ledger entries for pm-log-srv (edumatcher.log_srv).
+# Format: docs-design/EduMatcher-Log-Ledger.md §3. Check with `pm-log-cli ledger check`.
+# Actions are double-quoted: a bare YAML string must not contain ": " or start with a backtick.
+
+- logger: edumatcher.log_srv.main
+  template: "failed to resolve configuration: %s"
+  level: CRITICAL
+  explanation: >
+    pm-log-srv could not build its configuration from the compiled exchange
+    config and the command-line options, so it did not start. No process can
+    send logs to the central log until it does.
+  actions:
+    - "Read the reason in the message. It usually names a bad value or a missing file."
+    - "Run `pm-config-show` to see the deployed `log_server` block, fix the source config and run `pm-config-deploy`."
+    - "Start `pm-log-srv` again."
+
+- logger: edumatcher.log_srv.main
+  template: "log_server.enabled=false; exiting"
+  level: WARNING
+  explanation: >
+    The deployed configuration has `log_server.enabled: false`, so
+    pm-log-srv exited at once. Other processes will log to their local
+    fallback files instead of the central log.
+  actions:
+    - "If you meant to turn off central logging, nothing needs doing."
+    - "Otherwise set `log_server.enabled: true` in the source config, run `pm-config-deploy` and start `pm-log-srv` again."
+
+- logger: edumatcher.log_srv.main
+  template: "refusing to start: %s"
+  level: CRITICAL
+  explanation: >
+    pm-log-srv found an existing log.db written under another schema
+    version. Old log databases are never migrated, so the server stopped
+    rather than writing into a file it does not understand.
+  actions:
+    - "Copy log.db somewhere else first if you still need its history (an older release's `pm-log-cli` can read it)."
+    - "Delete `log.db` and its `-wal`/`-shm` files at the path in the message."
+    - "Start `pm-log-srv` again. It creates a fresh database at the current version."
+
+- logger: edumatcher.log_srv.main
+  template: "fatal runtime error: %s"
+  level: CRITICAL
+  explanation: >
+    pm-log-srv stopped because of an unexpected error in its main loop.
+    Processes that were logging to it switch to their local fallback files
+    after a short grace period.
+  actions:
+    - "Read the error, and the traceback in pm-log-srv's own console or log file."
+    - "Check that the disk holding log.db is not full or read-only (`df -h`)."
+    - "Restart `pm-log-srv`. Report the error if it happens again."
+
+- logger: edumatcher.log_srv.pubsub
+  template: "LALF-PS control recv failed: %s"
+  level: WARNING
+  explanation: >
+    The LALF-PS control socket (subscribe, renew and backfill requests from
+    log viewers) returned a ZeroMQ error. Logs are still collected, but
+    viewers such as the log-GUI may stop receiving live rows.
+  actions:
+    - "If it happens once, nothing needs doing. The socket is read again on the next pass."
+    - "If it repeats, restart `pm-log-srv`. Viewers re-subscribe by themselves."
+
+- logger: edumatcher.log_srv.pubsub
+  template: "LALF-PS: undecodable control frame dropped: %s"
+  level: WARNING
+  explanation: >
+    Something sent a message to the LALF-PS pull port that is not a valid
+    LALF-PS frame, so it was ignored. Usually this is a misconfigured client
+    or another program connected to the wrong port.
+  actions:
+    - "Check which program connects to the pull port (default 5602), for example with `ss -tnp`."
+    - "Make sure each log viewer uses the right `pull_port`. Nothing else needs doing."
+
+- logger: edumatcher.log_srv.pubsub
+  template: "LALF-PS: %s without usable sub_id dropped"
+  level: WARNING
+  explanation: >
+    A log viewer sent a control request without a subscription id. The
+    server cannot reply without one, so the request was dropped and the
+    viewer will not get what it asked for.
+  actions:
+    - "Find the viewer that sent it. Every request must carry a non-empty `sub_id`."
+    - "If it is your own client code, see the LALF-PS chapter of the protocols book."
+
+- logger: edumatcher.log_srv.pubsub
+  template: "LALF-PS: handler for %s failed"
+  level: ERROR
+  explanation: >
+    Handling a viewer's control request raised an unexpected error. The
+    viewer got an INTERNAL error reply. Log collection is not affected.
+  actions:
+    - "Read the traceback in the message."
+    - "Retry from the viewer. If it fails again, report it as a pm-log-srv bug with the topic and the traceback."
+
+- logger: edumatcher.log_srv.pubsub
+  template: "LALF-PS backfill query failed for %s: %s"
+  level: ERROR
+  explanation: >
+    A viewer asked for recent history (backfill), and reading it from
+    log.db failed. The viewer got an error reply and sees only live rows.
+  actions:
+    - "Read the SQLite error in the message. \"database is locked\" is usually transient."
+    - "Check that log.db is readable and not corrupt with `pm-log-cli stats`."
+    - "Ask the viewer to backfill again, or reload the log-GUI."
+
+- logger: edumatcher.log_srv.pubsub
+  template: "LALF-PS: publish failed: %s"
+  level: WARNING
+  explanation: >
+    Publishing rows or replies on the LALF-PS publish socket failed with a
+    ZeroMQ error. Viewers may have missed some live rows. The rows are still
+    in log.db.
+  actions:
+    - "Reload the log-GUI or re-subscribe the viewer to fill the gap from history."
+    - "If it repeats, restart `pm-log-srv`."
+
+- logger: edumatcher.log_srv.server
+  template: "accept failed: %s"
+  level: WARNING
+  explanation: >
+    pm-log-srv could not accept a new LALF connection. The process trying to
+    connect retries, and falls back to its local log file if it keeps
+    failing.
+  actions:
+    - "\"Too many open files\" means the file-descriptor limit is too low: raise `ulimit -n` for pm-log-srv."
+    - "Check with `pm-log-cli processes --active` that the expected processes are connected."
+
+- logger: edumatcher.log_srv.server
+  template: "read select failed: %s"
+  level: WARNING
+  explanation: >
+    Waiting for data from the connected processes failed for one pass of the
+    main loop. It is retried at once, and unread data stays in the socket
+    buffers.
+  actions:
+    - "If it happens once, nothing needs doing."
+    - "If it repeats, restart `pm-log-srv` and report the error."
+
+- logger: edumatcher.log_srv.server
+  template: "dropping client fd=%d due to protocol error: %s"
+  level: WARNING
+  explanation: >
+    A connected process sent data that breaks the LALF protocol, so
+    pm-log-srv closed its connection. That process reconnects and keeps
+    logging, but the bad frame is lost.
+  actions:
+    - "Check which process it was with `pm-log-cli processes` (look for `disconnect_reason`)."
+    - "A process from another EduMatcher release can speak a different protocol: run the same version everywhere."
+    - "Something that is not a pm-* process connected to the LALF port (default 5600) causes this too."
+
+- logger: edumatcher.log_srv.server
+  template: "LALF-PS servicing pass failed; continuing"
+  level: ERROR
+  explanation: >
+    An unexpected error in the log distribution interface (LALF-PS) was
+    caught. Log collection goes on, but live viewers may miss rows or
+    replies.
+  actions:
+    - "Read the traceback in the message and report it as a pm-log-srv bug."
+    - "Reload the log-GUI. If live rows stay missing, restart `pm-log-srv`."
+
+- logger: edumatcher.log_srv.writer
+  template: "writer thread: %d accepted rows could not be persisted at shutdown"
+  level: ERROR
+  explanation: >
+    pm-log-srv stopped while the database still refused writes, so this many
+    log rows it had received were never saved to log.db. They are lost.
+  actions:
+    - "Look for earlier \"failed to persist batch\" errors to find the cause, usually a full or read-only disk."
+    - "Fix the disk (`df -h`) before starting `pm-log-srv` again."
+
+- logger: edumatcher.log_srv.writer
+  template: "writer thread: failed to persist batch of %d rows (will retry): %s"
+  level: ERROR
+  explanation: >
+    Writing a batch of log rows to log.db failed. The rows are kept and
+    retried. Until the write succeeds, pm-log-srv reads more slowly from all
+    processes, so their logging slows down too.
+  actions:
+    - "Read the SQLite error. \"disk I/O error\" or \"database or disk is full\" means the disk needs attention (`df -h`)."
+    - "Free space or lower `log_server.retention_days`, then watch for the error to stop."
+    - "If log.db is corrupt, stop `pm-log-srv`, move the file aside and start again."
+
+- logger: edumatcher.log_srv.writer
+  template: "writer thread: persisted-batch callback raised"
+  level: ERROR
+  explanation: >
+    The rows were saved to log.db, but passing them on to live viewers
+    raised an error. Viewers may have missed these rows. History is
+    complete.
+  actions:
+    - "Reload the log-GUI to fill the gap from history."
+    - "Report the traceback as a pm-log-srv bug."

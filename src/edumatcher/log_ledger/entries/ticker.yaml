@@ -1,0 +1,14 @@
+# Log ledger entries for pm-ticker (edumatcher.ticker).
+# Format: docs-design/EduMatcher-Log-Ledger.md §3. Check with `pm-log-cli ledger check`.
+# Actions are double-quoted: a bare YAML string must not contain ": " or start with a backtick.
+
+- logger: edumatcher.ticker.main
+  template: "ticker DB read error: %s"
+  level: WARNING
+  explanation: >
+    pm-ticker could not read today's figures from stats.db, so the daily
+    columns it shows (open, high, low, volume) may be stale. Live prices still
+    update. It tries again at the next refresh.
+  actions:
+    - "Check that pm-stats is running and its database is healthy with `pm-stats-cli health`."
+    - "If the error repeats, check that stats.db in the data directory is readable by the user running pm-ticker."

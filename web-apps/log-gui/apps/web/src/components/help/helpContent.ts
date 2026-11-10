@@ -160,7 +160,7 @@ export const HELP_TOPICS: HelpTopic[] = [
         ]
       },
       {
-        "note": "Click a line to see it in full, with the traceback. The filter is kept in the page address, so you can paste the link to a colleague."
+        "note": "Click a line to see it in full, with the traceback. For a WARNING, ERROR or CRITICAL line, Explanation and Suggested actions below the message say what it means and what to do. The filter is kept in the page address, so you can paste the link to a colleague."
       }
     ]
   },

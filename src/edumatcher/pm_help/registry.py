@@ -1528,6 +1528,11 @@ _QUERY_CLIS: tuple[CommandInfo, ...] = (
                 purpose="End-of-day sentinel events written by pm-clearing (limit 100)",
             ),
             Subcommand(
+                "gaps",
+                args="[--from D] [--to D]",
+                purpose="Trade-feed gaps: trades pm-clearing never received (limit 500)",
+            ),
+            Subcommand(
                 "prune",
                 args="[--days N] [--dry-run]",
                 purpose="Delete old trade_events rows by retention window",
@@ -2561,6 +2566,14 @@ _LOGGING: tuple[CommandInfo, ...] = (
                 purpose="Rule-based troubleshooting heuristics with concrete recommendations",
             ),
             Subcommand("prune", purpose="Manual retention maintenance"),
+            Subcommand(
+                "explain",
+                purpose="One row with its log-ledger explanation and suggested actions",
+            ),
+            Subcommand(
+                "ledger",
+                purpose="list/show/check/export the log ledger (needs no log.db)",
+            ),
         ),
         related=("pm-log-srv",),
         doc_anchor="pm-log-cli-log-server-querytroubleshooting-cli",

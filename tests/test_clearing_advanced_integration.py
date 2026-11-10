@@ -31,6 +31,7 @@ from edumatcher.clearing.main import (
 )
 from edumatcher.clearing.store import (
     open_writer_connection,
+    query_feed_gaps,
     query_session_events,
     query_sessions,
 )
@@ -215,6 +216,16 @@ class TestSequenceGapDetection:
         data = json.loads(rows[0]["payload_json"])
         assert data["run_seq"] == 42
         assert data["missing_trades"] == 4
+
+        # pm-clearing-cli gaps reads the same row, spread into columns.
+        conn = open_writer_connection(db_path)
+        (gap,) = query_feed_gaps(conn)
+        conn.close()
+        assert (gap["last_seq"], gap["next_seq"], gap["missing_trades"]) == (
+            100,
+            105,
+            4,
+        )
 
     def test_run_prefix_change_resets_without_alarm(
         self, proc: ClearingProcess

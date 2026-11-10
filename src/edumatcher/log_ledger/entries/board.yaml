@@ -1,0 +1,65 @@
+# Log ledger entries for pm-board (edumatcher.board).
+# Format: docs-design/EduMatcher-Log-Ledger.md §3. Check with `pm-log-cli ledger check`.
+# Actions are double-quoted: a bare YAML string must not contain ": " or start with a backtick.
+
+- logger: edumatcher.board.main
+  template: "engine config not found at %s (checked EDUMATCHER_DATA_DIR / the usual defaults); using %s found in the current directory instead."
+  level: WARNING
+  explanation: >
+    pm-board did not find the exchange configuration where it expected it, and
+    used the copy under ./data/ref_data/ in the current directory instead. This
+    is normal when pm-board runs on a host that shares a data volume with an
+    exchange in a container. Prices are shown with that copy's decimals.
+  actions:
+    - "If the copy is the one the exchange runs, nothing needs doing."
+    - "To silence it, set EDUMATCHER_DATA_DIR to the exchange's data directory before starting pm-board."
+
+- logger: edumatcher.board.main
+  template: "engine config not found at %s, and no ./data/ref_data/engine_config.json in the current directory either. Prices will fall back to %d decimals for every symbol until this is fixed — set EDUMATCHER_DATA_DIR to the exchange's data directory, or run pm-board from a directory containing ./data/ref_data/."
+  level: WARNING
+  explanation: >
+    pm-board found no exchange configuration, so it does not know each symbol's
+    price precision and shows every price with the default number of
+    decimals. Prices of symbols with other precisions are displayed wrongly.
+  actions:
+    - "Set EDUMATCHER_DATA_DIR to the exchange's data directory, or start pm-board from the directory that holds ./data/ref_data/."
+    - "On the exchange host, run `pm-config-deploy` if no configuration was ever installed."
+
+- logger: edumatcher.board.main
+  template: "could not read tick_decimals from %s: %s (prices will fall back to %d decimals)"
+  level: WARNING
+  explanation: >
+    pm-board found the exchange configuration but could not read it, so every
+    price is shown with the default number of decimals.
+  actions:
+    - "Read the error; the file may be unreadable or not valid JSON."
+    - "Run `pm-config-deploy` on the exchange host to install the configuration again, then restart pm-board."
+
+- logger: edumatcher.board.main
+  template: "keyboard paging unavailable: %s"
+  level: WARNING
+  explanation: >
+    The terminal input library could not be loaded, so pm-board ignores the
+    keyboard. The display itself still updates; you cannot change page by hand.
+  actions:
+    - "Reinstall EduMatcher so its dependencies (prompt_toolkit) are complete."
+
+- logger: edumatcher.board.main
+  template: "could not open keyboard input: %s"
+  level: WARNING
+  explanation: >
+    pm-board could not read the keyboard, usually because it is not attached to
+    a terminal (started in the background, or with input redirected). The
+    display still updates; you cannot change page by hand.
+  actions:
+    - "If you want keyboard control, start pm-board directly in a terminal."
+
+- logger: edumatcher.board.main
+  template: "keyboard paging thread stopped: %s"
+  level: WARNING
+  explanation: >
+    Reading the keyboard failed while pm-board was running, so it stopped
+    listening to keys. The display still updates; you cannot change page by hand
+    any more.
+  actions:
+    - "Restart pm-board to get keyboard control back."

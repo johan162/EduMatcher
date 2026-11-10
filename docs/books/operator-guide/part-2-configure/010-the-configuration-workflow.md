@@ -1790,9 +1790,10 @@ editing the authored file and forgetting to deploy, so the exchange keeps
 running the previous configuration while the file on disk says otherwise.
 
 ```text
-engine_config.yaml has changed since the running configuration was compiled
-at 2026-09-04T09:43:28.000Z — this exchange is still running the previous
-one. Run pm-config-deploy to pick up the edit.
+the running configuration is out of date: engine_config.yaml has changed since
+the running configuration was compiled at 2026-09-04T09:43:28.000Z — this
+exchange is still running the previous one. Run pm-config-deploy to pick up
+the edit.
 ```
 
 It only warns. It also stays silent when the source is unreachable — a

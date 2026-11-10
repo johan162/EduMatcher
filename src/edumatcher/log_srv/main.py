@@ -13,6 +13,7 @@ from edumatcher.log_srv.config import (
     load_default_log_server_config,
 )
 from edumatcher.config import resolve_data_path
+from edumatcher.log_srv.schema import LogDbSchemaError
 from edumatcher.log_srv.server import LogServer
 
 log = logging.getLogger(__name__)
@@ -228,12 +229,12 @@ def main() -> None:
     args = parser.parse_args()
     log_level = _configure_logging(args)
     log.info("starting pm-log-srv with log level %s", logging.getLevelName(log_level))
-    report_deployment(log)
+    report_deployment()
 
     try:
         config = _resolve_config(args)
     except Exception as exc:
-        log.error("failed to resolve configuration: %s", exc)
+        log.critical("failed to resolve configuration: %s", exc)
         parser.error(str(exc))
 
     if not config.enabled:
@@ -255,14 +256,18 @@ def main() -> None:
         config.lease_sec,
     )
 
-    server = LogServer(config=config)
+    try:
+        server = LogServer(config=config)
+    except LogDbSchemaError as exc:
+        log.critical("refusing to start: %s", exc)
+        raise SystemExit(1) from exc
     reporter = HealthReporter.start_from_compiled_config("pm-log-srv")
     if reporter is not None:
         server.attach_reporter(reporter)
     try:
         server.run()
     except Exception as exc:
-        log.error("fatal runtime error: %s", exc)
+        log.critical("fatal runtime error: %s", exc)
         raise
     finally:
         server.close()

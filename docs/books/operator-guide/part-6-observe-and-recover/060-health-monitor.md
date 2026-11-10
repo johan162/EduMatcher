@@ -176,13 +176,26 @@ and nothing is MISSING.
 | `host_mem_pct` (total − available) | `host` | > 80 % | > 92 % |
 | `disk_free_pct` (data directory) | `host` | < 15 % | < 5 % |
 | `engine_handle_p99_us` | the engine | > 5 000 µs | > 20 000 µs |
-| `reject_pct_5m` — rejected over all inbound requests (orders, cancels, amends, quotes), judged from 20 requests in 5 min | `exchange` | > 10 % | > 30 % |
+| `reject_pct_5m` — rejected over all inbound requests (orders, cancels, amends, quotes), judged from 20 requests in 5 min; `MARKET_CLOSED` rejects are left out (see below) | `exchange` | > 10 % | > 30 % |
 | `rss_growth_pct_1h` — judged once a process has been watched for 10 min, only when the hour added at least 100 MB and RSS rose at least 1 % in the last 15 min, with less than half of the hour's growth falling in those 15 min (a step, such as the ramp when continuous trading starts, is not a leak, neither while it happens nor after it has levelled off) | a process | > 50 % | > 100 % |
 | `heap_bloat_ratio` — a book's heap size over the size compaction tolerates; 1 is the limit | a symbol | > 1.5 | > 3 |
 | `loop_age_ms` (fixed) | a process | > 1 000 ms | (HUNG) |
 | `slow_client_disconnects`, `api_dropped_events`, `api_throttled`, `stats_feed_gaps` (fixed) | a process | any increase in 5 min | — |
 | `audit_archive_errors` (fixed) — `pm-audit`'s archiver exited with an error | `pm-audit` | any increase in 5 min | — |
 | `metrics_store_errors` (fixed) — history `pm-monitor` could not write | `pm-monitor` | any increase in 5 min | — |
+
+`reject_pct_5m` does not count requests the engine refused as
+`MARKET_CLOSED`: neither the reject nor the request it answers is in the
+ratio, and they do not count towards the 20 requests it needs. Agents and
+clients that send an order in the last moments of the closing auction see the
+session still open; if the order reaches the engine after the close it is
+refused as `MARKET_CLOSED`. That is an ordinary race at the end of every
+trading day, not a sign of trouble, and counting it made the exchange
+DEGRADED a few minutes after the close, when the busy minutes had left the
+window. Orders sent while the market is closed for longer are no race, but
+they are not counted either; "Rejects today by reason" on the dashboard still
+lists every `MARKET_CLOSED` reject, and the participants table's own reject
+percentage still includes them.
 
 The configurable rules take their levels from `monitor.thresholds`. A breach
 is raised after five consecutive seconds over a warn level (a critical level
