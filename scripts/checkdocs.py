@@ -142,6 +142,10 @@ CODE = re.compile(r"(?ms)^```([A-Za-z0-9_+-]*)[^\n]*\n(.*?)^```")
 SHELLISH = {"", "bash", "console", "sh", "shell", "shell-session", "zsh"}
 
 
+#: Deepest subcommand chain any pm-* command has (`ledger check`).
+_MAX_SUB_DEPTH = 2
+
+
 def subcommands(t: str) -> set[str]:
     out = set()
     m = re.search(r"(?ms)^positional arguments:\n(.*?)(?=^\S|\Z)", t)
@@ -183,8 +187,14 @@ def check_cli() -> list[str]:
         top_flags = set(FLAG.findall(top))
         sub_flags: set[str] = set()
         sc = subcommands(top)
-        for sub in sorted(sc):
-            sub_flags |= set(FLAG.findall(help_text(cmd, spec, [sub])))
+        # Walk nested subcommands too (`pm-log-cli ledger check --package`).
+        pending = [[sub] for sub in sorted(sc)]
+        while pending:
+            path = pending.pop()
+            text = help_text(cmd, spec, path)
+            sub_flags |= set(FLAG.findall(text))
+            if len(path) < _MAX_SUB_DEPTH:
+                pending += [path + [s] for s in sorted(subcommands(text))]
         known[cmd] = top_flags | sub_flags
         subs[cmd] = sc
         # argparse hands everything after the subcommand to the subparser, so a
