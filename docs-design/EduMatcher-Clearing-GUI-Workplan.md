@@ -590,8 +590,8 @@ suite.
   container 8096, Vite 8196 proxying `/api` to `localhost:8080`; no dev
   backend. `apps/serve/serve.ts` is trader-gui's static server minus the
   WebSocket upgrade proxy (the GUI opens no socket), plus a 400 for a
-  malformed URL escape (it threw inside the handler and ended the process --
-  trader-gui's copy still does; not changed here).
+  malformed URL escape (it threw inside the handler and ended the process;
+  trader-gui's copy was fixed the same way afterwards).
 - `api/apiFetch.ts` validates every body with Zod (`api/schemas.ts`): a
   mismatch is `ContractError`, a 401 logs out, no answer is `NetworkError`
   (and the top bar's connection badge says so). `api/queries.ts` holds every
@@ -967,8 +967,9 @@ under another's name or login (F14, F15); every failure mode reaches the
 user as a named error, never as an empty table (F16); explicit operator
 actions really run (F17); unit handling (ticks per row, minor units apart,
 no "-0.00", F20) and wording (F18, F19). F14–F20 were fixed test-first;
-`test/review.test.tsx` holds them. Not changed, recorded: trader-gui's static
-server shares the decode crash fixed in clearing-gui's copy (CG5 notes).
+`test/review.test.tsx` holds them. trader-gui's static server shared the
+decode crash fixed in clearing-gui's copy (CG5 notes); fixed there too, with
+the same request test in `apps/serve/test/serve.test.ts`.
 
 ## 6. Release checklist
 
