@@ -992,3 +992,165 @@ Before declaring the client ready for release 1.0, confirm:
   authoritative implementation and corresponding WP.
 - [x] Deployment, API, and user documentation were verified against running
   route schemas and browser journeys.
+
+## 7. Suggested follow-up work packages
+
+Proposed 2026-11-11 from findings F1–F20. Two findings are still open (F9,
+F11). The fixed implementation defects were then checked for the same
+defect class elsewhere. Each class was looked for in code, not assumed; every
+WP still starts with the failing test that proves the defect before it is
+fixed. Nothing here is release-1.0 scope for the clearing GUI itself.
+
+**Priority** is by potential impact:
+
+- **P1 — High:** one participant's data could be shown to another, or
+  positions or money could be shown wrong.
+- **P2 — Medium:** wrong or misleading results under specific but reachable
+  conditions, or a published contract that misleads client authors.
+- **P3 — Low:** diagnostics quality, cosmetic output, accessibility hardening.
+
+Checked and **not** found elsewhere (no WP):
+
+- F1 class: every keyset cursor in `stats/query.py` has a total order
+  (`seq`, `rowid` or `symbol` tie-breaker).
+- F8 class: no other router builds links from ids.
+- F14 class: no other GUI uses `keepPreviousData` / `placeholderData`.
+
+| # | WP | Prio | From | Content | Depends on | Est. | Status | Done on |
+|---|---|---|---|---|---|---|---|---|
+| 10 | CG10 | P1 | F15 (F14) | trader-gui: per-login query cache — no cached response survives a logout | — | 0.5 d | ☐ | |
+| 11 | CG11 | P2 | F11 | Published OpenAPI examples keep `null` fields | — | 1 d | ☐ | |
+| 12 | CG12 | P2 | F5 | `pm-clearing-cli sessions`: session-timezone days, not UTC dates | — | 0.5 d | ☐ | |
+| 13 | CG13 | P2 | F9 | Reconciliation correct across a `tick_decimals` change | K6 decision | 1 d | ☐ | |
+| 14 | CG14 | P3 | F16 | Non-JSON success replies named in every GUI API client | — | 0.5 d | ☐ | |
+| 15 | CG15 | P3 | F7 | Blank (whitespace) filters are no filter on the history routes | — | 0.25 d | ☐ | |
+| 16 | CG16 | P3 | F20 | trader-gui: no "-0.00" for values that round to zero | — | 0.25 d | ☐ | |
+| 17 | CG17 | P3 | F12, F13 | axe accessibility checks for trader-gui | — | 1 d | ☐ | |
+
+Suggested order: CG10 first (the only P1), then CG11–CG13, then the P3s in
+any order.
+
+### CG10 — trader-gui: per-login query cache (P1)
+
+- **Defect class:** F15 (cache survives logout), with F14 (rows shown under
+  the wrong identity).
+- **Evidence:** caller-specific queries in
+  `web-apps/trader-gui/apps/web/src/queries/index.ts` have keys without the
+  caller: `["positions"]` (fresh for 30 s), `["history/fills", params]`,
+  `["quotes/bootstrap"]`, `["quotes/legs"]`, `["history/daily", …]`.
+  `logout()` (`store/useAuthStore.ts`) clears no query cache. Only the order
+  store is cleared (`hooks/useOrderStream.ts`).
+- **Impact:** if a user logs out and another logs in on the same tab within
+  the stale time, the second user's position panel can show the first
+  user's positions as fresh data, with no refetch. On shared classroom
+  machines this is reachable.
+- **First failing test:** log in as gateway A with positions, log out, log in
+  as B, and assert A's rows never render.
+- **Fix:** the clearing-gui pattern — clear the query cache whenever the key
+  goes (`useClearCacheOnLogout` in clearing-gui `App.tsx`). log-gui and
+  terminal-gui also use TanStack Query; check them for the same pattern and
+  fix only where it is present.
+- **Exit:** the test passes, and the trader-gui suite and typecheck are green.
+
+### CG11 — Published OpenAPI examples keep `null` fields (P2)
+
+- **Finding:** F11 (open). FastAPI renders `spec/rest/openapi.json` with
+  `exclude_none`, so example fields whose value is `null` are missing,
+  although the wire carries them.
+- **Impact:** bot authors writing clients from the published contract may
+  treat nullable required fields as optional. This affects all routes, not
+  only clearing.
+- **First failing test:** a Python contract test that every example
+  validates against its response schema with all required fields present.
+- **Fix:** render examples without `exclude_none`. Find the mechanism in
+  FastAPI first; do not guess. Then run `make openapi`, and remove the
+  `withNulls` workaround from clearing-gui's `test/helpers.tsx`.
+- **Exit:** the test passes, the contract snapshot is regenerated, and the
+  GUI contract test passes without `withNulls`.
+
+### CG12 — `pm-clearing-cli sessions`: session-timezone days (P2)
+
+- **Defect class:** F5. It was fixed only in the API, which passes exact ns
+  bounds.
+- **Evidence:** `clearing/store.py` `query_sessions` still filters
+  `from_date`/`to_date` on the connect time's UTC date. `clearing/cli.py`
+  (`sessions`) passes those, and the `connect_date` column is the UTC date.
+- **Impact:** for a non-UTC venue, connections near midnight land on the
+  wrong day in the CLI.
+- **First failing test:** the Honolulu fixture case from
+  `test_the_connect_day_is_the_session_timezone_day`, run through the CLI.
+- **Fix:** the CLI resolves trading days to ns bounds in the session
+  timezone, as the API does. Remove the UTC-date parameters (no backwards
+  compatibility).
+- **Exit:** the CLI and API select the same rows; operator-guide CLI text
+  checked.
+
+### CG13 — Reconciliation across a `tick_decimals` change (P2)
+
+- **Finding:** F9 (open, predates this plan).
+- **Evidence:** `query_reconcile` compares raw `quantity * price` in each
+  trade's own ticks with daily rows that K6 rescales to the latest precision.
+- **Impact:** false notional discrepancies for every retained day before a
+  precision change, in the CLI, the API and the GUI's Reconciliation screen.
+  An operator may chase errors that do not exist. Reachable only when a
+  symbol's `tick_decimals` is changed between sessions.
+- **First step:** decide with the K6 owner whether a precision change is a
+  supported operator action. If it is not, record that and close F9 as
+  "not reachable".
+- **First failing test:** trades at 2 decimals, a change to 4, then
+  reconcile; assert no discrepancy.
+- **Fix:** rescale each raw trade to the daily row's precision before
+  comparing.
+- **Exit:** the test passes, and `pm-clearing-cli reconcile` agrees with the
+  API.
+
+### CG14 — Non-JSON success replies in every GUI API client (P3)
+
+- **Defect class:** F16.
+- **Evidence:** a bare `res.json()` on 2xx in
+  `trader-gui/apps/web/src/api/apiFetch.ts`,
+  `config-gui/apps/web/src/api/client.ts`, `log-gui/apps/web/src/lib/api.ts`,
+  `terminal-gui/apps/web/src/lib/api.ts` and
+  `dash-gui/apps/web/src/lib/api.ts`.
+- **Impact:** a misrouted proxy that serves `index.html` for `/api` surfaces
+  as a raw `SyntaxError` instead of a named error.
+- **First failing test:** in each GUI, a 200 `text/html` reply; assert the
+  error names it.
+- **Fix:** catch the parse error and throw that client's own error type with
+  "the reply is not JSON".
+- **Exit:** each GUI's suite is green.
+
+### CG15 — Blank filters on the history routes (P3)
+
+- **Defect class:** F7.
+- **Evidence:** `api_gateway/routers/history.py` uses
+  `symbol.upper() if symbol else None` (and the same for `index_id`):
+  `?symbol=%20` stays a filter on `" "`.
+- **Impact:** a false empty list instead of the unfiltered result.
+- **First failing test:** `?symbol=%20` returns the same rows as no filter.
+- **Fix:** strip, then treat empty as no filter, as `clearing_scope` does.
+  Sweep the other routers with the same test.
+- **Exit:** the test passes and `make openapi` is unchanged.
+
+### CG16 — trader-gui "-0.00" (P3)
+
+- **Defect class:** F20.
+- **Evidence:** `trader-gui/apps/web/src/lib/formatters.ts` `formatPrice`
+  and `formatSignedPrice` use `toFixed`, and `(-0.001).toFixed(2)` is
+  `"-0.00"`.
+- **Impact:** a P&L that rounds to zero reads as a loss.
+- **First failing test:** both functions with `-0.001` at 2 decimals give
+  `"0.00"`.
+- **Fix:** the rounded-zero check in clearing-gui's `lib/money.ts` `fixed`.
+- **Exit:** the trader-gui suite is green.
+
+### CG17 — axe checks for trader-gui (P3)
+
+- **Defect class:** F12, F13. Only clearing-gui has axe tests; both its
+  defects were found only by running axe.
+- **Scope:** trader-gui's login page and main trading screens (the
+  participant-facing GUI), using the same `axe-core` + jsdom setup as
+  clearing-gui's `test/a11y.test.tsx`.
+- **First failing test:** whatever axe reports. Each violation found
+  becomes a finding here and is fixed test-first.
+- **Exit:** no axe violations on the covered screens.
