@@ -1,3 +1,25 @@
+## [v0.78.0] - 2026-11-11
+
+Release Type: major
+
+### 📋 Summary
+This release adds a read-only Clearing GUI for operators and participants, backed by new clearing and end-of-day REST APIs. It also makes simulation forensics a version-matched project command.
+
+### ✨ Additions
+- Added read-only REST endpoints for clearing positions, trades, events, sessions, reconciliation and end-of-day settlement data
+- Added the Clearing GUI with role-scoped participant and operator views, including positions, trades, reconciliation and settlement
+- Added the `pm-sim-forensics` command to run forensic checks using the installed project version
+
+### 🚀 Improvements
+- Improved trader-GUI handling of malformed URL escapes by returning HTTP 400 instead of crashing
+
+### 📚 Documentation
+- Added Clearing GUI setup and usage guidance and documented its API gateway and database configuration
+- Updated deployment and API documentation for the Clearing GUI and read-only clearing endpoints
+
+### 🛠 Internal
+- Added REST contract, integration and GUI tests for clearing and end-of-day queries
+
 ## [v0.77.4] - 2026-11-10
 
 Release Type: minor
