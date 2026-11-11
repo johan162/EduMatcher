@@ -72,6 +72,7 @@ from rich.rule import Rule
 from rich.table import Table
 from rich.text import Text
 
+from edumatcher.config_artifact import exit_on_config_error
 from edumatcher.config import (
     ENGINE_PULL_ADDR,
     ENGINE_PUB_ADDR,
@@ -830,6 +831,7 @@ def _build_picker_overlay(
     )
 
 
+@exit_on_config_error
 def main() -> None:
     parser = build_parser()
     args = parser.parse_args()

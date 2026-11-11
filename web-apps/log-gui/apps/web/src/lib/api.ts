@@ -28,6 +28,7 @@ function filterToQuery(filter: LogFilter, extra: Record<string, string | number 
   const params = new URLSearchParams();
   if (filter.minLevel) params.set("minLevel", filter.minLevel);
   if (filter.processes?.length) params.set("processes", filter.processes.join(","));
+  if (filter.processContains) params.set("processContains", filter.processContains);
   if (filter.loggers?.length) params.set("loggers", filter.loggers.join(","));
   if (filter.sessions?.length) params.set("sessions", filter.sessions.join(","));
   if (filter.contains) params.set("contains", filter.contains);

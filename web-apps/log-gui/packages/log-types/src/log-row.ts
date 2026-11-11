@@ -48,6 +48,8 @@ export interface LogRow {
 export interface LogFilter {
   minLevel?: LogLevel;
   processes?: string[];
+  /** Case-insensitive substring match on `process`. */
+  processContains?: string;
   loggers?: string[];
   sessions?: string[];
   contains?: string;

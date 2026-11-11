@@ -14,9 +14,13 @@ TSLA, trading gateway TRADER01, market maker MM01, admin OPS01.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Any
 
+from fastapi.encoders import jsonable_encoder
 from fastapi.openapi.models import Example
+from fastapi.routing import APIRoute, iter_route_contexts
+from starlette.routing import BaseRoute
 
 from edumatcher.api_gateway.errors import ERROR_CODES
 from edumatcher.api_gateway.schemas import ErrorResponse
@@ -1479,6 +1483,31 @@ def drop_stock_validation_error(schema: dict[str, Any]) -> None:
     components = schema.get("components", {}).get("schemas", {})
     components.pop("HTTPValidationError", None)
     components.pop("ValidationError", None)
+
+
+def restore_example_nulls(schema: dict[str, Any], routes: Sequence[BaseRoute]) -> None:
+    """Put the ``null`` fields of every response example back into *schema*.
+
+    FastAPI encodes the whole document with ``exclude_none``
+    (``fastapi.openapi.utils.get_openapi``), which also strips each ``None``
+    inside an example value: a nullable required field then looked optional
+    to a client written from the contract (CG11, finding F11). Each example is
+    copied again from the route's own ``responses=``, encoded without it.
+    """
+    for route in iter_route_contexts(routes):
+        if not isinstance(route.original_route, APIRoute):
+            continue
+        if not route.include_in_schema:
+            continue
+        operations = schema["paths"][route.path_format]
+        for method in route.methods or ():
+            published = operations[method.lower()]["responses"]
+            for code, documented in route.responses.items():
+                media = documented.get("content", {}).get("application/json", {})
+                for key in ("example", "examples"):
+                    if key in media:
+                        shown = published[str(code)]["content"]["application/json"]
+                        shown[key] = jsonable_encoder(media[key])
 
 
 # ---------------------------------------------------------------------------

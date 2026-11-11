@@ -17,6 +17,7 @@ from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from edumatcher.config_artifact import exit_on_config_error
 from edumatcher.api_gateway.errors import ERROR_CODES
 from edumatcher.api_gateway.idempotency import IdempotencyStore
 from edumatcher.api_gateway.metrics import install as install_metrics
@@ -25,6 +26,7 @@ from edumatcher.api_gateway.openapi_docs import (
     TAGS_METADATA,
     drop_stock_validation_error,
     errors,
+    restore_example_nulls,
 )
 from edumatcher.health import HealthReporter
 from edumatcher.api_gateway.config import (
@@ -257,6 +259,7 @@ def create_app(config: ApiGatewayConfig, *, instance: str | None = None) -> Fast
     def openapi() -> dict[str, Any]:
         schema = default_openapi()
         drop_stock_validation_error(schema)
+        restore_example_nulls(schema, app.routes)
         return schema
 
     app.openapi = openapi  # type: ignore[method-assign]
@@ -536,6 +539,7 @@ def _route_uvicorn_logging(level: str) -> None:
         uvicorn_logger.setLevel(uvicorn_level)
 
 
+@exit_on_config_error
 def main() -> None:
     parser = build_parser()
     args = parser.parse_args()

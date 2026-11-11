@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, TypedDict
 
+from edumatcher.clearing.query import day_bounds_ns, session_timezone
 from edumatcher.clearing.store import (
     require_trade_events_id_primary_key,
     open_readonly_connection,
@@ -453,13 +454,13 @@ def build_parser() -> argparse.ArgumentParser:
         "--from",
         dest="from_date",
         metavar="YYYY-MM-DD",
-        help="Inclusive start date (connect_date)",
+        help="Inclusive first trading day of the connect (session timezone)",
     )
     ses.add_argument(
         "--to",
         dest="to_date",
         metavar="YYYY-MM-DD",
-        help="Inclusive end date (connect_date)",
+        help="Inclusive last trading day of the connect (session timezone)",
     )
     ses.add_argument(
         "--connected-only",
@@ -707,14 +708,22 @@ def _run_query(
         return _SNAPSHOTS_COLS, rows
 
     if cmd == "sessions":
+        # Trading days and connect_date are the venue's, in the session
+        # timezone pm-clearing recorded -- the same rows the API selects.
+        from_ns, to_ns = day_bounds_ns(conn, args.from_date, args.to_date)
         rows = query_sessions(
             conn,
             gateway=_upper(getattr(args, "gateway", None)),
-            from_date=args.from_date,
-            to_date=args.to_date,
             connected_only=getattr(args, "connected_only", False),
             limit=args.limit,
+            from_ns=from_ns,
+            to_ns=to_ns,
         )
+        tz = session_timezone(conn)
+        for row in rows:
+            seconds = row["connected_at_ns"] // 1_000_000_000
+            connected = datetime.fromtimestamp(seconds, tz)
+            row["connect_date"] = connected.date().isoformat()
         return _SESSIONS_COLS, rows
 
     if cmd == "eod":

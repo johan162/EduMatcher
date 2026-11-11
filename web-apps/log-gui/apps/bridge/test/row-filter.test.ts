@@ -64,4 +64,9 @@ describe("rowMatchesFilter", () => {
     );
     expect(rowMatchesFilter(row({ message: "all fine" }), { contains: "reset" })).toBe(false);
   });
+
+  it("filters processContains case-insensitively", () => {
+    expect(rowMatchesFilter(row({ process: "pm-Engine" }), { processContains: "ENG" })).toBe(true);
+    expect(rowMatchesFilter(row({ process: "pm-api-gwy" }), { processContains: "eng" })).toBe(false);
+  });
 });

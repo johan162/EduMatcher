@@ -53,6 +53,7 @@ import zmq
 from rich.console import Console
 from rich.table import Table
 
+from edumatcher.config_artifact import exit_on_config_error
 from edumatcher.health import HealthReporter, counter
 from edumatcher.models.generated.health import MetricSample
 from edumatcher.clearing.ledger import Ledger, trade_date
@@ -1232,6 +1233,7 @@ def _configure_logging(args: argparse.Namespace) -> int:
     return int(level)
 
 
+@exit_on_config_error
 def main() -> None:
     from edumatcher.config import DATA_DIR, ENGINE_PUB_ADDR, resolve_data_path
 

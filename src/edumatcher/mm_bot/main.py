@@ -16,7 +16,11 @@ from pathlib import Path
 from typing import Any
 
 from edumatcher.health import HealthReporter
-from edumatcher.config_artifact import ArtifactError, load_compiled_config
+from edumatcher.config_artifact import (
+    ArtifactError,
+    load_compiled_config,
+    exit_on_config_error,
+)
 from edumatcher.log_srv.config import (
     load_default_log_client_config,
     load_default_log_server_config,
@@ -460,6 +464,7 @@ def _derive_gateway_id(
     return f"MM_{label}_{args.id_suffix}"
 
 
+@exit_on_config_error
 def main(argv: list[str] | None = None) -> None:
     """Main entry point for pm-mm-bot."""
     cli_args = argv if argv is not None else sys.argv[1:]

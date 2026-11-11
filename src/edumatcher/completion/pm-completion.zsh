@@ -1856,8 +1856,8 @@ _shtab_pm_clearing_cli_reconcile_defaults_added=0
 _shtab_pm_clearing_cli_sessions_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
   "--gateway[Filter to one gateway]:GW_ID:"
-  "--from[Inclusive start date (connect_date)]:YYYY-MM-DD:"
-  "--to[Inclusive end date (connect_date)]:YYYY-MM-DD:"
+  "--from[Inclusive first trading day of the connect (session timezone)]:YYYY-MM-DD:"
+  "--to[Inclusive last trading day of the connect (session timezone)]:YYYY-MM-DD:"
   "--connected-only[Show only sessions without a recorded disconnect]"
   "--limit[N]:N:"
 )

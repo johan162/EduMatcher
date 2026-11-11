@@ -22,6 +22,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, TypedDict
 
+from edumatcher.config_artifact import exit_on_config_error
 from edumatcher.config import INDEX_HEALTH_ADDR
 from edumatcher.healthcheck import (
     PING_TIMEOUT_MS,
@@ -875,6 +876,7 @@ def _cmd_health(args: argparse.Namespace) -> None:
 # ---------------------------------------------------------------------------
 
 
+@exit_on_config_error
 def main() -> None:
     parser = build_parser()
     args = parser.parse_args()

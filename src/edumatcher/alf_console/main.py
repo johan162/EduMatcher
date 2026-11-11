@@ -64,6 +64,7 @@ from prompt_toolkit.history import InMemoryHistory
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.patch_stdout import patch_stdout as pt_patch_stdout
 
+from edumatcher.config_artifact import exit_on_config_error
 from edumatcher.cli_version import add_version_argument
 from edumatcher.config import (
     DROP_COPY_PUB_ADDR,
@@ -2074,6 +2075,7 @@ class Gateway:
             console.print(f"\n[bold]Gateway {self.gateway_id} disconnected.[/bold]")
 
 
+@exit_on_config_error
 def main() -> None:
     parser = build_parser()
     args = parser.parse_args()

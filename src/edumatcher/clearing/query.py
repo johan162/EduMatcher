@@ -17,7 +17,7 @@ from __future__ import annotations
 import logging
 import sqlite3
 from dataclasses import dataclass
-from datetime import date, datetime, timezone, tzinfo
+from datetime import date, datetime, time, timedelta, timezone, tzinfo
 from pathlib import Path
 from urllib.parse import quote
 
@@ -80,6 +80,29 @@ def session_timezone(conn: sqlite3.Connection) -> tzinfo:
         log.warning("clearing: unknown session timezone %r, using UTC", row[0])
         return timezone.utc
     return resolved
+
+
+def day_bounds_ns(
+    conn: sqlite3.Connection, from_date: str | None, to_date: str | None
+) -> tuple[int | None, int | None]:
+    """Epoch-ns bounds of the inclusive trading days ``from_date..to_date``.
+
+    The lower bound is inclusive, the upper exclusive (the midnight after
+    ``to_date``); both are midnights in the session timezone, so a moment is
+    filtered under the venue's day, not its UTC date. ``None`` is no bound.
+    """
+    tz = session_timezone(conn)
+
+    def midnight_ns(day: date) -> int:
+        return int(datetime.combine(day, time(0), tz).timestamp()) * 1_000_000_000
+
+    def parse(day: str) -> date:
+        return datetime.strptime(day, "%Y-%m-%d").date()
+
+    return (
+        midnight_ns(parse(from_date)) if from_date else None,
+        midnight_ns(parse(to_date) + timedelta(days=1)) if to_date else None,
+    )
 
 
 def period_boundaries(today: date) -> tuple[str, str, str]:

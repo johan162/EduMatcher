@@ -22,7 +22,6 @@ import logging
 import sqlite3
 from collections.abc import Callable
 from contextlib import closing
-from datetime import datetime, time, timedelta
 from typing import Annotated, Any, Literal, TypeVar
 from urllib.parse import quote
 
@@ -50,7 +49,7 @@ from edumatcher.api_gateway.responses import (
 )
 from edumatcher.api_gateway.routing import ContractRoute
 from edumatcher.api_gateway.sessions import Session, auth, require_admin
-from edumatcher.clearing.query import open_readonly_connection, session_timezone
+from edumatcher.clearing.query import day_bounds_ns, open_readonly_connection
 from edumatcher.clearing.store import (
     query_close_snapshots,
     query_daily,
@@ -320,14 +319,6 @@ def _event_row(row: dict[str, Any]) -> dict[str, Any]:
             "marked_symbols": marked,
         }
     return event
-
-
-def _day_start_ns(conn: sqlite3.Connection, day: str) -> int:
-    """Epoch nanoseconds of midnight starting *day* in clearing's timezone."""
-    moment = datetime.combine(
-        datetime.strptime(day, "%Y-%m-%d").date(), time(0), session_timezone(conn)
-    )
-    return int(moment.timestamp()) * 1_000_000_000
 
 
 def _database_health(request: Request) -> dict[str, Any]:
@@ -916,11 +907,7 @@ async def clearing_gateway_sessions(
     _check_dates(None, from_date, to_date)
 
     def _query(conn: sqlite3.Connection) -> list[dict[str, Any]]:
-        from_ns = _day_start_ns(conn, from_date) if from_date else None
-        to_ns = None
-        if to_date:
-            day_after = datetime.strptime(to_date, "%Y-%m-%d") + timedelta(days=1)
-            to_ns = _day_start_ns(conn, day_after.strftime("%Y-%m-%d"))
+        from_ns, to_ns = day_bounds_ns(conn, from_date, to_date)
         found = query_sessions(
             conn,
             gateway=scope.gateway,

@@ -9,6 +9,7 @@ reports the database and the receive loop as separate facts.
 
 from __future__ import annotations
 
+import json
 import sqlite3
 import threading
 import uuid
@@ -20,6 +21,7 @@ import pytest
 import zmq
 
 from edumatcher.api_gateway.routers import clearing as clearing_router
+from edumatcher.clearing.cli import main as cli_main
 from edumatcher.healthcheck import answer_health_ping
 from tests.api_gateway_harness import call
 from tests.clearing_api_fixture import (
@@ -160,12 +162,8 @@ async def test_gateway_sessions_filter_on_the_connect_day(venue: Venue) -> None:
     assert body["count"] == 3
 
 
-@pytest.mark.anyio
-async def test_the_connect_day_is_the_session_timezone_day(
-    venue: Venue, tmp_path: Path
-) -> None:
-    """08:00 UTC on DAY1 is 22:00 on 2026-11-01 in Honolulu: a venue there
-    filters it under the 1st, not under the UTC date."""
+def _honolulu_copy(venue: Venue, tmp_path: Path) -> Path:
+    """The venue's clearing.db, recorded by a pm-clearing in Honolulu."""
     copy = tmp_path / "honolulu.db"
     with closing(sqlite3.connect(venue.clearing_db)) as src:
         with closing(sqlite3.connect(copy)) as dst:
@@ -175,12 +173,57 @@ async def test_the_connect_day_is_the_session_timezone_day(
                 " WHERE key = 'session_timezone'"
             )
             dst.commit()
+    return copy
+
+
+@pytest.mark.anyio
+async def test_the_connect_day_is_the_session_timezone_day(
+    venue: Venue, tmp_path: Path
+) -> None:
+    """08:00 UTC on DAY1 is 22:00 on 2026-11-01 in Honolulu: a venue there
+    filters it under the 1st, not under the UTC date."""
+    copy = _honolulu_copy(venue, tmp_path)
     _, body = await _get(venue, f"/gateway-sessions?from={DAY1}", clearing_db=copy)
     assert body["sessions"] == []
     _, body = await _get(
         venue, "/gateway-sessions?from=2026-11-01&to=2026-11-01", clearing_db=copy
     )
     assert body["count"] == 3
+
+
+@pytest.mark.anyio
+async def test_the_cli_selects_the_same_connect_days_as_the_api(
+    venue: Venue,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """CG12: `pm-clearing-cli sessions` reads trading days in the session
+    timezone, as the API does, and shows the connect's venue day."""
+    copy = _honolulu_copy(venue, tmp_path)
+    cases = [
+        (f"from={DAY1}", ["--from", DAY1]),
+        (
+            "from=2026-11-01&to=2026-11-01",
+            ["--from", "2026-11-01", "--to", "2026-11-01"],
+        ),
+    ]
+    found: list[dict[str, Any]] = []
+    for query, args in cases:
+        _, body = await _get(venue, f"/gateway-sessions?{query}", clearing_db=copy)
+        monkeypatch.setattr(
+            "sys.argv",
+            ["pm-clearing-cli", "--datapath", str(copy), "--format", "json"]
+            + ["sessions", *args],
+        )
+        cli_main()
+        out = capsys.readouterr().out
+        found = json.loads(out) if out.strip() else []
+        assert [(r["gateway_id"], r["connected_at_ns"]) for r in found] == [
+            (s["gateway_id"], s["connected_at_ns"]) for s in body["sessions"]
+        ]
+    assert len(found) == 3
+    assert {r["connect_date"] for r in found} == {"2026-11-01"}
 
 
 @pytest.mark.anyio

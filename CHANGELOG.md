@@ -1,3 +1,27 @@
+## [v0.78.1] - 2026-11-11
+
+Release Type: patch
+
+### 📋 Summary
+This release improves Clearing GUI and API accuracy, strengthens handling of incompatible deployed configuration, and adds a more precise process filter to the log GUI.
+
+### ✨ Additions
+- Added substring filtering by process name in the log GUI Explorer
+
+### 🚀 Improvements
+- Applied venue-session timezone boundaries consistently when filtering clearing gateway sessions
+- Cleared cached trader data on logout so a later login cannot see the previous user's results
+
+### 🐛 Bug Fixes
+- Fixed false clearing reconciliation discrepancies when a symbol's tick precision changes during a trading day
+- Replaced tracebacks with a critical diagnostic when a deployed configuration artifact is incompatible with the running version
+
+### 📚 Documentation
+- Clarified clearing session-date filtering and log-console process filtering
+
+### 🛠 Internal
+- Added regression coverage for clearing precision changes, configuration compatibility errors, and log filtering
+
 ## [v0.78.0] - 2026-11-11
 
 Release Type: major

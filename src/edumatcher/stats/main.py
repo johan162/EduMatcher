@@ -116,6 +116,7 @@ import errno
 
 import zmq
 
+from edumatcher.config_artifact import exit_on_config_error
 from edumatcher.health import HealthReporter, counter
 from edumatcher.models.generated.health import MetricSample
 from edumatcher.config import (
@@ -2501,6 +2502,7 @@ def _enable_sql_trace_logging() -> None:
     _sql_log.addHandler(handler)
 
 
+@exit_on_config_error
 def main() -> None:
     parser = build_parser()
     args = parser.parse_args()

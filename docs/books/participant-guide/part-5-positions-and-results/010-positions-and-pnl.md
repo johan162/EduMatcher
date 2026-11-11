@@ -1205,8 +1205,8 @@ Returns the timeline of every gateway connection recorded by `pm-clearing` from 
 | Option | Type | Default | Description |
 |---|---|---|---|
 | `--gateway GW_ID` | string | all | Filter to one gateway |
-| `--from YYYY-MM-DD` | date | — | Inclusive start date (matched on `connect_date`) |
-| `--to YYYY-MM-DD` | date | — | Inclusive end date (matched on `connect_date`) |
+| `--from YYYY-MM-DD` | date | — | Inclusive first trading day of the connect (matched on `connect_date`) |
+| `--to YYYY-MM-DD` | date | — | Inclusive last trading day of the connect (matched on `connect_date`) |
 | `--connected-only` | flag | off | Return only sessions where `disconnected_at_ns` is NULL |
 | `--limit N` | integer | 500 | Maximum rows returned |
 
@@ -1229,6 +1229,10 @@ pm-clearing-cli --format json sessions > sessions.json
 
 Output fields: `gateway_id`, `connect_date`, `connected_at_ns`,
 `disconnected_at_ns`, `disconnect_reason`
+
+`connect_date` is the trading day of the connect in the venue's session
+timezone (the one `pm-clearing` recorded), not its UTC date, so `--from` and
+`--to` select the same rows as `GET /api/v1/clearing/gateway-sessions`.
 
 !!! tip
     If a gateway has trades in `trade_events` but no row in `gateway_sessions`,

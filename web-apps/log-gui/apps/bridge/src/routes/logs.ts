@@ -13,6 +13,7 @@ function filterFromQuery(q: Record<string, unknown>): LogFilter {
   return {
     minLevel: q.minLevel ? (String(q.minLevel).toUpperCase() as LogFilter["minLevel"]) : undefined,
     processes: asArray(q.processes),
+    processContains: q.processContains ? String(q.processContains) : undefined,
     loggers: asArray(q.loggers),
     sessions: asArray(q.sessions),
     contains: q.contains ? String(q.contains) : undefined,

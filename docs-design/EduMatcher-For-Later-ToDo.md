@@ -15,6 +15,7 @@ its own piece of work.
 | ID | Date | Area | Finding | Priority | Status |
 |----|------|------|---------|----------|--------|
 | L001 | 2026-11-11 | sim_forensics / msgen | pm-sim-forensics hard-codes 185 topic literals and is exempt from the literal gate | Low | Open |
+| L002 | 2026-11-11 | trader-gui | `formatChangePct` shows "-0.00%" (and "+0.00%" for zero) for a change that rounds to zero | Low | Open |
 
 ## L001 — Topic literals in pm-sim-forensics
 
@@ -61,3 +62,18 @@ on empty data, without failing.
 
 **Recommendation.** Option 2: it closes the silent-rename hole with one test
 and leaves the 185 lines alone.
+
+## L002 — trader-gui "-0.00%" change
+
+**Found:** 2026-11-11, while doing clearing-GUI follow-up CG16 (no "-0.00" in
+`formatPrice` / `formatSignedPrice`).
+
+**Finding.** `trader-gui/apps/web/src/lib/formatters.ts` `formatChangePct`
+signs on the unrounded value and formats with `toFixed(2)`: a change of
+-0.001 % renders "-0.00%", and a flat symbol "+0.00%". Same defect class as
+F20/CG16, but CG16 named only the two price formatters, so it was left alone.
+
+**Fix.** Sign on the rounded text, as `formatSignedPrice` now does (the
+private `fixed` helper in the same file), test-first:
+`formatChangePct(149.9999, 150)` gives `"0.00%"`.
+

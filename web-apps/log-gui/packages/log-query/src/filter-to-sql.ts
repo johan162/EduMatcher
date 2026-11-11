@@ -70,6 +70,10 @@ export function compileWhere(
     clauses.push(`process IN (${filter.processes.map(() => "?").join(",")})`);
     params.push(...filter.processes);
   }
+  if (filter.processContains) {
+    clauses.push("LOWER(process) LIKE ?");
+    params.push(`%${filter.processContains.toLowerCase()}%`);
+  }
   if (filter.sessions && filter.sessions.length > 0) {
     clauses.push(`session IN (${filter.sessions.map(() => "?").join(",")})`);
     params.push(...filter.sessions);

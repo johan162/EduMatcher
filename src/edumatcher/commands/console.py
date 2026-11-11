@@ -50,6 +50,7 @@ from rich.console import Console
 from rich.table import Table
 from zmq.utils.monitor import recv_monitor_message
 
+from edumatcher.config_artifact import exit_on_config_error
 from edumatcher.commands import CommandTimeoutError, ExchangeCommandClient
 from edumatcher.log_srv.config import (
     load_default_log_client_config,
@@ -1378,6 +1379,7 @@ def _configure_logging(args: argparse.Namespace) -> int:
     return int(level)
 
 
+@exit_on_config_error
 def main() -> None:
     parser = build_parser()
     args = parser.parse_args()

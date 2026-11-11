@@ -33,13 +33,19 @@ export function formatSessionDate(date: Date | number): string {
   return `${yyyy}-${mm}-${dd}`;
 }
 
+/** `toFixed`, but a value that rounds to zero is "0.00", never "-0.00" (CG16). */
+function fixed(value: number, decimals: number): string {
+  const text = value.toFixed(decimals);
+  return Number(text) === 0 ? (0).toFixed(decimals) : text;
+}
+
 /**
  * Format a price with `tickDecimals` decimal places.
  * Falls back to 2 decimals when tickDecimals is undefined.
  */
 export function formatPrice(price: number | null | undefined, tickDecimals = 2): string {
   if (price === null || price === undefined) return "—";
-  return price.toFixed(tickDecimals);
+  return fixed(price, tickDecimals);
 }
 
 /** Format a signed money value with a leading + for gains. */
@@ -48,8 +54,9 @@ export function formatSignedPrice(
   tickDecimals = 2,
 ): string {
   if (price === null || price === undefined) return "—";
-  const sign = price > 0 ? "+" : "";
-  return `${sign}${price.toFixed(tickDecimals)}`;
+  const text = fixed(price, tickDecimals);
+  const sign = price > 0 && Number(text) !== 0 ? "+" : "";
+  return `${sign}${text}`;
 }
 
 /** Format a quantity as a whole integer with thousands separator. */

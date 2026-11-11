@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import logging
 
+from edumatcher.config_artifact import exit_on_config_error
 from edumatcher.health import HealthReporter
 from edumatcher.ralf_gateway.config import (
     RalfGatewayConfig,
@@ -144,6 +145,7 @@ def _resolve_config(args: argparse.Namespace) -> RalfGatewayConfig:
     )
 
 
+@exit_on_config_error
 def main() -> None:
     from edumatcher.config_artifact import report_deployment
 

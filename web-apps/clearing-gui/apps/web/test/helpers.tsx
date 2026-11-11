@@ -18,9 +18,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, render, screen } from "@testing-library/react";
 import { MemoryRouter, useLocation, useNavigate } from "react-router-dom";
 import { vi } from "vitest";
-import { z } from "zod";
 import App from "@/App";
-import { ROUTE_SCHEMAS } from "@/api/schemas";
 import { useAuthStore, type Role } from "@/store/useAuthStore";
 
 const OPENAPI = path.resolve(__dirname, "../../../../../spec/rest/openapi.json");
@@ -28,43 +26,12 @@ const doc = JSON.parse(readFileSync(OPENAPI, "utf-8")) as {
   paths: Record<string, { get: { responses: Record<string, { content: Record<string, { example?: unknown; examples?: Record<string, { value: unknown }> }> }> } }>;
 };
 
-/**
- * Put back the `null`s the published examples lose.
- *
- * FastAPI renders the OpenAPI document with `exclude_none`, so a field whose
- * example value is `null` disappears from `openapi.json`, while the gateway
- * sends it on the wire as `null`. Only fields the schema declares nullable
- * (and required) are restored: a field missing for any other reason still
- * fails the parse.
- */
-export function withNulls(schema: z.ZodType, value: unknown): unknown {
-  let inner = schema;
-  while (inner instanceof z.ZodOptional || inner instanceof z.ZodNullable) {
-    inner = inner.unwrap() as z.ZodType;
-  }
-  if (inner instanceof z.ZodArray && Array.isArray(value)) {
-    return value.map((item) => withNulls(inner.element as z.ZodType, item));
-  }
-  if (inner instanceof z.ZodObject && typeof value === "object" && value !== null) {
-    const out: Record<string, unknown> = { ...(value as Record<string, unknown>) };
-    for (const [key, field] of Object.entries(inner.shape as Record<string, z.ZodType>)) {
-      if (!(key in out)) {
-        if (field instanceof z.ZodNullable) out[key] = null;
-      } else {
-        out[key] = withNulls(field, out[key]);
-      }
-    }
-    return out;
-  }
-  return value;
-}
-
 /** Every 200 example the contract documents for `route`, as the wire carries it. */
 export function examples(route: string): unknown[] {
   const media = doc.paths[route]!.get.responses["200"]!.content["application/json"]!;
   const raw: unknown[] = media.example !== undefined ? [media.example] : [];
   for (const named of Object.values(media.examples ?? {})) raw.push(named.value);
-  return raw.map((value) => withNulls(ROUTE_SCHEMAS[route]!, structuredClone(value)));
+  return raw.map((value) => structuredClone(value));
 }
 
 /** The (first) 200 example for `route`, e.g. `/api/v1/clearing/trades`. */
