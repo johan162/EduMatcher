@@ -22,6 +22,12 @@ export function rowMatchesFilter(row: LogRow, filter: LogFilter): boolean {
   if (filter.processes && filter.processes.length > 0 && !filter.processes.includes(row.process)) {
     return false;
   }
+  if (
+    filter.processContains &&
+    !row.process.toLowerCase().includes(filter.processContains.toLowerCase())
+  ) {
+    return false;
+  }
   if (filter.sessions && filter.sessions.length > 0 && !filter.sessions.includes(row.session)) {
     return false;
   }

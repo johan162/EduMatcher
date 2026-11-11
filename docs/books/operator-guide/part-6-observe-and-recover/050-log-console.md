@@ -471,6 +471,7 @@ chat message and a colleague opens exactly what you were looking at.
 | Control | Effect |
 |---|---|
 | `message contains…` | Substring match on the message body |
+| `process contains…` | Case-insensitive substring match on the process name |
 | Level dropdown | Minimum severity (`WARNING+`, `ERROR+`, …) |
 | `exceptions only` | Restrict to rows carrying a traceback |
 | ▶ LIVE / history | Switch between the live buffer and `log.db` |
@@ -514,7 +515,9 @@ Two actions follow:
 
 - **Copy** — the message text to the clipboard.
 - **Filter to this process** — rewrites the URL filter, which is usually the
-  next thing you want after spotting one bad row.
+  next thing you want after spotting one bad row. While that filter is active
+  the button reads **Reset filter**, and pressing it removes the process filter
+  again.
 
 ![The Explorer in LIVE mode, filtered to INFO+, with an error selected.](../../../assets/log-gui/log-explorer.png)
 

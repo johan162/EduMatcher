@@ -18,6 +18,7 @@ function filterFromParams(params: URLSearchParams): LogFilter {
   return {
     minLevel: (params.get("minLevel") as LogLevel) || undefined,
     processes: params.get("processes")?.split(",").filter(Boolean),
+    processContains: params.get("processContains") || undefined,
     contains: params.get("contains") || undefined,
     exceptionsOnly: params.get("exceptionsOnly") === "true",
   };
@@ -27,6 +28,7 @@ function paramsFromFilter(filter: LogFilter): URLSearchParams {
   const params = new URLSearchParams();
   if (filter.minLevel) params.set("minLevel", filter.minLevel);
   if (filter.processes?.length) params.set("processes", filter.processes.join(","));
+  if (filter.processContains) params.set("processContains", filter.processContains);
   if (filter.contains) params.set("contains", filter.contains);
   if (filter.exceptionsOnly) params.set("exceptionsOnly", "true");
   return params;
@@ -60,6 +62,12 @@ export function ExplorerView() {
           return false;
         }
         if (filter.processes?.length && !filter.processes.includes(row.process)) return false;
+        if (
+          filter.processContains &&
+          !row.process.toLowerCase().includes(filter.processContains.toLowerCase())
+        ) {
+          return false;
+        }
         if (filter.exceptionsOnly && !row.has_exception) return false;
         if (filter.contains && !row.message.toLowerCase().includes(filter.contains.toLowerCase())) {
           return false;
@@ -105,6 +113,12 @@ export function ExplorerView() {
           placeholder="message contains…"
           value={filter.contains ?? ""}
           onChange={(e) => updateFilter({ contains: e.target.value || undefined })}
+        />
+        <input
+          className="rounded border border-border bg-bg px-2 py-1"
+          placeholder="process contains…"
+          value={filter.processContains ?? ""}
+          onChange={(e) => updateFilter({ processContains: e.target.value || undefined })}
         />
         <select
           className="rounded border border-border bg-bg px-2 py-1"
@@ -236,9 +250,11 @@ export function ExplorerView() {
               <button
                 type="button"
                 className="rounded border border-border px-2 py-1 text-xs"
-                onClick={() => updateFilter({ processes: [selected.process] })}
+                onClick={() =>
+                  updateFilter({ processes: filter.processes?.length ? undefined : [selected.process] })
+                }
               >
-                Filter to this process
+                {filter.processes?.length ? "Reset filter" : "Filter to this process"}
               </button>
             </div>
           </div>

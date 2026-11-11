@@ -43,6 +43,12 @@ describe("compileWhere", () => {
     expect(whereSql).not.toContain("connection reset");
   });
 
+  it("lower-cases processContains and binds it as a LIKE on process", () => {
+    const { whereSql, params } = compileWhere({ processContains: "PM-Eng" });
+    expect(whereSql).toBe("WHERE LOWER(process) LIKE ?");
+    expect(params).toEqual(["%pm-eng%"]);
+  });
+
   it("binds a maliciously-crafted contains value safely (no interpolation)", () => {
     const evil = "x'; DROP TABLE log_events; --";
     const { whereSql, params } = compileWhere({ contains: evil });

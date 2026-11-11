@@ -150,6 +150,10 @@ export const HELP_TOPICS: HelpTopic[] = [
             "text": "Case-insensitive text in the message."
           },
           {
+            "term": "process contains",
+            "text": "Case-insensitive text in the process name, e.g. \"engine\" or \"gwy\"."
+          },
+          {
             "term": "all levels / WARNING+ ...",
             "text": "Shows the chosen level and everything more serious."
           },
