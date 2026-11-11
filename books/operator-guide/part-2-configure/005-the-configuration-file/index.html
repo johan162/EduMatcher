@@ -1941,6 +1941,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../participant-guide/part-6-front-ends/040-clearing-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Clearing GUI (`pm-clearing-ui`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -3887,6 +3915,34 @@
     
   
     Operator Dashboard (`pm-dash`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../part-6-observe-and-recover/080-clearing-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Clearing GUI (`pm-clearing-ui`)
   
 
     
@@ -9696,25 +9752,26 @@ default shown.</p>
 <a id="__codelineno-14-75" name="__codelineno-14-75" href="#__codelineno-14-75"></a><span class="w">    </span><span class="nt">stats_db</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">data/stats.db</span>
 <a id="__codelineno-14-76" name="__codelineno-14-76" href="#__codelineno-14-76"></a><span class="w">    </span><span class="nt">audit_db</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">data/audit_index.db</span>
 <a id="__codelineno-14-77" name="__codelineno-14-77" href="#__codelineno-14-77"></a><span class="w">    </span><span class="nt">clearing_db</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">data/clearing.db</span>
-<a id="__codelineno-14-78" name="__codelineno-14-78" href="#__codelineno-14-78"></a><span class="w">    </span><span class="nt">order_retention_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3600</span>
-<a id="__codelineno-14-79" name="__codelineno-14-79" href="#__codelineno-14-79"></a><span class="w">    </span><span class="nt">market_data_cache_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">60</span>
-<a id="__codelineno-14-80" name="__codelineno-14-80" href="#__codelineno-14-80"></a><span class="w">    </span><span class="nt">credentials</span><span class="p">:</span>
-<a id="__codelineno-14-81" name="__codelineno-14-81" href="#__codelineno-14-81"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">api_key</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">REPLACE-WITH-A-SECRET-FOR-TRADER01</span>
-<a id="__codelineno-14-82" name="__codelineno-14-82" href="#__codelineno-14-82"></a><span class="w">        </span><span class="nt">gateway_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TRADER01</span>
-<a id="__codelineno-14-83" name="__codelineno-14-83" href="#__codelineno-14-83"></a><span class="w">        </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Key for TRADER01</span>
-<a id="__codelineno-14-84" name="__codelineno-14-84" href="#__codelineno-14-84"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">api_key</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">REPLACE-WITH-A-SECRET-FOR-TRADER02</span>
-<a id="__codelineno-14-85" name="__codelineno-14-85" href="#__codelineno-14-85"></a><span class="w">        </span><span class="nt">gateway_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TRADER02</span>
-<a id="__codelineno-14-86" name="__codelineno-14-86" href="#__codelineno-14-86"></a><span class="w">        </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Key for TRADER02</span>
-<a id="__codelineno-14-87" name="__codelineno-14-87" href="#__codelineno-14-87"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">api_key</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">REPLACE-WITH-A-SECRET-FOR-DASHBOARD</span>
-<a id="__codelineno-14-88" name="__codelineno-14-88" href="#__codelineno-14-88"></a><span class="w">        </span><span class="nt">gateway_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">null</span>
-<a id="__codelineno-14-89" name="__codelineno-14-89" href="#__codelineno-14-89"></a><span class="w">        </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Read-only dashboard client</span>
-<a id="__codelineno-14-90" name="__codelineno-14-90" href="#__codelineno-14-90"></a><span class="w">    </span><span class="nt">rate_limit</span><span class="p">:</span>
-<a id="__codelineno-14-91" name="__codelineno-14-91" href="#__codelineno-14-91"></a><span class="w">      </span><span class="nt">writes_per_second</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
-<a id="__codelineno-14-92" name="__codelineno-14-92" href="#__codelineno-14-92"></a><span class="w">      </span><span class="nt">burst</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20</span>
-<a id="__codelineno-14-93" name="__codelineno-14-93" href="#__codelineno-14-93"></a><span class="w">    </span><span class="nt">timeouts</span><span class="p">:</span>
-<a id="__codelineno-14-94" name="__codelineno-14-94" href="#__codelineno-14-94"></a><span class="w">      </span><span class="nt">engine_auth_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3.0</span>
-<a id="__codelineno-14-95" name="__codelineno-14-95" href="#__codelineno-14-95"></a><span class="w">      </span><span class="nt">engine_reply_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3.0</span>
-<a id="__codelineno-14-96" name="__codelineno-14-96" href="#__codelineno-14-96"></a><span class="w">      </span><span class="nt">wait_ack_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3.0</span>
+<a id="__codelineno-14-78" name="__codelineno-14-78" href="#__codelineno-14-78"></a><span class="w">    </span><span class="nt">eod_db</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">data/eod.db</span>
+<a id="__codelineno-14-79" name="__codelineno-14-79" href="#__codelineno-14-79"></a><span class="w">    </span><span class="nt">order_retention_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3600</span>
+<a id="__codelineno-14-80" name="__codelineno-14-80" href="#__codelineno-14-80"></a><span class="w">    </span><span class="nt">market_data_cache_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">60</span>
+<a id="__codelineno-14-81" name="__codelineno-14-81" href="#__codelineno-14-81"></a><span class="w">    </span><span class="nt">credentials</span><span class="p">:</span>
+<a id="__codelineno-14-82" name="__codelineno-14-82" href="#__codelineno-14-82"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">api_key</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">REPLACE-WITH-A-SECRET-FOR-TRADER01</span>
+<a id="__codelineno-14-83" name="__codelineno-14-83" href="#__codelineno-14-83"></a><span class="w">        </span><span class="nt">gateway_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TRADER01</span>
+<a id="__codelineno-14-84" name="__codelineno-14-84" href="#__codelineno-14-84"></a><span class="w">        </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Key for TRADER01</span>
+<a id="__codelineno-14-85" name="__codelineno-14-85" href="#__codelineno-14-85"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">api_key</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">REPLACE-WITH-A-SECRET-FOR-TRADER02</span>
+<a id="__codelineno-14-86" name="__codelineno-14-86" href="#__codelineno-14-86"></a><span class="w">        </span><span class="nt">gateway_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TRADER02</span>
+<a id="__codelineno-14-87" name="__codelineno-14-87" href="#__codelineno-14-87"></a><span class="w">        </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Key for TRADER02</span>
+<a id="__codelineno-14-88" name="__codelineno-14-88" href="#__codelineno-14-88"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">api_key</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">REPLACE-WITH-A-SECRET-FOR-DASHBOARD</span>
+<a id="__codelineno-14-89" name="__codelineno-14-89" href="#__codelineno-14-89"></a><span class="w">        </span><span class="nt">gateway_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">null</span>
+<a id="__codelineno-14-90" name="__codelineno-14-90" href="#__codelineno-14-90"></a><span class="w">        </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Read-only dashboard client</span>
+<a id="__codelineno-14-91" name="__codelineno-14-91" href="#__codelineno-14-91"></a><span class="w">    </span><span class="nt">rate_limit</span><span class="p">:</span>
+<a id="__codelineno-14-92" name="__codelineno-14-92" href="#__codelineno-14-92"></a><span class="w">      </span><span class="nt">writes_per_second</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
+<a id="__codelineno-14-93" name="__codelineno-14-93" href="#__codelineno-14-93"></a><span class="w">      </span><span class="nt">burst</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20</span>
+<a id="__codelineno-14-94" name="__codelineno-14-94" href="#__codelineno-14-94"></a><span class="w">    </span><span class="nt">timeouts</span><span class="p">:</span>
+<a id="__codelineno-14-95" name="__codelineno-14-95" href="#__codelineno-14-95"></a><span class="w">      </span><span class="nt">engine_auth_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3.0</span>
+<a id="__codelineno-14-96" name="__codelineno-14-96" href="#__codelineno-14-96"></a><span class="w">      </span><span class="nt">engine_reply_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3.0</span>
+<a id="__codelineno-14-97" name="__codelineno-14-97" href="#__codelineno-14-97"></a><span class="w">      </span><span class="nt">wait_ack_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3.0</span>
 </code></pre></div>
 <p>Fields that appear in several blocks mean the same thing wherever they appear:</p>
 <table>
@@ -10082,7 +10139,12 @@ audiences different keys on different ports.</p>
 <tr>
 <td><code>clearing_db</code></td>
 <td><code>data/clearing.db</code></td>
-<td><code>pm-clearing</code> ledger, used only for realised P&amp;L on <code>GET /positions</code> (reported as <code>null</code> if absent).</td>
+<td><code>pm-clearing</code> ledger, read-only: realised P&amp;L on <code>GET /positions</code> (reported as <code>null</code> if absent) and every <code>/clearing</code> route (<code>503 CLEARING_DB</code> if absent).</td>
+</tr>
+<tr>
+<td><code>eod_db</code></td>
+<td><code>data/eod.db</code></td>
+<td><code>pm-eod</code> settlement ledger, read-only, for <code>/clearing/settlements</code> and <code>/clearing/balances</code> (<code>503 EOD_DB</code> if absent); opening balances come from <code>ref_data/roster.yaml</code> beside it.</td>
 </tr>
 <tr>
 <td><code>order_retention_sec</code></td>
@@ -10786,72 +10848,73 @@ beyond one informational note that <code>snapshot_interval_sec</code> is at its 
 <a id="__codelineno-18-277" name="__codelineno-18-277" href="#__codelineno-18-277"></a><span class="w">    </span><span class="nt">stats_db</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">data/stats.db</span>
 <a id="__codelineno-18-278" name="__codelineno-18-278" href="#__codelineno-18-278"></a><span class="w">    </span><span class="nt">audit_db</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">data/audit_index.db</span>
 <a id="__codelineno-18-279" name="__codelineno-18-279" href="#__codelineno-18-279"></a><span class="w">    </span><span class="nt">clearing_db</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">data/clearing.db</span>
-<a id="__codelineno-18-280" name="__codelineno-18-280" href="#__codelineno-18-280"></a><span class="w">    </span><span class="nt">order_retention_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3600</span>
-<a id="__codelineno-18-281" name="__codelineno-18-281" href="#__codelineno-18-281"></a><span class="w">    </span><span class="nt">market_data_cache_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">60</span>
-<a id="__codelineno-18-282" name="__codelineno-18-282" href="#__codelineno-18-282"></a><span class="w">    </span><span class="nt">credentials</span><span class="p">:</span>
-<a id="__codelineno-18-283" name="__codelineno-18-283" href="#__codelineno-18-283"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">api_key</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">REPLACE-WITH-A-SECRET-FOR-TRADER01</span>
-<a id="__codelineno-18-284" name="__codelineno-18-284" href="#__codelineno-18-284"></a><span class="w">        </span><span class="nt">gateway_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TRADER01</span>
-<a id="__codelineno-18-285" name="__codelineno-18-285" href="#__codelineno-18-285"></a><span class="w">        </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Key for TRADER01</span>
-<a id="__codelineno-18-286" name="__codelineno-18-286" href="#__codelineno-18-286"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">api_key</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">REPLACE-WITH-A-SECRET-FOR-TRADER02</span>
-<a id="__codelineno-18-287" name="__codelineno-18-287" href="#__codelineno-18-287"></a><span class="w">        </span><span class="nt">gateway_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TRADER02</span>
-<a id="__codelineno-18-288" name="__codelineno-18-288" href="#__codelineno-18-288"></a><span class="w">        </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Key for TRADER02</span>
-<a id="__codelineno-18-289" name="__codelineno-18-289" href="#__codelineno-18-289"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">api_key</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">REPLACE-WITH-A-SECRET-FOR-DASHBOARD</span>
-<a id="__codelineno-18-290" name="__codelineno-18-290" href="#__codelineno-18-290"></a><span class="w">        </span><span class="nt">gateway_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">null</span>
-<a id="__codelineno-18-291" name="__codelineno-18-291" href="#__codelineno-18-291"></a><span class="w">        </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Read-only dashboard client</span>
-<a id="__codelineno-18-292" name="__codelineno-18-292" href="#__codelineno-18-292"></a><span class="w">    </span><span class="nt">rate_limit</span><span class="p">:</span>
-<a id="__codelineno-18-293" name="__codelineno-18-293" href="#__codelineno-18-293"></a><span class="w">      </span><span class="nt">writes_per_second</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
-<a id="__codelineno-18-294" name="__codelineno-18-294" href="#__codelineno-18-294"></a><span class="w">      </span><span class="nt">burst</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20</span>
-<a id="__codelineno-18-295" name="__codelineno-18-295" href="#__codelineno-18-295"></a><span class="w">    </span><span class="nt">timeouts</span><span class="p">:</span>
-<a id="__codelineno-18-296" name="__codelineno-18-296" href="#__codelineno-18-296"></a><span class="w">      </span><span class="nt">engine_auth_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3.0</span>
-<a id="__codelineno-18-297" name="__codelineno-18-297" href="#__codelineno-18-297"></a><span class="w">      </span><span class="nt">engine_reply_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3.0</span>
-<a id="__codelineno-18-298" name="__codelineno-18-298" href="#__codelineno-18-298"></a><span class="w">      </span><span class="nt">wait_ack_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3.0</span>
-<a id="__codelineno-18-299" name="__codelineno-18-299" href="#__codelineno-18-299"></a>
-<a id="__codelineno-18-300" name="__codelineno-18-300" href="#__codelineno-18-300"></a><span class="nt">log_server</span><span class="p">:</span>
-<a id="__codelineno-18-301" name="__codelineno-18-301" href="#__codelineno-18-301"></a><span class="w">  </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
-<a id="__codelineno-18-302" name="__codelineno-18-302" href="#__codelineno-18-302"></a><span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">log-srv01</span>
-<a id="__codelineno-18-303" name="__codelineno-18-303" href="#__codelineno-18-303"></a><span class="w">  </span><span class="nt">bind_address</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.0.0.0</span>
-<a id="__codelineno-18-304" name="__codelineno-18-304" href="#__codelineno-18-304"></a><span class="w">  </span><span class="nt">port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5600</span>
-<a id="__codelineno-18-305" name="__codelineno-18-305" href="#__codelineno-18-305"></a><span class="w">  </span><span class="nt">db_path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">data/log.db</span>
-<a id="__codelineno-18-306" name="__codelineno-18-306" href="#__codelineno-18-306"></a><span class="w">  </span><span class="nt">retention_days</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">30</span>
-<a id="__codelineno-18-307" name="__codelineno-18-307" href="#__codelineno-18-307"></a><span class="w">  </span><span class="nt">max_message_bytes</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">65536</span>
-<a id="__codelineno-18-308" name="__codelineno-18-308" href="#__codelineno-18-308"></a><span class="w">  </span><span class="nt">max_client_queue</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10000</span>
-<a id="__codelineno-18-309" name="__codelineno-18-309" href="#__codelineno-18-309"></a><span class="w">  </span><span class="nt">write_batch_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">50</span>
-<a id="__codelineno-18-310" name="__codelineno-18-310" href="#__codelineno-18-310"></a><span class="w">  </span><span class="nt">write_batch_interval_ms</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">100</span>
-<a id="__codelineno-18-311" name="__codelineno-18-311" href="#__codelineno-18-311"></a><span class="w">  </span><span class="nt">heartbeat_interval_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
-<a id="__codelineno-18-312" name="__codelineno-18-312" href="#__codelineno-18-312"></a><span class="w">  </span><span class="nt">pubsub_enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
-<a id="__codelineno-18-313" name="__codelineno-18-313" href="#__codelineno-18-313"></a><span class="w">  </span><span class="nt">pub_port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5601</span>
-<a id="__codelineno-18-314" name="__codelineno-18-314" href="#__codelineno-18-314"></a><span class="w">  </span><span class="nt">pull_port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5602</span>
-<a id="__codelineno-18-315" name="__codelineno-18-315" href="#__codelineno-18-315"></a><span class="w">  </span><span class="nt">lease_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">30</span>
-<a id="__codelineno-18-316" name="__codelineno-18-316" href="#__codelineno-18-316"></a><span class="w">  </span><span class="nt">max_lease_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">300</span>
-<a id="__codelineno-18-317" name="__codelineno-18-317" href="#__codelineno-18-317"></a><span class="w">  </span><span class="nt">max_subscribers</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">32</span>
-<a id="__codelineno-18-318" name="__codelineno-18-318" href="#__codelineno-18-318"></a><span class="w">  </span><span class="nt">notify_interval_ms</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">250</span>
-<a id="__codelineno-18-319" name="__codelineno-18-319" href="#__codelineno-18-319"></a><span class="w">  </span><span class="nt">backfill_chunk_rows</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">500</span>
-<a id="__codelineno-18-320" name="__codelineno-18-320" href="#__codelineno-18-320"></a><span class="w">  </span><span class="nt">max_backfill_minutes</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1440</span>
-<a id="__codelineno-18-321" name="__codelineno-18-321" href="#__codelineno-18-321"></a><span class="w">  </span><span class="nt">max_backfill_rows</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">100000</span>
-<a id="__codelineno-18-322" name="__codelineno-18-322" href="#__codelineno-18-322"></a><span class="w">  </span><span class="nt">max_pending_rows</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20000</span>
-<a id="__codelineno-18-323" name="__codelineno-18-323" href="#__codelineno-18-323"></a><span class="w">  </span><span class="nt">pub_sndhwm</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10000</span>
-<a id="__codelineno-18-324" name="__codelineno-18-324" href="#__codelineno-18-324"></a>
-<a id="__codelineno-18-325" name="__codelineno-18-325" href="#__codelineno-18-325"></a><span class="nt">monitor</span><span class="p">:</span>
-<a id="__codelineno-18-326" name="__codelineno-18-326" href="#__codelineno-18-326"></a><span class="w">  </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
-<a id="__codelineno-18-327" name="__codelineno-18-327" href="#__codelineno-18-327"></a><span class="w">  </span><span class="nt">bind_address</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">127.0.0.1</span>
-<a id="__codelineno-18-328" name="__codelineno-18-328" href="#__codelineno-18-328"></a><span class="w">  </span><span class="nt">host</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">127.0.0.1</span>
-<a id="__codelineno-18-329" name="__codelineno-18-329" href="#__codelineno-18-329"></a><span class="w">  </span><span class="nt">pull_port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5610</span>
-<a id="__codelineno-18-330" name="__codelineno-18-330" href="#__codelineno-18-330"></a><span class="w">  </span><span class="nt">pub_port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5611</span>
-<a id="__codelineno-18-331" name="__codelineno-18-331" href="#__codelineno-18-331"></a><span class="w">  </span><span class="nt">beacon_interval_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span>
-<a id="__codelineno-18-332" name="__codelineno-18-332" href="#__codelineno-18-332"></a><span class="w">  </span><span class="nt">hung_after_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
-<a id="__codelineno-18-333" name="__codelineno-18-333" href="#__codelineno-18-333"></a><span class="w">  </span><span class="nt">silent_after_beacons</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3</span>
-<a id="__codelineno-18-334" name="__codelineno-18-334" href="#__codelineno-18-334"></a><span class="w">  </span><span class="nt">book_metrics_interval_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
-<a id="__codelineno-18-335" name="__codelineno-18-335" href="#__codelineno-18-335"></a><span class="w">  </span><span class="nt">retention</span><span class="p">:</span>
-<a id="__codelineno-18-336" name="__codelineno-18-336" href="#__codelineno-18-336"></a><span class="w">    </span><span class="nt">raw_hours</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">6</span>
-<a id="__codelineno-18-337" name="__codelineno-18-337" href="#__codelineno-18-337"></a><span class="w">    </span><span class="nt">minute_days</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">7</span>
-<a id="__codelineno-18-338" name="__codelineno-18-338" href="#__codelineno-18-338"></a><span class="w">  </span><span class="nt">thresholds</span><span class="p">:</span>
-<a id="__codelineno-18-339" name="__codelineno-18-339" href="#__codelineno-18-339"></a><span class="w">    </span><span class="nt">host_cpu_pct</span><span class="p">:</span><span class="w">         </span><span class="p p-Indicator">{</span><span class="nt">warn</span><span class="p">:</span><span class="w"> </span><span class="nv">80</span><span class="p p-Indicator">,</span><span class="nt">   crit</span><span class="p">:</span><span class="w"> </span><span class="nv">95</span><span class="p p-Indicator">}</span>
-<a id="__codelineno-18-340" name="__codelineno-18-340" href="#__codelineno-18-340"></a><span class="w">    </span><span class="nt">host_mem_pct</span><span class="p">:</span><span class="w">         </span><span class="p p-Indicator">{</span><span class="nt">warn</span><span class="p">:</span><span class="w"> </span><span class="nv">80</span><span class="p p-Indicator">,</span><span class="nt">   crit</span><span class="p">:</span><span class="w"> </span><span class="nv">92</span><span class="p p-Indicator">}</span>
-<a id="__codelineno-18-341" name="__codelineno-18-341" href="#__codelineno-18-341"></a><span class="w">    </span><span class="nt">disk_free_pct</span><span class="p">:</span><span class="w">        </span><span class="p p-Indicator">{</span><span class="nt">warn</span><span class="p">:</span><span class="w"> </span><span class="nv">15</span><span class="p p-Indicator">,</span><span class="nt">   crit</span><span class="p">:</span><span class="w"> </span><span class="nv">5</span><span class="p p-Indicator">}</span>
-<a id="__codelineno-18-342" name="__codelineno-18-342" href="#__codelineno-18-342"></a><span class="w">    </span><span class="nt">engine_handle_p99_us</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">warn</span><span class="p">:</span><span class="w"> </span><span class="nv">5000</span><span class="p p-Indicator">,</span><span class="nt"> crit</span><span class="p">:</span><span class="w"> </span><span class="nv">20000</span><span class="p p-Indicator">}</span>
-<a id="__codelineno-18-343" name="__codelineno-18-343" href="#__codelineno-18-343"></a><span class="w">    </span><span class="nt">reject_pct_5m</span><span class="p">:</span><span class="w">        </span><span class="p p-Indicator">{</span><span class="nt">warn</span><span class="p">:</span><span class="w"> </span><span class="nv">10</span><span class="p p-Indicator">,</span><span class="nt">   crit</span><span class="p">:</span><span class="w"> </span><span class="nv">30</span><span class="p p-Indicator">}</span>
-<a id="__codelineno-18-344" name="__codelineno-18-344" href="#__codelineno-18-344"></a><span class="w">    </span><span class="nt">rss_growth_pct_1h</span><span class="p">:</span><span class="w">    </span><span class="p p-Indicator">{</span><span class="nt">warn</span><span class="p">:</span><span class="w"> </span><span class="nv">50</span><span class="p p-Indicator">,</span><span class="nt">   crit</span><span class="p">:</span><span class="w"> </span><span class="nv">100</span><span class="p p-Indicator">}</span>
-<a id="__codelineno-18-345" name="__codelineno-18-345" href="#__codelineno-18-345"></a><span class="w">    </span><span class="nt">heap_bloat_ratio</span><span class="p">:</span><span class="w">     </span><span class="p p-Indicator">{</span><span class="nt">warn</span><span class="p">:</span><span class="w"> </span><span class="nv">1.5</span><span class="p p-Indicator">,</span><span class="nt">  crit</span><span class="p">:</span><span class="w"> </span><span class="nv">3</span><span class="p p-Indicator">}</span>
+<a id="__codelineno-18-280" name="__codelineno-18-280" href="#__codelineno-18-280"></a><span class="w">    </span><span class="nt">eod_db</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">data/eod.db</span>
+<a id="__codelineno-18-281" name="__codelineno-18-281" href="#__codelineno-18-281"></a><span class="w">    </span><span class="nt">order_retention_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3600</span>
+<a id="__codelineno-18-282" name="__codelineno-18-282" href="#__codelineno-18-282"></a><span class="w">    </span><span class="nt">market_data_cache_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">60</span>
+<a id="__codelineno-18-283" name="__codelineno-18-283" href="#__codelineno-18-283"></a><span class="w">    </span><span class="nt">credentials</span><span class="p">:</span>
+<a id="__codelineno-18-284" name="__codelineno-18-284" href="#__codelineno-18-284"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">api_key</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">REPLACE-WITH-A-SECRET-FOR-TRADER01</span>
+<a id="__codelineno-18-285" name="__codelineno-18-285" href="#__codelineno-18-285"></a><span class="w">        </span><span class="nt">gateway_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TRADER01</span>
+<a id="__codelineno-18-286" name="__codelineno-18-286" href="#__codelineno-18-286"></a><span class="w">        </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Key for TRADER01</span>
+<a id="__codelineno-18-287" name="__codelineno-18-287" href="#__codelineno-18-287"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">api_key</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">REPLACE-WITH-A-SECRET-FOR-TRADER02</span>
+<a id="__codelineno-18-288" name="__codelineno-18-288" href="#__codelineno-18-288"></a><span class="w">        </span><span class="nt">gateway_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TRADER02</span>
+<a id="__codelineno-18-289" name="__codelineno-18-289" href="#__codelineno-18-289"></a><span class="w">        </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Key for TRADER02</span>
+<a id="__codelineno-18-290" name="__codelineno-18-290" href="#__codelineno-18-290"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">api_key</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">REPLACE-WITH-A-SECRET-FOR-DASHBOARD</span>
+<a id="__codelineno-18-291" name="__codelineno-18-291" href="#__codelineno-18-291"></a><span class="w">        </span><span class="nt">gateway_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">null</span>
+<a id="__codelineno-18-292" name="__codelineno-18-292" href="#__codelineno-18-292"></a><span class="w">        </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Read-only dashboard client</span>
+<a id="__codelineno-18-293" name="__codelineno-18-293" href="#__codelineno-18-293"></a><span class="w">    </span><span class="nt">rate_limit</span><span class="p">:</span>
+<a id="__codelineno-18-294" name="__codelineno-18-294" href="#__codelineno-18-294"></a><span class="w">      </span><span class="nt">writes_per_second</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
+<a id="__codelineno-18-295" name="__codelineno-18-295" href="#__codelineno-18-295"></a><span class="w">      </span><span class="nt">burst</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20</span>
+<a id="__codelineno-18-296" name="__codelineno-18-296" href="#__codelineno-18-296"></a><span class="w">    </span><span class="nt">timeouts</span><span class="p">:</span>
+<a id="__codelineno-18-297" name="__codelineno-18-297" href="#__codelineno-18-297"></a><span class="w">      </span><span class="nt">engine_auth_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3.0</span>
+<a id="__codelineno-18-298" name="__codelineno-18-298" href="#__codelineno-18-298"></a><span class="w">      </span><span class="nt">engine_reply_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3.0</span>
+<a id="__codelineno-18-299" name="__codelineno-18-299" href="#__codelineno-18-299"></a><span class="w">      </span><span class="nt">wait_ack_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3.0</span>
+<a id="__codelineno-18-300" name="__codelineno-18-300" href="#__codelineno-18-300"></a>
+<a id="__codelineno-18-301" name="__codelineno-18-301" href="#__codelineno-18-301"></a><span class="nt">log_server</span><span class="p">:</span>
+<a id="__codelineno-18-302" name="__codelineno-18-302" href="#__codelineno-18-302"></a><span class="w">  </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<a id="__codelineno-18-303" name="__codelineno-18-303" href="#__codelineno-18-303"></a><span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">log-srv01</span>
+<a id="__codelineno-18-304" name="__codelineno-18-304" href="#__codelineno-18-304"></a><span class="w">  </span><span class="nt">bind_address</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.0.0.0</span>
+<a id="__codelineno-18-305" name="__codelineno-18-305" href="#__codelineno-18-305"></a><span class="w">  </span><span class="nt">port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5600</span>
+<a id="__codelineno-18-306" name="__codelineno-18-306" href="#__codelineno-18-306"></a><span class="w">  </span><span class="nt">db_path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">data/log.db</span>
+<a id="__codelineno-18-307" name="__codelineno-18-307" href="#__codelineno-18-307"></a><span class="w">  </span><span class="nt">retention_days</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">30</span>
+<a id="__codelineno-18-308" name="__codelineno-18-308" href="#__codelineno-18-308"></a><span class="w">  </span><span class="nt">max_message_bytes</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">65536</span>
+<a id="__codelineno-18-309" name="__codelineno-18-309" href="#__codelineno-18-309"></a><span class="w">  </span><span class="nt">max_client_queue</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10000</span>
+<a id="__codelineno-18-310" name="__codelineno-18-310" href="#__codelineno-18-310"></a><span class="w">  </span><span class="nt">write_batch_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">50</span>
+<a id="__codelineno-18-311" name="__codelineno-18-311" href="#__codelineno-18-311"></a><span class="w">  </span><span class="nt">write_batch_interval_ms</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">100</span>
+<a id="__codelineno-18-312" name="__codelineno-18-312" href="#__codelineno-18-312"></a><span class="w">  </span><span class="nt">heartbeat_interval_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
+<a id="__codelineno-18-313" name="__codelineno-18-313" href="#__codelineno-18-313"></a><span class="w">  </span><span class="nt">pubsub_enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<a id="__codelineno-18-314" name="__codelineno-18-314" href="#__codelineno-18-314"></a><span class="w">  </span><span class="nt">pub_port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5601</span>
+<a id="__codelineno-18-315" name="__codelineno-18-315" href="#__codelineno-18-315"></a><span class="w">  </span><span class="nt">pull_port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5602</span>
+<a id="__codelineno-18-316" name="__codelineno-18-316" href="#__codelineno-18-316"></a><span class="w">  </span><span class="nt">lease_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">30</span>
+<a id="__codelineno-18-317" name="__codelineno-18-317" href="#__codelineno-18-317"></a><span class="w">  </span><span class="nt">max_lease_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">300</span>
+<a id="__codelineno-18-318" name="__codelineno-18-318" href="#__codelineno-18-318"></a><span class="w">  </span><span class="nt">max_subscribers</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">32</span>
+<a id="__codelineno-18-319" name="__codelineno-18-319" href="#__codelineno-18-319"></a><span class="w">  </span><span class="nt">notify_interval_ms</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">250</span>
+<a id="__codelineno-18-320" name="__codelineno-18-320" href="#__codelineno-18-320"></a><span class="w">  </span><span class="nt">backfill_chunk_rows</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">500</span>
+<a id="__codelineno-18-321" name="__codelineno-18-321" href="#__codelineno-18-321"></a><span class="w">  </span><span class="nt">max_backfill_minutes</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1440</span>
+<a id="__codelineno-18-322" name="__codelineno-18-322" href="#__codelineno-18-322"></a><span class="w">  </span><span class="nt">max_backfill_rows</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">100000</span>
+<a id="__codelineno-18-323" name="__codelineno-18-323" href="#__codelineno-18-323"></a><span class="w">  </span><span class="nt">max_pending_rows</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20000</span>
+<a id="__codelineno-18-324" name="__codelineno-18-324" href="#__codelineno-18-324"></a><span class="w">  </span><span class="nt">pub_sndhwm</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10000</span>
+<a id="__codelineno-18-325" name="__codelineno-18-325" href="#__codelineno-18-325"></a>
+<a id="__codelineno-18-326" name="__codelineno-18-326" href="#__codelineno-18-326"></a><span class="nt">monitor</span><span class="p">:</span>
+<a id="__codelineno-18-327" name="__codelineno-18-327" href="#__codelineno-18-327"></a><span class="w">  </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<a id="__codelineno-18-328" name="__codelineno-18-328" href="#__codelineno-18-328"></a><span class="w">  </span><span class="nt">bind_address</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">127.0.0.1</span>
+<a id="__codelineno-18-329" name="__codelineno-18-329" href="#__codelineno-18-329"></a><span class="w">  </span><span class="nt">host</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">127.0.0.1</span>
+<a id="__codelineno-18-330" name="__codelineno-18-330" href="#__codelineno-18-330"></a><span class="w">  </span><span class="nt">pull_port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5610</span>
+<a id="__codelineno-18-331" name="__codelineno-18-331" href="#__codelineno-18-331"></a><span class="w">  </span><span class="nt">pub_port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5611</span>
+<a id="__codelineno-18-332" name="__codelineno-18-332" href="#__codelineno-18-332"></a><span class="w">  </span><span class="nt">beacon_interval_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span>
+<a id="__codelineno-18-333" name="__codelineno-18-333" href="#__codelineno-18-333"></a><span class="w">  </span><span class="nt">hung_after_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
+<a id="__codelineno-18-334" name="__codelineno-18-334" href="#__codelineno-18-334"></a><span class="w">  </span><span class="nt">silent_after_beacons</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3</span>
+<a id="__codelineno-18-335" name="__codelineno-18-335" href="#__codelineno-18-335"></a><span class="w">  </span><span class="nt">book_metrics_interval_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
+<a id="__codelineno-18-336" name="__codelineno-18-336" href="#__codelineno-18-336"></a><span class="w">  </span><span class="nt">retention</span><span class="p">:</span>
+<a id="__codelineno-18-337" name="__codelineno-18-337" href="#__codelineno-18-337"></a><span class="w">    </span><span class="nt">raw_hours</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">6</span>
+<a id="__codelineno-18-338" name="__codelineno-18-338" href="#__codelineno-18-338"></a><span class="w">    </span><span class="nt">minute_days</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">7</span>
+<a id="__codelineno-18-339" name="__codelineno-18-339" href="#__codelineno-18-339"></a><span class="w">  </span><span class="nt">thresholds</span><span class="p">:</span>
+<a id="__codelineno-18-340" name="__codelineno-18-340" href="#__codelineno-18-340"></a><span class="w">    </span><span class="nt">host_cpu_pct</span><span class="p">:</span><span class="w">         </span><span class="p p-Indicator">{</span><span class="nt">warn</span><span class="p">:</span><span class="w"> </span><span class="nv">80</span><span class="p p-Indicator">,</span><span class="nt">   crit</span><span class="p">:</span><span class="w"> </span><span class="nv">95</span><span class="p p-Indicator">}</span>
+<a id="__codelineno-18-341" name="__codelineno-18-341" href="#__codelineno-18-341"></a><span class="w">    </span><span class="nt">host_mem_pct</span><span class="p">:</span><span class="w">         </span><span class="p p-Indicator">{</span><span class="nt">warn</span><span class="p">:</span><span class="w"> </span><span class="nv">80</span><span class="p p-Indicator">,</span><span class="nt">   crit</span><span class="p">:</span><span class="w"> </span><span class="nv">92</span><span class="p p-Indicator">}</span>
+<a id="__codelineno-18-342" name="__codelineno-18-342" href="#__codelineno-18-342"></a><span class="w">    </span><span class="nt">disk_free_pct</span><span class="p">:</span><span class="w">        </span><span class="p p-Indicator">{</span><span class="nt">warn</span><span class="p">:</span><span class="w"> </span><span class="nv">15</span><span class="p p-Indicator">,</span><span class="nt">   crit</span><span class="p">:</span><span class="w"> </span><span class="nv">5</span><span class="p p-Indicator">}</span>
+<a id="__codelineno-18-343" name="__codelineno-18-343" href="#__codelineno-18-343"></a><span class="w">    </span><span class="nt">engine_handle_p99_us</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">warn</span><span class="p">:</span><span class="w"> </span><span class="nv">5000</span><span class="p p-Indicator">,</span><span class="nt"> crit</span><span class="p">:</span><span class="w"> </span><span class="nv">20000</span><span class="p p-Indicator">}</span>
+<a id="__codelineno-18-344" name="__codelineno-18-344" href="#__codelineno-18-344"></a><span class="w">    </span><span class="nt">reject_pct_5m</span><span class="p">:</span><span class="w">        </span><span class="p p-Indicator">{</span><span class="nt">warn</span><span class="p">:</span><span class="w"> </span><span class="nv">10</span><span class="p p-Indicator">,</span><span class="nt">   crit</span><span class="p">:</span><span class="w"> </span><span class="nv">30</span><span class="p p-Indicator">}</span>
+<a id="__codelineno-18-345" name="__codelineno-18-345" href="#__codelineno-18-345"></a><span class="w">    </span><span class="nt">rss_growth_pct_1h</span><span class="p">:</span><span class="w">    </span><span class="p p-Indicator">{</span><span class="nt">warn</span><span class="p">:</span><span class="w"> </span><span class="nv">50</span><span class="p p-Indicator">,</span><span class="nt">   crit</span><span class="p">:</span><span class="w"> </span><span class="nv">100</span><span class="p p-Indicator">}</span>
+<a id="__codelineno-18-346" name="__codelineno-18-346" href="#__codelineno-18-346"></a><span class="w">    </span><span class="nt">heap_bloat_ratio</span><span class="p">:</span><span class="w">     </span><span class="p p-Indicator">{</span><span class="nt">warn</span><span class="p">:</span><span class="w"> </span><span class="nv">1.5</span><span class="p p-Indicator">,</span><span class="nt">  crit</span><span class="p">:</span><span class="w"> </span><span class="nv">3</span><span class="p p-Indicator">}</span>
 </code></pre></div>
 <p>Verify, deploy and inspect it:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>pm-cverifier<span class="w"> </span>engine_config.yaml

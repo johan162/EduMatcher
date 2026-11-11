@@ -1941,6 +1941,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../participant-guide/part-6-front-ends/040-clearing-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Clearing GUI (`pm-clearing-ui`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -4004,6 +4032,34 @@
     
   
     Operator Dashboard (`pm-dash`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../part-6-observe-and-recover/080-clearing-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Clearing GUI (`pm-clearing-ui`)
   
 
     
@@ -8421,6 +8477,12 @@ six GUIs in one file.</p>
 <td>8095</td>
 <td>The operator dashboard</td>
 </tr>
+<tr>
+<td><code>edumatcher-clearing-gui</code></td>
+<td><code>web-apps/clearing-gui/Dockerfile</code></td>
+<td>8096</td>
+<td>The clearing client (read-only)</td>
+</tr>
 </tbody>
 </table>
 <p>Locally built images are tagged <code>edumatcher:local</code> (from <code>IMAGE_NAME</code> and
@@ -9180,7 +9242,7 @@ exchange's service is called <code>edumatcher</code>, so <code>edumatcher:8081</
 <code>terminal-gui</code> reaches the exchange's REST API.</p>
 <pre class="mermaid"><code>flowchart TB
     subgraph host["Your machine (host network)"]
-        LO["127.0.0.1:8090-8095\n127.0.0.1:5560 … 8081\n(published ports)"]
+        LO["127.0.0.1:8090-8096\n127.0.0.1:5560 … 8081\n(published ports)"]
     end
     subgraph net["Private network edumatcher_default"]
         direction LR
@@ -9579,6 +9641,12 @@ tools to the bus.</p>
 <td><code>dash-gui</code></td>
 <td>Operator dashboard</td>
 </tr>
+<tr>
+<td><code>CLEARING_GUI_PORT</code> (8096)</td>
+<td>8096</td>
+<td><code>clearing-gui</code></td>
+<td>Clearing client</td>
+</tr>
 </tbody>
 </table>
 <p>Only the host side of a GUI port is configurable. If 8090 is already taken on
@@ -9672,8 +9740,8 @@ order-entry gateways have no password.</p>
 <td>no</td>
 </tr>
 <tr>
-<td><code>TERMINAL_GUI_PORT</code> … <code>DASH_GUI_PORT</code></td>
-<td><code>8090</code> … <code>8095</code></td>
+<td><code>TERMINAL_GUI_PORT</code> … <code>CLEARING_GUI_PORT</code></td>
+<td><code>8090</code> … <code>8096</code></td>
 <td>GUI <code>ports:</code></td>
 <td>no</td>
 </tr>

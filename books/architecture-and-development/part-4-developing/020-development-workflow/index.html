@@ -1941,6 +1941,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../participant-guide/part-6-front-ends/040-clearing-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Clearing GUI (`pm-clearing-ui`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -3355,6 +3383,34 @@
     
   
     Operator Dashboard (`pm-dash`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-6-observe-and-recover/080-clearing-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Clearing GUI (`pm-clearing-ui`)
   
 
     
@@ -7834,7 +7890,7 @@ its ports. The container and the host see the same addresses.</p>
 </code></pre></div>
 <p>The first run is slow (every GUI image runs <code>npm ci</code> and a Vite build) and needs
 network access to the npm and PyPI registries. Later starts take seconds. When it
-finishes, the GUIs answer on <a href="http://localhost:8090">http://localhost:8090</a> to <a href="http://localhost:8095">http://localhost:8095</a>
+finishes, the GUIs answer on <a href="http://localhost:8090">http://localhost:8090</a> to <a href="http://localhost:8096">http://localhost:8096</a>
 (<code>config-gui</code> on 8092 only with <code>CONFIG_GUI=1</code>). <code>make status</code> shows one row per
 backend process.</p>
 <p><strong>Which Makefile?</strong> For development use <code>deployment/docker</code> (<code>make up-all</code>). The
@@ -7917,7 +7973,7 @@ restarting the bridge on save, against a real exchange with real market data.</p
 <li><strong>The stack publishes to <code>127.0.0.1</code></strong> by default (<code>BIND_ADDR</code>). The two
    halves meet without either being told about the other.</li>
 </ol>
-<p>The containerised GUI keeps running on 8090–8095 the whole time. That is
+<p>The containerised GUI keeps running on 8090–8096 the whole time. That is
 useful rather than confusing: it is your reference. Compare <code>localhost:8190</code>
 with <code>localhost:8090</code> and you are comparing your change against what is
 currently shipped.</p>

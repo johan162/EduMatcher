@@ -839,10 +839,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#six-windows-on-one-exchange" class="md-nav__link">
+  <a href="#seven-windows-on-one-exchange" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Six windows on one exchange
+        Seven windows on one exchange
       
     </span>
   </a>
@@ -2043,6 +2043,34 @@
     
   
     Order Book Viewer (`pm-book`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../participant-guide/part-6-front-ends/040-clearing-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Clearing GUI (`pm-clearing-ui`)
   
 
     
@@ -3470,6 +3498,34 @@
     
   
     Operator Dashboard (`pm-dash`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-6-observe-and-recover/080-clearing-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Clearing GUI (`pm-clearing-ui`)
   
 
     
@@ -7594,7 +7650,7 @@
 <p class="admonition-title">Learning objectives</p>
 <p>After this chapter you will know:</p>
 <ul>
-<li>what each of the six browser applications is for</li>
+<li>what each of the seven browser applications is for</li>
 <li>how to log in to the Trading GUI with an API key, and where to find one</li>
 <li>how to place the same kind of order from the browser that you typed in
   the trader console</li>
@@ -7603,8 +7659,8 @@
 <p><strong>Time:</strong> about 15 minutes. <strong>You need:</strong> the container installation from
 <a href="../020-install-and-start/">Install and Start</a>. The browser applications are
 not part of the Python package.</p>
-<h2 id="six-windows-on-one-exchange">Six windows on one exchange<a class="headerlink" href="#six-windows-on-one-exchange" title="Permanent link">&para;</a></h2>
-<p>All six applications talk to the same running exchange, so anything you do
+<h2 id="seven-windows-on-one-exchange">Seven windows on one exchange<a class="headerlink" href="#seven-windows-on-one-exchange" title="Permanent link">&para;</a></h2>
+<p>All seven applications talk to the same running exchange, so anything you do
 in one — or in a <code>pm-alf-console</code> — shows up in the others within a second.</p>
 <table>
 <thead>
@@ -7652,10 +7708,17 @@ in one — or in a <code>pm-alf-console</code> — shows up in the others within
 <td>yes</td>
 <td>see at a glance whether every part of the exchange is healthy, and how busy it is</td>
 </tr>
+<tr>
+<td><a href="http://localhost:8096">http://localhost:8096</a></td>
+<td><strong>Clearing GUI</strong> (<code>pm-clearing-ui</code>)</td>
+<td>yes</td>
+<td>see your positions, P&amp;L, trades and end-of-day settlement — or, with an ADMIN key, the whole venue's</td>
+</tr>
 </tbody>
 </table>
-<p>The read-only displays need no login. The Trading GUI does, because it can
-change things.</p>
+<p>The read-only displays need no login, except the Clearing GUI, which shows
+each participant only its own records and so asks for the gateway's key. The
+Trading GUI needs one because it can change things.</p>
 <div class="admonition note">
 <p class="admonition-title">What you will see depends on the previous chapter</p>
 <p>If you followed <a href="../030-your-first-trade/">Your First Trade</a>, the exchange
@@ -7731,7 +7794,8 @@ switch. Log in as <code>MM01</code> for the market maker's quote management.</p>
 <p>Each application has its own chapter in the Participant Guide —
 <a href="../../../participant-guide/part-6-front-ends/010-trading-info-terminal/">TapeDeck</a>,
 the <a href="../../../participant-guide/part-6-front-ends/020-trading-platform-gui/">Trading GUI</a>
-and the <a href="../../../participant-guide/part-6-front-ends/030-order-book-gui/">Order Book Viewer</a>
+the <a href="../../../participant-guide/part-6-front-ends/030-order-book-gui/">Order Book Viewer</a>
+and the <a href="../../../participant-guide/part-6-front-ends/040-clearing-gui/">Clearing GUI</a>
 — and the Operator's Guide covers the
 <a href="../../../operator-guide/part-6-observe-and-recover/050-log-console/">Log Operator Console</a>,
 the <a href="../../../operator-guide/part-6-observe-and-recover/070-operator-dashboard/">Operator Dashboard</a>

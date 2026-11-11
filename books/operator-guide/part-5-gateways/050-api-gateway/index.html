@@ -1941,6 +1941,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../participant-guide/part-6-front-ends/040-clearing-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Clearing GUI (`pm-clearing-ui`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -3300,6 +3328,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#clearing-and-settlement-endpoints" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Clearing and settlement endpoints
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -3799,6 +3838,34 @@
     
   
     Operator Dashboard (`pm-dash`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../part-6-observe-and-recover/080-clearing-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Clearing GUI (`pm-clearing-ui`)
   
 
     
@@ -7968,33 +8035,37 @@ the existing CALF and RALF gateway pattern.</p>
 <a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="w">    </span><span class="c1"># is affected.</span>
 <a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="w">    </span><span class="nt">audit_db</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">data/audit_index.db</span>
 <a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="w">    </span><span class="c1"># pm-clearing's ledger, read-only, for the session/MTD/YTD realized P&amp;L</span>
-<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="w">    </span><span class="c1"># on GET /positions. Optional: without it those three fields report null</span>
-<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="w">    </span><span class="c1"># and the rest of the position row is unaffected.</span>
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="w">    </span><span class="c1"># on GET /positions and for the /clearing routes. Optional: without it</span>
+<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="w">    </span><span class="c1"># those three fields report null and /clearing answers 503 CLEARING_DB.</span>
 <a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a><span class="w">    </span><span class="nt">clearing_db</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">data/clearing.db</span>
-<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a><span class="w">    </span><span class="c1"># Seconds a terminal order stays in the in-memory cache. 0 disables</span>
-<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a><span class="w">    </span><span class="c1"># eviction (unbounded growth).</span>
-<a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a><span class="w">    </span><span class="nt">order_retention_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3600</span>
-<a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a><span class="w">    </span><span class="c1"># Seconds the market-data stream cache retains the per-symbol trades tail</span>
-<a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a><span class="w">    </span><span class="c1"># for WS snapshot/resume. Latest book/depth/auction snapshots are kept</span>
-<a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a><span class="w">    </span><span class="c1"># regardless of age; 0 disables the trade buffer but still serves snapshots.</span>
-<a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a><span class="w">    </span><span class="nt">market_data_cache_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">60</span>
-<a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a>
-<a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a><span class="w">    </span><span class="nt">credentials</span><span class="p">:</span>
-<a id="__codelineno-0-26" name="__codelineno-0-26" href="#__codelineno-0-26"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">api_key</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">key-trader-demo</span>
-<a id="__codelineno-0-27" name="__codelineno-0-27" href="#__codelineno-0-27"></a><span class="w">        </span><span class="nt">gateway_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TRADER01</span>
-<a id="__codelineno-0-28" name="__codelineno-0-28" href="#__codelineno-0-28"></a><span class="w">        </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Demo trading client</span>
-<a id="__codelineno-0-29" name="__codelineno-0-29" href="#__codelineno-0-29"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">api_key</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">key-dashboard-demo</span>
-<a id="__codelineno-0-30" name="__codelineno-0-30" href="#__codelineno-0-30"></a><span class="w">        </span><span class="nt">gateway_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">null</span>
-<a id="__codelineno-0-31" name="__codelineno-0-31" href="#__codelineno-0-31"></a><span class="w">        </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Read-only dashboard client</span>
-<a id="__codelineno-0-32" name="__codelineno-0-32" href="#__codelineno-0-32"></a>
-<a id="__codelineno-0-33" name="__codelineno-0-33" href="#__codelineno-0-33"></a><span class="w">    </span><span class="nt">rate_limit</span><span class="p">:</span>
-<a id="__codelineno-0-34" name="__codelineno-0-34" href="#__codelineno-0-34"></a><span class="w">      </span><span class="nt">writes_per_second</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
-<a id="__codelineno-0-35" name="__codelineno-0-35" href="#__codelineno-0-35"></a><span class="w">      </span><span class="nt">burst</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20</span>
+<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a><span class="w">    </span><span class="c1"># pm-eod's settlement ledger, read-only, for /clearing/settlements and</span>
+<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a><span class="w">    </span><span class="c1"># /clearing/balances; the roster is read from ref_data/roster.yaml beside</span>
+<a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a><span class="w">    </span><span class="c1"># it. Optional: without it those two routes answer 503 EOD_DB.</span>
+<a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a><span class="w">    </span><span class="nt">eod_db</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">data/eod.db</span>
+<a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a><span class="w">    </span><span class="c1"># Seconds a terminal order stays in the in-memory cache. 0 disables</span>
+<a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a><span class="w">    </span><span class="c1"># eviction (unbounded growth).</span>
+<a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a><span class="w">    </span><span class="nt">order_retention_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3600</span>
+<a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a><span class="w">    </span><span class="c1"># Seconds the market-data stream cache retains the per-symbol trades tail</span>
+<a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a><span class="w">    </span><span class="c1"># for WS snapshot/resume. Latest book/depth/auction snapshots are kept</span>
+<a id="__codelineno-0-26" name="__codelineno-0-26" href="#__codelineno-0-26"></a><span class="w">    </span><span class="c1"># regardless of age; 0 disables the trade buffer but still serves snapshots.</span>
+<a id="__codelineno-0-27" name="__codelineno-0-27" href="#__codelineno-0-27"></a><span class="w">    </span><span class="nt">market_data_cache_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">60</span>
+<a id="__codelineno-0-28" name="__codelineno-0-28" href="#__codelineno-0-28"></a>
+<a id="__codelineno-0-29" name="__codelineno-0-29" href="#__codelineno-0-29"></a><span class="w">    </span><span class="nt">credentials</span><span class="p">:</span>
+<a id="__codelineno-0-30" name="__codelineno-0-30" href="#__codelineno-0-30"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">api_key</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">key-trader-demo</span>
+<a id="__codelineno-0-31" name="__codelineno-0-31" href="#__codelineno-0-31"></a><span class="w">        </span><span class="nt">gateway_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TRADER01</span>
+<a id="__codelineno-0-32" name="__codelineno-0-32" href="#__codelineno-0-32"></a><span class="w">        </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Demo trading client</span>
+<a id="__codelineno-0-33" name="__codelineno-0-33" href="#__codelineno-0-33"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">api_key</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">key-dashboard-demo</span>
+<a id="__codelineno-0-34" name="__codelineno-0-34" href="#__codelineno-0-34"></a><span class="w">        </span><span class="nt">gateway_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">null</span>
+<a id="__codelineno-0-35" name="__codelineno-0-35" href="#__codelineno-0-35"></a><span class="w">        </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Read-only dashboard client</span>
 <a id="__codelineno-0-36" name="__codelineno-0-36" href="#__codelineno-0-36"></a>
-<a id="__codelineno-0-37" name="__codelineno-0-37" href="#__codelineno-0-37"></a><span class="w">    </span><span class="nt">timeouts</span><span class="p">:</span>
-<a id="__codelineno-0-38" name="__codelineno-0-38" href="#__codelineno-0-38"></a><span class="w">      </span><span class="nt">engine_auth_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3.0</span>
-<a id="__codelineno-0-39" name="__codelineno-0-39" href="#__codelineno-0-39"></a><span class="w">      </span><span class="nt">engine_reply_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3.0</span>
-<a id="__codelineno-0-40" name="__codelineno-0-40" href="#__codelineno-0-40"></a><span class="w">      </span><span class="nt">wait_ack_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3.0</span>
+<a id="__codelineno-0-37" name="__codelineno-0-37" href="#__codelineno-0-37"></a><span class="w">    </span><span class="nt">rate_limit</span><span class="p">:</span>
+<a id="__codelineno-0-38" name="__codelineno-0-38" href="#__codelineno-0-38"></a><span class="w">      </span><span class="nt">writes_per_second</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
+<a id="__codelineno-0-39" name="__codelineno-0-39" href="#__codelineno-0-39"></a><span class="w">      </span><span class="nt">burst</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20</span>
+<a id="__codelineno-0-40" name="__codelineno-0-40" href="#__codelineno-0-40"></a>
+<a id="__codelineno-0-41" name="__codelineno-0-41" href="#__codelineno-0-41"></a><span class="w">    </span><span class="nt">timeouts</span><span class="p">:</span>
+<a id="__codelineno-0-42" name="__codelineno-0-42" href="#__codelineno-0-42"></a><span class="w">      </span><span class="nt">engine_auth_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3.0</span>
+<a id="__codelineno-0-43" name="__codelineno-0-43" href="#__codelineno-0-43"></a><span class="w">      </span><span class="nt">engine_reply_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3.0</span>
+<a id="__codelineno-0-44" name="__codelineno-0-44" href="#__codelineno-0-44"></a><span class="w">      </span><span class="nt">wait_ack_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3.0</span>
 </code></pre></div>
 <table>
 <thead>
@@ -8038,7 +8109,11 @@ the existing CALF and RALF gateway pattern.</p>
 </tr>
 <tr>
 <td><code>clearing_db</code></td>
-<td><code>pm-clearing</code>'s ledger, read-only, for the session/MTD/YTD realized P&amp;L on <code>/positions</code>. Optional: without it those three fields report <code>null</code></td>
+<td><code>pm-clearing</code>'s ledger, read-only, for the session/MTD/YTD realized P&amp;L on <code>/positions</code> and for every <code>/clearing</code> route. Optional: without it those three fields report <code>null</code> and <code>/clearing</code> answers <code>503 CLEARING_DB</code></td>
+</tr>
+<tr>
+<td><code>eod_db</code></td>
+<td><code>pm-eod</code>'s settlement ledger, read-only, for <code>/clearing/settlements</code> and <code>/clearing/balances</code>; opening balances come from <code>ref_data/roster.yaml</code> in the same directory, as <code>pm-eod --datapath</code> finds it. Optional: without it those two routes answer <code>503 EOD_DB</code></td>
 </tr>
 <tr>
 <td><code>order_retention_sec</code></td>
@@ -8120,7 +8195,7 @@ credentials can appear in more than one entry.</p>
 <tr>
 <td><code>--clearing-db PATH</code></td>
 <td style="text-align: right;">config value</td>
-<td><code>pm-clearing</code> database, read-only, for the session / month-to-date / year-to-date realized P&amp;L on <code>GET /positions</code></td>
+<td><code>pm-clearing</code> database, read-only, for the session / month-to-date / year-to-date realized P&amp;L on <code>GET /positions</code> and the <code>/clearing</code> routes</td>
 </tr>
 <tr>
 <td><code>--log-level LEVEL</code></td>
@@ -8201,8 +8276,10 @@ package and fails the build if <code>session.api_key</code> is read anywhere els
 <p>What each class can do:</p>
 <ul>
 <li>Authenticated key: reference data and public history/market-data endpoints.</li>
-<li>Trading key: everything above plus private order/position/trading endpoints.</li>
-<li>Admin key: everything above plus <code>/api/v1/admin/*</code>.</li>
+<li>Trading key: everything above plus private order/position/trading endpoints,
+  and its own gateway's <code>/api/v1/clearing/*</code> records.</li>
+<li>Admin key: everything above plus <code>/api/v1/admin/*</code> and the venue-wide
+  <code>/api/v1/clearing/*</code> views.</li>
 </ul>
 <p>Read-only credentials (<code>gateway_id: null</code>) can use public and reference
 surfaces but cannot submit, cancel, or inspect private orders.</p>
@@ -8519,6 +8596,129 @@ own file, so the gateway asks <code>pm-index</code> live. It answers <code>503 I
 when <code>pm-index</code> is not running, whatever the state of <code>stats.db</code>.</p>
 <p>Lists are paginated with an opaque cursor; see the spec's
 <a href="../../../protocols-and-clients/part-2-specifications/060-rest-and-websocket/#pagination-contract">pagination contract</a>.</p>
+<h3 id="clearing-and-settlement-endpoints">Clearing and settlement endpoints<a class="headerlink" href="#clearing-and-settlement-endpoints" title="Permanent link">&para;</a></h3>
+<p><code>/clearing/*</code> serves <code>pm-clearing</code>'s ledger (<code>clearing_db</code>) and <code>pm-eod</code>'s
+settlement ledger (<code>eod_db</code>) read-only, for the
+<a href="../../part-6-observe-and-recover/080-clearing-gui/">Clearing GUI</a> and for
+participants' own records. The identity is the gateway: an <code>ADMIN</code> key reads
+the whole venue, a <code>TRADER</code> or <code>MARKET_MAKER</code> key only its own gateway (naming
+another is <code>403 SCOPE_DENIED</code>), and a read-only key nothing (<code>403 READ_ONLY</code>).
+The normative field-by-field contract is the spec's
+<a href="../../../protocols-and-clients/part-2-specifications/060-rest-and-websocket/#clearing">Clearing</a>
+chapter.</p>
+<table>
+<thead>
+<tr>
+<th>Route</th>
+<th>Who</th>
+<th>What it returns</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>/clearing/summary</code></td>
+<td>ADMIN</td>
+<td>Participant and open-position counts, venue P&amp;L, latest trade and flush times, feed gaps on the latest session date, <code>pm-eod</code>'s last run</td>
+</tr>
+<tr>
+<td><code>/clearing/participants</code></td>
+<td>ADMIN</td>
+<td>P&amp;L and position counts per gateway</td>
+</tr>
+<tr>
+<td><code>/clearing/participants/{gateway_id}</code></td>
+<td>ADMIN, or that gateway</td>
+<td>One gateway's totals, positions and links to its other views</td>
+</tr>
+<tr>
+<td><code>/clearing/positions</code></td>
+<td>ADMIN, or own</td>
+<td>Current positions at their marks</td>
+</tr>
+<tr>
+<td><code>/clearing/exposure</code></td>
+<td>ADMIN, or own</td>
+<td>Net/gross notional and P&amp;L per position</td>
+</tr>
+<tr>
+<td><code>/clearing/trades</code></td>
+<td>ADMIN, or own</td>
+<td>Retained raw executions, with match type and audit message id; a participant sees only its own side</td>
+</tr>
+<tr>
+<td><code>/clearing/daily</code></td>
+<td>ADMIN, or own</td>
+<td>Daily activity, realized P&amp;L and end-of-day position</td>
+</tr>
+<tr>
+<td><code>/clearing/close-snapshots</code></td>
+<td>ADMIN, or own</td>
+<td>Position and cumulative P&amp;L at every close</td>
+</tr>
+<tr>
+<td><code>/clearing/symbols</code></td>
+<td>ADMIN</td>
+<td>Activity and aggregate net position per symbol</td>
+</tr>
+<tr>
+<td><code>/clearing/session-events</code></td>
+<td>ADMIN</td>
+<td><code>PHASE</code>, <code>EOD</code> and <code>GAP</code> events clearing observed</td>
+</tr>
+<tr>
+<td><code>/clearing/gateway-sessions</code></td>
+<td>ADMIN, or own</td>
+<td>Connect/disconnect history</td>
+</tr>
+<tr>
+<td><code>/clearing/reconciliation</code></td>
+<td>ADMIN</td>
+<td>Raw trades against daily rows, for an explicit <code>from</code>/<code>to</code> range</td>
+</tr>
+<tr>
+<td><code>/clearing/health</code></td>
+<td>ADMIN</td>
+<td><code>clearing.db</code> facts and, separately, whether <code>pm-clearing</code>'s receive loop answers a ping</td>
+</tr>
+<tr>
+<td><code>/clearing/settlements</code></td>
+<td>ADMIN, or own</td>
+<td><code>pm-eod</code>'s daily settlement amounts and run status</td>
+</tr>
+<tr>
+<td><code>/clearing/balances</code></td>
+<td>ADMIN, or own</td>
+<td>Roster opening balance plus settlements: the derived balance</td>
+</tr>
+</tbody>
+</table>
+<p>What an operator should know before trusting a screen built on them:</p>
+<ul>
+<li><strong>Units.</strong> Clearing stores money in ticks of each symbol's
+  <code>tick_decimals</code>; every row carries <code>&lt;name&gt;_ticks</code> and the display value
+  <code>&lt;name&gt;</code>, and only display values are added across symbols. Settlement
+  amounts are a different unit, integer minor units (<code>amount_minor</code>, 2
+  decimals).</li>
+<li><strong>Freshness.</strong> <code>pm-clearing</code> writes in batches (100 trades or 5 seconds), so
+  a fill can take one flush to appear; <code>summary.last_flush_ts_ns</code> shows the
+  latest write.</li>
+<li><strong>Retention.</strong> Raw trades are pruned after <code>pm-clearing --retention-days</code>
+  (90 by default); <code>trades.retained_from</code> shows the oldest day held, and
+  <code>reconciliation</code> compares only from there (<code>compared_from</code>). An empty
+  reconciliation is "no discrepancy in the retained data", not a verified
+  history.</li>
+<li><strong>Observation times.</strong> Session-event and gateway-session times are when
+  clearing saw the event. A <code>GAP</code> means clearing saw trade ids jump; no <code>GAP</code>
+  does not prove the feed was complete.</li>
+<li><strong>Liveness.</strong> A readable <code>clearing.db</code> does not prove <code>pm-clearing</code> is
+  running; <code>/clearing/health</code> reports <code>database</code> and <code>process</code> separately.
+  The ping goes to the address <code>pm-clearing-cli health</code> uses
+  (<code>EDUMATCHER_ENGINE_HOST</code>, <code>EDUMATCHER_CLEARING_HEALTH_PORT</code>). Each call
+  pings once; do not poll it every few seconds.</li>
+<li><strong>Settlement.</strong> Settlements and balances exist only after <code>pm-eod</code> has
+  settled a day. A balance is derived (opening balance plus settlements), and
+  neither is margin, equity or collateral.</li>
+</ul>
 <h2 id="bootstrap-endpoints">Bootstrap endpoints<a class="headerlink" href="#bootstrap-endpoints" title="Permanent link">&para;</a></h2>
 <p><code>/bootstrap/trader</code>, <code>/bootstrap/mm</code> and <code>/bootstrap/admin</code> collapse the 6–13
 calls a client needs at login into one, running the engine queries in parallel.

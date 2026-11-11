@@ -89,7 +89,7 @@ COVER_TITLE_ai-traders := AI TRADERS<br><span class="accent">AND MARKET</span><b
 # ============================================================================================
 include $(BUILD_ASSETS)/book.mk
 
-.PHONY: pdf-docs epub-docs chapters-pdf book-bundles covers book-all docs-all omnibus docs serve docs-check docs-ledger nav \
+.PHONY: pdf-docs epub-docs chapters-pdf book-bundles covers book-all docs-all omnibus docs serve docs-check nav \
   pdf-training-guide epub-training-guide chapters-training-guide exchange-intro \
   pdf-exchange-intro epub-exchange-intro epub-downloads example-downloads mp-bump clean really-clean help check-latex-engine
 
@@ -175,17 +175,8 @@ omnibus: docs-all chapters-pdf book-bundles
 # ============================================================================================
 # Documentation checks and navigation
 # ============================================================================================
-PRE_SPLIT_TAG := docs-pre-split
-PRE_SPLIT_DIR := $(BUILD_DIR)/pre-split
-
-docs-ledger:
-	@rm -rf $(PRE_SPLIT_DIR) && mkdir -p $(PRE_SPLIT_DIR)
-	@git -C .. archive $(PRE_SPLIT_TAG) docs/user-guide docs/training docs/concepts docs/architecture docs/developer docs/faq.md docs/glossary.md docs/index.md | tar -x -C $(PRE_SPLIT_DIR)
-	@$(PY) $(SCRIPTS_DIR)/doc-ledger.py --old $(PRE_SPLIT_DIR)/docs --new $(BOOKS_DIR) docs/shared docs/index.md --map ../docs-design/doc-migration-map.tsv
-
 docs-check: nav
 	@(cd .. && $(PY) scripts/checkdocs.py)
-	@$(MAKE) --no-print-directory docs-ledger
 
 nav:
 	@$(PY) $(BUILD_ASSETS)/gen_nav.py --mkdocs ../mkdocs.yml --docs $(DOCS_DIR) --books $(BOOKS)
@@ -225,8 +216,7 @@ help:
 	@printf '  $(BLUE)%-30s$(NC) %s\n' 'serve' 'Serve the MkDocs site locally'
 	@printf '  $(BLUE)%-30s$(NC) %s\n' 'epub-downloads' 'Refresh the EPUB download copies the site links to'
 	@printf '  $(BLUE)%-30s$(NC) %s\n' 'example-downloads' 'Copy the linked example sources to downloads/examples'
-	@printf '  $(BLUE)%-30s$(NC) %s\n' 'docs-check' 'Run documentation checks and the migration ledger'
-	@printf '  $(BLUE)%-30s$(NC) %s\n' 'docs-ledger' 'Check migrated documentation coverage'
+	@printf '  $(BLUE)%-30s$(NC) %s\n' 'docs-check' 'Run documentation checks (links, CLI flags, config, help anchors)'
 	@printf '  $(BLUE)%-30s$(NC) %s\n' 'nav' 'Regenerate MkDocs navigation'
 
 	@printf '\n$(BRIGHTCYAN)Book formats$(NC)\n'

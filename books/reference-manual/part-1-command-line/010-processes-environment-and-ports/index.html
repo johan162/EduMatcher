@@ -1941,6 +1941,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../participant-guide/part-6-front-ends/040-clearing-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Clearing GUI (`pm-clearing-ui`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -3355,6 +3383,34 @@
     
   
     Operator Dashboard (`pm-dash`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-6-observe-and-recover/080-clearing-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Clearing GUI (`pm-clearing-ui`)
   
 
     
@@ -14795,7 +14851,7 @@ section of <code>engine_config.yaml</code>.</p>
 <tr>
 <td><code>--clearing-db PATH</code></td>
 <td>config value</td>
-<td>Path to <code>data/clearing.db</code>, opened read-only for the session/MTD/YTD realized P&amp;L on <code>/positions</code>. Optional: without it those three fields report <code>null</code></td>
+<td>Path to <code>data/clearing.db</code>, opened read-only for the session/MTD/YTD realized P&amp;L on <code>/positions</code> and for the <code>/clearing</code> routes. Optional: without it those three fields report <code>null</code> and <code>/clearing</code> answers <code>503 CLEARING_DB</code></td>
 </tr>
 <tr>
 <td><code>--log-level LEVEL</code></td>
