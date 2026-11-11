@@ -718,6 +718,13 @@ CREATE INDEX ix_trade_events_symbol_date
   ON trade_events(symbol, trade_date)
 ```
 
+#### `index ix_trade_events_ts`
+
+```sql
+CREATE INDEX ix_trade_events_ts
+  ON trade_events(ts_ns, ingest_ts_ns, id)
+```
+
 ## `eod.db`
 
 **Owner:** pm-eod  

@@ -1,0 +1,62 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Theme tokens ─────────────────────────────────────────────────────────
+ * The dark palette of trader-gui (web-apps/trader-gui/apps/web/src/index.css),
+ * reduced to the tokens this application uses. */
+:root,
+html.dark {
+  --app: 10 10 15;
+  --panel: 18 18 26;
+  --raised: 26 26 40;
+  --elevated: 32 32 58;
+  --line: 42 42 69;
+  --fg: 232 232 240;
+  --fg-dim: 161 161 188;
+  --fg-faint: 120 120 150;
+  --link: 110 168 254;
+  --bid: 34 197 94;
+  --ask: 239 68 68;
+  --halt: 245 158 11;
+  --accent: 255 160 40;
+  --accent-fg: 10 12 16;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  margin: 0;
+  background-color: rgb(var(--app));
+  color: rgb(var(--fg));
+  font-family: Inter, system-ui, sans-serif;
+  min-height: 100vh;
+  min-width: 1280px; /* desktop operations tool */
+}
+
+#root {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Numbers line up in columns. */
+.num {
+  font-family: "JetBrains Mono", "Fira Code", ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+/* A visible keyboard focus everywhere (Tailwind's reset removes outlines). */
+:focus-visible {
+  outline: 2px solid rgb(var(--accent));
+  outline-offset: 2px;
+}

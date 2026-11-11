@@ -64,7 +64,7 @@ make up-all           # the exchange and five GUIs; builds any missing GUI image
 
 The first run is slow (every GUI image runs `npm ci` and a Vite build) and needs
 network access to the npm and PyPI registries. Later starts take seconds. When it
-finishes, the GUIs answer on <http://localhost:8090> to <http://localhost:8095>
+finishes, the GUIs answer on <http://localhost:8090> to <http://localhost:8096>
 (`config-gui` on 8092 only with `CONFIG_GUI=1`). `make status` shows one row per
 backend process.
 
@@ -175,7 +175,7 @@ Three facts make this work with no configuration:
 3. **The stack publishes to `127.0.0.1`** by default (`BIND_ADDR`). The two
    halves meet without either being told about the other.
 
-The containerised GUI keeps running on 8090–8095 the whole time. That is
+The containerised GUI keeps running on 8090–8096 the whole time. That is
 useful rather than confusing: it is your reference. Compare `localhost:8190`
 with `localhost:8090` and you are comparing your change against what is
 currently shipped.

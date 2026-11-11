@@ -74,11 +74,11 @@ PROJECT_VERSION := $(shell awk -F'"' '/^version =/ {print $$2; exit}' ../../pypr
 # Not VERSION: that already means "which PyPI release to install" for `make build`.
 TAG ?= dev
 GUI_IMAGES := edumatcher-config-gui edumatcher-log-gui edumatcher-terminal-gui edumatcher-trader-gui \
-              edumatcher-book-gui edumatcher-dash-gui
+              edumatcher-book-gui edumatcher-dash-gui edumatcher-clearing-gui
 
 # The same six as compose *service* names, which is what `build` and
 # `up -d <svc>` take. GUI= selects one for build-guis / up-all BUILD=1.
-GUI_SERVICES := log-gui terminal-gui trader-gui book-gui dash-gui config-gui
+GUI_SERVICES := log-gui terminal-gui trader-gui book-gui dash-gui clearing-gui config-gui
 GUI ?=
 
 # Every container this stack owns, named as the compose files name them.
@@ -360,6 +360,7 @@ endif
 	@echo "  trader-gui    http://localhost:$${TRADER_GUI_PORT:-8093}"
 	@echo "  book-gui      http://localhost:$${BOOK_GUI_PORT:-8094}"
 	@echo "  dash-gui      http://localhost:$${DASH_GUI_PORT:-8095}"
+	@echo "  clearing-gui  http://localhost:$${CLEARING_GUI_PORT:-8096}"
 ifeq ($(CONFIG_GUI),1)
 	@echo "  config-gui    http://localhost:$${CONFIG_GUI_PORT:-8092}"
 endif
@@ -419,6 +420,7 @@ up-sim: check
 	@echo "  trader-gui    http://localhost:$${TRADER_GUI_PORT:-8093}"
 	@echo "  book-gui      http://localhost:$${BOOK_GUI_PORT:-8094}"
 	@echo "  dash-gui      http://localhost:$${DASH_GUI_PORT:-8095}"
+	@echo "  clearing-gui  http://localhost:$${CLEARING_GUI_PORT:-8096}"
 	@echo "'make sim-status' shows the processes; 'make down-sim' stops it."
 
 down-sim: check
@@ -585,6 +587,10 @@ dev-env: check
 		fi;; \
 	trader-gui) \
 		echo "# trader-gui: web on 8193. No bridge and no environment needed — vite.config.ts"; \
+		echo "# proxies /api straight to pm-api-gwy on http://localhost:8080."; \
+		published 8080 || echo "WARNING: port 8080 is not published on the host." >&2;; \
+	clearing-gui) \
+		echo "# clearing-gui: web on 8196. No bridge and no environment needed — vite.config.ts"; \
 		echo "# proxies /api straight to pm-api-gwy on http://localhost:8080."; \
 		published 8080 || echo "WARNING: port 8080 is not published on the host." >&2;; \
 	config-gui) \

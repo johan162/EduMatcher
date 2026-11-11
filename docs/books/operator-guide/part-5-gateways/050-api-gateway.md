@@ -458,7 +458,8 @@ Lists are paginated with an opaque cursor; see the spec's
 ### Clearing and settlement endpoints
 
 `/clearing/*` serves `pm-clearing`'s ledger (`clearing_db`) and `pm-eod`'s
-settlement ledger (`eod_db`) read-only, for the clearing client and for
+settlement ledger (`eod_db`) read-only, for the
+[Clearing GUI](../part-6-observe-and-recover/080-clearing-gui.md) and for
 participants' own records. The identity is the gateway: an `ADMIN` key reads
 the whole venue, a `TRADER` or `MARKET_MAKER` key only its own gateway (naming
 another is `403 SCOPE_DENIED`), and a read-only key nothing (`403 READ_ONLY`).

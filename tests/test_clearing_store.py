@@ -666,6 +666,21 @@ class TestQueryTrades:
         )
         assert [r["id"] for r in first + rest] == ["T-3", "T-2", "T-1"]
 
+    def test_a_page_reads_the_sort_index_not_the_whole_table(
+        self, conn: sqlite3.Connection
+    ) -> None:
+        """F2 (clearing GUI CG9): the newest-first page must walk an index in
+        its sort order and stop at LIMIT. Without one SQLite scanned and sorted
+        every retained trade per page (190 ms at 180k trades, growing with
+        retention)."""
+        statements: list[str] = []
+        conn.set_trace_callback(statements.append)
+        query_trades(conn, gateway="GW_BUY", limit=10, after=(5, 5, "T5"))
+        conn.set_trace_callback(None)
+        plan = [r[3] for r in conn.execute("EXPLAIN QUERY PLAN " + statements[-1])]
+        assert any("USING INDEX ix_trade_events_ts" in step for step in plan), plan
+        assert not any("TEMP B-TREE" in step for step in plan), plan
+
     def test_rows_carry_match_type_and_msg_id(self, conn: sqlite3.Connection) -> None:
         row = _trade_row("T-A", ts_ns=1, ingest_ts_ns=2, trade_date="2026-07-01")
         row.match_type = "OPENING_AUCTION"

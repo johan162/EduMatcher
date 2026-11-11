@@ -1,4 +1,4 @@
-# web-apps/Makefile — orchestrate log-gui, terminal-gui, trader-gui, book-gui and dash-gui together.
+# web-apps/Makefile — orchestrate log-gui, terminal-gui, trader-gui, book-gui, dash-gui and clearing-gui together.
 #
 # The key variable is VM_BACKEND_IP: set it to the IP of the VM (or host)
 # running the EduMatcher backend processes. Every GUI container is then
@@ -7,10 +7,10 @@
 #
 # Usage:
 #
-#   # All five GUIs, backend on Docker Desktop host (default):
+#   # All six GUIs, backend on Docker Desktop host (default):
 #   make up
 #
-#   # All five GUIs, backend in a separate VM:
+#   # All six GUIs, backend in a separate VM:
 #   make up VM_BACKEND_IP=192.168.64.10
 #
 #   # Or export once for the shell session:
@@ -73,6 +73,8 @@ ifdef VM_BACKEND_IP
                       LOG_SRV_HOST=$(VM_BACKEND_IP)
   # trader-gui: pm-api-gwy REST/WS proxy target
   TRADER_GUI_ENV := API_PROXY_TARGET=http://$(VM_BACKEND_IP):8080
+  # clearing-gui: pm-api-gwy REST proxy target (the desk instance)
+  CLEARING_GUI_ENV := API_PROXY_TARGET=http://$(VM_BACKEND_IP):8080
   # book-gui: pm-api-gwy (market-data WS + REST, dashboards instance), pm-md-gwy (CALF, session phase), pm-log-srv
   BOOK_GUI_ENV := API_GATEWAY_URL=http://$(VM_BACKEND_IP):8081 \
                   CALF_HOST=$(VM_BACKEND_IP) \
@@ -86,6 +88,7 @@ else
   LOG_GUI_ENV      :=
   TERMINAL_GUI_ENV :=
   TRADER_GUI_ENV   :=
+  CLEARING_GUI_ENV :=
   BOOK_GUI_ENV     :=
   DASH_GUI_ENV     :=
 endif
@@ -96,6 +99,7 @@ TERMINAL_GUI_DIR := terminal-gui
 TRADER_GUI_DIR   := trader-gui
 BOOK_GUI_DIR     := book-gui
 DASH_GUI_DIR     := dash-gui
+CLEARING_GUI_DIR := clearing-gui
 
 # Colours
 RED       := \033[0;31m
@@ -105,9 +109,9 @@ BLUE      := \033[0;34m
 CYAN      := \033[1;36m
 NC        := \033[0m
 
-.PHONY: help up down restart logs-log logs-terminal logs-trader logs-book logs-dash ps \
-        up-log up-terminal up-trader up-book up-dash \
-        down-log down-terminal down-trader down-book down-dash
+.PHONY: help up down restart logs-log logs-terminal logs-trader logs-book logs-dash logs-clearing ps \
+        up-log up-terminal up-trader up-book up-dash up-clearing \
+        down-log down-terminal down-trader down-book down-dash down-clearing
 
 # --------------------------------------------------------------------------------------------
 # Help
@@ -130,13 +134,13 @@ help: ## Show this help
 # --------------------------------------------------------------------------------------------
 # All-at-once targets
 # --------------------------------------------------------------------------------------------
-up: up-log up-terminal up-trader up-book up-dash ## Start all five GUI containers (set VM_BACKEND_IP for a remote VM)
+up: up-log up-terminal up-trader up-book up-dash up-clearing ## Start all six GUI containers (set VM_BACKEND_IP for a remote VM)
 
-down: down-log down-terminal down-trader down-book down-dash ## Stop and remove all five GUI containers
+down: down-log down-terminal down-trader down-book down-dash down-clearing ## Stop and remove all six GUI containers
 
-restart: down up ## Restart all five GUI containers
+restart: down up ## Restart all six GUI containers
 
-ps: ## Show container status for all five apps
+ps: ## Show container status for all six apps
 	@echo -e "$(CYAN)--- log-gui ---$(NC)"
 	@$(MAKE) -C $(LOG_GUI_DIR) ps
 	@echo -e "$(CYAN)--- terminal-gui ---$(NC)"
@@ -147,6 +151,8 @@ ps: ## Show container status for all five apps
 	@$(MAKE) -C $(BOOK_GUI_DIR) ps
 	@echo -e "$(CYAN)--- dash-gui ---$(NC)"
 	@$(MAKE) -C $(DASH_GUI_DIR) ps
+	@echo -e "$(CYAN)--- clearing-gui ---$(NC)"
+	@$(MAKE) -C $(CLEARING_GUI_DIR) ps
 
 # --------------------------------------------------------------------------------------------
 # Per-app targets
@@ -181,6 +187,12 @@ up-dash: ## Start dash-gui container (needs pm-monitor; history from EDUMATCHER_
 	fi
 	@env $(DASH_GUI_ENV) $(MAKE) -C $(DASH_GUI_DIR) up
 
+up-clearing: ## Start clearing-gui container
+	@if [[ -n "$(VM_BACKEND_IP)" ]]; then \
+		echo -e "$(YELLOW)- clearing-gui backend: $(VM_BACKEND_IP)$(NC)"; \
+	fi
+	@env $(CLEARING_GUI_ENV) $(MAKE) -C $(CLEARING_GUI_DIR) up
+
 down-log: ## Stop log-gui container
 	@$(MAKE) -C $(LOG_GUI_DIR) down
 
@@ -195,6 +207,9 @@ down-book: ## Stop book-gui container
 
 down-dash: ## Stop dash-gui container
 	@$(MAKE) -C $(DASH_GUI_DIR) down
+
+down-clearing: ## Stop clearing-gui container
+	@$(MAKE) -C $(CLEARING_GUI_DIR) down
 
 # --------------------------------------------------------------------------------------------
 # Log tailing (each in its own invocation — use separate terminals for live tailing)
@@ -213,3 +228,6 @@ logs-book: ## Follow book-gui container logs
 
 logs-dash: ## Follow dash-gui container logs
 	@$(MAKE) -C $(DASH_GUI_DIR) logs
+
+logs-clearing: ## Follow clearing-gui container logs
+	@$(MAKE) -C $(CLEARING_GUI_DIR) logs

@@ -47,6 +47,8 @@ from edumatcher.models.generated.system import (
     PREFIX_GATEWAY_BYE,
     TOPIC_EOD,
     TOPIC_GATEWAY_CONNECT,
+    topic_gateways,
+    topic_symbols,
 )
 from edumatcher.models.generated.trade import TOPIC_TRADE_EXECUTED, TradeExecuted
 from edumatcher.models.message import encode, encode_with_envelope
@@ -282,8 +284,26 @@ def build_venue(data_dir: Path) -> Venue:
     return venue
 
 
+#: What the engine resolves per requester on GET /api/v1/symbols: MM01
+#: carries an obligation on EURUSD only, TRADER01 none.
+SYMBOLS: dict[str, list[dict[str, Any]]] = {
+    "MM01": [
+        {"symbol": "AAPL", "tick_decimals": 2, "enforce_mm_obligation": False},
+        {
+            "symbol": "EURUSD",
+            "tick_decimals": 4,
+            "enforce_mm_obligation": True,
+            "mm_max_spread_ticks": 5,
+            "mm_min_qty": 1000,
+        },
+    ],
+}
+
+
 class FakeEngine:
-    """The two engine calls clearing routes make: auth and role lookup."""
+    """The engine calls the clearing GUI's routes make: auth, role lookup,
+    the ADMIN gateway roster (``/status``) and the per-requester symbol
+    settings (``/symbols``)."""
 
     def __init__(self, roles: dict[str, str] | None = None) -> None:
         self.roles = dict(ROLES if roles is None else roles)
@@ -295,6 +315,29 @@ class FakeEngine:
 
     async def resolve_role(self, gateway_id: str, timeout: float) -> str:
         return self.roles.get(gateway_id, "TRADER")
+
+    def request_gateways(self, gateway_id: str) -> None:
+        pass
+
+    def request_symbols(self, gateway_id: str) -> None:
+        pass
+
+    async def await_topic(self, topic: str, timeout: float) -> dict[str, Any]:
+        for gateway in self.roles:
+            if topic == topic_gateways(gateway):
+                return {
+                    "gateways": [
+                        {"id": gw, "role": role, "connected": True}
+                        for gw, role in self.roles.items()
+                    ]
+                }
+            if topic == topic_symbols(gateway):
+                plain = [
+                    {"symbol": "AAPL", "tick_decimals": 2},
+                    {"symbol": "EURUSD", "tick_decimals": 4},
+                ]
+                return {"symbols": SYMBOLS.get(gateway, plain)}
+        raise TimeoutError(f"no fake reply for {topic}")
 
 
 #: A health address nothing listens on: the probe gets no reply.

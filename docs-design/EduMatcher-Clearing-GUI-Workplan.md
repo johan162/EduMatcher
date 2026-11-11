@@ -2,7 +2,7 @@
 
 Companion design: [EduMatcher-Clearing-GUI.md](EduMatcher-Clearing-GUI.md)
 
-Status: **In progress.** CG0–CG4 done (2026-11-10, uncommitted): the release-1.0 REST surface is complete; CG5 (GUI) is next. The ordered plan
+Status: **In progress.** All work packages done (CG0–CG4 2026-11-10, CG5–CG9 2026-11-11), uncommitted. Release checklist §6 below. The ordered plan
 ships the read-only clearing client defined in the companion design, without
 introducing margin, client accounts, or a clearing write path.
 
@@ -38,11 +38,11 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit) �
 | 2 | CG2 | Clearing operational-evidence API: events, gateway sessions, reconciliation, DB/process health | CG0, CG1 | 1.5 d | ☑ | 2026-11-10 |
 | 3 | CG3 | EOD read API: settlements, derived balances, and run status | CG0 | 1.5 d | ☑ | 2026-11-10 |
 | 4 | CG4 | API integration and reference: route schemas, query bounds, role matrix, and documented units | CG1–CG3 | 1 d | ☑ | 2026-11-10 |
-| 5 | CG5 | `clearing-gui` foundation: workspace, auth, role routes, typed client, shell, proxy | CG4 | 2 d | ☐ | |
-| 6 | CG6 | Participant self-service screens: current state, trade audit, daily/close history | CG5, CG1 | 2 d | ☐ | |
-| 7 | CG7 | Operator screens: overview, participant drill-down, symbols, events, sessions, reconciliation | CG5, CG1, CG2 | 2.5 d | ☐ | |
-| 8 | CG8 | EOD and market-maker screens: settlements/balances and resolved MM settings | CG5, CG3 | 1.5 d | ☐ | |
-| 9 | CG9 | Release hardening: end-to-end checks, accessibility, performance bounds, deployment and user docs | CG4–CG8 | 2 d | ☐ | |
+| 5 | CG5 | `clearing-gui` foundation: workspace, auth, role routes, typed client, shell, proxy | CG4 | 2 d | ☑ | 2026-11-11 |
+| 6 | CG6 | Participant self-service screens: current state, trade audit, daily/close history | CG5, CG1 | 2 d | ☑ | 2026-11-11 |
+| 7 | CG7 | Operator screens: overview, participant drill-down, symbols, events, sessions, reconciliation | CG5, CG1, CG2 | 2.5 d | ☑ | 2026-11-11 |
+| 8 | CG8 | EOD and market-maker screens: settlements/balances and resolved MM settings | CG5, CG3 | 1.5 d | ☑ | 2026-11-11 |
+| 9 | CG9 | Release hardening: end-to-end checks, accessibility, performance bounds, deployment and user docs | CG4–CG8 | 2 d | ☑ | 2026-11-11 |
 
 Suggested critical path: **CG0 → CG1 → CG4 → CG5 → CG6 → CG7 → CG9**.
 CG2 and CG3 can proceed after CG0, but this plan schedules CG2 after CG1 so
@@ -581,6 +581,39 @@ Query cache keys must include the authenticated scope and filters to prevent
 cross-participant display. Bundle size should remain close to the Trading GUI
 baseline; use route-level lazy loading before dashboard libraries are added.
 
+**Done 2026-11-11.** First run, against stub modules (so nothing failed on
+an import): 38 failing on absent behaviour; then green, with typecheck,
+build, the repository's GUI port and deployment tests and the full Python
+suite.
+
+- `web-apps/clearing-gui` (`pm-clearing-ui`), number N=6 in the port scheme:
+  container 8096, Vite 8196 proxying `/api` to `localhost:8080`; no dev
+  backend. `apps/serve/serve.ts` is trader-gui's static server minus the
+  WebSocket upgrade proxy (the GUI opens no socket), plus a 400 for a
+  malformed URL escape (it threw inside the handler and ended the process --
+  trader-gui's copy still does; not changed here).
+- `api/apiFetch.ts` validates every body with Zod (`api/schemas.ts`): a
+  mismatch is `ContractError`, a 401 logs out, no answer is `NetworkError`
+  (and the top bar's connection badge says so). `api/queries.ts` holds every
+  hook and the request policy (5 s current state, 30 s health, cached
+  history/EOD, reconciliation on demand), keys `["clearing", caller, route,
+  params]`.
+- `lib/money.ts`: `Ticks` and `Minor` are branded types the schemas apply to
+  `*_ticks` / `*_minor`; `formatTicks` refuses a missing/invalid precision,
+  `formatMinor` is exact integer arithmetic.
+- `test/contract.test.ts` parses every clearing example of
+  `spec/rest/openapi.json` with the GUI's schemas and compares field sets and
+  required-ness: the browser's typed models come from the released contract
+  (CG4 exit criterion).
+- Login via `GET /api/v1/status` (key in memory only), role landing
+  (ADMIN → `/overview`, TRADER/MM → `/me/positions`), `RoleGuard`, lazy
+  routes, error boundary, `QueryState` (loading / error / forbidden /
+  contract / unreachable / empty), sortable accessible `DataTable`, filter
+  forms. Deployment wiring the repository enforces for a new GUI: the five
+  compose files, docker Makefile lists and `dev-env`, `edumatcher.sh`, the
+  GHCR workflow matrices, `mkghrelease.sh`, `mkbld.sh` (version.json),
+  `.env*.example`, `web-apps/Makefile` and README.
+
 ---
 
 ### CG6 — Participant self-service screens
@@ -625,6 +658,24 @@ participant page renders an unsupported margin, equity, or buying-power tile.
 matching clearing's normal flush interval. Trade and history requests are
 filter-driven and paginated, not polled. Daily/close responses should cache by
 date range and only revalidate when current-state freshness changes.
+
+**Done 2026-11-11.** `test/myClearing.test.tsx`: 12 failing against the
+CG5 page shells, then green.
+
+- Shared views (`components/views/`), reused by the ADMIN drill-down with a
+  fixed `gateway`: `PositionsView` (positions + exposure, 5 s, freshness
+  line "committed by clearing at … up to 5 s"), `TradesView` (infinite
+  query, "Load more" with the server cursor, retention line, exchange time
+  and clearing ingest as separate columns), `HistoryView` (daily rows,
+  close snapshots, a close-to-close chart lazy-loaded with Recharts, and a
+  "Closes by day" table where each close sums its rows after converting each
+  with its own precision).
+- Money cells only through `columns.tsx` `tickColumn` (row precision, sort in
+  display currency). Participant pages never send `gateway` (tested on every
+  request).
+- History is never polled: `useHistoryRevalidation` polls the small
+  positions response and invalidates daily/close queries only when the
+  newest position write moves (tested both ways with fake timers).
 
 ---
 
@@ -674,6 +725,28 @@ bounded, user-filtered queries. The reconciliation screen must never be
 mounted as an auto-refreshing dashboard query because its raw-trade comparison
 can be expensive.
 
+**Done 2026-11-11.** `test/admin.test.tsx`: 18 failing (the navigation test
+already passed from CG5), then green after one wording fix (proper plurals
+in the GAP alarm).
+
+- Overview: freshness and flush qualifier, a `role="alert"` GAP alarm
+  (count, missing trades, id interval, run, time, and the "no gap does not
+  prove completeness" caveat -- also shown when there is no gap), stat tiles
+  limited to counts and venue P&L in display currency, last EOD run (or
+  "EOD ledger unavailable"), Health panel with database and process as two
+  lines, participants table with drill-down links, recent session events.
+  Summary/participants 5 s, health 30 s, events once (tested with fake
+  timers).
+- Participant drill-down `/participants/:id/*` with tabs Positions, Trades,
+  History, Settlement (CG8), Sessions -- every request carries `gateway`.
+- Symbol Activity (titled and explained as not open interest), Events (type
+  filter, payload in words), Gateway Sessions (gateway and connected-only
+  filters; the participant's `/me/sessions` uses the same view without
+  `gateway`), Reconciliation (Run with required dates, never refetched,
+  "Compared X to Y; raw trades are kept from Z", "No discrepancy in the
+  queried retained data", "Nothing was compared" when the range predates
+  retention).
+
 ---
 
 ### CG8 — EOD and market-maker screens
@@ -716,6 +789,26 @@ compliance score as observed fact.
 current-state polling. `/symbols` is a bounded reference call; refetch it on
 login/config refresh rather than on each render. The screens add negligible
 load to clearing.db.
+
+**Done 2026-11-11.** `test/eod.test.tsx`: 12 failing against the shells,
+then green.
+
+- `components/views/SettlementView.tsx` in three modes: `self`
+  (`/me/settlement`, no `gateway`), `gateway` (the drill-down's Settlement
+  tab) and `venue` (`/eod`: account and date filters, every account,
+  `EXCHANGE` shown as "rounding residual account", balances table, runs
+  with their steps). Amounts only through `formatMinor` (`Minor`-branded
+  fields); direction in words ("Exchange owes you" / "You owe the
+  exchange"); per-symbol unrounded parts; run status badge; the derived
+  balance as opening + settlements-to-date + derived balance with an as-of
+  filter; "not margin, collateral or a completed payment" copy. Cached,
+  never polled.
+- `/me/obligations` (MARKET_MAKER) reads only the requester-scoped
+  `GET /api/v1/symbols` (cached for the session): obligation Enforced / Not
+  enforced / Not configured (absent fields), max spread as ticks and display
+  price, min quantity; copy "configured enforcement parameters … not a
+  measure of how you quoted"; no presence, re-quote or compliance figure
+  (tested).
 
 ---
 
@@ -771,6 +864,40 @@ queries may poll; raw audit, EOD history, and reconciliation remain cached or
 explicitly user-triggered. Bundled frontend size and initial route load should
 be measured and documented before release.
 
+**Done 2026-11-11.**
+
+- *Request discipline* (`test/requests.test.tsx`): every one of 17 screens,
+  left open for a fake minute, repeats only bounded current-state routes at
+  no more than one per 5 s, requests every other route once, never calls
+  reconciliation, and pages trades at 200. Passed at once: the policy was
+  built into `api/queries.ts` in CG5 (recorded rather than claimed red-first).
+- *Accessibility* (`test/a11y.test.tsx`): axe-core on 13 screens with data
+  loaded (`color-contrast` off: jsdom cannot paint), keyboard sorting with
+  `aria-sort`, statuses in text. First run found F12 and F13; fixed.
+- *Browser journeys* (`tests/test_clearing_gui_e2e.py`, `-m e2e`): the real
+  gateway app (uvicorn, fixture venue, fake engine) behind the production
+  build and `serve.ts`, headless Chrome: ADMIN (GAP alarm, both health
+  lines, drill-down with 4-decimal marks, reconciliation, EXCHANGE row),
+  TRADER (positions, masked counterparty, retention, derived balance, a typed
+  ADMIN URL turned away), MARKET_MAKER (obligation settings), unknown key;
+  every request same-origin. 4 passed first run; `make test-e2e` 35 passed.
+- *Measurements* (`tools/clearing_api_bench.py`, 180 000 trades / 90 days /
+  40 gateways / 20 symbols, in-process): polled reads 3–4 ms and ≤10 kB per
+  participant (unfiltered ADMIN positions 383 kB / 28 ms, which no screen
+  requests); health 52 ms (bench ping timeout); trade page 186 ms → 9.5 ms
+  after the F2 index; daily rows 19–45 ms / 585 kB per 1 000; symbols 93 ms;
+  reconciliation 0.12 s (7 days) / 1.2 s (90 days), on Run only. Query plans
+  for the trade query now `SCAN … USING INDEX ix_trade_events_ts`, no sort.
+- *Bundle*: initial load 408 kB (126 kB gzip: React, router, query, Zod);
+  Recharts 402 kB only with the history screens; every page its own chunk
+  (≤ 8 kB). trader-gui ships 1.26 MB of JavaScript.
+- *Docs*: Participant Guide "Clearing GUI" (new), Operator's Guide runbook
+  "Clearing GUI" (new: prerequisites, start, ADMIN screens, diagnosis table,
+  measured load, non-goals), and every GUI/port enumeration in the
+  quick-start, installation, container walkthrough, running-the-exchange,
+  AI-traders and development chapters; `web-apps/README.md`, the app's
+  README; `make -C docs nav`, `docs-check` clean, `make docs-site` clean.
+
 ## 5. Findings
 
 Populate this section only while implementing the workplan. Every confirmed
@@ -781,7 +908,7 @@ passes.
 | ID | Found in WP | Observation and evidence | Impact | Classification | Test-first action | Status |
 |---|---|---|---|---|---|---|
 | F1 | CG1 | `query_trades` ordered by `ts_ns DESC, ingest_ts_ns DESC` has no total order, so a keyset cursor could repeat/skip prints sharing a timestamp (auctions). First fix (`ts_ns, id`) broke the existing CL-L3 test (newest ingest first for equal `ts_ns`). | Duplicate or missing trades across pages. | implementation defect | CL-L3 test failed; key is now `(ts_ns, ingest_ts_ns, id)`; new `test_after_continues_inside_one_timestamp`. | closed |
-| F2 | CG1 | The store's optional-filter form (`:gateway IS NULL OR …`) lets SQLite skip the gateway/date indexes on `trade_events`; `ORDER BY ts_ns` has no index. | Trade pages on a large retained table may scan it. Bounded by `limit`, not by cost. | performance constraint | Measure query plans on a realistic DB in CG9 step 4 before adding indexes or specialised SQL. | open (CG9) |
+| F2 | CG1 | The store's optional-filter form (`:gateway IS NULL OR …`) lets SQLite skip the gateway/date indexes on `trade_events`; `ORDER BY ts_ns` has no index. | Trade pages on a large retained table may scan it. Bounded by `limit`, not by cost. | performance constraint | CG9 bench: `SCAN trade_events` + `TEMP B-TREE` on every page (186 ms at 180k trades). `test_a_page_reads_the_sort_index_not_the_whole_table` failed; new `ix_trade_events_ts(ts_ns, ingest_ts_ns, id)` (schema docs regenerated): 9.5 ms. | closed |
 | F3 | CG1 | `symbols.open_net_qty` sums signed positions of all gateways; every buy has a seller, so it is identically 0 in this venue. | The design's "current aggregate open quantity" carries no information. | contract ambiguity | Documented as "not open interest; zero while every holder is a gateway" in model and spec; `test_symbols_is_admin_only_activity` pins 0. | closed (documented) |
 | F4 | CG2 | The `EOD` session-event payload stores `eod_marks` as ticks without `tick_decimals`. | Exposing them would break the "precision on every money value" rule. | data-quality/observability gap | Not exposed: `eod: {symbols_count, marked_symbols}`; closing marks with precision are in `close-snapshots`. `test_session_events_decode_each_payload`. | closed |
 | F5 | CG2 | `query_sessions` filters `from`/`to` on the connect time's **UTC** date (`date(…,'unixepoch')`), while the API's dates are session-timezone trading days. | Wrong rows for a non-UTC venue near midnight. | contract ambiguity | Exact ns bounds from session-timezone midnights; `test_the_connect_day_is_the_session_timezone_day` (Honolulu copy of the fixture) would select nothing under the UTC filter. | closed |
@@ -789,6 +916,18 @@ passes.
 | F7 | CG4 review | A blank filter (`?gateway=%20`, `?symbol=`) became `""`: a participant got `SCOPE_DENIED … not `, an ADMIN an empty list. | Spurious refusal / false empty result. | implementation defect | `test_a_blank_filter_is_no_filter` failed; blank is now no filter in `clearing_scope` and `_upper`. | closed |
 | F8 | CG4 review | `participants/{gateway_id}` built `links` without URL-encoding the gateway id. | A gateway id with `&` or a space yields a wrong link. | implementation defect | `test_participant_links_are_url_encoded` failed; `quote(…, safe='')`. | closed |
 | F9 | CG4 review | `query_reconcile` (shared with `pm-clearing-cli reconcile`) compares raw `quantity * price` in each trade's own ticks with daily rows that K6 rescales to the latest precision. | After a symbol's `tick_decimals` changes, its days report false notional discrepancies. Pre-existing; the API now at least returns `tick_decimals` per row. | data-quality/observability gap | Not fixed here (no tick-precision change in 1.0 scope); revisit with K6 if precision changes become an operator action. | open |
+| F10 | CG5 | Epoch-nanosecond fields (~1.8e18) exceed JavaScript's safe-integer range: zod 4's `.int()` rejected every real timestamp, and `JSON.parse` rounds them by a few hundred ns. | Every response with a `*_ns` field would have been a contract error in the browser. | contract ambiguity | Contract test failed on the documented examples; `*_ns` are now `nanos` (a plain number), documented as display-only, never compared for equality. | closed |
+| F11 | CG5 | FastAPI renders `openapi.json` with `exclude_none`, so example fields whose value is `null` vanish from the published examples (e.g. `/positions`' TSLA row, a participant's masked counterparty), while the wire carries them as `null`. | A client generated from the examples would treat nullable-required fields as optional. | documentation defect | GUI contract test restores the omitted `null`s for nullable fields only (`test/helpers.tsx` `withNulls`) and still checks required-ness against the schema; the published examples themselves are unchanged (all routes, pre-existing). | open (contract rendering) |
+| F12 | CG9 | axe: the login page had no landmark (its form sat outside `<main>`). | Screen-reader users could not jump to the page's content. | implementation defect | a11y test failed; the page is a `<main>`. | closed |
+| F13 | CG9 | axe: the settlement screen had two forms both labelled "Filters" (`landmark-unique`). | Two identical landmarks; a screen reader cannot tell them apart. | implementation defect | a11y test failed; `FilterForm` takes a `label` ("Balance date", "Settlement filters"). | closed |
+| F14 | CG5–9 review | Every read used `placeholderData: keepPreviousData`, so changing a gateway filter (Gateway Sessions, EOD account) kept the previous gateway's rows on screen under the new filter until the new reply came. | Brief cross-participant display -- what CG5 says query keys must prevent. | implementation defect | `F14` in `test/review.test.tsx` failed (after F14b); no placeholder data, a new filter shows a skeleton. | closed |
+| F14b | CG5–9 review | The test `stubApi` JSON-encoded a handler's promise as `{}` instead of awaiting it, so a "pending" reply was really a contract error and hid the F14 leak. | A test could pass for the wrong reason. | test defect | helper awaits handler results; F14 then failed as it should. | closed |
+| F15 | CG5–9 review | Logging out (button or 401) left every cached response of the previous login in the query cache. | Another person at the same tab could be shown, or the memory could hold, the previous participant's data. | implementation defect | `F15` failed; `useClearCacheOnLogout` in App.tsx clears the cache whenever the key goes. | closed |
+| F16 | CG5–9 review | A 2xx reply that is not JSON (a proxy serving index.html for /api) threw a raw `SyntaxError`. | An unhelpful error instead of the contract-error explanation. | implementation defect | `F16` failed; `ContractError("the reply is not JSON")`. | closed |
+| F17 | CG5–9 review | Run with an unchanged reconciliation range showed the cached result and compared nothing. | An operator re-checking after a fix would see stale results. | implementation defect | `F17` failed; an identical range refetches. | closed |
+| F18 | CG5–9 review | The Overview alarm required both `gap_count > 0` and `latest_gap`. | A counted gap without detail would read "no feed gap". | implementation defect | `F18` failed; the alarm keys on `gap_count` alone. | closed |
+| F19 | CG5–9 review | The `EXCHANGE` rounding row read "Exchange owes the gateway". | Misleading wording for the residual account. | implementation defect | `F19` failed; its direction is "rounding residual". | closed |
+| F20 | CG5–9 review | A value rounding to zero from below showed as "-0.00". | Noise that reads as a loss. | implementation defect | `F20` failed; rounded zero is shown unsigned. | closed |
 
 Classification: **implementation defect**, **contract ambiguity**,
 **data-quality/observability gap**, **performance constraint**,
@@ -818,23 +957,37 @@ Limits carried into CG5–CG9: `/health` costs one ≤0.5 s ping per call and
 five-second poll; `/clearing/trades` pages need the F2 query-plan check on a
 realistic database (CG9 step 4).
 
+### 5.2 Holistic review of CG5–CG9 (2026-11-11)
+
+Every new and changed file re-read: the web app (API client, schemas, query
+policy, shared components, every view and page), the static server, the
+Python fixture, e2e test, bench tool and index, the deployment files and the
+documentation. Checked in particular: no screen can show one gateway's data
+under another's name or login (F14, F15); every failure mode reaches the
+user as a named error, never as an empty table (F16); explicit operator
+actions really run (F17); unit handling (ticks per row, minor units apart,
+no "-0.00", F20) and wording (F18, F19). F14–F20 were fixed test-first;
+`test/review.test.tsx` holds them. Not changed, recorded: trader-gui's static
+server shares the decode crash fixed in clearing-gui's copy (CG5 notes).
+
 ## 6. Release checklist
 
 Before declaring the client ready for release 1.0, confirm:
 
-- [ ] Every Status-table WP is ☑, or any deferred WP is explicitly removed from
+- [x] Every Status-table WP is ☑, or any deferred WP is explicitly removed from
   the release scope and all dependent UI routes are absent.
-- [ ] Every WP began with its stated failing functional test and has focused
-  and affected-suite evidence of passing tests.
-- [ ] The API has no unauthenticated or cross-gateway clearing data leak.
-- [ ] The GUI never accesses SQLite, the clearing bus, or the clearing health
+- [x] Every WP began with its stated failing functional test and has focused
+  and affected-suite evidence of passing tests. (Exceptions recorded in the WP
+  notes: CG4's contract and CG9's request-discipline tests passed at once.)
+- [x] The API has no unauthenticated or cross-gateway clearing data leak.
+- [x] The GUI never accesses SQLite, the clearing bus, or the clearing health
   socket directly.
-- [ ] Tick-unit and minor-unit values are never mixed or aggregated without
+- [x] Tick-unit and minor-unit values are never mixed or aggregated without
   their declared conversion.
-- [ ] GAP, clearing flush lag, retention, observation timestamps, and EOD
+- [x] GAP, clearing flush lag, retention, observation timestamps, and EOD
   settlement limitations are visible to relevant users.
-- [ ] No shipped label or calculation claims margin, client account, collateral,
+- [x] No shipped label or calculation claims margin, client account, collateral,
   intraday P&L history, open interest, or MM compliance without a new
   authoritative implementation and corresponding WP.
-- [ ] Deployment, API, and user documentation were verified against running
+- [x] Deployment, API, and user documentation were verified against running
   route schemas and browser journeys.

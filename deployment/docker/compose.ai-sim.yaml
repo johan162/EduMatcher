@@ -170,6 +170,20 @@ services:
       # The 'desk' instance: log in with a TRADERnn key in the browser.
       API_PROXY_TARGET: "http://edumatcher:8080"
 
+  clearing-gui:
+    image: ghcr.io/${GHCR_OWNER:-johan162}/edumatcher-clearing-gui:${EM_VERSION:-latest}
+    container_name: edumatcher-sim-clearing-gui
+    depends_on: [edumatcher]
+    restart: unless-stopped
+    ports:
+      - "${BIND_ADDR:-127.0.0.1}:${CLEARING_GUI_PORT:-8096}:8096"
+    environment:
+      HOST: "0.0.0.0"
+      PORT: "8096"
+      # The 'desk' instance: log in with a participant's or an ADMIN key.
+      # Clearing data is read by pm-api-gwy (clearing_db, eod_db), not here.
+      API_PROXY_TARGET: "http://edumatcher:8080"
+
 volumes:
   log-gui-acks:
   terminal-gui-logs:

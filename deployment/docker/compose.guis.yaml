@@ -196,6 +196,29 @@ services:
       # The desk instance: trading credentials are entered in the browser.
       API_PROXY_TARGET: "http://edumatcher:8080"
 
+  clearing-gui:
+    build:
+      context: ../../web-apps/clearing-gui
+      dockerfile: Dockerfile
+      args:
+        NPM_STRICT_SSL:
+        HTTP_PROXY:
+        HTTPS_PROXY:
+        NO_PROXY:
+    image: edumatcher-clearing-gui:latest
+    container_name: ${CONTAINER_NAME:-edumatcher}-clearing-gui
+    depends_on:
+      - edumatcher
+    restart: unless-stopped
+    ports:
+      - "${BIND_ADDR:-127.0.0.1}:${CLEARING_GUI_PORT:-8096}:8096"
+    environment:
+      HOST: "0.0.0.0"
+      PORT: "8096"
+      # The desk instance: log in with a participant's or an ADMIN key.
+      # Clearing data is read by pm-api-gwy (clearing_db, eod_db), not here.
+      API_PROXY_TARGET: "http://edumatcher:8080"
+
 volumes:
   log-gui-acks:
   terminal-gui-logs:

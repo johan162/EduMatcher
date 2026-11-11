@@ -57,6 +57,8 @@ jobs:
             context: web-apps/book-gui
           - name: edumatcher-dash-gui
             context: web-apps/dash-gui
+          - name: edumatcher-clearing-gui
+            context: web-apps/clearing-gui
         platform:
           - arch: amd64
             runner: ubuntu-24.04
@@ -166,6 +168,7 @@ jobs:
           - edumatcher-trader-gui
           - edumatcher-book-gui
           - edumatcher-dash-gui
+          - edumatcher-clearing-gui
 
     steps:
       - name: Resolve the tag being built

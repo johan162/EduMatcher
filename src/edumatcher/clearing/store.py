@@ -95,6 +95,10 @@ CREATE INDEX IF NOT EXISTS ix_trade_events_buy_gw_date
   ON trade_events(buy_gateway_id, trade_date);
 CREATE INDEX IF NOT EXISTS ix_trade_events_sell_gw_date
   ON trade_events(sell_gateway_id, trade_date);
+-- query_trades' sort key, newest first: a page walks this index and stops
+-- at its LIMIT instead of sorting every retained trade (clearing GUI F2).
+CREATE INDEX IF NOT EXISTS ix_trade_events_ts
+  ON trade_events(ts_ns, ingest_ts_ns, id);
 
 CREATE TABLE IF NOT EXISTS gateway_symbol_positions (
   gateway_id       TEXT    NOT NULL,

@@ -135,6 +135,7 @@ six GUIs in one file.
 | `edumatcher-trader-gui` | `web-apps/trader-gui/Dockerfile` | 8093 | The trading GUI |
 | `edumatcher-book-gui` | `web-apps/book-gui/Dockerfile` | 8094 | The order book viewer |
 | `edumatcher-dash-gui` | `web-apps/dash-gui/Dockerfile` | 8095 | The operator dashboard |
+| `edumatcher-clearing-gui` | `web-apps/clearing-gui/Dockerfile` | 8096 | The clearing client (read-only) |
 
 Locally built images are tagged `edumatcher:local` (from `IMAGE_NAME` and
 `IMAGE_TAG` in `.env`) and `edumatcher-<app>:latest`. Released images are
@@ -695,7 +696,7 @@ exchange's service is called `edumatcher`, so `edumatcher:8081` from inside
 ```mermaid
 flowchart TB
     subgraph host["Your machine (host network)"]
-        LO["127.0.0.1:8090-8095\n127.0.0.1:5560 … 8081\n(published ports)"]
+        LO["127.0.0.1:8090-8096\n127.0.0.1:5560 … 8081\n(published ports)"]
     end
     subgraph net["Private network edumatcher_default"]
         direction LR
@@ -869,6 +870,7 @@ tools to the bus.
 | `TRADER_GUI_PORT` (8093) | 8093 | `trader-gui` | Trading GUI |
 | `BOOK_GUI_PORT` (8094) | 8094 | `book-gui` | Order book viewer |
 | `DASH_GUI_PORT` (8095) | 8095 | `dash-gui` | Operator dashboard |
+| `CLEARING_GUI_PORT` (8096) | 8096 | `clearing-gui` | Clearing client |
 
 Only the host side of a GUI port is configurable. If 8090 is already taken on
 your machine, set `TERMINAL_GUI_PORT=9090` in `.env` and restart; the container
@@ -901,7 +903,7 @@ on a running container.
 | `BIND_ADDR` | `127.0.0.1` | compose `ports:` | no: the host interface ports open on |
 | `EDUMATCHER_GATEWAY_BIND_HOST` | `0.0.0.0` | gateways, `pm-log-srv`, `pm-api-gwy`, `pm-monitor` | yes |
 | `SSH_PORT` | `2222` | `compose.ssh.yaml`, `make ssh` | no |
-| `TERMINAL_GUI_PORT` … `DASH_GUI_PORT` | `8090` … `8095` | GUI `ports:` | no |
+| `TERMINAL_GUI_PORT` … `CLEARING_GUI_PORT` | `8090` … `8096` | GUI `ports:` | no |
 | `LOG_GUI_URL` / `BOOK_GUI_URL` | `http://localhost:<port>` | `dash-gui` | yes: the drawers' links to log-gui and book-gui |
 | `IMAGE_NAME` / `IMAGE_TAG` | `edumatcher` / `local` | compose `image:` | no |
 | `CONTAINER_NAME` | `edumatcher` | compose, `Makefile` | no |

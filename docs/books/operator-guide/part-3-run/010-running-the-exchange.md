@@ -203,7 +203,7 @@ directory. What is left is shorter:
 | The right configuration is deployed | `make config-show` (or `./edumatcher.sh shell` then `pm-config-show`) | `EM_CONFIG` picks a bundled example; `EM_CONFIG_FILE` overrides it. `./edumatcher.sh config <name>` *selects* a configuration and requires an argument — it does not show what is currently deployed |
 | Every process came up | `./edumatcher.sh status` or `make status` | Runs `pm-opctl-cli list` inside the container |
 | It is *your* exchange on those ports | `./edumatcher.sh mounts` or `make mounts` | A released and a source-built stack use the same container names and host ports |
-| The applications answer | open 8090, 8091, 8093, 8094, 8095 | The two-phase start can succeed for the backend and still leave a GUI unhealthy |
+| The applications answer | open 8090, 8091, 8093, 8094, 8095, 8096 | The two-phase start can succeed for the backend and still leave a GUI unhealthy |
 | Timezone matches the calendar | `TZ` in `.env` | Set it before the session; it affects every timestamp and the trading date |
 
 
@@ -765,6 +765,7 @@ responding` row means the same thing there as on the host.
 | `pm-ticker` | Scrolling market tape based on stats |
 | TapeDeck | Browser display for live prices, trades, movers, index, auctions and halts |
 | `pm-dash` (dash-gui, port 8095) | Every process's health, trading activity and events in a browser, live and over time |
+| `pm-clearing-ui` (clearing-gui, port 8096) | Clearing positions, P&L, feed gaps, reconciliation and EOD settlement in a browser |
 | `pm-audit --terminal` | Raw event flow while recording to disk |
 | `pm-log-cli diagnose` | Operational log diagnosis when log server data exists |
 | Log Operator Console (log-gui) | Browsing, searching and acknowledging centralized logs in a browser |
