@@ -23,14 +23,24 @@ methods for each would be both more code and one more thing to drift.
 from __future__ import annotations
 
 import enum
+import functools
 import hashlib
 import json
 import logging
+import sys
 import types
 from dataclasses import dataclass, fields, is_dataclass
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from pathlib import Path
-from typing import Any, TypeVar, Union, get_args, get_origin, get_type_hints
+from typing import (
+    Any,
+    ParamSpec,
+    TypeVar,
+    Union,
+    get_args,
+    get_origin,
+    get_type_hints,
+)
 
 from edumatcher.alf_gwy.config import AlfGatewayConfig
 from edumatcher.config import COMPILED_CONFIG_FILE
@@ -64,6 +74,7 @@ log = logging.getLogger(__name__)
 SCHEMA_VERSION = 5
 
 T = TypeVar("T")
+P = ParamSpec("P")
 
 
 class ArtifactError(Exception):
@@ -339,6 +350,35 @@ def report_deployment() -> None:
         log.warning("the running configuration is out of date: %s", warning)
 
 
+def exit_on_config_error(main: Callable[P, T]) -> Callable[P, T]:
+    """Turn an unusable deployed configuration into a clean exit 1.
+
+    For console-script entry points. An artifact that is damaged or compiled
+    by another build is a foreseeable operator state, not a bug, so it gets
+    one line on stderr instead of a traceback. Most processes first read the
+    artifact while configuring logging, so the message cannot rely on logging;
+    it is also logged when a handler is already in place.
+    """
+
+    @functools.wraps(main)
+    def wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
+        try:
+            return main(*args, **kwargs)
+        except ArtifactError as exc:
+            if logging.getLogger().handlers:
+                log.critical(
+                    "cannot start, the deployed configuration is unusable: %s", exc
+                )
+            print(
+                f"{Path(sys.argv[0]).name}: cannot start, the deployed "
+                f"configuration is unusable: {exc}",
+                file=sys.stderr,
+            )
+            raise SystemExit(1) from None
+
+    return wrapper
+
+
 def source_digest(text: str) -> str:
     """Return the SHA-256 of an authored config's text."""
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
@@ -461,6 +501,7 @@ __all__ = [
     "content_digest",
     "decode",
     "encode",
+    "exit_on_config_error",
     "load_compiled_config",
     "report_deployment",
     "staleness",

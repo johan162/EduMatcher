@@ -32,6 +32,7 @@ from pathlib import Path
 from types import FrameType
 from typing import Any
 
+from edumatcher.config_artifact import exit_on_config_error
 from edumatcher.health import HealthReporter, counter, gauge
 from edumatcher.models.generated.health import MetricSample
 from edumatcher.ai_trader.preset import Preset, builtin_presets
@@ -496,6 +497,7 @@ def resolve_settings(args: argparse.Namespace, file: SwarmFile | None) -> None:
             setattr(args, dest, default if value is None else value)
 
 
+@exit_on_config_error
 def main() -> None:
     args = build_parser().parse_args()
     try:

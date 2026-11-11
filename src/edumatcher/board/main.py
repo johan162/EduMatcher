@@ -55,6 +55,7 @@ from rich.text import Text
 
 import errno
 
+from edumatcher.config_artifact import exit_on_config_error
 from edumatcher.config import COMPILED_CONFIG_FILE, ENGINE_PULL_ADDR, ENGINE_PUB_ADDR
 from edumatcher.log_srv.config import (
     load_default_log_client_config,
@@ -780,6 +781,7 @@ def _configure_logging(args: argparse.Namespace) -> int:
     return int(level)
 
 
+@exit_on_config_error
 def main() -> None:
     parser = build_parser()
     args = parser.parse_args()

@@ -35,7 +35,7 @@ from edumatcher.config import (
     SIM_PUB_ADDR,
     SIM_PULL_ADDR,
 )
-from edumatcher.config_artifact import load_compiled_config
+from edumatcher.config_artifact import load_compiled_config, exit_on_config_error
 from edumatcher.engine.config_loader import DEFAULT_SESSION_TIMEZONE
 from edumatcher.market_sim.news import KINDS
 from edumatcher.market_sim.news_history import NEWS_HISTORY_DB, read_news_events
@@ -400,6 +400,7 @@ def _session_timezone() -> str:
     )
 
 
+@exit_on_config_error
 def main(argv: list[str] | None = None) -> None:
     parser = build_parser()
     args = parser.parse_args(argv)

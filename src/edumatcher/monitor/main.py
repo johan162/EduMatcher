@@ -39,6 +39,7 @@ from pathlib import Path
 
 import zmq
 
+from edumatcher.config_artifact import exit_on_config_error
 from edumatcher.config import ENGINE_PUB_ADDR, METRICS_DB_FILE
 from edumatcher.health import HealthReporter
 from edumatcher.log_srv.config import (
@@ -183,6 +184,7 @@ def open_store(
         return None
 
 
+@exit_on_config_error
 def main() -> None:
     from edumatcher.config_artifact import load_compiled_config, report_deployment
     from edumatcher.engine.config_loader import DEFAULT_SESSION_TIMEZONE

@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import logging
 
+from edumatcher.config_artifact import exit_on_config_error
 from edumatcher.health import HealthReporter
 from edumatcher.config import (
     COMPILED_CONFIG_FILE,
@@ -200,6 +201,7 @@ def _resolve_config(
     )
 
 
+@exit_on_config_error
 def main() -> None:
     from edumatcher.config_artifact import report_deployment
 

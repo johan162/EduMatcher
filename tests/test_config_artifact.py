@@ -598,3 +598,53 @@ class TestTheMonitorSection:
         del payload["monitor"]
         with pytest.raises(ArtifactError, match="redeploy with pm-config-deploy"):
             decode(json.dumps(payload))
+
+
+class TestExitOnConfigError:
+    """Entry points turn an unusable artifact into one line and exit 1."""
+
+    def test_a_schema_drifted_artifact_exits_pm_monitor_cli_cleanly(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        from edumatcher.monitor import cli as monitor_cli
+
+        stamped = _config(meta=_meta(content_sha256=content_digest(_config())))
+        target = tmp_path / "engine_config.json"
+        target.write_text(
+            _artifact_missing_key(stamped, "engine", "enforce_collars"),
+            encoding="utf-8",
+        )
+        monkeypatch.setattr("edumatcher.config_artifact.COMPILED_CONFIG_FILE", target)
+
+        with pytest.raises(SystemExit) as excinfo:
+            monitor_cli.main(["status"])
+
+        assert excinfo.value.code == 1
+        err = capsys.readouterr().err
+        assert "cannot start, the deployed configuration is unusable" in err
+        assert str(target) in err
+        assert "pm-config-deploy" in err
+        assert "Traceback" not in err
+        assert [r.levelname for r in caplog.records] == ["CRITICAL"]
+        assert caplog.records[0].msg == (
+            "cannot start, the deployed configuration is unusable: %s"
+        )
+
+    def test_other_errors_and_results_pass_through(self) -> None:
+        from edumatcher.config_artifact import exit_on_config_error
+
+        @exit_on_config_error
+        def ok(x: int) -> int:
+            return x + 1
+
+        @exit_on_config_error
+        def boom() -> None:
+            raise ValueError("not a config problem")
+
+        assert ok(1) == 2
+        with pytest.raises(ValueError):
+            boom()

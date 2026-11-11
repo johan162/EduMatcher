@@ -15,6 +15,7 @@ from typing import Any
 
 import zmq
 
+from edumatcher.config_artifact import exit_on_config_error
 from edumatcher.health import HealthReporter
 from edumatcher.config import (
     COMPILED_CONFIG_FILE,
@@ -1136,6 +1137,7 @@ def _configure_logging(args: argparse.Namespace) -> int:
     return int(level)
 
 
+@exit_on_config_error
 def main() -> None:
     from edumatcher.config_artifact import report_deployment
 

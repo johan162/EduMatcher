@@ -73,6 +73,7 @@ from typing import Any, Optional, cast
 import holidays
 import zmq
 
+from edumatcher.config_artifact import exit_on_config_error
 from edumatcher.config import (
     ENGINE_PULL_BIND_ADDR,
     ENGINE_PUB_BIND_ADDR,
@@ -7893,6 +7894,7 @@ def _configure_logging(args: argparse.Namespace) -> int:
     return int(level)
 
 
+@exit_on_config_error
 def main() -> None:
     from edumatcher.config_artifact import ArtifactError, report_deployment
 

@@ -21,6 +21,7 @@ import time
 
 from rich.console import Console
 
+from edumatcher.config_artifact import exit_on_config_error
 from edumatcher.log_srv.config import (
     load_default_log_client_config,
     load_default_log_server_config,
@@ -306,6 +307,7 @@ class _SpySession:
         self.count += 1
 
 
+@exit_on_config_error
 def main() -> None:
     parser = build_parser()
     args = parser.parse_args()

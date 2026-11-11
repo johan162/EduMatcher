@@ -16,6 +16,7 @@ import logging
 import signal
 from pathlib import Path
 
+from edumatcher.config_artifact import exit_on_config_error
 from edumatcher.ai_trader.preset import (
     Preset,
     PresetError,
@@ -188,6 +189,7 @@ def list_presets() -> str:
     return "\n".join(lines)
 
 
+@exit_on_config_error
 def main() -> None:
     parser = build_parser()
     args = parser.parse_args()

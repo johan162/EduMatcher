@@ -84,6 +84,7 @@ from zoneinfo import ZoneInfo
 import holidays
 import zmq
 
+from edumatcher.config_artifact import exit_on_config_error
 from edumatcher.health import HealthReporter, gauge
 from edumatcher.models.generated.health import MetricSample
 from edumatcher.config import (
@@ -1261,6 +1262,7 @@ def _configure_logging(args: argparse.Namespace) -> int:
     return int(level)
 
 
+@exit_on_config_error
 def main() -> None:
     parser = build_parser()
     args = parser.parse_args()

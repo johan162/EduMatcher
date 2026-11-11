@@ -7,6 +7,7 @@ import logging
 import sys
 from pathlib import Path
 
+from edumatcher.config_artifact import exit_on_config_error
 from edumatcher.health import HealthReporter
 from edumatcher.log_srv.config import (
     LogServerConfig,
@@ -222,6 +223,7 @@ def _resolve_config(args: argparse.Namespace) -> LogServerConfig:
     )
 
 
+@exit_on_config_error
 def main() -> None:
     from edumatcher.config_artifact import report_deployment
 

@@ -48,7 +48,7 @@ from edumatcher.config import (
     SIM_PULL_ADDR,
     SIM_PULL_BIND_ADDR,
 )
-from edumatcher.config_artifact import load_compiled_config
+from edumatcher.config_artifact import load_compiled_config, exit_on_config_error
 from edumatcher.log_srv.config import (
     load_default_log_client_config,
     load_default_log_server_config,
@@ -736,6 +736,7 @@ def _configure_logging(args: argparse.Namespace) -> None:
     logging.basicConfig(level=level, format=_LOG_FORMAT, handlers=[handler])
 
 
+@exit_on_config_error
 def main() -> None:
     parser = build_parser()
     args = parser.parse_args()

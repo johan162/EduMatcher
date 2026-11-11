@@ -17,6 +17,21 @@
     - "Check that the process runs the same EduMatcher release that deployed the configuration."
 
 - logger: edumatcher.config_artifact
+  template: "cannot start, the deployed configuration is unusable: %s"
+  level: CRITICAL
+  explanation: >
+    A process or CLI tool found the compiled configuration (engine_config.json
+    in the reference-data directory) but could not use it: it is damaged, was
+    edited after deployment, or was compiled by an EduMatcher release with a
+    different configuration schema (for example after an upgrade). The tool
+    printed the same message on stderr and exited with status 1 without
+    starting. Often the configuration is intact and only needs recompiling.
+  actions:
+    - "Run `pm-config-deploy` with the source config to recompile the artifact for this release, then start the process again."
+    - "If the message says the artifact was modified, make the change in the source config instead and deploy it."
+    - "If deploy fails, fix the error it reports in the source config first."
+
+- logger: edumatcher.config_artifact
   template: "no compiled configuration at %s — running on built-in defaults. Run pm-config-deploy to install one."
   level: WARNING
   explanation: >

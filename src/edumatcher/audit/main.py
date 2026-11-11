@@ -58,6 +58,7 @@ from typing import IO, Callable
 
 import zmq
 
+from edumatcher.config_artifact import exit_on_config_error
 from edumatcher.health import HealthReporter, counter, gauge
 from edumatcher.models.generated.health import MetricSample
 from edumatcher.audit.archive import parse_ratio, session_timezone
@@ -675,6 +676,7 @@ class AuditProcess:
         ]
 
 
+@exit_on_config_error
 def main() -> None:
     parser = build_parser()
     args = parser.parse_args()

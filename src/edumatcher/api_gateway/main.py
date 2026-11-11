@@ -17,6 +17,7 @@ from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from edumatcher.config_artifact import exit_on_config_error
 from edumatcher.api_gateway.errors import ERROR_CODES
 from edumatcher.api_gateway.idempotency import IdempotencyStore
 from edumatcher.api_gateway.metrics import install as install_metrics
@@ -536,6 +537,7 @@ def _route_uvicorn_logging(level: str) -> None:
         uvicorn_logger.setLevel(uvicorn_level)
 
 
+@exit_on_config_error
 def main() -> None:
     parser = build_parser()
     args = parser.parse_args()

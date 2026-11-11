@@ -26,6 +26,7 @@ from typing import Any
 
 from rich.console import Console
 
+from edumatcher.config_artifact import exit_on_config_error
 from edumatcher.dc_spy.client import (
     EVENT_TOPIC_PREFIX,
     REPLAY_TOPIC_PREFIX,
@@ -243,6 +244,7 @@ class _SpySession:
         self.count += 1
 
 
+@exit_on_config_error
 def main() -> None:
     parser = build_parser()
     args = parser.parse_args()

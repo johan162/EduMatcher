@@ -35,6 +35,7 @@ from typing import Any, get_args
 
 import zmq
 
+from edumatcher.config_artifact import exit_on_config_error
 from edumatcher.config import METRICS_DB_FILE, resolve_data_path
 from edumatcher.healthcheck import find_process_pids, format_bytes, run_with_timeout
 from edumatcher.models.generated.health import (
@@ -691,6 +692,7 @@ def _follow(
 # ---------------------------------------------------------------------------
 
 
+@exit_on_config_error
 def main(argv: list[str] | None = None) -> None:
     args = build_parser().parse_args(argv)
     config = load_default_monitor_config()
