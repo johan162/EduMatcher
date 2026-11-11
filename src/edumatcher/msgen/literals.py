@@ -24,8 +24,10 @@ from edumatcher.msgen.spec import Family
 #: pm_help's command registry only *describes* topics in prose for a human
 #: reading a man page -- it never sends or subscribes to anything, so a
 #: publisher-side rename cannot go silently unnoticed there the way it would
-#: in a real subscriber.
-_EXEMPT_PARTS = ("generated", "msgen", "pm_help")
+#: in a real subscriber. sim_forensics is an offline oracle over recorded
+#: audit files that deliberately restates the wire contract by hand rather
+#: than sharing the producer's definitions.
+_EXEMPT_PARTS = ("generated", "msgen", "pm_help", "sim_forensics")
 
 
 @dataclass(frozen=True)

@@ -70,7 +70,9 @@ class TestMigratedFamiliesHaveNoLiterals:
         offenders = [
             f"{path.relative_to(REPO_ROOT)}:{number}"
             for path in SRC.rglob("*.py")
-            if generated not in path.parents and "msgen" not in path.parts
+            if generated not in path.parents
+            and "msgen" not in path.parts
+            and "sim_forensics" not in path.parts
             for number, line in enumerate(
                 path.read_text(encoding="utf-8").splitlines(), 1
             )
