@@ -7,6 +7,7 @@ import {
   formatSessionDate,
   formatTime,
   formatPrice,
+  formatSignedPrice,
   formatQty,
   formatChangePct,
   formatCountdown,
@@ -21,6 +22,24 @@ describe("formatPrice", () => {
 
   it("returns — for null", () => {
     expect(formatPrice(null)).toBe("—");
+  });
+
+  it("shows a value that rounds to zero unsigned (CG16)", () => {
+    expect(formatPrice(-0.001, 2)).toBe("0.00");
+    expect(formatPrice(-0, 2)).toBe("0.00");
+    expect(formatPrice(-0.005, 2)).toBe("-0.01");
+  });
+});
+
+describe("formatSignedPrice", () => {
+  it("signs gains and losses", () => {
+    expect(formatSignedPrice(12.5, 2)).toBe("+12.50");
+    expect(formatSignedPrice(-12.5, 2)).toBe("-12.50");
+  });
+
+  it("shows a value that rounds to zero unsigned (CG16)", () => {
+    expect(formatSignedPrice(-0.001, 2)).toBe("0.00");
+    expect(formatSignedPrice(0.001, 2)).toBe("0.00");
   });
 });
 

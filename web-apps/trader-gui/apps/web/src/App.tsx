@@ -9,6 +9,7 @@ import { useOrderStream } from "@/hooks/useOrderStream.js";
 import { useQuoteEvents } from "@/hooks/useQuoteEvents.js";
 import { useHelpKeyboard } from "@/hooks/useHelpKeyboard.js";
 import { useGlobalShortcuts } from "@/hooks/useGlobalShortcuts.js";
+import { useClearCacheOnLogout } from "@/hooks/useClearCacheOnLogout.js";
 
 // Pages (lazy-loaded stubs for now)
 import { LoginPage } from "@/pages/LoginPage.js";
@@ -56,6 +57,8 @@ export default function App() {
   useHelpKeyboard();
   // Command palette (Ctrl+K) + global navigation shortcuts (§21).
   useGlobalShortcuts();
+  // Drop every cached response on logout: query keys do not carry the caller.
+  useClearCacheOnLogout();
 
   return (
     <Routes>

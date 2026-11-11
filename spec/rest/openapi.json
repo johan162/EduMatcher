@@ -146,6 +146,9 @@
                       "order_id": "9f2c4e7a1b3d4c58a6e0f1d2c3b4a596",
                       "client_tag": "strategy-7",
                       "status": "PENDING",
+                      "accepted": null,
+                      "reject_code": null,
+                      "event": null,
                       "ack_timeout": false
                     }
                   }
@@ -187,6 +190,7 @@
                       "client_tag": "strategy-7",
                       "status": "ACKED",
                       "accepted": true,
+                      "reject_code": null,
                       "event": {
                         "gateway_id": "TRADER01",
                         "order_id": "9f2c4e7a1b3d4c58a6e0f1d2c3b4a596",
@@ -232,6 +236,9 @@
                       "order_id": "9f2c4e7a1b3d4c58a6e0f1d2c3b4a596",
                       "client_tag": "strategy-7",
                       "status": "PENDING",
+                      "accepted": null,
+                      "reject_code": null,
+                      "event": null,
                       "ack_timeout": true
                     }
                   }
@@ -425,11 +432,20 @@
                       "tif": "DAY",
                       "quantity": 100,
                       "remaining_qty": 60,
+                      "trail_offset": null,
+                      "oco_group_id": null,
                       "ts_ns": 1788013800000000000,
                       "status": "PARTIAL",
                       "price": 187.25,
+                      "stop_price": null,
+                      "visible_qty": null,
+                      "displayed_qty": null,
+                      "smp_action": null,
+                      "combo_parent_id": null,
+                      "leg_index": null,
                       "origin": "ORDER",
                       "is_seed": false,
+                      "quote_id": null,
                       "client_tag": "strategy-7",
                       "arrival_seq": 18422
                     },
@@ -441,13 +457,21 @@
                       "tif": "GTC",
                       "quantity": 5000,
                       "remaining_qty": 5000,
+                      "trail_offset": null,
+                      "oco_group_id": null,
                       "ts_ns": 1788013841000000000,
                       "status": "NEW",
                       "price": 412.8,
+                      "stop_price": null,
                       "visible_qty": 500,
                       "displayed_qty": 500,
+                      "smp_action": null,
+                      "combo_parent_id": null,
+                      "leg_index": null,
                       "origin": "ORDER",
                       "is_seed": false,
+                      "quote_id": null,
+                      "client_tag": null,
                       "arrival_seq": 18457
                     }
                   ],
@@ -648,6 +672,9 @@
                       "order_id": "9f2c4e7a1b3d4c58a6e0f1d2c3b4a596",
                       "request_tag": "cxl-1",
                       "status": "PENDING_CANCEL",
+                      "accepted": null,
+                      "reject_code": null,
+                      "event": null,
                       "ack_timeout": false
                     }
                   }
@@ -689,6 +716,7 @@
                       "request_tag": "cxl-1",
                       "status": "ACKED",
                       "accepted": true,
+                      "reject_code": null,
                       "event": {
                         "gateway_id": "TRADER01",
                         "order_id": "9f2c4e7a1b3d4c58a6e0f1d2c3b4a596",
@@ -917,6 +945,9 @@
                       "order_id": "9f2c4e7a1b3d4c58a6e0f1d2c3b4a596",
                       "request_tag": "amend-1",
                       "status": "PENDING_AMEND",
+                      "accepted": null,
+                      "reject_code": null,
+                      "event": null,
                       "ack_timeout": false
                     }
                   }
@@ -958,6 +989,7 @@
                       "request_tag": "amend-1",
                       "status": "ACKED",
                       "accepted": true,
+                      "reject_code": null,
                       "event": {
                         "gateway_id": "TRADER01",
                         "order_id": "9f2c4e7a1b3d4c58a6e0f1d2c3b4a596",
@@ -1399,6 +1431,9 @@
                       "cancelled_order_id": "9f2c4e7a1b3d4c58a6e0f1d2c3b4a596",
                       "replacement_order_id": "3b7e1d9a5c2f4e86b0a1d3c5e7f90214",
                       "status": "PENDING",
+                      "accepted": null,
+                      "reject_code": null,
+                      "event": null,
                       "ack_timeout": false
                     }
                   }
@@ -1440,6 +1475,7 @@
                       "replacement_order_id": "3b7e1d9a5c2f4e86b0a1d3c5e7f90214",
                       "status": "ACKED",
                       "accepted": true,
+                      "reject_code": null,
                       "event": {
                         "gateway_id": "TRADER01",
                         "order_id": "3b7e1d9a5c2f4e86b0a1d3c5e7f90214",
@@ -1714,6 +1750,9 @@
                     "value": {
                       "oco_id": "oco-2026-0042",
                       "status": "PENDING",
+                      "accepted": null,
+                      "reason": null,
+                      "event": null,
                       "ack_timeout": false
                     }
                   }
@@ -1754,6 +1793,7 @@
                       "oco_id": "oco-2026-0042",
                       "status": "ACKED",
                       "accepted": true,
+                      "reason": null,
                       "event": {
                         "oco_id": "oco-2026-0042",
                         "accepted": true,
@@ -2005,6 +2045,9 @@
                       "oco_id": "oco-2026-0042",
                       "request_tag": "cxl-1",
                       "status": "PENDING_CANCEL",
+                      "accepted": null,
+                      "reject_code": null,
+                      "event": null,
                       "ack_timeout": false
                     }
                   }
@@ -2046,6 +2089,7 @@
                       "request_tag": "cxl-1",
                       "status": "ACKED",
                       "accepted": true,
+                      "reject_code": null,
                       "event": {
                         "oco_id": "oco-2026-0042",
                         "accepted": true,
@@ -2283,6 +2327,9 @@
                     "value": {
                       "combo_id": "combo-spread-17",
                       "status": "PENDING",
+                      "accepted": null,
+                      "reason": null,
+                      "event": null,
                       "ack_timeout": false
                     }
                   }
@@ -2323,6 +2370,7 @@
                       "combo_id": "combo-spread-17",
                       "status": "ACKED",
                       "accepted": true,
+                      "reason": null,
                       "event": {
                         "combo_id": "combo-spread-17",
                         "accepted": true,
@@ -2572,6 +2620,9 @@
                       "combo_id": "combo-spread-17",
                       "request_tag": "cxl-1",
                       "status": "PENDING_CANCEL",
+                      "accepted": null,
+                      "reject_code": null,
+                      "event": null,
                       "ack_timeout": false
                     }
                   }
@@ -2613,6 +2664,7 @@
                       "request_tag": "cxl-1",
                       "status": "ACKED",
                       "accepted": true,
+                      "reject_code": null,
                       "event": {
                         "combo_id": "combo-spread-17",
                         "accepted": true,
@@ -2851,6 +2903,9 @@
                       "symbol": "AAPL",
                       "quote_id": "q-AAPL-0001",
                       "status": "PENDING",
+                      "accepted": null,
+                      "reason": null,
+                      "event": null,
                       "ack_timeout": false
                     }
                   }
@@ -2892,6 +2947,7 @@
                       "quote_id": "q-AAPL-0001",
                       "status": "ACKED",
                       "accepted": true,
+                      "reason": null,
                       "event": {
                         "quote_id": "q-AAPL-0001",
                         "accepted": true,
@@ -3299,6 +3355,9 @@
                       "symbol": "AAPL",
                       "request_tag": "cxl-1",
                       "status": "PENDING_CANCEL",
+                      "accepted": null,
+                      "reject_code": null,
+                      "event": null,
                       "ack_timeout": false
                     }
                   }
@@ -3340,6 +3399,7 @@
                       "request_tag": "cxl-1",
                       "status": "ACKED",
                       "accepted": true,
+                      "reject_code": null,
                       "event": {
                         "symbol": "AAPL",
                         "accepted": true,
@@ -3740,7 +3800,8 @@
                           },
                           {
                             "name": "L2",
-                            "price_shift_pct": 13.0
+                            "price_shift_pct": 13.0,
+                            "halt_duration_ns": null
                           }
                         ]
                       }
@@ -3824,6 +3885,9 @@
                         "closing_auction_start": "17:25",
                         "closing_auction_end": "17:30"
                       },
+                      "sat": null,
+                      "sun": null,
+                      "holidays": null,
                       "today": {
                         "pre_open": "08:30",
                         "opening_auction_start": "08:55",
@@ -4124,7 +4188,8 @@
                           },
                           {
                             "name": "L2",
-                            "price_shift_pct": 13.0
+                            "price_shift_pct": 13.0,
+                            "halt_duration_ns": null
                           }
                         ]
                       }
@@ -4603,6 +4668,9 @@
                       "closing_auction_start": "17:25",
                       "closing_auction_end": "17:30"
                     },
+                    "sat": null,
+                    "sun": null,
+                    "holidays": null,
                     "today": {
                       "pre_open": "08:30",
                       "opening_auction_start": "08:55",
@@ -5769,7 +5837,13 @@
                     {
                       "symbol": "TSLA",
                       "net_qty": -25,
-                      "avg_cost": 249.6
+                      "avg_cost": 249.6,
+                      "last_price": null,
+                      "market_value": null,
+                      "unrealized_pnl": null,
+                      "realized_pnl_session": null,
+                      "realized_pnl_mtd": null,
+                      "realized_pnl_ytd": null
                     }
                   ],
                   "count": 2
@@ -6362,12 +6436,15 @@
                       "tick_decimals": 2,
                       "ts_ns": 1788013740000000000,
                       "seq": 977,
+                      "best_bid": null,
                       "best_ask": {
                         "price": 248.4,
                         "qty": 100,
                         "count": 1,
                         "price_ticks": 24840
-                      }
+                      },
+                      "last_price": null,
+                      "last_price_ticks": null
                     }
                   ],
                   "count": 3
@@ -6642,7 +6719,15 @@
                       "quantity": 100,
                       "remaining_qty": 100,
                       "status": "NEW",
+                      "fill_price": null,
+                      "fill_qty": null,
+                      "trade_ids": null,
+                      "reason": null,
+                      "reject_code": null,
                       "client_tag": "strategy-7",
+                      "combo_parent_id": null,
+                      "oco_group_id": null,
+                      "priority_reset": null,
                       "msg_id": "m-7f3a2c91"
                     },
                     {
@@ -6662,13 +6747,19 @@
                       "fill_price": 187.25,
                       "fill_qty": 40,
                       "trade_ids": "[\"T-20260829-000412\"]",
+                      "reason": null,
+                      "reject_code": null,
                       "client_tag": "strategy-7",
+                      "combo_parent_id": null,
+                      "oco_group_id": null,
+                      "priority_reset": null,
                       "msg_id": "m-7f3a2d05"
                     }
                   ],
                   "count": 2,
                   "has_more": false,
-                  "retained_from": "2026-08-01T00:00:00+00:00"
+                  "retained_from": "2026-08-01T00:00:00+00:00",
+                  "next_cursor": null
                 }
               }
             }
@@ -6859,7 +6950,15 @@
                       "quantity": 100,
                       "remaining_qty": 100,
                       "status": "NEW",
+                      "fill_price": null,
+                      "fill_qty": null,
+                      "trade_ids": null,
+                      "reason": null,
+                      "reject_code": null,
                       "client_tag": "strategy-7",
+                      "combo_parent_id": null,
+                      "oco_group_id": null,
+                      "priority_reset": null,
                       "msg_id": "m-7f3a2c91"
                     },
                     {
@@ -6879,7 +6978,12 @@
                       "fill_price": 187.25,
                       "fill_qty": 40,
                       "trade_ids": "[\"T-20260829-000412\"]",
+                      "reason": null,
+                      "reject_code": null,
                       "client_tag": "strategy-7",
+                      "combo_parent_id": null,
+                      "oco_group_id": null,
+                      "priority_reset": null,
                       "msg_id": "m-7f3a2d05"
                     }
                   ],
@@ -7168,13 +7272,19 @@
                       "fill_price": 187.25,
                       "fill_qty": 40,
                       "trade_ids": "[\"T-20260829-000412\"]",
+                      "reason": null,
+                      "reject_code": null,
                       "client_tag": "strategy-7",
+                      "combo_parent_id": null,
+                      "oco_group_id": null,
+                      "priority_reset": null,
                       "msg_id": "m-7f3a2d05"
                     }
                   ],
                   "count": 1,
                   "has_more": false,
-                  "retained_from": "2026-08-01T00:00:00+00:00"
+                  "retained_from": "2026-08-01T00:00:00+00:00",
+                  "next_cursor": null
                 }
               }
             }
@@ -7471,7 +7581,8 @@
                     }
                   ],
                   "count": 1,
-                  "has_more": false
+                  "has_more": false,
+                  "next_cursor": null
                 }
               }
             }
@@ -7750,7 +7861,8 @@
                     }
                   ],
                   "count": 1,
-                  "has_more": false
+                  "has_more": false,
+                  "next_cursor": null
                 }
               }
             }
@@ -8013,7 +8125,8 @@
                     }
                   ],
                   "count": 1,
-                  "has_more": false
+                  "has_more": false,
+                  "next_cursor": null
                 }
               }
             }
@@ -8285,7 +8398,8 @@
                     }
                   ],
                   "count": 1,
-                  "has_more": false
+                  "has_more": false,
+                  "next_cursor": null
                 }
               }
             }
@@ -8550,7 +8664,8 @@
                     }
                   ],
                   "count": 1,
-                  "has_more": false
+                  "has_more": false,
+                  "next_cursor": null
                 }
               }
             }
@@ -10735,7 +10850,9 @@
                       "quantity": 40,
                       "tick_decimals": 2,
                       "price": 188.0,
+                      "buy_gateway_id": null,
                       "sell_gateway_id": "TRADER01",
+                      "buy_order_id": null,
                       "sell_order_id": "9f2c4e7a1b3d4c58a6e0f1d2c3b4a596",
                       "aggressor_side": "SELL",
                       "match_type": "CONTINUOUS",
@@ -11893,7 +12010,9 @@
                   "sessions": [
                     {
                       "gateway_id": "TRADER01",
-                      "connected_at_ns": 1787999400000000000
+                      "connected_at_ns": 1787999400000000000,
+                      "disconnected_at_ns": null,
+                      "disconnect_reason": null
                     },
                     {
                       "gateway_id": "TRADER01",
@@ -14489,7 +14608,12 @@
                         "halted": false,
                         "reference_price": 186.9,
                         "trigger_price": 200.0,
-                        "expansion_index": 0
+                        "triggered_level": null,
+                        "expansion_index": 0,
+                        "corridor_low": null,
+                        "corridor_high": null,
+                        "corridor_expansion": null,
+                        "resume_at_ns": null
                       }
                     },
                     {
@@ -14501,6 +14625,9 @@
                         "trigger_price": 250.0,
                         "triggered_level": "L1",
                         "expansion_index": 0,
+                        "corridor_low": null,
+                        "corridor_high": null,
+                        "corridor_expansion": null,
                         "resume_at_ns": 1788014100000000000
                       }
                     }
@@ -16387,6 +16514,7 @@
                       "indicative_price": 187.25,
                       "indicative_qty": 1200,
                       "surplus": 300,
+                      "printed_price": null,
                       "traded_qty": 0,
                       "imbalance_side": "BUY",
                       "command_id": "cmd-5d0e8a3f7c1b4926a8e4f0b3c6d92e17"
@@ -17499,11 +17627,20 @@
                       "tif": "DAY",
                       "quantity": 100,
                       "remaining_qty": 60,
+                      "trail_offset": null,
+                      "oco_group_id": null,
                       "ts_ns": 1788013800000000000,
                       "status": "PARTIAL",
                       "price": 187.25,
+                      "stop_price": null,
+                      "visible_qty": null,
+                      "displayed_qty": null,
+                      "smp_action": null,
+                      "combo_parent_id": null,
+                      "leg_index": null,
                       "origin": "ORDER",
                       "is_seed": false,
+                      "quote_id": null,
                       "client_tag": "strategy-7",
                       "arrival_seq": 18422
                     },
@@ -17515,13 +17652,21 @@
                       "tif": "GTC",
                       "quantity": 5000,
                       "remaining_qty": 5000,
+                      "trail_offset": null,
+                      "oco_group_id": null,
                       "ts_ns": 1788013841000000000,
                       "status": "NEW",
                       "price": 412.8,
+                      "stop_price": null,
                       "visible_qty": 500,
                       "displayed_qty": 500,
+                      "smp_action": null,
+                      "combo_parent_id": null,
+                      "leg_index": null,
                       "origin": "ORDER",
                       "is_seed": false,
+                      "quote_id": null,
+                      "client_tag": null,
                       "arrival_seq": 18457
                     }
                   ],
@@ -17741,11 +17886,20 @@
                       "tif": "DAY",
                       "quantity": 100,
                       "remaining_qty": 60,
+                      "trail_offset": null,
+                      "oco_group_id": null,
                       "ts_ns": 1788013800000000000,
                       "status": "PARTIAL",
                       "price": 187.25,
+                      "stop_price": null,
+                      "visible_qty": null,
+                      "displayed_qty": null,
+                      "smp_action": null,
+                      "combo_parent_id": null,
+                      "leg_index": null,
                       "origin": "ORDER",
                       "is_seed": false,
+                      "quote_id": null,
                       "client_tag": "strategy-7",
                       "arrival_seq": 18422
                     }
@@ -17988,7 +18142,8 @@
                             },
                             {
                               "name": "L2",
-                              "price_shift_pct": 13.0
+                              "price_shift_pct": 13.0,
+                              "halt_duration_ns": null
                             }
                           ]
                         }
@@ -18072,6 +18227,9 @@
                           "closing_auction_start": "17:25",
                           "closing_auction_end": "17:30"
                         },
+                        "sat": null,
+                        "sun": null,
+                        "holidays": null,
                         "today": {
                           "pre_open": "08:30",
                           "opening_auction_start": "08:55",
@@ -18120,7 +18278,13 @@
                     {
                       "symbol": "TSLA",
                       "net_qty": -25,
-                      "avg_cost": 249.6
+                      "avg_cost": 249.6,
+                      "last_price": null,
+                      "market_value": null,
+                      "unrealized_pnl": null,
+                      "realized_pnl_session": null,
+                      "realized_pnl_mtd": null,
+                      "realized_pnl_ytd": null
                     }
                   ],
                   "orders": [
@@ -18132,11 +18296,20 @@
                       "tif": "DAY",
                       "quantity": 100,
                       "remaining_qty": 60,
+                      "trail_offset": null,
+                      "oco_group_id": null,
                       "ts_ns": 1788013800000000000,
                       "status": "PARTIAL",
                       "price": 187.25,
+                      "stop_price": null,
+                      "visible_qty": null,
+                      "displayed_qty": null,
+                      "smp_action": null,
+                      "combo_parent_id": null,
+                      "leg_index": null,
                       "origin": "ORDER",
                       "is_seed": false,
+                      "quote_id": null,
                       "client_tag": "strategy-7",
                       "arrival_seq": 18422
                     },
@@ -18148,13 +18321,21 @@
                       "tif": "GTC",
                       "quantity": 5000,
                       "remaining_qty": 5000,
+                      "trail_offset": null,
+                      "oco_group_id": null,
                       "ts_ns": 1788013841000000000,
                       "status": "NEW",
                       "price": 412.8,
+                      "stop_price": null,
                       "visible_qty": 500,
                       "displayed_qty": 500,
+                      "smp_action": null,
+                      "combo_parent_id": null,
+                      "leg_index": null,
                       "origin": "ORDER",
                       "is_seed": false,
+                      "quote_id": null,
+                      "client_tag": null,
                       "arrival_seq": 18457
                     }
                   ],
@@ -18176,7 +18357,12 @@
                       "fill_price": 187.25,
                       "fill_qty": 40,
                       "trade_ids": "[\"T-20260829-000412\"]",
+                      "reason": null,
+                      "reject_code": null,
                       "client_tag": "strategy-7",
+                      "combo_parent_id": null,
+                      "oco_group_id": null,
+                      "priority_reset": null,
                       "msg_id": "m-7f3a2d05"
                     }
                   ],
@@ -18391,7 +18577,8 @@
                             },
                             {
                               "name": "L2",
-                              "price_shift_pct": 13.0
+                              "price_shift_pct": 13.0,
+                              "halt_duration_ns": null
                             }
                           ]
                         }
@@ -18475,6 +18662,9 @@
                           "closing_auction_start": "17:25",
                           "closing_auction_end": "17:30"
                         },
+                        "sat": null,
+                        "sun": null,
+                        "holidays": null,
                         "today": {
                           "pre_open": "08:30",
                           "opening_auction_start": "08:55",
@@ -18523,7 +18713,13 @@
                     {
                       "symbol": "TSLA",
                       "net_qty": -25,
-                      "avg_cost": 249.6
+                      "avg_cost": 249.6,
+                      "last_price": null,
+                      "market_value": null,
+                      "unrealized_pnl": null,
+                      "realized_pnl_session": null,
+                      "realized_pnl_mtd": null,
+                      "realized_pnl_ytd": null
                     }
                   ],
                   "orders": [
@@ -18535,11 +18731,20 @@
                       "tif": "DAY",
                       "quantity": 100,
                       "remaining_qty": 60,
+                      "trail_offset": null,
+                      "oco_group_id": null,
                       "ts_ns": 1788013800000000000,
                       "status": "PARTIAL",
                       "price": 187.25,
+                      "stop_price": null,
+                      "visible_qty": null,
+                      "displayed_qty": null,
+                      "smp_action": null,
+                      "combo_parent_id": null,
+                      "leg_index": null,
                       "origin": "ORDER",
                       "is_seed": false,
+                      "quote_id": null,
                       "client_tag": "strategy-7",
                       "arrival_seq": 18422
                     },
@@ -18551,13 +18756,21 @@
                       "tif": "GTC",
                       "quantity": 5000,
                       "remaining_qty": 5000,
+                      "trail_offset": null,
+                      "oco_group_id": null,
                       "ts_ns": 1788013841000000000,
                       "status": "NEW",
                       "price": 412.8,
+                      "stop_price": null,
                       "visible_qty": 500,
                       "displayed_qty": 500,
+                      "smp_action": null,
+                      "combo_parent_id": null,
+                      "leg_index": null,
                       "origin": "ORDER",
                       "is_seed": false,
+                      "quote_id": null,
+                      "client_tag": null,
                       "arrival_seq": 18457
                     }
                   ],
@@ -18579,7 +18792,12 @@
                       "fill_price": 187.25,
                       "fill_qty": 40,
                       "trade_ids": "[\"T-20260829-000412\"]",
+                      "reason": null,
+                      "reject_code": null,
                       "client_tag": "strategy-7",
+                      "combo_parent_id": null,
+                      "oco_group_id": null,
+                      "priority_reset": null,
                       "msg_id": "m-7f3a2d05"
                     }
                   ],
@@ -18827,7 +19045,8 @@
                             },
                             {
                               "name": "L2",
-                              "price_shift_pct": 13.0
+                              "price_shift_pct": 13.0,
+                              "halt_duration_ns": null
                             }
                           ]
                         }
@@ -18911,6 +19130,9 @@
                           "closing_auction_start": "17:25",
                           "closing_auction_end": "17:30"
                         },
+                        "sat": null,
+                        "sun": null,
+                        "holidays": null,
                         "today": {
                           "pre_open": "08:30",
                           "opening_auction_start": "08:55",

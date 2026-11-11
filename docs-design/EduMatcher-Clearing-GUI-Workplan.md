@@ -915,9 +915,9 @@ passes.
 | F6 | CG4 review | `/clearing/summary` (the five-second overview poll) called `query_health`, i.e. `COUNT(*)` and `MAX(ts_ns)` over all of `trade_events`, which has no `ts_ns` index. | Every poll scans the raw-trade table; cost grows with the 90-day retention. | performance constraint | `test_the_polled_summary_never_reads_the_raw_trade_table` (SQL trace) failed; summary now uses `store.query_freshness` over `gateway_symbol_positions` (newest `last_trade_ts_ns`, latest `updated_ts_ns`); `/health` keeps the full facts. | closed |
 | F7 | CG4 review | A blank filter (`?gateway=%20`, `?symbol=`) became `""`: a participant got `SCOPE_DENIED … not `, an ADMIN an empty list. | Spurious refusal / false empty result. | implementation defect | `test_a_blank_filter_is_no_filter` failed; blank is now no filter in `clearing_scope` and `_upper`. | closed |
 | F8 | CG4 review | `participants/{gateway_id}` built `links` without URL-encoding the gateway id. | A gateway id with `&` or a space yields a wrong link. | implementation defect | `test_participant_links_are_url_encoded` failed; `quote(…, safe='')`. | closed |
-| F9 | CG4 review | `query_reconcile` (shared with `pm-clearing-cli reconcile`) compares raw `quantity * price` in each trade's own ticks with daily rows that K6 rescales to the latest precision. | After a symbol's `tick_decimals` changes, its days report false notional discrepancies. Pre-existing; the API now at least returns `tick_decimals` per row. | data-quality/observability gap | Not fixed here (no tick-precision change in 1.0 scope); revisit with K6 if precision changes become an operator action. | open |
+| F9 | CG4 review | `query_reconcile` (shared with `pm-clearing-cli reconcile`) compares raw `quantity * price` in each trade's own ticks with daily rows that K6 rescales to the latest precision. | After a symbol's `tick_decimals` changes, its days report false notional discrepancies. Pre-existing; the API now at least returns `tick_decimals` per row. | data-quality/observability gap | Not fixed here (no tick-precision change in 1.0 scope); revisit with K6 if precision changes become an operator action. CG13: K6 converts rather than rejects, so it is reachable; `test_clearing_reconcile_precision.py` failed (4 of 5), raw trades are now converted to the daily row's precision. | closed (CG13) |
 | F10 | CG5 | Epoch-nanosecond fields (~1.8e18) exceed JavaScript's safe-integer range: zod 4's `.int()` rejected every real timestamp, and `JSON.parse` rounds them by a few hundred ns. | Every response with a `*_ns` field would have been a contract error in the browser. | contract ambiguity | Contract test failed on the documented examples; `*_ns` are now `nanos` (a plain number), documented as display-only, never compared for equality. | closed |
-| F11 | CG5 | FastAPI renders `openapi.json` with `exclude_none`, so example fields whose value is `null` vanish from the published examples (e.g. `/positions`' TSLA row, a participant's masked counterparty), while the wire carries them as `null`. | A client generated from the examples would treat nullable-required fields as optional. | documentation defect | GUI contract test restores the omitted `null`s for nullable fields only (`test/helpers.tsx` `withNulls`) and still checks required-ness against the schema; the published examples themselves are unchanged (all routes, pre-existing). | open (contract rendering) |
+| F11 | CG5 | FastAPI renders `openapi.json` with `exclude_none`, so example fields whose value is `null` vanish from the published examples (e.g. `/positions`' TSLA row, a participant's masked counterparty), while the wire carries them as `null`. | A client generated from the examples would treat nullable-required fields as optional. | documentation defect | GUI contract test restores the omitted `null`s for nullable fields only (`test/helpers.tsx` `withNulls`) and still checks required-ness against the schema; the published examples themselves are unchanged (all routes, pre-existing). CG11: `test_published_success_examples_keep_their_null_fields` failed on 43 responses; `restore_example_nulls` copies them back; `withNulls` removed. | closed (CG11) |
 | F12 | CG9 | axe: the login page had no landmark (its form sat outside `<main>`). | Screen-reader users could not jump to the page's content. | implementation defect | a11y test failed; the page is a `<main>`. | closed |
 | F13 | CG9 | axe: the settlement screen had two forms both labelled "Filters" (`landmark-unique`). | Two identical landmarks; a screen reader cannot tell them apart. | implementation defect | a11y test failed; `FilterForm` takes a `label` ("Balance date", "Settlement filters"). | closed |
 | F14 | CG5–9 review | Every read used `placeholderData: keepPreviousData`, so changing a gateway filter (Gateway Sessions, EOD account) kept the previous gateway's rows on screen under the new filter until the new reply came. | Brief cross-participant display -- what CG5 says query keys must prevent. | implementation defect | `F14` in `test/review.test.tsx` failed (after F14b); no placeholder data, a new filter shows a skeleton. | closed |
@@ -1018,13 +1018,13 @@ Checked and **not** found elsewhere (no WP):
 
 | # | WP | Prio | From | Content | Depends on | Est. | Status | Done on |
 |---|---|---|---|---|---|---|---|---|
-| 10 | CG10 | P1 | F15 (F14) | trader-gui: per-login query cache — no cached response survives a logout | — | 0.5 d | ☐ | |
-| 11 | CG11 | P2 | F11 | Published OpenAPI examples keep `null` fields | — | 1 d | ☐ | |
-| 12 | CG12 | P2 | F5 | `pm-clearing-cli sessions`: session-timezone days, not UTC dates | — | 0.5 d | ☐ | |
-| 13 | CG13 | P2 | F9 | Reconciliation correct across a `tick_decimals` change | K6 decision | 1 d | ☐ | |
+| 10 | CG10 | P1 | F15 (F14) | trader-gui: per-login query cache — no cached response survives a logout | — | 0.5 d | ☑ | 2026-11-11 |
+| 11 | CG11 | P2 | F11 | Published OpenAPI examples keep `null` fields | — | 1 d | ☑ | 2026-11-11 |
+| 12 | CG12 | P2 | F5 | `pm-clearing-cli sessions`: session-timezone days, not UTC dates | — | 0.5 d | ☑ | 2026-11-11 |
+| 13 | CG13 | P2 | F9 | Reconciliation correct across a `tick_decimals` change | K6 decision | 1 d | ☑ | 2026-11-11 |
 | 14 | CG14 | P3 | F16 | Non-JSON success replies named in every GUI API client | — | 0.5 d | ☐ | |
 | 15 | CG15 | P3 | F7 | Blank (whitespace) filters are no filter on the history routes | — | 0.25 d | ☐ | |
-| 16 | CG16 | P3 | F20 | trader-gui: no "-0.00" for values that round to zero | — | 0.25 d | ☐ | |
+| 16 | CG16 | P3 | F20 | trader-gui: no "-0.00" for values that round to zero | — | 0.25 d | ☑ | 2026-11-11 |
 | 17 | CG17 | P3 | F12, F13 | axe accessibility checks for trader-gui | — | 1 d | ☐ | |
 
 Suggested order: CG10 first (the only P1), then CG11–CG13, then the P3s in
@@ -1051,6 +1051,14 @@ any order.
   terminal-gui also use TanStack Query; check them for the same pattern and
   fix only where it is present.
 - **Exit:** the test passes, and the trader-gui suite and typecheck are green.
+- **Done 2026-11-11.** `test/logoutCache.test.tsx` renders the real `App`
+  (only the WebSocket manager and the HTTP transport are stubbed): A's
+  positions, Logout, B logs in, opens Positions. It failed with A's AAPL row
+  shown to B. Fix: `hooks/useClearCacheOnLogout.ts`, mounted in `App.tsx`,
+  clears the query cache whenever the key goes (button, 401, dead WS key all
+  go through `logout()`). log-gui and terminal-gui have no login, so no
+  per-caller cache: the pattern is not present there. trader-gui: 554 tests,
+  typecheck green.
 
 ### CG11 — Published OpenAPI examples keep `null` fields (P2)
 
@@ -1067,6 +1075,23 @@ any order.
   `withNulls` workaround from clearing-gui's `test/helpers.tsx`.
 - **Exit:** the test passes, the contract snapshot is regenerated, and the
   GUI contract test passes without `withNulls`.
+- **Done 2026-11-11.** Mechanism: `fastapi.openapi.utils.get_openapi` ends
+  with `jsonable_encoder(OpenAPI(**output), by_alias=True, exclude_none=True)`
+  (FastAPI 0.162), which strips `None` recursively, inside example values
+  too. Rendering the whole document without `exclude_none` would add `null`
+  for every unset OpenAPI field, so only the examples are restored:
+  `openapi_docs.restore_example_nulls` (called from `main.py`'s `openapi()`
+  after `drop_stock_validation_error`) copies every response's `example` /
+  `examples` from the route's own `responses=`. Note FastAPI 0.162 nests
+  included routers (`_IncludedRouter`), so routes are walked with
+  `fastapi.routing.iter_route_contexts`, as `get_openapi` does. First failing
+  test: `test_published_success_examples_keep_their_null_fields` (published
+  2xx example validates against the response model and equals the route's
+  own) — 43 responses lost fields, e.g. `AmendAccepted`, `OrderList`.
+  `make openapi`: +240 lines, only `null` fields. clearing-gui: `withNulls`
+  removed, 162 tests and typecheck green. Not covered: request-body
+  `examples` in component schemas (`json_schema_extra`) would lose `null`s
+  the same way; none has one today.
 
 ### CG12 — `pm-clearing-cli sessions`: session-timezone days (P2)
 
@@ -1084,6 +1109,16 @@ any order.
   compatibility).
 - **Exit:** the CLI and API select the same rows; operator-guide CLI text
   checked.
+- **Done 2026-11-11.** `test_the_cli_selects_the_same_connect_days_as_the_api`
+  (in `test_api_gateway_clearing_evidence.py`, Honolulu copy of the fixture,
+  both cases) failed: the CLI listed 3 sessions where the API listed none.
+  Fix: one helper, `clearing.query.day_bounds_ns` (session-timezone
+  midnights, upper bound exclusive), used by the API and the CLI; the API's
+  private `_day_start_ns` is gone. `store.query_sessions` lost
+  `from_date`/`to_date` and its UTC `connect_date` column; the CLI now fills
+  `connect_date` as the connect's session-timezone day. `--from`/`--to` help,
+  shell completion and the participant guide's CLI table updated (the
+  operator guide only links there).
 
 ### CG13 — Reconciliation across a `tick_decimals` change (P2)
 
@@ -1103,6 +1138,21 @@ any order.
   comparing.
 - **Exit:** the test passes, and `pm-clearing-cli reconcile` agrees with the
   API.
+- **Done 2026-11-11.** Decision: K6 already settled it — a precision change
+  is *converted*, not rejected ("conversion is preferred as it keeps the
+  venue running", K6 step 3), so it is a supported path and F9 is reachable.
+  Narrower than F9 said: the upsert converts a stored daily row only when a
+  trade at the new precision lands on the *same* trading day, so only the day
+  of the change was wrong, not every earlier day. `test_clearing_reconcile_precision.py`
+  writes the ledger through `ClearingProcess` (AAPL 2→4 and MSFT 4→2 decimals
+  within one day, one flush per trade); store, CLI and API failed. Fix in
+  `query_reconcile`: raw trades are summed per precision and each sum is
+  converted to the daily row's precision (rounded once, as the upsert does;
+  a key without a daily row uses its finest precision); a real loss is still
+  reported, in the row's precision. Limit: a precision *decrease* of values
+  the coarser precision cannot represent rounds the daily row, and when old
+  trades were split across a flush and a pending batch the two roundings can
+  differ from one by a tick — reported as a discrepancy.
 
 ### CG14 — Non-JSON success replies in every GUI API client (P3)
 
@@ -1143,6 +1193,11 @@ any order.
   `"0.00"`.
 - **Fix:** the rounded-zero check in clearing-gui's `lib/money.ts` `fixed`.
 - **Exit:** the trader-gui suite is green.
+- **Done 2026-11-11.** Tests in `formatters.test.ts` (`-0.001`, `-0` for
+  both, `+0.001` for the signed one) failed with "-0.00"; a private `fixed`
+  in `formatters.ts` shows a rounded zero unsigned, and `formatSignedPrice`
+  signs on the rounded text. Sibling `formatChangePct` ("-0.00%") was outside
+  the WP: For-Later ToDo L002.
 
 ### CG17 — axe checks for trader-gui (P3)
 

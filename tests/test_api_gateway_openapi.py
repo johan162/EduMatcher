@@ -223,6 +223,57 @@ def test_every_success_example_is_exactly_its_response_model() -> None:
     assert failures == [], "\n".join(failures)
 
 
+def test_published_success_examples_keep_their_null_fields(
+    spec: dict[str, Any],
+) -> None:
+    """CG11 (F11): the published contract's examples are the routes' own.
+
+    FastAPI encodes ``/openapi.json`` with ``exclude_none``, which also strips
+    every ``null`` inside an example, so a nullable required field looked
+    optional to a client written from the contract. Each published 2xx
+    example must validate against its response model with every required
+    field present, and equal the example the route documents.
+    """
+    from fastapi.encoders import jsonable_encoder
+    from fastapi.routing import APIRoute, iter_route_contexts
+
+    app = create_app(ApiGatewayConfig(swagger_enabled=True))
+    failures: list[str] = []
+    checked = 0
+    for ctx in iter_route_contexts(app.routes):
+        if not isinstance(ctx.original_route, APIRoute) or ctx.response_model is None:
+            continue
+        if not ctx.include_in_schema:
+            continue
+        for method in sorted(ctx.methods or ()):
+            where = f"{method} {ctx.path_format}"
+            published = spec["paths"][ctx.path_format][method.lower()]["responses"]
+            for code, documented in ctx.responses.items():
+                if not str(code).startswith("2"):
+                    continue
+                media = documented.get("content", {}).get("application/json", {})
+                shown = published[str(code)]["content"]["application/json"]
+                pairs = (
+                    [(media["example"], shown.get("example"))]
+                    if "example" in media
+                    else []
+                )
+                pairs += [
+                    (e["value"], shown.get("examples", {}).get(name, {}).get("value"))
+                    for name, e in media.get("examples", {}).items()
+                ]
+                for raw, value in pairs:
+                    checked += 1
+                    try:
+                        ctx.response_model.model_validate(value)
+                    except Exception as exc:  # noqa: BLE001 - reported below
+                        failures.append(f"{where}: {str(exc).splitlines()[0]}")
+                    if value != jsonable_encoder(raw):
+                        failures.append(f"{where}: published example differs")
+    assert checked > 90
+    assert failures == [], "\n".join(failures)
+
+
 def test_every_parameter_is_described(spec: dict[str, Any]) -> None:
     """S4: a generated SDK turns these into doc comments; none may be blank."""
     missing = [

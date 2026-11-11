@@ -1432,8 +1432,6 @@ def query_sessions(
     conn: sqlite3.Connection,
     *,
     gateway: str | None = None,
-    from_date: str | None = None,
-    to_date: str | None = None,
     connected_only: bool = False,
     limit: int = 500,
     from_ns: int | None = None,
@@ -1445,20 +1443,15 @@ def query_sessions(
     connected_only=True filters to sessions where disconnected_at_ns IS NULL
     (gateways still connected or whose disconnect was not recorded).
 
-    ``from_date``/``to_date`` compare the connect time's UTC date;
-    ``from_ns`` (inclusive) and ``to_ns`` (exclusive) bound it exactly, for a
-    caller that resolved a trading day in the session timezone.
+    ``from_ns`` (inclusive) and ``to_ns`` (exclusive) bound the connect time;
+    the caller resolves trading days in the session timezone
+    (``clearing.query.day_bounds_ns``), never the UTC date.
     """
     sql = (
-        "SELECT gateway_id, connected_at_ns, disconnected_at_ns, disconnect_reason,"
-        "  date(connected_at_ns / 1000000000, 'unixepoch') AS connect_date"
+        "SELECT gateway_id, connected_at_ns, disconnected_at_ns, disconnect_reason"
         " FROM gateway_sessions"
         " WHERE (:gateway IS NULL OR gateway_id = :gateway)"
         "   AND (:connected_only = 0 OR disconnected_at_ns IS NULL)"
-        "   AND (:from_date IS NULL"
-        "       OR date(connected_at_ns / 1000000000, 'unixepoch') >= :from_date)"
-        "   AND (:to_date IS NULL"
-        "       OR date(connected_at_ns / 1000000000, 'unixepoch') <= :to_date)"
         "   AND (:from_ns IS NULL OR connected_at_ns >= :from_ns)"
         "   AND (:to_ns IS NULL OR connected_at_ns < :to_ns)"
         " ORDER BY connected_at_ns DESC, gateway_id ASC"
@@ -1469,8 +1462,6 @@ def query_sessions(
         {
             "gateway": gateway,
             "connected_only": 1 if connected_only else 0,
-            "from_date": from_date,
-            "to_date": to_date,
             "from_ns": from_ns,
             "to_ns": to_ns,
             "limit": limit,
@@ -1504,53 +1495,14 @@ def query_reconcile(
       raw_qty           — quantity counted directly from trade_events
       summary_qty       — quantity stored in gateway_daily_summary
       qty_diff          — raw_qty - summary_qty (non-zero = discrepancy)
-      raw_notional      — notional counted directly from trade_events
+      raw_notional      — notional counted directly from trade_events, each
+                          trade converted to the summary row's precision
       summary_notional  — notional stored in gateway_daily_summary
       notional_diff     — raw_notional - summary_notional
       tick_decimals     — precision of the notionals (the summary row's)
     """
-    sql = """
+    sql = f"""
     WITH
-    -- Buy-side raw counts from trade_events
-    raw_buy AS (
-      SELECT
-        'BUY'            AS side,
-        trade_date,
-        buy_gateway_id   AS gateway_id,
-        symbol,
-        SUM(quantity)            AS raw_qty,
-        SUM(quantity * price)    AS raw_notional,
-        MAX(tick_decimals)       AS tick_decimals
-      FROM trade_events
-      WHERE (:from_date IS NULL OR trade_date >= :from_date)
-        AND (:to_date   IS NULL OR trade_date <= :to_date)
-        AND (:gateway   IS NULL OR buy_gateway_id = :gateway)
-        AND (:symbol    IS NULL OR symbol = :symbol)
-      GROUP BY trade_date, buy_gateway_id, symbol
-    ),
-    -- Sell-side raw counts from trade_events
-    raw_sell AS (
-      SELECT
-        'SELL'           AS side,
-        trade_date,
-        sell_gateway_id  AS gateway_id,
-        symbol,
-        SUM(quantity)            AS raw_qty,
-        SUM(quantity * price)    AS raw_notional,
-        MAX(tick_decimals)       AS tick_decimals
-      FROM trade_events
-      WHERE (:from_date IS NULL OR trade_date >= :from_date)
-        AND (:to_date   IS NULL OR trade_date <= :to_date)
-        AND (:gateway   IS NULL OR sell_gateway_id = :gateway)
-        AND (:symbol    IS NULL OR symbol = :symbol)
-      GROUP BY trade_date, sell_gateway_id, symbol
-    ),
-    -- Union both sides into a single raw set
-    raw_all AS (
-      SELECT * FROM raw_buy
-      UNION ALL
-      SELECT * FROM raw_sell
-    ),
     -- Summary aggregates for buy and sell sides from gateway_daily_summary
     summary_buy AS (
       SELECT
@@ -1586,6 +1538,75 @@ def query_reconcile(
       SELECT * FROM summary_buy
       UNION ALL
       SELECT * FROM summary_sell
+    ),
+    -- Raw counts from trade_events per side and per trade precision
+    raw_by_precision AS (
+      SELECT
+        'BUY'            AS side,
+        trade_date,
+        buy_gateway_id   AS gateway_id,
+        symbol,
+        tick_decimals,
+        SUM(quantity)            AS qty,
+        SUM(quantity * price)    AS notional
+      FROM trade_events
+      WHERE (:from_date IS NULL OR trade_date >= :from_date)
+        AND (:to_date   IS NULL OR trade_date <= :to_date)
+        AND (:gateway   IS NULL OR buy_gateway_id = :gateway)
+        AND (:symbol    IS NULL OR symbol = :symbol)
+      GROUP BY trade_date, buy_gateway_id, symbol, tick_decimals
+      UNION ALL
+      SELECT
+        'SELL'           AS side,
+        trade_date,
+        sell_gateway_id  AS gateway_id,
+        symbol,
+        tick_decimals,
+        SUM(quantity)            AS qty,
+        SUM(quantity * price)    AS notional
+      FROM trade_events
+      WHERE (:from_date IS NULL OR trade_date >= :from_date)
+        AND (:to_date   IS NULL OR trade_date <= :to_date)
+        AND (:gateway   IS NULL OR sell_gateway_id = :gateway)
+        AND (:symbol    IS NULL OR symbol = :symbol)
+      GROUP BY trade_date, sell_gateway_id, symbol, tick_decimals
+    ),
+    -- Each raw notional in ticks of the key's daily row: K6 converts that
+    -- row to the latest trade's precision, while every raw trade keeps its
+    -- own (CG13 / F9).  Converted like the upsert converts the row, rounded
+    -- once per precision; a key with no daily row uses its finest precision.
+    raw_targeted AS (
+      SELECT
+        b.*,
+        COALESCE(
+          s.tick_decimals,
+          MAX(b.tick_decimals) OVER (
+            PARTITION BY b.side, b.trade_date, b.gateway_id, b.symbol
+          )
+        ) AS target
+      FROM raw_by_precision b
+      LEFT JOIN summary_all s
+        ON  s.side       = b.side
+        AND s.trade_date = b.trade_date
+        AND s.gateway_id = b.gateway_id
+        AND s.symbol     = b.symbol
+    ),
+    raw_all AS (
+      SELECT
+        side,
+        trade_date,
+        gateway_id,
+        symbol,
+        SUM(qty)                 AS raw_qty,
+        SUM(
+          CASE WHEN tick_decimals = target THEN notional
+          ELSE CAST(ROUND({_rescaled("notional", "target", "tick_decimals")})
+                    AS INTEGER)
+          END
+        )                        AS raw_notional,
+        MAX(target)              AS tick_decimals
+      FROM raw_targeted
+      GROUP BY side, trade_date, gateway_id, symbol
     ),
     -- Full set of (side, date, gateway, symbol) keys present on EITHER side.
     -- Driving the comparison from raw_all alone (a LEFT JOIN) made keys that
