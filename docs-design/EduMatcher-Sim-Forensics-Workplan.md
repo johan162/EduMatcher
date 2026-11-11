@@ -378,7 +378,7 @@ per check type, so every check is proven to *fail* when it should.
   `checks/` (one module per family; `checks/derived.py` holds F1). No
   `snapshot.py` — runs are analysed after the sim is stopped (S0 decision).
   Run: `make forensics DATA=<data dir> OUT=<report dir>` or
-  `PYTHONPATH=tools poetry run python -m sim_forensics --data … --out … [--check ID] [--list]`.
+  `pm-sim-forensics --data … --out … [--check ID] [--list]`.
   Exit code 1 on any FAIL/ERROR.
 - `Dataset`: in-memory connection, each present store ATTACHed read-only
   under its name (`stats`, `clearing`, `metrics`, `log`); `session_date(ts)`

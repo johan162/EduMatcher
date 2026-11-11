@@ -9,8 +9,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from fractions import Fraction
 
-from sim_forensics.dataset import Dataset, iso_ns
-from sim_forensics.registry import Outcome, Sample, Skipped, check
+from edumatcher.sim_forensics.dataset import Dataset, iso_ns
+from edumatcher.sim_forensics.registry import Outcome, Sample, Skipped, check
 
 #: One row per trade side: the order, its gateway, and the trade it is in.
 _LEGS = """

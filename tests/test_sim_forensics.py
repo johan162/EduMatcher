@@ -9,17 +9,15 @@ from __future__ import annotations
 
 import json
 import sqlite3
-import sys
 from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tools"))
 
-from sim_forensics.__main__ import main  # noqa: E402
-from sim_forensics.dataset import Dataset  # noqa: E402
-from sim_forensics.registry import (  # noqa: E402
+from edumatcher.sim_forensics.cli import main  # noqa: E402
+from edumatcher.sim_forensics.dataset import Dataset  # noqa: E402
+from edumatcher.sim_forensics.registry import (  # noqa: E402
     REGISTRY,
     Check,
     Outcome,
@@ -275,6 +273,25 @@ def test_cli_writes_report_and_findings_and_exit_code_reflects_failures(
     _make_stats(bad, daily)
     assert main(["--data", str(bad), "--out", str(out), "--check", "F1"]) == 1
     assert "FAIL" in capsys.readouterr().out
+
+
+def test_cli_defaults_to_the_installs_data_dir_and_a_sibling_forensics_dir() -> None:
+    from edumatcher.config import DATA_DIR
+    from edumatcher.sim_forensics.cli import build_parser
+
+    args = build_parser().parse_args([])
+    assert args.data == DATA_DIR
+    assert args.out == DATA_DIR.parent / "forensics"
+
+
+def test_cli_report_names_the_tool_version(
+    tmp_path: Path, data: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("edumatcher.sim_forensics.cli.package_version", lambda: "9.9.9")
+    out = tmp_path / "out"
+    assert main(["--data", str(data), "--out", str(out), "--check", "F1"]) == 0
+    assert json.loads((out / "findings.json").read_text())["tool_version"] == "9.9.9"
+    assert "- pm-sim-forensics: 9.9.9;" in (out / "report.md").read_text()
 
 
 def test_cli_rejects_unknown_check_ids(data: Path, tmp_path: Path) -> None:

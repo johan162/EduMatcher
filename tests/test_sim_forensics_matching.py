@@ -17,8 +17,12 @@ from typing import Any
 import pytest
 
 from tests.sim_forensics_world import OpenDataset, opener
-from sim_forensics import checks  # noqa: F401,E402  (registers the checks)
-from sim_forensics.registry import REGISTRY, Outcome, run_checks  # noqa: E402
+from edumatcher.sim_forensics import checks  # noqa: F401,E402  (registers the checks)
+from edumatcher.sim_forensics.registry import (
+    REGISTRY,
+    Outcome,
+    run_checks,
+)  # noqa: E402
 
 CHECKS = ["C7", "D1", "D10", "D11", "D2", "D3", "D4", "D5", "D6", "D7", "D8", "D9"]
 SYM = "AAPL"
@@ -549,7 +553,7 @@ def test_the_linear_uncross_is_the_definition() -> None:
     """``_uncross_of`` against the definition, summed price by price."""
     import random
 
-    from sim_forensics.checks.matching import _Book, _Order, _uncross_of
+    from edumatcher.sim_forensics.checks.matching import _Book, _Order, _uncross_of
 
     rng = random.Random(7)
     for _ in range(300):
@@ -581,7 +585,7 @@ def test_the_smp_uncross_agrees_with_the_engines() -> None:
     from edumatcher.engine.auction import compute_equilibrium
     from edumatcher.engine.order_book import OrderBook
     from edumatcher.models.order import Order, OrderType, Side, SmpAction
-    from sim_forensics.checks.matching import _Book, _Order, _uncross_of
+    from edumatcher.sim_forensics.checks.matching import _Book, _Order, _uncross_of
 
     rng = random.Random(11)
     for _ in range(400):

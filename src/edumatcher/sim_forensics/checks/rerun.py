@@ -9,8 +9,8 @@ its three verdicts: E1 hidden inputs, E2 same outputs, E4 final book.
 
 from __future__ import annotations
 
-from sim_forensics.dataset import Dataset
-from sim_forensics.registry import Outcome, Skipped, check
+from edumatcher.sim_forensics.dataset import Dataset
+from edumatcher.sim_forensics.registry import Outcome, Skipped, check
 
 from edumatcher.audit.rawlines import Unavailable
 from edumatcher.audit.replay.rerun import (  # noqa: F401  (re-exported for the checks and tests)

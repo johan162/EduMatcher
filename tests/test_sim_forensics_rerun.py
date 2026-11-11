@@ -27,9 +27,9 @@ from edumatcher.models.trade import reset_trade_ids_for_tests, set_run_seq
 from edumatcher.models.participant import DisconnectBehaviour
 from tests.engine_harness import order_payload
 from tests.sim_forensics_world import OpenDataset, opener
-from sim_forensics import checks  # noqa: F401,E402  (registers the checks)
-from sim_forensics.audit import audit_files, run_config_text  # noqa: E402
-from sim_forensics.checks.rerun import (  # noqa: E402
+from edumatcher.sim_forensics import checks  # noqa: F401,E402  (registers the checks)
+from edumatcher.sim_forensics.audit import audit_files, run_config_text  # noqa: E402
+from edumatcher.sim_forensics.checks.rerun import (  # noqa: E402
     BREAKER_TIMER,
     _Sink,
     apply,
@@ -37,7 +37,7 @@ from sim_forensics.checks.rerun import (  # noqa: E402
     inputs,
     live_clock,
 )
-from sim_forensics.registry import REGISTRY, run_checks  # noqa: E402
+from edumatcher.sim_forensics.registry import REGISTRY, run_checks  # noqa: E402
 
 E = ["E1", "E2", "E4"]
 
@@ -242,7 +242,7 @@ def test_every_e_check_passes_on_a_recorded_run(
 def test_a_silent_gateway_expiry_is_reproduced_not_hidden(
     tmp_path: Path, open_ds: OpenDataset
 ) -> None:
-    from sim_forensics.checks.rerun import HEARTBEAT_TIMER, _rerun
+    from edumatcher.sim_forensics.checks.rerun import HEARTBEAT_TIMER, _rerun
 
     data = record(tmp_path / "data", silent="TRADER02")
     ds = open_ds(data)

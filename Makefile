@@ -278,7 +278,7 @@ forensics: ## Check a stopped sim run's records against each other: make forensi
 	@if [ -z "$(DATA)" ] || [ -z "$(OUT)" ]; then \
 		echo -e "$(RED)✗ usage: make forensics DATA=<data dir> OUT=<report dir>$(NC)"; exit 1; \
 	fi
-	@PYTHONPATH=tools poetry run python -m sim_forensics --data "$(DATA)" --out "$(OUT)" $(if $(SLOW),--slow); \
+	@poetry run pm-sim-forensics --data "$(DATA)" --out "$(OUT)" $(if $(SLOW),--slow); \
 	rc=$$?; if [ $$rc -eq 1 ]; then \
 		echo -e "$(DARKYELLOW)! some checks FAILed or hit an ERROR: that is the finding, see the report$(NC)"; \
 	elif [ $$rc -ne 0 ]; then exit $$rc; fi

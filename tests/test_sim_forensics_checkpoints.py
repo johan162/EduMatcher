@@ -27,8 +27,12 @@ from edumatcher.models.order import OrderType, Side
 from edumatcher.models.trade import reset_trade_ids_for_tests, set_run_seq
 from tests.engine_harness import order_payload
 from tests.sim_forensics_world import OpenDataset, opener
-from sim_forensics import checks  # noqa: F401,E402  (registers the checks)
-from sim_forensics.registry import REGISTRY, Outcome, run_checks  # noqa: E402
+from edumatcher.sim_forensics import checks  # noqa: F401,E402  (registers the checks)
+from edumatcher.sim_forensics.registry import (
+    REGISTRY,
+    Outcome,
+    run_checks,
+)  # noqa: E402
 
 TS = "2026-10-28T07:30:00.000+00:00"
 D = ["C7", "D1", "D10", "D2", "D3", "D4", "D5", "D6", "D7", "D8", "D9"]

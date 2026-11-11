@@ -24,8 +24,12 @@ from tests.sim_forensics_world import (
     opener,
     sql,
 )
-from sim_forensics import checks  # noqa: F401,E402  (registers the checks)
-from sim_forensics.registry import REGISTRY, Outcome, run_checks  # noqa: E402
+from edumatcher.sim_forensics import checks  # noqa: F401,E402  (registers the checks)
+from edumatcher.sim_forensics.registry import (
+    REGISTRY,
+    Outcome,
+    run_checks,
+)  # noqa: E402
 
 C = ["C1", "C2", "C3", "C4", "C5", "C6"]
 LATE = iso(ns("10:00:00"))

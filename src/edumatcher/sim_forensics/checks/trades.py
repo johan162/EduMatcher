@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import json
 
-from sim_forensics.dataset import Dataset, iso_ns
-from sim_forensics.registry import Outcome, Sample, Skipped, check
+from edumatcher.sim_forensics.dataset import Dataset, iso_ns
+from edumatcher.sim_forensics.registry import Outcome, Sample, Skipped, check
 
 #: Phases a print may carry a timestamp in. Auction prints are stamped during
 #: the uncross, just before the phase moves on; CONTINUOUS also allows them

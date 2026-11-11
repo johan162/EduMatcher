@@ -33,9 +33,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import get_args
 
-from sim_forensics.checks.bookkeeping import counter_mismatches
-from sim_forensics.dataset import Dataset, iso_ns
-from sim_forensics.registry import Outcome, Sample, Skipped, check
+from edumatcher.sim_forensics.checks.bookkeeping import counter_mismatches
+from edumatcher.sim_forensics.dataset import Dataset, iso_ns
+from edumatcher.sim_forensics.registry import Outcome, Sample, Skipped, check
 
 from edumatcher.models.generated.order import OrderCancelledCancelReason
 

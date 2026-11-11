@@ -30,8 +30,8 @@ from edumatcher.models.message import (
     make_gateway_reject_msg,
 )
 from edumatcher.models.participant import DisconnectBehaviour
-from sim_forensics import checks  # noqa: F401,E402  (registers the checks)
-from sim_forensics.registry import REGISTRY, run_checks  # noqa: E402
+from edumatcher.sim_forensics import checks  # noqa: F401,E402  (registers the checks)
+from edumatcher.sim_forensics.registry import REGISTRY, run_checks  # noqa: E402
 from tests.sim_forensics_world import OpenDataset, opener
 
 
@@ -181,7 +181,7 @@ def test_every_audit_based_check_passes(trail: Path, open_ds: OpenDataset) -> No
 def test_the_silent_gateway_and_the_reject_are_inputs_to_the_re_run(
     trail: Path, open_ds: OpenDataset
 ) -> None:
-    from sim_forensics.checks.rerun import HEARTBEAT_TIMER, _rerun
+    from edumatcher.sim_forensics.checks.rerun import HEARTBEAT_TIMER, _rerun
 
     commands = _rerun(open_ds(trail)).commands
     assert commands[HEARTBEAT_TIMER] == 1

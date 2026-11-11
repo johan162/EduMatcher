@@ -11,7 +11,7 @@ from multiprocessing import get_context
 from pathlib import Path
 from typing import Literal
 
-from sim_forensics.dataset import Dataset
+from edumatcher.sim_forensics.dataset import Dataset
 
 from edumatcher.audit.rawlines import Unavailable
 
@@ -124,7 +124,7 @@ def _run_group(
     data_dir: Path, ids: list[str], max_samples: int, keep_failed: bool
 ) -> tuple[list[tuple[str, Status, int, list[Sample], str, float]], dict[str, Outcome]]:
     """Worker: run the checks *ids* on their own opening of the data dir."""
-    import sim_forensics.checks  # noqa: F401  (registers the checks)
+    import edumatcher.sim_forensics.checks  # noqa: F401  # pyright: ignore[reportUnusedImport]  (registers the checks)
 
     with Dataset.open(data_dir) as ds:
         out = []

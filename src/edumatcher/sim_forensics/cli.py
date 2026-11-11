@@ -1,4 +1,4 @@
-"""Command line: ``PYTHONPATH=tools python -m sim_forensics``."""
+"""Command line: ``pm-sim-forensics``."""
 
 from __future__ import annotations
 
@@ -7,20 +7,33 @@ import os
 import sys
 from pathlib import Path
 
-from sim_forensics import checks  # noqa: F401  (registers the checks)
-from sim_forensics import report
-from sim_forensics.dataset import Dataset
-from sim_forensics.registry import REGISTRY, Result, run_checks
+from edumatcher.cli_version import add_version_argument, package_version
+from edumatcher.config import DATA_DIR
+from edumatcher.sim_forensics import report
+
+# Importing the package registers every check.
+import edumatcher.sim_forensics.checks  # noqa: F401  # pyright: ignore[reportUnusedImport]
+from edumatcher.sim_forensics.dataset import Dataset
+from edumatcher.sim_forensics.registry import REGISTRY, Result, run_checks
 
 
-def main(argv: list[str] | None = None) -> int:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="sim_forensics",
+        prog="pm-sim-forensics",
         description="Check a finished simulation run's records against each other.",
     )
-    parser.add_argument("--data", type=Path, help="Run's data dir (sim stopped)")
+    add_version_argument(parser, "pm-sim-forensics")
     parser.add_argument(
-        "--out", type=Path, help="Directory for report.md/findings.json"
+        "--data",
+        type=Path,
+        default=DATA_DIR,
+        help="Run's data dir, sim stopped (default: the data dir of this install)",
+    )
+    parser.add_argument(
+        "--out",
+        type=Path,
+        default=DATA_DIR.parent / "forensics",
+        help="Directory for report.md/findings.json (default: forensics/ beside the data dir)",
     )
     parser.add_argument(
         "--check", action="append", metavar="ID", help="Run only these checks"
@@ -45,14 +58,17 @@ def main(argv: list[str] | None = None) -> int:
         "-q", "--quiet", action="store_true", help="No progress output on stderr"
     )
     parser.add_argument("--list", action="store_true", help="List checks and exit")
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = build_parser()
     args = parser.parse_args(argv)
 
     if args.list:
         for c in REGISTRY.values():
             print(f"{c.id:5} {c.oracle:13} {c.title}{'  (slow)' if c.slow else ''}")
         return 0
-    if args.data is None or args.out is None:
-        parser.error("--data and --out are required")
     if not args.data.is_dir():
         parser.error(f"--data {args.data} is not a directory")
     unknown = sorted(set(args.check or ()) - REGISTRY.keys())
@@ -85,12 +101,8 @@ def main(argv: list[str] | None = None) -> int:
             args.jobs or os.cpu_count() or 1,
             None if args.quiet else progress,
         )
-        report.write(ds, results, args.out.expanduser())
+        report.write(ds, results, args.out.expanduser(), package_version())
     for r in results:
         print(f"{r.check.id:5} {r.status:8} {r.violations:>8}  {r.check.title}")
     print(f"report: {args.out / 'report.md'}")
     return 1 if any(r.status in ("FAIL", "ERROR") for r in results) else 0
-
-
-if __name__ == "__main__":
-    sys.exit(main())

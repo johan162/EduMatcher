@@ -52,8 +52,8 @@ from pathlib import Path
 from typing import Any
 from unittest import mock
 
-from sim_forensics.audit import audit_files, run_config_text
-from sim_forensics.checks.rerun import (
+from edumatcher.sim_forensics.audit import audit_files, run_config_text
+from edumatcher.sim_forensics.checks.rerun import (
     _ID_PREFIX,
     _ORDER_ID,
     RESTART,
@@ -66,8 +66,8 @@ from sim_forensics.checks.rerun import (
     inputs,
     live_clock,
 )
-from sim_forensics.dataset import Dataset
-from sim_forensics.registry import Outcome, Sample, Skipped, check
+from edumatcher.sim_forensics.dataset import Dataset
+from edumatcher.sim_forensics.registry import Outcome, Sample, Skipped, check
 
 import edumatcher.engine.main as engine_main
 from edumatcher.config_artifact import decode as decode_artifact
@@ -627,7 +627,7 @@ class _Shift(_Transform):
         the original prices."""
         k = _E7_SHIFT
         for sym, collar in engine._collars.items():
-            engine._collars[sym] = _ShiftedCollar(**{**vars(collar), "reference_price": collar.reference_price - k}, e7_shift=k)  # fmt: skip
+            engine._collars[sym] = _ShiftedCollar(**{**vars(collar), "reference_price": collar.reference_price - k}, e7_shift=k)  # pyright: ignore[reportArgumentType]  # fmt: skip
         for sym, cb in engine._circuit_breakers.items():
             # Startup seeded each breaker from the shifted last prices.
             cb.trade_history = deque((t, p - k) for t, p in cb.trade_history)

@@ -16,8 +16,12 @@ import pytest
 
 from edumatcher.models.order import TIF, Order, OrderStatus, OrderType, Side
 from tests.sim_forensics_world import OpenDataset, build, opener, sql
-from sim_forensics import checks  # noqa: F401,E402  (registers the checks)
-from sim_forensics.registry import REGISTRY, Outcome, run_checks  # noqa: E402
+from edumatcher.sim_forensics import checks  # noqa: F401,E402  (registers the checks)
+from edumatcher.sim_forensics.registry import (
+    REGISTRY,
+    Outcome,
+    run_checks,
+)  # noqa: E402
 
 
 @pytest.fixture

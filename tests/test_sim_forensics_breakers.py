@@ -26,8 +26,8 @@ from edumatcher.models.clock import reset_clock_for_tests
 from edumatcher.models.order import Side
 from tests.sim_forensics_world import OpenDataset, opener
 from tests.test_sim_forensics_rerun import Recorder
-from sim_forensics import checks  # noqa: F401,E402  (registers the checks)
-from sim_forensics.registry import REGISTRY  # noqa: E402
+from edumatcher.sim_forensics import checks  # noqa: F401,E402  (registers the checks)
+from edumatcher.sim_forensics.registry import REGISTRY  # noqa: E402
 
 T0 = int(datetime(2026, 10, 24, 7, tzinfo=timezone.utc).timestamp()) * 10**9
 

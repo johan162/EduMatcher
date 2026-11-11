@@ -22,9 +22,9 @@ from edumatcher.models.order import OrderType, Side, SmpAction
 from edumatcher.models.trade import reset_trade_ids_for_tests, set_run_seq
 from tests.engine_harness import order_payload
 from tests.sim_forensics_world import OpenDataset, opener
-from sim_forensics import checks  # noqa: F401,E402  (registers the checks)
-from sim_forensics.audit import audit_files, lines  # noqa: E402
-from sim_forensics.registry import REGISTRY, Outcome  # noqa: E402
+from edumatcher.sim_forensics import checks  # noqa: F401,E402  (registers the checks)
+from edumatcher.sim_forensics.audit import audit_files, lines  # noqa: E402
+from edumatcher.sim_forensics.registry import REGISTRY, Outcome  # noqa: E402
 
 TS = "2026-10-28T07:30:00.000+00:00"
 
@@ -291,8 +291,8 @@ def test_h5_lists_what_the_run_never_did(open_ds: OpenDataset, tmp_path: Path) -
 
 
 def test_h5_is_info_in_a_run(tmp_path: Path) -> None:
-    from sim_forensics.dataset import Dataset
-    from sim_forensics.registry import run_checks
+    from edumatcher.sim_forensics.dataset import Dataset
+    from edumatcher.sim_forensics.registry import run_checks
 
     data = write(tmp_path, line("order.new", 1, {"id": "O1"}))
     with Dataset.open(data) as ds:

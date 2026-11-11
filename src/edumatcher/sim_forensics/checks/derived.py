@@ -10,9 +10,9 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Any
 
-from sim_forensics.audit import STARTUP, Line, audit_files, lines
-from sim_forensics.dataset import Dataset, iso_ns
-from sim_forensics.registry import Outcome, Sample, Skipped, check
+from edumatcher.sim_forensics.audit import STARTUP, Line, audit_files, lines
+from edumatcher.sim_forensics.dataset import Dataset, iso_ns
+from edumatcher.sim_forensics.registry import Outcome, Sample, Skipped, check
 
 
 @dataclass

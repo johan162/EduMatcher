@@ -6,10 +6,10 @@ import json
 from datetime import datetime
 from typing import Any
 
-from sim_forensics.audit import audit_files, lines
-from sim_forensics.checks.derived import market_pass
-from sim_forensics.dataset import Dataset
-from sim_forensics.registry import Outcome, Sample, Skipped, check
+from edumatcher.sim_forensics.audit import audit_files, lines
+from edumatcher.sim_forensics.checks.derived import market_pass
+from edumatcher.sim_forensics.dataset import Dataset
+from edumatcher.sim_forensics.registry import Outcome, Sample, Skipped, check
 
 #: Order types that rest with a limit price, and those armed by a stop price.
 _PRICED = ("LIMIT", "ICEBERG", "STOP_LIMIT")

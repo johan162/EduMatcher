@@ -58,9 +58,9 @@ from collections import Counter
 from dataclasses import dataclass, field
 from typing import Any
 
-from sim_forensics.audit import audit_files, lines, run_config_text
-from sim_forensics.dataset import Dataset
-from sim_forensics.registry import Sample, Skipped
+from edumatcher.sim_forensics.audit import audit_files, lines, run_config_text
+from edumatcher.sim_forensics.dataset import Dataset
+from edumatcher.sim_forensics.registry import Sample, Skipped
 
 from edumatcher.config_artifact import decode as decode_artifact
 from edumatcher.engine.config_loader import EngineConfig

@@ -1,4 +1,4 @@
-"""sim_forensics — check a finished simulation run's records against each other.
+"""sim_forensics (pm-sim-forensics) — check a finished simulation run's records against each other.
 
 A long ``edumatcher-sim`` run is a randomized test without assertions: the
 engine's output is recorded independently by pm-stats, pm-clearing, pm-audit,
@@ -15,7 +15,6 @@ Background and check catalogue: docs-design/EduMatcher-Sim-Forensics-Workplan.md
 
 Usage
 -----
-    make forensics DATA=~/.edumatcher-sim/data OUT=~/.edumatcher-sim/forensics/run1
-    PYTHONPATH=tools poetry run python -m sim_forensics --data DIR --out DIR [--check F1 ...]
-    PYTHONPATH=tools poetry run python -m sim_forensics --list
+    pm-sim-forensics [--data DIR] [--out DIR] [--check F1 ...] [--slow]
+    pm-sim-forensics --list
 """

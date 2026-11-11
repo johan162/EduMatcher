@@ -23,9 +23,9 @@ from collections import Counter
 from dataclasses import dataclass, field
 from typing import Any
 
-from sim_forensics.audit import STARTUP, audit_files, lines
-from sim_forensics.dataset import Dataset
-from sim_forensics.registry import Outcome, Sample, Skipped, check
+from edumatcher.sim_forensics.audit import STARTUP, audit_files, lines
+from edumatcher.sim_forensics.dataset import Dataset
+from edumatcher.sim_forensics.registry import Outcome, Sample, Skipped, check
 
 _KEEP = 50
 

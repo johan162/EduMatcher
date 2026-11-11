@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import json
 import sqlite3
-import sys
 from collections import Counter
 from collections.abc import Callable, Iterator
 from datetime import datetime, timezone
@@ -18,9 +17,7 @@ from pathlib import Path
 from typing import NamedTuple
 from zoneinfo import ZoneInfo
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tools"))
-
-from sim_forensics.dataset import Dataset  # noqa: E402
+from edumatcher.sim_forensics.dataset import Dataset  # noqa: E402
 
 from edumatcher.clearing.ledger import Ledger, trade_date  # noqa: E402
 from edumatcher.clearing.store import (  # noqa: E402

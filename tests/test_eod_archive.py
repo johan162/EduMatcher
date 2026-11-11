@@ -15,8 +15,8 @@ import edumatcher.engine.main as engine_main
 from edumatcher.models.order import TIF, OrderType, Side
 from tests.engine_harness import connect, make_engine, order_payload
 from tests.sim_forensics_world import OpenDataset, opener
-from sim_forensics import checks  # noqa: F401,E402  (registers the checks)
-from sim_forensics.registry import REGISTRY, Outcome  # noqa: E402
+from edumatcher.sim_forensics import checks  # noqa: F401,E402  (registers the checks)
+from edumatcher.sim_forensics.registry import REGISTRY, Outcome  # noqa: E402
 
 
 @pytest.fixture

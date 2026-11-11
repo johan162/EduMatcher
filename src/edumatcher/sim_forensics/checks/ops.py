@@ -15,8 +15,14 @@ from collections.abc import Sequence
 from datetime import datetime, timezone
 from typing import Any
 
-from sim_forensics.dataset import Dataset, iso_ns
-from sim_forensics.registry import Outcome, Sample, Skipped, check, failed_outcomes
+from edumatcher.sim_forensics.dataset import Dataset, iso_ns
+from edumatcher.sim_forensics.registry import (
+    Outcome,
+    Sample,
+    Skipped,
+    check,
+    failed_outcomes,
+)
 
 SEC = 1_000_000_000
 #: An ops event this close to a finding is listed with it (H1).

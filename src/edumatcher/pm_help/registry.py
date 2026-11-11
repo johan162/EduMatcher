@@ -1453,6 +1453,59 @@ _QUERY_CLIS: tuple[CommandInfo, ...] = (
         notes=("Design: docs-design/EduMatcher-Audit-Replay.md",),
     ),
     CommandInfo(
+        name="pm-sim-forensics",
+        category="Query & Reporting CLIs",
+        title="Simulation Forensics",
+        summary="Checks a finished simulation run's records against each other and writes a report.",
+        synopsis=(
+            "pm-sim-forensics [--data DIR] [--out DIR] [--check ID ...] [--slow]",
+            "                 [--samples N] [--jobs N] [-q]",
+            "pm-sim-forensics --list",
+        ),
+        description=(
+            "Run it on a stopped sim's data directory, from the same build that "
+            "produced the run: the re-run checks decode the config artifact the "
+            "engine started on, and a build whose configuration schema has moved "
+            "cannot. The report states both versions.",
+            "Opens every store read-only and never talks to a running system.",
+        ),
+        options=(
+            Option(
+                "--data DIR",
+                "resolved from $EDUMATCHER_DATA_DIR",
+                "The run's data directory",
+            ),
+            Option(
+                "--out DIR",
+                "<data dir>/../forensics",
+                "Where report.md and findings.json go",
+            ),
+            Option(
+                "--check ID",
+                "all",
+                "Run only these checks (repeatable); slow ones included",
+            ),
+            Option(
+                "--slow",
+                "off",
+                "Also run the slow checks (E5-E7: several engine re-runs)",
+            ),
+            Option("--samples N", "10", "Sample rows kept per check"),
+            Option(
+                "--jobs N", "CPU count", "Processes to run checks in; 1 = this process"
+            ),
+            Option("-q, --quiet", "off", "No progress output on stderr"),
+            Option("--list", "off", "List the checks and exit"),
+            Option("--version", "-", "Print the version and exit"),
+        ),
+        related=("pm-audit-replay", "pm-stats-cli", "pm-clearing-cli"),
+        examples=("pm-sim-forensics --data ~/.edumatcher-sim/data --slow",),
+        notes=(
+            "Exit 0: every check PASSed or was SKIPPED. Exit 1: a check FAILed or hit an ERROR.",
+            "Design: docs-design/EduMatcher-Sim-Forensics-Workplan.md",
+        ),
+    ),
+    CommandInfo(
         name="pm-clearing-cli",
         category="Query & Reporting CLIs",
         title="Clearing Query CLI",

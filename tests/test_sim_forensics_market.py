@@ -18,8 +18,12 @@ import pytest
 
 from edumatcher.stats.main import SCHEMA as STATS_SCHEMA
 from tests.sim_forensics_world import OpenDataset, ns, opener, sql
-from sim_forensics import checks  # noqa: F401,E402  (registers the checks)
-from sim_forensics.registry import REGISTRY, Outcome, run_checks  # noqa: E402
+from edumatcher.sim_forensics import checks  # noqa: F401,E402  (registers the checks)
+from edumatcher.sim_forensics.registry import (
+    REGISTRY,
+    Outcome,
+    run_checks,
+)  # noqa: E402
 
 F = ["F2", "F3", "F4"]
 

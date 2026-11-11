@@ -37,9 +37,9 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
-from sim_forensics.audit import audit_files, lines, run_config_text
-from sim_forensics.dataset import Dataset
-from sim_forensics.registry import Outcome, Sample, Skipped, check
+from edumatcher.sim_forensics.audit import audit_files, lines, run_config_text
+from edumatcher.sim_forensics.dataset import Dataset
+from edumatcher.sim_forensics.registry import Outcome, Sample, Skipped, check
 
 from edumatcher.config_artifact import decode as decode_artifact
 from edumatcher.engine.circuit_breaker import CircuitBreakerConfig

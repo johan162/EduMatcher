@@ -15,9 +15,9 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from typing import Any
 
-from sim_forensics.audit import audit_files, lines
-from sim_forensics.dataset import Dataset
-from sim_forensics.registry import Outcome, Sample, Skipped, check
+from edumatcher.sim_forensics.audit import audit_files, lines
+from edumatcher.sim_forensics.dataset import Dataset
+from edumatcher.sim_forensics.registry import Outcome, Sample, Skipped, check
 
 from edumatcher.models.order import TIF, OrderType, SmpAction
 from edumatcher.models.session import SessionState

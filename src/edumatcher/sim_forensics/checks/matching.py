@@ -40,10 +40,10 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import Any
 
-from sim_forensics.audit import Line, audit_files, lines, run_config_text
-from sim_forensics.checks import refusals
-from sim_forensics.dataset import Dataset
-from sim_forensics.registry import Outcome, Sample, Skipped, check
+from edumatcher.sim_forensics.audit import Line, audit_files, lines, run_config_text
+from edumatcher.sim_forensics.checks import refusals
+from edumatcher.sim_forensics.dataset import Dataset
+from edumatcher.sim_forensics.registry import Outcome, Sample, Skipped, check
 
 BUY, SELL = "BUY", "SELL"
 _STOP_TYPES = ("STOP", "STOP_LIMIT", "TRAILING_STOP")
