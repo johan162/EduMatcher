@@ -8537,6 +8537,10 @@ chat message and a colleague opens exactly what you were looking at.</p>
 <td>Substring match on the message body</td>
 </tr>
 <tr>
+<td><code>process contains…</code></td>
+<td>Case-insensitive substring match on the process name</td>
+</tr>
+<tr>
 <td>Level dropdown</td>
 <td>Minimum severity (<code>WARNING+</code>, <code>ERROR+</code>, …)</td>
 </tr>
@@ -8586,7 +8590,9 @@ explanations are available, and everything else works as before.</p>
 <ul>
 <li><strong>Copy</strong> — the message text to the clipboard.</li>
 <li><strong>Filter to this process</strong> — rewrites the URL filter, which is usually the
-  next thing you want after spotting one bad row.</li>
+  next thing you want after spotting one bad row. While that filter is active
+  the button reads <strong>Reset filter</strong>, and pressing it removes the process filter
+  again.</li>
 </ul>
 <p><img alt="The Explorer in LIVE mode, filtered to INFO+, with an error selected." src="../../../../assets/log-gui/log-explorer.png" /></p>
 <p><em>Rows are coloured by level — <code>INF</code>, <code>WRN</code>, <code>ERR</code> — with a matching left edge on warnings

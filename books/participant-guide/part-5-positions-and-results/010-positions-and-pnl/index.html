@@ -10405,13 +10405,13 @@ false positives for legitimately pruned days.</p>
 <td><code>--from YYYY-MM-DD</code></td>
 <td>date</td>
 <td>—</td>
-<td>Inclusive start date (matched on <code>connect_date</code>)</td>
+<td>Inclusive first trading day of the connect (matched on <code>connect_date</code>)</td>
 </tr>
 <tr>
 <td><code>--to YYYY-MM-DD</code></td>
 <td>date</td>
 <td>—</td>
-<td>Inclusive end date (matched on <code>connect_date</code>)</td>
+<td>Inclusive last trading day of the connect (matched on <code>connect_date</code>)</td>
 </tr>
 <tr>
 <td><code>--connected-only</code></td>
@@ -10444,6 +10444,9 @@ false positives for legitimately pruned days.</p>
 </code></pre></div>
 <p>Output fields: <code>gateway_id</code>, <code>connect_date</code>, <code>connected_at_ns</code>,
 <code>disconnected_at_ns</code>, <code>disconnect_reason</code></p>
+<p><code>connect_date</code> is the trading day of the connect in the venue's session
+timezone (the one <code>pm-clearing</code> recorded), not its UTC date, so <code>--from</code> and
+<code>--to</code> select the same rows as <code>GET /api/v1/clearing/gateway-sessions</code>.</p>
 <div class="admonition tip">
 <p class="admonition-title">Tip</p>
 <p>If a gateway has trades in <code>trade_events</code> but no row in <code>gateway_sessions</code>,
