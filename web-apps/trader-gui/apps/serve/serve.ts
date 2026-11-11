@@ -234,12 +234,20 @@ function proxyUpgrade(
 // ── Request handler ───────────────────────────────────────────────────────────
 const INDEX = path.join(STATIC_DIR, "index.html");
 
-function handler(req: http.IncomingMessage, res: http.ServerResponse): void {
+export function handler(req: http.IncomingMessage, res: http.ServerResponse): void {
   const method = req.method ?? "GET";
   const rawUrl = req.url ?? "/";
 
-  // Strip query string for file resolution; keep only the pathname.
-  const pathname = decodeURIComponent(rawUrl.split("?")[0] ?? "/");
+  // Strip query string for file resolution; keep only the pathname. A
+  // malformed escape ("/%E0") must be a 400, not an exception that ends the
+  // process.
+  let pathname: string;
+  try {
+    pathname = decodeURIComponent(rawUrl.split("?")[0] ?? "/");
+  } catch {
+    sendError(res, 400, "Bad Request");
+    return;
+  }
 
   // Proxy /api/* to pm-api-gwy when target is configured.
   if (pathname.startsWith("/api/")) {

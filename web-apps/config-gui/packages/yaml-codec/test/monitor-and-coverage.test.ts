@@ -116,10 +116,11 @@ describe("the other sections", () => {
     const gw = createApiGateway("main");
     draft.apiGateways = [gw];
     const bare = (buildConfigDocument(draft).api_gateways as any).main;
-    for (const key of ["clearing_db", "market_data_cache_sec", "engine_pull_addr", "index_pub_addr"]) {
+    for (const key of ["clearing_db", "eod_db", "market_data_cache_sec", "engine_pull_addr", "index_pub_addr"]) {
       expect(bare).not.toHaveProperty(key);
     }
     gw.clearingDb = "data/other_clearing.db";
+    gw.eodDb = "data/other_eod.db";
     gw.marketDataCacheSec = 120;
     gw.enginePullAddr = "tcp://10.0.0.5:5555";
     gw.enginePubAddr = "tcp://10.0.0.5:5556";
@@ -128,6 +129,7 @@ describe("the other sections", () => {
     const back = parseYamlToDraft(generateYaml(draft)).draft.apiGateways[0]!;
     expect(back).toMatchObject({
       clearingDb: "data/other_clearing.db",
+      eodDb: "data/other_eod.db",
       marketDataCacheSec: 120,
       enginePullAddr: "tcp://10.0.0.5:5555",
       enginePubAddr: "tcp://10.0.0.5:5556",

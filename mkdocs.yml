@@ -135,6 +135,7 @@ nav:
       - "Trader Information Terminal — \"TapeDeck\" (`pm-terminal`)": books/participant-guide/part-6-front-ends/010-trading-info-terminal.md
       - "Trading GUI (`pm-trading-ui`)": books/participant-guide/part-6-front-ends/020-trading-platform-gui.md
       - "Order Book Viewer (`pm-book`)": books/participant-guide/part-6-front-ends/030-order-book-gui.md
+      - "Clearing GUI (`pm-clearing-ui`)": books/participant-guide/part-6-front-ends/040-clearing-gui.md
     - "FAQ: Orders, Sessions and Positions": books/participant-guide/90-backmatter/010-faq-orders-and-positions.md
   - "Operator's Guide":
     - "How to Use This Book": books/operator-guide/00-front/010-how-to-use-this-book.md
@@ -178,6 +179,7 @@ nav:
       - "Log Operator Console (`pm-log-ui`)": books/operator-guide/part-6-observe-and-recover/050-log-console.md
       - "Health Monitoring (`pm-monitor`)": books/operator-guide/part-6-observe-and-recover/060-health-monitor.md
       - "Operator Dashboard (`pm-dash`)": books/operator-guide/part-6-observe-and-recover/070-operator-dashboard.md
+      - "Clearing GUI (`pm-clearing-ui`)": books/operator-guide/part-6-observe-and-recover/080-clearing-gui.md
     - "FAQ: Setup and Operation": books/operator-guide/90-backmatter/010-faq-setup-and-operation.md
   - "Reference Manual":
     - "How to Use This Book": books/reference-manual/00-front/010-how-to-use-this-book.md

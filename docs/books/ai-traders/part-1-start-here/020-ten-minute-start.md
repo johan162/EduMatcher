@@ -79,6 +79,7 @@ simulation: `mm-bot`, `market-sim` and `ai-swarm`.
 | **log-gui** | <http://localhost:8091> | The log of every process, searchable |
 | **trader-gui** | <http://localhost:8093> | A trading screen — log in as a student desk |
 | **dash-gui** | <http://localhost:8095> | The exchange's health: every process, trading activity, participants and events |
+| **clearing-gui** | <http://localhost:8096> | Positions, P&L, trades and EOD settlement per participant — log in with a desk's key (read-only) |
 
 The trader-gui asks for an API key. The simulation's desks and their keys:
 
@@ -180,6 +181,6 @@ it. If you only read one more chapter, read
 | You see | Do |
 |---|---|
 | `pull access denied` or `manifest unknown` | The image for that version is not published yet: pin one that is with `--version <version>`, or build it — [The Simulation Container](../part-3-run-it/110-the-simulation-container.md#building-the-image-yourself) |
-| `port is already allocated` | Another EduMatcher stack (or anything else) holds 5560–5600, 8080/8081 or 8090–8095. Stop it first; only one stack can run at a time |
+| `port is already allocated` | Another EduMatcher stack (or anything else) holds 5560–5600, 8080/8081 or 8090–8096. Stop it first; only one stack can run at a time |
 | The process table shows `dead` | Wait a minute: the container restarts dead processes once a minute. If it stays dead, see [Troubleshooting](../part-4-watch-and-teach/160-troubleshooting-and-faq.md) |
 | No trading during the day | Check the time zone: the clock is Stockholm's. `./edumatcher.sh shell date` |

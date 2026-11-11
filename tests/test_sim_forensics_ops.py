@@ -17,10 +17,10 @@ from edumatcher.market_sim.news_history import initialize_schema as news_schema
 from edumatcher.monitor.store import initialize_schema as metrics_schema
 from edumatcher.stats.main import SCHEMA as STATS_SCHEMA
 from tests.sim_forensics_world import SEC, OpenDataset, build, iso, ns, opener, sql
-from sim_forensics import checks  # noqa: F401,E402  (registers the checks)
-from sim_forensics.__main__ import main  # noqa: E402
-from sim_forensics.checks.ops import _valued, spearman, ulid_ns  # noqa: E402
-from sim_forensics.registry import (  # noqa: E402
+from edumatcher.sim_forensics import checks  # noqa: F401,E402  (registers the checks)
+from edumatcher.sim_forensics.cli import main  # noqa: E402
+from edumatcher.sim_forensics.checks.ops import _valued, spearman, ulid_ns  # noqa: E402
+from edumatcher.sim_forensics.registry import (  # noqa: E402
     REGISTRY,
     Check,
     Outcome,

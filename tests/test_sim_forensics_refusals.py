@@ -19,9 +19,9 @@ from edumatcher.config_deploy import deploy, resolve_example
 from edumatcher.engine.config_loader import EngineConfig
 from edumatcher.engine.order_limits import OrderLimitsConfig
 from tests.sim_forensics_world import OpenDataset, opener
-from sim_forensics import checks  # noqa: F401,E402  (registers the checks)
-from sim_forensics.checks import refusals  # noqa: E402
-from sim_forensics.registry import REGISTRY, Outcome  # noqa: E402
+from edumatcher.sim_forensics import checks  # noqa: F401,E402  (registers the checks)
+from edumatcher.sim_forensics.checks import refusals  # noqa: E402
+from edumatcher.sim_forensics.registry import REGISTRY, Outcome  # noqa: E402
 
 
 @pytest.fixture

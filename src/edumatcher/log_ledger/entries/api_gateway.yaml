@@ -157,6 +157,42 @@
     - "A locked database during heavy clearing load is usually transient; retry."
     - "If it repeats, read the traceback and check the clearing database's health."
 
+- logger: edumatcher.api_gateway.routers.clearing
+  template: "clearing: cannot read %s: %s"
+  level: WARNING
+  explanation: >
+    A /clearing request could not read pm-clearing's clearing.db or pm-eod's
+    eod.db (the path and the reason are in the message), so it was answered
+    with 503 CLEARING_DB or EOD_DB (/clearing/health reports it in its body
+    instead). A missing file means that process is not deployed here or the
+    gateway's `clearing_db` / `eod_db` points elsewhere; "database is locked"
+    means a read waited out a long write.
+  actions:
+    - "For clearing.db, check pm-clearing and its database with `pm-clearing-cli health --extended`; for eod.db, run `pm-eod status`."
+    - "Check that `clearing_db` / `eod_db` in this gateway's `api_gateways` block names the file the process writes, and that pm-api-gwy can read it."
+    - "A lock during heavy clearing load is usually transient; retry."
+
+- logger: edumatcher.api_gateway.routers.clearing
+  template: "clearing: cannot read the EOD roster: %s"
+  level: WARNING
+  explanation: >
+    /clearing/balances could not read pm-eod's roster (ref_data/roster.yaml
+    beside eod.db) and answered 503 EOD_DB. The message names the file and
+    line. A missing roster is not this: it means opening balances of 0.
+  actions:
+    - "Fix the roster entry the message names; `pm-eod balances` reads the same file and reports the same error."
+
+- logger: edumatcher.api_gateway.routers.clearing
+  template: "clearing summary: cannot read %s: %s"
+  level: WARNING
+  explanation: >
+    A /clearing/summary request could not read pm-eod's ledger (the path and
+    the reason are in the message). The summary was still answered, with
+    `eod_db_available: false` and no last EOD run.
+  actions:
+    - "If pm-eod is not deployed, nothing is wrong; the summary shows no EOD state."
+    - "Otherwise check that `eod_db` in this gateway's `api_gateways` block names the ledger pm-eod writes, and run `pm-eod status`."
+
 - logger: edumatcher.api_gateway.routers.ws
   template: "[%s] private stream snapshot/setup failed"
   level: ERROR

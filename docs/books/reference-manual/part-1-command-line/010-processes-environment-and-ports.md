@@ -3015,7 +3015,7 @@ pm-api-gwy [--instance NAME] [--host ADDR] [--port PORT] [--engine-host HOST] [-
 | `--port PORT`        | config value                             | Override HTTP listen port                                                          |
 | `--engine-host HOST` | config value                             | Override engine host for ZMQ connections (cross-host deployments)                  |
 | `--stats-db PATH`    | config value                             | Path to `data/stats.db` for `/history/*` endpoints                                 |
-| `--clearing-db PATH` | config value                             | Path to `data/clearing.db`, opened read-only for the session/MTD/YTD realized P&L on `/positions`. Optional: without it those three fields report `null` |
+| `--clearing-db PATH` | config value                             | Path to `data/clearing.db`, opened read-only for the session/MTD/YTD realized P&L on `/positions` and for the `/clearing` routes. Optional: without it those three fields report `null` and `/clearing` answers `503 CLEARING_DB` |
 | `--log-level LEVEL`  | `WARNING`                                 | Explicit log level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG`                |
 | `-v` / `--verbose`   | off                                       | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`)                                |
 | `-q` / `--quiet`     | off                                       | Reduce output to warnings/errors                                                    |

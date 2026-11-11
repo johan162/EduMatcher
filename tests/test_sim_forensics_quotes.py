@@ -15,8 +15,8 @@ from typing import Any
 import pytest
 
 from tests.sim_forensics_world import OpenDataset, opener
-from sim_forensics import checks  # noqa: F401,E402  (registers the checks)
-from sim_forensics.registry import REGISTRY, Outcome  # noqa: E402
+from edumatcher.sim_forensics import checks  # noqa: F401,E402  (registers the checks)
+from edumatcher.sim_forensics.registry import REGISTRY, Outcome  # noqa: E402
 
 GW = "MM01"
 

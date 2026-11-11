@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { ENV_OPTIONS, renderHelp } from "../serve.js";
+import * as http from "node:http";
+import type { AddressInfo } from "node:net";
+import { ENV_OPTIONS, handler, renderHelp } from "../serve.js";
 
 /**
  * `--help` used to be produced by regex-scraping this file's own leading
@@ -45,5 +47,23 @@ describe("pm-trading-ui-serve --help", () => {
     // Reaching this point at all proves it: a bound listener would keep the
     // vitest worker alive and the import above would have had side effects.
     expect(typeof renderHelp).toBe("function");
+  });
+});
+
+describe("pm-trading-ui-serve request handling", () => {
+  async function get(path: string): Promise<{ status: number; body: string }> {
+    const server = http.createServer(handler);
+    await new Promise<void>((done) => server.listen(0, "127.0.0.1", done));
+    const { port } = server.address() as AddressInfo;
+    try {
+      const res = await fetch(`http://127.0.0.1:${port}${path}`);
+      return { status: res.status, body: await res.text() };
+    } finally {
+      server.close();
+    }
+  }
+
+  it("answers a malformed escape with 400 instead of crashing", async () => {
+    expect((await get("/%E0%A4%A")).status).toBe(400);
   });
 });

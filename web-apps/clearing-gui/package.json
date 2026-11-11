@@ -1,0 +1,34 @@
+{
+  "name": "edumatcher-clearing-gui",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Read-only clearing client for EduMatcher (pm-clearing-ui) — participant self-service and ADMIN operations over pm-api-gwy's /api/v1/clearing.",
+  "license": "MIT",
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace @edumatcher/clearing-web",
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "vitest run",
+    "lint": "npm run typecheck",
+    "format": "prettier --write .",
+    "serve": "tsx apps/serve/serve.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.16.0",
+    "prettier": "^3.9.5",
+    "tsx": "^4.23.0",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.7",
+    "vitest": "^4.1.10"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "allowScripts": {
+    "esbuild@0.25.12": true,
+    "esbuild@0.28.2": true
+  }
+}

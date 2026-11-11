@@ -53,6 +53,7 @@ files = [
   "010-trading-info-terminal.md",
   "020-trading-platform-gui.md",
   "030-order-book-gui.md",
+  "040-clearing-gui.md",
 ]
 
 [backmatter]

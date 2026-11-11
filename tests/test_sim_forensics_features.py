@@ -19,8 +19,8 @@ import pytest
 from tests.sim_forensics_features import Run, consistent
 from tests.sim_forensics_world import OpenDataset, opener
 from edumatcher.models.order import Side
-from sim_forensics import checks  # noqa: F401,E402  (registers the checks)
-from sim_forensics.registry import REGISTRY, run_checks  # noqa: E402
+from edumatcher.sim_forensics import checks  # noqa: F401,E402  (registers the checks)
+from edumatcher.sim_forensics.registry import REGISTRY, run_checks  # noqa: E402
 
 CHECKS = [
     "C12",
@@ -258,7 +258,7 @@ def test_x29_an_administrator_resume_uncrosses(
 def test_the_re_runs_reproduce_the_breaker_reopen(
     recorded: str, tmp_path: Path, open_ds: OpenDataset
 ) -> None:
-    from sim_forensics.checks.rerun import BREAKER_TIMER, _rerun
+    from edumatcher.sim_forensics.checks.rerun import BREAKER_TIMER, _rerun
 
     data = planted(tmp_path, recorded, lambda lines: lines)
     ds = open_ds(data)
@@ -285,7 +285,7 @@ def test_the_shifted_collar_decides_in_the_original_prices() -> None:
     naive shift would accept 12 008 (12 001 un-shifted) against a 20 % band
     around 10 000; in the original prices it is refused."""
     from edumatcher.engine.collar import CollarConfig, validate_collar
-    from sim_forensics.checks.differential import (
+    from edumatcher.sim_forensics.checks.differential import (
         _collar_in_original_prices,
         _ShiftedCollar,
     )

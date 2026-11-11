@@ -336,6 +336,7 @@ export const apiGatewaySchema = z.object({
   statsDb: z.string().min(1),
   auditDb: z.string().min(1).optional(),
   clearingDb: z.string().min(1).optional(),
+  eodDb: z.string().min(1).optional(),
   marketDataCacheSec: z.number().nonnegative().optional(),
   enginePullAddr: z.string().min(1).optional(),
   enginePubAddr: z.string().min(1).optional(),

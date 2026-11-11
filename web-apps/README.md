@@ -1,10 +1,10 @@
 # EduMatcher web apps
 
-Six independent browser applications for the EduMatcher exchange. Each is
+Seven independent browser applications for the EduMatcher exchange. Each is
 its own npm workspace with its own `package.json`, `Dockerfile`,
 `docker-compose.yml`, and `Makefile` — nothing here is shared between them,
 and none of the Python `pm-*` processes depend on this directory existing.
-It exists purely to keep six self-contained frontend projects out of the
+It exists purely to keep seven self-contained frontend projects out of the
 repository root.
 
 | App | System name | Role | Dev port(s) | Container port |
@@ -15,14 +15,16 @@ repository root.
 | [`config-gui/`](config-gui/) | n/a | Browser builder for authored `engine_config.yaml`, companion to `pm-config-gen` | server `5192`, web `8192` | `8092` |
 | [`book-gui/`](book-gui/) | `pm-book` | One symbol's full order book, statistics and trade tape — the web companion to `pm-viewer` | bridge `5194`, web `8194` | `8094` |
 | [`dash-gui/`](dash-gui/) | `pm-dash` | Operator dashboard over `pm-monitor`: process health, trading activity, participants, books, gateways and events, live and over time | bridge `5195`, web `8195` | `8095` |
+| [`clearing-gui/`](clearing-gui/) | `pm-clearing-ui` | Read-only clearing client: positions, P&L, trades, close history and EOD settlement (participant self-service and ADMIN operations) against `pm-api-gwy` | web `8196` | `8096` |
 
 "Dev port(s)" is what `make dev` binds to (backend + Vite dev server,
 started together). "Container port" is what `make up` publishes on
 `localhost`. The two port ranges are deliberately disjoint and follow a
 shared numbering scheme: each app's container port is `809N`, its dev web
 port is `819N`, and its dev backend port (where it has one) is `519N`, all
-sharing the same `N`. `trader-gui` has no dev-mode backend process — its
-`apps/serve/` server only runs in production — so it has no `519N` port.
+sharing the same `N`. `trader-gui` and `clearing-gui` have no dev-mode
+backend process — their `apps/serve/` server only runs in production — so
+they have no `519N` port.
 
 Node.js 22.13 or newer is required for local work (`make install`, `make dev`,
 `make test`); the images build on Node 22.
@@ -40,9 +42,9 @@ here.
 ## Starting all GUIs together
 
 A `Makefile` in this directory (`config-gui` is not part of the group; it needs no backend) orchestrates `log-gui`, `terminal-gui`,
-`trader-gui`, `book-gui` and `dash-gui` as a group. The key variable is `VM_BACKEND_IP`:
+`trader-gui`, `book-gui`, `dash-gui` and `clearing-gui` as a group. The key variable is `VM_BACKEND_IP`:
 set it to the IP address of the VM (or host) running the EduMatcher backend
-processes, and all five containers are pointed at that address automatically.
+processes, and all six containers are pointed at that address automatically.
 
 `book-gui` cannot start without the read-only API key, since it reads all of
 its data through `pm-api-gwy`. Its `make up` finds the key in the deployed
@@ -57,13 +59,13 @@ live, but its charts have no history unless the VM's data directory is mounted
 here and `EDUMATCHER_DATA_DIR` points at it.
 
 ```bash
-# All five GUIs, backend on Docker Desktop host (no VM — uses host.docker.internal):
+# All six GUIs, backend on Docker Desktop host (no VM — uses host.docker.internal):
 make up
 
-# All five GUIs, backend running in a Multipass or other VM:
+# All six GUIs, backend running in a Multipass or other VM:
 make up VM_BACKEND_IP=192.168.64.10
 
-# Stop all five:
+# Stop all six:
 make down VM_BACKEND_IP=192.168.64.10   # or just: make down
 
 # Export once for the session and omit from every command:
@@ -81,6 +83,7 @@ before each app's compose stack starts:
 | `log-gui` | `LOG_SRV_HOST`, `CALF_HOST` | `5601`/`5602` (LALF-PS), `5570` (CALF) |
 | `terminal-gui` | `CALF_HOST`, `API_GATEWAY_URL`, `LOG_SRV_HOST` | `5570` (CALF), `8080` (REST), `5600` (LALF) |
 | `trader-gui` | `API_PROXY_TARGET` | `8080` (REST/WS) |
+| `clearing-gui` | `API_PROXY_TARGET` | `8080` (REST) |
 | `book-gui` | `API_GATEWAY_URL`, `CALF_HOST`, `LOG_SRV_HOST` | `8081` (REST + market-data WebSocket), `5570` (CALF), `5600` (LALF) |
 | `dash-gui` | `MONITOR_HOST`, `CALF_HOST`, `LOG_SRV_HOST` | `5611` (`pm-monitor` PUB), `5570` (CALF), `5600` (LALF) |
 
@@ -96,13 +99,13 @@ Available top-level targets:
 
 | Target | Description |
 | --- | --- |
-| `up` | Start all five GUI containers |
-| `down` | Stop and remove all five |
+| `up` | Start all six GUI containers |
+| `down` | Stop and remove all six |
 | `restart` | `down` then `up` |
-| `ps` | Show container status for all five |
-| `up-log` / `up-terminal` / `up-trader` / `up-book` / `up-dash` | Start a single app |
-| `down-log` / `down-terminal` / `down-trader` / `down-book` / `down-dash` | Stop a single app |
-| `logs-log` / `logs-terminal` / `logs-trader` / `logs-book` / `logs-dash` | Follow a single app's container logs |
+| `ps` | Show container status for all six |
+| `up-log` / `up-terminal` / `up-trader` / `up-book` / `up-dash` / `up-clearing` | Start a single app |
+| `down-log` / `down-terminal` / `down-trader` / `down-book` / `down-dash` / `down-clearing` | Stop a single app |
+| `logs-log` / `logs-terminal` / `logs-trader` / `logs-book` / `logs-dash` / `logs-clearing` | Follow a single app's container logs |
 
 ## Backend dependencies
 
@@ -113,6 +116,7 @@ None of these apps depend on each other, but each depends on one or more
 | --- | --- | --- |
 | `log-gui` | `pm-log-srv` (LALF-PS, `5601`/`5602`; reads its `log.db`) | `pm-log-cli` on `PATH`, for the Diagnostics view; `pm-md-gwy` (CALF, `5570`) for the top bar's session phase |
 | `trader-gui` | `pm-api-gwy` (REST + WebSocket, `8080`) | — |
+| `clearing-gui` | `pm-api-gwy` (REST, `8080`) with `clearing_db` set; `pm-clearing` writing that file | `eod_db` and `pm-eod`, for the settlement screens |
 | `terminal-gui` | `pm-md-gwy` (CALF TCP, `5570`), `pm-api-gwy` (REST, `8080`) | `pm-log-srv` (`5600`) — falls back to stdout/file logging if unreachable |
 | `book-gui` | `pm-api-gwy` (market-data WebSocket + REST, `8081`, read-only key) | `pm-stats` (for full-day statistics), `pm-md-gwy` (CALF, `5570`) for the top bar's session phase, `pm-log-srv` (`5600`) |
 | `dash-gui` | `pm-monitor` (PUB, `5611`; reads its `metrics.db` read-only, and the deployed configuration for the threshold bands) | `pm-md-gwy` (CALF, `5570`) for the top bar's session phase; `pm-log-srv` (`5600`); log-gui and book-gui for the drawers' links (`LOG_GUI_URL`, `BOOK_GUI_URL`) |
@@ -142,7 +146,8 @@ kind of bridge, talking to `pm-api-gwy`'s market-data WebSocket and REST
 history instead, and `dash-gui`'s subscribes to `pm-monitor`'s ZeroMQ PUB
 socket and reads its `metrics.db` read-only. `trader-gui` has no
 bridge process — its backend (`apps/serve/`) is a zero-dependency static
-file server that only proxies REST/WebSocket calls through to `pm-api-gwy`.
+file server that only proxies REST/WebSocket calls through to `pm-api-gwy`;
+`clearing-gui` has the same, REST only.
 `config-gui` is the odd one out entirely: it has no required runtime
 dependency on any `pm-*` process — its backend (`apps/server/`) only
 imports, validates, and generates YAML, and its optional `verify:python`

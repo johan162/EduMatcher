@@ -90,6 +90,7 @@ no Node, no checkout. The only requirement is Podman or Docker.
 | Trading GUI (`pm-trading-ui`) | <http://localhost:8093> | Submit and manage orders as a trading participant |
 | Order Book Viewer (`pm-book`) | <http://localhost:8094> | One symbol's full order book, session statistics and trade tape — the browser companion to `pm-viewer` |
 | Operator Dashboard (`pm-dash`) | <http://localhost:8095> | The health of every process, trading activity, participants, books and gateways, live and over time — see [Operator Dashboard](../part-6-observe-and-recover/070-operator-dashboard.md) |
+| Clearing GUI (`pm-clearing-ui`) | <http://localhost:8096> | Read-only positions, P&L, trades, close history and EOD settlement — see [Clearing GUI](../part-6-observe-and-recover/080-clearing-gui.md) |
 | REST API docs | <http://localhost:8080/docs> | Swagger UI for the `desk` API gateway |
 
 ### What the installer does
@@ -123,7 +124,7 @@ Because the script is read from a pipe, options need `bash -s --` so that the
 shell hands them to the script rather than consuming them itself:
 
 ```bash
-curl -fsSL .../install.sh | bash -s -- --config s10-nominal --version 0.77.4
+curl -fsSL .../install.sh | bash -s -- --config s10-nominal --version 0.78.0
 ```
 
 Two environment variables are also honoured: `REPO_OWNER` (which GitHub
@@ -159,6 +160,7 @@ into this file.
 | `TRADER_GUI_PORT` | `8093` | Host port for the trader GUI |
 | `BOOK_GUI_PORT` | `8094` | Host port for the order book viewer |
 | `DASH_GUI_PORT` | `8095` | Host port for the operator dashboard (`pm-dash`) |
+| `CLEARING_GUI_PORT` | `8096` | Host port for the clearing client (`pm-clearing-ui`) |
 | `LOG_GUI_URL` / `BOOK_GUI_URL` | `http://localhost:<port>` | Where the dashboard's drawers link to the log console and the order book viewer, as your browser reaches them — set when you open the GUIs from another machine |
 
 Two settings have their own commands, because editing them by hand is easy to
@@ -337,6 +339,7 @@ plain `make up-all` afterwards goes back to whatever `.env` says.
 | `TRADER_GUI_PORT` | `8093` | Host port for the trader GUI |
 | `BOOK_GUI_PORT` | `8094` | Host port for the order book viewer |
 | `DASH_GUI_PORT` | `8095` | Host port for the operator dashboard (`pm-dash`) |
+| `CLEARING_GUI_PORT` | `8096` | Host port for the clearing client (`pm-clearing-ui`) |
 | `LOG_GUI_URL` / `BOOK_GUI_URL` | `http://localhost:<port>` | Where the dashboard's drawers link to the log console and the order book viewer, as your browser reaches them — set when you open the GUIs from another machine |
 | `IMAGE_NAME` / `IMAGE_TAG` | `edumatcher` / `local` | Image naming |
 | `CONTAINER_NAME` | `edumatcher` | Container name |
@@ -413,7 +416,7 @@ flowchart LR
         BE["edumatcher\nengine + all gateways"]
     end
 
-    BROWSER -->|"published 8090-8095\nvia BIND_ADDR"| TERM
+    BROWSER -->|"published 8090-8096\nvia BIND_ADDR"| TERM
     BROWSER --> LOG
     BROWSER --> CFG
     BROWSER --> TRD
@@ -645,7 +648,7 @@ deployed configuration and `pm-opctl-cli` ready to start the stack.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh | \
-    bash -s -- --version 0.77.4 --snapshot
+    bash -s -- --version 0.78.0 --snapshot
 
 multipass shell ems
 cd /home/ubuntu/session
@@ -668,7 +671,7 @@ To read the script before running it:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh -o curl_setup_vm.sh
 less curl_setup_vm.sh
-bash curl_setup_vm.sh --version 0.77.4 --snapshot
+bash curl_setup_vm.sh --version 0.78.0 --snapshot
 ```
 
 
@@ -732,7 +735,7 @@ flowchart LR
             G["terminal · log · trader\nbook · dash · config"]
         end
     end
-    BROWSER -->|"8090-8095"| G
+    BROWSER -->|"8090-8096"| G
     G -->|"host.docker.internal\n5570 5600-5602 5611 8080 8081"| PM
     PM --- DATA
     G -.->|"read-only mount\nlog.db, metrics.db, config"| DATA
@@ -803,6 +806,7 @@ The addresses are the same as in the container install:
 | <http://localhost:8093> | Trading GUI |
 | <http://localhost:8094> | Order Book Viewer (`pm-book`) |
 | <http://localhost:8095> | Operator Dashboard (`pm-dash`) |
+| <http://localhost:8096> | Clearing GUI (`pm-clearing-ui`) |
 
 `./edumatcher.sh` works as in the container install, with these differences:
 `status` lists the GUI containers and then runs `pm-opctl-cli list` on your own
@@ -860,7 +864,7 @@ needed.
     host firewall.
 
 !!! note "A container exchange on the same machine"
-    The GUI containers use the host ports 8090-8095, the same as the full
+    The GUI containers use the host ports 8090-8096, the same as the full
     container install, so the two cannot run together. If a container exchange
     or simulation is running and publishing 5570, 8080 and the rest on
     `127.0.0.1`, these GUIs cannot reach it either: a port published to

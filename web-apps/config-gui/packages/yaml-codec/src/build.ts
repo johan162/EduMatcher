@@ -448,6 +448,7 @@ function buildApiGateways(draft: EngineConfigDraft): PlainConfig {
       // Optional: written only when set, so pm-api-gwy otherwise resolves
       // its own defaults (the local engine/index buses, data/clearing.db).
       ...(gw.clearingDb !== undefined ? { clearing_db: gw.clearingDb } : {}),
+      ...(gw.eodDb !== undefined ? { eod_db: gw.eodDb } : {}),
       ...(gw.marketDataCacheSec !== undefined
         ? { market_data_cache_sec: gw.marketDataCacheSec }
         : {}),

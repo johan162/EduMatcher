@@ -95,6 +95,10 @@ CREATE INDEX IF NOT EXISTS ix_trade_events_buy_gw_date
   ON trade_events(buy_gateway_id, trade_date);
 CREATE INDEX IF NOT EXISTS ix_trade_events_sell_gw_date
   ON trade_events(sell_gateway_id, trade_date);
+-- query_trades' sort key, newest first: a page walks this index and stops
+-- at its LIMIT instead of sorting every retained trade (clearing GUI F2).
+CREATE INDEX IF NOT EXISTS ix_trade_events_ts
+  ON trade_events(ts_ns, ingest_ts_ns, id);
 
 CREATE TABLE IF NOT EXISTS gateway_symbol_positions (
   gateway_id       TEXT    NOT NULL,
@@ -894,6 +898,37 @@ def query_gateways(
     return [dict(r) for r in rows]
 
 
+def query_participants(
+    conn: sqlite3.Connection,
+    *,
+    gateway: str | None = None,
+    limit: int = 1000,
+) -> list[dict[str, Any]]:
+    """Per gateway: P&L in display currency, position counts, latest update.
+
+    Each position's ticks are divided by its own ``10**tick_decimals`` before
+    the sum, as in ``gateway_pnl_totals``: raw ticks of symbols with
+    different precision do not add up.
+    """
+    scale = _pow10("tick_decimals")
+    sql = (
+        "SELECT gateway_id,"
+        f" SUM(realized_pnl / {scale}) AS realized_pnl,"
+        f" SUM(unrealized_pnl / {scale}) AS unrealized_pnl,"
+        f" SUM((realized_pnl + unrealized_pnl) / {scale}) AS total_pnl,"
+        " COUNT(*) AS position_count,"
+        " SUM(CASE WHEN net_qty != 0 THEN 1 ELSE 0 END) AS open_position_count,"
+        " MAX(updated_ts_ns) AS last_update_ts_ns"
+        " FROM gateway_symbol_positions"
+        " WHERE (:gateway IS NULL OR gateway_id = :gateway)"
+        " GROUP BY gateway_id"
+        " ORDER BY gateway_id ASC"
+        " LIMIT :limit"
+    )
+    rows = conn.execute(sql, {"gateway": gateway, "limit": limit}).fetchall()
+    return [dict(r) for r in rows]
+
+
 def query_positions(
     conn: sqlite3.Connection,
     *,
@@ -991,12 +1026,24 @@ def query_trades(
     from_date: str | None = None,
     to_date: str | None = None,
     limit: int = 200,
+    after: tuple[int, int, str] | None = None,
 ) -> list[dict[str, Any]]:
+    """Retained trades, newest first.
+
+    Ordered by ``(ts_ns, ingest_ts_ns, id)`` descending: for one exchange
+    timestamp the latest ingest first (CL-L3), and ``id`` (the primary key)
+    makes the order total, so ``after`` -- that key of the last row already
+    seen -- continues exactly where a previous page stopped even when prints
+    share a timestamp.
+    """
+    after_ts, after_ingest, after_id = (
+        after if after is not None else (None, None, None)
+    )
     sql = (
         "SELECT id, ts_ns, trade_date, symbol, quantity, price, tick_decimals,"
         " buy_order_id, sell_order_id,"
         " buy_gateway_id, sell_gateway_id,"
-        " aggressor_side, ingest_ts_ns"
+        " aggressor_side, ingest_ts_ns, match_type, msg_id"
         " FROM trade_events"
         " WHERE (:symbol IS NULL OR symbol = :symbol)"
         "   AND (:gateway IS NULL OR buy_gateway_id = :gateway"
@@ -1004,7 +1051,10 @@ def query_trades(
         "   AND (:date_value IS NULL OR trade_date = :date_value)"
         "   AND (:from_date IS NULL OR trade_date >= :from_date)"
         "   AND (:to_date IS NULL OR trade_date <= :to_date)"
-        " ORDER BY ts_ns DESC, ingest_ts_ns DESC"
+        "   AND (:after_ts IS NULL OR ts_ns < :after_ts"
+        "       OR (ts_ns = :after_ts AND (ingest_ts_ns < :after_ingest"
+        "           OR (ingest_ts_ns = :after_ingest AND id < :after_id))))"
+        " ORDER BY ts_ns DESC, ingest_ts_ns DESC, id DESC"
         " LIMIT :limit"
     )
     rows = conn.execute(
@@ -1015,10 +1065,24 @@ def query_trades(
             "date_value": date_value,
             "from_date": from_date,
             "to_date": to_date,
+            "after_ts": after_ts,
+            "after_ingest": after_ingest,
+            "after_id": after_id,
             "limit": limit,
         },
     ).fetchall()
     return [dict(r) for r in rows]
+
+
+def query_retained_from(conn: sqlite3.Connection) -> str | None:
+    """The oldest ``trade_date`` still in ``trade_events``; ``None`` when empty.
+
+    Raw trades older than the retention window are pruned while the daily
+    summaries stay, so this is where a raw-trade audit (or a reconciliation)
+    can start.
+    """
+    row = conn.execute("SELECT MIN(trade_date) FROM trade_events").fetchone()
+    return row[0] if row else None
 
 
 # A plain ``trade_date = ?`` so the planner uses ix_trade_events_date; the
@@ -1240,6 +1304,19 @@ def query_health(
     return [result]
 
 
+def query_freshness(conn: sqlite3.Connection) -> dict[str, int | None]:
+    """The newest trade and the latest write the position rows record.
+
+    Cheap enough to poll: ``gateway_symbol_positions`` has one row per
+    gateway and symbol, while ``query_health`` scans ``trade_events``.
+    """
+    row = conn.execute(
+        "SELECT MAX(last_trade_ts_ns), MAX(updated_ts_ns)"
+        " FROM gateway_symbol_positions"
+    ).fetchone()
+    return {"last_trade_ts_ns": row[0], "last_flush_ts_ns": row[1]}
+
+
 def query_session_events(
     conn: sqlite3.Connection,
     *,
@@ -1261,7 +1338,7 @@ def query_session_events(
         " WHERE (:event_type IS NULL OR event_type = :event_type)"
         "   AND (:from_date IS NULL OR trade_date >= :from_date)"
         "   AND (:to_date IS NULL OR trade_date <= :to_date)"
-        " ORDER BY ts_ns DESC"
+        " ORDER BY ts_ns DESC, id DESC"
         " LIMIT :limit"
     )
     rows = conn.execute(
@@ -1359,12 +1436,18 @@ def query_sessions(
     to_date: str | None = None,
     connected_only: bool = False,
     limit: int = 500,
+    from_ns: int | None = None,
+    to_ns: int | None = None,
 ) -> list[dict[str, Any]]:
     """
     Return gateway connection/disconnection history from gateway_sessions.
 
     connected_only=True filters to sessions where disconnected_at_ns IS NULL
     (gateways still connected or whose disconnect was not recorded).
+
+    ``from_date``/``to_date`` compare the connect time's UTC date;
+    ``from_ns`` (inclusive) and ``to_ns`` (exclusive) bound it exactly, for a
+    caller that resolved a trading day in the session timezone.
     """
     sql = (
         "SELECT gateway_id, connected_at_ns, disconnected_at_ns, disconnect_reason,"
@@ -1376,7 +1459,9 @@ def query_sessions(
         "       OR date(connected_at_ns / 1000000000, 'unixepoch') >= :from_date)"
         "   AND (:to_date IS NULL"
         "       OR date(connected_at_ns / 1000000000, 'unixepoch') <= :to_date)"
-        " ORDER BY connected_at_ns DESC"
+        "   AND (:from_ns IS NULL OR connected_at_ns >= :from_ns)"
+        "   AND (:to_ns IS NULL OR connected_at_ns < :to_ns)"
+        " ORDER BY connected_at_ns DESC, gateway_id ASC"
         " LIMIT :limit"
     )
     rows = conn.execute(
@@ -1386,6 +1471,8 @@ def query_sessions(
             "connected_only": 1 if connected_only else 0,
             "from_date": from_date,
             "to_date": to_date,
+            "from_ns": from_ns,
+            "to_ns": to_ns,
             "limit": limit,
         },
     ).fetchall()
@@ -1420,6 +1507,7 @@ def query_reconcile(
       raw_notional      — notional counted directly from trade_events
       summary_notional  — notional stored in gateway_daily_summary
       notional_diff     — raw_notional - summary_notional
+      tick_decimals     — precision of the notionals (the summary row's)
     """
     sql = """
     WITH
@@ -1431,7 +1519,8 @@ def query_reconcile(
         buy_gateway_id   AS gateway_id,
         symbol,
         SUM(quantity)            AS raw_qty,
-        SUM(quantity * price)    AS raw_notional
+        SUM(quantity * price)    AS raw_notional,
+        MAX(tick_decimals)       AS tick_decimals
       FROM trade_events
       WHERE (:from_date IS NULL OR trade_date >= :from_date)
         AND (:to_date   IS NULL OR trade_date <= :to_date)
@@ -1447,7 +1536,8 @@ def query_reconcile(
         sell_gateway_id  AS gateway_id,
         symbol,
         SUM(quantity)            AS raw_qty,
-        SUM(quantity * price)    AS raw_notional
+        SUM(quantity * price)    AS raw_notional,
+        MAX(tick_decimals)       AS tick_decimals
       FROM trade_events
       WHERE (:from_date IS NULL OR trade_date >= :from_date)
         AND (:to_date   IS NULL OR trade_date <= :to_date)
@@ -1469,7 +1559,8 @@ def query_reconcile(
         gateway_id,
         symbol,
         buy_qty      AS summary_qty,
-        buy_notional AS summary_notional
+        buy_notional AS summary_notional,
+        tick_decimals
       FROM gateway_daily_summary
       WHERE (:from_date IS NULL OR trade_date >= :from_date)
         AND (:to_date   IS NULL OR trade_date <= :to_date)
@@ -1483,7 +1574,8 @@ def query_reconcile(
         gateway_id,
         symbol,
         sell_qty      AS summary_qty,
-        sell_notional AS summary_notional
+        sell_notional AS summary_notional,
+        tick_decimals
       FROM gateway_daily_summary
       WHERE (:from_date IS NULL OR trade_date >= :from_date)
         AND (:to_date   IS NULL OR trade_date <= :to_date)
@@ -1518,7 +1610,8 @@ def query_reconcile(
       -- qty and notional are both INTEGER ticks, so an exact difference is the
       -- right test (no float epsilon needed).
       (COALESCE(r.raw_notional, 0) - COALESCE(s.summary_notional, 0))
-                                      AS notional_diff
+                                      AS notional_diff,
+      COALESCE(s.tick_decimals, r.tick_decimals) AS tick_decimals
     FROM keys k
     LEFT JOIN raw_all r
       ON  r.side       = k.side

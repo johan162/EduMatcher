@@ -640,6 +640,58 @@ class TestQueryTrades:
         rows = query_trades(conn)
         assert [r["id"] for r in rows] == ["T-NEW-INGEST", "T-OLD-INGEST"]
 
+    def test_after_continues_inside_one_timestamp(
+        self, conn: sqlite3.Connection
+    ) -> None:
+        """Auction prints share ts_ns: a page boundary between them must
+        neither repeat nor skip a trade."""
+        flush_batch(
+            conn,
+            [
+                _trade_row(
+                    f"T-{n}",
+                    ts_ns=9_000_000_000,
+                    ingest_ts_ns=ingest,
+                    trade_date="2026-07-01",
+                )
+                for n, ingest in ((1, 100), (2, 100), (3, 200))
+            ],
+            [],
+            [],
+        )
+        first = query_trades(conn, limit=2)
+        last = first[-1]
+        rest = query_trades(
+            conn, after=(last["ts_ns"], last["ingest_ts_ns"], last["id"])
+        )
+        assert [r["id"] for r in first + rest] == ["T-3", "T-2", "T-1"]
+
+    def test_a_page_reads_the_sort_index_not_the_whole_table(
+        self, conn: sqlite3.Connection
+    ) -> None:
+        """F2 (clearing GUI CG9): the newest-first page must walk an index in
+        its sort order and stop at LIMIT. Without one SQLite scanned and sorted
+        every retained trade per page (190 ms at 180k trades, growing with
+        retention)."""
+        statements: list[str] = []
+        conn.set_trace_callback(statements.append)
+        query_trades(conn, gateway="GW_BUY", limit=10, after=(5, 5, "T5"))
+        conn.set_trace_callback(None)
+        plan = [r[3] for r in conn.execute("EXPLAIN QUERY PLAN " + statements[-1])]
+        assert any("USING INDEX ix_trade_events_ts" in step for step in plan), plan
+        assert not any("TEMP B-TREE" in step for step in plan), plan
+
+    def test_rows_carry_match_type_and_msg_id(self, conn: sqlite3.Connection) -> None:
+        row = _trade_row("T-A", ts_ns=1, ingest_ts_ns=2, trade_date="2026-07-01")
+        row.match_type = "OPENING_AUCTION"
+        row.msg_id = "01JC0000000000000000000009"
+        flush_batch(conn, [row], [], [])
+        (got,) = query_trades(conn)
+        assert (got["match_type"], got["msg_id"]) == (
+            "OPENING_AUCTION",
+            "01JC0000000000000000000009",
+        )
+
 
 class TestQueryExposure:
     def test_returns_rows_with_notional(self, seeded_conn: sqlite3.Connection) -> None:

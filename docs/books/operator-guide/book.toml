@@ -73,6 +73,7 @@ files = [
   "050-log-console.md",
   "060-health-monitor.md",
   "070-operator-dashboard.md",
+  "080-clearing-gui.md",
 ]
 
 [backmatter]

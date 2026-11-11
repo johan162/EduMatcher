@@ -480,6 +480,323 @@ class VolumeView(rest_system.Volume, _Counted):
 
 
 # ---------------------------------------------------------------------------
+# Clearing (pm-clearing's clearing.db, pm-eod's eod.db)
+#
+# A money column of a clearing row comes twice: `<name>_ticks` as stored, in
+# ticks of the row's `tick_decimals`, and `<name>` in display currency
+# (`<name>_ticks / 10**tick_decimals`). Ticks of different symbols are
+# different amounts of money, so only the display values may be added up
+# across rows. Settlement amounts are a third unit: integer minor units of
+# the display currency (2 decimals), named `*_minor`.
+# ---------------------------------------------------------------------------
+
+
+def _ticks(column: str) -> Any:
+    return Field(description=f"`{column}` as stored, in ticks of `tick_decimals`.")
+
+
+def _display(text: str) -> Any:
+    return Field(description=f"{text}, in display currency.")
+
+
+_TICK_DECIMALS = Field(
+    description="Price scale of this row: its ticks are 10**-tick_decimals of the "
+    "display currency."
+)
+
+
+class _Bounded(_Counted):
+    has_more: bool = Field(
+        description="More rows match than `limit` returned; narrow the filters "
+        "(the date range, say) to see them."
+    )
+
+
+class ClearingPositionRow(BaseModel):
+    gateway_id: str
+    symbol: str
+    net_qty: int = Field(description="Signed shares: negative is short.")
+    tick_decimals: int = _TICK_DECIMALS
+    avg_cost: float = _display("Volume-weighted entry price")
+    avg_cost_ticks: float = _ticks("avg_cost")
+    mark_price: float | None = _display(
+        "Mark: the last trade price, or the end-of-day mark; null before one"
+    )
+    mark_price_ticks: int | None = _ticks("mark_price")
+    realized_pnl: float = _display("Cumulative realized P&L")
+    realized_pnl_ticks: float = _ticks("realized_pnl")
+    unrealized_pnl: float = _display("Open P&L at the mark")
+    unrealized_pnl_ticks: float = _ticks("unrealized_pnl")
+    buy_qty: int = Field(description="Shares bought, cumulative.")
+    sell_qty: int = Field(description="Shares sold, cumulative.")
+    buy_notional: float = _display("Bought value, cumulative")
+    buy_notional_ticks: int = _ticks("buy_notional")
+    sell_notional: float = _display("Sold value, cumulative")
+    sell_notional_ticks: int = _ticks("sell_notional")
+    last_trade_ts_ns: int | None = Field(
+        description="Exchange time of the last trade (epoch nanoseconds)."
+    )
+    updated_ts_ns: int = Field(
+        description="When clearing last wrote the row (epoch nanoseconds)."
+    )
+
+
+class ClearingPositions(_Bounded):
+    positions: list[ClearingPositionRow] = Field(description="By gateway, symbol.")
+
+
+class ExposureRow(BaseModel):
+    gateway_id: str
+    symbol: str
+    net_qty: int = Field(description="Signed shares: negative is short.")
+    tick_decimals: int = _TICK_DECIMALS
+    mark_price: float | None = _display("Mark; null before one")
+    mark_price_ticks: int | None = _ticks("mark_price")
+    net_notional: float | None = _display("`net_qty * mark_price`, signed")
+    net_notional_ticks: int | None = _ticks("net_notional")
+    gross_notional: float | None = _display("`abs(net_notional)`")
+    gross_notional_ticks: int | None = _ticks("gross_notional")
+    realized_pnl: float = _display("Cumulative realized P&L")
+    realized_pnl_ticks: float = _ticks("realized_pnl")
+    unrealized_pnl: float = _display("Open P&L at the mark")
+    unrealized_pnl_ticks: float = _ticks("unrealized_pnl")
+    total_pnl: float = _display("Realized plus unrealized")
+    total_pnl_ticks: float = _ticks("total_pnl")
+
+
+class Exposure(_Bounded):
+    exposure: list[ExposureRow] = Field(
+        description="Largest first by the `sort` measure, in display currency."
+    )
+
+
+class ClearingTradeRow(BaseModel):
+    trade_id: str = Field(description="The engine's durable trade id.")
+    ts_ns: int = Field(description="Exchange time of the print (epoch nanoseconds).")
+    ingest_ts_ns: int = Field(
+        description="When clearing wrote the trade (epoch nanoseconds); not an "
+        "exchange time."
+    )
+    trade_date: str = Field(description="Trading day, in the session timezone.")
+    symbol: str
+    quantity: int
+    tick_decimals: int = _TICK_DECIMALS
+    price: float = _display("Trade price")
+    price_ticks: int = _ticks("price")
+    buy_gateway_id: str | None = Field(
+        description="Null when the caller is not the buyer and not ADMIN."
+    )
+    sell_gateway_id: str | None = Field(
+        description="Null when the caller is not the seller and not ADMIN."
+    )
+    buy_order_id: str | None = Field(
+        description="Null with `buy_gateway_id`, or when not recorded."
+    )
+    sell_order_id: str | None = Field(
+        description="Null with `sell_gateway_id`, or when not recorded."
+    )
+    aggressor_side: str | None = Field(
+        description="As the engine sent it; not an aggressor signal for auctions."
+    )
+    match_type: str | None = Field(
+        description="How the trade came about (`CONTINUOUS`, `CLOSING_AUCTION`, ...)."
+    )
+    msg_id: str | None = Field(
+        description="The audit trail's message id of the print, when recorded."
+    )
+
+
+class ClearingTradePage(_Page):
+    trades: list[ClearingTradeRow] = Field(description="Newest first.")
+    retained_from: str | None = Field(
+        description="Oldest trading day still held as raw trades (older ones are "
+        "pruned; their daily rows remain); null when none are held."
+    )
+
+
+class ClearingDailyRow(BaseModel):
+    trade_date: str
+    gateway_id: str
+    symbol: str
+    tick_decimals: int = _TICK_DECIMALS
+    traded_qty: int
+    traded_notional: float = _display("Traded value")
+    traded_notional_ticks: int = _ticks("traded_notional")
+    buy_qty: int
+    sell_qty: int
+    buy_notional: float = _display("Bought value")
+    buy_notional_ticks: int = _ticks("buy_notional")
+    sell_notional: float = _display("Sold value")
+    sell_notional_ticks: int = _ticks("sell_notional")
+    net_amount: float = _display("`buy_notional - sell_notional`")
+    net_amount_ticks: int = _ticks("net_amount")
+    realized_pnl: float = _display("The day's realized P&L")
+    realized_pnl_ticks: float = _ticks("realized_pnl")
+    end_net_qty: int = Field(description="Position after the day's last trade.")
+    end_avg_cost: float = _display("Average cost after the day's last trade")
+    end_avg_cost_ticks: float = _ticks("end_avg_cost")
+    end_unrealized_pnl: float = _display("Open P&L after the day's last trade")
+    end_unrealized_pnl_ticks: float = _ticks("end_unrealized_pnl")
+    last_trade_ts_ns: int | None
+    updated_ts_ns: int
+
+
+class ClearingDaily(_Bounded):
+    daily: list[ClearingDailyRow] = Field(
+        description="Newest day first, then gateway, symbol."
+    )
+
+
+class CloseSnapshotRow(BaseModel):
+    trade_date: str = Field(description="The trading day the snapshot closed.")
+    gateway_id: str
+    symbol: str
+    net_qty: int
+    tick_decimals: int = _TICK_DECIMALS
+    realized_pnl: float = _display("Cumulative realized P&L at the close")
+    realized_pnl_ticks: float = _ticks("realized_pnl")
+    unrealized_pnl: float = _display("Open P&L at the closing mark")
+    unrealized_pnl_ticks: float = _ticks("unrealized_pnl")
+    mark_price: float | None = _display("Closing mark; null before one")
+    mark_price_ticks: int | None = _ticks("mark_price")
+
+
+class CloseSnapshots(_Bounded):
+    snapshots: list[CloseSnapshotRow] = Field(
+        description="Newest close first, then gateway, symbol."
+    )
+
+
+class ClearingSymbolRow(BaseModel):
+    symbol: str
+    tick_decimals: int = Field(
+        description="The symbol's finest recorded precision; every money value "
+        "of the row is converted to it."
+    )
+    traded_qty: int = Field(
+        description="Shares traded, counted once per side (a 100-share trade is 200)."
+    )
+    traded_notional: float = _display("Traded value, both sides")
+    traded_notional_ticks: float = _ticks("traded_notional")
+    realized_pnl: float = _display("Realized P&L of all gateways")
+    realized_pnl_ticks: float = _ticks("realized_pnl")
+    open_net_qty: int = Field(
+        description="Sum of the current signed positions of all gateways; zero "
+        "when every holder is a gateway. Not open interest."
+    )
+    open_unrealized_pnl: float = _display("Open P&L of all current positions")
+    open_unrealized_pnl_ticks: float = _ticks("open_unrealized_pnl")
+
+
+class ClearingSymbols(_Bounded):
+    symbols: list[ClearingSymbolRow] = Field(description="By symbol.")
+
+
+class ParticipantRow(BaseModel):
+    gateway_id: str
+    realized_pnl: float = _display(
+        "Realized P&L over all symbols, each converted before the sum"
+    )
+    unrealized_pnl: float = _display("Open P&L over all symbols, likewise")
+    total_pnl: float = _display("Realized plus unrealized")
+    position_count: int = Field(description="Symbols the gateway has a row for.")
+    open_position_count: int = Field(description="Of those, with `net_qty != 0`.")
+    last_update_ts_ns: int | None = Field(
+        description="Latest clearing write of any of its positions; null when "
+        "it has none."
+    )
+
+
+class Participants(_Bounded):
+    participants: list[ParticipantRow] = Field(description="By gateway id.")
+
+
+class ParticipantLinks(BaseModel):
+    """The scoped routes for the gateway's other views."""
+
+    positions: str
+    exposure: str
+    trades: str
+    daily: str
+    close_snapshots: str
+    gateway_sessions: str
+    settlements: str
+    balances: str
+
+
+class ParticipantDetail(ParticipantRow):
+    positions: list[ClearingPositionRow] = Field(description="By symbol.")
+    latest_close_date: str | None = Field(
+        description="Latest trading day with a close snapshot of the gateway."
+    )
+    links: ParticipantLinks
+
+
+class GapPayload(BaseModel):
+    """A jump clearing saw in the trade ids of its feed: trades it never got."""
+
+    run_seq: int | None = Field(description="Engine run the ids belong to.")
+    last_seq: int | None = Field(description="Last id sequence before the gap.")
+    next_seq: int | None = Field(description="First id sequence after the gap.")
+    missing_trades: int | None = Field(description="Ids skipped: trades not seen.")
+
+
+class FeedGap(GapPayload):
+    trade_date: str
+    ts_ns: int = Field(description="Exchange time of the trade after the gap.")
+
+
+class EodRunStep(BaseModel):
+    step: str
+    status: str
+    message: str
+
+
+class EodRun(BaseModel):
+    trade_date: str
+    status: Literal["ok", "failed", "report-failed"] = Field(
+        description="`ok`: settled and reported. `failed`: not settled. "
+        "`report-failed`: settled, statements not written."
+    )
+    started_at: str = Field(description="ISO-8601 UTC.")
+    finished_at: str = Field(description="ISO-8601 UTC.")
+    steps: list[EodRunStep] | None = Field(
+        default=None,
+        description="ADMIN only: each step's outcome and message. Omitted for a "
+        "participant.",
+    )
+
+
+class ClearingSummary(BaseModel):
+    participant_count: int = Field(description="Gateways with a position row.")
+    open_position_count: int = Field(description="Position rows with `net_qty != 0`.")
+    realized_pnl: float = _display(
+        "Realized P&L of all gateways, each row converted before the sum"
+    )
+    unrealized_pnl: float = _display("Open P&L of all gateways, likewise")
+    last_trade_ts_ns: int | None = Field(
+        description="Exchange time of the newest trade any position records."
+    )
+    last_flush_ts_ns: int | None = Field(
+        description="Latest clearing write of a position row: fills reach the "
+        "ledger in batches, up to the flush interval (5 s by default) after the "
+        "trade."
+    )
+    session_date: str | None = Field(
+        description="Latest trading day clearing recorded a session event for."
+    )
+    gap_count: int = Field(description="Feed gaps clearing saw on `session_date`.")
+    latest_gap: FeedGap | None = Field(description="The newest feed gap, any day.")
+    eod_db_available: bool = Field(
+        description="False when the `pm-eod` ledger is missing or unreadable."
+    )
+    last_eod_run: EodRun | None = Field(
+        description="pm-eod's newest run; null when none, or the ledger is "
+        "unavailable."
+    )
+
+
+# ---------------------------------------------------------------------------
 # Bootstrap
 # ---------------------------------------------------------------------------
 
@@ -522,3 +839,177 @@ class BootstrapAdmin(_Bootstrap):
     gateways: list[rest_system.GatewayInfo] | None
     active_order_counts: dict[str, int]
     monitor_last_seq: dict[str, int]
+
+
+class PhasePayload(BaseModel):
+    state: str = Field(description="The session state entered, e.g. `CLOSED`.")
+    prev_state: str | None = Field(description="The state left; null if unknown.")
+
+
+class EodPayload(BaseModel):
+    symbols_count: int = Field(description="Symbols the engine's EOD marked.")
+    marked_symbols: list[str] = Field(description="Those symbols, sorted.")
+
+
+class SessionEventRow(BaseModel):
+    """One event clearing recorded; exactly one of `phase`, `gap`, `eod` is set,
+    the one named by `event_type`."""
+
+    id: int
+    event_type: Literal["EOD", "PHASE", "GAP"]
+    ts_ns: int = Field(
+        description="When clearing observed the event (epoch nanoseconds); for a "
+        "`GAP`, the exchange time of the trade after it."
+    )
+    trade_date: str = Field(description="Trading day, in the session timezone.")
+    phase: PhasePayload | None = Field(default=None, description="`PHASE` only.")
+    gap: GapPayload | None = Field(default=None, description="`GAP` only.")
+    eod: EodPayload | None = Field(default=None, description="`EOD` only.")
+
+
+class SessionEvents(_Bounded):
+    events: list[SessionEventRow] = Field(description="Newest first.")
+
+
+class GatewaySessionRow(BaseModel):
+    gateway_id: str
+    connected_at_ns: int = Field(
+        description="When clearing saw the gateway connect (epoch nanoseconds)."
+    )
+    disconnected_at_ns: int | None = Field(
+        description="When clearing saw it disconnect; null while connected, or "
+        "when no disconnect was seen."
+    )
+    disconnect_reason: str | None
+
+
+class GatewaySessions(_Bounded):
+    sessions: list[GatewaySessionRow] = Field(description="Newest connect first.")
+
+
+class ReconciliationRow(BaseModel):
+    """A day, side, gateway and symbol where the raw trades and the daily row
+    disagree."""
+
+    side: Literal["BUY", "SELL"]
+    trade_date: str
+    gateway_id: str
+    symbol: str
+    raw_qty: int = Field(description="Shares counted from the raw trades.")
+    summary_qty: int = Field(description="Shares on the daily row.")
+    qty_diff: int = Field(description="`raw_qty - summary_qty`.")
+    tick_decimals: int = _TICK_DECIMALS
+    raw_notional: float = _display("Value counted from the raw trades")
+    raw_notional_ticks: int = _ticks("raw_notional")
+    summary_notional: float = _display("Value on the daily row")
+    summary_notional_ticks: int = _ticks("summary_notional")
+    notional_diff: float = _display("`raw_notional - summary_notional`")
+    notional_diff_ticks: int = _ticks("notional_diff")
+
+
+class Reconciliation(_Bounded):
+    discrepancies: list[ReconciliationRow] = Field(
+        description="Empty: no discrepancy in the compared, retained data -- not "
+        "proof of a complete venue history."
+    )
+    retained_from: str | None = Field(
+        description="Oldest trading day still held as raw trades."
+    )
+    compared_from: str | None = Field(
+        description="First day actually compared: `from`, or `retained_from` if "
+        "later. Null when no day of the range has raw trades left."
+    )
+    compared_to: str | None = Field(description="Last day compared; null likewise.")
+
+
+class DatabaseHealth(BaseModel):
+    available: bool = Field(description="Whether `clearing.db` could be read.")
+    detail: str = Field(description="`readable`, or why it could not be read.")
+    wal_mode: str | None = Field(description="The journal mode; `wal` expected.")
+    trade_events_rows: int | None
+    gateway_symbol_positions_rows: int | None
+    gateway_daily_summary_rows: int | None
+    last_trade_ts_ns: int | None = Field(
+        description="Exchange time of the newest retained trade."
+    )
+    last_flush_ts_ns: int | None = Field(
+        description="Latest clearing write of a daily row."
+    )
+
+
+class ProcessHealth(BaseModel):
+    alive: bool = Field(
+        description="Whether pm-clearing's receive loop answered a ping in time. "
+        "A readable database alone does not prove it."
+    )
+    detail: str
+
+
+class ClearingHealth(BaseModel):
+    database: DatabaseHealth
+    process: ProcessHealth
+
+
+_MINOR = "integer minor units of the display currency (2 decimals: 1234 is 12.34)"
+
+
+class SettlementRow(BaseModel):
+    """One account's settlement for one trading day: the change in its
+    close-to-close P&L, transferred. Not margin, collateral or a payment."""
+
+    trade_date: str
+    account: str = Field(
+        description="A gateway id, or `EXCHANGE` (the rounding residual; ADMIN "
+        "only)."
+    )
+    amount_minor: int = Field(
+        description=f"The settlement, {_MINOR}. Positive: the exchange owes the "
+        "gateway; negative: the gateway owes the exchange."
+    )
+    amount: str = Field(description="`amount_minor` as a signed decimal string.")
+    detail: dict[str, str] = Field(
+        description="Per symbol, the unrounded day P&L in display currency as a "
+        "decimal string, same sign as `amount_minor`; their sum rounds to it."
+    )
+    run_status: Literal["ok", "failed", "report-failed"] | None = Field(
+        description="pm-eod's run of `trade_date`; null if none is recorded."
+    )
+
+
+class Settlements(_Bounded):
+    settlements: list[SettlementRow] = Field(
+        description="Newest day first, then account."
+    )
+    runs: list[EodRun] = Field(
+        description="pm-eod's runs in the date range, newest first, including "
+        "days it ran but did not settle (`failed`)."
+    )
+
+
+class BalanceRow(BaseModel):
+    """A derived balance: the roster's opening balance plus the settlement
+    amounts up to `as_of`. pm-eod stores no balance; this is the sum."""
+
+    account: str
+    opening_balance_minor: int = Field(
+        description=f"From pm-eod's roster, {_MINOR}; 0 when not on it."
+    )
+    opening_balance: str = Field(description="As a signed decimal string.")
+    settlement_total_minor: int = Field(
+        description=f"Sum of the account's settlements up to `as_of`, {_MINOR}."
+    )
+    settlement_total: str = Field(description="As a signed decimal string.")
+    balance_minor: int = Field(
+        description="`opening_balance_minor + settlement_total_minor`."
+    )
+    balance: str = Field(description="As a signed decimal string.")
+
+
+class Balances(_Counted):
+    balances: list[BalanceRow] = Field(description="By account.")
+    as_of: str | None = Field(
+        description="The date the sums stop at, as requested; null for all."
+    )
+    last_settled_date: str | None = Field(
+        description="The latest settled day the sums include; null when none."
+    )

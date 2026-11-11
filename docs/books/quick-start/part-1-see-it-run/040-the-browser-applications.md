@@ -3,7 +3,7 @@
 !!! note "Learning objectives"
     After this chapter you will know:
 
-    - what each of the six browser applications is for
+    - what each of the seven browser applications is for
     - how to log in to the Trading GUI with an API key, and where to find one
     - how to place the same kind of order from the browser that you typed in
       the trader console
@@ -12,9 +12,9 @@
 [Install and Start](020-install-and-start.md). The browser applications are
 not part of the Python package.
 
-## Six windows on one exchange
+## Seven windows on one exchange
 
-All six applications talk to the same running exchange, so anything you do
+All seven applications talk to the same running exchange, so anything you do
 in one — or in a `pm-alf-console` — shows up in the others within a second.
 
 | Address | Application | Read-only? | Use it to… |
@@ -25,9 +25,11 @@ in one — or in a `pm-alf-console` — shows up in the others within a second.
 | <http://localhost:8091> | **Log Operator Console** (`pm-log-ui`) | yes | read what every process is doing, and why something was rejected |
 | <http://localhost:8092> | **Configuration GUI** (`config-gui`) | — | build an exchange configuration with forms instead of YAML |
 | <http://localhost:8095> | **Operator Dashboard** (`pm-dash`) | yes | see at a glance whether every part of the exchange is healthy, and how busy it is |
+| <http://localhost:8096> | **Clearing GUI** (`pm-clearing-ui`) | yes | see your positions, P&L, trades and end-of-day settlement — or, with an ADMIN key, the whole venue's |
 
-The read-only displays need no login. The Trading GUI does, because it can
-change things.
+The read-only displays need no login, except the Clearing GUI, which shows
+each participant only its own records and so asks for the gateway's key. The
+Trading GUI needs one because it can change things.
 
 !!! note "What you will see depends on the previous chapter"
     If you followed [Your First Trade](030-your-first-trade.md), the exchange
@@ -112,7 +114,8 @@ switch. Log in as `MM01` for the market maker's quote management.
 Each application has its own chapter in the Participant Guide —
 [TapeDeck](../../participant-guide/part-6-front-ends/010-trading-info-terminal.md),
 the [Trading GUI](../../participant-guide/part-6-front-ends/020-trading-platform-gui.md)
-and the [Order Book Viewer](../../participant-guide/part-6-front-ends/030-order-book-gui.md)
+the [Order Book Viewer](../../participant-guide/part-6-front-ends/030-order-book-gui.md)
+and the [Clearing GUI](../../participant-guide/part-6-front-ends/040-clearing-gui.md)
 — and the Operator's Guide covers the
 [Log Operator Console](../../operator-guide/part-6-observe-and-recover/050-log-console.md),
 the [Operator Dashboard](../../operator-guide/part-6-observe-and-recover/070-operator-dashboard.md)

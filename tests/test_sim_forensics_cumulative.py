@@ -13,8 +13,12 @@ import pytest
 from tests.sim_forensics_world import OpenDataset, opener
 from tests.test_sim_forensics_matching import continuous_day
 from tests.test_sim_forensics_rerun import edit, record
-from sim_forensics import checks  # noqa: F401,E402  (registers the checks)
-from sim_forensics.registry import REGISTRY, Outcome, run_checks  # noqa: E402
+from edumatcher.sim_forensics import checks  # noqa: F401,E402  (registers the checks)
+from edumatcher.sim_forensics.registry import (
+    REGISTRY,
+    Outcome,
+    run_checks,
+)  # noqa: E402
 
 
 @pytest.fixture

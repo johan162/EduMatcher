@@ -789,7 +789,7 @@ else
             echo ""
             for img in edumatcher edumatcher-ai-sim edumatcher-config-gui edumatcher-log-gui \
                        edumatcher-terminal-gui edumatcher-trader-gui edumatcher-book-gui \
-                       edumatcher-dash-gui; do
+                       edumatcher-dash-gui edumatcher-clearing-gui; do
                 echo "  ghcr.io/${GITHUB_USER}/${img}:${VERSION_NUMBER}"
             done
         else

@@ -24,9 +24,13 @@ from edumatcher.engine.config_loader import EngineConfig
 from edumatcher.models.order import OrderType, Side
 from tests.engine_harness import order_payload
 from tests.sim_forensics_world import OpenDataset, opener
-from sim_forensics import checks  # noqa: F401,E402  (registers the checks)
-from sim_forensics.checks import differential  # noqa: E402
-from sim_forensics.registry import REGISTRY, Outcome, run_checks  # noqa: E402
+from edumatcher.sim_forensics import checks  # noqa: F401,E402  (registers the checks)
+from edumatcher.sim_forensics.checks import differential  # noqa: E402
+from edumatcher.sim_forensics.registry import (
+    REGISTRY,
+    Outcome,
+    run_checks,
+)  # noqa: E402
 
 import edumatcher.engine.main as engine_main
 

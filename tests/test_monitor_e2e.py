@@ -936,7 +936,7 @@ def _count(n: int) -> str:
     return f"{n:,}".replace(",", "\u2009")
 
 
-def test_all_nine_rows_show_the_live_exchange(
+def test_all_ten_rows_show_the_live_exchange(
     exchange: Exchange, feed: Feed, bridge: Bridge, page: Page | None
 ) -> None:
     """WP-D3's done-when: against the running stack every row shows live
@@ -946,9 +946,9 @@ def test_all_nine_rows_show_the_live_exchange(
         pytest.skip("no Chrome to drive")
     page.goto(f"http://127.0.0.1:{bridge.port}/")
     rows = page.wait(
-        "document.querySelectorAll('[data-widget=row]').length === 9 && "
+        "document.querySelectorAll('[data-widget=row]').length === 10 && "
         "[...document.querySelectorAll('[data-widget=row]')].map(r => r.getAttribute('aria-label'))",
-        "the nine rows",
+        "the ten rows",
     )
     assert rows == [
         "Overview row",
@@ -958,6 +958,7 @@ def test_all_nine_rows_show_the_live_exchange(
         "Trading activity row",
         "Participants row",
         "Order books row",
+        "REST API row",
         "Gateways & infrastructure row",
         "Event log row",
     ]

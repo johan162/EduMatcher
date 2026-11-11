@@ -90,6 +90,26 @@ optional parameters.
 | [GET /api/v1/history/indexes](#get-apiv1historyindexes) | Authenticated key | List index ids with recorded data |
 | [GET /api/v1/history/index-events](#get-apiv1historyindex-events) | Authenticated key | Return index structural and audit events |
 
+### Clearing
+
+| Endpoint | Access | Purpose |
+|---|---|---|
+| [GET /api/v1/clearing/summary](#get-apiv1clearingsummary) | Admin role | Venue clearing overview: totals, freshness, feed gaps, last EOD run |
+| [GET /api/v1/clearing/participants](#get-apiv1clearingparticipants) | Admin role | P&L and position counts per participant gateway |
+| [GET /api/v1/clearing/participants/{gateway_id}](#get-apiv1clearingparticipantsgateway_id) | Admin role, or the gateway itself | One gateway's totals, positions and the routes for its other views |
+| [GET /api/v1/clearing/positions](#get-apiv1clearingpositions) | Admin role, or own gateway | Current positions at their marks |
+| [GET /api/v1/clearing/exposure](#get-apiv1clearingexposure) | Admin role, or own gateway | Net/gross notional and P&L per position |
+| [GET /api/v1/clearing/trades](#get-apiv1clearingtrades) | Admin role, or own gateway | Retained raw executions, keyset-paginated |
+| [GET /api/v1/clearing/daily](#get-apiv1clearingdaily) | Admin role, or own gateway | Daily activity, realized P&L and end-of-day position |
+| [GET /api/v1/clearing/close-snapshots](#get-apiv1clearingclose-snapshots) | Admin role, or own gateway | Position and cumulative P&L at each session close |
+| [GET /api/v1/clearing/symbols](#get-apiv1clearingsymbols) | Admin role | Activity and aggregate net position per symbol |
+| [GET /api/v1/clearing/session-events](#get-apiv1clearingsession-events) | Admin role | `PHASE`, `EOD` and `GAP` events clearing observed |
+| [GET /api/v1/clearing/gateway-sessions](#get-apiv1clearinggateway-sessions) | Admin role, or own gateway | Gateway connect/disconnect history |
+| [GET /api/v1/clearing/reconciliation](#get-apiv1clearingreconciliation) | Admin role | Raw trades against daily rows, in an explicit date range |
+| [GET /api/v1/clearing/health](#get-apiv1clearinghealth) | Admin role | Database facts and process liveness, separately |
+| [GET /api/v1/clearing/settlements](#get-apiv1clearingsettlements) | Admin role, or own gateway | `pm-eod` daily settlement amounts (minor units) and runs |
+| [GET /api/v1/clearing/balances](#get-apiv1clearingbalances) | Admin role, or own gateway | Opening balance plus settlements: the derived balance |
+
 ### Admin REST
 
 | Endpoint | Access | Purpose |
@@ -125,6 +145,9 @@ optional parameters.
   company profiles — but no gateway-scoped or admin endpoint.
 - ADMIN endpoints require a credential whose resolved engine gateway role is
   `ADMIN`.
+- `/clearing` endpoints are scoped by role: `ADMIN` reads the venue, a
+  `TRADER` or `MARKET_MAKER` only its own gateway (naming another is `403
+  SCOPE_DENIED`), a read-only credential nothing. See [Clearing](#clearing).
 
 ### Key types and provisioning
 
@@ -183,6 +206,7 @@ the OpenAPI document lists all of them per operation.
 | `ENGINE_AUTH` | `403` | `AUTH_FAILED` | The engine refused the key's gateway identity |
 | `READ_ONLY` | `403` | `ROLE_DENIED` | Read-only key used on a gateway-scoped endpoint |
 | `ROLE_DENIED` | `403` | `ROLE_DENIED` | The key's gateway lacks the role the endpoint needs (`ADMIN`, or `MARKET_MAKER` for `/bootstrap/mm`) |
+| `SCOPE_DENIED` | `403` | `ROLE_DENIED` | A `TRADER` or `MARKET_MAKER` key asked a `/clearing` route for another gateway's data (or the `EXCHANGE` account); only `ADMIN` reads beyond its own gateway |
 | `NOT_FOUND` | `404` | `UNKNOWN` | No such path |
 | `UNKNOWN_ORDER` | `404` | `UNKNOWN` | Order id unknown to the gateway (`GET /orders/{id}`) or absent from the audit trail (`GET /admin/orders/{id}`) |
 | `UNKNOWN_COMPANY` | `404` | `UNKNOWN` | No company profile for the symbol |
@@ -208,6 +232,8 @@ the OpenAPI document lists all of them per operation.
 | `STATS_DB` | `503` | `UNKNOWN` | The `pm-stats` database is not present |
 | `AUDIT_INDEX_UNAVAILABLE` | `503` | `UNKNOWN` | The `pm-audit` index is not built or not running |
 | `COMPANY_DB_UNAVAILABLE` | `503` | `UNKNOWN` | The company database is missing or unreadable |
+| `CLEARING_DB` | `503` | `UNKNOWN` | The `pm-clearing` ledger is missing, locked or unreadable. Never answered as an empty ledger |
+| `EOD_DB` | `503` | `UNKNOWN` | The `pm-eod` ledger is missing or unreadable, or its roster is malformed. A day without settlement is an empty list, not this |
 
 For an engine refusal (`409`), `message` is the engine's own reason. New codes
 may be added within v1; clients must treat an unknown `code` by its HTTP status.
@@ -1995,6 +2021,459 @@ Purpose: return index structural and audit events from `pm-index`.
 | `VALIDATION` | `400` | A body field, query parameter, header or history filter failed validation; `field` names it. `reject_code` is one of `MISSING_FIELD`, `UNSUPPORTED_FIELD`, `INVALID_VALUE`, `TICK_VIOLATION` |
 | `INDEX_ERROR` | `502` | `pm-index` rejected the request |
 | `INDEX_TIMEOUT` | `503` | `pm-index` did not reply in time |
+
+## Clearing
+
+Base path: `/api/v1/clearing`. Read-only views of `pm-clearing`'s ledger
+(`clearing.db`) and `pm-eod`'s settlement ledger (`eod.db`), opened read-only
+by the gateway (`clearing_db`, `eod_db` in its config). Nothing here writes,
+and nothing is derived that the ledgers do not hold: there is no margin,
+equity, collateral, buying power or open interest.
+
+**Scope.** The identity is the gateway; there are no client accounts. An
+`ADMIN` key reads the venue and may narrow any route with `gateway`. A
+`TRADER` or `MARKET_MAKER` key reads its own gateway: without `gateway` it is
+scoped to itself, and naming any other gateway is `403 SCOPE_DENIED` — never a
+silent substitution. A read-only key reads no clearing data (`403
+READ_ONLY`). Venue-wide routes (`summary`, `participants`, `symbols`) are
+`ADMIN` only.
+
+**Units.** Clearing stores money in integer ticks of each symbol's
+`tick_decimals`. Every money column of a row is returned twice: `<name>_ticks`
+as stored and `<name>` in display currency (`<name>_ticks /
+10**tick_decimals`). One tick is a different amount of money per symbol, so
+only display values may be added across rows; the cross-symbol totals the API
+returns (`participants`, `summary`) are sums of display values. Averages and
+P&L are weighted-average results, so their `_ticks` are not whole numbers.
+
+**Freshness and retention.** `pm-clearing` writes fills in batches — every
+100 trades or 5 seconds by default — so a fill can take up to one flush to
+appear (`last_flush_ts_ns` on `summary`). Raw trades are pruned after
+`pm-clearing --retention-days` (90 by default; `retained_from` on `trades`);
+daily rows and close snapshots are kept. Session and gateway-lifecycle times
+are when clearing observed the event, not engine times. A `GAP` is a jump
+clearing saw in the trade ids of its feed; the absence of one does not prove
+the feed was complete.
+
+**Lists.** A list reply is `{"<plural>": [...], "count", "has_more"}`, at most
+`limit` rows in a stable order; `has_more: true` means more rows match — narrow
+the filters. `trades` is keyset-paginated like the history endpoints
+(`has_more`, `next_cursor`, passed back as `after`). Dates are `YYYY-MM-DD`
+trading days in the session timezone; a malformed date, or a `from` after
+`to`, is `400 VALIDATION`. A missing, locked or unreadable `clearing.db` is
+`503 CLEARING_DB`, never an empty list; an empty list is a true zero.
+
+### `GET /api/v1/clearing/summary`
+
+Purpose: the venue's clearing state — participant and open-position counts, realized/unrealized P&L in display currency, the latest trade and flush times, feed gaps on the latest session date (`gap_count`, `latest_gap`), and `pm-eod`'s newest run (`last_eod_run`; `eod_db_available: false` when the EOD ledger cannot be read, which is not an error here).
+
+**Arguments**
+
+| Name | Type | Req | Description |
+|---|---|---|---|
+| none | | | |
+
+**Reply**
+
+| Status | Shape | Meaning |
+|---|---|---|
+| `200 OK` | `ClearingSummary` | Venue clearing state |
+
+**Errors**
+
+| Code | Status | When |
+|---|---|---|
+| `READ_ONLY` | `403` | Read-only key: no clearing data |
+| `ROLE_DENIED` | `403` | The key's gateway is not `ADMIN` |
+| `CLEARING_DB` | `503` | `clearing.db` missing, locked or unreadable |
+
+### `GET /api/v1/clearing/participants`
+
+Purpose: per gateway with a position row, realized/unrealized/total P&L in display currency (each position converted before the sum), `position_count`, `open_position_count` and `last_update_ts_ns`.
+
+**Arguments**
+
+| Name | Type | Req | Description |
+|---|---|---|---|
+| `limit` | `Int` | no | 1-5000, default 1000; `has_more` says more rows match |
+
+**Reply**
+
+| Status | Shape | Meaning |
+|---|---|---|
+| `200 OK` | bounded list envelope (`participants`) | One row per gateway, by gateway id |
+
+**Errors**
+
+| Code | Status | When |
+|---|---|---|
+| `VALIDATION` | `400` | A filter is malformed (date, range, `limit`, cursor, `sort`); `field` names it |
+| `READ_ONLY` | `403` | Read-only key: no clearing data |
+| `ROLE_DENIED` | `403` | The key's gateway is not `ADMIN` |
+| `CLEARING_DB` | `503` | `clearing.db` missing, locked or unreadable |
+
+### `GET /api/v1/clearing/participants/{gateway_id}`
+
+Purpose: one gateway's totals (as in `participants`), its positions, `latest_close_date`, and `links` — the scoped routes for its trades, daily rows, close snapshots, gateway sessions, settlements and balances. A gateway clearing has no rows for answers zeros and `positions: []`.
+
+**Arguments**
+
+| Name | Type | Req | Description |
+|---|---|---|---|
+| `gateway_id` | `GatewayId` | yes (path) | The gateway; a participant may name only itself |
+
+**Reply**
+
+| Status | Shape | Meaning |
+|---|---|---|
+| `200 OK` | `ParticipantDetail` | The gateway's current clearing state |
+
+**Errors**
+
+| Code | Status | When |
+|---|---|---|
+| `VALIDATION` | `400` | A filter is malformed (date, range, `limit`, cursor, `sort`); `field` names it |
+| `READ_ONLY` | `403` | Read-only key: no clearing data |
+| `SCOPE_DENIED` | `403` | A `TRADER` or `MARKET_MAKER` key named another gateway |
+| `CLEARING_DB` | `503` | `clearing.db` missing, locked or unreadable |
+
+### `GET /api/v1/clearing/positions`
+
+Purpose: current position per gateway and symbol: signed `net_qty`, `avg_cost`, `mark_price`, realized and unrealized P&L, cumulative buy/sell quantities and values, `last_trade_ts_ns` (exchange time) and `updated_ts_ns` (clearing write time). Ordered by gateway, symbol.
+
+**Arguments**
+
+| Name | Type | Req | Description |
+|---|---|---|---|
+| `gateway` | `GatewayId` | no | Only this gateway. ADMIN only; a participant may name only itself and is scoped to itself without it |
+| `symbol` | `Symbol` | no | Only this symbol |
+| `limit` | `Int` | no | 1-5000, default 1000; `has_more` says more rows match |
+
+**Reply**
+
+| Status | Shape | Meaning |
+|---|---|---|
+| `200 OK` | bounded list envelope (`positions`) | Positions as of the latest flush |
+
+**Errors**
+
+| Code | Status | When |
+|---|---|---|
+| `VALIDATION` | `400` | A filter is malformed (date, range, `limit`, cursor, `sort`); `field` names it |
+| `READ_ONLY` | `403` | Read-only key: no clearing data |
+| `SCOPE_DENIED` | `403` | A `TRADER` or `MARKET_MAKER` key named another gateway |
+| `CLEARING_DB` | `503` | `clearing.db` missing, locked or unreadable |
+
+### `GET /api/v1/clearing/exposure`
+
+Purpose: each position valued at its mark: `net_notional` (signed), `gross_notional`, realized, unrealized and total P&L. A position without a mark has null notionals. Ranked by `sort` in display currency, so symbols of different precision compare correctly.
+
+**Arguments**
+
+| Name | Type | Req | Description |
+|---|---|---|---|
+| `gateway` | `GatewayId` | no | Only this gateway. ADMIN only; a participant may name only itself and is scoped to itself without it |
+| `symbol` | `Symbol` | no | Only this symbol |
+| `sort` | `gross_notional` \| `net_notional` \| `realized_pnl` \| `unrealized_pnl` \| `total_pnl` | no | Largest first by this measure; default `gross_notional` |
+| `limit` | `Int` | no | 1-5000, default 1000; `has_more` says more rows match |
+
+**Reply**
+
+| Status | Shape | Meaning |
+|---|---|---|
+| `200 OK` | bounded list envelope (`exposure`) | Marked positions |
+
+**Errors**
+
+| Code | Status | When |
+|---|---|---|
+| `VALIDATION` | `400` | A filter is malformed (date, range, `limit`, cursor, `sort`); `field` names it |
+| `READ_ONLY` | `403` | Read-only key: no clearing data |
+| `SCOPE_DENIED` | `403` | A `TRADER` or `MARKET_MAKER` key named another gateway |
+| `CLEARING_DB` | `503` | `clearing.db` missing, locked or unreadable |
+
+### `GET /api/v1/clearing/trades`
+
+Purpose: the raw executions clearing still holds, newest first by exchange time (`ts_ns`, then `trade_id`). Each row carries `ingest_ts_ns` (clearing's write time), `trade_date`, `price`/`price_ticks`/`tick_decimals`, both order ids, `aggressor_side`, `match_type` and the audit `msg_id`. A participant sees its own side only: the counterparty's gateway and order id are `null`. `retained_from` is the oldest trading day still held.
+
+**Arguments**
+
+| Name | Type | Req | Description |
+|---|---|---|---|
+| `gateway` | `GatewayId` | no | Only this gateway. ADMIN only; a participant may name only itself and is scoped to itself without it |
+| `symbol` | `Symbol` | no | Only this symbol |
+| `date` | `Date` | no | One trading day, session timezone |
+| `from` | `Date` | no | First trading day, inclusive |
+| `to` | `Date` | no | Last trading day, inclusive; not before `from` |
+| `limit` | `Int` | no | Page size, 1-5000, default 500 |
+| `after` | `Cursor` | no | Opaque page cursor: the previous page's `next_cursor` |
+
+**Reply**
+
+| Status | Shape | Meaning |
+|---|---|---|
+| `200 OK` | paginated list envelope (`trades`) + `retained_from` | One page of retained trades |
+
+**Errors**
+
+| Code | Status | When |
+|---|---|---|
+| `VALIDATION` | `400` | A filter is malformed (date, range, `limit`, cursor, `sort`); `field` names it |
+| `READ_ONLY` | `403` | Read-only key: no clearing data |
+| `SCOPE_DENIED` | `403` | A `TRADER` or `MARKET_MAKER` key named another gateway |
+| `CLEARING_DB` | `503` | `clearing.db` missing, locked or unreadable |
+
+### `GET /api/v1/clearing/daily`
+
+Purpose: per trading day, gateway and symbol traded that day: traded/bought/sold quantity and value, `net_amount`, the day's `realized_pnl`, and the position, average cost and open P&L after the day's last trade. Kept after raw trades are pruned. Newest day first.
+
+**Arguments**
+
+| Name | Type | Req | Description |
+|---|---|---|---|
+| `gateway` | `GatewayId` | no | Only this gateway. ADMIN only; a participant may name only itself and is scoped to itself without it |
+| `symbol` | `Symbol` | no | Only this symbol |
+| `date` | `Date` | no | One trading day, session timezone |
+| `from` | `Date` | no | First trading day, inclusive |
+| `to` | `Date` | no | Last trading day, inclusive; not before `from` |
+| `limit` | `Int` | no | 1-5000, default 1000; `has_more` says more rows match |
+
+**Reply**
+
+| Status | Shape | Meaning |
+|---|---|---|
+| `200 OK` | bounded list envelope (`daily`) | Daily rows |
+
+**Errors**
+
+| Code | Status | When |
+|---|---|---|
+| `VALIDATION` | `400` | A filter is malformed (date, range, `limit`, cursor, `sort`); `field` names it |
+| `READ_ONLY` | `403` | Read-only key: no clearing data |
+| `SCOPE_DENIED` | `403` | A `TRADER` or `MARKET_MAKER` key named another gateway |
+| `CLEARING_DB` | `503` | `clearing.db` missing, locked or unreadable |
+
+### `GET /api/v1/clearing/close-snapshots`
+
+Purpose: one row per gateway and symbol at every session close, whether or not it traded that day: `net_qty`, cumulative realized and unrealized P&L, and the closing mark. This close-to-close series is what EOD settlement uses; there is no intraday history. Newest close first.
+
+**Arguments**
+
+| Name | Type | Req | Description |
+|---|---|---|---|
+| `gateway` | `GatewayId` | no | Only this gateway. ADMIN only; a participant may name only itself and is scoped to itself without it |
+| `symbol` | `Symbol` | no | Only this symbol |
+| `date` | `Date` | no | One trading day, session timezone |
+| `from` | `Date` | no | First trading day, inclusive |
+| `to` | `Date` | no | Last trading day, inclusive; not before `from` |
+| `limit` | `Int` | no | 1-5000, default 1000; `has_more` says more rows match |
+
+**Reply**
+
+| Status | Shape | Meaning |
+|---|---|---|
+| `200 OK` | bounded list envelope (`snapshots`) | Close snapshots |
+
+**Errors**
+
+| Code | Status | When |
+|---|---|---|
+| `VALIDATION` | `400` | A filter is malformed (date, range, `limit`, cursor, `sort`); `field` names it |
+| `READ_ONLY` | `403` | Read-only key: no clearing data |
+| `SCOPE_DENIED` | `403` | A `TRADER` or `MARKET_MAKER` key named another gateway |
+| `CLEARING_DB` | `503` | `clearing.db` missing, locked or unreadable |
+
+### `GET /api/v1/clearing/symbols`
+
+Purpose: per symbol traded in the date range: `traded_qty` (counted once per side), traded value and realized P&L, plus the current aggregate signed position (`open_net_qty`) and its open P&L. `open_net_qty` sums signed positions, so it is zero while every holder is a gateway; it is not open interest. Money is converted to the symbol's finest recorded precision.
+
+**Arguments**
+
+| Name | Type | Req | Description |
+|---|---|---|---|
+| `date` | `Date` | no | One trading day, session timezone |
+| `from` | `Date` | no | First trading day, inclusive |
+| `to` | `Date` | no | Last trading day, inclusive; not before `from` |
+| `limit` | `Int` | no | 1-5000, default 1000; `has_more` says more rows match |
+
+**Reply**
+
+| Status | Shape | Meaning |
+|---|---|---|
+| `200 OK` | bounded list envelope (`symbols`) | Activity per symbol |
+
+**Errors**
+
+| Code | Status | When |
+|---|---|---|
+| `VALIDATION` | `400` | A filter is malformed (date, range, `limit`, cursor, `sort`); `field` names it |
+| `READ_ONLY` | `403` | Read-only key: no clearing data |
+| `ROLE_DENIED` | `403` | The key's gateway is not `ADMIN` |
+| `CLEARING_DB` | `503` | `clearing.db` missing, locked or unreadable |
+
+### `GET /api/v1/clearing/session-events`
+
+Purpose: the events clearing recorded, newest first: `PHASE` (session state changes, `phase: {state, prev_state}`), `EOD` (the engine's end of day, `eod: {symbols_count, marked_symbols}`) and `GAP` (a jump in the trade ids clearing received, `gap: {run_seq, last_seq, next_seq, missing_trades}`). Exactly one payload field is present, the one `event_type` names; the stored JSON is not part of the contract. `ts_ns` is when clearing observed the event (for a `GAP`, the exchange time of the trade after it). No `GAP` does not prove the feed was complete.
+
+**Arguments**
+
+| Name | Type | Req | Description |
+|---|---|---|---|
+| `type` | `EOD` \| `PHASE` \| `GAP` | no | Only this event type (case-insensitive); anything else is `400` |
+| `from` | `Date` | no | First trading day, inclusive |
+| `to` | `Date` | no | Last trading day, inclusive; not before `from` |
+| `limit` | `Int` | no | 1-5000, default 1000; `has_more` says more rows match |
+
+**Reply**
+
+| Status | Shape | Meaning |
+|---|---|---|
+| `200 OK` | bounded list envelope (`events`) | Session events |
+
+**Errors**
+
+| Code | Status | When |
+|---|---|---|
+| `VALIDATION` | `400` | A filter is malformed (date, range, `limit`, cursor, `sort`); `field` names it |
+| `READ_ONLY` | `403` | Read-only key: no clearing data |
+| `ROLE_DENIED` | `403` | The key's gateway is not `ADMIN` |
+| `CLEARING_DB` | `503` | `clearing.db` missing, locked or unreadable |
+
+### `GET /api/v1/clearing/gateway-sessions`
+
+Purpose: when clearing saw each gateway connect and disconnect, and the recorded `disconnect_reason`, newest connect first. `from`/`to` select by the trading day of the connect in the session timezone. A session without `disconnected_at_ns` is still connected, or its disconnect was not seen.
+
+**Arguments**
+
+| Name | Type | Req | Description |
+|---|---|---|---|
+| `gateway` | `GatewayId` | no | Only this gateway. ADMIN only; a participant may name only itself and is scoped to itself without it |
+| `from` | `Date` | no | First trading day of the connect, inclusive |
+| `to` | `Date` | no | Last trading day of the connect, inclusive |
+| `connected_only` | `Bool` | no | Only sessions without a recorded disconnect |
+| `limit` | `Int` | no | 1-5000, default 1000; `has_more` says more rows match |
+
+**Reply**
+
+| Status | Shape | Meaning |
+|---|---|---|
+| `200 OK` | bounded list envelope (`sessions`) | Gateway sessions |
+
+**Errors**
+
+| Code | Status | When |
+|---|---|---|
+| `VALIDATION` | `400` | A filter is malformed (date, range, `limit`, cursor, `sort`); `field` names it |
+| `READ_ONLY` | `403` | Read-only key: no clearing data |
+| `SCOPE_DENIED` | `403` | A `TRADER` or `MARKET_MAKER` key named another gateway |
+| `CLEARING_DB` | `503` | `clearing.db` missing, locked or unreadable |
+
+### `GET /api/v1/clearing/reconciliation`
+
+Purpose: every day, side, gateway and symbol where the quantity or value counted from the raw trades differs from the daily row (`raw_*`, `summary_*`, `*_diff`, notionals with `_ticks` and `tick_decimals`). It scans the raw trades of the range, so the range is required and the route is an explicit operator action, not a polling query. Raw trades are pruned after the retention window while daily rows stay, so only days from `retained_from` on are compared; `compared_from`/`compared_to` give the window actually compared (both `null` when no day of the range has raw trades left). An empty list means no discrepancy in the compared, retained data — not a verified complete history.
+
+**Arguments**
+
+| Name | Type | Req | Description |
+|---|---|---|---|
+| `from` | `Date` | yes | First trading day |
+| `to` | `Date` | yes | Last trading day; not before `from` |
+| `gateway` | `GatewayId` | no | Only this gateway |
+| `symbol` | `Symbol` | no | Only this symbol |
+| `limit` | `Int` | no | 1-5000, default 1000; `has_more` says more rows match |
+
+**Reply**
+
+| Status | Shape | Meaning |
+|---|---|---|
+| `200 OK` | bounded list envelope (`discrepancies`) + `retained_from`, `compared_from`, `compared_to` | Discrepancies in the compared window |
+
+**Errors**
+
+| Code | Status | When |
+|---|---|---|
+| `VALIDATION` | `400` | A filter is malformed (date, range, `limit`, cursor, `sort`); `field` names it |
+| `READ_ONLY` | `403` | Read-only key: no clearing data |
+| `ROLE_DENIED` | `403` | The key's gateway is not `ADMIN` |
+| `CLEARING_DB` | `503` | `clearing.db` missing, locked or unreadable |
+
+### `GET /api/v1/clearing/health`
+
+Purpose: two separate facts. `database`: whether `clearing.db` is readable (`available`, `detail`), its journal mode, row counts and latest trade and flush times. `process`: whether `pm-clearing`'s receive loop answered a ping within 0.5 s (`alive`, `detail`) — the check `pm-clearing-cli health` makes. A readable database does not prove the process is alive, and a silent process does not hide the database facts; either failure is reported inside a `200`. Each call pings once: poll it sparingly. No file path or socket address is returned.
+
+**Arguments**
+
+| Name | Type | Req | Description |
+|---|---|---|---|
+| none | | | |
+
+**Reply**
+
+| Status | Shape | Meaning |
+|---|---|---|
+| `200 OK` | `ClearingHealth` | Database and process health |
+
+**Errors**
+
+| Code | Status | When |
+|---|---|---|
+| `READ_ONLY` | `403` | Read-only key: no clearing data |
+| `ROLE_DENIED` | `403` | The key's gateway is not `ADMIN` |
+
+### `GET /api/v1/clearing/settlements`
+
+Purpose: `pm-eod`'s daily settlement per account, newest day first, then account. `amount_minor` is an integer in minor units of the display currency (2 decimals: `1234` is `12.34`) — a different unit from clearing's ticks; `amount` is the same value as a signed decimal string. Positive means the exchange owes the gateway, negative the gateway owes the exchange; the rows of a day sum to zero. `detail` gives the unrounded day P&L per symbol as decimal strings. `run_status` is the day's `pm-eod` run (`ok`, `failed`, `report-failed`); `runs` lists the runs in the date range, including days that ran but did not settle (step messages for ADMIN only). A settlement is the transfer of a day's close-to-close P&L — not margin, collateral or a completed payment. `EXCHANGE` holds the rounding residual and is visible to ADMIN only. A day without a settlement is an empty list; a missing ledger is `503 EOD_DB`.
+
+**Arguments**
+
+| Name | Type | Req | Description |
+|---|---|---|---|
+| `gateway` | `GatewayId` | no | Only this account: a gateway, or `EXCHANGE` (ADMIN only). A participant may name only itself and is scoped to itself without it |
+| `date` | `Date` | no | One trading day |
+| `from` | `Date` | no | First trading day, inclusive |
+| `to` | `Date` | no | Last trading day, inclusive; not before `from` |
+| `limit` | `Int` | no | 1-5000, default 1000; `has_more` says more rows match |
+
+**Reply**
+
+| Status | Shape | Meaning |
+|---|---|---|
+| `200 OK` | bounded list envelope (`settlements`) + `runs` | Settlement rows and `pm-eod` runs |
+
+**Errors**
+
+| Code | Status | When |
+|---|---|---|
+| `VALIDATION` | `400` | A filter is malformed (date, range, `limit`, cursor, `sort`); `field` names it |
+| `READ_ONLY` | `403` | Read-only key: no clearing data |
+| `SCOPE_DENIED` | `403` | A `TRADER` or `MARKET_MAKER` key named another gateway |
+| `EOD_DB` | `503` | `eod.db` missing or unreadable, or its roster malformed |
+
+### `GET /api/v1/clearing/balances`
+
+Purpose: per account, the opening balance from `pm-eod`'s roster (`ref_data/roster.yaml` beside `eod.db`), the sum of its settlements up to `as_of`, and their total — all integer minor units with decimal-string twins. The balance is derived by the gateway; `pm-eod` stores none. It is a running total of mark-to-market settlements, not cash, equity or collateral. ADMIN sees every account on the roster or in the ledger, `EXCHANGE` included; a participant its own (zeros when it is on neither). `last_settled_date` is the latest settled day the sums include.
+
+**Arguments**
+
+| Name | Type | Req | Description |
+|---|---|---|---|
+| `gateway` | `GatewayId` | no | Only this account: a gateway, or `EXCHANGE` (ADMIN only). A participant may name only itself and is scoped to itself without it |
+| `as_of` | `Date` | no | Sum settlements up to and including this trading day; all without it |
+
+**Reply**
+
+| Status | Shape | Meaning |
+|---|---|---|
+| `200 OK` | `{ "balances", "count", "as_of", "last_settled_date" }` | Derived balance per account |
+
+**Errors**
+
+| Code | Status | When |
+|---|---|---|
+| `VALIDATION` | `400` | A filter is malformed (date, range, `limit`, cursor, `sort`); `field` names it |
+| `READ_ONLY` | `403` | Read-only key: no clearing data |
+| `SCOPE_DENIED` | `403` | A `TRADER` or `MARKET_MAKER` key named another gateway |
+| `EOD_DB` | `503` | `eod.db` missing or unreadable, or its roster malformed |
 
 ## Admin REST
 

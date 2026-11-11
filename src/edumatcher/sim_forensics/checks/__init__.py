@@ -1,0 +1,37 @@
+"""Check families; importing this package registers every check."""
+
+from edumatcher.sim_forensics.checks import (  # noqa: F401
+    bookkeeping,
+    breakers,
+    completeness,
+    coverage,
+    cumulative,
+    derived,
+    differential,
+    immediate,
+    lifecycle,
+    matching,
+    ops,
+    persistence,
+    quotes,
+    rerun,
+    trades,
+)
+
+__all__ = [
+    "bookkeeping",
+    "breakers",
+    "completeness",
+    "coverage",
+    "cumulative",
+    "derived",
+    "differential",
+    "immediate",
+    "lifecycle",
+    "matching",
+    "ops",
+    "persistence",
+    "quotes",
+    "rerun",
+    "trades",
+]

@@ -81,6 +81,7 @@ The compose file runs six containers in one compose project,
 | `edumatcher-sim-trader-gui` | `edumatcher-trader-gui` | 8093 | trading screen |
 | `edumatcher-sim-book-gui` | `edumatcher-book-gui` | 8094 | order-book viewer |
 | `edumatcher-sim-dash-gui` | `edumatcher-dash-gui` | 8095 | operator dashboard |
+| `edumatcher-sim-clearing-gui` | `edumatcher-clearing-gui` | 8096 | clearing client (read-only) |
 
 The GUIs reach the exchange over the compose network, at the host name
 `edumatcher`; the host ports are for you and your students' browsers and
@@ -112,7 +113,7 @@ compose file (the installer writes one) or on the command line, as in
 | `EM_VERSION` | `latest` | Which release of all six images to run, e.g. `0.51.0` |
 | `GHCR_OWNER` | `johan162` | Whose published images to pull |
 | `BIND_ADDR` | `127.0.0.1` | Which host interface the ports are published on |
-| `TERMINAL_GUI_PORT`, `LOG_GUI_PORT`, `TRADER_GUI_PORT`, `BOOK_GUI_PORT`, `DASH_GUI_PORT` | 8090, 8091, 8093, 8094, 8095 | Host ports of the GUIs |
+| `TERMINAL_GUI_PORT`, `LOG_GUI_PORT`, `TRADER_GUI_PORT`, `BOOK_GUI_PORT`, `DASH_GUI_PORT`, `CLEARING_GUI_PORT` | 8090, 8091, 8093, 8094, 8095, 8096 | Host ports of the GUIs |
 | `PM_READONLY_API_KEY` | the `s300-sim` key | The read-only key the GUIs use; change it only with your own configuration |
 | `AISIM_IMAGE` | the GHCR image | A different backend image, e.g. one you built |
 

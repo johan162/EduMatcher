@@ -247,6 +247,7 @@ ApiGwyProcSpec:                              # one value of api_gateways (pm-api
   stats_db:                     ? Path = <data dir>/stats.db
   audit_db:                     ? Path = <data dir>/audit_index.db
   clearing_db:                  ? Path = <data dir>/clearing.db
+  eod_db:                       ? Path = <data dir>/eod.db
   order_retention_sec:          ? Int = 3600                  ∈ >= 0
   market_data_cache_sec:        ? Int = 60                    ∈ >= 0
   engine_pull_addr:             ? Str = tcp://<engine host>:5555
@@ -781,7 +782,8 @@ schema tree (§3).
 | `swagger_enabled` | `Bool` | – | `true` | |
 | `stats_db` | `Path` | – | resolved `stats.db` | `~` expanded |
 | `audit_db` | `Path` | – | resolved `audit_index.db` | `~` expanded. Read-only; only `GET /admin/orders/{order_id}/audit` uses it, and that endpoint returns 503 when the file is absent |
-| `clearing_db` | `Path` | – | resolved `clearing.db` | `~` expanded. Read-only; supplies the session/MTD/YTD realized P&L on `GET /positions`, which report `null` when the file is absent |
+| `clearing_db` | `Path` | – | resolved `clearing.db` | `~` expanded. Read-only; supplies the session/MTD/YTD realized P&L on `GET /positions`, which report `null` when the file is absent, and every `/clearing` route, which answers `503 CLEARING_DB` then |
+| `eod_db` | `Path` | – | resolved `eod.db` | `~` expanded. Read-only; `pm-eod`'s ledger for `/clearing/settlements` and `/clearing/balances` (`503 EOD_DB` when absent). The roster with the opening balances is `ref_data/roster.yaml` in the same directory |
 | `order_retention_sec` | `Int` | – | `3600` | `>= 0`. Seconds a terminal order stays in the in-memory cache; `0` disables eviction |
 | `market_data_cache_sec` | `Int` | – | `60` | `>= 0`. TTL for cached market-data reads served by this instance |
 | `engine_pull_addr` | `Str` | – | `tcp://<engine host>:5555` | ZeroMQ endpoint the gateway sends orders to; `<engine host>` is `EDUMATCHER_ENGINE_HOST` (default `127.0.0.1`). Not validated; normally left unset |

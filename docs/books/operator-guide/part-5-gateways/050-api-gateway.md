@@ -60,9 +60,13 @@ api_gateways:
     # is affected.
     audit_db: data/audit_index.db
     # pm-clearing's ledger, read-only, for the session/MTD/YTD realized P&L
-    # on GET /positions. Optional: without it those three fields report null
-    # and the rest of the position row is unaffected.
+    # on GET /positions and for the /clearing routes. Optional: without it
+    # those three fields report null and /clearing answers 503 CLEARING_DB.
     clearing_db: data/clearing.db
+    # pm-eod's settlement ledger, read-only, for /clearing/settlements and
+    # /clearing/balances; the roster is read from ref_data/roster.yaml beside
+    # it. Optional: without it those two routes answer 503 EOD_DB.
+    eod_db: data/eod.db
     # Seconds a terminal order stays in the in-memory cache. 0 disables
     # eviction (unbounded growth).
     order_retention_sec: 3600
@@ -99,7 +103,8 @@ api_gateways:
 | `credentials[].gateway_id` | Engine gateway identity; `null` means read-only market-data access; non-null values must be unique across `api_gateways` entries |
 | `stats_db` | `pm-stats`' SQLite file, read-only, for `/history/*` |
 | `audit_db` | `pm-audit`'s index, read-only, for `/admin/orders/{order_id}/audit`. Optional |
-| `clearing_db` | `pm-clearing`'s ledger, read-only, for the session/MTD/YTD realized P&L on `/positions`. Optional: without it those three fields report `null` |
+| `clearing_db` | `pm-clearing`'s ledger, read-only, for the session/MTD/YTD realized P&L on `/positions` and for every `/clearing` route. Optional: without it those three fields report `null` and `/clearing` answers `503 CLEARING_DB` |
+| `eod_db` | `pm-eod`'s settlement ledger, read-only, for `/clearing/settlements` and `/clearing/balances`; opening balances come from `ref_data/roster.yaml` in the same directory, as `pm-eod --datapath` finds it. Optional: without it those two routes answer `503 EOD_DB` |
 | `order_retention_sec` | Seconds a terminal order stays cached (default `3600`; `0` disables eviction) |
 | `market_data_cache_sec` | Seconds the market-data cache retains the per-symbol `trades` tail for WS snapshot/resume (default `60`; latest book/depth/auction snapshots are kept regardless of age; `0` disables the trade buffer) |
 | `rate_limit` | Per-key write limiting for POST/PATCH/DELETE endpoints |
@@ -149,7 +154,7 @@ Useful options:
 | `--instance NAME`    | auto-selected only when one entry exists | Select a named `api_gateways` entry              |
 | `--engine-host HOST` |                             config value | Override engine host for ZMQ ports `5555`/`5556` |
 | `--stats-db PATH`    |                             config value | SQLite database for `/history/*`                 |
-| `--clearing-db PATH` |                             config value | `pm-clearing` database, read-only, for the session / month-to-date / year-to-date realized P&L on `GET /positions` |
+| `--clearing-db PATH` |                             config value | `pm-clearing` database, read-only, for the session / month-to-date / year-to-date realized P&L on `GET /positions` and the `/clearing` routes |
 | `--log-level LEVEL`  |                             `WARNING`    | `CRITICAL`, `ERROR`, `WARNING`, `INFO`, or `DEBUG` (uppercase; this is the CLI process's own log level, separate from the `log_level` config value that sets uvicorn's own logger) |
 | `-v` / `--verbose`   |                             off          | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`) |
 | `-q` / `--quiet`     |                             off          | Reduce output to warnings/errors |
@@ -223,8 +228,10 @@ Access classes used across this guide:
 What each class can do:
 
 - Authenticated key: reference data and public history/market-data endpoints.
-- Trading key: everything above plus private order/position/trading endpoints.
-- Admin key: everything above plus `/api/v1/admin/*`.
+- Trading key: everything above plus private order/position/trading endpoints,
+  and its own gateway's `/api/v1/clearing/*` records.
+- Admin key: everything above plus `/api/v1/admin/*` and the venue-wide
+  `/api/v1/clearing/*` views.
 
 Read-only credentials (`gateway_id: null`) can use public and reference
 surfaces but cannot submit, cancel, or inspect private orders.
@@ -447,6 +454,63 @@ when `pm-index` is not running, whatever the state of `stats.db`.
 
 Lists are paginated with an opaque cursor; see the spec's
 [pagination contract](../../protocols-and-clients/part-2-specifications/060-rest-and-websocket.md#pagination-contract).
+
+### Clearing and settlement endpoints
+
+`/clearing/*` serves `pm-clearing`'s ledger (`clearing_db`) and `pm-eod`'s
+settlement ledger (`eod_db`) read-only, for the
+[Clearing GUI](../part-6-observe-and-recover/080-clearing-gui.md) and for
+participants' own records. The identity is the gateway: an `ADMIN` key reads
+the whole venue, a `TRADER` or `MARKET_MAKER` key only its own gateway (naming
+another is `403 SCOPE_DENIED`), and a read-only key nothing (`403 READ_ONLY`).
+The normative field-by-field contract is the spec's
+[Clearing](../../protocols-and-clients/part-2-specifications/060-rest-and-websocket.md#clearing)
+chapter.
+
+| Route | Who | What it returns |
+|---|---|---|
+| `/clearing/summary` | ADMIN | Participant and open-position counts, venue P&L, latest trade and flush times, feed gaps on the latest session date, `pm-eod`'s last run |
+| `/clearing/participants` | ADMIN | P&L and position counts per gateway |
+| `/clearing/participants/{gateway_id}` | ADMIN, or that gateway | One gateway's totals, positions and links to its other views |
+| `/clearing/positions` | ADMIN, or own | Current positions at their marks |
+| `/clearing/exposure` | ADMIN, or own | Net/gross notional and P&L per position |
+| `/clearing/trades` | ADMIN, or own | Retained raw executions, with match type and audit message id; a participant sees only its own side |
+| `/clearing/daily` | ADMIN, or own | Daily activity, realized P&L and end-of-day position |
+| `/clearing/close-snapshots` | ADMIN, or own | Position and cumulative P&L at every close |
+| `/clearing/symbols` | ADMIN | Activity and aggregate net position per symbol |
+| `/clearing/session-events` | ADMIN | `PHASE`, `EOD` and `GAP` events clearing observed |
+| `/clearing/gateway-sessions` | ADMIN, or own | Connect/disconnect history |
+| `/clearing/reconciliation` | ADMIN | Raw trades against daily rows, for an explicit `from`/`to` range |
+| `/clearing/health` | ADMIN | `clearing.db` facts and, separately, whether `pm-clearing`'s receive loop answers a ping |
+| `/clearing/settlements` | ADMIN, or own | `pm-eod`'s daily settlement amounts and run status |
+| `/clearing/balances` | ADMIN, or own | Roster opening balance plus settlements: the derived balance |
+
+What an operator should know before trusting a screen built on them:
+
+- **Units.** Clearing stores money in ticks of each symbol's
+  `tick_decimals`; every row carries `<name>_ticks` and the display value
+  `<name>`, and only display values are added across symbols. Settlement
+  amounts are a different unit, integer minor units (`amount_minor`, 2
+  decimals).
+- **Freshness.** `pm-clearing` writes in batches (100 trades or 5 seconds), so
+  a fill can take one flush to appear; `summary.last_flush_ts_ns` shows the
+  latest write.
+- **Retention.** Raw trades are pruned after `pm-clearing --retention-days`
+  (90 by default); `trades.retained_from` shows the oldest day held, and
+  `reconciliation` compares only from there (`compared_from`). An empty
+  reconciliation is "no discrepancy in the retained data", not a verified
+  history.
+- **Observation times.** Session-event and gateway-session times are when
+  clearing saw the event. A `GAP` means clearing saw trade ids jump; no `GAP`
+  does not prove the feed was complete.
+- **Liveness.** A readable `clearing.db` does not prove `pm-clearing` is
+  running; `/clearing/health` reports `database` and `process` separately.
+  The ping goes to the address `pm-clearing-cli health` uses
+  (`EDUMATCHER_ENGINE_HOST`, `EDUMATCHER_CLEARING_HEALTH_PORT`). Each call
+  pings once; do not poll it every few seconds.
+- **Settlement.** Settlements and balances exist only after `pm-eod` has
+  settled a day. A balance is derived (opening balance plus settlements), and
+  neither is margin, equity or collateral.
 
 ## Bootstrap endpoints
 
