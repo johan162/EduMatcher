@@ -35,22 +35,27 @@ export function TopBar() {
 
   return (
     <header className="flex h-12 shrink-0 items-center gap-6 border-b border-border bg-bg-subtle px-4 text-sm">
-      <div className="flex items-baseline gap-2">
+      <div className="flex shrink-0 items-baseline gap-2">
         <span className="font-mono font-bold text-sm text-fg">EduMatcher</span>
         <span className="font-mono text-xs text-accent">pm-book</span>
         <span className="font-mono text-xs text-brand-version">v{appVersion.version}</span>
       </div>
 
-      <SymbolPicker />
+      <div className="shrink-0">
+        <SymbolPicker />
+      </div>
 
-      <SessionIndicator
-        state={session?.state ?? null}
-        nextState={session?.nextState ?? null}
-        nextAt={session?.nextAt ?? null}
-        timeZone={timeZone}
-      />
+      {/* The only part that yields space, so the right-hand controls stay visible. */}
+      <div className="min-w-0 overflow-hidden whitespace-nowrap">
+        <SessionIndicator
+          state={session?.state ?? null}
+          nextState={session?.nextState ?? null}
+          nextAt={session?.nextAt ?? null}
+          timeZone={timeZone}
+        />
+      </div>
 
-      <div className="ml-auto flex items-center gap-3">
+      <div className="ml-auto flex shrink-0 items-center gap-3">
         <CompanyButton />
 
         <button

@@ -34,40 +34,7 @@ Let us trace the life of a complex event through the entire system using the voc
 
 In this single scenario, we used: limit orders, GTC orders, iceberg orders, fill notifications, last trade price, last sell price, stop orders, circuit breakers, collar bands, automatic market maker quote cancellation on halt, drop copy, clearing, P&L, trading sessions, and the state machine. Every piece of vocabulary we have discussed had a role to play.
 
-The message flow between components in steps 1–10 can be visualised as follows:
+The message flow between components in steps 1–11 can be visualised as follows:
 
-```{.mermaid width=600}
-sequenceDiagram
-    participant INV as Institutional Investor
-    participant GW3 as Gateway GW03
-    participant ME as Matching Engine
-    participant GW1 as Gateway GW01 (MM)
-    participant PUB as PUB Socket
-    participant DC as Drop Copy
-    participant CL as Clearing
-
-    INV->>GW3: FIX: SELL 50,000 AAPL LIMIT $150.20
-    GW3->>ME: Validated order (internal format)
-    ME->>GW3: ACK: order NEW (UUID assigned)
-    GW3->>INV: Execution report: NEW
-
-    loop Sweep bids $150.35 → $150.25
-        ME->>PUB: Trade event (price, qty, both sides)
-        PUB->>GW1: Fill notification → market maker FILLED
-        PUB->>GW3: Fill notification → investor PARTIAL
-        PUB->>DC: Drop copy fill event (seq numbered)
-        PUB->>CL: Position update
-    end
-
-    ME->>ME: next bid $150.20 below lower band → HALT
-    ME->>PUB: Session state: CONTINUOUS → HALTED
-    PUB->>GW1: Cancel all MM quotes (stale during halt)
-    PUB->>DC: HALT event (seq numbered)
-
-    Note over ME,CL: 5-minute halt period
-
-    ME->>ME: Scheduler: RESUME
-    ME->>PUB: Session state: HALTED → CONTINUOUS
-    GW1->>ME: Fresh two-sided quote re-submitted
-```
+![Message flow for steps 1–11, read top to bottom. Each row is one message from the component on the left to the component on the right. The sweep rows repeat once per fill.](assets/together-message-flow-small.png)
 
