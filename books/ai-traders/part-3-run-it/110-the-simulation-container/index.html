@@ -7356,6 +7356,56 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#three-api-gateways" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Three API gateways
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Three API gateways">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#why-a-third-one" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why a third one
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#how-it-is-wired" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How it is wired
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-to-watch-out-for" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What to watch out for
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#settings" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -7854,7 +7904,7 @@ market is open.</p>
 <tr>
 <td><code>edumatcher-sim</code></td>
 <td><code>edumatcher-ai-sim</code></td>
-<td>5560, 5565, 5570, 5580, 5590, 5600, 8080, 8081</td>
+<td>5560, 5565, 5570, 5580, 5590, 5600, 8080, 8081, 8082</td>
 <td>the exchange and the simulation</td>
 </tr>
 <tr>
@@ -7920,6 +7970,145 @@ containers:</p>
 </tbody>
 </table>
 <p>The rest of this chapter uses the installed one and <code>./edumatcher.sh</code>.</p>
+<h3 id="three-api-gateways">Three API gateways<a class="headerlink" href="#three-api-gateways" title="Permanent link">&para;</a></h3>
+<p>The plain exchange runs two instances of the REST/WebSocket API gateway,
+<code>pm-api-gwy</code>. The simulation runs a third one:</p>
+<table>
+<thead>
+<tr>
+<th>Instance</th>
+<th>Port</th>
+<th>Who connects</th>
+<th>Keys it accepts</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>desk</code></td>
+<td>8080</td>
+<td>trader-gui (everything but the admin monitor socket), clearing-gui, students' own programs</td>
+<td><code>TRADER01</code>–<code>TRADER10</code>, <code>MM01</code>, <code>OPS01</code></td>
+</tr>
+<tr>
+<td><code>dashboards</code></td>
+<td>8081</td>
+<td>terminal-gui, book-gui, dash-gui</td>
+<td>the read-only key only</td>
+</tr>
+<tr>
+<td><code>monitor</code></td>
+<td>8082</td>
+<td>trader-gui's admin monitor socket, and nothing else</td>
+<td><code>OPS01</code>'s key, as the participant <code>MON01</code></td>
+</tr>
+</tbody>
+</table>
+<h4 id="why-a-third-one">Why a third one<a class="headerlink" href="#why-a-third-one" title="Permanent link">&para;</a></h4>
+<p>The instructor's screens in trader-gui (Admin Dashboard, Monitor Log) are
+fed by one WebSocket, <code>/api/v1/ws/admin/monitor</code>. It carries every order
+event of every participant: all hundred AI traders, the market maker and the
+desks. At 09:30, when continuous trading starts, the engine sends about a
+thousand messages a second for a few minutes, and the admin feed turns them
+into about five thousand events a second, each encoded and sent to the
+browser.</p>
+<p>Each <code>pm-api-gwy</code> is one Python process with one event loop, so it can use
+only one CPU core, however many the machine has. With the admin feed on
+<code>desk</code>, that core was full at the open: <code>desk</code> ran at 100–117 % CPU, its
+event loop fell up to 1.4 s behind, and in 13 minutes it dropped between
+100 000 and 200 000 admin events. The admin socket's queue is bounded on
+purpose: the gateway drops events for a browser that cannot keep up rather
+than stall everyone else. trader-gui notices the gap and reloads the working
+orders, but the Monitor Log has holes in it. Worse, every student order sent
+through trader-gui went through the same busy loop and waited behind the
+admin feed.</p>
+<p>Bigger queues and sending events in batches of up to 256 per frame made the
+gateway cheaper per event, but did not fix the root cause: one core is not
+enough for trading and the admin feed together. Pinning the process to more
+cores does not help a single event loop either. A third gateway process does:
+the admin feed gets a core of its own, and order entry on <code>desk</code> no longer
+waits for it.</p>
+<h4 id="how-it-is-wired">How it is wired<a class="headerlink" href="#how-it-is-wired" title="Permanent link">&para;</a></h4>
+<p>The browser only ever talks to trader-gui (port 8093). trader-gui's small
+server, <code>pm-trading-ui-serve</code>, forwards <code>/api/*</code> to an API gateway, so the
+page needs only one address. Two settings in the compose file decide where
+things go:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nt">trader-gui</span><span class="p">:</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">  </span><span class="nt">environment</span><span class="p">:</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">    </span><span class="nt">API_PROXY_TARGET</span><span class="p">:</span><span class="w"> </span><span class="s">"http://edumatcher:8080"</span><span class="w">          </span><span class="c1"># everything under /api/</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">    </span><span class="nt">API_ADMIN_MONITOR_TARGET</span><span class="p">:</span><span class="w"> </span><span class="s">"http://edumatcher:8082"</span><span class="w">  </span><span class="c1"># only /api/v1/ws/admin/monitor</span>
+</code></pre></div>
+<p>Only that one WebSocket path goes to <code>monitor</code>. All REST calls, the private
+order stream, the market-data socket and the <code>/api/v1/ws/admin/sim</code> socket
+stay on <code>desk</code>. Without <code>API_ADMIN_MONITOR_TARGET</code> (as in the plain
+<code>edumatcher</code> image) the admin socket goes to <code>API_PROXY_TARGET</code> like the rest.</p>
+<pre class="mermaid"><code>flowchart LR
+    B[Browser] --&gt; T["trader-gui :8093&lt;br/&gt;pm-trading-ui-serve"]
+    T -- "REST, /ws/private,&lt;br/&gt;/ws/market-data, /ws/admin/sim" --&gt; D["desk :8080&lt;br/&gt;OPS01"]
+    T -- "/ws/admin/monitor" --&gt; M["monitor :8082&lt;br/&gt;MON01"]
+    D &lt;--&gt; E[pm-engine]
+    M &lt;--&gt; E</code></pre>
+<p><strong>Keys.</strong> The instructor logs in to trader-gui once, with the <code>OPS01</code> key,
+and the browser sends that same key as the first message on every socket. So
+<code>monitor</code> has to accept it too. But it cannot log in to the engine as <code>OPS01</code>:
+<code>desk</code> already has, and the engine refuses one participant connected twice.
+So <code>monitor</code> maps the key to a participant of its own, <code>MON01</code> (role ADMIN).
+In <code>engine_config.yaml</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nt">api_gateways</span><span class="p">:</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">  </span><span class="nt">desk</span><span class="p">:</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">    </span><span class="nt">port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8080</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">    </span><span class="nt">credentials</span><span class="p">:</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">api_key</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">key-ops01-3e34rs</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="w">      </span><span class="nt">gateway_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">OPS01</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="w">    </span><span class="c1"># ... the desks and MM01</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="w">  </span><span class="nt">monitor</span><span class="p">:</span>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="w">    </span><span class="nt">port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8082</span>
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="w">    </span><span class="nt">credentials</span><span class="p">:</span>
+<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">api_key</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">key-ops01-3e34rs</span><span class="w">     </span><span class="c1"># the same key...</span>
+<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a><span class="w">      </span><span class="nt">gateway_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MON01</span><span class="w">             </span><span class="c1"># ...a different participant</span>
+</code></pre></div>
+<p>That is why <code>MON01</code> appears as a second connected ADMIN in the instructor's
+screens. It is not a person, and it needs no key of its own.</p>
+<p><strong>What it sees.</strong> Every API gateway reads the engine's whole message feed, so
+<code>monitor</code> sees every participant's orders, not just <code>MON01</code>'s. When the
+socket opens, it asks the engine for the list of participants and the halts,
+so the instructor's first view is the same as it would be on <code>desk</code>.</p>
+<p><strong>The process.</strong> The <code>ai-sim</code> profile starts it as
+<code>api-monitor-gwy (api-gwy)</code>, which runs <code>pm-api-gwy --verbose --instance monitor</code>
+(<a href="../100-a-complete-setup-by-hand/#what-runs">A Complete Setup by Hand</a>). Like
+every other process of the profile, it is restarted within a minute if it
+dies, and <code>pm-opctl-cli list</code> checks that it answers on port 8082.</p>
+<p><strong>The configuration.</strong> <code>docs/examples/ref_data/mks300.sh</code> generates
+<code>s300-sim</code>'s <code>engine_config.yaml</code> with
+<code>--api-gateway-instance monitor:MON01:8082</code> and the participant
+<code>MON01:ADMIN:LEAVE_ALL</code>. <code>pm-config-gen</code> gives <code>MON01</code> a key of its own, so
+the script then replaces it with <code>OPS01</code>'s.</p>
+<h4 id="what-to-watch-out-for">What to watch out for<a class="headerlink" href="#what-to-watch-out-for" title="Permanent link">&para;</a></h4>
+<ul>
+<li><strong>Change both keys together.</strong> When you give <code>OPS01</code> a new key in your own
+  configuration, give the <code>MON01</code> entry under <code>monitor</code> the same key, or the
+  Admin Dashboard and Monitor Log stay empty while everything else works.</li>
+<li><strong>Keep the <code>monitor</code> instance in your own configuration.</strong> The <code>ai-sim</code>
+  profile always starts <code>pm-api-gwy --instance monitor</code>, and trader-gui
+  always sends the admin socket to port 8082. A configuration without the
+  instance (one copied before this was added, or written from scratch) makes
+  that process exit at every start with
+  <code>api_gateways instance 'monitor' not found</code>, and the admin screens stay
+  empty. Copy the <code>monitor</code> block and the <code>MON01</code> participant from the
+  deployed <code>s300-sim</code> configuration.</li>
+<li><strong>It costs a core at the open.</strong> Like every API gateway, <code>monitor</code> decodes
+  the whole engine feed, so it uses CPU at the open even when no instructor
+  is connected. On a two-core machine the three gateways and the engine
+  share the cores during the busiest minutes.</li>
+<li><strong>No fallback.</strong> If <code>monitor</code> is down, the admin screens are empty until it
+  is restarted; <code>desk</code> does not take over the admin socket.</li>
+<li><strong>The bootstrap sequence numbers belong to one gateway.</strong> The admin
+  bootstrap (<code>GET /api/v1/bootstrap/admin</code>, answered by <code>desk</code>) returns
+  <code>monitor_last_seq</code>, each participant's event counter. Each gateway process
+  keeps its own counters, so these numbers do not match the events on the
+  admin socket from <code>monitor</code>. trader-gui does not use them; a program of
+  your own that follows the admin feed should take its sequence numbers from
+  the socket alone.</li>
+</ul>
 <h3 id="settings">Settings<a class="headerlink" href="#settings" title="Permanent link">&para;</a></h3>
 <p>Everything is set with environment variables, in the <code>.env</code> file next to the
 compose file (the installer writes one) or on the command line, as in
@@ -8063,8 +8252,8 @@ simulated market so far.</p>
 </tbody>
 </table>
 <p>Ask for the current standings at any time, from inside the container:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>./edumatcher.sh<span class="w"> </span>shell<span class="w"> </span>pm-eod<span class="w"> </span>balances
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>./edumatcher.sh<span class="w"> </span>shell<span class="w"> </span>pm-eod<span class="w"> </span>status
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>./edumatcher.sh<span class="w"> </span>shell<span class="w"> </span>pm-eod<span class="w"> </span>balances
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>./edumatcher.sh<span class="w"> </span>shell<span class="w"> </span>pm-eod<span class="w"> </span>status
 </code></pre></div>
 <p>There is no <code>roster.yaml</code>, so statements carry the gateway names (<code>AI042</code>)
 rather than people's names. To label the desks <code>TRADER01</code>–<code>TRADER10</code> for a
@@ -8140,12 +8329,12 @@ accelerated run.</p>
 <h3 id="your-own-configuration">Your own configuration<a class="headerlink" href="#your-own-configuration" title="Permanent link">&para;</a></h3>
 <p>The container deploys a configuration of your own when <code>EM_CONFIG_FILE</code>
 names one. Start from the deployed one:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>mkdir<span class="w"> </span>-p<span class="w"> </span>my-sim
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>./edumatcher.sh<span class="w"> </span>shell<span class="w"> </span>cat<span class="w"> </span>/data/ref_data/engine_config.yaml<span class="w"> </span>&gt;<span class="w"> </span>my-sim/engine_config.yaml
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>./edumatcher.sh<span class="w"> </span>shell<span class="w"> </span>cat<span class="w"> </span>/data/ref_data/market_sim.yaml<span class="w">    </span>&gt;<span class="w"> </span>my-sim/market_sim.yaml
-<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="c1"># edit my-sim/market_sim.yaml (or engine_config.yaml), then:</span>
-<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>./edumatcher.sh<span class="w"> </span>config<span class="w"> </span>./my-sim/engine_config.yaml
-<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>./edumatcher.sh<span class="w"> </span>restart
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>mkdir<span class="w"> </span>-p<span class="w"> </span>my-sim
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>./edumatcher.sh<span class="w"> </span>shell<span class="w"> </span>cat<span class="w"> </span>/data/ref_data/engine_config.yaml<span class="w"> </span>&gt;<span class="w"> </span>my-sim/engine_config.yaml
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>./edumatcher.sh<span class="w"> </span>shell<span class="w"> </span>cat<span class="w"> </span>/data/ref_data/market_sim.yaml<span class="w">    </span>&gt;<span class="w"> </span>my-sim/market_sim.yaml
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="c1"># edit my-sim/market_sim.yaml (or engine_config.yaml), then:</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>./edumatcher.sh<span class="w"> </span>config<span class="w"> </span>./my-sim/engine_config.yaml
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>./edumatcher.sh<span class="w"> </span>restart
 </code></pre></div>
 <p><code>config</code> copies both files into the install's <code>./config</code>, which is mounted
 read-only at <code>/config</code>, and sets <code>EM_CONFIG_FILE=/config/engine_config.yaml</code>
@@ -8155,13 +8344,13 @@ says why (<code>./edumatcher.sh logs edumatcher</code>) — check it first with
 <p>A deployed configuration stays deployed: clearing <code>EM_CONFIG_FILE</code> alone does
 not bring <code>s300-sim</code> back. Clear it, then redeploy the bundled one and
 restart:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>./edumatcher.sh<span class="w"> </span>shell<span class="w"> </span>pm-setup<span class="w"> </span>--config<span class="w"> </span>s300-sim<span class="w"> </span>--force
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>./edumatcher.sh<span class="w"> </span>restart
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>./edumatcher.sh<span class="w"> </span>shell<span class="w"> </span>pm-setup<span class="w"> </span>--config<span class="w"> </span>s300-sim<span class="w"> </span>--force
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>./edumatcher.sh<span class="w"> </span>restart
 </code></pre></div>
 <h3 id="your-own-traders-or-process-flags">Your own traders or process flags<a class="headerlink" href="#your-own-traders-or-process-flags" title="Permanent link">&para;</a></h3>
 <p>The traders' mix and the processes' flags are in the process profile.
 Write the built-in profiles out once and edit the copy:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>./edumatcher.sh<span class="w"> </span>shell<span class="w"> </span>pm-opctl-cli<span class="w"> </span>init
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>./edumatcher.sh<span class="w"> </span>shell<span class="w"> </span>pm-opctl-cli<span class="w"> </span>init
 </code></pre></div>
 <p><code>init</code> writes <code>data/emo-config.yaml</code>, which from then on replaces the
 built-in profiles. To use your own <code>swarm.yaml</code>, put it in <code>./config/</code> and
@@ -8217,8 +8406,8 @@ for the details and for disk):</p>
 </table>
 <p>A laptop that runs a browser comfortably runs the simulation.</p>
 <h2 id="upgrading">Upgrading<a class="headerlink" href="#upgrading" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>./edumatcher.sh<span class="w"> </span>update<span class="w">          </span><span class="c1"># the newest release</span>
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>./edumatcher.sh<span class="w"> </span>update<span class="w"> </span><span class="m">0</span>.51.0<span class="w">   </span><span class="c1"># ...or an exact one</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>./edumatcher.sh<span class="w"> </span>update<span class="w">          </span><span class="c1"># the newest release</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>./edumatcher.sh<span class="w"> </span>update<span class="w"> </span><span class="m">0</span>.51.0<span class="w">   </span><span class="c1"># ...or an exact one</span>
 </code></pre></div>
 <p>The data directory is kept, and with it the deployed configuration and the
 market's history. The release notes say when a release changes the <code>s300-sim</code>
@@ -8227,14 +8416,14 @@ redeploy with the new example while keeping your history:
 <code>./edumatcher.sh shell pm-setup --config s300-sim --force</code>, then restart.</p>
 <h2 id="building-the-image-yourself">Building the image yourself<a class="headerlink" href="#building-the-image-yourself" title="Permanent link">&para;</a></h2>
 <p>From a clone of the repository:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="nb">cd</span><span class="w"> </span>deployment/docker
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>make<span class="w"> </span>build-sim<span class="w">          </span><span class="c1"># builds edumatcher-ai-sim:local from this checkout</span>
-<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>make<span class="w"> </span>up-sim<span class="w"> </span><span class="nv">LOCAL</span><span class="o">=</span><span class="m">1</span><span class="w">     </span><span class="c1"># runs it with the GUI images from GHCR</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="nb">cd</span><span class="w"> </span>deployment/docker
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>make<span class="w"> </span>build-sim<span class="w">          </span><span class="c1"># builds edumatcher-ai-sim:local from this checkout</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>make<span class="w"> </span>up-sim<span class="w"> </span><span class="nv">LOCAL</span><span class="o">=</span><span class="m">1</span><span class="w">     </span><span class="c1"># runs it with the GUI images from GHCR</span>
 </code></pre></div>
 <p><code>make build-sim</code> builds a wheel from the checkout (it needs <code>poetry</code>) and the
 image's <code>ai-sim</code> stage. Without <code>make</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>docker<span class="w"> </span>build<span class="w"> </span>--target<span class="w"> </span>ai-sim<span class="w"> </span>-t<span class="w"> </span>edumatcher-ai-sim:local<span class="w"> </span>deployment/docker
-<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="nv">AISIM_IMAGE</span><span class="o">=</span>edumatcher-ai-sim:local<span class="w"> </span>docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>deployment/docker/compose.ai-sim.yaml<span class="w"> </span>up<span class="w"> </span>-d
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>docker<span class="w"> </span>build<span class="w"> </span>--target<span class="w"> </span>ai-sim<span class="w"> </span>-t<span class="w"> </span>edumatcher-ai-sim:local<span class="w"> </span>deployment/docker
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="nv">AISIM_IMAGE</span><span class="o">=</span>edumatcher-ai-sim:local<span class="w"> </span>docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>deployment/docker/compose.ai-sim.yaml<span class="w"> </span>up<span class="w"> </span>-d
 </code></pre></div>
 <p>(Without a wheel in <code>deployment/docker/.wheel/</code>, the build installs the
 latest <code>edumatcher</code> from PyPI.)</p>

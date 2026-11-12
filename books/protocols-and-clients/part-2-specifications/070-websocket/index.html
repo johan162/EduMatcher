@@ -7900,7 +7900,7 @@ by that one prefix.</p>
 <td><code>/api/v1/ws/admin/monitor</code></td>
 <td>ADMIN</td>
 <td>Every engine event across all gateways except public market data and <code>engine.trace</code>, plus <code>admin.action</code></td>
-<td><code>512</code></td>
+<td><code>32768</code></td>
 </tr>
 <tr>
 <td><code>/api/v1/ws/admin/sim</code></td>
@@ -8512,6 +8512,10 @@ everything that is sent stays contiguous.</p>
 </tbody>
 </table>
 <h3 id="events">Events<a class="headerlink" href="#events" title="Permanent link">&para;</a></h3>
+<p>Live events arrive as a JSON <strong>array</strong> of one to 256 envelopes, oldest first:
+everything the gateway has queued for the socket is sent in one frame. A
+client unpacks the array and treats each element as it would a single frame.
+The opening frames above are single objects.</p>
 <p>All private event types above, for every gateway, <code>session</code> and
 <code>circuit_breaker</code>, and:</p>
 <table>

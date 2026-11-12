@@ -10407,16 +10407,18 @@ flags.</p>
 <a id="__codelineno-16-22" name="__codelineno-16-22" href="#__codelineno-16-22"></a>  // per-gateway active (non-terminal) order count — pure cache, never null
 <a id="__codelineno-16-23" name="__codelineno-16-23" href="#__codelineno-16-23"></a>  "active_order_counts": { "TRADER01": 3, "MM01": 12 },
 <a id="__codelineno-16-24" name="__codelineno-16-24" href="#__codelineno-16-24"></a>
-<a id="__codelineno-16-25" name="__codelineno-16-25" href="#__codelineno-16-25"></a>  // each active gateway's private-stream stream_seq now — pure cache, never null
-<a id="__codelineno-16-26" name="__codelineno-16-26" href="#__codelineno-16-26"></a>  "monitor_last_seq": { "TRADER01": 100482, "MM01": 88213 },
-<a id="__codelineno-16-27" name="__codelineno-16-27" href="#__codelineno-16-27"></a>
-<a id="__codelineno-16-28" name="__codelineno-16-28" href="#__codelineno-16-28"></a>  "capabilities": {
-<a id="__codelineno-16-29" name="__codelineno-16-29" href="#__codelineno-16-29"></a>    "sessions_enabled": true,
-<a id="__codelineno-16-30" name="__codelineno-16-30" href="#__codelineno-16-30"></a>    "stats_db_available": true,
-<a id="__codelineno-16-31" name="__codelineno-16-31" href="#__codelineno-16-31"></a>    "audit_db_available": false,
-<a id="__codelineno-16-32" name="__codelineno-16-32" href="#__codelineno-16-32"></a>    "index_available": false
-<a id="__codelineno-16-33" name="__codelineno-16-33" href="#__codelineno-16-33"></a>  }
-<a id="__codelineno-16-34" name="__codelineno-16-34" href="#__codelineno-16-34"></a>}
+<a id="__codelineno-16-25" name="__codelineno-16-25" href="#__codelineno-16-25"></a>  // each active gateway's private-stream stream_seq now — pure cache, never null;
+<a id="__codelineno-16-26" name="__codelineno-16-26" href="#__codelineno-16-26"></a>  // per pm-api-gwy process: compare it only with /ws/admin/monitor events
+<a id="__codelineno-16-27" name="__codelineno-16-27" href="#__codelineno-16-27"></a>  // from the same instance
+<a id="__codelineno-16-28" name="__codelineno-16-28" href="#__codelineno-16-28"></a>  "monitor_last_seq": { "TRADER01": 100482, "MM01": 88213 },
+<a id="__codelineno-16-29" name="__codelineno-16-29" href="#__codelineno-16-29"></a>
+<a id="__codelineno-16-30" name="__codelineno-16-30" href="#__codelineno-16-30"></a>  "capabilities": {
+<a id="__codelineno-16-31" name="__codelineno-16-31" href="#__codelineno-16-31"></a>    "sessions_enabled": true,
+<a id="__codelineno-16-32" name="__codelineno-16-32" href="#__codelineno-16-32"></a>    "stats_db_available": true,
+<a id="__codelineno-16-33" name="__codelineno-16-33" href="#__codelineno-16-33"></a>    "audit_db_available": false,
+<a id="__codelineno-16-34" name="__codelineno-16-34" href="#__codelineno-16-34"></a>    "index_available": false
+<a id="__codelineno-16-35" name="__codelineno-16-35" href="#__codelineno-16-35"></a>  }
+<a id="__codelineno-16-36" name="__codelineno-16-36" href="#__codelineno-16-36"></a>}
 </code></pre></div>
 <p><strong>Required fields:</strong> <code>reference</code>.</p>
 <p><strong>Optional fields:</strong> <code>session</code>, <code>gateways</code>, <code>halts</code>.

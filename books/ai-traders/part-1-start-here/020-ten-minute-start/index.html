@@ -7843,6 +7843,12 @@ closing state. To see trading right now, whatever the time, use
 </tr>
 </tbody>
 </table>
+<p>The instructor's screens also show a second ADMIN participant, <code>MON01</code>. It is
+not a person: the admin monitor feed has an API gateway of its own (port
+8082), which accepts the <code>OPS01</code> key and connects to the exchange as <code>MON01</code>,
+because the exchange refuses one participant connected twice
+(<a href="../../part-3-run-it/110-the-simulation-container/#three-api-gateways">Three API gateways</a>
+explains why).</p>
 <div class="admonition warning">
 <p class="admonition-title">These keys are public</p>
 <p>They are in the bundled example and in this book. The compose file
@@ -7914,7 +7920,7 @@ it. If you only read one more chapter, read
 </tr>
 <tr>
 <td><code>port is already allocated</code></td>
-<td>Another EduMatcher stack (or anything else) holds 5560–5600, 8080/8081 or 8090–8096. Stop it first; only one stack can run at a time</td>
+<td>Another EduMatcher stack (or anything else) holds 5560–5600, 8080–8082 or 8090–8096. Stop it first; only one stack can run at a time</td>
 </tr>
 <tr>
 <td>The process table shows <code>dead</code></td>
