@@ -102,6 +102,22 @@ describe("connecting", () => {
   });
 });
 
+describe("company profile", () => {
+  it("reads the profile with the read-only key and passes the gateway's 404 through", async () => {
+    await ready((gw) => {
+      seedAapl(gw);
+      gw.companies["AAPL"] = { symbol: "AAPL", name: "Apple Orchard Inc." };
+    });
+    const ok = await fetch(`http://127.0.0.1:${rig!.port}/api/company/AAPL`);
+    expect(ok.status).toBe(200);
+    expect(await ok.json()).toEqual({ symbol: "AAPL", name: "Apple Orchard Inc." });
+
+    const missing = await fetch(`http://127.0.0.1:${rig!.port}/api/company/MSFT`);
+    expect(missing.status).toBe(404);
+    expect(await missing.text()).not.toContain("ro-key");
+  });
+});
+
 describe("watching a symbol", () => {
   it("delivers the full book and exact session statistics", async () => {
     await ready();

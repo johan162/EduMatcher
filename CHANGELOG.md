@@ -1,3 +1,23 @@
+## [v0.78.2] - 2026-11-12
+
+Release Type: patch
+
+### 📋 Summary
+This release improves the Book and Clearing GUIs with company information and more consistent navigation and display controls. It also expands the exchange introduction's coverage of implied orders and multi-layer matching.
+
+### ✨ Additions
+- Added a company information drawer for the watched symbol in the Book GUI
+- Added help content and font-size settings to the Clearing GUI
+
+### 🚀 Improvements
+- Aligned the Clearing GUI layout with the Trader GUI
+
+### 📚 Documentation
+- Expanded the implied-orders chapters with worked examples, multi-layer matching analysis and supporting diagrams
+
+### 🛠 Internal
+- Added regression and end-to-end coverage for the Book GUI company drawer and Clearing GUI controls
+
 ## [v0.78.1] - 2026-11-11
 
 Release Type: patch

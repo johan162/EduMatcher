@@ -14,12 +14,16 @@ const config: Config = {
     extend: {
       colors: {
         app: channel("app"),
+        deep: channel("deep"),
         panel: channel("panel"),
         raised: channel("raised"),
         elevated: channel("elevated"),
+        elevated2: channel("elevated2"),
         line: channel("line"),
         fg: channel("fg"),
+        "fg-soft": channel("fg-soft"),
         "fg-dim": channel("fg-dim"),
+        "fg-mute": channel("fg-mute"),
         "fg-faint": channel("fg-faint"),
         link: channel("link"),
         bid: channel("bid"),
@@ -27,6 +31,7 @@ const config: Config = {
         halt: channel("halt"),
         accent: channel("accent"),
         "accent-fg": channel("accent-fg"),
+        "brand-version": channel("brand-version"),
       },
       fontFamily: {
         mono: ["JetBrains Mono", "Fira Code", "ui-monospace", "SFMono-Regular", "monospace"],
