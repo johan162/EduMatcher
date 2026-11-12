@@ -97,6 +97,13 @@ The trader-gui asks for an API key. The simulation's desks and their keys:
 | `TRADER10` | student desk | `key-trader10-m1men1` |
 | `OPS01` | instructor (ADMIN) | `key-ops01-3e34rs` |
 
+The instructor's screens also show a second ADMIN participant, `MON01`. It is
+not a person: the admin monitor feed has an API gateway of its own (port
+8082), which accepts the `OPS01` key and connects to the exchange as `MON01`,
+because the exchange refuses one participant connected twice
+([Three API gateways](../part-3-run-it/110-the-simulation-container.md#three-api-gateways)
+explains why).
+
 !!! warning "These keys are public"
     They are in the bundled example and in this book. The compose file
     publishes the exchange on `127.0.0.1` only, so nobody else can reach it.
@@ -181,6 +188,6 @@ it. If you only read one more chapter, read
 | You see | Do |
 |---|---|
 | `pull access denied` or `manifest unknown` | The image for that version is not published yet: pin one that is with `--version <version>`, or build it — [The Simulation Container](../part-3-run-it/110-the-simulation-container.md#building-the-image-yourself) |
-| `port is already allocated` | Another EduMatcher stack (or anything else) holds 5560–5600, 8080/8081 or 8090–8096. Stop it first; only one stack can run at a time |
+| `port is already allocated` | Another EduMatcher stack (or anything else) holds 5560–5600, 8080–8082 or 8090–8096. Stop it first; only one stack can run at a time |
 | The process table shows `dead` | Wait a minute: the container restarts dead processes once a minute. If it stays dead, see [Troubleshooting](../part-4-watch-and-teach/160-troubleshooting-and-faq.md) |
 | No trading during the day | Check the time zone: the clock is Stockholm's. `./edumatcher.sh shell date` |

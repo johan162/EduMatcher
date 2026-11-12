@@ -528,7 +528,9 @@ async def bootstrap_mm(
             "`monitor_last_seq` is each active gateway's private-stream "
             "`stream_seq` now: `/ws/admin/monitor` events for that gateway "
             "carry the same counter, so a console can skip the ones it "
-            "already has. The monitor has no replay.",
+            "already has. The counter belongs to one `pm-api-gwy` process: it "
+            "matches only `/ws/admin/monitor` events from the same instance "
+            "that answered this request. The monitor has no replay.",
         ),
         docs.errors(*docs.TRADING_KEY, "ENGINE_TIMEOUT", "ROLE_DENIED"),
     ),

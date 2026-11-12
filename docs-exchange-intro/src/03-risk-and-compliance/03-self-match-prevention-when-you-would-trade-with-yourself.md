@@ -11,7 +11,7 @@ This is called a **wash trade**. It is problematic for several reasons:
 
 - It generates artificial trading volume, misleading other participants about market activity.
 - It creates artificial price pressure (many wash trades in sequence can move a price without genuine supply/demand).
-- It is illegal under market manipulation regulations in most jurisdictions (the EU's Market Abuse Regulation, the US SEC's Rule 10b-5, and others explicitly prohibit wash trading).
+- It is illegal under market manipulation rules in most jurisdictions (for example the EU's Market Abuse Regulation, Section 9(a)(1) of the US Securities Exchange Act for securities, and the Commodity Exchange Act for futures).
 
 ## The SMP Mechanism
 
@@ -23,7 +23,7 @@ SMP detects the wash condition and applies one of several policies before any fi
 
 **Cancel both**: Both the resting and incoming order are cancelled. Use this when you want to eliminate both sides cleanly, for example, when re-positioning and wanting neither order to remain active.
 
-**Allow the match (no SMP)**: Some systems permit self-matching in testing environments or for specific account structures where the "two sides" are legally distinct entities despite sharing a gateway ID. In most production environments, SMP is always on.
+**Allow the match (no SMP)**: Some systems permit self-matching in testing environments or for specific account structures where the "two sides" are legally distinct entities despite sharing a gateway ID. Venues differ in the default: some apply SMP to every order, while others (CME, for example) make it optional and leave it to the participant to tag orders that must never match each other.
 
 ## How SMP Identifies a Self-Match
 
@@ -47,5 +47,5 @@ Exchanges can identify these traders using one or several of the following mecha
 
 SMP is implemented inside the matching sweep loop, it runs after price compatibility is checked but before any fill is committed. The code path must handle all three cancellation outcomes, generate appropriate event notifications (the cancelled order receives a cancellation event, not a fill), and continue the sweep to look for non-self counterparties if the resting order was cancelled.
 
-> **Key idea:** SMP is not just a courtesy feature, it is a legal requirement on regulated exchanges. An exchange that facilitates wash trading faces regulatory action. Every exchange system must implement it correctly.
+> **Key idea:** Wash trading is illegal, and an exchange that facilitates it faces regulatory action. SMP is the tool exchanges give participants to make sure their own orders never trade with each other by accident, so every exchange system must implement it correctly.
 

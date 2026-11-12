@@ -38,7 +38,7 @@ When the exchange is under high load, market data messages may queue behind each
 
 ## Tick-to-Trade Latency
 
-**Tick-to-trade latency** is the time from when a market data message leaves the exchange to when a trading decision based on that message results in an order being submitted and received by the exchange. It is a critical performance metric for market makers and HFT firms. Reducing tick-to-trade latency requires optimising every component in the path: network delivery, data parsing, decision logic, order serialisation, and order routing.
+**Tick-to-trade latency** is the time between a trading firm's system receiving a market data message (the "tick") and sending out an order in response. It is usually measured at the firm's own network card, so it covers only what the firm controls; some firms also quote the full round trip including the network to and from the exchange. It is a critical performance metric for market makers and HFT firms. Reducing it means optimising every step in the path: data parsing, decision logic, order serialisation, and the network hop to the exchange.
 
 ## Top-of-Book vs Depth-of-Book
 

@@ -1,3 +1,27 @@
+## [v0.78.3] - 2026-11-13
+
+Release Type: patch
+
+### 📋 Summary
+This release improves API gateway capacity and event delivery for busy sessions, and updates the simulation stack to distribute administrative traffic across a second gateway. It also polishes the Book and Clearing GUIs and expands the exchange introduction.
+
+### ✨ Additions
+- Added a separate API gateway instance for administrative monitoring in the simulation stack
+
+### 🚀 Improvements
+- Batched WebSocket monitor events and increased buffering to better handle bursts during market openings
+- Updated simulation setup instructions to start and configure the additional API gateway automatically
+
+### 🐛 Bug Fixes
+- Fixed the Book GUI company-information button becoming hidden in constrained layouts
+- Fixed the Clearing GUI application name wrapping across multiple lines
+
+### 📚 Documentation
+- Added illustrations and revised explanations throughout the exchange introduction
+
+### 🛠 Internal
+- Added regression coverage for WebSocket batching and GUI layout fixes
+
 ## [v0.78.2] - 2026-11-12
 
 Release Type: patch

@@ -9,7 +9,7 @@ Before the formal opening, some exchanges accept orders for the day (limit order
 
 ## Opening Auction
 
-As described above, orders collected, equilibrium computed, uncross executed, continuous trading begins.
+As described in the previous chapter: orders are collected, the equilibrium price is computed, the uncross executes, and continuous trading begins.
 
 ## Continuous Trading (the main session)
 

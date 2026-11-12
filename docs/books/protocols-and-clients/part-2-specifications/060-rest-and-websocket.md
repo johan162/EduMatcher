@@ -824,7 +824,9 @@ flags.
   // per-gateway active (non-terminal) order count — pure cache, never null
   "active_order_counts": { "TRADER01": 3, "MM01": 12 },
 
-  // each active gateway's private-stream stream_seq now — pure cache, never null
+  // each active gateway's private-stream stream_seq now — pure cache, never null;
+  // per pm-api-gwy process: compare it only with /ws/admin/monitor events
+  // from the same instance
   "monitor_last_seq": { "TRADER01": 100482, "MM01": 88213 },
 
   "capabilities": {

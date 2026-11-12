@@ -28,9 +28,9 @@ For each tradeable symbol, the exchange maintains:
 **Lifecycle and schedule**
 - **Trading status:** ACTIVE, SUSPENDED, HALTED, DELISTED, PRE-IPO.
 - **Session schedule:** When pre-open, continuous, and close auction periods begin and end. Different instruments on the same exchange may have different session schedules (bonds vs equities, for example).
-- **Expiry date (derivatives):** Futures and options expire. The matching engine must stop accepting new orders and settle open positions on the expiry date.
+- **Expiry date (derivatives):** Futures and options expire. The matching engine must stop accepting new orders, and the clearing system must settle the remaining open positions.
 - **Last trading day:** For futures, the last day orders can be submitted.
-- **Settlement method (derivatives):** Cash settlement (the difference between the final price and the original trade price is exchanged in cash) or physical delivery (the underlying asset is actually delivered).
+- **Settlement method (derivatives):** Cash settlement (positions are closed with a final cash payment at an official final settlement price; for futures, daily variation margin has already paid out everything up to that point) or physical delivery (the underlying asset is actually delivered).
 
 **Risk parameters**
 - **Price collars:** Static and dynamic collar band percentages specific to this instrument.
@@ -41,7 +41,7 @@ For each tradeable symbol, the exchange maintains:
 
 Because reference data is read by every component, matching engine, gateway, clearing, market data, surveillance, a single wrong value can corrupt all of them simultaneously.
 
-**Tick size error:** If the reference data says the tick size for AAPL is $0.10 instead of $0.01, the matching engine will reject all orders priced in odd cents as "tick-misaligned." The exchange will appear broken, even though the matching engine itself is working correctly.
+**Tick size error:** If the reference data says the tick size for AAPL is $0.10 instead of $0.01, the matching engine will reject every order whose price is not a multiple of ten cents as "tick-misaligned." The exchange will appear broken, even though the matching engine itself is working correctly.
 
 **Contract multiplier error:** If a futures contract's multiplier is loaded as 500 instead of 50, every P&L calculation, every margin requirement, every risk check is ten times too large. Participants' risk limits will be breached on positions that should be well within bounds.
 
@@ -51,13 +51,13 @@ Because reference data is read by every component, matching engine, gateway, cle
 
 All of these have happened in real exchanges. Reference data errors have caused trading halts, regulatory interventions, and significant financial losses.
 
-A prominent real-world example: on **8 July 2015, NYSE halted all trading for approximately 3.5 hours**. The cause was a software configuration mismatch introduced during a gateway update deployed the previous evening. The new gateway software version was incompatible with the version running on some internal systems, causing connectivity failures that propagated into a halt of the entire venue. Trading migrated to NASDAQ and other venues, demonstrating both the fragility of reference data and system configuration, and the resilience of the fragmented US equity market structure as a whole, since the market continued to function on other venues while NYSE was dark [NYSE Inc. statement, July 2015; SEC review].
+A prominent real-world example, already met in *Primary and Secondary Sites*: on **8 July 2015, NYSE halted all trading for approximately 3.5 hours**. The cause was a software configuration mismatch introduced during a gateway update deployed the previous evening. The new gateway software version was incompatible with the version running on some internal systems, causing connectivity failures that propagated into a halt of the entire venue. Trading migrated to NASDAQ and other venues, demonstrating both the fragility of reference data and system configuration, and the resilience of the fragmented US equity market structure as a whole, since the market continued to function on other venues while NYSE was dark [NYSE Inc. statement, July 2015; SEC review].
 
 ## Reference Data as an Exchange Engineering Problem
 
 For developers, reference data has several important architectural properties:
 
-**It changes rarely but critically.** Most reference data for a given instrument is stable for months. But corporate actions (the *Corporate Actions* section of Part IV) change it: a stock split can move a stock into a different tick-size band, any split or reverse split changes the prices and quantities of resting orders, and a name change can alter the symbol. These changes must be propagated atomically, all components must switch to the new values at the same moment, not over a period of minutes.
+**It changes rarely but critically.** Most reference data for a given instrument is stable for months. But corporate actions (the *Corporate Actions* chapter earlier in this Part) change it: a stock split can move a stock into a different tick-size band, any split or reverse split changes the prices and quantities of resting orders, and a name change can alter the symbol. These changes must be propagated atomically, all components must switch to the new values at the same moment, not over a period of minutes.
 
 **It is loaded at startup and cached aggressively.** The matching engine reads tick sizes and price scales for every order it processes. If it had to query a database for each order, latency would be unacceptable. Reference data is loaded into memory at engine startup and cached. The flip side: if a cached value is stale, every order processed during the stale period is affected.
 

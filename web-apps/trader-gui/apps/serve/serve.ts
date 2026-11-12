@@ -67,6 +67,20 @@ export const ENV_OPTIONS = [
       "put a reverse proxy in front that routes /api/* to pm-api-gwy.",
     ],
   },
+  {
+    name: "API_ADMIN_MONITOR_TARGET",
+    fallback: "",
+    help: [
+      "Forward the /api/v1/ws/admin/monitor WebSocket to this URL instead of",
+      "API_PROXY_TARGET, e.g. http://localhost:8082. Everything else stays",
+      "on API_PROXY_TARGET. Use it to give the admin feed its own",
+      "pm-api-gwy instance, so its fan-out does not share an event loop with",
+      "trading. That instance must accept the same API key the ADMIN logs in",
+      "with, under a different gateway_id (the engine refuses one id twice).",
+      "When unset, the admin monitor uses API_PROXY_TARGET like every other",
+      "socket.",
+    ],
+  },
 ] as const;
 
 type EnvName = (typeof ENV_OPTIONS)[number]["name"];
@@ -105,6 +119,7 @@ export function renderHelp(): string {
 const HOST = envValue("HOST");
 const PORT = parseInt(envValue("PORT"), 10);
 const API_PROXY_TARGET = envValue("API_PROXY_TARGET");
+const API_ADMIN_MONITOR_TARGET = envValue("API_ADMIN_MONITOR_TARGET");
 const STATIC_DIR = path.resolve(envValue("STATIC_DIR"));
 
 // ── MIME types ────────────────────────────────────────────────────────────────
@@ -190,6 +205,23 @@ function proxyApiRequest(
   req.pipe(proxy, { end: true });
 }
 
+const ADMIN_MONITOR_PATH = "/api/v1/ws/admin/monitor";
+
+/**
+ * The upstream a WebSocket upgrade for *pathname* goes to: the admin monitor's
+ * own instance when one is configured, else the general API target. Empty
+ * when the path is not an API path or no target applies.
+ */
+export function upgradeTarget(
+  pathname: string,
+  proxyTarget: string,
+  adminMonitorTarget: string,
+): string {
+  if (!pathname.startsWith("/api/")) return "";
+  if (pathname === ADMIN_MONITOR_PATH && adminMonitorTarget) return adminMonitorTarget;
+  return proxyTarget;
+}
+
 /**
  * Forward a WebSocket upgrade (`/api/v1/ws/private`, `/api/v1/ws/market-data`, ...) to
  * pm-api-gwy. `http.createServer` destroys an upgrade nobody listens for, so
@@ -202,11 +234,12 @@ function proxyUpgrade(
   head: Buffer,
 ): void {
   const pathname = (req.url ?? "/").split("?")[0] ?? "/";
-  if (!API_PROXY_TARGET || !pathname.startsWith("/api/")) {
+  const targetUrl = upgradeTarget(pathname, API_PROXY_TARGET, API_ADMIN_MONITOR_TARGET);
+  if (!targetUrl) {
     socket.destroy();
     return;
   }
-  const target = new URL(API_PROXY_TARGET);
+  const target = new URL(targetUrl);
   const upstream = net.connect(
     Number(target.port || 80),
     target.hostname,
@@ -315,6 +348,9 @@ function main(): void {
     console.log(`[pm-trading-ui-serve] Listening on ${addr}`);
     if (API_PROXY_TARGET) {
       console.log(`[pm-trading-ui-serve] /api/* → ${API_PROXY_TARGET}`);
+      if (API_ADMIN_MONITOR_TARGET) {
+        console.log(`[pm-trading-ui-serve] ${ADMIN_MONITOR_PATH} → ${API_ADMIN_MONITOR_TARGET}`);
+      }
     } else {
       console.log(
         `[pm-trading-ui-serve] /api/* → 503 (set API_PROXY_TARGET=http://localhost:8080 to proxy)`,

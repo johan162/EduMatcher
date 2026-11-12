@@ -5,7 +5,7 @@ Before you read about participants, orders, and matching engines, it is worth pa
 
 ## The Physical Book
 
-Before electronic trading systems, every major exchange operated a physical trading floor, and on that floor, for every stock, there was a person responsible for maintaining order: in NYSE's terminology, this was called the **specialist**. The specialist's job was to act as a market maker for their assigned stocks, and to maintain, literally on paper, a record of every outstanding buy and sell order that had been submitted but not yet filled.
+Before electronic trading systems, every major exchange operated a physical trading floor, and on that floor, for every stock, there was a person responsible for maintaining order: in NYSE's terminology, this was called the **specialist**. The specialist's job was to act as a **market maker** for their assigned stocks (a firm that always stands ready both to buy and to sell, which the next chapter describes in more detail), and to maintain, literally on paper, a record of every outstanding buy and sell order that had been submitted but not yet filled.
 
 This record was kept in a physical **ledger book**. The book was divided into two columns: one for buy orders (bids) listing each buyer's offered price and quantity, and one for sell orders (asks) listing each seller's demanded price and quantity. The specialist would review the book, try to match buyers with sellers, and maintain an orderly market by quoting prices to floor brokers who came to trade.
 
@@ -39,35 +39,23 @@ When you see terms like "tick" (the minimum price movement), "tick data" (a reco
 
 
 
-## The Language Lives in the Code
-
-These historical terms are not just in trading rooms and textbooks. They are in the source code. A developer reading an exchange codebase for the first time will find:
-
-- `bid_price`, `ask_price`, `spread`: the physical ledger's two columns, reduced to struct fields
-- `lot_size`, `tick_size`: the standardisation introduced by the early commodity pits
-- `aggressor_side`: which party crossed the spread; matters for fee calculation and regulatory reporting
-- `book.add_order()`, `book.cancel_order()`, `book.sweep()`: the specialist's actions, now function calls
-- `GTC`, `DAY`, `IOC`: time-in-force codes whose full names (Good-Till-Cancelled, Day, Immediate-or-Cancel) are rarely spoken, used daily in hundreds of millions of orders
-- `tape_price`, `last_trade_price`: what the ticker printed, now a field in a trade record
-- `long_position`, `short_position`: owning versus owing, abstracted to the sign of an integer
-
-Every time you read a function name or a variable name in exchange software that sounds like it belongs in a different century, it does. The codebase is the physical exchange, translated.
-
 ## Black Monday and the Origin of Circuit Breakers
 
-On 19 October 1987, US stock markets fell **22.6%** in a single day, the largest single-day percentage drop in the history of the Dow Jones Industrial Average. This event, known as **Black Monday**, remains the most severe one-day market crash on record. A more detailed account of this is given in the *Risk Controls, Protecting the Market* section of Part III.
+On 19 October 1987, US stock markets fell **22.6%** in a single day, the largest single-day percentage drop in the history of the Dow Jones Industrial Average. This event, known as **Black Monday**, remains the most severe one-day market crash on record. A more detailed account is given in the chapter *Risk Controls: Protecting the Market* in Part III.
 
 The crash was not driven by a single piece of bad news. It was amplified by automated **portfolio insurance** programmes, algorithmic selling strategies designed to protect institutional portfolios by automatically selling futures contracts as prices fell. As these programmes sold, prices fell further, triggering more programme selling, which pushed prices further down, a feedback loop that human traders could not interrupt. The lack of any coordinated mechanism to pause trading made the spiral self-reinforcing.
 
 The Presidential Task Force on Market Mechanisms (the "Brady Commission"), reporting to President Reagan in January 1988, concluded that the absence of circuit breakers and coordinated pause mechanisms across markets had allowed the panic to become catastrophic. Its central recommendation was explicit: create automatic trading halts that could interrupt the feedback loop and give participants time to assess [Brady Commission Report, January 1988].
 
-NYSE introduced the first market-wide circuit breakers in 1988 directly in response. The specific thresholds have been adjusted several times since (most recently after March 2020, when Level 1 was triggered four times in two weeks during the COVID-19 crash), but the mechanism traces directly to that January 1988 report.
+NYSE introduced the first market-wide circuit breakers in 1988 directly in response. The thresholds have been revised several times since (the current levels, 7%, 13% and 20% falls in the S&P 500, date from 2013), and they were put to a hard test in March 2020, when Level 1 was triggered four times in two weeks during the COVID-19 crash. The mechanism itself traces directly to that January 1988 report.
 
 This history matters for exchange system developers because circuit breakers are not bureaucratic decorations. They are the engineering response to a proven systemic failure mode: automated systems amplifying each other into a catastrophic spiral. Every halt threshold, every resumption auction, every "do not accept orders during HALTED state" condition in a matching engine exists because of what happened on 19 October 1987.
 
 ## Settling Up: Settlement Periods and Why They Exist
 
-The historical reason settlement took multiple days has nothing to do with technology and everything to do with physical logistics. In the era of paper stock certificates, when you sold your shares, you had to physically deliver a paper certificate to the buyer, and they had to physically deliver cash or a cheque to you. Messengers on bicycles carried these documents between brokerage firms on Wall Street. Giving everyone five business days (the original settlement period was T+5) provided time for paperwork to move across Manhattan, be checked, and be processed.
+**Settlement** is the moment a trade becomes final: the buyer receives the shares and the seller receives the money. It does not happen at the instant of the trade. The delay is written **T+N**: the trade date (T) plus N business days. For most of the twentieth century US stocks settled at **T+5**.
+
+The historical reason settlement took multiple days has nothing to do with technology and everything to do with physical logistics. In the era of paper stock certificates, when you sold your shares, you had to physically deliver a paper certificate to the buyer, and they had to physically deliver cash or a cheque to you. Messengers on bicycles carried these documents between brokerage firms on Wall Street. Giving everyone five business days provided time for paperwork to move across Manhattan, be checked, and be processed.
 
 As the industry moved to dematerialisation (electronic records replacing paper certificates) and electronic funds transfer, settlement windows shrank: T+5 became T+3 in the 1990s, T+2 in 2017, and T+1 in 2024 in the US [8]. The "T+N" notation remains standard even as the N shrinks. Some markets are exploring same-day (T+0) settlement, though this requires that cash and securities be available at the exact moment of trading, a more demanding operational requirement.
 
@@ -81,7 +69,7 @@ The two most fundamental prices in any market are the **bid** and the **ask** (a
 
 The **spread** is the difference between the best bid and the best ask at any moment: if the best bid is $150.30 and the best ask is $150.35, the spread is $0.05. The spread is both a measure of market quality (tight spreads mean the market is liquid and efficient; wide spreads mean it is illiquid or uncertain) and the primary source of income for market makers, who earn the spread by continuously standing ready to buy at the bid and sell at the ask.
 
-The phrase **"crossing the spread"** means submitting an order aggressive enough to immediately match against a resting order. An investor who submits a buy order at $150.35 (the ask) rather than waiting at $150.30 (the bid) is crossing the spread and paying for the privilege of immediate execution. This small payment, a few cents, or a fraction of a cent in liquid markets, is the cost of immediacy, and it is the foundation of the market maker's business model.
+The phrase **"crossing the spread"** means submitting an order aggressive enough to trade immediately against an order that is already waiting in the book (a **resting order**). An investor who submits a buy order at $150.35 (the ask) rather than waiting at $150.30 (the bid) is crossing the spread and paying for the privilege of immediate execution. This small payment, a few cents, or a fraction of a cent in liquid markets, is the cost of immediacy, and it is the foundation of the market maker's business model.
 
 ## Blue Chips, Bulls, and Bears
 
@@ -117,18 +105,32 @@ In the code, all of this collapses into a sign. A long position is a positive qu
 
 The historical explanation above describes the *economics* of short selling. The modern operational reality involves several additional steps that are invisible in the exchange's order book but fundamental to how clearing and settlement actually work.
 
-**You must borrow before you short.** Before a participant can sell shares they do not own, they must make sure those shares can be borrowed from someone who does own them. The first step is called the **locate**: identifying a source of borrowable shares. In the US, Regulation SHO (in force since January 2005) requires broker-dealers to have reasonable grounds to believe the shares can be borrowed, so that they can be delivered on the settlement date, before accepting a short sale order. Selling short without a locate is called **naked short selling** and is generally illegal.
+**You must borrow before you short.** Before a participant can sell shares they do not own, they must make sure those shares can be borrowed from someone who does own them. The first step is called the **locate**: identifying a source of borrowable shares. In the US, Regulation SHO (in force since January 2005) requires broker-dealers to have reasonable grounds to believe the shares can be borrowed, so that they can be delivered on the settlement date, before accepting a short sale order. Selling short without a locate is called **naked short selling** and is prohibited for almost everyone (market makers have a narrow exception).
 
-**Where the borrow comes from.** Shares available to borrow come primarily from long investors who hold shares in custody through a broker or prime broker. These holders consent (usually automatically through their account agreements) to their shares being lent out in exchange for a **lending fee**. The custodian or prime broker intermediates: they find willing lenders and lend the shares to the short seller. The short seller pays a daily lending fee (the **borrow rate**) while the position is open.
+**Where the borrow comes from.** Shares available to borrow come primarily from long investors who hold shares in custody through a broker or a **prime broker** (a bank that provides lending, financing and safekeeping services to hedge funds and other professional traders). These holders consent (usually automatically through their account agreements) to their shares being lent out in exchange for a **lending fee**. The **custodian** (the bank or broker that holds the shares for safekeeping) or prime broker acts as go-between: they find willing lenders and lend the shares to the short seller. The short seller pays a daily lending fee (the **borrow rate**) while the position is open.
 
 **Borrow rates and hard-to-borrow stocks.** Most large-cap, liquid stocks are "easy to borrow", borrow rates are near zero because many shares are available. Smaller, heavily-shorted, or thinly-traded stocks can be "hard to borrow", rates of 5%, 20%, or even higher per annum, applied daily. For a stock with a 50% annualised borrow rate, a short position held for one week costs roughly 1% just in borrowing costs, before considering any price movement. The difficulty of finding borrows can itself become a market signal: rising borrow rates indicate increasing short interest and limited available supply.
 
 **Short recall risk.** The lender can recall their shares at any time (with short notice). If the lender sells their shares or instructs their custodian to recall the loan, the short seller must return the shares immediately, either by buying in the open market (a **buy-in**) or finding a new lender. In volatile markets, recalls at inopportune moments can force short sellers to cover at bad prices.
 
-**Settlement obligation.** At settlement (T+1 in the US), the short seller must deliver the shares. They do not own them, they borrowed them. Their clearing position shows a negative (short) holding. The CCP ensures delivery; if the short seller fails to deliver, the failed settlement process applies.
+**Settlement obligation.** At settlement (T+1 in the US), the short seller must deliver the shares. They do not own them, they borrowed them. Their position at the clearing house shows a negative (short) holding. The **central counterparty (CCP)**, the clearing house that steps in between every buyer and seller (Part III explains it fully), makes sure delivery happens; if the short seller fails to deliver, the failed-settlement process applies.
 
-**Why this matters for exchange developers.** The exchange's matching engine processes short sales exactly like any other sell order, the distinction between a short sale and a long sale is invisible at the order book level. The matching engine does not know or care whether the seller owns the shares. The borrow and locate process happens entirely outside the exchange, in the prime brokerage and custody infrastructure. However, exchange reporting systems are required to flag short sales (in the US, short sale orders must be marked "short" in the FIX message and this appears in the audit trail), and some regulatory checks at the gateway level confirm the short sale flag is present.
+**Why this matters for exchange developers.** The exchange's matching engine processes short sales exactly like any other sell order, the distinction between a short sale and a long sale is invisible at the order book level. The matching engine does not know or care whether the seller owns the shares. The borrow and locate process happens entirely outside the exchange, in the prime brokerage and custody infrastructure. However, short sales must be flagged: in the US, a short sale order must be marked "short" in the order message (usually a **FIX** message, the standard protocol most trading firms use to talk to exchanges), and the flag is kept in the exchange's audit trail. Some checks at the **gateway**, the exchange's front door for incoming orders, confirm that the flag is present.
 
+
+## The Language Lives in the Code
+
+These historical terms are not just in trading rooms and textbooks. They are in the source code. A developer reading an exchange codebase for the first time will find the following. A few of them (lots, ticks, sweeps and time-in-force codes) are explained properly in Part II; for now it is enough to see where the names came from.
+
+- `bid_price`, `ask_price`, `spread`: the physical ledger's two columns, reduced to struct fields
+- `lot_size`, `tick_size`: the standard trading quantity and the smallest allowed price step, standardisation introduced by the early commodity pits
+- `aggressor_side`: which party crossed the spread; matters for fee calculation and regulatory reporting
+- `book.add_order()`, `book.cancel_order()`, `book.sweep()`: the specialist's actions (a sweep is an order trading through several price levels of the book in one go), now function calls
+- `GTC`, `DAY`, `IOC`: time-in-force codes whose full names (Good-Till-Cancelled, Day, Immediate-or-Cancel) are rarely spoken, used daily in hundreds of millions of orders
+- `tape_price`, `last_trade_price`: what the ticker printed, now a field in a trade record
+- `long_position`, `short_position`: owning versus owing, abstracted to the sign of an integer
+
+Every time you read a function name or a variable name in exchange software that sounds like it belongs in a different century, it does. The codebase is the physical exchange, translated.
 
 ## Wall Street
 
@@ -136,7 +138,7 @@ The historical explanation above describes the *economics* of short selling. The
 
 ## Why This Matters for You
 
-When you encounter a term in the codebase that seems oddly concrete for a piece of software, "the book," "the tape," "the spread," "the floor price," "tick by tick", the reason it sounds physical is that it *was* physical. These words have been used continuously, with the same meanings, through every technological revolution the industry has undergone, because the underlying concepts remained constant even as the implementation changed completely.
+When you encounter a term in the codebase that seems oddly concrete for a piece of software, "the book," "the tape," "the spread," "the floor," "tick by tick", the reason it sounds physical is that it *was* physical. These words have been used continuously, with the same meanings, through every technological revolution the industry has undergone, because the underlying concepts remained constant even as the implementation changed completely.
 
 This is also why you will find financial terminology resistant to renaming even when better alternatives exist. Saying "priority queue" instead of "the book" would be technically precise but professionally unintelligible. Finance is a conservative industry with deep institutional memory, and the vocabulary is part of that memory. Learning the words, and where they came from, is learning the culture.
 

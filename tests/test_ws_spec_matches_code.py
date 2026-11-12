@@ -96,9 +96,13 @@ def _type_literals(tree: ast.AST) -> set[str]:
 def _queue_size(handler: str) -> int:
     for node in ast.walk(_function(handler)):
         if isinstance(node, ast.keyword) and node.arg == "maxsize":
-            assert isinstance(node.value, ast.Constant)
-            assert isinstance(node.value.value, int)
-            return node.value.value
+            if isinstance(node.value, ast.Name):
+                size = getattr(ws, node.value.id)
+            else:
+                assert isinstance(node.value, ast.Constant)
+                size = node.value.value
+            assert isinstance(size, int)
+            return size
     raise AssertionError(f"{handler} has no bounded queue")
 
 

@@ -6,7 +6,7 @@ By the end of the chapter you should be able to write a correct first-generation
 
 One promise before we begin, which the rest of the chapter proves over and over: **implied orders do not create liquidity out of nothing.** An implied order is a different *view* of commitments that already rest in other books. It never adds a single lot to the total that can be traded; it only makes existing lots reachable from one more place. Hold on to that sentence. Every level below is, in the end, a demonstration of it.
 
-Implied orders are almost exclusively used in the derivatives markets (specifically forwards and futures), where multiple related instruments exist for the same underlying asset, such as different futures contracts for various delivery months or spreads between them. In Swedish both futures and forward contract are commonly known as "terminskontrakt" or "terminer". As Swedish only have one name for what in English are two distinct instruments, it is important to keep the context in mind when discussing them. In reality every Swedish trader uses the English terms when necessary to avoid ambiguity.
+Implied orders are almost exclusively used in the derivatives markets (specifically forwards and futures), where multiple related instruments exist for the same underlying asset, such as different futures contracts for various delivery months or spreads between them. (A **forward** is the same kind of promise as a future, buy or sell at a fixed price on a later date, but usually agreed privately rather than in standardised form on an exchange.) In Swedish both futures and forward contracts are commonly called "terminskontrakt" or "terminer". Because Swedish has only one name for what in English are two distinct instruments, keep the context in mind when discussing them; in practice Swedish traders simply use the English terms when they need to avoid ambiguity.
 
 ## Why Implied Orders Exist, and Where They Came From
 
@@ -47,6 +47,8 @@ But look at the three books together:
 So a February seller at $77.00 does exist. It is just split across two orders in two other books, and neither of them, on its own, looks like a February offer. C should not have to know about the January book or the spread book, and that is precisely the problem. Nothing in C's own book tells C that a seller is available, and even a C who spotted the opportunity would have to coordinate trades in other books to reach it.
 
 An exchange with implied orders does that work for C. It notices that A's January offer and B's spread order *together* amount to an offer to sell February, and it displays that offer in the February book: **sell 30 lots of February at $77.00**, the quantity limited by the smaller of the two ingredients (B's 30 spreads). When C buys 20 lots, the engine executes all three pieces at once: A sells January to B, B completes its spread, and C receives February. From C's point of view it was an ordinary February trade. B's spread order is now partly filled: 20 of its 30 spreads are done, and the other 10 simply stay in the spread book, exactly as any partly filled limit order would. So the February book keeps showing an implied offer of 10 lots at $77.00 for the next buyer. Level 3 works through this exact example in full, once we have the vocabulary to do it precisely.
+
+![The three books and the three traders. The engine shows C an implied February offer built from A's and B's orders. When C buys, the oil moves from A to B (January) and from B to C (February).](assets/implied-wrong-book-small.png)
 
 Notice who actually traded with whom. C never dealt with A. C bought February from B, and B bought January from A. A's role was indirect: B was only willing to sell February if it could buy January at the same moment, so A's January offer was what made B's February sale possible. It was a precondition for C's trade, not a part of it. And notice what did *not* happen: no new oil appeared. The February that C bought came from B, who was willing to sell it all along; the engine merely supplied the January purchase that B's order required. This idea, that implied orders connect existing liquidity rather than create new liquidity, runs through the whole chapter.
 
@@ -130,6 +132,8 @@ A negative price is not an error code, and your engine must not treat it as one.
 > - The best bid is the *highest* signed price; the best ask is the *lowest* signed price.
 > - A spread bid is (also) an offer to sell Feb; a spread ask is (also) a bid to buy Feb.
 
+![The sign convention in one picture. Top: S is the step from the far month (February) to the near month (January). It is negative in contango and positive in backwardation. Bottom: spread prices are ordinary signed numbers, so "higher" means further right, even below zero.](assets/implied-sign-convention-small.png)
+
 > **Convention warning.** Near-minus-far is the norm for calendar spreads on CME, and most futures venues use the same convention, but it is not a law of nature. Inter-commodity spreads, ratio spreads, and some venues' products define their price differently (some as a ratio of legs, some with legs weighted 2:3, and so on). CME's Treasury inter-commodity spreads, for instance, are not quoted as a simple difference of leg prices at all, but as a ratio-weighted difference of each leg's net change since the previous day's settlement [Wilson, CME Group, *Liquidity in implied inter-commodity spread markets*, 2024]. Always read the product's definition before writing a single formula.
 
 ### Leg prices
@@ -166,6 +170,8 @@ An **implied order** is simply a set of resting orders whose vectors add up to s
   Combined                   v = (Feb −1)            c = −77.00
 ```
 
+![The same addition drawn as blocks. Green is a purchase (+1), red a sale (−1). In the January column the two blocks cancel; what remains is a sale of one February lot for $77.00.](assets/implied-vector-sum-small.png)
+
 The January legs cancel. What remains sells one February lot and receives $77.00: that is precisely **an offer to sell February at $77.00**, even though nobody has placed an order in the February book. This is the complete theory of implied pricing. Everything else in this chapter (quantities, priority, rounding, market data) is engineering around this addition.
 
 Two consequences follow immediately and should be memorised:
@@ -189,6 +195,10 @@ Apply the rule to every pair of orders that can cancel a leg, and exactly six im
 *(Reading the "Spread ask" row: the combined vector is (Jan −1, Feb +1), which is what one unit of a spread **sell** looks like; a resting set of orders that together behave like a seller is an **ask**. Its price is −c = −(−Jan_ask + Feb_bid) = Jan_ask − Feb_bid.)*
 
 Check the sign-flip from Confusion 3 in the table: an implied February **ask** is built from a spread **bid**. The rule of thumb: an implied **near-month** (January) quote has the *same* side as the spread order inside it (Jan ask uses a spread ask, Jan bid uses a spread bid), while an implied **far-month** (February) quote has the *opposite* side (Feb ask uses a spread bid, Feb bid uses a spread ask).
+
+The whole table fits in one picture. There are only three books, and any two of them can imply a quote in the third:
+
+![Three books, any two imply the third. Each row highlights one target book (dashed) and the two books whose orders feed it, with the bid and ask formulas for that target.](assets/implied-triangle-small.png)
 
 **Terminology.** CME defines the two families as follows [CME Group Client Systems Wiki, *Implied Orders*]:
 
@@ -328,6 +338,8 @@ The min() rule from Level 3 generalises, and the generalisation is where impleme
 
 Both spread bids combine with the *same* January ask to imply February asks at $77.00. The correct implied quantity is min(50, 30 + 15) = **45**. Here that happens to equal the naive calculation min(50, 30) + min(50, 15) = 45, which is exactly why the naive calculation survives code review. Now shrink A's order to 40 lots. The correct answer is min(40, 45) = **40**. The naive "pairwise min, then sum" still says 30 + 15 = 45 and over-advertises by 5 lots that do not exist. A's January order is a **shared leg**: every construction that uses it draws from the same 40 lots.
 
+![A shared leg. B's and H's spread bids both need A's January lots. Taking the min of each pair separately and adding the results counts 5 of A's lots twice.](assets/implied-shared-leg-small.png)
+
 The general statement: *the implied quantity is the largest quantity that can be routed through the contributing orders simultaneously, with no order used beyond its own size.* For a single chain that is the smallest ingredient; when chains share an order, the shared order caps their total. (Readers who know graph algorithms will recognise a maximum-flow problem; for first-generation implieds between two months it reduces to the simple sums and mins shown here.)
 
 **Depth beyond the best price.** Books have more than one price level, and so do implied books. Suppose:
@@ -381,7 +393,7 @@ Implication does not just fill empty books; it can *beat* the real book. Suppose
 | Spread | Bid | −$2.00 | 25 |
 | February | Ask (real) | $77.00 | 60 |
 
-The implied February ask is 74.95 − (−2.00) = **$76.95**, which is 5 ticks ($0.05, or $50 per lot) *better* than the real February ask. An incoming order to buy 20 February at $77.00 fills all 20 at $76.95 through the implied construction, and the real $77.00 seller is not touched. The buyer receives price improvement exactly in the sense of the *Order Types* chapter: they were willing to pay $77.00 and paid $76.95.
+The implied February ask is 74.95 − (−2.00) = **$76.95**, which is 5 ticks ($0.05, or $50 per lot) *better* than the real February ask. An incoming order to buy 20 February at $77.00 fills all 20 at $76.95 through the implied construction, and the real $77.00 seller is not touched. The buyer was willing to pay $77.00 and paid $76.95, better than its limit and better than anything the real February book had to offer.
 
 **Closing gaps that would otherwise be free money.** Now add one more resting order: Trader K bids $76.97 for 10 February lots. Is anything wrong with these books?
 
@@ -407,7 +419,7 @@ With implied functionality this state can never arise, because it could only be 
 
 K's bid is now used up, so the implied spread ask disappears, and B's remaining 15 spreads rest as a bid at −$2.00 (where, together with the 30 January lots still offered, they again imply a February ask at $76.95 × 15).
 
-The $0.02 that an arbitrageur would have pocketed goes instead to B, a real participant, as price improvement. (Had K's February bid been the last order to arrive instead, K would have been the incoming order: it would have bought 10 February from the implied ask at $76.95, and the same $0.02 would have gone to K. Either way, the improvement goes to whichever real order arrives last, because trades happen at the resting side's price.) This is the deeper purpose of implied functionality: it keeps the whole *family* of related books mutually consistent, so that cross-book gaps are closed by the exchange in favour of real participants rather than harvested by the fastest outsider.
+The $0.02 that an arbitrageur would have pocketed goes instead to B, a real participant, as a better price than B asked for. (Had K's February bid been the last order to arrive instead, K would have been the incoming order: it would have bought 10 February from the implied ask at $76.95, and the same $0.02 would have gone to K. Either way, the improvement goes to whichever real order arrives last, because trades happen at the resting side's price.) This is the deeper purpose of implied functionality: it keeps the whole *family* of related books mutually consistent, so that cross-book gaps are closed by the exchange in favour of real participants rather than harvested by the fastest outsider.
 
 There is one limit to this guarantee, and it explains the rule "implied bids do not trade against implied offers". An arriving order is checked only against real quotes and first-generation implied quotes, which means against combinations of at most two other real orders. An implied bid and an implied offer in the same book together involve **four** real orders, one step beyond what a first-generation engine ever checks. Such a pair can therefore be locked or crossed without any bug. An example with a third month, March:
 
@@ -434,7 +446,7 @@ Implied Feb ask  = 100.00 − (−0.35) = 100.35   ← not a multiple of 0.25
 
 The engine cannot print a February trade at 100.35. The standard remedy is to **round outwards**, meaning in the direction that is worse for the party trading against the implied quote: an implied ask is rounded *up*, an implied bid *down*. So the implied Feb ask is published at **100.50**. Carruthers' analysis of CME's Treasury inter-commodity spreads describes exactly this rule: "For price-priority purposes, implied prices are rounded outwards to the nearest tick", with direct liquidity at the rounded price keeping priority over implied liquidity [Carruthers, *Inter-Commodity Spreads and Implied Pricing*, 2018].
 
-Who gets the 0.15 difference when someone buys February at 100.50? Follow the money through the construction: the February buyer pays 100.50; A sells January at 100.00; so B's spread executes at 100.00 − 100.50 = **−0.50**. B was willing to buy the spread at −0.35 or lower, and −0.50 is lower, so B receives the 0.15 as price improvement. Every party trades at or better than its own limit, and all prints are on their grids (−0.50 is a valid 0.05 spread tick). Rounding outwards is what guarantees this: it never forces any real order to trade worse than its limit.
+Who gets the 0.15 difference when someone buys February at 100.50? Follow the money through the construction: the February buyer pays 100.50; A sells January at 100.00; so B's spread executes at 100.00 − 100.50 = **−0.50**. B was willing to buy the spread at −0.35 or lower, and −0.50 is lower, so B receives the 0.15 as a better price than its limit. Every party trades at or better than its own limit, and all prints are on their grids (−0.50 is a valid 0.05 spread tick). Rounding outwards is what guarantees this: it never forces any real order to trade worse than its limit.
 
 Who receives the rounding gain depends on the direction of implication. In the implied OUT example above, the passive spread order (B) receives it. For **implied IN** (a spread quote built from two outrights), both outright orders fill at their own limit prices, so the spread *aggressor* sees the rounded price on screen but effectively trades at the unrounded one, and the gain goes to the aggressor. CME documents exactly this split for its inter-commodity spread markets [Wilson, CME Group, *Liquidity in implied inter-commodity spread markets*, 2024].
 
@@ -604,7 +616,7 @@ Cash (per barrel, "cash paid" convention): R pays 10 × 74.90 = +749.00; P pays 
 2. T buys 12 February from U at $77.85.
 3. T's spread prints at 78.30 − 77.85 = **+$0.45** (T's limit).
 
-Nobody gave anything up: S and T traded exactly at their limits, and U received price improvement because the best available bid happened to be higher than U required. Cash check: S pays 12 × 78.30 = 939.60; U pays −(12 × 77.85) = −934.20; T pays 12 × (−0.45) = −5.40. Sum: 939.60 − 934.20 − 5.40 = 0. Afterwards: S's bid is used up, T has 8 spreads left at +$0.45, and with no January bid left there is no implied February bid.
+Nobody gave anything up: S and T traded exactly at their limits, and U got a better price than its limit because the best available bid happened to be higher than U required. Cash check: S pays 12 × 78.30 = 939.60; U pays −(12 × 77.85) = −934.20; T pays 12 × (−0.45) = −5.40. Sum: 939.60 − 934.20 − 5.40 = 0. Afterwards: S's bid is used up, T has 8 spreads left at +$0.45, and with no January bid left there is no implied February bid.
 
 **E10.**
 
@@ -645,7 +657,7 @@ Y will sell the spread at −$2.00 *or higher*. Is −1.90 higher than −2.00? 
 2. Y buys 5 February from X at $77.10.
 3. Y's spread prints at 75.20 − 77.10 = −$1.90.
 
-Y receives price improvement of 0.10 per barrel × 1,000 × 5 = **$500** compared with its limit. Intuitively: Y was prepared for February to cost up to $2.00 more than the January it sells, and it only cost $1.90 more. Cash check: W pays 376.00, X pays −385.50, Y pays 5 × (−S) = 5 × 1.90 = 9.50; sum 0. Afterwards: January bid $75.20 × 5, February ask $77.10 × 5, implied spread bid −$1.90 × 5.
+Y does better than its limit by 0.10 per barrel × 1,000 × 5 = **$500** compared with its limit. Intuitively: Y was prepared for February to cost up to $2.00 more than the January it sells, and it only cost $1.90 more. Cash check: W pays 376.00, X pays −385.50, Y pays 5 × (−S) = 5 × 1.90 = 9.50; sum 0. Afterwards: January bid $75.20 × 5, February ask $77.10 × 5, implied spread bid −$1.90 × 5.
 
 **E13.**
 
@@ -657,7 +669,7 @@ Y receives price improvement of 0.10 per barrel × 1,000 × 5 = **$500** compare
 2. L buys 5 February from M at 99.50 (M's limit).
 3. L's spread prints at 99.75 − 99.50 = **+0.25**, a valid 0.05 spread tick.
 
-L asked for at least +0.10 and received +0.25: 0.15 of price improvement, the leftover from rounding.
+L asked for at least +0.10 and received +0.25: 0.15 better than its limit, the leftover from rounding.
 
 *(c)* Rounding *inwards* would publish the bid at 99.75. If M then sold at 99.75, L's spread would print at 99.75 − 99.75 = 0.00, which is *below* L's limit of +0.10. The engine would have sold L's spread cheaper than L allowed, a violation of the most basic matching rule. Outward rounding is the only choice that guarantees every real order trades at or better than its limit.
 

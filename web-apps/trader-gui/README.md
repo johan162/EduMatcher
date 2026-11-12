@@ -115,6 +115,7 @@ make serve      # serve apps/web/dist/ via pm-trading-ui-serve, on :8093
 | `PORT`                  | `8093`                     | Listen port                                                |
 | `STATIC_DIR`            | `apps/web/dist/`            | Path to the built SPA (absolute or CWD-relative)           |
 | `API_PROXY_TARGET`      | _(unset — `/api/*` returns 503)_ | Forward `/api/*` to this URL, e.g. `http://localhost:8080` |
+| `API_ADMIN_MONITOR_TARGET` | _(unset — uses `API_PROXY_TARGET`)_ | Forward only the `/api/v1/ws/admin/monitor` WebSocket to this URL, e.g. `http://localhost:8082`: a `pm-api-gwy` instance of its own for the admin feed. It must accept the key the ADMIN logs in with, mapped to a different ADMIN `gateway_id` than the main instance uses (the engine refuses one id twice) |
 
 Run `npm run pm-trading-ui-serve -- --help` for the same reference, rendered
 from the code that reads it.

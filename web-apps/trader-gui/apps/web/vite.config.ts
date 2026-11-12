@@ -14,6 +14,18 @@ export default defineConfig({
   server: {
     port: 8193,
     proxy: {
+      // Optional own pm-api-gwy instance for the admin feed, matching
+      // API_ADMIN_MONITOR_TARGET in pm-trading-ui-serve. Listed first: the
+      // first matching context wins.
+      ...(process.env.API_ADMIN_MONITOR_TARGET
+        ? {
+            "/api/v1/ws/admin/monitor": {
+              target: process.env.API_ADMIN_MONITOR_TARGET,
+              changeOrigin: true,
+              ws: true,
+            },
+          }
+        : {}),
       // Forward REST and WebSocket calls to pm-api-gwy during development,
       // avoiding browser CORS restrictions.
       "/api": {

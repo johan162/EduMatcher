@@ -162,6 +162,7 @@ in `.env` to reach the exchange from other machines on your network.
 | 5600 | `pm-log-srv` | TCP | Log ingest (LALF) |
 | 8080 | `pm-api-gwy` | HTTP | REST API, `desk` instance |
 | 8081 | `pm-api-gwy` | HTTP | REST API, `dashboards` instance |
+| 8082 | `pm-api-gwy` | HTTP | REST API, `monitor` instance (admin monitor feed, AI sim only) |
 
 **Published with `ZMQ=1`** — the raw message bus:
 

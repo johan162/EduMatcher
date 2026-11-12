@@ -1,7 +1,7 @@
 # Market Makers, The Providers of Liquidity
 
 
-Earlier we introduced market makers conceptually as liquidity providers. In this section we examine their operational interaction with the exchange in much greater detail: quote lifecycles, formal obligations, protection mechanisms, inventory risk, and the software implications of supporting them.
+*The Participants* in Part I introduced market makers as liquidity providers. In this chapter we examine their operational interaction with the exchange in much greater detail: quote lifecycles, formal obligations, protection mechanisms, inventory risk, and the software implications of supporting them.
 
 > **Key idea:** Market making is not a passive activity. The market maker's position, risk, and obligations change with every fill, every second of elapsed quoting time, and every price movement in the market. The exchange system must enforce all of this automatically, in real time, without manual intervention.
 
@@ -51,6 +51,12 @@ The **quote refresh policy** is the rule governing what happens to the surviving
 
 The exchange system must implement all variants, configurable per market maker per product, typically via a quote refresh policy setting checked each time a quote leg fills.
 
+## Inventory: The Position That Builds Up
+
+Every fill changes what the market maker owns. Buy 500 shares at the bid and the firm is now **long** 500 shares; if the next few fills are also on the bid, it is long 2,000, and every cent the price falls now costs it $20. This accumulated position is the market maker's **inventory**, and managing it is the other half of the job.
+
+The main tool is **skewing** the quotes. A market maker who is long and wants to get back to flat moves *both* prices down a little: the lower ask attracts buyers who will take the excess shares off its hands, and the lower bid makes it less likely to buy even more. A market maker who is short does the opposite. Skewing does not need any special exchange support; it is simply a stream of cancel-and-replace messages, which is one reason market makers send far more messages than they trade. When inventory grows past what the firm's risk limits allow, the quotes are pulled altogether, and the presence obligation above is what stops that from happening too easily.
+
 ## Market Maker Protection (MMP)
 
 Even with careful refresh policies, market makers face a specific danger: **adverse selection at high speed**.
@@ -59,7 +65,7 @@ When an algorithm with access to breaking news starts aggressively selling, it d
 
 **Market Maker Protection (MMP)** is the automated countermeasure. The exchange maintains a rolling time window per market maker and counts fills within it. If fills arrive faster than a configured threshold, MMP fires automatically, cancelling all of that market maker's quotes without waiting for human intervention.
 
-After MMP fires, the market maker enters a **protection period** to assess and decide before re-quoting. MMP parameters (fill count, time window) are configured per market maker per symbol and are formally specified in market maker agreements. An illustrative configuration might be "5 fills within 500 milliseconds" for a liquid equity option: if five fills occur faster than that, the system assumes the market maker is being picked off by an informed algorithm and activates protection automatically. Real implementations usually measure more than a simple fill count. Eurex's T7, for example, lets market makers set "percentage, volume, delta and vega limits", so protection can trigger on how much risk has been accumulated rather than on how many trades produced it, and it *inactivates* the quotes (which the market maker can then reactivate) rather than deleting them [Eurex, *T7 Functional and Interface Overview*]. The parameters are different for each product: a highly liquid product like a major equity index option might allow more activity in a given window than an illiquid single-stock option.
+After MMP fires, the market maker enters a **protection period** to assess and decide before re-quoting. MMP parameters (fill count, time window) are configured per market maker per symbol and are formally specified in market maker agreements. An illustrative configuration might be "5 fills within 500 milliseconds" for a liquid equity option: if five fills occur faster than that, the system assumes the market maker is being picked off by an informed algorithm and activates protection automatically. Real implementations usually measure more than a simple fill count. Eurex's T7, for example, lets market makers set "percentage, volume, delta and vega limits" (delta and vega measure how much an options position gains or loses when the underlying price, or the market's expectation of future price swings, moves), so protection can trigger on how much risk has been accumulated rather than on how many trades produced it, and it *inactivates* the quotes (which the market maker can then reactivate) rather than deleting them [Eurex, *T7 Functional and Interface Overview*]. The parameters are different for each product: a highly liquid product like a major equity index option might allow more activity in a given window than an illiquid single-stock option.
 
 **Why exchanges provide MMP:** Without it, market makers would either quote much wider spreads (to compensate for adverse selection risk) or withdraw entirely. MMP is not a favour to market makers, it is infrastructure that makes tight spreads and deep liquidity sustainable for the whole market.
 
@@ -67,22 +73,7 @@ In a typical implementation a fill-counter function tracks fills against the rol
 
 ## The Full Lifecycle of a Market Maker Quote
 
-```{.mermaid width=350}
-flowchart TD
-    A["1. Submit two-sided quote\nBid and ask resting in the book"]
-    B["2. Quote rests\nParticipants may trade against either leg"]
-    C["3. Fill event occurs\nOne leg hit by an aggressive order"]
-    D["4. Refresh policy fires\nSurviving leg cancelled or left active"]
-    E{"5. MMP check\nNth fill in rolling window?"}
-    F["6. Re-quoting window starts\nExchange tracks deadline for fresh quote"]
-    G["MMP fires\nAll quotes cancelled, protection period"]
-    H["7. Fresh quote submitted\nNew bid and ask at updated prices"]
-
-    A --> B --> C --> D --> E
-    E -- No --> F
-    E -- Yes --> G --> F
-    F --> H --> B
-```
+![The full lifecycle of a market maker quote. After each fill the refresh policy and the MMP check run; either way the cycle ends with a fresh quote resting in the book again.](assets/mm-quote-lifecycle-small.png)
 
 This cycle, repeating dozens of times per minute per symbol, is what "providing liquidity" means operationally. A professional market maker runs sophisticated algorithms that evaluate every fill, update pricing models, and decide within microseconds whether and at what prices to re-quote.
 

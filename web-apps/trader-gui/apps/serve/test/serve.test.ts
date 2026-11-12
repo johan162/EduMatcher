@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import * as http from "node:http";
 import type { AddressInfo } from "node:net";
-import { ENV_OPTIONS, handler, renderHelp } from "../serve.js";
+import { ENV_OPTIONS, handler, renderHelp, upgradeTarget } from "../serve.js";
 
 /**
  * `--help` used to be produced by regex-scraping this file's own leading
@@ -65,5 +65,24 @@ describe("pm-trading-ui-serve request handling", () => {
 
   it("answers a malformed escape with 400 instead of crashing", async () => {
     expect((await get("/%E0%A4%A")).status).toBe(400);
+  });
+});
+
+describe("pm-trading-ui-serve WebSocket routing", () => {
+  const api = "http://desk:8080";
+  const monitor = "http://monitor:8082";
+
+  it("sends only the admin monitor socket to its own instance", () => {
+    expect(upgradeTarget("/api/v1/ws/admin/monitor", api, monitor)).toBe(monitor);
+    expect(upgradeTarget("/api/v1/ws/market-data", api, monitor)).toBe(api);
+    expect(upgradeTarget("/api/v1/ws/admin/sim", api, monitor)).toBe(api);
+  });
+
+  it("uses the general target for the monitor when no own instance is set", () => {
+    expect(upgradeTarget("/api/v1/ws/admin/monitor", api, "")).toBe(api);
+  });
+
+  it("refuses a non-API path", () => {
+    expect(upgradeTarget("/ws", api, monitor)).toBe("");
   });
 });

@@ -72,9 +72,9 @@ Most serious indexes refine this further with **free-float adjustment**: instead
 
 Here is where index maintenance becomes genuinely delicate. Companies do things to their share structure that change the raw numbers without changing their economic value, and a naive index would lurch wildly every time.
 
-**Stock splits.** A company does a 2-for-1 split: every share becomes two, and the price halves. A $200 stock becomes a $100 stock with twice as many shares. The market cap is *unchanged*, the company is worth exactly what it was a second earlier. But if the index simply plugged in the new $100 price without noticing the doubled share count, it would appear to halve that constituent's contribution, and the index would drop for no real reason.
+**Stock splits.** A company does a 2-for-1 split: every share becomes two, and the price halves. A $200 stock becomes a $100 stock with twice as many shares. The market cap is *unchanged*: the company is worth exactly what it was a second earlier. In a cap-weighted index nothing else needs to happen, *provided* the new price and the new share count are switched in at the same moment. If the index plugged in the new $100 price without noticing the doubled share count, it would appear to halve that constituent's contribution, and the index would drop for no real reason. (In a price-weighted index such as the Dow, a split really does change the sum of the prices, so there the divisor must be adjusted.)
 
-**Dividends.** When a company pays a cash dividend, its share price typically drops by roughly the dividend amount on the **ex-dividend date** (the buyer no longer receives that payout). Again, no value was destroyed, it was handed to shareholders, but the price, and therefore the raw market cap, falls.
+**Dividends.** When a company pays a cash dividend, its share price typically drops by roughly the dividend amount on the **ex-dividend date** (from that day, a buyer no longer receives that payout). No value was destroyed, it was handed to shareholders, but the price, and therefore the market cap, falls. Most headline indexes deliberately let ordinary dividends pull the level down: they are **price-return** indexes. Index providers publish a separate **total-return** version that assumes every dividend is reinvested, for anyone who wants to measure the full gain. Only *special* dividends (one-off, unusually large payouts) are normally absorbed into the divisor.
 
 **Share issuance, buybacks, mergers, and spin-offs.** Each of these changes the share count or the set of constituents. A company issuing new shares raises its market cap without its price moving. A constituent being acquired must be removed entirely.
 
@@ -86,18 +86,20 @@ The mechanism is a simple ratio. If a corporate action changes the aggregate cap
 new divisor = old divisor × (new aggregate cap / old aggregate cap)
 ```
 
-Because the level is `aggregate cap ÷ divisor`, multiplying both the cap *and* the divisor by the same factor leaves the level unchanged at the moment of adjustment. The index glides through the event seamlessly. This is precisely the technique the S&P 500 has used for decades, its famous divisor is a closely tracked number that evolves continuously as constituents split, pay dividends, get added, and get removed [S&P Dow Jones Indices, *Index Mathematics Methodology*].
+Because the level is `aggregate cap ÷ divisor`, multiplying both the cap *and* the divisor by the same factor leaves the level unchanged at the moment of adjustment. The index glides through the event seamlessly. This is precisely the technique the S&P 500 has used for decades: its divisor is a closely tracked number that changes whenever constituents are added or removed, issue or buy back shares, or pay special dividends [S&P Dow Jones Indices, *Index Mathematics Methodology*].
 
-```{.mermaid width=225}
-flowchart TD
-    A["Corporate action occurs\n(split, dividend, issuance, removal)"]
-    B["Aggregate market cap\nchanges for non-price reason"]
-    C["Rescale the divisor\nby the same ratio"]
-    D["Index level unchanged\nat the instant of adjustment"]
-    E["Future price moves\nnow change the level normally"]
-    A --> B --> C --> D --> E
+![The five steps of a divisor adjustment. Whenever the basket's aggregate market cap changes for a reason that is not a price move, the divisor is rescaled by the same ratio, so the index level does not move at that instant; only later price moves change it.](assets/index-divisor-steps-small.png)
+
+**A worked example.** Continue with the three-company index from above, now standing at 1043.9 after Alpha's rise (aggregate cap $7,314.6 billion, divisor 7,007,100,000). The index committee replaces Gamma (market cap $793.6 billion) with a new company, Delta, worth $1,200 billion. Nothing has happened to any price, but the basket's aggregate cap jumps to 7,314.6 − 793.6 + 1,200 = $7,721.0 billion. Divided by the old divisor that would read 1101.9, a fake 5.6% rise. So the divisor is rescaled:
+
 ```
-***Figure 1:** The divisor is adjusted to absorb changes in aggregate market cap that are not genuine price moves, so the index level remains continuous.*
+new divisor = 7,007,100,000 × (7,721.0 / 7,314.6) ≈ 7,396,415,265
+index level = 7,721,000,000,000 / 7,396,415,265 ≈ 1043.9   (unchanged)
+```
+
+From then on, Delta's price moves feed into the index just as Gamma's used to.
+
+![The worked example over a few hours of trading. At the moment Gamma is replaced by Delta, the naive calculation (old divisor) jumps by 5.6% although no price moved; with the rescaled divisor the index carries on from exactly where it was.](assets/index-divisor-continuity-small.png)
 
 The continuity this provides is not a nicety, it is the whole point. An index is only meaningful if a move from 4000 to 4040 always means "the market rose 1%," never "a constituent happened to split last night."
 
@@ -169,9 +171,9 @@ Indexes carry a number of subtle hazards that anyone building or relying on them
 
 ## Indexes in Risk Control
 
-Finally, indexes are not just measured, they are wired directly into the market's safety machinery. The most important example connects back to the circuit breakers discussed in Part III.
+Finally, indexes are not just measured, they are wired directly into the market's safety machinery. The most important example is the market-wide circuit breaker, which Part III discusses in detail.
 
-**Market-wide circuit breakers** halt *all* trading on an exchange when the market falls too far, too fast, and in the United States these are triggered by the **S&P 500 index**, not by any single stock. The thresholds are defined as percentage declines from the previous day's closing level [SEC / NYSE / Nasdaq market-wide circuit breaker rules]:
+**Market-wide circuit breakers** halt trading on *every* US stock exchange at once when the market falls too far, too fast, and in the United States these are triggered by the **S&P 500 index**, not by any single stock. The thresholds are defined as percentage declines from the previous day's closing level [SEC / NYSE / Nasdaq market-wide circuit breaker rules]:
 
 | Level | S&P 500 decline from prior close | Action |
 |---|---|---|
@@ -184,7 +186,7 @@ The logic is the same single-symbol circuit breaker idea you already understand,
 Indexes feed risk control in other ways too:
 
 - **Volatility indexes** such as the VIX are themselves derived from index-option prices and serve as a market-wide "fear gauge" that risk managers and regulators watch closely.
-- **Portfolio risk limits** are frequently expressed relative to an index ("our tracking error against the benchmark must stay below 2%").
+- **Portfolio risk limits** are frequently expressed relative to an index ("our **tracking error**, how far our returns wander from the benchmark's, must stay below 2%").
 - **Margin and stress testing** for index derivatives depend on the index level and its volatility.
 
 > **Key idea:** An index is simultaneously a *measurement*, a *tradable reference*, and a *safety trigger*. The same number that tells a journalist "the market is down 2%" can, a few percent lower, automatically halt every order book on the exchange.
@@ -194,7 +196,7 @@ Indexes feed risk control in other ways too:
 - An **index** condenses a basket of instruments into one number; it is a measurement, but enormous sums are invested, settled, and risk-managed against it.
 - Modern serious indexes are **market-capitalisation-weighted**, often **free-float adjusted**, so each constituent's influence matches its economic size.
 - The index level is the **aggregate market cap divided by a divisor**; the divisor normalises the level to a friendly base value and, when rescaled, keeps the index continuous through changes to the basket.
-- **Corporate actions** (splits, dividends, issuance, mergers) change raw numbers without changing value; the **divisor is adjusted** to absorb them so the level does not jump.
+- **Corporate actions and basket changes** (share issuance, buybacks, special dividends, additions and removals) change the aggregate cap without any price move; the **divisor is adjusted** to absorb them so the level does not jump. Splits need only a consistent price and share-count update, and ordinary dividends are left to pull a price-return index down.
 - Major indexes like the **S&P 500** have strict eligibility rules and, in some cases, committee discretion; inclusion is not automatic.
 - **Index inclusion** forces passive funds to buy and triggers anticipatory trading, the **index inclusion effect**, with large, real price consequences.
 - **Correct, deterministic, auditable** index calculation is critical because derivatives settle on it, funds are priced on it, and risk controls fire on it.

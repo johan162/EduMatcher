@@ -75,7 +75,7 @@ The compose file runs six containers in one compose project,
 
 | Container | Image | Host port | |
 |---|---|---|---|
-| `edumatcher-sim` | `edumatcher-ai-sim` | 5560, 5565, 5570, 5580, 5590, 5600, 8080, 8081 | the exchange and the simulation |
+| `edumatcher-sim` | `edumatcher-ai-sim` | 5560, 5565, 5570, 5580, 5590, 5600, 8080, 8081, 8082 | the exchange and the simulation |
 | `edumatcher-sim-terminal-gui` | `edumatcher-terminal-gui` | 8090 | market-data terminal |
 | `edumatcher-sim-log-gui` | `edumatcher-log-gui` | 8091 | log viewer |
 | `edumatcher-sim-trader-gui` | `edumatcher-trader-gui` | 8093 | trading screen |
@@ -97,6 +97,142 @@ containers:
 | `deployment/docker/compose.ai-sim.yaml` | The repository's own, which can also *build* the image (`make build-sim`). Its data directory is `./data-sim` |
 
 The rest of this chapter uses the installed one and `./edumatcher.sh`.
+
+### Three API gateways
+
+The plain exchange runs two instances of the REST/WebSocket API gateway,
+`pm-api-gwy`. The simulation runs a third one:
+
+| Instance | Port | Who connects | Keys it accepts |
+|---|---|---|---|
+| `desk` | 8080 | trader-gui (everything but the admin monitor socket), clearing-gui, students' own programs | `TRADER01`–`TRADER10`, `MM01`, `OPS01` |
+| `dashboards` | 8081 | terminal-gui, book-gui, dash-gui | the read-only key only |
+| `monitor` | 8082 | trader-gui's admin monitor socket, and nothing else | `OPS01`'s key, as the participant `MON01` |
+
+#### Why a third one
+
+The instructor's screens in trader-gui (Admin Dashboard, Monitor Log) are
+fed by one WebSocket, `/api/v1/ws/admin/monitor`. It carries every order
+event of every participant: all hundred AI traders, the market maker and the
+desks. At 09:30, when continuous trading starts, the engine sends about a
+thousand messages a second for a few minutes, and the admin feed turns them
+into about five thousand events a second, each encoded and sent to the
+browser.
+
+Each `pm-api-gwy` is one Python process with one event loop, so it can use
+only one CPU core, however many the machine has. With the admin feed on
+`desk`, that core was full at the open: `desk` ran at 100–117 % CPU, its
+event loop fell up to 1.4 s behind, and in 13 minutes it dropped between
+100 000 and 200 000 admin events. The admin socket's queue is bounded on
+purpose: the gateway drops events for a browser that cannot keep up rather
+than stall everyone else. trader-gui notices the gap and reloads the working
+orders, but the Monitor Log has holes in it. Worse, every student order sent
+through trader-gui went through the same busy loop and waited behind the
+admin feed.
+
+Bigger queues and sending events in batches of up to 256 per frame made the
+gateway cheaper per event, but did not fix the root cause: one core is not
+enough for trading and the admin feed together. Pinning the process to more
+cores does not help a single event loop either. A third gateway process does:
+the admin feed gets a core of its own, and order entry on `desk` no longer
+waits for it.
+
+#### How it is wired
+
+The browser only ever talks to trader-gui (port 8093). trader-gui's small
+server, `pm-trading-ui-serve`, forwards `/api/*` to an API gateway, so the
+page needs only one address. Two settings in the compose file decide where
+things go:
+
+```yaml
+trader-gui:
+  environment:
+    API_PROXY_TARGET: "http://edumatcher:8080"          # everything under /api/
+    API_ADMIN_MONITOR_TARGET: "http://edumatcher:8082"  # only /api/v1/ws/admin/monitor
+```
+
+Only that one WebSocket path goes to `monitor`. All REST calls, the private
+order stream, the market-data socket and the `/api/v1/ws/admin/sim` socket
+stay on `desk`. Without `API_ADMIN_MONITOR_TARGET` (as in the plain
+`edumatcher` image) the admin socket goes to `API_PROXY_TARGET` like the rest.
+
+```mermaid
+flowchart LR
+    B[Browser] --> T["trader-gui :8093<br/>pm-trading-ui-serve"]
+    T -- "REST, /ws/private,<br/>/ws/market-data, /ws/admin/sim" --> D["desk :8080<br/>OPS01"]
+    T -- "/ws/admin/monitor" --> M["monitor :8082<br/>MON01"]
+    D <--> E[pm-engine]
+    M <--> E
+```
+
+**Keys.** The instructor logs in to trader-gui once, with the `OPS01` key,
+and the browser sends that same key as the first message on every socket. So
+`monitor` has to accept it too. But it cannot log in to the engine as `OPS01`:
+`desk` already has, and the engine refuses one participant connected twice.
+So `monitor` maps the key to a participant of its own, `MON01` (role ADMIN).
+In `engine_config.yaml`:
+
+```yaml
+api_gateways:
+  desk:
+    port: 8080
+    credentials:
+    - api_key: key-ops01-3e34rs
+      gateway_id: OPS01
+    # ... the desks and MM01
+  monitor:
+    port: 8082
+    credentials:
+    - api_key: key-ops01-3e34rs     # the same key...
+      gateway_id: MON01             # ...a different participant
+```
+
+That is why `MON01` appears as a second connected ADMIN in the instructor's
+screens. It is not a person, and it needs no key of its own.
+
+**What it sees.** Every API gateway reads the engine's whole message feed, so
+`monitor` sees every participant's orders, not just `MON01`'s. When the
+socket opens, it asks the engine for the list of participants and the halts,
+so the instructor's first view is the same as it would be on `desk`.
+
+**The process.** The `ai-sim` profile starts it as
+`api-monitor-gwy (api-gwy)`, which runs `pm-api-gwy --verbose --instance monitor`
+([A Complete Setup by Hand](100-a-complete-setup-by-hand.md#what-runs)). Like
+every other process of the profile, it is restarted within a minute if it
+dies, and `pm-opctl-cli list` checks that it answers on port 8082.
+
+**The configuration.** `docs/examples/ref_data/mks300.sh` generates
+`s300-sim`'s `engine_config.yaml` with
+`--api-gateway-instance monitor:MON01:8082` and the participant
+`MON01:ADMIN:LEAVE_ALL`. `pm-config-gen` gives `MON01` a key of its own, so
+the script then replaces it with `OPS01`'s.
+
+#### What to watch out for
+
+- **Change both keys together.** When you give `OPS01` a new key in your own
+  configuration, give the `MON01` entry under `monitor` the same key, or the
+  Admin Dashboard and Monitor Log stay empty while everything else works.
+- **Keep the `monitor` instance in your own configuration.** The `ai-sim`
+  profile always starts `pm-api-gwy --instance monitor`, and trader-gui
+  always sends the admin socket to port 8082. A configuration without the
+  instance (one copied before this was added, or written from scratch) makes
+  that process exit at every start with
+  `api_gateways instance 'monitor' not found`, and the admin screens stay
+  empty. Copy the `monitor` block and the `MON01` participant from the
+  deployed `s300-sim` configuration.
+- **It costs a core at the open.** Like every API gateway, `monitor` decodes
+  the whole engine feed, so it uses CPU at the open even when no instructor
+  is connected. On a two-core machine the three gateways and the engine
+  share the cores during the busiest minutes.
+- **No fallback.** If `monitor` is down, the admin screens are empty until it
+  is restarted; `desk` does not take over the admin socket.
+- **The bootstrap sequence numbers belong to one gateway.** The admin
+  bootstrap (`GET /api/v1/bootstrap/admin`, answered by `desk`) returns
+  `monitor_last_seq`, each participant's event counter. Each gateway process
+  keeps its own counters, so these numbers do not match the events on the
+  admin socket from `monitor`. trader-gui does not use them; a program of
+  your own that follows the admin feed should take its sequence numbers from
+  the socket alone.
 
 ### Settings
 

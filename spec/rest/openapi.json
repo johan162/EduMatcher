@@ -19009,7 +19009,7 @@
         "operationId": "bootstrap_admin",
         "responses": {
           "200": {
-            "description": "Everything an operator console needs after login. `monitor_last_seq` is each active gateway's private-stream `stream_seq` now: `/ws/admin/monitor` events for that gateway carry the same counter, so a console can skip the ones it already has. The monitor has no replay.",
+            "description": "Everything an operator console needs after login. `monitor_last_seq` is each active gateway's private-stream `stream_seq` now: `/ws/admin/monitor` events for that gateway carry the same counter, so a console can skip the ones it already has. The counter belongs to one `pm-api-gwy` process: it matches only `/ws/admin/monitor` events from the same instance that answered this request. The monitor has no replay.",
             "content": {
               "application/json": {
                 "schema": {

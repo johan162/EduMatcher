@@ -91,6 +91,10 @@ def test_ai_swarm_profile_anchors_the_market_maker_and_adds_model_and_traders() 
 def test_ai_sim_profile_is_ai_swarm_set_up_for_long_runs() -> None:
     processes = {p["name"]: p for p in load_profiles()["ai-sim"]}
     ai_swarm = {p["name"]: p for p in load_profiles()["ai-swarm"]}
+    # The one process ai-swarm lacks: the admin monitor's own API gateway.
+    monitor = processes.pop("api-monitor-gwy (api-gwy)")
+    assert monitor["command"][-2:] == ["--instance", "monitor"]
+    assert monitor["tcp"] == "127.0.0.1:8082"
     assert list(processes) == list(ai_swarm)
     changed = {name for name in processes if processes[name] != ai_swarm[name]}
     assert changed == {

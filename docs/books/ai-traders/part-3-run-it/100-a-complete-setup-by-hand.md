@@ -102,6 +102,7 @@ starts:
 | `drop-copy-gwy (dc-gwy)` | `pm-dc-gwy --verbose` | Drop copies |
 | `api-desk-gwy (api-gwy)` | `pm-api-gwy --verbose --instance desk` | REST/WebSocket API for trading (port 8080) |
 | `api-dashboards-gwy (api-gwy)` | `pm-api-gwy --verbose --instance dashboards` | Read-only API for the GUIs (port 8081) |
+| `api-monitor-gwy (api-gwy)` | `pm-api-gwy --verbose --instance monitor` | Only the instructor's admin monitor feed (port 8082); see [Three API gateways](110-the-simulation-container.md#three-api-gateways) |
 | `alf-gwy` | `pm-alf-gwy --verbose` | The order gateway the AI traders and trader consoles use |
 | `balf-gwy` | `pm-balf-gwy --verbose` | The binary order gateway |
 | `index-srv` | `pm-index --verbose` | Index calculation |

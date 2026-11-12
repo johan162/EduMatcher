@@ -13,19 +13,24 @@ The word "limit" refers to the price limit the participant is imposing. If an in
 
 Limit orders are by far the most common order type in most markets.
 
-### Price Improvement
+### You Trade at the Resting Order's Price
 
-An important and often surprising behaviour: **a limit order executes at the best available price, not necessarily at its own limit price**. This is called **price improvement**.
+An important and often surprising behaviour: **a limit order that trades immediately does so at the price of the order already waiting in the book, not at its own limit price**.
 
-Example: the best ask is $150.30 (someone is selling at $150.30). You submit a buy limit order at $150.40. Your order says "I am willing to pay up to $150.40", but since the best available seller is only asking $150.30, you trade at $150.30. You receive $0.10 per share of price improvement relative to your limit. Your limit of $150.40 was the *worst* price you were willing to accept, not the target.
+Example: the best ask is $150.30 (someone is selling at $150.30). You submit a buy limit order at $150.40. Your order says "I am willing to pay up to $150.40", but since the best available seller is only asking $150.30, you trade at $150.30, $0.10 per share better than your limit. Your limit of $150.40 was the *worst* price you were willing to accept, not the target.
 
 This applies in both directions:
+
 - A buy limit at $150.40 crossing a $150.30 ask → fills at **$150.30** (better for the buyer)
 - A sell limit at $150.25 crossing a $150.30 bid → fills at **$150.30** (better for the seller)
 
-The limit price is a *floor* for sellers and a *ceiling* for buyers. The actual execution price is the best price available at the time, which will always be at least as good as the limit.
+The limit price is a *floor* for sellers and a *ceiling* for buyers. The actual execution price is set by the resting order, and it will always be at least as good as the limit.
 
-Price improvement matters for execution quality analysis. In the US, SEC Rule 605 requires market centres (and, since the SEC's 2024 amendments, larger broker-dealers too) to publish monthly statistics on execution quality, including how often orders received price improvement versus the quoted price. Large retail brokers like Fidelity and Charles Schwab report that a significant percentage of their retail orders receive price improvement, particularly for small orders routed to market makers who can beat the NBBO [1].
+### Price Improvement
+
+Traders sometimes loosely call that $0.10 "improvement over the limit", but in the industry the term **price improvement** means something narrower: a fill at a better price than the best price publicly quoted at that moment. If the best displayed ask across the market is $150.30 and your buy order fills at $150.28, you received $0.02 of price improvement. This happens when your order meets hidden liquidity inside the spread, for example a midpoint order (described later in this chapter), or a market maker who chooses to fill you at a better price than its public quote.
+
+Price improvement matters for execution quality analysis. In the US, SEC Rule 605 requires market centres (and, since the SEC's 2024 amendments, larger broker-dealers too) to publish monthly statistics on execution quality, including how often orders received price improvement versus the quoted price. Large retail brokers like Fidelity and Charles Schwab report that a significant percentage of their retail orders receive price improvement, particularly small orders routed to market makers who can beat the NBBO (the best bid and offer across all exchanges) [1].
 
 ## Market Orders
 
@@ -64,6 +69,8 @@ Example: You bought shares at $150. You set a sell trailing stop with an offset 
 
 The mechanism that advances the stop in the favourable direction is called the **ratchet**, like a mechanical ratchet that only moves in one direction. The trail offset is stored as a fixed distance, and the ratchet advances by subtracting this offset from each new high-water-mark price.
 
+![The example as a chart. The stop (dashed) trails $5.00 below the highest price reached so far, so it only ever moves up. When the price falls back to $165 the stop fires, becomes a market sell order and fills at the best bid.](assets/order-trailing-stop-small.png)
+
 ## How a Trailing Stop Actually Executes
 
 This is a point of frequent confusion, so it deserves careful explanation.
@@ -84,9 +91,9 @@ Trailing stop logic is not universally implemented at the exchange level. On som
 
 ## Iceberg Orders
 
-An **iceberg order** (also called a **reserve order** or **hidden order**) is a large order that conceals most of its size. It shows only a small visible portion, the **peak** or **tip**, to other participants. When the visible portion is consumed by fills, the order automatically replenishes from its hidden reserve, showing a new peak.
+An **iceberg order** (also called a **reserve order**) is a large order that conceals most of its size. (A **hidden order**, which many venues also offer, goes one step further and shows nothing at all.) It shows only a small visible portion, the **peak** or **tip**, to other participants. When the visible portion is consumed by fills, the order automatically replenishes from its hidden reserve, showing a new peak.
 
-Why would someone want this? If you need to buy 100,000 shares, showing the full size in the book signals your intention to the entire market. Other participants may raise their ask prices or front-run your order before you can fill it. By showing only 1,000 shares at a time, you hide your true intent and reduce your **market impact**.
+Why would someone want this? If you need to buy 100,000 shares, showing the full size in the book signals your intention to the entire market. Other participants may raise their ask prices, or **front-run** you (buy ahead of you in order to sell to you at a higher price), before you can fill it. By showing only 1,000 shares at a time, you hide your true intent and reduce your **market impact**.
 
 The trade-off is **queue priority**: each replenishment gets a fresh timestamp and goes to the back of the queue at that price level, rather than retaining the position of the original order. The exchange's other participants can see that an iceberg is present (the order keeps replenishing at the same price), but not how large the hidden reserve is.
 
@@ -157,7 +164,11 @@ On IEX (a lit exchange), midpoint pegs work slightly differently. The midpoint p
 
 **The developer perspective.**
 
-The matching engine must handle midpoint pegs as a separate priority queue that sits parallel to the regular price-time priority book. The mid price must be recalculated on every book update (every time the best bid or best ask changes). The midpoint peg queue must be checked against incoming orders and against each other. The fill price for a midpoint peg match is not a stored order price, it is computed dynamically at match time as (best_bid + best_ask) / 2, requiring care with rounding to the nearest valid tick. Because the sum of two tick-aligned prices is not always an even number of ticks, this rounding step has a specific, easy-to-get-wrong correct answer, worked through in full in the *Tick Sizes and Fractional Ticks* section below.
+The matching engine must handle midpoint pegs as a separate priority queue that sits parallel to the regular price-time priority book. The mid price must be recalculated on every book update (every time the best bid or best ask changes). The midpoint peg queue must be checked against incoming orders and against each other. The fill price for a midpoint peg match is not a stored order price, it is computed dynamically at match time as (best_bid + best_ask) / 2, requiring care with rounding to the nearest valid tick. Because the sum of two tick-aligned prices is not always an even number of ticks, this rounding step has a specific, easy-to-get-wrong correct answer, worked through in full in the *Tick Sizes and Fractional Ticks* chapter later in this Part.
+
+## Post-Only Orders
+
+A **post-only order** is a limit order with one extra condition: it must *rest* in the book. If, on arrival, it would trade immediately against a resting order on the other side, the exchange rejects it (or, on some venues, reprices it one tick away so that it rests instead). Market makers use post-only orders all the time, because a resting order earns the maker rebate while an order that trades on arrival pays the taker fee. A post-only order guarantees which of the two the participant will be.
 
 ## OCO Orders (One-Cancels-Other)
 
@@ -168,7 +179,7 @@ Classic use case: You own shares bought at $200. You want to take profit if the 
 - Order B: Sell stop at $185 (stop-loss)
 - Linkage: these are an OCO pair
 
-Only one of A or B will ever execute. Whichever triggers first cancels the other. This is called a **bracket order**, the position is "bracketed" between a profit target above and a loss limit below.
+Only one of A or B will ever execute. Whichever triggers first cancels the other. A pair like this is often called a **bracket**: the position is "bracketed" between a profit target above and a loss limit below.
 
 OCO orders are a standard feature of most professional trading platforms. Relatively few exchanges support them natively in the matching engine; more often the linkage is maintained by the broker or the trading front end, which cancels the surviving order itself when the other one fills. (That design has a race: for a brief moment both orders are live, and in a fast market both can fill. Native exchange support closes that gap.)
 
@@ -178,7 +189,7 @@ A **combo order** (also called a **spread order** or **strategy order**) is a si
 
 Example: A **pairs trade**, buy 100 shares of AAPL and sell 50 shares of MSFT simultaneously, treating the combined position as a single trade. The trader believes AAPL will outperform MSFT relative to each other, and wants to be exposed only to the relative difference between them, not to overall market direction.
 
-Combo orders are critical in derivatives markets. On CME, a futures trader might simultaneously buy a March contract and sell a June contract on the same underlying, a **calendar spread**. Eurex offers a rich set of combination strategies for options, including straddles (buy a call and buy a put at the same strike), strangles (buy a call and buy a put at different strikes), and butterflies (three strikes, two legs long and one short in a specific ratio).
+Combo orders are critical in derivatives markets. On CME, a futures trader might simultaneously buy a March contract and sell a June contract on the same underlying, a **calendar spread**. Eurex offers a rich set of combination strategies for options. (A **call** is an option to buy, a **put** is an option to sell, and the **strike** is the fixed price written into the option.) Popular combinations include straddles (buy a call and buy a put at the same strike), strangles (buy a call and buy a put at different strikes), and butterflies (buy one option at a low strike, sell two at a middle strike and buy one at a high strike).
 
 The execution challenge is **leg risk**: if one leg fills and the other does not, the trader is left with an unintended one-sided position. Production exchange systems handle this with sophisticated combo matching engines; simpler systems accept the leg risk explicitly.
 
