@@ -67,22 +67,7 @@ In a typical implementation a fill-counter function tracks fills against the rol
 
 ## The Full Lifecycle of a Market Maker Quote
 
-```{.mermaid width=350}
-flowchart TD
-    A["1. Submit two-sided quote\nBid and ask resting in the book"]
-    B["2. Quote rests\nParticipants may trade against either leg"]
-    C["3. Fill event occurs\nOne leg hit by an aggressive order"]
-    D["4. Refresh policy fires\nSurviving leg cancelled or left active"]
-    E{"5. MMP check\nNth fill in rolling window?"}
-    F["6. Re-quoting window starts\nExchange tracks deadline for fresh quote"]
-    G["MMP fires\nAll quotes cancelled, protection period"]
-    H["7. Fresh quote submitted\nNew bid and ask at updated prices"]
-
-    A --> B --> C --> D --> E
-    E -- No --> F
-    E -- Yes --> G --> F
-    F --> H --> B
-```
+![The full lifecycle of a market maker quote. After each fill the refresh policy and the MMP check run; either way the cycle ends with a fresh quote resting in the book again.](assets/mm-quote-lifecycle-small.png)
 
 This cycle, repeating dozens of times per minute per symbol, is what "providing liquidity" means operationally. A professional market maker runs sophisticated algorithms that evaluate every fill, update pricing models, and decide within microseconds whether and at what prices to re-quote.
 

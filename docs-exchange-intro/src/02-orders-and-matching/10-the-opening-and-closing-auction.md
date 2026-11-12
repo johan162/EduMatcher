@@ -43,6 +43,10 @@ The equilibrium algorithm evaluates each candidate price:
 
 The equilibrium price is **$151**, the single price at which the most volume (1,500 shares) can trade. All buyers who bid $151 or more (1,500 shares total) and all sellers who asked $151 or less (1,500 shares total) trade simultaneously at $151, regardless of their individual limit prices. The buyer who bid $152 still pays only $151, receiving $1 per share of price improvement. The seller who asked $150 still receives $151, getting $1 above their minimum. Two orders do not execute: the 800-share buy order at $150 (it will not pay $151) and the 800-share sell order at $152 (it will not accept $151). Both transition to the continuous book, which therefore opens with a best bid of $150 and a best ask of $152.
 
+It helps to see the table as two curves. As the candidate price rises, cumulative buy interest can only fall (fewer buyers are willing to pay that much) and cumulative sell interest can only rise (more sellers are willing to accept it). Executable volume is the smaller of the two, so it is capped by sellers on the low side and by buyers on the high side, and it peaks where the curves meet.
+
+![The worked example as curves. Blue: shares buyers will take at each price or higher. Red: shares sellers will give at each price or lower. The orange bars show the executable volume min(buy, sell), which peaks at $151, where both curves stand at 1,500 shares.](assets/auction-equilibrium-small.png)
+
 **Tie-breaking when multiple prices produce the same volume:** If two candidate prices both yield 500 shares executable, the algorithm must choose between them. The standard tie-breaking rules, applied in order, are:
 
 1. **Minimise the imbalance.** The imbalance is the unfilled quantity on the heavier side after the uncross. Prefer the price that leaves the smallest imbalance. If at $151 the buy side has 500 executable but 200 additional buy orders remain, the imbalance is 200. A price with a smaller imbalance is preferred.

@@ -48,6 +48,8 @@ So a February seller at $77.00 does exist. It is just split across two orders in
 
 An exchange with implied orders does that work for C. It notices that A's January offer and B's spread order *together* amount to an offer to sell February, and it displays that offer in the February book: **sell 30 lots of February at $77.00**, the quantity limited by the smaller of the two ingredients (B's 30 spreads). When C buys 20 lots, the engine executes all three pieces at once: A sells January to B, B completes its spread, and C receives February. From C's point of view it was an ordinary February trade. B's spread order is now partly filled: 20 of its 30 spreads are done, and the other 10 simply stay in the spread book, exactly as any partly filled limit order would. So the February book keeps showing an implied offer of 10 lots at $77.00 for the next buyer. Level 3 works through this exact example in full, once we have the vocabulary to do it precisely.
 
+![The three books and the three traders. The engine shows C an implied February offer built from A's and B's orders. When C buys, the oil moves from A to B (January) and from B to C (February).](assets/implied-wrong-book-small.png)
+
 Notice who actually traded with whom. C never dealt with A. C bought February from B, and B bought January from A. A's role was indirect: B was only willing to sell February if it could buy January at the same moment, so A's January offer was what made B's February sale possible. It was a precondition for C's trade, not a part of it. And notice what did *not* happen: no new oil appeared. The February that C bought came from B, who was willing to sell it all along; the engine merely supplied the January purchase that B's order required. This idea, that implied orders connect existing liquidity rather than create new liquidity, runs through the whole chapter.
 
 On a trading floor, the connection between a spread and its legs could be made by people: a trader who heard a spread bid and an outright offer could combine them mentally and act on both. An electronic order book has no such person. Each book is an isolated queue, unless the matching engine itself connects them. **Implied orders are that connection**: the engine continuously asks "which combinations of orders resting in *other* books would amount to an order in *this* book?", displays the answer, and lets it trade. A 2001 patent filing by the New York Mercantile Exchange describes the purpose in one line: implied orders are generated "to provide order combinations which could not be directly entered into a trading system" [US Patent 7,039,610].
@@ -130,6 +132,8 @@ A negative price is not an error code, and your engine must not treat it as one.
 > - The best bid is the *highest* signed price; the best ask is the *lowest* signed price.
 > - A spread bid is (also) an offer to sell Feb; a spread ask is (also) a bid to buy Feb.
 
+![The sign convention in one picture. Top: S is the step from the far month (February) to the near month (January). It is negative in contango and positive in backwardation. Bottom: spread prices are ordinary signed numbers, so "higher" means further right, even below zero.](assets/implied-sign-convention-small.png)
+
 > **Convention warning.** Near-minus-far is the norm for calendar spreads on CME, and most futures venues use the same convention, but it is not a law of nature. Inter-commodity spreads, ratio spreads, and some venues' products define their price differently (some as a ratio of legs, some with legs weighted 2:3, and so on). CME's Treasury inter-commodity spreads, for instance, are not quoted as a simple difference of leg prices at all, but as a ratio-weighted difference of each leg's net change since the previous day's settlement [Wilson, CME Group, *Liquidity in implied inter-commodity spread markets*, 2024]. Always read the product's definition before writing a single formula.
 
 ### Leg prices
@@ -166,6 +170,8 @@ An **implied order** is simply a set of resting orders whose vectors add up to s
   Combined                   v = (Feb −1)            c = −77.00
 ```
 
+![The same addition drawn as blocks. Green is a purchase (+1), red a sale (−1). In the January column the two blocks cancel; what remains is a sale of one February lot for $77.00.](assets/implied-vector-sum-small.png)
+
 The January legs cancel. What remains sells one February lot and receives $77.00: that is precisely **an offer to sell February at $77.00**, even though nobody has placed an order in the February book. This is the complete theory of implied pricing. Everything else in this chapter (quantities, priority, rounding, market data) is engineering around this addition.
 
 Two consequences follow immediately and should be memorised:
@@ -189,6 +195,10 @@ Apply the rule to every pair of orders that can cancel a leg, and exactly six im
 *(Reading the "Spread ask" row: the combined vector is (Jan −1, Feb +1), which is what one unit of a spread **sell** looks like; a resting set of orders that together behave like a seller is an **ask**. Its price is −c = −(−Jan_ask + Feb_bid) = Jan_ask − Feb_bid.)*
 
 Check the sign-flip from Confusion 3 in the table: an implied February **ask** is built from a spread **bid**. The rule of thumb: an implied **near-month** (January) quote has the *same* side as the spread order inside it (Jan ask uses a spread ask, Jan bid uses a spread bid), while an implied **far-month** (February) quote has the *opposite* side (Feb ask uses a spread bid, Feb bid uses a spread ask).
+
+The whole table fits in one picture. There are only three books, and any two of them can imply a quote in the third:
+
+![Three books, any two imply the third. Each row highlights one target book (dashed) and the two books whose orders feed it, with the bid and ask formulas for that target.](assets/implied-triangle-small.png)
 
 **Terminology.** CME defines the two families as follows [CME Group Client Systems Wiki, *Implied Orders*]:
 
@@ -327,6 +337,8 @@ The min() rule from Level 3 generalises, and the generalisation is where impleme
 | Spread | Bid | −$2.00 | 15 | Trader H |
 
 Both spread bids combine with the *same* January ask to imply February asks at $77.00. The correct implied quantity is min(50, 30 + 15) = **45**. Here that happens to equal the naive calculation min(50, 30) + min(50, 15) = 45, which is exactly why the naive calculation survives code review. Now shrink A's order to 40 lots. The correct answer is min(40, 45) = **40**. The naive "pairwise min, then sum" still says 30 + 15 = 45 and over-advertises by 5 lots that do not exist. A's January order is a **shared leg**: every construction that uses it draws from the same 40 lots.
+
+![A shared leg. B's and H's spread bids both need A's January lots. Taking the min of each pair separately and adding the results counts 5 of A's lots twice.](assets/implied-shared-leg-small.png)
 
 The general statement: *the implied quantity is the largest quantity that can be routed through the contributing orders simultaneously, with no order used beyond its own size.* For a single chain that is the smallest ingredient; when chains share an order, the shared order caps their total. (Readers who know graph algorithms will recognise a maximum-flow problem; for first-generation implieds between two months it reduces to the simple sums and mins shown here.)
 
