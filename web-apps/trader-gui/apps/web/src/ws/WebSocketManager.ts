@@ -528,6 +528,12 @@ function reconnectEvents(): void {
 }
 
 function handleAdminMonitorMessage(raw: unknown): void {
+  // Live events arrive as an array of envelopes (the gateway coalesces what is
+  // queued into one frame); the opening frames are single objects.
+  if (Array.isArray(raw)) {
+    for (const item of raw) handleAdminMonitorMessage(item);
+    return;
+  }
   const envelope = raw as WsEnvelope<unknown>;
   if (!envelope?.type) return;
   if (envelope.type === "authenticated" || envelope.type === "error") return;
@@ -632,6 +638,7 @@ export function __setEventsSocketForTest(socket: ManagedSocket | null): void {
 
 export const __marketDataMessageForTest = handleMarketDataMessage;
 export const __privateMessageForTest = handlePrivateMessage;
+export const __adminMonitorMessageForTest = handleAdminMonitorMessage;
 export const __getEventsSocketForTest = (): ManagedSocket | null => eventsWs;
 
 // ── React hook ────────────────────────────────────────────────────────────────

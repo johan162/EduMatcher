@@ -18,7 +18,7 @@ by that one prefix.
 |---|---|---|---|
 | `/api/v1/ws/private` | Trading key | The caller gateway's order, quote and risk events | `256` |
 | `/api/v1/ws/market-data` | Any key | Public book, depth, trades, auctions, session, halts and news, by subscription | `4096` |
-| `/api/v1/ws/admin/monitor` | ADMIN | Every engine event across all gateways except public market data and `engine.trace`, plus `admin.action` | `512` |
+| `/api/v1/ws/admin/monitor` | ADMIN | Every engine event across all gateways except public market data and `engine.trace`, plus `admin.action` | `32768` |
 | `/api/v1/ws/admin/sim` | ADMIN | `pm-market-sim` state and the model's true values | `64` |
 
 **Queue** is the number of events the gateway holds for one socket that has
@@ -295,6 +295,11 @@ everything that is sent stays contiguous.
 | `monitor.snapshot` | `ts`, `data: {orders, halts, gateways, last_seq, incomplete}` | Current state: the gateway's cross-gateway order view, the engine's halts and gateway roster, each active gateway's `stream_seq`; names of any part that timed out in `incomplete` |
 
 ### Events
+
+Live events arrive as a JSON **array** of one to 256 envelopes, oldest first:
+everything the gateway has queued for the socket is sent in one frame. A
+client unpacks the array and treats each element as it would a single frame.
+The opening frames above are single objects.
 
 All private event types above, for every gateway, `session` and
 `circuit_breaker`, and:

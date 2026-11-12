@@ -206,6 +206,29 @@ async def private_events(websocket: WebSocket) -> None:
         return
 
 
+# Sized for the open, like the market-data queue: the monitor is a single
+# consumer sharing a saturated loop with the engine feed, so it falls behind
+# for minutes, not seconds.
+_ADMIN_QUEUE_MAX = 32768
+# Events sent per frame. Everything already waiting is coalesced into one
+# frame so the monitor costs one dump, one await and one frame per batch
+# instead of per event; the cap keeps one frame from growing without bound.
+_ADMIN_BATCH_MAX = 256
+
+
+async def _next_admin_batch(
+    queue: asyncio.Queue[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Wait for one event, then take whatever else is already queued."""
+    batch = [await queue.get()]
+    while len(batch) < _ADMIN_BATCH_MAX:
+        try:
+            batch.append(queue.get_nowait())
+        except asyncio.QueueEmpty:
+            break
+    return batch
+
+
 @router.websocket("/admin/monitor")
 async def admin_monitor(websocket: WebSocket) -> None:
     await websocket.accept()
@@ -235,7 +258,7 @@ async def admin_monitor(websocket: WebSocket) -> None:
             )
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
             return
-        queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue(maxsize=512)
+        queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue(maxsize=_ADMIN_QUEUE_MAX)
         # Registered before the snapshot for the same reason as the private
         # stream: an event landing in between would be lost while the
         # snapshot still looked complete.
@@ -249,8 +272,7 @@ async def admin_monitor(websocket: WebSocket) -> None:
             raise
         try:
             while True:
-                event = await queue.get()
-                await websocket.send_json(event)
+                await websocket.send_json(await _next_admin_batch(queue))
         finally:
             engine.remove_admin_sink(queue)
     except WebSocketDisconnect, TimeoutError:

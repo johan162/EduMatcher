@@ -14,6 +14,7 @@ import {
   __marketDataMessageForTest as route,
   __setMarketDataSocketForTest,
   __privateMessageForTest as routePrivate,
+  __adminMonitorMessageForTest,
   __setEventsSocketForTest,
   __getEventsSocketForTest,
   getSubscriptionPlan,
@@ -620,5 +621,23 @@ describe("private-stream stream_seq gap detection (H6)", () => {
     // number against.
     routePrivate({ type: "authenticated", topic: "", ts: "", stream_seq: 42, data: {} });
     expect(__getEventsSocketForTest()).toBe(before);
+  });
+});
+
+describe("admin monitor frames", () => {
+  it("unpacks an array frame into one ingest per envelope, in order", async () => {
+    const { useMonitorStore } = await import("@/store/useMonitorStore");
+    useMonitorStore.getState().clear();
+    const frame = [1, 2].map((seq) => ({
+      type: "order.ack",
+      topic: "order.ack.GW01",
+      ts: "2026-08-14T10:00:00.000Z",
+      gateway_id: "GW01",
+      seq,
+      data: { order_id: `o${seq}`, accepted: true, symbol: "AAPL", side: "BUY", qty: 1 },
+    }));
+    __adminMonitorMessageForTest(frame);
+    useMonitorStore.getState().flush();
+    expect(Object.keys(useMonitorStore.getState().orders).sort()).toEqual(["o1", "o2"]);
   });
 });

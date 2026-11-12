@@ -414,3 +414,29 @@ def test_a_sink_filter_keeps_unwanted_events_out_without_counting_a_drop(
     # Filtered events still consume their sequence number.
     client.remove_market_data_sink(queue)
     assert client._topic_seq["depth.MSFT"] == 5
+
+
+def test_admin_monitor_batch_takes_what_is_queued_up_to_the_cap() -> None:
+    from edumatcher.api_gateway.routers import ws
+
+    async def run() -> tuple[list[int], list[int], list[int]]:
+        queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
+        for n in range(ws._ADMIN_BATCH_MAX + 3):
+            queue.put_nowait({"n": n})
+        first = await ws._next_admin_batch(queue)
+        second = await ws._next_admin_batch(queue)
+        waiter = asyncio.create_task(ws._next_admin_batch(queue))
+        await asyncio.sleep(0)
+        assert not waiter.done()
+        queue.put_nowait({"n": -1})
+        third = await waiter
+        return (
+            [e["n"] for e in first],
+            [e["n"] for e in second],
+            [e["n"] for e in third],
+        )
+
+    first, second, third = asyncio.run(run())
+    assert first == list(range(ws._ADMIN_BATCH_MAX))
+    assert second == [ws._ADMIN_BATCH_MAX + i for i in range(3)]
+    assert third == [-1]
