@@ -190,9 +190,12 @@ The core documentation for understanding order behavior, priority categories, an
 * CME Group Client Systems Wiki, [Futures Implied Order Matching Priority](https://cmegroupclientsite.atlassian.net/wiki/spaces/EPICSANDBOX/pages/457096650/Futures+Implied+Order+Matching+Priority) (real orders before implied orders; tie-breaks between implied sources).
 * CME Group Client Systems Wiki, [MDP 3.0 – Implied Book](https://cmegroupclientsite.atlassian.net/wiki/spaces/EPICSANDBOX/pages/457422235/MDP+3.0+-+Implied+Book) (two-deep implied book dissemination).
 * CME Group, [Treasury Futures Calendar Spreads](https://www.cmegroup.com/trading/interest-rates/files/treasury-futures-calendar-spreads.pdf), 2016 (spread buy/sell convention; leg-price assignment).
+* Brendan Wilson, CME Group, [Liquidity in implied inter-commodity spread markets](https://www.cmegroup.com/articles/2023/liquidity-in-implied-inter-commodity-spread-markets.html), 22 October 2024 (implied IN/OUT rules for ICS; undisseminated and locked/inverted implied quotes; outward rounding and who receives the rounding gain).
 * Isaac Carruthers, [Inter-Commodity Spreads and Implied Pricing](https://texnology.com/quant.pdf), 2018 (outward rounding of implied prices; finer implied grids for ratio spreads).
 * Eurex, [Matching principles](https://www.eurex.com/ex-en/trade/order-book-trading/matching-principles) (synthetic matching) and [Passive Liquidity Protection](https://www.eurex.com/ex-en/support/initiatives/archive/passive-liquidity-protection).
-* CME press releases on implied functionality for Eurodollar butterflies, 8 March 2004 and 18 October 2004.
+* CME press releases on implied functionality for Eurodollar calendar and butterfly spreads, [8 March 2004](https://mondovisione.com/media-and-resources/news/cme-to-add-new-eurodollars-on-globex-cme-to-add-new-eurodollars-on-globex-functi-2011124/) and [18 October 2004](https://mondovisione.com/media-and-resources/news/cme-launches-implied-butterfly-spread-functionality-for-electronic-trading-of-cm-2011124/).
+* Chicago Mercantile Exchange Holdings Inc., [CME Acquires Liquidity Direct Technology, LLC](https://www.sec.gov/Archives/edgar/data/1156375/000119312504003298/dex991.htm), news release, 12 January 2004 (Eurodollar electronic share in 2003; January 2003 Globex spread-trading enhancement).
+* M. N. Morano, I. West, K. Neumann (New York Mercantile Exchange), [US Patent 7,039,610: *Implied market trading system*](https://patents.google.com/patent/US7039610B2/en), filed 4 October 2001, granted 2 May 2006.
 
 ### Crude oil and negative prices
 
