@@ -1,7 +1,7 @@
 # Regulatory Surveillance, Exchanges Are Not Passive
 
 
-An exchange does not simply match orders and publish data. It actively monitors for market abuse and is legally required to report suspicious activity to regulators. This section introduces the concepts; developers working on exchange infrastructure will eventually need to understand them because audit trail and surveillance requirements shape the design of event logging, data retention, and monitoring systems.
+An exchange does not simply match orders and publish data. It actively monitors for market abuse and is legally required to report suspicious activity to regulators. This chapter introduces the concepts; developers working on exchange infrastructure will eventually need to understand them because audit trail and surveillance requirements shape the design of event logging, data retention, and monitoring systems.
 
 ## Types of Market Abuse
 
@@ -13,9 +13,11 @@ The most famous spoofing prosecution to date is the case against **Navinder Sing
 
 **Wash trading.** As described in the *Self-Match Prevention* chapter of this Part. Trading with oneself to generate artificial volume.
 
-**Front running.** Acting on knowledge of another participant's pending orders before they execute, for example, a broker who sees a large client order about to move the market, and trades for their own account first. Illegal and a serious breach of fiduciary duty.
+**Front running.** Acting on knowledge of another participant's pending orders before they execute, for example, a broker who sees a large client order about to move the market, and trades for their own account first. Illegal, and a serious breach of the broker's **fiduciary duty** (the legal duty to put the client's interests first).
 
-**Insider trading.** Trading on material, non-public information. Not an order flow manipulation but handled by the same regulatory framework. The exchange's audit trail is a key source of evidence in insider trading investigations.
+**Insider trading.** Trading on **material, non-public information**: information that would move the price and that the public does not have yet, such as an unannounced takeover. Not an order flow manipulation but handled by the same regulatory framework. The exchange's audit trail is a key source of evidence in insider trading investigations.
+
+**Marking the close.** Trading in the last minutes of the day, or in the closing auction, to push the official closing price in a direction that benefits a position held elsewhere. The *Opening and Closing Auction* chapter describes it and the Athena Capital case.
 
 **Quote stuffing.** Flooding the exchange with a high volume of orders and cancellations to consume the matching engine's bandwidth and slow down competitors. A high-frequency trading abuse pattern.
 

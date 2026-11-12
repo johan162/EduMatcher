@@ -43,7 +43,7 @@ In many architectures, the gateway performs only structural and session checks, 
 ```
 (Note: the `|` separator here is a display convention. On the wire, FIX uses the SOH character, ASCII value 1, a non-printable control character, as the field delimiter. Tools and documentation almost always substitute `|` or `^A` for readability.)
 
-All eleven fields in this message have meaning. (A complete message on the wire also carries a few mandatory housekeeping fields, such as BodyLength (tag 9), MsgSeqNum (34), SendingTime (52), and a CheckSum (10) at the end, omitted here for readability.)
+All eleven fields in this message have meaning. (A complete message on the wire also carries a few mandatory housekeeping fields, such as BodyLength (tag 9), MsgSeqNum (34), SendingTime (52), and a CheckSum (10) at the end, and FIX 4.2 also requires HandlInst (21) and TransactTime (60) on a new order; all omitted here for readability.)
 
 | Tag | Name | Value | Meaning |
 |---|---|---|---|
@@ -106,7 +106,7 @@ Order submission uses the reverse pattern, TCP from participant to exchange, bec
 
 ## The Matching Engine
 
-The matching engine is the exchange's core computational component: the software that receives every incoming order, maintains the state of all order books, and executes trades when compatible buy and sell orders can be paired. It sits at the centre of the architecture, receiving from all gateways through a single serialised input queue and publishing results to all subscribers. A single-threaded design, one book per symbol, and deterministic processing are its defining characteristics, each discussed in detail in the *Matching Engine* section above. The gateway is the entry point into this pipeline; the engine is where the actual work happens.
+The matching engine is the exchange's core computational component: the software that receives every incoming order, maintains the state of all order books, and executes trades when compatible buy and sell orders can be paired. It sits at the centre of the architecture, receiving from all gateways through a single serialised input queue and publishing results to all subscribers. A single-threaded design, one book per symbol, and deterministic processing are its defining characteristics, each discussed in detail in *The Matching Engine* chapter of Part II. The gateway is the entry point into this pipeline; the engine is where the actual work happens.
 
 ## The Message Bus
 
@@ -128,10 +128,9 @@ Any process that connects to the engine's PUB socket and processes events is a *
 
 - **Clearing process:** Tracks positions and P&L for all participants, generates clearing reports.
 - **Stats recorder:** Stores OHLCV (Open, High, Low, Close, Volume) statistics to a database for historical analysis.
-- **Viewer/Board:** Display processes that show the current order book, recent trades, and market data on screens.
-- **Ticker:** A simplified display of the most recent prices.
+- **Display processes:** Screens for the exchange's own operations staff that show the current order book, recent trades and a ticker of the latest prices.
 - **Audit log:** A complete, immutable record of every event, for regulatory purposes.
-- **AI trader / algorithmic participants:** Automated trading strategies that observe market data and submit orders.
+- **Market data publisher:** Turns the internal events into the public market data feeds. Participants, including algorithmic traders, never subscribe to the engine's internal bus; they read the public feed and send orders through a gateway like everyone else.
 
 The key design principle: subscribers are passive receivers. They observe the market through event streams. They do not write to the order book.
 

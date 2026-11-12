@@ -1,7 +1,7 @@
 # A Cautionary Tale, Knight Capital, August 1, 2012
 
 
-Everything in the *Pre-Trade Risk Controls* section, maximum quantity limits, position limits, kill switches, deployment discipline, exists partly because of what happened to one firm on one morning. The story of Knight Capital is the most important cautionary tale in the history of electronic trading, and every developer who touches exchange-adjacent code should know it.
+Everything in the *Pre-Trade Risk Controls* chapter, maximum quantity limits, position limits, kill switches, deployment discipline, exists partly because of what happened to one firm on one morning. The story of Knight Capital is the most important cautionary tale in the history of electronic trading, and every developer who touches exchange-adjacent code should know it.
 
 ## The Company
 
@@ -51,9 +51,9 @@ The SEC conducted a detailed investigation and published its findings in October
 
 **4. No kill switch, and no plan for using one.** The SEC found that Knight "did not have supervisory procedures concerning incident response" and "did not have clear guidance for its technology personnel as to when to disconnect a malfunctioning system". In the chaos of the morning, staff diagnosed, guessed, and rolled back code instead of simply disconnecting. A kill switch that nobody is authorised, trained, or instructed to pull is not a kill switch. Emergency controls must be pre-tested, clearly documented, instantly accessible, and operable by a single person under extreme stress, with explicit authority to act first and investigate afterwards.
 
-**5. No automated detection of anomalous trading patterns.** An algorithm sending 4 million orders in 45 minutes, accumulating $7 billion in exposure on one server while the other seven servers show normal activity, should have been automatically detectable. A real-time monitor comparing per-server activity, or watching the rate of position accumulation relative to normal levels, would have flagged the anomaly within seconds. Automated detection should not require a human to notice something is wrong.
+**5. No automated detection of anomalous trading patterns.** An algorithm producing more than 4 million executions in 45 minutes, accumulating nearly $7 billion in exposure on one server while the other seven servers show normal activity, should have been automatically detectable. A real-time monitor comparing per-server activity, or watching the rate of position accumulation relative to normal levels, would have flagged the anomaly within seconds. Automated detection should not require a human to notice something is wrong.
 
-**6. The exchange cannot protect you from yourself.** This deserves particular emphasis. NYSE processed every single one of Knight's 4 million orders correctly. None of them violated any exchange rule. The exchange is not in a position to determine whether a participant's trading strategy makes business sense, only whether the orders are technically valid. Pre-trade risk controls at the exchange level (quantity limits, fat-finger price filters, rate limits) exist to protect the market as a whole from clearly erroneous orders. They are not a substitute for participant-side risk management. Knight's situation could not have been prevented at the exchange level alone.
+**6. The exchange cannot protect you from yourself.** This deserves particular emphasis. NYSE processed every single one of Knight's millions of orders correctly. None of them violated any exchange rule. The exchange is not in a position to determine whether a participant's trading strategy makes business sense, only whether the orders are technically valid. Pre-trade risk controls at the exchange level (quantity limits, fat-finger price filters, rate limits) exist to protect the market as a whole from clearly erroneous orders. They are not a substitute for participant-side risk management. Knight's situation could not have been prevented at the exchange level alone.
 
 ## The Legacy
 
@@ -65,7 +65,9 @@ Subsequently, regulators in the US, EU (under MiFID II), and other jurisdictions
 - Intraday position and notional limits
 - Automated anomaly detection
 
-Every requirement in the *Pre-Trade Risk Controls* section of this document, and the kill switch discussion, is grounded in part in the lesson that Knight Capital paid $440 million to teach.
+Exchanges themselves did not escape scrutiny: Knight, the Facebook IPO and the BATS IPO, all in 2012, led the SEC to adopt **Regulation SCI** (Systems Compliance and Integrity) in 2014, which requires exchanges and other key market infrastructure to test their systems, keep capacity in reserve, have backup sites, and report serious technology incidents to the SEC.
+
+Every requirement in the *Pre-Trade Risk Controls* chapter of this book, and the kill switch discussion, is grounded in part in the lesson that Knight Capital paid $440 million to teach.
 
 > **Key idea:** The market does not stop when your system malfunctions. Every order your system sends is valid in the exchange's eyes until you cancel it or your gateway is disconnected. The only protection against a runaway algorithm is pre-trade risk controls on your own side, deployed correctly, verified after every deployment, and exercisable instantly under pressure.
 

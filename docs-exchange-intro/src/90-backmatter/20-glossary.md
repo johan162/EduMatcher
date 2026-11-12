@@ -10,7 +10,7 @@ The following definitions are written to be concise and standalone, useful as a 
 
 ## A {#glossary-a}
 
-**Automated Collar Expansion (ACE):** This book's name for rules that, when an instrument's likely price lies outside its protective collar, pause only that instrument, keep collecting orders, and widen the collar in published steps until the indicative auction price fits, instead of either blocking a genuine repricing or trading at an absurd price. Real venues use their own names (Nasdaq's Halt Cross price protections, NYSE's auction-collar extension after LULD pauses, Xetra's extended volatility interruption). See *Price Collars*, Part III.
+**Automated Corridor Expansion (ACE):** This book's name for rules that, when an instrument's likely price lies outside its protective collar, pause only that instrument, keep collecting orders, and widen the collar in published steps until the indicative auction price fits, instead of either blocking a genuine repricing or trading at an absurd price. Real venues use their own names (Nasdaq's Halt Cross price protections, NYSE's auction-collar extension after LULD pauses, Xetra's extended volatility interruption). See *Price Collars*, Part III.
 
 **Adverse Selection:** The risk a market maker faces when their quote is hit by a counterparty who has superior information about where prices are heading, causing the market maker to trade at a price that will quickly move against them. A market maker who is repeatedly adversely selected will lose money even while quoting at "correct" prices. MMP exists specifically to limit adverse selection damage.
 
@@ -86,6 +86,8 @@ stop-loss STOP, typically implemented as an OCO pair.
 
 **Broker:** An intermediary who executes orders on behalf of clients without trading for their own account. The word traces to Old French/Norse roots meaning someone who opens a cask and sells by the cup, a retail intermediary.
 
+**Broker-Dealer:** A firm that acts both as a *broker* (executing orders on behalf of clients) and as a *dealer* (trading for its own account). The standard US regulatory category for securities firms. See *The Participants*, Part I.
+
 **Bull Market:** A sustained rise of 20% or more from a recent market trough. Originates from the image of a bull thrusting its horns upward. Contrast with *Bear Market*.
 
 **Buy-In:** A remedy for failed settlement: if a seller cannot deliver securities, the buyer purchases them in the open market at the seller's expense.
@@ -114,6 +116,8 @@ stop-loss STOP, typically implemented as an OCO pair.
 **Contango:** A futures market in which later-dated contracts are more expensive than near-dated ones (common when the cost of storing the underlying is high), so a calendar spread priced as near minus far is negative. The opposite of *backwardation*.
 
 **Continued Listing Standards:** The ongoing, ordinarily automated compliance thresholds (minimum bid price, market value of public float, shareholder count) a listed company must keep satisfying after its initial listing, distinct from the one-time *Initial Listing Standards*. Breach triggers a deficiency notice and cure period before involuntary delisting.
+
+**Covered Call:** A call option written by someone who already owns the underlying shares, so that an assignment can be met by simply handing them over. Contrast with a *naked* (uncovered) call, whose writer must buy the shares in the market if assigned.
 
 **Crossed Market:** A condition where the best bid on one trading venue is higher than the best ask on another venue for the same instrument, a transient artefact of fragmentation and quote-propagation latency across independent venues, and a theoretical risk-free arbitrage opportunity for whoever can act on it fastest. See *Locked Market*.
 
@@ -158,6 +162,12 @@ stop-loss STOP, typically implemented as an OCO pair.
 
 **De-SPAC:** The merger transaction in which a Special Purpose Acquisition Company (SPAC) combines with a private operating company, resulting in the operating company becoming publicly traded under the (renamed) shell's listing. See *SPAC*.
 
+**Default Fund:** A pool of resources that every clearing member of a CCP pays into, used to cover losses when a member defaults and its own margin is not enough. See *Default Waterfall*.
+
+**Default Waterfall:** The fixed order in which a CCP uses resources to cover a defaulting clearing member's losses: the defaulter's margin, then its default-fund contribution, then a slice of the CCP's own capital ("skin in the game"), and finally the surviving members' default-fund contributions. See *Clearing and Settlement*, Part III.
+
+**Derivative:** A contract whose value is derived from the price of something else, its *underlying*: futures, options, swaps and forwards are all derivatives.
+
 **Direct Listing:** A method of going public in which a company's existing shares begin trading on an exchange via the opening auction mechanism, with no new shares issued, no underwriter guarantee, and no pre-set offer price. Contrast with a traditional underwritten IPO. Pioneered at scale by Spotify (2018) and Slack (2019), both on NYSE.
 
 **Dark Pool:** A private trading venue where orders are not displayed in a public order book. Participants submit orders and are matched against other participants' orders, typically at the midpoint of the NBBO, with the trade only reported publicly after it occurs. Used by large institutional investors to trade without revealing their intentions and causing adverse price movement. Contrast with *lit markets* (public exchanges) where resting orders are visible to all. See *Regulatory Surveillance*.
@@ -184,7 +194,7 @@ stop-loss STOP, typically implemented as an OCO pair.
 
 **DTCC (Depository Trust and Clearing Corporation):** The central clearing and settlement infrastructure for US equity markets. Its subsidiary DTC is the US central securities depository.
 
-**Dynamic Price Collar (Reference Price Filter):** A pre-trade risk control that rejects any order whose submitted price deviates more than a configured percentage from the most recent traded price. Protects against algorithms that walk the price incrementally through a series of small trades. Contrast with *Static Price Collar*, which uses the last close as the reference. Together, the two collars provide overlapping protection against both sudden errors and gradual drift.
+**Dynamic Price Collar (Reference Price Filter):** A pre-trade risk control that rejects any order whose submitted price deviates more than a configured percentage from the most recent traded price. Protects against sudden jumps away from where the market has just been trading. It cannot stop a slow drift, because each step stays close to the previous trade; that is the job of the *Static Price Collar*, which uses the last close as the reference. Together, the two collars provide overlapping protection against both sudden errors and gradual drift.
 
 
 ## E {#glossary-e}
@@ -228,6 +238,8 @@ stop-loss STOP, typically implemented as an OCO pair.
 
 **Front Running:** Acting on advance knowledge of a pending client order to trade for one's own account before executing the client's order, then profiting from the price movement the client's order causes. Illegal under market manipulation regulations and a serious breach of fiduciary duty. Front running is detected by surveillance systems that flag cases where a participant's own trades immediately precede large client executions in the same direction.
 
+**Funding Rate:** The periodic payment (commonly every eight hours) between the long and short sides of a *Perpetual Future*, set so that the perp's price stays close to the spot price of its underlying.
+
 **Futures Contract:** A standardised agreement to buy or sell a specified quantity of an underlying asset (commodity, index, currency, interest rate) at a predetermined price on a specified future date. Obligations are legally binding. Futures are exchange-traded, margined, and marked-to-market daily. Unlike equity ownership, futures do not represent ownership of an underlying asset, they represent an obligation about a future transaction.
 
 
@@ -257,7 +269,7 @@ stop-loss STOP, typically implemented as an OCO pair.
 
 ## I {#glossary-i}
 
-**Iceberg Order / Hidden Order / Reserve Order:** An order that shows only a small visible peak while hiding a large reserve. Each time the visible portion fills, the order replenishes from the reserve.
+**Iceberg Order / Reserve Order:** An order that shows only a small visible peak while hiding a large reserve. Each time the visible portion fills, the order replenishes from the reserve. Not to be confused with a fully *hidden order*, which shows nothing at all.
 
 **Imbalance:** The difference between total buy and sell quantity at the equilibrium price.  Expressed as a side (BUY or SELL) and a quantity.
 
@@ -371,6 +383,8 @@ as a positive number  P&L ledger.
 
 **Market Order:** An order that attempts immediate execution against available liquidity at the best obtainable prices. It prioritises execution certainty over price certainty, but execution is still subject to exchange state, available liquidity, price collars, and risk controls. A market order submitted during a halt, against an empty book, or rejected by a pre-trade risk check will not fill.
 
+**Marketable Limit Order:** A limit order whose limit price is good enough to trade immediately against the opposite side of the book (a buy at or above the best ask, a sell at or below the best bid).
+
 **Mass Cancel:** A participant-initiated message type that cancels multiple resting orders simultaneously, all orders for a symbol, all orders of a given type, or all orders system-wide. The gateway connection remains active after a mass cancel; the participant can submit new orders immediately. Contrast with *Kill Switch*, which inactivates the gateway and requires re-authentication.
 
 **Matching Engine:** The core software that manages order books and matches buy and sell orders to produce trades.
@@ -399,6 +413,8 @@ as a positive number  P&L ledger.
 **NBBO (National Best Bid and Offer):** The best available bid and ask prices aggregated across all US exchanges, as required by Regulation NMS. Brokers must offer clients execution at or better than the NBBO.
 
 **NAV (Net Asset Value):** The total value of a fund's holdings divided by the number of shares outstanding. For mutual funds, NAV is computed daily using the official **closing price** of each holding, one reason the closing price matters so much.
+
+**Notional (Value):** The total value of the assets a trade or position refers to, quantity × price × multiplier. A futures position with a small margin deposit can have a very large notional value.
 
 **Novation:** The legal process by which a CCP replaces the original buyer-seller relationship: the CCP becomes buyer to the seller and seller to the buyer, eliminating bilateral counterparty risk.
 
@@ -438,6 +454,8 @@ as a positive number  P&L ledger.
 
 **Payment for Order Flow (PFOF):** A practice in which retail brokers receive payment from wholesale market makers in exchange for routing client order flow to those market makers for internalisation rather than to lit exchanges. Market makers pay for retail flow because retail orders have lower adverse selection risk. Effectively banned in the UK since 2012, and banned EU-wide from 30 June 2026 under the 2024 MiFIR review. Legal but controversial in the US, where it subsidises zero-commission brokerages but raises concerns about conflicts of interest and reduced price discovery. See *Best Execution*, *Internaliser*.
 
+**Perpetual Future (Perp):** A futures-like crypto derivative that never expires; a periodic *Funding Rate* paid between longs and shorts keeps its price close to the underlying's spot price. See *Cryptocurrency and Digital Asset Venues*, Part IV.
+
 **Pin Risk:** The risk faced by an option writer when the underlying closes at expiry very close to the strike price, leaving the writer uncertain whether automatic exercise and assignment will occur until after markets have closed, with any resulting delivery obligation priced at the strike regardless of where the underlying opens the next session. See *Exercise*, *Assignment*.
 
 **Pit:** The sunken, octagonal or circular physical trading area on an exchange floor where open outcry trading happened. CME Group operated prominent futures pits in Chicago. Largely dormant today.
@@ -445,6 +463,8 @@ as a positive number  P&L ledger.
 **Portfolio:** A collection of investments held by an investor, typically diversified across asset types (equities, bonds, etc.) to manage risk and return.
 
 **Position:** A participant's current holding in an instrument, positive (long) if they own more than they have committed to deliver; negative (short) if they have committed to deliver more than they own; zero (flat) if both sides balance. Position tracking is the clearing system's primary responsibility.
+
+**Post-Only Order:** A limit order that must rest in the book. If it would trade immediately on arrival it is rejected (or, on some venues, repriced one tick away). Used by market makers to make sure they earn the maker rebate rather than pay the taker fee.
 
 **Pre-Trade Risk Controls:** Checks applied to orders before they reach the matching engine, quantity limits, notional limits, fat-finger filters, credit checks, and rate limiting. The gateway is typically the enforcement layer.
 
@@ -454,7 +474,11 @@ as a positive number  P&L ledger.
 
 **Price Discovery:** The process by which the market determines the current fair price of an asset through the interaction of buyers and sellers. A well-functioning exchange enables efficient price discovery: prices reflect all currently available information and update rapidly as new information arrives. Price discovery is one of the three core promises every exchange makes. Poor price discovery, where the traded price diverges significantly from fair value for extended periods, is a sign of market dysfunction.
 
+**Price Improvement:** A fill at a better price than the best price publicly quoted at that moment, for example buying below the best displayed ask. Measured and reported in the US under SEC Rule 605. Not the same as trading better than one's own limit, which happens to every order that trades against a better-priced resting order.
+
 **Price Level:** All resting orders at the same price on the same side of the book.
+
+**Price-Return / Total-Return Index:** A *price-return* index tracks only price changes, so it falls when constituents pay ordinary dividends; a *total-return* index assumes every dividend is reinvested. Headline indexes such as the S&P 500 are price-return indexes.
 
 **Price-Time Priority:** The matching rule: better prices fill first; at the same price, earlier arrivals fill first.
 
@@ -600,7 +624,7 @@ orders in thin books experience more slippage.
 
 **Tick Size Pilot Program:** A US SEC study (October 2016 – October 2018) that widened the tick size to five cents for roughly 1,200 small-capitalisation stocks to test whether coarser ticks improve market-making economics and liquidity for thinly traded names. Results were mixed: quoted spreads and costs for small trades rose, displayed size at the best prices rose sharply, but the hoped-for improvement in overall liquidity and capital formation did not appear, and no permanent wider-tick regime was adopted. See *Tick Sizes and Fractional Ticks*, Part II.
 
-**Tick-to-Trade Latency:** The time from when a market data message leaves the exchange to when an order based on that message is received by the exchange. A key performance metric for market makers and HFT firms.
+**Tick-to-Trade Latency:** The time between a trading firm's system receiving a market data message and sending out an order in response, usually measured at the firm's own network card (some firms also quote the full round trip to and from the exchange). A key performance metric for market makers and HFT firms.
 
 **Ticker / Ticker Symbol:** The abbreviated code identifying a tradeable instrument (e.g., AAPL for Apple Inc.). Named after the mechanical stock ticker machine that printed trade prices on paper tape using telegraph signals in the late 19th and early 20th centuries.
 
@@ -622,6 +646,8 @@ orders in thin books experience more slippage.
 
 
 ## U {#glossary-u}
+
+**Underlying:** The asset whose price a derivative depends on: the stock behind an option, the crude oil behind an oil future, the index behind an index future.
 
 **UUID (Universally Unique Identifier):** A 128-bit identifier designed to be unique without central coordination. UUID v4 is randomly generated; UUID v1 incorporates the current time and network address.
 
@@ -653,7 +679,7 @@ $\text{VWAP} = \frac{\sum(\text{price}_i \times \text{qty}_i)}{\sum \text{qty}_i
 
 ## W {#glossary-w}
 
-**Wash Trading / Wash Trade:** A transaction where the same participant is on both sides, generating artificial trading volume with no real change of ownership. Illegal in all major jurisdictions under market manipulation regulations (the EU's Market Abuse Regulation, the US SEC's Rule 10b-5, and others). Also called a wash sale. Sometimes performed accidentally, see *Self-Match Prevention (SMP)*, but when deliberate, it is a form of market abuse used to inflate trading volume figures or create false impressions of liquidity.
+**Wash Trading / Wash Trade:** A transaction where the same participant is on both sides, generating artificial trading volume with no real change of ownership. Illegal in all major jurisdictions under market manipulation regulations (the EU's Market Abuse Regulation, Section 9(a)(1) of the US Securities Exchange Act, the Commodity Exchange Act for futures, and others). Not to be confused with a *wash sale*, a US tax term for selling at a loss and buying back within 30 days. Sometimes performed accidentally, see *Self-Match Prevention (SMP)*, but when deliberate, it is a form of market abuse used to inflate trading volume figures or create false impressions of liquidity.
 
 **Write-Ahead Log (WAL):** A persistent, append-only log of all input messages to the matching engine. Written before processing; used for recovery and replay. The source of truth from which all derived state (the in-memory order book) can be reconstructed.
 

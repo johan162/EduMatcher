@@ -5,10 +5,10 @@ Let us trace a single trade from start to finish.
 
 ## Order Submission
 
-Participant A, connected through Gateway GW01, submits a limit buy order: "Buy 500 shares of AAPL at $150.30, DAY." The order arrives as a **FIX message** (Financial Information eXchange, the standard protocol for order submission in financial markets, covered in full in the Technology Architecture section). The gateway validates the basic format and forwards it to the matching engine.
+Participant A, connected through Gateway GW01, submits a limit buy order: "Buy 500 shares of AAPL at $150.30, DAY." The order arrives as a **FIX message** (Financial Information eXchange, the standard protocol for order submission in financial markets, covered in full in *The Technology Architecture* chapter of Part IV). The gateway validates the basic format and forwards it to the matching engine.
 
 The engine receives the order and assigns it:
-- A **unique order ID** (a system-wide identifier, discussed in detail in the architecture section)
+- A **unique order ID** (a system-wide identifier, discussed in detail in the same chapter)
 - A **timestamp** (nanosecond precision)
 - An initial status of **NEW** (the order has been accepted and registered)
 
@@ -42,7 +42,7 @@ If Order A was for 500 shares but only 300 shares were available at $150.30, a *
 
 ## Publication
 
-Every trade is immediately published over the market data feed to all subscribers. The viewer, board, stats database, clearing system, and any other subscriber all receive the trade notification within microseconds of it occurring.
+Every trade is immediately published over the market data feed to all subscribers. Trading screens, data vendors, the exchange's own statistics database, the clearing system and every other subscriber receive the trade notification within microseconds of it occurring.
 
 ## Order Status Lifecycle
 

@@ -6,7 +6,7 @@ By the end of the chapter you should be able to write a correct first-generation
 
 One promise before we begin, which the rest of the chapter proves over and over: **implied orders do not create liquidity out of nothing.** An implied order is a different *view* of commitments that already rest in other books. It never adds a single lot to the total that can be traded; it only makes existing lots reachable from one more place. Hold on to that sentence. Every level below is, in the end, a demonstration of it.
 
-Implied orders are almost exclusively used in the derivatives markets (specifically forwards and futures), where multiple related instruments exist for the same underlying asset, such as different futures contracts for various delivery months or spreads between them. In Swedish both futures and forward contract are commonly known as "terminskontrakt" or "terminer". As Swedish only have one name for what in English are two distinct instruments, it is important to keep the context in mind when discussing them. In reality every Swedish trader uses the English terms when necessary to avoid ambiguity.
+Implied orders are almost exclusively used in the derivatives markets (specifically forwards and futures), where multiple related instruments exist for the same underlying asset, such as different futures contracts for various delivery months or spreads between them. (A **forward** is the same kind of promise as a future, buy or sell at a fixed price on a later date, but usually agreed privately rather than in standardised form on an exchange.) In Swedish both futures and forward contracts are commonly called "terminskontrakt" or "terminer". Because Swedish has only one name for what in English are two distinct instruments, keep the context in mind when discussing them; in practice Swedish traders simply use the English terms when they need to avoid ambiguity.
 
 ## Why Implied Orders Exist, and Where They Came From
 
@@ -393,7 +393,7 @@ Implication does not just fill empty books; it can *beat* the real book. Suppose
 | Spread | Bid | −$2.00 | 25 |
 | February | Ask (real) | $77.00 | 60 |
 
-The implied February ask is 74.95 − (−2.00) = **$76.95**, which is 5 ticks ($0.05, or $50 per lot) *better* than the real February ask. An incoming order to buy 20 February at $77.00 fills all 20 at $76.95 through the implied construction, and the real $77.00 seller is not touched. The buyer receives price improvement exactly in the sense of the *Order Types* chapter: they were willing to pay $77.00 and paid $76.95.
+The implied February ask is 74.95 − (−2.00) = **$76.95**, which is 5 ticks ($0.05, or $50 per lot) *better* than the real February ask. An incoming order to buy 20 February at $77.00 fills all 20 at $76.95 through the implied construction, and the real $77.00 seller is not touched. The buyer was willing to pay $77.00 and paid $76.95, better than its limit and better than anything the real February book had to offer.
 
 **Closing gaps that would otherwise be free money.** Now add one more resting order: Trader K bids $76.97 for 10 February lots. Is anything wrong with these books?
 
@@ -419,7 +419,7 @@ With implied functionality this state can never arise, because it could only be 
 
 K's bid is now used up, so the implied spread ask disappears, and B's remaining 15 spreads rest as a bid at −$2.00 (where, together with the 30 January lots still offered, they again imply a February ask at $76.95 × 15).
 
-The $0.02 that an arbitrageur would have pocketed goes instead to B, a real participant, as price improvement. (Had K's February bid been the last order to arrive instead, K would have been the incoming order: it would have bought 10 February from the implied ask at $76.95, and the same $0.02 would have gone to K. Either way, the improvement goes to whichever real order arrives last, because trades happen at the resting side's price.) This is the deeper purpose of implied functionality: it keeps the whole *family* of related books mutually consistent, so that cross-book gaps are closed by the exchange in favour of real participants rather than harvested by the fastest outsider.
+The $0.02 that an arbitrageur would have pocketed goes instead to B, a real participant, as a better price than B asked for. (Had K's February bid been the last order to arrive instead, K would have been the incoming order: it would have bought 10 February from the implied ask at $76.95, and the same $0.02 would have gone to K. Either way, the improvement goes to whichever real order arrives last, because trades happen at the resting side's price.) This is the deeper purpose of implied functionality: it keeps the whole *family* of related books mutually consistent, so that cross-book gaps are closed by the exchange in favour of real participants rather than harvested by the fastest outsider.
 
 There is one limit to this guarantee, and it explains the rule "implied bids do not trade against implied offers". An arriving order is checked only against real quotes and first-generation implied quotes, which means against combinations of at most two other real orders. An implied bid and an implied offer in the same book together involve **four** real orders, one step beyond what a first-generation engine ever checks. Such a pair can therefore be locked or crossed without any bug. An example with a third month, March:
 
@@ -446,7 +446,7 @@ Implied Feb ask  = 100.00 − (−0.35) = 100.35   ← not a multiple of 0.25
 
 The engine cannot print a February trade at 100.35. The standard remedy is to **round outwards**, meaning in the direction that is worse for the party trading against the implied quote: an implied ask is rounded *up*, an implied bid *down*. So the implied Feb ask is published at **100.50**. Carruthers' analysis of CME's Treasury inter-commodity spreads describes exactly this rule: "For price-priority purposes, implied prices are rounded outwards to the nearest tick", with direct liquidity at the rounded price keeping priority over implied liquidity [Carruthers, *Inter-Commodity Spreads and Implied Pricing*, 2018].
 
-Who gets the 0.15 difference when someone buys February at 100.50? Follow the money through the construction: the February buyer pays 100.50; A sells January at 100.00; so B's spread executes at 100.00 − 100.50 = **−0.50**. B was willing to buy the spread at −0.35 or lower, and −0.50 is lower, so B receives the 0.15 as price improvement. Every party trades at or better than its own limit, and all prints are on their grids (−0.50 is a valid 0.05 spread tick). Rounding outwards is what guarantees this: it never forces any real order to trade worse than its limit.
+Who gets the 0.15 difference when someone buys February at 100.50? Follow the money through the construction: the February buyer pays 100.50; A sells January at 100.00; so B's spread executes at 100.00 − 100.50 = **−0.50**. B was willing to buy the spread at −0.35 or lower, and −0.50 is lower, so B receives the 0.15 as a better price than its limit. Every party trades at or better than its own limit, and all prints are on their grids (−0.50 is a valid 0.05 spread tick). Rounding outwards is what guarantees this: it never forces any real order to trade worse than its limit.
 
 Who receives the rounding gain depends on the direction of implication. In the implied OUT example above, the passive spread order (B) receives it. For **implied IN** (a spread quote built from two outrights), both outright orders fill at their own limit prices, so the spread *aggressor* sees the rounded price on screen but effectively trades at the unrounded one, and the gain goes to the aggressor. CME documents exactly this split for its inter-commodity spread markets [Wilson, CME Group, *Liquidity in implied inter-commodity spread markets*, 2024].
 
@@ -616,7 +616,7 @@ Cash (per barrel, "cash paid" convention): R pays 10 × 74.90 = +749.00; P pays 
 2. T buys 12 February from U at $77.85.
 3. T's spread prints at 78.30 − 77.85 = **+$0.45** (T's limit).
 
-Nobody gave anything up: S and T traded exactly at their limits, and U received price improvement because the best available bid happened to be higher than U required. Cash check: S pays 12 × 78.30 = 939.60; U pays −(12 × 77.85) = −934.20; T pays 12 × (−0.45) = −5.40. Sum: 939.60 − 934.20 − 5.40 = 0. Afterwards: S's bid is used up, T has 8 spreads left at +$0.45, and with no January bid left there is no implied February bid.
+Nobody gave anything up: S and T traded exactly at their limits, and U got a better price than its limit because the best available bid happened to be higher than U required. Cash check: S pays 12 × 78.30 = 939.60; U pays −(12 × 77.85) = −934.20; T pays 12 × (−0.45) = −5.40. Sum: 939.60 − 934.20 − 5.40 = 0. Afterwards: S's bid is used up, T has 8 spreads left at +$0.45, and with no January bid left there is no implied February bid.
 
 **E10.**
 
@@ -657,7 +657,7 @@ Y will sell the spread at −$2.00 *or higher*. Is −1.90 higher than −2.00? 
 2. Y buys 5 February from X at $77.10.
 3. Y's spread prints at 75.20 − 77.10 = −$1.90.
 
-Y receives price improvement of 0.10 per barrel × 1,000 × 5 = **$500** compared with its limit. Intuitively: Y was prepared for February to cost up to $2.00 more than the January it sells, and it only cost $1.90 more. Cash check: W pays 376.00, X pays −385.50, Y pays 5 × (−S) = 5 × 1.90 = 9.50; sum 0. Afterwards: January bid $75.20 × 5, February ask $77.10 × 5, implied spread bid −$1.90 × 5.
+Y does better than its limit by 0.10 per barrel × 1,000 × 5 = **$500** compared with its limit. Intuitively: Y was prepared for February to cost up to $2.00 more than the January it sells, and it only cost $1.90 more. Cash check: W pays 376.00, X pays −385.50, Y pays 5 × (−S) = 5 × 1.90 = 9.50; sum 0. Afterwards: January bid $75.20 × 5, February ask $77.10 × 5, implied spread bid −$1.90 × 5.
 
 **E13.**
 
@@ -669,7 +669,7 @@ Y receives price improvement of 0.10 per barrel × 1,000 × 5 = **$500** compare
 2. L buys 5 February from M at 99.50 (M's limit).
 3. L's spread prints at 99.75 − 99.50 = **+0.25**, a valid 0.05 spread tick.
 
-L asked for at least +0.10 and received +0.25: 0.15 of price improvement, the leftover from rounding.
+L asked for at least +0.10 and received +0.25: 0.15 better than its limit, the leftover from rounding.
 
 *(c)* Rounding *inwards* would publish the bid at 99.75. If M then sold at 99.75, L's spread would print at 99.75 − 99.75 = 0.00, which is *below* L's limit of +0.10. The engine would have sold L's spread cheaper than L allowed, a violation of the most basic matching rule. Outward rounding is the only choice that guarantees every real order trades at or better than its limit.
 

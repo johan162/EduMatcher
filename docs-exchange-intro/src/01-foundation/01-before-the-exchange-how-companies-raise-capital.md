@@ -1,7 +1,7 @@
 # Before the Exchange: How Companies Raise Capital
 
 
-To understand why a financial exchange exists, you first need to understand why anyone bothers issuing shares in the first place. This section is a brief detour into basic corporate finance, the world your exchange is built to serve.
+To understand why a financial exchange exists, you first need to understand why anyone bothers issuing shares in the first place. This chapter is a short detour into basic corporate finance: the world your exchange is built to serve.
 
 ## The Problem of Growth
 
@@ -23,7 +23,7 @@ The second option is to borrow money. Borrowed money must be repaid, with intere
 
 **Bonds** solve the scale problem by spreading the borrowing across many lenders. A bond is a standardised piece of debt. A company issues a bond with a **face value** (say, $1,000), a **coupon rate** (say, 5% per year), and a **maturity date** (say, 10 years from now). The investor who buys the bond lends the company $1,000 today. In return, the company promises to pay $50 per year (5% of $1,000) as regular interest payments (these periodic payments are called **coupons**, named after the physical coupon slips investors used to cut off and redeem before the digital age), and to repay the full $1,000 when the bond matures in 10 years.
 
-A large company might issue millions of these bonds simultaneously, raising hundreds of millions of dollars from thousands of individual investors. Those investors later need to be able to sell their bonds if they want their money back before maturity, and so bonds, just like shares, trade on exchanges and electronic markets.
+A large company might issue millions of these bonds simultaneously, raising hundreds of millions of dollars from thousands of individual investors. Those investors may want their money back before the bond matures, so they need a way to sell the bond on to someone else. That is why bonds, just like shares, trade on exchanges and other electronic markets.
 
 **The key characteristic of debt:** the company has an unconditional obligation to make the promised payments. If it cannot, it is in default, which can lead to bankruptcy proceedings. Bondholders are **creditors**: they have a legal claim against the company's assets. In a bankruptcy, creditors get paid before the company's owners.
 
@@ -55,7 +55,7 @@ The trade-off is **dilution**: selling shares means selling a portion of the com
 
 **Common stock and preferred stock**
 
-In practice, not all shares are equal. Most retail investors hold **common stock** (called **ordinary shares** in UK and European markets), which carries voting rights and a residual claim on profits. **Preferred stock** (or **preference shares**) is a different class: typically no voting rights, but a higher-priority claim on dividends and assets in a liquidation. Preferred holders are paid before common stockholders, though still after bondholders. Venture capital investors almost always receive preferred stock in early-stage companies, giving them downside protection that common stockholders lack [3].
+In practice, not all shares are equal. Most individual investors (often called **retail investors**) hold **common stock** (called **ordinary shares** in UK and European markets), which carries voting rights and a residual claim on profits. **Preferred stock** (or **preference shares**) is a different class: typically no voting rights, but a higher-priority claim on dividends and assets in a liquidation. Preferred holders are paid before common stockholders, though still after bondholders. Venture capital investors almost always receive preferred stock in early-stage companies, giving them downside protection that common stockholders lack [3].
 
 When a company IPOs, most preferred shares convert to common shares. For exchange system developers, the class distinction matters because instruments are classified, regulated, and referenced differently. When you see "AAPL" on an exchange, it refers specifically to Apple's common stock. Preferred shares, when a company lists them, trade under a separate ticker, typically the common ticker plus a series suffix (a hypothetical company "XYZ" might list its Series A preferred as "XYZ-PRA" or "XYZ.PR.A", depending on the data vendor's convention).
 
@@ -85,14 +85,14 @@ At some point, usually when the company has proven its business model and needs 
 
 In an IPO:
 
-1. The company works with **investment banks** to **underwrite** the offering. Underwriting means the banks agree to buy all the shares at a guaranteed price and immediately sell them on. This guarantee means the company receives its cash even if investor demand is weaker than expected. In practice, the banks first conduct a **roadshow**, a series of presentations to large institutional investors, to gauge demand and set the final price. They rarely actually get stuck holding the shares.
+1. The company works with **investment banks** to **underwrite** the offering. Underwriting means the banks agree to buy all the shares at a guaranteed price and immediately sell them on. This guarantee means the company receives its cash even if investor demand is weaker than expected. In practice, the banks first conduct a **roadshow**, a series of presentations to large **institutional investors** (pension funds, insurance companies, fund managers), to gauge demand and set the final price. They rarely actually get stuck holding the shares.
 2. New shares are created and sold, with the proceeds going directly to the company (or to early investors who are "cashing out" their stakes).
 3. The company's shares are listed on a stock exchange, NYSE, NASDAQ, LSE, or another regulated market.
 4. From that moment, anyone can buy or sell the shares through the exchange.
 
-Some of the largest IPOs in history by proceeds raised illustrate the scale: Saudi Aramco raised $25.6 billion in its December 2019 IPO on the Saudi Exchange (Tadawul), later increased to about $29.4 billion when the underwriters exercised their over-allotment option [1]; Alibaba raised $21.8 billion on NYSE in 2014, about $25 billion including the over-allotment [1]; Arm Holdings raised $4.9 billion on NASDAQ in September 2023 [1]. Each of these companies brought enormous new pools of capital onto public markets. 
+Some of the largest IPOs in history by proceeds raised illustrate the scale: Saudi Aramco raised $25.6 billion in its December 2019 IPO on the Saudi Exchange (Tadawul), later increased to about $29.4 billion when the underwriters exercised their over-allotment option (the right to sell extra shares when demand is strong, covered in *Listing and Delisting Mechanics*) [1]; Alibaba raised $21.8 billion on NYSE in 2014, about $25 billion including the over-allotment [1]; Arm Holdings raised $4.9 billion on NASDAQ in September 2023 [1]. Each of these companies brought enormous new pools of capital onto public markets. 
 
-All of them were dwarfed in June 2026, when SpaceX listed on NASDAQ (ticker: SPCX) in the largest IPO by proceeds in history. Priced on 11 June at $135 per share, raising about $75 billion before the over-allotment, the offering implied a valuation of approximately $1.77 trillion; on its first trading day, 12 June, the stock closed at about $161, up roughly 19%, putting the company's market cap at about $2.1 trillion [Initial public offering of SpaceX, Wikipedia; CoinDesk, 11 June 2026]. Note that pricing a mega-IPO below $200 a share says nothing about the company's quality or size, it is purely a function of how many shares are outstanding relative to the total valuation, which the company and its underwriters can set almost arbitrarily by choosing the share count. (The historical "blue chip" usage described later in this document, where Oliver Gingold's 1923 Dow Jones column used $200 as a rough marker of a premium stock, was itself a nominal dollar figure of its era with no inflation adjustment; it was never a rule, and it says nothing about a company listing a century later.)
+All of them were dwarfed in June 2026, when SpaceX listed on NASDAQ (ticker: SPCX) in the largest IPO by proceeds in history. Priced on 11 June at $135 per share, raising about $75 billion before the over-allotment, the offering implied a valuation of approximately $1.77 trillion; on its first trading day, 12 June, the stock closed at about $161, up roughly 19%, putting the company's market cap at about $2.1 trillion [Initial public offering of SpaceX, Wikipedia; CoinDesk, 11 June 2026]. Note that the price of a single share says nothing about how large or how good the company is. It is simply the total valuation divided by the number of shares, and the company and its underwriters can choose the share count almost freely. A $135 share in a $1.77 trillion company is perfectly normal. (*The Language of the Market* explains the old "blue chip" rule of thumb, which used $200 a share as the mark of a premium stock in the 1920s. That was a figure of its era, never a rule, and it tells you nothing about a company listing a century later.)
 
 ## The Primary Market vs. the Secondary Market
 
@@ -102,7 +102,7 @@ The **primary market** [3] is where new securities are created and sold for the 
 
 The **secondary market** [3] is where investors buy and sell securities that already exist, trading with each other rather than with the company. When you buy shares of Apple on NASDAQ today, Apple does not receive your money. The person selling you those shares receives it. Apple issued those shares long ago; they have been trading between investors ever since.
 
-**The stock exchange is among the primary venues of the secondary market.** It is the most visible and regulated secondary market venue, but not the only one, OTC secondary trading, private transactions, and alternative trading systems also exist. For practical purposes in this document, when we say "the exchange," we mean a regulated, centralised lit venue; this is where the concepts of price-time priority, order books, and matching engines apply most directly.
+**The stock exchange is the best-known venue of the secondary market.** It is the most visible and most tightly regulated one, but not the only one. Securities also change hands **over the counter (OTC)**, meaning directly between two parties (usually through a dealer) rather than on an exchange, in private transactions, and on alternative trading systems, which the next chapter introduces. In this book, when we say "the exchange," we mean a regulated, central marketplace where the waiting orders are visible to everyone (a **lit** venue). That is where the ideas this book builds up, order books, matching engines and price-time priority, apply most directly.
 
 This insight is important: the exchange does not help companies raise money directly. It helps investors trade securities they already own. But without the secondary market, the primary market would barely function. Here is why:
 
@@ -135,9 +135,9 @@ flowchart TD
 
 The same framework applies to other instruments:
 
-- **Bonds** trade on bond markets (some exchange-based, others over the counter) after issuance. Investors can sell their bonds before maturity, receiving the current market price rather than waiting for repayment.
+- **Bonds** trade on bond markets (some on exchanges, most over the counter) after issuance. Investors can sell their bonds before maturity, receiving the current market price rather than waiting for repayment.
 
-- **Futures and options** are not claims on existing assets at all, they are contracts about future transactions [12] [13]. Their markets have their own logic, but the exchange's role (centralised matching, price discovery, fairness) is the same. 
+- **Futures and options** are not claims on existing assets at all; they are contracts about future transactions [12] [13]. A **future** is a binding agreement to buy or sell something (a barrel of oil, a stock index, a government bond) at a fixed price on a set date later on. An **option** gives its buyer the *right*, but not the obligation, to buy or sell at a fixed price before a set date. Both are called **derivatives**, because their value is derived from the price of something else, their **underlying**. Their markets have their own logic, but the exchange's role (central matching, price discovery, fairness) is the same.
 
 - **Exchange-Traded Funds (ETFs)** are baskets of shares (or bonds, or commodities) that themselves trade as a single share. iShares, Vanguard, and SPDR products are examples. ETFs trade on exchanges exactly like individual stocks.
 

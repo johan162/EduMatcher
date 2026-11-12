@@ -11,7 +11,7 @@ The **order book** (also called the **limit order book** or **LOB**) is the cent
 
 Think of it as two sorted lists:
 
-**The bid side**, all resting buy orders, sorted from the highest price (most attractive for sellers) down to the lowest. A buyer offering $150.34 is at the top of the bid side if no one else is offering more.
+**The bid side**, all resting buy orders, sorted from the highest price (most attractive for sellers) down to the lowest. A buyer bidding $150.34 is at the top of the bid side if no one else is bidding more.
 
 **The ask side** (also called the **offer side**), all resting sell orders, sorted from the lowest price (most attractive for buyers) up to the highest. A seller asking $150.35 is at the top of the ask side if no one is asking less.
 
@@ -116,7 +116,7 @@ function insert_resting(order):                 # order: {id, side, price, qty, 
 Cost analysis, tying back to the design principles:
 
 - `price_map.find` / `insert` is the *only* step whose cost depends on the price-map choice: O(1) for a direct-indexed array, O(log n) for a tree. Everything else is strictly O(1).
-- `list_append_tail` is O(1) because the level caches its tail pointer, this is why time priority (append at back) is cheap while price improvement (a new best level) is handled purely by the best-pointer update.
+- `list_append_tail` is O(1) because the level caches its tail pointer, this is why time priority (append at back) is cheap, while an order that sets a new best price is handled purely by the best-pointer update.
 - `update_best_pointer_on_insert` compares the new level's price to the current best on that side and, for a buy, replaces `best_bid_level` only if the new price is higher (for a sell, only if lower). This is the entire cost of a new order improving the top of book, one comparison, no search.
 - Both `acquire_level` and `acquire_node` come from startup-allocated pools, honouring "no allocation on the hot path."
 
@@ -145,7 +145,7 @@ The critical detail is `list_unlink`: because the list is *doubly* linked and th
 
 ### Operation 3: An aggressive order sweeps the book
 
-Now the case that generates trades. A market (or marketable-limit) buy for 3,500 shares arrives against the ask side. It must consume resting liquidity from best price outward, in time priority within each level, until filled or until it runs out of book (or, for a limit, out of acceptable price).
+Now the case that generates trades. A market buy for 3,500 shares (or a **marketable** limit buy, one whose limit price is high enough to trade immediately) arrives against the ask side. It must consume resting liquidity from best price outward, in time priority within each level, until filled or until it runs out of book (or, for a limit, out of acceptable price).
 
 ```
 function match_aggressive_buy(incoming):        # incoming: {qty, limit_price or ∞ for market}
@@ -194,7 +194,7 @@ Nothing in the three functions above reads a clock, consults a random source, or
 
 ## The Spread
 
-The **spread** is the gap between the best bid (highest buy offer) and the best ask (lowest sell offer). If the best bid is $150.30 and the best ask is $150.35, the spread is $0.05.
+The **spread**, first met in *The Language of the Market*, is the gap between the best bid (highest price a buyer will pay) and the best ask (lowest price a seller will accept). If the best bid is $150.30 and the best ask is $150.35, the spread is $0.05.
 
 The spread represents the immediate cost of trading: if you need to buy right now, you pay the ask price; if you need to sell right now, you receive the bid price. The round-trip cost of buying and immediately selling is the spread.
 
@@ -258,15 +258,15 @@ This means there are actually several distinct "prices" in play at any moment, e
 
 **Mid price.** The average of the best bid and best ask: (best_bid + best_ask) / 2. Used as a proxy for fair value between trades, particularly when no trade has occurred for a while. Derived from the book, not from any actual transaction.
 
-**Previous day's closing price.** Once the session ends, the **official closing price** from the closing auction becomes the reference price for the entire period the market is closed, typically overnight and across weekends. This is the price used to value portfolios at end of day, to calculate overnight P&L, to set the reference for the next day's static price collars, and to publish the figures that appear in newspapers, financial reports, and fund valuations.
+**Previous day's closing price.** Once the session ends, the **official closing price** from the closing auction becomes the reference price for the entire period the market is closed, typically overnight and across weekends. This is the price used to value portfolios at end of day, to calculate overnight profit and loss (**P&L**), to set the reference for the next day's static price collars, and to publish the figures that appear in newspapers, financial reports, and fund valuations.
 
-> **Closing Auction and Static Price Collar**
->
-> Two terms in that paragraph will be unfamiliar at this point in the document, so a brief preview is warranted.
->
-> The **closing auction** is a special matching procedure that runs at the end of the trading day: rather than matching orders one at a time as they arrive, the exchange collects all outstanding buy and sell interest over a short accumulation period and then computes the single price at which the greatest number of shares can trade simultaneously, matching all eligible orders at that one price. This produces a more authoritative closing price than simply taking the last trade of continuous trading, which might have been a small or unusual transaction. The closing auction is covered in full in the *Opening and Closing Auction* section of Part II.
->
-> A **static price collar** (also called a fat-finger filter) is a pre-trade risk control that rejects any incoming order whose submitted price strays too far from the previous closing price, protecting against obvious entry errors such as a misplaced decimal point. Because it uses the closing price as its benchmark, it must be recalculated at the start of each new session. Static price collars are covered in full in the *Trading Sessions* section of Part II.
+!!! info "Closing auction and static price collar"
+
+    Two terms in that paragraph have not been explained yet, so here is a short preview.
+
+    The **closing auction** is a special matching procedure that runs at the end of the trading day. Rather than matching orders one at a time as they arrive, the exchange collects buy and sell orders for a few minutes and then finds the single price at which the greatest number of shares can trade, matching all eligible orders at that one price. This gives a more trustworthy closing price than simply taking the last trade of the day, which might have been a small or unusual transaction. The *Opening and Closing Auction* chapter later in this Part covers it in full.
+
+    A **static price collar** (also called a fat-finger filter) is a safety check that rejects any incoming order whose price strays too far from the previous closing price, catching obvious typing errors such as a misplaced decimal point. Because it uses the closing price as its benchmark, it must be recalculated at the start of each new session. The *Risk Controls* chapter in Part III covers price collars in full.
 
 The closing price carries particular weight precisely because it is independently determined by a transparent auction process rather than by a single trade that could be anomalous or thin. A portfolio worth $10 million at 3:59pm might be marked at a slightly different value at 4:00pm if the closing auction produced a different price, but that closing price is considered more authoritative because it reflects the broadest simultaneous expression of supply and demand at that moment of the day.
 

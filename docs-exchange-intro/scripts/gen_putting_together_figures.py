@@ -27,7 +27,7 @@ ACTORS = {
     "GW3": ("GW03", "#3182ce"),
     "ME": ("Engine", "#1a202c"),
     "GW1": ("GW01 (MM)", "#6b46c1"),
-    "PUB": ("PUB socket", "#2f855a"),
+    "PUB": ("Publisher", "#2f855a"),
     "DC": ("Drop copy", "#b7791f"),
     "CL": ("Clearing", "#c53030"),
 }
@@ -52,10 +52,11 @@ PHASES = [
         ("PUB", "GW1", "Cancel all MM quotes (stale during halt)"),
         ("PUB", "DC", "HALT event (seq numbered)"),
     ]),
-    ("4. Resume (step 11)", "#faf5ff", [
+    ("4. Resume (steps 11–12)", "#faf5ff", [
         ("ME", "ME", "Scheduler: RESUME"),
-        ("ME", "PUB", "Session state: HALTED → CONTINUOUS"),
+        ("ME", "PUB", "Session state: HALTED → RESUMPTION_AUCTION"),
         ("GW1", "ME", "Fresh two-sided quote re-submitted"),
+        ("ME", "PUB", "Resumption uncross → CONTINUOUS"),
     ]),
 ]
 

@@ -23,11 +23,11 @@ Beyond core matching, this edition also adds the operational and structural topi
 
 So yes, the document is longer now. That is deliberate. The first edition tried to keep every section short; this one tries to keep every section useful when things get messy in production. If the first edition was the "day one" guide, this one aims to be the "month six" guide, the point where you are no longer asking what a term means, but why the system was designed that way and what breaks if it is wrong.
 
-As before, this is an introduction, not a rulebook. Exchange rulebooks and venue technical specifications remain the final authority. But if this second edition helps you move from terminology to reasoning faster, it has done its job. The reference section includes the publicly available reference material many details in this books draws from to be as exact as possible.
+As before, this is an introduction, not a rulebook. Exchange rulebooks and venue technical specifications remain the final authority. But if this second edition helps you move from terminology to reasoning faster, it has done its job. The reference section includes the publicly available reference material many details in this book draw from to be as exact as possible.
 
-Reasonable efforts have been made to ensure accuracy, but, it would be foolish of me to believe that I during some late night/early morning while editing this book didn't swap some bid/ask  columns or simply forgot a whole section I had in my notes or my mind. 
+Reasonable efforts have been made to ensure accuracy, but it would be foolish of me to believe that I during some late night/early morning while editing this book didn't swap some bid/ask columns or simply forgot a whole section I had in my notes or my mind. 
 
-Enjoy the pleasure of finding things out and the triumph of being sure that the author was proveable wrong! 
+Enjoy the pleasure of finding things out and the triumph of being sure that the author was provably wrong! 
 So, any typos, missing signs, bad explanations/grammar or faults otherwise, are mine and mine alone. I have no-one to blame!
 
 If you find any mistakes or have other suggestions, please let me know at *johan162@gmail.com*. I genuinely appreciate it.

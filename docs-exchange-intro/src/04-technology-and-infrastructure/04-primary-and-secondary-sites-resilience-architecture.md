@@ -33,23 +33,6 @@ Approaches include:
 
 **Failover** is the act of switching from the primary to the secondary. It may be:
 
-```mermaid
-flowchart TD
-    P["Primary Site\n(ACTIVE)\nAccepts orders\nPublishes events"]
-    W["WAL\n(Write-Ahead Log)"]
-    S["Secondary Site\n(PASSIVE / SHADOW)\nFollows WAL silently\nDoes not publish"]
-    HB["Heartbeat\nMonitor"]
-    FO["Failover Decision"]
-    SA["Secondary Promotes\nto ACTIVE\nResumes from WAL tail\nBegins publishing"]
-
-    P -- "Every event written\nbefore processing" --> W
-    W -- "Streamed in real time" --> S
-    P -- "Heartbeat every N ms" --> HB
-    HB -->|"Heartbeat missed\n(timeout)" | FO
-    FO -->|"Manual or automatic\npromotion"| SA
-    SA -->|"Sequence continues\nno gap to participants"| SA
-```
-
 - **Automatic (active-passive):** The system detects the primary has stopped responding (via heartbeat monitoring) and automatically promotes the secondary to primary, alerting participants. The challenge: detecting a true failure vs. a temporary network partition without making hasty decisions, the **split-brain problem**: if both sites think the other is dead, both might try to become primary simultaneously, resulting in two active engines accepting conflicting orders.
 
   The standard distributed-systems solutions are **fencing** (issuing a command that forces the suspected-failed node to stop operating before the secondary takes over, sometimes called **STONITH: Shoot The Other Node In The Head**) and **quorum requirements** (requiring the agreement of a majority of nodes before any single node can assume the primary role). Without one of these mechanisms, split-brain in a matching engine produces a catastrophic situation: two independent order books diverging while both believe they are the authoritative state.
@@ -59,6 +42,10 @@ flowchart TD
 - **Active-active:** Both sites process orders simultaneously, and a consensus mechanism ensures they produce identical results. Extremely complex but enables zero-downtime failover.
 
   True active-active matching engines are **rare in production exchanges** because distributed consensus introduces latency, and maintaining deterministic total ordering across two simultaneously-processing sites is a fundamentally hard problem. Most production exchanges prefer active-passive or shadow replication rather than active-active, accepting a brief failover window in exchange for simplicity and predictable latency.
+
+The figure in this section puts the active-passive design together: the secondary follows the primary's write-ahead log, and a missed heartbeat leads to fencing and promotion.
+
+![Active-passive replication. In normal operation the primary writes every event to the write-ahead log before processing it, and the secondary follows the log without publishing anything. When the heartbeats stop, the old primary is fenced off and the secondary is promoted; it resumes from the tail of the log and continues the same sequence numbers.](assets/resilience-active-passive-small.png)
 
 ## The Geographic Trade-Off
 

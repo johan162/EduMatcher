@@ -1,7 +1,7 @@
 # Risk Controls, Protecting the Market
 
 
-An exchange has a duty not just to its participants but to market stability as a whole. The risk controls described in this section exist because markets can go very wrong, very fast.
+An exchange has a duty not just to its participants but to market stability as a whole. The risk controls described in this chapter exist because markets can go very wrong, very fast.
 
 ## Circuit Breakers
 
@@ -13,19 +13,9 @@ The origin of circuit breakers is the **Black Monday crash of 19 October 1987**,
 
 **The basic mechanism:** After each trade, the exchange calculates how much the price has moved relative to a reference price (typically the most recent auction price, or the price at the start of a defined time window). If the movement exceeds a configured threshold in either direction, trading in that symbol is halted. During the halt, new orders can still be submitted and will rest in the book, but no matching occurs. When the halt ends, trading resumes through a **resumption auction** rather than instantly returning to continuous matching, this ensures that the first post-halt price is determined by the broadest available supply and demand, not by a single resting order that happens to be at the top of a thin book.
 
-The circuit breaker introduces its own state machine within the trading session:
+The circuit breaker introduces its own small state machine within the trading session, shown in the figure in this section.
 
-```mermaid
-stateDiagram-v2
-    direction LR
-    CONTINUOUS --> HALTED : Price moves beyond\nthreshold from reference
-    HALTED --> RESUMPTION_AUCTION : Halt duration expires\n(min + possible extension)
-    RESUMPTION_AUCTION --> CONTINUOUS : Equilibrium found\nuncross complete
-    RESUMPTION_AUCTION --> RESUMPTION_AUCTION : Indicative price still\noutside extension band\n(auction extended)
-    HALTED --> CLOSED : End-of-day signal\nduring halt (Level 3)
-    note right of HALTED : Orders rest but\nno matching occurs
-    note right of RESUMPTION_AUCTION : Price discovery\nbefore resuming
-```
+![The circuit-breaker state machine. A price move beyond the threshold halts continuous trading; when the halt expires a resumption auction finds the reopening price, extending itself while the indicative price is still outside the band, and trading then returns to CONTINUOUS. A Level 3 halt, or the end of the day during a halt, ends the session.](assets/risk-halt-states-small.png)
 
 Note that this is a sub-machine nested within the full trading session state machine (which is described in Part II). A halt can occur multiple times during a single session; each time the circuit breaker trips in CONTINUOUS, the session cycles through HALTED → RESUMPTION_AUCTION → CONTINUOUS before continuing.
 
@@ -65,7 +55,7 @@ For individual stocks, the US LULD system takes a complementary approach: rather
 | **Tier 2** | Other NMS stocks (priced above $3) | ±10% | ±20% |
 | **Leveraged ETPs** | Band multiplied by the product's leverage factor | Wider, per the plan's rules | Wider still |
 
-(Stocks priced at $3 or below have wider bands. The doubled "early/late" bands apply before 9:45am and after 3:35pm.) The bands are recalculated continuously from a reference price, the average trade price over the preceding five minutes. Trades outside the band are simply not allowed. If the best bid or offer sits exactly at the band (a **limit state**) and does not recover within 15 seconds, a 5-minute trading pause is triggered. The halt duration is fixed at 5 minutes regardless of how far the price moved, but the threshold that triggers the halt reflects the instrument's normal volatility characteristics.
+(ETPs, exchange-traded products, are the wider family that includes ETFs. Stocks priced at $3 or below have wider bands. The doubled "early/late" bands apply before 9:45am and after 3:35pm.) The bands are recalculated continuously from a reference price, the average trade price over the preceding five minutes. Trades outside the band are simply not allowed. If the best bid or offer sits exactly at the band (a **limit state**) and does not recover within 15 seconds, a 5-minute trading pause is triggered. The halt duration is fixed at 5 minutes regardless of how far the price moved, but the threshold that triggers the halt reflects the instrument's normal volatility characteristics.
 
 ## The 2020 COVID-19 Circuit Breaker Events
 
@@ -84,7 +74,7 @@ Several operational characteristics of these events are worth noting for exchang
 
 **Level 2 was not triggered**, even though the Dow Jones Industrial Average fell about 13% on March 16. Two details explain why. First, the market-wide circuit breakers are driven by the **S&P 500**, not the Dow, and the S&P 500 closed down about 12%, never reaching its 13% threshold. Second, every level is measured from the *previous day's close*: the reference does not reset after a Level 1 halt. (Also, a Level 1 or Level 2 halt can occur only once per day; after one Level 1 halt, only a 13% decline can halt trading again that day.) For a developer this is a reminder to implement exactly what the rule says: which index, which reference price, and which percentage.
 
-**Market-wide circuit breakers do not apply before 9:30am.** The March 16 halt triggered at the exact opening bell because the overnight futures market had already been limit-down on CME (CME imposes its own ±5% limit on equity futures outside regular hours). The circuit breaker mechanism described in this section governs only the regular session. Pre-market and after-hours risk management is handled separately at the futures exchange level.
+**Market-wide circuit breakers do not apply before 9:30am.** The March 16 halt triggered at the exact opening bell because the overnight futures market had already been limit-down on CME (CME applies its own limit to equity index futures outside regular hours: 5% at the time, widened since). The circuit breaker mechanism described in this section governs only the regular session. Pre-market and after-hours risk management is handled separately at the futures exchange level.
 
 **Single-stock LULD pauses ran in parallel.** Independently of the four market-wide halts, individual stock LULD pauses were triggered thousands of times throughout March 2020 as individual securities moved outside their instrument-level bands. Market-wide and single-stock circuit breakers are entirely separate systems with different triggers and separate enforcement.
 
@@ -126,19 +116,21 @@ All of these should be stored in reference data and readable at runtime without 
 
 ## Price Collars (Collar Bands)
 
-**Price collars** are price filters that reject individual orders whose submitted price is too far from a reference price.
+**Price collars** are price filters that reject individual orders whose submitted price is too far from a reference price. Collars work per order book: each instrument has its own reference prices and its own band widths, read from its reference data, and an order is checked only against the collars of the book it is sent to. A volatile small-cap stock can therefore have much wider bands than a large, liquid one on the same exchange.
 
 There are typically two bands:
 
-**Static collar (fat-finger filter):** Compares the submitted price to the last official close price. If the submitted price is more than X% away from the close, the order is rejected. This catches "fat finger" errors, trader mistypos that accidentally add or remove a zero. A sell order at $15.00 when the stock is trading at $150.00 is almost certainly a typo and should never reach the book.
+**Static collar (fat-finger filter):** Compares the submitted price to the last official close price. If the submitted price is more than X% away from the close, the order is rejected. This catches "fat finger" errors, typing mistakes that accidentally add or remove a zero. A sell order at $15.00 when the stock is trading at $150.00 is almost certainly a typo and should never reach the book.
 
 The term **fat finger** is industry slang for typing errors, accidentally pressing the wrong key. A famous fat-finger incident occurred in 2005 when a Mizuho Securities trader accidentally sold 610,000 shares of a Japanese company at 1 yen each instead of 1 share at 610,000 yen. The resulting chaos cost the firm hundreds of millions of dollars and prompted stricter controls globally. [16]
 
-**Dynamic collar (reference price filter):** Compares the submitted price to the most recent traded price. If the submitted price is more than Y% away from the last trade, the order is rejected. This prevents a participant from slowly walking the price away from fair value through a series of trades, each slightly outside the previous range.
+**Dynamic collar (reference price filter):** Compares the submitted price to the most recent traded price. If the submitted price is more than Y% away from the last trade, the order is rejected. This stops a single order from trading far away from where the market has *just* been trading, even late in a day when the price has legitimately drifted a long way from the close. It cannot stop a slow drift, because each step stays close to the previous trade; capping the total drift over the day is the static collar's job.
 
 The two collars serve different purposes:
 - The static collar protects against outright mistakes (orders many times the current price).
-- The dynamic collar protects against gradual manipulation or runaway algorithms.
+- The dynamic collar protects against sudden jumps away from the current market, such as a runaway algorithm sweeping a thin book.
+
+![Both collars on one trading day, with illustrative bands of ±10% (static) and ±3% (dynamic). A fat-finger order far from the market is stopped by both; a sudden jump is stopped only by the dynamic collar; a slow drift passes the dynamic collar at every step but can never take the price below the static band.](assets/risk-collars-static-dynamic-small.png)
 
 ### Automated Corridor Expansion (ACE)
 
@@ -150,7 +142,7 @@ A note on the name: "ACE" is this book's label for the pattern, not a standardis
 
 As an example, Deutsche Boerse adopted the ACE (Automated Corridor Expansion) Model for ETFs in 2021, accounting for the specific nature of ETPs and their intrinsic higher volatility.
 
-The mechanism is publically described in [Market Model for the Trading Venue Deutsche Börse Xetra](https://www.cashmarket.deutsche-boerse.com/resource/blob/4942824/7f80f5406aab402eb2e5e2436ce0821a/data/T7_Release_14.1_-_Market_Model%20_Xetra.pdf)
+The mechanism is publicly described in [Market Model for the Trading Venue Deutsche Börse Xetra](https://www.cashmarket.deutsche-boerse.com/resource/blob/4942824/7f80f5406aab402eb2e5e2436ce0821a/data/T7_Release_14.1_-_Market_Model%20_Xetra.pdf)
 
 **How it works, step by step.** Every ACE design has the same moving parts:
 
@@ -168,6 +160,8 @@ The mechanism is publically described in [Market Model for the Trading Venue Deu
 | End of call 1 (5 min) | $90.00 – $110.00 (±10%) | $122.00 | No | Widen by 10 points, call phase 2 |
 | End of call 2 (10 min) | $80.00 – $120.00 (±20%) | $122.00 | No | Widen by 20 points, call phase 3 |
 | End of call 3 (15 min) | $60.00 – $140.00 (±40%) | $122.00 | **Yes** | Reopen: uncross at $122.00 |
+
+![The worked example on a timeline. The collar around the latched $100 reference widens at the end of each call phase in which the indicative price of $122 still lies outside it; after the third call phase it fits, and the instrument reopens with an uncross at $122.](assets/risk-ace-expansion-small.png)
 
 These are the numbers from the SEC's own illustration of Nasdaq's rule, described below. Notice what the extra ten minutes buy. Every participant can see that the stock is heading for a 22% move and has time to react: sellers who think $122 is too high can enter orders, and if enough of them do, the indicative price falls back and the stock reopens earlier, inside a narrower collar. The expansion does not decide the price; it slows the process down just enough for the market to decide it with everybody watching.
 
@@ -189,13 +183,13 @@ Note also that the widening is **additive on the reference price**: each step ad
 
 **What this means for developers.** ACE turns the collar from a single number into a small state machine: *normal → call phase → (dry-run, widen, call phase)\* → reopen*. The engine needs a dry-run mode of its auction algorithm that computes the indicative price without executing, a latched reference price per instrument, and a ladder read from reference data rather than hardcoded. Every widening must be published to market data and written to the audit trail, because participants need to see the new collar to respond to it and regulators will ask why the instrument reopened when it did. If the end of each call phase is randomised, the random number generator must be treated as an input to the deterministic engine (seeded and recorded), or the replay guarantees of the *Determinism, Replay, and Persistence* chapter are lost. Finally, the ladder needs a defined interaction with the end of the trading day: an instrument still in a call phase at the close must resolve somehow, whether by a forced closing uncross, by rolling its orders into the next session, or by an operator's decision.
 
-> **Key idea:** A fixed collar either blocks a genuine repricing or gives way to an absurd one. Automated Collar Expansion does neither: it pauses only the affected instrument, keeps collecting orders, and widens the collar in published, predictable steps until the price the orders imply fits, so that large moves are allowed to happen, but slowly enough for the whole market to take part in setting the price.
+> **Key idea:** A fixed collar either blocks a genuine repricing or gives way to an absurd one. Automated Corridor Expansion does neither: it pauses only the affected instrument, keeps collecting orders, and widens the collar in published, predictable steps until the price the orders imply fits, so that large moves are allowed to happen, but slowly enough for the whole market to take part in setting the price.
 
 ## Self-Match Prevention (SMP)
 
 A participant should not be able to trade with themselves. If you have a resting sell order at $150.35 and you submit a buy order at $150.40, those orders would match, but both sides belong to you. No real change of ownership has occurred; you have simply generated artificial trading volume. This is called **wash trading** and is illegal under most exchange regulations.
 
-**Self-Match Prevention (SMP)** detects when an incoming order would match against a resting order from the same participant (identified by gateway ID) and applies a policy:
+**Self-Match Prevention (SMP)** detects when an incoming order would match against a resting order from the same participant (identified by gateway ID) and applies a policy (the next chapter covers SMP in depth):
 
 - **Cancel Aggressor:** Cancel the incoming order. Your resting order remains. This is the most common default.
 - **Cancel Resting:** Cancel the resting order and continue looking for a counterparty. Used when the new order supersedes the old one.
