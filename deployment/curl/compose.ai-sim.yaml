@@ -47,6 +47,7 @@ services:
       - "${BIND_ADDR:-127.0.0.1}:5600:5600"   # pm-log-srv   — log ingest (LALF)
       - "${BIND_ADDR:-127.0.0.1}:8080:8080"   # pm-api-gwy   — REST, desk
       - "${BIND_ADDR:-127.0.0.1}:8081:8081"   # pm-api-gwy   — REST, dashboards
+      - "${BIND_ADDR:-127.0.0.1}:8082:8082"   # pm-api-gwy   — REST, admin monitor
 
   terminal-gui:
     image: ghcr.io/${GHCR_OWNER:-johan162}/edumatcher-terminal-gui:${EM_VERSION:-latest}
@@ -160,6 +161,10 @@ services:
       PORT: "8093"
       # The 'desk' instance: log in with a TRADERnn key in the browser.
       API_PROXY_TARGET: "http://edumatcher:8080"
+      # The admin monitor feed has its own instance ('monitor', admin id MON01),
+      # which accepts the same key as OPS01, so its fan-out does not share an
+      # event loop with trading.
+      API_ADMIN_MONITOR_TARGET: "http://edumatcher:8082"
 
   clearing-gui:
     image: ghcr.io/${GHCR_OWNER:-johan162}/edumatcher-clearing-gui:${EM_VERSION:-latest}

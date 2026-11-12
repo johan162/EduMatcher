@@ -394,6 +394,21 @@ class TestExamples:
         ]
         assert engine.sessions_enabled is True
 
+    def test_s300_sim_admin_monitor_instance_shares_the_ops_key(self) -> None:
+        # The admin monitor feed has an API gateway of its own. The browser
+        # sends the one key it was given to every socket, so 'monitor' must
+        # accept OPS01's key, mapped to an admin id of its own (the engine
+        # refuses one id connected twice).
+        gateways = compile_config(resolve_example("s300-sim")).api_gateways
+        by_id = {
+            cred.gateway_id: cred.api_key
+            for name in ("desk", "monitor")
+            for cred in gateways[name].credentials
+            if cred.gateway_id in {"OPS01", "MON01"}
+        }
+        assert by_id["MON01"] == by_id["OPS01"]
+        assert [c.gateway_id for c in gateways["monitor"].credentials] == ["MON01"]
+
     def test_s300_sim_swarm_and_model_load(self) -> None:
         folder = resolve_example("s300-sim").parent
         swarm = load_swarm_config(folder / "swarm.yaml")

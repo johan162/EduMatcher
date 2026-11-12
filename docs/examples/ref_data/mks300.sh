@@ -13,9 +13,12 @@ cd "$setup_dir"
 # s300-sim runs for weeks with ~100 orders a second: the API gateways keep
 # finished orders 5 minutes instead of an hour, and the post-trade gateway's
 # replay journal 15 minutes instead of a day, or both would hold gigabytes.
+# The sim also gets an API gateway of its own for the admin monitor feed
+# (instance 'monitor', admin id MON01): the feed's fan-out saturated the
+# event loop of 'desk' at the open and dropped events. Empty = none.
 case "$(basename "$(pwd)")" in
   s300-load-setup) ai_count=500; market_makers=(MM01 MM02); long_run=()
-    risk=(--no-collars) ;;
+    risk=(--no-collars); monitor_admin="" ;;
   # The sim runs with collars and circuit breakers a news-driven move can
   # reach, so the forensics see band rejects, halts and reopening auctions
   # (sim forensics S27).
@@ -23,7 +26,8 @@ case "$(basename "$(pwd)")" in
     long_run=(--api-gateway-order-retention-sec 300 --post-trade-gateway
               --post-trade-replay-retention-sec 900)
     risk=(--static-band 0.20 --dynamic-band 0.03
-          --cb-levels L1:0.04:3 L2:0.08:10 L3:0.15:0 --cb-window-ns 300000000000) ;;
+          --cb-levels L1:0.04:3 L2:0.08:10 L3:0.15:0 --cb-window-ns 300000000000)
+    monitor_admin=MON01 ;;
   *) echo "Error: unknown setup directory $(pwd)" >&2; exit 1 ;;
 esac
 
@@ -97,6 +101,12 @@ for n in $(seq 1 10); do
 done
 participants+=("OPS01:ADMIN:LEAVE_ALL")
 desc_args+=(--participant-desc "OPS01:Instructor console")
+monitor_args=()
+if [[ -n "$monitor_admin" ]]; then
+  participants+=("${monitor_admin}:ADMIN:LEAVE_ALL")
+  desc_args+=(--participant-desc "${monitor_admin}:Instructor console, admin monitor feed")
+  monitor_args=(--api-gateway-instance "monitor:${monitor_admin}:8082")
+fi
 for mm in "${market_makers[@]}"; do
   case "$mm" in
     MM01) mm_desc="Primary market maker" ;;
@@ -131,6 +141,7 @@ done
   "${outstanding_args[@]}" \
   --api-gateway-instance "desk:${trader_list},${mm_list},OPS01:8080" \
   --api-gateway-instance dashboards::8081 \
+  "${monitor_args[@]+"${monitor_args[@]}"}" \
   --api-gateway-readonly-key \
   --seed-mm-mid-range 20:300 --mm-seed-spread-ticks 10 --seed-last-prices-from-mm \
   --enforce-mm-obligations \
@@ -147,5 +158,24 @@ done
   --market-data-replay-window-sec 30 --market-data-max-symbols-per-client 300 \
   --market-data-max-client-queue 20000 \
   "${long_run[@]+"${long_run[@]}"}"
+
+if [[ -n "$monitor_admin" ]]; then
+  # The browser sends the one key it was given to every socket; 'desk' reads it
+  # as OPS01 and 'monitor' as ${monitor_admin} (the engine refuses one id
+  # connected twice). So the monitor's key is OPS01's. Rotate them together.
+  python3 -I - "$monitor_admin" <<'PY'
+import re
+import sys
+
+admin = sys.argv[1]
+text = open("engine_config.yaml", encoding="utf-8").read()
+ops_key = re.search(r"- api_key: (\S+)\n\s+gateway_id: OPS01\n", text)
+monitor_key = re.search(rf"- api_key: (\S+)\n\s+gateway_id: {admin}\n", text)
+if ops_key is None or monitor_key is None:
+    sys.exit(f"Error: no OPS01 / {admin} credential in engine_config.yaml")
+text = text.replace(monitor_key.group(1), ops_key.group(1))
+open("engine_config.yaml", "w", encoding="utf-8").write(text)
+PY
+fi
 
 echo "Generated $(pwd)/engine_config.yaml"
