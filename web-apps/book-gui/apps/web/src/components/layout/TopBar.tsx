@@ -1,8 +1,8 @@
 /**
  * Top bar (design §9.2): the wordmark and version as every EduMatcher GUI shows
  * them, the symbol picker where terminal-gui has its view tabs, the session
- * indicator (WP-UI01), and the theme, settings and connection controls on the
- * right.
+ * indicator (WP-UI01), and the company info, theme, settings and connection
+ * controls on the right.
  */
 
 import { Moon, Sun } from "lucide-react";
@@ -11,6 +11,7 @@ import { ConnectionBadge, type ConnectionBadgeState } from "../ConnectionBadge.j
 import { SymbolPicker } from "../SymbolPicker.js";
 import { SettingsPopover } from "../shared/SettingsPopover.js";
 import { HelpButton } from "../help/HelpButton.js";
+import { CompanyButton } from "../company/CompanyButton.js";
 import { HELP_TOPICS } from "../help/helpContent.js";
 import { useBookStore, type ConnectionState } from "../../store/useBookStore.js";
 import { usePrefsStore } from "../../store/usePrefsStore.js";
@@ -50,6 +51,8 @@ export function TopBar() {
       />
 
       <div className="ml-auto flex items-center gap-3">
+        <CompanyButton />
+
         <button
           type="button"
           onClick={toggleTheme}

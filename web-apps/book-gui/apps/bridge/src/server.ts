@@ -110,6 +110,28 @@ export async function buildBridge(config: BridgeConfig, log: Logger): Promise<Br
     logging: log.destination(),
   }));
 
+  // The company profile behind a symbol, read with the read-only key; the
+  // gateway's status and body are passed through (404 unknown, 503 no database).
+  const gatewayBase = config.apiGateway.baseUrl.replace(/\/+$/, "");
+  app.get<{ Params: { symbol: string } }>("/api/company/:symbol", async (request, reply) => {
+    const url = `${gatewayBase}/api/v1/companies/${encodeURIComponent(request.params.symbol)}`;
+    try {
+      const res = await fetch(url, {
+        headers: { Authorization: `Bearer ${config.apiGateway.apiKey}` },
+        signal: AbortSignal.timeout(10_000),
+      });
+      return reply
+        .status(res.status)
+        .type("application/json")
+        .send(await res.text());
+    } catch (err) {
+      log.warn("book-bridge.company", `company profile from ${source} unreachable: ${String(err)}`);
+      return reply
+        .status(502)
+        .send({ error: { code: "UPSTREAM_UNREACHABLE", message: `${source} unreachable` } });
+    }
+  });
+
   if (config.staticDir) {
     const root = isAbsolute(config.staticDir) ? config.staticDir : resolve(process.cwd(), config.staticDir);
     await app.register(fastifyStatic, { root });

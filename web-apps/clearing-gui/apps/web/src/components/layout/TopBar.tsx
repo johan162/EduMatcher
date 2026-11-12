@@ -1,41 +1,66 @@
+import { useCallback, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { LogOut } from "lucide-react";
+import { HelpCircle, LogOut } from "lucide-react";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useConnectionStore } from "@/store/useConnectionStore";
+import { SettingsPopover } from "@/components/shared/SettingsPopover";
+import { HelpDrawer } from "@/components/help/HelpDrawer";
 import appVersion from "../../version.json";
 
 const ROLE_LABEL = { ADMIN: "Admin", TRADER: "Trader", MARKET_MAKER: "Market maker" } as const;
 
-/** Brand, who is logged in, whether the API gateway answers, and log out. */
+/** Brand, who is logged in, whether the API gateway answers, settings, help and log out -- trader-gui's layout. */
 export function TopBar() {
   const navigate = useNavigate();
   const gatewayId = useAuthStore((s) => s.gatewayId);
   const role = useAuthStore((s) => s.role);
   const logout = useAuthStore((s) => s.logout);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const closeHelp = useCallback(() => setHelpOpen(false), []);
 
   return (
-    <header className="flex h-10 shrink-0 items-center gap-4 border-b border-line bg-panel px-4">
-      <span className="font-mono text-sm font-bold">EduMatcher Clearing</span>
-      <span className="font-mono text-[11px] text-fg-faint">v{appVersion.version}</span>
-      <span className="text-xs text-fg-dim">read-only</span>
-      <div className="ml-auto flex items-center gap-4 text-xs">
+    <header className="h-10 flex items-center px-4 bg-panel border-b border-line flex-shrink-0 z-50">
+      {/* Left: wordmark */}
+      <div className="flex items-center gap-2 w-56 flex-shrink-0">
+        <span className="font-mono font-bold text-sm text-fg">EduMatcher</span>
+        <span className="font-mono text-xs text-accent">pm-clearing-gui</span>
+        <span className="font-mono text-xs text-brand-version">v{appVersion.version}</span>
+      </div>
+
+      <div className="flex-1 flex justify-center items-center text-xs text-fg-dim">read-only</div>
+
+      <div className="flex items-center gap-3 justify-end text-xs">
+        <SettingsPopover />
+
+        <button
+          type="button"
+          onClick={() => setHelpOpen((v) => !v)}
+          aria-label="Help"
+          title="Help"
+          className="text-fg-dim hover:text-fg"
+        >
+          <HelpCircle size={16} />
+        </button>
+
         <ConnectionBadge />
-        <span>
-          <span className="font-mono">{gatewayId}</span>
-          {role && <span className="ml-1 text-fg-dim">({ROLE_LABEL[role]})</span>}
-        </span>
+
+        <span className="text-xs text-fg-faint hidden lg:inline">{gatewayId}</span>
+        {role && <span className="text-xs text-fg-faint hidden lg:inline">{ROLE_LABEL[role]}</span>}
+
         <button
           type="button"
           onClick={() => {
             logout();
             navigate("/login", { replace: true });
           }}
-          className="flex items-center gap-1 rounded px-2 py-1 text-fg-dim hover:bg-raised hover:text-fg"
+          className="text-fg-dim hover:text-fg"
+          aria-label="Log out"
+          title="Log out"
         >
-          <LogOut size={12} aria-hidden="true" />
-          Log out
+          <LogOut size={16} />
         </button>
       </div>
+      {helpOpen && <HelpDrawer onClose={closeHelp} />}
     </header>
   );
 }

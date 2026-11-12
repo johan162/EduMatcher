@@ -30,7 +30,7 @@ clearing-gui/
       src/lib/        money (ticks vs minor units), time
       src/components/ layout (shell, top bar, sidebar), shared (states,
                       table, filters), views (tables reused by participant
-                      and ADMIN screens)
+                      and ADMIN screens), help (top-bar help drawer)
       src/pages/      me/ (participant), admin/ (ADMIN), LoginPage
       test/           Vitest + React Testing Library suites
     serve/    pm-clearing-ui-serve: static server with the /api proxy

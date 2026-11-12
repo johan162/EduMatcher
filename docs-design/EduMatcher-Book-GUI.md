@@ -260,7 +260,7 @@ fans out to the tabs, as `terminal-gui`'s bridge does with CALF (Terminal-GUI
 | `session/history-seed.ts` | REST calls: session date, all of today's trades (paged), previous close, symbol list | `history-proxy.ts` |
 | `ws-fanout.ts` | Tab registry, `hello`, per-tab `watch`, ping/pong reaping, buffered-bytes guard | `ws-fanout.ts` (copied, then narrowed) |
 | `logging/logger.ts` + `packages/lalf-client` | LALF operational logging with stdout/file fallback | copied verbatim |
-| `server.ts` | Wires it together, `/api/bridge/status`, static file serving | `server.ts` |
+| `server.ts` | Wires it together, `/api/bridge/status`, `/api/company/:symbol` (company profile, read-only key), static file serving | `server.ts` |
 
 ### 5.3 Web components (`apps/web/src/`)
 

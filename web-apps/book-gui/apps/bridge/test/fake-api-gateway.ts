@@ -58,6 +58,8 @@ export class FakeApiGateway {
     { symbol: "MSFT", tick_decimals: 2 },
     { symbol: "BRK", tick_decimals: 0 },
   ];
+  /** `/companies/{symbol}` profiles; a symbol without one answers 404. */
+  companies: Record<string, Record<string, unknown>> = {};
   /** Set to e.g. 503 to make every history read fail. */
   historyStatus = 200;
   /** `/history/trades` rows per page, whatever `limit` asks for — to exercise paging. */
@@ -241,6 +243,13 @@ export class FakeApiGateway {
       if (this.historyStatus !== 200) return reply.status(this.historyStatus).send({});
       const rows = (this.daily[req.query.symbol] ?? []).filter((r) => r.date >= req.query.from);
       return { daily: rows, count: rows.length, has_more: false };
+    });
+
+    this.app.get<{ Params: { symbol: string } }>("/api/v1/companies/:symbol", (req, reply) => {
+      if (!guard(req.headers.authorization)) return reply.status(401).send({});
+      const company = this.companies[req.params.symbol];
+      if (!company) return reply.status(404).send({ error: { code: "UNKNOWN_COMPANY" } });
+      return company;
     });
 
     this.app.get("/api/v1/reference/symbols", (req, reply) => {
