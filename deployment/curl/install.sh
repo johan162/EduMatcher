@@ -249,6 +249,9 @@ The first five API keys and the Admin key are:
 | RDASHBOARD  | DASHBOARD    | key-readonly-b60r77 |
 ====================================================
 
+MON01, a second ADMIN in the instructor's screens, is the admin monitor
+feed's own API gateway: it uses the OPS01 key and needs nothing from you.
+
 You can find the full list of API keys in the simulation configuration in the "Ten Minute Start" chapter in 
 the "AI Traders and Market Simulation" book.
 

@@ -466,10 +466,24 @@ _AI_SIM_COMMANDS = {
         "--verbose",
     ],
 }
-AI_SIM_PROCESSES: list[dict[str, Any]] = [
-    {**process, "command": _AI_SIM_COMMANDS.get(process["name"], process["command"])}
-    for process in AI_SWARM_PROCESSES
-]
+# s300-sim gives the admin monitor feed an API gateway instance of its own
+# ('monitor', admin id MON01): its fan-out saturated the event loop of 'desk'
+# at the open. trader-gui sends only that socket there.
+_AI_SIM_MONITOR_GWY: dict[str, Any] = {
+    "name": "api-monitor-gwy (api-gwy)",
+    "command": ["pm-api-gwy", "--verbose", "--instance", "monitor"],
+    "tcp": "127.0.0.1:8082",
+}
+AI_SIM_PROCESSES: list[dict[str, Any]] = []
+for _process in AI_SWARM_PROCESSES:
+    AI_SIM_PROCESSES.append(
+        {
+            **_process,
+            "command": _AI_SIM_COMMANDS.get(_process["name"], _process["command"]),
+        }
+    )
+    if _process["name"] == "api-dashboards-gwy (api-gwy)":
+        AI_SIM_PROCESSES.append(_AI_SIM_MONITOR_GWY)
 
 # {"name": "trader", "command": ["pm-alf-console", "--id", "TRADER01", "--verbose"]},
 

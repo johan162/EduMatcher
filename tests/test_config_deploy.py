@@ -409,6 +409,19 @@ class TestExamples:
         assert by_id["MON01"] == by_id["OPS01"]
         assert [c.gateway_id for c in gateways["monitor"].credentials] == ["MON01"]
 
+    def test_s300_sim_api_gateway_instances_all_start_under_ai_sim(self) -> None:
+        # pm-opctl-cli starts a fixed process list, not one per configured
+        # instance: an instance the profile leaves out never listens.
+        from edumatcher.emo.cli import BUILTIN_PROFILES
+
+        started = {
+            p["command"][p["command"].index("--instance") + 1]
+            for p in BUILTIN_PROFILES["ai-sim"]
+            if p["command"][0] == "pm-api-gwy"
+        }
+        gateways = compile_config(resolve_example("s300-sim")).api_gateways
+        assert started == set(gateways)
+
     def test_s300_sim_swarm_and_model_load(self) -> None:
         folder = resolve_example("s300-sim").parent
         swarm = load_swarm_config(folder / "swarm.yaml")

@@ -5,7 +5,7 @@ The long-running simulated market of the
 book, and the default of the `edumatcher-ai-sim` container image.
 
 - Symbols: 300 (the 150 `s150` tickers plus 150 more)
-- Participants: `TRADER01`–`TRADER10` (people), `OPS01` (instructor), `MM01` (the market-maker bot), and AI traders `AI001`–`AI100`
+- Participants: `TRADER01`–`TRADER10` (people), `OPS01` (instructor), `MON01` (the admin monitor feed's own API gateway instance `monitor` on port 8082, logged in to with `OPS01`'s key), `MM01` (the market-maker bot), and AI traders `AI001`–`AI100`
 - `swarm.yaml`: the 100 AI traders, each trading 30 symbols (about 10 agents per symbol), 120 order actions a second in total
 - `market_sim.yaml`: the market model (hidden true values) with generated news and rumours on
 - `companies.db`: made-up company profiles for all 300 tickers, matching their sectors and industries, plus 100 Swedish and Nordic companies whose tickers the simulation does not trade; query with `pm-compdb-cli --db companies.db list`, rebuild with `pm-compdb-cli --db companies.db init --force` (the source is `src/edumatcher/compdb/companies/*.yaml`)
