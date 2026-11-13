@@ -65,7 +65,7 @@ def _make_engine(
     monkeypatch.setattr("edumatcher.engine.main.make_publisher", lambda _: pub_sock)
     monkeypatch.setattr("edumatcher.engine.main.load_engine_config", lambda _: cfg)
     monkeypatch.setattr("edumatcher.engine.main.load_gtc_orders", lambda _: [])
-    monkeypatch.setattr("edumatcher.engine.main.load_book_stats", lambda _: {})
+    monkeypatch.setattr("edumatcher.engine.main.load_book_stats", lambda _: ({}, 0))
     monkeypatch.setattr("edumatcher.engine.main.time.sleep", lambda *_: None)
 
     cfg_path = tmp_path / "engine_config.yaml"
@@ -456,7 +456,7 @@ def test_global_circuit_breaker_halt_all_accepts_admin(monkeypatch, tmp_path) ->
     monkeypatch.setattr("edumatcher.engine.main.make_publisher", lambda _: pub_sock)
     monkeypatch.setattr("edumatcher.engine.main.load_engine_config", lambda _: cfg)
     monkeypatch.setattr("edumatcher.engine.main.load_gtc_orders", lambda _: [])
-    monkeypatch.setattr("edumatcher.engine.main.load_book_stats", lambda _: {})
+    monkeypatch.setattr("edumatcher.engine.main.load_book_stats", lambda _: ({}, 0))
     monkeypatch.setattr("edumatcher.engine.main.time.sleep", lambda *_: None)
 
     cfg_path = tmp_path / "engine_config.yaml"
@@ -521,7 +521,7 @@ def test_global_circuit_breaker_halt_then_resume_all(monkeypatch, tmp_path) -> N
     monkeypatch.setattr("edumatcher.engine.main.make_publisher", lambda _: pub_sock)
     monkeypatch.setattr("edumatcher.engine.main.load_engine_config", lambda _: cfg)
     monkeypatch.setattr("edumatcher.engine.main.load_gtc_orders", lambda _: [])
-    monkeypatch.setattr("edumatcher.engine.main.load_book_stats", lambda _: {})
+    monkeypatch.setattr("edumatcher.engine.main.load_book_stats", lambda _: ({}, 0))
     monkeypatch.setattr("edumatcher.engine.main.time.sleep", lambda *_: None)
 
     cfg_path = tmp_path / "engine_config.yaml"
@@ -1026,7 +1026,7 @@ def test_orphaned_leg_cleanup_does_not_affect_other_gateways_index_entries(
     monkeypatch.setattr("edumatcher.engine.main.make_publisher", lambda _: pub_sock)
     monkeypatch.setattr("edumatcher.engine.main.load_engine_config", lambda _: cfg)
     monkeypatch.setattr("edumatcher.engine.main.load_gtc_orders", lambda _: [])
-    monkeypatch.setattr("edumatcher.engine.main.load_book_stats", lambda _: {})
+    monkeypatch.setattr("edumatcher.engine.main.load_book_stats", lambda _: ({}, 0))
     monkeypatch.setattr("edumatcher.engine.main.time.sleep", lambda *_: None)
     cfg_path = tmp_path / "engine_config.yaml"
     cfg_path.write_text("dummy: true\n")
@@ -1160,7 +1160,7 @@ def test_smp_cancel_of_stale_quote_remainder_does_not_crash_reissue(
     monkeypatch.setattr("edumatcher.engine.main.make_publisher", lambda _: pub_sock)
     monkeypatch.setattr("edumatcher.engine.main.load_engine_config", lambda _: cfg)
     monkeypatch.setattr("edumatcher.engine.main.load_gtc_orders", lambda _: [])
-    monkeypatch.setattr("edumatcher.engine.main.load_book_stats", lambda _: {})
+    monkeypatch.setattr("edumatcher.engine.main.load_book_stats", lambda _: ({}, 0))
     monkeypatch.setattr("edumatcher.engine.main.time.sleep", lambda *_: None)
     cfg_path = tmp_path / "engine_config.yaml"
     cfg_path.write_text("dummy: true\n")

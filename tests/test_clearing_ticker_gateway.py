@@ -222,7 +222,7 @@ class TestPersistenceLoaders:
         from edumatcher.engine.persistence import load_book_stats
 
         result = load_book_stats(tmp_path / "nonexistent.json")
-        assert result == {}
+        assert result == ({}, 0)
 
     def test_load_book_stats_valid_file(self, tmp_path: Path) -> None:
         from edumatcher.engine.persistence import load_book_stats
@@ -231,8 +231,9 @@ class TestPersistenceLoaders:
         data = {"AAPL": {"last_buy_price": 100.0, "last_sell_price": 99.0}}
         p = tmp_path / "stats.json"
         p.write_text(json.dumps(data))
-        result = load_book_stats(p)
-        assert result["AAPL"]["last_buy_price"] == 100.0
+        stats, failed = load_book_stats(p)
+        assert stats["AAPL"]["last_buy_price"] == 100.0
+        assert failed == 0
 
     def test_load_book_stats_malformed_file(self, tmp_path: Path) -> None:
         from edumatcher.engine.persistence import load_book_stats
@@ -240,7 +241,7 @@ class TestPersistenceLoaders:
         p = tmp_path / "malformed.json"
         p.write_text("not valid json{{{{")
         result = load_book_stats(p)
-        assert result == {}
+        assert result == ({}, 1)
 
     def test_load_gtc_combos_nonexistent_file(self, tmp_path: Path) -> None:
         from edumatcher.engine.persistence import load_gtc_combos

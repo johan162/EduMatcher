@@ -77,7 +77,7 @@ pm-scheduler --now --delay 5
 ```
 
 Watch the transitions (`--delay 5` leaves five seconds between them, long
-enough to query the phase after each one; the whole day takes about 25 seconds). The trader console does **not** subscribe to session
+enough to query the phase after each one; the whole day takes about 20 seconds). The trader console does **not** subscribe to session
 broadcasts — it only answers an explicit `SESSION` query — so use the operator
 console, which does:
 

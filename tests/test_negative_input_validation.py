@@ -82,7 +82,7 @@ def _make_engine(
     monkeypatch.setattr("edumatcher.engine.main.load_engine_config", lambda _: cfg)
     monkeypatch.setattr("edumatcher.engine.main.load_gtc_orders", lambda _: [])
     monkeypatch.setattr("edumatcher.engine.main.load_gtc_combos", lambda _: [])
-    monkeypatch.setattr("edumatcher.engine.main.load_book_stats", lambda _: {})
+    monkeypatch.setattr("edumatcher.engine.main.load_book_stats", lambda _: ({}, 0))
     monkeypatch.setattr("edumatcher.engine.main.time.sleep", lambda *_: None)
 
     cfg_path = tmp_path / "engine_config.yaml"
@@ -708,11 +708,11 @@ class TestEngineGatewayAuth:
 class TestEngineMalformedPayloads:
     """Malformed raw payloads passed directly to engine handlers."""
 
-    def test_order_payload_with_invalid_side_string_raises(
+    def test_order_payload_with_invalid_side_string_is_refused(
         self, monkeypatch, tmp_path
     ) -> None:
-        """A raw dict with an unknown side value should raise a KeyError or
-        similar — the engine does NOT silently accept garbage enum strings."""
+        """A raw dict with an unknown side value is refused as malformed —
+        the engine does NOT silently accept garbage enum strings."""
         engine, pub_sock = _make_engine(monkeypatch, tmp_path)
         _connect(engine)
         o = Order.create(
@@ -726,10 +726,12 @@ class TestEngineMalformedPayloads:
         )
         payload = o.to_dict()
         payload["side"] = "SIDEWAYS"  # corrupt the enum value
-        with pytest.raises((KeyError, ValueError)):
-            engine._handle_new_order(payload)
+        engine._handle_new_order(payload)
+        ack = _last_ack(pub_sock)
+        assert (ack["accepted"], ack["reject_code"]) == (False, "MALFORMED_MESSAGE")
+        assert engine._book("AAPL").resting_orders() == []
 
-    def test_order_payload_with_invalid_order_type_raises(
+    def test_order_payload_with_invalid_order_type_is_refused(
         self, monkeypatch, tmp_path
     ) -> None:
         engine, pub_sock = _make_engine(monkeypatch, tmp_path)
@@ -745,10 +747,14 @@ class TestEngineMalformedPayloads:
         )
         payload = o.to_dict()
         payload["order_type"] = "MAGIC_ORDER"
-        with pytest.raises((KeyError, ValueError)):
-            engine._handle_new_order(payload)
+        engine._handle_new_order(payload)
+        ack = _last_ack(pub_sock)
+        assert (ack["accepted"], ack["reject_code"]) == (False, "MALFORMED_MESSAGE")
+        assert engine._book("AAPL").resting_orders() == []
 
-    def test_order_payload_with_invalid_tif_raises(self, monkeypatch, tmp_path) -> None:
+    def test_order_payload_with_invalid_tif_is_refused(
+        self, monkeypatch, tmp_path
+    ) -> None:
         engine, pub_sock = _make_engine(monkeypatch, tmp_path)
         _connect(engine)
         o = Order.create(
@@ -762,8 +768,10 @@ class TestEngineMalformedPayloads:
         )
         payload = o.to_dict()
         payload["tif"] = "WHENEVER"
-        with pytest.raises((KeyError, ValueError)):
-            engine._handle_new_order(payload)
+        engine._handle_new_order(payload)
+        ack = _last_ack(pub_sock)
+        assert (ack["accepted"], ack["reject_code"]) == (False, "MALFORMED_MESSAGE")
+        assert engine._book("AAPL").resting_orders() == []
 
 
 # ===========================================================================

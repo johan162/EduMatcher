@@ -15,7 +15,8 @@ state, inspecting resting orders, and managing the order lifecycle.
 ## Prerequisites
 
 - Chapters 01–07 completed.
-- At least one connected trader gateway with resting orders to manage.
+- `TRADER01`, `TRADER02` and the operator console connected, and the market
+  open in `CONTINUOUS` (where chapter 07 left it).
 
  
 
@@ -105,9 +106,11 @@ Now inspect the actual orders:
 [TRADER01]> ORDERS
 ```
 
-`ORDERS` is the gateway command for detailed order inspection. It displays order
-ID, symbol, side, type, TIF, price, quantity, remaining quantity, and status for
-orders belonging to your gateway.
+`ORDERS` is the gateway command for detailed order inspection. For every
+order of your gateway today it shows the full order ID, symbol, side, type,
+TIF, quantity, remaining quantity, price, status (`NEW`, `PARTIAL`, `FILLED`,
+`CANCELLED`, `REJECTED`, `EXPIRED`) and time. Find the MSFT order you just
+placed: `Qty` 25, `Rem` 25, `NEW`.
 
 Use `STATUS` when you need a quick health pulse. Use `ORDERS` when you are
 debugging one specific order lifecycle.
@@ -116,24 +119,7 @@ debugging one specific order lifecycle.
 
  
 
-## Exercise 4: Inspect Resting Order Details
-
-```
-[TRADER01]> ORDERS
-```
-
-Find your order in the table. The response includes:
-
-- `symbol`, `side`, `type`, `price`, `qty`
-- remaining quantity
-- `status` (NEW, PARTIAL, FILLED, CANCELLED, REJECTED, EXPIRED)
-- `tif`, last update time
-
-:material-checkbox-blank-outline: **Checkpoint:** `ORDERS` returns full details for each resting order.
-
- 
-
-## Exercise 5: Cancel a Non-Existent Order
+## Exercise 4: Cancel a Non-Existent Order
 
 ```
 [TRADER01]> CANCEL|ID=DOES_NOT_EXIST|RTAG=CXL-MISSING-001
@@ -147,9 +133,16 @@ Expected: rejection, shown in the console as
 
  
 
-## Exercise 6: Cancel Another Gateway's Order
+## Exercise 5: Cancel Another Gateway's Order
 
-Try cancelling an order belonging to TRADER02:
+`TRADER02` has nothing resting (its sell filled in Exercise 2), so give it an
+order, and note the order ID it is acknowledged with:
+
+```
+[TRADER02]> NEW|SYM=TSLA|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=252.00|TIF=DAY
+```
+
+Now try cancelling it from `TRADER01`:
 
 ```
 [TRADER01]> CANCEL|ID=<trader02_order_id>|RTAG=CXL-NOTOWNER-001
@@ -162,7 +155,7 @@ Expected: rejection — you can only cancel your own orders:
 
  
 
-## Exercise 7: Admin Kill Switch
+## Exercise 6: Admin Kill Switch
 
 From the admin gateway, cancel all orders for a specific gateway:
 
@@ -173,8 +166,10 @@ From the admin gateway, cancel all orders for a specific gateway:
 The console reports `KILL OK  TRADER01  orders=<n>  quotes=<n>` — the number of
 orders and of market-maker quote legs cancelled — and each cancelled order
 appears on `TRADER01`'s console as `CANCELLED <order_id> reason=KILL_SWITCH`.
+`GTC` orders are included: the `MSFT` GTC bid from chapter 06 is among them.
 
-Or cancel all orders for a specific symbol across all gateways:
+Or cancel all orders for a specific symbol across all gateways — here the
+`TRADER02` offer from Exercise 5:
 
 ```
 [GW_ADMIN|ADMIN]> CANCEL_SYM|SYM=TSLA
@@ -185,22 +180,6 @@ also clear market-maker quotes, which is why they are the quickest way to empty
 a book before an experiment.
 
 :material-checkbox-blank-outline: **Checkpoint:** admin commands successfully cancel orders.
-
- 
-
-## Exercise 8: Inspect SYMBOLS Metadata from Gateway
-
-Request the symbol catalog:
-
-```
-[TRADER01]> SYMBOLS
-```
-
-The table shows each symbol's tick size and its market-maker obligation
-settings (enforced or not, maximum spread in ticks, minimum quoted quantity) —
-the parts of the configuration a trader needs while trading.
-
-:material-checkbox-blank-outline: **Checkpoint:** you can explain how `SYMBOLS` complements config-file inspection during operations.
 
  
 

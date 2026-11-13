@@ -560,12 +560,14 @@ class TestTheRunModel:
                     "discarded_stale_day_orders": 6,
                     "failed_orders": 1,
                     "rebuilt_quotes": 4,
+                    "failed_book_stats": 2,
                 },
             )
         )
         assert model.run.recovery_seen is True
         assert model.run.recovery_counts["restored_orders"] == 118
         assert model.run.recovery_counts["failed_orders"] == 1
+        assert model.run.recovery_counts["failed_book_stats"] == 2
 
     def test_a_failed_recovery_item_names_the_entity(self) -> None:
         """AR-0.5's point: "which order failed to restore?" was unanswerable

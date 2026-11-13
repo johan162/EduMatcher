@@ -180,7 +180,7 @@ def _build_engine(
     monkeypatch.setattr("edumatcher.engine.main.load_engine_config", lambda _: cfg)
     monkeypatch.setattr("edumatcher.engine.main.load_gtc_orders", lambda _: [])
     monkeypatch.setattr("edumatcher.engine.main.load_gtc_combos", lambda _: [])
-    monkeypatch.setattr("edumatcher.engine.main.load_book_stats", lambda _: {})
+    monkeypatch.setattr("edumatcher.engine.main.load_book_stats", lambda _: ({}, 0))
     monkeypatch.setattr("edumatcher.engine.main.time.sleep", lambda *_: None)
 
     cfg_path = tmp_path / "engine_config.yaml"

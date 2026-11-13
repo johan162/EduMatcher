@@ -5,7 +5,7 @@
 Get a working EduMatcher, understand **where its files live**, and know **how to
 change them**. There are four ways to install; you need exactly one, and
 **Containers is the recommended default** — it needs no Python setup, gives
-you the exchange plus six web applications in a single command, and is what
+you the exchange plus seven web applications in a single command, and is what
 the rest of this chapter assumes unless you have a specific reason to choose
 otherwise. By the end of this chapter you will have an exchange you can start
 and stop, a deployed configuration, and a clear picture of which directory
@@ -32,7 +32,7 @@ in action.
 
 | Route | You need | You get | Best for |
 |---|---|---|---|
-| **A — Containers (recommended)** | Podman or Docker | The exchange **and six web applications**, in one command | Most students: no Python to install, the fastest path to a live market, and works through every chapter that follows |
+| **A — Containers (recommended)** | Podman or Docker | The exchange **and seven web applications**, in one command | Most students: no Python to install, the fastest path to a live market, and works through every chapter that follows |
 | **B — pipx** | Python 3.14 | `pm-*` commands on your PATH | You would rather work outside a container, or Podman/Docker is not available to you |
 | **C — Multipass VM** | Multipass | A Linux VM with `pm-*` inside it | Workshops; keeping your own machine untouched; a snapshot you can reset |
 | **D — Poetry checkout** | Python 3.14, Git | The repository plus dev dependencies | Changing EduMatcher itself |
@@ -95,10 +95,10 @@ curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment
 
 The installer checks for Podman or Docker, resolves the newest release,
 downloads four small support files (`compose.yaml`, `compose.zmq.yaml`,
-`edumatcher.sh`, `.env.example`), pulls seven images (the exchange and the six
+`edumatcher.sh`, `.env.example`), pulls eight images (the exchange and the seven
 web applications) and starts them. Nothing is compiled on your machine.
 
-When it finishes you have a complete exchange **and** six web applications:
+When it finishes you have a complete exchange **and** seven web applications:
 
 | Application | URL | What it is |
 |---|---|---|
@@ -108,6 +108,7 @@ When it finishes you have a complete exchange **and** six web applications:
 | Trading GUI (`pm-trading-ui`) | <http://localhost:8093> | Submit and manage orders as a participant |
 | Order Book Viewer (`pm-book`) | <http://localhost:8094> | One symbol's full order book, statistics and trade tape — `pm-viewer` in the browser |
 | Operator Dashboard (`pm-dash`) | <http://localhost:8095> | Whether every part of the exchange is healthy, and how busy it is, live and over time |
+| Clearing GUI (`pm-clearing-ui`) | <http://localhost:8096> | Positions, P&L, trades and end-of-day settlement per participant, read-only |
 | REST API docs | <http://localhost:8080/docs> | Swagger UI for the `desk` API gateway |
 
 Open TapeDeck. You should see order books with live quotes: the
@@ -116,8 +117,8 @@ market-maker bid and ask the moment `pm-engine` starts, so there is a two-sided
 book before anyone has traded.
 
 !!! note "If a port is already taken"
-    The REST API ports (`8080`, `8081`) are fixed; the six web applications use
-    `8090`–`8095` by default, and you can move any of them with the
+    The REST API ports (`8080`, `8081`) are fixed; the seven web applications use
+    `8090`–`8096` by default, and you can move any of them with the
     `*_GUI_PORT` settings in `.env` (Exercise 4). If another program on your
     machine already uses one of these ports, `./edumatcher.sh start` fails with
     a bind error naming that port. Free it, move the conflicting service, or
@@ -169,13 +170,22 @@ To run a single command without staying inside, pass it along:
 One difference matters. The container **starts the processes for you** — the
 `mm-demo` profile (the full process set plus a slow market-maker bot) is
 already running, which is why TapeDeck showed a live market. The training chapters assume you start them yourself, so stop them
-first:
+first, and then wipe what the demo left behind:
 
 ```bash
-pm-opctl-cli list           # see what is running
-pm-opctl-cli stop           # stop the profile; the container stays up
-pm-engine --verbose         # now follow the chapters
+pm-opctl-cli list                   # see what is running
+pm-opctl-cli stop                   # stop the profile; the container stays up
+pm-opctl-cli clear --state --yes    # forget the demo's orders, prices and trades
 ```
+
+The last step matters more than it looks. While it ran, the demo traded
+AAPL, MSFT, TSLA and seven other symbols, and the exchange **remembers** a
+symbol's last traded price across restarts (in `book_stats.json`), as well as
+every trade (in `stats.db` and `clearing.db`). Without the reset, the AAPL you
+configure at 150.00 in chapter 01 would start at whatever price the demo
+left it at, and your positions in chapter 12 would include trades you never
+made. `clear --state` removes only that state; your deployed configuration
+and your working folder (below) are not touched.
 
 For the exercises that need several terminals, run `./edumatcher.sh shell` once
 in each of them.
@@ -345,7 +355,7 @@ verify it, then bootstrap:
 ```bash
 multipass version
 
-curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh | bash -s -- --version 0.78.3
+curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh | bash -s -- --version 0.78.4
 ```
 
 If `multipass version` fails with `command not found`, the install did not
@@ -541,7 +551,7 @@ so updating does not discard your edits.
 
 | Variable | Default | What it does |
 |---|---|---|
-| `EM_VERSION` | *(the installed release)* | Which release to run. All seven images carry this tag, so one value pins the whole system |
+| `EM_VERSION` | *(the installed release)* | Which release to run. All eight images carry this tag, so one value pins the whole system |
 | `GHCR_OWNER` | `johan162` | The registry namespace images come from. Change only for a fork |
 | `EM_CONFIG` | `s10-basic` | Which bundled example the exchange deploys |
 | `EM_CONFIG_FILE` | *(empty)* | Set when you run a configuration of your own; non-empty wins over `EM_CONFIG` |
@@ -556,6 +566,7 @@ so updating does not discard your edits.
 | `TRADER_GUI_PORT` | `8093` | Host port for the Trading GUI (`pm-trading-ui`) |
 | `BOOK_GUI_PORT` | `8094` | Host port for the Order Book Viewer (`pm-book`) |
 | `DASH_GUI_PORT` | `8095` | Host port for the Operator Dashboard (`pm-dash`) |
+| `CLEARING_GUI_PORT` | `8096` | Host port for the Clearing GUI (`pm-clearing-ui`) |
 
 Change any of them and run `./edumatcher.sh restart`. Two have their own
 commands, because they need more than an edit — `./edumatcher.sh config` keeps
@@ -616,7 +627,7 @@ handled in full:
 | Symptom | Cause | Fix |
 |---|---|---|
 | Installer exits immediately with "Neither podman nor docker is installed" | No container engine on this machine | Install Podman or Docker Desktop, then re-run the install command |
-| `./edumatcher.sh start` fails with a bind error naming a port | Something else on your machine already uses `8080` or `8090`–`8095` | Free the port or stop the other service, then `./edumatcher.sh start` again |
+| `./edumatcher.sh start` fails with a bind error naming a port | Something else on your machine already uses `8080`, `8081` or `8090`–`8096` | Free the port or stop the other service, then `./edumatcher.sh start` again |
 | Starting a second install fails, naming another install's data directory | Container names and ports are fixed, so two installs cannot run side by side | Stop the other one (`./edumatcher.sh stop` in its directory), then retry — see the warning in Exercise 1 |
 | `pip install pipx` fails with `externally-managed-environment` | Modern Linux distributions block installing into the system Python | Use `python -m pip install --user pipx` instead, as Route B shows |
 | `command not found: pm-engine` right after `pipx install edumatcher` | `pipx ensurepath` only takes effect in a *new* shell | Open a new terminal (or `exec $SHELL`) and try again |
@@ -624,6 +635,7 @@ handled in full:
 | `pm-engine --version` works in one terminal but not another | `EDUMATCHER_DATA_DIR` was exported in one shell but never added to your shell profile | Add the `export` line from `pm-setup`'s output to `~/.zshrc` or `~/.bashrc`, then open a new terminal |
 | `multipass version` reports `command not found` | Multipass did not finish installing, or your shell has not picked up its PATH change | Reinstall from [multipass.run](https://multipass.run/install), then open a new terminal |
 | Container route: chapter exercises see a market that already has orders in it | The `mm-demo` profile is still running from install | `pm-opctl-cli stop` inside `./edumatcher.sh shell`, as the "Before You Continue" checklist below requires |
+| Container route: `pm-engine` logs `Restored book statistics for 10 symbol(s)` although your configuration has three, or prices are far from the ones you configured | The demo's last prices are still in `book_stats.json` | Stop `pm-engine`, run `pm-opctl-cli clear --state --yes`, start it again |
 
 If something goes wrong that is not on this list, `./edumatcher.sh logs` (container
 route) or the relevant process's own `--verbose` output is the next place to
@@ -656,7 +668,8 @@ chapter assumes without re-explaining:
       `EDUMATCHER_DATA_DIR` is in your shell profile, not just this terminal;
       for containers it means a shell opened with `./edumatcher.sh shell`.
 - [ ] On the container route only: `pm-opctl-cli stop`, so the next chapter can
-      start the processes itself.
+      start the processes itself, then `pm-opctl-cli clear --state --yes`, so
+      it starts without the demo's prices and trades.
 - [ ] You have a working folder (`~/training`, or `~/.edumatcher/data/training`
       on the container route, which you reach as `/data/training` inside
       `./edumatcher.sh shell`) and a text editor to write YAML files in it.

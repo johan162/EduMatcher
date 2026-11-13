@@ -667,6 +667,7 @@ class StateModel:
             "quote_remnants_restored",
             "rebuilt_quotes",
             "restored_combos",
+            "failed_book_stats",
         ):
             value = _int(fact.payload, name)
             if value is not None:

@@ -27667,7 +27667,7 @@
               }
             ],
             "title": "Config Version",
-            "description": "Truncated SHA-256 of the bundle. Null before a config is loaded, which is the\nonly remaining difference between the two states the old two-shape reply used\nto distinguish. Regime 2: every consumer compares it, so the key has to be\nthere to compare."
+            "description": "Truncated SHA-256 of the bundle, without the schedule's per-day fields\n(`today`, `today_is_holiday`, `upcoming_holidays`), so the same configuration\nhas the same version every day. Null before a config is loaded, which is the\nonly remaining difference between the two states the old two-shape reply used\nto distinguish. Regime 2: every consumer compares it, so the key has to be\nthere to compare."
           }
         },
         "type": "object",
@@ -29406,7 +29406,7 @@
           "upcoming_holidays"
         ],
         "title": "WeeklySchedule",
-        "description": "A fully-resolved weekly session schedule: one `SessionTimes` per weekday\n(mon..sun, any of which may be null for CLOSED) plus a separate holidays\nentry, mirroring `edumatcher.engine.config_loader.ScheduleConfig`. The\n`weekdays`/ `weekend` shortcuts and per-day overrides in the YAML are already\nresolved by the time this is built -- every field here is one concrete day,\nnever a shortcut. `today`/`today_is_holiday` are a server-computed\nconvenience: the engine already runs the same `python-holidays` lookup for pm-\nscheduler, so it resolves \"which entry applies right now\" once and publishes\nthe answer, rather than making every client (in particular a browser) carry\nits own holiday calendar just to answer that one question. `today` is still\n`SessionTimes | null` -- null means CLOSED today, exactly like any other day\nslot. `upcoming_holidays` answers the next question, \"when is the exchange\nnext on its holiday schedule\", the same way. It is computed when the record is\nbuilt and covers a year, so a client picks the first entry on or after its own\ntoday rather than trusting the list to start there."
+        "description": "A fully-resolved weekly session schedule: one `SessionTimes` per weekday\n(mon..sun, any of which may be null for CLOSED) plus a separate holidays\nentry, mirroring `edumatcher.engine.config_loader.ScheduleConfig`. The\n`weekdays`/ `weekend` shortcuts and per-day overrides in the YAML are already\nresolved by the time this is built -- every field here is one concrete day,\nnever a shortcut. `today`/`today_is_holiday` are a server-computed\nconvenience: the engine already runs the same `python-holidays` lookup for pm-\nscheduler, so it resolves \"which entry applies right now\" once and publishes\nthe answer, rather than making every client (in particular a browser) carry\nits own holiday calendar just to answer that one question. `today` is still\n`SessionTimes | null` -- null means CLOSED today, exactly like any other day\nslot. \"Today\" is the business date in the session timezone\n(`locale.session_timezone`), resolved for each reply, so a long run never\nreports yesterday. `upcoming_holidays` answers the next question, \"when is the\nexchange next on its holiday schedule\", the same way. It is computed when the\nrecord is built and covers a year, so a client picks the first entry on or\nafter its own today rather than trusting the list to start there."
       }
     },
     "securitySchemes": {

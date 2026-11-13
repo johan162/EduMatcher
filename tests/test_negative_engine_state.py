@@ -85,7 +85,7 @@ def _make_engine(
         lambda _: list(gtc_orders) if gtc_orders else [],
     )
     monkeypatch.setattr("edumatcher.engine.main.load_gtc_combos", lambda _: [])
-    monkeypatch.setattr("edumatcher.engine.main.load_book_stats", lambda _: {})
+    monkeypatch.setattr("edumatcher.engine.main.load_book_stats", lambda _: ({}, 0))
     monkeypatch.setattr("edumatcher.engine.main.time.sleep", lambda *_: None)
 
     if save_raises:
@@ -153,16 +153,9 @@ def _last_ack(pub_sock: _FakeSock) -> dict:
 class TestShutdownDuringActiveMatching:
     """_shutdown() behaviour with resting orders and persistence errors."""
 
-    def test_shutdown_with_disk_full_raises_os_error(
-        self, monkeypatch, tmp_path
-    ) -> None:
-        """_shutdown() propagates OSError when save_gtc_orders fails.
-
-        The engine currently does NOT swallow persistence errors during
-        shutdown — a disk-full condition surfaces as an OSError.  This test
-        documents and asserts that actual behaviour.  If the engine is hardened
-        to handle it gracefully in the future, update this test accordingly.
-        """
+    def test_shutdown_with_disk_full_still_closes(self, monkeypatch, tmp_path) -> None:
+        """A failed save during _shutdown() is logged, not raised: the other
+        steps still run and both sockets close (engine review C16)."""
         engine, pub_sock = _make_engine(monkeypatch, tmp_path, save_raises=True)
         _connect(engine)
         o = Order.create(
@@ -175,8 +168,8 @@ class TestShutdownDuringActiveMatching:
             price_ticks=99,
         )
         engine._handle_new_order(o.to_dict())
-        with pytest.raises(OSError, match="disk full"):
-            engine._shutdown()
+        engine._shutdown()
+        assert engine.pull_sock.closed and engine.pub_sock.closed
 
     def test_shutdown_does_not_expire_day_orders(self, monkeypatch, tmp_path) -> None:
         """DAY orders must NOT be expired at shutdown.

@@ -340,3 +340,44 @@ examples, or saying in each chapter that the C exercise is optional.
   running simulation.
 - Chapter 22 Exercise 6 (the student-written automation script) is a design exercise.
 - Chapter 27 `RATE_LIMITED`; chapter 23 `BAD_MESSAGE` / `SLOW_CLIENT` (hard to trigger by hand).
+
+---
+
+## 5. Second pass — container route (2026-11-13)
+
+**Scope:** the whole guide again, this time along the **primary educational
+path, Route A (containers)**, which the first pass had checked only for
+chapters 00–03. The pipx/VM/Poetry routes are kept as they are and not
+expanded. A second goal: every exercise must earn its place.
+
+**Method:** the curl install was reproduced from `deployment/curl/` into a
+scratch directory (`./edumatcher.sh start`), with the exchange image built from
+`develop` (0.78.4) and the released GUI images. Every command was typed into
+`./edumatcher.sh shell` windows driven through `tmux`, working files in
+`/data/training`.
+
+### 5.1 Progress
+
+| Ch. | Result |
+|-----|--------|
+| index | Dangling sentence in "After every engine restart" fixed |
+| 00 | Seven web apps, not six (Clearing GUI, 8096, `CLEARING_GUI_PORT`), eight images. **New step:** `pm-opctl-cli clear --state --yes` after `pm-opctl-cli stop` — the demo profile leaves `book_stats.json` (AAPL restored at 22.88 instead of the configured 150.00), `stats.db` and `clearing.db` full of trades in AAPL/MSFT/TSLA. The early `pm-engine --verbose` (started on `s10-basic`) removed |
+| 01 | Prerequisite no longer says `pm-setup`. Exercise 4: removing only `GW_ADMIN` gives **no** `M013` (`ADMIN_CLI` is also ADMIN) — remove both. Counts are 4 gateways, not 3. Container paths in expected output. Scheduler before 09:00 waits for `PRE_OPEN`; `--now` takes ~20 s. Skipping a phase gives `TIMEOUT` (now said). A hand-edited artifact now gives one line, no traceback |
+| 02 | 7 gateways; a healthy `pm-mm-bot` prints nothing without `--verbose`; return-to-manual recipe also restarts the trader console |
+| 03 | `ACK` precedes `FILL`; clearing prints at once (product fix below); **Exercise 7 removed** (bot re-quoting: contradicted the chapter's prerequisite and repeats chapter 02/09), and the `pm-viewer` aside (not introduced until chapter 18) |
+| 04, 05 | Ran unchanged; stale prerequisite in 04 |
+| 06 | Ran unchanged; "about 20 s" |
+| 07 | ATO remainder now expires `(Opening auction ended)` (Q17 fixed in the product); misplaced "reopen the market" reminder |
+| 08 | **Exercise 4 merged into 3** (both were `ORDERS`), **Exercise 8 removed** (repeat of chapter 01 Exercise 11); Exercise 5 (was 6) never created the `TRADER02` order it cancels |
+| 09–29 | Not yet run in this pass |
+
+### 5.2 Product fixes
+
+| Fix | Where | Test |
+|-----|-------|------|
+| `pm-mm-bot` exited with code 1 and **no output** when it could not start (no reference price, auth refused, every symbol excluded): all its messages were INFO, shown only with `--verbose`. Startup failures, auth rejection and "excluded from quoting" are now WARNING. | `src/edumatcher/mm_bot/bot.py` | `test_mm_bot_multi.py::…::test_a_startup_failure_is_visible_without_verbose` |
+| `pm-clearing --print-every N` printed the table *before* the triggering trade was applied (trades are batched): after the first trade nothing was printed, after the second the table showed the state after the first. It now flushes the batch before printing. | `src/edumatcher/clearing/main.py` | `test_clearing_main.py::TestPrintEvery` |
+
+Answered from the first pass: Q8 (`STATUS` quote legs) and Q17 (ATO expiry
+text) no longer reproduce. Q14 (illegal transition → `TIMEOUT`) still does.
+Out-of-scope findings went to `EduMatcher-For-Later-ToDo.md` as L003–L006.

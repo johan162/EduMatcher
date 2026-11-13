@@ -496,10 +496,10 @@ def _resolve_self_match(
         # if the other had ended. Not SMP -- the gateway may allow
         # self-trades -- so the cancel carries no classified reason, like
         # any OCO sibling cancel.
+        # _smp_cancel_resting reports the leg to on_oco_leg_done, whose
+        # owner cancels the sibling; without one, cancel it here.
         book._smp_cancel_resting(best_bid, events, reason=None)
-        if book.on_oco_leg_done is not None:
-            book.on_oco_leg_done(best_bid)
-        else:
+        if book.on_oco_leg_done is None:
             book._smp_cancel_resting(best_ask, events, reason=None)
         return True
 
@@ -510,13 +510,9 @@ def _resolve_self_match(
     passive = best_bid if from_ask else best_ask
     book._note("SMP_DECISION", aggressor.id, passive.id, action.value)
     if action in (SmpAction.CANCEL_AGGRESSOR, SmpAction.CANCEL_BOTH):
-        book._smp_cancel_resting(aggressor, events)
-        if aggressor.oco_group_id and book.on_oco_leg_done is not None:
-            book.on_oco_leg_done(aggressor)
+        book._smp_cancel_resting(aggressor, events)  # reports an OCO leg
     if action in (SmpAction.CANCEL_RESTING, SmpAction.CANCEL_BOTH):
         book._smp_cancel_resting(passive, events)
-        if passive.oco_group_id and book.on_oco_leg_done is not None:
-            book.on_oco_leg_done(passive)
     return True
 
 

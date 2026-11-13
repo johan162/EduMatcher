@@ -2,6 +2,19 @@
 # Format: docs-design/EduMatcher-Log-Ledger.md §3. Check with `pm-log-cli ledger check`.
 # Actions are double-quoted: a bare YAML string must not contain ": " or start with a backtick.
 
+- logger: edumatcher.mm_bot.bot
+  template: "[%s] startup warning: %s"
+  level: WARNING
+  explanation: >
+    The market-making bot could not authenticate, receive required startup
+    data, or initialize a symbol. It excludes symbols that fail their startup
+    checks and exits if authentication fails, session state is unavailable,
+    or no symbols remain. The message names the gateway and the reason.
+  actions:
+    - "Read the reason and any symbol named in the message; check its configured strategy, gap and bootstrap price range."
+    - "For authentication failures or timeouts, check the gateway credentials, engine addresses and whether the engine is running."
+    - "Correct the startup problem and restart the bot to include excluded symbols."
+
 - logger: edumatcher.mm_bot.main
   template: "%s is gateway-wide; the value given after --symbol %s applies to every symbol"
   level: WARNING

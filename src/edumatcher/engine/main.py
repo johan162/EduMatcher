@@ -57,7 +57,7 @@ from __future__ import annotations
 
 import argparse
 from collections import defaultdict
-from datetime import datetime, timezone, tzinfo
+from datetime import date, datetime, timezone, tzinfo
 from zoneinfo import ZoneInfo
 import hashlib
 import json
@@ -325,8 +325,28 @@ def _country_wire_code(country: str | None) -> str | None:
         return country[:2].upper()
 
 
+def _day_wire(ds: "DaySchedule | None") -> dict[str, str] | None:
+    if ds is None:
+        return None
+    return {
+        "pre_open": ds.pre_open,
+        "opening_auction_start": ds.opening_auction_start,
+        "continuous_start": ds.continuous_start,
+        "closing_auction_start": ds.closing_auction_start,
+        "closing_auction_end": ds.closing_auction_end,
+    }
+
+
+def _weekly_table_wire(schedule: "ScheduleConfig") -> dict[str, Any]:
+    """The static part of the WeeklySchedule wire shape: the seven days and
+    the holiday entry, the same every day of a run."""
+    table: dict[str, Any] = {key: _day_wire(schedule.days[key]) for key in DAY_KEYS}
+    table["holidays"] = _day_wire(schedule.holidays)
+    return table
+
+
 def _weekly_schedule_wire(
-    schedule: "ScheduleConfig | None", country: str
+    schedule: "ScheduleConfig | None", country: str, today: date
 ) -> dict[str, Any] | None:
     """Serialize a resolved ScheduleConfig into the WeeklySchedule wire shape.
 
@@ -335,26 +355,13 @@ def _weekly_schedule_wire(
     client -- in particular a browser, e.g. trader-gui's countdown widget --
     never needs its own holiday calendar; the engine already runs the same
     ``python-holidays`` lookup for pm-scheduler and resolves "which entry
-    applies right now" once, here.
+    applies right now" once, here. ``today`` is the caller's business date
+    (``Engine._business_date``), so build this per reply, never cache it.
     """
     if schedule is None:
         return None
-
-    def _day(ds: "DaySchedule | None") -> dict[str, str] | None:
-        if ds is None:
-            return None
-        return {
-            "pre_open": ds.pre_open,
-            "opening_auction_start": ds.opening_auction_start,
-            "continuous_start": ds.continuous_start,
-            "closing_auction_start": ds.closing_auction_start,
-            "closing_auction_end": ds.closing_auction_end,
-        }
-
-    today = datetime.now().date()
-    result: dict[str, Any] = {key: _day(schedule.days[key]) for key in DAY_KEYS}
-    result["holidays"] = _day(schedule.holidays)
-    result["today"] = _day(resolve_day(schedule, today, country))
+    result = _weekly_table_wire(schedule)
+    result["today"] = _day_wire(resolve_day(schedule, today, country))
     result["today_is_holiday"] = is_bank_holiday(today, country)
     result["upcoming_holidays"] = [
         {"date": day.isoformat(), "name": name[:64]}
@@ -369,6 +376,12 @@ _LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s - %(message)s"
 # Pre-built status set — a small hot-path allocation avoided (see
 # docs-design/perf-notes.md). The pre-encoded trade topic that used to sit here
 # now lives in the generated binding, which pre-encodes it the same way.
+#: The ``triggered_level`` of an operator halt that did not go through
+#: ``CircuitBreakerState.activate()`` (halt-sym without a level, halt-all):
+#: no resume time, no corridor, and only an operator resume lifts it -- the
+#: closing backstop leaves it alone (decision Q3).
+_OPERATOR_HALT_LEVELS = frozenset({"ADMIN_SYMBOL", "ADMIN_ALL"})
+
 _ENDED_STATUSES = frozenset(
     {OrderStatus.FILLED, OrderStatus.CANCELLED, OrderStatus.REJECTED}
 )
@@ -444,13 +457,14 @@ _HEARTBEAT_MISSED_LIMIT = 3
 #: loop pass cost ~9% of the engine at 500 sessions and 1 000 orders/s.
 _SILENCE_CHECK_SEC = 1.0
 
-#: Topics whose payload names an order the submitting gateway is waiting on an
-#: ack for. If a handler for one of these raises, the client is left with no
-#: ACK and no REJECT, so the except path owes it a reject. Query topics
-#: (``*_request``) and session/risk control topics are absent deliberately:
-#: nothing is resting on them, and a spurious order-reject addressed to an id
-#: that is not an order is worse than silence.
-_ORDER_TOPICS = frozenset(
+#: Topics whose submitter is waiting on an answer the handler owes it: an
+#: order ack, a structure's ack (OCO, combo, quote) or a structure's cancel
+#: ack. If a handler for one of these raises, the client is left with no
+#: answer at all, so the except path sends one (``_reject_after_error``).
+#: Query topics (``*_request``) and session/risk control topics are absent
+#: deliberately: nothing is resting on them, and a spurious reject addressed
+#: to an id that is not an order is worse than silence.
+_ANSWERED_TOPICS = frozenset(
     {
         TOPIC_ORDER_NEW,
         TOPIC_ORDER_CANCEL,
@@ -459,8 +473,18 @@ _ORDER_TOPICS = frozenset(
         TOPIC_ORDER_COMBO_CANCEL,
         TOPIC_ORDER_OCO,
         TOPIC_ORDER_OCO_CANCEL,
+        TOPIC_QUOTE_NEW,
+        TOPIC_QUOTE_CANCEL,
     }
 )
+
+
+class _AlreadyAnswered(Exception):
+    """A handler failed *after* it had accepted the request, cleaned up what
+    the request had already put on the book, and told the client so with the
+    structure's own terminal messages. ``_reject_after_error`` must not add a
+    second, contradicting ack; the dispatcher still logs and counts it as the
+    internal error it is (WP-ENG02)."""
 
 
 def order_to_display_dict(order: Order) -> dict[str, Any]:
@@ -555,7 +579,7 @@ def _clamp_wire_id(value: object, limit: int = _MAX_WIRE_ID_LEN) -> str:
 
     The engine survives that where pm-index did not: ``_dispatch_pull_message``
     wraps every branch in a try/except. But ``_reject_after_error`` returns
-    early for anything outside ``_ORDER_TOPICS``, so a risk command would send
+    early for anything outside ``_ANSWERED_TOPICS``, so a risk command would send
     **no ack at all** and leave its caller waiting for a timeout — where before
     adoption it got a real, if oversized, answer. Clamping keeps the answer.
 
@@ -595,12 +619,7 @@ class Engine:
     RECENT_TRADES_MAXLEN = 20
     DEPTH_SNAPSHOT_TOLERANCE_TICKS = 100
 
-    def __init__(self, verbose: bool = False, config_path: str | None = None) -> None:
-        # Kept for backward compatibility with existing callers/tests. Detail
-        # logging is no longer gated by this flag -- it is gated by the
-        # standard logging level (see main()'s -v/-vv/--log-level/-q), same
-        # as every other process. This attribute currently has no effect.
-        self.verbose = verbose
+    def __init__(self, config_path: str | None = None) -> None:
         self.books: dict[str, OrderBook] = {}  # symbol → OrderBook
         # Health-beacon counters (operator dashboard §8.2-§8.4). Created here,
         # with no socket, so the unit-test harness can assert on them; the
@@ -1163,8 +1182,8 @@ class Engine:
             register_tick_decimals(sym, sym_cfg.tick_decimals)
 
         # Restore persisted stats first so config seeds only fill gaps
-        stats = load_book_stats(BOOK_STATS_FILE)
-        self._book_stats = stats
+        # (_restore_gtc read them, to count the bad entries in its summary).
+        stats = self._book_stats
         for sym, sym_cfg in self._engine_config.symbols.items():
             book = self._book(sym)
             persisted = stats.get(sym, {})
@@ -1417,7 +1436,7 @@ class Engine:
                 # would halt where the uninterrupted one does not (E6).
                 window = self._book_stats.get(sym, {}).get("cb_window")
                 tz = self._session_tz()
-                if window and datetime.fromtimestamp(window["saved_ns"] / 1e9, tz).date() == datetime.now(tz).date():  # fmt: skip
+                if window and datetime.fromtimestamp(window["saved_ns"] / 1e9, tz).date() == self._business_date():  # fmt: skip
                     cb_state.restore_window(
                         [(int(ts), int(price)) for ts, price in window["trades"]],
                         window["reference_price"],
@@ -1446,10 +1465,11 @@ class Engine:
 
     def _archive_eod(self) -> None:
         """Keep the day's closing state: the persistence files, written into
-        ``<DATA_DIR>/eod/<date>/`` (the business date the restore judges DAY
-        orders by), where the next day's checkpoint does not overwrite them.
-        Best-effort, like a checkpoint: a failure must not end the day."""
-        target = DATA_DIR / "eod" / datetime.now().date().isoformat()
+        ``<DATA_DIR>/eod/<date>/`` (the business date, which the restore also
+        judges DAY orders by), where the next day's checkpoint does not
+        overwrite them. Best-effort, like a checkpoint: a failure must not
+        end the day."""
+        target = DATA_DIR / "eod" / self._business_date().isoformat()
         try:
             save_gtc_orders(self._resting_gtc_orders(), target / GTC_ORDERS_FILE.name)
             save_gtc_combos(list(self._combos.values()), target / GTC_COMBOS_FILE.name)
@@ -1571,6 +1591,12 @@ class Engine:
             return timezone.utc
         return ZoneInfo(name)
 
+    def _business_date(self) -> date:
+        """Today in the session timezone: the one business date the engine
+        uses (DAY-order restore, breaker window, EOD archive, schedule
+        ``today``), never the host's local date."""
+        return datetime.now(self._session_tz()).date()
+
     def _restore_gtc(self) -> bool:
         """Restore the resting orders; True if any came back."""
         # M4: register tick decimals BEFORE restoring and publishing snapshots.
@@ -1583,6 +1609,9 @@ class Engine:
                 register_tick_decimals(sym, sym_cfg.tick_decimals)
 
         orders = load_gtc_orders(GTC_ORDERS_FILE)
+        # Applied by _load_config; read here so startup_recovery can count
+        # the entries load_book_stats had to skip.
+        self._book_stats, failed_book_stats = load_book_stats(BOOK_STATS_FILE)
         # X26: re-queue in each book's current priority. The file lists orders
         # in first-arrival order, but an iceberg refill (or an amend that loses
         # priority) moved an order to the back of its level with a new
@@ -1593,7 +1622,7 @@ class Engine:
         # "today" (see docs-design/EduMatcher-Revised-Quote-Persistence.md
         # §13.3), not the host's local date.
         session_tz = self._session_tz()
-        today = datetime.now(session_tz).date()
+        today = self._business_date()
         restored_count = 0
         # Real, always-on counters for system.startup_recovery below --
         # unlike _dbg_count(), which only increments under DEBUG logging and
@@ -1640,7 +1669,11 @@ class Engine:
                         )
                     )
                     continue
-            order.status = OrderStatus.NEW
+            order.status = (
+                OrderStatus.PARTIAL
+                if order.remaining_qty < order.quantity
+                else OrderStatus.NEW
+            )
             book = self._book(order.symbol)
             # match=False: restore resting state only; do not replay execution.
             # Two crossed GTC orders saved from an auction phase would otherwise
@@ -1806,6 +1839,7 @@ class Engine:
                 quote_remnants_restored=quote_remnant_count,
                 rebuilt_quotes=rebuilt_quote_count,
                 restored_combos=len(combos),
+                failed_book_stats=failed_book_stats,
             )
         )
         return restored_count > 0
@@ -1905,7 +1939,29 @@ class Engine:
         # Counted before anything can reject it: this is what was submitted.
         self.metrics.order_in(payload.get("gateway_id"))
         # Wire dict -> Order object.  Prices arrive already as integer ticks.
-        order = Order.from_dict(payload)
+        # A payload that does not decode (an unknown enum value, a missing
+        # field) is the client's mistake, not an engine fault: refuse it as
+        # malformed rather than let the dispatcher answer INTERNAL_ERROR.
+        try:
+            order = Order.from_dict(payload)
+        except (KeyError, ValueError) as exc:
+            order_id = payload.get("id")
+            if not order_id:
+                raise
+            self._dbg_count("new_order_reject_malformed")
+            self._reject(
+                gateway_id=str(payload.get("gateway_id", "")),
+                order_id=str(order_id),
+                code="MALFORMED_MESSAGE",
+                reason=f"Invalid order payload: {exc}",
+                client_tag=(
+                    str(payload["client_tag"])
+                    if payload.get("client_tag") is not None
+                    else None
+                ),
+                request_tag=None,
+            )
+            return
         self._dbg_count("new_order_requests")
         # K3: displayed_qty is the engine's own bookkeeping of the slice now
         # showing, not client input. Whatever arrived on the wire is replaced
@@ -2138,12 +2194,13 @@ class Engine:
         # (below), not here — so a failure mid-processing leaves no half-applied
         # routing entry for an order that never reached the book.
 
-        # M9: use the monotonic clock (now_ns) for the matching timestamp, not
-        # raw time.time_ns — a wall-clock regression (e.g. an NTP step) must
-        # never make event timestamps go backwards.  Since time priority is
-        # driven by the engine arrival sequence (H1), this is the correct
-        # source of truth for ordering; the small monotonic-guard cost is
-        # acceptable on the single-threaded hot path.
+        # M9: use now_ns() for the matching timestamp, not raw time.time_ns.
+        # It is still wall-clock time, but guarded never to decrease: after
+        # a backwards step (e.g. an NTP step) each timestamp is the previous
+        # one plus 1 ns until the wall clock catches up, so event timestamps
+        # never go backwards. Time priority itself is driven by the engine
+        # arrival sequence (H1); the guard's small cost is acceptable on the
+        # single-threaded hot path.
         now = now_ns()
 
         # ---- Publish the ACK, then match. ----
@@ -2334,7 +2391,11 @@ class Engine:
             "schedule": {
                 "sessions_enabled": engine_cfg.sessions_enabled,
                 "country": country,
-                "schedule": _weekly_schedule_wire(schedule, engine_cfg.locale.country),
+                # The static table only: today's fields are added per reply
+                # (C6), so the version hash does not change with the date.
+                "schedule": (
+                    _weekly_table_wire(schedule) if schedule is not None else None
+                ),
             },
         }
         digest = hashlib.sha256(
@@ -2366,7 +2427,7 @@ class Engine:
                 symbols=reference["symbols"],
                 risk=reference["risk"],
                 indexes=reference["indexes"],
-                schedule=reference["schedule"],
+                schedule={**reference["schedule"], "schedule": self._schedule_wire()},
                 config_version=self._reference_config_version,
             )
         )
@@ -2479,7 +2540,13 @@ class Engine:
                 mm_min_qty: int | None = None
                 enforce_mm_obligation: bool | None = None
 
-                gw_cfg = engine_cfg.participants.get(gateway_id) if engine_cfg else None
+                # Participants are keyed upper-case; gateway_id keeps its case
+                # for the reply topic (see _clamp_wire_text).
+                gw_cfg = (
+                    engine_cfg.participants.get(gateway_id.upper())
+                    if engine_cfg
+                    else None
+                )
                 if gw_cfg is not None:
                     enforce_mm_obligation = gw_cfg.enforce_mm_obligation
                     mm_max_spread_ticks = gw_cfg.mm_max_spread_ticks
@@ -2616,6 +2683,10 @@ class Engine:
                 entry["resume_at_ns"] = cb.resume_at_ns
                 entry["level"] = cb.triggered_level
                 entry["halt_source"] = cb.halt_source
+            else:
+                # No breaker: only an operator halts it (halt-sym, halt-all),
+                # and such a halt outlasts the close (Q3).
+                entry["halt_source"] = "ADMIN"
             halted.append(entry)
         self.pub_sock.send_multipart(make_halt_status_msg(gateway_id, halted))
 
@@ -2677,13 +2748,19 @@ class Engine:
     def _handle_session_schedule_request(self, payload: dict[str, Any]) -> None:
         """Return the session schedule configuration from the loaded engine config."""
         gateway_id = _clamp_wire_id(payload.get("gateway_id", ""))
-        schedule: dict[str, Any] | None = None
-        if self._engine_config and self._engine_config.schedule:
-            schedule = _weekly_schedule_wire(
-                self._engine_config.schedule, self._engine_config.locale.country
-            )
         self.pub_sock.send_multipart(
-            make_session_schedule_msg(gateway_id, self._sessions_enabled, schedule)
+            make_session_schedule_msg(
+                gateway_id, self._sessions_enabled, self._schedule_wire()
+            )
+        )
+
+    def _schedule_wire(self) -> dict[str, Any] | None:
+        """The WeeklySchedule both schedule replies carry, for today."""
+        cfg = self._engine_config
+        if cfg is None or cfg.schedule is None:
+            return None
+        return _weekly_schedule_wire(
+            cfg.schedule, cfg.locale.country, self._business_date()
         )
 
     def _handle_gateways_request(self, payload: dict[str, Any]) -> None:
@@ -3117,14 +3194,36 @@ class Engine:
             for h in history
         ]
 
+    def _after_engine_cancel(self, order: Order) -> None:
+        """The structure follow-ups every cancelled order owes (WP-ENG01).
+
+        A cancelled OCO leg pulls its sibling and frees the pair's id; a
+        cancelled combo leg fails the combo and cancels its other legs. The
+        client's own ``order.cancel`` and the book's fill hooks always ran
+        these; the exchange's own cancels -- kill switches, an admin
+        cancel-symbol, a ``CANCEL_ALL`` disconnect, a TIF expiry -- did
+        not, which left the pair in ``_oco_groups`` (its id "already in
+        use" for the rest of the run) and the combo PENDING for ever
+        (review 2026-11, C1/C2). Every path that ends an order by cancel
+        or expiry now calls this once per order, after publishing the
+        order's own terminal message. Both checks are idempotent and a
+        no-op for an order that is not a leg of anything.
+        """
+        if order.combo_parent_id is not None:
+            self._check_combo_after_child_event(order)
+        if order.oco_group_id is not None:
+            self._check_oco_after_event(order)
+
     def _cancel_order_by_id(
         self,
         order_id: str,
         *,
         cancel_reason: CancelReason | None = None,
         command_id: str = "",
+        follow_up: bool = True,
     ) -> Optional[Order]:
-        """Cancel a resting order by id.
+        """Cancel a resting order by id: the funnel for every cancel the
+        exchange decides on.
 
         Returns the cancelled `Order` (reflecting its final qty/remaining/
         status at the moment of cancellation) so callers that need that
@@ -3143,6 +3242,12 @@ class Engine:
         answer "why was this cancelled" for a kill switch, an admin
         cancel-symbol, a gateway disconnect, a circuit-breaker halt, a quote
         replacement, or a quote leg cancelled because its sibling filled.
+
+        ``follow_up`` runs ``_after_engine_cancel`` at once. A batch
+        (``_cancel_orders``) passes False and runs the follow-ups when the
+        whole batch is gone, so a pair or a combo whose legs are all in the
+        batch is reported as cancelled by the command -- each leg with the
+        command's reason and in its ack -- rather than by its own cascade.
         """
         symbol = self._order_symbol.get(order_id)
         book = self.books.get(symbol) if symbol else None
@@ -3163,6 +3268,33 @@ class Engine:
                 command_id=command_id or None,
             )
         )
+        if follow_up:
+            self._after_engine_cancel(cancelled)
+        return cancelled
+
+    def _cancel_orders(
+        self,
+        order_ids: list[str],
+        *,
+        cancel_reason: CancelReason | None,
+        command_id: str = "",
+    ) -> list[Order]:
+        """Cancel *order_ids* as one exchange decision, then run each
+        cancelled order's structure follow-ups (see ``_cancel_order_by_id``
+        for why the follow-ups wait). Returns the orders actually cancelled,
+        in the order given: an id already gone contributes nothing."""
+        cancelled: list[Order] = []
+        for order_id in order_ids:
+            gone = self._cancel_order_by_id(
+                order_id,
+                cancel_reason=cancel_reason,
+                command_id=command_id,
+                follow_up=False,
+            )
+            if gone is not None:
+                cancelled.append(gone)
+        for gone in cancelled:
+            self._after_engine_cancel(gone)
         return cancelled
 
     @staticmethod
@@ -3291,6 +3423,37 @@ class Engine:
             )
             if gone is not None:
                 cancelled.append(gone)
+        return cancelled
+
+    def _cancel_symbol_quotes(
+        self,
+        symbol: str,
+        reason: str,
+        *,
+        cancel_reason: CancelReason,
+        command_id: str = "",
+    ) -> list[str]:
+        """Cancel every market maker's quotes in *symbol*, returning the ids
+        of the legs cancelled: both legs of each active ``QuoteIndex`` entry,
+        then any quote-origin leg left resting outside it (the remainder of
+        a quote inactivated by a fill, see ``_cancel_orphaned_quote_legs``).
+        The one sweep the halts and cancel-symbol share (C10)."""
+        cancelled = [
+            order_id
+            for entry in self._quote_index.cancel_all_for_symbol(symbol, reason=reason)
+            for order_id in self._cancel_quote_entry(
+                entry, reason=reason, cancel_reason=cancel_reason, command_id=command_id
+            )
+        ]
+        book = self.books.get(symbol)
+        if book is not None:
+            for order in list(book.resting_orders()):
+                if order.origin == OrderOrigin.QUOTE:
+                    gone = self._cancel_order_by_id(
+                        order.id, cancel_reason=cancel_reason, command_id=command_id
+                    )
+                    if gone is not None:
+                        cancelled.append(gone.id)
         return cancelled
 
     def _publish_trade(self, trade: Any) -> None:
@@ -3602,17 +3765,9 @@ class Engine:
         cb.activate(now, triggered_level, self._reopening_rng)
         self._halted_symbols[symbol] = True
 
-        # Cancel all resting quotes for the halted symbol.
-        # Fast-path: avoid cancellation traversal when no quotes exist.
-        if self._quote_index.has_symbol(symbol):
-            for entry in self._quote_index.cancel_all_for_symbol(
-                symbol, reason="Circuit breaker halt"
-            ):
-                self._cancel_quote_entry(
-                    entry,
-                    reason="Circuit breaker halt",
-                    cancel_reason="CIRCUIT_BREAKER_HALT",
-                )
+        self._cancel_symbol_quotes(
+            symbol, "Circuit breaker halt", cancel_reason="CIRCUIT_BREAKER_HALT"
+        )
 
         self.pub_sock.send_multipart(
             make_circuit_breaker_halt(
@@ -3659,7 +3814,11 @@ class Engine:
         }
 
     def _run_closing_backstop(self) -> None:
-        """Force every still-halted symbol to reopen at the session close.
+        """Force every still-halted breaker to reopen at the session close.
+
+        Every breaker-level halt, rest-of-day included, and an operator halt
+        triggered at a level; not an operator halt without one
+        (``_OPERATOR_HALT_LEVELS``), which only an operator resume lifts.
 
         ACE will widen a corridor indefinitely, so on its own it has no
         terminating condition — the end of the trading day supplies one. This
@@ -3676,6 +3835,8 @@ class Engine:
         for symbol, cb in self._circuit_breakers.items():
             if not self._halted_symbols.get(symbol):
                 continue
+            if cb.triggered_level in _OPERATOR_HALT_LEVELS:
+                continue  # an operator's halt is the operator's to lift (Q3)
 
             book = self._book(symbol)
             indicative = compute_equilibrium(book)
@@ -3886,7 +4047,9 @@ class Engine:
         Flow: gates -> parse + sanity -> obligation check -> replace old
         quote -> build two orders -> ACK + ACTIVE status -> match bid, then
         ask -> publish like any dispatch.  Unlike ``order.new`` every reject
-        here is a ``quote.ack`` with ``accepted=False``.
+        here is a ``quote.ack`` with ``accepted=False`` -- including a
+        handler failure before the ack (``_reject_after_error``); one after
+        it ends the quote with ``quote.status CANCELLED`` instead.
         """
         self.metrics.count(self.metrics.quotes_in, payload.get("gateway_id"))
         gateway_id = str(payload.get("gateway_id", "")).upper()
@@ -3942,15 +4105,21 @@ class Engine:
             )
             return
 
-        # Halt check — circuit breaker has halted this symbol; reject incoming quotes
+        # Halt check — breaker or operator; the reason says which, as the
+        # order path's reject code does.
         if self._halted_symbols.get(symbol):
             self._dbg_count("quote_reject_halt")
+            trigger = (
+                "circuit breaker halt"
+                if self._halt_reject_code(symbol) == "CIRCUIT_BREAKER_ACTIVE"
+                else "trading halt"
+            )
             self.pub_sock.send_multipart(
                 self._quote_ack(
                     gateway_id,
                     quote_id,
                     False,
-                    f"{symbol} is halted — quotes rejected during circuit breaker halt",
+                    f"{symbol} is halted — quotes rejected during {trigger}",
                     symbol=symbol,
                 )
             )
@@ -4186,6 +4355,30 @@ class Engine:
             make_quote_status_msg(gateway_id, quote_id, "ACTIVE")
         )
 
+        # The quote is accepted and live; a failure below is a bug and cannot
+        # be answered with a refusal. It ends the quote instead -- the legs
+        # cancelled, quote.status CANCELLED -- so the maker can quote again
+        # at once (WP-ENG02).
+        try:
+            self._post_quote_legs(bid, ask, entry)
+        except Exception as exc:
+            if self._quote_index.get(gateway_id, symbol) is entry:
+                self._quote_index.remove(gateway_id, symbol, reason="Internal error")
+            cancelled = self._cancel_quote_entry(entry, reason="Internal error")
+            for leg in (bid, ask):
+                if leg.id not in cancelled and leg.status in (
+                    OrderStatus.NEW,
+                    OrderStatus.PARTIAL,
+                ):
+                    self._end_unposted_leg(leg)
+            raise _AlreadyAnswered(str(exc)) from exc
+
+        self._mark_dirty(symbol)
+
+    def _post_quote_legs(self, bid: Order, ask: Order, entry: QuoteEntry) -> None:
+        """The matching half of ``_handle_quote_new``: each leg through the
+        book, bid first, unless the bid's own fill already ended the quote."""
+        gateway_id, symbol, quote_id = entry.gateway_id, entry.symbol, entry.quote_id
         now = now_ns()
         book = self._book(symbol)
         # #16: only match continuously in CONTINUOUS session state; in auction
@@ -4226,8 +4419,6 @@ class Engine:
                 break
             trades, events = book.process(quote_order, match=do_match, now=now)
             self._publish_dispatch(trades, events)
-
-        self._mark_dirty(symbol)
 
     def _handle_quote_cancel(self, payload: dict[str, Any]) -> None:
         """Handle ``quote.cancel``: withdraw this gateway's quote in a symbol.
@@ -4334,13 +4525,18 @@ class Engine:
             # gateway's resting orders there), not a scan of every resting
             # order in every book — see ../../../docs/books/architecture-and-development/part-1-architecture/020-guided-tour.md
             # §10. Quote-origin orders are excluded: the cancel_all_for_gateway
-            # call above already handles those via QuoteIndex.
-            for book in self.books.values():
-                for order in list(book.orders_for_gateway(gateway_id)):
-                    if order.origin != OrderOrigin.QUOTE:
-                        self._cancel_order_by_id(
-                            order.id, cancel_reason="GATEWAY_DISCONNECT"
-                        )
+            # call above already handles those via QuoteIndex. One batch
+            # across the books: a combo's legs span symbols, and its
+            # follow-up must see them all gone (WP-ENG01).
+            self._cancel_orders(
+                [
+                    order.id
+                    for book in self.books.values()
+                    for order in book.orders_for_gateway(gateway_id)
+                    if order.origin != OrderOrigin.QUOTE
+                ],
+                cancel_reason="GATEWAY_DISCONNECT",
+            )
 
     def _handle_gateway_heartbeat(self, payload: dict[str, Any]) -> None:
         gateway_id = _clamp_wire_id(payload.get("gateway_id", ""))
@@ -4464,18 +4660,21 @@ class Engine:
         # O(k) per book via OrderBook._orders_by_gateway (k = this gateway's
         # resting orders there) instead of a scan of every resting order in
         # every book — see ../../../docs/books/architecture-and-development/part-1-architecture/020-guided-tour.md §10.
-        for book in self.books.values():
-            if symbol_filter and book.symbol != symbol_filter:
-                continue
-            for order in list(book.orders_for_gateway(gateway_id)):
-                if order.origin != OrderOrigin.QUOTE:
-                    cancelled = self._cancel_order_by_id(
-                        order.id,
-                        cancel_reason="KILL_SWITCH",
-                        command_id=command_id,
-                    )
-                    if cancelled is not None:
-                        cancelled_order_ids.append(cancelled.id)
+        # One batch, so a structure's follow-ups run once its legs are gone.
+        cancelled_order_ids = [
+            o.id
+            for o in self._cancel_orders(
+                [
+                    order.id
+                    for book in self.books.values()
+                    if not symbol_filter or book.symbol == symbol_filter
+                    for order in book.orders_for_gateway(gateway_id)
+                    if order.origin != OrderOrigin.QUOTE
+                ],
+                cancel_reason="KILL_SWITCH",
+                command_id=command_id,
+            )
+        ]
 
         cancelled_orders = len(cancelled_order_ids)
         cancelled_quotes = len(cancelled_quote_order_ids)
@@ -4609,20 +4808,22 @@ class Engine:
         # O(k) per book via OrderBook._orders_by_gateway (k = this gateway's
         # resting orders there) instead of a scan of every resting order in
         # every book — see ../../../docs/books/architecture-and-development/part-1-architecture/020-guided-tour.md §10.
-        for book in self.books.values():
-            if quotes_only:
-                break
-            if symbol_filter and book.symbol != symbol_filter:
-                continue
-            for order in list(book.orders_for_gateway(target_gateway_id)):
-                if order.origin != OrderOrigin.QUOTE:
-                    cancelled = self._cancel_order_by_id(
-                        order.id,
-                        cancel_reason="KILL_SWITCH",
-                        command_id=command_id,
-                    )
-                    if cancelled is not None:
-                        cancelled_order_ids.append(cancelled.id)
+        # One batch, so a structure's follow-ups run once its legs are gone.
+        if not quotes_only:
+            cancelled_order_ids = [
+                o.id
+                for o in self._cancel_orders(
+                    [
+                        order.id
+                        for book in self.books.values()
+                        if not symbol_filter or book.symbol == symbol_filter
+                        for order in book.orders_for_gateway(target_gateway_id)
+                        if order.origin != OrderOrigin.QUOTE
+                    ],
+                    cancel_reason="KILL_SWITCH",
+                    command_id=command_id,
+                )
+            ]
 
         cancelled_orders = len(cancelled_order_ids)
         cancelled_quotes = len(cancelled_quote_order_ids)
@@ -4716,23 +4917,24 @@ class Engine:
                     command_id=command_id,
                 )
 
-        for book in self.books.values():
-            for order in list(book.resting_orders()):
-                # A quote-origin order still resting has left the QuoteIndex
-                # (a hit leg's remainder, INACTIVATE_ON_ANY_FILL): the sweep
-                # above cannot see it, so it goes here, as a quote.
-                owner = order.gateway_id
-                cancelled = self._cancel_order_by_id(
-                    order.id,
-                    cancel_reason="KILL_SWITCH",
-                    command_id=command_id,
-                )
-                if cancelled is not None:
-                    if order.origin == OrderOrigin.QUOTE:
-                        cancelled_quote_order_ids.append(cancelled.id)
-                    else:
-                        cancelled_order_ids.append(cancelled.id)
-                    affected_gateways.add(owner)
+        # A quote-origin order still resting has left the QuoteIndex (a hit
+        # leg's remainder, INACTIVATE_ON_ANY_FILL): the sweep above cannot
+        # see it, so it goes here, as a quote. One batch over every book, so
+        # a structure's follow-ups run once all its legs are gone.
+        for cancelled in self._cancel_orders(
+            [
+                order.id
+                for book in self.books.values()
+                for order in book.resting_orders()
+            ],
+            cancel_reason="KILL_SWITCH",
+            command_id=command_id,
+        ):
+            if cancelled.origin == OrderOrigin.QUOTE:
+                cancelled_quote_order_ids.append(cancelled.id)
+            else:
+                cancelled_order_ids.append(cancelled.id)
+            affected_gateways.add(cancelled.gateway_id)
 
         cancelled_orders = len(cancelled_order_ids)
         cancelled_quotes = len(cancelled_quote_order_ids)
@@ -4819,14 +5021,11 @@ class Engine:
                 cb.triggered_level = "ADMIN_ALL"
                 cb.halt_source = "ADMIN"
 
-            for entry in self._quote_index.cancel_all_for_symbol(
-                symbol, reason="Global circuit breaker halt"
-            ):
-                cancelled_quote_order_ids += self._cancel_quote_entry(
-                    entry,
-                    reason="Global circuit breaker halt",
-                    cancel_reason="CIRCUIT_BREAKER_HALT",
-                )
+            cancelled_quote_order_ids += self._cancel_symbol_quotes(
+                symbol,
+                "Global circuit breaker halt",
+                cancel_reason="CIRCUIT_BREAKER_HALT",
+            )
 
             self.pub_sock.send_multipart(
                 make_circuit_breaker_halt(
@@ -4998,16 +5197,12 @@ class Engine:
                 cb.triggered_level = "ADMIN_SYMBOL"
                 cb.halt_source = "ADMIN"
 
-        cancelled_quote_order_ids: list[str] = []
-        for entry in self._quote_index.cancel_all_for_symbol(
-            symbol, reason="Per-symbol halt"
-        ):
-            cancelled_quote_order_ids += self._cancel_quote_entry(
-                entry,
-                reason="Per-symbol halt",
-                cancel_reason="CIRCUIT_BREAKER_HALT",
-                command_id=command_id,
-            )
+        cancelled_quote_order_ids = self._cancel_symbol_quotes(
+            symbol,
+            "Per-symbol halt",
+            cancel_reason="CIRCUIT_BREAKER_HALT",
+            command_id=command_id,
+        )
 
         self.pub_sock.send_multipart(
             make_circuit_breaker_halt(
@@ -5153,39 +5348,28 @@ class Engine:
         book = self.books.get(symbol)
         cancelled_order_ids: list[str] = []
         if book is not None:
-            for order in list(book.resting_orders()):
-                if order.origin != OrderOrigin.QUOTE:
-                    cancelled = self._cancel_order_by_id(
-                        order.id,
-                        cancel_reason="ADMIN_CANCEL_SYMBOL",
-                        command_id=command_id,
-                    )
-                    if cancelled is not None:
-                        cancelled_order_ids.append(cancelled.id)
+            # One batch: a combo leg cancelled here fails its combo, whose
+            # other legs (in other symbols) the follow-up then cancels; they
+            # are the cascade's, not this command's, and stay off its ack.
+            cancelled_order_ids = [
+                o.id
+                for o in self._cancel_orders(
+                    [
+                        order.id
+                        for order in book.resting_orders()
+                        if order.origin != OrderOrigin.QUOTE
+                    ],
+                    cancel_reason="ADMIN_CANCEL_SYMBOL",
+                    command_id=command_id,
+                )
+            ]
 
-        cancelled_quote_order_ids: list[str] = []
-        for entry in self._quote_index.cancel_all_for_symbol(
-            symbol, reason="Symbol mass cancel"
-        ):
-            cancelled_quote_order_ids += self._cancel_quote_entry(
-                entry,
-                reason="Symbol mass cancel",
-                cancel_reason="ADMIN_CANCEL_SYMBOL",
-                command_id=command_id,
-            )
-
-        # Quote legs that outlived their inactivated quote (see the kill
-        # switch) are no longer in the QuoteIndex; clear them here too.
-        if book is not None:
-            for order in list(book.resting_orders()):
-                if order.origin == OrderOrigin.QUOTE:
-                    gone = self._cancel_order_by_id(
-                        order.id,
-                        cancel_reason="ADMIN_CANCEL_SYMBOL",
-                        command_id=command_id,
-                    )
-                    if gone is not None:
-                        cancelled_quote_order_ids.append(gone.id)
+        cancelled_quote_order_ids = self._cancel_symbol_quotes(
+            symbol,
+            "Symbol mass cancel",
+            cancel_reason="ADMIN_CANCEL_SYMBOL",
+            command_id=command_id,
+        )
 
         cancelled_orders = len(cancelled_order_ids)
         cancelled_quotes = len(cancelled_quote_order_ids)
@@ -5489,6 +5673,41 @@ class Engine:
         # (X21), and its fills move the combo's status.
         self._combos[combo.id] = combo
 
+        # From here the combo is accepted. A failure below -- a bug, not a
+        # client mistake -- cannot be answered with a refusal any more, so it
+        # fails the combo instead: the legs already posted are cancelled and
+        # one combo.status FAILED says why (WP-ENG02).
+        posting: list[Order] = []
+        try:
+            self._post_combo_legs(combo, is_seed, posting)
+        except Exception as exc:
+            in_flight = posting[-1] if posting else None
+            if in_flight is not None and in_flight.status in (
+                OrderStatus.NEW,
+                OrderStatus.PARTIAL,
+            ):
+                self._end_unposted_leg(in_flight)
+            self._cascade_cancel_combo(
+                combo, ComboStatus.FAILED, reason=f"Internal error: {exc}"[:200]
+            )
+            raise _AlreadyAnswered(str(exc)) from exc
+        return True
+
+    def _end_unposted_leg(self, leg: Order) -> None:
+        """A leg that was acked but never made it onto a book, because the
+        handler failed on the way: its owner still needs a terminal event."""
+        leg.status = OrderStatus.CANCELLED
+        self._order_symbol.pop(leg.id, None)
+        self.pub_sock.send_multipart(
+            make_cancelled_msg(leg.gateway_id, leg.id, order=leg.to_dict())
+        )
+
+    def _post_combo_legs(
+        self, combo: ComboOrder, is_seed: bool, posting: list[Order]
+    ) -> None:
+        """Steps 3 and 4 of ``_accept_combo``: the AON pre-check, then every
+        leg through its book. Each child is appended to *posting* as it is
+        created, so a caller can end the one in flight if this raises."""
         # M5: all-or-none combos must not execute ANY leg unless EVERY leg can
         # fully fill simultaneously.  Pre-check each leg's fillability; if any
         # leg is short, post all legs without matching (they rest as pending
@@ -5578,6 +5797,7 @@ class Engine:
             # parent again via _order_to_combo.
             child.combo_parent_id = combo.id
             child.leg_index = i
+            posting.append(child)
 
             combo.child_order_ids.append(child.id)
             combo.leg_statuses[i] = OrderStatus.NEW.value
@@ -5631,12 +5851,25 @@ class Engine:
             # and cancelled at once.
             if combo.status is ComboStatus.FAILED:
                 break
-        return True
 
     def _handle_combo_order(self, payload: dict[str, Any]) -> None:
         """Handle ``order.combo``: gateway + session gates, then _accept_combo."""
         self.metrics.count(self.metrics.orders_in, payload.get("gateway_id"))
-        combo = ComboOrder.from_submission_dict(payload)
+        try:
+            combo = ComboOrder.from_submission_dict(payload)
+        except Exception as exc:
+            # A malformed payload is the client's mistake and gets the
+            # structure's own refusal, not the dispatcher's internal-error
+            # path (WP-ENG02).
+            self.pub_sock.send_multipart(
+                self._combo_ack(
+                    _clamp_wire_id(payload.get("gateway_id", "")),
+                    str(payload.get("combo_id", ""))[:_MAX_WIRE_COMMAND_ID_LEN],
+                    False,
+                    f"Invalid combo payload: {exc}"[:200],
+                )
+            )
+            return
 
         # Gateway auth
         ok, reason = self._gateway_status(combo.gateway_id)
@@ -5997,11 +6230,10 @@ class Engine:
             # previously only expired at process shutdown).
             self._expire_tif(TIF.DAY)
             self._archive_eod()
-            # End-of-day reset for any still-halted symbols (e.g. L3 rest-of-day).
-            for symbol, cb in self._circuit_breakers.items():
-                if cb.halted:
-                    cb.deactivate()
-                    self._halted_symbols[symbol] = False
+            # No halt reset here (C11, decision Q3): _run_closing_backstop
+            # above reopened every breaker-level halt, rest-of-day included;
+            # what is still halted is an operator halt, which only an
+            # operator resume lifts (it shows in halt_status the next day).
 
         if to_state == SessionState.PRE_OPEN:
             # M14: reset per-symbol 'daily' counters at the start of a new
@@ -6071,6 +6303,7 @@ class Engine:
             TIF.ATC: "Closing auction ended",
             TIF.DAY: "Trading day ended",
         }[tif]
+        expired: list[Order] = []
         for book in self.books.values():
             # In the book's matching priority, not its insertion order: a
             # restored book is rebuilt in price priority, a live one is in
@@ -6090,11 +6323,15 @@ class Engine:
                             )
                         )
                         self._order_symbol.pop(cancelled.id, None)
-                        if cancelled.combo_parent_id:
-                            self._check_combo_after_child_event(cancelled)
                         if cancelled.quote_id:
                             self._end_expired_quote(cancelled)
                         self._mark_dirty(book.symbol)
+                        expired.append(cancelled)
+        # After the sweep, as a batch cancel does: a pair or a combo whose
+        # legs all expired is reported as expired, not as cancelled for a
+        # sibling that was about to expire anyway (WP-ENG01).
+        for order in expired:
+            self._after_engine_cancel(order)
 
     def _end_expired_quote(self, leg: Order) -> None:
         """A quote whose leg expired is over (X41): it leaves the QuoteIndex
@@ -6291,8 +6528,9 @@ class Engine:
     #   1. inside the matching run, via ``OrderBook.on_oco_leg_done`` (set up
     #      in ``_book``), so the sibling is gone before the next fill of the
     #      same sweep or stop cascade could trade with it;
-    #   2. afterwards, in ``_publish_dispatch`` / ``_handle_cancel``, as a
-    #      safety net for ends the book did not see.
+    #   2. afterwards, in ``_publish_dispatch`` and in ``_after_engine_cancel``
+    #      (the follow-up every cancel and expiry path runs, client or
+    #      exchange initiated), as a safety net for ends the book did not see.
     # Both call ``_check_oco_after_event``, which is idempotent.
     # ------------------------------------------------------------------
 
@@ -6337,9 +6575,22 @@ class Engine:
             )
             return
 
-        symbol = str(payload.get("symbol", "")).upper()
-        quantity = int(payload.get("quantity", 0))
-        tif = TIF(payload.get("tif", "DAY"))
+        # A malformed payload is the client's mistake and gets the pair's own
+        # refusal, not the dispatcher's internal-error path (WP-ENG02).
+        try:
+            symbol_raw = payload.get("symbol")
+            if not isinstance(symbol_raw, str):
+                raise ValueError("symbol must be a string")
+            symbol = symbol_raw.upper()
+            quantity = int(payload.get("quantity", 0))
+            tif = TIF(payload.get("tif", "DAY"))
+        except Exception as exc:
+            self.pub_sock.send_multipart(
+                self._oco_ack(
+                    gateway_id, oco_id, False, f"Invalid OCO payload: {exc}"[:200]
+                )
+            )
+            return
 
         if self._allowed_symbols and symbol not in self._allowed_symbols:
             self.pub_sock.send_multipart(
@@ -6453,6 +6704,26 @@ class Engine:
                 )
                 return
 
+        book = self._book(symbol)
+        # The gate a single trailing stop faces (``_handle_new_order``): with
+        # no STOP= and no trade to trail from there is nothing to arm, and the
+        # book would refuse the leg after leg 1 had been posted (C4).
+        for i, leg in enumerate((leg1, leg2), 1):
+            if (
+                leg.order_type == OrderType.TRAILING_STOP
+                and leg.stop_price_ticks is None
+                and book.last_trade_price is None
+            ):
+                self.pub_sock.send_multipart(
+                    self._oco_ack(
+                        gateway_id,
+                        oco_id,
+                        False,
+                        f"Leg {i}: Trailing stop requires STOP= or a prior trade price",
+                    )
+                )
+                return
+
         # Assign shared OCO group ID to both legs.  This id is what the book
         # looks at (``_oco_leg_ended``, ``_apply_fill``) to know a leg is
         # part of a pair and to call back into the engine when it ends.
@@ -6479,8 +6750,38 @@ class Engine:
             self._session_state
         ) and not self._halted_symbols.get(symbol)
         reject = self._book_reject(symbol, do_match)
-        book = self._book(symbol)
 
+        # The pair is accepted; a failure below is a bug, and cannot be
+        # answered with a refusal any more. It ends the pair instead: what
+        # rests is cancelled, what was acked but never posted is cancelled
+        # too, and the id is freed (WP-ENG02).
+        try:
+            self._post_oco_legs(gateway_id, oco_id, leg1, leg2, book, do_match, reject)
+        except Exception as exc:
+            self._oco_groups.pop((gateway_id, oco_id), None)
+            for leg in (leg1, leg2):
+                self._order_to_oco.pop(leg.id, None)
+                gone = self._cancel_order_by_id(leg.id, follow_up=False)
+                if gone is None and leg.status in (
+                    OrderStatus.NEW,
+                    OrderStatus.PARTIAL,
+                ):
+                    self._end_unposted_leg(leg)
+            raise _AlreadyAnswered(str(exc)) from exc
+
+        log.info(f"OCO {oco_id}: legs {leg1.id[:8]} and {leg2.id[:8]} posted")
+
+    def _post_oco_legs(
+        self,
+        gateway_id: str,
+        oco_id: str,
+        leg1: Order,
+        leg2: Order,
+        book: OrderBook,
+        do_match: bool,
+        reject: tuple[RejectCode, str],
+    ) -> None:
+        """The posting half of ``_handle_oco_order``: ack and match each leg."""
         # The legs are posted sequentially, NOT simultaneously: leg 1 is fully
         # processed (it may fill at once and so end the pair) before leg 2 is
         # even offered to the book.
@@ -6542,9 +6843,7 @@ class Engine:
             # the cascade it triggers (X15): leg 1 before leg 2 is posted
             # (X17 above), leg 2's sibling at once (no deferral, X8d).
             self._publish_dispatch(trades, events, reject)
-            self._mark_dirty(symbol)
-
-        log.info(f"OCO {oco_id}: legs {leg1.id[:8]} and {leg2.id[:8]} posted")
+            self._mark_dirty(book.symbol)
 
     def _structure_cancel_ack(
         self,
@@ -6616,24 +6915,14 @@ class Engine:
             _refuse("OCO not found", "ORDER_NOT_FOUND")
             return
 
-        cancelled_ids: list[str] = []
-        for order_id in list(order_ids):
-            symbol = self._order_symbol.get(order_id)
-            book = self.books.get(symbol) if symbol else None
-            if book:
-                cancelled = book.cancel_order(order_id)
-                if cancelled:
-                    self.pub_sock.send_multipart(
-                        make_cancelled_msg(
-                            gateway_id, order_id, order=cancelled.to_dict()
-                        )
-                    )
-                    self._mark_dirty(symbol)  # type: ignore[arg-type]
-                    cancelled_ids.append(order_id)
-            self._order_symbol.pop(order_id, None)
-            self._order_to_oco.pop(order_id, None)
-
+        # Unlink first: the pair is over by the client's word, so the legs'
+        # cancels below must not read as one leg ending and pulling the other.
         self._oco_groups.pop((gateway_id, oco_id), None)
+        for order_id in order_ids:
+            self._order_to_oco.pop(order_id, None)
+        cancelled_ids = [
+            o.id for o in self._cancel_orders(list(order_ids), cancel_reason=None)
+        ]
         self.pub_sock.send_multipart(
             self._structure_cancel_ack(
                 "oco",
@@ -6758,12 +7047,8 @@ class Engine:
             )
             self._mark_dirty(cancelled.symbol)
             log.info(f"CANCELLED {order_id[:8]}")
-            # If this was a combo child, cascade-cancel the parent combo
-            if cancelled.combo_parent_id:
-                self._check_combo_after_child_event(cancelled)
-            # If this was an OCO leg, cancel the sibling
-            if cancelled.oco_group_id:
-                self._check_oco_after_event(cancelled)
+            # A combo child fails its combo; an OCO leg pulls its sibling.
+            self._after_engine_cancel(cancelled)
             return
 
         # Order not found — send rejection ack
@@ -7169,30 +7454,47 @@ class Engine:
         # Quote-origin orders (MM quote legs) are also no longer excluded
         # here: they persist by the same TIF rule as any other resting
         # order. See docs-design/EduMatcher-Revised-Quote-Persistence.md §5.
-        all_resting = self._resting_gtc_orders()
-        save_gtc_orders(all_resting, GTC_ORDERS_FILE)
-        log.info(f"Saved {len(all_resting)} resting order(s) to {GTC_ORDERS_FILE}")
+        # C16: each step is guarded, so one failure (a full disk, say) skips
+        # neither the other saves, nor the EOD broadcast, nor the socket
+        # closes that let the ports rebind.
+        def _save_orders() -> None:
+            all_resting = self._resting_gtc_orders()
+            save_gtc_orders(all_resting, GTC_ORDERS_FILE)
+            log.info(f"Saved {len(all_resting)} resting order(s) to {GTC_ORDERS_FILE}")
 
-        # Persist resting GTC combos
-        save_gtc_combos(list(self._combos.values()), GTC_COMBOS_FILE)
-        n_combos = sum(
-            1
-            for c in self._combos.values()
-            if c.status in (ComboStatus.PENDING, ComboStatus.PARTIALLY_MATCHED)
-        )
-        if n_combos:
-            log.info(f"Saved {n_combos} combo(s) to {GTC_COMBOS_FILE}")
+        def _save_combos() -> None:
+            save_gtc_combos(list(self._combos.values()), GTC_COMBOS_FILE)
+            n_combos = sum(
+                1
+                for c in self._combos.values()
+                if c.status in (ComboStatus.PENDING, ComboStatus.PARTIALLY_MATCHED)
+            )
+            if n_combos:
+                log.info(f"Saved {n_combos} combo(s) to {GTC_COMBOS_FILE}")
 
-        save_book_stats(self.books, self._circuit_breakers, BOOK_STATS_FILE)
-        log.info(
-            f"Saved book statistics for {len(self.books)} symbol(s) to {BOOK_STATS_FILE}"
-        )
+        def _save_stats() -> None:
+            save_book_stats(self.books, self._circuit_breakers, BOOK_STATS_FILE)
+            log.info(
+                f"Saved book statistics for {len(self.books)} symbol(s) to {BOOK_STATS_FILE}"
+            )
 
-        # The books as they end, for the audit (S25), then the broadcast EOD
-        # -- subscribers record closing prices before sockets close.
-        self._publish_checkpoints("EOD")
-        eod_books = [book.snapshot() for book in self.books.values()]
-        self.pub_sock.send_multipart(make_eod_msg(eod_books))
+        def _publish_eod() -> None:
+            # The books as they end, for the audit (S25), then the broadcast
+            # EOD -- subscribers record closing prices before sockets close.
+            self._publish_checkpoints("EOD")
+            eod_books = [book.snapshot() for book in self.books.values()]
+            self.pub_sock.send_multipart(make_eod_msg(eod_books))
+
+        for what, step in (
+            ("saving resting orders", _save_orders),
+            ("saving combos", _save_combos),
+            ("saving book statistics", _save_stats),
+            ("publishing end of day", _publish_eod),
+        ):
+            try:
+                step()
+            except Exception as exc:
+                log.error("Shutdown step failed (%s): %s", what, exc)
 
         self.pull_sock.close()
         self.pub_sock.close()
@@ -7416,22 +7718,44 @@ class Engine:
                 )
             except Exception:
                 log.error("Diagnostic publish for %s failed", topic)
-            self._reject_after_error(topic, payload, fills_before)
+            self._reject_after_error(topic, payload, fills_before, exc)
         # What the command's book changes did not publish yet (an amend's
         # new priority, a stop that only armed).
         if self._trace:
             self._flush_trace()
 
     def _reject_after_error(
-        self, topic: str, payload: dict[str, Any], fills_before: int
+        self,
+        topic: str,
+        payload: dict[str, Any],
+        fills_before: int,
+        exc: Exception,
     ) -> None:
-        """Answer an order whose handler raised, so its fate is not indefinite.
+        """Answer a request whose handler raised, so its fate is not indefinite.
 
-        Every other path through the order handlers terminates in an ACK or a
-        reasoned NACK. An exception part-way through used to terminate in
-        neither, and the difference is not visible to the client: the API
-        gateway eventually raises TimeoutError, which is indistinguishable
-        from a slow engine, and ALF/BALF simply wait forever.
+        Every other path through the order and structure handlers terminates
+        in an ACK or a reasoned NACK. An exception part-way through used to
+        terminate in neither, and the difference is not visible to the
+        client: the API gateway eventually raises TimeoutError, which is
+        indistinguishable from a slow engine, and ALF/BALF simply wait forever.
+
+        What is sent depends on the topic, because each request waits on its
+        own kind of answer (WP-ENG02):
+
+        | topic                     | answer                                 |
+        |---------------------------|----------------------------------------|
+        | order.new/cancel/amend    | order.ack accepted=false INTERNAL_ERROR |
+        | order.oco                 | oco.ack accepted=false                  |
+        | order.combo               | combo.ack accepted=false                |
+        | quote.new                 | quote.ack accepted=false                |
+        | order.oco_cancel          | oco.cancel_ack INTERNAL_ERROR           |
+        | order.combo_cancel        | combo.cancel_ack INTERNAL_ERROR         |
+        | quote.cancel              | quote.cancel_ack INTERNAL_ERROR         |
+
+        A handler that failed *after* it had accepted the request cleans up
+        and raises ``_AlreadyAnswered``: the structure's own terminal
+        messages are the answer, and a refusal on top would contradict the
+        acceptance already on the wire.
 
         Two distinct reasons, because a bare "rejected" is a lie if anything
         already printed. `fills_before` is the fill count as of entry to the
@@ -7441,18 +7765,14 @@ class Engine:
         over-warning costs a participant a reconciliation against the drop
         copy, while under-warning tells them an executed order never traded.
         """
-        if topic not in _ORDER_TOPICS:
+        if isinstance(exc, _AlreadyAnswered):
+            log.info("%s failed after acceptance; the client has its answer", topic)
+            return
+        if topic not in _ANSWERED_TOPICS:
             return
         gateway_id = str(payload.get("gateway_id", ""))
-        order_id = payload.get("order_id") or payload.get("id")
-        if not gateway_id or not order_id:
-            # Nothing to address: the payload that broke the handler may be
-            # the very thing missing these fields. Say so rather than
-            # pretending the contract held.
-            log.error(
-                "No reject sent for %s — payload carries no gateway_id/order_id",
-                topic,
-            )
+        if not gateway_id:
+            log.error("No reject sent for %s — payload carries no gateway_id", topic)
             return
         if self._fills_published > fills_before:
             reason = (
@@ -7461,29 +7781,88 @@ class Engine:
             )
         else:
             reason = "Internal error processing order"
+        request_tag = (
+            str(payload["request_tag"])
+            if payload.get("request_tag") is not None
+            else None
+        )
         try:
-            self._reject(
-                gateway_id=gateway_id,
-                order_id=str(order_id),
-                code="INTERNAL_ERROR",
+            frames = self._error_answer(topic, payload, gateway_id, reason, request_tag)
+        except Exception as build_exc:
+            log.error("Reject for %s could not be built: %s", topic, build_exc)
+            return
+        if frames is None:
+            # Nothing to address: the payload that broke the handler may be
+            # the very thing missing these fields. Say so rather than
+            # pretending the contract held.
+            log.error(
+                "No reject sent for %s — payload carries no gateway_id/order_id",
+                topic,
+            )
+            return
+        try:
+            self.pub_sock.send_multipart(frames)
+        except Exception as send_exc:
+            # The reject is best-effort: raising here would escape run() and
+            # take the venue down over a message that already failed once.
+            log.error("Reject for %s could not be sent: %s", topic, send_exc)
+        else:
+            log.info("REJECTED %s — %s", topic, reason)
+
+    def _error_answer(
+        self,
+        topic: str,
+        payload: dict[str, Any],
+        gateway_id: str,
+        reason: str,
+        request_tag: str | None,
+    ) -> list[bytes] | None:
+        """The frames ``_reject_after_error`` sends for *topic*, or None when
+        the payload lacks the id the answer must carry."""
+        if topic in (TOPIC_ORDER_NEW, TOPIC_ORDER_CANCEL, TOPIC_ORDER_AMEND):
+            order_id = payload.get("order_id") or payload.get("id")
+            if not order_id:
+                return None
+            return self._order_ack(
+                gateway_id,
+                str(order_id),
+                accepted=False,
                 reason=reason,
+                reject_code="INTERNAL_ERROR",
                 client_tag=(
                     str(payload["client_tag"])
                     if payload.get("client_tag") is not None
                     else None
                 ),
-                request_tag=(
-                    str(payload["request_tag"])
-                    if payload.get("request_tag") is not None
-                    else None
-                ),
+                request_tag=request_tag,
             )
-        except Exception as send_exc:
-            # The reject is best-effort: raising here would escape run() and
-            # take the venue down over a message that already failed once.
-            log.error("Reject for %s could not be sent: %s", order_id, send_exc)
-        else:
-            log.info("REJECTED %s — %s", str(order_id)[:8], reason)
+        gw = _clamp_wire_id(gateway_id)
+        oco_id = str(payload.get("oco_id", ""))[:_MAX_WIRE_COMMAND_ID_LEN]
+        combo_id = str(payload.get("combo_id", ""))[:_MAX_WIRE_COMMAND_ID_LEN]
+        symbol = _clamp_wire_id(payload.get("symbol", ""), 16)
+        quote_id = str(payload.get("quote_id", ""))[:_MAX_WIRE_COMMAND_ID_LEN]
+        if topic == TOPIC_ORDER_OCO:
+            return self._oco_ack(gw, oco_id, False, reason)
+        if topic == TOPIC_ORDER_COMBO:
+            return self._combo_ack(gw, combo_id, False, reason)
+        if topic == TOPIC_QUOTE_NEW:
+            return self._quote_ack(gw, quote_id, False, reason, symbol=symbol)
+        if topic == TOPIC_ORDER_OCO_CANCEL:
+            kind, ids = "oco", {"oco_id": oco_id}
+        elif topic == TOPIC_ORDER_COMBO_CANCEL:
+            kind, ids = "combo", {"combo_id": combo_id}
+        else:  # TOPIC_QUOTE_CANCEL
+            kind, ids = "quote", {"symbol": symbol, "quote_id": quote_id}
+        return self._structure_cancel_ack(
+            kind,
+            gw,
+            accepted=False,
+            reason=reason,
+            reject_code="INTERNAL_ERROR",
+            request_tag=request_tag or "",
+            cancelled_order_ids=None,
+            **ids,
+        )
 
     def attach_reporter(
         self, reporter: HealthReporter, book_metrics_interval_sec: float = 10.0

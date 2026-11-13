@@ -161,7 +161,8 @@ def make_engine(
         "edumatcher.engine.main.load_gtc_orders", lambda _: list(gtc_orders or [])
     )
     monkeypatch.setattr(
-        "edumatcher.engine.main.load_book_stats", lambda _: dict(book_stats or {})
+        "edumatcher.engine.main.load_book_stats",
+        lambda _: (dict(book_stats or {}), 0),
     )
     # Neutralize the engine's PUB-bind settle sleep WITHOUT touching the
     # global time module: patching "edumatcher.engine.main.time.sleep" would
@@ -286,6 +287,32 @@ def submit_quote(
             "tif": tif,
         }
     )
+
+
+def assert_engine_links(engine: Engine) -> None:
+    """The engine's structure links name live orders only (WP-ENG01).
+
+    After any operation, every order id in ``_oco_groups``, ``_order_to_oco``
+    and ``_order_to_combo`` must be an order that is still resting in a
+    book or waiting its turn in a book's ``_triggered`` room, and every
+    ``_oco_groups`` value must be the pair ``_order_to_oco`` points back to.
+    A stale link is what let a finished OCO block its own id for the rest
+    of the run (review 2026-11, C1) and left a combo PENDING after a kill
+    switch (C2).
+    """
+    live: set[str] = set()
+    for book in engine.books.values():
+        live.update(o.id for o in book.resting_orders())
+        live.update(book._triggered)
+    for key, legs in engine._oco_groups.items():
+        for leg in legs:
+            assert leg in live, f"_oco_groups {key} names finished order {leg}"
+            assert engine._order_to_oco.get(leg) == key, f"_order_to_oco lacks {leg}"
+    for oid, key in engine._order_to_oco.items():
+        assert oid in live, f"_order_to_oco names finished order {oid} ({key})"
+        assert oid in engine._oco_groups.get(key, ()), f"{oid} not in group {key}"
+    for oid, combo_id in engine._order_to_combo.items():
+        assert oid in live, f"_order_to_combo names finished order {oid} ({combo_id})"
 
 
 def terminal_notifications_for(

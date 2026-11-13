@@ -179,7 +179,7 @@ class TestAdoptionDidNotMakeAMalformedCommandSilent:
     bounds at 512. Unlike pm-index, the engine survives the resulting
     MessageValidationError — ``_dispatch_pull_message`` wraps every branch —
     but ``_reject_after_error`` returns early for anything outside
-    ``_ORDER_TOPICS``, so the caller would get **no ack at all** and wait for a
+    ``_ANSWERED_TOPICS``, so the caller would get **no ack at all** and wait for a
     timeout where before it got a real answer.
     """
 

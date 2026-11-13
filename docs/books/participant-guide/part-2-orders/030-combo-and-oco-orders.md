@@ -237,6 +237,15 @@ If one leg of a combo is cancelled, rejected or expires, the remaining legs must
 EduMatcher handles this by marking the combo as FAILED and cancelling all
 siblings' unfilled quantities. Fills that already occurred are **not** unwound.
 
+The rule holds whoever ends the leg. A leg cancelled by the exchange — a kill
+switch, an administrator's cancel-symbol, a `CANCEL_ALL` disconnect, or the
+end of its time in force — fails the combo exactly as your own `CANCEL`
+does: the legs the command itself pulled carry its `cancel_reason`, the
+legs the cascade pulls afterwards are plain `order.cancelled` events, and one
+`combo.status` `FAILED` names the leg that went first. The same applies to an
+OCO pair: when the exchange ends one or both legs, the pair is over and its
+`OCO_ID` is yours to use again.
+
 !!! warning "No trade unwinds"
     Once a trade is executed, it is final. A combo failure does not reverse fills
     that already happened on other legs. This mirrors real exchange behavior — trades

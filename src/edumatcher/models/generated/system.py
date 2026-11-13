@@ -914,10 +914,12 @@ class WeeklySchedule:
     the answer, rather than making every client (in particular a browser) carry
     its own holiday calendar just to answer that one question. `today` is still
     `SessionTimes | null` -- null means CLOSED today, exactly like any other day
-    slot. `upcoming_holidays` answers the next question, "when is the exchange
-    next on its holiday schedule", the same way. It is computed when the record is
-    built and covers a year, so a client picks the first entry on or after its own
-    today rather than trusting the list to start there.
+    slot. "Today" is the business date in the session timezone
+    (`locale.session_timezone`), resolved for each reply, so a long run never
+    reports yesterday. `upcoming_holidays` answers the next question, "when is the
+    exchange next on its holiday schedule", the same way. It is computed when the
+    record is built and covers a year, so a client picks the first entry on or
+    after its own today rather than trusting the list to start there.
     """
 
     today_is_holiday: bool
@@ -3595,6 +3597,14 @@ _STARTUP_RECOVERY_FIELDS: tuple[dict[str, Any], ...] = (
         "doc": "GTC combos restored from the previous session.",
         "constraints": {"ge": 0},
     },
+    {
+        "name": "failed_book_stats",
+        "type": "int",
+        "unit": "dimensionless",
+        "required": True,
+        "doc": "Symbols whose persisted book statistics (`book_stats.json`) were corrupt: the entry skipped, or only its circuit-breaker window dropped. An unreadable file counts as one. The file is kept aside as `book_stats.json.corrupt-<UTC stamp>`.",
+        "constraints": {"ge": 0},
+    },
 )
 
 
@@ -3619,6 +3629,7 @@ class StartupRecovery:
     quote_remnants_restored: int  # unit: dimensionless
     rebuilt_quotes: int  # unit: dimensionless
     restored_combos: int  # unit: dimensionless
+    failed_book_stats: int  # unit: dimensionless
 
     def validate(self) -> None:
         """Raise MessageValidationError if any declared rule fails.
@@ -3651,6 +3662,10 @@ class StartupRecovery:
             raise MessageValidationError(
                 f"restored_combos: {self.restored_combos!r} must be >= 0"
             )
+        if self.failed_book_stats < 0:
+            raise MessageValidationError(
+                f"failed_book_stats: {self.failed_book_stats!r} must be >= 0"
+            )
 
     @classmethod
     def from_dict(cls, p: Mapping[str, Any]) -> "StartupRecovery":
@@ -3667,6 +3682,7 @@ class StartupRecovery:
             quote_remnants_restored=int(p["quote_remnants_restored"]),
             rebuilt_quotes=int(p["rebuilt_quotes"]),
             restored_combos=int(p["restored_combos"]),
+            failed_book_stats=int(p["failed_book_stats"]),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -3678,6 +3694,7 @@ class StartupRecovery:
             "quote_remnants_restored": self.quote_remnants_restored,
             "rebuilt_quotes": self.rebuilt_quotes,
             "restored_combos": self.restored_combos,
+            "failed_book_stats": self.failed_book_stats,
         }
 
 
@@ -3709,6 +3726,7 @@ def make_startup_recovery_unchecked(
     quote_remnants_restored: int,
     rebuilt_quotes: int,
     restored_combos: int,
+    failed_book_stats: int,
 ) -> list[bytes]:
     """Identical frames to ``make_startup_recovery``, without ``validate()``.
 
@@ -3730,6 +3748,7 @@ def make_startup_recovery_unchecked(
                 "quote_remnants_restored": int(quote_remnants_restored),
                 "rebuilt_quotes": int(rebuilt_quotes),
                 "restored_combos": int(restored_combos),
+                "failed_book_stats": int(failed_book_stats),
             }
         ),
     ]
@@ -3817,10 +3836,10 @@ _RECOVERY_ITEM_FIELDS: tuple[dict[str, Any], ...] = (
 @dataclass(frozen=True, slots=True)
 class RecoveryItem:
     """Engine to all subscribers: one restored, discarded or failed entity from
-    `_restore_gtc()` (AR-0.5). `startup_recovery`'s six counts say *how many*;
-    this says *which ones* — "which order failed to restore?" was unanswerable
-    from either the counts alone or the process log, since a post-mortem
-    investigating a startup only sees what was published (see
+    `_restore_gtc()` (AR-0.5). `startup_recovery`'s order and combo counts say
+    *how many*; this says *which ones* — "which order failed to restore?" was
+    unanswerable from either the counts alone or the process log, since a post-
+    mortem investigating a startup only sees what was published (see
     ../../docs/books/operator-guide/part-6-observe-and-recover/020-audit-
     trail.md). Published once per entity, before the single summary
     `startup_recovery` broadcast, so the counts there are the cross-check:
@@ -4739,7 +4758,7 @@ _REFERENCE_FIELDS: tuple[dict[str, Any], ...] = (
         "type": "string",
         "unit": None,
         "required": False,
-        "doc": "Truncated SHA-256 of the bundle. Null before a config is loaded, which is the only remaining difference between the two states the old two-shape reply used to distinguish. Regime 2: every consumer compares it, so the key has to be there to compare.",
+        "doc": "Truncated SHA-256 of the bundle, without the schedule's per-day fields (`today`, `today_is_holiday`, `upcoming_holidays`), so the same configuration has the same version every day. Null before a config is loaded, which is the only remaining difference between the two states the old two-shape reply used to distinguish. Regime 2: every consumer compares it, so the key has to be there to compare.",
         "constraints": {"max_len": 64},
     },
 )

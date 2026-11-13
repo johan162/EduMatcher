@@ -188,7 +188,7 @@ at all — it is only ever written once, at the following startup.
    earlier runs. See [The `engine_run_seq.json` File](#the-engine_run_seqjson-file).
 1. The engine reads `<DATA_DIR>/gtc_orders.json` (if it exists).
 2. Each `TIF = GTC` order is re-injected into its symbol's order book unconditionally, **with its original timestamp preserved**.
-3. Each `TIF = DAY` order is re-injected **only if its own timestamp falls on the current business day** (machine-local calendar date). A `DAY` order dated before today — because the business day rolled over while the engine was up, or while it was down — is discarded instead, and the discard is logged at `INFO` level. This is the mechanism that ultimately gives `TIF = DAY` its intended meaning of "valid for the current trading day," independent of how many times the engine process itself has restarted in between. This rule applies to every resting order regardless of origin, including MM quote legs (step 3a below).
+3. Each `TIF = DAY` order is re-injected **only if its own timestamp falls on the current business day** (the calendar date in the session timezone, `locale.session_timezone`, whatever the host's own zone). A `DAY` order dated before today — because the business day rolled over while the engine was up, or while it was down — is discarded instead, and the discard is logged at `INFO` level. This is the mechanism that ultimately gives `TIF = DAY` its intended meaning of "valid for the current trading day," independent of how many times the engine process itself has restarted in between. This rule applies to every resting order regardless of origin, including MM quote legs (step 3a below).
 3a. Restored quote-origin orders (from steps 2-3 above) are grouped back into linked bid/ask pairs by `(gateway_id, quote_id)` and re-registered as active quotes in the engine's in-memory `QuoteIndex`, so a surviving quote is fully quote-managed again — not just resting as a plain order. A quote whose sibling leg did not survive (filled, cancelled, or discarded as a stale `TIF=DAY` order) restores its surviving leg as an ordinary resting order instead, logged as a "single-leg quote remnant."
 3b. Restored OCO legs are linked back into their pairs by `oco_group_id`, so a leg that fills or ends after the restart still ends its sibling. A pair with only one surviving leg is not re-linked: that leg rests as an ordinary order.
 4. The engine reads `<DATA_DIR>/gtc_combos.json` (if it exists) and rebuilds parent-child tracking maps for restored `GTC` combos.
@@ -209,7 +209,8 @@ at all — it is only ever written once, at the following startup.
 When the session moves to `CLOSED`, after the day's `DAY` orders have
 expired, the engine copies what it would persist — `gtc_orders.json`,
 `gtc_combos.json` and `book_stats.json` — into
-`<DATA_DIR>/eod/<YYYY-MM-DD>/` (the machine-local business date). The
+`<DATA_DIR>/eod/<YYYY-MM-DD>/` (the business date in the session timezone,
+`locale.session_timezone`, the same date the restore judges `DAY` orders by). The
 regular files are rewritten by every checkpoint; the archive keeps each
 day's closing state, so the next morning's book can be compared with it
 (the simulation forensics check G3 does). Nothing is ever deleted there.
@@ -226,7 +227,7 @@ The single fact that governs everything on this page: **a process restart is
 not a day boundary.** The engine has no clock of its own that fires at
 midnight — the only place "is this still the same business day?" is ever
 evaluated is once, at startup, by comparing each restored order's own
-timestamp against today's machine-local calendar date (see
+timestamp against today's date in the session timezone (see
 [At Startup](#at-startup), steps 1-3 above). Two restarts can therefore
 behave very differently depending on nothing but whether a calendar date
 happened to change while the engine was down — the restart mechanics

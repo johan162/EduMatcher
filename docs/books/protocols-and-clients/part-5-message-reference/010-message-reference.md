@@ -3983,7 +3983,7 @@ One bank holiday in the exchange's holiday calendar.
 
 #### `WeeklySchedule`
 
-A fully-resolved weekly session schedule: one `SessionTimes` per weekday (mon..sun, any of which may be null for CLOSED) plus a separate holidays entry, mirroring `edumatcher.engine.config_loader.ScheduleConfig`. The `weekdays`/ `weekend` shortcuts and per-day overrides in the YAML are already resolved by the time this is built -- every field here is one concrete day, never a shortcut. `today`/`today_is_holiday` are a server-computed convenience: the engine already runs the same `python-holidays` lookup for pm-scheduler, so it resolves "which entry applies right now" once and publishes the answer, rather than making every client (in particular a browser) carry its own holiday calendar just to answer that one question. `today` is still `SessionTimes \| null` -- null means CLOSED today, exactly like any other day slot. `upcoming_holidays` answers the next question, "when is the exchange next on its holiday schedule", the same way. It is computed when the record is built and covers a year, so a client picks the first entry on or after its own today rather than trusting the list to start there.
+A fully-resolved weekly session schedule: one `SessionTimes` per weekday (mon..sun, any of which may be null for CLOSED) plus a separate holidays entry, mirroring `edumatcher.engine.config_loader.ScheduleConfig`. The `weekdays`/ `weekend` shortcuts and per-day overrides in the YAML are already resolved by the time this is built -- every field here is one concrete day, never a shortcut. `today`/`today_is_holiday` are a server-computed convenience: the engine already runs the same `python-holidays` lookup for pm-scheduler, so it resolves "which entry applies right now" once and publishes the answer, rather than making every client (in particular a browser) carry its own holiday calendar just to answer that one question. `today` is still `SessionTimes \| null` -- null means CLOSED today, exactly like any other day slot. "Today" is the business date in the session timezone (`locale.session_timezone`), resolved for each reply, so a long run never reports yesterday. `upcoming_holidays` answers the next question, "when is the exchange next on its holiday schedule", the same way. It is computed when the record is built and covers a year, so a client picks the first entry on or after its own today rather than trusting the list to start there.
 
 | Field | Type | Presence | Rules | Description |
 |---|---|---|---|---|
@@ -4403,6 +4403,7 @@ Engine to all subscribers, once, right after `_restore_gtc()` and before the con
 | `quote_remnants_restored` | `int` | required | ge 0, unit `dimensionless` | Restored quote-origin legs whose sibling did not survive, so they rest as plain orders rather than being rejoined into QuoteIndex. |
 | `rebuilt_quotes` | `int` | required | ge 0, unit `dimensionless` | Active QuoteIndex entries rebuilt from both-legs-restored quotes. |
 | `restored_combos` | `int` | required | ge 0, unit `dimensionless` | GTC combos restored from the previous session. |
+| `failed_book_stats` | `int` | required | ge 0, unit `dimensionless` | Symbols whose persisted book statistics (`book_stats.json`) were corrupt: the entry skipped, or only its circuit-breaker window dropped. An unreadable file counts as one. The file is kept aside as `book_stats.json.corrupt-<UTC stamp>`. |
 
 !!! note
 
@@ -4418,7 +4419,7 @@ Engine to all subscribers, once, right after `_restore_gtc()` and before the con
 
 **Since:** 1.2
 
-Engine to all subscribers: one restored, discarded or failed entity from `_restore_gtc()` (AR-0.5). `startup_recovery`'s six counts say *how many*; this says *which ones* — "which order failed to restore?" was unanswerable from either the counts alone or the process log, since a post-mortem investigating a startup only sees what was published (see ../../docs/books/operator-guide/part-6-observe-and-recover/020-audit-trail.md). Published once per entity, before the single summary `startup_recovery` broadcast, so the counts there are the cross-check: `restored_orders + discarded_stale_day_orders + failed_orders` must equal the number of ORDER-kind recovery_item lines whose outcome is RESTORED, DISCARDED_STALE_DAY or FAILED respectively, and `restored_combos` must equal the number of COMBO-kind lines.
+Engine to all subscribers: one restored, discarded or failed entity from `_restore_gtc()` (AR-0.5). `startup_recovery`'s order and combo counts say *how many*; this says *which ones* — "which order failed to restore?" was unanswerable from either the counts alone or the process log, since a post-mortem investigating a startup only sees what was published (see ../../docs/books/operator-guide/part-6-observe-and-recover/020-audit-trail.md). Published once per entity, before the single summary `startup_recovery` broadcast, so the counts there are the cross-check: `restored_orders + discarded_stale_day_orders + failed_orders` must equal the number of ORDER-kind recovery_item lines whose outcome is RESTORED, DISCARDED_STALE_DAY or FAILED respectively, and `restored_combos` must equal the number of COMBO-kind lines.
 
 | Field | Type | Presence | Rules | Description |
 |---|---|---|---|---|
@@ -4558,7 +4559,7 @@ Engine to caller: every piece of static venue configuration in one round trip --
 | `risk` | [`ReferenceRisk`](#referencerisk) | required | — |  |
 | `indexes` | list of [`IndexDefinition`](#indexdefinition) | required | — | Already a list of records before this phase. |
 | `schedule` | [`ReferenceSchedule`](#referenceschedule) | required | — |  |
-| `config_version` | `string` | `null` when unset | max_len 64 | Truncated SHA-256 of the bundle. Null before a config is loaded, which is the only remaining difference between the two states the old two-shape reply used to distinguish. Regime 2: every consumer compares it, so the key has to be there to compare. |
+| `config_version` | `string` | `null` when unset | max_len 64 | Truncated SHA-256 of the bundle, without the schedule's per-day fields (`today`, `today_is_holiday`, `upcoming_holidays`), so the same configuration has the same version every day. Null before a config is loaded, which is the only remaining difference between the two states the old two-shape reply used to distinguish. Regime 2: every consumer compares it, so the key has to be there to compare. |
 
 !!! note
 

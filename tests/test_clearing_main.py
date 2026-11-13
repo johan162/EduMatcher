@@ -524,6 +524,41 @@ def test_open_writer_connection_sql_trace_logs_statements(
     assert any("SELECT 1" in rec.message for rec in caplog.records)
 
 
+class TestPrintEvery:
+    def test_the_printed_table_includes_the_trade_that_triggered_it(
+        self, db_path: Path, zmq_addr: str, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """--print-every 1 prints after each trade; trades are batched, so the
+        table used to show the positions *before* that trade (and nothing at
+        all after the first one)."""
+        p = ClearingProcess(
+            pub_addr=zmq_addr,
+            db_path=db_path,
+            flush_size=100,
+            flush_interval_sec=60.0,
+            print_every=1,
+            retention_days=3650,
+        )
+        printed: list[dict[str, int]] = []
+
+        def capture() -> None:
+            printed.append(
+                {pos.gateway_id: pos.net_qty for pos in p._ledger.all_positions()}
+            )
+
+        monkeypatch.setattr(p, "_print_pnl_table", capture)
+        try:
+            p._handle_message(_encode_trade(_make_trade("T-1", qty=10)))
+            p._handle_message(_encode_trade(_make_trade("T-2", qty=5)))
+        finally:
+            p._conn.close()
+
+        assert printed == [
+            {"GW_BUY": 10, "GW_SELL": -10},
+            {"GW_BUY": 15, "GW_SELL": -15},
+        ]
+
+
 class TestHandleEod:
     """Unit tests for ClearingProcess._handle_eod."""
 

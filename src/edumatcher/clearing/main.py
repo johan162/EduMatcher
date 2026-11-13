@@ -508,11 +508,15 @@ class ClearingProcess:
                     self._dbg_count("trades_buffered")
                     if len(self._buffer) >= self._flush_size:
                         self._flush()
+                print_now = (
+                    self._print_every > 0 and self._trade_count % self._print_every == 0
+                )
+                if print_now:
+                    # Positions only change when the buffer is applied, so
+                    # flush first: the table must include this trade.
+                    self._flush()
 
-            # CL-L6: read _trade_count outside the lock intentionally.
-            # Worst-case effect is a skipped or duplicated print cadence,
-            # never a data-integrity issue.
-            if self._print_every > 0 and self._trade_count % self._print_every == 0:
+            if print_now:
                 self._print_pnl_table()
 
         elif topic == TOPIC_EOD:

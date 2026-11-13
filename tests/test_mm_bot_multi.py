@@ -1273,6 +1273,26 @@ class TestBotHonoursPerSymbolParameters:
         assert set(_quotes(push)) == {"TSLA"}
         assert bot._symbols_state["AAPL"].startup_failed_reason is not None
 
+    def test_a_startup_failure_is_visible_without_verbose(
+        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Without --verbose only WARNING and above is shown; a bot that
+        cannot start must still say why instead of exiting silently."""
+        bot, _push, sub, _ = _build_bot(
+            monkeypatch, ["AAPL"], initial_min=None, initial_max=None
+        )
+        _queue_startup(sub, ["AAPL"])
+        with caplog.at_level("WARNING", logger="edumatcher.mm_bot.bot"):
+            assert bot.run() == 1
+        assert {
+            r.msg
+            for r in caplog.records
+            if r.name == "edumatcher.mm_bot.bot" and r.levelname == "WARNING"
+        } == {"[%s] startup warning: %s"}
+        warnings = [r.getMessage() for r in caplog.records if r.levelname == "WARNING"]
+        assert any("[AAPL] startup failed: no reference price" in m for m in warnings)
+        assert any("no symbol survived startup checks" in m for m in warnings)
+
     def test_heartbeat_clocks_run_independently(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:

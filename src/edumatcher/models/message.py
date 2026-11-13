@@ -1796,6 +1796,7 @@ def make_startup_recovery_msg(
     quote_remnants_restored: int = 0,
     rebuilt_quotes: int = 0,
     restored_combos: int = 0,
+    failed_book_stats: int = 0,
 ) -> list[bytes]:
     """Engine → all subscribers, once at startup: `_restore_gtc()`'s summary.
 
@@ -1810,6 +1811,7 @@ def make_startup_recovery_msg(
         quote_remnants_restored=quote_remnants_restored,
         rebuilt_quotes=rebuilt_quotes,
         restored_combos=restored_combos,
+        failed_book_stats=failed_book_stats,
     )
 
 
