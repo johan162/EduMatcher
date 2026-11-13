@@ -322,7 +322,7 @@ must be run from `~/.edumatcher`, where rule 4 finds `./data`.
 | **pm-clearing-cli** | `pm-clearing-cli <command> [options]` | Read/query interface for `clearing.db` (includes prune) | Optional           |
 | **pm-eod**        | `pm-eod run \| status \| balances` | Close a trading day: settlement, statements, housekeeping | Optional |
 | **pm-stats-cli**  | `pm-stats-cli <command> [options]` | Read-only query interface for `stats.db`                | Optional              |
-| **pm-audit-cli**  | `pm-audit-cli <command> [options]` | Read-only query interface for audit JSONL log files     | Optional              |
+| **pm-audit-cli**  | `pm-audit-cli <command> [options]` | Read-only query interface for the audit log files       | Optional              |
 | **pm-audit-replay** | `pm-audit-replay [options] <command>` | Read-only reconstruction of the audit trail into causal episodes and stories | Optional |
 | **pm-index-cli**  | `pm-index-cli <command> [options]` | Read-only query interface for index history JSONL files | Optional              |
 | **pm-index-admin-cli** | `pm-index-admin-cli --id <GW_ID> <command> [options]` | One-shot CLI for index corporate actions and constituent changes | Optional              |
@@ -858,7 +858,7 @@ Status colours: green=NEW, yellow=PARTIAL, bright green=FILLED, red=REJECTED/CAN
 Records every message on the bus to a day-closing log file; closed days are compressed to one zstd archive each.
 
 ```bash
-pm-audit [--audit-log-file data/audit.log] [--terminal] [--buffer-size 100] [--flush-interval 10] [--max-file-mb 10] [--keep-days 0] [--log-level LEVEL] [-v|-vv] [-q]
+pm-audit [--audit-log-file data/audit.log] [--terminal] [--buffer-size 100] [--flush-interval 10] [--max-file-mb 10] [--keep-days 0] [--fsync-interval 1] [--log-level LEVEL] [-v|-vv] [-q]
 ```
 
 **Startup options:**
@@ -868,9 +868,10 @@ pm-audit [--audit-log-file data/audit.log] [--terminal] [--buffer-size 100] [--f
 | `--audit-log-file`    | `data/audit.log` | Audit-trail output log file path                              |
 | `--terminal` / `-t`   | off              | Also print each entry to stdout                              |
 | `--buffer-size`       | 100              | Number of messages to buffer in memory before writing to disk |
-| `--flush-interval`    | 10.0             | Maximum seconds to wait before flushing buffer to disk       |
+| `--flush-interval`    | 10.0             | Maximum seconds a buffered message waits for the disk        |
 | `--max-file-mb`       | 10               | Close the audit log as a day part when it reaches this size in MB |
 | `--keep-days`         | 0                | Delete daily archives older than N days (0 keeps all)        |
+| `--fsync-interval`    | 1.0              | Sync the active file to disk at most this often; `0` syncs every flush |
 | `--log-level`         | `WARNING`        | Explicit log level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
 | `-v` / `--verbose`    | off              | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`)         |
 | `-q` / `--quiet`      | off              | Reduce output to warnings/errors                             |
@@ -889,18 +890,24 @@ To reduce disk wear, `pm-audit` buffers messages in memory before writing them
 to disk in batches. The buffer is flushed to disk when either:
 
 - The buffer reaches `--buffer-size` messages (e.g., 100 messages), or
-- `--flush-interval` seconds have elapsed since the last flush (e.g., 10 seconds)
+- the oldest buffered message has waited `--flush-interval` seconds (e.g., 10 seconds)
 
 On shutdown (Ctrl-C, SIGINT, or SIGTERM), any remaining buffered messages are
 automatically flushed to disk before the process exits, ensuring no data is lost.
+A failed write (disk full) keeps its lines in memory, counts
+`audit.write_errors` and is retried; a receive loop that dies of anything
+else ends the process with exit status 1.
 
-**Log format** (one entry per line):
+**Log format** (one entry per line: receive time in UTC, topic, sequence and
+causal envelope, JSON payload; comment lines start with `#`):
 ```
-[2026-04-29T14:32:01.123] [trade.executed] {"id": "...", "symbol": "AAPL", ...}
-[2026-04-29T14:32:01.125] [book.AAPL] {"bids": [...], "asks": [...], ...}
+[2026-04-29T14:32:01.123+00:00] [trade.executed] [seq=12 eseq=4711 msg=01J… cause=01J… chain=01J…] {"id": "000001-000000042", "symbol": "AAPL", ...}
+[2026-04-29T14:32:01.125+00:00] [book.AAPL] [seq=88 eseq=4712 msg=01J… cause=01J… chain=01J…] {"bids": [...], "asks": [...], ...}
 ```
 
-Log files rotate at 10 MB with 5 backups kept.
+The active `audit.log` holds one trading day; at the date change, or at
+`--max-file-mb`, it is closed as `audit/audit-YYYY-MM-DD.N.log`, and closed
+days are compressed to one `audit/audit-YYYY-MM-DD.log.zst` each.
 
 Use `--terminal` during demos so the class can see every event in real time.
 Use `-vv` or `--log-level DEBUG` when you want aggregated operational summaries
@@ -933,7 +940,7 @@ pm-audit --buffer-size 1 --flush-interval 0.1
 
 ## pm-audit-cli — Audit Log Query CLI
 
-`pm-audit-cli` is a read-only offline tool: it reads JSONL files directly from disk, runs one query, prints output, and exits. No ZeroMQ connection required — except for `health`, which pings the running `pm-audit` on port `5562`.
+`pm-audit-cli` is a read-only offline tool: it reads the audit files directly from disk, runs one query, prints output, and exits. No ZeroMQ connection required — except for `health`, which pings the running `pm-audit` on port `5562`.
 
 ```bash
 pm-audit-cli [--log-file data/audit.log] [--log-dir PATH] [--format table|json|csv] [--no-header] [--use-index PATH] COMMAND [options]
@@ -946,8 +953,8 @@ pm-audit-cli [--log-file data/audit.log] [--log-dir PATH] [--format table|json|c
 | `--log-file PATH` | `data/audit.log` | Primary audit log file; reads the live trail (unarchived day parts, then this file). An archive or day part named here is read alone |
 | `--log-dir PATH` | directory of `--log-file` | Directory holding the `audit/` day parts and archives |
 | `--format` | `table` | Output format: `table`, `json`, or `csv` |
-| `--no-header` | off | Suppress header row in CSV output |
-| `--use-index PATH` | auto-detected | Path to SQLite index file (auto-detected from `--log-dir` when not specified; ignored for commands that don't support it) |
+| `--no-header` | off | Suppress the header row of table and CSV output |
+| `--use-index PATH` | none | Answer `events` from this SQLite index (never used unless given; not with `--follow` or `--date`); stderr says how far it reaches |
 | `--version` | — | Print version and exit |
 
 **Subcommands:**
@@ -961,15 +968,20 @@ pm-audit-cli [--log-file data/audit.log] [--log-dir PATH] [--format table|json|c
 | `gateways` | —    | Gateway activity summary                                     | `--date`, `--from`, `--to`, `--min-events`                                 |
 | `timeline` | 500  | Raw chronological event stream for session replay            | `--from`, `--to`, `--topic`, `--gateway`, `--symbol`                       |
 | `stats`    | —    | Summary statistics about audit log files                     | `--verbose`                                                                |
-| `index`    | —    | Build or update the optional SQLite index for faster queries | `--output PATH`                                                            |
+| `index`    | —    | Build the optional SQLite index from scratch, or add to it   | `--output PATH`, `--incremental`, `--days N`, `--from`, `--to`             |
 | `archive`  | —    | Compress closed days' parts into one verified `audit-D.log.zst` per day | `--date D` or `--pending`, `--level N` (default 9), `--keep-days N` |
+| `verify`   | —    | Check the archived days against the evidence manifest's hash chain; exit `1` on any problem | `--date D` (that day's archive only; the chain is always checked whole) |
 | `health`   | —    | Check the `pm-audit` process and ping its health socket; `--extended` adds the audit log read/write and last-entry check | `--extended`, `-v`/`--verbose`, `-q`/`--quiet` (print nothing; exit `0` when healthy, `-1` otherwise) |
 
 **No-row behaviour:**
 
-- `table`: prints `No rows found.`
+- `table`: prints `No matching events found.`
 - `json`: prints `[]`
 - `csv`: prints only header row unless `--no-header` is set
+
+`--from`/`--to` are inclusive; a bare date, and a time without an offset, are
+UTC, and a bare date in `--to` means the end of that day. `events`/`timeline
+--follow` first print the newest `--limit` matching entries, like `tail -f`.
 
 
 

@@ -799,8 +799,8 @@ _shtab_pm_audit_cli_options=(
   "--log-file[Primary audit log file (default\: \<EDUMATCHER_DATA_DIR\>\/audit.log).]:PATH:"
   "--log-dir[Directory holding the audit\/ day parts and archives.]:PATH:"
   "--format[Output format\: table (default), json, or csv]:format:(table json csv)"
-  "--no-header[Suppress header row for csv output]"
-  "--use-index[Path to SQLite index file.]:PATH:"
+  "--no-header[Suppress the header row of table and csv output]"
+  "--use-index[Answer \`events\` from this SQLite index (see \`index\`).]:PATH:"
 )
 
 # guard to ensure default positional specs are added only once per session
@@ -823,8 +823,8 @@ _shtab_pm_audit_cli_events_options=(
   "--gateway[Filter by gateway ID]:GW_ID:"
   "--symbol[Filter by symbol]:SYMBOL:"
   "--date[Read this trading day (session timezone)\: its archive, or its parts before it is archived]:YYYY-MM-DD:"
-  "--from[Start of time range]:ISO_TS:"
-  "--to[End of time range]:ISO_TS:"
+  "--from[Start of the time range, inclusive\: ISO-8601, or a bare date (its midnight). Times without an offset, and bare dates, are UTC]:ISO_TS:"
+  "--to[End of the time range, inclusive\: ISO-8601, or a bare date (the end of that day). Times without an offset, and bare dates, are UTC]:ISO_TS:"
   "--limit[Maximum rows (default\: 100)]:N:"
   "--reverse[Show newest first]"
   {-f,--follow}"[Watch for new events instead of exiting (Ctrl-C to stop)]"
@@ -837,8 +837,8 @@ _shtab_pm_audit_cli_events_defaults_added=0
 _shtab_pm_audit_cli_gateways_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
   "--date[Read this trading day (session timezone)\: its archive, or its parts before it is archived]:YYYY-MM-DD:"
-  "--from[Start of time range]:ISO_TS:"
-  "--to[End of time range]:ISO_TS:"
+  "--from[Start of the time range, inclusive\: ISO-8601, or a bare date (its midnight). Times without an offset, and bare dates, are UTC]:ISO_TS:"
+  "--to[End of the time range, inclusive\: ISO-8601, or a bare date (the end of that day). Times without an offset, and bare dates, are UTC]:ISO_TS:"
   "--min-events[Minimum events to include a gateway]:N:"
 )
 
@@ -857,12 +857,11 @@ _shtab_pm_audit_cli_health_defaults_added=0
 
 _shtab_pm_audit_cli_index_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
-  "--output[SQLite database path (default\: \<log-dir\>\/audit_index.db)]:PATH:"
+  "--output[SQLite database path (default\: audit_index.db beside --log-file)]:PATH:"
   "--days[Index last N days only]:N:"
-  "--from[Start of index range]:ISO_TS:"
-  "--to[End of index range]:ISO_TS:"
-  "--rebuild[Rebuild index from scratch]"
-  "--incremental[Add only new entries since last index]"
+  "--from[Start of the time range, inclusive\: ISO-8601, or a bare date (its midnight). Times without an offset, and bare dates, are UTC]:ISO_TS:"
+  "--to[End of the time range, inclusive\: ISO-8601, or a bare date (the end of that day). Times without an offset, and bare dates, are UTC]:ISO_TS:"
+  "--incremental[Add only the entries after the last indexed one.]"
 )
 
 # guard to ensure default positional specs are added only once per session
@@ -874,8 +873,8 @@ _shtab_pm_audit_cli_orders_options=(
   "--gateway[Filter by gateway ID]:GW_ID:"
   "--symbol[Filter by symbol]:SYMBOL:"
   "--date[Read this trading day (session timezone)\: its archive, or its parts before it is archived]:YYYY-MM-DD:"
-  "--from[Start of time range]:ISO_TS:"
-  "--to[End of time range]:ISO_TS:"
+  "--from[Start of the time range, inclusive\: ISO-8601, or a bare date (its midnight). Times without an offset, and bare dates, are UTC]:ISO_TS:"
+  "--to[End of the time range, inclusive\: ISO-8601, or a bare date (the end of that day). Times without an offset, and bare dates, are UTC]:ISO_TS:"
   "--limit[Maximum rows (default\: 100)]:N:"
 )
 
@@ -892,8 +891,8 @@ _shtab_pm_audit_cli_stats_defaults_added=0
 
 _shtab_pm_audit_cli_timeline_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
-  "--from[Start time]:ISO_TS:"
-  "--to[End time]:ISO_TS:"
+  "--from[Start of the time range, inclusive\: ISO-8601, or a bare date (its midnight). Times without an offset, and bare dates, are UTC]:ISO_TS:"
+  "--to[End of the time range, inclusive\: ISO-8601, or a bare date (the end of that day). Times without an offset, and bare dates, are UTC]:ISO_TS:"
   "--topic[Filter by topic prefix]:PREFIX:"
   "--gateway[Filter by gateway]:GW_ID:"
   "--symbol[Filter by symbol]:SYMBOL:"
@@ -908,8 +907,8 @@ _shtab_pm_audit_cli_timeline_defaults_added=0
 _shtab_pm_audit_cli_topics_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
   "--date[Read this trading day (session timezone)\: its archive, or its parts before it is archived]:YYYY-MM-DD:"
-  "--from[Start of time range]:ISO_TS:"
-  "--to[End of time range]:ISO_TS:"
+  "--from[Start of the time range, inclusive\: ISO-8601, or a bare date (its midnight). Times without an offset, and bare dates, are UTC]:ISO_TS:"
+  "--to[End of the time range, inclusive\: ISO-8601, or a bare date (the end of that day). Times without an offset, and bare dates, are UTC]:ISO_TS:"
   "--prefix[Filter topics by prefix (e.g. order.)]:PREFIX:"
   "--sort[Sort by event count (default) or alphabetically]:sort:(count alpha)"
 )
@@ -927,8 +926,8 @@ _shtab_pm_audit_cli_trades_options=(
   "--max-price[Maximum trade price]:PRICE:"
   "--min-qty[Minimum trade quantity]:QTY:"
   "--date[Read this trading day (session timezone)\: its archive, or its parts before it is archived]:YYYY-MM-DD:"
-  "--from[Start of time range]:ISO_TS:"
-  "--to[End of time range]:ISO_TS:"
+  "--from[Start of the time range, inclusive\: ISO-8601, or a bare date (its midnight). Times without an offset, and bare dates, are UTC]:ISO_TS:"
+  "--to[End of the time range, inclusive\: ISO-8601, or a bare date (the end of that day). Times without an offset, and bare dates, are UTC]:ISO_TS:"
   "--limit[Maximum rows (default\: 100)]:N:"
   "--reverse[Show newest first]"
 )

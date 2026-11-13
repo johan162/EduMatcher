@@ -14,14 +14,39 @@
     - "Fix it and start pm-audit again before trading continues, if you can."
 
 - logger: edumatcher.audit.main
-  template: "failed to decode/log message: %s"
+  template: "failed to decode message: %s"
   level: WARNING
   explanation: >
-    A message on the bus could not be decoded or written, so it is missing
-    from the audit trail. pm-audit carries on with the next message.
+    A message on the bus could not be decoded, so it is missing from the
+    audit trail. pm-audit carries on with the next message. (A message that
+    could not be written is a different error: "audit write failed".)
   actions:
     - "Make sure every process runs the same EduMatcher release."
-    - "If it repeats, check the audit log disk with `pm-audit-cli health`."
+
+- logger: edumatcher.audit.main
+  template: "audit write failed; the lines are kept for the next try: %s"
+  level: ERROR
+  explanation: >
+    pm-audit could not write to, sync or close the audit log (disk full, I/O
+    error). The lines stay in memory and are written on a later try, about
+    every 300 ms; nothing is lost while pm-audit keeps running, but memory
+    grows until the write succeeds. Counted in `audit.write_errors`.
+  actions:
+    - "Check the audit log disk at once: `df -h` on the data directory."
+    - "Free space or fix the device; the next try writes the waiting lines."
+    - "Do not stop pm-audit while the error lasts: the waiting lines are only in memory."
+
+- logger: edumatcher.audit.main
+  template: "audit receive loop died; pm-audit stops"
+  level: CRITICAL
+  explanation: >
+    The loop that records the bus failed with an error it cannot recover
+    from (the traceback follows), so pm-audit exits with status 1 rather
+    than run on without recording. Nothing is recorded until it is started
+    again; the trail marks the restart with a recorder-start line.
+  actions:
+    - "Read the traceback."
+    - "Start pm-audit again (a supervisor does this on the non-zero exit)."
 
 - logger: edumatcher.audit.main
   template: "audit archiver exited %s: %s"
@@ -55,3 +80,13 @@
   actions:
     - "Read the error; disk space or permissions on the audit directory are typical (`df -h`)."
     - "Check with `pm-audit-cli health` that the error stops."
+
+- logger: edumatcher.audit.writer
+  template: "cannot sync %s: %s"
+  level: ERROR
+  explanation: >
+    The lines were written to the audit log but fsync failed, so a power
+    loss or kernel crash could still lose them. The sync is tried again;
+    a repeat failure is an "audit write failed" error.
+  actions:
+    - "Check the device with `dmesg` and `df -h`; an fsync error usually means a failing disk or a full or lost network mount."

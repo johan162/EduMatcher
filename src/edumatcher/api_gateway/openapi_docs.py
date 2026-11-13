@@ -1338,6 +1338,7 @@ ADMIN_ORDERS: dict[str, Any] = {
 }
 ADMIN_ORDER_LIFECYCLE: dict[str, Any] = {
     "order_id": _ORDER_1,
+    "indexed_through": "2026-08-29T15:10:41.207+00:00",
     "count": 2,
     "events": [
         {

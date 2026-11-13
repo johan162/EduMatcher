@@ -19,7 +19,11 @@ review of 2026-10-26. Their fixes are in place and are not repeated here.
 *(repro)* were reproduced with a scratch script against the tree at
 `649ed534`; the others are by inspection, with line numbers given.
 
-Status: **Open.** No WP started.
+Status: **Done (uncommitted).** WP-AUD01–08 completed 2026-11-13 in order,
+each test-first and verified with black/flake8/mypy/pyright and the full
+suite (last run: 13 967 passed). Decisions Q1–Q3 taken as recommended.
+Pending live checks: `--follow` CPU on a simulation trail (WP-AUD03) and a
+10-minute simulation run of the recorder (WP-AUD04).
 
 ---
 
@@ -49,14 +53,14 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit) �
 
 | # | WP | Content | Findings | Depends on | Est. | Status | Done on |
 |---|---|---|---|---|---|---|---|
-| 1 | WP-AUD01 | `file_day` reads the stamp, not the mtime | C2, D9 | — | 0.25 d | ☐ | |
-| 2 | WP-AUD02 | `orders` view and summaries match the wire spec | C6 | — | 0.5 d | ☐ | |
-| 3 | WP-AUD03 | `--follow`: no repeats, filters and range honoured, cheap polls | C3, C4, P1 | Q2 | 1 d | ☐ | |
-| 4 | WP-AUD04 | Recorder robustness: a dead receive loop ends the process; write errors counted | C5, C7, C13, P2, D10 | Q3 | 1 d | ☐ | |
-| 5 | WP-AUD05 | SQLite index: no duplicates, no silent staleness | C1, C10, D7 | Q1 | 1 d | ☐ | |
-| 6 | WP-AUD06 | `verify` reports, never crashes, never hides | C8, C9 | — | 0.25 d | ☐ | |
-| 7 | WP-AUD07 | Small items | C11, C12, P3 | — | 0.5 d | ☐ | |
-| 8 | WP-AUD08 | Comments, docstrings, help texts, operator guide | D1–D8 | WP-AUD01–07 | 0.5 d | ☐ | |
+| 1 | WP-AUD01 | `file_day` reads the stamp, not the mtime | C2, D9 | — | 0.25 d | ☑ | 2026-11-13 |
+| 2 | WP-AUD02 | `orders` view and summaries match the wire spec | C6 | — | 0.5 d | ☑ | 2026-11-13 |
+| 3 | WP-AUD03 | `--follow`: no repeats, filters and range honoured, cheap polls | C3, C4, P1 | Q2 | 1 d | ☑ | 2026-11-13 |
+| 4 | WP-AUD04 | Recorder robustness: a dead receive loop ends the process; write errors counted | C5, C7, C13, P2, D10 | Q3 | 1 d | ☑ | 2026-11-13 |
+| 5 | WP-AUD05 | SQLite index: no duplicates, no silent staleness | C1, C10, D7 | Q1 | 1 d | ☑ | 2026-11-13 |
+| 6 | WP-AUD06 | `verify` reports, never crashes, never hides | C8, C9 | — | 0.25 d | ☑ | 2026-11-13 |
+| 7 | WP-AUD07 | Small items | C11, C12, P3 | — | 0.5 d | ☑ | 2026-11-13 |
+| 8 | WP-AUD08 | Comments, docstrings, help texts, operator guide | D1–D8 | WP-AUD01–07 | 0.5 d | ☑ | 2026-11-13 |
 
 Suggested order: **WP-AUD01 → WP-AUD02 → WP-AUD06 → WP-AUD04 → WP-AUD03 →
 WP-AUD05 → WP-AUD07 → WP-AUD08**. WP-AUD01, 02 and 06 are small, isolated
@@ -360,9 +364,10 @@ row. `collections.deque(maxlen=limit)` bounds both.
 | D10 | `main.py:556` | "EINTR — honour _running flag" above an unconditional `break` (fixed with C5). |
 
 Also for WP-AUD08: the operator guide's audit chapters
-(`part-6-observe-and-recover/020-audit-trail.md`, `080-index-administration.md`,
+(`part-6-observe-and-recover/020-audit-trail.md` and the
 `050-api-gateway.md` troubleshooting row) must describe the index as
-decided in Q1 and `--follow` as decided in Q2.
+decided in Q1 and `--follow` as decided in Q2. (`080-index-administration.md`,
+named here first, is about pm-index, not the audit index.)
 
 ---
 
@@ -435,6 +440,17 @@ when no entry follows. Fix the docstring.
 
 **Exit criteria.** Tests 1–5 pass; `tests/test_audit_*.py` green.
 
+**Outcome (2026-11-13).** `file_day` skips every leading `#` line and
+returns `None` for a file of comments only; docstring rewritten (D9). Tests:
+`test_the_day_reads_past_the_recorder_start_marker_not_the_mtime`,
+`test_a_file_of_comment_lines_only_holds_no_day`,
+`test_start_up_closes_a_marked_day_whose_mtime_is_past_midnight`
+(`test_audit_writer.py`) and
+`test_a_marked_active_log_is_dated_by_its_stamp_not_its_mtime`
+(`test_audit_archive.py`); all four failed first. `discover_day_files`
+shares the fix (same function), so no separate test 5 for `--date`.
+Full suite: 13 920 passed.
+
 ### WP-AUD02 — `orders` view and summaries match the spec (C6)
 
 **Goal.** Every column of `orders`, and `events`' summary, reads the field
@@ -464,6 +480,16 @@ in both `query_orders` and `_entry_to_row`. Per-topic field selection
 **Exit criteria.** Tests 1–6 pass; `orders --id X` on a simulation trail
 shows one readable lifecycle.
 
+**Outcome (2026-11-13).** `query.event_name(topic)` (the registry kind's
+last word) feeds `orders`' event column and the index's `event_type`.
+`_order_qty_price` picks (qty, price) per kind: fills `fill_qty`/`fill_price`,
+ack and amend `qty`/`price`, otherwise `quantity`/`qty`/`remaining_qty`
+with a 0 kept; `_display_price` turns `price_ticks` into money when no
+`price` is carried. An ack's status is ACCEPTED/REJECTED from `accepted`;
+a MARKET `order.new` summary has no `@`. Tests: `TestOrdersViewMatchesSpec`
+(8 tests, 7 failed first) and the tightened `test_event_column` (it accepted
+`GW01` as an event). Full suite: 13 928 passed.
+
 ### WP-AUD06 — `verify` reports, never crashes, never hides (C8, C9)
 
 **Tests first** (`tests/test_audit_manifest.py`):
@@ -481,6 +507,16 @@ shows one readable lifecycle.
 `manifest.py:193`.
 
 **Exit criteria.** Tests pass; `tests/test_audit_archive*.py` green.
+
+**Outcome (2026-11-13).** `read_entries` keeps JSON objects only (so
+`_handle_verify`, `record_day` and `record_retired` never see a list);
+`verify` says "not a JSON object (edited)" apart from "not valid JSON (torn
+or edited)"; a missing archive is reported whatever parts the day has, with
+a comment saying why that is never legitimate. Tests:
+`test_a_missing_archive_is_reported_though_the_day_has_parts`,
+`test_a_json_line_that_is_no_object_is_reported_and_skipped`,
+`test_a_non_object_line_fails_without_a_traceback`; all failed first.
+Full suite: 13 957 passed.
 
 ### WP-AUD04 — Recorder robustness (C5, C7, C13, P2, D10; after Q3)
 
@@ -521,6 +557,36 @@ dashboard spec if the audit tile lists metrics.
 `tests/test_monitor*` green; a 10-minute simulation run shows the same
 `audit.records` as before and no `decode_errors`.
 
+**Outcome (2026-11-13).** Q3 taken as recommended.
+- **Loop.** `_receive` runs `_tick` (day check, archiver, poll, receive,
+  interval flush, quiet-tail sync) and catches `OSError` around it into
+  `audit.write_errors` + ERROR; EINTR `continue`s (D10). The thread target
+  `_receive_or_log` logs CRITICAL when anything else escapes; `run()` loops
+  while `_running and t.is_alive()` and returns 1 for a dead loop, and
+  `main()` exits 1.
+- **No timer (P2).** `_first_buffered_at` + `_flush_if_due` in the loop
+  replace `threading.Timer`; the size flush stays in `_add_to_buffer`, after
+  the line is buffered, and `_receive_one_message`'s `except` now covers
+  decoding only (its message became "failed to decode message").
+- **No duplicates (C7).** `_flush_locked` drops only the day groups it
+  wrote; `AuditFile.write` truncates a torn write back to the last whole
+  one (`_undo_partial_write`) and announces the marker only once it is
+  written; an fsync failure after a whole write is logged, not raised (the
+  lines are in the file), and the loop's `sync_if_due` retries and counts it.
+- **Archiver (C13).** `TemporaryFile` is inside the guarded start
+  (`_start_archiver`); the child's `ARCHIVE_BUSY_LINE` re-arms
+  `_archive_wanted` with a 60 s back-off (`_archive_not_before`).
+- **Monitoring.** `audit.write_errors` is a counter, a watched increase
+  (`audit_write_errors` in `WATCHED_INCREASES`, dash-gui `FIXED_RULES`, the
+  health-monitor chapter's threshold table, the health-contract owners) and
+  a sim-forensics loss counter. Four log-ledger entries added or rewritten.
+- **Tests.** `TestWriteErrors`, `TestDeadLoop`, `TestIntervalFlush`
+  (`test_audit_main_runtime.py`), two archiver tests, the torn-write and
+  failed-sync writer tests; the fakes that ended the loop by raising EINTR
+  now stop the process instead, the timer test is gone, and the e2e tests
+  no longer cancel a timer. Full suite: 13 948 passed. **Pending:** the
+  10-minute simulation run.
+
 ### WP-AUD03 — `--follow` (C3, C4, P1; after Q2)
 
 **Tests first** (`tests/test_audit_cli.py`, `TestCliFollow`):
@@ -548,6 +614,21 @@ helper).
 **Exit criteria.** Tests 1–6 pass; `events -f` on a simulation trail uses
 under 5 % CPU between bursts.
 
+**Outcome (2026-11-13).** Q2 taken as recommended. `iter_entries` counts
+`after_skip` ties among entries that pass the filters, and skips a line
+stamped below `after_ts`/`from_dt` before parsing when the stamp is in the
+recorder's `+00:00` form. `query_events`/`query_timeline` gained `tail`
+(a bounded deque; `events --reverse` uses the same deque, so P3 is done for
+`events`). The CLI's follow cursor is `_advance`: the newest of the old
+point, the last printed row and the trail's newest stamp (`_trail_end`, read
+from the file tail before each fetch, and before the first query), with ties
+counted across polls. That last part fixes a second repeat: two polls
+ending on the same millisecond reset the count. `_follow_fetch` passes
+`--from`/`--to`. D5's stale comment went with the rewrite. Tests:
+`TestFollowResume` (7 tests, all failed first, one by a test bug since
+fixed). Full suite: 13 935 passed. **Pending:** the CPU check on a live
+simulation trail (no local trail in this checkout).
+
 ### WP-AUD05 — SQLite index (C1, C10, D7; after Q1)
 
 **Tests first** (`tests/test_audit_cli.py`, index section;
@@ -574,6 +655,30 @@ the bare `except`. Fix the two help texts (D7).
 
 **Exit criteria.** Tests 1–5 pass; api-gwy admin tests green.
 
+**Outcome (2026-11-13).** Q1 taken as recommended.
+- `build_index` replaces every row unless `incremental`; `--rebuild` is
+  gone. `--incremental` resumes with `iter_entries`' `after_ts`/`after_skip`
+  (the newest indexed stamp and its row count), so lines of the last
+  indexed millisecond flushed after the build are added once (C10). No
+  uniqueness key was needed.
+- `pm-audit-cli events` uses an index only with `--use-index` (not with
+  `--follow` or `--date`), prints `[INDEX] <path> reaches up to <stamp>` to
+  stderr, builds its rows with `query.event_row` (so the summary is
+  `_summarise`'s), and exits 1 on an unreadable index instead of falling
+  back silently. `query_index_events --gateway` matches buyer and seller
+  (`json_extract`). Help texts fixed (D7).
+- `indexer.indexed_through(conn)`; pm-api-gwy's lifecycle response carries
+  `indexed_through` (`OrderAudit`, OpenAPI example, `spec/rest/openapi.json`
+  regenerated) and the 404 message names it.
+- Shell completions regenerated (`--rebuild` gone).
+- Tests: 4 indexer tests, `test_index_twice_holds_each_line_once`,
+  `test_events_ignore_an_index_they_were_not_given`,
+  `TestCliUseIndexMatchesTheTrail` (3), one api-gwy test plus an assertion
+  in the lifecycle contract test; the tests that pinned `--rebuild` and
+  auto-detection were replaced. All failed first. Full suite: 13 954 passed.
+- Not done here: trader-gui's admin order modal shows its own 404 text
+  without the index's reach (For-Later L018).
+
 ### WP-AUD07 — Small items (C11, C12, P3)
 
 **Tests first:**
@@ -594,6 +699,24 @@ in `query_events` and `query_trades`. Remove `date_to_range` and the dead
 
 **Exit criteria.** Tests pass; `tests/test_audit_*.py` green.
 
+**Outcome (2026-11-13).**
+- C11: `rawlines.lines` gives `""` for a line without `chain=`
+  (`tests/test_audit_rawlines.py`, new).
+- C12 as recommended: `parse_ts(..., end_of_day=True)` for every `--to`
+  (`_resolve_time_range`, now also used by `index`), so a bare date in
+  `--to` includes that day; one `FROM_HELP`/`TO_HELP` on all seven
+  subcommands says bare dates and offset-less times are UTC. zsh completion
+  regenerated (it carries the help).
+- P3: `query_trades` stops at the first `limit` rows (`islice`) and keeps
+  only `limit` for `--reverse` (`deque`); `events` got the same in WP-AUD03.
+- Not done: removing `date_to_range` and the `date_str` parameters that
+  only tests reach (the CLI clears `args.date` first). It is pre-existing
+  dead code, and removing it would rewrite about ten tests with no change in
+  behaviour; left for a cleanup pass.
+- Tests: `TestBareDateRange` (3), `TestTradesStayBounded` (2), two rawlines
+  tests; six failed first (one passed for the right reason: a chain
+  present). Full suite: 13 964 passed.
+
 ### WP-AUD08 — Comments, docstrings, help texts (D1–D8)
 
 **Change.** Fix D1–D6 and D8 as listed in §5; update the operator guide
@@ -605,11 +728,38 @@ in `src/edumatcher/audit/*.py` against the code finds nothing stale.
 
 ---
 
+**Outcome (2026-11-13).**
+- Guards first (`TestModuleDocs`, three tests, all failed first): the CLI
+  docstring lists every subcommand (it lacked `verify`); no audit module
+  calls the trail JSONL; every line-format example in `main.py`/`query.py`
+  parses and shows the `+00:00` stamp and the meta section (the examples
+  had neither, and their payloads were not JSON).
+- D1–D4, D6, D8 fixed: `main.py` docstring (format, `--fsync-interval`,
+  write errors and exit 1, the archiver deleting parts), `query.py` and
+  `cli.py` docstrings, the parser description, `--no-header`'s help, the
+  `on_step` list. D5, D7, D9, D10 were fixed in their WPs.
+- Books: `020-audit-trail.md` (write buffering and write errors, what can be
+  lost, shutdown and exit 1, global options, time-range semantics, the
+  `--use-index` note, follow mode, the `orders` columns, which the guide had
+  documented with the gateway-ID bug, the `index` section without
+  `--rebuild` and auto-detection, the cookbook, exit codes, no "JSONL");
+  the reference manual's pm-audit section (the format, `--fsync-interval`,
+  "rotate at 10 MB with 5 backups" replaced by the day parts) and
+  pm-audit-cli table (`--use-index`, `index` flags, `verify` row, no-row
+  text, time ranges, follow); `050-api-gateway.md` (`indexed_through`, a
+  404 troubleshooting row); `060-health-monitor.md` got `audit_write_errors`
+  in WP-AUD04. `mkdocs build` clean; zsh completion regenerated.
+- Not changed: the design docs (`EduMatcher-audit-cli.md` still describes
+  index auto-detection); they record the original design.
+- Full suite: 13 967 passed.
+
 ## 9. Out of scope, noted
 
 - `health -q` exits with `-1` (status 255) where the non-quiet path exits 1.
   The same pattern is in `clearing/cli.py`, `index/cli.py` and
   `stats/cli.py`; recorded as L017 in `EduMatcher-For-Later-ToDo.md`.
+- trader-gui's admin order modal ignores `indexed_through` (L018, found in
+  WP-AUD05).
 - The recorder re-encodes each payload with `json.dumps` after decoding it;
   the trail holds an equivalent, not byte-identical, payload. Fine for every
   current reader; worth a sentence in the audit-trail chapter if anyone

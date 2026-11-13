@@ -182,6 +182,7 @@ and nothing is MISSING.
 | `loop_age_ms` (fixed) | a process | > 1 000 ms | (HUNG) |
 | `slow_client_disconnects`, `api_dropped_events`, `api_throttled`, `stats_feed_gaps` (fixed) | a process | any increase in 5 min | — |
 | `audit_archive_errors` (fixed) — `pm-audit`'s archiver exited with an error | `pm-audit` | any increase in 5 min | — |
+| `audit_write_errors` (fixed) — `pm-audit` could not write the trail (disk full, I/O error); the lines wait in memory and are retried every 300 ms | `pm-audit` | any increase in 5 min | — |
 | `metrics_store_errors` (fixed) — history `pm-monitor` could not write | `pm-monitor` | any increase in 5 min | — |
 
 `reject_pct_5m` does not count requests the engine refused as

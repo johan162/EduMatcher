@@ -168,3 +168,36 @@ def test_a_real_archiver_replaces_the_closed_day_with_one_zst(
     assert _sample(proc, "audit.archives") == 1
     assert _sample(proc, "audit.archive_errors") == 0
     proc._file.close()
+
+
+def test_a_temp_file_that_cannot_be_made_is_an_archive_error(tmp_path: Path) -> None:
+    proc, spawned = _process(tmp_path)
+    _cross_midnight(proc)
+    with patch(
+        "edumatcher.audit.main.tempfile.TemporaryFile", side_effect=OSError("no")
+    ):
+        proc._service_archiver()
+    assert _sample(proc, "audit.archive_errors") == 1 and spawned == []
+    proc._file.close()
+
+
+def test_a_busy_lock_asks_for_another_run_later(tmp_path: Path) -> None:
+    """A manual run held the lock: the closed day is not forgotten (C13)."""
+    from edumatcher.audit.archive import ARCHIVE_BUSY_LINE
+
+    proc, spawned = _process(tmp_path, f"print({ARCHIVE_BUSY_LINE!r})")
+    _cross_midnight(proc)
+    proc._service_archiver()
+    _wait(proc)
+    assert proc._archive_wanted is True
+    proc._service_archiver()  # not at once: the manual run may still hold it
+    assert len(spawned) == 1
+    proc._archive_not_before = 0.0
+    proc._service_archiver()
+    assert len(spawned) == 2
+    _wait(proc)
+    proc._file.close()
+
+
+def test_write_errors_are_a_watched_monitor_increase() -> None:
+    assert WATCHED_INCREASES["audit.write_errors"] == "audit_write_errors"

@@ -463,6 +463,13 @@ class AuditEvent(BaseModel):
 
 class OrderAudit(_Counted):
     order_id: str
+    indexed_through: str | None = Field(
+        description=(
+            "Stamp of the newest line in the audit index, which is built by "
+            "hand (`pm-audit-cli index`): later events are not in `events` yet. "
+            "Null when the index records none."
+        )
+    )
     events: list[AuditEvent] = Field(description="Oldest first.")
 
 

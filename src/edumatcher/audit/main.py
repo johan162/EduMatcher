@@ -3,12 +3,13 @@ Audit Process — records every event in the system to a day-closing log file.
 
 Usage:
   poetry run pm-audit [--audit-log-file data/audit.log] [--terminal] [--buffer-size 100] [--flush-interval 10]
-                      [--max-file-mb 10]
+                      [--max-file-mb 10] [--keep-days 0] [--fsync-interval 1]
 
-Subscribes to ALL topics (empty filter) and appends each event as a
-single JSON line:
+Subscribes to ALL topics (empty filter) and appends each event as one line:
+its receive time (UTC, milliseconds), its topic, its sequence and causal
+envelope, and its payload as JSON:
 
-  [2026-04-29T14:32:01.123] [trade.executed] {"id": "...", ...}
+  [2026-04-29T14:32:01.123+00:00] [trade.executed] [seq=12 eseq=4711 msg=01J… cause=01J… chain=01J…] {"id": "000001-000000042", "symbol": "AAPL"}
 
 Binds (AUDIT_HEALTH_BIND_ADDR, a REP socket):
   answers `pm-audit-cli health`'s ping with the current UTC time, proving the
@@ -19,16 +20,22 @@ Options
   --audit-log-file Path to the audit-trail log file (default: data/audit.log)
   --terminal       Also print each entry to stdout
   --buffer-size    Number of messages to buffer before writing to disk (default: 100)
-  --flush-interval Maximum seconds to wait before flushing buffer (default: 10)
+  --flush-interval Maximum seconds a buffered message waits for the disk (default: 10)
   --max-file-mb    Close the audit log as a day part at this size in MB (default: 10)
   --keep-days      Delete archives older than N days (default: 0 = keep all)
+  --fsync-interval Sync the active file to disk at most this often (default: 1)
+
+A write that fails (disk full, I/O error) keeps its lines in memory, counts
+``audit.write_errors`` and is retried on the next pass of the receive loop.
+A receive loop that dies of anything else ends the process with status 1.
 
 The active file holds one trading day (midnight in the engine config's
 ``locale.session_timezone``, by each line's receive time).  At the date change
 or at --max-file-mb it is closed as ``audit/audit-YYYY-MM-DD.N.log`` beside
 it.  Closed days are compressed to ``audit-YYYY-MM-DD.log.zst`` by a child
-``pm-audit-cli archive --pending`` (at start-up and after each day closes);
-only --keep-days ever deletes anything, and only archives.
+``pm-audit-cli archive --pending`` (at start-up and after each day closes),
+which deletes a day's parts only once its archive is verified; beyond that,
+only --keep-days deletes anything, and only archives.
 
 This process's own *operational* logging (``log.info(...)``/``log.warning(...)``
 calls below, distinct from the audit trail above) is sent to ``pm-log-srv``
@@ -54,14 +61,14 @@ import threading
 import time
 from datetime import datetime, timezone, tzinfo
 from pathlib import Path
-from typing import IO, Callable
+from typing import IO, Any, Callable
 
 import zmq
 
 from edumatcher.config_artifact import exit_on_config_error
 from edumatcher.health import HealthReporter, counter, gauge
 from edumatcher.models.generated.health import MetricSample
-from edumatcher.audit.archive import parse_ratio, session_timezone
+from edumatcher.audit.archive import ARCHIVE_BUSY_LINE, parse_ratio, session_timezone
 from edumatcher.audit.writer import AuditFile
 from edumatcher.config import AUDIT_HEALTH_BIND_ADDR, AUDIT_LOG_FILE, ENGINE_PUB_ADDR
 from edumatcher.log_srv.config import (
@@ -102,6 +109,9 @@ _DEFAULT_FSYNC_INTERVAL = 1.0
 _DEBUG_SUMMARY_INTERVAL_SEC = 5.0
 #: How often the receive loop looks for a day that ended without a line.
 _DAY_CHECK_INTERVAL_SEC = 1.0
+#: How long to wait before asking again when the archiver found the lock
+#: held by a manual ``pm-audit-cli archive``.
+_ARCHIVE_RETRY_SEC = 60.0
 
 log = logging.getLogger(__name__)
 
@@ -293,6 +303,8 @@ class AuditProcess:
         # Archiving: a child process, so compression stays off this process's
         # GIL and CPU and a crash in it cannot take the recorder down.
         self._archive_wanted = False
+        #: Monotonic time before which no archiver is started (a busy lock).
+        self._archive_not_before = 0.0
         self._archiver: subprocess.Popen[str] | None = None
         #: The running archiver's (stdout, stderr).
         self._archiver_output: tuple[IO[str], IO[str]] | None = None
@@ -322,6 +334,9 @@ class AuditProcess:
         self._records = 0
         self._bytes = 0
         self._decode_errors = 0
+        #: Flushes, syncs and day closes that failed; their lines stay
+        #: buffered and are written by a later try.
+        self._write_errors = 0
         #: Engine messages the recorder can prove it missed: the jumps in the
         #: socket-wide sequence (``eseq``).  A restarted engine begins again
         #: at 1 and is not a miss; a drop at the high-water mark is.
@@ -348,9 +363,12 @@ class AuditProcess:
         self.flush_interval = flush_interval
         # (session-timezone date of receipt, line)
         self._buffer: list[tuple[str, str]] = []
+        #: Serialises the buffer and the file between the receive thread and
+        #: run()'s final flush, should the thread outlive its join.
         self._buffer_lock = threading.Lock()
-        self._last_flush_time = time.time()
-        self._flush_timer: threading.Timer | None = None
+        #: Monotonic arrival of the oldest buffered line (None when empty):
+        #: it waits at most flush_interval.
+        self._first_buffered_at: float | None = None
         self._debug_counts: defaultdict[str, int] = defaultdict(int)
         self._debug_last_summary = time.monotonic()
         self._last_day_check = time.monotonic()
@@ -409,15 +427,28 @@ class AuditProcess:
     def _flush_locked(self) -> None:
         if self._buffer:
             flushed = len(self._buffer)
-            # Consecutive lines of one day go out in one write; a flush
-            # that straddles midnight is split at the date change.
-            for day, group in groupby(self._buffer, key=itemgetter(0)):
-                lines = [line for _, line in group]
-                self._file.write(day, lines)
-            self._buffer.clear()
-            self._last_flush_time = time.time()
+            written = 0
+            try:
+                # Consecutive lines of one day go out in one write; a flush
+                # that straddles midnight is split at the date change.
+                for day, group in groupby(self._buffer, key=itemgetter(0)):
+                    lines = [line for _, line in group]
+                    self._file.write(day, lines)
+                    written += len(lines)
+            finally:
+                # A failed write leaves its lines (and the days after it)
+                # for the next flush; those already written are not repeated.
+                del self._buffer[:written]
+            self._first_buffered_at = None
             self._dbg_count("flush_calls")
             self._dbg_count("lines_flushed", flushed)
+
+    def _flush_if_due(self) -> None:
+        """Flush when the oldest buffered line has waited flush_interval."""
+        with self._buffer_lock:
+            first = self._first_buffered_at
+            if first is not None and time.monotonic() - first >= self.flush_interval:
+                self._flush_locked()
 
     def _close_ended_day(self) -> None:
         """Close the active file if it holds a day that has ended.
@@ -477,28 +508,39 @@ class AuditProcess:
                     self._archives += 1
                     self._archive_ratio = ratio
                     log.info("audit archive: %s", line.strip())
-        if self._archive_wanted and self._archiver is None:
+                elif line.strip() == ARCHIVE_BUSY_LINE:
+                    # A manual run held the lock: the day that closed is
+                    # still to archive; ask again once it has likely finished.
+                    self._archive_wanted = True
+                    self._archive_not_before = time.monotonic() + _ARCHIVE_RETRY_SEC
+        if (
+            self._archive_wanted
+            and self._archiver is None
+            and time.monotonic() >= self._archive_not_before
+        ):
             self._archive_wanted = False
+            self._start_archiver()
+
+    def _start_archiver(self) -> None:
+        output: list[IO[str]] = []
+        try:
             # Unlinked temp files, not pipes: a child that outlives this
             # process (shutdown does not stop it) can still print its result,
             # and its output is read only once it has exited.
-            self._archiver_output = (
-                tempfile.TemporaryFile("w+"),
-                tempfile.TemporaryFile("w+"),
+            output = [tempfile.TemporaryFile("w+"), tempfile.TemporaryFile("w+")]
+            self._archiver = subprocess.Popen(
+                self._archiver_command(),
+                stdout=output[0],
+                stderr=output[1],
+                text=True,
             )
-            try:
-                self._archiver = subprocess.Popen(
-                    self._archiver_command(),
-                    stdout=self._archiver_output[0],
-                    stderr=self._archiver_output[1],
-                    text=True,
-                )
-            except OSError as exc:
-                for fh in self._archiver_output:
-                    fh.close()
-                self._archiver_output = None
-                self._archive_errors += 1
-                log.error("cannot start the audit archiver: %s", exc)
+        except OSError as exc:
+            for fh in output:
+                fh.close()
+            self._archive_errors += 1
+            log.error("cannot start the audit archiver: %s", exc)
+            return
+        self._archiver_output = (output[0], output[1])
 
     @staticmethod
     def _read_archiver_output(fh: IO[str]) -> str:
@@ -506,34 +548,24 @@ class AuditProcess:
             fh.seek(0)
             return fh.read()
 
-    def _schedule_flush(self) -> None:
-        """Schedule a flush after flush_interval seconds."""
-        if self._flush_timer is not None:
-            self._flush_timer.cancel()
-        self._flush_timer = threading.Timer(self.flush_interval, self._flush_buffer)
-        self._flush_timer.daemon = True
-        self._flush_timer.start()
-        self._dbg_count("flush_timer_scheduled")
-
     def _add_to_buffer(self, day: str, line: str) -> None:
-        """Add a line to the buffer and flush if needed."""
+        """Add a line to the buffer; flush once it holds buffer_size lines.
+
+        The line is buffered before any flush, so a failing flush (OSError,
+        raised to the caller) loses nothing.  The interval flush is the
+        receive loop's (``_flush_if_due``).
+        """
         if self._to_terminal:
             # At once, not at the next flush: a watcher should not wait up to
             # flush_interval seconds to see what just happened.
             print(line, flush=True)
         with self._buffer_lock:
             self._buffer.append((day, line))
-            buffer_len = len(self._buffer)
+            if self._first_buffered_at is None:
+                self._first_buffered_at = time.monotonic()
+            if len(self._buffer) >= self.buffer_size:
+                self._flush_locked()
         self._dbg_count("messages_buffered")
-
-        # Check if we need to flush based on buffer size
-        if buffer_len >= self.buffer_size:
-            self._flush_buffer()
-            # Reschedule the timer since we just flushed
-            self._schedule_flush()
-        elif buffer_len == 1:
-            # First message in buffer, start the flush timer
-            self._schedule_flush()
 
     def _receive(self) -> None:
         poller = zmq.Poller()
@@ -544,27 +576,49 @@ class AuditProcess:
         while self._running:
             if reporter is not None:
                 reporter.tick_and_publish(self.metric_samples)
-            if time.monotonic() - self._last_day_check >= _DAY_CHECK_INTERVAL_SEC:
-                self._last_day_check = time.monotonic()
-                self._close_ended_day()
-                self._service_archiver()
             try:
-                socks = dict(poller.poll(timeout=_POLL_TIMEOUT_MS))
-            except zmq.ZMQError as exc:
-                if exc.errno != errno.EINTR:
-                    raise
-                break  # EINTR — honour _running flag
+                socks = self._tick(poller)
+            except OSError as exc:
+                # Disk full, EIO: the lines stay buffered and the next tick
+                # tries again. Anything else ends the loop, and run() the
+                # process, so a supervisor can restart it.
+                self._write_error(exc)
+                continue
+            if socks is None:
+                continue  # EINTR: the loop condition says whether to go on
             if self.health_rep in socks:
                 answer_health_ping(self.health_rep)
-            if self.sub in socks:
-                self._receive_one_message()
-            if self._file.sync_due():
-                # A quiet spell: no write comes to sync the last lines.
-                with self._buffer_lock:
-                    self._file.sync_if_due()
         self._drain()
 
+    def _tick(self, poller: zmq.Poller) -> dict[Any, int] | None:
+        """One pass of the receive loop; None when the poll was interrupted."""
+        if time.monotonic() - self._last_day_check >= _DAY_CHECK_INTERVAL_SEC:
+            self._last_day_check = time.monotonic()
+            self._close_ended_day()
+            self._service_archiver()
+        try:
+            socks = dict(poller.poll(timeout=_POLL_TIMEOUT_MS))
+        except zmq.ZMQError as exc:
+            if exc.errno != errno.EINTR:
+                raise
+            return None
+        if self.sub in socks:
+            self._receive_one_message()
+        self._flush_if_due()
+        if self._file.sync_due():
+            # A quiet spell: no write comes to sync the last lines.
+            with self._buffer_lock:
+                self._file.sync_if_due()
+        return socks
+
+    def _write_error(self, exc: OSError) -> None:
+        self._write_errors += 1
+        log.error("audit write failed; the lines are kept for the next try: %s", exc)
+
     def _receive_one_message(self) -> None:
+        """Record one message.  A message that cannot be decoded is counted
+        and skipped; an OSError from a size flush is raised to the caller,
+        with the line already buffered."""
         frames = self.sub.recv_multipart()
         try:
             topic, payload = decode(frames)
@@ -582,14 +636,15 @@ class AuditProcess:
                 line = f"[{ts}] [{topic}] {json.dumps(payload)}"
             else:
                 line = f"[{ts}] [{topic}] [{meta}] {json.dumps(payload)}"
-            self._add_to_buffer(day, line)
-            self._records += 1
-            self._bytes += len(line) + 1  # the newline written with it
         except Exception as exc:
             # Never let a single bad message kill the receive loop
             self._dbg_count("decode_errors")
             self._decode_errors += 1
-            log.warning("failed to decode/log message: %s", exc)
+            log.warning("failed to decode message: %s", exc)
+            return
+        self._records += 1
+        self._bytes += len(line) + 1  # the newline written with it
+        self._add_to_buffer(day, line)
 
     def _note_eseq(self, topic: str, eseq: int | None) -> None:
         if eseq is None:
@@ -617,15 +672,28 @@ class AuditProcess:
         deadline = time.monotonic() + _DRAIN_SEC
         while not self._eod_seen and time.monotonic() < deadline:
             if self.sub.poll(timeout=50):
-                self._receive_one_message()
+                try:
+                    self._receive_one_message()
+                except OSError as exc:
+                    self._write_error(exc)
 
-    def run(self) -> None:
+    def _receive_or_log(self) -> None:
+        """The receive thread: a loop that dies says so in the operational
+        log (the default thread hook writes only to stderr)."""
+        try:
+            self._receive()
+        except Exception:
+            log.critical("audit receive loop died; pm-audit stops", exc_info=True)
+
+    def run(self) -> int:
+        """Record until stopped; the exit status is 1 when the receive loop
+        died rather than being stopped."""
         signal.signal(signal.SIGINT, lambda *_: self._stop())
         signal.signal(signal.SIGTERM, lambda *_: self._stop())
 
         # Catch up on days closed while pm-audit was down or whose archive failed.
         self._archive_wanted = True
-        t = threading.Thread(target=self._receive, daemon=True)
+        t = threading.Thread(target=self._receive_or_log, daemon=True)
         t.start()
         log.info(
             "starting audit runtime log_file=%s terminal=%s buffer_size=%d flush_interval=%ss pub=%s health=%s",
@@ -637,16 +705,17 @@ class AuditProcess:
             AUDIT_HEALTH_BIND_ADDR,
         )
         log.info("pm-audit waiting for pm-engine events")
+        died = False
         try:
-            while self._running:
-                t.join(timeout=_JOIN_POLL_SEC)  # re-check _running every 500 ms
+            # Re-check _running every 500 ms; a loop that died ends it too.
+            while self._running and t.is_alive():
+                t.join(timeout=_JOIN_POLL_SEC)
+            died = self._running
         finally:
             # The receive loop stops first (draining up to _DRAIN_SEC for the
             # engine's system.eod), so no line arrives after the last flush
             # or is written to the closed file.
             t.join(timeout=_DRAIN_SEC + 1.0)
-            if self._flush_timer is not None:
-                self._flush_timer.cancel()
             self._flush_buffer()
             self._file.close()
             self._flush_debug_summary(force=True)
@@ -655,6 +724,7 @@ class AuditProcess:
             self.sub.close()
             self.health_rep.close()
             log.info("audit process shutdown complete")
+        return 1 if died else 0
 
     def _stop(self) -> None:
         self._running = False
@@ -670,6 +740,7 @@ class AuditProcess:
             counter("audit.records", self._records),
             counter("audit.bytes", self._bytes),
             counter("audit.decode_errors", self._decode_errors),
+            counter("audit.write_errors", self._write_errors),
             counter("audit.missed_messages", self._missed),
             counter("audit.sequence_discontinuities", self._sequence_discontinuities),
             counter("audit.archives", self._archives),
@@ -727,7 +798,8 @@ def main() -> None:
     reporter = HealthReporter.start_from_compiled_config(_CLIENT_NAME)
     if reporter is not None:
         process.attach_reporter(reporter)
-    process.run()
+    if process.run() != 0:
+        sys.exit(1)
 
 
 if __name__ == "__main__":

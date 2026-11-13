@@ -14,6 +14,7 @@ Readers skip it: it does not start with ``[`` (``query.parse_line``).
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import os
 import re
@@ -33,15 +34,18 @@ log = logging.getLogger(__name__)
 
 
 def file_day(path: Path, tz: tzinfo) -> str | None:
-    """Session date of an audit file, from its first line's stamp (None if empty).
+    """Session date of an audit file, from its first record's stamp (None if
+    it holds no record).
 
-    Every line of ``audit.log`` was received on one day, so the first line
-    after the header names it.
+    Every line of ``audit.log`` was received on one day, so the first record
+    names it.  It follows the comment lines: the header, and a recorder-start
+    marker when a started recorder began the file.  The mtime is used only
+    when that record's stamp does not parse.
     """
     try:
         with path.open("rb") as fh:
             first = fh.readline().decode("utf-8", errors="replace")
-            if first.startswith("#"):
+            while first.startswith("#"):
                 first = fh.readline().decode("utf-8", errors="replace")
     except FileNotFoundError:
         return None
@@ -122,17 +126,37 @@ class AuditFile:
             self._day = day
         if self._announce_start:
             lines = [recorder_start_line(), *lines]
-            self._announce_start = False
         if self._size == 0:
             lines = [header_line(), *lines]
         data = ("\n".join(lines) + "\n").encode("utf-8")
-        self._fh.write(data)
-        self._fh.flush()
+        try:
+            self._fh.write(data)
+            self._fh.flush()
+        except OSError:
+            self._undo_partial_write()
+            raise
+        self._announce_start = False
         self._unsynced = True
-        self.sync_if_due()
         self._size += len(data)
+        try:
+            self.sync_if_due()
+        except OSError as exc:
+            # The lines are written: raising would make the caller write them
+            # again. The sync stays due; the recorder's loop retries it with
+            # sync_if_due and counts a failure there.
+            log.error("cannot sync %s: %s", self._path, exc)
         if self._size >= self._max_bytes:
             self._try_roll()
+
+    def _undo_partial_write(self) -> None:
+        """Cut ``audit.log`` back to its last whole write, so a retry of the
+        failed lines (the caller keeps them) does not repeat a torn part."""
+        try:
+            with contextlib.suppress(OSError):
+                self._fh.close()  # flushing what is buffered may fail again
+            os.truncate(self._path, self._size)
+        finally:
+            self._fh = self._path.open("ab")
 
     def sync_due(self) -> bool:
         """Whether written lines wait for an fsync that is due.  Reads two

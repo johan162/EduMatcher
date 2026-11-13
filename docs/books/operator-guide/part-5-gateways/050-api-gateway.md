@@ -595,9 +595,12 @@ sources:
     It opens **`audit_index.db` read-only** (`api_gateways[].audit_db`): the
     only store the gateway reads but does not own. The dependency is optional:
     without `pm-audit` or its index, that one route answers
-    `503 AUDIT_INDEX_UNAVAILABLE` and every other route is unaffected. See
+    `503 AUDIT_INDEX_UNAVAILABLE` and every other route is unaffected. The
+    index is a snapshot as of its last `pm-audit-cli index` run: the response's
+    `indexed_through` says how far it reaches, and a `404 UNKNOWN_ORDER`
+    names it. See
     [Audit Trail](../part-6-observe-and-recover/020-audit-trail.md) for building
-    the index.
+    and refreshing the index.
 
 ### Order cache retention
 
@@ -856,6 +859,7 @@ curl -v --no-buffer \
 | Swagger UI not loading | `swagger_enabled: false` | Set `swagger_enabled: true` in the config block and restart |
 | History endpoints return empty results | `pm-stats` not running or wrong `stats_db` path | Start `pm-stats`; verify the `stats_db` path in config points to the correct file |
 | `GET /admin/orders/{order_id}/audit` returns `503 AUDIT_INDEX_UNAVAILABLE` | `pm-audit` not deployed, or its index not built | Start `pm-audit` and run `pm-audit-cli index`; check `audit_db`. Every other endpoint is unaffected |
+| `GET /admin/orders/{order_id}/audit` returns `404 UNKNOWN_ORDER` for an order you know exists | The order is newer than the index's last build (the message names how far it reaches) | Run `pm-audit-cli index --incremental`, or schedule it |
 | An order vanished from `GET /admin/orders` | It reached a terminal status more than `order_retention_sec` ago | Expected — that view is current state. Use `GET /admin/orders/{order_id}/audit` for its history |
 | `GET /admin/orders` grows without bound | `order_retention_sec: 0` disables eviction | Set a positive value |
 | WebSocket disconnects immediately | Engine not running or client rate limit hit | Start engine; check gateway logs for disconnect reason |

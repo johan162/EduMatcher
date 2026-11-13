@@ -5,6 +5,7 @@ Coverage target: >= 90% across the four audit modules.
 
 from __future__ import annotations
 
+import argparse
 import json
 import time
 from compression import zstd
@@ -183,6 +184,99 @@ class TestParseTs:
     def test_invalid_raises(self) -> None:
         with pytest.raises(ValueError, match="Cannot parse"):
             parse_ts("not-a-date")
+
+
+class TestBareDateRange:
+    """C12: a bare date is a UTC day; in --to it means the end of that day."""
+
+    def test_a_bare_date_in_to_includes_that_whole_day(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        log_file: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        _run_cli(
+            monkeypatch,
+            [
+                "--log-file",
+                str(log_file),
+                "--format",
+                "json",
+                "events",
+                "--from",
+                "2026-07-08",
+                "--to",
+                "2026-07-08",
+            ],
+        )
+        assert len(json.loads(capsys.readouterr().out)) == 4
+
+    def test_end_of_day_parse(self) -> None:
+        end = parse_ts("2026-07-08", end_of_day=True)
+        assert end.isoformat() == "2026-07-08T23:59:59.999999+00:00"
+        assert parse_ts("2026-07-08T10:00:00", end_of_day=True).hour == 10
+
+    def test_the_help_says_bare_dates_are_utc(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        with pytest.raises(SystemExit):
+            _run_cli(monkeypatch, ["events", "--help"])
+        help_text = " ".join(capsys.readouterr().out.split())
+        assert "UTC" in help_text and "end of that day" in help_text
+
+
+class TestTradesStayBounded:
+    """P3: trades reads no further than it needs, and --reverse keeps only
+    --limit rows."""
+
+    def _trades(self, tmp_path: Path, n: int) -> Path:
+        log = tmp_path / "audit.log"
+        _write_log(
+            log,
+            [
+                f"[{_stamp(i)}] [trade.executed] "
+                + json.dumps({"id": str(i), "symbol": "A", "price": 1.0, "quantity": 1})
+                for i in range(n)
+            ],
+        )
+        return log
+
+    def test_the_first_rows_stop_the_scan(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import edumatcher.audit.query as query_mod
+
+        log = self._trades(tmp_path, 1000)
+        parsed: list[str] = []
+        real = query_mod.parse_line
+
+        def _counting(raw: str) -> Any:
+            parsed.append(raw)
+            return real(raw)
+
+        monkeypatch.setattr(query_mod, "parse_line", _counting)
+        rows = query_trades([log], limit=5)
+        assert [r["trade_id"] for r in rows] == ["0", "1", "2", "3", "4"]
+        assert len(parsed) == 5
+
+    def test_reverse_keeps_only_limit_rows(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import collections
+
+        import edumatcher.audit.query as query_mod
+
+        sizes: list[int | None] = []
+
+        class _Deque(collections.deque[Any]):
+            def __init__(self, *args: Any, **kwargs: Any) -> None:
+                super().__init__(*args, **kwargs)
+                sizes.append(self.maxlen)
+
+        monkeypatch.setattr(query_mod, "deque", _Deque)
+        rows = query_trades([self._trades(tmp_path, 100)], limit=3, reverse=True)
+        assert [r["trade_id"] for r in rows] == ["99", "98", "97"]
+        assert sizes == [3]
 
 
 class TestValidateDate:
@@ -800,12 +894,152 @@ class TestQueryOrders:
 
     def test_event_column(self, log_file: Path) -> None:
         rows = query_orders([log_file])
-        events = {r["event"] for r in rows}
-        assert "new" in events or "GW01" in events  # topic suffix varies
+        assert [r["event"] for r in rows] == ["new", "ack"]
 
     def test_date_filter(self, log_file: Path) -> None:
         rows = query_orders([log_file], date_str="2026-07-08")
         assert len(rows) == 2
+
+
+def _order_line(topic: str, payload: dict[str, Any]) -> str:
+    return f"[{_TS1}] [{topic}] [seq=1] " + json.dumps(
+        {"order_id": "O1", "gateway_id": "TRADER01", **payload}
+    )
+
+
+class TestOrdersViewMatchesSpec:
+    """Each column of `orders` and each `events` summary reads the field the
+    wire spec defines for that topic (WP-AUD02, C6)."""
+
+    def _rows(self, tmp_path: Path, *lines: str) -> list[dict[str, Any]]:
+        log = tmp_path / "audit.log"
+        _write_log(log, list(lines))
+        return query_orders([log])
+
+    def test_the_event_is_the_message_kind_never_the_gateway(
+        self, tmp_path: Path
+    ) -> None:
+        topics = {
+            "order.new": "new",
+            "order.cancel": "cancel",
+            "order.ack.TRADER01": "ack",
+            "order.fill.TRADER01": "fill",
+            "order.cancelled.TRADER01": "cancelled",
+            "order.expired.TRADER01": "expired",
+            "order.triggered.TRADER01": "triggered",
+            "order.amended.TRADER01": "amended",
+        }
+        rows = self._rows(tmp_path, *(_order_line(t, {}) for t in topics))
+        assert [r["event"] for r in rows] == list(topics.values())
+
+    def test_a_fill_shows_its_fill_price_and_size_not_the_limit(
+        self, tmp_path: Path
+    ) -> None:
+        fill = {"fill_qty": 5, "fill_price": 9.5, "price": 10.0, "qty": 20}
+        (row,) = self._rows(tmp_path, _order_line("order.fill.TRADER01", fill))
+        assert (row["qty"], row["price"]) == (5, 9.5)
+
+    def test_an_ack_and_an_amend_show_their_qty(self, tmp_path: Path) -> None:
+        ack = {"accepted": True, "qty": 5, "price": 10.0}
+        amend = {"qty": 7, "remaining_qty": 3, "price": 11.0}
+        rows = self._rows(
+            tmp_path,
+            _order_line("order.ack.TRADER01", ack),
+            _order_line("order.amended.TRADER01", amend),
+        )
+        assert [(r["qty"], r["price"]) for r in rows] == [(5, 10.0), (7, 11.0)]
+
+    def test_an_ack_status_says_whether_it_was_accepted(self, tmp_path: Path) -> None:
+        rows = self._rows(
+            tmp_path,
+            _order_line("order.ack.TRADER01", {"accepted": True}),
+            _order_line(
+                "order.ack.TRADER01",
+                {"accepted": False, "reject_code": "TICK_VIOLATION"},
+            ),
+        )
+        assert [(r["status"], r["reason"]) for r in rows] == [
+            ("ACCEPTED", None),
+            ("REJECTED", "TICK_VIOLATION"),
+        ]
+
+    def test_order_new_shows_its_tick_price_in_money(self, tmp_path: Path) -> None:
+        new = {
+            "side": "BUY",
+            "order_type": "LIMIT",
+            "quantity": 100,
+            "price_ticks": 1234,
+            "tick_decimals": 2,
+        }
+        (row,) = self._rows(tmp_path, _order_line("order.new", new))
+        assert (row["qty"], row["price"]) == (100, 12.34)
+
+    def test_a_zero_is_shown_not_skipped(self, tmp_path: Path) -> None:
+        cancelled = {"remaining_qty": 0, "cancel_reason": "CLIENT"}
+        (row,) = self._rows(
+            tmp_path, _order_line("order.cancelled.TRADER01", cancelled)
+        )
+        assert row["qty"] == 0
+
+    def test_summaries_use_the_spec_fields(self, tmp_path: Path) -> None:
+        log = tmp_path / "audit.log"
+        _write_log(
+            log,
+            [
+                _order_line(
+                    "order.new",
+                    {
+                        "side": "BUY",
+                        "order_type": "LIMIT",
+                        "quantity": 100,
+                        "price_ticks": 1234,
+                        "tick_decimals": 2,
+                    },
+                ),
+                _order_line(
+                    "order.new",
+                    {"side": "SELL", "order_type": "MARKET", "quantity": 5},
+                ),
+                _order_line(
+                    "order.ack.TRADER01",
+                    {"accepted": True, "order_type": "LIMIT", "side": "BUY"},
+                ),
+                _order_line(
+                    "order.ack.TRADER01",
+                    {
+                        "accepted": False,
+                        "order_type": "LIMIT",
+                        "side": "BUY",
+                        "reject_code": "TICK_VIOLATION",
+                    },
+                ),
+            ],
+        )
+        assert [r["summary"] for r in query_events([log])] == [
+            "LIMIT BUY 100@12.34",
+            "MARKET SELL 5",
+            "ACK ACCEPTED LIMIT BUY",
+            "ACK REJECTED LIMIT BUY reject=TICK_VIOLATION",
+        ]
+
+    def test_the_index_event_type_is_the_kind(self, tmp_path: Path) -> None:
+        log = tmp_path / "audit.log"
+        _write_log(
+            log,
+            [
+                _order_line("order.fill.TRADER01", {}),
+                f"[{_TS2}] [book.AAPL] " + json.dumps({"symbol": "AAPL"}),
+            ],
+        )
+        db = tmp_path / "idx.db"
+        build_index(db, log)
+        conn = open_readonly_index(db)
+        types = [
+            r[0]
+            for r in conn.execute("SELECT event_type FROM audit_events ORDER BY id")
+        ]
+        conn.close()
+        assert types == ["fill", "book"]
 
 
 class TestQueryTrades:
@@ -1021,6 +1255,13 @@ class TestQueryStats:
 # ===========================================================================
 
 
+def _index_count(db: Path) -> int:
+    conn = open_readonly_index(db)
+    count = int(conn.execute("SELECT COUNT(*) FROM audit_events").fetchone()[0])
+    conn.close()
+    return count
+
+
 class TestIndexer:
     def test_build_and_query(self, log_file: Path, tmp_path: Path) -> None:
         db = tmp_path / "idx.db"
@@ -1028,14 +1269,49 @@ class TestIndexer:
         assert n == 4
         assert index_is_available(db)
 
-    def test_rebuild_clears_old_data(self, log_file: Path, tmp_path: Path) -> None:
+    def test_a_second_build_replaces_the_first(
+        self, log_file: Path, tmp_path: Path
+    ) -> None:
+        """WP-AUD05 (C1): building again starts from scratch, not on top."""
         db = tmp_path / "idx.db"
         build_index(db, log_file)
-        n = build_index(db, log_file, rebuild=True)
+        assert build_index(db, log_file) == 4
+        assert _index_count(db) == 4
+
+    def test_incremental_adds_lines_of_the_last_indexed_millisecond(
+        self, log_file: Path, tmp_path: Path
+    ) -> None:
+        """WP-AUD05 (C10): a line flushed after the build but stamped in its
+        last millisecond is indexed once, and so is everything after it."""
+        db = tmp_path / "idx.db"
+        build_index(db, log_file)
+        with log_file.open("a", encoding="utf-8") as fh:
+            fh.write(f"[{_TS4}] [session.state] " + json.dumps({"state": "X"}) + "\n")
+            fh.write(f"[{_TS4[:-10]}01.000+00:00] [order.new] {{}}\n")
+        assert build_index(db, log_file, incremental=True) == 2
+        assert build_index(db, log_file, incremental=True) == 0
+        assert _index_count(db) == 6
+
+    def test_the_index_says_how_far_it_reaches(
+        self, log_file: Path, tmp_path: Path
+    ) -> None:
+        from edumatcher.audit.indexer import indexed_through
+
+        db = tmp_path / "idx.db"
+        build_index(db, log_file)
         conn = open_readonly_index(db)
-        count = conn.execute("SELECT COUNT(*) FROM audit_events").fetchone()[0]
+        assert indexed_through(conn) == _TS4
         conn.close()
-        assert count == n  # should not be doubled
+
+    def test_the_seller_gateway_finds_a_trade(
+        self, log_file: Path, tmp_path: Path
+    ) -> None:
+        db = tmp_path / "idx.db"
+        build_index(db, log_file)
+        conn = open_readonly_index(db)
+        rows = query_index_events(conn, gateway="GW02")
+        conn.close()
+        assert [r["topic"] for r in rows] == ["trade.executed"]
 
     def test_incremental_no_duplicate(self, log_file: Path, tmp_path: Path) -> None:
         db = tmp_path / "idx.db"
@@ -1357,22 +1633,6 @@ class TestValidateArgs:
             _run_cli(
                 monkeypatch,
                 ["--log-file", str(log_file), "events", "--from", "not-a-ts"],
-            )
-        assert exc.value.code == 2
-
-    def test_rebuild_and_incremental_mutually_exclusive(
-        self, monkeypatch: pytest.MonkeyPatch, log_file: Path
-    ) -> None:
-        with pytest.raises(SystemExit) as exc:
-            _run_cli(
-                monkeypatch,
-                [
-                    "--log-file",
-                    str(log_file),
-                    "index",
-                    "--rebuild",
-                    "--incremental",
-                ],
             )
         assert exc.value.code == 2
 
@@ -1777,6 +2037,154 @@ class TestCliFollow:
         assert all(r["topic"].startswith("order.") for r in arrays[0])
 
 
+def _stamp(n: int) -> str:
+    """A distinct, ordered audit stamp per n (one second apart)."""
+    return f"2026-07-08T{9 + n // 3600:02d}:{n // 60 % 60:02d}:{n % 60:02d}.000+00:00"
+
+
+class TestFollowResume:
+    """--follow resumes where it left off, with any filter (WP-AUD03: C3,
+    C4, P1, Q2).  Each poll is one patched time.sleep; the list of actions
+    runs one per poll and the last poll raises KeyboardInterrupt."""
+
+    def _follow(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        log: Path,
+        argv: list[str],
+        polls: list[list[str]],
+    ) -> list[list[dict[str, Any]]]:
+        calls = {"n": 0}
+
+        def _poll(_seconds: float) -> None:
+            if calls["n"] == len(polls):
+                raise KeyboardInterrupt
+            with log.open("a", encoding="utf-8") as fh:
+                fh.writelines(line + "\n" for line in polls[calls["n"]])
+            calls["n"] += 1
+
+        monkeypatch.setattr(time, "sleep", _poll)
+        _run_cli(monkeypatch, ["--log-file", str(log), "--format", "json", *argv])
+        return []
+
+    def _arrays(self, capsys: pytest.CaptureFixture[str]) -> list[Any]:
+        return _parse_json_stream(capsys.readouterr().out)
+
+    @pytest.mark.parametrize(
+        "filters",
+        [["--topic", "trade."], ["--symbol", "AAPL"], ["--gateway", "GW02"]],
+    )
+    def test_a_filtered_row_sharing_its_millisecond_is_printed_once(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+        filters: list[str],
+    ) -> None:
+        log = tmp_path / "audit.log"
+        _write_log(
+            log,
+            [
+                f"[{_TS1}] [order.new] " + json.dumps({"id": "O1", "symbol": "MSFT"}),
+                f"[{_TS1}] [trade.executed] "
+                + json.dumps({"id": "T1", "symbol": "AAPL", "sell_gateway_id": "GW02"}),
+            ],
+        )
+        self._follow(monkeypatch, log, ["events", *filters, "-f"], [[], [], []])
+        arrays = self._arrays(capsys)
+        assert len(arrays) == 1 and [r["topic"] for r in arrays[0]] == [
+            "trade.executed"
+        ]
+
+    def test_ties_accumulate_across_polls(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """A second row in the same millisecond arrives a poll later: each
+        of the two is printed exactly once."""
+        log = tmp_path / "audit.log"
+        _write_log(log, [f"[{_TS1}] [order.new] " + json.dumps({"id": "O1"})])
+        later = f"[{_TS1}] [order.new] " + json.dumps({"id": "O2"})
+        self._follow(monkeypatch, log, ["timeline", "-f"], [[later], [], []])
+        rows = [r for a in self._arrays(capsys) for r in a]
+        assert [json.loads(r["payload"])["id"] for r in rows] == ["O1", "O2"]
+
+    def test_polls_honour_from_and_to(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        log = tmp_path / "audit.log"
+        _write_log(log, [f"[{_stamp(0)}] [order.new] " + json.dumps({"id": "old"})])
+        argv = ["timeline", "--from", _stamp(10), "--to", _stamp(20), "-f"]
+        poll = [
+            f"[{_stamp(5)}] [order.new] " + json.dumps({"id": "before"}),
+            f"[{_stamp(15)}] [order.new] " + json.dumps({"id": "inside"}),
+            f"[{_stamp(25)}] [order.new] " + json.dumps({"id": "after"}),
+        ]
+        self._follow(monkeypatch, log, argv, [poll, []])
+        out = capsys.readouterr().out
+        assert "inside" in out
+        assert "old" not in out and "before" not in out and "after" not in out
+
+    def test_the_first_batch_is_the_newest_rows(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Q2: like tail -f, the last --limit rows, oldest of them first."""
+        log = tmp_path / "audit.log"
+        _write_log(
+            log,
+            [f"[{_stamp(n)}] [order.new] " + json.dumps({"id": n}) for n in range(500)],
+        )
+        self._follow(monkeypatch, log, ["events", "--limit", "10", "-f"], [])
+        (first,) = self._arrays(capsys)
+        assert [r["timestamp"] for r in first] == [_stamp(n) for n in range(490, 500)]
+
+    def test_a_poll_does_not_parse_lines_it_has_already_passed(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """P1: with a filter that matched nothing, a poll still starts at the
+        end of the trail, and earlier stamps are skipped unparsed."""
+        import edumatcher.audit.query as query_mod
+
+        log = tmp_path / "audit.log"
+        _write_log(
+            log,
+            [
+                f"[{_stamp(n)}] [order.new] " + json.dumps({"id": n})
+                for n in range(1000)
+            ],
+        )
+        parsed: list[str] = []
+        real = query_mod.parse_line
+
+        def _counting(raw: str) -> Any:
+            parsed.append(raw)
+            return real(raw)
+
+        calls = {"n": 0}
+
+        def _poll(_seconds: float) -> None:
+            calls["n"] += 1
+            if calls["n"] > 1:
+                raise KeyboardInterrupt
+            parsed.clear()  # count the poll only, not the first batch
+
+        monkeypatch.setattr(query_mod, "parse_line", _counting)
+        monkeypatch.setattr(time, "sleep", _poll)
+        _run_cli(monkeypatch, ["--log-file", str(log), "events", "--topic", "x.", "-f"])
+        assert len(parsed) <= 1
+
+
 class TestCliOrders:
     def test_basic(
         self,
@@ -2103,7 +2511,7 @@ class TestCliIndex:
         assert "Done" in out
         assert db.exists()
 
-    def test_rebuild_flag(
+    def test_index_twice_holds_each_line_once(
         self,
         monkeypatch: pytest.MonkeyPatch,
         log_file: Path,
@@ -2111,23 +2519,13 @@ class TestCliIndex:
         capsys: pytest.CaptureFixture[str],
     ) -> None:
         db = tmp_path / "r_idx.db"
-        _run_cli(
-            monkeypatch,
-            ["--log-file", str(log_file), "index", "--output", str(db)],
-        )
-        _run_cli(
-            monkeypatch,
-            [
-                "--log-file",
-                str(log_file),
-                "index",
-                "--output",
-                str(db),
-                "--rebuild",
-            ],
-        )
+        for _ in range(2):
+            _run_cli(
+                monkeypatch,
+                ["--log-file", str(log_file), "index", "--output", str(db)],
+            )
         capsys.readouterr()  # consume
-        assert db.exists()
+        assert _index_count(db) == 4
 
     def test_incremental_flag(
         self,
@@ -2156,32 +2554,23 @@ class TestCliIndex:
         # Second incremental run should report 0 new rows
         assert "0 rows" in out
 
-    def test_events_use_index(
+    def test_events_ignore_an_index_they_were_not_given(
         self,
         monkeypatch: pytest.MonkeyPatch,
         log_file: Path,
-        tmp_path: Path,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
-        """When index exists events command should use it transparently."""
-        db = log_file.parent / "audit_index.db"
-        _run_cli(
-            monkeypatch,
-            ["--log-file", str(log_file), "index", "--output", str(db)],
-        )
+        """WP-AUD05 (C1, Q1): an index beside the log is not used unasked,
+        so a line recorded after its build is still shown."""
+        _run_cli(monkeypatch, ["--log-file", str(log_file), "index"])
+        assert (log_file.parent / "audit_index.db").exists()
+        with log_file.open("a", encoding="utf-8") as fh:
+            fh.write(f"[{_TS4}] [order.new] " + json.dumps({"id": "LATE"}) + "\n")
         capsys.readouterr()
         _run_cli(
-            monkeypatch,
-            [
-                "--log-file",
-                str(log_file),
-                "--format",
-                "json",
-                "events",
-            ],
+            monkeypatch, ["--log-file", str(log_file), "--format", "json", "events"]
         )
-        data = json.loads(capsys.readouterr().out)
-        assert len(data) >= 1
+        assert len(json.loads(capsys.readouterr().out)) == 5
 
 
 class TestCliIndexTimeRange:
@@ -2263,6 +2652,87 @@ class TestCliUseIndexFlag:
         )
         data = json.loads(capsys.readouterr().out)
         assert len(data) >= 1
+
+
+class TestCliUseIndexMatchesTheTrail:
+    """With --use-index the rows are those the trail gives, and the reader is
+    told how far the index reaches (WP-AUD05, C1)."""
+
+    def _events(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+        log_file: Path,
+        *argv: str,
+    ) -> tuple[list[dict[str, Any]], str]:
+        _run_cli(
+            monkeypatch,
+            ["--log-file", str(log_file), *argv[:-1], "--format", "json", argv[-1]],
+        )
+        out = capsys.readouterr()
+        return json.loads(out.out), out.err
+
+    def test_the_index_answers_like_the_trail(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        log_file: Path,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        db = tmp_path / "idx.db"
+        _run_cli(
+            monkeypatch, ["--log-file", str(log_file), "index", "--output", str(db)]
+        )
+        capsys.readouterr()
+        plain, _ = self._events(monkeypatch, capsys, log_file, "events")
+        indexed, err = self._events(
+            monkeypatch, capsys, log_file, "--use-index", str(db), "events"
+        )
+        assert indexed == plain
+        assert _TS4 in err  # how far the index reaches
+
+    def test_the_index_finds_a_trade_by_its_seller(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        log_file: Path,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        db = tmp_path / "idx.db"
+        build_index(db, log_file)
+        _run_cli(
+            monkeypatch,
+            [
+                "--log-file",
+                str(log_file),
+                "--use-index",
+                str(db),
+                "--format",
+                "json",
+                "events",
+                "--gateway",
+                "gw02",
+            ],
+        )
+        rows = json.loads(capsys.readouterr().out)
+        assert [r["topic"] for r in rows] == ["trade.executed"]
+
+    def test_an_unusable_index_is_an_error_not_a_silent_fallback(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        log_file: Path,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        db = tmp_path / "broken.db"
+        db.write_bytes(b"not a database")
+        with pytest.raises(SystemExit) as exc:
+            _run_cli(
+                monkeypatch,
+                ["--log-file", str(log_file), "--use-index", str(db), "events"],
+            )
+        assert exc.value.code == 1
+        assert "broken.db" in capsys.readouterr().err
 
 
 class TestCliLogDir:
@@ -2581,3 +3051,43 @@ class TestCliHealth:
         healthy, detail = _check_zmq_health(timeout_ms=200)
         assert healthy is False
         assert "no reply" in detail
+
+
+class TestModuleDocs:
+    """WP-AUD08: the module docstrings describe the tool as it is (D1–D3)."""
+
+    def test_the_cli_docstring_lists_every_command(self) -> None:
+        import edumatcher.audit.cli as cli_mod
+        from edumatcher.audit.cli import build_parser
+
+        sub = next(
+            a
+            for a in build_parser()._actions
+            if isinstance(a, argparse._SubParsersAction)
+        )
+        doc = cli_mod.__doc__ or ""
+        missing = [name for name in sub.choices if f"\n  {name} " not in doc]
+        assert missing == []
+
+    def test_no_audit_module_calls_the_trail_jsonl(self) -> None:
+        import edumatcher.audit.cli as cli_mod
+        import edumatcher.audit.main as main_mod
+        import edumatcher.audit.query as query_mod
+
+        for mod in (cli_mod, main_mod, query_mod):
+            assert "JSONL" not in (mod.__doc__ or ""), mod.__name__
+
+    def test_the_documented_line_format_is_what_the_recorder_writes(self) -> None:
+        import edumatcher.audit.main as main_mod
+        import edumatcher.audit.query as query_mod
+
+        for mod in (main_mod, query_mod):
+            examples = [
+                ln.strip()
+                for ln in (mod.__doc__ or "").splitlines()
+                if ln.strip().startswith("[20")
+            ]
+            assert examples, mod.__name__
+            for ex in examples:
+                assert parse_line(ex) is not None, ex
+                assert "+00:00]" in ex and "[seq=" in ex, ex

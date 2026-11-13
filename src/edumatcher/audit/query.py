@@ -1,12 +1,15 @@
-"""Audit log JSONL parser and filter helpers for pm-audit-cli.
+"""Audit trail parser and filter helpers for pm-audit-cli.
 
-Reads audit log files written by ``pm-audit`` in the format::
+Reads the audit files written by ``pm-audit``, one line per message::
 
-    [2026-07-08T09:30:00.123+00:00] [trade.executed] {"id": "...", ...}
+    [2026-07-08T09:30:00.123+00:00] [trade.executed] [seq=12 eseq=4711 msg=01J… chain=01J…] {"id": "000001-000000042", "symbol": "AAPL"}
 
+(the bracketed metadata section is optional, see ``_LINE_RE``), with comment
+lines (``# ...``: the file header, a recorder-start marker) in between.
 Files are read as plain text (the active log and closed day parts) or
-decompressed zstd (daily archives ending in ``.zst``).  All filtering is applied during streaming so
-large log files are never fully loaded into memory.
+decompressed zstd (daily archives ending in ``.zst``).  All filtering is
+applied during streaming so large log files are never fully loaded into
+memory.
 """
 
 from __future__ import annotations
@@ -16,7 +19,9 @@ import re
 from compression import zstd
 from datetime import datetime, timezone, tzinfo
 from pathlib import Path
-from typing import Any, Iterator, cast
+from collections import deque
+from itertools import islice
+from typing import Any, Iterable, Iterator, cast
 from edumatcher.audit.writer import file_day
 from edumatcher.models.generated.book import PREFIX_BOOK_SNAPSHOT, PREFIX_DEPTH
 from edumatcher.models.generated.order import (
@@ -123,6 +128,12 @@ def split_topic(topic: str) -> tuple[str, str | None]:
     return template[: template.index("{")].rstrip("."), actor
 
 
+def event_name(topic: str) -> str:
+    """The message kind's last word: ``ack`` for ``order.ack.TRADER01``,
+    ``book`` for ``book.AAPL``, ``executed`` for ``trade.executed``."""
+    return split_topic(topic)[0].rsplit(".", 1)[-1]
+
+
 def lookup_topic(topic: str) -> dict[str, Any] | None:
     """Return the spec registry entry a wire topic resolves to, else None.
 
@@ -140,11 +151,18 @@ def lookup_topic(topic: str) -> dict[str, Any] | None:
 # ---------------------------------------------------------------------------
 
 
-def parse_ts(value: str) -> datetime:
-    """Parse a ``YYYY-MM-DD`` or ISO-8601 string to an *aware* UTC datetime."""
+def parse_ts(value: str, *, end_of_day: bool = False) -> datetime:
+    """Parse a ``YYYY-MM-DD`` or ISO-8601 string to an *aware* UTC datetime.
+
+    A bare date is a UTC day: its midnight, or with ``end_of_day`` its last
+    microsecond, so ``--to 2026-07-08`` includes that day.  An ISO time
+    without an offset is UTC.
+    """
     value = value.strip()
     try:
         dt = datetime.strptime(value, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+        if end_of_day:
+            dt = dt.replace(hour=23, minute=59, second=59, microsecond=999999)
         return dt
     except ValueError:
         pass
@@ -259,7 +277,7 @@ def discover_log_files(log_file: Path, log_dir: Path | None = None) -> list[Path
 
 
 # ---------------------------------------------------------------------------
-# JSONL line iterator
+# Line iterator
 # ---------------------------------------------------------------------------
 
 
@@ -394,6 +412,23 @@ class AuditEntry:
 # ---------------------------------------------------------------------------
 
 
+#: The offset pm-audit writes on every stamp (``datetime.isoformat`` of a UTC
+#: time); stamps in this form compare as strings in time order.
+_UTC_SUFFIX = "+00:00"
+
+
+def _stamp_floor(after_ts: str | None, from_dt: datetime | None) -> str | None:
+    """The stamp string below which a line can be skipped unparsed, or None."""
+    floors: list[str] = []
+    if after_ts is not None and after_ts.endswith(_UTC_SUFFIX):
+        floors.append(after_ts)
+    if from_dt is not None:
+        # Truncated to ms like the stamps: a stamp below it is below from_dt.
+        utc = from_dt.astimezone(timezone.utc)
+        floors.append(utc.isoformat(timespec="milliseconds"))
+    return max(floors, default=None)
+
+
 def iter_entries(
     log_files: list[Path],
     *,
@@ -412,14 +447,20 @@ def iter_entries(
     to *limit*, not to file size.
 
     ``after_ts``/``after_skip`` resume a previous scan: entries with a raw
-    timestamp string less than ``after_ts`` are skipped outright, and the
-    first ``after_skip`` entries whose timestamp string equals ``after_ts``
-    are also skipped. This is how ``--follow`` avoids re-emitting entries it
-    already printed without needing a ``seq`` (which is optional and often
-    absent — see the module docstring).
+    timestamp string less than ``after_ts`` are skipped outright, and of the
+    entries stamped ``after_ts`` *that pass the filters*, the first
+    ``after_skip`` are skipped too -- the ones the previous scan returned.
+    This is how ``--follow`` avoids re-emitting entries it already printed
+    without needing a ``seq`` (which is optional and often absent -- see the
+    module docstring).
+
+    A line stamped before ``after_ts`` or ``from_dt`` is skipped unparsed
+    when its stamp is in the recorder's UTC form (``...+00:00``), where
+    string order is time order; that keeps a ``--follow`` poll cheap.
     """
     count = 0
     ties_seen = 0
+    floor = _stamp_floor(after_ts, from_dt)
     for path in log_files:
         if not path.exists():
             continue
@@ -428,6 +469,11 @@ def iter_entries(
         # `sed -n 118423p` would show, or it is no use for tracing back.
         marks: list[str] = []
         for line_no, raw in enumerate(open_log_file(path), start=1):
+            if floor is not None and raw.startswith("["):
+                stamp = raw[1 : raw.find("]")]
+                if stamp.endswith(_UTC_SUFFIX) and stamp < floor:
+                    marks.clear()
+                    continue
             parsed = parse_line(raw)
             if parsed is None:
                 if raw.startswith("# "):
@@ -437,15 +483,8 @@ def iter_entries(
             line_marks = tuple(marks)
             marks.clear()
 
-            if after_ts is not None:
-                if ts_str < after_ts:
-                    continue
-                if ts_str == after_ts:
-                    if ties_seen < after_skip:
-                        ties_seen += 1
-                        continue
-                else:
-                    ties_seen = 0
+            if after_ts is not None and ts_str < after_ts:
+                continue
 
             # Topic prefix filter
             if topic_prefix and not topic.startswith(topic_prefix):
@@ -481,6 +520,10 @@ def iter_entries(
             if symbol is not None and entry.symbol != symbol:
                 continue
 
+            if ts_str == after_ts and ties_seen < after_skip:
+                ties_seen += 1
+                continue
+
             yield entry
             count += 1
             if limit is not None and count >= limit:
@@ -503,44 +546,83 @@ def query_events(
     date_str: str | None = None,
     limit: int = 100,
     reverse: bool = False,
+    tail: bool = False,
     after_ts: str | None = None,
     after_skip: int = 0,
 ) -> list[dict[str, Any]]:
-    """Return event rows for the ``events`` command."""
+    """Return event rows for the ``events`` command.
+
+    The first ``limit`` matches, oldest first; with ``tail`` the last
+    ``limit``, oldest first; with ``reverse`` the last ``limit``, newest
+    first.
+    """
     if date_str:
         from_dt, to_dt = date_to_range(date_str)
 
-    entries = list(
-        iter_entries(
-            log_files,
-            topic_prefix=topic,
-            gateway=gateway,
-            symbol=symbol,
-            from_dt=from_dt,
-            to_dt=to_dt,
-            limit=None if reverse else limit,
-            after_ts=after_ts,
-            after_skip=after_skip,
-        )
+    matches = iter_entries(
+        log_files,
+        topic_prefix=topic,
+        gateway=gateway,
+        symbol=symbol,
+        from_dt=from_dt,
+        to_dt=to_dt,
+        limit=None if reverse or tail else limit,
+        after_ts=after_ts,
+        after_skip=after_skip,
     )
-
+    entries: Iterable[AuditEntry] = (
+        deque(matches, maxlen=limit) if reverse or tail else matches
+    )
     if reverse:
-        entries = entries[-limit:]
-        entries.reverse()
+        entries = reversed(cast(deque[AuditEntry], entries))
 
-    rows: list[dict[str, Any]] = []
-    for e in entries:
-        rows.append(
-            {
-                "timestamp": e.timestamp,
-                "topic": e.topic,
-                "gateway": e.gateway_id,
-                "symbol": e.symbol,
-                "order_id": e.order_id,
-                "summary": _summarise(e),
-            }
-        )
-    return rows
+    return [event_row(e) for e in entries]
+
+
+def event_row(entry: AuditEntry) -> dict[str, Any]:
+    """One row of the ``events`` command (also built from index rows)."""
+    return {
+        "timestamp": entry.timestamp,
+        "topic": entry.topic,
+        "gateway": entry.gateway_id,
+        "symbol": entry.symbol,
+        "order_id": entry.order_id,
+        "summary": _summarise(entry),
+    }
+
+
+def _display_price(p: dict[str, Any]) -> Any:
+    """``price``, or ``price_ticks`` in money when the message carries only
+    ticks (``order.new``); None for an order without a price (MARKET)."""
+    price = p.get("price")
+    ticks = p.get("price_ticks")
+    decimals = p.get("tick_decimals")
+    if price is None and ticks is not None and decimals is not None:
+        return round(ticks / 10**decimals, decimals)
+    return price
+
+
+def _first(p: dict[str, Any], *keys: str) -> Any:
+    """The first of ``keys`` present (not None) in ``p``; a 0 counts."""
+    return next((p[k] for k in keys if p.get(k) is not None), None)
+
+
+def _order_qty_price(topic: str, p: dict[str, Any]) -> tuple[Any, Any]:
+    """(qty, price) of an ``order.*`` message, by the spec's fields for its
+    kind (spec/messages/order.yaml).  A fill carries the order's limit in
+    ``price`` and ``qty``; what it filled is ``fill_qty`` at ``fill_price``."""
+    if topic.startswith(PREFIX_ORDER_FILL):
+        return p.get("fill_qty"), p.get("fill_price")
+    if topic.startswith((PREFIX_ORDER_ACK, PREFIX_ORDER_AMENDED)):
+        return p.get("qty"), _display_price(p)
+    return _first(p, "quantity", "qty", "remaining_qty"), _display_price(p)
+
+
+def _ack_status(p: dict[str, Any]) -> str | None:
+    accepted = p.get("accepted")
+    if accepted is None:
+        return None
+    return "ACCEPTED" if accepted else "REJECTED"
 
 
 def _summarise(entry: AuditEntry) -> str:
@@ -550,21 +632,19 @@ def _summarise(entry: AuditEntry) -> str:
     if t == TOPIC_TRADE_EXECUTED:
         return f"{p.get('symbol', '')} {p.get('quantity', '')}@{p.get('price', '')}"
     if t.startswith(PREFIX_ORDER_FILL):
-        # Wire field is fill_qty (spec/messages/order.yaml::order_fill), not
-        # filled_qty -- the previous key here never matched, so every row
-        # silently fell back to quantity/remaining_qty instead of the actual
-        # fill size (see ../../../docs/books/operator-guide/part-6-observe-and-recover/020-audit-trail.md).
-        fq = p.get("fill_qty", p.get("quantity", ""))
-        fp = p.get("fill_price", p.get("price", ""))
-        return f"FILL {fq}@{fp}"
+        return f"FILL {p.get('fill_qty', '')}@{p.get('fill_price', '')}"
     if t.startswith(PREFIX_ORDER_ACK):
         detail = f" reject={p['reject_code']}" if p.get("reject_code") else ""
         return (
-            f"ACK {p.get('status', '')} {p.get('order_type', '')} "
+            f"ACK {_ack_status(p) or ''} {p.get('order_type', '')} "
             f"{p.get('side', '')}{detail}"
         )
     if t.startswith(TOPIC_ORDER_NEW):
-        return f"{p.get('order_type', '')} {p.get('side', '')} {p.get('quantity', '')}@{p.get('price', '')}"
+        price = _display_price(p)
+        at = "" if price is None else f"@{price}"
+        return (
+            f"{p.get('order_type', '')} {p.get('side', '')} {p.get('quantity', '')}{at}"
+        )
     if t.startswith(TOPIC_ORDER_CANCEL):
         detail = f" reason={p['cancel_reason']}" if p.get("cancel_reason") else ""
         return f"CANCEL {p.get('status', '')}{detail}"
@@ -623,20 +703,19 @@ def query_orders(
         oid = p.get("order_id") or p.get("id")
         if ids_set is not None and oid not in ids_set:
             continue
+        qty, price = _order_qty_price(entry.topic, p)
         rows.append(
             {
                 "timestamp": entry.timestamp,
                 "order_id": oid,
-                "event": entry.topic.split(".")[-1],
+                "event": event_name(entry.topic),
                 "gateway": entry.gateway_id,
                 "symbol": entry.symbol,
                 "side": p.get("side"),
-                # fill_qty, not filled_qty -- see _summarise's note above;
-                # this fallback chain fell through to remaining_qty on every
-                # fill row before this fix.
-                "qty": p.get("quantity") or p.get("fill_qty") or p.get("remaining_qty"),
-                "price": p.get("price") or p.get("fill_price"),
-                "status": p.get("status"),
+                "qty": qty,
+                "price": price,
+                # order.ack has no status field, only `accepted`.
+                "status": p.get("status") or _ack_status(p),
                 # order.ack's reject_code, order.cancelled's cancel_reason, or
                 # a generic reason string -- whichever this event carries.
                 # Previously dropped entirely from the `orders` view; only
@@ -667,43 +746,42 @@ def query_trades(
     limit: int = 100,
     reverse: bool = False,
 ) -> list[dict[str, Any]]:
-    """Return trade rows for the ``trades`` command."""
+    """Return trade rows for the ``trades`` command: the first ``limit``
+    matches, or with ``reverse`` the last ``limit``, newest first."""
     if date_str:
         from_dt, to_dt = date_to_range(date_str)
 
-    all_rows: list[dict[str, Any]] = []
+    def rows() -> Iterator[dict[str, Any]]:
+        for entry in iter_entries(
+            log_files,
+            topic_prefix=TOPIC_TRADE_EXECUTED,
+            symbol=symbol,
+            from_dt=from_dt,
+            to_dt=to_dt,
+            limit=None,
+        ):
+            p = entry.payload
+            bg = p.get("buy_gateway_id", "")
+            sg = p.get("sell_gateway_id", "")
 
-    for entry in iter_entries(
-        log_files,
-        topic_prefix=TOPIC_TRADE_EXECUTED,
-        symbol=symbol,
-        from_dt=from_dt,
-        to_dt=to_dt,
-        limit=None,
-    ):
-        p = entry.payload
-        bg = p.get("buy_gateway_id", "")
-        sg = p.get("sell_gateway_id", "")
+            if gateway and bg != gateway and sg != gateway:
+                continue
+            if buy_gateway and bg != buy_gateway:
+                continue
+            if sell_gateway and sg != sell_gateway:
+                continue
 
-        if gateway and bg != gateway and sg != gateway:
-            continue
-        if buy_gateway and bg != buy_gateway:
-            continue
-        if sell_gateway and sg != sell_gateway:
-            continue
+            price = p.get("price")
+            qty = p.get("quantity")
 
-        price = p.get("price")
-        qty = p.get("quantity")
+            if min_price is not None and (price is None or float(price) < min_price):
+                continue
+            if max_price is not None and (price is None or float(price) > max_price):
+                continue
+            if min_qty is not None and (qty is None or int(qty) < min_qty):
+                continue
 
-        if min_price is not None and (price is None or float(price) < min_price):
-            continue
-        if max_price is not None and (price is None or float(price) > max_price):
-            continue
-        if min_qty is not None and (qty is None or int(qty) < min_qty):
-            continue
-
-        all_rows.append(
-            {
+            yield {
                 "timestamp": entry.timestamp,
                 "trade_id": p.get("trade_id") or p.get("id"),
                 "symbol": entry.symbol,
@@ -713,12 +791,12 @@ def query_trades(
                 "sell_gateway": sg,
                 "aggressor": p.get("aggressor_side"),
             }
-        )
 
+    # The first `limit` rows end the scan; --reverse keeps only the last
+    # `limit` of all of them.
     if reverse:
-        all_rows.reverse()
-
-    return all_rows[:limit]
+        return list(reversed(deque(rows(), maxlen=limit)))
+    return list(islice(rows(), limit))
 
 
 def query_topics(
@@ -846,22 +924,25 @@ def query_timeline(
     from_dt: datetime | None = None,
     to_dt: datetime | None = None,
     limit: int = 500,
+    tail: bool = False,
     after_ts: str | None = None,
     after_skip: int = 0,
 ) -> list[dict[str, Any]]:
-    """Return chronological raw event rows for the ``timeline`` command."""
-    rows: list[dict[str, Any]] = []
-    for entry in iter_entries(
+    """Return chronological raw event rows for the ``timeline`` command: the
+    first ``limit`` matches, or with ``tail`` the last ``limit``."""
+    matches = iter_entries(
         log_files,
         topic_prefix=topic_prefix,
         gateway=gateway,
         symbol=symbol,
         from_dt=from_dt,
         to_dt=to_dt,
-        limit=limit,
+        limit=None if tail else limit,
         after_ts=after_ts,
         after_skip=after_skip,
-    ):
+    )
+    rows: list[dict[str, Any]] = []
+    for entry in deque(matches, maxlen=limit) if tail else matches:
         rows.append(
             {
                 "timestamp": entry.timestamp,

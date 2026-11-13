@@ -45,6 +45,7 @@ export const FIXED_RULES: Record<string, ThresholdRule> = {
   api_dropped_events: { warn: 0, crit: null, invert: false, configurable: false },
   api_throttled: { warn: 0, crit: null, invert: false, configurable: false },
   audit_archive_errors: { warn: 0, crit: null, invert: false, configurable: false },
+  audit_write_errors: { warn: 0, crit: null, invert: false, configurable: false },
   metrics_store_errors: { warn: 0, crit: null, invert: false, configurable: false },
   stats_feed_gaps: { warn: 0, crit: null, invert: false, configurable: false },
   slow_client_disconnects: { warn: 0, crit: null, invert: false, configurable: false },

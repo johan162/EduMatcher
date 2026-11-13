@@ -44,6 +44,11 @@ class ArchiveBusy(ArchiveError):
     """Another archive run holds the lock."""
 
 
+#: What ``pm-audit-cli archive`` prints when another run holds the lock;
+#: pm-audit reads it from its child to ask again later.
+ARCHIVE_BUSY_LINE = "[archive] another archive run holds the lock; nothing done"
+
+
 @dataclass(frozen=True)
 class ArchiveResult:
     day: str
@@ -204,7 +209,8 @@ def archive_day(
 
     ``today`` is the first day not yet closed: days before it are archivable.
     ``on_step`` is called after each step ("compressed", "verified",
-    "renamed", "deleted"); tests raise from it to simulate a crash there.
+    "renamed", "recorded", "deleted"); tests raise from it to simulate a
+    crash there.
     The caller holds ``archive_lock``.
     """
     if day >= today:

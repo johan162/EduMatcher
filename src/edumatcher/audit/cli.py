@@ -1,6 +1,6 @@
 """pm-audit-cli — read-only query tool for EduMatcher audit logs.
 
-Reads the JSONL log files written by ``pm-audit`` directly from disk.
+Reads the audit files written by ``pm-audit`` directly from disk.
 No ZeroMQ connection is made; the tool works even when ``pm-audit`` is not
 running as long as the log files exist. The one exception is ``health``,
 which pings pm-audit's health REP socket to confirm it is alive.
@@ -14,8 +14,8 @@ Global options
   --log-file PATH     Primary audit log file (default: data/audit.log)
   --log-dir  PATH     Directory holding audit/ (default: log file parent)
   --format   FORMAT   Output format: table (default), json, or csv
-  --no-header         Suppress header row for csv output
-  --use-index PATH    Use SQLite index for queries (auto-detected if omitted)
+  --no-header         Suppress the header row of table and csv output
+  --use-index PATH    Answer ``events`` from this SQLite index (never used unasked)
 
 Commands
 --------
@@ -29,16 +29,19 @@ Commands
   index       Build or update the optional SQLite index
   health      Check the pm-audit process (and, with --extended, its log file)
   archive     Compress closed days' parts into one verified .zst per day
+  verify      Check the archived days against the evidence manifest
 
-``events`` and ``timeline`` accept ``-f``/``--follow`` to keep printing new
-entries as they are appended to the log, polling every ``--interval``
-seconds (default 1.0) until interrupted with Ctrl-C.
+``events`` and ``timeline`` accept ``-f``/``--follow``: like ``tail -f``, they
+print the newest ``--limit`` matching entries, then each new one as it is
+appended, polling every ``--interval`` seconds (default 1.0) until
+interrupted with Ctrl-C.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import sqlite3
 import sys
 import time
 from compression import zstd
@@ -47,6 +50,7 @@ from pathlib import Path
 from typing import Any, TypedDict
 
 from edumatcher.audit.archive import (
+    ARCHIVE_BUSY_LINE,
     DEFAULT_LEVEL,
     ArchiveBusy,
     ArchiveError,
@@ -64,11 +68,13 @@ from edumatcher.audit.formatters import render, render_stats
 from edumatcher.audit.writer import file_day
 from edumatcher.audit.indexer import (
     build_index,
-    index_is_available,
+    indexed_through,
     open_readonly_index,
     query_index_events,
 )
 from edumatcher.audit.query import (
+    AuditEntry,
+    event_row,
     parse_line,
     discover_day_files,
     discover_log_files,
@@ -100,6 +106,8 @@ from edumatcher.healthcheck import (
 
 _FORMATS = ("table", "json", "csv")
 _DEFAULT_INDEX_NAME = "audit_index.db"
+#: Most rows one --follow poll prints; the rest come with the next poll.
+_FOLLOW_BATCH = 10_000
 
 # The log-file check reads the tail of audit.log and opens it for append; both
 # are normally instant, but on a stalled or network-mounted volume either can
@@ -198,12 +206,22 @@ DATE_HELP = (
 )
 
 
+FROM_HELP = (
+    "Start of the time range, inclusive: ISO-8601, or a bare date "
+    "(its midnight). Times without an offset, and bare dates, are UTC"
+)
+TO_HELP = (
+    "End of the time range, inclusive: ISO-8601, or a bare date "
+    "(the end of that day). Times without an offset, and bare dates, are UTC"
+)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="pm-audit-cli",
         description=(
             "Query EduMatcher audit logs without shell pipelines.\n"
-            "Reads JSONL files written by pm-audit directly from disk."
+            "Reads the files written by pm-audit directly from disk."
         ),
         formatter_class=argparse.RawTextHelpFormatter,
     )
@@ -240,16 +258,17 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--no-header",
         action="store_true",
-        help="Suppress header row for csv output",
+        help="Suppress the header row of table and csv output",
     )
     parser.add_argument(
         "--use-index",
         default=None,
         metavar="PATH",
         help=(
-            "Path to SQLite index file.\n"
-            "Auto-detected from --log-dir when not specified.\n"
-            "Ignored for commands that do not support it."
+            "Answer `events` from this SQLite index (see `index`).\n"
+            "Never used unless given: the index is a snapshot as of its\n"
+            "last build, and stderr says how far it reaches.\n"
+            "Ignored by other commands, --follow and --date."
         ),
     )
 
@@ -267,10 +286,8 @@ def build_parser() -> argparse.ArgumentParser:
     ev.add_argument("--gateway", metavar="GW_ID", help="Filter by gateway ID")
     ev.add_argument("--symbol", metavar="SYMBOL", help="Filter by symbol")
     ev.add_argument("--date", metavar="YYYY-MM-DD", help=DATE_HELP)
-    ev.add_argument(
-        "--from", dest="from_ts", metavar="ISO_TS", help="Start of time range"
-    )
-    ev.add_argument("--to", dest="to_ts", metavar="ISO_TS", help="End of time range")
+    ev.add_argument("--from", dest="from_ts", metavar="ISO_TS", help=FROM_HELP)
+    ev.add_argument("--to", dest="to_ts", metavar="ISO_TS", help=TO_HELP)
     ev.add_argument(
         "--limit",
         type=int,
@@ -309,10 +326,8 @@ def build_parser() -> argparse.ArgumentParser:
     od.add_argument("--gateway", metavar="GW_ID", help="Filter by gateway ID")
     od.add_argument("--symbol", metavar="SYMBOL", help="Filter by symbol")
     od.add_argument("--date", metavar="YYYY-MM-DD", help=DATE_HELP)
-    od.add_argument(
-        "--from", dest="from_ts", metavar="ISO_TS", help="Start of time range"
-    )
-    od.add_argument("--to", dest="to_ts", metavar="ISO_TS", help="End of time range")
+    od.add_argument("--from", dest="from_ts", metavar="ISO_TS", help=FROM_HELP)
+    od.add_argument("--to", dest="to_ts", metavar="ISO_TS", help=TO_HELP)
     od.add_argument(
         "--limit",
         type=int,
@@ -341,10 +356,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     tr.add_argument("--min-qty", type=int, metavar="QTY", help="Minimum trade quantity")
     tr.add_argument("--date", metavar="YYYY-MM-DD", help=DATE_HELP)
-    tr.add_argument(
-        "--from", dest="from_ts", metavar="ISO_TS", help="Start of time range"
-    )
-    tr.add_argument("--to", dest="to_ts", metavar="ISO_TS", help="End of time range")
+    tr.add_argument("--from", dest="from_ts", metavar="ISO_TS", help=FROM_HELP)
+    tr.add_argument("--to", dest="to_ts", metavar="ISO_TS", help=TO_HELP)
     tr.add_argument(
         "--limit",
         type=int,
@@ -361,10 +374,8 @@ def build_parser() -> argparse.ArgumentParser:
         formatter_class=argparse.RawTextHelpFormatter,
     )
     tp.add_argument("--date", metavar="YYYY-MM-DD", help=DATE_HELP)
-    tp.add_argument(
-        "--from", dest="from_ts", metavar="ISO_TS", help="Start of time range"
-    )
-    tp.add_argument("--to", dest="to_ts", metavar="ISO_TS", help="End of time range")
+    tp.add_argument("--from", dest="from_ts", metavar="ISO_TS", help=FROM_HELP)
+    tp.add_argument("--to", dest="to_ts", metavar="ISO_TS", help=TO_HELP)
     tp.add_argument(
         "--prefix", metavar="PREFIX", help="Filter topics by prefix (e.g. order.)"
     )
@@ -382,10 +393,8 @@ def build_parser() -> argparse.ArgumentParser:
         formatter_class=argparse.RawTextHelpFormatter,
     )
     gw.add_argument("--date", metavar="YYYY-MM-DD", help=DATE_HELP)
-    gw.add_argument(
-        "--from", dest="from_ts", metavar="ISO_TS", help="Start of time range"
-    )
-    gw.add_argument("--to", dest="to_ts", metavar="ISO_TS", help="End of time range")
+    gw.add_argument("--from", dest="from_ts", metavar="ISO_TS", help=FROM_HELP)
+    gw.add_argument("--to", dest="to_ts", metavar="ISO_TS", help=TO_HELP)
     gw.add_argument(
         "--min-events",
         type=int,
@@ -399,8 +408,8 @@ def build_parser() -> argparse.ArgumentParser:
         help="Show raw chronological event stream for session replay",
         formatter_class=argparse.RawTextHelpFormatter,
     )
-    tl.add_argument("--from", dest="from_ts", metavar="ISO_TS", help="Start time")
-    tl.add_argument("--to", dest="to_ts", metavar="ISO_TS", help="End time")
+    tl.add_argument("--from", dest="from_ts", metavar="ISO_TS", help=FROM_HELP)
+    tl.add_argument("--to", dest="to_ts", metavar="ISO_TS", help=TO_HELP)
     tl.add_argument("--topic", metavar="PREFIX", help="Filter by topic prefix")
     tl.add_argument("--gateway", metavar="GW_ID", help="Filter by gateway")
     tl.add_argument("--symbol", metavar="SYMBOL", help="Filter by symbol")
@@ -443,20 +452,23 @@ def build_parser() -> argparse.ArgumentParser:
         "--output",
         default=None,
         metavar="PATH",
-        help=f"SQLite database path (default: <log-dir>/{_DEFAULT_INDEX_NAME})",
+        help=(
+            f"SQLite database path (default: {_DEFAULT_INDEX_NAME} beside "
+            "--log-file)"
+        ),
     )
     ix.add_argument(
         "--days", type=int, default=None, metavar="N", help="Index last N days only"
     )
-    ix.add_argument(
-        "--from", dest="from_ts", metavar="ISO_TS", help="Start of index range"
-    )
-    ix.add_argument("--to", dest="to_ts", metavar="ISO_TS", help="End of index range")
-    ix.add_argument("--rebuild", action="store_true", help="Rebuild index from scratch")
+    ix.add_argument("--from", dest="from_ts", metavar="ISO_TS", help=FROM_HELP)
+    ix.add_argument("--to", dest="to_ts", metavar="ISO_TS", help=TO_HELP)
     ix.add_argument(
         "--incremental",
         action="store_true",
-        help="Add only new entries since last index",
+        help=(
+            "Add only the entries after the last indexed one.\n"
+            "Without it the index is built again from scratch."
+        ),
     )
 
     # ----------------------------------------------------------------- archive
@@ -574,8 +586,6 @@ def _validate_args(args: argparse.Namespace) -> None:
         days = getattr(args, "days", None)
         if days is not None and days <= 0:
             raise ValueError("--days must be > 0")
-        if getattr(args, "rebuild", False) and getattr(args, "incremental", False):
-            raise ValueError("--rebuild and --incremental are mutually exclusive")
 
 
 # ---------------------------------------------------------------------------
@@ -595,7 +605,7 @@ def _resolve_time_range(
     if from_ts is not None:
         from_dt = parse_ts(str(from_ts))
     if to_ts is not None:
-        to_dt = parse_ts(str(to_ts))
+        to_dt = parse_ts(str(to_ts), end_of_day=True)
     return from_dt, to_dt
 
 
@@ -604,12 +614,17 @@ def _resolve_time_range(
 # ---------------------------------------------------------------------------
 
 
-def _resolve_index_path(args: argparse.Namespace, log_file: Path) -> Path:
-    if args.use_index is not None:
-        from edumatcher.config import resolve_data_path
+def _resolve_index_path(args: argparse.Namespace) -> Path | None:
+    """The index ``--use-index`` names, or None: never used unasked."""
+    if args.use_index is None:
+        return None
+    from edumatcher.config import resolve_data_path
 
-        return resolve_data_path(args.use_index)
-    return log_file.parent / _DEFAULT_INDEX_NAME
+    return resolve_data_path(args.use_index)
+
+
+class IndexUnusable(Exception):
+    """``--use-index`` names a file that cannot be read as an index."""
 
 
 # ---------------------------------------------------------------------------
@@ -624,51 +639,36 @@ def _handle_events(
 ) -> tuple[list[str], list[dict[str, Any]]]:
     from_dt, to_dt = _resolve_time_range(args)
 
-    # Prefer the SQLite index when available. --follow always reads the live
-    # JSONL files instead: the index is a point-in-time snapshot and is not
-    # kept current between polls.
-    if (
-        index_path is not None
-        and not getattr(args, "follow", False)
-        and index_is_available(index_path)
-    ):
+    # The index only when asked for: it is a snapshot as of its last build
+    # (Q1), so the reader is told how far it reaches. --follow and --date
+    # read the trail (main() clears index_path for them).
+    if index_path is not None:
         try:
             conn = open_readonly_index(index_path)
-            rows = query_index_events(
-                conn,
-                topic_prefix=args.topic,
-                gateway=args.gateway.upper() if args.gateway else None,
-                symbol=args.symbol.upper() if args.symbol else None,
-                from_dt=from_dt,
-                to_dt=to_dt,
-                date_str=args.date,
-                limit=args.limit,
-                reverse=getattr(args, "reverse", False),
-            )
-            conn.close()
-            # Map index row fields to events columns
-            mapped: list[dict[str, Any]] = []
-            for r in rows:
-                import json as _json
-
-                payload = r.get("payload", "{}")
-                try:
-                    p = _json.loads(payload) if isinstance(payload, str) else payload
-                except Exception:
-                    p = {}
-                mapped.append(
-                    {
-                        "timestamp": r.get("timestamp"),
-                        "topic": r.get("topic"),
-                        "gateway": r.get("gateway_id"),
-                        "symbol": r.get("symbol"),
-                        "order_id": r.get("order_id"),
-                        "summary": str(p)[:80] if p else "",
-                    }
+            try:
+                rows = query_index_events(
+                    conn,
+                    topic_prefix=args.topic,
+                    gateway=args.gateway.upper() if args.gateway else None,
+                    symbol=args.symbol.upper() if args.symbol else None,
+                    from_dt=from_dt,
+                    to_dt=to_dt,
+                    limit=args.limit,
+                    reverse=getattr(args, "reverse", False),
                 )
-            return _EVENTS_COLS, mapped
-        except Exception:
-            pass  # Fall through to JSONL
+                through = indexed_through(conn)
+            finally:
+                conn.close()
+        except (sqlite3.Error, FileNotFoundError) as exc:
+            raise IndexUnusable(f"cannot read the index {index_path}: {exc}") from exc
+        print(
+            f"[INDEX] {index_path} reaches up to {through or '(nothing indexed)'}",
+            file=sys.stderr,
+        )
+        return _EVENTS_COLS, [
+            event_row(AuditEntry(r["timestamp"], r["topic"], json.loads(r["payload"])))
+            for r in rows
+        ]
 
     rows = query_events(
         log_files,
@@ -680,6 +680,8 @@ def _handle_events(
         date_str=args.date,
         limit=args.limit,
         reverse=getattr(args, "reverse", False),
+        # --follow starts like tail -f: with the newest rows (Q2).
+        tail=args.follow,
     )
     return _EVENTS_COLS, rows
 
@@ -769,35 +771,34 @@ def _handle_timeline(
         from_dt=from_dt,
         to_dt=to_dt,
         limit=args.limit,
+        tail=args.follow,
     )
     return _TIMELINE_COLS, rows
 
 
 def _follow_fetch(
     args: argparse.Namespace,
-    log_file: Path,
-    log_dir: Path | None,
+    log_files: list[Path],
     after_ts: str | None,
     after_skip: int,
 ) -> list[dict[str, Any]]:
-    """Re-discover log files and fetch rows newer than (after_ts, after_skip).
+    """Fetch the rows after (after_ts, after_skip) from ``log_files``.
 
-    Called on every --follow poll, so a day close that happens between polls
-    (a new day part appearing, or the active file being replaced) is
-    picked up automatically — ``discover_log_files`` is just a directory
-    listing, which is cheap enough to repeat every tick.
+    The caller re-discovers ``log_files`` on every poll, so a day close
+    between polls (a new day part, the active file replaced) is picked up.
+    A poll normally returns a small batch; one that returns the full
+    ``_FOLLOW_BATCH`` leaves the rest to the next poll.
     """
-    log_files = discover_log_files(log_file, log_dir)
-    # A poll is expected to return a small batch (new events since the last
-    # tick); 10,000 is just a generous ceiling, matching the cap query_timeline
-    # already uses for the same "essentially unbounded" purpose below.
+    from_dt, to_dt = _resolve_time_range(args)
     if args.command == "events":
         return query_events(
             log_files,
             topic=args.topic,
             gateway=args.gateway.upper() if args.gateway else None,
             symbol=args.symbol.upper() if args.symbol else None,
-            limit=10_000,
+            from_dt=from_dt,
+            to_dt=to_dt,
+            limit=_FOLLOW_BATCH,
             after_ts=after_ts,
             after_skip=after_skip,
         )
@@ -806,10 +807,45 @@ def _follow_fetch(
         topic_prefix=args.topic,
         gateway=args.gateway.upper() if args.gateway else None,
         symbol=args.symbol.upper() if args.symbol else None,
-        limit=10_000,
+        from_dt=from_dt,
+        to_dt=to_dt,
+        limit=_FOLLOW_BATCH,
         after_ts=after_ts,
         after_skip=after_skip,
     )
+
+
+def _trail_end(log_files: list[Path]) -> str | None:
+    """Stamp of the newest record in ``log_files``, read from the tail only."""
+    for path in reversed(log_files):
+        if path.suffix == ".zst" or not path.exists():
+            continue
+        last = read_last_line(path)
+        parsed = parse_line(last) if last is not None else None
+        if parsed is not None:
+            return parsed[0]
+    return None
+
+
+def _advance(
+    after_ts: str | None, after_skip: int, rows: list[dict[str, Any]], end: str | None
+) -> tuple[str | None, int]:
+    """The resume point after printing ``rows``.
+
+    It moves to the newest of the old point, the last printed row and
+    ``end`` (the trail's newest stamp, read before the fetch, so every line
+    up to it was scanned), and counts every row printed at that stamp,
+    earlier polls included.
+    """
+    stamps = [str(r["timestamp"]) for r in rows]
+    new_ts = max(
+        (ts for ts in (after_ts, stamps[-1] if stamps else None, end) if ts),
+        default=None,
+    )
+    if new_ts is None:
+        return None, 0
+    earlier = after_skip if new_ts == after_ts else 0
+    return new_ts, earlier + stamps.count(new_ts)
 
 
 def _run_follow(
@@ -818,31 +854,29 @@ def _run_follow(
     log_dir: Path | None,
     columns: list[str],
     initial_rows: list[dict[str, Any]],
+    end: str | None,
 ) -> None:
     """Print *initial_rows*, then poll for and print new rows until Ctrl-C.
 
-    Position is tracked as (timestamp string, count of already-emitted rows
-    sharing that timestamp) rather than a byte offset, since a poll always
-    re-discovers the log file set from scratch to stay correct across
-    rotation.
+    Position is tracked as (timestamp string, count of already-emitted
+    matching rows sharing that timestamp) rather than a byte offset, since a
+    poll always re-discovers the log file set from scratch to stay correct
+    across rotation.  It starts at ``end``, the trail's newest stamp read
+    before *initial_rows* were queried, even when nothing matched, so a poll
+    scans only what is new.
     """
     render(initial_rows, columns, args.format, no_header=args.no_header)
-
-    if initial_rows:
-        after_ts = str(initial_rows[-1]["timestamp"])
-        after_skip = sum(1 for r in initial_rows if str(r["timestamp"]) == after_ts)
-    else:
-        after_ts = None
-        after_skip = 0
+    after_ts, after_skip = _advance(None, 0, initial_rows, end)
 
     try:
         while True:
             time.sleep(args.interval)
-            new_rows = _follow_fetch(args, log_file, log_dir, after_ts, after_skip)
+            log_files = discover_log_files(log_file, log_dir)
+            end = _trail_end(log_files)
+            new_rows = _follow_fetch(args, log_files, after_ts, after_skip)
             if new_rows:
                 render(new_rows, columns, args.format, no_header=True)
-                after_ts = str(new_rows[-1]["timestamp"])
-                after_skip = sum(1 for r in new_rows if str(r["timestamp"]) == after_ts)
+            after_ts, after_skip = _advance(after_ts, after_skip, new_rows, end)
     except KeyboardInterrupt:
         pass
 
@@ -866,12 +900,7 @@ def _handle_index(
         else log_file.parent / _DEFAULT_INDEX_NAME
     )
 
-    from_dt: datetime | None = None
-    to_dt: datetime | None = None
-    if getattr(args, "from_ts", None):
-        from_dt = parse_ts(str(args.from_ts))
-    if getattr(args, "to_ts", None):
-        to_dt = parse_ts(str(args.to_ts))
+    from_dt, to_dt = _resolve_time_range(args)
 
     print(f"[INDEX] Building audit index at {output_path} …")
     inserted = build_index(
@@ -881,7 +910,6 @@ def _handle_index(
         from_dt=from_dt,
         to_dt=to_dt,
         days=args.days,
-        rebuild=args.rebuild,
         incremental=args.incremental,
     )
     print(f"[INDEX] Done — {inserted:,} rows inserted.")
@@ -1135,8 +1163,8 @@ def _handle_archive(args: argparse.Namespace, log_file: Path, audit_dir: Path) -
             if args.keep_days > 0:
                 for path in apply_retention(audit_dir, args.keep_days, today):
                     print(f"removed {path.name} (older than {args.keep_days} days)")
-    except ArchiveBusy as exc:
-        print(f"[archive] {exc}; nothing done")
+    except ArchiveBusy:
+        print(ARCHIVE_BUSY_LINE)
         return 0
     except ValueError as exc:
         print(f"[ERROR] {exc}", file=sys.stderr)
@@ -1194,7 +1222,7 @@ def main() -> None:
             raise SystemExit(1)
 
     log_files = discover_log_files(log_file, log_dir)
-    index_path: Path | None = _resolve_index_path(args, log_file)
+    index_path = None if getattr(args, "follow", False) else _resolve_index_path(args)
     if getattr(args, "date", None) and args.command in _DATE_COMMANDS:
         # The day is its files (session timezone), not a UTC time window, and
         # the index covers only the live trail.
@@ -1216,6 +1244,8 @@ def main() -> None:
         return
 
     # --- tabular commands ---
+    # Read before the first query: every line up to it is in that query.
+    follow_end = _trail_end(log_files) if getattr(args, "follow", False) else None
     try:
         if args.command == "events":
             columns, rows = _handle_events(args, log_files, index_path)
@@ -1232,12 +1262,15 @@ def main() -> None:
         else:
             print(f"[ERROR] Unknown command: {args.command}", file=sys.stderr)
             raise SystemExit(2)
+    except IndexUnusable as exc:
+        print(f"[ERROR] {exc}", file=sys.stderr)
+        raise SystemExit(1) from exc
     except Exception as exc:
         print(f"[ERROR] Query failed: {exc}", file=sys.stderr)
         raise SystemExit(1) from exc
 
     if getattr(args, "follow", False):
-        _run_follow(args, log_file, log_dir, columns, rows)
+        _run_follow(args, log_file, log_dir, columns, rows, follow_end)
         return
 
     render(rows, columns, args.format, no_header=args.no_header)

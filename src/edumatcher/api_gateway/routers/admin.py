@@ -41,6 +41,7 @@ from edumatcher.api_gateway.params import (
 from edumatcher.api_gateway.routing import ContractRoute
 from edumatcher.audit.indexer import (
     index_is_available,
+    indexed_through,
     open_readonly_index,
     query_index_events,
 )
@@ -990,6 +991,10 @@ async def admin_order_lifecycle(  # pyright: ignore[reportUnusedFunction]
     The dependency is read-only and optional. If `pm-audit` is not deployed
     or has not built its index, this endpoint returns 503 with a specific
     reason and every other route is unaffected.
+
+    The index is built by hand (`pm-audit-cli index`), so it is a snapshot:
+    `indexed_through` is the stamp of its newest line, and a 404 names it,
+    so an order newer than the build reads as not indexed yet.
     """
     await require_admin(request, session)
     audit_db = request.app.state.config.audit_db
@@ -1009,6 +1014,7 @@ async def admin_order_lifecycle(  # pyright: ignore[reportUnusedFunction]
     conn = open_readonly_index(audit_db)
     try:
         events = query_index_events(conn, order_id=order_id, limit=limit)
+        through = indexed_through(conn)
     finally:
         conn.close()
     if not events:
@@ -1017,11 +1023,19 @@ async def admin_order_lifecycle(  # pyright: ignore[reportUnusedFunction]
             detail={
                 "error": {
                     "code": "UNKNOWN_ORDER",
-                    "message": f"No audited events for order {order_id}",
+                    "message": (
+                        f"No audited events for order {order_id} in the audit "
+                        f"index, which reaches up to {through or '(nothing)'}"
+                    ),
                 }
             },
         )
-    return {"order_id": order_id, "count": len(events), "events": events}
+    return {
+        "order_id": order_id,
+        "indexed_through": through,
+        "count": len(events),
+        "events": events,
+    }
 
 
 @router.get(

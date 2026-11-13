@@ -31,6 +31,7 @@ its own piece of work.
 | L015 | 2026-11-13 | pm-alf-gwy / pm-orders | ALF `QBOOT` lines carry an empty `STATUS=`; `pm-orders` shows `?` in every column of a rejected order | Low | Open |
 | L016 | 2026-11-13 | docs (participant combo guide) | Introduction promises atomic all-or-none execution for combos, although AON is an entry guard and later legs can fill independently | Medium | Open |
 | L017 | 2026-11-13 | CLIs (`health -q`) | `health -q` exits `-1` (status 255) while the non-quiet path exits 1, in four CLIs | Low | Open |
+| L018 | 2026-11-13 | trader-gui (admin order detail) | A 404 from the order-audit endpoint shows "No audited events for this order." without the index's reach (`indexed_through`), so an order newer than the last index build looks unknown | Low | Open |
 
 ## L001 — Topic literals in pm-sim-forensics
 
@@ -259,3 +260,19 @@ with and without `-q`.
 **Recommendation.** Exit 1 in both modes and fix the four help texts; check
 the operator guide's health chapter and any container healthcheck that
 compares the status.
+
+## L018 — trader-gui hides how far the audit index reaches
+
+**Found:** 2026-11-13, WP-AUD05 of the pm-audit review
+(`docs-design/reviews/EduMatcher-Audit-Review-2026-11.md`).
+
+**Finding.** `GET /admin/orders/{order_id}/audit` now returns
+`indexed_through` and names it in the 404 message, because the audit index
+is built by hand and an order newer than the build is not in it yet.
+`web-apps/trader-gui/apps/web/src/components/admin/AdminOrderDetailModal.tsx`
+prints its own text on a 404 ("No audited events for this order.") and
+ignores the field on a 200, so an operator cannot tell "not indexed yet"
+from "no such order".
+
+**Recommendation.** Show the 404's message (or `indexed_through`) in the
+modal, and add `indexed_through` to the type in `src/types/index.ts`.

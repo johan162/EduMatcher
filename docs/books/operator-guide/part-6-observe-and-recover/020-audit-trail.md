@@ -4,7 +4,7 @@
     After reading this page you will understand:
 
     - Why a full event log matters for an exchange and what `pm-audit` records
-    - The JSONL log format, how `pm-audit` closes each day and how days are archived
+    - The audit line format, how `pm-audit` closes each day and how days are archived
     - All `pm-audit` startup options including write buffering
     - How to query audit logs from the command line using every `pm-audit-cli` verb
     - When to use the optional SQLite index for faster queries
@@ -23,7 +23,7 @@ The audit system has two independent components:
 
 | Component | Role | Type |
 |---|---|---|
-| **`pm-audit`** | Subscriber — records every event to a JSONL log file, closed day by day | Long-running process |
+| **`pm-audit`** | Subscriber — records every event as one line of a log file, closed day by day | Long-running process |
 | **`pm-audit-cli`** | Query tool — reads audit logs and prints structured output | One-shot CLI |
 
 The recorder and the query tool are completely independent. `pm-audit-cli`
@@ -37,7 +37,7 @@ flowchart TB
         AUD["pm-audit\nSUB :5556"]
         LOG[("data/audit.log\n+ audit/ day parts\n+ audit/*.log.zst")]
         ENG -- "all topics" --> AUD
-        AUD -- "buffered JSONL writes" --> LOG
+        AUD -- "buffered line writes" --> LOG
     end
     subgraph Operator
         CLI["pm-audit-cli\n(read-only)"]
@@ -128,8 +128,17 @@ active sessions. `pm-audit` batches messages in memory and flushes as a
 group when either limit is reached:
 
 - **Buffer full**: buffer contains `--buffer-size` messages (default 100)
-- **Timer expired**: `--flush-interval` seconds have elapsed since the last flush (default 10 s)
+- **Oldest message waited long enough**: the oldest buffered message arrived
+  `--flush-interval` seconds ago (default 10 s); the receive loop checks at
+  least every 0.3 s
 - **Shutdown**: Ctrl-C, SIGINT, or SIGTERM always flushes remaining messages before exit
+
+If a write fails (disk full, I/O error), the lines stay in memory, the
+failure is logged at ERROR and counted in `audit.write_errors` (pm-monitor
+warns on any increase), and the write is tried again about every 0.3 s. A
+write that failed part-way is cut back first, so no line is written twice.
+Free the disk while `pm-audit` is still running: the waiting lines exist only
+in its memory.
 
 No messages are lost on clean shutdown. A hard kill (`kill -9`) may lose up
 to `--buffer-size` messages that had not yet been flushed. See
@@ -160,7 +169,7 @@ sit between an engine publication and the disk, and each has a bound:
 |---|---|---|
 | `pm-audit` is not running | Everything the engine publishes meanwhile | Unbounded. The next line shows a jump in `eseq` (replay: `ESEQ_GAP`), and a `# recorder-start` marker before it (replay: `RECORDER_RESTART`) says why |
 | The receive queue overflows (a burst faster than the writer) | The messages past the queue's 200 000 | Counted by `audit.missed_messages` when the next message shows the jump |
-| `pm-audit` is killed (`kill -9`) | Lines buffered but not yet written | At most `--buffer-size` messages or `--flush-interval` seconds, whichever comes first |
+| `pm-audit` is killed (`kill -9`) | Lines buffered but not yet written | At most `--buffer-size` messages or `--flush-interval` seconds, whichever comes first; while writes fail (disk full), everything since the first failure |
 | The host loses power or the kernel crashes | Lines written but not yet synced | About `--fsync-interval` seconds (default 1) plus the line above. A write syncs when one is due, and while no line arrives the receive loop does (it wakes at least every 0.3 s), so a quiet tail is not left in the page cache |
 
 A stopped-and-started `pm-audit` writes one comment line, `# edumatcher-audit
@@ -443,19 +452,24 @@ An audited run must also be started from a deployed config artifact
 ### Signal handling and graceful shutdown
 
 ```
-Ctrl-C / SIGINT / SIGTERM → flush buffer → close socket → exit
+Ctrl-C / SIGINT / SIGTERM → read on until system.eod (at most 5 s) → flush buffer → close socket → exit 0
 ```
 
 The buffer flush happens synchronously before the process exits so the last
 batch of messages is always written to disk.
+
+If the receive loop dies of an error it cannot recover from (anything but a
+failed write, which it retries), `pm-audit` logs it at CRITICAL ("audit
+receive loop died"), flushes what it holds and exits with status 1, so a
+supervisor restarts it, rather than running on without recording.
 
 
 
 ## pm-audit-cli — Query Tool
 
 `pm-audit-cli` is a read-only command-line tool for querying audit logs
-without shell pipelines or SQL knowledge. It reads JSONL files directly from
-disk and produces structured output. The one command that talks to the running
+without shell pipelines or SQL knowledge. It reads the audit files directly
+from disk and produces structured output. The one command that talks to the running
 recorder is [`health`](#health-recorder-and-log-file-health), which pings
 `pm-audit` to confirm it is alive.
 
@@ -483,22 +497,17 @@ These flags are parsed once, before the subcommand:
 | `--log-file PATH` | `data/audit.log` | Primary audit log file to read |
 | `--log-dir PATH` | (parent of `--log-file`) | Directory holding the `audit/` day parts and archives |
 | `--format table\|json\|csv` | `table` | Output format |
-| `--no-header` | off | Suppress CSV header row |
-| `--use-index PATH` | (auto) | Path to SQLite index file; auto-detected as `<the directory containing --log-file>/audit_index.db` when present |
+| `--no-header` | off | Suppress the header row of `table` and `csv` output |
+| `--use-index PATH` | (none) | Answer `events` from this SQLite index; never used unless given — see [`index`](#index-build-or-update-the-sqlite-index) |
 
 !!! note "Not every flag applies to every command"
-    `--use-index` only affects the `events` command — `orders`, `trades`,
-    `topics`, `gateways`, and `timeline` always stream the JSONL log files
-    directly and never consult the SQLite index, even when one exists and
-    `--use-index` is given. `--format`/`--no-header` are also ignored by
+    `--use-index` only affects the `events` command, and not with `--follow`
+    or `--date` — `orders`, `trades`, `topics`, `gateways`, and `timeline`
+    always stream the trail's files and never consult the SQLite index.
+    `--format`/`--no-header` are also ignored by
     `stats` (its output is a fixed text summary, not a table) and by `index`
     (which prints build progress, not rows). `health` honours `--format json`
     (the report as a JSON object); `csv` prints the same text as `table`.
-
-    The auto-detected index path is always `<the directory containing
-    --log-file>/audit_index.db` — it does **not** use `--log-dir`. If
-    `--log-dir` points somewhere other than `--log-file`'s own parent
-    directory, the index lookup still only checks the log file's parent.
 
 **Output formats:**
 
@@ -532,6 +541,12 @@ day that has not been archived yet. Archives are not read unless you ask:
 `--date` selects a day's *files*, not a time window, and cannot be combined
 with an archive `--log-file` or with `--follow`. Results are chronological
 across all files.
+
+`--from` and `--to` are a time window within those files, both inclusive.
+They take ISO-8601 or a bare date; a time without an offset, and a bare
+date, are **UTC** (unlike `--date`, which is a session-timezone trading day).
+A bare date in `--from` is its midnight, in `--to` the end of that day, so
+`--from 2026-07-08 --to 2026-07-08` is that whole UTC day.
 
 ### `events` — General event search
 
@@ -568,16 +583,13 @@ pm-audit-cli events [options]
 | `order_id` | Order ID extracted from payload (if present) |
 | `summary` | Brief human-readable description of the event |
 
-!!! note "`summary` format differs when the SQLite index is used"
-    When `events` is served from the JSONL log files, `summary` is a
-    structured, topic-aware description (e.g. `FILL 60@150.00`). When a
-    usable index exists at the resolved `--use-index` path, `events` is
-    served from SQLite instead, and `summary` is just the payload dict's
-    `str()` representation truncated to 80 characters — a different, less
-    readable format. Rebuild the index after querying if you need the
-    latest events; the index is never queried automatically for freshness.
-    `--follow` always reads the JSONL files directly and never uses the
-    index, even when one is available — see below.
+!!! note "With `--use-index`, `events` is as fresh as the index"
+    The rows and their `summary` are the same as from the trail, but only up
+    to the index's last build: `events` prints
+    `[INDEX] <path> reaches up to <timestamp>` on stderr so you can tell.
+    Run `pm-audit-cli index --incremental` first if you need the latest
+    events. An index that cannot be read is an error (exit `1`), not a
+    silent fallback to the trail.
 
 **Examples:**
 
@@ -617,10 +629,11 @@ pm-audit-cli events --symbol AAPL --follow --interval 2
 #### Follow mode
 
 `events` and `timeline` both accept `-f`/`--follow` to keep the query
-running: after printing the normal (filtered, `--limit`-capped) result, the
-command keeps polling the log files every `--interval` seconds and prints
-each newly-appended, matching entry as it arrives, until interrupted with
-`Ctrl-C`. This is the audit-log equivalent of `pm-log-cli tail`.
+running: like `tail -f`, the command first prints the **newest** `--limit`
+matching entries (oldest of them first), then keeps polling the log files
+every `--interval` seconds and prints each newly-appended, matching entry as
+it arrives, until interrupted with `Ctrl-C`. This is the audit-log
+equivalent of `pm-log-cli tail`.
 
 ```bash
 # Watch the whole log live, table format
@@ -632,27 +645,31 @@ pm-audit-cli --format json events --topic order. --gateway GW01 --follow
 
 A few things behave differently in follow mode:
 
-- **`--limit` only bounds the initial backfill.** The first batch printed
-  respects `--limit` (`100` by default for `events`, `500` for `timeline`)
-  exactly as it would without `--follow`. Once the poll loop starts, every
-  subsequent batch prints however many new matching entries actually
-  arrived since the last poll — there is no cap. This mirrors `pm-log-cli
-  tail --before N`.
+- **`--limit` only bounds the initial batch.** The first batch is the last
+  `--limit` matching entries (`100` by default for `events`, `500` for
+  `timeline`). Once the poll loop starts, every subsequent batch prints the
+  new matching entries that arrived since the last poll (at most 10 000 per
+  poll; the rest come with the next). This mirrors `pm-log-cli tail
+  --before N`.
+- **`--from` and `--to` hold for every poll.** An entry outside the window
+  is never printed, however late it arrives.
 - **`events --reverse --follow` together is rejected** (exit code `2`):
   `timeline` has no `--reverse` flag, and for `events`, newest-first
   ordering is meaningless once the log is still growing.
-- **`events --follow` always reads the JSONL log files**, even when a
-  usable SQLite index exists at the resolved `--use-index` path. The index
-  is a point-in-time snapshot and is never refreshed by a running query, so
-  follow mode bypasses it rather than showing stale data.
+- **`events --follow` always reads the trail's files**, even with
+  `--use-index`. The index is a snapshot as of its last build, so follow
+  mode bypasses it rather than showing stale data.
 - **Closing a day is handled automatically.** Each poll re-discovers the
   live trail, so the midnight close — `audit.log` becoming a day part and a
   fresh `audit.log` starting — is picked up on the next poll without
   restarting the command, and no line is printed twice.
 - **No `seq` requirement.** Resuming after each poll is based on the
-  entries' timestamps, not the optional `seq=` field in the log line's
-  metadata section — so `--follow` works identically whether or not
-  `pm-audit` happens to be stamping envelope metadata.
+  entries' timestamps (and, for entries in the same millisecond, how many
+  of them were already printed), not the optional `seq=` field in the log
+  line's metadata section — so `--follow` works identically whether or not
+  `pm-audit` happens to be stamping envelope metadata. A poll skips lines
+  older than its resume point without parsing them, so it costs little
+  however long the day's trail is.
 
 `--format csv`/`--format json` both work under `--follow`. Each poll batch
 is printed as its own block, one after another, rather than as a single
@@ -691,13 +708,13 @@ pm-audit-cli orders [options]
 |---|---|
 | `timestamp` | Event timestamp |
 | `order_id` | Order identifier |
-| `event` | Last dot-separated segment of the topic. For two-part topics like `order.new` this is the verb (`new`). For per-gateway topics like `order.ack.GW01`, `order.fill.GW01`, or `order.cancelled.GW01` it is the **gateway ID**, not the verb — the topic's own verb segment (`ack`, `fill`, `cancelled`) is dropped. |
+| `event` | The message kind: `new`, `ack`, `fill`, `cancel`, `cancelled`, `amended`, `expired`, `triggered`, … (the topic without its gateway ID) |
 | `gateway` | Gateway ID |
 | `symbol` | Instrument symbol |
 | `side` | `BUY` or `SELL` |
-| `qty` | `quantity or fill_qty or remaining_qty` — the first **truthy** value in that order (not merely the first present key; a legitimate `0` or `null` falls through to the next) |
-| `price` | Price (limit price or fill price depending on event type) |
-| `status` | Order status after the event |
+| `qty` | A fill's `fill_qty`; an ack's or amend's `qty`; otherwise the first present of `quantity`, `qty`, `remaining_qty` (a `0` is shown, e.g. the `remaining_qty` of a cancel) |
+| `price` | A fill's `fill_price` (not the order's limit); otherwise `price`, or for `order.new`, which carries only ticks, `price_ticks` in money |
+| `status` | Order status after the event; for an ack `ACCEPTED` or `REJECTED` |
 | `reason` | `reject_code` (from an `order.ack` rejection), `cancel_reason` (from `order.cancelled`), or a generic `reason` string — whichever the event carries |
 
 **Examples:**
@@ -1036,8 +1053,10 @@ pm-audit-cli --log-file data/audit/audit-2026-07-01.log.zst stats
 ### `index` — Build or update the SQLite index
 
 For large audit histories or frequent complex queries, `pm-audit-cli` can
-build an optional SQLite index from the JSONL log files. Once built, the
-`events` command uses it automatically for significantly faster response.
+build an optional SQLite index from the live trail. `events --use-index
+PATH` answers from it, and pm-api-gwy's `GET /admin/orders/{order_id}/audit`
+reads it. It is a **snapshot**: nothing updates it but this command, so
+anything recorded after the last build is not in it.
 
 ```bash
 pm-audit-cli index [options]
@@ -1051,16 +1070,13 @@ pm-audit-cli index [options]
 | `--days N` | (none) | Index only the last N days of logs |
 | `--from ISO_TS` | (none) | Start of index range |
 | `--to ISO_TS` | (none) | End of index range |
-| `--rebuild` | off | Delete all existing index data and rebuild from scratch |
-| `--incremental` | off | Add only entries newer than the last indexed timestamp |
+| `--incremental` | off | Keep the index and add only the entries after the last indexed one |
 
-`--rebuild` and `--incremental` are mutually exclusive.
-
-!!! warning "Re-running `index` without `--rebuild`/`--incremental` duplicates rows"
-    Without either flag, `index` re-inserts every entry in the requested
-    range on each run with no deduplication — running the same `--days 7`
-    command twice doubles the row count for that window. Use `--incremental`
-    for routine re-indexing, or `--rebuild` to start clean.
+Without `--incremental` the index is built again from scratch, so running the
+same command twice gives the same index. `--incremental` resumes after the
+last indexed entry, including entries of its millisecond that were written
+after the build, so it never adds an entry twice. The index covers the live
+trail (unarchived parts and `audit.log`), not the archives.
 
 **Index schema highlights:**
 
@@ -1071,18 +1087,21 @@ is kept in a `payload` column so no information is lost.
 
 **Performance comparison (1 M events):**
 
-| Query type | JSONL streaming | SQLite index |
+| Query type | Streaming the trail | SQLite index |
 |---|---|---|
 | Recent 100 events | < 1 s | < 0.1 s |
 | Single topic filter | 4–6 s | 0.2 s |
 | Multi-filter (topic + gateway + date) | 10–15 s | 0.5 s |
 | Order ID lookup | 8 s | 0.05 s |
 
-**Index auto-detection:**
+**Using the index:**
 
-When `audit_index.db` exists in the log directory, the `events` command uses
-it automatically. Override with `--use-index PATH` or point at a different
-index location.
+`events` uses an index only when given `--use-index PATH`, and then says on
+stderr how far it reaches. The order-lifecycle endpoint of pm-api-gwy
+(`api_gateways[].audit_db`) returns the same value as `indexed_through`, and
+its `404 UNKNOWN_ORDER` names it, so an order newer than the build reads as
+"not indexed yet". Re-run `index --incremental` as often as those readers
+need it fresh (for example from cron).
 
 **Examples:**
 
@@ -1090,8 +1109,8 @@ index location.
 # Build index for the last 7 days
 pm-audit-cli index --days 7
 
-# Build complete index from all log files
-pm-audit-cli index --rebuild
+# Build the index from scratch (replaces what was there)
+pm-audit-cli index
 
 # Incremental update — only adds entries not yet in the index
 pm-audit-cli index --incremental
@@ -1101,7 +1120,7 @@ pm-audit-cli index \
   --from 2026-07-01T00:00:00+00:00 --to 2026-07-08T23:59:59+00:00
 
 # Build index to a custom location
-pm-audit-cli index --output /tmp/session_idx.db --rebuild
+pm-audit-cli index --output /tmp/session_idx.db
 
 # Use a non-default index when querying
 pm-audit-cli --use-index /tmp/session_idx.db \
@@ -1115,7 +1134,7 @@ pm-audit-cli --use-index /tmp/session_idx.db \
     - You run more than a few queries per session
     - You need to correlate events across multiple fields (topic + gateway + symbol + date)
 
-    For ad-hoc queries on small logs, streaming JSONL is fast enough without the extra disk space.
+    For ad-hoc queries on small logs, streaming the trail is fast enough without the extra disk space.
 
 ### `health` — Recorder and log file health
 
@@ -1246,9 +1265,6 @@ pm-audit-cli topics --date 2026-07-08 --sort count | head -10
 ### Export a full session for offline analysis
 
 ```bash
-# Build index first for speed
-pm-audit-cli index --rebuild
-
 # Export all trades
 pm-audit-cli --format csv trades --date 2026-07-08 --limit 50000 > trades.csv
 
@@ -1293,7 +1309,7 @@ pm-audit-cli --format json timeline --follow > live_session.json
 | Exit code | Meaning |
 |---|---|
 | `0` | Success (including queries that returned zero rows) |
-| `1` | I/O error (log file not found, unreadable database) |
+| `1` | I/O error (log file not found, an index given with `--use-index` that cannot be read) |
 | `2` | Argument error (invalid date format, bad `--limit`, conflicting flags) |
 
 Invalid log lines (malformed JSON, truncated writes) are always silently
