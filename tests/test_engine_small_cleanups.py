@@ -28,11 +28,12 @@ from tests.engine_harness import (
 def test_the_engine_takes_no_verbose_flag() -> None:
     assert "verbose" not in inspect.signature(Engine.__init__).parameters
     found = subprocess.run(
-        ["git", "grep", "-n", r"Engine(verbose", "--", "src", "tests"],
+        ["git", "grep", "-n", r"Engine[(]verbose", "--", "src", "tests"],
         capture_output=True,
         text=True,
     )
     assert found.stdout == ""
+    assert found.returncode == 1, found.stderr
 
 
 # --- C14: one OCO callback per leg the uncross ends -----------------------------
