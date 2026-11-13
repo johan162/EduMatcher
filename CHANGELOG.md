@@ -1,3 +1,32 @@
+## [v0.78.4] - 2026-11-13
+
+Release Type: patch
+
+### 📋 Summary
+This release fixes engine cancellation, recovery, halt and shutdown edge cases uncovered by the engine review. It also makes market-maker startup failures visible and corrects clearing console output.
+
+### ⚠️ Breaking Changes
+- Removed the unused `verbose` argument from `Engine`; Python callers passing it must remove that argument
+
+### 🐛 Bug Fixes
+- Fixed exchange-initiated cancellations and expiries leaving OCO pairs or combos partially live
+- Fixed malformed or failed OCO, combo and quote requests going unanswered or leaving accepted structures without proper cleanup
+- Fixed corrupt book statistics and invalid persisted order fields preventing startup, and restored partially filled orders with PARTIAL status
+- Fixed business-date inconsistencies across recovery, archives and schedules, and reference schedules remaining stale after midnight
+- Fixed halts leaving orphaned quote legs resting, incorrect halt rejection reasons, and the closing backstop lifting indefinite operator halts
+- Fixed duplicate OCO callbacks during auction self-match prevention and missing market-maker terms for mixed-case symbol-query callers
+- Fixed shutdown save failures skipping subsequent cleanup and end-of-day notifications
+- Fixed invalid order fields, including unknown self-match prevention actions, being reported as internal errors rather than malformed input
+- Made market-maker startup failures visible without verbose logging and flushed clearing trades before printing their positions and P&L
+
+### 📚 Documentation
+- Corrected container-based training exercises for setup, market makers, order handling, auctions and cancellations
+- Clarified cancellation cascades, session-timezone persistence dates, startup recovery and operator halt behavior
+
+### 🛠 Internal
+- Added engine regression coverage for cancellation links, structure error replies, corrupt startup state, business dates, halts and shutdown
+- Fixed a self-matching test search and hardened C-example signal handling against timing races
+
 ## [v0.78.3] - 2026-11-13
 
 Release Type: patch
