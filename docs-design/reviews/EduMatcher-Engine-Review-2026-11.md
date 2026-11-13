@@ -23,8 +23,9 @@ maintenance flushes are guarded one by one. This review does not repeat them.
 `tests/engine_harness.py`; the others are by inspection, with the line
 numbers given.
 
-Status: **In progress.** WP-ENG01, WP-ENG02, WP-ENG04, WP-ENG05 and
-WP-ENG06 done 2026-11-13 (uncommitted; outcomes in §8). Next: WP-ENG03.
+Status: **In progress.** WP-ENG01, WP-ENG02, WP-ENG04, WP-ENG05, WP-ENG06
+and WP-ENG07 done 2026-11-13 (uncommitted; outcomes in §8). Open: WP-ENG03,
+WP-ENG08, WP-ENG09.
 
 ---
 
@@ -61,7 +62,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit) �
 | 4 | WP-ENG04 | Startup-state robustness: corrupt `book_stats.json` entries, PARTIAL status on restore | C7, C8 | — | 0.5 d | ☑ | 2026-11-13 |
 | 5 | WP-ENG05 | One business date; reference schedule `today` never stale | C6, C9, D12 | — | 0.5 d | ☑ | 2026-11-13 |
 | 6 | WP-ENG06 | Halt consistency: orphaned quote legs on a CB halt, halt reason on quote rejects, admin halts at CLOSED | C10, C11, D7 | Q3 | 0.5 d | ☑ | 2026-11-13 |
-| 7 | WP-ENG07 | Small correctness cleanups | C13–C17 | — | 0.5 d | ☐ | |
+| 7 | WP-ENG07 | Small correctness cleanups | C13–C17 | — | 0.5 d | ☑ | 2026-11-13 |
 | 8 | WP-ENG08 | Performance: maintenance throttle, holiday-calendar cache, request-path lookups | P1–P5 | — | 1 d | ☐ | |
 | 9 | WP-ENG09 | Comments and docstrings: data-flow walkthroughs correct and complete | D1–D13, C12 | WP-ENG01–08 | 1 d | ☐ | |
 
@@ -809,6 +810,25 @@ and the order path answers `MALFORMED_MESSAGE`.
 
 **Exit criteria.** Each test passes; no behaviour change outside the five
 items; engine suite green.
+
+**Outcome (2026-11-13).** `tests/test_engine_small_cleanups.py` (7 tests).
+C13: `Engine(verbose=...)` removed, with the dead `verbose` parameter of
+three test helpers. C14: `_resolve_self_match` no longer calls
+`on_oco_leg_done` itself; `_smp_cancel_resting` reports each leg once (the
+test showed two calls per leg before). C15: the participants lookup
+upper-cases; the reply topic keeps the caller's case, since api-gwy passes
+mixed-case correlation keys there. C16: `_shutdown`'s three saves and the
+EOD publish are each guarded (new ERROR `Shutdown step failed (%s): %s`,
+with a ledger entry); closes always run. C17: `Order.from_dict` raises
+`ValueError` on an unknown `smp_action` (null still means omitted), and
+`_handle_new_order` answers any payload that does not decode with
+`MALFORMED_MESSAGE` instead of the dispatcher's `INTERNAL_ERROR`. That is
+wider than C17 (a bad `side`, `order_type` or `tif` too) — the same rule
+WP-ENG02 gave OCO/combo payloads. Four older tests that pinned the previous
+behaviour (`test_negative_input_validation.py` ×3 expected a raise;
+`test_negative_engine_state.py` expected shutdown to raise on a full disk,
+and said to update it once hardened) now assert the new contract. Full
+suite 14002 passed; `make _check` and `make test-e2e` clean.
 
 ### WP-ENG08 — Performance (P1–P5)
 

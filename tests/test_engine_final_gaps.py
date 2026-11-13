@@ -123,7 +123,6 @@ def _make_engine(
     tmp_path,
     symbols=("AAPL",),
     gateways=("GW01",),
-    verbose=False,
     gtc_orders=None,
 ) -> tuple[Engine, _Sock]:
     pull_sock = _Sock(sent=[])
@@ -142,7 +141,7 @@ def _make_engine(
     monkeypatch.setattr("edumatcher.engine.main.time.sleep", lambda *_: None)
     cfg_path = tmp_path / "cfg.yaml"
     cfg_path.write_text("dummy: true\n")
-    engine = Engine(verbose=verbose, config_path=str(cfg_path))
+    engine = Engine(config_path=str(cfg_path))
     return engine, pub_sock
 
 
@@ -319,9 +318,7 @@ class TestOCOStopLimitValidation:
 class TestVerboseCombo:
     def test_verbose_combo_accepted_logs(self, monkeypatch, tmp_path, caplog) -> None:
         caplog.set_level(logging.DEBUG, logger="edumatcher.engine.main")
-        engine, pub_sock = _make_engine(
-            monkeypatch, tmp_path, symbols=("AAPL", "MSFT"), verbose=True
-        )
+        engine, pub_sock = _make_engine(monkeypatch, tmp_path, symbols=("AAPL", "MSFT"))
         _connect(engine)
         combo = ComboOrder.create(
             combo_id="VC01",
@@ -352,9 +349,7 @@ class TestVerboseCombo:
 
     def test_verbose_cascade_cancel_logs(self, monkeypatch, tmp_path, caplog) -> None:
         caplog.set_level(logging.DEBUG, logger="edumatcher.engine.main")
-        engine, pub_sock = _make_engine(
-            monkeypatch, tmp_path, symbols=("AAPL", "MSFT"), verbose=True
-        )
+        engine, pub_sock = _make_engine(monkeypatch, tmp_path, symbols=("AAPL", "MSFT"))
         _connect(engine)
         combo = ComboOrder.create(
             combo_id="VC02",
@@ -394,7 +389,7 @@ class TestVerboseCombo:
 class TestVerboseOCO:
     def test_verbose_oco_accepted_logs(self, monkeypatch, tmp_path, caplog) -> None:
         caplog.set_level(logging.DEBUG, logger="edumatcher.engine.main")
-        engine, pub_sock = _make_engine(monkeypatch, tmp_path, verbose=True)
+        engine, pub_sock = _make_engine(monkeypatch, tmp_path)
         _connect(engine)
         engine._handle_oco_order(
             {
@@ -416,7 +411,7 @@ class TestVerboseOCO:
 
     def test_verbose_oco_cancel_logs(self, monkeypatch, tmp_path, caplog) -> None:
         caplog.set_level(logging.DEBUG, logger="edumatcher.engine.main")
-        engine, pub_sock = _make_engine(monkeypatch, tmp_path, verbose=True)
+        engine, pub_sock = _make_engine(monkeypatch, tmp_path)
         _connect(engine)
         engine._handle_oco_order(
             {

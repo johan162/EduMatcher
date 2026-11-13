@@ -619,12 +619,7 @@ class Engine:
     RECENT_TRADES_MAXLEN = 20
     DEPTH_SNAPSHOT_TOLERANCE_TICKS = 100
 
-    def __init__(self, verbose: bool = False, config_path: str | None = None) -> None:
-        # Kept for backward compatibility with existing callers/tests. Detail
-        # logging is no longer gated by this flag -- it is gated by the
-        # standard logging level (see main()'s -v/-vv/--log-level/-q), same
-        # as every other process. This attribute currently has no effect.
-        self.verbose = verbose
+    def __init__(self, config_path: str | None = None) -> None:
         self.books: dict[str, OrderBook] = {}  # symbol → OrderBook
         # Health-beacon counters (operator dashboard §8.2-§8.4). Created here,
         # with no socket, so the unit-test harness can assert on them; the
@@ -1944,7 +1939,29 @@ class Engine:
         # Counted before anything can reject it: this is what was submitted.
         self.metrics.order_in(payload.get("gateway_id"))
         # Wire dict -> Order object.  Prices arrive already as integer ticks.
-        order = Order.from_dict(payload)
+        # A payload that does not decode (an unknown enum value, a missing
+        # field) is the client's mistake, not an engine fault: refuse it as
+        # malformed rather than let the dispatcher answer INTERNAL_ERROR.
+        try:
+            order = Order.from_dict(payload)
+        except (KeyError, ValueError) as exc:
+            order_id = payload.get("id")
+            if not order_id:
+                raise
+            self._dbg_count("new_order_reject_malformed")
+            self._reject(
+                gateway_id=str(payload.get("gateway_id", "")),
+                order_id=str(order_id),
+                code="MALFORMED_MESSAGE",
+                reason=f"Invalid order payload: {exc}",
+                client_tag=(
+                    str(payload["client_tag"])
+                    if payload.get("client_tag") is not None
+                    else None
+                ),
+                request_tag=None,
+            )
+            return
         self._dbg_count("new_order_requests")
         # K3: displayed_qty is the engine's own bookkeeping of the slice now
         # showing, not client input. Whatever arrived on the wire is replaced
@@ -2523,7 +2540,13 @@ class Engine:
                 mm_min_qty: int | None = None
                 enforce_mm_obligation: bool | None = None
 
-                gw_cfg = engine_cfg.participants.get(gateway_id) if engine_cfg else None
+                # Participants are keyed upper-case; gateway_id keeps its case
+                # for the reply topic (see _clamp_wire_text).
+                gw_cfg = (
+                    engine_cfg.participants.get(gateway_id.upper())
+                    if engine_cfg
+                    else None
+                )
                 if gw_cfg is not None:
                     enforce_mm_obligation = gw_cfg.enforce_mm_obligation
                     mm_max_spread_ticks = gw_cfg.mm_max_spread_ticks
@@ -7431,30 +7454,47 @@ class Engine:
         # Quote-origin orders (MM quote legs) are also no longer excluded
         # here: they persist by the same TIF rule as any other resting
         # order. See docs-design/EduMatcher-Revised-Quote-Persistence.md §5.
-        all_resting = self._resting_gtc_orders()
-        save_gtc_orders(all_resting, GTC_ORDERS_FILE)
-        log.info(f"Saved {len(all_resting)} resting order(s) to {GTC_ORDERS_FILE}")
+        # C16: each step is guarded, so one failure (a full disk, say) skips
+        # neither the other saves, nor the EOD broadcast, nor the socket
+        # closes that let the ports rebind.
+        def _save_orders() -> None:
+            all_resting = self._resting_gtc_orders()
+            save_gtc_orders(all_resting, GTC_ORDERS_FILE)
+            log.info(f"Saved {len(all_resting)} resting order(s) to {GTC_ORDERS_FILE}")
 
-        # Persist resting GTC combos
-        save_gtc_combos(list(self._combos.values()), GTC_COMBOS_FILE)
-        n_combos = sum(
-            1
-            for c in self._combos.values()
-            if c.status in (ComboStatus.PENDING, ComboStatus.PARTIALLY_MATCHED)
-        )
-        if n_combos:
-            log.info(f"Saved {n_combos} combo(s) to {GTC_COMBOS_FILE}")
+        def _save_combos() -> None:
+            save_gtc_combos(list(self._combos.values()), GTC_COMBOS_FILE)
+            n_combos = sum(
+                1
+                for c in self._combos.values()
+                if c.status in (ComboStatus.PENDING, ComboStatus.PARTIALLY_MATCHED)
+            )
+            if n_combos:
+                log.info(f"Saved {n_combos} combo(s) to {GTC_COMBOS_FILE}")
 
-        save_book_stats(self.books, self._circuit_breakers, BOOK_STATS_FILE)
-        log.info(
-            f"Saved book statistics for {len(self.books)} symbol(s) to {BOOK_STATS_FILE}"
-        )
+        def _save_stats() -> None:
+            save_book_stats(self.books, self._circuit_breakers, BOOK_STATS_FILE)
+            log.info(
+                f"Saved book statistics for {len(self.books)} symbol(s) to {BOOK_STATS_FILE}"
+            )
 
-        # The books as they end, for the audit (S25), then the broadcast EOD
-        # -- subscribers record closing prices before sockets close.
-        self._publish_checkpoints("EOD")
-        eod_books = [book.snapshot() for book in self.books.values()]
-        self.pub_sock.send_multipart(make_eod_msg(eod_books))
+        def _publish_eod() -> None:
+            # The books as they end, for the audit (S25), then the broadcast
+            # EOD -- subscribers record closing prices before sockets close.
+            self._publish_checkpoints("EOD")
+            eod_books = [book.snapshot() for book in self.books.values()]
+            self.pub_sock.send_multipart(make_eod_msg(eod_books))
+
+        for what, step in (
+            ("saving resting orders", _save_orders),
+            ("saving combos", _save_combos),
+            ("saving book statistics", _save_stats),
+            ("publishing end of day", _publish_eod),
+        ):
+            try:
+                step()
+            except Exception as exc:
+                log.error("Shutdown step failed (%s): %s", what, exc)
 
         self.pull_sock.close()
         self.pub_sock.close()

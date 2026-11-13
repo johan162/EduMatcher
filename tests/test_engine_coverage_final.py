@@ -58,7 +58,6 @@ def _make_engine(
     gtc_orders=None,
     gtc_combos=None,
     book_stats=None,
-    verbose=False,
     config_path_exists=True,
     symbol_overrides=None,
 ):
@@ -104,7 +103,7 @@ def _make_engine(
     if config_path_exists:
         cfg_path.write_text("dummy: true\n")
 
-    engine = Engine(verbose=verbose, config_path=str(cfg_path))
+    engine = Engine(config_path=str(cfg_path))
     return engine, pub_sock
 
 
@@ -218,9 +217,7 @@ class TestRestoreGTCWithOrders:
     ) -> None:
         """Having GTC orders triggers the if orders: block and snapshot publishes."""
         order = _gtc_order()
-        engine, pub_sock = _make_engine(
-            monkeypatch, tmp_path, gtc_orders=[order], verbose=False
-        )
+        engine, pub_sock = _make_engine(monkeypatch, tmp_path, gtc_orders=[order])
         engine._startup(1)
         # After the restore, orders list is non-empty
         assert "AAPL" in engine.books
@@ -229,11 +226,9 @@ class TestRestoreGTCWithOrders:
         assert any("book." in t for t in topics)
 
     def test_restore_gtc_verbose_restored_order(self, monkeypatch, tmp_path) -> None:
-        """verbose=True prints restoration message for each GTC order."""
+        """A restored GTC order logs its restoration."""
         order = _gtc_order()
-        engine, _ = _make_engine(
-            monkeypatch, tmp_path, gtc_orders=[order], verbose=True
-        )
+        engine, _ = _make_engine(monkeypatch, tmp_path, gtc_orders=[order])
         engine._restore_gtc()
         assert "AAPL" in engine.books
 
@@ -248,7 +243,6 @@ class TestRestoreGTCWithOrders:
             tmp_path,
             symbols=("AAPL",),
             gtc_orders=[order],
-            verbose=True,
         )
         engine._restore_gtc()
         # REMOVED should not be in books (skipped)
@@ -285,7 +279,6 @@ class TestRestoreGTCWithOrders:
             tmp_path,
             symbols=("AAPL", "MSFT"),
             gtc_combos=[combo],
-            verbose=False,
         )
         engine._restore_gtc()
         assert combo.id in engine._combos
@@ -319,7 +312,6 @@ class TestRestoreGTCWithOrders:
             tmp_path,
             symbols=("AAPL", "MSFT"),
             gtc_combos=[combo],
-            verbose=False,
         )
         engine._restore_gtc()
         assert (combo.id in engine._combos) is restored
@@ -335,9 +327,7 @@ class TestRestoreGTCBusinessDayCheck:
         self, monkeypatch, tmp_path
     ) -> None:
         order = _day_order(days_ago=0)
-        engine, _ = _make_engine(
-            monkeypatch, tmp_path, gtc_orders=[order], verbose=False
-        )
+        engine, _ = _make_engine(monkeypatch, tmp_path, gtc_orders=[order])
         engine._restore_gtc()
         restored_ids = {o.id for o in engine.books["AAPL"].resting_orders()}
         assert order.id in restored_ids
@@ -348,9 +338,7 @@ class TestRestoreGTCBusinessDayCheck:
         import logging
 
         order = _day_order(days_ago=1)
-        engine, _ = _make_engine(
-            monkeypatch, tmp_path, gtc_orders=[order], verbose=False
-        )
+        engine, _ = _make_engine(monkeypatch, tmp_path, gtc_orders=[order])
         with caplog.at_level(logging.INFO):
             engine._restore_gtc()
         # The stale order is discarded before Engine._book() is ever called
@@ -366,9 +354,7 @@ class TestRestoreGTCBusinessDayCheck:
         regardless of how old the order is."""
         order = _gtc_order()
         order.ts_ns = int((datetime.now() - timedelta(days=1)).timestamp() * 1e9)
-        engine, _ = _make_engine(
-            monkeypatch, tmp_path, gtc_orders=[order], verbose=False
-        )
+        engine, _ = _make_engine(monkeypatch, tmp_path, gtc_orders=[order])
         engine._restore_gtc()
         restored_ids = {o.id for o in engine.books["AAPL"].resting_orders()}
         assert order.id in restored_ids
@@ -385,9 +371,7 @@ class TestRestoreQuoteIndexRebuild:
     ) -> None:
         bid = _quote_leg("Q1-BID", Side.BUY, tif=TIF.GTC)
         ask = _quote_leg("Q1-ASK", Side.SELL, tif=TIF.GTC)
-        engine, _ = _make_engine(
-            monkeypatch, tmp_path, gtc_orders=[bid, ask], verbose=False
-        )
+        engine, _ = _make_engine(monkeypatch, tmp_path, gtc_orders=[bid, ask])
         engine._restore_gtc()
 
         entry = engine._quote_index.get("GW01", "AAPL")
@@ -407,9 +391,7 @@ class TestRestoreQuoteIndexRebuild:
         quote-managed again, not just resting as a plain order."""
         bid = _quote_leg("Q1-BID", Side.BUY, tif=TIF.DAY, days_ago=0)
         ask = _quote_leg("Q1-ASK", Side.SELL, tif=TIF.DAY, days_ago=0)
-        engine, _ = _make_engine(
-            monkeypatch, tmp_path, gtc_orders=[bid, ask], verbose=False
-        )
+        engine, _ = _make_engine(monkeypatch, tmp_path, gtc_orders=[bid, ask])
         engine._restore_gtc()
 
         entry = engine._quote_index.get("GW01", "AAPL")
@@ -426,9 +408,7 @@ class TestRestoreQuoteIndexRebuild:
         import logging
 
         bid_only = _quote_leg("Q1-BID", Side.BUY, tif=TIF.GTC)
-        engine, _ = _make_engine(
-            monkeypatch, tmp_path, gtc_orders=[bid_only], verbose=False
-        )
+        engine, _ = _make_engine(monkeypatch, tmp_path, gtc_orders=[bid_only])
         with caplog.at_level(logging.INFO):
             engine._restore_gtc()
 
@@ -446,9 +426,7 @@ class TestRestoreQuoteIndexRebuild:
         §13.7 / the former §13.9-WP4."""
         bid = _quote_leg("Q1-BID", Side.BUY, tif=TIF.DAY, days_ago=1)
         ask = _quote_leg("Q1-ASK", Side.SELL, tif=TIF.DAY, days_ago=1)
-        engine, _ = _make_engine(
-            monkeypatch, tmp_path, gtc_orders=[bid, ask], verbose=False
-        )
+        engine, _ = _make_engine(monkeypatch, tmp_path, gtc_orders=[bid, ask])
         engine._restore_gtc()
 
         assert engine._quote_index.get("GW01", "AAPL") is None
@@ -469,7 +447,6 @@ class TestRestoreQuoteIndexRebuild:
             tmp_path,
             gateways=("GW01", "MM02"),
             gtc_orders=[gw1_bid, gw1_ask, gw2_bid, gw2_ask],
-            verbose=False,
         )
         engine._restore_gtc()
 
@@ -500,7 +477,6 @@ class TestRestoreQuoteIndexRebuild:
             monkeypatch,
             tmp_path,
             gtc_orders=[good_leg, corrupt_leg],
-            verbose=False,
         )
         with caplog.at_level(logging.INFO):
             engine._restore_gtc()  # must not raise
@@ -535,7 +511,7 @@ class TestLoadConfigWithStats:
         assert "AAPL" in engine.books
 
     def test_load_config_verbose_mm_quote(self, monkeypatch, tmp_path) -> None:
-        """With verbose=True and MM quotes, the verbose MM quote print runs."""
+        """With MM quotes, the MM quote seeding log line runs."""
         engine, _ = _make_engine(
             monkeypatch,
             tmp_path,
@@ -551,7 +527,6 @@ class TestLoadConfigWithStats:
                     )
                 ]
             },
-            verbose=True,
         )
         engine._load_config()
         assert "AAPL" in engine.books
@@ -664,7 +639,7 @@ class TestVerboseRejectedOrder:
         self, monkeypatch, tmp_path
     ) -> None:
         """Verbose rejection message for not-connected gateway."""
-        engine, pub_sock = _make_engine(monkeypatch, tmp_path, verbose=True)
+        engine, pub_sock = _make_engine(monkeypatch, tmp_path)
         # Don't connect GW01 — just call _handle_new_order directly
         order = Order.create(
             symbol="AAPL",
@@ -683,9 +658,7 @@ class TestVerboseRejectedOrder:
         self, monkeypatch, tmp_path
     ) -> None:
         """Verbose rejection for symbol not in allowlist."""
-        engine, pub_sock = _make_engine(
-            monkeypatch, tmp_path, symbols=("AAPL",), verbose=True
-        )
+        engine, pub_sock = _make_engine(monkeypatch, tmp_path, symbols=("AAPL",))
         _connect(engine)
         order = Order.create(
             symbol="UNKNOWN",
@@ -725,7 +698,7 @@ class TestBoardBuildTable:
 class TestEngineSMPIOCEvents:
     def test_ioc_partial_fill_smp_cancel_aggressor(self, monkeypatch, tmp_path) -> None:
         """IOC order + SMP CANCEL_AGGRESSOR: aggressor fills partially then cancelled."""
-        engine, pub_sock = _make_engine(monkeypatch, tmp_path, verbose=True)
+        engine, pub_sock = _make_engine(monkeypatch, tmp_path)
         _connect(engine)
 
         # Place a resting sell from GW01
@@ -790,12 +763,12 @@ class TestRestoreGtcSessionTimezone:
     """TIF=DAY staleness is judged on the session-timezone calendar date."""
 
     def test_session_tz_defaults_without_config(self, monkeypatch, tmp_path) -> None:
-        engine, _ = _make_engine(monkeypatch, tmp_path, gtc_orders=[], verbose=False)
+        engine, _ = _make_engine(monkeypatch, tmp_path, gtc_orders=[])
         engine._engine_config = None
         assert str(engine._session_tz()) == "Europe/Stockholm"
 
     def test_session_tz_follows_locale(self, monkeypatch, tmp_path) -> None:
-        engine, _ = _make_engine(monkeypatch, tmp_path, gtc_orders=[], verbose=False)
+        engine, _ = _make_engine(monkeypatch, tmp_path, gtc_orders=[])
         assert engine._engine_config is not None
         engine._engine_config.locale.session_timezone = "Asia/Tokyo"
         assert str(engine._session_tz()) == "Asia/Tokyo"
@@ -831,9 +804,7 @@ class TestRestoreGtcSessionTimezone:
             )
             order.status = OrderStatus.NEW
             order.ts_ns = int(placed.timestamp() * 1e9)
-            engine, _ = _make_engine(
-                monkeypatch, tmp_path, gtc_orders=[order], verbose=False
-            )
+            engine, _ = _make_engine(monkeypatch, tmp_path, gtc_orders=[order])
             assert engine._engine_config is not None
             engine._engine_config.locale.session_timezone = tz_name
             engine._restore_gtc()

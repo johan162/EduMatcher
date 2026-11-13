@@ -338,8 +338,14 @@ class Order:
         # preserved as None (see SmpAction's docstring), not silently
         # defaulted to SmpAction.NONE, so the engine can still tell the
         # difference from an explicit SMP=NONE and apply a gateway default.
+        # Any other value must be a known action: a typo is not "omitted".
         _smp_raw = d.get("smp_action")
-        o.smp_action = _SMP_MAP.get(_smp_raw) if _smp_raw is not None else None
+        if _smp_raw is None:
+            o.smp_action = None
+        elif _smp_raw in _SMP_MAP:
+            o.smp_action = _SMP_MAP[_smp_raw]
+        else:
+            raise ValueError(f"unknown smp_action: {_smp_raw!r}")
         o.trail_offset_ticks = d.get("trail_offset_ticks")
         o.oco_group_id = d.get("oco_group_id")
         o.combo_parent_id = d.get("combo_parent_id")

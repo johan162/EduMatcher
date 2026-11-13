@@ -281,6 +281,19 @@
     - "Read the error; usually disk space or permissions on the data directory."
     - "Before the next session starts, copy gtc_orders.json, gtc_combos.json and book_stats.json from the data directory into the folder named in the message."
 
+- logger: edumatcher.engine.main
+  template: "Shutdown step failed (%s): %s"
+  level: ERROR
+  explanation: >
+    While stopping, pm-engine could not complete one step: saving the resting
+    orders, the combos or the book statistics, or publishing the end-of-day
+    broadcast. It went on with the other steps and closed its sockets. If a
+    save failed, the next start restores the state from the previous
+    checkpoint (at most a few seconds older), not from this shutdown.
+  actions:
+    - "Read the error; usually disk space or permissions on the data directory."
+    - "Check the restore summary (`system.startup_recovery`) on the next start for anything missing."
+
 - logger: edumatcher.engine.persistence
   template: "Cannot parse GTC orders file %s: %s — none restored; the file is kept as %s"
   level: CRITICAL
