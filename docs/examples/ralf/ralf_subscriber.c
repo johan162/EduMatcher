@@ -26,6 +26,7 @@
 #include <arpa/inet.h>
 #include <errno.h>
 #include <netinet/in.h>
+#include <poll.h>
 #include <signal.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -39,11 +40,12 @@
 #define MAX_SYMBOLS 16   /* bounded per-symbol tally table */
 #define MAX_EXEC_IDS 256 /* bounded de-dup window for this demo session */
 
-/* SIGINT sets this instead of taking the default terminate action, so the
- * blocking read() in recv_line() can be interrupted cleanly (see the
- * sigaction() call in main(), which deliberately omits SA_RESTART) and
- * the client can print its final tally and close the socket instead of
- * being killed mid-syscall.
+#define POLL_TIMEOUT_MS 200 /* worst-case delay before a Ctrl-C is noticed */
+
+/* SIGINT sets this instead of taking the default terminate action;
+ * recv_line() checks it after every poll() wake-up (see the comment
+ * there and the sigaction() call in main()), so the client can print its
+ * final tally and close the socket instead of being killed mid-syscall.
  */
 static volatile sig_atomic_t g_running = 1;
 
@@ -252,18 +254,35 @@ static int send_line(int fd, const char *line) {
 }
 
 /* Returns 0 on a complete line, -1 on disconnect/error, -2 if interrupted
- * by SIGINT (see g_running) with no line pending.
+ * by SIGINT (see g_running).
+ *
+ * Waits in poll() with a short timeout instead of blocking in read(), so
+ * g_running is re-checked at least every POLL_TIMEOUT_MS. A SIGINT that
+ * arrives while the client is busy (printing, parsing) rather than waiting
+ * in a system call interrupts nothing; with a plain blocking read() that
+ * Ctrl-C would be lost until the next message happened to arrive.
  */
 static int recv_line(int fd, char *buf, size_t cap) {
     size_t n = 0;
     while (n + 1 < cap) {
+        struct pollfd pfd = {.fd = fd, .events = POLLIN};
+        int ready = poll(&pfd, 1, POLL_TIMEOUT_MS);
+        if (!g_running) {
+            return -2;
+        }
+        if (ready < 0) {
+            if (errno == EINTR) {
+                continue;
+            }
+            return -1;
+        }
+        if (ready == 0) {
+            continue; /* timeout: loop round to re-check g_running */
+        }
         char c;
         ssize_t r = read(fd, &c, 1);
         if (r < 0) {
             if (errno == EINTR) {
-                if (!g_running) {
-                    return -2;
-                }
                 continue;
             }
             return -1;
@@ -411,7 +430,7 @@ int main(int argc, char **argv) {
     memset(&sa, 0, sizeof(sa));
     sa.sa_handler = handle_sigint;
     sigemptyset(&sa.sa_mask);
-    sa.sa_flags = 0; /* no SA_RESTART: interrupt the blocking read() in recv_line() */
+    sa.sa_flags = 0; /* no SA_RESTART: wake the poll() in recv_line() at once */
     sigaction(SIGINT, &sa, NULL);
 
     int fd = connect_gateway(host, port);
