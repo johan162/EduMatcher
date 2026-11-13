@@ -9237,7 +9237,10 @@ instead fall somewhere in 13:35:00–13:35:30, 13:37:00–13:37:30 and
 indicative price runs away could in principle extend past the close. The end
 of the trading day supplies the terminating condition.</p>
 <p>On the transition to <code>CLOSED</code>, <code>_run_closing_backstop()</code> forces every halted symbol
-that has a circuit breaker configured to resolve:</p>
+that has a circuit breaker configured to resolve — except an operator halt
+without a level (<code>ADMIN_SYMBOL</code>, <code>ADMIN_ALL</code>), which is the operator's to lift
+and stays halted into the next trading day, breaker or not (it is listed by
+<code>halt_status</code> with <code>halt_source: "ADMIN"</code>):</p>
 <ol>
 <li>The indicative price is computed one final time.</li>
 <li><strong>Inside the corridor</strong> → it prints there, as a normal reopen would.</li>
@@ -9660,7 +9663,8 @@ reach them.</p>
 <li>Collects every known symbol (order books, circuit-breaker state, engine
    configuration).</li>
 <li>Marks each symbol <code>HALTED</code> with <code>halt_source = "ADMIN"</code> (no auto-resume
-   timer).</li>
+   timer; the close does not lift it either — resume with
+   <code>risk.circuit_breaker_resume_all</code> or per symbol).</li>
 <li>Cancels all outstanding market-maker quote legs for every symbol.</li>
 <li>Publishes one <code>circuit_breaker.halt.&lt;SYMBOL&gt;</code> event per symbol on the PUB
    socket.</li>
@@ -9813,7 +9817,8 @@ circuit-breaker levels (e.g. <code>"L1"</code>). The halt then runs through the 
 machine as a price-triggered halt: it gets a timed call phase and ACE corridor,
 <code>halt_source</code> stays <code>ADMIN</code>, and it ends with a reopening uncross. Without
 <code>level</code> the halt is indefinite (<code>ADMIN_SYMBOL</code>) and is cleared only by an
-explicit resume. Extra rejects for <code>level</code>: <code>"&lt;SYMBOL&gt; has no circuit breaker
+explicit resume — the close does not lift it, so it is still in force at the
+next day's open. Extra rejects for <code>level</code>: <code>"&lt;SYMBOL&gt; has no circuit breaker
 configured"</code> and <code>"Unknown circuit-breaker level for &lt;SYMBOL&gt;: &lt;LEVEL&gt;"</code>.</p>
 <p>What the engine does:</p>
 <ol>
@@ -10380,7 +10385,7 @@ reference: <a href="../../../participant-guide/part-2-orders/010-the-trader-cons
 <a href="../../../participant-guide/part-2-orders/030-combo-and-oco-orders/">Combos — <code>SMP=</code></a>, and
 <a href="../../part-5-gateways/050-api-gateway/">API Gateway</a> for the REST field.</p>
 <h2 id="market-maker-interaction">Market-maker interaction<a class="headerlink" href="#market-maker-interaction" title="Permanent link">&para;</a></h2>
-<p>When any halt fires — whether triggered by a circuit breaker, a per-symbol operator halt, or the exchange-wide ADMIN halt — <strong>all outstanding market-maker quote legs for the affected symbols are cancelled immediately</strong>. This protects market makers from having stale quotes executed against them during a disorderly market. The cancellation reason included in the <code>order.cancelled</code> message distinguishes the halt source:</p>
+<p>When any halt fires — whether triggered by a circuit breaker, a per-symbol operator halt, or the exchange-wide ADMIN halt — <strong>all outstanding market-maker quote legs for the affected symbols are cancelled immediately</strong>, including the unfilled remainder of a quote that a fill already inactivated (<code>INACTIVATE_ON_ANY_FILL</code>), as <code>CANCEL_SYM</code> and the kill switches do. This protects market makers from having stale quotes executed against them during a disorderly market. The cancellation reason included in the <code>order.cancelled</code> message distinguishes the halt source:</p>
 <table>
 <thead>
 <tr>

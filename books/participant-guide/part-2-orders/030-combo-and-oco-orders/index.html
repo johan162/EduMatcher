@@ -8229,6 +8229,14 @@ occurs.</p>
 </ul>
 <p>EduMatcher handles this by marking the combo as FAILED and cancelling all
 siblings' unfilled quantities. Fills that already occurred are <strong>not</strong> unwound.</p>
+<p>The rule holds whoever ends the leg. A leg cancelled by the exchange — a kill
+switch, an administrator's cancel-symbol, a <code>CANCEL_ALL</code> disconnect, or the
+end of its time in force — fails the combo exactly as your own <code>CANCEL</code>
+does: the legs the command itself pulled carry its <code>cancel_reason</code>, the
+legs the cascade pulls afterwards are plain <code>order.cancelled</code> events, and one
+<code>combo.status</code> <code>FAILED</code> names the leg that went first. The same applies to an
+OCO pair: when the exchange ends one or both legs, the pair is over and its
+<code>OCO_ID</code> is yours to use again.</p>
 <div class="admonition warning">
 <p class="admonition-title">No trade unwinds</p>
 <p>Once a trade is executed, it is final. A combo failure does not reverse fills

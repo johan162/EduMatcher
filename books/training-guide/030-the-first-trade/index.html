@@ -5749,17 +5749,6 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#exercise-7-optional-observe-automatic-re-quoting-with-pm-mm-bot" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Exercise 7 (Optional): Observe Automatic Re-Quoting with pm-mm-bot
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
   <a href="#key-concepts-learned" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -7768,11 +7757,10 @@ a 1-lot bid at 0.01) is left over from an earlier exercise: clear it with
 </code></pre></div>
 <p><code>pm-clearing</code> subscribes to executed trades, updates per-gateway positions and
 P&amp;L, and writes batched results to <code>clearing.db</code> (SQLite) in the data
-directory — not a CSV file. It starts silent and prints its table after a
-trade has been processed (it works in batches, so allow it up to about twenty
-seconds). Use <code>pm-clearing-cli --format csv ...</code> afterward
-if you want a CSV export. <code>--print-every 1</code> makes it print its P&amp;L summary
-after every trade; by default it prints only every 100 trades. Leave
+directory — not a CSV file. It starts silent: there is nothing to show until
+the first trade. <code>--print-every 1</code> makes it print its P&amp;L summary table after
+every trade; by default it prints only every 100 trades. (Use
+<code>pm-clearing-cli --format csv ...</code> afterwards if you want a CSV export.) Leave
 <code>pm-clearing</code> running while you work through this chapter.</p>
 <div class="admonition note">
 <p class="admonition-title">Start recorders before the trading</p>
@@ -7785,14 +7773,14 @@ from then on.</p>
 <p>From <code>TRADER01</code>, send a market buy order for AAPL:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=100
 </code></pre></div>
-<p>Expected output (the console's fill line reports the order ID, quantity,
-price and remaining/status — not the symbol or side, since you already know
-those from the order you just sent):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>[&lt;time&gt;] FILL      &lt;order_id&gt;  qty=100 @150.05  remaining=0  [FILLED]
+<p>Expected output: the engine first accepts the order, then reports the fill.
+The fill line gives the order ID, quantity, price and remaining/status — not
+the symbol or side, since you already know those from the order you just sent:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>[&lt;time&gt;] ACK       &lt;order_id&gt;  order accepted
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>[&lt;time&gt;] FILL      &lt;order_id&gt;  qty=100 @150.05  remaining=0  [FILLED]
 </code></pre></div>
 <p>The order matched against the MM's ask at 150.05.</p>
-<p>Now switch to the <code>pm-clearing</code> terminal. After a short delay it prints a P&amp;L
-summary: <code>TRADER01</code> is long 100 AAPL at 150.05, and <code>MM_AAPL_01</code> is short 100
+<p>Now switch to the <code>pm-clearing</code> terminal. It has printed a P&amp;L summary: <code>TRADER01</code> is long 100 AAPL at 150.05, and <code>MM_AAPL_01</code> is short 100
 at the same price.</p>
 <p>Look at the market maker's console too:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>[&lt;time&gt;] CANCELLED &lt;bid leg id&gt; reason=QUOTE_LEG_FILLED
@@ -7817,7 +7805,8 @@ Now sell:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=MARKET|QTY=100
 </code></pre></div>
 <p>Expected output, in the same format as Exercise 2:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>[&lt;time&gt;] FILL      &lt;order_id&gt;  qty=100 @149.95  remaining=0  [FILLED]
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>[&lt;time&gt;] ACK       &lt;order_id&gt;  order accepted
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>[&lt;time&gt;] FILL      &lt;order_id&gt;  qty=100 @149.95  remaining=0  [FILLED]
 </code></pre></div>
 <p>This time the market maker's <strong>ask</strong> is pulled, and 400 shares remain bid at
 149.95.</p>
@@ -7862,16 +7851,6 @@ quantity (<code>Qty</code> 200, <code>Rem</code> 150) and status <code>PARTIAL</
 orders for this gateway, so the filled market orders of Exercises 2–3 appear
 in the list as well, with status <code>FILLED</code>.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> ORDERS shows partial fill state correctly.</p>
-<p><strong>Optional:</strong> If you have <code>pm-viewer</code> running on AAPL, you should see the bid size drop from 200 to 150 after the fill.</p>
-<h2 id="exercise-7-optional-observe-automatic-re-quoting-with-pm-mm-bot">Exercise 7 (Optional): Observe Automatic Re-Quoting with pm-mm-bot<a class="headerlink" href="#exercise-7-optional-observe-automatic-re-quoting-with-pm-mm-bot" title="Permanent link">&para;</a></h2>
-<p>If you are running <code>pm-mm-bot</code> for AAPL (instead of manual quoting), your
-market order in Exercise 2 should trigger automatic re-quoting. Run <code>BOOK</code>
-again in the operator console:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>[GW_ADMIN|ADMIN]&gt; BOOK|SYM=AAPL
-</code></pre></div>
-<p>The MM should have a fresh two-sided quote (possibly at a slightly different
-mid if the trade moved the reference price).</p>
-<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> MM has re-quoted after being filled.</p>
 <h2 id="key-concepts-learned">Key Concepts Learned<a class="headerlink" href="#key-concepts-learned" title="Permanent link">&para;</a></h2>
 <ul>
 <li><strong>Market orders</strong> execute immediately against the best available price.</li>

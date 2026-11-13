@@ -5947,10 +5947,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#exercise-4-inspect-resting-order-details" class="md-nav__link">
+  <a href="#exercise-4-cancel-a-non-existent-order" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Exercise 4: Inspect Resting Order Details
+        Exercise 4: Cancel a Non-Existent Order
       
     </span>
   </a>
@@ -5958,10 +5958,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#exercise-5-cancel-a-non-existent-order" class="md-nav__link">
+  <a href="#exercise-5-cancel-another-gateways-order" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Exercise 5: Cancel a Non-Existent Order
+        Exercise 5: Cancel Another Gateway's Order
       
     </span>
   </a>
@@ -5969,32 +5969,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#exercise-6-cancel-another-gateways-order" class="md-nav__link">
+  <a href="#exercise-6-admin-kill-switch" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Exercise 6: Cancel Another Gateway's Order
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#exercise-7-admin-kill-switch" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Exercise 7: Admin Kill Switch
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#exercise-8-inspect-symbols-metadata-from-gateway" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Exercise 8: Inspect SYMBOLS Metadata from Gateway
+        Exercise 6: Admin Kill Switch
       
     </span>
   </a>
@@ -7756,7 +7734,8 @@ state, inspecting resting orders, and managing the order lifecycle.</p>
 <h2 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h2>
 <ul>
 <li>Chapters 01–07 completed.</li>
-<li>At least one connected trader gateway with resting orders to manage.</li>
+<li><code>TRADER01</code>, <code>TRADER02</code> and the operator console connected, and the market
+  open in <code>CONTINUOUS</code> (where chapter 07 left it).</li>
 </ul>
 <h2 id="exercise-1-cancel-a-resting-order">Exercise 1: Cancel a Resting Order<a class="headerlink" href="#exercise-1-cancel-a-resting-order" title="Permanent link">&para;</a></h2>
 <p>Place an order and then cancel it:</p>
@@ -7815,59 +7794,48 @@ It is useful for a fast health check, but it is not the detailed order table.</p
 <p>Now inspect the actual orders:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>[TRADER01]&gt; ORDERS
 </code></pre></div>
-<p><code>ORDERS</code> is the gateway command for detailed order inspection. It displays order
-ID, symbol, side, type, TIF, price, quantity, remaining quantity, and status for
-orders belonging to your gateway.</p>
+<p><code>ORDERS</code> is the gateway command for detailed order inspection. For every
+order of your gateway today it shows the full order ID, symbol, side, type,
+TIF, quantity, remaining quantity, price, status (<code>NEW</code>, <code>PARTIAL</code>, <code>FILLED</code>,
+<code>CANCELLED</code>, <code>REJECTED</code>, <code>EXPIRED</code>) and time. Find the MSFT order you just
+placed: <code>Qty</code> 25, <code>Rem</code> 25, <code>NEW</code>.</p>
 <p>Use <code>STATUS</code> when you need a quick health pulse. Use <code>ORDERS</code> when you are
 debugging one specific order lifecycle.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> <code>STATUS</code> shows summary counts; <code>ORDERS</code> shows the full order row and ID.</p>
-<h2 id="exercise-4-inspect-resting-order-details">Exercise 4: Inspect Resting Order Details<a class="headerlink" href="#exercise-4-inspect-resting-order-details" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>[TRADER01]&gt; ORDERS
-</code></pre></div>
-<p>Find your order in the table. The response includes:</p>
-<ul>
-<li><code>symbol</code>, <code>side</code>, <code>type</code>, <code>price</code>, <code>qty</code></li>
-<li>remaining quantity</li>
-<li><code>status</code> (NEW, PARTIAL, FILLED, CANCELLED, REJECTED, EXPIRED)</li>
-<li><code>tif</code>, last update time</li>
-</ul>
-<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> <code>ORDERS</code> returns full details for each resting order.</p>
-<h2 id="exercise-5-cancel-a-non-existent-order">Exercise 5: Cancel a Non-Existent Order<a class="headerlink" href="#exercise-5-cancel-a-non-existent-order" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>[TRADER01]&gt; CANCEL|ID=DOES_NOT_EXIST|RTAG=CXL-MISSING-001
+<h2 id="exercise-4-cancel-a-non-existent-order">Exercise 4: Cancel a Non-Existent Order<a class="headerlink" href="#exercise-4-cancel-a-non-existent-order" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>[TRADER01]&gt; CANCEL|ID=DOES_NOT_EXIST|RTAG=CXL-MISSING-001
 </code></pre></div>
 <p>Expected: rejection, shown in the console as
 <code>REJECTED  DOES_NOT_EXIST code=ORDER_NOT_FOUND rtag=CXL-MISSING-001  Order not found</code>
 (<code>REJECT_CODE</code> is the field's name on the wire).</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> error message returned cleanly.</p>
-<h2 id="exercise-6-cancel-another-gateways-order">Exercise 6: Cancel Another Gateway's Order<a class="headerlink" href="#exercise-6-cancel-another-gateways-order" title="Permanent link">&para;</a></h2>
-<p>Try cancelling an order belonging to TRADER02:</p>
+<h2 id="exercise-5-cancel-another-gateways-order">Exercise 5: Cancel Another Gateway's Order<a class="headerlink" href="#exercise-5-cancel-another-gateways-order" title="Permanent link">&para;</a></h2>
+<p><code>TRADER02</code> has nothing resting (its sell filled in Exercise 2), so give it an
+order, and note the order ID it is acknowledged with:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>[TRADER02]&gt; NEW|SYM=TSLA|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=252.00|TIF=DAY
+</code></pre></div>
+<p>Now try cancelling it from <code>TRADER01</code>:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>[TRADER01]&gt; CANCEL|ID=&lt;trader02_order_id&gt;|RTAG=CXL-NOTOWNER-001
 </code></pre></div>
 <p>Expected: rejection — you can only cancel your own orders:
 <code>code=NOT_OWNER  Cannot cancel an order owned by another gateway</code>.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> cross-gateway cancel rejected.</p>
-<h2 id="exercise-7-admin-kill-switch">Exercise 7: Admin Kill Switch<a class="headerlink" href="#exercise-7-admin-kill-switch" title="Permanent link">&para;</a></h2>
+<h2 id="exercise-6-admin-kill-switch">Exercise 6: Admin Kill Switch<a class="headerlink" href="#exercise-6-admin-kill-switch" title="Permanent link">&para;</a></h2>
 <p>From the admin gateway, cancel all orders for a specific gateway:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>[GW_ADMIN|ADMIN]&gt; KILL|GW=TRADER01
 </code></pre></div>
 <p>The console reports <code>KILL OK  TRADER01  orders=&lt;n&gt;  quotes=&lt;n&gt;</code> — the number of
 orders and of market-maker quote legs cancelled — and each cancelled order
-appears on <code>TRADER01</code>'s console as <code>CANCELLED &lt;order_id&gt; reason=KILL_SWITCH</code>.</p>
-<p>Or cancel all orders for a specific symbol across all gateways:</p>
+appears on <code>TRADER01</code>'s console as <code>CANCELLED &lt;order_id&gt; reason=KILL_SWITCH</code>.
+<code>GTC</code> orders are included: the <code>MSFT</code> GTC bid from chapter 06 is among them.</p>
+<p>Or cancel all orders for a specific symbol across all gateways — here the
+<code>TRADER02</code> offer from Exercise 5:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>[GW_ADMIN|ADMIN]&gt; CANCEL_SYM|SYM=TSLA
 </code></pre></div>
 <p>which answers <code>CANCEL_SYM OK  TSLA  orders=&lt;n&gt;  quotes=&lt;n&gt;</code>. Both commands
 also clear market-maker quotes, which is why they are the quickest way to empty
 a book before an experiment.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> admin commands successfully cancel orders.</p>
-<h2 id="exercise-8-inspect-symbols-metadata-from-gateway">Exercise 8: Inspect SYMBOLS Metadata from Gateway<a class="headerlink" href="#exercise-8-inspect-symbols-metadata-from-gateway" title="Permanent link">&para;</a></h2>
-<p>Request the symbol catalog:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>[TRADER01]&gt; SYMBOLS
-</code></pre></div>
-<p>The table shows each symbol's tick size and its market-maker obligation
-settings (enforced or not, maximum spread in ticks, minimum quoted quantity) —
-the parts of the configuration a trader needs while trading.</p>
-<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> you can explain how <code>SYMBOLS</code> complements config-file inspection during operations.</p>
 <h2 id="order-lifecycle-summary">Order Lifecycle Summary<a class="headerlink" href="#order-lifecycle-summary" title="Permanent link">&para;</a></h2>
 <pre class="mermaid"><code>stateDiagram-v2
     [*] --&gt; REJECTED : refused on entry

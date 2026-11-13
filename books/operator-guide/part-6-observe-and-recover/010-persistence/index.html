@@ -8307,7 +8307,7 @@ at all — it is only ever written once, at the following startup.</p>
    earlier runs. See <a href="#the-engine_run_seqjson-file">The <code>engine_run_seq.json</code> File</a>.</li>
 <li>The engine reads <code>&lt;DATA_DIR&gt;/gtc_orders.json</code> (if it exists).</li>
 <li>Each <code>TIF = GTC</code> order is re-injected into its symbol's order book unconditionally, <strong>with its original timestamp preserved</strong>.</li>
-<li>Each <code>TIF = DAY</code> order is re-injected <strong>only if its own timestamp falls on the current business day</strong> (machine-local calendar date). A <code>DAY</code> order dated before today — because the business day rolled over while the engine was up, or while it was down — is discarded instead, and the discard is logged at <code>INFO</code> level. This is the mechanism that ultimately gives <code>TIF = DAY</code> its intended meaning of "valid for the current trading day," independent of how many times the engine process itself has restarted in between. This rule applies to every resting order regardless of origin, including MM quote legs (step 3a below).
+<li>Each <code>TIF = DAY</code> order is re-injected <strong>only if its own timestamp falls on the current business day</strong> (the calendar date in the session timezone, <code>locale.session_timezone</code>, whatever the host's own zone). A <code>DAY</code> order dated before today — because the business day rolled over while the engine was up, or while it was down — is discarded instead, and the discard is logged at <code>INFO</code> level. This is the mechanism that ultimately gives <code>TIF = DAY</code> its intended meaning of "valid for the current trading day," independent of how many times the engine process itself has restarted in between. This rule applies to every resting order regardless of origin, including MM quote legs (step 3a below).
 3a. Restored quote-origin orders (from steps 2-3 above) are grouped back into linked bid/ask pairs by <code>(gateway_id, quote_id)</code> and re-registered as active quotes in the engine's in-memory <code>QuoteIndex</code>, so a surviving quote is fully quote-managed again — not just resting as a plain order. A quote whose sibling leg did not survive (filled, cancelled, or discarded as a stale <code>TIF=DAY</code> order) restores its surviving leg as an ordinary resting order instead, logged as a "single-leg quote remnant."
 3b. Restored OCO legs are linked back into their pairs by <code>oco_group_id</code>, so a leg that fills or ends after the restart still ends its sibling. A pair with only one surviving leg is not re-linked: that leg rests as an ordinary order.</li>
 <li>The engine reads <code>&lt;DATA_DIR&gt;/gtc_combos.json</code> (if it exists) and rebuilds parent-child tracking maps for restored <code>GTC</code> combos.</li>
@@ -8325,7 +8325,8 @@ at all — it is only ever written once, at the following startup.</p>
 <p>When the session moves to <code>CLOSED</code>, after the day's <code>DAY</code> orders have
 expired, the engine copies what it would persist — <code>gtc_orders.json</code>,
 <code>gtc_combos.json</code> and <code>book_stats.json</code> — into
-<code>&lt;DATA_DIR&gt;/eod/&lt;YYYY-MM-DD&gt;/</code> (the machine-local business date). The
+<code>&lt;DATA_DIR&gt;/eod/&lt;YYYY-MM-DD&gt;/</code> (the business date in the session timezone,
+<code>locale.session_timezone</code>, the same date the restore judges <code>DAY</code> orders by). The
 regular files are rewritten by every checkpoint; the archive keeps each
 day's closing state, so the next morning's book can be compared with it
 (the simulation forensics check G3 does). Nothing is ever deleted there.</p>
@@ -8341,7 +8342,7 @@ each other. See <a href="../../part-4-run-a-market/100-closing-the-day/">Closing
 not a day boundary.</strong> The engine has no clock of its own that fires at
 midnight — the only place "is this still the same business day?" is ever
 evaluated is once, at startup, by comparing each restored order's own
-timestamp against today's machine-local calendar date (see
+timestamp against today's date in the session timezone (see
 <a href="#at-startup">At Startup</a>, steps 1-3 above). Two restarts can therefore
 behave very differently depending on nothing but whether a calendar date
 happened to change while the engine was down — the restart mechanics

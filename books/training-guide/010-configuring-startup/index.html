@@ -7856,7 +7856,10 @@ In addition you have become familiar with the three tools:</p>
 </div>
 <h2 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h2>
 <ul>
-<li>EduMatcher installed and <code>pm-setup</code> completed (see <a href="../000-installation/">00 — Installation &amp; Setup</a>).</li>
+<li><a href="../000-installation/">00 — Installation &amp; Setup</a> completed: <code>pm-*</code> commands work
+  in your shell (on the container route, a shell opened with
+  <code>./edumatcher.sh shell</code>, with the demo stopped and cleared), and you have a
+  working folder.</li>
 </ul>
 <h2 id="background">Background<a class="headerlink" href="#background" title="Permanent link">&para;</a></h2>
 <p>EduMatcher requires two essential processes:</p>
@@ -8029,7 +8032,7 @@ Exercise 2 told you to expect.</p>
 </code></pre></div>
 <p>Edit <code>engine_config.bad.yaml</code> and intentionally introduce two issues:</p>
 <ol>
-<li>Remove the <code>GW_ADMIN</code> gateway entry.</li>
+<li>Remove both <code>ADMIN</code> entries, <code>GW_ADMIN</code> and <code>ADMIN_CLI</code>.</li>
 <li>Set one symbol's <code>tick_decimals</code> to an invalid value like <code>12</code>.</li>
 </ol>
 <p>Run verifier:</p>
@@ -8039,18 +8042,20 @@ Exercise 2 told you to expect.</p>
 <ul>
 <li><code>S010</code> error (invalid <code>tick_decimals</code>).</li>
 </ul>
-<p>Where is the missing admin gateway? The verifier works in layers — YAML
+<p>Where are the missing admin gateways? The verifier works in layers — YAML
 syntax, then the schema of every field (<code>S</code> codes), then the rules <em>between</em>
 fields (<code>M</code> codes), then completeness advice (<code>C</code> codes) — and it stops after
 the first layer that finds an error, because later checks would be judging a
 file it already knows is broken. Fix <code>tick_decimals</code> and run it again: now
 you see</p>
 <ul>
-<li><code>M013</code> warning (no gateway with role <code>ADMIN</code>), alongside the <code>M032</code> warning
+<li><code>M013</code> warning (<code>No gateway has role: ADMIN.</code>), alongside the <code>M032</code> warning
   from Exercise 3.</li>
 </ul>
-<p>Both <code>M013</code> and the <code>M032</code> you already know are now reported. Put the
-<code>GW_ADMIN</code> entry back and rerun until only <code>M032</code> remains.</p>
+<p>Both <code>M013</code> and the <code>M032</code> you already know are now reported. (Had you removed
+only <code>GW_ADMIN</code>, there would be no <code>M013</code>: <code>ADMIN_CLI</code> is an operator too, and
+the rule only asks for <em>one</em>.) Put the two entries back and rerun until only
+<code>M032</code> remains.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> you can reproduce a verifier finding, map it to a check code, and clear it by fixing the config.</p>
 <h2 id="exercise-5-compile-and-deploy-the-config-with-pm-config-deploy">Exercise 5: Compile and Deploy the Config with pm-config-deploy<a class="headerlink" href="#exercise-5-compile-and-deploy-the-config-with-pm-config-deploy" title="Permanent link">&para;</a></h2>
 <p>Verified YAML is still just a file on disk — no process reads it until it is
@@ -8058,17 +8063,21 @@ compiled and installed. Check that it compiles without installing anything:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>pm-config-deploy<span class="w"> </span>--check<span class="w"> </span>engine_config.yaml
 </code></pre></div>
 <p>Expected output:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>OK — /home/you/training/engine_config.yaml compiles (3 symbol(s), 3 gateway(s))
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>OK — /data/training/engine_config.yaml compiles (3 symbol(s), 4 gateway(s))
 </code></pre></div>
+<p>(The paths in this chapter are the container's. On the other routes you see
+your own working folder and data directory instead.)</p>
 <p>Now actually deploy it:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>pm-config-deploy<span class="w"> </span>engine_config.yaml
 </code></pre></div>
 <p>Expected output:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>Compiled /home/you/training/engine_config.yaml
-<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>      to /Users/you/.local/share/edumatcher/ref_data/engine_config.json
-<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>   3 symbol(s), 3 gateway(s).
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>Compiled /data/training/engine_config.yaml
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>      to /data/ref_data/engine_config.json
+<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>   3 symbol(s), 4 gateway(s).
 <a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a>   Restart any running processes to pick it up.
 </code></pre></div>
+<p>"Gateway" here means a configured participant: your four entries under
+<code>participants:</code>.</p>
 <p>Confirm where it landed:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>pm-config-deploy<span class="w"> </span>--show
 <a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>ls<span class="w"> </span>-la<span class="w"> </span><span class="s2">"</span><span class="nv">$EDUMATCHER_DATA_DIR</span><span class="s2">/ref_data"</span>
@@ -8099,7 +8108,7 @@ which is exactly the artifact Exercise 5 just installed.</p>
 <p><code>--verbose</code> shows the engine's informational log lines; without it the engine
 prints only warnings and errors. Expected output includes lines like these
 (timestamps and paths will differ):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>... INFO edumatcher.engine.main - Loaded config from .../ref_data/engine_config.yaml  (3 symbol(s): AAPL, MSFT, TSLA; 3 gateway id(s))
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>... INFO edumatcher.engine.main - Loaded config from .../ref_data/engine_config.yaml  (3 symbol(s): AAPL, MSFT, TSLA; 4 gateway id(s))
 <a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>... INFO edumatcher.engine.main - Session handling: enabled (startup state: CLOSED)
 <a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a>... INFO edumatcher.engine.main - Listening on PULL=tcp://127.0.0.1:5555  PUB=tcp://127.0.0.1:5556
 </code></pre></div>
@@ -8133,28 +8142,34 @@ start it:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>... INFO edumatcher.scheduler.main - Catching up 3 transition(s) to reach the current phase
 </code></pre></div>
 <ul>
-<li>on a weekend it reports that the day is closed and exits at once;</li>
-<li>outside hours on a weekday it catches up straight to <code>CLOSED</code>.</li>
+<li>before 09:00 on a weekday it waits for the first one:</li>
 </ul>
-<p>To skip the wait and drive the sequence immediately, restart it with <code>--now</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>pm-scheduler<span class="w"> </span>--now<span class="w"> </span>--delay<span class="w"> </span><span class="m">5</span><span class="w"> </span>--verbose
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>... INFO edumatcher.scheduler.main - Waiting 1337s for PRE_OPEN (at 09:00)
+</code></pre></div>
+<ul>
+<li>after 16:05 on a weekday it catches up straight to <code>CLOSED</code>;</li>
+<li>on a weekend it reports that the day is closed and exits at once.</li>
+</ul>
+<p>To skip the wait and drive the sequence immediately, stop it (<code>Ctrl-C</code>) and
+restart it with <code>--now</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>pm-scheduler<span class="w"> </span>--now<span class="w"> </span>--delay<span class="w"> </span><span class="m">5</span><span class="w"> </span>--verbose
 </code></pre></div>
 <p>Expected output (timestamps trimmed; between the transitions you also see a
 <code>Waiting 5s for …</code> line, and a harmless <code>pm-monitor</code> warning may follow <code>Done.</code>):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>... INFO edumatcher.scheduler.main - --now mode: sending all transitions with 5.0s delays
-<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a>... INFO edumatcher.scheduler.main - -&gt; PRE_OPEN
-<a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a>... INFO edumatcher.scheduler.main - -&gt; OPENING_AUCTION
-<a id="__codelineno-21-4" name="__codelineno-21-4" href="#__codelineno-21-4"></a>... INFO edumatcher.scheduler.main - -&gt; CONTINUOUS
-<a id="__codelineno-21-5" name="__codelineno-21-5" href="#__codelineno-21-5"></a>... INFO edumatcher.scheduler.main - -&gt; CLOSING_AUCTION
-<a id="__codelineno-21-6" name="__codelineno-21-6" href="#__codelineno-21-6"></a>... INFO edumatcher.scheduler.main - -&gt; CLOSED
-<a id="__codelineno-21-7" name="__codelineno-21-7" href="#__codelineno-21-7"></a>... INFO edumatcher.scheduler.main - Done.
+<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a>... INFO edumatcher.scheduler.main - --now mode: sending all transitions with 5.0s delays
+<a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a>... INFO edumatcher.scheduler.main - -&gt; PRE_OPEN
+<a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a>... INFO edumatcher.scheduler.main - -&gt; OPENING_AUCTION
+<a id="__codelineno-22-4" name="__codelineno-22-4" href="#__codelineno-22-4"></a>... INFO edumatcher.scheduler.main - -&gt; CONTINUOUS
+<a id="__codelineno-22-5" name="__codelineno-22-5" href="#__codelineno-22-5"></a>... INFO edumatcher.scheduler.main - -&gt; CLOSING_AUCTION
+<a id="__codelineno-22-6" name="__codelineno-22-6" href="#__codelineno-22-6"></a>... INFO edumatcher.scheduler.main - -&gt; CLOSED
+<a id="__codelineno-22-7" name="__codelineno-22-7" href="#__codelineno-22-7"></a>... INFO edumatcher.scheduler.main - Done.
 </code></pre></div>
 <p><code>--now</code> starts the day's sequence from this moment instead of the configured
 wall-clock times; <code>--delay 5</code> gives you five seconds between phases.</p>
 <div class="admonition warning">
 <p class="admonition-title"><code>--now</code> runs the whole day</p>
 <p><code>--now</code> does not stop at continuous trading: it carries on through the
-closing auction to <code>CLOSED</code>, about half a minute later, and exits. That is
+closing auction to <code>CLOSED</code>, about twenty seconds later, and exits. That is
 fine for watching the phases go by, but afterwards the market is closed
 and orders are rejected with <code>MARKET_CLOSED</code>. Exercise 10 shows how to
 open it again by hand, which is how the following chapters keep it open.</p>
@@ -8169,29 +8184,29 @@ timetable.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> you ran <code>pm-scheduler --now</code> and saw it send all five transitions, ending with <code>Done.</code></p>
 <h2 id="exercise-8-connect-a-gateway">Exercise 8: Connect a Gateway<a class="headerlink" href="#exercise-8-connect-a-gateway" title="Permanent link">&para;</a></h2>
 <p>In a <strong>third terminal</strong>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>TRADER01
+<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>TRADER01
 </code></pre></div>
 <p>You should see:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>Gateway TRADER01 connected.   — Alice — first trader Type HELP for commands.  Tab=complete  ↑↓=history  Ctrl-A/E=line start/end
-<a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a>
-<a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a>[TRADER01]&gt;
+<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>Gateway TRADER01 connected.   — Alice — first trader Type HELP for commands.  Tab=complete  ↑↓=history  Ctrl-A/E=line start/end
+<a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a>
+<a id="__codelineno-24-3" name="__codelineno-24-3" href="#__codelineno-24-3"></a>[TRADER01]&gt;
 </code></pre></div>
 <p>Try typing <code>ORDERS</code> — it should report no resting orders for this gateway.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> gateway prompt is interactive and connected.</p>
 <h2 id="exercise-9-verify-the-setup">Exercise 9: Verify the Setup<a class="headerlink" href="#exercise-9-verify-the-setup" title="Permanent link">&para;</a></h2>
 <p>From the gateway prompt, confirm the three symbols are available by attempting
 a tiny limit order:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=1|PRICE=0.01|TIF=DAY
+<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=1|PRICE=0.01|TIF=DAY
 </code></pre></div>
 <p>If you have just done Exercise 7, the scheduler's <code>--now</code> day ended in <code>CLOSED</code>,
 so you will see this first:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>[&lt;time&gt;] REJECTED  &lt;order_id&gt; code=MARKET_CLOSED  Market is closed
+<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a>[&lt;time&gt;] REJECTED  &lt;order_id&gt; code=MARKET_CLOSED  Market is closed
 </code></pre></div>
 <p>That is the engine working as designed, not a fault. Open the market in the
 next exercise (the last part of it, "Open the market for the chapters ahead"),
 then come back and send the same order again. Now you should see an
 acknowledgement (the order rests since no matching ask exists):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a>[&lt;time&gt;] ACK       &lt;order_id&gt;  order accepted
+<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a>[&lt;time&gt;] ACK       &lt;order_id&gt;  order accepted
 </code></pre></div>
 <p>Repeat for <code>MSFT</code> and <code>TSLA</code> to confirm all three books are active.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> all three symbols accept orders
@@ -8240,30 +8255,35 @@ the <code>pm-admin</code> terminal"; anything else means the trader console.</p>
 </div>
 <p>In a <strong>fourth terminal</strong>, start the operator console. Note this is
 <code>pm-admin</code>, <strong>not</strong> <code>pm-alf-console</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a>pm-admin<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN
+<div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a>pm-admin<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN
 </code></pre></div>
 <p><code>GW_ADMIN</code> must be a gateway with <code>role: ADMIN</code> in your configuration — your
 hand-written file from Exercise 1 has one.</p>
 <p>Now look at the order book, which no trader console can do:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a>[GW_ADMIN|ADMIN]&gt; BOOK|SYM=AAPL
+<div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a>[GW_ADMIN|ADMIN]&gt; BOOK|SYM=AAPL
 </code></pre></div>
 <p>You should see a book snapshot (possibly with the 1-lot bid from Exercise 9).</p>
 <p>Try two more operator queries:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a>[GW_ADMIN|ADMIN]&gt; GATEWAYS
-<a id="__codelineno-29-2" name="__codelineno-29-2" href="#__codelineno-29-2"></a>[GW_ADMIN|ADMIN]&gt; SESSION_STATUS
+<div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a>[GW_ADMIN|ADMIN]&gt; GATEWAYS
+<a id="__codelineno-30-2" name="__codelineno-30-2" href="#__codelineno-30-2"></a>[GW_ADMIN|ADMIN]&gt; SESSION_STATUS
 </code></pre></div>
 <p><code>GATEWAYS</code> lists every configured gateway and whether it is connected;
 <code>SESSION_STATUS</code> reports the current trading phase.</p>
 <h3 id="open-the-market-for-the-chapters-ahead">Open the market for the chapters ahead<a class="headerlink" href="#open-the-market-for-the-chapters-ahead" title="Permanent link">&para;</a></h3>
 <p>Chapters 02–05 need the market in continuous trading, whatever the time of
-day. Stop <code>pm-scheduler</code> (Ctrl-C in its terminal) and move the phase yourself:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a>[GW_ADMIN|ADMIN]&gt; SESSION|STATE=PRE_OPEN
-<a id="__codelineno-30-2" name="__codelineno-30-2" href="#__codelineno-30-2"></a>[GW_ADMIN|ADMIN]&gt; SESSION|STATE=CONTINUOUS
-<a id="__codelineno-30-3" name="__codelineno-30-3" href="#__codelineno-30-3"></a>[GW_ADMIN|ADMIN]&gt; SESSION_STATUS
+day. If <code>pm-scheduler</code> is still running, stop it (<code>Ctrl-C</code> in its terminal) so
+it does not move the phase behind your back, then move the phase yourself:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a>[GW_ADMIN|ADMIN]&gt; SESSION|STATE=PRE_OPEN
+<a id="__codelineno-31-2" name="__codelineno-31-2" href="#__codelineno-31-2"></a>[GW_ADMIN|ADMIN]&gt; SESSION|STATE=CONTINUOUS
+<a id="__codelineno-31-3" name="__codelineno-31-3" href="#__codelineno-31-3"></a>[GW_ADMIN|ADMIN]&gt; SESSION_STATUS
 </code></pre></div>
 <p><code>SESSION_STATUS</code> should now report <code>CONTINUOUS</code>. The engine only accepts the
 phase changes of a real trading day, in order — from <code>CLOSED</code> the only legal
-step is <code>PRE_OPEN</code> — so it takes two commands. Chapter 06 explains this
+step is <code>PRE_OPEN</code> — so it takes two commands. If you try to skip one, for
+example <code>SESSION|STATE=CONTINUOUS</code> straight from <code>CLOSED</code>, the engine ignores
+the request and the console reports
+<code>TIMEOUT  No ack with prefix 'session.state' within 3000 ms</code>; the phase has
+not changed. Chapter 06 explains this
 "freeze and advance" technique properly; whenever a later exercise says the
 market must be open, this is how you open it.</p>
 <p>Now go back to Exercise 9 and send the three 1-lot test orders (AAPL, MSFT,
@@ -8273,7 +8293,7 @@ TSLA) if you have not yet.</p>
 restarts</strong>. Left in place, they would show up in the order books and in
 <code>ORDERS</code> in every later chapter. Remove them with the operator's kill switch,
 which cancels everything one gateway has resting (chapter 08 explains it):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a>[GW_ADMIN|ADMIN]&gt; KILL|GW=TRADER01
+<div class="highlight"><pre><span></span><code><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a>[GW_ADMIN|ADMIN]&gt; KILL|GW=TRADER01
 </code></pre></div>
 <p>It answers <code>KILL OK  TRADER01  orders=3  quotes=0</code>; the cancellations also
 show on the <code>TRADER01</code> console as <code>CANCELLED … reason=KILL_SWITCH</code>.</p>
@@ -8297,13 +8317,13 @@ after an engine restart, when each must be started again (see above).</p>
 </div>
 <h2 id="exercise-11-inspect-enriched-symbols-metadata">Exercise 11: Inspect Enriched SYMBOLS Metadata<a class="headerlink" href="#exercise-11-inspect-enriched-symbols-metadata" title="Permanent link">&para;</a></h2>
 <p>From any connected gateway:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a>[TRADER01]&gt; SYMBOLS
+<div class="highlight"><pre><span></span><code><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a>[TRADER01]&gt; SYMBOLS
 </code></pre></div>
 <p>Besides the symbol names, the table shows each symbol's tick size and its
 market-maker obligation settings — whether they are enforced, the maximum
 spread in ticks and the minimum quoted quantity:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a>┃ #    ┃ Symbol     ┃ Tick ┃ MM Enforced ┃ Max Spread ┃ Min Qty ┃
-<a id="__codelineno-33-2" name="__codelineno-33-2" href="#__codelineno-33-2"></a>│ 1    │ AAPL       │ 0.01 │     NO      │         20 │     100 │
+<div class="highlight"><pre><span></span><code><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a>┃ #    ┃ Symbol     ┃ Tick ┃ MM Enforced ┃ Max Spread ┃ Min Qty ┃
+<a id="__codelineno-34-2" name="__codelineno-34-2" href="#__codelineno-34-2"></a>│ 1    │ AAPL       │ 0.01 │     NO      │         20 │     100 │
 </code></pre></div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> you can read the tick size and the market-maker settings of each symbol from the <code>SYMBOLS</code> output.</p>
 <h2 id="exercise-12-break-and-recognise-the-artifacts-hash-checks">Exercise 12: Break — and Recognise — the Artifact's Hash Checks<a class="headerlink" href="#exercise-12-break-and-recognise-the-artifacts-hash-checks" title="Permanent link">&para;</a></h2>
@@ -8319,25 +8339,26 @@ for the full explanation this exercise is drilling.</p>
 <p>In the engine's terminal, stop it with <code>Ctrl-C</code>. Then hand-edit the
 <em>deployed</em> artifact directly — something <code>pm-config-deploy</code> never does and
 nothing should:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a>python3<span class="w"> </span>-c<span class="w"> </span><span class="s2">"</span>
-<a id="__codelineno-34-2" name="__codelineno-34-2" href="#__codelineno-34-2"></a><span class="s2">import json</span>
-<a id="__codelineno-34-3" name="__codelineno-34-3" href="#__codelineno-34-3"></a><span class="s2">p = '</span><span class="nv">$EDUMATCHER_DATA_DIR</span><span class="s2">/ref_data/engine_config.json'</span>
-<a id="__codelineno-34-4" name="__codelineno-34-4" href="#__codelineno-34-4"></a><span class="s2">data = json.load(open(p))</span>
-<a id="__codelineno-34-5" name="__codelineno-34-5" href="#__codelineno-34-5"></a><span class="s2">data['engine']['symbols']['AAPL']['tick_decimals'] = 4</span>
-<a id="__codelineno-34-6" name="__codelineno-34-6" href="#__codelineno-34-6"></a><span class="s2">json.dump(data, open(p, 'w'), indent=2)</span>
-<a id="__codelineno-34-7" name="__codelineno-34-7" href="#__codelineno-34-7"></a><span class="s2">"</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-35-1" name="__codelineno-35-1" href="#__codelineno-35-1"></a>python3<span class="w"> </span>-c<span class="w"> </span><span class="s2">"</span>
+<a id="__codelineno-35-2" name="__codelineno-35-2" href="#__codelineno-35-2"></a><span class="s2">import json</span>
+<a id="__codelineno-35-3" name="__codelineno-35-3" href="#__codelineno-35-3"></a><span class="s2">p = '</span><span class="nv">$EDUMATCHER_DATA_DIR</span><span class="s2">/ref_data/engine_config.json'</span>
+<a id="__codelineno-35-4" name="__codelineno-35-4" href="#__codelineno-35-4"></a><span class="s2">data = json.load(open(p))</span>
+<a id="__codelineno-35-5" name="__codelineno-35-5" href="#__codelineno-35-5"></a><span class="s2">data['engine']['symbols']['AAPL']['tick_decimals'] = 4</span>
+<a id="__codelineno-35-6" name="__codelineno-35-6" href="#__codelineno-35-6"></a><span class="s2">json.dump(data, open(p, 'w'), indent=2)</span>
+<a id="__codelineno-35-7" name="__codelineno-35-7" href="#__codelineno-35-7"></a><span class="s2">"</span>
 </code></pre></div>
 <p>Start the engine again in the same terminal:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-35-1" name="__codelineno-35-1" href="#__codelineno-35-1"></a>pm-engine
+<div class="highlight"><pre><span></span><code><a id="__codelineno-36-1" name="__codelineno-36-1" href="#__codelineno-36-1"></a>pm-engine
 </code></pre></div>
-<p>Expected: the engine refuses to start. It prints a Python traceback; read its
-<strong>last line</strong>, which reports that the compiled config's payload no longer
-matches its recorded content digest and names <code>pm-config-deploy</code>, not manual
-editing, as the fix.</p>
+<p>Expected: the engine refuses to start, with one line (the digests differ on
+your machine):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-37-1" name="__codelineno-37-1" href="#__codelineno-37-1"></a>pm-engine: cannot start, the deployed configuration is unusable: /data/ref_data/engine_config.json: compiled config has been modified since it was compiled (payload digest 6090a805b259… does not match the recorded 39326d4e4e9c…) — edit the source and run pm-config-deploy rather than editing the deployed artifact
+</code></pre></div>
+<p>It names <code>pm-config-deploy</code>, not manual editing, as the fix.</p>
 <p>Recover by recompiling the (untouched) source that is still sitting next to
 the artifact, then start the engine again:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-36-1" name="__codelineno-36-1" href="#__codelineno-36-1"></a>pm-config-deploy<span class="w"> </span>engine_config.yaml
-<a id="__codelineno-36-2" name="__codelineno-36-2" href="#__codelineno-36-2"></a>pm-engine
+<div class="highlight"><pre><span></span><code><a id="__codelineno-38-1" name="__codelineno-38-1" href="#__codelineno-38-1"></a>pm-config-deploy<span class="w"> </span>engine_config.yaml
+<a id="__codelineno-38-2" name="__codelineno-38-2" href="#__codelineno-38-2"></a>pm-engine
 </code></pre></div>
 <p>(The engine restart disconnected your consoles; restart them before using them
 again.)</p>
@@ -8363,10 +8384,10 @@ EduMatcher itself without redeploying.</p>
 <p>Leave this engine running. In another terminal, edit the <em>authored</em> YAML and
 deliberately skip the deploy step — this only changes the file on disk, it
 does not affect the already-running engine:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-37-1" name="__codelineno-37-1" href="#__codelineno-37-1"></a>sed<span class="w"> </span>-i.bak<span class="w"> </span><span class="s1">'s/tick_decimals: 2/tick_decimals: 3/'</span><span class="w"> </span>engine_config.yaml<span class="w">   </span><span class="c1"># changes every symbol: each has its own tick_decimals line</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-39-1" name="__codelineno-39-1" href="#__codelineno-39-1"></a>sed<span class="w"> </span>-i.bak<span class="w"> </span><span class="s1">'s/tick_decimals: 2/tick_decimals: 3/'</span><span class="w"> </span>engine_config.yaml<span class="w">   </span><span class="c1"># changes every symbol: each has its own tick_decimals line</span>
 </code></pre></div>
 <p>Now stop the engine (<code>Ctrl-C</code>) and start it again without redeploying:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-38-1" name="__codelineno-38-1" href="#__codelineno-38-1"></a>pm-engine
+<div class="highlight"><pre><span></span><code><a id="__codelineno-40-1" name="__codelineno-40-1" href="#__codelineno-40-1"></a>pm-engine
 </code></pre></div>
 <p>Expected: the engine <strong>starts anyway</strong>, but logs a warning that
 <code>engine_config.yaml</code> has changed since the running configuration was
@@ -8375,8 +8396,8 @@ with <code>SYMBOLS</code> from a gateway (restart your trader console first, as 
 was restarted) that the symbols still report the old tick size (<code>0.01</code>, not
 <code>0.001</code>) — the warning told the truth, nothing was silently applied.</p>
 <p>Restore the file and redeploy to clear the warning:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-39-1" name="__codelineno-39-1" href="#__codelineno-39-1"></a>mv<span class="w"> </span>engine_config.yaml.bak<span class="w"> </span>engine_config.yaml
-<a id="__codelineno-39-2" name="__codelineno-39-2" href="#__codelineno-39-2"></a>pm-config-deploy<span class="w"> </span>engine_config.yaml
+<div class="highlight"><pre><span></span><code><a id="__codelineno-41-1" name="__codelineno-41-1" href="#__codelineno-41-1"></a>mv<span class="w"> </span>engine_config.yaml.bak<span class="w"> </span>engine_config.yaml
+<a id="__codelineno-41-2" name="__codelineno-41-2" href="#__codelineno-41-2"></a>pm-config-deploy<span class="w"> </span>engine_config.yaml
 </code></pre></div>
 <div class="admonition note">
 <p class="admonition-title">Why the two checks fail differently</p>
@@ -8416,22 +8437,22 @@ them.</p>
 <p><strong>Add a weekend session.</strong></p>
 <p>By default <code>pm-config-gen</code> leaves Saturday and Sunday <code>CLOSED</code>. Pass
 <code>--weekend</code> to give them their own (shorter) session:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-40-1" name="__codelineno-40-1" href="#__codelineno-40-1"></a>pm-config-gen<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-40-2" name="__codelineno-40-2" href="#__codelineno-40-2"></a><span class="w">  </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span>MSFT<span class="w"> </span>TSLA<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-40-3" name="__codelineno-40-3" href="#__codelineno-40-3"></a><span class="w">  </span>--symbol-opts<span class="w"> </span>AAPL:tick_decimals<span class="o">=</span><span class="m">2</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-40-4" name="__codelineno-40-4" href="#__codelineno-40-4"></a><span class="w">  </span>--symbol-opts<span class="w"> </span>MSFT:tick_decimals<span class="o">=</span><span class="m">2</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-40-5" name="__codelineno-40-5" href="#__codelineno-40-5"></a><span class="w">  </span>--symbol-opts<span class="w"> </span>TSLA:tick_decimals<span class="o">=</span><span class="m">2</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-40-6" name="__codelineno-40-6" href="#__codelineno-40-6"></a><span class="w">  </span>--participants<span class="w"> </span>TRADER01:TRADER<span class="w"> </span>TRADER02:TRADER<span class="w"> </span>GW_ADMIN:ADMIN<span class="w"> </span>ADMIN_CLI:ADMIN<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-40-7" name="__codelineno-40-7" href="#__codelineno-40-7"></a><span class="w">  </span>--static-band<span class="w"> </span><span class="m">0</span>.10<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-40-8" name="__codelineno-40-8" href="#__codelineno-40-8"></a><span class="w">  </span>--dynamic-band<span class="w"> </span><span class="m">0</span>.05<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-40-9" name="__codelineno-40-9" href="#__codelineno-40-9"></a><span class="w">  </span>--sessions-enabled<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-40-10" name="__codelineno-40-10" href="#__codelineno-40-10"></a><span class="w">  </span>--weekend<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-40-11" name="__codelineno-40-11" href="#__codelineno-40-11"></a><span class="w">  </span>--weekend-pre-open<span class="w"> </span><span class="m">10</span>:00<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-40-12" name="__codelineno-40-12" href="#__codelineno-40-12"></a><span class="w">  </span>--weekend-opening-auction<span class="w"> </span><span class="m">10</span>:25<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-40-13" name="__codelineno-40-13" href="#__codelineno-40-13"></a><span class="w">  </span>--weekend-continuous<span class="w"> </span><span class="m">10</span>:30<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-40-14" name="__codelineno-40-14" href="#__codelineno-40-14"></a><span class="w">  </span>--weekend-closing-auction<span class="w"> </span><span class="m">14</span>:00<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-40-15" name="__codelineno-40-15" href="#__codelineno-40-15"></a><span class="w">  </span>--weekend-closing-end<span class="w"> </span><span class="m">14</span>:05<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-40-16" name="__codelineno-40-16" href="#__codelineno-40-16"></a><span class="w">  </span>--output<span class="w"> </span>schedule.yaml<span class="w"> </span>--force
+<div class="highlight"><pre><span></span><code><a id="__codelineno-42-1" name="__codelineno-42-1" href="#__codelineno-42-1"></a>pm-config-gen<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-42-2" name="__codelineno-42-2" href="#__codelineno-42-2"></a><span class="w">  </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span>MSFT<span class="w"> </span>TSLA<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-42-3" name="__codelineno-42-3" href="#__codelineno-42-3"></a><span class="w">  </span>--symbol-opts<span class="w"> </span>AAPL:tick_decimals<span class="o">=</span><span class="m">2</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-42-4" name="__codelineno-42-4" href="#__codelineno-42-4"></a><span class="w">  </span>--symbol-opts<span class="w"> </span>MSFT:tick_decimals<span class="o">=</span><span class="m">2</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-42-5" name="__codelineno-42-5" href="#__codelineno-42-5"></a><span class="w">  </span>--symbol-opts<span class="w"> </span>TSLA:tick_decimals<span class="o">=</span><span class="m">2</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-42-6" name="__codelineno-42-6" href="#__codelineno-42-6"></a><span class="w">  </span>--participants<span class="w"> </span>TRADER01:TRADER<span class="w"> </span>TRADER02:TRADER<span class="w"> </span>GW_ADMIN:ADMIN<span class="w"> </span>ADMIN_CLI:ADMIN<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-42-7" name="__codelineno-42-7" href="#__codelineno-42-7"></a><span class="w">  </span>--static-band<span class="w"> </span><span class="m">0</span>.10<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-42-8" name="__codelineno-42-8" href="#__codelineno-42-8"></a><span class="w">  </span>--dynamic-band<span class="w"> </span><span class="m">0</span>.05<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-42-9" name="__codelineno-42-9" href="#__codelineno-42-9"></a><span class="w">  </span>--sessions-enabled<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-42-10" name="__codelineno-42-10" href="#__codelineno-42-10"></a><span class="w">  </span>--weekend<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-42-11" name="__codelineno-42-11" href="#__codelineno-42-11"></a><span class="w">  </span>--weekend-pre-open<span class="w"> </span><span class="m">10</span>:00<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-42-12" name="__codelineno-42-12" href="#__codelineno-42-12"></a><span class="w">  </span>--weekend-opening-auction<span class="w"> </span><span class="m">10</span>:25<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-42-13" name="__codelineno-42-13" href="#__codelineno-42-13"></a><span class="w">  </span>--weekend-continuous<span class="w"> </span><span class="m">10</span>:30<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-42-14" name="__codelineno-42-14" href="#__codelineno-42-14"></a><span class="w">  </span>--weekend-closing-auction<span class="w"> </span><span class="m">14</span>:00<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-42-15" name="__codelineno-42-15" href="#__codelineno-42-15"></a><span class="w">  </span>--weekend-closing-end<span class="w"> </span><span class="m">14</span>:05<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-42-16" name="__codelineno-42-16" href="#__codelineno-42-16"></a><span class="w">  </span>--output<span class="w"> </span>schedule.yaml<span class="w"> </span>--force
 </code></pre></div>
 <p>Inspect the generated <code>schedule:</code> block — Saturday and Sunday now carry
 their own five transition times instead of being absent.</p>
@@ -8440,29 +8461,29 @@ their own five transition times instead of being absent.</p>
 <code>CLOSED</code> (a common real-world case is a reduced half-day rather than a full
 close). This command is the previous one plus the <code>--holidays…</code> and
 <code>--country</code> flags, so the file it writes has all three features:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-41-1" name="__codelineno-41-1" href="#__codelineno-41-1"></a>pm-config-gen<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-41-2" name="__codelineno-41-2" href="#__codelineno-41-2"></a><span class="w">  </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span>MSFT<span class="w"> </span>TSLA<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-41-3" name="__codelineno-41-3" href="#__codelineno-41-3"></a><span class="w">  </span>--symbol-opts<span class="w"> </span>AAPL:tick_decimals<span class="o">=</span><span class="m">2</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-41-4" name="__codelineno-41-4" href="#__codelineno-41-4"></a><span class="w">  </span>--symbol-opts<span class="w"> </span>MSFT:tick_decimals<span class="o">=</span><span class="m">2</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-41-5" name="__codelineno-41-5" href="#__codelineno-41-5"></a><span class="w">  </span>--symbol-opts<span class="w"> </span>TSLA:tick_decimals<span class="o">=</span><span class="m">2</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-41-6" name="__codelineno-41-6" href="#__codelineno-41-6"></a><span class="w">  </span>--participants<span class="w"> </span>TRADER01:TRADER<span class="w"> </span>TRADER02:TRADER<span class="w"> </span>GW_ADMIN:ADMIN<span class="w"> </span>ADMIN_CLI:ADMIN<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-41-7" name="__codelineno-41-7" href="#__codelineno-41-7"></a><span class="w">  </span>--static-band<span class="w"> </span><span class="m">0</span>.10<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-41-8" name="__codelineno-41-8" href="#__codelineno-41-8"></a><span class="w">  </span>--dynamic-band<span class="w"> </span><span class="m">0</span>.05<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-41-9" name="__codelineno-41-9" href="#__codelineno-41-9"></a><span class="w">  </span>--sessions-enabled<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-41-10" name="__codelineno-41-10" href="#__codelineno-41-10"></a><span class="w">  </span>--weekend<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-41-11" name="__codelineno-41-11" href="#__codelineno-41-11"></a><span class="w">  </span>--weekend-pre-open<span class="w"> </span><span class="m">10</span>:00<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-41-12" name="__codelineno-41-12" href="#__codelineno-41-12"></a><span class="w">  </span>--weekend-opening-auction<span class="w"> </span><span class="m">10</span>:25<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-41-13" name="__codelineno-41-13" href="#__codelineno-41-13"></a><span class="w">  </span>--weekend-continuous<span class="w"> </span><span class="m">10</span>:30<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-41-14" name="__codelineno-41-14" href="#__codelineno-41-14"></a><span class="w">  </span>--weekend-closing-auction<span class="w"> </span><span class="m">14</span>:00<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-41-15" name="__codelineno-41-15" href="#__codelineno-41-15"></a><span class="w">  </span>--weekend-closing-end<span class="w"> </span><span class="m">14</span>:05<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-41-16" name="__codelineno-41-16" href="#__codelineno-41-16"></a><span class="w">  </span>--holidays<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-41-17" name="__codelineno-41-17" href="#__codelineno-41-17"></a><span class="w">  </span>--holidays-pre-open<span class="w"> </span><span class="m">10</span>:00<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-41-18" name="__codelineno-41-18" href="#__codelineno-41-18"></a><span class="w">  </span>--holidays-opening-auction<span class="w"> </span><span class="m">10</span>:25<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-41-19" name="__codelineno-41-19" href="#__codelineno-41-19"></a><span class="w">  </span>--holidays-continuous<span class="w"> </span><span class="m">10</span>:30<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-41-20" name="__codelineno-41-20" href="#__codelineno-41-20"></a><span class="w">  </span>--holidays-closing-auction<span class="w"> </span><span class="m">13</span>:00<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-41-21" name="__codelineno-41-21" href="#__codelineno-41-21"></a><span class="w">  </span>--holidays-closing-end<span class="w"> </span><span class="m">13</span>:05<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-41-22" name="__codelineno-41-22" href="#__codelineno-41-22"></a><span class="w">  </span>--country<span class="w"> </span>DE<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-41-23" name="__codelineno-41-23" href="#__codelineno-41-23"></a><span class="w">  </span>--output<span class="w"> </span>schedule.yaml<span class="w"> </span>--force
+<div class="highlight"><pre><span></span><code><a id="__codelineno-43-1" name="__codelineno-43-1" href="#__codelineno-43-1"></a>pm-config-gen<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-43-2" name="__codelineno-43-2" href="#__codelineno-43-2"></a><span class="w">  </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span>MSFT<span class="w"> </span>TSLA<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-43-3" name="__codelineno-43-3" href="#__codelineno-43-3"></a><span class="w">  </span>--symbol-opts<span class="w"> </span>AAPL:tick_decimals<span class="o">=</span><span class="m">2</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-43-4" name="__codelineno-43-4" href="#__codelineno-43-4"></a><span class="w">  </span>--symbol-opts<span class="w"> </span>MSFT:tick_decimals<span class="o">=</span><span class="m">2</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-43-5" name="__codelineno-43-5" href="#__codelineno-43-5"></a><span class="w">  </span>--symbol-opts<span class="w"> </span>TSLA:tick_decimals<span class="o">=</span><span class="m">2</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-43-6" name="__codelineno-43-6" href="#__codelineno-43-6"></a><span class="w">  </span>--participants<span class="w"> </span>TRADER01:TRADER<span class="w"> </span>TRADER02:TRADER<span class="w"> </span>GW_ADMIN:ADMIN<span class="w"> </span>ADMIN_CLI:ADMIN<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-43-7" name="__codelineno-43-7" href="#__codelineno-43-7"></a><span class="w">  </span>--static-band<span class="w"> </span><span class="m">0</span>.10<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-43-8" name="__codelineno-43-8" href="#__codelineno-43-8"></a><span class="w">  </span>--dynamic-band<span class="w"> </span><span class="m">0</span>.05<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-43-9" name="__codelineno-43-9" href="#__codelineno-43-9"></a><span class="w">  </span>--sessions-enabled<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-43-10" name="__codelineno-43-10" href="#__codelineno-43-10"></a><span class="w">  </span>--weekend<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-43-11" name="__codelineno-43-11" href="#__codelineno-43-11"></a><span class="w">  </span>--weekend-pre-open<span class="w"> </span><span class="m">10</span>:00<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-43-12" name="__codelineno-43-12" href="#__codelineno-43-12"></a><span class="w">  </span>--weekend-opening-auction<span class="w"> </span><span class="m">10</span>:25<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-43-13" name="__codelineno-43-13" href="#__codelineno-43-13"></a><span class="w">  </span>--weekend-continuous<span class="w"> </span><span class="m">10</span>:30<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-43-14" name="__codelineno-43-14" href="#__codelineno-43-14"></a><span class="w">  </span>--weekend-closing-auction<span class="w"> </span><span class="m">14</span>:00<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-43-15" name="__codelineno-43-15" href="#__codelineno-43-15"></a><span class="w">  </span>--weekend-closing-end<span class="w"> </span><span class="m">14</span>:05<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-43-16" name="__codelineno-43-16" href="#__codelineno-43-16"></a><span class="w">  </span>--holidays<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-43-17" name="__codelineno-43-17" href="#__codelineno-43-17"></a><span class="w">  </span>--holidays-pre-open<span class="w"> </span><span class="m">10</span>:00<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-43-18" name="__codelineno-43-18" href="#__codelineno-43-18"></a><span class="w">  </span>--holidays-opening-auction<span class="w"> </span><span class="m">10</span>:25<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-43-19" name="__codelineno-43-19" href="#__codelineno-43-19"></a><span class="w">  </span>--holidays-continuous<span class="w"> </span><span class="m">10</span>:30<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-43-20" name="__codelineno-43-20" href="#__codelineno-43-20"></a><span class="w">  </span>--holidays-closing-auction<span class="w"> </span><span class="m">13</span>:00<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-43-21" name="__codelineno-43-21" href="#__codelineno-43-21"></a><span class="w">  </span>--holidays-closing-end<span class="w"> </span><span class="m">13</span>:05<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-43-22" name="__codelineno-43-22" href="#__codelineno-43-22"></a><span class="w">  </span>--country<span class="w"> </span>DE<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-43-23" name="__codelineno-43-23" href="#__codelineno-43-23"></a><span class="w">  </span>--output<span class="w"> </span>schedule.yaml<span class="w"> </span>--force
 </code></pre></div>
 <p><code>--country</code> is what tells <code>pm-scheduler</code> <em>which</em> calendar of bank holidays
 to check a date against before it decides whether the <code>holidays:</code> block
@@ -8484,15 +8505,15 @@ just deploy.</p>
 — 7 of 7 days scheduled, holidays overridden</code>, and there should be no <code>M026</code>
 (the <code>M032</code> and <code>C001</code> warnings are the ones you already know, and this file
 has no reference prices, as in Exercise 2):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-42-1" name="__codelineno-42-1" href="#__codelineno-42-1"></a>pm-cverifier<span class="w"> </span>schedule.yaml
+<div class="highlight"><pre><span></span><code><a id="__codelineno-44-1" name="__codelineno-44-1" href="#__codelineno-44-1"></a>pm-cverifier<span class="w"> </span>schedule.yaml
 </code></pre></div>
 <p>Deploy it:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-43-1" name="__codelineno-43-1" href="#__codelineno-43-1"></a>pm-config-deploy<span class="w"> </span>schedule.yaml
+<div class="highlight"><pre><span></span><code><a id="__codelineno-45-1" name="__codelineno-45-1" href="#__codelineno-45-1"></a>pm-config-deploy<span class="w"> </span>schedule.yaml
 </code></pre></div>
 <p>Restart <code>pm-engine</code> (<code>Ctrl-C</code>, then start it again) so that it reads the new
 artifact, restart <code>pm-admin</code> (it was disconnected by the restart), and ask the
 operator console for the schedule the engine is really running:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-44-1" name="__codelineno-44-1" href="#__codelineno-44-1"></a>[GW_ADMIN|ADMIN]&gt; SCHEDULE
+<div class="highlight"><pre><span></span><code><a id="__codelineno-46-1" name="__codelineno-46-1" href="#__codelineno-46-1"></a>[GW_ADMIN|ADMIN]&gt; SCHEDULE
 </code></pre></div>
 <p><code>SCHEDULE</code> prints the weekly table — five transition times for each of Mon–Sun
 and a final <code>Holidays</code> column. Saturday and Sunday now read 10:00 / 10:25 /
@@ -8502,7 +8523,7 @@ phase, not the timetable.)</p>
 <p>When you have seen it, put your training configuration back and restart the
 engine, because <code>schedule.yaml</code> has no reference prices and Chapter 11 needs
 them:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-45-1" name="__codelineno-45-1" href="#__codelineno-45-1"></a>pm-config-deploy<span class="w"> </span>engine_config.yaml
+<div class="highlight"><pre><span></span><code><a id="__codelineno-47-1" name="__codelineno-47-1" href="#__codelineno-47-1"></a>pm-config-deploy<span class="w"> </span>engine_config.yaml
 </code></pre></div>
 <p>Restart <code>pm-engine</code> once more (<code>Ctrl-C</code>, then <code>pm-engine</code>), restart your trader
 and operator consoles, and reopen the market with <code>SESSION|STATE=PRE_OPEN</code> and
@@ -8525,7 +8546,7 @@ weekend and <code>Holidays</code> columns filled in; and your hand-written
 <h2 id="summary">Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h2>
 <p>You now have:</p>
 <ul>
-<li>A configuration file defining 3 symbols and 3 gateways.</li>
+<li>A configuration file defining 3 symbols and 4 participants (two traders, two operators).</li>
 <li>A repeatable verifier workflow (<code>pm-cverifier</code>) to catch config problems before startup.</li>
 <li>A compiled, deployed configuration (<code>pm-config-deploy</code>) that <code>pm-engine</code> and
   <code>pm-scheduler</code> actually read.</li>

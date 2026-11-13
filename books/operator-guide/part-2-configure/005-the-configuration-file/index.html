@@ -9039,7 +9039,7 @@ over it, field by field.</p>
 <td><code>levels.&lt;NAME&gt;.halt_duration_ns</code></td>
 <td>positive integer ns, or <code>null</code></td>
 <td><code>null</code></td>
-<td>The <em>minimum</em> length of the halt's reopening call phase (the random tail below is added on top). <code>null</code> means rest-of-day: the symbol never reopens on a timer — it stays halted until an <code>ADMIN</code> resumes it or the exchange closes for the day, when halts are reset.</td>
+<td>The <em>minimum</em> length of the halt's reopening call phase (the random tail below is added on top). <code>null</code> means rest-of-day: the symbol never reopens on a timer — it stays halted until an <code>ADMIN</code> resumes it or the exchange closes for the day, when the closing backstop reopens it.</td>
 </tr>
 </tbody>
 </table>

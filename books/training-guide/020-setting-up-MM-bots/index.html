@@ -7835,7 +7835,7 @@ directly before using automation.</p>
 <h2 id="exercise-1-add-mm-gateways-to-configuration">Exercise 1: Add MM Gateways to Configuration<a class="headerlink" href="#exercise-1-add-mm-gateways-to-configuration" title="Permanent link">&para;</a></h2>
 <p>Extend your <code>engine_config.yaml</code> <code>participants</code> list:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nt">participants</span><span class="p">:</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">  </span><span class="c1"># ... existing TRADER01, TRADER02, GW_ADMIN entries ...</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">  </span><span class="c1"># ... existing TRADER01, TRADER02, GW_ADMIN, ADMIN_CLI entries ...</span>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
 <a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MM_AAPL_01</span>
 <a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">    </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">"AAPL</span><span class="nv"> </span><span class="s">market-maker"</span>
@@ -7965,7 +7965,8 @@ shows <code>MM quote SEED-MM_AAPL_01-AAPL-1 …</code>). The seeds are what keep
 books from being empty the moment the exchange starts, and the exercises below
 take them over.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> <code>pm-cverifier</code> reports 0 errors,
-the deploy succeeds, and the engine logs show 6 gateways loaded.</p>
+the deploy succeeds (<code>3 symbol(s), 7 gateway(s)</code>), and the engine log shows
+<code>7 gateway id(s)</code> and one <code>MM quote SEED-…</code> line per symbol.</p>
 <h2 id="exercise-2-connect-the-aapl-market-maker">Exercise 2: Connect the AAPL Market Maker<a class="headerlink" href="#exercise-2-connect-the-aapl-market-maker" title="Permanent link">&para;</a></h2>
 <p>In a new terminal:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>MM_AAPL_01
@@ -8041,8 +8042,9 @@ three terminals:</p>
 <a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>pm-mm-bot<span class="w"> </span>--symbol<span class="w"> </span>MSFT<span class="w"> </span>--gap<span class="w"> </span><span class="m">0</span>.16<span class="w"> </span>--qty<span class="w"> </span><span class="m">300</span><span class="w"> </span>--initial_min<span class="w"> </span><span class="m">419</span><span class="w"> </span>--initial_max<span class="w"> </span><span class="m">421</span>
 <a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>pm-mm-bot<span class="w"> </span>--symbol<span class="w"> </span>TSLA<span class="w"> </span>--gap<span class="w"> </span><span class="m">0</span>.20<span class="w"> </span>--qty<span class="w"> </span><span class="m">200</span><span class="w"> </span>--initial_min<span class="w"> </span><span class="m">249</span><span class="w"> </span>--initial_max<span class="w"> </span><span class="m">251</span>
 </code></pre></div>
-<p>Add <code>--verbose</code> to any of these to follow what the bot does; by default it
-prints only warnings and errors. The quotes now sit around the random mid-price
+<p>A bot that starts correctly prints <strong>nothing</strong>: by default it shows only
+warnings and errors, so a silent, busy terminal means it is quoting. Add
+<code>--verbose</code> to any of these to follow what it does. The quotes now sit around the random mid-price
 the bot chose, not at the prices of Exercises 2–3: check with
 <code>BOOK|SYM=AAPL</code> in the operator console.</p>
 <p>The bot connects using the gateway ID <code>MM_&lt;SYMBOL&gt;_&lt;id-suffix&gt;</code> (default
@@ -8422,8 +8424,9 @@ simply want a clean start), get back to it:</p>
 <a id="__codelineno-30-2" name="__codelineno-30-2" href="#__codelineno-30-2"></a>pm-config-deploy<span class="w"> </span>engine_config.yaml
 </code></pre></div>
 <ol>
-<li>Restart <code>pm-engine</code>, then restart <code>pm-admin</code>, and reopen the market with
-   <code>SESSION|STATE=PRE_OPEN</code> and <code>SESSION|STATE=CONTINUOUS</code>.</li>
+<li>Restart <code>pm-engine</code>, then restart <code>pm-admin</code> and your <code>TRADER01</code> console,
+   and reopen the market with <code>SESSION|STATE=PRE_OPEN</code> and
+   <code>SESSION|STATE=CONTINUOUS</code>.</li>
 <li>Connect <code>pm-alf-console --id MM_AAPL_01</code> (and the MSFT and TSLA ones if you
    want them) and send the <code>QUOTE</code> commands of Exercises 2 and 3 again.</li>
 <li>In <code>pm-admin</code>, <code>BOOK|SYM=AAPL</code> shows 500 bid at 149.95 and 500 ask at

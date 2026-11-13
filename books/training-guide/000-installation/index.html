@@ -7886,7 +7886,7 @@
 <p>Get a working EduMatcher, understand <strong>where its files live</strong>, and know <strong>how to
 change them</strong>. There are four ways to install; you need exactly one, and
 <strong>Containers is the recommended default</strong> — it needs no Python setup, gives
-you the exchange plus six web applications in a single command, and is what
+you the exchange plus seven web applications in a single command, and is what
 the rest of this chapter assumes unless you have a specific reason to choose
 otherwise. By the end of this chapter you will have an exchange you can start
 and stop, a deployed configuration, and a clear picture of which directory
@@ -7919,7 +7919,7 @@ in action.</p>
 <tr>
 <td><strong>A — Containers (recommended)</strong></td>
 <td>Podman or Docker</td>
-<td>The exchange <strong>and six web applications</strong>, in one command</td>
+<td>The exchange <strong>and seven web applications</strong>, in one command</td>
 <td>Most students: no Python to install, the fastest path to a live market, and works through every chapter that follows</td>
 </tr>
 <tr>
@@ -8012,9 +8012,9 @@ directory removes the installation.</p>
 </div>
 <p>The installer checks for Podman or Docker, resolves the newest release,
 downloads four small support files (<code>compose.yaml</code>, <code>compose.zmq.yaml</code>,
-<code>edumatcher.sh</code>, <code>.env.example</code>), pulls seven images (the exchange and the six
+<code>edumatcher.sh</code>, <code>.env.example</code>), pulls eight images (the exchange and the seven
 web applications) and starts them. Nothing is compiled on your machine.</p>
-<p>When it finishes you have a complete exchange <strong>and</strong> six web applications:</p>
+<p>When it finishes you have a complete exchange <strong>and</strong> seven web applications:</p>
 <table>
 <thead>
 <tr>
@@ -8055,6 +8055,11 @@ web applications) and starts them. Nothing is compiled on your machine.</p>
 <td>Whether every part of the exchange is healthy, and how busy it is, live and over time</td>
 </tr>
 <tr>
+<td>Clearing GUI (<code>pm-clearing-ui</code>)</td>
+<td><a href="http://localhost:8096">http://localhost:8096</a></td>
+<td>Positions, P&amp;L, trades and end-of-day settlement per participant, read-only</td>
+</tr>
+<tr>
 <td>REST API docs</td>
 <td><a href="http://localhost:8080/docs">http://localhost:8080/docs</a></td>
 <td>Swagger UI for the <code>desk</code> API gateway</td>
@@ -8067,8 +8072,8 @@ market-maker bid and ask the moment <code>pm-engine</code> starts, so there is a
 book before anyone has traded.</p>
 <div class="admonition note">
 <p class="admonition-title">If a port is already taken</p>
-<p>The REST API ports (<code>8080</code>, <code>8081</code>) are fixed; the six web applications use
-<code>8090</code>–<code>8095</code> by default, and you can move any of them with the
+<p>The REST API ports (<code>8080</code>, <code>8081</code>) are fixed; the seven web applications use
+<code>8090</code>–<code>8096</code> by default, and you can move any of them with the
 <code>*_GUI_PORT</code> settings in <code>.env</code> (Exercise 4). If another program on your
 machine already uses one of these ports, <code>./edumatcher.sh start</code> fails with
 a bind error naming that port. Free it, move the conflicting service, or
@@ -8109,11 +8114,19 @@ rest work exactly as the training chapters describe, and
 <p>One difference matters. The container <strong>starts the processes for you</strong> — the
 <code>mm-demo</code> profile (the full process set plus a slow market-maker bot) is
 already running, which is why TapeDeck showed a live market. The training chapters assume you start them yourself, so stop them
-first:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>pm-opctl-cli<span class="w"> </span>list<span class="w">           </span><span class="c1"># see what is running</span>
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>pm-opctl-cli<span class="w"> </span>stop<span class="w">           </span><span class="c1"># stop the profile; the container stays up</span>
-<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>pm-engine<span class="w"> </span>--verbose<span class="w">         </span><span class="c1"># now follow the chapters</span>
+first, and then wipe what the demo left behind:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>pm-opctl-cli<span class="w"> </span>list<span class="w">                   </span><span class="c1"># see what is running</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>pm-opctl-cli<span class="w"> </span>stop<span class="w">                   </span><span class="c1"># stop the profile; the container stays up</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>pm-opctl-cli<span class="w"> </span>clear<span class="w"> </span>--state<span class="w"> </span>--yes<span class="w">    </span><span class="c1"># forget the demo's orders, prices and trades</span>
 </code></pre></div>
+<p>The last step matters more than it looks. While it ran, the demo traded
+AAPL, MSFT, TSLA and seven other symbols, and the exchange <strong>remembers</strong> a
+symbol's last traded price across restarts (in <code>book_stats.json</code>), as well as
+every trade (in <code>stats.db</code> and <code>clearing.db</code>). Without the reset, the AAPL you
+configure at 150.00 in chapter 01 would start at whatever price the demo
+left it at, and your positions in chapter 12 would include trades you never
+made. <code>clear --state</code> removes only that state; your deployed configuration
+and your working folder (below) are not touched.</p>
 <p>For the exercises that need several terminals, run <code>./edumatcher.sh shell</code> once
 in each of them.</p>
 <h3 id="where-to-keep-your-working-files">Where to keep your working files<a class="headerlink" href="#where-to-keep-your-working-files" title="Permanent link">&para;</a></h3>
@@ -8268,7 +8281,7 @@ host. Install Multipass from <a href="https://multipass.run/install">multipass.r
 verify it, then bootstrap:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>multipass<span class="w"> </span>version
 <a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>
-<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.78.3
+<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.78.4
 </code></pre></div>
 <p>If <code>multipass version</code> fails with <code>command not found</code>, the install did not
 complete or your shell has not picked up its PATH change yet — open a new
@@ -8445,7 +8458,7 @@ so updating does not discard your edits.</p>
 <tr>
 <td><code>EM_VERSION</code></td>
 <td><em>(the installed release)</em></td>
-<td>Which release to run. All seven images carry this tag, so one value pins the whole system</td>
+<td>Which release to run. All eight images carry this tag, so one value pins the whole system</td>
 </tr>
 <tr>
 <td><code>GHCR_OWNER</code></td>
@@ -8517,6 +8530,11 @@ so updating does not discard your edits.</p>
 <td><code>8095</code></td>
 <td>Host port for the Operator Dashboard (<code>pm-dash</code>)</td>
 </tr>
+<tr>
+<td><code>CLEARING_GUI_PORT</code></td>
+<td><code>8096</code></td>
+<td>Host port for the Clearing GUI (<code>pm-clearing-ui</code>)</td>
+</tr>
 </tbody>
 </table>
 <p>Change any of them and run <code>./edumatcher.sh restart</code>. Two have their own
@@ -8582,7 +8600,7 @@ handled in full:</p>
 </tr>
 <tr>
 <td><code>./edumatcher.sh start</code> fails with a bind error naming a port</td>
-<td>Something else on your machine already uses <code>8080</code> or <code>8090</code>–<code>8095</code></td>
+<td>Something else on your machine already uses <code>8080</code>, <code>8081</code> or <code>8090</code>–<code>8096</code></td>
 <td>Free the port or stop the other service, then <code>./edumatcher.sh start</code> again</td>
 </tr>
 <tr>
@@ -8620,6 +8638,11 @@ handled in full:</p>
 <td>The <code>mm-demo</code> profile is still running from install</td>
 <td><code>pm-opctl-cli stop</code> inside <code>./edumatcher.sh shell</code>, as the "Before You Continue" checklist below requires</td>
 </tr>
+<tr>
+<td>Container route: <code>pm-engine</code> logs <code>Restored book statistics for 10 symbol(s)</code> although your configuration has three, or prices are far from the ones you configured</td>
+<td>The demo's last prices are still in <code>book_stats.json</code></td>
+<td>Stop <code>pm-engine</code>, run <code>pm-opctl-cli clear --state --yes</code>, start it again</td>
+</tr>
 </tbody>
 </table>
 <p>If something goes wrong that is not on this list, <code>./edumatcher.sh logs</code> (container
@@ -8649,7 +8672,8 @@ chapter assumes without re-explaining:</p>
       <code>EDUMATCHER_DATA_DIR</code> is in your shell profile, not just this terminal;
       for containers it means a shell opened with <code>./edumatcher.sh shell</code>.</li>
 <li>[ ] On the container route only: <code>pm-opctl-cli stop</code>, so the next chapter can
-      start the processes itself.</li>
+      start the processes itself, then <code>pm-opctl-cli clear --state --yes</code>, so
+      it starts without the demo's prices and trades.</li>
 <li>[ ] You have a working folder (<code>~/training</code>, or <code>~/.edumatcher/data/training</code>
       on the container route, which you reach as <code>/data/training</code> inside
       <code>./edumatcher.sh shell</code>) and a text editor to write YAML files in it.</li>

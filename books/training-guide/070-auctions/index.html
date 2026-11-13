@@ -7853,7 +7853,8 @@ equals <code>400</code> (300 from TRADER01's first order + 100 from the
 second, against TRADER02's 400-share sell). On <code>TRADER01</code> you see:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>FILL      &lt;first order id&gt;   qty=300 @149.8  remaining=0    [FILLED]
 <a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>FILL      &lt;second order id&gt;  qty=100 @149.8  remaining=100  [PARTIAL]
-<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>EXPIRED   &lt;second order id&gt;  (DAY order — trading day ended)
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>EXPIRED   &lt;second order id&gt;  (Opening auction ended)
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>EXPIRED   &lt;MSFT order id&gt;    (Opening auction ended)
 </code></pre></div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> all fills report execution price <code>149.80</code> and matched quantity <code>400</code>.</p>
 <h2 id="exercise-3-unfilled-auction-orders">Exercise 3: Unfilled Auction Orders<a class="headerlink" href="#exercise-3-unfilled-auction-orders" title="Permanent link">&para;</a></h2>
@@ -7866,7 +7867,7 @@ console reported it <code>EXPIRED</code> in the same burst as the AAPL fills. Co
 <div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>[TRADER01]&gt; ORDERS
 </code></pre></div>
 <p>The MSFT order is listed with status <code>EXPIRED</code>. (The console's explanation
-reads <em>Opening auction ended</em>, identifying why the <code>ATO</code> remainder expired.</p>
+reads <em>Opening auction ended</em>, identifying why the <code>ATO</code> order expired.)</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> the unmatched ATO order expired at the start of CONTINUOUS.</p>
 <h2 id="exercise-4-closing-auction">Exercise 4: Closing Auction<a class="headerlink" href="#exercise-4-closing-auction" title="Permanent link">&para;</a></h2>
 <p>Move the session to the closing auction:</p>
@@ -7884,8 +7885,6 @@ are generated:</p>
 150.80 both match 100 shares with no surplus, and the engine keeps the lower of
 two tied prices, exactly as in Exercise 2. Each console prints
 <code>FILL … qty=100 @150.6 remaining=0 [FILLED]</code>.</p>
-<p>Remember to reopen the market (<code>PRE_OPEN</code>, then <code>CONTINUOUS</code>) before the next
-chapter.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> closing auction produces fills.</p>
 <h2 id="exercise-5-gtc-orders-in-auctions">Exercise 5: GTC Orders in Auctions<a class="headerlink" href="#exercise-5-gtc-orders-in-auctions" title="Permanent link">&para;</a></h2>
 <p>GTC orders participate in auctions alongside ATO/ATC orders. Prove it for the
@@ -7906,6 +7905,8 @@ before the auction began, was matched in it. The same holds in the closing
 auction — rest a GTC bid during <code>CONTINUOUS</code>, send an <code>ATC</code> sell at the same
 price after <code>SESSION|STATE=CLOSING_AUCTION</code>, and they trade when the session
 moves to <code>CLOSED</code>.</p>
+<p>Exercise 5 ends with the market in <code>CONTINUOUS</code>, which is where chapter 08
+starts.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> the GTC bid filled in the opening auction against an ATO order.</p>
 <h2 id="equilibrium-price-rules">Equilibrium Price Rules<a class="headerlink" href="#equilibrium-price-rules" title="Permanent link">&para;</a></h2>
 <p>The auction algorithm scans candidate prices from lowest to highest and
