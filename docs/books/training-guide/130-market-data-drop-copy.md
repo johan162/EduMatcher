@@ -16,7 +16,9 @@ where the engine's drop-copy feed fits into the architecture.
 ## Prerequisites
 
 - Chapters 01–12 completed.
-- Engine and at least one trader gateway active so events are visible.
+- Engine and at least one trader gateway active so events are visible, and
+  the AAPL market maker of chapter 12 still quoting, so the market orders
+  below have something to trade with.
 
  
 
@@ -33,40 +35,12 @@ itself when it starts.
 
  
 
-## Exercise 1: Open a Live Book Viewer
+This chapter looks at the two streams from the outside. The viewers that
+turn the public stream into screens (`pm-viewer`, `pm-orders`, `pm-board`,
+`pm-ticker`) get a chapter of their own,
+[18 — Exchange Observer Processes](180-exchange-observer-processes.md).
 
-Start a live viewer for AAPL:
-
-```bash
-pm-viewer --symbol AAPL --depth 10
-```
-
-In a trader gateway, place or cancel a resting order and watch the viewer update:
-
-```
-[TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=149.80|TIF=DAY
-```
-
-:material-checkbox-blank-outline: **Checkpoint:** `pm-viewer` changes when the book changes.
-
- 
-
-## Exercise 2: Run the Cross-Gateway Order Monitor
-
-Start the order monitor:
-
-```bash
-pm-orders
-```
-
-Now place orders from both `TRADER01` and `TRADER02`. The monitor should show
-resting order state across gateways.
-
-:material-checkbox-blank-outline: **Checkpoint:** `pm-orders` shows orders from multiple gateways.
-
- 
-
-## Exercise 3: Capture Events with pm-audit
+## Exercise 1: Watch the Public Stream with pm-audit
 
 Start the audit logger in terminal mode:
 
@@ -80,35 +54,27 @@ Execute a trade:
 [TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=100
 ```
 
-Watch `pm-audit` print the resulting events. This is the easiest training-safe
-way to observe the event stream without writing a custom ZMQ subscriber.
+Watch `pm-audit` print the resulting events, one line each:
+`[order.fill.TRADER01]`, `[order.fill.MM_AAPL_01]`, `[trade.executed]`,
+then `[book.AAPL]` and `[depth.AAPL]` as the book changes, plus the market
+maker's quote traffic. Note that both traders' fills are on this public
+stream — every subscriber can see them. That is what the drop-copy feed
+below is *not*.
+
+`pm-audit` also writes every line to its audit trail (`/data/audit.log` in
+the container), which chapter 18 returns to. Stop it with `Ctrl-C` when you
+have seen enough. This is the easiest way to observe the event stream
+without writing a custom ZMQ subscriber.
 
 :material-checkbox-blank-outline: **Checkpoint:** audit output shows the trade/order lifecycle events.
 
  
 
-## Exercise 4: Confirm the Drop-Copy Feed Is Bound
+## Exercise 2: Watch the Drop-Copy Feed with `pm-dc-spy`
 
-Restart `pm-engine --verbose` (and then your trader and operator consoles, and
-reopen the market) and look for this startup line in the engine output
-(preceded by the usual timestamp, level and logger name):
-
-```
-Drop copy PUB bound on port 5557
-```
-
-That confirms the drop-copy publisher is active. It is intended for external
-risk/compliance subscribers and publishes topics such as
-`drop_copy.event.<gateway_id>`.
-
-:material-checkbox-blank-outline: **Checkpoint:** you can identify the drop-copy socket in engine startup output.
-
- 
-
-## Exercise 5: Watch the Drop-Copy Feed with `pm-dc-spy`
-
-`pm-audit`, `pm-viewer` and `pm-orders` all read the *public* feed on port
-5556 — none of them show the drop-copy feed. EduMatcher ships two tools for
+`pm-audit` reads the *public* feed on port 5556 and does not show the
+drop-copy feed. The engine binds that one on port 5557 when it starts
+(`pm-engine --verbose` logs `Drop copy PUB bound on port 5557`). EduMatcher ships two tools for
 that, and it is worth knowing both:
 
 | Tool | What it is | Use it for |
@@ -122,7 +88,16 @@ Start the spy:
 pm-dc-spy --format human
 ```
 
-Then submit a trade from a trader console and watch the fill events appear.
+Then submit a trade from a trader console and watch the fill events appear,
+one per side of the trade:
+
+```
+18:34:55.156  FILL     TRADER01   AAPL       #2      100@149.51       TAKER order_id=… trade_ids=['000012-000000002']
+18:34:55.157  FILL     MM_AAPL_01 AAPL       #2      100@149.51       MAKER order_id=… trade_ids=['000012-000000002']
+```
+
+`#2` is that gateway's own drop-copy sequence number; `TAKER`/`MAKER` says
+which side took liquidity.
 
 :material-checkbox-blank-outline: **Checkpoint:** `pm-dc-spy` prints a fill
 event for a trade you caused, and you can say why an external consumer would
@@ -130,12 +105,16 @@ use `pm-dc-gwy` on 5590 instead of subscribing to 5557 directly.
 
  
 
-## Exercise 5b: Subscribe to the Raw Socket
+## Exercise 3: Subscribe to the Raw Socket
 
 Understanding what the tools do for you is worth one level down. Connect a
 minimal ZMQ subscriber to the same socket `pm-dc-spy` reads:
 
-The snippet needs the `zmq` Python package (`pyzmq`); in a container shell or a Poetry checkout use `python`/`poetry run python`, and with `pipx` use `pipx runpip edumatcher`'s interpreter or `pip install pyzmq` in a virtual environment.
+The snippet needs the `zmq` Python package (`pyzmq`). The container shell's
+`python` has it; in a Poetry checkout use `poetry run python`, and with
+`pipx` use `pipx runpip edumatcher`'s interpreter or `pip install pyzmq` in a
+virtual environment. Stop `pm-dc-spy` first (`Ctrl-C`) or run this in another
+terminal.
 
 ```bash
 python - <<'PY'
@@ -171,35 +150,18 @@ risk or clearing consumer correlate its private execution with `trade.executed`.
 
  
 
-## Exercise 6: Compare Public Events and Drop-Copy Purpose
+## Exercise 4: Compare Public Events and Drop-Copy Purpose
 
-Execute another trade and compare what each consumer is for:
+Put the two side by side:
 
 | Consumer | Source | Purpose |
 |----------|--------|---------|
-| `pm-viewer` | PUB :5556 | Human-readable book view |
-| `pm-orders` | PUB :5556 | Cross-gateway resting order monitor |
 | `pm-audit --terminal` | PUB :5556 | Full event stream for inspection/logging |
-| External drop-copy client | PUB :5557 | Per-participant fill feed for risk/compliance |
+| `pm-viewer`, `pm-orders`, `pm-board` (chapter 18) | PUB :5556 | Screens built from the public stream |
+| `pm-dc-spy`, your raw subscriber | PUB :5557 | Per-participant fill feed for risk/compliance |
+| `pm-dc-gwy` | TCP :5590 | The same feed for an external back office |
 
 :material-checkbox-blank-outline: **Checkpoint:** explain why drop-copy is separate from the public market-data stream.
-
- 
-
-## Exercise 7: Launch the Market Board
-
-Start the multi-symbol dashboard:
-
-```bash
-pm-board --rows 8 --interval 10
-```
-
-`pm-board` is a pure market-data subscriber: it builds its table from the live
-`book.*` and `trade.executed` topics only and does not read `stats.db`. It
-auto-rotates pages every `--interval` seconds; Enter, PgUp and PgDn page
-manually.
-
-:material-checkbox-blank-outline: **Checkpoint:** board shows AAPL, MSFT, and TSLA in one view.
 
  
 

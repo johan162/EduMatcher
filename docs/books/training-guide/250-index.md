@@ -28,9 +28,10 @@ You will practice:
 
 ## Prerequisites
 
-- Chapters 01–03 completed (engine running, at least one gateway, a few trades).
+- Chapters 01–25 completed. This chapter generates its own configuration;
+  stop the processes of chapter 25 first.
 - Every constituent symbol must have `outstanding_shares` set in `symbols:`.
-- To follow Exercise 9 (level/EOD queries via `pm-stats-cli`), `pm-stats` must
+- For Exercise 8 (level/EOD queries via `pm-stats-cli`), `pm-stats` must
   also be running (see [Chapter 15](150-statistics-reporting.md)) — it needs to
   be up *before* the trades happen so it can capture the `index.update` ticks
   live.
@@ -40,7 +41,7 @@ Recommended startup order for this chapter:
 1. Generate `engine_config.yaml` (Exercise 1).
 2. Start `pm-engine`.
 3. Start `pm-index`.
-4. Start `pm-stats` (needed later for Exercise 9's level/EOD history).
+4. Start `pm-stats` (needed later for Exercise 8's level/EOD history).
 5. Connect two gateway terminals (one TRADER, one ADMIN).
 
  
@@ -151,22 +152,16 @@ indices:
 In a dedicated terminal, start the index calculation process:
 
 ```bash
-pm-index
-```
-
-Expected startup output:
-
-`pm-index` logs at `WARNING` by default, so it starts silently. Run it with
-`-v` to see the startup messages:
-
-```bash
 pm-index -v
 ```
 
+Without `-v`, `pm-index` logs at `WARNING` and starts silently. With it, the
+startup includes:
+
 ```
-starting pm-index with log level INFO
 loaded 1 index runtime config(s)
 index ready index_id=EDU100 constituents=3 level=1000.0
+received initial engine session status=CLOSED
 ```
 
 (Each line is preceded by the usual timestamp, level and logger name.)
@@ -199,11 +194,11 @@ Connect your TRADER01 gateway and run the `INDEX` command:
 the day), not on a timer. Until the first trade, `INDEX` answers
 `No index data received yet. Is pm-index running?` — that does not mean
 `pm-index` is down. Come back to this exercise's output after Exercise 4's first
-trade. Expected response (the level will not be 1000: it is computed from the
-price that traded and the *seeded* reference prices of the other two constituents):
+trade. Expected response (close to 1000, because the market maker quotes
+around the seeded reference prices the index started from):
 
 ```
-[10:00:01.042] EDU100 637.57 +0.00 +0.00% O=637.57 H=637.57 L=637.57 CONTINUOUS
+[10:00:01.042] EDU100 1001.83 +0.00 +0.00% O=1001.83 H=1001.83 L=1001.83 CONTINUOUS
 ```
 
 Fields shown:
@@ -271,7 +266,7 @@ would drop by ~50% when AAPL's price halves — which is wrong because no value
 was destroyed.
 
 !!! note "No gateway command for corporate actions"
-    Unlike `INDEX|HISTORY` (Exercise 11), corporate actions and constituent
+    Unlike `INDEX|HISTORY` (Exercise 10), corporate actions and constituent
     changes have **no** `pm-alf-console` command, no `pm-admin`/`pm-admin-cli`
     subcommand, and no ALF/CALF wire message — there is no `CORP_ACTION|...`
     line you can type at a gateway prompt. Instead, use the dedicated
@@ -320,10 +315,25 @@ the aggregate cap genuinely changes and the divisor must move to compensate.
     price may be processed before the divisor update. Best practice is to apply
     all corporate actions during `PRE_OPEN`.
 
+!!! warning "The index has split; the market has not"
+    `pm-index` now prices AAPL at half its old price, with twice the shares.
+    The exchange itself knows nothing of the split: `MM01` still quotes the
+    old price, and the next AAPL trade at that price makes the index jump
+    by about half of AAPL's weight (+54% here). On a real exchange the
+    market reopens at the adjusted price. Do the same — re-quote AAPL at
+    half before anyone trades it (for a seeded 348.83, about 173.92 / 174.92):
+
+    ```
+    [MM01]> QUOTE|SYM=AAPL|BID=173.92|ASK=174.92|BID_QTY=1000|ASK_QTY=1000|TIF=DAY|QUOTE_ID=Q-AAPL-2
+    ```
+
+    A trade at the new price leaves the level where it was.
+
 :material-checkbox-blank-outline: **Checkpoint:** compare the `level` field of the `CORP_ACTION`
 record to the `INDEX` reading you took just before applying the split — the
 absolute difference should be at most a few cents (rounding only), never a
-~50% jump. `CORP_ACTION` record confirmed written to history.
+~50% jump. `CORP_ACTION` record confirmed written to history, and AAPL
+re-quoted at its post-split price.
 
  
 
@@ -499,13 +509,9 @@ Filter to only corporate actions:
 pm-index-cli --config engine_config.yaml events --index EDU100 --type CORP_ACTION
 ```
 
-:material-checkbox-blank-outline: **Checkpoint:** `pm-index-cli` returns structural
-events; `pm-stats-cli index-snapshots` and `index-daily` return level and EOD
-rows for `EDU100`.
+### Export for offline analysis
 
- 
-
-## Exercise 9: Export and Analyse Data
+The global `--format` option turns any of these into CSV or JSON.
 
 ### Export EOD data to CSV
 
@@ -546,11 +552,13 @@ pm-stats-cli index-snapshots --index-id EDU100 \
   --limit 500
 ```
 
-:material-checkbox-blank-outline: **Checkpoint:** CSV and JSON exports contain the expected data.
+:material-checkbox-blank-outline: **Checkpoint:** `pm-index-cli` returns structural
+events; `pm-stats-cli index-snapshots` and `index-daily` return level and EOD
+rows for `EDU100`; the CSV and JSON exports contain the same data.
 
  
 
-## Exercise 10: Two Indices
+## Exercise 9: Two Indices
 
 Configure a second, narrower index alongside `EDU100`:
 
@@ -593,8 +601,10 @@ pm-index --reset
 Both indices start at their base value (`pm-index -v` prints
 `index ready index_id=EDU100 … level=1000.0` and
 `index ready index_id=TECH2 … level=500.0`), but nothing is published until a
-constituent trades. Make a trade in AAPL or MSFT, then run `INDEX` in the
-TRADER terminal:
+constituent trades. Make two trades in MSFT a few seconds apart (re-quote
+`MM01` if its quote has gone; `TECH2` publishes at most every 2 seconds, so the
+first trade right after the restart may only reach `EDU100`), then run
+`INDEX` in the TRADER terminal:
 
 ```
 [TRADER01]> INDEX
@@ -634,7 +644,7 @@ single-index scope keeps the output meaningful).
 
  
 
-## Exercise 11: History Query via the Gateway
+## Exercise 10: History Query via the Gateway
 
 `pm-index` also accepts history requests directly through the ADMIN gateway.
 These go over the PULL socket (port 5559) and return records inline:
@@ -644,7 +654,8 @@ These go over the PULL socket (port 5559) and return records inline:
 ```
 
 Run it in a `pm-alf-console` session (`pm-alf-console --id OPS01`), not in
-`pm-admin`, which has no `INDEX` command. Without a prior index update seen by
+`pm-admin`, which has no `INDEX` command. Leave `pm-admin --id OPS01` first:
+both log on as `OPS01`, and the engine takes one connection per ID. Without a prior index update seen by
 that console it answers `INDEX|HISTORY requires INDEX=<id> or prior index.update.`,
 so a console you have just started needs the index named:
 `INDEX|HISTORY|INDEX=EDU100`. With one, it returns the last 30 days of

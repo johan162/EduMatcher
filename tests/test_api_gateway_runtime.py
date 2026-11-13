@@ -26,6 +26,7 @@ from edumatcher.api_gateway.routers import history, ws
 from edumatcher.api_gateway.schemas import MarketDataControl
 from edumatcher.api_gateway.sessions import Session, SessionRegistry, auth
 from edumatcher.models.message import make_gateway_auth_msg
+from edumatcher.models.price import has_tick_decimals
 
 
 class FakeSocket:
@@ -169,6 +170,32 @@ async def test_engine_client_auth_send_and_event_flow(
     client.stop_listener()
     assert push.closed is True
     assert sub.closed is True
+
+
+@pytest.mark.anyio
+async def test_authentication_waits_for_the_symbols_snapshot(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The request that triggered authentication goes on to the readiness
+    gate; returning before the snapshot made a cold gateway's first order
+    fail with SYMBOLS_NOT_READY."""
+    monkeypatch.setattr(engine_client, "make_pusher", lambda _addr: FakeSocket())
+    monkeypatch.setattr(
+        engine_client, "make_subscriber", lambda _addr, *_topics: FakeSocket()
+    )
+    client = EngineClient("pull", "pub", asyncio.get_running_loop())
+
+    auth_task = asyncio.create_task(client.authenticate("GW01"))
+    await asyncio.sleep(0)
+    client._handle_event("system.gateway_auth.GW01", {"accepted": True})
+    await asyncio.sleep(0)
+    assert not auth_task.done()
+    client._handle_event(
+        "system.symbols.GW01",
+        {"symbols": [{"symbol": "SNAPSYM", "tick_decimals": 3}]},
+    )
+    assert await auth_task == (True, "")
+    assert has_tick_decimals("SNAPSYM")
 
 
 @pytest.mark.anyio

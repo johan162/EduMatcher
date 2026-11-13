@@ -34,6 +34,7 @@ from edumatcher.models.price import (
 from edumatcher.models.message import (
     GATEWAY_HEARTBEAT_INTERVAL_SEC,
     decode,
+    make_book_snapshot_request_msg,
     make_gateway_connect_msg,
     make_gateway_disconnect_msg,
     make_gateway_heartbeat_msg,
@@ -1944,6 +1945,11 @@ class MMBot:
                     f"{max(0, room)} by mm_max_spread_ticks="
                     f"{st.mm_max_spread_ticks}"
                 )
+
+        # Ask for the book now: a quiet book publishes no update, and without
+        # one the reference fallback finds no mid. The reply arrives during
+        # the QBOOT/QLEGS waits below, which pass it to _handle_book.
+        self._send(make_book_snapshot_request_msg(symbol))
 
         # QBOOT — try adoption
         boot_payload = self._request_bootstrap(symbol)

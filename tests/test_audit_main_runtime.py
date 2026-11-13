@@ -90,6 +90,23 @@ def test_receive_buffers_and_flushes_audit_lines(tmp_path: Path) -> None:
     assert '"order_id": "ORD-1"' in contents
 
 
+def test_terminal_prints_each_line_before_the_flush(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Intent: --terminal shows an event when it arrives, not flush_interval later."""
+    with (
+        patch("edumatcher.audit.main.make_subscriber", return_value=_FakeSub(0)),
+        patch("edumatcher.audit.main.make_replier"),
+    ):
+        proc = AuditProcess(log_path=tmp_path / "audit.log", to_terminal=True)
+
+    proc._add_to_buffer("2026-11-13", "[trade.executed] {}")
+
+    assert capsys.readouterr().out == "[trade.executed] {}\n"
+    proc._flush_buffer()
+    assert capsys.readouterr().out == ""
+
+
 def test_receive_survives_decode_errors_and_continues(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:

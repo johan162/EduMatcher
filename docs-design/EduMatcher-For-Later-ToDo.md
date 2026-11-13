@@ -20,6 +20,15 @@ its own piece of work.
 | L004 | 2026-11-13 | pm-config-gen | `[HINT] Validate with: poetry run python -c … Path("engine_config.yaml")` is wrong for installed users and names the wrong file | Low | Open |
 | L005 | 2026-11-13 | pm-cverifier | Header counts `Semantic: 2 warnings` while the verdict says `1 WARNING` (the INFO M004 is counted as a warning) | Low | Open |
 | L006 | 2026-11-13 | consoles / pm-mm-bot | Prices printed as raw floats: `149.8`, `@149.93333333333334`, `book mid=150.51999999999998` | Low | Open |
+| L007 | 2026-11-13 | docs (operator guide, persistence) | Two diagrams say DAY combo parents are not persisted; the engine persists and restores them on a same-day restart | Low | Open |
+| L008 | 2026-11-13 | pm-admin / pm-admin-cli | `BOOK` prints `Last trade: 150.0 × None` after an engine restart (restored price, unknown quantity) | Low | Open |
+| L009 | 2026-11-13 | ExchangeCommandClient / pm-admin / pm-admin-cli | An illegal session transition prints `TIMEOUT`, although the engine answers on `session.transition_ack` (REST shows `409` with the reason) | Medium | Open |
+| L010 | 2026-11-13 | pm-api-gwy | Once hung at shutdown on "Waiting for background tasks to complete"; second Ctrl-C needed (not reproduced) | Low | Open |
+| L011 | 2026-11-13 | pm-alf-gwy | A client that half-closes (`printf … \| nc`) loses the replies still on their way from the engine | Low | Open |
+| L012 | 2026-11-13 | engine (combo/OCO validation) | `TRAILING_STOP is not supported on a combo leg: it needs trail_offset` is shown even when `LEG0.TRAIL=` was given | Low | Open |
+| L013 | 2026-11-13 | pm-stats-cli (CLIs) | `pm-stats-cli daily \| head` ends with a `BrokenPipeError` traceback | Low | Open |
+| L014 | 2026-11-13 | pm-mm-bot | With `--anchor-sim` the bot still needs a two-sided book or a range to start; it could start from the market model's value | Low | Open |
+| L015 | 2026-11-13 | pm-alf-gwy / pm-orders | ALF `QBOOT` lines carry an empty `STATUS=`; `pm-orders` shows `?` in every column of a rejected order | Low | Open |
 
 ## L001 — Topic literals in pm-sim-forensics
 
@@ -121,4 +130,103 @@ second "warning" is the INFO-level `M004`. The two counts should agree.
 `@149.93333333333334`; `pm-admin BOOK` shows `149.8`; `pm-mm-bot --verbose`
 logs `book mid=150.51999999999998`. Prices should be printed with the
 symbol's `tick_decimals` (an average could keep more digits, but rounded).
+
+## L007 — DAY combo parents in the persistence diagrams
+
+**Found:** 2026-11-13, training guide chapter 10.
+
+**Finding.** `operator-guide/part-6-observe-and-recover/010-persistence.md`
+says in two mermaid nodes (around lines 248 and 590) that DAY combo parents
+are not persisted. `Engine` saves every live combo in `gtc_combos.json`
+(`engine/main.py`, the comment above `_save_combos`) and discards a DAY combo
+only when its business day has passed. A same-day restart restores the
+parent, and `CANCEL|COMBO_ID=` works on it (verified live).
+
+## L008 — "Last trade: X × None"
+
+**Found:** 2026-11-13, training guide chapters 09–10.
+
+**Finding.** After an engine restart, `BOOK|SYM=AAPL` in `pm-admin` prints
+`Last trade: 150.0 × None`: the last price is restored from
+`book_stats.json`, its quantity is not. Print the price alone, or `—`.
+
+## L009 — Console TIMEOUT for an illegal session transition
+
+**Found:** 2026-11-13, training guide chapter 25 (first noted as Q14 in the
+2026-11-06 review).
+
+**Finding.** `SESSION|STATE=CONTINUOUS` while already `CONTINUOUS` makes
+`pm-admin` (and `pm-admin-cli session`) wait three seconds and print
+`TIMEOUT  No ack with prefix 'session.state'`. The engine does answer:
+`POST /api/v1/admin/session/transition` gets `409 TRANSITION_REJECTED`,
+`Invalid transition CONTINUOUS → CONTINUOUS (allowed: CLOSED,
+CLOSING_AUCTION)`. `ExchangeCommandClient.session_advance` sends the
+transition without `command_id`/`gateway_id` and waits only for the public
+`session.state` broadcast; it should request the
+`session.transition_ack.<gateway_id>` reply as the API gateway does, and the
+console and CLI should print the engine's reason. The training guide
+(chapters 01, 06) documents the current `TIMEOUT`.
+
+## L010 — pm-api-gwy shutdown hang
+
+**Found:** 2026-11-13, training guide chapter 25.
+
+**Finding.** After a session with REST calls, two WebSocket clients and
+several refused admin calls (`ENGINE_AUTH`), `Ctrl-C` on `pm-api-gwy`
+stopped at uvicorn's "Waiting for background tasks to complete" for over a
+minute; a second `Ctrl-C` ended it with a `CancelledError` traceback from a
+`receive_queue.get()`. Three later attempts shut down cleanly. While it hung,
+the IDs it held stayed connected in the engine. A
+`timeout_graceful_shutdown` on `uvicorn.run` would bound it.
+
+## L011 — ALF replies lost on half-close
+
+**Found:** 2026-11-13, training guide chapter 27.
+
+**Finding.** `printf 'HELLO…\nSYMBOLS\nEXIT\n' | nc 127.0.0.1 5565` (ncat)
+prints nothing: `nc` half-closes the socket at the end of its input, the
+gateway treats that as a disconnect and drops whatever is still queued or
+on its way from the engine. Since 2026-11-13 lines sent behind `HELLO` are
+held until the logon completes, so the remaining gap is the half-close. The
+guide now tells scripts to wait (`sleep 1`) before `EXIT`.
+
+## L012 — Misleading combo/OCO leg rejection text
+
+**Found:** 2026-11-13, training guide chapter 10.
+
+**Finding.** `LEG0.TYPE=TRAILING_STOP|LEG0.TRAIL=1.00` answers
+`COMBO REJ … Leg 0: TRAILING_STOP is not supported on a combo leg: it needs
+trail_offset`; `ICEBERG` says `… it needs visible_qty`. The leg type is
+refused outright, so "it needs …" reads as if adding the field would help.
+Say only that the type is not supported on a combo (or OCO) leg.
+
+## L013 — BrokenPipeError from CLIs in a pipe
+
+**Found:** 2026-11-13, training guide chapter 15.
+
+**Finding.** `pm-stats-cli daily | head -6` prints the rows and then a
+`BrokenPipeError: [Errno 32] Broken pipe` traceback from `_render_table`.
+Other table-printing CLIs probably share it. Handle `BrokenPipeError` in the
+entry points (or reset `SIGPIPE` to the default).
+
+## L014 — pm-mm-bot start-up reference with --anchor-sim
+
+**Found:** 2026-11-13, training guide chapter 14.
+
+**Finding.** Since 2026-11-13 the bot asks for each symbol's book at
+start-up, so a restarted `MM01 --all-symbols` found a reference for 148 of
+150 symbols (it found 9 before). The other two had an empty or one-sided
+book. With `--anchor-sim` the bot already receives the market model's value
+for every symbol; it could use that value as the start-up reference when
+the book gives none.
+
+## L015 — Cosmetic gaps in QBOOT and pm-orders
+
+**Found:** 2026-11-13, training guide chapters 18 and 27.
+
+**Finding.** Over ALF, `QBOOT` lists an active quote as
+`QUOTE|QUOTE_ID=…|…|ASK_QTY=500|STATUS=` — the status is empty (the
+console's `QBOOT` table shows `ACTIVE`). `pm-orders` shows a row with `?` in
+every column for an order the engine rejected (the rejection carries only the
+order ID); it could show `REJECTED` with the reason instead.
 

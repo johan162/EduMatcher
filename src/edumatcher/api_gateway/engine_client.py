@@ -77,6 +77,7 @@ from edumatcher.models.generated.system import (
     topic_gateway_auth,
     topic_gateways,
     topic_reference_reload_ack,
+    topic_symbols,
 )
 
 log = logging.getLogger(__name__)
@@ -321,13 +322,27 @@ class EngineClient:
                 # First beat now, so the engine starts counting from the moment
                 # this ID is held rather than up to one interval later.
                 self.send_heartbeat(gateway_id)
-                # Best-effort: the engine accepted the handshake, so the
-                # gateway *is* authenticated. Seeding the symbol cache is a
-                # convenience the client can obtain later via request_symbols,
-                # and failing the whole authentication over it would be wrong.
-                self._send(make_symbols_request_msg(gateway_id), require_engine=False)
-                self._dbg_count("symbols_request_sent")
+                await self._seed_symbols(gateway_id, timeout)
             return accepted, reason
+
+    async def _seed_symbols(self, gateway_id: str, timeout: float) -> None:
+        """Request the symbols snapshot and wait for it, briefly.
+
+        The request that triggered authentication goes on to the readiness
+        gate (SYMBOLS_NOT_READY), so without the wait a cold gateway refused
+        its first order. Best-effort: the engine accepted the handshake, so
+        the gateway *is* authenticated, and a slow or lost reply must not
+        fail it.
+        """
+        topic = topic_symbols(gateway_id)
+        future = self._register_future(topic)
+        self._send(make_symbols_request_msg(gateway_id), require_engine=False)
+        self._dbg_count("symbols_request_sent")
+        try:
+            await asyncio.wait_for(future, timeout=timeout)
+        except TimeoutError:
+            self._drop_pending(topic, future)
+            log.warning("symbols snapshot not received gateway_id=%s", gateway_id)
 
     def _register_future(
         self, key: str, match: dict[str, str] | None = None

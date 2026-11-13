@@ -37,7 +37,7 @@ This chapter combines two advanced surfaces:
 
 !!! warning "Close `pm-admin` and the MM console first"
     `ExchangeCommandClient("GW_ADMIN")` logs on as `GW_ADMIN`, and the bot in
-    Exercises 4–5 as `MM_AAPL_01`. The engine allows one connection per
+    Exercise 4 as `MM_AAPL_01`. The engine allows one connection per
     participant, so leave any open `pm-admin --id GW_ADMIN` and
     `pm-alf-console --id MM_AAPL_01` (`Ctrl-C`) before running the scripts.
     If you forget, `connect()` does **not** raise: it returns
@@ -63,6 +63,14 @@ with ExchangeCommandClient("GW_ADMIN") as client:
 PY
 ```
 
+Expected:
+
+```
+auth: {'gateway_id': 'GW_ADMIN', 'accepted': True, 'reason': '', 'description': ''}
+symbols: ['AAPL', 'MSFT', 'TSLA']
+session: {'state': 'CONTINUOUS', 'sessions_enabled': True}
+```
+
 :material-checkbox-blank-outline: **Checkpoint:** you can connect, read symbols, and read session status programmatically.
 
  
@@ -86,9 +94,16 @@ with ExchangeCommandClient("GW_ADMIN") as c:
 PY
 ```
 
-This is easier to run consistently than a manual multi-step console sequence.
+It prints `AAPL bids: 0 asks: 0` and `AAPL resumed`. This is easier to run
+consistently than a manual multi-step console sequence.
 
-:material-checkbox-blank-outline: **Checkpoint:** you can automate halt/cancel/verify/resume for one symbol.
+Now run it a second time, straight away. A runbook script is run again
+whenever someone is unsure whether the first run finished, so it must be
+**idempotent**: the second run must end in the same state (AAPL trading, its
+book empty) and must not fail just because there is nothing left to cancel.
+This one is, because every step it takes is safe to repeat.
+
+:material-checkbox-blank-outline: **Checkpoint:** you can automate halt/cancel/verify/resume for one symbol, and the script runs twice in a row with the same result.
 
  
 
@@ -139,7 +154,7 @@ pm-mm-bot \
   -v
 ```
 
-Observe startup logs for:
+Its log is long; look for:
 
 - Bootstrap reference resolution (existing quote adopted, or a random-range
   price).
@@ -154,17 +169,39 @@ and per-symbol lines add a `[<symbol>]` tag. Representative startup lines
 ```
 [MM_AAPL_01] starting: gateway=MM_AAPL_01 symbols=AAPL
 [MM_AAPL_01] [AAPL] strategy=symmetric gap=0.1 qty=500 tif=DAY drift_ticks=3
-[MM_AAPL_01] [AAPL] bootstrap from random range: 150.37
+[MM_AAPL_01] [AAPL] book mid=None
+[MM_AAPL_01] [AAPL] bootstrap from random range: 149.12
+[MM_AAPL_01] [AAPL] QUOTE sent bid=149.07 ask=149.17
 [MM_AAPL_01] running symbols=['AAPL'] session=CONTINUOUS
+[MM_AAPL_01] [AAPL] quote ACK id=MM_AAPL_01-AAPL-…
+[MM_AAPL_01] [AAPL] quote.status: ACTIVE
 ```
 
-The `bootstrap from random range` line only appears when the price came from
-`--initial_min`/`--initial_max` (Exercise 5); with a live book the reference
-comes from the book and `-v` shows it as `[<symbol>] reference from book/trade: <price>`. There is no
-per-quote `INFO` line — use `QLEGS|SYM=AAPL` on the MM gateway to confirm the
-quote is live.
+At startup the bot asks the engine for the AAPL book. `book mid=None` means
+it was empty (Exercise 2 cleared it), so the price came from the
+`--initial_min`/`--initial_max` range. With quotes or orders on both sides
+of the book, the bot takes the book's mid instead, and the `bootstrap from
+random range` line does not appear.
 
-:material-checkbox-blank-outline: **Checkpoint:** you can identify and tune the timeout knobs that control startup behavior.
+**Now without the range.** Stop the bot (`Ctrl-C`; it cancels its quote on
+the way out, so the book is empty again) and start it with no price source
+at all:
+
+```bash
+pm-mm-bot --symbol AAPL -v
+```
+
+```
+[MM_AAPL_01] [AAPL] book mid=None
+[MM_AAPL_01] startup warning: [AAPL] startup failed: no reference price available (no book, no trade, no bootstrap, no random range)
+[MM_AAPL_01] startup warning: startup failed: no symbol survived startup checks
+pm-mm-bot exiting with code 1
+```
+
+It fails fast and says why. On a fresh exchange, give a bot a range; on a
+busy one, the book is enough.
+
+:material-checkbox-blank-outline: **Checkpoint:** you can identify the timeout knobs that control startup, and say which price source a bot uses on an empty and on a busy book.
 
 !!! note "Most of these knobs can differ per symbol"
     `--bootstrap-timeout-sec` and `--qlegs-reconcile-interval-sec` are
@@ -183,72 +220,6 @@ quote is live.
     startup log, not one — so a `--bootstrap-timeout-sec` tuned down
     aggressively for a fast classroom demo is a budget applied to *each*
     symbol's round trip in turn, not split across them.
-
- 
-
-## Exercise 5: Empty-Book Bootstrap Drill
-
-Simulate sparse startup conditions and run bot with explicit bootstrap range:
-
-```bash
-pm-mm-bot --symbol AAPL --initial_min 149.00 --initial_max 151.00 -v
-```
-
-Then compare behavior with and without range configured (stop the first bot
-with `Ctrl-C` before you start the next; it cancels its quote on the way out).
-
-Expected understanding:
-
-- With range: bot can start quoting on fresh books.
-- Without any bootstrap source: bot fails fast with clear reason.
-
-!!! note "Fails fast per symbol, not necessarily for the whole process"
-    On a `--symbols` bot, "without any bootstrap source" excludes *that*
-    symbol from quoting rather than stopping the process outright, as long
-    as at least one other symbol resolves a reference price — see
-    [Per-symbol failure isolation](../participant-guide/part-3-market-making/030-the-market-maker-bot.md#per-symbol-failure-isolation).
-    The single-symbol case in this exercise is the special case where there
-    is no "other symbol" left, so the process-level failure you'll observe
-    here is the same behavior applied to a symbol set of one. `--initial_min`/
-    `--initial_max` are per-symbol settings too: give them once before any
-    `--symbol` and every symbol draws from that one range (expect a different
-    random price per symbol), or scope them to a single symbol to give a
-    volatile name a range of its own.
-
-:material-checkbox-blank-outline: **Checkpoint:** you can choose a bootstrap strategy appropriate for your environment.
-
- 
-
-## Exercise 6: Build a Combined Automation Flow
-
-Design a short automation script that:
-
-1. Checks session status.
-2. Halts one symbol if needed.
-3. Clears that symbol's resting orders.
-4. Resumes symbol.
-5. Verifies top-of-book depth.
-
-Use `ExchangeCommandClient` methods only (no manual prompt commands).
-
-Acceptance criteria — your script passes if all of the following hold:
-
-- **Correct halt response**: the halt call returns a success/ack response for
-  the target symbol (not a generic exception or timeout).
-- **Book actually empties**: after the clear step, a book query for that
-  symbol shows zero resting orders on both sides before you resume it.
-- **Correct resume response**: the resume call returns success and a
-  subsequent `SYMBOL_STATUS`-style query (or equivalent client method) shows
-  the symbol back in a tradeable state.
-- **Idempotent rerun**: running the entire script a second time immediately
-  afterward produces the same end state (symbol active, book empty of the
-  orders your script itself cleared) without raising an error — halting an
-  already-halted symbol or clearing an already-empty book must not crash the
-  script.
-- **No orphaned state**: after the script finishes, no test order placed by
-  the script remains resting outside of what step 5 intentionally verifies.
-
-:material-checkbox-blank-outline: **Checkpoint:** your script is deterministic, idempotent, and easy to rerun during drills, and satisfies all five acceptance criteria above.
 
  
 

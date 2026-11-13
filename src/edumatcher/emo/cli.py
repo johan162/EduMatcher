@@ -1221,9 +1221,12 @@ def _remove_path(path: Path) -> bool:
 
 
 def _running_pm_pids() -> list[int]:
-    """Best-effort list of live pm-* process PIDs, for the confirmation prompt."""
+    """Best-effort list of live pm-* process PIDs, for the confirmation prompt.
+
+    Excludes this process: ``pm-opctl-cli`` itself matches ``pm-``.
+    """
     try:
-        return pgrep_pids("pm-")
+        return [pid for pid in pgrep_pids("pm-") if pid != os.getpid()]
     except Exception:
         return []
 

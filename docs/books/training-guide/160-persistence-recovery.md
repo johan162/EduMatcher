@@ -14,7 +14,9 @@ state across restart scenarios.
 
 ## Prerequisites
 
-- Chapters 01–15 completed.
+- Chapters 01–15 completed, and back on your own configuration (the end of
+  chapter 14), with `pm-engine`, `pm-admin` and `TRADER01` running and the
+  market open.
 - Consistent `EDUMATCHER_DATA_DIR` configured for all processes.
 
  
@@ -34,7 +36,7 @@ files include:
     Despite its name, `gtc_orders.json` also carries
     resting `TIF=DAY` orders across an **engine restart**, as long as the
     restart happens on the same business day the order was placed. The
-    day-vs-restart distinction is the subject of Exercise 4 below — see
+    day-vs-restart distinction is the subject of Exercise 3 below — see
     [Persistence — Impact of a Business-Day Change](../operator-guide/part-6-observe-and-recover/010-persistence.md#impact-of-a-business-day-change)
     for the full rule.
 
@@ -54,21 +56,24 @@ and run `pm-setup`.
 
  
 
-## Exercise 2: Create a GTC Order
+## Exercise 2: Create a GTC and a DAY Order
 
-Start the exchange and place a GTC order away from the market:
+Place two orders away from the market, one of each lifetime:
 
 ```
-[TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=140.00|TIF=GTC
+[TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=145.00|TIF=GTC
+[TRADER01]> NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=50|PRICE=399.00|TIF=DAY
 ```
 
-Check the order is resting:
+(145.00 is as far from AAPL's 150.00 as chapter 11's `L2` collar of ±5%
+allows; 140.00 would be rejected with `COLLAR_BREACH`.) Check both are
+resting:
 
 ```
 [TRADER01]> ORDERS
 ```
 
-:material-checkbox-blank-outline: **Checkpoint:** the GTC order is resting and visible.
+:material-checkbox-blank-outline: **Checkpoint:** both orders are resting and visible.
 
  
 
@@ -89,54 +94,32 @@ enable/disable it — but it only works correctly under these conditions:
   the engine skips any persisted GTC order whose symbol is no longer in
   `engine_config.yaml`.
 
-With those three conditions met, stop `pm-engine` cleanly, then start it again
-with the same config and data dir:
+With those three conditions met, stop `pm-engine` cleanly and start it again,
+this time with `--verbose`, so you can watch both halves:
 
 ```bash
-pm-engine
+pm-engine --verbose
 ```
 
-Reconnect `TRADER01` and inspect orders:
+The shutdown you just did ended with `Saved N resting order(s) to
+/data/gtc_orders.json`; the startup now prints a `Restored GTC order <id>
+(<symbol>)` line per order (the wording says GTC for same-day DAY orders
+too), then `Restored N resting order(s) from previous session.`. N includes
+the market makers' quote legs, so it is larger than your two orders. Because
+those quotes came back, the engine also skips its seed quotes
+(`Skipping seed quote for AAPL/MM_AAPL_01 (seed_once=true, an active quote
+was restored)`).
 
-```
-[TRADER01]> ORDERS
-```
-
-The GTC order should be restored — with `pm-engine --verbose` the engine also
-logs a line at shutdown confirming how many resting orders it saved
-(`Saved N resting order(s) to ...`; the count covers both GTC and same-day DAY
-orders), which you can check as a stable confirmation instead of relying on
-`ORDERS` output alone.
-
-Compare explicitly after restart:
-
-- GTC orders restore from persistence (given the conditions above).
-- Stats remain in `stats.db` if `pm-stats` was writing before restart.
-
-:material-checkbox-blank-outline: **Checkpoint:** verify whether the GTC order survives restart.
-
- 
-
-## Exercise 4: DAY Order Survives a Same-Day Restart
-
-A resting `DAY` order is no longer tied to the engine process — it is tied to
-the business day. Place a DAY order at a non-marketable price:
-
-```
-[TRADER01]> NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=50|PRICE=399.00|TIF=DAY
-```
-
-Restart `pm-engine` cleanly, on the **same calendar day**, with the same data
-directory and config. Reconnect `TRADER01` and check:
+Restart your consoles, reopen the market and look:
 
 ```
 [TRADER01]> ORDERS
 ```
 
-The DAY order should still be resting — restored exactly like the GTC order
-from Exercise 3, because the restart did not cross a business-day boundary.
+Both orders are resting again. The GTC order would always come back; the DAY
+order came back because the restart did not cross a business-day boundary.
 
-:material-checkbox-blank-outline: **Checkpoint:** the DAY order is still resting after a same-day restart.
+:material-checkbox-blank-outline: **Checkpoint:** both the GTC and the DAY order survived a same-day restart.
 
 !!! note "Two separate ways a DAY order disappears"
     Don't confuse these — they are driven by different things:
@@ -159,42 +142,11 @@ from Exercise 3, because the restart did not cross a business-day boundary.
 
  
 
-## Exercise 5: Persist Statistics
-
-Start `pm-stats`, execute a few trades, and inspect the stats database:
-
-```bash
-pm-stats
-pm-stats-cli trades --symbol AAPL --limit 5     # the first five of the day, oldest first
-ls -lh "$EDUMATCHER_DATA_DIR"
-```
-
-You should see `stats.db` in the data directory once statistics have been
-recorded.
-
-:material-checkbox-blank-outline: **Checkpoint:** `stats.db` exists and contains recent trades.
-
- 
-
-## Exercise 6: Audit to Disk
-
-Start audit logging to a file:
-
-```bash
-pm-audit --audit-log-file "$EDUMATCHER_DATA_DIR/audit.log" --terminal
-```
-
-Execute a trade, then inspect the log:
-
-```bash
-tail -20 "$EDUMATCHER_DATA_DIR/audit.log"
-```
-
-`pm-audit` collects events in a buffer and writes them out in batches, at
-least every 10 seconds, so wait a few seconds after the trade before you look
-(and start `pm-audit` before you trade: it records only what it sees).
-
-:material-checkbox-blank-outline: **Checkpoint:** audit log contains events from your trading session.
+The other files in the data directory belong to the processes that write
+them, and survive any restart the same way: `stats.db` (chapter 15),
+`clearing.db` (chapter 12) and `audit.log` (chapter 13) are only ever
+appended to by `pm-stats`, `pm-clearing` and `pm-audit`. Only
+`pm-opctl-cli clear` removes them.
 
  
 
@@ -206,7 +158,7 @@ You now understand:
 - Why GTC and DAY orders behave differently across session boundaries, and
   why that is a *different* question from how they behave across an engine
   restart.
-- How stats and audit files survive beyond the current terminal session.
+- Which other files live in the data directory, and what removes them.
 
 ## Reflection
 

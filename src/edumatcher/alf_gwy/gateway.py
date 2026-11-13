@@ -121,6 +121,8 @@ from edumatcher.models.generated.system import (
 )
 
 _MAX_LINE_BYTES = 4096
+#: Lines a client may send behind HELLO before WELCOME; see held_lines.
+_MAX_HELD_LINES = 64
 
 #: ``errno`` values that mean this socket will never work again. Anything
 #: else (``EINTR``, ``ENOBUFS``, ...) is transient and worth retrying, so the
@@ -229,6 +231,9 @@ class ClientSession:
     role: str = "TRADER"
     authenticated: bool = False
     auth_pending: bool = False
+    #: Lines that arrived behind HELLO while the engine was still answering
+    #: it; handled in order once the logon is accepted.
+    held_lines: list[str] = field(default_factory=list)
     dc_enabled: bool = False
     # FEED=ORDERS on HELLO: the session takes market data elsewhere and wants
     # only its own order events, not the public SESSION/HALT/RESUME/TRADE
@@ -760,6 +765,21 @@ class AlfGateway:
     # ------------------------------------------------------------------
 
     def _handle_client_line(self, session: ClientSession, line: str) -> None:
+        if session.auth_pending and not line.startswith("HELLO"):
+            # A script that writes its lines without waiting for WELCOME
+            # (printf ... | nc) sent them in order behind HELLO; refusing them
+            # as "HELLO must be the first message" was wrong on both counts.
+            if len(session.held_lines) >= _MAX_HELD_LINES:
+                self._register_error(
+                    session,
+                    "AUTH_REQUIRED",
+                    "Too many lines before WELCOME",
+                    close_connection=True,
+                    reject_code="AUTH_REQUIRED",
+                )
+                return
+            session.held_lines.append(line)
+            return
         session.lines_received += 1
         self._global_stats["commands_received_total"] += 1
 
@@ -1711,6 +1731,10 @@ class AlfGateway:
             self._send_to_engine(
                 make_symbols_request_msg(gateway_id), count_as_command=False
             )
+
+        held, target.held_lines = target.held_lines, []
+        for held_line in held:
+            self._handle_client_line(target, held_line)
 
     def _handle_symbols_response(
         self, gateway_id: str, payload: dict[str, Any]

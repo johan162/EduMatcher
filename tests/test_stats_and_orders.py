@@ -173,18 +173,22 @@ class TestQueryDailyStats:
         assert result == {}
         conn.close()
 
-    def test_returns_row_for_today(self) -> None:
+    def test_returns_row_for_today_in_display_prices(self) -> None:
+        """daily_stats holds integer ticks; the tape shows prices."""
         conn = _in_memory_conn()
         conn.execute(
-            "INSERT INTO daily_stats (date, symbol, open_price, close_price, volume, trade_count) "
-            "VALUES (?, ?, ?, ?, ?, ?)",
-            ("2026-05-06", "AAPL", 145.0, 150.0, 1000, 10),
+            "INSERT INTO daily_stats (date, symbol, open_price, high_price, "
+            "low_price, close_price, volume, trade_count, vwap, tick_decimals) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            ("2026-05-06", "AAPL", 14500, 15100, 14400, 15000, 1000, 10, 14750.5, 2),
         )
         conn.commit()
         result = _query_daily_stats(conn, "2026-05-06")
-        assert "AAPL" in result
         assert result["AAPL"]["open_price"] == 145.0
+        assert result["AAPL"]["high_price"] == 151.0
+        assert result["AAPL"]["low_price"] == 144.0
         assert result["AAPL"]["close_price"] == 150.0
+        assert result["AAPL"]["vwap"] == 147.505
         conn.close()
 
     def test_ignores_other_dates(self) -> None:

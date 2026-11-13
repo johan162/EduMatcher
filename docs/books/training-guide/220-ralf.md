@@ -40,8 +40,19 @@ Recommended startup terminals:
       `EX=$(python -c "from edumatcher.config_deploy import examples_root; print(examples_root().parent)")`
       and then `$EX/ralf/…` wherever this chapter says `docs/examples/ralf`.
       The C example needs `make` and a C compiler, which the container image
-      does not have; the Python subscriber and `nc` are enough for every
-      exercise.
+      does not have; the Python subscriber is enough for every other exercise.
+    - Several exercises type protocol lines by hand with `nc 127.0.0.1 5580`.
+      The container image has no `nc`; define this small helper once in each
+      container terminal that needs it, and use `tcp 127.0.0.1 5580` wherever
+      the chapter says `nc 127.0.0.1 5580`:
+
+      ```bash
+      tcp() { ( exec 3<>/dev/tcp/"$1"/"$2"; cat <&3 & trap "kill $! 2>/dev/null" EXIT; cat >&3 ); }
+      ```
+
+      It uses bash's built-in `/dev/tcp`: what you type goes to the gateway,
+      what the gateway sends is printed. `Ctrl-C` ends the session. When the
+      gateway closes the connection (after an error, say), press `Ctrl-C` too.
     - Port 5580 can only have one owner. If the AI-simulation container is
       running, its own `pm-ralf-gwy` holds the port: yours will fail to start,
       and `nc 127.0.0.1 5580` would talk to the *simulation's* gateway (you
@@ -99,8 +110,13 @@ Start or restart processes with that config:
 
 ```bash
 pm-engine --verbose
-pm-ralf-gwy
+pm-ralf-gwy -v
 ```
+
+Without `-v` the gateway starts silently. With it, it ends its startup with
+`listening on 127.0.0.1:5580 (engine_pub=tcp://127.0.0.1:5556)`. (In the
+container the address is `0.0.0.0`: the container sets
+`EDUMATCHER_GATEWAY_BIND_HOST` so that the port can be reached from outside.)
 
 :material-checkbox-blank-outline: Checkpoint: gateway starts and listens on the configured port.
 
@@ -108,7 +124,8 @@ pm-ralf-gwy
 
 ## Exercise 2: Use the Python Example as a CLEARING Consumer
 
-From the example directory:
+From the example directory (`cd "$EX/ralf"` on a container or `pipx`
+install):
 
 ```bash
 cd docs/examples/ralf
@@ -120,11 +137,18 @@ python3 ralf_subscriber.py \
   --symbols '*'
 ```
 
-Observe:
+Then make a trade (the two limit orders in the note above). Expected:
 
-- WELCOME line parsed by the Python library
-- subscription acknowledgment flow
-- incoming EXEC and EOD messages for CLEARING
+```
+WELCOME: type=WELCOME fields={'PROTO': 'RALF1', 'GW': 'ralf-gwy01', 'ROLE': 'CLEARING', 'REPLAY': '86400', 'HBINT': '2'}
+Subscribed CH=['CLEARING'] SYM=* as role=CLEARING
+SNAP  CH=CLEARING SYM=* SEQ=0
+HB    (gateway heartbeat)
+EXEC  AAPL         60 @      150.0 BUY  ch=CLEARING
+```
+
+`HB` arrives every 2 seconds (`HBINT=2`). An `EOD` line follows only when the
+engine shuts down cleanly (chapter 12).
 
 :material-checkbox-blank-outline: Checkpoint: subscriber prints parsed EXEC events with expected symbols and sequence values.
 

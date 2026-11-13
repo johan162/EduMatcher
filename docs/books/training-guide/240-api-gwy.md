@@ -30,7 +30,7 @@ You will practice:
 - REST examples available in `docs/examples/REST`. On a container or `pipx`
   install that directory is inside the package: set
   `EX=$(python -c "from edumatcher.config_deploy import examples_root; print(examples_root().parent)")`
-  and read `docs/examples` as `$EX` in Exercises 6, 7 and 12. Exercise 7's C
+  and read `docs/examples` as `$EX` in Exercises 6, 7 and 11. Exercise 7's C
   example is optional: it needs `make` and a C compiler, neither of which is
   installed in the container image. Exercise 6's Python client provides the
   equivalent API workflow.
@@ -191,8 +191,11 @@ Use it anyway in labs so the selected process is explicit.
 
 Sessions are enabled, so the engine starts in `CLOSED` and refuses orders until
 the day is opened. Open it from the operator console (`pm-admin --id OPS01`,
-then `SESSION|STATE=PRE_OPEN` and `SESSION|STATE=CONTINUOUS`) before Exercise 4;
-Exercise 10 shows the REST equivalent.
+then `SESSION|STATE=PRE_OPEN` and `SESSION|STATE=CONTINUOUS`) before Exercise 4,
+then **leave the console** (`Ctrl-C`): `key-ops-demo` logs on to the engine as
+`OPS01` too, and while `pm-admin` holds that ID every admin REST call in
+Exercise 10 fails with `ENGINE_AUTH`, `Gateway already connected: OPS01`.
+Exercise 10 shows the REST way to move the session.
 
 Expected behavior:
 
@@ -211,6 +214,10 @@ Open Swagger in a browser:
 ```text
 http://127.0.0.1:8080/docs
 ```
+
+(On the container route this works from your computer's browser: the
+container publishes port 8080, and inside it the gateway listens on all
+interfaces.)
 
 Use the Authorize control and enter the trading key `key-trader-demo`. Then
 run:
@@ -429,10 +436,12 @@ Expected behavior:
 Connect to private events before submitting new orders:
 
 ```bash
-python3 -m websockets ws://127.0.0.1:8080/api/v1/ws/private   # needs `pip install websockets`
+python3 -m websockets ws://127.0.0.1:8080/api/v1/ws/private
 ```
 
-Once connected, the CLI waits for you to type. Send the authentication message
+(The container's `python3` has the `websockets` package; elsewhere,
+`pip install websockets` first.) Once connected, the CLI waits for you to
+type. Send the authentication message
 as your first input, then press Enter:
 
 ```text
@@ -554,13 +563,17 @@ curl -i -X POST http://127.0.0.1:8080/api/v1/admin/session/transition \
 ```
 
 A successful transition returns `200` with `status: "APPLIED"` and a
-`command_id`. Requesting a state the engine cannot apply because sessions are
-disabled returns `409 TRANSITION_REJECTED` with the engine's reason as
-`message`. A transition that is simply not legal *from the current phase*
-(for example `CONTINUOUS` when the market is already `CONTINUOUS`) gets no
-answer from the engine at all: the call waits about three seconds and ends
-with `503 ENGINE_TIMEOUT`. Check `GET /api/v1/session` first, as for the
-console.
+`command_id`. A transition the engine refuses returns `409
+TRANSITION_REJECTED` with the engine's reason as `message`. With the market
+already in `CONTINUOUS`, the request above is one:
+
+```
+HTTP/1.1 409 Conflict
+{"error":{"code":"TRANSITION_REJECTED","message":"Invalid transition CONTINUOUS → CONTINUOUS (allowed: CLOSED, CLOSING_AUCTION)","reject_code":"UNKNOWN"}}
+```
+
+This is one place where REST tells you more than the console: `pm-admin`
+only prints `TIMEOUT` for the same request.
 
 Look at cross-gateway order visibility:
 
@@ -606,9 +619,8 @@ Expected behavior:
 - a trading key gets `403 ROLE_DENIED` on every `/admin/*` path
 - halting a symbol the engine does not know returns `409 HALT_REJECTED` with
   `message: "Unknown symbol: ..."` — the engine refused, your role is fine
-- `/admin/session/transition` blocks for the engine's verdict (applied, or
-  `409` when sessions are disabled; an illegal next phase ends in
-  `503 ENGINE_TIMEOUT`)
+- `/admin/session/transition` blocks for the engine's verdict: applied, or
+  `409 TRANSITION_REJECTED` naming the phases that are allowed
 - `/admin/orders` returns orders from every gateway, not just `OPS01`'s
 - `/admin/orders/{order_id}/audit` either returns the full lifecycle or a clear
   `503 AUDIT_INDEX_UNAVAILABLE` if no audit index is deployed
@@ -619,50 +631,7 @@ API key itself.
 
  
 
-## Exercise 11: Configure Multiple Logical API Gateways
-
-Generate two API gateway process configs, one for desk trading and one for
-algorithmic trading:
-
-```bash
-pm-config-gen \
-  --symbols AAPL MSFT \
-  --participants TRADER01 ALGO01 OPS01:ADMIN \
-  --api-gateway-instance desk:TRADER01:8080 \
-  --api-gateway-instance algos:ALGO01:8081 \
-  --seed 20260624 \
-  --output engine_config.yaml --force
-```
-
-Start each named process in a separate terminal:
-
-```bash
-pm-api-gwy --instance desk
-pm-api-gwy --instance algos
-```
-
-Try an invalid duplicate assignment:
-
-```bash
-pm-config-gen \
-  --symbols AAPL \
-  --participants TRADER01 \
-  --api-gateway-instance desk:TRADER01 \
-  --api-gateway-instance algos:TRADER01 \
-  --dry-run
-```
-
-Expected behavior:
-
-- `desk` listens on `8080` and owns `TRADER01`
-- `algos` listens on `8081` and owns `ALGO01`
-- duplicate non-null `gateway_id` assignment is rejected before runtime
-
-:material-checkbox-blank-outline: Checkpoint: you can run two API gateway processes and explain why a write-capable gateway ID is globally unique across them.
-
- 
-
-## Exercise 12: Write a Python CLI Client for LIMIT Order Entry
+## Exercise 11: Write a Python CLI Client for LIMIT Order Entry
 
 Use the `ApiGatewayClient` library from `docs/examples/REST/python` to write a
 small script that submits a LIMIT order and prints the engine response.
@@ -718,6 +687,60 @@ A fully documented `MARKET` order version that follows the same pattern is
 available at `docs/examples/REST/python/submit_market_order.py`.
 
 :material-checkbox-blank-outline: Checkpoint: your script prints `order_id` and `status` from a live gateway.
+
+ 
+
+## Exercise 12: Configure Multiple Logical API Gateways
+
+Generate two API gateway process configs, one for desk trading and one for
+algorithmic trading:
+
+```bash
+pm-config-gen \
+  --symbols AAPL MSFT \
+  --participants TRADER01 ALGO01 OPS01:ADMIN \
+  --api-gateway-instance desk:TRADER01:8080 \
+  --api-gateway-instance algos:ALGO01:8081 \
+  --seed 20260624 \
+  --output engine_config.yaml --force
+```
+
+This replaces the configuration of the whole chapter (keep a copy with
+`cp engine_config.yaml engine_config.ch25.yaml` first if you want it back), so
+do this exercise last. `ALGO01` is a new participant: check, deploy and
+restart the engine (stop the running `pm-api-gwy` first). `pm-api-gwy` reads
+the deployed configuration, so without the deploy it answers
+`api_gateways instance 'algos' not found; available: desk`.
+
+Start each named process in a separate terminal:
+
+```bash
+pm-api-gwy --instance desk
+pm-api-gwy --instance algos
+```
+
+This time `pm-config-gen` made up the API keys (`key-trader01-…`,
+`key-algo01-…`); `grep api_key engine_config.yaml` shows them.
+
+Try an invalid duplicate assignment:
+
+```bash
+pm-config-gen \
+  --symbols AAPL \
+  --participants TRADER01 \
+  --api-gateway-instance desk:TRADER01 \
+  --api-gateway-instance algos:TRADER01 \
+  --dry-run
+```
+
+Expected behavior:
+
+- `desk` listens on `8080` and owns `TRADER01`
+- `algos` listens on `8081` and owns `ALGO01`
+- duplicate non-null `gateway_id` assignment is rejected before runtime:
+  `[ERROR] gateway_id 'TRADER01' is assigned to both API gateway instances 'desk' and 'algos'`
+
+:material-checkbox-blank-outline: Checkpoint: you can run two API gateway processes and explain why a write-capable gateway ID is globally unique across them.
 
  
 

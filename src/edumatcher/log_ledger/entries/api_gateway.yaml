@@ -52,6 +52,17 @@
     - "If the engine is busy (an opening burst), retries usually succeed a moment later."
 
 - logger: edumatcher.api_gateway.engine_client
+  template: "symbols snapshot not received gateway_id=%s"
+  level: WARNING
+  explanation: >
+    The engine accepted a participant's logon but did not send its symbol list
+    in time. The logon still succeeds, but orders for a symbol whose tick size
+    is not yet known are refused with 503 SYMBOLS_NOT_READY until it arrives.
+  actions:
+    - "Retry the order after a moment; the list usually arrives shortly after."
+    - "If it repeats, check that pm-engine is running and responsive (`pm-monitor-cli status`)."
+
+- logger: edumatcher.api_gateway.engine_client
   template: "Dropping malformed engine PUB message: %s"
   level: WARNING
   explanation: >

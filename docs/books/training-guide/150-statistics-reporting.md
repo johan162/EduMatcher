@@ -31,33 +31,22 @@ tool lets you query this data without writing SQL.
 ## Exercise 1: Start the Statistics Service
 
 ```bash
-pm-stats
-```
-
-`pm-stats` logs at `WARNING` by default, so it starts silently. To see its
-startup messages, run it with `-v`:
-
-```bash
 pm-stats -v
 ```
 
-The startup lines include `opened stats DB connection path=...`, showing the
-database path (which reflects your `EDUMATCHER_DATA_DIR`), and
+Without `-v`, `pm-stats` logs at `WARNING` and starts silently. With it, the
+startup lines include `opened stats DB connection path=/data/stats.db …`,
+showing the database path (which follows your `EDUMATCHER_DATA_DIR`), and
 `recording market statistics (Ctrl-C to stop)`; two more lines follow it
-(`recorded tick metadata …`, `requested opening snapshots …`).
-
-To confirm the active path with a stable command instead, run:
-
-```bash
-pm-stats --help
-```
-
-and check the default shown for `--db`, or simply verify the file exists
-after the next exercise:
+(`recorded tick metadata …`, `requested opening snapshots …`). Leave it
+running, and check from another terminal that the file exists:
 
 ```bash
 ls -la "$EDUMATCHER_DATA_DIR/stats.db"
 ```
+
+`pm-stats` records only what happens while it runs, so the trades of the
+earlier chapters are not in it.
 
 :material-checkbox-blank-outline: **Checkpoint:** stats service running and `$EDUMATCHER_DATA_DIR/stats.db` exists.
 
@@ -77,9 +66,9 @@ pm-mm-bot --symbol MSFT --gap 0.16 --qty 300 --initial_min 419 --initial_max 421
 ```
 
 (Both need their market-maker gateway, `MM_AAPL_01` and `MM_MSFT_01`, in the
-configuration and no console connected as it. If you are still on the
-`s150-nominal` example from chapter 14, use its `MM01` instead, as in that
-chapter.) Execute a few manual trades:
+configuration — you are back on your own configuration since the end of
+chapter 14 — and no console connected as it. Each bot adopts the seed quote
+the engine placed for it.) Execute a few manual trades:
 
 ```
 [TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=100
@@ -111,7 +100,8 @@ date       | symbol | open_price | high_price | low_price | close_price | volume
 2026-06-18 | AAPL   | 150        | 150.10     | 149.95    | 150.05      | 350    | 3           | 150.02
 ```
 
-Note that `vwap` is already one of the columns in this row — see Exercise 4.
+There is no standalone `vwap` command: the volume-weighted average price of
+all of today's trades in the symbol is the `vwap` column of this row.
 
 For an intraday price series instead of a single daily summary row, use
 `snapshots`:
@@ -120,27 +110,11 @@ For an intraday price series instead of a single daily summary row, use
 pm-stats-cli snapshots --symbol AAPL
 ```
 
-:material-checkbox-blank-outline: **Checkpoint:** `daily` returns an OHLCV row for AAPL with today's date.
+:material-checkbox-blank-outline: **Checkpoint:** `daily` returns an OHLCV row for AAPL with today's date, and you can find its `vwap`.
 
  
 
-## Exercise 4: Read the VWAP Column
-
-There is no standalone `vwap` command — the volume-weighted average price is
-a column on the `daily` row you already queried in Exercise 3:
-
-```bash
-pm-stats-cli daily --symbol AAPL
-```
-
-Read the `vwap` column from the output. It reflects the volume-weighted
-average price across all of today's trades for that symbol.
-
-:material-checkbox-blank-outline: **Checkpoint:** you can locate the `vwap` value within `daily` output.
-
- 
-
-## Exercise 5: Query Trade Log
+## Exercise 4: Query and Export the Trade Log
 
 ```bash
 pm-stats-cli trades --symbol AAPL --limit 20
@@ -158,11 +132,19 @@ durable `run_seq-counter` string such as `000042-000000001`.
 an uncross print — so you can classify trades by which side crossed the
 spread.
 
-:material-checkbox-blank-outline: **Checkpoint:** trade log visible.
+Export the same rows as CSV, for Excel or a Jupyter notebook:
+
+```bash
+pm-stats-cli --format csv trades --symbol AAPL > aapl_trades.csv
+```
+
+`--format` is a global option and goes before the verb.
+
+:material-checkbox-blank-outline: **Checkpoint:** trade log visible and exported to `aapl_trades.csv`.
 
  
 
-## Exercise 6: Multi-Symbol Summary
+## Exercise 5: Multi-Symbol Summary
 
 There is no dedicated `summary` verb. Omit `--symbol` on `daily` to get one
 row per symbol instead of filtering to one:
@@ -178,18 +160,6 @@ Each row shows, per symbol: `open_price`, `high_price`, `low_price`,
 `BOOK|SYM=<symbol>` in the operator console (`pm-admin`).
 
 :material-checkbox-blank-outline: **Checkpoint:** `daily` with no `--symbol` filter returns one row per active symbol.
-
- 
-
-## Exercise 7: Export Data
-
-```bash
-pm-stats-cli --format csv trades --symbol AAPL > aapl_trades.csv
-```
-
-The CSV can be imported into Excel or a Jupyter notebook for further analysis.
-
-:material-checkbox-blank-outline: **Checkpoint:** CSV export generated.
 
  
 

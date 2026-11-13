@@ -938,6 +938,29 @@ def test_duplicate_hello_while_pending_is_rejected_without_disconnect(
     peer.close()
 
 
+def test_lines_sent_behind_hello_are_handled_after_welcome(
+    gateway: AlfGateway,
+) -> None:
+    """printf 'HELLO...\nPING\n' | nc: the client does not wait for WELCOME."""
+    session, peer = _make_session()
+    gateway._clients[session.sock.fileno()] = session
+
+    gateway._handle_client_line(session, "HELLO|CLIENT=BOT|PROTO=ALF1|ID=TRADER01")
+    gateway._handle_client_line(session, "PING")
+    assert not session.out_queue  # held, not refused
+    assert session.closing is False
+
+    gateway._handle_gateway_auth("TRADER01", {"accepted": True})
+
+    commands = [
+        parse_alf_line(line.decode("utf-8")).command for line in session.out_queue
+    ]
+    assert commands[0] == "WELCOME"
+    assert commands[-1] == "PONG"
+    assert session.held_lines == []
+    peer.close()
+
+
 def test_pre_auth_lines_are_rate_limited(gateway: AlfGateway) -> None:
     session, peer = _make_session()
     gateway._clients[session.sock.fileno()] = session

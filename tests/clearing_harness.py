@@ -18,8 +18,8 @@ Fidelity principles (see docs-design/EduMatcher-Review-Clearing.md §8):
    test edits, as long as the information flows.
 
 Readiness protocol: ZMQ SUB subscriptions propagate asynchronously, so the
-harness publishes a side-effect-free probe (`system.gateway_connect` with
-gateway_id "PROBE!") until clearing observes it, before any test traffic.
+harness publishes a probe (an accepted `system.gateway_auth.PROBE!`) until
+clearing observes it, before any test traffic.
 
 Not a test module (no test_ prefix) — pytest will not collect it.
 """
@@ -41,6 +41,15 @@ from edumatcher.models.message import decode, encode
 
 # Probe gateway id — excluded from all assertions.
 PROBE_GW = "PROBE!"
+
+
+def _probe(gateway_id: str) -> list[bytes]:
+    """An accepted auth broadcast: clearing records it as a session."""
+    return encode(
+        f"system.gateway_auth.{gateway_id}",
+        {"gateway_id": gateway_id, "accepted": True},
+    )
+
 
 # Generous: under pytest-xdist a fully loaded machine can starve the
 # clearing thread for several seconds without anything being wrong.
@@ -126,9 +135,7 @@ class ClearingUnderTest:
         tag = f"{PROBE_GW}{uuid.uuid4().hex[:8].upper()}"
 
         def _seen() -> bool:
-            self._pub.send_multipart(
-                encode("system.gateway_connect", {"gateway_id": tag})
-            )
+            self._pub.send_multipart(_probe(tag))
             _SLEEP(0.03)
             return tag in self.process._gw_connect_ts
 
@@ -182,7 +189,7 @@ def start_clearing(
 
     # Readiness: probe until the SUB is provably receiving.
     def _probed() -> bool:
-        pub.send_multipart(encode("system.gateway_connect", {"gateway_id": PROBE_GW}))
+        pub.send_multipart(_probe(PROBE_GW))
         _SLEEP(0.03)
         return PROBE_GW in process._gw_connect_ts
 

@@ -414,8 +414,6 @@ class AuditProcess:
             for day, group in groupby(self._buffer, key=itemgetter(0)):
                 lines = [line for _, line in group]
                 self._file.write(day, lines)
-                if self._to_terminal:
-                    print("\n".join(lines))
             self._buffer.clear()
             self._last_flush_time = time.time()
             self._dbg_count("flush_calls")
@@ -519,6 +517,10 @@ class AuditProcess:
 
     def _add_to_buffer(self, day: str, line: str) -> None:
         """Add a line to the buffer and flush if needed."""
+        if self._to_terminal:
+            # At once, not at the next flush: a watcher should not wait up to
+            # flush_interval seconds to see what just happened.
+            print(line, flush=True)
         with self._buffer_lock:
             self._buffer.append((day, line))
             buffer_len = len(self._buffer)

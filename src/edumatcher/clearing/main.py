@@ -93,8 +93,6 @@ from edumatcher.models.generated.system import (
     PREFIX_GATEWAY_AUTH,
     PREFIX_GATEWAY_BYE,
     TOPIC_EOD,
-    TOPIC_GATEWAY_CONNECT,
-    TOPIC_GATEWAY_DISCONNECT,
 )
 
 FLUSH_SIZE: int = 100
@@ -379,10 +377,10 @@ class ClearingProcess:
             # Disconnect broadcast — the PUB counterpart to gateway_auth
             # (engine/main.py _handle_gateway_disconnect → make_gateway_bye_msg).
             PREFIX_GATEWAY_BYE,
-            # Kept for the test harness's readiness/ordering probe and any
-            # direct-injection clients; harmless in production where it is silent.
-            TOPIC_GATEWAY_CONNECT,
-            TOPIC_GATEWAY_DISCONNECT,
+            # Not system.gateway_connect / system.gateway_disconnect: the
+            # engine echoes every inbound command onto PUB for the audit trail
+            # (Engine._echo_command), so subscribing to them as well recorded
+            # each session twice, and a refused connect as a session.
         )
         health_rep: zmq.Socket[bytes] | None = None
         try:
@@ -534,14 +532,6 @@ class ClearingProcess:
         elif topic.startswith(PREFIX_GATEWAY_BYE):
             self._dbg_count("gateway_bye_topics")
             self._handle_gateway_bye(payload)
-
-        elif topic == TOPIC_GATEWAY_CONNECT:
-            self._dbg_count("gateway_connect_topics")
-            self._handle_gateway_connect(payload)
-
-        elif topic == TOPIC_GATEWAY_DISCONNECT:
-            self._dbg_count("gateway_disconnect_topics")
-            self._handle_gateway_disconnect(payload)
 
     # ------------------------------------------------------------------
     # Timer loop

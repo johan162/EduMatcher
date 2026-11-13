@@ -21,11 +21,10 @@ Close a trading day the way an exchange operator does, using `pm-eod`:
 
 - Chapters 01–19 completed. Chapter 12 (`pm-clearing`) matters most here:
   settlement reads what `pm-clearing` recorded.
-- The engine running with `TRADER01`, `TRADER02`, `GW_ADMIN` and the market
-  makers from chapter 02 connected, and `pm-clearing` running. If chapter 19
-  left `TRADER02` kicked, start a new console for it, and re-send a `QUOTE`
-  from `MM_AAPL_01` if its quote was cancelled: Exercise 5 needs liquidity on
-  AAPL.
+- The engine running with `TRADER01`, `TRADER02`, `GW_ADMIN` and a
+  `MM_AAPL_01` console connected, and `pm-clearing` running. Chapter 19 left
+  `TRADER02` kicked and AAPL without a quote: start a new `TRADER02` console.
+  Exercise 5 has the market maker quote again.
 - **No `pm-scheduler` running.** You move the session phases yourself, as in
   earlier chapters. A running `--daily` scheduler would close the day at its
   own time.
@@ -202,13 +201,22 @@ running balance, added whenever a balance is shown.
 ## Exercise 5: Trade a day
 
 Give both traders something to settle. TRADER01 buys and keeps a position;
-TRADER02 buys and sells part of it again:
+TRADER02 buys and sells part of it again. The market maker quotes first, and
+again before the sell: its first fill pulls the bid (`INACTIVATE_ON_ANY_FILL`,
+chapter 09), and a market sell would find nobody to sell to.
 
 ```
+[MM_AAPL_01]> QUOTE|SYM=AAPL|BID=149.95|ASK=150.05|BID_QTY=500|ASK_QTY=500|TIF=DAY|QUOTE_ID=AAPL-EOD-001
 [TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=200
 [TRADER02]> NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=100
+[MM_AAPL_01]> QUOTE|SYM=AAPL|BID=149.95|ASK=150.05|BID_QTY=500|ASK_QTY=500|TIF=DAY|QUOTE_ID=AAPL-EOD-002
 [TRADER02]> NEW|SYM=AAPL|SIDE=SELL|TYPE=MARKET|QTY=50
 ```
+
+The AI traders of chapter 17 may have moved AAPL away from 150. That does
+not matter here: a market maker's quote is not checked against the price
+collars, and the market orders carry no price to check. Your amounts will
+differ from the examples below either way.
 
 Look at their positions and P&L before the close:
 

@@ -32,8 +32,6 @@ _TOPICS = [
     "session.state",
     "system.gateway_auth.GW01",
     "system.gateway_bye.GW01",
-    "system.gateway_connect",
-    "system.gateway_disconnect",
 ]
 _FIELDS = ["gateway_id", "accepted", "state", "ts_ns", "price", "quantity", "symbol"]
 

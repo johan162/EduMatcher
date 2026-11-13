@@ -1590,6 +1590,43 @@ class TestStartupResilience:
         assert bot.run() == 0
         assert set(_quotes(push)) == {"AAPL"}
 
+    def test_a_quiet_book_is_asked_for_and_seeds_the_reference_price(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A book that is not moving publishes nothing, so the bot asks for it."""
+        bot, push, sub, _ = _build_bot(
+            monkeypatch, ["AAPL"], initial_min=None, initial_max=None
+        )
+        sub.recv_queue.extend(
+            [
+                encode(f"system.gateway_auth.{GW}", {"accepted": True}),
+                encode(
+                    f"system.symbols.{GW}",
+                    {"symbols": [{"symbol": "AAPL", "tick_decimals": 2}]},
+                ),
+                # The engine's reply to the snapshot request.
+                encode(
+                    "book.AAPL",
+                    {
+                        "symbol": "AAPL",
+                        "bids": [{"price": 99.9, "qty": 10}],
+                        "asks": [{"price": 100.1, "qty": 10}],
+                    },
+                ),
+                encode(f"system.quote_bootstrap.{GW}", {"quotes": []}),
+                encode(f"system.quote_legs.{GW}", {"legs": []}),
+                encode("session.state", {"state": "CONTINUOUS"}),
+            ]
+        )
+        assert bot.run() == 0
+        requests = [
+            msg_decode(frames)[1]
+            for frames in push.sent
+            if msg_decode(frames)[0] == "book.snapshot_request"
+        ]
+        assert requests == [{"symbol": "AAPL"}]
+        assert set(_quotes(push)) == {"AAPL"}
+
     def test_a_bootstrap_quote_for_another_symbol_is_not_adopted(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:

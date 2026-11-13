@@ -21,9 +21,9 @@ meaningful in which of those three states.
 
     | Part | Engine | Why |
     |---|---|---|
-    | **A** — Intraday (Ex 1–10) | **Running**, with trading activity | You are watching positions and P&L change as trades arrive |
-    | **B** — End of day (Ex 12–16) | **Stopped** — cleanly | The EOD sentinel and the official daily rollup only exist after `system.eod` |
-    | **C** — Ongoing operations (Ex 17–18) | Either | Retention and restart behaviour are independent of a live session |
+    | **A** — Intraday (Ex 1–9) | **Running**, with trading activity | You are watching positions and P&L change as trades arrive |
+    | **B** — End of day (Ex 11–15) | **Stopped** — cleanly | The EOD sentinel and the official daily rollup only exist after `system.eod` |
+    | **C** — Ongoing operations (Ex 16–17) | Either | Retention and restart behaviour are independent of a live session |
 
     `pm-clearing` itself keeps running throughout — it is the *engine* that
     stops between Part A and Part B.
@@ -91,7 +91,10 @@ the fill price for the newly-opened side.
     market maker quoting AAPL — the market orders below need someone to trade
     with. Chapters 05–11 cleared AAPL several times; re-quote it from
     `MM_AAPL_01` (the chapter 02 `QUOTE` command) or start
-    `pm-mm-bot --symbol AAPL --gap 0.10 --qty 500`. Prefer the bot: a manual
+    `pm-mm-bot --symbol AAPL --gap 0.10 --qty 500 --initial_min 149 --initial_max 151`.
+    Keep the `--initial_*` range: after chapter 11's reset AAPL has no
+    trades, and a bot that finds neither a trade nor a moving book refuses to
+    start (`startup failed: no reference price available`). Prefer the bot: a manual
     quote under `INACTIVATE_ON_ANY_FILL` pulls its other side on the first fill
     (Chapter 03), so with a manual quote you must re-send `QUOTE` before every
     market order that needs the opposite side — the sell orders in Exercises 5
@@ -100,21 +103,16 @@ the fill price for the newly-opened side.
 
 ### Exercise 1: Start the clearing service
 
-If `pm-clearing` is still running from chapter 03, keep it and skip to
-Exercise 2 — two copies would record every trade twice. Otherwise:
-
-```bash
-pm-clearing
-```
-
-`pm-clearing` logs at WARNING level by default, so it starts silently. To see
-that it is up, add `-v`:
+Chapter 11 told you to stop `pm-clearing` before clearing the exchange state,
+so start it again (only one copy — two would record every trade twice):
 
 ```bash
 pm-clearing -v
 ```
 
-The last startup line reads (prefix and timestamp vary):
+Without `-v`, `pm-clearing` logs at WARNING level and starts silently. Keep
+`-v` for this chapter: it is how you will see it handle the end of the day in
+Exercise 10. The last startup line reads (prefix and timestamp vary):
 
 ```
 pm-clearing waiting for pm-engine events
@@ -165,8 +163,10 @@ Query the position:
 pm-clearing-cli positions --gateway TRADER01 --symbol AAPL
 ```
 
-Confirm (if TRADER01 already held AAPL from earlier chapters, add that to
-the figures):
+`pm-clearing` writes trades to its database in batches, at most every 5
+seconds. If the second fill is missing, wait a moment and ask again.
+
+Confirm:
 
 - `net_qty` ≈ 300
 - `avg_cost` is the VWAP of the two fills (not the last price alone)
@@ -231,7 +231,7 @@ pm-clearing-cli pnl --gateway TRADER01 --symbol AAPL
 
 Confirm `realized_pnl` is non-zero and `total_pnl = realized_pnl + unrealized_pnl`.
 
-Query the exchange-wide P&L across every gateway in one row per gateway:
+Query the exchange-wide P&L, one row per gateway and symbol:
 
 ```bash
 pm-clearing-cli pnl
@@ -285,7 +285,14 @@ both the original long close and the short round-trip.
 
 ### Exercise 7: Exposure — net and gross notional
 
-With a few positions open across symbols:
+Exercise 6 left `TRADER01` flat, and a flat position has no exposure. Open
+one again:
+
+```
+[TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=200
+```
+
+Then:
 
 ```bash
 pm-clearing-cli exposure
@@ -309,7 +316,7 @@ could unwind rapidly.
 
 ---
 
-### Exercise 8: Gateway-level P&L summary
+### Exercise 8: Totals per gateway and per symbol
 
 To see every participant's P&L in a single query:
 
@@ -336,13 +343,7 @@ pm-clearing-cli --format json gateways > gateway_pnl.json
 This is the clearing house **top-level risk snapshot**: one row per participant,
 usable without knowing which symbols they traded.
 
-:material-checkbox-blank-outline: **Checkpoint:** `gateways` returns a P&L summary row for each active participant.
-
----
-
-### Exercise 9: Symbol-level clearing totals
-
-Query clearing activity per symbol across all gateways:
+The same totals per symbol, across all gateways:
 
 ```bash
 pm-clearing-cli symbols
@@ -364,11 +365,11 @@ For example, one 800-share AAPL trade contributes 800 to each gateway's
 `daily` row and 1,600 to the symbol total. This is not market volume; use
 `pm-stats-cli daily` for volume counted once per executed trade.
 
-:material-checkbox-blank-outline: **Checkpoint:** `symbols` shows per-symbol gross participant activity and P&L across all participants; `pm-stats-cli daily` counts each market trade once.
+:material-checkbox-blank-outline: **Checkpoint:** `gateways` returns one P&L row per participant, and you can explain why `symbols` reports twice the shares that actually traded.
 
 ---
 
-### Exercise 10: Normalized vs raw-output
+### Exercise 9: Normalized vs raw-output
 
 By default, price-derived fields are divided by `10^tick_decimals` to produce
 display-currency units. Use `--raw-output` to see the raw integer tick values:
@@ -381,6 +382,9 @@ pm-clearing-cli --raw-output positions --gateway TRADER01 --symbol AAPL
 Rules:
 - `avg_cost` **is** normalized like the other price columns. It holds fractional ticks, so without normalization it would render 100x off next to `mark_price`
 - Fields like `mark_price`, `realized_pnl`, `unrealized_pnl`, `buy_notional`, `sell_notional` are normalized by default
+
+With the 200-share position from Exercise 7 still open, the raw row shows
+`avg_cost` and `mark_price` as whole ticks (`14503` for 145.03).
 
 Use `--raw-output` when piping into scripts that expect tick integers, or when
 debugging a suspected normalization issue.
@@ -416,7 +420,7 @@ official marks, daily rollup"]
     A --> B --> C
 ```
 
-### Exercise 11: Close the day
+### Exercise 10: Close the day
 
 Do these in order. The order matters: `pm-clearing` must still be running when
 the engine sends `system.eod`, or the message has nobody to receive it.
@@ -425,8 +429,8 @@ the engine sends `system.eod`, or the message has nobody to receive it.
 numbers afterwards:
 
 ```bash
-pm-clearing-cli positions > /tmp/positions-before-eod.txt
-cat /tmp/positions-before-eod.txt
+pm-clearing-cli positions > positions-before-eod.txt
+cat positions-before-eod.txt
 ```
 
 **2. Close the session** from the operator console:
@@ -440,7 +444,13 @@ cat /tmp/positions-before-eod.txt
 book statistics, and then broadcasts EOD.
 
 **4. Leave `pm-clearing` running.** It receives `system.eod` and applies the
-marks. Watch its terminal: you should see it flush and write.
+marks. With `-v` its terminal shows both steps — a snapshot when the session
+closed, and the EOD itself when the engine exited:
+
+```
+close snapshot: 2 position(s)
+EOD received — 1 symbol mark(s) applied, session_events row written for <today>
+```
 
 !!! warning "A hard kill skips EOD entirely"
     `kill -9` gives the engine no chance to run its shutdown path, so no
@@ -477,7 +487,7 @@ When `pm-clearing` receives `system.eod`:
 
 ---
 
-### Exercise 12: Verify the EOD sentinel
+### Exercise 11: Verify the EOD sentinel
 
 The sentinel is your proof that marks were applied — the first thing to check
 before trusting any settled number:
@@ -487,13 +497,14 @@ pm-clearing-cli eod --limit 5
 ```
 
 Each row shows the timestamp and a `payload_json` containing the mark prices
-applied. The `eod` sentinel is proof that marks were applied.
+applied, in ticks: `{"eod_marks": {"AAPL": 14503}, "symbols_count": 1}` means
+AAPL was marked at 145.03.
 
 :material-checkbox-blank-outline: **Checkpoint:** `eod` returns at least one row with mark prices in `payload_json`.
 
 ---
 
-### Exercise 13: Inspect the daily rollup, and compare it with Part A
+### Exercise 12: Inspect the daily rollup, and compare it with Part A
 
 Query the official daily summary for today:
 
@@ -501,22 +512,23 @@ Query the official daily summary for today:
 pm-clearing-cli daily --date "$(date +%F)"
 ```
 
-Now compare `end_unrealized_pnl` here with the `unrealized_pnl` you saved in
-Exercise 11:
+Now compare the positions with the copy you saved in Exercise 10:
 
 ```bash
-pm-clearing-cli positions
-diff /tmp/positions-before-eod.txt <(pm-clearing-cli positions) || true
+diff positions-before-eod.txt <(pm-clearing-cli positions) || true
 ```
 
-The numbers may differ, and understanding *why* is the point of this part.
-Before EOD, `unrealized_pnl` was marked against whatever the last trade
-happened to be at that instant. After EOD it is marked against the official
-close — the last trade of the session, or the mid if the symbol never traded.
-Only the second one is a number a clearing house would settle on.
+Most likely only `updated_ts_ns` changed. `pm-clearing` re-marks every open
+position in a symbol to the price of each new trade, so by the close the live
+mark already *is* the last trade, and the official EOD mark (the last trade of
+the session) agrees with it. The two differ when a symbol did not trade at
+all that day: then the EOD pass marks it at the mid of the book instead. What
+EOD adds is the record: the `eod` sentinel, and the `end_*` columns of
+`daily` that a clearing house settles on.
 
-:material-checkbox-blank-outline: **Checkpoint:** you can point at one position
-whose mark changed at EOD, and say which price each version was marked against.
+:material-checkbox-blank-outline: **Checkpoint:** you can say which column the
+EOD pass changed in your `diff`, and when the EOD mark would differ from the
+live one.
 
 Filter to one gateway:
 
@@ -546,7 +558,7 @@ pm-clearing-cli daily --from "$(date +%F)" --to "$(date +%F)" --gateway TRADER01
 
 ---
 
-### Exercise 14: Browse available trading dates
+### Exercise 13: Browse available trading dates
 
 ```bash
 pm-clearing-cli dates
@@ -568,7 +580,7 @@ pm-clearing-cli dates --symbol AAPL
 
 ---
 
-### Exercise 15: Reconciliation check
+### Exercise 14: Reconciliation check
 
 After EOD, verify that raw `trade_events` aggregates match `gateway_daily_summary`:
 
@@ -593,7 +605,7 @@ If discrepancies appear, use `trades` to investigate the affected gateway/symbol
 
 ---
 
-### Exercise 16: Session history
+### Exercise 15: Session history
 
 Query gateway connect and disconnect events recorded during the session:
 
@@ -610,7 +622,12 @@ pm-clearing-cli sessions --connected-only
 This is the operational audit trail for: who connected, when, and whether
 they disconnected cleanly or the engine was killed unexpectedly.
 
-:material-checkbox-blank-outline: **Checkpoint:** `sessions` returns at least one row per gateway that connected today.
+Only connections made while `pm-clearing` was running are recorded. A gateway
+that was still connected when the engine stopped has no `disconnected_at_ns`
+— the engine exited without saying goodbye on its behalf — so it shows up in
+`--connected-only` even though nothing is running now.
+
+:material-checkbox-blank-outline: **Checkpoint:** `sessions` returns a row for each gateway that connected after `pm-clearing` started, and you can say why some rows have no disconnect time.
 
 ---
 
@@ -620,7 +637,7 @@ they disconnected cleanly or the engine was killed unexpectedly.
     Retention and restart behaviour do not depend on a live session. You can do
     these with the exchange still down, or after restarting it.
 
-### Exercise 17: Data retention and pruning
+### Exercise 16: Data retention and pruning
 
 `pm-clearing` prunes old `trade_events` rows on startup and at every close of
 the market. The default window is 90 days. Control it with `--retention-days`:
@@ -647,7 +664,7 @@ Use `--dry-run` first to avoid unintended data loss.
 
 ---
 
-### Exercise 18: Reopen the exchange and confirm the settled day survives
+### Exercise 17: Reopen the exchange and confirm the settled day survives
 
 The last thing a clearing operator needs to trust is that yesterday's settled
 numbers are still there tomorrow, and that a new session does not disturb them.
@@ -663,23 +680,28 @@ pm-clearing-cli dates
 pm-clearing-cli daily --date "$(date +%F)"
 ```
 
-The row you inspected in Exercise 13 should be unchanged.
+The row you inspected in Exercise 12 should be unchanged.
 
 **3. Trade once, then look again.** Submit a single order from a trader console
-and let it fill, then:
+and let it fill (the market maker needs its `--initial_*` range again), then:
 
 ```bash
 pm-clearing-cli positions
 pm-clearing-cli daily --date "$(date +%F)"
+pm-clearing-cli eod
 ```
 
-`positions` moves — that is the new session's live state. The settled
-`end_unrealized_pnl` from the closed day does not change retroactively; the
-rollup accumulates the new activity into the current trading date.
+`positions` moves — that is the new session's live state. `daily` for today
+moves too: you reopened on the **same trading date**, so the new trade is
+added to today's row and its `end_*` columns follow the live position until
+the next EOD marks them again. Only `eod` is untouched — its sentinel row is
+written once per close and never edited. On a real exchange the reopen
+happens on the next business day: yesterday's row then stays exactly as it
+was settled, and the new trade starts a row for the new date.
 
-:material-checkbox-blank-outline: **Checkpoint:** the settled daily row survives
-the restart, and you can explain which numbers are historical (fixed) and which
-are live (moving).
+:material-checkbox-blank-outline: **Checkpoint:** the closed day's data survives
+the restart, and you can explain why today's `daily` row changed while the
+`eod` sentinel did not.
 
 !!! tip "This is the whole mental model of the chapter"
     `positions` and `pnl` answer *"where do we stand right now?"* and change

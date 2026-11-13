@@ -38,9 +38,9 @@ earlier chapters introduced, so nothing you learned to use disappears.
 
 !!! warning "`--force` overwrites the configuration you have been building"
     This command replaces `engine_config.yaml` outright. Everything you added
-    by hand in earlier chapters — `MM_MANUAL_01` from Chapter 09, the `AI001`–
-    `AI003` gateways from Chapter 14, any collar or circuit-breaker tuning from
-    Chapter 11 — is gone unless the command below re-creates it.
+    by hand in earlier chapters — `TRADER03` from Chapter 10, the collars,
+    circuit breaker and risk levels from Chapter 11 — is gone unless the
+    command below re-creates it.
 
     Back it up first so you can compare, or return to it afterwards:
 
@@ -80,13 +80,11 @@ Open the file and confirm the symbol and gateway sections are present.
 
 !!! note "The configuration is new, the data directory is not"
     The data directory still holds what earlier chapters left in it: resting
-    GTC orders (such as chapter 16's bid at 140.00), same-day DAY orders and
-    clearing history. They are restored when the engine starts, so a book may
-    not be as empty as the text assumes. For a truly empty venue, stop every
-    process and run `pm-opctl-cli clear --state --yes` before Exercise 3. It
-    also deletes `clearing.db` and `stats.db`, which is what you want for a
-    fresh venue. See [Starting over](110-risk-controls.md#starting-over) for
-    the complete reset matrix and preconditions.
+    GTC orders (such as chapter 16's bid at 145.00), same-day DAY orders and
+    quote legs, and clearing history. They are restored when the engine
+    starts, so the books would not be empty. Exercise 3 clears them first.
+    See [Starting over](110-risk-controls.md#starting-over) for the complete
+    reset matrix.
 
 :material-checkbox-blank-outline: **Checkpoint:** config contains 3 symbols,
 5 traders (`TRADER01`, `TRADER02`, `AI001`–`AI003`), 2 admins, and 4 market
@@ -120,7 +118,15 @@ errors and `pm-config-deploy` completes.
 
 ## Exercise 3: Start the Exchange Stack
 
-Use separate terminals:
+Stop every process still running from the earlier chapters, then empty the
+data directory's working state — orders, prices, statistics and clearing —
+so the venue really starts from nothing:
+
+```bash
+pm-opctl-cli clear --state --yes
+```
+
+Then start the stack, one program per terminal:
 
 ```bash
 pm-engine --verbose
@@ -166,9 +172,9 @@ Confirm the engine agrees with your configuration:
 [GW_ADMIN|ADMIN]> GATEWAYS
 ```
 
-All ten should be listed, with the six above showing as connected.
+All eleven should be listed, with the six above showing as connected.
 
-:material-checkbox-blank-outline: **Checkpoint:** `GATEWAYS` lists all ten
+:material-checkbox-blank-outline: **Checkpoint:** `GATEWAYS` lists all eleven
 configured identities, and the six consoles you opened authenticate.
 
  
@@ -248,10 +254,15 @@ From the admin gateway:
 [GW_ADMIN|ADMIN]> HALT_SYM|SYM=TSLA
 ```
 
-Try to trade TSLA from a trader gateway and confirm it is rejected. Then resume:
+The reply, `HALTED  TSLA  <n> quote leg(s) cancelled`, shows that the halt
+also pulled `MM_TSLA_01`'s quote. Try to trade TSLA from a trader gateway and
+confirm it is rejected (`code=INSTRUMENT_HALTED`). Then resume, and let the
+market maker quote again — the halt did not leave it a quote to come back
+to:
 
 ```
 [GW_ADMIN|ADMIN]> RESUME_SYM|SYM=TSLA
+[MM_TSLA_01]> QUOTE|SYM=TSLA|BID=249.75|ASK=250.25|BID_QTY=200|ASK_QTY=200|TIF=DAY|QUOTE_ID=TSLA-CAP-002
 ```
 
 :material-checkbox-blank-outline: **Checkpoint:** symbol halt blocks trading and resume restores it.
@@ -296,7 +307,7 @@ Place a GTC order, restart the engine, and confirm whether it restores:
 
 Restart `pm-engine` (it comes back in `CLOSED`; reopen it with
 `SESSION|STATE=PRE_OPEN` and `SESSION|STATE=CONTINUOUS` if you want to keep
-trading), reconnect `TRADER01`, then run:
+trading), restart your consoles, then run:
 
 ```
 [TRADER01]> ORDERS

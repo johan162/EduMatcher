@@ -63,9 +63,8 @@ symbols:
 ```
 
 Both fields are fractions in `(0, 1)`, not whole percentages — `0.10` means
-10%. Those built-in defaults (`static_band_pct: 0.20`, `dynamic_band_pct:
-0.02`) fill in a field that is *missing from a `collar:` block that is
-present*. Leave the whole `collar:` section out and the symbol gets **no
+10%. A field you leave out of a `collar:` block gets a built-in default
+(`static_band_pct: 0.20`, `dynamic_band_pct: 0.02`). Leave the whole `collar:` section out and the symbol gets **no
 collar at all** — not a default one. `enforce_collars` (top-level, defaults to
 `true`) must also not be set to `false`.
 
@@ -84,7 +83,23 @@ nothing, because every process reads the compiled artifact:
 pm-config-deploy engine_config.yaml
 ```
 
-Then restart `pm-engine`.
+The collar and circuit-breaker exercises compare prices with the symbol's
+reference price and recent trades. After chapter 10 the engine remembers the
+last trades of those labs, so start from a clean slate. Stop every `pm-*`
+program you started — `pm-engine`, the consoles, any `pm-mm-bot`, and
+`pm-clearing` if it still runs from chapter 03 (`Ctrl-C` in each) — then
+clear the exchange's working state:
+
+```bash
+pm-opctl-cli clear --state
+```
+
+Answer `y`. This deletes the remembered prices, resting orders and the
+statistics and clearing databases, but not your configuration (see
+[Starting over](#starting-over)). If it warns that `pm-*` processes are
+still running, one of them is still up: stop it and run the command again. Restart `pm-engine`, your consoles, and
+reopen the market. The reference prices are now 150.00, 420.00 and 250.00
+again, from your configuration.
 
 :material-checkbox-blank-outline: **Checkpoint:** engine loads risk control configuration.
 
@@ -115,7 +130,7 @@ Circuit-breaker trigger percentages and halt durations come from a global
 ladder, `circuit_breaker_defaults`, applied to every symbol unless a symbol
 defines its own `circuit_breaker.levels` override (see the `TSLA` pattern in
 [The Configuration Workflow](../operator-guide/part-2-configure/010-the-configuration-workflow.md#risk-controls-and-collars)).
-Add a two-level ladder:
+Add a one-level ladder:
 
 ```yaml
 circuit_breaker_defaults:
@@ -183,8 +198,10 @@ CIRCUIT BREAKER HALT AAPL: level=L1 trigger=16450, ref=15575 ticks, corridor=[14
 
 During the halt, **market-maker quote legs are cancelled**, no matching takes
 place, `MARKET`, `FOK` and `IOC` orders are rejected, and `LIMIT` orders are
-accepted and rest: a halt is the collection phase of a *reopening auction*,
-which uncrosses when the 30-second halt ends.
+accepted and rest: a halt is the collection phase of a *reopening auction*.
+`halt_duration_ns` is the *minimum* length of that phase; the engine adds a
+random 0–30 s on top, so nobody can time the last order in. Expect AAPL to
+reopen 30–60 s after the halt.
 
 Verification drill, while the halt lasts:
 
@@ -200,38 +217,23 @@ Verification drill, while the halt lasts:
     [TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=160.00|TIF=DAY
     ```
 
-:material-checkbox-blank-outline: **Checkpoint:** AAPL halted by the circuit breaker after the fourth step; a market order is rejected and a limit order rests until the halt ends.
+3. Wait for the reopening. The engine log shows the auction and the resume:
+
+    ```
+    UNCROSS AAPL: no crossable interest
+    CIRCUIT BREAKER RESUME AAPL: after 0 ACE extension(s)
+    ```
+
+    Nothing crossed, because nobody offered at or below 160.00, so your
+    buy is still resting. Had someone offered, say 60 at 159.80, the
+    reopening auction would have traded them at one price, exactly like the
+    opening auction of [chapter 07](070-auctions.md).
+
+:material-checkbox-blank-outline: **Checkpoint:** AAPL halted by the circuit breaker after the fourth step; a market order is rejected, a limit order rests, and the symbol reopens on its own.
 
  
 
-## Exercise 5: Open the Admin Console
-
-In a new terminal, start the interactive admin console:
-
-```bash
-pm-admin --id GW_ADMIN
-```
-
-At the prompt, inspect the exchange:
-
-```
-[GW_ADMIN|ADMIN]> HELP
-[GW_ADMIN|ADMIN]> SYMBOLS
-[GW_ADMIN|ADMIN]> SESSION_STATUS
-[GW_ADMIN|ADMIN]> GATEWAYS
-```
-
-Use `BOOK|SYM=AAPL` to confirm the console can query market state:
-
-```
-[GW_ADMIN|ADMIN]> BOOK|SYM=AAPL
-```
-
-:material-checkbox-blank-outline: **Checkpoint:** `pm-admin` authenticates as `GW_ADMIN` and can show symbols, session status, gateways, and book state.
-
- 
-
-## Exercise 6: Manual Symbol Halt and Resume
+## Exercise 5: Manual Symbol Halt and Resume
 
 From the `pm-admin` console:
 
@@ -245,8 +247,10 @@ Try trading MSFT from TRADER01:
 [TRADER01]> NEW|SYM=MSFT|SIDE=BUY|TYPE=MARKET|QTY=100
 ```
 
-Expected: rejection — `code=INSTRUMENT_HALTED`. (A *limit* order would be
-accepted and rest for the reopening, as in Exercise 4.)
+Expected: `REJECTED … code=INSTRUMENT_HALTED  MSFT is halted — MARKET orders
+rejected during trading halt`. (A *limit* order would be accepted and rest for
+the reopening, as in Exercise 4.) The `HALT_SYM` reply also tells you how many
+market-maker quote legs it pulled: `HALTED  MSFT  2 quote leg(s) cancelled`.
 
 Resume:
 
@@ -258,7 +262,7 @@ Resume:
 
  
 
-## Exercise 7: Exchange-Wide Halt with pm-admin-cli
+## Exercise 6: Exchange-Wide Halt with pm-admin-cli
 
 Use the one-shot CLI form when you want an operation to run from a script or
 checklist without opening an interactive console.
@@ -272,24 +276,23 @@ checklist without opening an interactive console.
 pm-admin-cli --id ADMIN_CLI halt
 ```
 
-All symbols stop matching. Confirm status:
-
-```bash
-pm-admin-cli --id ADMIN_CLI session-status
-pm-admin-cli --id ADMIN_CLI symbols
-```
-
-Then resume:
+It prints `HALTED  3 symbol(s), <n> quote leg(s) cancelled` and exits. All
+symbols stop matching, but the session phase does not change —
+`pm-admin-cli --id ADMIN_CLI session-status` still says `CONTINUOUS`. A halt
+is per symbol, not a session state. Prove it is in force by sending a
+`MARKET` order from `TRADER01` on any symbol: it is rejected. Then resume:
 
 ```bash
 pm-admin-cli --id ADMIN_CLI resume
 ```
 
+The interactive console has the same pair as `HALT` and `RESUME`.
+
 :material-checkbox-blank-outline: **Checkpoint:** `pm-admin-cli` halts and resumes the exchange without entering a REPL.
 
  
 
-## Exercise 8: Query and Manage with pm-admin-cli
+## Exercise 7: Query and Manage with pm-admin-cli
 
 Try the read-only commands first:
 
@@ -300,6 +303,9 @@ pm-admin-cli --id ADMIN_CLI gateways
 pm-admin-cli --id ADMIN_CLI volume
 pm-admin-cli --id ADMIN_CLI schedule
 ```
+
+`schedule` shows a dash in every cell: your configuration has no `schedule:`
+block (chapter 01).
 
 Now halt and resume one symbol through the CLI:
 
@@ -312,37 +318,27 @@ pm-admin-cli --id ADMIN_CLI resume-sym --sym TSLA
 
  
 
-## Exercise 9: Exchange-Wide Halt from the Admin Console
+## Exercise 8: Kill Switch
+
+Give `TRADER02` something to lose first — three resting sells that will not
+trade:
 
 ```
-[GW_ADMIN|ADMIN]> HALT
+[TRADER02]> NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=10|PRICE=152.00|TIF=DAY
+[TRADER02]> NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=10|PRICE=153.00|TIF=DAY
+[TRADER02]> NEW|SYM=MSFT|SIDE=SELL|TYPE=LIMIT|QTY=10|PRICE=425.00|TIF=DAY
 ```
 
-All symbols stop matching. Then:
-
-```
-[GW_ADMIN|ADMIN]> RESUME
-```
-
-:material-checkbox-blank-outline: **Checkpoint:** full halt and resume works across all symbols.
-
- 
-
-## Exercise 10: Kill Switch
-
-Cancel all orders for a misbehaving gateway:
-
-```
-[GW_ADMIN|ADMIN]> KILL|GW=TRADER02
-```
-
-Expected: `KILL OK  TRADER02  orders=<n>  quotes=<n>` — all of TRADER02's resting orders cancelled.
-
-Or scope to a single symbol:
+Pull only its AAPL orders, then everything that is left:
 
 ```
 [GW_ADMIN|ADMIN]> KILL|GW=TRADER02|SYM=AAPL
+[GW_ADMIN|ADMIN]> KILL|GW=TRADER02
 ```
+
+Expected: `KILL OK  TRADER02  orders=2  quotes=0`, then
+`KILL OK  TRADER02  orders=1  quotes=0`. `TRADER02` stays connected and sees a
+`CANCELLED … reason=KILL_SWITCH` line per order.
 
 The same operation as a one-shot CLI command is:
 
@@ -354,7 +350,7 @@ pm-admin-cli --id ADMIN_CLI kill --gw TRADER02 --sym AAPL
 
  
 
-## Exercise 11: Named Risk Levels — One Policy, Many Symbols
+## Exercise 9: Named Risk Levels — One Policy, Many Symbols
 
 Exercise 1 gave each symbol its own inline `collar:`. With 150 symbols that is
 150 copies of the same numbers. A **risk level** is a named collar profile that
@@ -385,31 +381,17 @@ symbols:
 
 AAPL and TSLA name no level, so both get `default_level: L2`. Check and deploy.
 
-For repeatable predictions, reset the exchange's working state before this
-exercise. A same-business-day engine restart restores resting `DAY` orders
-(and quote legs) as well as persisted reference and last-trade prices.
-Deleting only `book_stats.json` resets the prices but leaves those orders, so a
-second run would not start from the same book. After deploying the configuration,
-stop every EduMatcher process (`pm-opctl-cli stop` for managed processes and
-`Ctrl-C` for any manually started ones), then run:
-
-```bash
-pm-opctl-cli clear --state
-```
-
-This removes persisted orders and prices along with statistics, clearing, and
-index state, but preserves configuration, logs, audit data, and settlement
-records. It does not remove the deployed configuration or require redeployment.
-See [Starting over](#starting-over) for the reset scopes. Restart the exchange
-and its consoles, reopen the market, and continue below.
+The circuit-breaker walk of Exercise 4 moved AAPL's reference, so reset the
+working state again exactly as in Exercise 1: stop `pm-engine` and the
+consoles, run `pm-opctl-cli clear --state`, restart, reopen the market and
+clear the three books with `CANCEL_SYM` (the restart places the
+market-maker seed quotes again). A same-business-day restart alone is not
+enough: it restores resting `DAY` orders and the remembered prices.
 
 The reference prices are now 150, 420 and 250 again (from your configuration)
 and there is no last trade. **Predict** the outcome of each order before
 sending it. Use buys below the market, which rest instead of trading, so that
 only the *static* band is being tested:
-**Predict** the outcome of each order before sending it. Use buys below the
-market, which rest instead of trading, so that only the *static* band is being
-tested:
 
 ```
 [TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=1|PRICE=143.00|TIF=DAY
@@ -434,6 +416,13 @@ have passed under L1: the level is the whole difference. An inline `collar:` on
 a symbol still overrides its level field by field, which is how `TSLA` in
 [The Configuration Workflow](../operator-guide/part-2-configure/010-the-configuration-workflow.md#risk-controls-and-collars)
 sets only a tighter `dynamic_band_pct`.
+
+Three of the six orders were accepted and are still resting. Remove them
+before the next chapter, so they do not sit in the books as stale prices:
+
+```
+[GW_ADMIN|ADMIN]> KILL|GW=TRADER01
+```
 
 :material-checkbox-blank-outline: **Checkpoint:** you predicted all six results
 before sending the orders, and can say which symbols the single line
@@ -470,11 +459,6 @@ restart the processes after clearing and they will load the existing deployed
 configuration. `--all` permanently deletes EOD balances and settlement
 records, so use it only when those records are intentionally disposable. For a
 fresh exchange with money records retained, use `--state`.
-
-The reset-scope regression test creates disposable files and directories for
-both modes, verifies exactly which paths are removed, and confirms that
-configuration remains. Active-process warning and non-interactive refusal
-behavior is covered separately by the CLI tests.
 
 ## Reflection
 

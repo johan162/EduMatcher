@@ -64,7 +64,13 @@ until it is **confirmed**; a **retracted** rumour never moves anything.
 
 ## Exercise 1: Deploy an Example with AI Traders
 
+Stop everything you started in the earlier chapters (`pm-engine`, consoles,
+bots, `pm-clearing`, `pm-audit`; `Ctrl-C` in each). The orders, prices and
+positions they left behind belong to participants the example does not
+have, so clear them first:
+
 ```bash
+pm-opctl-cli clear --state --yes
 pm-config-deploy --example s150-nominal
 ```
 
@@ -130,7 +136,8 @@ pm-ai-trader --id AI001 --preset noise-retail --symbols AAPL -v
 ```
 
 The trader logs on, reads the AAPL book and starts resting small orders near
-the touch. Watch them arrive with `BOOK|SYM=AAPL` in the operator console.
+the touch. Watch them arrive with `ORDERS|GW=AI001` in the operator console
+(or in the AAPL book with `BOOK|SYM=AAPL`).
 Stop it with Ctrl+C: its session closes and the participant's
 `disconnect_behaviour` (`CANCEL_ALL`) removes its orders.
 
@@ -187,6 +194,9 @@ the News view of TapeDeck, `pm-ticker`, or simply
 ```bash
 pm-news list
 ```
+
+`pm-news list` keeps running and prints each headline as it is published;
+stop it with `Ctrl-C` at the end of the chapter.
 
 Then the instructor plays the first scenario:
 
@@ -283,6 +293,23 @@ sessions, which cancels their orders. Stop `pm-market-sim` with Ctrl+C too:
 it saves its values and continues from them next time.
 
 :material-checkbox-blank-outline: **Checkpoint:** no `AI0xx` orders left in the books; the market maker's quotes remain.
+
+### Back to your own configuration
+
+The rest of the guide uses the configuration you built in chapters 01–11
+(`GW_ADMIN`, `TRADER03`, the `MM_*_01` market makers). Stop every process of
+this chapter (`pm-mm-bot`, `pm-alf-gwy`, `pm-admin`, `pm-engine`, any
+`pm-news list`), clear the example's orders and prices, and deploy yours
+again:
+
+```bash
+pm-opctl-cli clear --state --yes
+pm-config-deploy engine_config.yaml
+```
+
+Start `pm-engine`, `pm-admin --id GW_ADMIN` and your trader consoles, and
+reopen the market (`SESSION|STATE=PRE_OPEN`, then `SESSION|STATE=CONTINUOUS`).
+The engine places the chapter 02 seed quotes again.
 
  
 
