@@ -14,17 +14,18 @@ the *rules of matching* and knows nothing about ZeroMQ::
 
     gateway --PUSH--> Engine.run()                   (receive + decode)
                       Engine._dispatch_pull_message  (route by topic)
-                      Engine._handle_new_order       (validate, ACK, gate on session)
+                      Engine._handle_new_order       (validate and gate; ACK usually
+                                                      before matching, sometimes after)
                       OrderBook.process(order)       <== YOU ARE HERE
                           |  returns (trades, events)
                       Engine._publish_dispatch       (order.fill / order.cancelled /
                                                       reject, then trade.executed)
                       --PUB--> gateways, market data, clearing, audit ...
 
-``OrderBook`` is a plain, synchronous, single-threaded Python object.  It
-never publishes anything; it *mutates* orders and *returns* what happened, and
-the engine turns that into bus messages.  That separation is what makes the
-matching rules unit-testable without a network.
+``OrderBook`` is a plain, synchronous, single-threaded Python object. It
+mutates orders and returns what happened; it does not publish directly.
+Engine-wired quote and OCO callbacks can, however, publish sibling effects
+during matching. A bare book remains unit-testable without a network.
 
 The life of one incoming order
 ------------------------------
@@ -40,9 +41,9 @@ The life of one incoming order
                           orders' ``remaining_qty`` / ``status``, updates the
                           price-level index, and appends *both* orders to
                           ``events``.
-5. back in ``_match_limit``  whatever is left over RESTS on our own side
-                          (``_rest``) -- that is the difference between LIMIT
-                          and IOC/MARKET, which discard the remainder.
+5. back in ``_match_limit``  a live remainder RESTS on our own side
+                          (``_rest``); an SMP-cancelled order does not.
+                          IOC/MARKET discard any unfilled remainder.
 6. back in ``process``    every trade moved ``last_trade_price``, so resting
                           stops may now trigger (``_check_stops``); each
                           triggered stop is itself processed as a new order.
@@ -115,12 +116,12 @@ Order lifecycle (``OrderStatus``)
 
 Corner cases worth knowing before you read the code
 ---------------------------------------------------
-* Iceberg orders: only ``displayed_qty`` is matchable per pass; when the
-  slice is used up a fresh slice is created and queued at the BACK of its
-  price level (it loses time priority).  See ``_apply_fill`` and
-  ``_reinsert_iceberg``.
-* Self-match prevention (SMP): an order from gateway G may not trade with a
-  resting order from the same G.  Four policies, see ``SmpAction``.
+* Resting icebergs: only ``displayed_qty`` is matchable per pass; a fresh
+  slice queues at the BACK of its price level. An incoming iceberg can sweep
+  its full remaining quantity. See ``_apply_fill`` and ``_reinsert_iceberg``.
+* Self-match prevention (SMP): a configured policy controls whether an order
+  may trade with the same gateway. Four policies, including NONE, are in
+  ``SmpAction``.
 * Stops are not "in the book": they wait in separate heaps and only become
   real MARKET/LIMIT orders when a trade price crosses their trigger.
 * The *same* ``Order`` object appears in ``events`` once per fill it took
@@ -473,9 +474,9 @@ class OrderBook:
         THIS IS THE ENTRY POINT of the matching engine.  By the time an order
         gets here the engine has already authenticated the gateway, checked
         the symbol, validated quantities/prices, applied the price collar and
-        the session/halt gates, and sent the positive ACK (all in
-        ``Engine._handle_new_order``).  The book only decides *how the order
-        trades*.
+        the session/halt gates (``Engine._handle_new_order``). The positive
+        ACK normally precedes this call, but waits until afterwards if the
+        book may reject, such as for an unfillable FOK.
 
         Steps, in order:
 
@@ -495,7 +496,7 @@ class OrderBook:
         match : bool
             When False the order is rested on the book without attempting to
             sweep the opposite side.  Used during auction / no-matching phases
-            to collect interest.  MARKET and FOK orders are rejected when
+            to collect interest. MARKET, FOK and IOC orders are rejected when
             match=False because they cannot rest.
         now : int | None
             Pre-computed timestamp from the engine's dispatch loop, threaded
@@ -897,7 +898,7 @@ class OrderBook:
         return order, priority_reset, ""
 
     def resting_orders(self) -> list[Order]:
-        """Return all resting (NEW / PARTIAL) orders — used for persistence."""
+        """Return live resting orders for full-book reads, including persistence."""
         return [
             o
             for o in self._order_index.values()
@@ -1366,7 +1367,9 @@ class OrderBook:
         under-counts and spuriously rejects — and (b) excludes same-gateway
         liquidity that SMP would skip/cancel, which would otherwise let the
         sweep run dry and leave the FOK partially filled (a fill-or-kill
-        violation).  Rejecting before any fill keeps FOK all-or-nothing.
+        violation). It also counts only the first encountered leg of an OCO
+        pair, since a fill can remove its sibling. Rejecting before any fill
+        keeps FOK all-or-nothing.
         """
         opposite = self._asks if order.side == Side.BUY else self._bids
         available = self.fillable_quantity(
@@ -1863,7 +1866,7 @@ class OrderBook:
           (``None`` = MARKET order, no limit);
         * self-match prevention killed the aggressor.
 
-        Each pass of the loop produces exactly ONE trade, between the
+        Each fill pass produces ONE trade, between the
         aggressor and the single best resting order, for
         ``min(aggressor remaining, resting available)``.  A big aggressor
         therefore generates a *sequence* of trades, one per resting order it
@@ -1999,8 +2002,9 @@ class OrderBook:
         5. fires the quote-leg / OCO callbacks so the engine can cancel a
            sibling leg *now*, before another trade can hit it.
 
-        Nothing is published here.  The caller returns ``trades`` and
-        ``events`` up to the engine.
+        The book does not publish directly. Engine-wired callbacks may publish
+        sibling effects before the caller returns ``trades`` and ``events``
+        for dispatch; auction quote follow-ups are deferred to dispatch.
 
         In continuous matching the aggressor is *not* resting, so only the
         passive side is counted in the price-level qty index and only that

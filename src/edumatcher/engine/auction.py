@@ -9,7 +9,8 @@ Standard Two-sided Auction:
 An iceberg's hidden quantity takes part, ranked behind the visible quantity at
 its price: the uncross fills at most its shown slice per pass and replenishes
 the slice at the back of the queue, as continuous matching does. The demand and
-supply curves count the same total quantity, so the indicative is what prints.
+supply curves count the same total quantity. SMP or OCO constraints can reduce
+what actually trades, so affected prices are evaluated with a dry run.
 
 The functions in this module operate on an OrderBook instance and return
 trades + events for the engine to publish.
@@ -24,26 +25,27 @@ of the phase the engine calls, in this order:
 
 1. ``compute_equilibrium(book)``  -> the ONE price that trades the most
    volume (also published during the phase as the "indicative" price);
-2. ``execute_uncross(book, eq_price)`` -> every crossing order trades at
-   that same price.  Everybody gets the same price; price improvement over
-   an order's own limit is the norm, not the exception.
+2. ``execute_uncross(book, eq_price)`` -> eligible crossing interest trades
+   at that same price; SMP or OCO can cancel interest instead. Price
+   improvement over an order's own limit is the norm, not the exception.
 
 Worked example -- bids: 100 @ 10.2, 100 @ 10.0;  asks: 50 @ 9.9, 100 @ 10.1
   price 9.9 : buyers willing >= 9.9 = 200, sellers willing <= 9.9 =  50 -> 50
   price 10.0: buyers = 200, sellers = 50                              -> 50
   price 10.1: buyers = 100, sellers = 150                             -> 100  <-- max
   price 10.2: buyers = 100, sellers = 150                             -> 100  (tie)
-The tie at 10.1 / 10.2 is broken by the smaller surplus (equal here), and
-then by the lower price, because candidates are scanned in ascending order
-and only a strictly better one replaces the current best.
+The tie at 10.1 / 10.2 has equal surplus, so the lower price wins. Candidates
+are evaluated by an executable-volume bound; the ranking still breaks ties
+by surplus and then lowest price.
 
-Self-match prevention
----------------------
+Self-match prevention and OCO
+-----------------------------
 Both sides are resting, so there is no aggressor: the bid is treated as one
 (``_auction_smp_action``). Where a gateway with a policy sits on both sides the
 curves overstate the volume, so ``_simulated_quantity`` dry-runs the uncross
-walk at each candidate price (cancelling self-matching pairs as
+walk at relevant candidate prices (cancelling self-matching pairs as
 ``execute_uncross`` will) and ``compute_equilibrium`` picks the price by that.
+The same dry run accounts for OCO siblings that cannot both execute.
 The walk only meets orders that can trade at the chosen price, so
 ``execute_uncross`` finishes by cancelling, without trading, any same-gateway
 bid and ask that SMP left crossed beyond it (``_resolve_self_match``).
@@ -338,10 +340,10 @@ def compute_equilibrium(book: "OrderBook") -> AuctionResult:  # noqa: F821
     prices whose min(buy_qty, sell_qty) could still beat the best walk found
     are walked.
 
-    Complexity is O(P log P) in the number of distinct price levels -- the
-    sort -- because both cumulative curves are built in a single pass. That
-    matters: this runs per symbol on every indicative tick during a call
-    auction, not once per phase.
+    Without simulation, complexity is O(P log P) in distinct price levels:
+    sorting dominates the cumulative-curve passes. With SMP or OCO, candidate
+    prices may additionally require a walk of the live orders. This runs per
+    symbol on every indicative tick during a call auction, not once per phase.
     """
     bid_qty, ask_qty = _auction_levels(book)
     bid_prices = sorted(bid_qty.keys(), reverse=True)  # highest first

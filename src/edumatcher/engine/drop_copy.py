@@ -19,9 +19,10 @@ and receive everyone's order flow.  Each message is:
 
 Replay
 ~~~~~~
-The engine calls ``replay(recipient_id, N, gateway_id=...)`` to re-publish
-one gateway's buffered events with ``seq >= N`` on the
-``drop_copy.replay.{recipient_id}`` topic.
+The ``replay(recipient_id, N, gateway_id=...)`` library hook re-publishes one
+gateway's buffered events with ``seq >= N`` on the
+``drop_copy.replay.{recipient_id}`` topic. It is available to in-process
+consumers and tests; the engine does not call it.
 
 This is **in-process only**. There is no request message: this docstring
 described a ``drop_copy.replay_request`` for a long time, and no producer,

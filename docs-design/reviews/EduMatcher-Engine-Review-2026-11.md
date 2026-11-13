@@ -64,7 +64,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit) �
 | 6 | WP-ENG06 | Halt consistency: orphaned quote legs on a CB halt, halt reason on quote rejects, admin halts at CLOSED | C10, C11, D7 | Q3 | 0.5 d | ☑ | 2026-11-13 |
 | 7 | WP-ENG07 | Small correctness cleanups | C13–C17 | — | 0.5 d | ☑ | 2026-11-13 |
 | 8 | WP-ENG08 | Performance: maintenance throttle, holiday-calendar cache, request-path lookups | P1–P5 | — | 1 d | ☑ | 2026-11-13 |
-| 9 | WP-ENG09 | Comments and docstrings: data-flow walkthroughs correct and complete | D1–D13, C12 | WP-ENG01–08 | 1 d | ☐ | |
+| 9 | WP-ENG09 | Comments and docstrings: data-flow walkthroughs correct and complete | D1–D13, C12 | WP-ENG01–08 | 1 d | ◐ | |
 
 Suggested order: **WP-ENG01 → WP-ENG02 → WP-ENG04 → WP-ENG05 → WP-ENG06 →
 WP-ENG03 → WP-ENG07 → WP-ENG08 → WP-ENG09**. WP-ENG01 and WP-ENG02 are the
@@ -901,6 +901,14 @@ exists (`scripts`-free check: a one-off grep of `docs/` and `docs-design/`
 references); `mkdocs build` passes; the three module headers (`main.py`,
 `order_book.py`, `auction.py`) are re-read end to end against the code once
 WP-ENG01–08 have landed.
+
+**Progress (2026-11-13).** The author traced the nine flows against current
+code, corrected the outstanding D1–D13 documentation and documented C12.
+Gate-reference and docstring-path checks pass; MkDocs builds. An independent
+reader unfamiliar with the code has not yet completed the required flow
+checklist, so this WP remains in progress. At the user's direction this work
+was done before WP-ENG03; revisit the affected documentation after its
+reference-reload changes land.
 
 ---
 

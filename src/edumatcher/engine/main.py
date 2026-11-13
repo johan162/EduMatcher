@@ -32,14 +32,16 @@ makes the exchange deterministic and the code free of locks.
   4. ``Engine._handle_new_order``    -- the gatekeeper: build the ``Order``,
                                      resolve SMP, then a series of checks
                                      (gateway, symbol, validation, session,
-                                     halt, collar); each failure sends ONE
-                                     reject and returns.  Survivors get the
-                                     positive ACK.
+                                     halt, collar and trailing-stop reference);
+                                     failures get a reject. The positive ACK
+                                     normally precedes matching, but is deferred
+                                     when the book may reject the order.
   5. ``OrderBook.process``           (engine/order_book.py) the matching
                                      itself; returns ``(trades, events)``.
   6. ``Engine._publish_dispatch``    turn the result into bus messages:
                                      ``order.fill`` / ``order.cancelled`` /
-                                     rejects per order, then
+                                     rejects per order. Callbacks during matching
+                                     may already have published sibling effects.
   7. ``Engine._publish_trade``       one ``trade.executed`` per trade, plus
                                      position ledger, drop copy and circuit
                                      breaker updates.
@@ -651,7 +653,7 @@ class Engine:
         # interval on a freshly started engine.
         self._last_persist = 0.0
         self._next_silence_check = 0.0
-        # If None → no symbol restrictions (backward-compat mode)
+        # If None → no symbol restrictions (no configuration loaded)
         self._allowed_symbols: frozenset[str] | None = None
         self._allowed_participants: frozenset[str] | None = None
         self._engine_config: EngineConfig | None = None
@@ -1452,7 +1454,13 @@ class Engine:
 
     def _startup(self, run_seq: int) -> None:
         """Everything ``run`` does before serving: announce, restore, seed,
-        then publish what that left in the books' trace and the collars."""
+        then publish what that left in the books' trace and the collars.
+
+        ``_restore_gtc`` rebuilds resting orders and structure links without
+        replaying trades; ``_load_config`` then restores references and seeds
+        missing interest. During service ``_flush_persistence`` checkpoints
+        the state; ``_archive_eod`` preserves the closing business day.
+        """
         self._announce_startup(run_seq)
         restored = self._restore_gtc()
         self._load_config()  # seed stats + MM orders (after GTC restore)
@@ -1918,14 +1926,13 @@ class Engine:
     def _handle_new_order(self, payload: dict[str, Any]) -> None:
         """Handle one ``order.new``: gate it, ACK it, match it, publish it.
 
-        Every order ends in exactly one of two ways, and a client must always
-        learn which:
+        The normal entry outcome is one positive or negative ACK:
 
-        * REJECTED -- a gate below fails.  ONE ``order.ack`` with
-          ``accepted=False`` and a machine-readable reject code is sent, and
-          the function returns.  The book never sees the order.
-        * ACCEPTED -- an ``order.ack`` with ``accepted=True`` is sent, then
-          the book matches, then fills/cancels/trades are published.
+        * A failed entry gate sends ``accepted=False``; the book does not
+          process the order. The book can also reject, e.g. an unfillable FOK.
+        * Otherwise ``accepted=True`` precedes matching unless the book may
+          reject; in that case the ACK waits for ``book.process``. Dispatch
+          publishes the resulting fills, cancellations and trades.
 
         The gates run cheapest-and-most-fundamental first, so the reject code
         a client gets names the first thing wrong with its order:
@@ -1934,6 +1941,7 @@ class Engine:
           2 symbol is configured          6 ATO / ATC time-in-force window
           3 (book for the symbol exists)  7 symbol halted?
           4 field validation (qty, price) 8 price collar   9 can it rest?
+         10 trailing-stop reference, if no explicit stop price
 
         Stage numbers appear again as ``# [n]`` markers in the body.
         """
@@ -1979,7 +1987,7 @@ class Engine:
         # FIX gateway allowlist + connect/auth check
         # Fast-path: if gateway_id is already in _connected_participants it is
         # known-good (allowed + connected).  Only invoke _gateway_status() on
-        # first contact, disconnected gateways, or backward-compat mode.
+        # first contact, disconnected gateways, or no configuration loaded.
         # [1] gateway
         _gw_id_upper = order.gateway_id.upper()
         if _gw_id_upper not in self._connected_participants:
@@ -2170,9 +2178,8 @@ class Engine:
             f"{order.order_type.value} qty={order.quantity} price={order.price_ticks}"
         )
 
-        # ---- All gates passed: from here the order WILL be accepted. ----
-
-        # TRAILING_STOP: compute initial stop_price from last trade if not supplied
+        # [10] A trailing stop needs an explicit stop or a trade to trail.
+        # The NEW log above records the submission, not a promise of acceptance.
         if order.order_type == OrderType.TRAILING_STOP:
             book = self._book(order.symbol)
             if order.stop_price_ticks is None:
@@ -2191,6 +2198,7 @@ class Engine:
                 else:
                     order.stop_price_ticks = book.last_trade_price + order.trail_offset_ticks  # type: ignore[operator]
 
+        # Entry gates passed; the book can still reject, notably an unfillable FOK.
         # M8: order→symbol registration happens AFTER book.process() succeeds
         # (below), not here — so a failure mid-processing leaves no half-applied
         # routing entry for an order that never reached the book.
@@ -2836,7 +2844,7 @@ class Engine:
             return
 
         if self._allowed_participants is None:
-            # Backward-compat mode: no gateway restrictions
+            # No configuration loaded: no gateway restrictions.
             self._connected_participants.add(gateway_id)
             session.connected = True
             self.metrics.count(self.metrics.connects, gateway_id)
@@ -3570,7 +3578,7 @@ class Engine:
 
         With matching on, only a FOK short of liquidity is rejected. With it
         off, a MARKET/IOC/FOK cannot rest, and the reason is why matching is
-        off -- as gate 8 and the phase gate of ``_handle_new_order`` say for
+        off -- as the halt and phase gates of ``_handle_new_order`` say for
         an ordinary order (X12a). An AON combo blocked by a short leg is the
         remaining case: a liquidity shortfall again.
         """
@@ -3618,6 +3626,13 @@ class Engine:
         * PER TRADE messages (``trade.executed``) are public and go out last.
           A participant therefore learns of its own fill slightly before the
           public tape shows it.
+
+        During continuous matching, the book's synchronous quote and OCO
+        hooks may already have published a sibling cancellation or quote
+        status before this method publishes the fill that caused it (C12).
+        They run mid-sweep so that sibling cannot trade later in the same
+        sweep. Consumers must not infer the causal order solely from receipt
+        order; this is distinct from the per-order-before-tape ordering above.
         """
         # Step 0: what the book did on the way -- a stop that fired, an order
         # that rested -- before the fills it explains.
@@ -3736,11 +3751,18 @@ class Engine:
         ends, right after its ``resume``, and an opening or closing print is
         itself the price discovery a halt would be waiting for.
 
-        If the rolling-window average has moved more than ``dynamic_band_pct``
-        from the trigger price, the symbol is halted:
+        ``record_trade`` compares the incoming price with the prior rolling
+        window's average: abs(price - average) / average must reach a level's
+        ``price_shift_pct``. The highest matching level wins. On a halt:
           - All resting quotes for the symbol are cancelled.
           - A ``circuit_breaker.halt.{symbol}`` message is broadcast.
-          - ``_halted_symbols[symbol]`` is set to True so new orders are blocked.
+          - ``_halted_symbols[symbol]`` disables matching; orders that cannot
+            rest are rejected.
+
+        ``_flush_circuit_breakers`` tests ACE's reopening corridor and either
+        extends the call or uncrosses it; ``_run_closing_backstop`` handles
+        eligible halts at close, and ``_handle_symbol_resume`` handles an
+        operator's reopen.
         """
         if not self._enforce_circuit_breakers:
             return
@@ -3824,11 +3846,11 @@ class Engine:
         that has not managed to reopen within its corridor prints *at* the
         corridor boundary rather than at the outlying equilibrium.
 
-        This is the only place in the engine where a price is imposed rather
-        than discovered. A clamped print can leave the book crossed — bids and
-        asks beyond the boundary do not trade — which is intended: that
-        interest survives to the next session rather than executing at a price
-        the corridor was built to reject.
+        A clamped print can leave the book crossed — bids and asks beyond the
+        boundary do not trade — which is intended: that interest survives to
+        the next session rather than executing at a price the corridor was
+        built to reject. An administrator can also impose a price with a
+        manual reopen.
         """
         for symbol, cb in self._circuit_breakers.items():
             if not self._halted_symbols.get(symbol):
@@ -4047,7 +4069,9 @@ class Engine:
         ask -> publish like any dispatch.  Unlike ``order.new`` every reject
         here is a ``quote.ack`` with ``accepted=False`` -- including a
         handler failure before the ack (``_reject_after_error``); one after
-        it ends the quote with ``quote.status CANCELLED`` instead.
+        it ends the quote with ``quote.status CANCELLED`` instead. A surviving
+        orphan leg is removed by ``_cancel_orphaned_quote_legs`` on reissue or
+        cancellation, even if the quote is no longer active in the index.
         """
         self.metrics.count(self.metrics.quotes_in, payload.get("gateway_id"))
         gateway_id = str(payload.get("gateway_id", "")).upper()
@@ -5889,7 +5913,7 @@ class Engine:
         self._accept_combo(combo, publish_ack=True)
 
     def _collar_breach(self, symbol: str, price_ticks: int | None) -> str:
-        """Why the collar refuses *price_ticks* on *symbol*, or "" -- gate 8
+        """Why the collar refuses *price_ticks* on *symbol*, or "" -- the collar gate
         of ``_handle_new_order``, for an OCO or combo leg (X30). A config-
         seeded combo and a market maker's quote are not collared."""
         if not self._enforce_collars or price_ticks is None:
@@ -6386,6 +6410,11 @@ class Engine:
         Mapping of each uncrossed symbol to ``(printed_price_ticks, traded_qty)``
         — ``printed_price_ticks`` is ``None`` when nothing printed. Callers that
         do not need the outcome (the session sweep, recovery) ignore it.
+
+        ``compute_equilibrium`` selects a price; ``execute_uncross`` walks the
+        book there, including mid-walk OCO callbacks. ``_publish_dispatch``
+        runs the auction's deferred quote follow-ups before ``run_stops``
+        releases stops, so those stops cannot hit a pulled quote sibling.
         """
         outcomes: dict[str, tuple[int | None, int]] = {}
         match_type = self._uncross_match_type(reason)
@@ -6737,7 +6766,7 @@ class Engine:
         )
 
         # X18: a halted symbol's legs rest without matching, as an ordinary
-        # order's do (gate 8); a leg that cannot rest is rejected by the book.
+        # order's do (the halt gate); a leg that cannot rest is rejected by the book.
         do_match = is_matching_enabled(
             self._session_state
         ) and not self._halted_symbols.get(symbol)
@@ -6984,6 +7013,11 @@ class Engine:
         indexes); here we only police who may cancel what and report the
         result.  An unknown or already-finished order id is answered with an
         ORDER_NOT_FOUND reject, never silence.
+
+        After the client cancel is published, ``_after_engine_cancel`` runs
+        combo and OCO follow-ups. Exchange-initiated cancels instead go through
+        ``_cancel_order_by_id``; batches defer those follow-ups until all
+        requested legs have been removed.
         """
         self.metrics.count(self.metrics.cancels_in, payload.get("gateway_id"))
         order_id = payload["order_id"]
@@ -8008,15 +8042,17 @@ class Engine:
         The whole exchange is this one ``while`` loop, on one thread:
 
             wait up to 200 ms for a message on the PULL socket
-              -> if one arrived: decode it, echo it, ``_dispatch_pull_message``
-            run maintenance on the first pass, then every 10 ms while busy;
+              -> if one arrived: decode it, ``_echo_command``, then
+                 ``_dispatch_pull_message`` (handler errors go to
+                 ``_reject_after_error`` where a reply is possible)
+            ``_run_maintenance`` on the first pass, then every 10 ms while busy;
             on every idle poll (snapshots, timers, persistence)
 
         Because nothing else runs concurrently, an order is always handled
         start to finish -- ack, matching, fills, trades published -- before the
         next one is even looked at.  That is the guarantee behind price-time
         priority: "arrival order" is simply the order messages come off the
-        socket.          The 200 ms poll timeout bounds maintenance delay on an idle exchange.
+        socket. The 200 ms poll timeout bounds maintenance delay on an idle exchange.
         Under load, the maintenance flushes run once per 10 ms slice rather
         than once per message.
         """

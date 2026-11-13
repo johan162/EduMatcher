@@ -29,6 +29,7 @@ its own piece of work.
 | L013 | 2026-11-13 | pm-stats-cli (CLIs) | `pm-stats-cli daily \| head` ends with a `BrokenPipeError` traceback | Low | Open |
 | L014 | 2026-11-13 | pm-mm-bot | With `--anchor-sim` the bot still needs a two-sided book or a range to start; it could start from the market model's value | Low | Open |
 | L015 | 2026-11-13 | pm-alf-gwy / pm-orders | ALF `QBOOT` lines carry an empty `STATUS=`; `pm-orders` shows `?` in every column of a rejected order | Low | Open |
+| L016 | 2026-11-13 | docs (participant combo guide) | Introduction promises atomic all-or-none execution for combos, although AON is an entry guard and later legs can fill independently | Medium | Open |
 
 ## L001 — Topic literals in pm-sim-forensics
 
@@ -229,4 +230,15 @@ the book gives none.
 console's `QBOOT` table shows `ACTIVE`). `pm-orders` shows a row with `?` in
 every column for an order the engine rejected (the rejection carries only the
 order ID); it could show `REJECTED` with the reason instead.
+
+## L016 — Combo guide overstates atomic execution
+
+**Found:** 2026-11-13, WP-ENG09 flow review.
+
+**Finding.** The opening of `docs/books/participant-guide/part-2-orders/030-combo-and-oco-orders.md`
+claims that if all legs cannot fill, none fill, and presents simultaneous
+atomic execution as a combo guarantee. The engine's AON preflight only guards
+entry; legs that rest can subsequently fill independently, while non-AON
+combos can fill partially. Review the guide's examples and guarantees against
+the actual combo contract so participants are not misled about leg risk.
 

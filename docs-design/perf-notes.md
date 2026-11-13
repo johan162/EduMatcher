@@ -83,9 +83,9 @@ the target is ≥1% of wall time (review finding P6).
   p99 51.825 µs. These are local microbenchmark results, not a production
   latency guarantee.
 
-- **Monotonic clock on the hot path.** `_handle_new_order` uses `now_ns()`
-  (monotonic, finding M9); the raw `time.time_ns` alias `_time_ns` is retained
-  only for backward compatibility.
+- **Non-decreasing timestamps on the hot path.** `_handle_new_order` uses
+  `now_ns()` (finding M9): wall-clock nanoseconds guarded against backwards
+  steps, not a monotonic clock.
 
 - **Fill loop passes the raw enum member instead of `.value` to the JSON
   encoder (2026-09-04).** The two non-aggressor fields in the fill payload
