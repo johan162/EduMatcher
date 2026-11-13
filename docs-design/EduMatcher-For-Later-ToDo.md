@@ -30,6 +30,7 @@ its own piece of work.
 | L014 | 2026-11-13 | pm-mm-bot | With `--anchor-sim` the bot still needs a two-sided book or a range to start; it could start from the market model's value | Low | Open |
 | L015 | 2026-11-13 | pm-alf-gwy / pm-orders | ALF `QBOOT` lines carry an empty `STATUS=`; `pm-orders` shows `?` in every column of a rejected order | Low | Open |
 | L016 | 2026-11-13 | docs (participant combo guide) | Introduction promises atomic all-or-none execution for combos, although AON is an entry guard and later legs can fill independently | Medium | Open |
+| L017 | 2026-11-13 | CLIs (`health -q`) | `health -q` exits `-1` (status 255) while the non-quiet path exits 1, in four CLIs | Low | Open |
 
 ## L001 — Topic literals in pm-sim-forensics
 
@@ -242,3 +243,19 @@ entry; legs that rest can subsequently fill independently, while non-AON
 combos can fill partially. Review the guide's examples and guarantees against
 the actual combo contract so participants are not misled about leg risk.
 
+
+## L017 — `health -q` exits -1
+
+**Found:** 2026-11-13, pm-audit / pm-audit-cli review
+(`docs-design/reviews/EduMatcher-Audit-Review-2026-11.md` §9).
+
+**Finding.** `health -q` raises `SystemExit(0 if healthy else -1)`, which the
+shell sees as status 255, while the same command without `-q` exits 1 when
+unhealthy. The help text says "exit 0 when healthy or -1 otherwise". The
+pattern is in `audit/cli.py:1042`, `clearing/cli.py:945`, `index/cli.py:825`
+and `stats/cli.py:743`. A script that tests `$? -eq 1` behaves differently
+with and without `-q`.
+
+**Recommendation.** Exit 1 in both modes and fix the four help texts; check
+the operator guide's health chapter and any container healthcheck that
+compares the status.
