@@ -13,7 +13,14 @@ from __future__ import annotations
 from typing import Any
 
 from edumatcher.models.order import OrderType, Side
-from tests.engine_harness import connect, make_engine, msgs, order_payload, submit_quote
+from tests.engine_harness import (
+    assert_engine_links,
+    connect,
+    make_engine,
+    msgs,
+    order_payload,
+    submit_quote,
+)
 
 ADMIN = "ADM01"
 MM = "MM01"
@@ -66,6 +73,7 @@ def test_a_symbol_scoped_kill_switch_leaves_other_symbols(monkeypatch, tmp_path)
     assert (ack["cancelled_orders"], ack["cancelled_quotes"]) == (1, 2)
     assert _resting(engine, "AAPL") == []
     assert len(_resting(engine, "MSFT")) == 1
+    assert_engine_links(engine)
 
 
 def test_quotes_only_pulls_the_quote_and_keeps_orders(monkeypatch, tmp_path):

@@ -718,7 +718,7 @@ class TestGtcPersistence:
             quantity=100,
             gateway_id="GW1",
             tif=TIF.GTC,
-            price_ticks=150.0,
+            price_ticks=15000,
         )
         save_gtc_orders([order], path)
         loaded = load_gtc_orders(path)
@@ -727,7 +727,7 @@ class TestGtcPersistence:
         assert loaded[0].id == order.id
         assert loaded[0].symbol == "AAPL"
         assert loaded[0].side == Side.BUY
-        assert loaded[0].price_ticks == 150.0
+        assert loaded[0].price_ticks == 15000
         assert loaded[0].quantity == 100
         assert loaded[0].remaining_qty == 100
         assert loaded[0].tif == TIF.GTC
@@ -743,7 +743,7 @@ class TestGtcPersistence:
             quantity=100,
             gateway_id="GW1",
             tif=TIF.GTC,
-            price_ticks=150.0,
+            price_ticks=15000,
         )
         original_ts = order.ts_ns
         save_gtc_orders([order], path)
@@ -761,7 +761,7 @@ class TestGtcPersistence:
             quantity=200,
             gateway_id="GW1",
             tif=TIF.GTC,
-            price_ticks=150.0,
+            price_ticks=15000,
         )
         # Simulate partial fill
         order.remaining_qty = 100
@@ -789,7 +789,7 @@ class TestGtcPersistence:
             quantity=100,
             gateway_id="GW1",
             tif=TIF.DAY,
-            price_ticks=150.0,
+            price_ticks=15000,
         )
         gtc_order = Order.create(
             symbol="AAPL",
@@ -798,7 +798,7 @@ class TestGtcPersistence:
             quantity=50,
             gateway_id="GW1",
             tif=TIF.GTC,
-            price_ticks=149.0,
+            price_ticks=14900,
         )
         save_gtc_orders([day_order, gtc_order], path)
         loaded = load_gtc_orders(path)
@@ -816,7 +816,7 @@ class TestGtcPersistence:
             quantity=100,
             gateway_id="GW1",
             tif=TIF.GTC,
-            price_ticks=150.0,
+            price_ticks=15000,
         )
         order.status = OrderStatus.FILLED
         order.remaining_qty = 0
@@ -836,7 +836,7 @@ class TestGtcPersistence:
             quantity=100,
             gateway_id="GW1",
             tif=TIF.GTC,
-            price_ticks=150.0,
+            price_ticks=15000,
         )
         order.status = OrderStatus.CANCELLED
 
@@ -871,7 +871,7 @@ class TestGtcPersistence:
                 tif=TIF.GTC,
                 price_ticks=p,
             )
-            for sym, p in [("AAPL", 150.0), ("MSFT", 400.0), ("GOOG", 170.0)]
+            for sym, p in [("AAPL", 15000), ("MSFT", 40000), ("GOOG", 17000)]
         ]
         save_gtc_orders(orders, path)
         loaded = load_gtc_orders(path)
@@ -890,7 +890,7 @@ class TestGtcPersistence:
             quantity=100,
             gateway_id="GW1",
             tif=TIF.GTC,
-            price_ticks=150.0,
+            price_ticks=15000,
         )
         save_gtc_orders([order], path)
         loaded = load_gtc_orders(path)
@@ -899,10 +899,10 @@ class TestGtcPersistence:
         book.process(loaded[0])
 
         # Aggressive sell should match the restored order
-        sell = _limit(Side.SELL, 150.0)
+        sell = _limit(Side.SELL, 15000)
         trades, events = book.process(sell)
         assert len(trades) == 1
-        assert trades[0].price == 150.0
+        assert trades[0].price == 15000
 
 
 # ===========================================================================

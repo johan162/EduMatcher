@@ -19,6 +19,7 @@ import logging
 from typing import Any
 
 import json
+import math
 import os
 import shutil
 import tempfile
@@ -117,6 +118,56 @@ def keep_corrupt_copy(path: Path) -> Path:
     return copy
 
 
+_MAX_TS_NS = 2**63 - 1  # datetime.fromtimestamp overflows far above this
+
+
+def _is_tick(value: Any) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+def _check(ok: bool, field: str, value: Any) -> None:
+    if not ok:
+        raise ValueError(f"bad {field}: {value!r}")
+
+
+def _checked_order(o: Order) -> Order:
+    """Refuse an order whose fields the restore uses before (or without) the
+    book's guard: ``from_dict`` copies values as they are, unchecked."""
+    for name in ("id", "symbol", "gateway_id"):
+        _check(isinstance(getattr(o, name), str), name, getattr(o, name))
+    for name in ("oco_group_id", "quote_id"):
+        value = getattr(o, name)
+        _check(value is None or isinstance(value, str), name, value)
+    for name in ("price_ticks", "stop_price_ticks"):
+        value = getattr(o, name)
+        _check(value is None or _is_tick(value), name, value)
+    _check(_is_tick(o.quantity) and o.quantity > 0, "quantity", o.quantity)
+    _check(
+        _is_tick(o.remaining_qty) and 0 < o.remaining_qty <= o.quantity,
+        "remaining_qty",
+        o.remaining_qty,
+    )
+    _check(_is_tick(o.ts_ns) and 0 <= o.ts_ns <= _MAX_TS_NS, "ts_ns", o.ts_ns)
+    _check(_is_tick(o.arrival_seq), "arrival_seq", o.arrival_seq)
+    return o
+
+
+def _checked_combo(c: ComboOrder) -> ComboOrder:
+    """As :func:`_checked_order`, for the fields the restore reads off a combo."""
+    _check(
+        _is_tick(c.timestamp) and 0 <= c.timestamp <= _MAX_TS_NS,
+        "timestamp",
+        c.timestamp,
+    )
+    ids: Any = c.child_order_ids  # as the file had it, whatever the annotation
+    _check(
+        isinstance(ids, list) and all(isinstance(i, str) for i in ids),
+        "child_order_ids",
+        ids,
+    )
+    return c
+
+
 def load_gtc_orders(path: Path) -> list[Order]:
     """
     Load previously persisted GTC and DAY orders.
@@ -124,8 +175,10 @@ def load_gtc_orders(path: Path) -> list[Order]:
     - Returns an empty list if the file does not exist.
     - Returns an empty list if the file cannot be parsed as a JSON array
       (truncated, binary garbage, wrong root type).
-    - Individual corrupt entries are logged at CRITICAL level and skipped;
-      the remaining valid orders are still returned so the engine can start.
+    - Individual corrupt entries (unparseable, or a field of the wrong type
+      or range, see :func:`_checked_order`) are logged at CRITICAL level and
+      skipped; the remaining valid orders are still returned so the engine
+      can start.
     - Either way the file is first copied aside by :func:`keep_corrupt_copy`,
       since the engine's first checkpoint overwrites it.
     """
@@ -154,7 +207,7 @@ def load_gtc_orders(path: Path) -> list[Order]:
     kept: Path | None = None
     for idx, d in enumerate(data):
         try:
-            orders.append(Order.from_dict(d))
+            orders.append(_checked_order(Order.from_dict(d)))
         except Exception as exc:
             order_id = (
                 d.get("id", "<unknown>") if isinstance(d, dict) else "<not a dict>"
@@ -222,18 +275,119 @@ def save_book_stats(
     atomic_write_text(path, json.dumps(stats, indent=2))
 
 
-def load_book_stats(path: Path) -> dict[str, dict[str, Any]]:
+_PRICE_KEYS = ("last_buy_price", "last_sell_price", "prev_close")
+
+
+def _is_price(value: Any) -> bool:
+    """A display price as ``save_book_stats`` writes it: a positive finite
+    number (``bool`` is an ``int`` to Python, not a price)."""
+    return (
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and math.isfinite(value)
+        and value > 0
+    )
+
+
+def _is_cb_window(window: Any) -> bool:
+    """``cb_window`` as ``save_book_stats`` writes it: ``saved_ns``, the
+    ``trades`` as ``[ts_ns, price_ticks]`` pairs, ``reference_price`` in
+    ticks or null."""
+    if not isinstance(window, dict):
+        return False
+    trades = window.get("trades")
+    reference = window.get("reference_price")
+    return (
+        _is_tick(window.get("saved_ns"))
+        and isinstance(trades, list)
+        and all(
+            isinstance(t, list) and len(t) == 2 and all(_is_tick(v) for v in t)
+            for t in trades
+        )
+        and (reference is None or _is_tick(reference))
+    )
+
+
+def load_book_stats(path: Path) -> tuple[dict[str, dict[str, Any]], int]:
     """
-    Load persisted book statistics.
-    Returns an empty dict if the file does not exist or is malformed.
-    Each value is {"last_buy_price": float|None, "last_sell_price": float|None}.
+    Load persisted book statistics: ``(stats, failed)``.
+
+    ``stats`` maps symbol to the entry ``save_book_stats`` wrote:
+
+    - ``last_buy_price``, ``last_sell_price``, ``prev_close``: display price
+      (positive finite number) or null; a missing key is null.
+    - ``cb_window`` (only for a symbol with a breaker): ``saved_ns`` (int),
+      ``trades`` (list of ``[ts_ns, price_ticks]`` int pairs),
+      ``reference_price`` (ticks or null).
+
+    Per-entry policy, so that file *content* can never stop the engine:
+
+    - No file: ``({}, 0)``.
+    - Unparseable, or a root that is not an object: ``({}, 1)``.
+    - An entry that is not an object, or has a bad price: the symbol is
+      skipped (its book starts from the config seed).
+    - A bad ``cb_window``: only the window is dropped; the breaker is then
+      seeded from the last price, as on a new day.
+
+    Each failure is logged at CRITICAL and counted in ``failed`` (one per
+    symbol), which ``system.startup_recovery`` reports as
+    ``failed_book_stats``. Either way the file is first copied aside by
+    :func:`keep_corrupt_copy`, since the engine's first checkpoint
+    overwrites it.
     """
     if not path.exists():
-        return {}
+        return {}, 0
     try:
-        return json.loads(path.read_text())  # type: ignore[no-any-return]
-    except Exception:
-        return {}
+        data = json.loads(path.read_text())
+    except Exception as exc:
+        log.critical(
+            "Cannot parse book statistics file %s: %s — none restored; "
+            "the file is kept as %s",
+            path,
+            exc,
+            keep_corrupt_copy(path),
+        )
+        return {}, 1
+    if not isinstance(data, dict):
+        log.critical(
+            "Book statistics file %s has unexpected root type %s — expected "
+            "object; none restored; the file is kept as %s",
+            path,
+            type(data).__name__,
+            keep_corrupt_copy(path),
+        )
+        return {}, 1
+    stats: dict[str, dict[str, Any]] = {}
+    failed = 0
+    kept: Path | None = None
+    for symbol, entry in data.items():
+        prices_ok = isinstance(entry, dict) and all(
+            entry.get(k) is None or _is_price(entry.get(k)) for k in _PRICE_KEYS
+        )
+        window_ok = prices_ok and (
+            "cb_window" not in entry or _is_cb_window(entry["cb_window"])
+        )
+        if window_ok:
+            stats[symbol] = entry
+            continue
+        failed += 1
+        if kept is None:
+            kept = keep_corrupt_copy(path)
+        if not prices_ok:
+            log.critical(
+                "Skipping corrupt book statistics for %s — the original file is kept as %s",
+                symbol,
+                kept,
+            )
+        else:
+            stats[symbol] = {k: v for k, v in entry.items() if k != "cb_window"}
+            log.critical(
+                "Dropping corrupt circuit-breaker window for %s — the breaker "
+                "starts from the last price; the original file is kept as %s",
+                symbol,
+                kept,
+            )
+    return stats, failed
 
 
 # ---------------------------------------------------------------------------
@@ -262,7 +416,8 @@ def load_gtc_combos(path: Path) -> list[ComboOrder]:
     Load previously persisted GTC combos.
 
     - Returns an empty list if the file does not exist or is unparseable.
-    - Individual corrupt entries are logged at CRITICAL level and skipped.
+    - Individual corrupt entries (see :func:`_checked_combo`) are logged at
+      CRITICAL level and skipped.
     - Either way the file is first copied aside by :func:`keep_corrupt_copy`.
     """
     if not path.exists():
@@ -290,7 +445,7 @@ def load_gtc_combos(path: Path) -> list[ComboOrder]:
     kept: Path | None = None
     for idx, d in enumerate(data):
         try:
-            combos.append(ComboOrder.from_dict(d))
+            combos.append(_checked_combo(ComboOrder.from_dict(d)))
         except Exception as exc:
             combo_id = (
                 d.get("id", "<unknown>") if isinstance(d, dict) else "<not a dict>"

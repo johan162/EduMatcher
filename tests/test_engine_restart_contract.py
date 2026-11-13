@@ -22,7 +22,7 @@ from edumatcher.engine.order_book import _DEAD_STATUSES, OrderBook
 from edumatcher.engine import persistence
 from edumatcher.engine.persistence import load_book_stats, save_book_stats
 from edumatcher.models.clock import now_ns
-from edumatcher.models.order import Order, OrderType, Side
+from edumatcher.models.order import Order, OrderStatus, OrderType, Side
 from tests.engine_harness import (
     SYMBOL,
     FakeSock,
@@ -38,7 +38,7 @@ def restart(
 ) -> tuple[Engine, FakeSock]:
     orders = [Order.from_dict(o.to_dict()) for o in a._resting_gtc_orders()]
     save_book_stats(a.books, a._circuit_breakers, tmp_path / "book_stats.json")
-    stats = load_book_stats(tmp_path / "book_stats.json")
+    stats, _ = load_book_stats(tmp_path / "book_stats.json")
     monkeypatch.setattr(engine_main, "GTC_COMBOS_FILE", tmp_path / "no_combos.json")
     b, pub = make_engine(monkeypatch, tmp_path, gtc_orders=orders, book_stats=stats, **kw)  # fmt: skip
     b._restore_gtc()
@@ -140,6 +140,27 @@ def test_x26_a_restart_keeps_time_priority_after_an_iceberg_refill(
 
     b, _ = restart(monkeypatch, tmp_path, a)
     assert priority(b.books[SYMBOL], "SELL") == [plain, ice]
+
+
+def test_a_restart_keeps_a_partly_filled_order_partial(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """C8 (engine review 2026-11): the restore set every order NEW."""
+    a, _ = make_engine(monkeypatch, tmp_path)
+    connect(a)
+    sell = new(a, Side.SELL, OrderType.LIMIT, 10, "GW01", price=100.00)
+    new(a, Side.BUY, OrderType.LIMIT, 6, "GW02", price=100.00)
+
+    b, pub = restart(monkeypatch, tmp_path, a)
+    (restored,) = b.books[SYMBOL].resting_orders()
+    assert (restored.id, restored.remaining_qty) == (sell, 4)
+    assert restored.status is OrderStatus.PARTIAL
+    b._handle_orders_request({"gateway_id": "GW01"})
+    (listed,) = msgs(pub, "order.orders.GW01")[-1]["orders"]
+    assert listed["status"] == "PARTIAL"
+    new(b, Side.BUY, OrderType.LIMIT, 1, "GW02", price=100.00)
+    (fill,) = msgs(pub, "order.fill.GW01")
+    assert fill["cum_qty"] == 7
 
 
 # --- the circuit breaker's reference window ----------------------------------

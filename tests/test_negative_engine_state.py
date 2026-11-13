@@ -85,7 +85,7 @@ def _make_engine(
         lambda _: list(gtc_orders) if gtc_orders else [],
     )
     monkeypatch.setattr("edumatcher.engine.main.load_gtc_combos", lambda _: [])
-    monkeypatch.setattr("edumatcher.engine.main.load_book_stats", lambda _: {})
+    monkeypatch.setattr("edumatcher.engine.main.load_book_stats", lambda _: ({}, 0))
     monkeypatch.setattr("edumatcher.engine.main.time.sleep", lambda *_: None)
 
     if save_raises:

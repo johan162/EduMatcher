@@ -91,7 +91,8 @@ def _make_engine(
         "edumatcher.engine.main.load_gtc_orders", lambda _: list(gtc_orders or [])
     )
     monkeypatch.setattr(
-        "edumatcher.engine.main.load_book_stats", lambda _: dict(book_stats or {})
+        "edumatcher.engine.main.load_book_stats",
+        lambda _: (dict(book_stats or {}), 0),
     )
     monkeypatch.setattr("edumatcher.engine.main.time.sleep", lambda *_: None)
 
@@ -182,6 +183,7 @@ class TestC1BookStatsRoundTrip:
         engine._engine_config.symbols["IPO1"].last_buy_price = 20.01
         engine._engine_config.symbols["IPO1"].last_sell_price = 20.02
 
+        engine._restore_gtc()  # reads book_stats.json, as at startup
         engine._load_config()
 
         assert engine.books[SYMBOL].last_buy_price == 15000
@@ -207,8 +209,9 @@ class TestC1BookStatsRoundTrip:
 
         # --- session 2: restart and restore ---
         engine2, _ = _make_engine(
-            monkeypatch, tmp_path, book_stats=load_book_stats(stats_path)
+            monkeypatch, tmp_path, book_stats=load_book_stats(stats_path)[0]
         )
+        engine2._restore_gtc()  # reads book_stats.json, as at startup
         engine2._load_config()
 
         restored = engine2.books[SYMBOL].last_buy_price

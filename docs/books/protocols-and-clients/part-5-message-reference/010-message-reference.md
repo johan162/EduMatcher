@@ -4403,6 +4403,7 @@ Engine to all subscribers, once, right after `_restore_gtc()` and before the con
 | `quote_remnants_restored` | `int` | required | ge 0, unit `dimensionless` | Restored quote-origin legs whose sibling did not survive, so they rest as plain orders rather than being rejoined into QuoteIndex. |
 | `rebuilt_quotes` | `int` | required | ge 0, unit `dimensionless` | Active QuoteIndex entries rebuilt from both-legs-restored quotes. |
 | `restored_combos` | `int` | required | ge 0, unit `dimensionless` | GTC combos restored from the previous session. |
+| `failed_book_stats` | `int` | required | ge 0, unit `dimensionless` | Symbols whose persisted book statistics (`book_stats.json`) were corrupt: the entry skipped, or only its circuit-breaker window dropped. An unreadable file counts as one. The file is kept aside as `book_stats.json.corrupt-<UTC stamp>`. |
 
 !!! note
 
@@ -4418,7 +4419,7 @@ Engine to all subscribers, once, right after `_restore_gtc()` and before the con
 
 **Since:** 1.2
 
-Engine to all subscribers: one restored, discarded or failed entity from `_restore_gtc()` (AR-0.5). `startup_recovery`'s six counts say *how many*; this says *which ones* — "which order failed to restore?" was unanswerable from either the counts alone or the process log, since a post-mortem investigating a startup only sees what was published (see ../../docs/books/operator-guide/part-6-observe-and-recover/020-audit-trail.md). Published once per entity, before the single summary `startup_recovery` broadcast, so the counts there are the cross-check: `restored_orders + discarded_stale_day_orders + failed_orders` must equal the number of ORDER-kind recovery_item lines whose outcome is RESTORED, DISCARDED_STALE_DAY or FAILED respectively, and `restored_combos` must equal the number of COMBO-kind lines.
+Engine to all subscribers: one restored, discarded or failed entity from `_restore_gtc()` (AR-0.5). `startup_recovery`'s order and combo counts say *how many*; this says *which ones* — "which order failed to restore?" was unanswerable from either the counts alone or the process log, since a post-mortem investigating a startup only sees what was published (see ../../docs/books/operator-guide/part-6-observe-and-recover/020-audit-trail.md). Published once per entity, before the single summary `startup_recovery` broadcast, so the counts there are the cross-check: `restored_orders + discarded_stale_day_orders + failed_orders` must equal the number of ORDER-kind recovery_item lines whose outcome is RESTORED, DISCARDED_STALE_DAY or FAILED respectively, and `restored_combos` must equal the number of COMBO-kind lines.
 
 | Field | Type | Presence | Rules | Description |
 |---|---|---|---|---|

@@ -18,6 +18,7 @@ from edumatcher.models.participant import DisconnectBehaviour
 from edumatcher.models.order import OrderType, Side
 from tests.engine_harness import (
     SYMBOL,
+    assert_engine_links,
     connect,
     make_engine,
     msgs,
@@ -62,6 +63,7 @@ def test_cancel_symbol_clears_the_leg_of_an_inactivated_quote(monkeypatch, tmp_p
     assert ack["accepted"] is True
     assert (ack["cancelled_orders"], ack["cancelled_quotes"]) == (0, 1)
     assert list(engine.books[SYMBOL].resting_orders()) == []
+    assert_engine_links(engine)
 
 
 def test_the_gateway_kill_switch_clears_the_leg_of_an_inactivated_quote(

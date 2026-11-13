@@ -93,7 +93,7 @@ def _make_engine(
     )
     monkeypatch.setattr(
         "edumatcher.engine.main.load_book_stats",
-        lambda _: book_stats if book_stats else {},
+        lambda _: (book_stats if book_stats else {}, 0),
     )
     monkeypatch.setattr("edumatcher.engine.main.save_gtc_orders", lambda *_: None)
     monkeypatch.setattr("edumatcher.engine.main.save_gtc_combos", lambda *_: None)
@@ -199,7 +199,7 @@ class TestEngineNoConfig:
         monkeypatch.setattr("edumatcher.engine.main.time.sleep", lambda *_: None)
         monkeypatch.setattr("edumatcher.engine.main.load_gtc_orders", lambda _: [])
         monkeypatch.setattr("edumatcher.engine.main.load_gtc_combos", lambda _: [])
-        monkeypatch.setattr("edumatcher.engine.main.load_book_stats", lambda _: {})
+        monkeypatch.setattr("edumatcher.engine.main.load_book_stats", lambda _: ({}, 0))
         # Use a path that definitely doesn't exist
         nonexistent = str(tmp_path / "no_such_config.yaml")
         engine = Engine(config_path=nonexistent)
@@ -529,6 +529,7 @@ class TestLoadConfigWithStats:
             symbols=("AAPL",),
             book_stats={"AAPL": {"last_buy_price": 100.0, "last_sell_price": 99.0}},
         )
+        engine._restore_gtc()  # reads book_stats.json, as at startup
         engine._load_config()
         # stats restore path hit; book should exist
         assert "AAPL" in engine.books
@@ -576,6 +577,7 @@ class TestCollarReferencePricePrefersPersistedStats:
             },
             book_stats={"AAPL": {"last_buy_price": 150.0}},
         )
+        engine._restore_gtc()  # reads book_stats.json, as at startup
         engine._load_config()
         assert engine._collars["AAPL"].reference_price == to_ticks(150.0, "AAPL")
 
@@ -772,7 +774,7 @@ class TestEngineConfigLoadError:
         monkeypatch.setattr("edumatcher.engine.main.time.sleep", lambda *_: None)
         monkeypatch.setattr("edumatcher.engine.main.load_gtc_orders", lambda _: [])
         monkeypatch.setattr("edumatcher.engine.main.load_gtc_combos", lambda _: [])
-        monkeypatch.setattr("edumatcher.engine.main.load_book_stats", lambda _: {})
+        monkeypatch.setattr("edumatcher.engine.main.load_book_stats", lambda _: ({}, 0))
 
         def bad_config(_):
             raise ValueError("malformed config")

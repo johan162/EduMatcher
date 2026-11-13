@@ -701,7 +701,7 @@ class MMBot:
     def _warn(self, text: str) -> None:
         # Startup failures must be visible without --verbose: the bot exits
         # (or drops a symbol) because of them.
-        log.warning("[%s] %s", self.gateway_id, text)
+        log.warning("[%s] startup warning: %s", self.gateway_id, text)
 
     def _debug(self, text: str) -> None:
         # verbose (-v/-vv) previously gated this via a private print() channel;

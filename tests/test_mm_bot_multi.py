@@ -1284,6 +1284,11 @@ class TestBotHonoursPerSymbolParameters:
         _queue_startup(sub, ["AAPL"])
         with caplog.at_level("WARNING", logger="edumatcher.mm_bot.bot"):
             assert bot.run() == 1
+        assert {
+            r.msg
+            for r in caplog.records
+            if r.name == "edumatcher.mm_bot.bot" and r.levelname == "WARNING"
+        } == {"[%s] startup warning: %s"}
         warnings = [r.getMessage() for r in caplog.records if r.levelname == "WARNING"]
         assert any("[AAPL] startup failed: no reference price" in m for m in warnings)
         assert any("no symbol survived startup checks" in m for m in warnings)

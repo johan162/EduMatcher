@@ -181,6 +181,27 @@
     - "Find the client that sent it and fix its messages; every order message needs gateway_id and order_id."
 
 - logger: edumatcher.engine.main
+  template: "No reject sent for %s — payload carries no gateway_id"
+  level: ERROR
+  explanation: >
+    A request failed, and it named no gateway to answer, so its sender got no
+    reply at all. The client may wait for an acknowledgement that never comes.
+  actions:
+    - "Read the \"Error processing\" row just before this one for the cause."
+    - "Find the client that sent it and fix its messages; every request needs a gateway_id."
+
+- logger: edumatcher.engine.main
+  template: "Reject for %s could not be built: %s"
+  level: ERROR
+  explanation: >
+    A request failed, and the engine could not even build the reject that
+    tells its sender so. The participant may believe the request is still
+    pending.
+  actions:
+    - "Report it as an engine bug together with the \"Error processing\" row just before it."
+    - "Tell the participant to check the order's or structure's status."
+
+- logger: edumatcher.engine.main
   template: "Reject for %s could not be sent: %s"
   level: ERROR
   explanation: >
@@ -337,3 +358,60 @@
     - "Tell the combo's owner (the id is in the message) that it was not restored."
     - "The combo as it was saved is at the index in the message in the kept copy."
     - "Report it: a saved combo that cannot be read is a bug."
+
+- logger: edumatcher.engine.persistence
+  template: "Cannot parse book statistics file %s: %s — none restored; the file is kept as %s"
+  level: CRITICAL
+  explanation: >
+    The saved book statistics (last prices, previous close, circuit-breaker
+    windows) could not be read, so pm-engine started every symbol from the
+    configured seed prices instead. Collars and circuit breakers take their
+    reference from those prices. Before going on, it copied the unreadable
+    file to the name at the end of the message, because its first checkpoint
+    overwrites the original.
+  actions:
+    - "Before the market opens, check the collar and breaker references with `GET /api/v1/admin/risk/state`."
+    - "Look at the kept copy to see what was lost; the last trading day's state is in `eod/<date>/book_stats.json` under the data directory."
+    - "Report it: a saved file that cannot be read is a bug, unless the disk failed."
+
+- logger: edumatcher.engine.persistence
+  template: "Book statistics file %s has unexpected root type %s — expected object; none restored; the file is kept as %s"
+  level: CRITICAL
+  explanation: >
+    The saved book statistics file is valid JSON but not an object keyed by
+    symbol, so pm-engine started every symbol from the configured seed
+    prices. Before going on, it copied the file to the name at the end of the
+    message, because its first checkpoint overwrites the original.
+  actions:
+    - "Before the market opens, check the collar and breaker references with `GET /api/v1/admin/risk/state`."
+    - "Look at the kept copy; a file edited by hand or written by another program causes this."
+    - "The last trading day's state is in `eod/<date>/book_stats.json` under the data directory."
+
+- logger: edumatcher.engine.persistence
+  template: "Skipping corrupt book statistics for %s — the original file is kept as %s"
+  level: CRITICAL
+  explanation: >
+    The saved statistics of one symbol held a price that is not a positive
+    number, so that symbol started from its configured seed prices; the other
+    symbols were restored. Before going on, pm-engine copied the file to the
+    name at the end of the message, because its first checkpoint rewrites the
+    original.
+  actions:
+    - "Before the market opens, check that symbol's collar and breaker reference with `GET /api/v1/admin/risk/state`."
+    - "The symbol's saved entry is in the kept copy."
+    - "Report it: a saved entry that cannot be read is a bug."
+
+- logger: edumatcher.engine.persistence
+  template: "Dropping corrupt circuit-breaker window for %s — the breaker starts from the last price; the original file is kept as %s"
+  level: CRITICAL
+  explanation: >
+    The saved circuit-breaker reference window of one symbol could not be
+    read. Its last prices were restored, but the breaker's reference was
+    seeded from the last price, as on a new day, instead of the window of
+    trades it averaged before the restart. It may therefore halt at a
+    slightly different price than an uninterrupted engine would. Before
+    going on, pm-engine copied the file to the name at the end of the
+    message, because its first checkpoint rewrites the original.
+  actions:
+    - "Check that symbol's breaker reference with `GET /api/v1/admin/risk/state`."
+    - "Report it: a saved window that cannot be read is a bug."

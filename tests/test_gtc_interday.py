@@ -252,7 +252,7 @@ def test_training_collar_setup_requires_clearing_same_day_state(
         symbols=(SYMBOL, "MSFT", "TSLA"),
         symbol_configs=config(aapl_static=0.05, aapl_dynamic=0.02),
         gtc_orders=load_gtc_orders(orders_file),
-        book_stats=load_book_stats(stats_file),
+        book_stats=load_book_stats(stats_file)[0],
         run_seq=2,
     )
     second._restore_gtc()
@@ -277,7 +277,7 @@ def test_training_collar_setup_requires_clearing_same_day_state(
         symbols=(SYMBOL, "MSFT", "TSLA"),
         symbol_configs=config(aapl_static=0.05, aapl_dynamic=0.02),
         gtc_orders=load_gtc_orders(orders_file),
-        book_stats=load_book_stats(stats_file),
+        book_stats=load_book_stats(stats_file)[0],
         run_seq=3,
     )
     fresh._restore_gtc()

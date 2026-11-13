@@ -858,14 +858,20 @@ class StartupRecovery(BaseModel):
     """Active QuoteIndex entries rebuilt from both-legs-restored quotes."""
     restored_combos: int = Field(ge=0)
     """GTC combos restored from the previous session."""
+    failed_book_stats: int = Field(ge=0)
+    """Symbols whose persisted book statistics (`book_stats.json`) were corrupt: the
+    entry skipped, or only its circuit-breaker window dropped. An unreadable file
+    counts as one. The file is kept aside as `book_stats.json.corrupt-<UTC
+    stamp>`.
+    """
 
 
 class RecoveryItem(BaseModel):
     """Engine to all subscribers: one restored, discarded or failed entity from
-    `_restore_gtc()` (AR-0.5). `startup_recovery`'s six counts say *how many*;
-    this says *which ones* — "which order failed to restore?" was unanswerable
-    from either the counts alone or the process log, since a post-mortem
-    investigating a startup only sees what was published (see
+    `_restore_gtc()` (AR-0.5). `startup_recovery`'s order and combo counts say
+    *how many*; this says *which ones* — "which order failed to restore?" was
+    unanswerable from either the counts alone or the process log, since a post-
+    mortem investigating a startup only sees what was published (see
     ../../docs/books/operator-guide/part-6-observe-and-recover/020-audit-
     trail.md). Published once per entity, before the single summary
     `startup_recovery` broadcast, so the counts there are the cross-check:
