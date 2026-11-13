@@ -3,7 +3,7 @@
 Release Type: patch
 
 ### 📋 Summary
-This release fixes engine cancellation, recovery, halt and shutdown edge cases uncovered by the engine review. It also makes market-maker startup failures visible and corrects clearing console output.
+This release fixes engine cancellation, recovery, halt and shutdown edge cases. It also makes market-maker startup failures visible and corrects clearing console output.
 
 ### ⚠️ Breaking Changes
 - Removed the unused `verbose` argument from `Engine`; Python callers passing it must remove that argument
