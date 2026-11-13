@@ -166,7 +166,20 @@ class DropCopyPublisher:
             liquidity_flag=liquidity_flag,
         )
         self._log.append(msg)
-        self._pub.send_multipart(make_drop_copy_event(**asdict(msg)))
+        self._pub.send_multipart(
+            make_drop_copy_event(
+                seq=msg.seq,
+                timestamp=msg.timestamp,
+                gateway_id=msg.gateway_id,
+                event_type=msg.event_type,
+                order_id=msg.order_id,
+                trade_ids=msg.trade_ids,
+                symbol=msg.symbol,
+                fill_qty=msg.fill_qty,
+                fill_price=msg.fill_price,
+                liquidity_flag=msg.liquidity_flag,
+            )
+        )
 
     def replay(self, recipient_id: str, from_seq: int, *, gateway_id: str) -> int:
         """

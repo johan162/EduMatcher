@@ -1374,6 +1374,7 @@ class OrderBook:
             order.price_ticks,
             gateway_id=order.gateway_id,
             smp_action=order.smp_action,
+            need=order.quantity,
         )
         if available < order.quantity:
             # The FOK cannot fully fill.  Resolve SMP the same way a sweep
@@ -1456,8 +1457,9 @@ class OrderBook:
         *,
         gateway_id: str,
         smp_action: SmpAction | None,
+        need: int,
     ) -> int:
-        """Liquidity an incoming FOK or AON child could actually execute against.
+        """Liquidity an incoming FOK could actually execute against.
 
         Walks live resting orders in priority order up to the order's
         price limit, the way the sweep will meet them (H8):
@@ -1470,6 +1472,47 @@ class OrderBook:
         - Under CANCEL_AGGRESSOR / CANCEL_BOTH the sweep *stops* at the first
           same-gateway order it meets, so nothing behind it counts.
         """
+        return self._walk_fillable_quantities(
+            side,
+            price_limit,
+            gateway_id=gateway_id,
+            smp_action=smp_action,
+            need=need,
+            include_unprevented=False,
+            cap_at_need=True,
+        )[0]
+
+    def fillable_quantities(
+        self,
+        side: Side,
+        price_limit: Optional[int],
+        *,
+        gateway_id: str,
+        smp_action: SmpAction | None,
+        need: int,
+    ) -> tuple[int, int]:
+        """Return (SMP-eligible, unprevented) liquidity in one priority walk."""
+        return self._walk_fillable_quantities(
+            side,
+            price_limit,
+            gateway_id=gateway_id,
+            smp_action=smp_action,
+            need=need,
+            include_unprevented=True,
+            cap_at_need=False,
+        )
+
+    def _walk_fillable_quantities(
+        self,
+        side: Side,
+        price_limit: Optional[int],
+        *,
+        gateway_id: str,
+        smp_action: SmpAction | None,
+        need: int,
+        include_unprevented: bool,
+        cap_at_need: bool,
+    ) -> tuple[int, int]:
         heap = self._asks if side == Side.BUY else self._bids
         smp = smp_action or SmpAction.NONE
         stops_sweep = smp in (SmpAction.CANCEL_AGGRESSOR, SmpAction.CANCEL_BOTH)
@@ -1486,9 +1529,13 @@ class OrderBook:
             and e.order.price_ticks is not None
         )
         total = 0
+        unprevented = 0
         level_price: Optional[int] = None
         level_hidden = 0  # hidden iceberg qty queued at the back of this level
+        unprevented_level_hidden = 0
         oco_seen: set[tuple[str, str]] = set()
+        unprevented_oco_seen: set[tuple[str, str]] = set()
+        sweep_stopped = False
         for entry in live:
             o = entry.order
             price = o.price_ticks
@@ -1499,32 +1546,70 @@ class OrderBook:
                 if side == Side.SELL and price < price_limit:
                     break
             if price != level_price:
-                total += level_hidden
+                if not sweep_stopped:
+                    total += level_hidden
+                    if cap_at_need:
+                        total = min(need, total)
+                if include_unprevented:
+                    unprevented += unprevented_level_hidden
+                    if cap_at_need:
+                        unprevented = min(need, unprevented)
                 level_price, level_hidden = price, 0
+                unprevented_level_hidden = 0
+                if cap_at_need and total >= need:
+                    break
             # SMP: same-gateway resting liquidity is skipped/cancelled by the
             # sweep, so it cannot be used to fill this FOK.
-            if _smp_policy(gateway_id, smp, o) != SmpAction.NONE:
-                if stops_sweep:
-                    return total
-                continue
+            count_for_sweep = False
+            if not sweep_stopped and (not cap_at_need or total < need):
+                if _smp_policy(gateway_id, smp, o) != SmpAction.NONE:
+                    if stops_sweep:
+                        sweep_stopped = True
+                else:
+                    count_for_sweep = True
             # X15: the first leg of an OCO pair the sweep fills pulls the
             # other, and a FOK that takes only part of it is done before
             # reaching the other: only the first leg met can count.
-            if o.oco_group_id is not None:
+            if count_for_sweep and o.oco_group_id is not None:
                 # Per gateway: the id is the client's own label, so two
                 # gateways' pairs may share one and are still two pairs.
                 pair = (o.gateway_id, o.oco_group_id)
                 if pair in oco_seen:
-                    continue
-                oco_seen.add(pair)
+                    count_for_sweep = False
+                else:
+                    oco_seen.add(pair)
             shown = (
                 o.displayed_qty
                 if o.order_type == OrderType.ICEBERG and o.displayed_qty is not None
                 else o.remaining_qty
             )
-            total += shown
-            level_hidden += o.remaining_qty - shown
-        return total + level_hidden
+            hidden = o.remaining_qty - shown
+            if count_for_sweep:
+                total += shown
+                if cap_at_need:
+                    total = min(need, total)
+                level_hidden += hidden
+            if include_unprevented and (not cap_at_need or unprevented < need):
+                if o.oco_group_id is None or (
+                    (o.gateway_id, o.oco_group_id) not in unprevented_oco_seen
+                ):
+                    if o.oco_group_id is not None:
+                        unprevented_oco_seen.add((o.gateway_id, o.oco_group_id))
+                    unprevented += shown
+                    if cap_at_need:
+                        unprevented = min(need, unprevented)
+                    unprevented_level_hidden += hidden
+            if cap_at_need and total >= need:
+                break
+        if not sweep_stopped:
+            total += level_hidden
+            if cap_at_need:
+                total = min(need, total)
+        if include_unprevented:
+            unprevented += unprevented_level_hidden
+            if cap_at_need:
+                unprevented = min(need, unprevented)
+        return total, unprevented
 
     def _match_iceberg(
         self, order: Order, trades: list[Trade], events: list[Order], now: int

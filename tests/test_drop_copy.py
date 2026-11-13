@@ -21,11 +21,13 @@ from typing import Any
 import pytest
 import zmq
 
+import edumatcher.engine.drop_copy as drop_copy_module
 from edumatcher.engine.drop_copy import (
     DROP_COPY_BUFFER_SIZE,
     DropCopyMessage,
     DropCopyPublisher,
 )
+from edumatcher.models.generated.drop_copy import make_drop_copy_event
 from edumatcher.models.message import decode
 from tests.conftest import free_ports
 
@@ -84,6 +86,32 @@ def publisher() -> tuple[DropCopyPublisher, _FakeSocket]:
 
 
 class TestPublish:
+    def test_fill_publication_does_not_deep_copy_the_message(
+        self,
+        publisher: tuple[DropCopyPublisher, _FakeSocket],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        pub, sock = publisher
+        fill = _fill()
+        monkeypatch.setattr(drop_copy_module, "now_ns", lambda: 123)
+        monkeypatch.setattr(
+            drop_copy_module,
+            "asdict",
+            lambda _message: pytest.fail("publish_fill deep-copied its message"),
+        )
+
+        pub.publish_fill("GW01", **fill)
+
+        assert sock.sent == [
+            make_drop_copy_event(
+                seq=1,
+                timestamp=123,
+                gateway_id="GW01",
+                event_type="order.fill",
+                **fill,
+            )
+        ]
+
     def test_publish_sends_two_frames(
         self, publisher: tuple[DropCopyPublisher, _FakeSocket]
     ) -> None:

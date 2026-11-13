@@ -322,8 +322,8 @@ MUTANTS: tuple[Mutant, ...] = (
         "M30",
         "FOK pre-check counts liquidity behind its own order (T2, bug C)",
         OB,
-        "                if stops_sweep:\n                    return total",
-        "                if stops_sweep:\n                    continue",
+        "                    if stops_sweep:\n                        sweep_stopped = True",
+        "                    if stops_sweep:\n                        sweep_stopped = False",
     ),
     Mutant(
         "M31",

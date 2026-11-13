@@ -381,6 +381,7 @@ _LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s - %(message)s"
 #: no resume time, no corridor, and only an operator resume lifts it -- the
 #: closing backstop leaves it alone (decision Q3).
 _OPERATOR_HALT_LEVELS = frozenset({"ADMIN_SYMBOL", "ADMIN_ALL"})
+_MAINTENANCE_SLICE_NS = 10_000_000
 
 _ENDED_STATUSES = frozenset(
     {OrderStatus.FILLED, OrderStatus.CANCELLED, OrderStatus.REJECTED}
@@ -2898,9 +2899,10 @@ class Engine:
             return
         orders: list[dict[str, Any]] = []
         for book in self.books.values():
-            for order in book.resting_orders():
-                if order.gateway_id == gateway_id:
-                    orders.append(order_to_display_dict(order))
+            orders.extend(
+                order_to_display_dict(order)
+                for order in book.orders_for_gateway(gateway_id)
+            )
         self.pub_sock.send_multipart(make_orders_msg(gateway_id, orders))
 
     def _handle_price_level_orders_request(self, payload: dict[str, Any]) -> None:
@@ -2991,19 +2993,18 @@ class Engine:
             self.pub_sock.send_multipart(make_quote_bootstrap_msg(gateway_id, []))
             return
 
-        order_by_id: dict[str, Order] = {}
-        for book in self.books.values():
-            for order in book.resting_orders():
-                order_by_id[order.id] = order
-
         entries = self._quote_index.entries_for_gateway(gateway_id)
         if symbol_filter:
             entries = [e for e in entries if e.symbol == symbol_filter]
 
         quotes: list[dict[str, Any]] = []
         for entry in entries:
-            bid = order_by_id.get(entry.bid_order_id)
-            ask = order_by_id.get(entry.ask_order_id)
+            bid_symbol = self._order_symbol.get(entry.bid_order_id)
+            ask_symbol = self._order_symbol.get(entry.ask_order_id)
+            bid_book = self.books.get(bid_symbol) if bid_symbol is not None else None
+            ask_book = self.books.get(ask_symbol) if ask_symbol is not None else None
+            bid = bid_book.get_order(entry.bid_order_id) if bid_book else None
+            ask = ask_book.get_order(entry.ask_order_id) if ask_book else None
             if bid is None and ask is None:
                 continue
 
@@ -3092,11 +3093,6 @@ class Engine:
         self, gateway_id: str, symbol_filter: str
     ) -> list[dict[str, Any]]:
         """Build the ACTIVE leg rows for one gateway (unchanged behavior)."""
-        order_by_id: dict[str, Order] = {}
-        for book in self.books.values():
-            for order in book.resting_orders():
-                order_by_id[order.id] = order
-
         entries = self._quote_index.entries_for_gateway(gateway_id)
         if symbol_filter:
             entries = [e for e in entries if e.symbol == symbol_filter]
@@ -3107,7 +3103,9 @@ class Engine:
                 ("BUY", entry.bid_order_id),
                 ("SELL", entry.ask_order_id),
             ):
-                leg_order = order_by_id.get(order_id)
+                symbol = self._order_symbol.get(order_id)
+                book = self.books.get(symbol) if symbol is not None else None
+                leg_order = book.get_order(order_id) if book else None
                 if leg_order is None:
                     continue
                 legs.append(
@@ -5721,26 +5719,20 @@ class Engine:
         # the book just the same.
         aon_blocked = aon_rejected = False
         if combo.combo_type == ComboType.AON:
-            fillable = [
-                self._book(leg.symbol).fillable_quantity(
+            fillable_and_unprevented = [
+                self._book(leg.symbol).fillable_quantities(
                     leg.side,
                     leg.price_ticks,
                     gateway_id=combo.gateway_id,
                     smp_action=self._resolve_smp_action(
                         combo.gateway_id, leg.smp_action
                     ),
+                    need=leg.quantity,
                 )
                 for leg in combo.legs
             ]
-            unprevented = [
-                self._book(leg.symbol).fillable_quantity(
-                    leg.side,
-                    leg.price_ticks,
-                    gateway_id=combo.gateway_id,
-                    smp_action=SmpAction.NONE,
-                )
-                for leg in combo.legs
-            ]
+            fillable = [pair[0] for pair in fillable_and_unprevented]
+            unprevented = [pair[1] for pair in fillable_and_unprevented]
             aon_blocked = any(f < leg.quantity for f, leg in zip(fillable, combo.legs))
             aon_rejected = (
                 aon_blocked
@@ -7954,7 +7946,7 @@ class Engine:
         return out
 
     def _run_maintenance(self) -> None:
-        """Run the per-tick maintenance flushes, each guarded separately.
+        """Run one maintenance slice, with each flush guarded separately.
 
         Every one of these publishes on `pub_sock`. Unguarded, a ZMQError
         here ended run() — which skipped _shutdown(), and with it the only
@@ -8017,14 +8009,16 @@ class Engine:
 
             wait up to 200 ms for a message on the PULL socket
               -> if one arrived: decode it, echo it, ``_dispatch_pull_message``
-            run the maintenance tick (snapshots, timers, persistence)
+            run maintenance on the first pass, then every 10 ms while busy;
+            on every idle poll (snapshots, timers, persistence)
 
         Because nothing else runs concurrently, an order is always handled
         start to finish -- ack, matching, fills, trades published -- before the
         next one is even looked at.  That is the guarantee behind price-time
         priority: "arrival order" is simply the order messages come off the
-        socket.  The 200 ms poll timeout only bounds how long maintenance can
-        be delayed on an idle exchange; under load the loop never waits.
+        socket.          The 200 ms poll timeout bounds maintenance delay on an idle exchange.
+        Under load, the maintenance flushes run once per 10 ms slice rather
+        than once per message.
         """
         run_seq = load_and_bump_run_seq(RUN_SEQ_FILE)
         set_run_seq(run_seq)
@@ -8065,6 +8059,7 @@ class Engine:
         tick = self._reporter.tick if self._reporter is not None else None
         msg_count = 0
         pass_count = 0
+        last_maintenance_ns = clock_ns() - _MAINTENANCE_SLICE_NS
         metrics.watch_gc()
         gc_policy = GcPolicy()
         self._gc_policy = gc_policy
@@ -8166,16 +8161,19 @@ class Engine:
                                 gc_ns=metrics.gc_ns - gc_before,
                                 order=topic in _ORDER_ENTRY_TOPICS,
                             )
-            pass_count += 1
-            if pass_count & SAMPLE_MASK:
-                self._run_maintenance()
-            else:
-                started_ns = clock_ns()
-                self._run_maintenance()
-                metrics.record_maintenance(
-                    clock_ns() - started_ns, pass_count, msg_count
-                )
             idle = self.pull_sock not in socks
+            maintenance_ns = clock_ns()
+            if idle or maintenance_ns - last_maintenance_ns >= _MAINTENANCE_SLICE_NS:
+                pass_count += 1
+                if pass_count & SAMPLE_MASK:
+                    self._run_maintenance()
+                else:
+                    started_ns = clock_ns()
+                    self._run_maintenance()
+                    metrics.record_maintenance(
+                        clock_ns() - started_ns, pass_count, msg_count
+                    )
+                last_maintenance_ns = maintenance_ns
             if idle or gc_policy.freeze_at:
                 gc_policy.tick(idle)
 

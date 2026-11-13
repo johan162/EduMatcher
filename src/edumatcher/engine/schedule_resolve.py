@@ -15,12 +15,14 @@ prevent for the rest of the config tree (see `config_artifact.py`).
 from __future__ import annotations
 
 from datetime import date, timedelta
+from functools import lru_cache
 
 import holidays
 
 from edumatcher.engine.config_loader import DAY_KEYS, DaySchedule, ScheduleConfig
 
 
+@lru_cache(maxsize=512)
 def is_bank_holiday(day: date, country: str) -> bool:
     """Return ``True`` if ``day`` is a bank holiday in ``country``.
 
@@ -33,9 +35,10 @@ def is_bank_holiday(day: date, country: str) -> bool:
     return day in holidays.country_holidays(country)
 
 
-def upcoming_holidays(
+@lru_cache(maxsize=256)
+def _upcoming_holidays(
     country: str, start: date, days: int = 365
-) -> list[tuple[date, str]]:
+) -> tuple[tuple[date, str], ...]:
     """Return the bank holidays for ``country`` from ``start`` through the
     following ``days`` days, ascending, with their names.
     """
@@ -46,9 +49,18 @@ def upcoming_holidays(
     calendar = holidays.country_holidays(
         country, years=range(start.year, end.year + 1), language=native
     )
-    return sorted(
-        (day, str(name)) for day, name in calendar.items() if start <= day <= end
+    return tuple(
+        sorted(
+            (day, str(name)) for day, name in calendar.items() if start <= day <= end
+        )
     )
+
+
+def upcoming_holidays(
+    country: str, start: date, days: int = 365
+) -> list[tuple[date, str]]:
+    """Return a copy of the cached holiday list for this country and date."""
+    return list(_upcoming_holidays(country, start, days))
 
 
 def resolve_day(cfg: ScheduleConfig, day: date, country: str) -> DaySchedule | None:

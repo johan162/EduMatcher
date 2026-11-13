@@ -72,6 +72,17 @@ the target is ≥1% of wall time (review finding P6).
 - **Pre-built `frozenset` for the fill-status check** avoids allocating a
   temporary tuple on every iteration of the events loop.
 
+- **Maintenance runs once per 10 ms busy slice (2026-11-13; WP-ENG08 P1).**
+  Idle polls still run maintenance every pass, preserving the 200 ms timer
+  bound. In three fresh 1,000-order trials with 50 non-halted breakers, the
+  old per-poll behavior made 1,000 maintenance calls and spent a median
+  5,265 ns in maintenance per input order; the 10 ms slice made a median of
+  four calls and spent 35 ns per input order. Median order-cycle latency
+  (poll start to next poll start, including the preceding dispatch and
+  maintenance) changed from p50 39.672 µs / p99 58.237 µs to p50 32.807 µs /
+  p99 51.825 µs. These are local microbenchmark results, not a production
+  latency guarantee.
+
 - **Monotonic clock on the hot path.** `_handle_new_order` uses `now_ns()`
   (monotonic, finding M9); the raw `time.time_ns` alias `_time_ns` is retained
   only for backward compatibility.

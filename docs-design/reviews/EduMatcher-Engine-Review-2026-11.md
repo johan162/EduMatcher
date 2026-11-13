@@ -23,9 +23,9 @@ maintenance flushes are guarded one by one. This review does not repeat them.
 `tests/engine_harness.py`; the others are by inspection, with the line
 numbers given.
 
-Status: **In progress.** WP-ENG01, WP-ENG02, WP-ENG04, WP-ENG05, WP-ENG06
-and WP-ENG07 done 2026-11-13 (uncommitted; outcomes in §8). Open: WP-ENG03,
-WP-ENG08, WP-ENG09.
+Status: **In progress.** WP-ENG01, WP-ENG02, WP-ENG04, WP-ENG05, WP-ENG06,
+WP-ENG07 and WP-ENG08 done 2026-11-13 (uncommitted; outcomes in §8). Open:
+WP-ENG03, WP-ENG09.
 
 ---
 
@@ -63,7 +63,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit) �
 | 5 | WP-ENG05 | One business date; reference schedule `today` never stale | C6, C9, D12 | — | 0.5 d | ☑ | 2026-11-13 |
 | 6 | WP-ENG06 | Halt consistency: orphaned quote legs on a CB halt, halt reason on quote rejects, admin halts at CLOSED | C10, C11, D7 | Q3 | 0.5 d | ☑ | 2026-11-13 |
 | 7 | WP-ENG07 | Small correctness cleanups | C13–C17 | — | 0.5 d | ☑ | 2026-11-13 |
-| 8 | WP-ENG08 | Performance: maintenance throttle, holiday-calendar cache, request-path lookups | P1–P5 | — | 1 d | ☐ | |
+| 8 | WP-ENG08 | Performance: maintenance throttle, holiday-calendar cache, request-path lookups | P1–P5 | — | 1 d | ☑ | 2026-11-13 |
 | 9 | WP-ENG09 | Comments and docstrings: data-flow walkthroughs correct and complete | D1–D13, C12 | WP-ENG01–08 | 1 d | ☐ | |
 
 Suggested order: **WP-ENG01 → WP-ENG02 → WP-ENG04 → WP-ENG05 → WP-ENG06 →
@@ -856,6 +856,20 @@ request handlers; kwargs in `publish_fill`.
 unchanged; a before/after measurement of `_run_maintenance` per message and
 of order p50/p99 with 50 breakers recorded in `docs-design/perf-notes.md`;
 no change to any wire payload (golden tests).
+
+**Outcome (2026-11-13).** `tests/test_engine_performance_wp_eng08.py` (6
+tests) and the drop-copy wire-shape regression test. `run()` now runs
+maintenance on the first pass, every 10 ms while busy, and every idle poll;
+the breaker-resume test verifies reopening within one slice of its 200 ms
+deadline. FOK fillability stops at its required quantity; the AON preflight
+gets both SMP-eligible and unprevented totals in one walk, retaining the full
+quantities used by the audit trace. Holiday results are cached by country and
+date. Quote bootstrap, QLEGS and orders requests use the book indexes and
+retain byte-identical replies; drop-copy uses direct builder kwargs and keeps
+byte-identical frames. Updated mutation M30 to keep its FOK regression
+applicable after the walk was factored. Benchmark results are in
+`docs-design/perf-notes.md`. Full suite: 13916 passed, 1 skipped; engine
+regressions: 753 passed. Black, flake8, mypy and pyright clean.
 
 ### WP-ENG09 — Comments and docstrings (D1–D13, C12)
 
