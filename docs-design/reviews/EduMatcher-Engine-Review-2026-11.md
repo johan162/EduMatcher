@@ -23,8 +23,8 @@ maintenance flushes are guarded one by one. This review does not repeat them.
 `tests/engine_harness.py`; the others are by inspection, with the line
 numbers given.
 
-Status: **In progress.** WP-ENG01, WP-ENG02, WP-ENG04 and WP-ENG05 done
-2026-11-13 (uncommitted; outcomes in §8). Next: WP-ENG06.
+Status: **In progress.** WP-ENG01, WP-ENG02, WP-ENG04, WP-ENG05 and
+WP-ENG06 done 2026-11-13 (uncommitted; outcomes in §8). Next: WP-ENG03.
 
 ---
 
@@ -60,7 +60,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit) �
 | 3 | WP-ENG03 | Reference-reload contract: what a reload may change, applied or refused consistently | C5 | Q2 | 1 d | ☐ | |
 | 4 | WP-ENG04 | Startup-state robustness: corrupt `book_stats.json` entries, PARTIAL status on restore | C7, C8 | — | 0.5 d | ☑ | 2026-11-13 |
 | 5 | WP-ENG05 | One business date; reference schedule `today` never stale | C6, C9, D12 | — | 0.5 d | ☑ | 2026-11-13 |
-| 6 | WP-ENG06 | Halt consistency: orphaned quote legs on a CB halt, halt reason on quote rejects, admin halts at CLOSED | C10, C11, D7 | Q3 | 0.5 d | ☐ | |
+| 6 | WP-ENG06 | Halt consistency: orphaned quote legs on a CB halt, halt reason on quote rejects, admin halts at CLOSED | C10, C11, D7 | Q3 | 0.5 d | ☑ | 2026-11-13 |
 | 7 | WP-ENG07 | Small correctness cleanups | C13–C17 | — | 0.5 d | ☐ | |
 | 8 | WP-ENG08 | Performance: maintenance throttle, holiday-calendar cache, request-path lookups | P1–P5 | — | 1 d | ☐ | |
 | 9 | WP-ENG09 | Comments and docstrings: data-flow walkthroughs correct and complete | D1–D13, C12 | WP-ENG01–08 | 1 d | ☐ | |
@@ -497,7 +497,7 @@ All five decided 2026-11-13 as recommended.
 |---|---|---|
 | Q1 | Terminal combo status when the exchange cancels a leg (kill switch, cancel-symbol, disconnect, expiry)? | `FAILED` with reason `Leg n (SYM) CANCELLED` — the status `_check_combo_after_child_event` already gives a client cancel; one rule for every cancel. |
 | Q2 | Reload contract: what may `POST /admin/reference/reload` change mid-session? | Only what the reference cache publishes (collar/limit figures, breaker ladders, descriptions, schedule), applied explicitly; refuse participant-set, role, `sessions_enabled`, enforce-flag and tuning changes with the existing "requires a restart" wording. |
-| Q3 | Should an admin halt without a breaker be lifted at CLOSED? | No: an operator halt is the operator's to lift. Keep it, fix the comment, and make `_handle_halt_status_request` the place it is visible the next morning. |
+| Q3 | Should an admin halt without a breaker be lifted at CLOSED? | No: an operator halt is the operator's to lift. Keep it, fix the comment, and make `_handle_halt_status_request` the place it is visible the next morning. **Extended 2026-11-13 (WP-ENG06):** the same for a symbol *with* a breaker — the closing backstop no longer lifts an operator halt without a level (`ADMIN_SYMBOL`/`ADMIN_ALL`); a level-triggered operator halt (rest-of-day included) is still reopened by it. |
 | Q4 | Sibling cancels published before the fill that caused them (C12)? | Document for 1.0 (participant guide + `_publish_dispatch`); buffering is a 1.x change if a GUI needs it. |
 | Q5 | Quotes bypass the price collar and order limits; combos and OCOs bypass order limits (both documented as deliberate in `_collar_breach` and `_validate_combo`). Keep for 1.0? | Keep, and add one sentence to the participant guide's risk-controls chapter listing exactly which entry paths each control covers. Not a WP here. |
 
@@ -770,6 +770,31 @@ Q3 and D7.
 
 **Exit criteria.** Tests pass; the four halt sites call one helper; the
 CLOSED block's comment describes what it does.
+
+**Outcome (2026-11-13).** `tests/test_engine_halt_consistency.py` (17
+tests). `_cancel_symbol_quotes(symbol, reason, cancel_reason, command_id)`
+sweeps the `QuoteIndex` and then any quote-origin leg resting outside it;
+the breaker trip, halt-all, per-symbol halt and cancel-symbol call it (the
+"four sites" are three halts plus cancel-symbol, whose orphan sweep it
+replaces). The trip loses its "no quotes" fast path: it now scans the book
+once per trip, which is rare. The quote halt reject reads "trading halt" or
+"circuit breaker halt" via `_halt_reject_code`, so `rejects_by_code` labels
+it `INSTRUMENT_HALTED` or `CIRCUIT_BREAKER_ACTIVE` as for orders.
+
+Q3 turned out to be wider than written: `_run_closing_backstop` reopened
+*every* halted breaker symbol, so an operator halt on a symbol with a
+breaker was lifted at the close (with a backstop print) while the same halt
+on a symbol without one was kept. Decided with Johan: one rule. The
+backstop now skips `_OPERATOR_HALT_LEVELS` (`ADMIN_SYMBOL`, `ADMIN_ALL`: the
+halts that never went through `activate()`); it keys on the level, not on
+`resume_at_ns is None`, because a rest-of-day breaker level, also triggerable
+by an operator with `level`, has no resume time either and must still end at
+the close. The redundant CLOSED loop (D7) is gone; its comment says what
+survives. `halt_status` gives a halted symbol without a breaker
+`halt_source: "ADMIN"`. Docs: operator guide risk-controls (backstop scope,
+indefinite halt, halt-all, quote sweep) and the config chapter's
+`halt_duration_ns` row. Full suite 13995 passed; `make _check` and
+`make test-e2e` clean.
 
 ### WP-ENG07 — Small correctness cleanups (C13–C17)
 

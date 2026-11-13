@@ -574,7 +574,7 @@ over it, field by field.
 |---|---|---|---|
 | `reference_window_ns` | integer ns | `300000000000` (5 min) | How far back the breaker looks for the price it measures the move against. |
 | `levels.<NAME>.price_shift_pct` | number in `(0, 1)`, **required** | — | The move, as a fraction of the reference, that triggers this rung. Rungs are sorted by it, so name them as you like. Level names are limited to 32 characters. |
-| `levels.<NAME>.halt_duration_ns` | positive integer ns, or `null` | `null` | The *minimum* length of the halt's reopening call phase (the random tail below is added on top). `null` means rest-of-day: the symbol never reopens on a timer — it stays halted until an `ADMIN` resumes it or the exchange closes for the day, when halts are reset. |
+| `levels.<NAME>.halt_duration_ns` | positive integer ns, or `null` | `null` | The *minimum* length of the halt's reopening call phase (the random tail below is added on top). `null` means rest-of-day: the symbol never reopens on a timer — it stays halted until an `ADMIN` resumes it or the exchange closes for the day, when the closing backstop reopens it. |
 
 If a circuit-breaker block is present but has no `levels`, the built-in ladder
 is used: L1 7 % / 5 min, L2 13 % / 15 min, L3 20 % / until resumed. If *no*

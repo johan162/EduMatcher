@@ -376,6 +376,12 @@ _LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s - %(message)s"
 # Pre-built status set — a small hot-path allocation avoided (see
 # docs-design/perf-notes.md). The pre-encoded trade topic that used to sit here
 # now lives in the generated binding, which pre-encodes it the same way.
+#: The ``triggered_level`` of an operator halt that did not go through
+#: ``CircuitBreakerState.activate()`` (halt-sym without a level, halt-all):
+#: no resume time, no corridor, and only an operator resume lifts it -- the
+#: closing backstop leaves it alone (decision Q3).
+_OPERATOR_HALT_LEVELS = frozenset({"ADMIN_SYMBOL", "ADMIN_ALL"})
+
 _ENDED_STATUSES = frozenset(
     {OrderStatus.FILLED, OrderStatus.CANCELLED, OrderStatus.REJECTED}
 )
@@ -2654,6 +2660,10 @@ class Engine:
                 entry["resume_at_ns"] = cb.resume_at_ns
                 entry["level"] = cb.triggered_level
                 entry["halt_source"] = cb.halt_source
+            else:
+                # No breaker: only an operator halts it (halt-sym, halt-all),
+                # and such a halt outlasts the close (Q3).
+                entry["halt_source"] = "ADMIN"
             halted.append(entry)
         self.pub_sock.send_multipart(make_halt_status_msg(gateway_id, halted))
 
@@ -3392,6 +3402,37 @@ class Engine:
                 cancelled.append(gone)
         return cancelled
 
+    def _cancel_symbol_quotes(
+        self,
+        symbol: str,
+        reason: str,
+        *,
+        cancel_reason: CancelReason,
+        command_id: str = "",
+    ) -> list[str]:
+        """Cancel every market maker's quotes in *symbol*, returning the ids
+        of the legs cancelled: both legs of each active ``QuoteIndex`` entry,
+        then any quote-origin leg left resting outside it (the remainder of
+        a quote inactivated by a fill, see ``_cancel_orphaned_quote_legs``).
+        The one sweep the halts and cancel-symbol share (C10)."""
+        cancelled = [
+            order_id
+            for entry in self._quote_index.cancel_all_for_symbol(symbol, reason=reason)
+            for order_id in self._cancel_quote_entry(
+                entry, reason=reason, cancel_reason=cancel_reason, command_id=command_id
+            )
+        ]
+        book = self.books.get(symbol)
+        if book is not None:
+            for order in list(book.resting_orders()):
+                if order.origin == OrderOrigin.QUOTE:
+                    gone = self._cancel_order_by_id(
+                        order.id, cancel_reason=cancel_reason, command_id=command_id
+                    )
+                    if gone is not None:
+                        cancelled.append(gone.id)
+        return cancelled
+
     def _publish_trade(self, trade: Any) -> None:
         """Publish ONE trade and run every side effect a trade has.
 
@@ -3701,17 +3742,9 @@ class Engine:
         cb.activate(now, triggered_level, self._reopening_rng)
         self._halted_symbols[symbol] = True
 
-        # Cancel all resting quotes for the halted symbol.
-        # Fast-path: avoid cancellation traversal when no quotes exist.
-        if self._quote_index.has_symbol(symbol):
-            for entry in self._quote_index.cancel_all_for_symbol(
-                symbol, reason="Circuit breaker halt"
-            ):
-                self._cancel_quote_entry(
-                    entry,
-                    reason="Circuit breaker halt",
-                    cancel_reason="CIRCUIT_BREAKER_HALT",
-                )
+        self._cancel_symbol_quotes(
+            symbol, "Circuit breaker halt", cancel_reason="CIRCUIT_BREAKER_HALT"
+        )
 
         self.pub_sock.send_multipart(
             make_circuit_breaker_halt(
@@ -3758,7 +3791,11 @@ class Engine:
         }
 
     def _run_closing_backstop(self) -> None:
-        """Force every still-halted symbol to reopen at the session close.
+        """Force every still-halted breaker to reopen at the session close.
+
+        Every breaker-level halt, rest-of-day included, and an operator halt
+        triggered at a level; not an operator halt without one
+        (``_OPERATOR_HALT_LEVELS``), which only an operator resume lifts.
 
         ACE will widen a corridor indefinitely, so on its own it has no
         terminating condition — the end of the trading day supplies one. This
@@ -3775,6 +3812,8 @@ class Engine:
         for symbol, cb in self._circuit_breakers.items():
             if not self._halted_symbols.get(symbol):
                 continue
+            if cb.triggered_level in _OPERATOR_HALT_LEVELS:
+                continue  # an operator's halt is the operator's to lift (Q3)
 
             book = self._book(symbol)
             indicative = compute_equilibrium(book)
@@ -4043,15 +4082,21 @@ class Engine:
             )
             return
 
-        # Halt check — circuit breaker has halted this symbol; reject incoming quotes
+        # Halt check — breaker or operator; the reason says which, as the
+        # order path's reject code does.
         if self._halted_symbols.get(symbol):
             self._dbg_count("quote_reject_halt")
+            trigger = (
+                "circuit breaker halt"
+                if self._halt_reject_code(symbol) == "CIRCUIT_BREAKER_ACTIVE"
+                else "trading halt"
+            )
             self.pub_sock.send_multipart(
                 self._quote_ack(
                     gateway_id,
                     quote_id,
                     False,
-                    f"{symbol} is halted — quotes rejected during circuit breaker halt",
+                    f"{symbol} is halted — quotes rejected during {trigger}",
                     symbol=symbol,
                 )
             )
@@ -4953,14 +4998,11 @@ class Engine:
                 cb.triggered_level = "ADMIN_ALL"
                 cb.halt_source = "ADMIN"
 
-            for entry in self._quote_index.cancel_all_for_symbol(
-                symbol, reason="Global circuit breaker halt"
-            ):
-                cancelled_quote_order_ids += self._cancel_quote_entry(
-                    entry,
-                    reason="Global circuit breaker halt",
-                    cancel_reason="CIRCUIT_BREAKER_HALT",
-                )
+            cancelled_quote_order_ids += self._cancel_symbol_quotes(
+                symbol,
+                "Global circuit breaker halt",
+                cancel_reason="CIRCUIT_BREAKER_HALT",
+            )
 
             self.pub_sock.send_multipart(
                 make_circuit_breaker_halt(
@@ -5132,16 +5174,12 @@ class Engine:
                 cb.triggered_level = "ADMIN_SYMBOL"
                 cb.halt_source = "ADMIN"
 
-        cancelled_quote_order_ids: list[str] = []
-        for entry in self._quote_index.cancel_all_for_symbol(
-            symbol, reason="Per-symbol halt"
-        ):
-            cancelled_quote_order_ids += self._cancel_quote_entry(
-                entry,
-                reason="Per-symbol halt",
-                cancel_reason="CIRCUIT_BREAKER_HALT",
-                command_id=command_id,
-            )
+        cancelled_quote_order_ids = self._cancel_symbol_quotes(
+            symbol,
+            "Per-symbol halt",
+            cancel_reason="CIRCUIT_BREAKER_HALT",
+            command_id=command_id,
+        )
 
         self.pub_sock.send_multipart(
             make_circuit_breaker_halt(
@@ -5303,29 +5341,12 @@ class Engine:
                 )
             ]
 
-        cancelled_quote_order_ids: list[str] = []
-        for entry in self._quote_index.cancel_all_for_symbol(
-            symbol, reason="Symbol mass cancel"
-        ):
-            cancelled_quote_order_ids += self._cancel_quote_entry(
-                entry,
-                reason="Symbol mass cancel",
-                cancel_reason="ADMIN_CANCEL_SYMBOL",
-                command_id=command_id,
-            )
-
-        # Quote legs that outlived their inactivated quote (see the kill
-        # switch) are no longer in the QuoteIndex; clear them here too.
-        if book is not None:
-            for order in list(book.resting_orders()):
-                if order.origin == OrderOrigin.QUOTE:
-                    gone = self._cancel_order_by_id(
-                        order.id,
-                        cancel_reason="ADMIN_CANCEL_SYMBOL",
-                        command_id=command_id,
-                    )
-                    if gone is not None:
-                        cancelled_quote_order_ids.append(gone.id)
+        cancelled_quote_order_ids = self._cancel_symbol_quotes(
+            symbol,
+            "Symbol mass cancel",
+            cancel_reason="ADMIN_CANCEL_SYMBOL",
+            command_id=command_id,
+        )
 
         cancelled_orders = len(cancelled_order_ids)
         cancelled_quotes = len(cancelled_quote_order_ids)
@@ -6186,11 +6207,10 @@ class Engine:
             # previously only expired at process shutdown).
             self._expire_tif(TIF.DAY)
             self._archive_eod()
-            # End-of-day reset for any still-halted symbols (e.g. L3 rest-of-day).
-            for symbol, cb in self._circuit_breakers.items():
-                if cb.halted:
-                    cb.deactivate()
-                    self._halted_symbols[symbol] = False
+            # No halt reset here (C11, decision Q3): _run_closing_backstop
+            # above reopened every breaker-level halt, rest-of-day included;
+            # what is still halted is an operator halt, which only an
+            # operator resume lifts (it shows in halt_status the next day).
 
         if to_state == SessionState.PRE_OPEN:
             # M14: reset per-symbol 'daily' counters at the start of a new
