@@ -57,7 +57,7 @@ from __future__ import annotations
 
 import argparse
 from collections import defaultdict
-from datetime import datetime, timezone, tzinfo
+from datetime import date, datetime, timezone, tzinfo
 from zoneinfo import ZoneInfo
 import hashlib
 import json
@@ -325,8 +325,28 @@ def _country_wire_code(country: str | None) -> str | None:
         return country[:2].upper()
 
 
+def _day_wire(ds: "DaySchedule | None") -> dict[str, str] | None:
+    if ds is None:
+        return None
+    return {
+        "pre_open": ds.pre_open,
+        "opening_auction_start": ds.opening_auction_start,
+        "continuous_start": ds.continuous_start,
+        "closing_auction_start": ds.closing_auction_start,
+        "closing_auction_end": ds.closing_auction_end,
+    }
+
+
+def _weekly_table_wire(schedule: "ScheduleConfig") -> dict[str, Any]:
+    """The static part of the WeeklySchedule wire shape: the seven days and
+    the holiday entry, the same every day of a run."""
+    table: dict[str, Any] = {key: _day_wire(schedule.days[key]) for key in DAY_KEYS}
+    table["holidays"] = _day_wire(schedule.holidays)
+    return table
+
+
 def _weekly_schedule_wire(
-    schedule: "ScheduleConfig | None", country: str
+    schedule: "ScheduleConfig | None", country: str, today: date
 ) -> dict[str, Any] | None:
     """Serialize a resolved ScheduleConfig into the WeeklySchedule wire shape.
 
@@ -335,26 +355,13 @@ def _weekly_schedule_wire(
     client -- in particular a browser, e.g. trader-gui's countdown widget --
     never needs its own holiday calendar; the engine already runs the same
     ``python-holidays`` lookup for pm-scheduler and resolves "which entry
-    applies right now" once, here.
+    applies right now" once, here. ``today`` is the caller's business date
+    (``Engine._business_date``), so build this per reply, never cache it.
     """
     if schedule is None:
         return None
-
-    def _day(ds: "DaySchedule | None") -> dict[str, str] | None:
-        if ds is None:
-            return None
-        return {
-            "pre_open": ds.pre_open,
-            "opening_auction_start": ds.opening_auction_start,
-            "continuous_start": ds.continuous_start,
-            "closing_auction_start": ds.closing_auction_start,
-            "closing_auction_end": ds.closing_auction_end,
-        }
-
-    today = datetime.now().date()
-    result: dict[str, Any] = {key: _day(schedule.days[key]) for key in DAY_KEYS}
-    result["holidays"] = _day(schedule.holidays)
-    result["today"] = _day(resolve_day(schedule, today, country))
+    result = _weekly_table_wire(schedule)
+    result["today"] = _day_wire(resolve_day(schedule, today, country))
     result["today_is_holiday"] = is_bank_holiday(today, country)
     result["upcoming_holidays"] = [
         {"date": day.isoformat(), "name": name[:64]}
@@ -1428,7 +1435,7 @@ class Engine:
                 # would halt where the uninterrupted one does not (E6).
                 window = self._book_stats.get(sym, {}).get("cb_window")
                 tz = self._session_tz()
-                if window and datetime.fromtimestamp(window["saved_ns"] / 1e9, tz).date() == datetime.now(tz).date():  # fmt: skip
+                if window and datetime.fromtimestamp(window["saved_ns"] / 1e9, tz).date() == self._business_date():  # fmt: skip
                     cb_state.restore_window(
                         [(int(ts), int(price)) for ts, price in window["trades"]],
                         window["reference_price"],
@@ -1457,10 +1464,11 @@ class Engine:
 
     def _archive_eod(self) -> None:
         """Keep the day's closing state: the persistence files, written into
-        ``<DATA_DIR>/eod/<date>/`` (the business date the restore judges DAY
-        orders by), where the next day's checkpoint does not overwrite them.
-        Best-effort, like a checkpoint: a failure must not end the day."""
-        target = DATA_DIR / "eod" / datetime.now().date().isoformat()
+        ``<DATA_DIR>/eod/<date>/`` (the business date, which the restore also
+        judges DAY orders by), where the next day's checkpoint does not
+        overwrite them. Best-effort, like a checkpoint: a failure must not
+        end the day."""
+        target = DATA_DIR / "eod" / self._business_date().isoformat()
         try:
             save_gtc_orders(self._resting_gtc_orders(), target / GTC_ORDERS_FILE.name)
             save_gtc_combos(list(self._combos.values()), target / GTC_COMBOS_FILE.name)
@@ -1582,6 +1590,12 @@ class Engine:
             return timezone.utc
         return ZoneInfo(name)
 
+    def _business_date(self) -> date:
+        """Today in the session timezone: the one business date the engine
+        uses (DAY-order restore, breaker window, EOD archive, schedule
+        ``today``), never the host's local date."""
+        return datetime.now(self._session_tz()).date()
+
     def _restore_gtc(self) -> bool:
         """Restore the resting orders; True if any came back."""
         # M4: register tick decimals BEFORE restoring and publishing snapshots.
@@ -1607,7 +1621,7 @@ class Engine:
         # "today" (see docs-design/EduMatcher-Revised-Quote-Persistence.md
         # §13.3), not the host's local date.
         session_tz = self._session_tz()
-        today = datetime.now(session_tz).date()
+        today = self._business_date()
         restored_count = 0
         # Real, always-on counters for system.startup_recovery below --
         # unlike _dbg_count(), which only increments under DEBUG logging and
@@ -2157,12 +2171,13 @@ class Engine:
         # (below), not here — so a failure mid-processing leaves no half-applied
         # routing entry for an order that never reached the book.
 
-        # M9: use the monotonic clock (now_ns) for the matching timestamp, not
-        # raw time.time_ns — a wall-clock regression (e.g. an NTP step) must
-        # never make event timestamps go backwards.  Since time priority is
-        # driven by the engine arrival sequence (H1), this is the correct
-        # source of truth for ordering; the small monotonic-guard cost is
-        # acceptable on the single-threaded hot path.
+        # M9: use now_ns() for the matching timestamp, not raw time.time_ns.
+        # It is still wall-clock time, but guarded never to decrease: after
+        # a backwards step (e.g. an NTP step) each timestamp is the previous
+        # one plus 1 ns until the wall clock catches up, so event timestamps
+        # never go backwards. Time priority itself is driven by the engine
+        # arrival sequence (H1); the guard's small cost is acceptable on the
+        # single-threaded hot path.
         now = now_ns()
 
         # ---- Publish the ACK, then match. ----
@@ -2353,7 +2368,11 @@ class Engine:
             "schedule": {
                 "sessions_enabled": engine_cfg.sessions_enabled,
                 "country": country,
-                "schedule": _weekly_schedule_wire(schedule, engine_cfg.locale.country),
+                # The static table only: today's fields are added per reply
+                # (C6), so the version hash does not change with the date.
+                "schedule": (
+                    _weekly_table_wire(schedule) if schedule is not None else None
+                ),
             },
         }
         digest = hashlib.sha256(
@@ -2385,7 +2404,7 @@ class Engine:
                 symbols=reference["symbols"],
                 risk=reference["risk"],
                 indexes=reference["indexes"],
-                schedule=reference["schedule"],
+                schedule={**reference["schedule"], "schedule": self._schedule_wire()},
                 config_version=self._reference_config_version,
             )
         )
@@ -2696,13 +2715,19 @@ class Engine:
     def _handle_session_schedule_request(self, payload: dict[str, Any]) -> None:
         """Return the session schedule configuration from the loaded engine config."""
         gateway_id = _clamp_wire_id(payload.get("gateway_id", ""))
-        schedule: dict[str, Any] | None = None
-        if self._engine_config and self._engine_config.schedule:
-            schedule = _weekly_schedule_wire(
-                self._engine_config.schedule, self._engine_config.locale.country
-            )
         self.pub_sock.send_multipart(
-            make_session_schedule_msg(gateway_id, self._sessions_enabled, schedule)
+            make_session_schedule_msg(
+                gateway_id, self._sessions_enabled, self._schedule_wire()
+            )
+        )
+
+    def _schedule_wire(self) -> dict[str, Any] | None:
+        """The WeeklySchedule both schedule replies carry, for today."""
+        cfg = self._engine_config
+        if cfg is None or cfg.schedule is None:
+            return None
+        return _weekly_schedule_wire(
+            cfg.schedule, cfg.locale.country, self._business_date()
         )
 
     def _handle_gateways_request(self, payload: dict[str, Any]) -> None:

@@ -914,10 +914,12 @@ class WeeklySchedule:
     the answer, rather than making every client (in particular a browser) carry
     its own holiday calendar just to answer that one question. `today` is still
     `SessionTimes | null` -- null means CLOSED today, exactly like any other day
-    slot. `upcoming_holidays` answers the next question, "when is the exchange
-    next on its holiday schedule", the same way. It is computed when the record is
-    built and covers a year, so a client picks the first entry on or after its own
-    today rather than trusting the list to start there.
+    slot. "Today" is the business date in the session timezone
+    (`locale.session_timezone`), resolved for each reply, so a long run never
+    reports yesterday. `upcoming_holidays` answers the next question, "when is the
+    exchange next on its holiday schedule", the same way. It is computed when the
+    record is built and covers a year, so a client picks the first entry on or
+    after its own today rather than trusting the list to start there.
     """
 
     today_is_holiday: bool
@@ -4756,7 +4758,7 @@ _REFERENCE_FIELDS: tuple[dict[str, Any], ...] = (
         "type": "string",
         "unit": None,
         "required": False,
-        "doc": "Truncated SHA-256 of the bundle. Null before a config is loaded, which is the only remaining difference between the two states the old two-shape reply used to distinguish. Regime 2: every consumer compares it, so the key has to be there to compare.",
+        "doc": "Truncated SHA-256 of the bundle, without the schedule's per-day fields (`today`, `today_is_holiday`, `upcoming_holidays`), so the same configuration has the same version every day. Null before a config is loaded, which is the only remaining difference between the two states the old two-shape reply used to distinguish. Regime 2: every consumer compares it, so the key has to be there to compare.",
         "constraints": {"max_len": 64},
     },
 )

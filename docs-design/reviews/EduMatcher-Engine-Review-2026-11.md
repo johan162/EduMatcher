@@ -23,8 +23,8 @@ maintenance flushes are guarded one by one. This review does not repeat them.
 `tests/engine_harness.py`; the others are by inspection, with the line
 numbers given.
 
-Status: **In progress.** WP-ENG01, WP-ENG02 and WP-ENG04 done 2026-11-13
-(uncommitted; outcomes in §8). Next: WP-ENG05.
+Status: **In progress.** WP-ENG01, WP-ENG02, WP-ENG04 and WP-ENG05 done
+2026-11-13 (uncommitted; outcomes in §8). Next: WP-ENG06.
 
 ---
 
@@ -59,7 +59,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit) �
 | 2 | WP-ENG02 | Structure handlers (OCO, combo, quote) always answer, including on an internal error; OCO trailing-stop reference gate | C3, C4 | — | 0.5 d | ☑ | 2026-11-13 |
 | 3 | WP-ENG03 | Reference-reload contract: what a reload may change, applied or refused consistently | C5 | Q2 | 1 d | ☐ | |
 | 4 | WP-ENG04 | Startup-state robustness: corrupt `book_stats.json` entries, PARTIAL status on restore | C7, C8 | — | 0.5 d | ☑ | 2026-11-13 |
-| 5 | WP-ENG05 | One business date; reference schedule `today` never stale | C6, C9, D12 | — | 0.5 d | ☐ | |
+| 5 | WP-ENG05 | One business date; reference schedule `today` never stale | C6, C9, D12 | — | 0.5 d | ☑ | 2026-11-13 |
 | 6 | WP-ENG06 | Halt consistency: orphaned quote legs on a CB halt, halt reason on quote rejects, admin halts at CLOSED | C10, C11, D7 | Q3 | 0.5 d | ☐ | |
 | 7 | WP-ENG07 | Small correctness cleanups | C13–C17 | — | 0.5 d | ☐ | |
 | 8 | WP-ENG08 | Performance: maintenance throttle, holiday-calendar cache, request-path lookups | P1–P5 | — | 1 d | ☐ | |
@@ -729,6 +729,26 @@ the per-day fields; digest over the static part; rename the M9 comment and
 **Exit criteria.** Tests pass; `grep -n "datetime.now()" src/edumatcher/engine/main.py`
 finds no naive call; operator guide's persistence chapter names the session
 timezone as the archive date.
+
+**Outcome (2026-11-13).** `tests/test_engine_business_date.py` (3 tests;
+the clock is frozen by swapping `engine.main.datetime` for a subclass, since
+the harness's time shim does not reach `datetime`; the host is simulated on
+UTC and the exchange in Auckland on Christmas Day). `Engine._business_date()`
+(session timezone) is now the only `datetime.now` in `engine/main.py`, used
+by the DAY-order restore, the breaker-window same-day check, `_archive_eod`
+(D12 docstring fixed) and the schedule. `_weekly_schedule_wire` takes
+`today` from its caller; `_weekly_table_wire` is the static part, which is
+all the reference cache holds and all `config_version` hashes; both schedule
+replies go through `Engine._schedule_wire()`, so they agree by construction.
+D8: `models/clock.py` and the M9 comment now say wall clock with a
+never-decrease guard. Docs: the persistence chapter said "machine-local" in
+three places (the restore had used the session timezone already, so that one
+was wrong before); spec `WeeklySchedule` and `config_version` docs say what
+"today" is and what the hash excludes (bindings, message reference and
+`spec/rest/openapi.json` regenerated). Each reference reply now runs the
+holiday lookup, as the session-schedule reply already did: WP-ENG08's
+holiday-calendar cache (P-finding) covers both. Full suite 13981 passed;
+`make _check` and `make test-e2e` clean.
 
 ### WP-ENG06 — Halt consistency (C10, C11, D7; after Q3)
 
