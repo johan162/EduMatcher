@@ -51,7 +51,7 @@ Extend your `engine_config.yaml` `participants` list:
 
 ```yaml
 participants:
-  # ... existing TRADER01, TRADER02, GW_ADMIN entries ...
+  # ... existing TRADER01, TRADER02, GW_ADMIN, ADMIN_CLI entries ...
 
   - id: MM_AAPL_01
     description: "AAPL market-maker"
@@ -198,7 +198,8 @@ books from being empty the moment the exchange starts, and the exercises below
 take them over.
 
 :material-checkbox-blank-outline: **Checkpoint:** `pm-cverifier` reports 0 errors,
-the deploy succeeds, and the engine logs show 6 gateways loaded.
+the deploy succeeds (`3 symbol(s), 7 gateway(s)`), and the engine log shows
+`7 gateway id(s)` and one `MM quote SEED-…` line per symbol.
 
  
 
@@ -324,8 +325,9 @@ pm-mm-bot --symbol MSFT --gap 0.16 --qty 300 --initial_min 419 --initial_max 421
 pm-mm-bot --symbol TSLA --gap 0.20 --qty 200 --initial_min 249 --initial_max 251
 ```
 
-Add `--verbose` to any of these to follow what the bot does; by default it
-prints only warnings and errors. The quotes now sit around the random mid-price
+A bot that starts correctly prints **nothing**: by default it shows only
+warnings and errors, so a silent, busy terminal means it is quoting. Add
+`--verbose` to any of these to follow what it does. The quotes now sit around the random mid-price
 the bot chose, not at the prices of Exercises 2–3: check with
 `BOOK|SYM=AAPL` in the operator console.
 
@@ -719,8 +721,9 @@ simply want a clean start), get back to it:
    pm-config-deploy engine_config.yaml
    ```
 
-3. Restart `pm-engine`, then restart `pm-admin`, and reopen the market with
-   `SESSION|STATE=PRE_OPEN` and `SESSION|STATE=CONTINUOUS`.
+3. Restart `pm-engine`, then restart `pm-admin` and your `TRADER01` console,
+   and reopen the market with `SESSION|STATE=PRE_OPEN` and
+   `SESSION|STATE=CONTINUOUS`.
 4. Connect `pm-alf-console --id MM_AAPL_01` (and the MSFT and TSLA ones if you
    want them) and send the `QUOTE` commands of Exercises 2 and 3 again.
 5. In `pm-admin`, `BOOK|SYM=AAPL` shows 500 bid at 149.95 and 500 ask at

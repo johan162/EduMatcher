@@ -45,11 +45,10 @@ pm-clearing --print-every 1
 
 `pm-clearing` subscribes to executed trades, updates per-gateway positions and
 P&L, and writes batched results to `clearing.db` (SQLite) in the data
-directory — not a CSV file. It starts silent and prints its table after a
-trade has been processed (it works in batches, so allow it up to about twenty
-seconds). Use `pm-clearing-cli --format csv ...` afterward
-if you want a CSV export. `--print-every 1` makes it print its P&L summary
-after every trade; by default it prints only every 100 trades. Leave
+directory — not a CSV file. It starts silent: there is nothing to show until
+the first trade. `--print-every 1` makes it print its P&L summary table after
+every trade; by default it prints only every 100 trades. (Use
+`pm-clearing-cli --format csv ...` afterwards if you want a CSV export.) Leave
 `pm-clearing` running while you work through this chapter.
 
 !!! note "Start recorders before the trading"
@@ -69,18 +68,18 @@ From `TRADER01`, send a market buy order for AAPL:
 [TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=100
 ```
 
-Expected output (the console's fill line reports the order ID, quantity,
-price and remaining/status — not the symbol or side, since you already know
-those from the order you just sent):
+Expected output: the engine first accepts the order, then reports the fill.
+The fill line gives the order ID, quantity, price and remaining/status — not
+the symbol or side, since you already know those from the order you just sent:
 
 ```
+[<time>] ACK       <order_id>  order accepted
 [<time>] FILL      <order_id>  qty=100 @150.05  remaining=0  [FILLED]
 ```
 
 The order matched against the MM's ask at 150.05.
 
-Now switch to the `pm-clearing` terminal. After a short delay it prints a P&L
-summary: `TRADER01` is long 100 AAPL at 150.05, and `MM_AAPL_01` is short 100
+Now switch to the `pm-clearing` terminal. It has printed a P&L summary: `TRADER01` is long 100 AAPL at 150.05, and `MM_AAPL_01` is short 100
 at the same price.
 
 Look at the market maker's console too:
@@ -122,6 +121,7 @@ Now sell:
 Expected output, in the same format as Exercise 2:
 
 ```
+[<time>] ACK       <order_id>  order accepted
 [<time>] FILL      <order_id>  qty=100 @149.95  remaining=0  [FILLED]
 ```
 
@@ -199,26 +199,6 @@ orders for this gateway, so the filled market orders of Exercises 2–3 appear
 in the list as well, with status `FILLED`.
 
 :material-checkbox-blank-outline: **Checkpoint:** ORDERS shows partial fill state correctly.
-
- 
-
-**Optional:** If you have `pm-viewer` running on AAPL, you should see the bid size drop from 200 to 150 after the fill.
-
-
-## Exercise 7 (Optional): Observe Automatic Re-Quoting with pm-mm-bot
-
-If you are running `pm-mm-bot` for AAPL (instead of manual quoting), your
-market order in Exercise 2 should trigger automatic re-quoting. Run `BOOK`
-again in the operator console:
-
-```
-[GW_ADMIN|ADMIN]> BOOK|SYM=AAPL
-```
-
-The MM should have a fresh two-sided quote (possibly at a slightly different
-mid if the trade moved the reference price).
-
-:material-checkbox-blank-outline: **Checkpoint:** MM has re-quoted after being filled.
 
  
 

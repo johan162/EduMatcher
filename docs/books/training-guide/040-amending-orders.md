@@ -19,7 +19,7 @@ understand how amendments affect queue priority.
 - `TRADER01`, `TRADER02`, the operator console and the `MM_AAPL_01` console
   (Exercise 7 uses it) connected to the current engine — restart any that
   were open before the last engine restart.
-- `TRADER01` connected with at least one resting limit order.
+- The market open in `CONTINUOUS`.
 
  
 

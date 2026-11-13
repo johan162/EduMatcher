@@ -698,6 +698,11 @@ class MMBot:
     def _log(self, text: str) -> None:
         log.info("[%s] %s", self.gateway_id, text)
 
+    def _warn(self, text: str) -> None:
+        # Startup failures must be visible without --verbose: the bot exits
+        # (or drops a symbol) because of them.
+        log.warning("[%s] %s", self.gateway_id, text)
+
     def _debug(self, text: str) -> None:
         # verbose (-v/-vv) previously gated this via a private print() channel;
         # kept at INFO (rather than DEBUG) so -v alone still shows these, same
@@ -867,14 +872,14 @@ class MMBot:
                     self._send_engine_heartbeat(time.monotonic())
                 else:
                     reason = str(payload.get("reason", "unknown"))
-                    self._log(f"auth rejected: {reason}")
+                    self._warn(f"auth rejected: {reason}")
                 return accepted
             # Also capture session.state that arrives during auth
             if topic == TOPIC_SESSION_STATE:
                 self._session_state = str(payload.get("state", "")).upper()
                 self._debug(f"session state (during auth): {self._session_state}")
 
-        self._log("authentication timed out")
+        self._warn("authentication timed out")
         return False
 
     def _request_symbols(self, timeout_sec: float = 3.0) -> list[str]:
@@ -1809,7 +1814,7 @@ class MMBot:
         """Internal event loop."""
         # Step 1: Authenticate (gateway-wide — one auth covers every symbol)
         if not self._authenticate():
-            self._log("startup failed: authentication")
+            self._warn("startup failed: authentication")
             return 1
 
         # Step 2: Request symbols (registers tick/MM-obligation metadata for
@@ -1826,18 +1831,18 @@ class MMBot:
 
         active = self._active_symbols()
         if not active:
-            self._log("startup failed: no symbol survived startup checks")
+            self._warn("startup failed: no symbol survived startup checks")
             return 1
         for symbol in self.symbols:
             if symbol not in active:
                 st = self._symbols_state[symbol]
-                self._log(
+                self._warn(
                     f"[{symbol}] excluded from quoting: {st.startup_failed_reason}"
                 )
 
         # Step 6: Wait for session state (gateway-wide)
         if not self._wait_for_session(self._startup_session_timeout_sec):
-            self._log("startup failed: no session.state received within timeout")
+            self._warn("startup failed: no session.state received within timeout")
             return 1
 
         # Step 7: Determine initial state, per active symbol. This can
@@ -1849,7 +1854,7 @@ class MMBot:
 
         active = self._active_symbols()
         if not active:
-            self._log("startup failed: no symbol survived startup checks")
+            self._warn("startup failed: no symbol survived startup checks")
             return 1
 
         self._log(f"running symbols={active} session={self._session_state}")
@@ -1890,7 +1895,7 @@ class MMBot:
 
         if symbols_seen and symbol not in symbols_seen:
             st.startup_failed_reason = f"{symbol} not in symbol list"
-            self._log(f"[{symbol}] startup failed: not in symbol list")
+            self._warn(f"[{symbol}] startup failed: not in symbol list")
             return
 
         # Derive or validate gap against symbol MM spread obligation when
@@ -1907,7 +1912,7 @@ class MMBot:
                     f"--gap exceeds mm_max_spread_ticks obligation "
                     f"({st.gap:.6f} > {st.mm_max_spread_ticks} * {st.tick_size:.6f})"
                 )
-                self._log(f"[{symbol}] startup failed: {st.startup_failed_reason}")
+                self._warn(f"[{symbol}] startup failed: {st.startup_failed_reason}")
                 return
 
         # Initialize pricing strategy
@@ -1929,7 +1934,7 @@ class MMBot:
             )
         except ValueError as exc:
             st.startup_failed_reason = f"invalid strategy/gap/tick configuration: {exc}"
-            self._log(f"[{symbol}] startup failed: {st.startup_failed_reason}")
+            self._warn(f"[{symbol}] startup failed: {st.startup_failed_reason}")
             return
         if st.strategy == "passive" and st.mm_max_spread_ticks is not None:
             room = (st.mm_max_spread_ticks - round(st.gap / st.tick_size)) // 2
@@ -1980,7 +1985,7 @@ class MMBot:
                     "no reference price available "
                     "(no book, no trade, no bootstrap, no random range)"
                 )
-                self._log(f"[{symbol}] startup failed: {st.startup_failed_reason}")
+                self._warn(f"[{symbol}] startup failed: {st.startup_failed_reason}")
                 return
             if self._session_state in _QUOTING_SESSIONS:
                 st.state = BotState.WAITING_FOR_SESSION

@@ -136,7 +136,8 @@ second, against TRADER02's 400-share sell). On `TRADER01` you see:
 ```
 FILL      <first order id>   qty=300 @149.8  remaining=0    [FILLED]
 FILL      <second order id>  qty=100 @149.8  remaining=100  [PARTIAL]
-EXPIRED   <second order id>  (DAY order — trading day ended)
+EXPIRED   <second order id>  (Opening auction ended)
+EXPIRED   <MSFT order id>    (Opening auction ended)
 ```
 
 :material-checkbox-blank-outline: **Checkpoint:** all fills report execution price `149.80` and matched quantity `400`.
@@ -157,7 +158,7 @@ console reported it `EXPIRED` in the same burst as the AAPL fills. Confirm it:
 ```
 
 The MSFT order is listed with status `EXPIRED`. (The console's explanation
-reads *Opening auction ended*, identifying why the `ATO` remainder expired.
+reads *Opening auction ended*, identifying why the `ATO` order expired.)
 
 :material-checkbox-blank-outline: **Checkpoint:** the unmatched ATO order expired at the start of CONTINUOUS.
 
@@ -190,9 +191,6 @@ Both orders fill in full at one price, **150.60**: the candidates 150.60 and
 two tied prices, exactly as in Exercise 2. Each console prints
 `FILL … qty=100 @150.6 remaining=0 [FILLED]`.
 
-Remember to reopen the market (`PRE_OPEN`, then `CONTINUOUS`) before the next
-chapter.
-
 :material-checkbox-blank-outline: **Checkpoint:** closing auction produces fills.
 
  
@@ -223,6 +221,9 @@ before the auction began, was matched in it. The same holds in the closing
 auction — rest a GTC bid during `CONTINUOUS`, send an `ATC` sell at the same
 price after `SESSION|STATE=CLOSING_AUCTION`, and they trade when the session
 moves to `CLOSED`.
+
+Exercise 5 ends with the market in `CONTINUOUS`, which is where chapter 08
+starts.
 
 :material-checkbox-blank-outline: **Checkpoint:** the GTC bid filled in the opening auction against an ATO order.
 

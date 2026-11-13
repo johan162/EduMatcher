@@ -20,7 +20,10 @@ In addition you have become familiar with the three tools:
 
 ## Prerequisites
 
-- EduMatcher installed and `pm-setup` completed (see [00 — Installation & Setup](000-installation.md)).
+- [00 — Installation & Setup](000-installation.md) completed: `pm-*` commands work
+  in your shell (on the container route, a shell opened with
+  `./edumatcher.sh shell`, with the demo stopped and cleared), and you have a
+  working folder.
 
 ## Background
 
@@ -234,7 +237,7 @@ cp engine_config.yaml engine_config.bad.yaml
 
 Edit `engine_config.bad.yaml` and intentionally introduce two issues:
 
-1. Remove the `GW_ADMIN` gateway entry.
+1. Remove both `ADMIN` entries, `GW_ADMIN` and `ADMIN_CLI`.
 2. Set one symbol's `tick_decimals` to an invalid value like `12`.
 
 Run verifier:
@@ -247,18 +250,20 @@ You should see only one finding:
 
 - `S010` error (invalid `tick_decimals`).
 
-Where is the missing admin gateway? The verifier works in layers — YAML
+Where are the missing admin gateways? The verifier works in layers — YAML
 syntax, then the schema of every field (`S` codes), then the rules *between*
 fields (`M` codes), then completeness advice (`C` codes) — and it stops after
 the first layer that finds an error, because later checks would be judging a
 file it already knows is broken. Fix `tick_decimals` and run it again: now
 you see
 
-- `M013` warning (no gateway with role `ADMIN`), alongside the `M032` warning
+- `M013` warning (`No gateway has role: ADMIN.`), alongside the `M032` warning
   from Exercise 3.
 
-Both `M013` and the `M032` you already know are now reported. Put the
-`GW_ADMIN` entry back and rerun until only `M032` remains.
+Both `M013` and the `M032` you already know are now reported. (Had you removed
+only `GW_ADMIN`, there would be no `M013`: `ADMIN_CLI` is an operator too, and
+the rule only asks for *one*.) Put the two entries back and rerun until only
+`M032` remains.
 
 :material-checkbox-blank-outline: **Checkpoint:** you can reproduce a verifier finding, map it to a check code, and clear it by fixing the config.
 
@@ -274,8 +279,11 @@ pm-config-deploy --check engine_config.yaml
 Expected output:
 
 ```
-OK — /home/you/training/engine_config.yaml compiles (3 symbol(s), 3 gateway(s))
+OK — /data/training/engine_config.yaml compiles (3 symbol(s), 4 gateway(s))
 ```
+
+(The paths in this chapter are the container's. On the other routes you see
+your own working folder and data directory instead.)
 
 Now actually deploy it:
 
@@ -286,11 +294,14 @@ pm-config-deploy engine_config.yaml
 Expected output:
 
 ```
-Compiled /home/you/training/engine_config.yaml
-      to /Users/you/.local/share/edumatcher/ref_data/engine_config.json
-   3 symbol(s), 3 gateway(s).
+Compiled /data/training/engine_config.yaml
+      to /data/ref_data/engine_config.json
+   3 symbol(s), 4 gateway(s).
    Restart any running processes to pick it up.
 ```
+
+"Gateway" here means a configured participant: your four entries under
+`participants:`.
 
 Confirm where it landed:
 
@@ -335,7 +346,7 @@ prints only warnings and errors. Expected output includes lines like these
 (timestamps and paths will differ):
 
 ```
-... INFO edumatcher.engine.main - Loaded config from .../ref_data/engine_config.yaml  (3 symbol(s): AAPL, MSFT, TSLA; 3 gateway id(s))
+... INFO edumatcher.engine.main - Loaded config from .../ref_data/engine_config.yaml  (3 symbol(s): AAPL, MSFT, TSLA; 4 gateway id(s))
 ... INFO edumatcher.engine.main - Session handling: enabled (startup state: CLOSED)
 ... INFO edumatcher.engine.main - Listening on PULL=tcp://127.0.0.1:5555  PUB=tcp://127.0.0.1:5556
 ```
@@ -381,10 +392,17 @@ start it:
   ... INFO edumatcher.scheduler.main - Catching up 3 transition(s) to reach the current phase
   ```
 
-- on a weekend it reports that the day is closed and exits at once;
-- outside hours on a weekday it catches up straight to `CLOSED`.
+- before 09:00 on a weekday it waits for the first one:
 
-To skip the wait and drive the sequence immediately, restart it with `--now`:
+  ```
+  ... INFO edumatcher.scheduler.main - Waiting 1337s for PRE_OPEN (at 09:00)
+  ```
+
+- after 16:05 on a weekday it catches up straight to `CLOSED`;
+- on a weekend it reports that the day is closed and exits at once.
+
+To skip the wait and drive the sequence immediately, stop it (`Ctrl-C`) and
+restart it with `--now`:
 
 ```bash
 pm-scheduler --now --delay 5 --verbose
@@ -408,7 +426,7 @@ wall-clock times; `--delay 5` gives you five seconds between phases.
 
 !!! warning "`--now` runs the whole day"
     `--now` does not stop at continuous trading: it carries on through the
-    closing auction to `CLOSED`, about half a minute later, and exits. That is
+    closing auction to `CLOSED`, about twenty seconds later, and exits. That is
     fine for watching the phases go by, but afterwards the market is closed
     and orders are rejected with `MARKET_CLOSED`. Exercise 10 shows how to
     open it again by hand, which is how the following chapters keep it open.
@@ -528,7 +546,8 @@ Try two more operator queries:
 ### Open the market for the chapters ahead
 
 Chapters 02–05 need the market in continuous trading, whatever the time of
-day. Stop `pm-scheduler` (Ctrl-C in its terminal) and move the phase yourself:
+day. If `pm-scheduler` is still running, stop it (`Ctrl-C` in its terminal) so
+it does not move the phase behind your back, then move the phase yourself:
 
 ```
 [GW_ADMIN|ADMIN]> SESSION|STATE=PRE_OPEN
@@ -538,7 +557,11 @@ day. Stop `pm-scheduler` (Ctrl-C in its terminal) and move the phase yourself:
 
 `SESSION_STATUS` should now report `CONTINUOUS`. The engine only accepts the
 phase changes of a real trading day, in order — from `CLOSED` the only legal
-step is `PRE_OPEN` — so it takes two commands. Chapter 06 explains this
+step is `PRE_OPEN` — so it takes two commands. If you try to skip one, for
+example `SESSION|STATE=CONTINUOUS` straight from `CLOSED`, the engine ignores
+the request and the console reports
+`TIMEOUT  No ack with prefix 'session.state' within 3000 ms`; the phase has
+not changed. Chapter 06 explains this
 "freeze and advance" technique properly; whenever a later exercise says the
 market must be open, this is how you open it.
 
@@ -632,10 +655,14 @@ Start the engine again in the same terminal:
 pm-engine
 ```
 
-Expected: the engine refuses to start. It prints a Python traceback; read its
-**last line**, which reports that the compiled config's payload no longer
-matches its recorded content digest and names `pm-config-deploy`, not manual
-editing, as the fix.
+Expected: the engine refuses to start, with one line (the digests differ on
+your machine):
+
+```
+pm-engine: cannot start, the deployed configuration is unusable: /data/ref_data/engine_config.json: compiled config has been modified since it was compiled (payload digest 6090a805b259… does not match the recorded 39326d4e4e9c…) — edit the source and run pm-config-deploy rather than editing the deployed artifact
+```
+
+It names `pm-config-deploy`, not manual editing, as the fix.
 
 Recover by recompiling the (untouched) source that is still sitting next to
 the artifact, then start the engine again:
@@ -874,7 +901,7 @@ weekend and `Holidays` columns filled in; and your hand-written
 
 You now have:
 
-- A configuration file defining 3 symbols and 3 gateways.
+- A configuration file defining 3 symbols and 4 participants (two traders, two operators).
 - A repeatable verifier workflow (`pm-cverifier`) to catch config problems before startup.
 - A compiled, deployed configuration (`pm-config-deploy`) that `pm-engine` and
   `pm-scheduler` actually read.

@@ -83,10 +83,9 @@ Many exercises stop `pm-engine` and start it again to pick up a new
 configuration. A restarted engine knows nothing about the consoles that were
 connected to the old one. When either console detects that its engine
 connection was lost, it prints `Engine connection was lost; logging out.` and
-exits; **consoles do not reconnect by themselves**:
-
-After each engine restart, start the consoles again, then reopen the market.
-A quote or order that is still resting from before the restart is still there.
+exits; **consoles do not reconnect by themselves**. After each engine
+restart, start the consoles again, then reopen the market. A quote or order
+that was resting before the restart is still there.
 
 !!! note "Expected health diagnostics"
     When monitoring is disabled, processes send no health beacons. If monitoring
