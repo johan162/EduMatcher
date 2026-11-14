@@ -32,6 +32,7 @@ its own piece of work.
 | L016 | 2026-11-13 | docs (participant combo guide) | Introduction promises atomic all-or-none execution for combos, although AON is an entry guard and later legs can fill independently | Medium | Open |
 | L017 | 2026-11-13 | CLIs (`health -q`) | `health -q` exits `-1` (status 255) while the non-quiet path exits 1, in four CLIs | Low | Open |
 | L018 | 2026-11-13 | trader-gui (admin order detail) | A 404 from the order-audit endpoint shows "No audited events for this order." without the index's reach (`indexed_through`), so an order newer than the last index build looks unknown | Low | Open |
+| L019 | 2026-11-14 | pm-clearing (close snapshots) | `position_close_snapshot` is never pruned and keeps every flat position: one full position table per day in `clearing.db` and in every nightly backup | Low | Open |
 
 ## L001 — Topic literals in pm-sim-forensics
 
@@ -276,3 +277,20 @@ from "no such order".
 
 **Recommendation.** Show the 404's message (or `indexed_through`) in the
 modal, and add `indexed_through` to the type in `src/types/index.ts`.
+
+## L019 — Close snapshots grow without bound
+
+**Found:** 2026-11-14, pm-eod review
+(`docs-design/reviews/EduMatcher-EOD-Review-2026-11.md` §9, P2).
+
+**Finding.** `write_close_snapshot` copies every row of
+`gateway_symbol_positions`, flat positions included, under each closed
+date, and nothing ever deletes old dates. In the simulation that is about
+10 000 rows a day (3.6 M a year), all of it in `clearing.db` and therefore
+in every nightly `pm-eod` backup. pm-eod needs only the snapshot of the last
+settled date (today it re-reads it as the next baseline).
+
+**Recommendation.** After the pm-eod review's WP-EOD01 stores the settled
+equity in `eod.db`, give pm-clearing a snapshot retention (for example the
+same `--retention-days` as `trade_events`, but never the latest settled
+date) and document it next to the other retention rules.
