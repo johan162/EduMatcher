@@ -622,10 +622,8 @@ def test_session_state_resets_intraday_fields(
     proc, _ = proc_with_fakes
     idx = proc._indices["EDU100"]
     idx.day = DaySummary(open=1.0, high=2.0, low=0.5)
-    idx.day_close = 1.5
     proc._handle_session_state({"state": "PRE_OPEN"})
     assert idx.day is None
-    assert idx.day_close is None
 
 
 def test_history_request_missing_gateway_id_noop(

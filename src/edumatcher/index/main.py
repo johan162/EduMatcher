@@ -1,3 +1,35 @@
+"""
+pm-index — calculates the configured market indices from the engine's trades.
+
+Usage:
+  poetry run pm-index              # resume from each index's state file
+  poetry run pm-index --reset      # discard the state files, start from config
+  poetry run pm-index -v           # INFO (-vv: DEBUG); the default is WARNING
+
+Subscribes to the engine's ``trade.executed``, ``session.state``,
+``system.eod``, its own session-status reply and ``book.{symbol}`` for every
+constituent. Publishes ``index.update`` (throttled to
+``publish_interval_sec``; a throttled level is sent once the interval has
+passed) and answers ``index.history_request``, ``index.corp_action``,
+``index.constituent_change`` and ``index.rebalance`` on its PULL socket.
+
+The day: the open/high/low start at ``PRE_OPEN``; ``CLOSED`` publishes the
+close. ``system.eod`` (sent at every engine stop) also finalises, and makes
+pm-index ask for the session status again; a reply in a trading phase undoes
+that latch, and every reply requests a book snapshot per constituent, whose
+last price catches the index up on trades it missed.
+
+Files, per index: the state file (divisor, constituents, share counts, last
+prices, and the day while the session is open) is the restore authority; it
+is checkpointed at most every 30 s while prices move, on every phase change,
+at shutdown and with every command. The history file is an append-only
+structural log (INIT, CORP_ACTION, ADD_CONSTITUENT, DELIST, REBALANCE).
+
+A command is applied to a copy of the index, written to the state file and
+the history, and only then swapped in, published and acknowledged; a write
+failure rejects it and changes nothing.
+"""
+
 from __future__ import annotations
 
 import argparse
@@ -112,8 +144,8 @@ def _clamp_id(value: object, limit: int = _MAX_ID_LEN) -> str:
     here quotes the identifier it could not resolve, and since 5.2f those
     replies are generated constructors that *validate* — so an inbound
     index_id of five thousand characters would raise MessageValidationError
-    out of a handler that has no exception guard, and take pm-index down while
-    answering a malformed request. Before adoption the same input merely
+    instead of producing a reply: the dispatch guard only logs it, and the
+    caller waits out its timeout. Before adoption the same input merely
     published an oversized reason.
 
     Truncating loses nothing real: an identifier longer than the spec allows
@@ -128,6 +160,13 @@ def _extend_day(day: DaySummary | None, level: float) -> DaySummary:
     if day is None:
         return DaySummary(open=level, high=level, low=level)
     return DaySummary(open=day.open, high=max(day.high, level), low=min(day.low, level))
+
+
+def _reason(exc: Exception) -> str:
+    """A rejection reason from ``exc``; ``str(KeyError(m))`` is ``m`` quoted."""
+    if isinstance(exc, KeyError) and exc.args:
+        return str(exc.args[0])
+    return str(exc)
 
 
 def _int_field(payload: dict[str, Any], key: str, default: int) -> int:
@@ -189,7 +228,6 @@ class _ManagedIndex:
     #: separately left a half-set state representable in the one place it
     #: could actually arise (design section 16.2).
     day: DaySummary | None = None
-    day_close: float | None = None
     #: Prices moved since the state file was last written (K7 checkpoint).
     dirty: bool = False
     last_checkpoint: float = 0.0
@@ -567,7 +605,6 @@ class IndexProcess:
             if idx.eod_finalized_for_session:
                 continue
             level = idx.calc.recalculate()
-            idx.day_close = level
             self._update_day_ohlc(idx, level)
             idx.session_state = "CLOSED"
 
@@ -638,7 +675,6 @@ class IndexProcess:
         for idx in self._indices.values():
             idx.eod_finalized_for_session = False
             idx.day = None
-            idx.day_close = None
 
     def _resume_session(self) -> None:
         """The engine is trading again after a stop: the session has not
@@ -853,7 +889,7 @@ class IndexProcess:
                 make_index_corp_action_ack_msg(
                     gateway_id,
                     accepted=False,
-                    reason=str(exc),
+                    reason=_reason(exc),
                     index_id=index_id,
                     command_id=command_id,
                 )
@@ -929,7 +965,7 @@ class IndexProcess:
                 make_index_constituent_change_ack_msg(
                     gateway_id,
                     accepted=False,
-                    reason=str(exc),
+                    reason=_reason(exc),
                     index_id=index_id,
                     command_id=command_id,
                 )
@@ -961,10 +997,9 @@ class IndexProcess:
         applied once per {symbol, new_shares_outstanding} pair in the batch,
         followed by a single recalculate/publish/persist — not one per
         symbol. The whole batch is validated (shape, unknown symbols,
-        non-positive share counts) *before* any mutation, so an invalid
-        entry anywhere in the batch rejects it without applying any of it —
-        the same all-or-nothing guarantee the single-action corp-action
-        handlers get for free by only ever doing one mutation.
+        non-positive share counts) first, then applied to a copy of the
+        index that is swapped in only once persisted, so an invalid entry or
+        a failure anywhere rejects the batch without applying any of it.
         """
         gateway_id = _clamp_id(payload.get("gateway_id", ""))
         index_id = _clamp_id(payload.get("index_id", ""))
@@ -1283,7 +1318,10 @@ def build_parser() -> argparse.ArgumentParser:
         "-q",
         "--quiet",
         action="store_true",
-        help="Reduce log output to warnings/errors",
+        help=(
+            "Log warnings and errors only; this is the default, and -v or "
+            "--log-level override it"
+        ),
     )
     parser.add_argument(
         "--log-target",

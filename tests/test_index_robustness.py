@@ -561,3 +561,35 @@ def test_a_rebalance_record_lists_each_symbols_new_count(
         {"symbol": "AAPL", "new_shares_outstanding": 9_000},
         {"symbol": "MSFT", "new_shares_outstanding": 21_000},
     ]
+
+
+# --- WP-IDX10 (D8): a rejection reason carries no KeyError quotes ------------
+
+
+@pytest.mark.parametrize(
+    ("handler", "payload"),
+    [
+        ("_handle_corp_action", {**_BASE["_handle_corp_action"], "symbol": "XYZ"}),
+        (
+            "_handle_constituent_change",
+            {
+                **_BASE["_handle_constituent_change"],
+                "change_type": "DELIST",
+                "symbol": "XYZ",
+            },
+        ),
+        (
+            "_handle_constituent_change",
+            {**_BASE["_handle_constituent_change"], "symbol": "AAPL"},
+        ),
+    ],
+    ids=["corp-action-unknown", "delist-unknown", "add-existing"],
+)
+def test_a_rejection_reason_is_not_quoted(
+    proc: index_main.IndexProcess, handler: str, payload: dict[str, Any]
+) -> None:
+    proc._test_pub.sent.clear()  # type: ignore[attr-defined]
+    getattr(proc, handler)(payload)
+    ((_, ack),) = _published(proc)
+    assert ack["accepted"] is False
+    assert not ack["reason"].startswith(("'", '"'))

@@ -4,7 +4,8 @@ constituent changes to a running ``pm-index`` process.
 
 Each mutating subcommand maps 1-to-1 to a method on
 :class:`~edumatcher.commands.client.ExchangeCommandClient`
-(``index_corp_action``, ``index_delist``, ``index_add_constituent``), the
+(``index_corp_action``, ``index_delist``, ``index_add_constituent``,
+``index_history``), the
 same client class ``pm-admin-cli`` uses for engine commands. This tool talks
 directly to ``pm-index``'s PUSH/SUB pair (default ports 5559/5558) — it does
 not touch the engine's own PUSH/SUB pair (5555/5556) and does not require
@@ -483,9 +484,7 @@ def _cmd_add(client: ExchangeCommandClient, args: argparse.Namespace) -> bool:
 
     if not _confirm(
         f"Add {args.sym.upper()} to index {args.index.upper()} "
-        f"(shares_outstanding={_fmt_int(args.shares)}, initial_price={args.price})?\n"
-        f"Note: {args.sym.upper()} must already be a configured tradeable "
-        "symbol, or it will never update.",
+        f"(shares_outstanding={_fmt_int(args.shares)}, initial_price={args.price})?",
         args.yes,
     ):
         return False

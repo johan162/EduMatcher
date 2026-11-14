@@ -28,7 +28,7 @@ not repeated here.
 others are by inspection, with line numbers given. The engine's ordering of
 uncross trades and `session.state` was read in `engine/main.py:6170-6232`.
 
-Status: **In progress.** Decisions taken 2026-11-14: Q1 — WP-IDX07 skipped; Q2 — as recommended; Q3 — as recommended (§7).
+Status: **Done, uncommitted** (2026-11-14). Decisions: Q1 — WP-IDX07 skipped, C3 open as For-Later L020; Q2 and Q3 as recommended (§7). Outcomes in §10.
 
 ---
 
@@ -72,7 +72,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit) �
 | 7 | WP-IDX07 | Corporate actions and the market price | C3 | Q1 | 0.5 d | — skipped (Q1) | |
 | 8 | WP-IDX08 | Share deltas resolved by pm-index | C6 | Q2 | 0.5 d | ☑ | 2026-11-14 |
 | 9 | WP-IDX09 | Catch up on prices after a start | C11 | Q3 | 0.5 d | ☑ | 2026-11-14 |
-| 10 | WP-IDX10 | Comments, docstrings, help texts, guide | D1–D8 | WP-IDX01–09 | 0.5 d | ☐ | |
+| 10 | WP-IDX10 | Comments, docstrings, help texts, guide | D1–D8 | WP-IDX01–09 | 0.5 d | ☑ | 2026-11-14 |
 
 Suggested order: **WP-IDX01 → WP-IDX02 → WP-IDX03 → WP-IDX04 → WP-IDX05 →
 WP-IDX06 → WP-IDX07 → WP-IDX08 → WP-IDX09 → WP-IDX10**. WP-IDX01 removes the
@@ -793,3 +793,28 @@ stale.
 - `spec/messages/book.yaml`: `book.snapshot_request` lists `index` among its
   publishers. Guide: reference-price/catch-up text and the state file's
   restored day and `eod_finalized`.
+
+### WP-IDX10 (2026-11-14)
+
+- D1: `main.py` module docstring (usage, subscriptions, the day, files,
+  command atomicity). D2: record-type lists in `history.py`, `cli.py` and
+  the admin docstring's method list. D4: `_ManagedIndex.day_close` removed
+  (and its test lines). D5: `-q` help says it is the default; `--no-header`
+  covers table and csv. D6: removed with WP-IDX01. D7: the dividend checks
+  the cap before mutating; `_constituents` is a set. D8: `_reason()` strips
+  the `KeyError` quotes — test-first
+  (`test_a_rejection_reason_is_not_quoted`, failed 3/3 before).
+- Also stale and fixed: the `_clamp_id` and `_handle_rebalance` docstrings
+  and the `history.append` comment (they described unguarded handlers and
+  a single-mutation guarantee); the admin `add` prompt's "will never update"
+  note (pm-index now refuses those symbols).
+- Guide `070`: update trigger (no longer O(N) per trade), trailing
+  publish, the day from `PRE_OPEN` and across an engine stop, the
+  corporate-action note now states C3's actual effect (1000 → 1500) and how
+  to avoid it, the `OPEN` field row, crash recovery through the catch-up.
+  Guide `080`: atomic commands and retry after a timeout, the `add` warning.
+  Design doc `EduMatcher-index-admin-cli.md` §6.3 marked superseded.
+- `make completion`; `mkdocs build` clean; `make _check` clean; full suite
+  14 152 passed, 1 skipped.
+- Re-walked (lessons B1): the guide's restart, close, `add`, `shares
+  --delta`, `history` and dry-run passages against the code.

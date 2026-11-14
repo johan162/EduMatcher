@@ -5,7 +5,7 @@ No running process is required, except for ``health``, which pings the
 running pm-index to confirm it is alive.
 
 These files hold only structural/corporate-action audit records
-(INIT, CORP_ACTION, ADD_CONSTITUENT, DELIST) — index level and
+(INIT, CORP_ACTION, ADD_CONSTITUENT, DELIST, REBALANCE) — index level and
 end-of-day history is not stored here. For level/EOD time-series
 queries, use ``pm-stats-cli index-daily`` / ``index-snapshots``,
 which read from pm-stats' SQLite database instead.
@@ -430,7 +430,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--no-header",
         action="store_true",
-        help="Suppress header row (csv output only).",
+        help="Suppress the header row (table and csv output).",
     )
 
     sub = parser.add_subparsers(dest="command", required=True, metavar="COMMAND")

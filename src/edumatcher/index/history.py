@@ -26,7 +26,7 @@ class IndexHistory:
 
     Holds only structural/corporate-action events (index creation,
     splits, dividends, share issuance, delistings, constituent
-    additions) — never per-tick level updates. Level and end-of-day
+    additions, rebalances) — never per-tick level updates. Level and end-of-day
     history now lives exclusively in pm-stats' SQLite tables.
     """
 
@@ -42,7 +42,7 @@ class IndexHistory:
     def append(self, record: dict[str, Any]) -> None:
         # Validate on write so the archive is canonical by construction; a
         # record that fails is a producer bug — log it and store as-is rather
-        # than crash the process (pm-index does not guard its pull handlers).
+        # than raise out of the command that is writing it.
         try:
             canonical = HistoryRecord.from_dict(record)
             canonical.validate()

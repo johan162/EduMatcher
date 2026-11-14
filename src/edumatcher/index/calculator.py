@@ -35,7 +35,7 @@ class IndexCalculator:
             raise ValueError("at least one constituent is required")
 
         self._base_value = float(base_value)
-        self._constituents: dict[str, str] = {}
+        self._constituents: set[str] = set()
         self._outstanding_shares: dict[str, int] = {}
         self._reference_prices: dict[str, float] = {}
         self._last_prices: dict[str, float] = {}
@@ -55,7 +55,7 @@ class IndexCalculator:
                 )
             if symbol in self._constituents:
                 raise ValueError(f"duplicate constituent: {symbol}")
-            self._constituents[symbol] = symbol
+            self._constituents.add(symbol)
             self._outstanding_shares[symbol] = int(cfg.shares_outstanding)
             self._reference_prices[symbol] = float(cfg.initial_price)
 
@@ -205,6 +205,8 @@ class IndexCalculator:
             raise ValueError("dividend_per_share must be a finite number > 0")
 
         old_cap = self._aggregate_cap()
+        if old_cap <= 0.0:
+            raise ValueError("Cannot apply dividend when aggregate cap is non-positive")
         old_price = self._last_prices.get(sym, self._reference_prices[sym])
         new_price = old_price - dividend_per_share
         if new_price <= 0.0:
@@ -212,9 +214,6 @@ class IndexCalculator:
         self._last_prices[sym] = new_price
         self._invalidate_cap()
         new_cap = self._aggregate_cap()
-
-        if old_cap <= 0.0:
-            raise ValueError("Cannot apply dividend when aggregate cap is non-positive")
         self._divisor = self._divisor * (new_cap / old_cap)
         log.info(
             "applied cash dividend symbol=%s dividend=%.6f price=%.6f->%.6f cap=%.6f->%.6f divisor=%.6f",
@@ -267,7 +266,7 @@ class IndexCalculator:
         new_cap = old_cap - old_price * old_shares
         if len(self._constituents) == 1 or new_cap <= 0.0:
             raise ValueError("Delisting last constituent would make aggregate cap zero")
-        del self._constituents[sym]
+        self._constituents.discard(sym)
         self._outstanding_shares.pop(sym, None)
         self._reference_prices.pop(sym, None)
         self._last_prices.pop(sym, None)
@@ -297,7 +296,7 @@ class IndexCalculator:
             raise ValueError("initial_price must be a finite number > 0")
 
         old_cap = self._aggregate_cap()
-        self._constituents[sym] = sym
+        self._constituents.add(sym)
         self._outstanding_shares[sym] = shares_outstanding
         self._reference_prices[sym] = initial_price
         self._last_prices[sym] = initial_price

@@ -439,31 +439,27 @@ pm-index-admin-cli --id OPS01 shares --index TECH10 --sym AAPL --new-shares 1520
 `*` exactly one of `--new-shares` / `--delta` must be given; they are
 mutually exclusive (`argparse` mutually-exclusive group).
 
-`--delta` is a CLI-side convenience only — the wire protocol has no delta
-concept (`SHARES_ISSUANCE` always sets an absolute value). To resolve
-`--delta` into an absolute `new_shares_outstanding`, the CLI first calls
-`index_history(index_id, types=["ADD_CONSTITUENT", "CORP_ACTION"])` (or,
-if unavailable, prompts the operator to supply `--new-shares` directly) to
-find the constituent's last known share count, adds the delta, and shows
-the computed absolute value in the confirmation prompt before sending —
-never silently. See [§6.4](#64-shares_issuance-buy-backs-and-share-count-changes)
-for why this lookup-then-compute approach, rather than a server-side
-delta, was chosen.
+> **Superseded (2026-11, index review WP-IDX08 / C6).** The client-side
+> lookup described in the original proposal resolved the count from history
+> records that hold neither the configured counts nor a split's or a
+> rebalance's result, so it could send a wrong absolute count. `--delta` now
+> sends `index.corp_action.shares_delta`; pm-index applies it to its live
+> count, rejects a result of zero or fewer shares, and the ack's
+> `shares_outstanding` carries the resulting count. The CLI reads no history.
 
 **Example — buy-back via absolute value:**
 
 ```bash
 $ pm-index-admin-cli --id OPS01 shares --index TECH10 --sym AAPL --new-shares 15200000000 --yes
-SHARES_ISSUANCE OK   TECH10  AAPL  new_shares_outstanding=15,200,000,000  new_level=8401.09  new_divisor=118.1187
+SHARES_ISSUANCE OK   TECH10  AAPL  shares_outstanding=15,200,000,000  new_level=8401.09  new_divisor=118.1187
 ```
 
-**Example — buy-back via delta (resolved and confirmed client-side):**
+**Example — buy-back via delta (resolved by pm-index):**
 
 ```bash
 $ pm-index-admin-cli --id OPS01 shares --index TECH10 --sym AAPL --delta -800000000
-Last known shares_outstanding for AAPL: 16,000,000,000 (as of 2026-07-18T14:02:11Z)
-This will set shares_outstanding to 15,200,000,000 (delta -800,000,000). Continue? [y/N] y
-SHARES_ISSUANCE OK   TECH10  AAPL  new_shares_outstanding=15,200,000,000  new_level=8401.09  new_divisor=118.1187
+This will change shares_outstanding of AAPL in index TECH10 by -800,000,000 (a buy-back). Continue? [y/N] y
+SHARES_ISSUANCE OK   TECH10  AAPL  shares_outstanding=15,200,000,000  new_level=8401.09  new_divisor=118.1187
 ```
 
 ### 6.4 `SHARES_ISSUANCE`, buy-backs, and share-count changes
