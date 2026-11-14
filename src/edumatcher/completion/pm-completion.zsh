@@ -3092,8 +3092,8 @@ _shtab_pm_index_admin_cli_history_options=(
   "--index[Index ID]:INDEX_ID:"
   "--from[Start of range as a Unix timestamp (default\: 24h ago).]:UNIX_TS:"
   "--to[End of range as a Unix timestamp (default\: now).]:UNIX_TS:"
-  "--types[Comma-separated filter\: INIT, CORP_ACTION, DELIST, ADD_CONSTITUENT (default\: all).]:TYPE,TYPE,...:"
-  "--limit[Maximum rows shown (default\: 50).]:N:"
+  "--types[Comma-separated filter\: INIT, CORP_ACTION, DELIST, ADD_CONSTITUENT, REBALANCE (default\: all).]:TYPE,TYPE,...:"
+  "--limit[Maximum rows shown, the newest of the range (default\: 50).]:N:"
 )
 
 # guard to ensure default positional specs are added only once per session
@@ -3104,7 +3104,7 @@ _shtab_pm_index_admin_cli_shares_options=(
   "--index[Index ID]:INDEX_ID:"
   "--sym[Constituent symbol]:SYMBOL:"
   "--new-shares[New absolute total shares outstanding.]:N:"
-  "--delta[Signed change applied to the constituent\'s last known shares outstanding (negative for a buy-back, positive for an issuance). Resolved via \'history\' before sending\; the computed absolute value is shown in the confirmation prompt.]:N:"
+  "--delta[Signed change to the constituent\'s shares outstanding (negative for a buy-back, positive for an issuance). pm-index applies it to its live count\; the resulting count is printed.]:N:"
 )
 
 # guard to ensure default positional specs are added only once per session
@@ -3173,7 +3173,7 @@ fi
 
 _shtab_pm_index_cli_commands() {
   local _commands=(
-    events:'Show structural events: INIT, CORP_ACTION, ADD_CONSTITUENT, DELIST.'
+    events:'Show structural events: INIT, CORP_ACTION, ADD_CONSTITUENT, DELIST, REBALANCE.'
     health:'Check the pm-index process and its state/history file health'
     indices:'List indices from --config, or the deployed exchange'"'"'s compiled configuration if --config is omitted.'
   )

@@ -117,7 +117,7 @@ messages:
     transport: [engine_push]
     doc:
       motivation: "Ask the engine to publish one symbol's book immediately."
-      published_by: [stats, gateway]
+      published_by: [stats, gateway, index]
       since: "1.0"
       see_also: ["book.{SYMBOL}"]
     fields:

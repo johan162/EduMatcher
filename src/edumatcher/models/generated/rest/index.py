@@ -41,6 +41,19 @@ class DaySummary(BaseModel):
     low: float
 
 
+class RebalanceUpdate(BaseModel):
+    """One entry of a rebalance batch. Mechanically a SHARES_ISSUANCE corporate
+    action, applied to every named existing constituent as one batch with a single
+    recompute and publish rather than one round-trip per symbol.
+    """
+
+    model_config = ConfigDict(use_attribute_docstrings=True)
+
+    symbol: str = Field(max_length=16)
+    new_shares_outstanding: int = Field(gt=0)
+    """Unit: shares."""
+
+
 class HistoryRecord(BaseModel):
     """One structural audit entry, replayed verbatim from pm-index's append-only
     JSONL archive. This is a union of five shapes discriminated by `type`, and the
@@ -95,19 +108,10 @@ class HistoryRecord(BaseModel):
     """ADD_CONSTITUENT only. Unit: display_price."""
     symbols: list[str] | None = Field(default=None)
     """REBALANCE only: the symbols the batch actually applied to."""
-
-
-class RebalanceUpdate(BaseModel):
-    """One entry of a rebalance batch. Mechanically a SHARES_ISSUANCE corporate
-    action, applied to every named existing constituent as one batch with a single
-    recompute and publish rather than one round-trip per symbol.
+    updates: list[RebalanceUpdate] | None = Field(default=None)
+    """REBALANCE only: each symbol's new share count, so the archive says what the
+    batch set and not only which symbols it touched.
     """
-
-    model_config = ConfigDict(use_attribute_docstrings=True)
-
-    symbol: str = Field(max_length=16)
-    new_shares_outstanding: int = Field(gt=0)
-    """Unit: shares."""
 
 
 class IndexUpdate(BaseModel):
@@ -173,7 +177,13 @@ class IndexCorpAction(BaseModel):
     dividend_per_share: float | None = Field(default=None, gt=0)
     """CASH_DIVIDEND. Unit: money."""
     new_shares_outstanding: int | None = Field(default=None, gt=0)
-    """SHARES_ISSUANCE. Unit: shares."""
+    """SHARES_ISSUANCE: the new absolute count. Unit: shares."""
+    shares_delta: int | None = Field(default=None)
+    """SHARES_ISSUANCE: a signed change to pm-index's live count (negative for a buy-
+    back), applied by pm-index so no client has to know the count. Exactly one of
+    this and new_shares_outstanding; the handler enforces that, the IDL cannot say
+    it (section 20.3). Unit: shares.
+    """
     command_id: str | None = Field(default=None, max_length=64)
     """Echoed on the ack so a caller can correlate."""
 
@@ -227,6 +237,11 @@ class IndexCorpActionAck(BaseModel):
     purpose as HistoryRecord.old_divisor, so a post-mortem does not need pm-
     index's local JSONL archive to see what changed — the wire event is self-
     contained. Present only alongside divisor, i.e. on acceptance.
+    """
+    shares_outstanding: int | None = Field(default=None)
+    """The constituent's share count after the action, on acceptance only. A
+    SHARES_ISSUANCE sent as shares_delta learns the count it resulted in from
+    here. Unit: shares.
     """
     command_id: str | None = Field(default=None, max_length=64)
 

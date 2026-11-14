@@ -27,6 +27,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from datetime import datetime, timezone
 from typing import Any
 
 from edumatcher.commands import CommandError, CommandTimeoutError, ExchangeCommandClient
@@ -252,10 +253,9 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         metavar="N",
         help=(
-            "Signed change applied to the constituent's last known shares "
-            "outstanding (negative for a buy-back, positive for an "
-            "issuance). Resolved via 'history' before sending; the "
-            "computed absolute value is shown in the confirmation prompt."
+            "Signed change to the constituent's shares outstanding (negative "
+            "for a buy-back, positive for an issuance). pm-index applies it "
+            "to its live count; the resulting count is printed."
         ),
     )
 
@@ -310,7 +310,7 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="TYPE,TYPE,...",
         help=(
             "Comma-separated filter: INIT, CORP_ACTION, DELIST, "
-            "ADD_CONSTITUENT (default: all)."
+            "ADD_CONSTITUENT, REBALANCE (default: all)."
         ),
     )
     p.add_argument(
@@ -318,7 +318,7 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=50,
         metavar="N",
-        help="Maximum rows shown (default: 50).",
+        help="Maximum rows shown, the newest of the range (default: 50).",
     )
 
     return parser
@@ -410,75 +410,27 @@ def _cmd_dividend(client: ExchangeCommandClient, args: argparse.Namespace) -> bo
     )
 
 
-def _resolve_delta(
-    client: ExchangeCommandClient, index_id: str, symbol: str, delta: int
-) -> int | None:
-    """Resolve --delta into an absolute new_shares_outstanding value.
-
-    Looks up the most recent ADD_CONSTITUENT / CORP_ACTION SHARES_ISSUANCE
-    record for *symbol* via index_history() and applies *delta* to it.
-    Returns None (and prints an error) if no prior share count is found.
-    """
-    import time
-
-    hist = client.index_history(
-        index_id,
-        from_ts=0.0,
-        to_ts=time.time(),
-        types=["ADD_CONSTITUENT", "CORP_ACTION"],
-    )
-    records = hist.get("records", [])
-    last_shares: int | None = None
-    last_ts: int = -1
-    sym_upper = symbol.upper()
-    for rec in records:
-        if rec.get("symbol") != sym_upper:
-            continue
-        ts = int(rec.get("ts_ns", 0))
-        detail = str(rec.get("detail", ""))
-        shares: int | None = None
-        if rec.get("type") == "ADD_CONSTITUENT":
-            # Records written before shares_outstanding was added to the
-            # ADD_CONSTITUENT audit entry carry only reference_price; for those
-            # a SHARES_ISSUANCE corp-action record is still the only source.
-            raw_shares = rec.get("shares_outstanding")
-            if raw_shares is None:
-                continue
-            try:
-                shares = int(raw_shares)
-            except TypeError, ValueError:
-                shares = None
-        elif rec.get("type") == "CORP_ACTION" and detail.startswith("shares="):
-            try:
-                shares = int(detail.split("=", 1)[1])
-            except ValueError:
-                shares = None
-        if shares is not None and ts >= last_ts:
-            last_ts = ts
-            last_shares = shares
-
-    if last_shares is None:
-        print(
-            f"REJECTED  no prior shares_outstanding found for {sym_upper} in "
-            f"index {index_id.upper()} — pass --new-shares instead.",
-            file=sys.stderr,
-        )
-        return None
-
-    print(f"Last known shares_outstanding for {sym_upper}: {_fmt_int(last_shares)}")
-    return last_shares + delta
-
-
 def _cmd_shares(client: ExchangeCommandClient, args: argparse.Namespace) -> bool:
     if args.new_shares is not None:
-        new_shares = args.new_shares
+        _require_positive_int(args.new_shares, "--new-shares")
+        params: dict[str, int] = {"new_shares_outstanding": args.new_shares}
+        prompt = (
+            f"This will apply a SHARES_ISSUANCE to {args.sym.upper()} in "
+            f"index {args.index.upper()}, setting shares_outstanding to "
+            f"{_fmt_int(args.new_shares)}. Continue?"
+        )
     else:
-        resolved = _resolve_delta(client, args.index, args.sym, args.delta)
-        if resolved is None:
-            return False
-        new_shares = resolved
-
-    _require_positive_int(new_shares, "resulting shares outstanding")
+        # pm-index applies the delta to its live count (C6): a split or a
+        # rebalance changes the count without a record this tool could read
+        # it back from.
+        if args.delta == 0:
+            raise ValueError("--delta must not be 0")
+        params = {"shares_delta": args.delta}
+        verb = "buy-back" if args.delta < 0 else "issuance"
+        prompt = (
+            f"This will change shares_outstanding of {args.sym.upper()} in "
+            f"index {args.index.upper()} by {args.delta:+,} (a {verb}). Continue?"
+        )
 
     if args.dry_run:
         _print_dry_run(
@@ -488,23 +440,11 @@ def _cmd_shares(client: ExchangeCommandClient, args: argparse.Namespace) -> bool
                 "index_id": args.index.upper(),
                 "symbol": args.sym.upper(),
                 "gateway_id": args.id.upper(),
-                "new_shares_outstanding": new_shares,
+                **params,
             },
         )
         return True
 
-    verb = "buy-back" if args.delta is not None and args.delta < 0 else "issuance"
-    if args.new_shares is not None:
-        prompt = (
-            f"This will apply a SHARES_ISSUANCE to {args.sym.upper()} in "
-            f"index {args.index.upper()}, setting shares_outstanding to "
-            f"{_fmt_int(new_shares)}. Continue?"
-        )
-    else:
-        prompt = (
-            f"This will set shares_outstanding to {_fmt_int(new_shares)} "
-            f"(delta {args.delta:+,}, a {verb}). Continue?"
-        )
     if not _confirm(prompt, args.yes):
         return False
 
@@ -512,12 +452,12 @@ def _cmd_shares(client: ExchangeCommandClient, args: argparse.Namespace) -> bool
         args.index,
         action=_SHARES_ISSUANCE,
         symbol=args.sym,
-        new_shares_outstanding=new_shares,
+        **params,
     )
     return _report(
         result,
         f"SHARES_ISSUANCE OK   {args.index.upper()}  {args.sym.upper()}  "
-        f"new_shares_outstanding={_fmt_int(new_shares)}  "
+        f"shares_outstanding={_fmt_int(result.get('shares_outstanding'))}  "
         f"new_level={result.get('level')}  new_divisor={result.get('divisor')}",
         args.format,
     )
@@ -606,7 +546,8 @@ def _cmd_history(client: ExchangeCommandClient, args: argparse.Namespace) -> boo
         types = [t.strip().upper() for t in args.types.split(",") if t.strip()]
 
     result = client.index_history(args.index, from_ts=from_ts, to_ts=to_ts, types=types)
-    records = list(result.get("records", []))[: args.limit]
+    # The newest --limit records of the window, oldest first (C14).
+    records = list(result.get("records", []))[-args.limit :] if args.limit > 0 else []
 
     if args.format == "json":
         print(json.dumps(records, indent=2, sort_keys=True))
@@ -617,7 +558,9 @@ def _cmd_history(client: ExchangeCommandClient, args: argparse.Namespace) -> boo
         return True
 
     for rec in records:
-        ts = rec.get("ts_ns", "")
+        ts = datetime.fromtimestamp(
+            int(rec.get("ts_ns", 0)) / 1_000_000_000, tz=timezone.utc
+        ).isoformat(timespec="seconds")
         rtype = rec.get("type", "")
         symbol = rec.get("symbol", "-")
         if rtype == "CORP_ACTION":
@@ -629,6 +572,12 @@ def _cmd_history(client: ExchangeCommandClient, args: argparse.Namespace) -> boo
             )
         elif rtype == "DELIST":
             detail = f"-> level={rec.get('level')}"
+        elif rtype == "REBALANCE":
+            counts = ",".join(
+                f"{u.get('symbol')}={_fmt_int(u.get('new_shares_outstanding'))}"
+                for u in rec.get("updates", [])
+            )
+            detail = f"{counts} -> level={rec.get('level')}"
         elif rtype == "INIT":
             detail = f"base_value={rec.get('base_value', '')}"
         else:

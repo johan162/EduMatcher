@@ -162,6 +162,14 @@ Timed out waiting for pm-index: No ack with prefix 'index.corp_action_ack.OPS01'
 Is pm-index running and reachable at tcp://127.0.0.1:59999?
 ```
 
+A command is applied together with its records or not at all: `pm-index`
+writes the index's state file and the history record first, and only then
+changes the live index, publishes the new level and acknowledges. If either
+write fails (a full disk, say), the command is rejected with the error as the
+reason and nothing changes, so sending it again later applies it once. After
+a timeout, check with `history` whether the command landed before sending it
+again.
+
 
 ## Confirmation prompts and `--dry-run`
 
@@ -175,9 +183,7 @@ stderr and exits `1` rather than hanging — this matters for CI/cron use.
 `--dry-run` prints the exact outbound topic and JSON payload and exits `0`
 without sending the command or prompting (the payload carries no `command_id`;
 that is added only when a command is really sent). Use it to check a `--ratio`
-parse or a `--delta`-resolved share count before committing — note that
-`shares --delta --dry-run` still queries `pm-index` for the current share count,
-so `pm-index` must be running for it:
+parse or the payload of a `shares` command before committing:
 
 ```bash
 $ pm-index-admin-cli --id OPS01 split --index TECH10 --sym AAPL --ratio 4:1 --dry-run
@@ -243,27 +249,20 @@ pm-index-admin-cli --id OPS01 shares --index TECH10 --sym AAPL --new-shares 1520
 | `--index` | Yes | Index ID |
 | `--sym` | Yes | Constituent symbol |
 | `--new-shares` | One of these two | New absolute total shares outstanding |
-| `--delta` | One of these two | Signed change from the last known share count (negative for a buy-back, positive for an issuance) |
+| `--delta` | One of these two | Signed change to the current share count (negative for a buy-back, positive for an issuance); not `0` |
 
 `pm-index` has no dedicated `BUYBACK` action — only `SHARES_ISSUANCE`, which
-always sets an absolute share count regardless of direction (see
+takes either an absolute share count or a signed delta (see
 [Market Index — Supported corporate actions](070-market-index.md#supported-corporate-actions)).
-`--delta` is a CLI-side convenience: it queries the index's whole history and
-takes the most recent share count recorded for that symbol — either an
-`ADD_CONSTITUENT` record's `shares_outstanding` or a `SHARES_ISSUANCE`
-corporate action — applies the signed delta, and shows the computed absolute
-value before sending. So it works right after `add`. Two caveats: a `SPLIT`
-recorded since then is **not** reflected (the share count it starts from is the
-pre-split one), and `ADD_CONSTITUENT` records written by older versions carry no
-`shares_outstanding`. If no share count can be found, the command prints
-`REJECTED  no prior shares_outstanding found for SYM in index IDX — pass --new-shares instead.`
-to stderr and exits `1`.
+With `--delta`, `pm-index` applies the change to the share count it holds at
+that moment — after any split, rebalance or earlier issuance — and the reply
+reports the resulting count. A delta that would leave zero or fewer shares is
+rejected and changes nothing.
 
 ```bash
 $ pm-index-admin-cli --id OPS01 shares --index TECH10 --sym AAPL --delta -800000000
-Last known shares_outstanding for AAPL: 16,000,000,000
-This will set shares_outstanding to 15,200,000,000 (delta -800,000,000, a buy-back). Continue? [y/N] y
-SHARES_ISSUANCE OK   TECH10  AAPL  new_shares_outstanding=15,200,000,000  new_level=8401.09  new_divisor=118.1187
+This will change shares_outstanding of AAPL in index TECH10 by -800,000,000 (a buy-back). Continue? [y/N] y
+SHARES_ISSUANCE OK   TECH10  AAPL  shares_outstanding=15,200,000,000  new_level=8401.09  new_divisor=118.1187
 ```
 
 ### `add` — Add a constituent
@@ -279,16 +278,13 @@ pm-index-admin-cli --id OPS01 add --index TECH10 --sym NVDA --shares 2470000000 
 | `--shares` | Yes | Initial shares outstanding. Must be `> 0`. |
 | `--price` | Yes | Initial reference price. Must be `> 0`. |
 
-!!! warning "The symbol must already be tradeable"
-    `pm-index` does not check that `--sym` is a configured, tradeable
-    symbol in `engine_config.yaml` — it only tracks it as an index
-    constituent. If the symbol doesn't exist elsewhere in the config, it
-    will be added to the index but never receive live price updates. The
-    confirmation prompt states this requirement, but `pm-index-admin-cli`
-    has no `--config` flag and cannot verify it for you. A change made this
-    way lives in `pm-index`'s state file and survives restarts, but not
-    `--reset` — see [Market Index — State file](070-market-index.md#state-file)
-    for keeping the config in step.
+!!! warning "The symbol must be a configured symbol"
+    `pm-index` refuses to add a symbol the exchange is not configured to
+    trade (`REJECTED  APPL is not a configured symbol`), so a typo cannot
+    become a constituent that never moves. A change made this way lives in
+    `pm-index`'s state file and survives restarts, but not `--reset` — see
+    [Market Index — State file](070-market-index.md#state-file) for keeping
+    the config in step.
 
 ### `delist` — Remove a constituent
 
@@ -325,7 +321,7 @@ pm-index-admin-cli --id OPS01 history --index TECH10 --limit 20
 | `--from` | No | `--to` minus 24 h | Start of range, as a Unix timestamp (seconds) |
 | `--to` | No | now | End of range, as a Unix timestamp (seconds) |
 | `--types` | No | all | Comma-separated filter: `INIT`, `CORP_ACTION`, `DELIST`, `ADD_CONSTITUENT`, `REBALANCE` |
-| `--limit` | No | `50` | Maximum rows shown — the oldest `N` of the matching, oldest-first list |
+| `--limit` | No | `50` | Maximum rows shown — the newest `N` of the matching records, listed oldest first |
 
 This is the same underlying `index.history_request` used by
 `INDEX|HISTORY` in `pm-alf-console` (see
@@ -337,13 +333,14 @@ and needs no running process, `history` here round-trips through the live
 
 ```bash
 $ pm-index-admin-cli --id OPS01 history --index TECH10 --from 1784000000 --limit 3
-  1784106000000000000  ADD_CONSTITUENT NVDA     shares=2,470,000,000 price=118.5
-  1784365200000000000  CORP_ACTION     AAPL     SHARES_ISSUANCE shares=16000000000 -> level=8390.02
-  1784451302000000000  CORP_ACTION     AAPL     SPLIT 4:1 -> level=8452.17
+  2026-07-15T09:00:00+00:00  ADD_CONSTITUENT NVDA     shares=2,470,000,000 price=118.5
+  2026-07-18T09:00:00+00:00  CORP_ACTION     AAPL     SHARES_ISSUANCE shares=16000000000 -> level=8390.02
+  2026-07-19T08:55:02+00:00  CORP_ACTION     AAPL     SPLIT 4:1 -> level=8452.17
 ```
 
-The first column is the record's raw `ts_ns` (epoch nanoseconds), and records
-are listed oldest first. An empty result prints `No history records found.`
+The first column is the record's time in UTC, and records are listed oldest
+first. A `REBALANCE` row lists each symbol's new share count, for example
+`AAPL=9,000,000,000,MSFT=7,400,000,000 -> level=8460.40`. An empty result prints `No history records found.`
 `--format json` prints the raw record list instead:
 
 ```bash

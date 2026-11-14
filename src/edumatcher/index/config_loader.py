@@ -22,6 +22,9 @@ class IndexRuntimeConfig:
     constituents: list[str]
     outstanding_shares: dict[str, int]
     reference_prices: dict[str, float]
+    #: Every symbol the exchange trades. A runtime ADD must name one, or the
+    #: new constituent would never trade and never move (C12).
+    tradeable_symbols: frozenset[str]
 
 
 def _reference_price(symbol: str, cfg: SymbolConfig) -> float:
@@ -63,6 +66,7 @@ def _to_runtime_index_config(
         constituents=list(idx.constituents),
         outstanding_shares=shares,
         reference_prices=prices,
+        tradeable_symbols=frozenset(symbols),
     )
 
 

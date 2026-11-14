@@ -29,6 +29,7 @@ from tests.support.badvalues import ABSENT, BAD_VALUES
 
 class _Sock:
     def __init__(self) -> None:
+        self.options: list[tuple[int, bytes]] = []
         self.sent: list[list[bytes]] = []
 
     def poll(self, timeout: int = 0) -> bool:
@@ -39,6 +40,9 @@ class _Sock:
 
     def close(self) -> None:
         pass
+
+    def setsockopt(self, option: int, value: bytes) -> None:
+        self.options.append((option, value))
 
 
 @pytest.fixture()
@@ -61,6 +65,7 @@ def proc(
         constituents=["AAPL", "MSFT"],
         outstanding_shares={"AAPL": 10_000, "MSFT": 20_000},
         reference_prices={"AAPL": 100.0, "MSFT": 50.0},
+        tradeable_symbols=frozenset({"AAPL", "MSFT", "GOOG", "AMZN"}),
     )
     monkeypatch.setattr(index_main, "load_index_runtime_configs", lambda _p: [cfg])
     p = index_main.IndexProcess(config_path=tmp_path / "engine.yaml")
@@ -168,7 +173,11 @@ _BASE: dict[str, dict[str, Any]] = {
     },
 }
 _EXTRA_FIELDS = {
-    "_handle_corp_action": ["dividend_per_share", "new_shares_outstanding"],
+    "_handle_corp_action": [
+        "dividend_per_share",
+        "new_shares_outstanding",
+        "shares_delta",
+    ],
 }
 
 
@@ -252,28 +261,303 @@ def test_rebalance_rejects_a_non_integral_share_count(
     assert ack["accepted"] is False
 
 
-def test_partly_applied_rebalance_is_persisted(
+def test_a_rebalance_that_fails_part_way_applies_none_of_it(
     proc: index_main.IndexProcess, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A rebalance that fails half-way keeps what it applied (documented);
-    the state file must say so too, or a restart silently reverts it (K7)."""
-    import json
-
+    """WP-IDX01: the batch is applied to a copy, so a failure on its second
+    entry leaves the first unapplied in memory and in the state file."""
     idx = proc._indices["EDU100"]
-    original = idx.calc.apply_shares_issuance
+    original = IndexCalculator.apply_shares_issuance
 
-    def fail_on_msft(symbol: str, new_shares_outstanding: int) -> None:
+    def fail_on_msft(
+        self: IndexCalculator, symbol: str, new_shares_outstanding: int
+    ) -> None:
         if symbol == "MSFT":
             raise ValueError("aggregate cap would be non-positive")
-        original(symbol, new_shares_outstanding)
+        original(self, symbol, new_shares_outstanding)
 
-    monkeypatch.setattr(idx.calc, "apply_shares_issuance", fail_on_msft)
+    monkeypatch.setattr(IndexCalculator, "apply_shares_issuance", fail_on_msft)
     _rebalance(
         proc,
         {"symbol": "AAPL", "new_shares_outstanding": 9_000},
         {"symbol": "MSFT", "new_shares_outstanding": 1},
     )
 
-    state = json.loads(Path(idx.cfg.state_file).read_text(encoding="utf-8"))
-    assert state["outstanding_shares"]["AAPL"] == 9_000
-    assert state["divisor"] == idx.calc.divisor
+    (ack,) = [p for t, p in _published(proc) if t.startswith("index.rebalance_ack")]
+    assert ack["accepted"] is False
+    assert idx.calc.shares_outstanding("AAPL") == 10_000
+    assert _state(proc)["outstanding_shares"]["AAPL"] == 10_000
+
+
+# --- WP-IDX01 (C5, C7): a command is applied, persisted and acked together --
+
+
+def _state(proc: index_main.IndexProcess) -> dict[str, Any]:
+    import json
+
+    idx = proc._indices["EDU100"]
+    loaded: dict[str, Any] = json.loads(
+        Path(idx.cfg.state_file).read_text(encoding="utf-8")
+    )
+    loaded.pop("last_updated")
+    return loaded
+
+
+def _snapshot(proc: index_main.IndexProcess) -> tuple[Any, ...]:
+    calc = proc._indices["EDU100"].calc
+    symbols = calc.constituent_symbols()
+    return (
+        calc.divisor,
+        symbols,
+        {s: calc.shares_outstanding(s) for s in symbols},
+        {s: calc.last_price(s) for s in symbols},
+    )
+
+
+_COMMANDS: dict[str, tuple[str, dict[str, Any]]] = {
+    "SPLIT": ("_handle_corp_action", _BASE["_handle_corp_action"]),
+    "SHARES_ISSUANCE": (
+        "_handle_corp_action",
+        {
+            **_BASE["_handle_corp_action"],
+            "action": "SHARES_ISSUANCE",
+            "new_shares_outstanding": 15_000,
+        },
+    ),
+    "ADD": ("_handle_constituent_change", _BASE["_handle_constituent_change"]),
+    "DELIST": (
+        "_handle_constituent_change",
+        {
+            **_BASE["_handle_constituent_change"],
+            "change_type": "DELIST",
+            "symbol": "MSFT",
+        },
+    ),
+    "REBALANCE": ("_handle_rebalance", _BASE["_handle_rebalance"]),
+}
+
+
+def _fail_history(
+    proc: index_main.IndexProcess, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def boom(_record: dict[str, Any]) -> None:
+        raise OSError(28, "No space left on device")
+
+    monkeypatch.setattr(proc._indices["EDU100"].history, "append", boom)
+
+
+def _fail_state(proc: index_main.IndexProcess, monkeypatch: pytest.MonkeyPatch) -> None:
+    def boom(*_a: Any, **_k: Any) -> None:
+        raise OSError(28, "No space left on device")
+
+    monkeypatch.setattr(index_main, "atomic_write_text", boom)
+
+
+@pytest.mark.parametrize("fail", [_fail_history, _fail_state], ids=["history", "state"])
+@pytest.mark.parametrize("command", sorted(_COMMANDS))
+def test_a_command_whose_write_fails_is_rejected_and_changes_nothing(
+    proc: index_main.IndexProcess,
+    monkeypatch: pytest.MonkeyPatch,
+    command: str,
+    fail: Any,
+) -> None:
+    handler, payload = _COMMANDS[command]
+    before, state_before = _snapshot(proc), _state(proc)
+    proc._test_pub.sent.clear()  # type: ignore[attr-defined]
+    fail(proc, monkeypatch)
+
+    getattr(proc, handler)(dict(payload))
+
+    published = _published(proc)
+    assert [t for t, _ in published if t == "index.update"] == []
+    ((topic, ack),) = published
+    assert "_ack." in topic
+    assert ack["accepted"] is False
+    assert "No space left on device" in ack["reason"]
+    assert _snapshot(proc) == before
+    assert _state(proc) == state_before
+    assert proc._constituent_to_indices.get("GOOG", set()) == set()
+    assert "EDU100" in proc._constituent_to_indices["MSFT"]
+
+
+@pytest.mark.parametrize("command", sorted(_COMMANDS))
+def test_a_rejected_command_retried_is_applied_once_and_survives_a_restart(
+    proc: index_main.IndexProcess,
+    monkeypatch: pytest.MonkeyPatch,
+    command: str,
+) -> None:
+    handler, payload = _COMMANDS[command]
+    with monkeypatch.context() as m:
+        _fail_history(proc, m)
+        getattr(proc, handler)(dict(payload))
+    proc._test_pub.sent.clear()  # type: ignore[attr-defined]
+
+    getattr(proc, handler)(dict(payload))
+
+    (ack,) = [p for t, p in _published(proc) if "_ack." in t]
+    assert ack["accepted"] is True
+    applied = _snapshot(proc)
+    level = proc._indices["EDU100"].calc.recalculate()
+    assert _state(proc)["divisor"] == applied[0]
+
+    cfg = proc._indices["EDU100"].cfg
+    monkeypatch.setattr(index_main, "load_index_runtime_configs", lambda _p: [cfg])
+    restarted = index_main.IndexProcess(
+        config_path=Path(cfg.state_file).parent / "e.yaml"
+    )
+    try:
+        restarted._initialise()
+        assert _snapshot(restarted) == applied
+        assert restarted._indices["EDU100"].calc.recalculate() == pytest.approx(level)
+    finally:
+        restarted.close()
+
+
+def test_a_reverse_split_that_rounds_a_holding_to_zero_is_refused(
+    proc: index_main.IndexProcess,
+) -> None:
+    proc._handle_rebalance(
+        {
+            **_BASE["_handle_rebalance"],
+            "updates": [{"symbol": "AAPL", "new_shares_outstanding": 4}],
+        }
+    )
+    before = _snapshot(proc)
+    proc._test_pub.sent.clear()  # type: ignore[attr-defined]
+
+    proc._handle_corp_action(
+        {**_BASE["_handle_corp_action"], "ratio_numerator": 1, "ratio_denominator": 10}
+    )
+
+    (ack,) = [p for t, p in _published(proc) if "_ack." in t]
+    assert ack["accepted"] is False
+    assert "would leave AAPL with 0 shares" in ack["reason"]
+    assert _snapshot(proc) == before
+
+
+def test_a_reverse_split_that_keeps_one_share_or_more_is_accepted() -> None:
+    calc = IndexCalculator(
+        [ConstituentConfig("AAPL", 3, 100.0), ConstituentConfig("MSFT", 10, 50.0)],
+        base_value=1000.0,
+    )
+    calc.apply_split("AAPL", ratio_numerator=1, ratio_denominator=2)
+    assert calc.shares_outstanding("AAPL") == 2
+
+
+# --- WP-IDX05 (C12): ADD names a configured symbol ---------------------------
+
+
+def test_add_of_a_symbol_the_exchange_does_not_trade_is_rejected(
+    proc: index_main.IndexProcess,
+) -> None:
+    before = _snapshot(proc)
+    proc._test_pub.sent.clear()  # type: ignore[attr-defined]
+
+    proc._handle_constituent_change(
+        {**_BASE["_handle_constituent_change"], "symbol": "APPL"}
+    )
+
+    ((_, ack),) = _published(proc)
+    assert ack["accepted"] is False
+    assert ack["reason"] == "APPL is not a configured symbol"
+    assert _snapshot(proc) == before
+    assert "APPL" not in proc._constituent_to_indices
+
+
+def test_add_of_a_configured_symbol_is_accepted(
+    proc: index_main.IndexProcess,
+) -> None:
+    proc._handle_constituent_change(dict(_BASE["_handle_constituent_change"]))
+
+    (ack,) = [p for t, p in _published(proc) if "_ack." in t]
+    assert ack["accepted"] is True
+    assert "GOOG" in proc._indices["EDU100"].calc.constituent_symbols()
+
+
+# --- WP-IDX08 (C6): share deltas are resolved by pm-index --------------------
+
+
+def _shares(proc: index_main.IndexProcess, **fields: Any) -> dict[str, Any]:
+    proc._test_pub.sent.clear()  # type: ignore[attr-defined]
+    proc._handle_corp_action(
+        {
+            "gateway_id": "GW1",
+            "index_id": "EDU100",
+            "command_id": "c1",
+            "action": "SHARES_ISSUANCE",
+            "symbol": "AAPL",
+            **fields,
+        }
+    )
+    ((_, ack),) = _published_acks(proc)
+    return ack
+
+
+def _published_acks(
+    proc: index_main.IndexProcess,
+) -> list[tuple[str, dict[str, Any]]]:
+    return [(t, p) for t, p in _published(proc) if "_ack." in t]
+
+
+def test_a_share_delta_applies_to_the_live_count_after_a_split(
+    proc: index_main.IndexProcess,
+) -> None:
+    proc._handle_corp_action(dict(_BASE["_handle_corp_action"]))  # 2:1 → 20 000
+    ack = _shares(proc, shares_delta=-100)
+
+    assert ack["accepted"] is True
+    assert ack["shares_outstanding"] == 19_900
+    assert proc._indices["EDU100"].calc.shares_outstanding("AAPL") == 19_900
+
+
+def test_every_accepted_corp_action_ack_carries_the_resulting_count(
+    proc: index_main.IndexProcess,
+) -> None:
+    ack = _shares(proc, new_shares_outstanding=12_345)
+    assert ack["shares_outstanding"] == 12_345
+
+
+@pytest.mark.parametrize(
+    "fields",
+    [{}, {"new_shares_outstanding": 12_000, "shares_delta": 100}],
+    ids=["neither", "both"],
+)
+def test_exactly_one_of_new_shares_and_delta_is_required(
+    proc: index_main.IndexProcess, fields: dict[str, Any]
+) -> None:
+    before = _snapshot(proc)
+    ack = _shares(proc, **fields)
+
+    assert ack["accepted"] is False
+    assert "exactly one of new_shares_outstanding and shares_delta" in ack["reason"]
+    assert _snapshot(proc) == before
+
+
+@pytest.mark.parametrize("delta", [-10_000, -20_000])
+def test_a_delta_that_leaves_no_shares_is_rejected(
+    proc: index_main.IndexProcess, delta: int
+) -> None:
+    before = _snapshot(proc)
+    ack = _shares(proc, shares_delta=delta)
+
+    assert ack["accepted"] is False
+    assert "would leave AAPL with" in ack["reason"]
+    assert _snapshot(proc) == before
+
+
+def test_a_rebalance_record_lists_each_symbols_new_count(
+    proc: index_main.IndexProcess,
+) -> None:
+    _rebalance(
+        proc,
+        {"symbol": "AAPL", "new_shares_outstanding": 9_000},
+        {"symbol": "MSFT", "new_shares_outstanding": 21_000},
+    )
+    history = proc._indices["EDU100"].history
+    history.flush()
+    (record,), _ = history.query(0, 2**63, {"REBALANCE"})
+
+    assert record["updates"] == [
+        {"symbol": "AAPL", "new_shares_outstanding": 9_000},
+        {"symbol": "MSFT", "new_shares_outstanding": 21_000},
+    ]

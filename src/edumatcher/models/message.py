@@ -2023,7 +2023,8 @@ def make_index_corp_action_msg(
 
     *params* carries the action-specific fields — ``ratio_numerator`` and
     ``ratio_denominator`` for SPLIT, ``dividend_per_share`` for
-    CASH_DIVIDEND, ``new_shares_outstanding`` for SHARES_ISSUANCE. The IDL has
+    CASH_DIVIDEND, ``new_shares_outstanding`` or ``shares_delta`` for
+    SHARES_ISSUANCE. The IDL has
     no variant type to say "these belong to that action", so they are declared
     flat and optional; design section 20.3 records why one was not built.
     """
@@ -2067,6 +2068,7 @@ def make_index_corp_action_ack_msg(
     divisor: float | None = None,
     old_divisor: float | None = None,
     command_id: str = "",
+    shares_outstanding: int | None = None,
 ) -> list[bytes]:
     """pm-index → requestor: corporate action ack."""
     return _gen_index.make_index_corp_action_ack(
@@ -2078,6 +2080,7 @@ def make_index_corp_action_ack_msg(
         level=level,
         divisor=divisor,
         old_divisor=old_divisor,
+        shares_outstanding=shares_outstanding,
         command_id=command_id,
     )
 

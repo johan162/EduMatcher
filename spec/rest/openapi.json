@@ -23824,6 +23824,21 @@
             ],
             "title": "Symbols",
             "description": "REBALANCE only: the symbols the batch actually applied to."
+          },
+          "updates": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/RebalanceUpdate"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updates",
+            "description": "REBALANCE only: each symbol's new share count, so the archive says what the\nbatch set and not only which symbols it touched."
           }
         },
         "type": "object",
@@ -27408,6 +27423,28 @@
             "symbol": "AAPL"
           }
         ]
+      },
+      "RebalanceUpdate": {
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "maxLength": 16,
+            "title": "Symbol"
+          },
+          "new_shares_outstanding": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "New Shares Outstanding",
+            "description": "Unit: shares."
+          }
+        },
+        "type": "object",
+        "required": [
+          "symbol",
+          "new_shares_outstanding"
+        ],
+        "title": "RebalanceUpdate",
+        "description": "One entry of a rebalance batch. Mechanically a SHARES_ISSUANCE corporate\naction, applied to every named existing constituent as one batch with a single\nrecompute and publish rather than one round-trip per symbol."
       },
       "RecentQuote": {
         "properties": {

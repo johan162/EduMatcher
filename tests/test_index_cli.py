@@ -1054,3 +1054,79 @@ class TestHealth:
         healthy, detail = _check_zmq_health(timeout_ms=200)
         assert healthy is False
         assert "no reply" in detail
+
+
+# ---------------------------------------------------------------------------
+# WP-IDX05 (C13, C15)
+# ---------------------------------------------------------------------------
+
+
+class TestEventsOutputIdx05:
+    def test_a_rebalance_row_shows_its_new_counts(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        _write_history(
+            tmp_path / "TEST_history.jsonl",
+            [
+                {
+                    "type": "REBALANCE",
+                    "ts_ns": time.time_ns(),
+                    "index_id": "TEST",
+                    "symbols": ["AAPL", "MSFT"],
+                    "updates": [
+                        {"symbol": "AAPL", "new_shares_outstanding": 9_000},
+                        {"symbol": "MSFT", "new_shares_outstanding": 21_000},
+                    ],
+                    "old_divisor": 1.0,
+                    "new_divisor": 2.0,
+                    "level": 1000.0,
+                }
+            ],
+        )
+        _cmd_events(_make_args(tmp_path, "events", fmt="json"))
+        (row,) = json.loads(capsys.readouterr().out)
+        assert row["type"] == "REBALANCE"
+        assert row["detail"] == "AAPL=9000,MSFT=21000"
+
+    def test_a_large_divisor_prints_in_full(self) -> None:
+        assert _stringify(7007123456.78) == "7007123456.78"
+        assert _stringify(12345.67) == "12345.67"
+
+    def test_help_lists_all_five_event_types(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        with pytest.raises(SystemExit):
+            build_parser().parse_args(["events", "--help"])
+        out = capsys.readouterr().out
+        for rec_type in (
+            "INIT",
+            "CORP_ACTION",
+            "ADD_CONSTITUENT",
+            "DELIST",
+            "REBALANCE",
+        ):
+            assert rec_type in out
+
+    def test_events_without_a_deployed_config_prints_no_error(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        monkeypatch.setattr(
+            "edumatcher.config_artifact.load_compiled_config", lambda: None
+        )
+        _write_history(
+            tmp_path / "EDU_history.jsonl",
+            [{"type": "INIT", "ts_ns": time.time_ns(), "index_id": "EDU"}],
+        )
+        monkeypatch.setattr(
+            "sys.argv",
+            ["pm-index-cli", "--data-dir", str(tmp_path), "events", "--index", "EDU"],
+        )
+
+        main()
+
+        captured = capsys.readouterr()
+        assert "[ERROR]" not in captured.err
+        assert "INIT" in captured.out

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Callable
+
 import pytest
 
 from edumatcher.index.calculator import ConstituentConfig, IndexCalculator
@@ -216,3 +218,44 @@ def test_add_constituent_duplicate_rejected() -> None:
     calc = _make_calc()
     with pytest.raises(KeyError):
         calc.add_constituent("AAPL", 10, 195.0)
+
+
+# --- WP-IDX06 (P1): the aggregate cap follows a trade incrementally ----------
+
+
+def test_incremental_cap_matches_a_full_recompute() -> None:
+    import random
+
+    rng = random.Random(20261114)
+    symbols = [f"S{i:02d}" for i in range(50)]
+    calc = IndexCalculator(
+        [ConstituentConfig(s, rng.randint(1_000, 10**9), 100.0) for s in symbols],
+        base_value=1000.0,
+    )
+    calc.aggregate_cap()  # memoised, so updates take the incremental path
+    for _ in range(10_000):
+        calc.update_price(rng.choice(symbols), rng.uniform(1.0, 1_000.0))
+        assert calc._cap is not None  # never invalidated by a trade
+
+    assert calc.aggregate_cap() == pytest.approx(calc._compute_cap(), rel=1e-9)
+
+
+def test_every_structural_action_recomputes_the_cap_exactly() -> None:
+    calc = IndexCalculator(
+        [
+            ConstituentConfig("AAPL", 1_000, 100.0),
+            ConstituentConfig("MSFT", 2_000, 50.0),
+        ],
+        base_value=1000.0,
+    )
+    actions: list[Callable[[], None]] = [
+        lambda: calc.apply_split("AAPL", 2, 1),
+        lambda: calc.apply_cash_dividend("MSFT", 1.5),
+        lambda: calc.apply_shares_issuance("AAPL", 3_333),
+        lambda: calc.add_constituent("GOOG", 700, 80.0),
+        lambda: calc.delist_symbol("MSFT"),
+    ]
+    for action in actions:
+        calc.update_price("AAPL", calc.last_price("AAPL") * 1.0137)  # drift
+        action()
+        assert calc.aggregate_cap() == calc._compute_cap()

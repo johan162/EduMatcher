@@ -539,7 +539,7 @@ Every topic in the system, and which process puts it on the wire.
 | `admin.action.{gateway_id}` | `admin` | `engine` |
 | `auction.indicative.{symbol}` | `auction` | `engine` |
 | `auction.result.{symbol}` | `auction` | `engine` |
-| `book.snapshot_request` | `book` | `stats`, `gateway` |
+| `book.snapshot_request` | `book` | `stats`, `gateway`, `index` |
 | `book.{symbol}` | `book` | `engine` |
 | `circuit_breaker.extend.{symbol}` | `circuit_breaker` | `engine` |
 | `circuit_breaker.halt.{symbol}` | `circuit_breaker` | `engine` |
@@ -860,7 +860,7 @@ Broadcast an aggregated view of one instrument's order book, on a timer. What ev
 
 ### `book.snapshot_request`
 
-**Published by:** `stats`, `gateway`
+**Published by:** `stats`, `gateway`, `index`
 
 **Transport:** `engine_push`
 
@@ -1419,6 +1419,15 @@ The session's open, high and low index level. All three arrive together or not a
 | `high` | `float` | required | unit `dimensionless` |  |
 | `low` | `float` | required | unit `dimensionless` |  |
 
+#### `RebalanceUpdate`
+
+One entry of a rebalance batch. Mechanically a SHARES_ISSUANCE corporate action, applied to every named existing constituent as one batch with a single recompute and publish rather than one round-trip per symbol.
+
+| Field | Type | Presence | Rules | Description |
+|---|---|---|---|---|
+| `symbol` | `string` | required | max_len 16 |  |
+| `new_shares_outstanding` | `int` | required | gt 0, unit `shares` |  |
+
 #### `HistoryRecord`
 
 One structural audit entry, replayed verbatim from pm-index's append-only JSONL archive. This is a union of five shapes discriminated by `type`, and the IDL has no variant construct (section 20.3). Every field the five do not share is therefore optional, and the spec cannot state "a CORP_ACTION always carries action and detail" - that rule lives in _handle_corp_action. What it can state is the field set, the units and the types, which is what every consumer needs: all six read the records with `.get(key, default)` and dispatch on `type`. The optional fields omit rather than null because the archive omits: a record written before this spec existed must read back and re-emit unchanged, or specifying the family would rewrite history.
@@ -1440,15 +1449,7 @@ One structural audit entry, replayed verbatim from pm-index's append-only JSONL 
 | `shares_outstanding` | `int` | omitted when unset | unit `shares` | ADD_CONSTITUENT only, and absent on records written before 5.2e: the handler used the share count to weight the constituent and then dropped it from the audit entry, so what a constituent was added with was durably recorded nowhere. Optional rather than required because the archive on disk still holds records without it. |
 | `reference_price` | `float` | omitted when unset | unit `display_price` | ADD_CONSTITUENT only. |
 | `symbols` | list of `string` | omitted when empty | — | REBALANCE only: the symbols the batch actually applied to. |
-
-#### `RebalanceUpdate`
-
-One entry of a rebalance batch. Mechanically a SHARES_ISSUANCE corporate action, applied to every named existing constituent as one batch with a single recompute and publish rather than one round-trip per symbol.
-
-| Field | Type | Presence | Rules | Description |
-|---|---|---|---|---|
-| `symbol` | `string` | required | max_len 16 |  |
-| `new_shares_outstanding` | `int` | required | gt 0, unit `shares` |  |
+| `updates` | list of [`RebalanceUpdate`](#rebalanceupdate) | omitted when empty | — | REBALANCE only: each symbol's new share count, so the archive says what the batch set and not only which symbols it touched. |
 
 ### `index.update`
 
@@ -1555,12 +1556,13 @@ Operator to pm-index: apply a corporate action.
 | `ratio_numerator` | `int` | omitted when unset | gt 0, unit `dimensionless` | SPLIT. |
 | `ratio_denominator` | `int` | omitted when unset | gt 0, unit `dimensionless` | SPLIT. |
 | `dividend_per_share` | `float` | omitted when unset | gt 0, unit `money` | CASH_DIVIDEND. |
-| `new_shares_outstanding` | `int` | omitted when unset | gt 0, unit `shares` | SHARES_ISSUANCE. |
+| `new_shares_outstanding` | `int` | omitted when unset | gt 0, unit `shares` | SHARES_ISSUANCE: the new absolute count. |
+| `shares_delta` | `int` | omitted when unset | unit `shares` | SHARES_ISSUANCE: a signed change to pm-index's live count (negative for a buy-back), applied by pm-index so no client has to know the count. Exactly one of this and new_shares_outstanding; the handler enforces that, the IDL cannot say it (section 20.3). |
 | `command_id` | `string` | omitted when empty | max_len 64 | Echoed on the ack so a caller can correlate. |
 
 !!! note
 
-    The four parameters are action-specific and flat: SPLIT reads the two ratio fields, CASH_DIVIDEND reads dividend_per_share, SHARES_ISSUANCE reads new_shares_outstanding, and each is read with `.get(key, 0)` inside its own branch of _handle_corp_action.
+    The five parameters are action-specific and flat: SPLIT reads the two ratio fields, CASH_DIVIDEND reads dividend_per_share, SHARES_ISSUANCE reads exactly one of new_shares_outstanding and shares_delta, each in its own branch of _handle_corp_action.
 
     A discriminated union would say that properly and the IDL has none - see design section 20.3 for why one was not built for a single family.
 
@@ -1635,6 +1637,7 @@ pm-index to requestor: the corporate action's outcome.
 | `level` | `float` | omitted when unset | unit `dimensionless` |  |
 | `divisor` | `float` | omitted when unset | unit `dimensionless` |  |
 | `old_divisor` | `float` | omitted when unset | unit `dimensionless` | The divisor immediately before this action was applied. Same field name and purpose as HistoryRecord.old_divisor, so a post-mortem does not need pm-index's local JSONL archive to see what changed — the wire event is self-contained. Present only alongside divisor, i.e. on acceptance. |
+| `shares_outstanding` | `int` | omitted when unset | unit `shares` | The constituent's share count after the action, on acceptance only. A SHARES_ISSUANCE sent as shares_delta learns the count it resulted in from here. |
 | `command_id` | `string` | omitted when empty | max_len 64 |  |
 
 !!! note

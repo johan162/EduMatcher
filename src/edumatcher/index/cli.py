@@ -194,16 +194,18 @@ def _resolve_history_files(
     """Return index_id → history Path, preferring config values."""
     from_config: dict[str, str] = {}
     try:
-        idx_map = _config_index_map(config_path)
+        if config_path is None:
+            # No --config: the deployed configuration's paths if there is
+            # one, else --data-dir below -- without the [ERROR] line
+            # _load_engine_config prints (C15).
+            cfg, _error = _try_load_engine_config(None)
+            idx_map = {} if cfg is None else {idx.id: idx for idx in cfg.indices}
+        else:
+            # An explicit --config path that fails to load exits: an operator
+            # mistake worth stopping for, not silently ignoring.
+            idx_map = _config_index_map(config_path)
         for idx_id, idx_cfg in idx_map.items():
             from_config[idx_id] = idx_cfg.history_file
-    except SystemExit:
-        if config_path is not None:
-            # An explicit --config path that failed to load is an operator
-            # mistake worth stopping for, not silently ignoring.
-            raise
-        # No --config given and no compiled configuration deployed: fall
-        # back to --data-dir below, matching the pre-existing behaviour.
     except Exception as exc:
         print(
             f"[WARNING] Could not read index paths from config: {exc}",
@@ -295,6 +297,11 @@ def _project_event(rec: dict[str, Any]) -> dict[str, Any]:
         detail = f"ref_price={rec.get('reference_price', '')}"
     elif rec_type == "DELIST":
         detail = ""
+    elif rec_type == "REBALANCE":
+        detail = ",".join(
+            f"{u.get('symbol')}={u.get('new_shares_outstanding')}"
+            for u in rec.get("updates", [])
+        )
     elif rec_type == "INIT":
         constituents = rec.get("constituents", [])
         detail = f"base={rec.get('base_value', '')} [{','.join(str(c) for c in constituents)}]"
@@ -321,7 +328,9 @@ def _stringify(value: Any) -> str:
     if value is None:
         return ""
     if isinstance(value, float):
-        return f"{value:g}"
+        # 15 significant digits, as pm-stats-cli: ``%g`` printed a divisor of
+        # 7007123456.78 as 7.00712e+09 (C13).
+        return f"{value:.15g}"
     if isinstance(value, list):
         return ",".join(str(v) for v in value)
     return str(value)
@@ -429,7 +438,10 @@ def build_parser() -> argparse.ArgumentParser:
     # ----------------------------------------------------------------- events
     events_p = sub.add_parser(
         "events",
-        help="Show structural events: INIT, CORP_ACTION, ADD_CONSTITUENT, DELIST.",
+        help=(
+            "Show structural events: INIT, CORP_ACTION, ADD_CONSTITUENT, "
+            "DELIST, REBALANCE."
+        ),
         formatter_class=argparse.RawTextHelpFormatter,
     )
     events_p.add_argument(
@@ -451,7 +463,8 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="TYPE",
         help=(
             "Filter to one event type (repeatable).\n"
-            "Valid values: INIT, CORP_ACTION, ADD_CONSTITUENT, DELIST.\n"
+            "Valid values: INIT, CORP_ACTION, ADD_CONSTITUENT, DELIST,\n"
+            "REBALANCE.\n"
             "Omit to show all structural event types."
         ),
     )

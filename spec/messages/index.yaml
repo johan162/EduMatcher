@@ -131,6 +131,14 @@ types:
       - { name: symbols, type: list, item: string, required: false,
           omit_when_empty: true,
           doc: "REBALANCE only: the symbols the batch actually applied to." }
+      - name: updates
+        type: list
+        ref: RebalanceUpdate
+        required: false
+        omit_when_empty: true
+        doc: >
+          REBALANCE only: each symbol's new share count, so the archive says
+          what the batch set and not only which symbols it touched.
 
   RebalanceUpdate:
     doc: >
@@ -238,10 +246,10 @@ messages:
       since: "1.0"
       see_also: ["index.corp_action_ack.{GW_ID}", "index.error.{GW_ID}"]
       example_note: >
-        The four parameters are action-specific and flat: SPLIT reads the two
+        The five parameters are action-specific and flat: SPLIT reads the two
         ratio fields, CASH_DIVIDEND reads dividend_per_share, SHARES_ISSUANCE
-        reads new_shares_outstanding, and each is read with `.get(key, 0)`
-        inside its own branch of _handle_corp_action. A discriminated union
+        reads exactly one of new_shares_outstanding and shares_delta, each in
+        its own branch of _handle_corp_action. A discriminated union
         would say that properly and the IDL has none - see design section 20.3
         for why one was not built for a single family.
     fields:
@@ -262,7 +270,19 @@ messages:
           validate: { gt: 0 }, doc: "CASH_DIVIDEND." }
       - { name: new_shares_outstanding, type: int, unit: shares,
           required: false, nullable: true, omit_when_none: true,
-          validate: { gt: 0 }, doc: "SHARES_ISSUANCE." }
+          validate: { gt: 0 },
+          doc: "SHARES_ISSUANCE: the new absolute count." }
+      - name: shares_delta
+        type: int
+        unit: shares
+        required: false
+        nullable: true
+        omit_when_none: true
+        doc: >
+          SHARES_ISSUANCE: a signed change to pm-index's live count (negative
+          for a buy-back), applied by pm-index so no client has to know the
+          count. Exactly one of this and new_shares_outstanding; the handler
+          enforces that, the IDL cannot say it (section 20.3).
       - { name: command_id, type: string, required: false,
           omit_when_empty: true, validate: { max_len: 64 },
           doc: "Echoed on the ack so a caller can correlate." }
@@ -364,6 +384,16 @@ messages:
           post-mortem does not need pm-index's local JSONL archive to see
           what changed — the wire event is self-contained. Present only
           alongside divisor, i.e. on acceptance.
+      - name: shares_outstanding
+        type: int
+        unit: shares
+        required: false
+        nullable: true
+        omit_when_none: true
+        doc: >
+          The constituent's share count after the action, on acceptance
+          only. A SHARES_ISSUANCE sent as shares_delta learns the count it
+          resulted in from here.
       - { name: command_id, type: string, required: false,
           omit_when_empty: true, validate: { max_len: 64 } }
     encoding:

@@ -472,144 +472,20 @@ class TestCmdShares:
             admin_cli._cmd_shares(client, args)
         assert push.sent == []
 
-    def test_delta_resolves_against_history_buyback(
+    def test_delta_is_sent_for_pm_index_to_resolve(
         self, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        # index_history() called first (delta resolution), then
-        # index_corp_action() — two acks must be queued in send order.
+        """WP-IDX08 (C6): pm-index holds the live count; the CLI reads no
+        history and prints the count the ack reports."""
         client, push = _client(
             recv_queue=_q(
-                make_index_history_msg(
-                    gateway_id="OPS01",
-                    index_id="TECH10",
-                    records=[
-                        {
-                            "type": "CORP_ACTION",
-                            "ts_ns": 100,
-                            "index_id": "TECH10",
-                            "level": 8401.09,
-                            "symbol": "AAPL",
-                            "action": "SHARES_ISSUANCE",
-                            "detail": "shares=16000000000",
-                        }
-                    ],
-                ),
                 make_index_corp_action_ack_msg(
                     gateway_id="OPS01",
                     accepted=True,
                     index_id="TECH10",
                     level=8401.09,
                     divisor=118.1187,
-                ),
-            )
-        )
-        args = _ns(
-            command="shares",
-            index="tech10",
-            sym="aapl",
-            new_shares=None,
-            delta=-800_000_000,
-        )
-        ok = admin_cli._cmd_shares(client, args)
-        assert ok is True
-
-        # Second send is the corp_action; assert the resolved absolute value.
-        _, payload = decode(push.sent[-1])
-        assert payload["new_shares_outstanding"] == 15_200_000_000
-        out = capsys.readouterr().out
-        assert "Last known shares_outstanding for AAPL: 16,000,000,000" in out
-
-    def test_delta_with_no_prior_history_rejected(
-        self, capsys: pytest.CaptureFixture[str]
-    ) -> None:
-        client, push = _client(
-            recv_queue=_q(
-                make_index_history_msg(
-                    gateway_id="OPS01", index_id="TECH10", records=[]
-                ),
-            )
-        )
-        args = _ns(
-            command="shares",
-            index="tech10",
-            sym="nvda",
-            new_shares=None,
-            delta=-100,
-        )
-        ok = admin_cli._cmd_shares(client, args)
-        assert ok is False
-        # Only the history request was sent — no corp_action attempted.
-        assert len(push.sent) == 1
-        captured = capsys.readouterr()
-        assert "no prior shares_outstanding" in captured.err
-
-    def test_delta_resolution_ignores_legacy_add_constituent_records(self) -> None:
-        """A pre-5.2e ADD_CONSTITUENT record carries no share count at all.
-
-        The boundary moved in 5.2e. Until then the handler used the submitted
-        shares_outstanding to weight the constituent and then dropped it from
-        the audit entry, so *every* ADD record looked like this and --delta
-        could never resolve from one. It is now written, and the companion
-        test below covers the new shape; this one keeps the archive's older
-        records readable, where reference_price must still not be mistaken for
-        a share count.
-        """
-        client, push = _client(
-            recv_queue=_q(
-                make_index_history_msg(
-                    gateway_id="OPS01",
-                    index_id="TECH10",
-                    records=[
-                        {
-                            "type": "ADD_CONSTITUENT",
-                            "ts_ns": 50,
-                            "index_id": "TECH10",
-                            "level": 100.0,
-                            "symbol": "AAPL",
-                            "reference_price": 118.5,
-                        }
-                    ],
-                ),
-            )
-        )
-        args = _ns(
-            command="shares",
-            index="tech10",
-            sym="aapl",
-            new_shares=None,
-            delta=-100,
-        )
-        ok = admin_cli._cmd_shares(client, args)
-        assert ok is False
-        assert len(push.sent) == 1  # only the history request
-
-    def test_delta_resolves_from_an_add_constituent_record(self) -> None:
-        """The point of recording the share count on the ADD entry.
-
-        Before 5.2e a constituent that had been added but never re-issued had
-        no resolvable baseline, so ``shares --delta`` failed with "pass
-        --new-shares instead" — for a symbol whose share count the operator
-        had supplied themselves one command earlier.
-        """
-        client, push = _client(
-            recv_queue=_q(
-                make_index_history_msg(
-                    gateway_id="OPS01",
-                    index_id="TECH10",
-                    records=[
-                        {
-                            "type": "ADD_CONSTITUENT",
-                            "ts_ns": 50,
-                            "index_id": "TECH10",
-                            "level": 100.0,
-                            "symbol": "AAPL",
-                            "shares_outstanding": 1000,
-                            "reference_price": 118.5,
-                        }
-                    ],
-                ),
-                make_index_corp_action_ack_msg(
-                    "OPS01", accepted=True, index_id="TECH10", level=101.0, divisor=1.0
+                    shares_outstanding=1_900,
                 ),
             )
         )
@@ -621,8 +497,40 @@ class TestCmdShares:
             delta=-100,
         )
         assert admin_cli._cmd_shares(client, args) is True
-        _topic, payload = decode(push.sent[-1])
-        assert payload["new_shares_outstanding"] == 900
+
+        assert len(push.sent) == 1  # no history request
+        topic, payload = decode(push.sent[0])
+        assert topic == "index.corp_action"
+        assert payload["shares_delta"] == -100
+        assert "new_shares_outstanding" not in payload
+        assert "shares_outstanding=1,900" in capsys.readouterr().out
+
+    def test_a_zero_delta_is_rejected_client_side(self) -> None:
+        client, push = _client()
+        args = _ns(
+            command="shares", index="tech10", sym="aapl", new_shares=None, delta=0
+        )
+        with pytest.raises(ValueError):
+            admin_cli._cmd_shares(client, args)
+        assert push.sent == []
+
+    def test_a_delta_dry_run_shows_the_delta(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        client, push = _client()
+        args = _ns(
+            command="shares",
+            index="tech10",
+            sym="aapl",
+            new_shares=None,
+            delta=250,
+            dry_run=True,
+        )
+        assert admin_cli._cmd_shares(client, args) is True
+        assert push.sent == []
+        out = capsys.readouterr().out
+        assert '"shares_delta": 250' in out
+        assert "new_shares_outstanding" not in out
 
 
 # ---------------------------------------------------------------------------
@@ -1054,3 +962,62 @@ class TestConfirm:
         monkeypatch.setattr("sys.stdin.isatty", lambda: True)
         monkeypatch.setattr("builtins.input", lambda _prompt: "")
         assert admin_cli._confirm("Continue?", assume_yes=False) is False
+
+
+class TestHistoryOutputIdx05:
+    def _run(
+        self,
+        records: list[dict[str, Any]],
+        capsys: pytest.CaptureFixture[str],
+        **kw: Any,
+    ) -> str:
+        client, _push = _client(
+            recv_queue=_q(
+                make_index_history_msg(
+                    gateway_id="OPS01", index_id="TECH10", records=records
+                )
+            )
+        )
+        args = _ns(
+            command="history",
+            index="tech10",
+            from_ts=None,
+            to_ts=None,
+            types=None,
+            limit=kw.pop("limit", 50),
+            **kw,
+        )
+        assert admin_cli._cmd_history(client, args) is True
+        return capsys.readouterr().out
+
+    def test_limit_keeps_the_newest_records(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        records = [
+            {"type": "INIT", "ts_ns": i, "index_id": "TECH10", "level": 1000.0}
+            for i in (1, 2, 3)
+        ]
+        out = self._run(records, capsys, limit=2, format="json")
+        assert [r["ts_ns"] for r in json.loads(out)] == [2, 3]
+
+    def test_a_rebalance_has_a_detail_and_the_time_is_iso(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        records = [
+            {
+                "type": "REBALANCE",
+                "ts_ns": 1_794_614_400_000_000_000,
+                "index_id": "TECH10",
+                "symbols": ["AAPL", "MSFT"],
+                "updates": [
+                    {"symbol": "AAPL", "new_shares_outstanding": 9_000},
+                    {"symbol": "MSFT", "new_shares_outstanding": 21_000},
+                ],
+                "old_divisor": 1.0,
+                "new_divisor": 2.0,
+                "level": 1234.5,
+            }
+        ]
+        out = self._run(records, capsys)
+        assert "2026-11-14T00:00:00+00:00" in out
+        assert "AAPL=9,000,MSFT=21,000 -> level=1234.5" in out

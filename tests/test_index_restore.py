@@ -32,6 +32,7 @@ from tests.support.restart import restart_equivalence
 
 class _Sock:
     def __init__(self) -> None:
+        self.options: list[tuple[int, bytes]] = []
         self.sent: list[list[bytes]] = []
 
     def poll(self, timeout: int = 0) -> bool:
@@ -42,6 +43,9 @@ class _Sock:
 
     def close(self) -> None:
         pass
+
+    def setsockopt(self, option: int, value: bytes) -> None:
+        self.options.append((option, value))
 
 
 @pytest.fixture()
@@ -63,6 +67,7 @@ def make_process(
         constituents=["AAPL", "MSFT"],
         outstanding_shares={"AAPL": 10_000, "MSFT": 20_000},
         reference_prices={"AAPL": 100.0, "MSFT": 50.0},
+        tradeable_symbols=frozenset({"AAPL", "MSFT", "GOOG", "AMZN"}),
     )
     monkeypatch.setattr(index_main, "load_index_runtime_configs", lambda _p: [cfg])
     made: list[index_main.IndexProcess] = []

@@ -39,10 +39,10 @@ class IndexCalculator:
         self._outstanding_shares: dict[str, int] = {}
         self._reference_prices: dict[str, float] = {}
         self._last_prices: dict[str, float] = {}
-        # Memoised aggregate cap. One trade used to rescan every
-        # constituent three times for the same number; every method below
-        # that changes a price, a share count or the constituent set calls
-        # _invalidate_cap().
+        # Memoised aggregate cap. A trade adjusts it by the price difference
+        # (P1: a full rescan cost 56 µs per trade at 500 constituents); every
+        # structural change calls _invalidate_cap(), and the full recompute
+        # that follows also resets accumulated float drift.
         self._cap: float | None = None
 
         for cfg in constituents:
@@ -144,7 +144,8 @@ class IndexCalculator:
             raise ValueError("price must be a finite number > 0")
         old_price = self._last_prices.get(sym, self._reference_prices[sym])
         self._last_prices[sym] = float(price)
-        self._invalidate_cap()
+        if self._cap is not None:
+            self._cap += (float(price) - old_price) * self._outstanding_shares[sym]
         log.debug(
             "price update symbol=%s old_price=%.6f new_price=%.6f",
             sym,
@@ -165,9 +166,14 @@ class IndexCalculator:
         if old_cap <= 0.0:
             raise ValueError("Cannot apply split when aggregate cap is non-positive")
         old_shares = self._outstanding_shares[sym]
-        self._outstanding_shares[sym] = (
+        new_shares = (
             old_shares * ratio_numerator + ratio_denominator // 2
         ) // ratio_denominator
+        # A holding of zero would be persisted and then refused by __init__
+        # on the next start (C7).
+        if new_shares < 1:
+            raise ValueError(f"Split would leave {sym} with 0 shares")
+        self._outstanding_shares[sym] = new_shares
 
         old_price = self._last_prices.get(sym, self._reference_prices[sym])
         new_price = old_price * ratio_denominator / ratio_numerator

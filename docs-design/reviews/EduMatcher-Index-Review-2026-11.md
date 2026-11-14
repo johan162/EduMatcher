@@ -28,7 +28,7 @@ not repeated here.
 others are by inspection, with line numbers given. The engine's ordering of
 uncross trades and `session.state` was read in `engine/main.py:6170-6232`.
 
-Status: **Open.** Decisions Q1–Q3 not yet taken.
+Status: **In progress.** Decisions taken 2026-11-14: Q1 — WP-IDX07 skipped; Q2 — as recommended; Q3 — as recommended (§7).
 
 ---
 
@@ -63,15 +63,15 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit) �
 
 | # | WP | Content | Findings | Depends on | Est. | Status | Done on |
 |---|---|---|---|---|---|---|---|
-| 1 | WP-IDX01 | A command is applied, persisted and acknowledged together | C5, C7 | — | 0.5 d | ☐ | |
-| 2 | WP-IDX02 | Day open/high/low and the close across phases and engine restarts | C2, C4, C10 | — | 0.5 d | ☐ | |
-| 3 | WP-IDX03 | The last level is always published | C1 | — | 0.25 d | ☐ | |
-| 4 | WP-IDX04 | The loop survives a write failure and exits only when stopped | C8, C9 | — | 0.25 d | ☐ | |
-| 5 | WP-IDX05 | CLI output and small items | C12, C13, C14, C15 | — | 0.5 d | ☐ | |
-| 6 | WP-IDX06 | Incremental aggregate cap; drain per wake-up | P1, P2 | — | 0.25 d | ☐ | |
-| 7 | WP-IDX07 | Corporate actions and the market price | C3 | Q1 | 0.5 d | ☐ | |
-| 8 | WP-IDX08 | Share deltas resolved by pm-index | C6 | Q2 | 0.5 d | ☐ | |
-| 9 | WP-IDX09 | Catch up on prices after a start | C11 | Q3 | 0.5 d | ☐ | |
+| 1 | WP-IDX01 | A command is applied, persisted and acknowledged together | C5, C7 | — | 0.5 d | ☑ | 2026-11-14 |
+| 2 | WP-IDX02 | Day open/high/low and the close across phases and engine restarts | C2, C4, C10 | — | 0.5 d | ☑ | 2026-11-14 |
+| 3 | WP-IDX03 | The last level is always published | C1 | — | 0.25 d | ☑ | 2026-11-14 |
+| 4 | WP-IDX04 | The loop survives a write failure and exits only when stopped | C8, C9 | — | 0.25 d | ☑ | 2026-11-14 |
+| 5 | WP-IDX05 | CLI output and small items | C12, C13, C14, C15 | — | 0.5 d | ☑ | 2026-11-14 |
+| 6 | WP-IDX06 | Incremental aggregate cap; drain per wake-up | P1, P2 | — | 0.25 d | ☑ | 2026-11-14 |
+| 7 | WP-IDX07 | Corporate actions and the market price | C3 | Q1 | 0.5 d | — skipped (Q1) | |
+| 8 | WP-IDX08 | Share deltas resolved by pm-index | C6 | Q2 | 0.5 d | ☑ | 2026-11-14 |
+| 9 | WP-IDX09 | Catch up on prices after a start | C11 | Q3 | 0.5 d | ☑ | 2026-11-14 |
 | 10 | WP-IDX10 | Comments, docstrings, help texts, guide | D1–D8 | WP-IDX01–09 | 0.5 d | ☐ | |
 
 Suggested order: **WP-IDX01 → WP-IDX02 → WP-IDX03 → WP-IDX04 → WP-IDX05 →
@@ -446,7 +446,7 @@ same change as pm-stats' P4).
 
 ## 7. Decisions
 
-Open; recommendations given.
+Taken 2026-11-14 (Johan): **Q1** — skip WP-IDX07 for now (C3 stays open); **Q2** — move the delta to pm-index, as recommended; **Q3** — catch up from book snapshots, as recommended.
 
 | # | Question | Recommendation |
 |---|---|---|
@@ -657,3 +657,139 @@ stale.
 - `ExchangeCommandClient`'s index methods were not reviewed as code.
 - Exchange-side corporate actions (adjusting books, reference prices and
   bots on an ex-date): 1.x, see Q1.
+
+---
+
+## 10. Implementation notes
+
+### WP-IDX01 (2026-11-14)
+
+- Each command handler applies its change to `copy.deepcopy(idx.calc)` and
+  hands it to `IndexProcess._commit`: state file first, then the history
+  record (`IndexHistory.write_through`, appended *and flushed*), then the
+  swap, publish and ack. An `OSError` rejects the command with the error as
+  the reason; a history failure rewrites the previous state file
+  (best effort; failure logged at ERROR with a ledger entry).
+- Found on the way: a failed flush keeps the line in the `TextIOWrapper`
+  buffer and the next flush writes it (verified on `/dev/full`), so a
+  rejected command's record would still reach the archive.
+  `write_through` reopens the handle on failure; regression test in
+  `test_index_history.py`.
+- The rebalance's partial-apply path and its comment (D6) are gone: a batch
+  that fails part-way applies nothing. The ledger entry for "rebalance
+  partially applied" was replaced.
+- C7: `apply_split` refuses a result below one share before mutating.
+
+### WP-IDX02 (2026-11-14)
+
+- The day starts at `PRE_OPEN` (a `session.state` or a status reply); a
+  trading-day phase (`OPENING_AUCTION`, `CONTINUOUS`, `CLOSING_AUCTION`)
+  clears the EOD latch without clearing the day; `CLOSED` finalises.
+- `system.eod` also clears `_session_status_received`, so pm-index asks for
+  the engine's status again; that reply is what tells it an engine that
+  came back mid-session is still trading (the C4 repro's status reply had
+  no source before). The push has `SNDTIMEO=0`, so asking a stopped engine
+  costs nothing.
+- The state file carries `eod_finalized`; `day_*` are restored when it is
+  false. `_finalize_eod` now sets the latch before writing.
+- Addition: a status reply of `PRE_OPEN` after a restart drops a restored
+  day that never closed (pm-index stopped before yesterday's close).
+- Checked: the engine boots `CLOSED` and its own daily counters reset at
+  `PRE_OPEN` (`engine/main.py:6209`), and the scheduler's catch-up replays
+  from `PRE_OPEN`, so the day boundary matches the engine's.
+
+### WP-IDX03 (2026-11-14)
+
+- `_ManagedIndex.pending`; `_publish_pending` runs each loop pass. The
+  trailing publish lands up to one poll timeout (200 ms) after the
+  interval ends.
+
+### WP-IDX04 (2026-11-14)
+
+- `_checkpoint` guards each index's write: on `OSError` it logs ERROR, keeps
+  the index dirty and retries after `CHECKPOINT_INTERVAL_SEC` (not every
+  pass). `_flush_history` logs a failing flush once until it succeeds.
+  `close()` guards its history close. EINTR `continue`s.
+- Found on the way: `_finalize_eod` wrote each index directly, so a write
+  failure for the first index left the others unfinalised. It now marks
+  them dirty and checkpoints once at the end (regression test
+  `test_a_failing_write_at_the_close_still_finalises_every_index`).
+- Three existing tests ended `run()` with EINTR; they now call `stop()`.
+- Three new ERROR ledger entries.
+
+### WP-IDX05 (2026-11-14)
+
+- C12: `IndexRuntimeConfig.tradeable_symbols` (every engine symbol, filled by
+  `config_loader`); `ADD` of any other symbol is rejected with
+  "`<SYM>` is not a configured symbol". Every test fixture that builds an
+  `IndexRuntimeConfig` now passes the set.
+- C13: `REBALANCE` detail `symbols=A,B`; floats with 15 significant digits;
+  the `events` help and `--type` help list five types.
+- C14: `history` keeps the newest `--limit` records, prints the stamp as ISO
+  UTC and a `REBALANCE` detail; its `--types` help lists five types (D2,
+  partly) and `--limit` says "the newest".
+- C15: without `--config`, `_resolve_history_files` uses
+  `_try_load_engine_config(None)`; an explicit bad `--config` still exits.
+- `make completion` regenerated the zsh completion.
+
+### WP-IDX06 (2026-11-14)
+
+- `update_price` adjusts a memoised cap by `(new − old) × shares`; every
+  structural action still invalidates it, and its recompute resets the
+  drift. 10 000 random updates over 50 constituents stay within 1e-9
+  relative of a full recompute.
+- The loop drains up to `_DRAIN_PER_WAKE = 1_000` messages per socket per
+  wake-up (`sock.poll(0)`, as pm-stats).
+- Bench (`_handle_trade`, 20 000 trades, this host):
+
+  | constituents | throttled (1 s) | publish every trade |
+  |---:|---:|---:|
+  | 10 | 2.4 µs | 8.2 µs |
+  | 100 | 2.4 µs | 6.6 µs |
+  | 500 | 2.3 µs | 6.6 µs |
+
+- `tests/test_k18_hot_path_cost.py::test_i5_…_at_most_once` asserted one
+  rescan per trade; it now asserts none.
+
+### WP-IDX08 (2026-11-14)
+
+- Spec: `index.corp_action.shares_delta` (optional, signed);
+  `index.corp_action_ack.shares_outstanding` (the constituent's count after
+  every accepted corporate action); `HistoryRecord.updates` (list of
+  `RebalanceUpdate`, REBALANCE only; `symbols` is kept). `pm-msgen
+  generate`, `make openapi` (additions only), `make completion`.
+- `SHARES_ISSUANCE` takes exactly one of `new_shares_outstanding` and
+  `shares_delta`; a delta that leaves ≤ 0 shares is rejected. The history
+  detail of a delta reads `shares=<count> delta=<±n>`.
+- `pm-index-admin-cli shares --delta` sends `shares_delta` (refuses `0`
+  client-side), reads no history, and prints the ack's count; the
+  `_resolve_delta` helper and its four tests are gone. Both CLIs render a
+  REBALANCE detail from `updates`.
+- Guide: the `--delta` caveats and the dry-run note are replaced; the
+  `history` example shows ISO stamps and newest-`N` (from WP-IDX05).
+- Not changed (outside the reviewed files): `alf_console/display.py`
+  `print_index_history` still lists four record types and shows no
+  REBALANCE detail; the design doc `EduMatcher-index-admin-cli.md` §6.3
+  still describes the client-side delta (updated in WP-IDX10).
+
+### WP-IDX09 (2026-11-14)
+
+- pm-index subscribes to `book.{symbol}` for every constituent (at start and
+  on ADD; never unsubscribed — a delisted symbol's books are ignored). Per
+  subscription rather than per request: a subscription made just before a
+  request can reach the engine after its reply.
+- Every status reply sends one `book.snapshot_request` per constituent and
+  marks it awaited. Only an awaited snapshot is applied, through
+  `_handle_trade` (which refuses a missing or unusable `last_price`); the
+  engine's periodic `book.{symbol}` (every book change, 0.5 s throttle) is
+  dropped on the raw topic frame, before JSON decoding.
+- The status reply comes again after an engine shutdown because WP-IDX02
+  re-requests it on `system.eod`. A killed engine sends no `system.eod`, so
+  that case still waits for the next trade.
+- Found on the way: in `PRE_OPEN` a snapshot's `last_price` is the previous
+  day's, and it would have opened the day. A catch-up extends a day that
+  has begun but does not open one (regression tests in
+  `test_index_main.py`).
+- `spec/messages/book.yaml`: `book.snapshot_request` lists `index` among its
+  publishers. Guide: reference-price/catch-up text and the state file's
+  restored day and `eod_finalized`.

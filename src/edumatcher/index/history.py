@@ -61,6 +61,25 @@ class IndexHistory:
             record.get("index_id", "?"),
         )
 
+    def write_through(self, record: dict[str, Any]) -> None:
+        """Append ``record`` and flush it, for a command that must be on disk
+        before it is acknowledged.
+
+        On an OSError the handle is reopened: a failed flush keeps the line
+        buffered, and the next flush would write the record of a command
+        pm-index then rejected.
+        """
+        try:
+            self.append(record)
+            self._fh.flush()
+        except OSError:
+            try:
+                self._fh.close()
+            except OSError:
+                pass
+            self._fh = self._path.open("a", encoding="utf-8")
+            raise
+
     def flush(self) -> None:
         self._fh.flush()
 

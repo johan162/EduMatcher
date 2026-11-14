@@ -319,8 +319,9 @@ def _calc(constituents: int = 200) -> Any:
 def test_i5_one_trade_recomputes_the_aggregate_cap_at_most_once(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A full constituent scan per trade is fine; repeating it for a value
-    that has not changed since the last scan is not."""
+    """Repeating a constituent scan for a value that has not changed since
+    the last scan is wasted work. Since WP-IDX06 (index review P1) a trade
+    adjusts the memoised cap by the price difference and scans nothing."""
     calc = _calc()
     counter = CallCounter(calc._compute_cap)
     monkeypatch.setattr(calc, "_compute_cap", counter)
@@ -330,7 +331,7 @@ def test_i5_one_trade_recomputes_the_aggregate_cap_at_most_once(
     cap = calc.aggregate_cap()
 
     assert cap / calc.divisor == pytest.approx(level)
-    assert counter.calls == 1, "the cap was rescanned for a value it already had"
+    assert counter.calls == 0, "a trade rescanned the constituents"
 
 
 def test_i5_the_cached_cap_is_invalidated_by_every_mutation() -> None:
