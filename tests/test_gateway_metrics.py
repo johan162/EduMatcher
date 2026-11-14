@@ -208,6 +208,9 @@ def test_md_counts_messages_out_and_a_slow_client(fake_zmq: None) -> None:
     gateway._clients[session.sock.fileno()] = session
     for _ in range(3):
         gateway._queue_line(session, "HB", {})
+    # Counted when sent, not when queued (WP-MDG06).
+    assert _value(gateway.metric_samples(), "md.msgs_out") == 0
+    gateway._flush_client_writes()
     assert _value(gateway.metric_samples(), "md.msgs_out") == 3
 
     # Past max_client_queue with a peer that never reads: more bytes than

@@ -22,14 +22,15 @@ export function buildHello(clientId: string): string {
  * The reply is every buffered message *past* `lastSeq`, so it necessarily
  * re-sends anything already delivered above that point — a caller must drop
  * what it has seen rather than assume the replay is disjoint from live
- * traffic. If the gateway no longer holds what was missed -- the gap aged out
- * of its replay window, or `lastSeq` is ahead of the stream after a gateway
- * restart -- the answer is `ERR|CODE=REPLAY_MISS|CH=..|SYM=..`, followed by a
+ * traffic. `epoch` is the `WELCOME|EPOCH=` of the gateway run `lastSeq` was
+ * counted in. If the gateway no longer holds what was missed -- the gap aged
+ * out of its replay window, or `epoch` names another run because the gateway
+ * restarted -- the answer is `ERR|CODE=REPLAY_MISS|CH=..|SYM=..`, followed by a
  * fresh `SNAP` on the channels that have one; on `TRADE` and `AUCTION` the
  * missed events are simply gone. An empty reply means nothing was missed. See `apps/bridge/src/calf/uplink.ts` for a consumer.
  */
-export function buildResume(ch: Channel, symbol: string, lastSeq: number): string {
-  return buildLine("RESUME", { CH: ch, SYM: symbol, LASTSEQ: String(lastSeq) });
+export function buildResume(ch: Channel, symbol: string, lastSeq: number, epoch: string): string {
+  return buildLine("RESUME", { CH: ch, SYM: symbol, LASTSEQ: String(lastSeq), EPOCH: epoch });
 }
 
 /**

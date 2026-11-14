@@ -594,6 +594,33 @@ describe("gap detection and repair (T-H4/T-H5)", () => {
     expect(harness.gaps[0]).toMatchObject({ ch: "TRADE", sym: "AAPL" });
   });
 
+  it("names the old gateway run on a RESUME after the gateway restarted, and reports the loss", async () => {
+    // WP-MDG03: the restarted gateway's TRADE stream has already passed this
+    // bridge's position, so without the run's EPOCH it would replay its own
+    // prints as the missing ones.
+    const harness = await connected();
+    for (const seq of [1, 2, 3]) {
+      harness.gateway.emit(`TRADE|CH=TRADE|SYM=AAPL|SEQ=${seq}|TS=t${seq}|PX=1|QTY=1|SIDE=BUY`);
+    }
+    await waitFor(() => frameOf(harness.frames, "trade").length === 3, 2000, "run A's prints");
+
+    harness.gateway.epoch = "fake-run-2";
+    harness.gateway.seedReplay([
+      "TRADE|CH=TRADE|SYM=AAPL|SEQ=4|TS=b4|PX=2|QTY=1|SIDE=BUY",
+      "TRADE|CH=TRADE|SYM=AAPL|SEQ=5|TS=b5|PX=2|QTY=1|SIDE=BUY",
+    ]);
+    await reconnect(harness);
+    harness.gateway.emit("TRADE|CH=TRADE|SYM=AAPL|SEQ=6|TS=b6|PX=2|QTY=1|SIDE=BUY");
+
+    await waitFor(
+      () => harness.gateway.linesStartingWith("RESUME|CH=TRADE|SYM=AAPL|LASTSEQ=3|EPOCH=fake-run-1").length === 1,
+      2000,
+      "a RESUME naming run A",
+    );
+    await waitFor(() => harness.gaps.length === 1, 2000, "the gap report");
+    expect(frameOf(harness.frames, "trade").map((t) => t.seq)).toEqual([1, 2, 3, 6]);
+  });
+
   it("resumes only TRADE — every other channel is left to SNAP or reported unrepaired", async () => {
     // Pins RESUMABLE_CHANNELS's exact membership. A channel wrongly added to
     // it would start resuming data a SNAP is about to supersede (TOP/STATE/

@@ -46,6 +46,8 @@ class ResumeRequest:
     channel: str
     symbol: str
     last_seq: int
+    #: ``WELCOME|EPOCH=`` of the gateway run ``last_seq`` was seen on.
+    epoch: str
 
 
 @dataclass
@@ -122,7 +124,9 @@ class CalfSpyClient:
 
         resume = self._opts.resume
         if resume is not None:
-            self._client.resume(resume.channel, resume.symbol, resume.last_seq)
+            self._client.resume(
+                resume.channel, resume.symbol, resume.last_seq, resume.epoch
+            )
         return welcome
 
     def subscribe(self, channels: list[str], symbols: list[str]) -> None:

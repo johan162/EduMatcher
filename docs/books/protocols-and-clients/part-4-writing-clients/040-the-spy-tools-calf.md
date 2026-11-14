@@ -80,7 +80,7 @@ handshake to succeed, but you will not see any live data until it is.
 |---|---|---|
 | `--channels` | `*` | Comma-separated channels, e.g. `TOP,TRADE,CB`. `*` subscribes to every channel in `WELCOME\|CH_SUPPORTED=` (falling back to `TOP,TRADE,STATE` if that field is absent — see [pre-1.0.0 gateway note](../../operator-guide/part-5-gateways/030-calf-gateway.md#step-1-send-hello)) |
 | `--symbols` | `*` | Comma-separated symbols, e.g. `AAPL,MSFT`. `*` requests the wildcard for every channel that allows it (`TOP`, `TRADE`, `STATE`, `AUCTION`) |
-| `--resume` | *(none)* | One-shot `CH:SYM:LASTSEQ`, e.g. `TOP:AAPL:1042` — requests single-stream replay just after the handshake (sends `RESUME\|CH=..\|SYM=..\|LASTSEQ=..`) |
+| `--resume` | *(none)* | One-shot `CH:SYM:LASTSEQ:EPOCH`, e.g. `TRADE:AAPL:1042:3f9a01bc` — requests single-stream replay just after the handshake (sends `RESUME\|CH=..\|SYM=..\|LASTSEQ=..\|EPOCH=..`). `EPOCH` is the `WELCOME\|EPOCH=` of the gateway run `LASTSEQ` was seen on (shown on the spy's `WELCOME` line); a restarted gateway answers `REPLAY_MISS` |
 
 `--channels`/`--symbols` are applied as a single `SUB` for the full
 Cartesian product. If a requested combination is invalid — `SYM=*` on a
@@ -135,7 +135,7 @@ distinct), the symbol, the sequence number, and the remaining fields as
 
 ```text
 ◆ pm-calf-spy connected to 127.0.0.1:5570 as calf-spy-40213 (Ctrl-C to stop)
-10:02:17.041  WELCOME   CH_SUPPORTED=AUCTION,CB,DEPTH,INDEX,STATE,TOP,TRADE GW=md-gwy01 HBINT=1 PROTO=CALF1 REPLAY=30 SYMBOLS=AAPL,MSFT
+10:02:17.041  WELCOME   CH_SUPPORTED=AUCTION,CB,DEPTH,INDEX,STATE,TOP,TRADE EPOCH=3f9a01bc GW=md-gwy01 HBINT=1 PROTO=CALF1 REPLAY=30 SYMBOLS=AAPL,MSFT
 10:02:17.048  SNAP     TOP      AAPL       #1      ASK=150.12 ASKSZ=900 BID=150.10 BIDSZ=1200 LAST=150.11 LASTSZ=300
 10:02:17.512  MD       TOP      AAPL       #2      BID=150.11 BIDSZ=1400
 10:02:18.203  TRADE    TRADE    AAPL       #44     PX=150.12 QTY=200 SIDE=BUY

@@ -138,8 +138,10 @@ def test_cli_parser_version(capsys: pytest.CaptureFixture[str]) -> None:
 
 
 def test_parse_resume_valid() -> None:
-    resume = calf_spy_cli._parse_resume("top:aapl:42")
-    assert resume == ResumeRequest(channel="TOP", symbol="AAPL", last_seq=42)
+    resume = calf_spy_cli._parse_resume("top:aapl:42:ab12cd34")
+    assert resume == ResumeRequest(
+        channel="TOP", symbol="AAPL", last_seq=42, epoch="ab12cd34"
+    )
 
 
 def test_parse_resume_none() -> None:
@@ -149,11 +151,14 @@ def test_parse_resume_none() -> None:
 def test_parse_resume_bad_shape() -> None:
     with pytest.raises(ValueError):
         calf_spy_cli._parse_resume("TOP:AAPL")
+    with pytest.raises(ValueError):
+        # The run the position came from is required (WP-MDG03).
+        calf_spy_cli._parse_resume("TOP:AAPL:42")
 
 
 def test_parse_resume_bad_lastseq() -> None:
     with pytest.raises(ValueError):
-        calf_spy_cli._parse_resume("TOP:AAPL:notanumber")
+        calf_spy_cli._parse_resume("TOP:AAPL:notanumber:ab12cd34")
 
 
 def test_resolve_channels_wildcard_uses_ch_supported() -> None:

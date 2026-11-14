@@ -117,9 +117,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     sub.add_argument(
         "--resume",
-        metavar="CH:SYM:LASTSEQ",
-        help="Request single-stream replay on connect, e.g. TOP:AAPL:1042 "
-        "(sends RESUME|CH=..|SYM=..|LASTSEQ=.. after the handshake). This "
+        metavar="CH:SYM:LASTSEQ:EPOCH",
+        help="Request single-stream replay on connect, e.g. "
+        "TRADE:AAPL:1042:3f9a01bc (sends RESUME|CH=..|SYM=..|LASTSEQ=..|"
+        "EPOCH=.. after the handshake). EPOCH is the WELCOME|EPOCH= of the "
+        "gateway run LASTSEQ was seen on; a restarted gateway answers "
+        "REPLAY_MISS. This "
         "flag resumes one stream; live subscriptions from --channels/"
         "--symbols are still applied afterwards.",
     )
@@ -266,9 +269,9 @@ def _parse_resume(raw: str | None) -> ResumeRequest | None:
     if raw is None:
         return None
     parts = raw.split(":")
-    if len(parts) != 3:
-        raise ValueError(f"--resume must be CH:SYM:LASTSEQ, got {raw!r}")
-    ch, sym, last_seq_raw = parts
+    if len(parts) != 4:
+        raise ValueError(f"--resume must be CH:SYM:LASTSEQ:EPOCH, got {raw!r}")
+    ch, sym, last_seq_raw, epoch = parts
     try:
         last_seq = int(last_seq_raw)
     except ValueError as exc:
@@ -276,7 +279,10 @@ def _parse_resume(raw: str | None) -> ResumeRequest | None:
             f"--resume LASTSEQ must be an integer, got {last_seq_raw!r}"
         ) from exc
     return ResumeRequest(
-        channel=ch.strip().upper(), symbol=sym.strip().upper(), last_seq=last_seq
+        channel=ch.strip().upper(),
+        symbol=sym.strip().upper(),
+        last_seq=last_seq,
+        epoch=epoch.strip(),
     )
 
 

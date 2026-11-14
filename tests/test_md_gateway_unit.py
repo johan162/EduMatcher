@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 import socket
 import time
 from collections.abc import Generator
@@ -166,7 +167,9 @@ def test_resume_auction_replays_missed_events(
     unit_gateway._replay.append(
         "AUCTION", "AAPL", 2, b"AUCTION|CH=AUCTION|SYM=AAPL|SEQ=2\n"
     )
-    unit_gateway._handle_client_line(sess, "RESUME|CH=AUCTION|SYM=AAPL|LASTSEQ=1")
+    unit_gateway._handle_client_line(
+        sess, f"RESUME|CH=AUCTION|SYM=AAPL|LASTSEQ=1|EPOCH={unit_gateway._epoch}"
+    )
     assert ("AUCTION", "AAPL") in sess.subscriptions
     peer.close()
 
@@ -191,9 +194,15 @@ def test_resume_recovers_several_streams_on_one_connection(
         "TRADE", "TRADE", "AAPL", {"TRADE_ID": "T1"}, time.time()
     )
 
-    unit_gateway._handle_client_line(sess, "RESUME|CH=TOP|SYM=AAPL|LASTSEQ=1")
-    unit_gateway._handle_client_line(sess, "RESUME|CH=TOP|SYM=MSFT|LASTSEQ=4")
-    unit_gateway._handle_client_line(sess, "RESUME|CH=TRADE|SYM=AAPL|LASTSEQ=1")
+    unit_gateway._handle_client_line(
+        sess, f"RESUME|CH=TOP|SYM=AAPL|LASTSEQ=1|EPOCH={unit_gateway._epoch}"
+    )
+    unit_gateway._handle_client_line(
+        sess, f"RESUME|CH=TOP|SYM=MSFT|LASTSEQ=4|EPOCH={unit_gateway._epoch}"
+    )
+    unit_gateway._handle_client_line(
+        sess, f"RESUME|CH=TRADE|SYM=AAPL|LASTSEQ=1|EPOCH={unit_gateway._epoch}"
+    )
 
     assert {("TOP", "AAPL"), ("TOP", "MSFT"), ("TRADE", "AAPL")} <= sess.subscriptions
     assert _err_codes(sess) == []
@@ -221,27 +230,35 @@ def test_resume_bad_lastseq_keeps_the_session_open(
     """One malformed RESUME must not cost the client every other stream."""
     sess, peer = _authenticated_session(unit_gateway)
 
-    unit_gateway._handle_client_line(sess, "RESUME|CH=TOP|SYM=AAPL|LASTSEQ=abc")
+    unit_gateway._handle_client_line(
+        sess, f"RESUME|CH=TOP|SYM=AAPL|LASTSEQ=abc|EPOCH={unit_gateway._epoch}"
+    )
 
     assert sess.closing is False
     assert _err_codes(sess) == ["BAD_MESSAGE"]
 
     # ...and the client can carry on resuming the rest.
-    unit_gateway._handle_client_line(sess, "RESUME|CH=TOP|SYM=MSFT|LASTSEQ=1")
+    unit_gateway._handle_client_line(
+        sess, f"RESUME|CH=TOP|SYM=MSFT|LASTSEQ=1|EPOCH={unit_gateway._epoch}"
+    )
     assert ("TOP", "MSFT") in sess.subscriptions
     peer.close()
 
 
 def test_resume_rejects_a_zero_lastseq(unit_gateway: MarketDataGateway) -> None:
     sess, peer = _authenticated_session(unit_gateway)
-    unit_gateway._handle_client_line(sess, "RESUME|CH=TOP|SYM=AAPL|LASTSEQ=0")
+    unit_gateway._handle_client_line(
+        sess, f"RESUME|CH=TOP|SYM=AAPL|LASTSEQ=0|EPOCH={unit_gateway._epoch}"
+    )
     assert _err_codes(sess) == ["BAD_MESSAGE"]
     peer.close()
 
 
 def test_resume_rejects_an_unknown_channel(unit_gateway: MarketDataGateway) -> None:
     sess, peer = _authenticated_session(unit_gateway)
-    unit_gateway._handle_client_line(sess, "RESUME|CH=BOOK|SYM=AAPL|LASTSEQ=1")
+    unit_gateway._handle_client_line(
+        sess, f"RESUME|CH=BOOK|SYM=AAPL|LASTSEQ=1|EPOCH={unit_gateway._epoch}"
+    )
     assert _err_codes(sess) == ["INVALID_CHANNEL"]
     peer.close()
 
@@ -251,7 +268,9 @@ def test_resume_rejects_multiple_streams_in_one_message(
 ) -> None:
     """LASTSEQ is per-stream, so one message can only ever mean one stream."""
     sess, peer = _authenticated_session(unit_gateway)
-    unit_gateway._handle_client_line(sess, "RESUME|CH=TOP|SYM=AAPL,MSFT|LASTSEQ=1")
+    unit_gateway._handle_client_line(
+        sess, f"RESUME|CH=TOP|SYM=AAPL,MSFT|LASTSEQ=1|EPOCH={unit_gateway._epoch}"
+    )
     assert _err_codes(sess) == ["BAD_MESSAGE"]
     assert ("TOP", "AAPL") not in sess.subscriptions
     peer.close()
@@ -266,7 +285,9 @@ def test_resume_wildcard_symbol_rejected(unit_gateway: MarketDataGateway) -> Non
     """
     sess, peer = _authenticated_session(unit_gateway)
 
-    unit_gateway._handle_client_line(sess, "RESUME|CH=TOP|SYM=*|LASTSEQ=1")
+    unit_gateway._handle_client_line(
+        sess, f"RESUME|CH=TOP|SYM=*|LASTSEQ=1|EPOCH={unit_gateway._epoch}"
+    )
 
     assert ("TOP", "*") not in sess.subscriptions
     assert sess.closing is False
@@ -280,7 +301,9 @@ def test_resume_requires_authentication_first(
     sess, peer = _make_session()
     unit_gateway._clients[sess.sock.fileno()] = sess
 
-    unit_gateway._handle_client_line(sess, "RESUME|CH=TOP|SYM=AAPL|LASTSEQ=1")
+    unit_gateway._handle_client_line(
+        sess, f"RESUME|CH=TOP|SYM=AAPL|LASTSEQ=1|EPOCH={unit_gateway._epoch}"
+    )
 
     assert _err_codes(sess) == ["AUTH_REQUIRED"]
     peer.close()
@@ -295,7 +318,9 @@ def test_resume_falls_back_to_a_snapshot_on_replay_miss(
     # be filled from replay and it needs a fresh baseline instead.
     unit_gateway._replay.append("TOP", "AAPL", 900, b"MD|CH=TOP|SYM=AAPL|SEQ=900\n")
 
-    unit_gateway._handle_client_line(sess, "RESUME|CH=TOP|SYM=AAPL|LASTSEQ=1")
+    unit_gateway._handle_client_line(
+        sess, f"RESUME|CH=TOP|SYM=AAPL|LASTSEQ=1|EPOCH={unit_gateway._epoch}"
+    )
 
     frames = [parse_line(line.decode("utf-8")) for line in sess.out_queue]
     assert _err_codes(sess) == ["REPLAY_MISS"]
@@ -321,7 +346,9 @@ def test_resume_sends_no_snapshot_for_a_channel_that_has_none(
         ch, "AAPL", 900, f"{ch}|CH={ch}|SYM=AAPL|SEQ=900\n".encode()
     )
 
-    unit_gateway._handle_client_line(sess, f"RESUME|CH={ch}|SYM=AAPL|LASTSEQ=1")
+    unit_gateway._handle_client_line(
+        sess, f"RESUME|CH={ch}|SYM=AAPL|LASTSEQ=1|EPOCH={unit_gateway._epoch}"
+    )
 
     frames = [parse_line(line.decode("utf-8")) for line in sess.out_queue]
     assert _err_codes(sess) == ["REPLAY_MISS"]
@@ -343,7 +370,9 @@ def test_resume_adds_no_subscription_already_covered_by_a_wildcard(
     unit_gateway._handle_client_line(sess, "SUB|CH=TRADE|SYM=*")
     unit_gateway._replay.append("TRADE", "AAPL", 2, b"TRADE|CH=TRADE|SYM=AAPL|SEQ=2\n")
 
-    unit_gateway._handle_client_line(sess, "RESUME|CH=TRADE|SYM=AAPL|LASTSEQ=1")
+    unit_gateway._handle_client_line(
+        sess, f"RESUME|CH=TRADE|SYM=AAPL|LASTSEQ=1|EPOCH={unit_gateway._epoch}"
+    )
 
     assert ("TRADE", "AAPL") not in sess.subscriptions
     assert ("TRADE", "*") in sess.subscriptions
@@ -353,7 +382,9 @@ def test_resume_adds_no_subscription_already_covered_by_a_wildcard(
 def test_resume_adds_live_subscription(unit_gateway: MarketDataGateway) -> None:
     sess, peer = _authenticated_session(unit_gateway)
     unit_gateway._replay.append("TOP", "AAPL", 2, b"MD|CH=TOP|SYM=AAPL|SEQ=2\n")
-    unit_gateway._handle_client_line(sess, "RESUME|CH=TOP|SYM=AAPL|LASTSEQ=1")
+    unit_gateway._handle_client_line(
+        sess, f"RESUME|CH=TOP|SYM=AAPL|LASTSEQ=1|EPOCH={unit_gateway._epoch}"
+    )
     assert ("TOP", "AAPL") in sess.subscriptions
     peer.close()
 
@@ -693,7 +724,9 @@ def test_resume_on_an_aged_out_stream_is_a_miss_with_a_snap(
         unit_gateway._emit_stream_event("MD", "TOP", "AAPL", top, time.time())
     unit_gateway._replay._events[("TOP", "AAPL")].clear()  # all aged out
 
-    unit_gateway._handle_client_line(sess, "RESUME|CH=TOP|SYM=AAPL|LASTSEQ=1")
+    unit_gateway._handle_client_line(
+        sess, f"RESUME|CH=TOP|SYM=AAPL|LASTSEQ=1|EPOCH={unit_gateway._epoch}"
+    )
 
     assert _err_codes(sess) == ["REPLAY_MISS"]
     assert sess.out_queue[-1].startswith(b"SNAP|CH=TOP|SYM=AAPL|SEQ=3|")
@@ -710,3 +743,155 @@ def test_a_repeated_trade_takes_no_sequence_number(
             "TRADE", "TRADE", "AAPL", {"TRADE_ID": trade_id}, time.time()
         )
     assert unit_gateway._sequencer.current("TRADE", "AAPL") == 2
+
+
+# ---------------------------------------------------------------------------
+# WP-MDG03: a gateway restart is never replayed as a continuation
+# ---------------------------------------------------------------------------
+
+
+def _welcome_epoch(gateway: MarketDataGateway) -> str:
+    sess, peer = _make_session()
+    gateway._handle_client_line(sess, "HELLO|CLIENT=bot|PROTO=CALF1")
+    welcome = parse_line(sess.out_queue[0].decode("utf-8"))
+    peer.close()
+    assert welcome.msg_type == "WELCOME"
+    return welcome.fields["EPOCH"]
+
+
+def test_welcome_carries_an_epoch_unique_to_the_gateway_run(
+    unit_gateway: MarketDataGateway,
+) -> None:
+    epoch = _welcome_epoch(unit_gateway)
+    assert epoch and epoch == _welcome_epoch(unit_gateway)
+    port = free_ports(1)[0]
+    other = MarketDataGateway(
+        MarketDataGatewayConfig(bind_address="127.0.0.1", port=port),
+        known_symbols={"AAPL"},
+    )
+    try:
+        assert _welcome_epoch(other) != epoch
+    finally:
+        other.close()
+
+
+def test_resume_with_the_current_epoch_replays(
+    unit_gateway: MarketDataGateway,
+) -> None:
+    epoch = _welcome_epoch(unit_gateway)
+    sess, peer = _authenticated_session(unit_gateway)
+    unit_gateway._sequencer.next_seq("TRADE", "AAPL")
+    unit_gateway._sequencer.next_seq("TRADE", "AAPL")
+    unit_gateway._replay.append(
+        "TRADE", "AAPL", 2, b"TRADE|CH=TRADE|SYM=AAPL|SEQ=2\n", trade_id="t2"
+    )
+    unit_gateway._handle_client_line(
+        sess, f"RESUME|CH=TRADE|SYM=AAPL|LASTSEQ=1|EPOCH={epoch}"
+    )
+    assert [line for line in sess.out_queue] == [b"TRADE|CH=TRADE|SYM=AAPL|SEQ=2\n"]
+    peer.close()
+
+
+@pytest.mark.parametrize(("ch", "snap"), [("TOP", True), ("TRADE", False)])
+def test_resume_with_another_runs_epoch_is_a_replay_miss(
+    unit_gateway: MarketDataGateway, ch: str, snap: bool
+) -> None:
+    """The C3 shape: the new run's stream has passed the client's LASTSEQ,
+    so without the epoch its events were served as a continuation."""
+    sess, peer = _authenticated_session(unit_gateway)
+    for seq in (1, 2, 3, 4, 5):
+        unit_gateway._sequencer.next_seq(ch, "AAPL")
+        unit_gateway._replay.append(
+            ch, "AAPL", seq, f"X|CH={ch}|SYM=AAPL|SEQ={seq}\n".encode()
+        )
+    unit_gateway._handle_client_line(
+        sess, f"RESUME|CH={ch}|SYM=AAPL|LASTSEQ=3|EPOCH=someotherrun"
+    )
+    frames = [parse_line(line.decode("utf-8")) for line in sess.out_queue]
+    assert _err_codes(sess) == ["REPLAY_MISS"]
+    assert not any(f.msg_type == "X" for f in frames)
+    assert any(f.msg_type == "SNAP" for f in frames) is snap
+    assert (ch, "AAPL") in sess.subscriptions
+    peer.close()
+
+
+def test_resume_without_an_epoch_is_a_bad_message(
+    unit_gateway: MarketDataGateway,
+) -> None:
+    sess, peer = _authenticated_session(unit_gateway)
+    unit_gateway._handle_client_line(sess, "RESUME|CH=TRADE|SYM=AAPL|LASTSEQ=1")
+    assert _err_codes(sess) == ["BAD_MESSAGE"]
+    assert sess.closing is False
+    assert ("TRADE", "AAPL") not in sess.subscriptions
+    peer.close()
+
+
+# ---------------------------------------------------------------------------
+# WP-MDG05: subscription rules hold on every path
+# ---------------------------------------------------------------------------
+
+
+def test_index_does_not_exempt_other_channels_from_the_symbol_check(
+    unit_gateway: MarketDataGateway,
+) -> None:
+    sess, peer = _authenticated_session(unit_gateway)
+    unit_gateway._handle_client_line(sess, "SUB|CH=INDEX,TOP|SYM=BOGUS")
+    frames = [parse_line(line.decode("utf-8")) for line in sess.out_queue]
+    assert [
+        (f.msg_type, f.fields.get("CODE"), f.fields.get("SYM")) for f in frames
+    ] == [("ERR", "INVALID_SYMBOL", "BOGUS")]
+    assert sess.subscriptions == set()
+    peer.close()
+
+
+def test_index_snapshot_before_any_level_carries_none(
+    unit_gateway: MarketDataGateway,
+) -> None:
+    """Q3 (a): an INDEX SNAP without LEVEL means no level since start."""
+    sess, peer = _authenticated_session(unit_gateway)
+    unit_gateway._handle_client_line(sess, "SUB|CH=INDEX|SYM=EDU50")
+    snap = parse_line(sess.out_queue[0].decode("utf-8"))
+    assert snap.msg_type == "SNAP" and snap.fields["CH"] == "INDEX"
+    assert "LEVEL" not in snap.fields and "SESSION" not in snap.fields
+    peer.close()
+
+
+def test_resume_past_the_symbol_limit_is_refused(
+    unit_gateway: MarketDataGateway,
+) -> None:
+    unit_gateway.config = dataclasses.replace(
+        unit_gateway.config, max_symbols_per_client=1
+    )
+    sess, peer = _authenticated_session(unit_gateway)
+    unit_gateway._handle_client_line(sess, "SUB|CH=TRADE|SYM=AAPL")
+    sess.out_queue.clear()
+    unit_gateway._replay.append(
+        "TRADE", "MSFT", 2, b"TRADE|CH=TRADE|SYM=MSFT|SEQ=2\n", trade_id="m2"
+    )
+    unit_gateway._sequencer.next_seq("TRADE", "MSFT")
+    unit_gateway._sequencer.next_seq("TRADE", "MSFT")
+    unit_gateway._handle_client_line(
+        sess, f"RESUME|CH=TRADE|SYM=MSFT|LASTSEQ=1|EPOCH={unit_gateway._epoch}"
+    )
+    assert [line for line in sess.out_queue] and _err_codes(sess) == ["SUB_LIMIT"]
+    assert len(sess.out_queue) == 1, "no replay after SUB_LIMIT"
+    assert sess.subscriptions == {("TRADE", "AAPL")}
+    assert sess.closing is False
+    peer.close()
+
+
+def test_resume_covered_by_a_wildcard_is_not_counted(
+    unit_gateway: MarketDataGateway,
+) -> None:
+    unit_gateway.config = dataclasses.replace(
+        unit_gateway.config, max_symbols_per_client=1
+    )
+    sess, peer = _authenticated_session(unit_gateway)
+    unit_gateway._handle_client_line(sess, "SUB|CH=TRADE|SYM=*")
+    sess.out_queue.clear()
+    unit_gateway._handle_client_line(
+        sess, f"RESUME|CH=TRADE|SYM=AAPL|LASTSEQ=1|EPOCH={unit_gateway._epoch}"
+    )
+    assert "SUB_LIMIT" not in _err_codes(sess)
+    assert sess.subscriptions == {("TRADE", "*")}
+    peer.close()

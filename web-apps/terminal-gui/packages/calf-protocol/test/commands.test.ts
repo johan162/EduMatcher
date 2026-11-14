@@ -31,13 +31,13 @@ describe("command builders", () => {
   });
 
   it("builds a standalone resume for one stream", () => {
-    const frame = parseLine(buildResume("TOP", "AAPL", 1042));
+    const frame = parseLine(buildResume("TOP", "AAPL", 1042, "3f9a01bc"));
     expect(frame.msgType).toBe("RESUME");
-    expect(frame.fields).toEqual({ CH: "TOP", SYM: "AAPL", LASTSEQ: "1042" });
+    expect(frame.fields).toEqual({ CH: "TOP", SYM: "AAPL", LASTSEQ: "1042", EPOCH: "3f9a01bc" });
   });
 
   it("builds one resume per stream, so a multi-stream client can recover all of them", () => {
-    const lines = [buildResume("TOP", "AAPL", 1042), buildResume("TRADE", "AAPL", 88)];
+    const lines = [buildResume("TOP", "AAPL", 1042, "e1"), buildResume("TRADE", "AAPL", 88, "e1")];
     expect(lines.map((line) => parseLine(line).fields["LASTSEQ"])).toEqual(["1042", "88"]);
   });
 

@@ -40,7 +40,7 @@ CPUs) by calling `_emit_stream_event` 20 000 times with 1–64 sessions of 30–
 subscription pairs over 300 symbols. The other findings are by inspection,
 with line numbers given.
 
-Status: **Open.** Decisions Q1–Q3 are needed before WP-MDG01–03.
+Status: **Done, uncommitted.** Q1–Q3 decided as recommended (2026-11-14); WP-MDG01–07 done 2026-11-14.
 
 ---
 
@@ -79,13 +79,13 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit) �
 
 | # | WP | Content | Findings | Depends on | Est. | Status | Done on |
 |---|---|---|---|---|---|---|---|
-| 1 | WP-MDG01 | Lost engine messages are counted, logged and less likely | C4 | Q2 | 0.5 d | ☐ | |
-| 2 | WP-MDG02 | SNAP baselines match the engine after a gateway start or engine restart | C1, C2, D6, D10 | WP-MDG01 | 1 d | ☐ | |
-| 3 | WP-MDG03 | A gateway restart is never replayed as a continuation | C3, D3 | Q1 | 1 d | ☐ | |
-| 4 | WP-MDG04 | Fan-out cost depends on who wants an event, not on every subscription held | P1 | — | 0.5 d | ☐ | |
-| 5 | WP-MDG05 | Subscription rules hold on every path | C5, C6 | Q3 | 0.25 d | ☐ | |
-| 6 | WP-MDG06 | Config and metric say what happened | C7, C8 | — | 0.25 d | ☐ | |
-| 7 | WP-MDG07 | Texts say what the code does | D1, D2, D4, D5, D7, D8, D9, D11, D12 | all | 0.5 d | ☐ | |
+| 1 | WP-MDG01 | Lost engine messages are counted, logged and less likely | C4 | Q2 | 0.5 d | ☑ | 2026-11-14 |
+| 2 | WP-MDG02 | SNAP baselines match the engine after a gateway start or engine restart | C1, C2, D6, D10 | WP-MDG01 | 1 d | ☑ | 2026-11-14 |
+| 3 | WP-MDG03 | A gateway restart is never replayed as a continuation | C3, D3 | Q1 | 1 d | ☑ | 2026-11-14 |
+| 4 | WP-MDG04 | Fan-out cost depends on who wants an event, not on every subscription held | P1 | — | 0.5 d | ☑ | 2026-11-14 |
+| 5 | WP-MDG05 | Subscription rules hold on every path | C5, C6 | Q3 | 0.25 d | ☑ | 2026-11-14 |
+| 6 | WP-MDG06 | Config and metric say what happened | C7, C8 | — | 0.25 d | ☑ | 2026-11-14 |
+| 7 | WP-MDG07 | Texts say what the code does | D1, D2, D4, D5, D7, D8, D9, D11, D12 | all | 0.5 d | ☑ | 2026-11-14 |
 
 Suggested order: **WP-MDG01 → 02 → 03 → 04 → 05 → 06 → 07**. WP-MDG01 adds
 the bus sequence tracking that WP-MDG02 uses to notice an engine restart.
@@ -487,6 +487,26 @@ renders per-gateway counters by name (check `client_gateway_samples`).
 **Exit criteria.** Tests 1–5 pass; `tests/test_md_*.py` and the monitor tests
 green; the scratch repro reports the lost count in the metric.
 
+**Outcome (2026-11-14).** `_check_bus_sequence` reads `decode_sequence` on
+both SUB sockets before `decode`; a jump adds the missed count to
+`md.bus_gaps` (counter, labelled by topic family: `book`,
+`circuit_breaker.halt`, …, or the topic itself, so 300 books are one label)
+and logs one WARNING per family per `_BUS_GAP_LOG_INTERVAL_SEC` (60 s), with
+the count since the last one; a sequence going back logs one INFO per family
+and returns `True` (used by WP-MDG02). Both SUBs get `_SUB_RCVHWM = 100_000`
+(pm-stats' value). `md.bus_gaps` joined pm-monitor's `WATCHED_INCREASES`
+(rule `md_bus_gaps`, any increase in 5 min), dash-gui's `FIXED_RULES`, the
+health-contract test's owner list, the operator guide's threshold table and
+the log ledger. Tests 1–3 and 5 failed first (no metric, no
+`_check_bus_sequence`, no `_SUB_RCVHWM`); test 4 passed before and after; an
+index-socket case and a monitor-rule case were added. The first full run
+caught the two contract tests (ledger entry, watched-counter owner).
+Scratch repro (separate-process publisher, 64 × 600 pairs, today's fan-out):
+40 000 trades in 0.33 s, **0 lost** with the new buffer; forced back to 1 000,
+20 000 lost and `md.bus_gaps = 20000` exactly. Limit, inherent in sequence
+detection: a loss at the very end of a burst is counted only when that
+topic's next message arrives. Full suite: 14 334 passed, 1 skipped.
+
 ### WP-MDG02 — SNAP baselines match the engine after a gateway start or engine restart (C1, C2, D6, D10; after WP-MDG01)
 
 **Tests first** (`tests/test_md_gateway_runtime_paths.py`,
@@ -521,6 +541,32 @@ returning the `STATE`/`CB` changes. Operator guide (D6) and training ch. 230
 **Exit criteria.** Tests 1–6 pass; `tests/test_md_*.py`,
 `tests/test_calf_*.py` green; the C1 and C2 repros show populated `SNAP`s.
 
+**Outcome (2026-11-14).** The gateway subscribes to
+`system.halt_status.{GW}`. `_resync_engine_state` pushes one
+`system.halt_status_request` and then one `book.snapshot_request` per known
+symbol; it runs on the first session-status answer and whenever that topic's
+bus sequence goes back (an engine restart, detected within one 2 s query).
+If the halt request cannot be sent it retries on the next answer; if the
+PUSH fills part-way through the books, the rest arrive with their next
+change (logged at INFO). `EngineNormaliser.apply_halt_status` halts listed
+symbols the gateway thought active and resumes held-`HALTED` symbols the list
+omits, through the existing `normalise_halt`/`normalise_cb_halt`/
+`normalise_resume`/`normalise_cb_resume`, so live and reconciled events share
+one shape; the gateway emits them as `STATE` and `CB` events. Tests 1–5 and
+three normaliser tests failed first for the right reasons; test 6 is the
+existing `test_poll_engine_events_halt_emits_state_and_cb`, unchanged.
+Docs: operator guide "What this process is" (D6), training ch. 230 exercise
+(D10), spec `CB` section ("Halts learnt from the engine's halt list").
+Scratch repro against a real gateway and an engine stub answering the PULL
+requests: C1 `SNAP|CH=TOP|…|BID=100.0|BIDSZ=100|ASK=100.5|ASKSZ=50` and a
+populated `DEPTH`; C2 `STATUS=ACTIVE`/`SESSION=CONTINUOUS` after the restart;
+a gateway started after a halt reports `STATUS=HALTED|LEVEL=L2|SRC=CB` and
+`SESSION=HALTED`. Limit: the engine does not answer a book request for a
+symbol it holds no book for (`engine/main.py:2850-2856`), so after an engine
+restart that restored no orders for a symbol, its old `TOP`/`DEPTH` stay
+until its first order: For-Later **L028**. Full suite: 14 342 passed,
+1 skipped.
+
 ### WP-MDG03 — A gateway restart is never replayed as a continuation (C3, D3; after Q1)
 
 **Tests first** (`tests/test_md_gateway_unit.py`, `tests/test_calf_client.py`):
@@ -547,6 +593,37 @@ rewritten for the new rule.
 `tests/test_md_*.py`, the examples' tests and `make test-e2e` (when the sim
 is stopped) green.
 
+**Outcome (2026-11-14).** The gateway draws `_epoch = secrets.token_hex(4)`
+per instance and sends it as `WELCOME|EPOCH=`. `RESUME` without `EPOCH` is
+`BAD_MESSAGE` (session open, nothing subscribed); with another run's epoch it
+takes the existing `REPLAY_MISS` path (the pair stays subscribed; `SNAP` only
+on snapshot channels). Clients: `calf_client`'s `SequenceTracker` records the
+epoch of each stream position (`new_connection(epoch)`, now called after
+`WELCOME` rather than at connect) and a `Gap` carries the epoch of the
+position *before* the hole, so a resume after reconnecting to a restarted
+gateway names the old run; `CalfClient.resume()` takes `epoch`.
+`pm-calf-spy --resume` is now `CH:SYM:LASTSEQ:EPOCH` (pm-help, completion
+regenerated). The terminal-gui bridge does the same as `calf_client`
+(`StreamPosition.epoch`, `buildResume(…, epoch)`, `WelcomeInfo.epoch`; the
+fake gateway answers another run's epoch with `REPLAY_MISS`). The Python and
+C examples (which do not reconnect) send the `WELCOME`'s epoch;
+`calf_recovery_build_resume` takes it. Tests 1–4 failed first (`KeyError:
+'EPOCH'`, no `REPLAY_MISS`, no `BAD_MESSAGE`); test 5 failed on the old
+client with "timed out waiting for a RESUME naming run A". Added: a tracker
+test, a spy parse test, an examples test, a C self-test line, two TS
+protocol tests and a bridge restart test. The existing `RESUME` unit tests
+were given the current epoch. The test stub's `close()` now shuts the socket
+down, without which a reconnect test never saw EOF. Docs: spec (`WELCOME`,
+`RESUME`, error table, reconnect rules, diagrams), operator guide (command
+table, recovery options 1 and 3 = D3, examples), training ch. 230
+exercise 6, protocols-and-clients ch. 3 and spy chapter, reference manual,
+examples README. Exit check through the real `calf_client` against two
+gateway runs on one port, run B printing while the client was away: before,
+no gap and three prints lost silently; now `on_gap` reports
+`Gap(TRADE, AAPL, …)`. `make test-e2e` was not run (the sim may be running
+on this host). C self-test: all checks passed; terminal-gui: 753 tests and
+typecheck green. Full suite: 14 350 passed, 1 skipped.
+
 ### WP-MDG04 — Fan-out cost depends on who wants an event (P1)
 
 **Tests first** (`tests/test_md_gateway_emit.py`):
@@ -564,6 +641,30 @@ is stopped) green.
 
 **Exit criteria.** Tests pass; the bench in §4 at 64 × 600 is ≤ 50 µs per
 event (prototype: 35.4 µs; the target is a guess with that margin).
+
+**Outcome (2026-11-14).** `SubscriptionRegistry` keeps `_by_stream`
+(`(ch, sym)` → fds, with `SYM=*` as its own key) beside `_by_client`;
+`set_for_client` and `remove_client` maintain both, `wanting(ch, sym)` returns
+the union of the exact and wildcard sets, and `session_wants` became two set
+lookups. `_emit_stream_event` iterates `wanting` and skips sessions that are
+gone, unauthenticated or closing. Test 3 failed first (64 sessions visited
+for 35 that wanted the event); test 1 passed before and after; test 2's
+delivery part was unchanged and it now also asserts the index is emptied by
+`UNSUB` and disconnect. `ClientSession.subscriptions` still holds its own copy
+(MD-L3); merging the two was not needed for P1 and was left alone. Bench
+(§4 method, this host):
+
+| Clients × pairs each | Before | After |
+|---|---|---|
+| 1 × 30 | 10.0 µs/event | 7.3 µs |
+| 16 × 150 | 93.4 µs | 7.5 µs |
+| 64 × 150 | 434.8 µs | 9.7 µs |
+| 64 × 600 | 1 313.6 µs | 16.8 µs |
+| 64 × 3 wildcard pairs | 36.3 µs | 21.7 µs |
+
+The C4 repro forced back to the old 1 000-message buffer now loses 3 467 of
+20 000 (5 500 before; all counted in `md.bus_gaps`). Full suite: 14 353
+passed, 1 skipped.
 
 ### WP-MDG05 — Subscription rules hold on every path (C5, C6; after Q3)
 
@@ -584,6 +685,19 @@ branch); limit check in `_handle_resume`; spec text for Q3.
 **Exit criteria.** Tests 1–4 pass; `tests/test_md_*.py`, `tests/test_calf_*.py`
 green.
 
+**Outcome (2026-11-14).** `_handle_sub` rejects an unknown non-wildcard
+symbol unless every channel in the `SUB` is `INDEX`; the dead `not sym`
+branch is gone. `_handle_resume` answers `ERR|CODE=SUB_LIMIT` (session open,
+nothing added or replayed) when the stream is not already held, its symbol is
+new, and the session already holds `max_symbols_per_client` symbols; the check
+sits after the `EPOCH` check and before the subscription is added. Tests 1
+and 3 failed first (a `SNAP` for `BOGUS`; a replay instead of `SUB_LIMIT`);
+2 and 4 passed before and after. Spec: subscription rules (per-pair
+exemption, limit on `RESUME`), `RESUME` validation, config notes, the `SNAP`
+`INDEX` paragraph for Q3, and the `IDX` paragraph (D1, done here since it is
+the same text); operator guide `max_symbols_per_client` row. Full suite:
+14 357 passed, 1 skipped.
+
 ### WP-MDG06 — Config and metric say what happened (C7, C8)
 
 **Tests first** (`tests/test_md_gateway_config.py`,
@@ -601,6 +715,20 @@ one exists); remove the duplicate port test; count in
 
 **Exit criteria.** Tests pass; cverifier tests green.
 
+**Outcome (2026-11-14).** The loader refuses a non-boolean `enabled` with
+`ValueError("market_data_gateway.enabled must be true or false, got …")`
+(no bool helper exists in `config_coerce`, so the check is inline); the dead
+second `port <= 0` test is removed. `md.msgs_out` is incremented in
+`_flush_client_writes` when a line has been sent whole, no longer in
+`_queue_raw`. Tests 1 and 3 failed first (no `ValueError` for `"false"`,
+`"no"`, `1`; 10 001 counted against 93 sent); test 2 passed before and after.
+The full suite then caught `test_gateway_metrics.py`'s
+`test_md_counts_messages_out_and_a_slow_client`, which asserted the old
+count-on-queue meaning; it now asserts 0 queued, 3 after the flush. Checked
+by hand: `pm-cverifier` on a config with `enabled: "false"` reports
+`[S083] … market_data_gateway.enabled must be true or false, got 'false'`.
+Full suite: 14 363 passed, 1 skipped.
+
 ### WP-MDG07 — Texts say what the code does (D1, D2, D4, D5, D7, D8, D9, D11, D12)
 
 **Tests first.** None of these change behaviour; `tests/test_pm_help*.py`
@@ -613,6 +741,28 @@ against the code after WP-MDG02/03.
 
 **Exit criteria.** `make _check` and the full suite green; every §5 row
 fixed or marked done in a WP outcome.
+
+**Outcome (2026-11-14).** D1 was done in WP-MDG05, D3 in WP-MDG03, D6 and D10
+in WP-MDG02. Here: D2 the spec's `REPLAY_MISS` example lost its `DETAIL`;
+D4 the operator guide says `index.*` comes from pm-index on `:5558` (text and
+flowchart, which also gained `auction.indicative.*`); D5 the warning now
+describes what happens (WARNING and an empty symbol set when no compiled
+configuration is deployed; refusal to start when the deployed one is
+unreadable); D7 `_extract_ts` names which topics carry `ts_ns` and which get
+the gateway's receive time (checked against the generated message classes);
+D8 pm-help names all seven channels; D9 `--engine-pub`/`--index-pub` help
+(argparse, pm-help, operator guide table) says the configuration file does not
+set them (completion regenerated); D11 `normalise_depth`'s docstring and the
+spec catalogue say `DEPTH` replaces the ladder; D12 the `last_activity`
+comment. Re-walked the operator guide's "Quick connect test", "Connecting and
+subscribing" (Step 1 now says to keep `EPOCH`) and "Gap detection" sections
+and training ch. 230 against the final code; nothing else was stale.
+`mkdocs build --strict` clean; full suite: 14 363 passed, 1 skipped.
+
+**Not changed (noted).** `--index-pub` still has a non-`None` argparse
+default, so `cfg.index_pub_addr` in `_resolve_config` is never used; both are
+the same constant, so this is dead code rather than a defect, and the WP was
+text-only.
 
 ---
 

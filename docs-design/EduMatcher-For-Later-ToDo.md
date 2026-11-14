@@ -39,6 +39,9 @@ its own piece of work.
 | L023 | 2026-11-14 | pm-clearing (repair) | No way to repair `clearing.db` once a feed gap is known: nothing rebuilds the ledger from the audit trail | Medium | Open |
 | L024 | 2026-11-14 | engine / log-server loaders | Loaders accept values they mean to refuse: `tick_decimals: true`, `outstanding_shares: true`, `max_order_qty: 1.5` (truncated to 1), `schedule: 'x'`, `log_server.enabled: 'x'`, `.nan` where `> 0` is required | Low | Open |
 | L025 | 2026-11-14 | docs (training guide ch. 17) | Says the static collar "only takes effect from the first trades on"; the engine registers a collar only at start-up when a reference price is known | Low | Open |
+| L026 | 2026-11-14 | pm-engine (order validation) | A TRAILING_STOP with a negative `trail_offset` and no prior trade is refused as "Trailing stop requires STOP= or a prior trade price", not as an invalid offset | Low | Open |
+| L027 | 2026-11-14 | pm-balf-gwy (restart) | After a pm-balf-gwy restart a participant's resting orders are unreachable over BALF: no order ids, no fills, no cancel, and BALF has no order query | Medium | Open |
+| L028 | 2026-11-14 | pm-engine (book requests) | `book.snapshot_request` for a symbol the engine holds no book for gets no answer, so a subscriber that cached the book before an engine restart cannot learn it is now empty | Low | Open |
 
 ## L001 — Topic literals in pm-sim-forensics
 
@@ -391,6 +394,10 @@ accept although the field cannot hold them:
   (`engine/main.py:1154`).
 - `log_srv/config.py`: `enabled: 'x'`, `pubsub_enabled: 'x'`, and a number
   for `name`, `bind_address` or `db_path`.
+- `balf_gwy/config.py:106`, `alf_gwy/config.py:82`,
+  `api_gateway/config.py:238`: `enabled` is read with `bool()`, so
+  `enabled: "false"` is true (added 2026-11-14 by the pm-balf-gwy review,
+  `docs-design/reviews/EduMatcher-BALF-Gateway-Review-2026-11.md`, §9).
 
 pm-cverifier refuses all of these, so a file that goes through
 `pm-config-deploy` is safe; any other caller of the loaders is not.
@@ -416,3 +423,50 @@ trades, not from the first trades.
 **Recommendation.** Either reword the chapter, or (a design decision) let the
 engine arm a symbol's collar when its first reference price becomes known.
 
+## L026 — A negative trailing offset is reported as a missing price
+
+**Found:** 2026-11-14, pm-balf-gwy review
+(`docs-design/reviews/EduMatcher-BALF-Gateway-Review-2026-11.md`, §9).
+
+**Finding.** A TRAILING_STOP with `trail_offset = -1.00` on a symbol with no
+trade yet, sent through pm-balf-gwy to a real engine, is refused with
+"Trailing stop requires STOP= or a prior trade price". The engine checks for
+a reference price before it checks the offset's sign, so the client is told
+to add a price when the offset is what is wrong.
+
+**Recommendation.** Validate the offset (`> 0`) before the reference-price
+rule, with `reject_code` `INVALID_VALUE`.
+
+## L027 — Resting orders are unreachable over BALF after a gateway restart
+
+**Found:** 2026-11-14, pm-balf-gwy review
+(`docs-design/reviews/EduMatcher-BALF-Gateway-Review-2026-11.md`, H1 and Q1).
+
+**Finding.** BALF order ids and the map from engine order ids live in the
+pm-balf-gwy process. WP-BALF01 keeps them across reconnects of one gateway
+ID, but a gateway restart loses them: a participant whose
+`disconnect_behaviour` leaves orders on the book receives no
+`EXECUTION_REPORT` for them afterwards and cannot cancel them over BALF,
+which has no order query.
+
+**Recommendation.** At logon, adopt the gateway ID's live orders with
+`order.orders_request` and give them fresh BALF ids; send the client's
+`client_order_id` as `client_tag` on `order.new` so it can be restored. The
+client also needs a way to learn the adopted ids (a new server message, or an
+`EXECUTION_REPORT`-like status frame): a protocol change for BALF 1.1.
+
+## L028 — No answer to a book request for a symbol without a book
+
+**Found:** 2026-11-14, pm-md-gwy review WP-MDG02
+(`docs-design/reviews/EduMatcher-MD-Gateway-Review-2026-11.md`).
+
+**Finding.** `_handle_book_snapshot_request` (`engine/main.py:2850-2856`)
+answers only when `symbol in self.books`, and books are created on a
+symbol's first order (`_book`, `:1077`). After an engine restart that
+restored no orders for a symbol, pm-md-gwy's request for its book gets no
+answer, so the gateway keeps the `TOP`/`DEPTH` it cached before the restart
+until the symbol's first order. pm-board, pm-market-sim and pm-ai-trader send
+the same request and have the same blind spot.
+
+**Recommendation.** Answer with an empty book for a configured symbol that
+has no book yet.

@@ -165,7 +165,7 @@ SYMBOLS
 
 Expected behavior:
 
-- `WELCOME|PROTO=CALF1|GW=md-gwy01|HBINT=1|REPLAY=30|CH_SUPPORTED=…|SYMBOLS=AAPL,MSFT|REF=AAPL:2,MSFT:2`
+- `WELCOME|PROTO=CALF1|GW=md-gwy01|HBINT=1|REPLAY=30|EPOCH=…|CH_SUPPORTED=…|SYMBOLS=AAPL,MSFT|REF=AAPL:2,MSFT:2`
   after HELLO, then an `HB` line every second (`HBINT=1`)
 - `SNAP|CH=TOP|SYM=AAPL|…` after SUB (TRADE has no snapshot: a print that
   already happened has no "current state")
@@ -286,8 +286,9 @@ SUB|CH=AUCTION|SYM=AAPL
 Expected behavior:
 
 - immediate `SNAP|CH=CB|SYM=AAPL|STATUS=ACTIVE|...` on subscribe (or
-  `STATUS=HALTED` plus detail if already halted) — `AUCTION` gets no `SNAP`,
-  same as `TRADE`
+  `STATUS=HALTED` plus detail if already halted; if the gateway was started
+  after the halt, the detail is only `LEVEL`, `RESUMEAT` and `SRC`) —
+  `AUCTION` gets no `SNAP`, same as `TRADE`
 - an `AUCTION|...` line the next time AAPL's auction uncrosses (open, close,
   or a re-opening auction after a halt), carrying `EQPX`/`EQQTY`/`TRADES`
   and, if a residual exists, `IMBSIDE`/`IMBQTY`, plus a `REASON` of
@@ -414,18 +415,23 @@ Expected behavior:
 
 ## Exercise 6: Replay and Recovery with RESUME
 
-1. Start a subscriber and note the highest SEQ for (TOP, AAPL).
+1. Start a subscriber and note the highest SEQ for (TOP, AAPL), and the
+   `EPOCH=` on its `WELCOME`.
 2. Disconnect client.
 3. Generate additional market activity.
 4. Reconnect with a plain `HELLO`, then send `RESUME` for that stream:
 
 ```text
 HELLO|CLIENT=replay01|PROTO=CALF1
-RESUME|CH=TOP|SYM=AAPL|LASTSEQ=<saved_seq>
+RESUME|CH=TOP|SYM=AAPL|LASTSEQ=<saved_seq>|EPOCH=<saved_epoch>
 ```
 
 `RESUME` is a command in its own right, sent after `WELCOME`, and
-repeatable — send one per stream you were following.
+repeatable — send one per stream you were following. `EPOCH` names the
+gateway run your `LASTSEQ` came from: sequences begin again at 1 when
+`pm-md-gwy` restarts, so a `RESUME` with an old run's epoch is answered
+`REPLAY_MISS`, however far the new run's stream has got. Restart `pm-md-gwy`
+between steps 2 and 4 to see it.
 
 Observe replay behavior:
 

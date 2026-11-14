@@ -361,6 +361,43 @@ class EngineNormaliser:
         self.symbol_state[sym] = resumed_to
         return sym, {"SESSION": resumed_to, "PREV": prev}
 
+    def apply_halt_status(
+        self, halted: Iterable[dict[str, Any]]
+    ) -> list[tuple[str, str, dict[str, str]]]:
+        """Adopt the engine's list of halted symbols; return the changes.
+
+        The answer to ``system.halt_status_request``, asked when the gateway
+        first hears the engine and after an engine restart. Halts are
+        otherwise learnt only from halt and resume events, so a gateway
+        started after a halt reported the symbol active, and one that saw a
+        halt before the engine restarted (which forgets it, and publishes no
+        resume) reported it halted for good.
+
+        Returns ``(channel, symbol, fields)`` for ``STATE`` and ``CB``, as the
+        live events would. A halt learnt this way has no trigger or reference
+        price: the answer does not carry them.
+        """
+        listed = {
+            str(entry.get("symbol", "")).upper(): entry
+            for entry in halted
+            if entry.get("symbol")
+        }
+        ended = sorted(
+            sym
+            for sym, state in self.symbol_state.items()
+            if state == "HALTED" and sym not in listed
+        )
+        changes: list[tuple[str, str, dict[str, str]]] = []
+        for sym, entry in sorted(listed.items()):
+            if self.symbol_state.get(sym) == "HALTED":
+                continue
+            changes.append(("STATE", *self.normalise_halt(sym)))
+            changes.append(("CB", *self.normalise_cb_halt(sym, entry)))
+        for sym in ended:
+            changes.append(("STATE", *self.normalise_resume(sym)))
+            changes.append(("CB", *self.normalise_cb_resume(sym, {})))
+        return changes
+
     def top_snapshot_fields(self, symbol: str) -> dict[str, str]:
         """Return current cached TOP snapshot fields for symbol."""
         state = self.top_cache.get(symbol.upper(), TopOfBook())
@@ -369,7 +406,9 @@ class EngineNormaliser:
     def normalise_depth(
         self, symbol: str, payload: dict[str, Any]
     ) -> dict[str, str] | None:
-        """Return incremental ``DEPTH`` fields when the top-N ladder changed.
+        """Return the full top-N ``DEPTH`` ladder when it changed.
+
+        The ladder replaces the client's previous one; it is not a delta.
 
         Returns ``None`` when the top ``depth_levels`` price levels on both
         sides are unchanged compared with the cached snapshot, mirroring how

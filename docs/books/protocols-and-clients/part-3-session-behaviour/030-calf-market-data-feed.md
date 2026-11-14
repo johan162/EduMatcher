@@ -111,7 +111,7 @@ Annotated example — each line is one complete CALF message:
 HELLO|CLIENT=bot01|PROTO=CALF1
 
 # Gateway confirms; HB every 1 s, replay window 30 s, known symbols AAPL and MSFT
-WELCOME|PROTO=CALF1|GW=md-gwy01|HBINT=1|REPLAY=30|SYMBOLS=AAPL,MSFT
+WELCOME|PROTO=CALF1|GW=md-gwy01|HBINT=1|REPLAY=30|EPOCH=3f9a01bc|SYMBOLS=AAPL,MSFT
 
 # Client subscribes to TOP (best bid/ask) and TRADE (fills) for AAPL
 SUB|CH=TOP,TRADE|SYM=AAPL
@@ -133,7 +133,7 @@ sequenceDiagram
     participant G as pm-md-gwy
 
     C->>G: HELLO|CLIENT=bot01|PROTO=CALF1
-    G-->>C: WELCOME|PROTO=CALF1|GW=md-gwy01|HBINT=1|REPLAY=30
+    G-->>C: WELCOME|PROTO=CALF1|GW=md-gwy01|HBINT=1|REPLAY=30|EPOCH=3f9a01bc
     C->>G: SUB|CH=TOP,TRADE|SYM=AAPL
     G-->>C: SNAP|CH=TOP|SYM=AAPL|SEQ=100|...
     G-->>C: MD|CH=TOP|SYM=AAPL|SEQ=101|...
@@ -181,9 +181,12 @@ Every incremental message (`MD`, `TRADE`, `STATE`) that follows will have
 
 ### Reconnect
 
-- Send a plain `HELLO`, then one `RESUME|CH=..|SYM=..|LASTSEQ=..` per stream
-  you were following. `RESUME` is a standalone, repeatable command — as a
-  `HELLO` flag it could only ever run once per connection.
+- Send a plain `HELLO`, then one `RESUME|CH=..|SYM=..|LASTSEQ=..|EPOCH=..` per
+  stream you were following. `RESUME` is a standalone, repeatable command — as
+  a `HELLO` flag it could only ever run once per connection. `EPOCH` is the
+  `WELCOME|EPOCH=` of the gateway run `LASTSEQ` came from; keep it with the
+  position. A gateway that has restarted since numbers its streams from 1
+  again and answers `REPLAY_MISS`.
 - If the gap is within the replay window, the gateway replays the missing
   messages. Note it replays *everything* past `LASTSEQ`, so the reply also
   re-sends messages you already have: discard anything at or below the `SEQ`
@@ -197,7 +200,7 @@ Every incremental message (`MD`, `TRADE`, `STATE`) that follows will have
 ```mermaid
 flowchart TD
     D[Client detects sequence gap] --> E{Reconnect with RESUME and LASTSEQ}
-    E --> F{Replay window contains gap?}
+    E --> F{Same gateway run, and replay window contains gap?}
     F -->|Yes| G[Gateway replays missing messages]
     G --> H[Resume live stream]
     F -->|No| I[Gateway sends ERR CODE=REPLAY_MISS]
@@ -281,7 +284,7 @@ For a robust CALF client implementation:
 2. **Track `last_seq` per stream** — keep a dict keyed by `(CH, SYM)` and check every incoming `SEQ`.
 3. **Treat missing fields in `MD` as unchanged** — if an `MD` message has no `ASK` field, the ask price has not moved since the last `SNAP` or `MD` that carried it. Do not reset it to zero.
 4. **Handle `HB`** — a heartbeat means the gateway is alive but quiet. If neither data nor `HB` arrives, the connection may be dead.
-5. **On gap, attempt replay; on replay miss, reset from `SNAP`** — send `RESUME|CH=<ch>|SYM=<sym>|LASTSEQ=<n>`, and drop any replayed message at or below the `SEQ` you already recorded. If you get `ERR CODE=REPLAY_MISS` instead, accept the fresh `SNAP` that follows on the snapshot-backed channels; on `TRADE`/`AUCTION` none follows and the gap is permanent.
+5. **On gap, attempt replay; on replay miss, reset from `SNAP`** — send `RESUME|CH=<ch>|SYM=<sym>|LASTSEQ=<n>|EPOCH=<epoch of the run n came from>`, and drop any replayed message at or below the `SEQ` you already recorded. If you get `ERR CODE=REPLAY_MISS` instead, accept the fresh `SNAP` that follows on the snapshot-backed channels; on `TRADE`/`AUCTION` none follows and the gap is permanent.
 6. **Keep subscriptions narrow** — only subscribe to `(CH, SYM)` pairs your process actually uses.
 
 

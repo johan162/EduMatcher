@@ -69,6 +69,9 @@ static void handle_sigint(int signum) {
  * ------------------------------------------------------------------ */
 
 static calf_recovery_t g_recovery;
+/* WELCOME|EPOCH= of the gateway run this connection reaches; every RESUME
+ * names it. This example does not reconnect, so it never changes. */
+static char g_epoch[32];
 
 /* ------------------------------------------------------------------ */
 /* Top-of-book cache: MD updates omit sides that did not change, so they
@@ -283,7 +286,7 @@ static void handle_message(int fd, const calf_message_t *msg) {
         char line[CALF_RESUME_LINE_LEN];
         fprintf(stderr, "!! sequence gap on (%s,%s): %ld..%ld missing -- resuming\n",
                 gap.channel, gap.symbol, gap.first_seq, gap.last_seq);
-        if (calf_recovery_build_resume(line, sizeof(line), &gap) > 0 &&
+        if (calf_recovery_build_resume(line, sizeof(line), &gap, g_epoch) > 0 &&
             send_line(fd, line) != 0) {
             perror("send RESUME");
         }
@@ -469,6 +472,8 @@ int main(int argc, char **argv) {
         close(fd);
         return 1;
     }
+    const char *epoch = calf_get_field(&welcome, "EPOCH");
+    snprintf(g_epoch, sizeof(g_epoch), "%s", epoch ? epoch : "");
     const char *ch_supported = calf_get_field(&welcome, "CH_SUPPORTED");
     printf("WELCOME type=%s GW=%s CH_SUPPORTED=%s\n", welcome.msg_type,
            calf_get_field(&welcome, "GW") ? calf_get_field(&welcome, "GW") : "?", ch_supported ? ch_supported : "?");

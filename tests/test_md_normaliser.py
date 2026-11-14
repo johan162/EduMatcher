@@ -678,3 +678,49 @@ def test_an_ordinary_resume_carries_no_backstop_fields() -> None:
     assert "PRINTPX" not in fields
     # And the corridor is gone with the halt it described.
     assert "CORRLO" not in n.cb_snapshot_fields("AAPL")
+
+
+# ---------------------------------------------------------------------------
+# WP-MDG02: halt state reconciled with the engine's halt-status answer
+# ---------------------------------------------------------------------------
+
+
+def test_apply_halt_status_halts_a_symbol_the_gateway_thought_active() -> None:
+    n = EngineNormaliser()
+    n.session_state = "CONTINUOUS"
+    changes = n.apply_halt_status(
+        [{"symbol": "AAPL", "level": "L2", "halt_source": "CB", "resume_at_ns": None}]
+    )
+    assert changes == [
+        ("STATE", "AAPL", {"SESSION": "HALTED", "PREV": "CONTINUOUS"}),
+        ("CB", "AAPL", {"STATUS": "HALTED", "LEVEL": "L2", "SRC": "CB"}),
+    ]
+    assert n.state_snapshot_fields("AAPL")["SESSION"] == "HALTED"
+    assert n.cb_snapshot_fields("AAPL") == {
+        "STATUS": "HALTED",
+        "LEVEL": "L2",
+        "SRC": "CB",
+    }
+
+
+def test_apply_halt_status_resumes_a_symbol_the_engine_no_longer_halts() -> None:
+    n = EngineNormaliser()
+    n.session_state = "CONTINUOUS"
+    n.normalise_halt("AAPL")
+    n.normalise_cb_halt("AAPL", {"level": "L1", "halt_source": "CB"})
+    changes = n.apply_halt_status([])
+    assert changes == [
+        ("STATE", "AAPL", {"SESSION": "CONTINUOUS", "PREV": "HALTED"}),
+        ("CB", "AAPL", {"STATUS": "ACTIVE"}),
+    ]
+    assert n.cb_snapshot_fields("AAPL") == {"STATUS": "ACTIVE"}
+
+
+def test_apply_halt_status_agreeing_with_the_gateway_changes_nothing() -> None:
+    n = EngineNormaliser()
+    n.session_state = "CONTINUOUS"
+    n.normalise_halt("AAPL")
+    n.normalise_cb_halt("AAPL", {"level": "L1", "halt_source": "CB"})
+    assert n.apply_halt_status([{"symbol": "aapl", "halt_source": "CB"}]) == []
+    assert n.apply_halt_status([]) != []
+    assert n.apply_halt_status([]) == []

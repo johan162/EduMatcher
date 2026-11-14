@@ -70,8 +70,11 @@ To send one explicit `RESUME` after the handshake, replaying a stream from
 a known position:
 
 ```bash
-python3 calf_subscriber.py --host 127.0.0.1 --port 5570 --resume --resume-ch TOP --resume-sym AAPL --lastseq 1042
+python3 calf_subscriber.py --host 127.0.0.1 --port 5570 --resume --resume-ch TOP --resume-sym AAPL --lastseq 1042 --epoch 3f9a01bc
 ```
+
+`--epoch` is the `WELCOME|EPOCH=` of the gateway run `--lastseq` was seen
+on; it defaults to the run this connection reaches.
 
 `RESUME` is a standalone, repeatable command, not a `HELLO` flag -- as a
 flag it could only ever run once per connection, which is no use to a
@@ -105,8 +108,11 @@ The same in all three line gateways (`pm-md-gwy`, `pm-ralf-gwy`,
 - **`EXIT` works both ways.** On Ctrl-C both examples send a bare `EXIT`;
   the gateway flushes what is queued, then closes.
 - **`REPLAY_MISS` covers more than an old position.** It also answers a
-  `RESUME|LASTSEQ=` that is *ahead* of the stream -- a position from before
-  a gateway restart, which numbers its streams from 1 again. A fresh `SNAP`
+  `RESUME` whose `EPOCH` is another gateway run's -- a position from before
+  a restart, which numbers its streams from 1 again -- and one whose
+  `LASTSEQ` is *ahead* of the stream. Every `RESUME` therefore carries the
+  `WELCOME|EPOCH=`; neither example reconnects, so it is always the one
+  `WELCOME`'s. A fresh `SNAP`
   follows on `TOP`/`STATE`/`INDEX`/`DEPTH`/`CB`, which both examples take as
   the new baseline; on `TRADE`/`AUCTION` nothing follows and the gap is
   permanent.
@@ -134,7 +140,7 @@ client sends `EXIT` and closes.
 - `SUB|CH=INDEX|SYM=<index_id>` (only if `--index`/an index id argument is given)
 - `SYMBOLS` (Python only -- `WELCOME|SYMBOLS=` is optional, so this is the
   reliable route to the instrument universe, and it carries `REF=` too)
-- `RESUME|CH=..|SYM=..|LASTSEQ=..`, one per stream, whenever a `SEQ` gap
+- `RESUME|CH=..|SYM=..|LASTSEQ=..|EPOCH=..`, one per stream, whenever a `SEQ` gap
   appears
 - `EXIT` on Ctrl-C
 

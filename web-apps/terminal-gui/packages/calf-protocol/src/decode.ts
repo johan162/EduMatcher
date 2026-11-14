@@ -69,6 +69,12 @@ export interface WelcomeInfo {
   hbint: number;
   /** Replay window the gateway retains, seconds. */
   replaySec: number;
+  /**
+   * From `EPOCH=`: which gateway run this connection reaches. Sequences
+   * begin again at 1 when the gateway restarts, so every `RESUME` names the
+   * run its `LASTSEQ` was counted in.
+   */
+  epoch: string;
   /** From `CH_SUPPORTED=`; empty for a pre-1.0.0 gateway that lacks the field. */
   chSupported: Set<string>;
   /** From `SYMBOLS=`; empty when the gateway was started without an engine config. */
@@ -91,6 +97,7 @@ export function parseWelcome(fields: Record<string, string>): WelcomeInfo {
     gateway: fields["GW"] ?? "",
     hbint: numOr(fields["HBINT"], 1),
     replaySec: numOr(fields["REPLAY"], 0),
+    epoch: fields["EPOCH"] ?? "",
     chSupported: new Set(splitCsv(fields["CH_SUPPORTED"])),
     symbols: splitCsv(fields["SYMBOLS"]),
     tickDecimals: parseRef(fields["REF"]),

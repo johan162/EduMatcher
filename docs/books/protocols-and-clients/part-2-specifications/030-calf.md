@@ -201,7 +201,8 @@ become known only after the `SUB` — via the same wildcard subscription entry.
 - A wildcard subscription (`SYM=*`) counts as exactly one entry toward
   `max_symbols_per_client`, not one entry per known symbol.
 - Re-subscribing an already active pair is idempotent.
-- Maximum symbols per client are enforced by gateway config.
+- Maximum symbols per client are enforced by gateway config, on `SUB` and on
+  `RESUME` alike (a `RESUME` for a stream not yet held adds it).
 - If any requested `(CH,SYM)` pair is invalid, the gateway rejects the `SUB`
   request with `ERR` and leaves existing subscriptions unchanged.
 - For non-`INDEX` channels, a non-wildcard `SYM` is validated against the
@@ -210,7 +211,9 @@ become known only after the `SUB` — via the same wildcard subscription entry.
   `ERR|CODE=INVALID_SYMBOL`. `INDEX` is exempt from this check — index ids
   live in a separate namespace from tradable instrument symbols, so any
   non-empty id is accepted at `SUB` time regardless of whether a matching
-  index is actually configured. `AUCTION` and `CB` are not exempt: a
+  index is actually configured. The exemption is per pair: in
+  `SUB|CH=INDEX,TOP|SYM=X` the `(TOP, X)` pair is still checked, and an
+  unknown `X` rejects the whole `SUB`. `AUCTION` and `CB` are not exempt: a
   non-wildcard symbol for either is checked against the same known-instrument
   list as `TOP`/`TRADE`/`STATE`/`DEPTH`.
 - If the gateway's known-symbol list itself is empty (for example, engine
@@ -270,7 +273,7 @@ SUB|CH=CB|SYM=AAPL
 | `TRADE`   | Gateway -> Client | Trade print                           |
 | `STATE`   | Gateway -> Client | Session/symbol state transition       |
 | `IDX`     | Gateway -> Client | Index level update                    |
-| `DEPTH`   | Gateway -> Client | Incremental multi-level order book update |
+| `DEPTH`   | Gateway -> Client | Multi-level order book ladder (replaces the previous one) |
 | `AUCTION` | Gateway -> Client | Auction uncross result                |
 | `CB`      | Gateway -> Client | Circuit-breaker halt/resume detail    |
 
@@ -321,12 +324,13 @@ HELLO|CLIENT=bot01|PROTO=CALF1
 | `GW`           | Yes | Gateway instance name                |
 | `HBINT`        | Yes | Heartbeat interval in seconds        |
 | `REPLAY`       | Yes | Replay window in seconds             |
+| `EPOCH`        | Yes | Identifies this run of the gateway process (8 hex digits, new at every start). Every stream's `SEQ` is counted within one run and begins again at 1 after a restart, so a `RESUME` names the run its `LASTSEQ` came from. |
 | `SYMBOLS`      | No  | Comma-separated snapshot of instrument symbols known to the gateway at connect time. Omitted when the gateway has no known symbols yet. The known-symbol set can grow after `WELCOME` is sent, as new `book.{SYMBOL}`/trade events arrive from the engine — this field is a point-in-time snapshot, not a fixed universe, and a symbol absent here may still become subscribable later without a new `WELCOME`. |
 | `REF`          | No  | Per-symbol reference data as `SYM:DEC` tuples, where `DEC` is the instrument's display precision (`tick_decimals`). Covers exactly the symbols listed in `SYMBOLS=`, and is omitted whenever that field is. Absent entirely from gateways predating CALF `1.1.0` — a client detects support by its presence, not by `PROTO`, and falls back to `2` decimals when it is missing. |
 | `CH_SUPPORTED` | No  | Comma-separated list of channels this gateway build supports. Present on every CALF `1.0.0`+ gateway; omitted entirely by earlier gateways. A client uses its presence — not the `PROTO` value, which does not change — to detect whether `DEPTH`/`INDEX` and the `SYM=*` wildcard extension are available. |
 
 ```text
-WELCOME|PROTO=CALF1|GW=md-gwy01|HBINT=1|REPLAY=30|SYMBOLS=AAPL,MSFT|CH_SUPPORTED=AUCTION,CB,DEPTH,INDEX,STATE,TOP,TRADE|REF=AAPL:2,MSFT:4
+WELCOME|PROTO=CALF1|GW=md-gwy01|HBINT=1|REPLAY=30|EPOCH=3f9a01bc|SYMBOLS=AAPL,MSFT|CH_SUPPORTED=AUCTION,CB,DEPTH,INDEX,STATE,TOP,TRADE|REF=AAPL:2,MSFT:4
 ```
 
 A client that receives no `CH_SUPPORTED` field must assume only `TOP`,
@@ -371,8 +375,8 @@ SUB|CH=CB|SYM=AAPL
 `LASTSEQ`, instead of starting from a `SNAP`.
 
 **Response:** replayed events in sequence order, or `ERR|CODE=REPLAY_MISS`
-when the gap is wider than the replay window or `LASTSEQ` is ahead of the
-stream. On the snapshot-backed channels
+when `EPOCH` is not this gateway run's, the gap is wider than the replay
+window, or `LASTSEQ` is ahead of the stream. On the snapshot-backed channels
 (`TOP`, `STATE`, `INDEX`, `DEPTH`, `CB`) a fresh `SNAP` follows that error; on
 `TRADE` and `AUCTION` it does not, because a past print has no current state to
 snapshot. See "Reconnect behavior" below.
@@ -382,21 +386,30 @@ snapshot. See "Reconnect behavior" below.
 | `CH`      | Yes | Exactly one channel                               |
 | `SYM`     | Yes | Exactly one concrete symbol; `SYM=*` is invalid   |
 | `LASTSEQ` | Yes | Last sequence the client received on that stream  |
+| `EPOCH`   | Yes | `WELCOME\|EPOCH=` of the gateway run `LASTSEQ` was received from |
 
 Send one `RESUME` per stream being recovered. Unlike `SUB`, this message
 takes no comma-separated lists: `LASTSEQ` describes a single stream's
 position, so a multi-stream `RESUME` would have no coherent meaning.
 
 ```text
-RESUME|CH=TOP|SYM=AAPL|LASTSEQ=1042
-RESUME|CH=TRADE|SYM=AAPL|LASTSEQ=88
-RESUME|CH=DEPTH|SYM=MSFT|LASTSEQ=310
+RESUME|CH=TOP|SYM=AAPL|LASTSEQ=1042|EPOCH=3f9a01bc
+RESUME|CH=TRADE|SYM=AAPL|LASTSEQ=88|EPOCH=3f9a01bc
+RESUME|CH=DEPTH|SYM=MSFT|LASTSEQ=310|EPOCH=3f9a01bc
 ```
+
+A client keeps the epoch with each stream position, not only the latest
+`WELCOME`'s: after reconnecting to a restarted gateway, a position from the
+old run must be resumed with the old run's epoch, so that the gateway answers
+`REPLAY_MISS` instead of replaying the new run's events as the missing ones.
 
 Validation rules:
 
 - `CH` or `SYM` carrying more than one value is `ERR|CODE=BAD_MESSAGE`.
 - A missing or non-positive `LASTSEQ` is `ERR|CODE=BAD_MESSAGE`.
+- A missing `EPOCH` is `ERR|CODE=BAD_MESSAGE`.
+- A stream the session does not yet hold that would take it past
+  `max_symbols_per_client` is `ERR|CODE=SUB_LIMIT`, with nothing replayed.
 - An unknown channel is `ERR|CODE=INVALID_CHANNEL`.
 - `SYM=*` is `ERR|CODE=INVALID_SYMBOL` on every channel — see
   "Reconnect behavior".
@@ -533,7 +546,11 @@ and uses that symbol's own `(TOP, SYM)` sequence.
 
 `CH=INDEX` fields: identical field set to the `IDX` message — see that
 section below. Since CALF `1.0.0`, `SUB|CH=INDEX` sends a baseline `SNAP`
-before any live `IDX` updates, the same as `TOP`/`STATE`/`DEPTH`.
+before any live `IDX` updates, the same as `TOP`/`STATE`/`DEPTH`. A `SNAP`
+with no `LEVEL` (and no `SESSION`) means the gateway has received no level
+for that id since it started: pm-index publishes on change, so this is normal
+outside trading hours and for an id that does not exist. Wait for the first
+`IDX`.
 
 `CH=DEPTH` fields: identical field set to the `DEPTH` message — see that
 section below. `BIDS`/`ASKS` are omitted entirely (not sent as empty
@@ -763,8 +780,9 @@ on elapsed time with no session check, so an L2 halt — 15 minutes by default
 | `PCTCHG`  | No  | Percent change from open, signed e.g. `+0.45`        |
 | `AGGCAP`  | No  | Aggregate market cap, integer string                 |
 
-`IDX` has no baseline `SNAP` variant in CALF `1.0.0`. Delivery starts from
-events that occur after the subscription becomes active.
+A new `INDEX` subscription starts with a baseline `SNAP` carrying the same
+fields (see `SNAP` above, including what a `SNAP` without `LEVEL` means);
+`IDX` events follow.
 
 ```text
 IDX|CH=INDEX|SYM=EDU50|SEQ=12|TS=2026-06-07T10:16:00.000Z|LEVEL=5123.45|SESSION=CONTINUOUS|OPEN=5100.00|CHG=+23.45|PCTCHG=+0.46
@@ -969,6 +987,17 @@ halt that just ended and are always omitted on a resume event
 (`STATUS=ACTIVE`) — only `SRC` carries over, since what caused the halt is
 meaningful on the way out as well as in.
 
+**Halts learnt from the engine's halt list.** The gateway asks the engine for
+every halted symbol when it first hears from the engine and again after an
+engine restart. A halt it learns that way (the gateway started after the halt)
+is published as `STATE` and `CB` events like a live one, but carries only
+`LEVEL`, `RESUMEAT` and `SRC`: the engine's list has no trigger or reference
+price and no corridor, so `TRIGGERPX`, `REFPX`, `CORRLO`, `CORRHI` and `EXP`
+are absent until the next extension event. A symbol the gateway holds halted
+that the list omits (an engine restart ends every halt without publishing a
+resume) gets resume events: `STATE` to the current phase and
+`CB|STATUS=ACTIVE` without `SRC`.
+
 #### ACE corridor expansions
 
 A halt does not necessarily end when `RESUMEAT` arrives. If the indicative
@@ -1105,7 +1134,7 @@ Normative error codes:
 | `INVALID_CHANNEL` | `CH` not in `{TOP, TRADE, STATE, INDEX, DEPTH, AUCTION, CB}`                     |
 | `INVALID_SYMBOL`  | Symbol not in the gateway's known instrument list (does not apply to `INDEX`, which has no known-id check — see "Subscription rules"), `SYM=*` used with `INDEX`/`DEPTH`/`CB` on `SUB` (alone or mixed with any other channel), `SYM=*` used at all on `RESUME` (every channel, including `TOP`/`TRADE`/`STATE`/`AUCTION`), a `SUB` with no `SYM` at all, or `CH=INDEX` combined with an empty symbol |
 | `SUB_LIMIT`       | Subscription would exceed `max_symbols_per_client`                              |
-| `REPLAY_MISS`     | Events after `LASTSEQ` are no longer in the replay window, or `LASTSEQ` is ahead of the stream (e.g. after a gateway restart); a `SNAP` follows on `TOP`/`STATE`/`INDEX`/`DEPTH`/`CB`, but not on `TRADE`/`AUCTION` |
+| `REPLAY_MISS`     | `RESUME\|EPOCH=` names another gateway run (the gateway restarted), events after `LASTSEQ` are no longer in the replay window, or `LASTSEQ` is ahead of the stream; a `SNAP` follows on `TOP`/`STATE`/`INDEX`/`DEPTH`/`CB`, but not on `TRADE`/`AUCTION` |
 | `SLOW_CLIENT`     | Outbound queue exceeded `max_client_queue`; connection closed                   |
 | `BAD_MESSAGE`     | Parse failure, oversized line (over 4096 bytes including the newline), or unsupported message type |
 | `RATE_LIMITED`    | Client exceeded `max_messages_per_second` (inbound token-bucket); connection stays open |
@@ -1123,7 +1152,7 @@ Terminal behavior:
   under `max_messages_per_second`.
 
 ```text
-ERR|CODE=REPLAY_MISS|DETAIL=Requested sequence outside replay buffer|CH=TOP|SYM=AAPL
+ERR|CODE=REPLAY_MISS|CH=TOP|SYM=AAPL
 ```
 
 ### `EXIT`
@@ -1188,7 +1217,12 @@ there are streams to recover. Reconnect therefore looks like: `HELLO`, then
 one `RESUME` per stream the client was following, then a `SUB` for anything
 it wants that it has no sequence position for.
 
-- Client supplies `CH`, `SYM`, and `LASTSEQ`.
+- Client supplies `CH`, `SYM`, `LASTSEQ`, and the `EPOCH` of the gateway run
+  that `LASTSEQ` came from.
+- An `EPOCH` that is not the current run's is answered `ERR|CODE=REPLAY_MISS`
+  (plus a `SNAP` where the channel has one): the gateway restarted, its
+  sequences began again at 1, and nothing it holds continues the old
+  position — even when its own stream has already passed `LASTSEQ`.
 - `CH` and `SYM` must each contain exactly one value.
 - `LASTSEQ` must be a positive base-10 integer.
 - If missing events are inside replay window, gateway replays in order then
@@ -1219,8 +1253,7 @@ it wants that it has no sequence position for.
   stream's current sequence, so nothing was missed. Every other case the
   gateway cannot serve is a `REPLAY_MISS` — including a stream whose
   retained events have all aged out, and a `LASTSEQ` ahead of the stream
-  (or on a stream this gateway has never emitted), which is what a client
-  holding a position from before a gateway restart sends.
+  (or on a stream this gateway has never emitted).
 - `SYM=*` is always invalid for `RESUME`, for every channel, even for
   `TOP`/`TRADE`/`STATE`/`AUCTION` where `SYM=*` is otherwise allowed on
   `SUB`. `RESUME` has no equivalent of `SUB`'s per-symbol snapshot burst,
@@ -1241,11 +1274,11 @@ sequenceDiagram
     participant C as Client
     participant G as pm-md-gwy
 
-    Note over C,G: Last seen on (TOP,AAPL): SEQ=1042, (TRADE,AAPL): SEQ=88
+    Note over C,G: Last seen in run 3f9a01bc on (TOP,AAPL): SEQ=1042, (TRADE,AAPL): SEQ=88
     C->>G: HELLO|CLIENT=bot01|PROTO=CALF1
-    G-->>C: WELCOME|PROTO=CALF1|GW=md-gwy01|HBINT=1|REPLAY=30
-    C->>G: RESUME|CH=TOP|SYM=AAPL|LASTSEQ=1042
-    C->>G: RESUME|CH=TRADE|SYM=AAPL|LASTSEQ=88
+    G-->>C: WELCOME|PROTO=CALF1|GW=md-gwy01|HBINT=1|REPLAY=30|EPOCH=3f9a01bc
+    C->>G: RESUME|CH=TOP|SYM=AAPL|LASTSEQ=1042|EPOCH=3f9a01bc
+    C->>G: RESUME|CH=TRADE|SYM=AAPL|LASTSEQ=88|EPOCH=3f9a01bc
 
     alt Replay hit
         G-->>C: MD|CH=TOP|SYM=AAPL|SEQ=1043|...
@@ -1282,7 +1315,7 @@ sequenceDiagram
 
     C->>G: TCP connect
     C->>G: HELLO|CLIENT=bot01|PROTO=CALF1
-    G-->>C: WELCOME|PROTO=CALF1|GW=md-gwy01|HBINT=1|REPLAY=30
+    G-->>C: WELCOME|PROTO=CALF1|GW=md-gwy01|HBINT=1|REPLAY=30|EPOCH=3f9a01bc
 
     C->>G: SUB|CH=TOP,TRADE|SYM=AAPL
     G-->>C: SNAP|CH=TOP|SYM=AAPL|SEQ=100|...
@@ -1352,7 +1385,8 @@ Operational notes:
 - `max_messages_per_second` affects inbound `ERR|CODE=RATE_LIMITED`
   behavior; it is a non-terminal, per-client token bucket, unlike
   `max_client_queue`.
-- `max_symbols_per_client` affects `SUB` validation and `ERR|CODE=SUB_LIMIT`.
+- `max_symbols_per_client` affects `SUB` and `RESUME` validation and
+  `ERR|CODE=SUB_LIMIT`.
 - `max_client_queue` controls slow-client backpressure behavior.
 - `depth_levels` affects `DEPTH` message size and bandwidth; lower it on
   bandwidth-constrained deployments rather than expecting clients to request

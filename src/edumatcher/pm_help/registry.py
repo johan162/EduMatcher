@@ -665,14 +665,15 @@ _EXTERNAL_GATEWAYS: tuple[CommandInfo, ...] = (
         name="pm-md-gwy",
         category="External Gateways",
         title="CALF Market-Data Gateway",
-        summary="External market-data gateway distributing top/trade/state channels over CALF/TCP.",
+        summary="External market-data gateway distributing CALF channels over TCP.",
         synopsis=(
             "pm-md-gwy [--bind 0.0.0.0] [--port 5570] [--engine-pub tcp://127.0.0.1:5556]",
             "          [--index-pub tcp://127.0.0.1:5558]",
         ),
         description=(
             "Consumes the engine and index PUB feeds internally and republishes "
-            "sequence-aware TOP, TRADE, and STATE channels to external CALF clients.",
+            "sequence-aware TOP, DEPTH, TRADE, STATE, AUCTION, CB and INDEX "
+            "channels to external CALF clients.",
         ),
         options=(
             Option("--bind ADDR", "0.0.0.0", "TCP bind address for external clients"),
@@ -685,7 +686,7 @@ _EXTERNAL_GATEWAYS: tuple[CommandInfo, ...] = (
             Option(
                 "--index-pub ADDR",
                 "tcp://127.0.0.1:5558",
-                "Index PUB socket address (overrides config)",
+                "pm-index PUB address consumed by the gateway",
             ),
         ),
         has_common_log_options=True,
@@ -843,7 +844,7 @@ _PROTOCOL_SPIES: tuple[CommandInfo, ...] = (
                 "Comma-separated symbols; * = wildcard where allowed",
             ),
             Option(
-                "--resume CH:SYM:LASTSEQ",
+                "--resume CH:SYM:LASTSEQ:EPOCH",
                 "none",
                 "One-shot single-stream replay request on connect",
             ),

@@ -58,7 +58,12 @@ def _load_market_data_gateway_config_from_raw(
     if not isinstance(md_raw, dict):
         raise ValueError("market_data_gateway must be a mapping")
 
-    enabled = bool(md_raw.get("enabled", True))
+    enabled = md_raw.get("enabled", True)
+    if not isinstance(enabled, bool):
+        # bool() would read "false" (a quoted string) as true.
+        raise ValueError(
+            f"market_data_gateway.enabled must be true or false, got {enabled!r}"
+        )
     name = str(md_raw.get("name", "md-gwy01"))
     bind_address = resolve_gateway_bind_host(md_raw.get("bind_address"))
     port = _as_int(md_raw.get("port", 5570), "port")
@@ -94,8 +99,6 @@ def _load_market_data_gateway_config_from_raw(
         "depth_levels",
     )
 
-    if port <= 0:
-        raise ValueError("market_data_gateway.port must be > 0")
     if heartbeat_interval_sec <= 0:
         raise ValueError("market_data_gateway.heartbeat_interval_sec must be > 0")
     if idle_timeout_sec <= 0:

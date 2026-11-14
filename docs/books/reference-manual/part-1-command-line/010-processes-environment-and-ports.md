@@ -4032,7 +4032,7 @@ dropping it as an idle client.
 | `--client-name` | `calf-spy-<pid>` | `HELLO\|CLIENT=` identifier reported in gateway logs |
 | `--channels` | `*` | Comma-separated channels; `*` = every channel in `WELCOME\|CH_SUPPORTED=` |
 | `--symbols` | `*` | Comma-separated symbols; `*` = wildcard for channels that allow it |
-| `--resume` | *(none)* | One-shot `CH:SYM:LASTSEQ` — requests single-stream replay on connect |
+| `--resume` | *(none)* | One-shot `CH:SYM:LASTSEQ:EPOCH` — requests single-stream replay on connect; `EPOCH` is the `WELCOME\|EPOCH=` of the gateway run `LASTSEQ` was seen on |
 | `--ping-interval` | `60` | Seconds between `PING` keepalives sent to the gateway; `0` disables |
 | `--format` | `human` | `human` or `json` output |
 | `--count` | `0` | Exit after N data-carrying lines (`0` = run until Ctrl-C) |

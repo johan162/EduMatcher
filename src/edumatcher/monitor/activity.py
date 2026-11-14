@@ -119,6 +119,9 @@ WATCHED_INCREASES = {
     # A write-rate limiter said no to some API key.
     API_KEY_THROTTLED: "api_throttled",
     "stats.feed_gaps": "stats_feed_gaps",
+    # pm-md-gwy: engine or pm-index messages that never reached it, so no
+    # CALF client saw them either.
+    "md.bus_gaps": "md_bus_gaps",
     # pm-audit's archiver child failed; the day's parts stay readable.
     "audit.archive_errors": "audit_archive_errors",
     # pm-audit could not write the trail (disk full, EIO); the lines wait

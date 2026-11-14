@@ -122,6 +122,20 @@
     - "Make sure pm-engine and pm-md-gwy run the same EduMatcher release."
 
 - logger: edumatcher.md_gateway.gateway
+  template: "engine bus dropped %d message(s) on %s: sequence %d..%d never arrived (%d lost on %s since the last warning); CALF clients cannot see this loss"
+  level: WARNING
+  explanation: >
+    Messages from pm-engine or pm-index never reached pm-md-gwy: its receive
+    buffer was full and ZeroMQ discarded them. The gateway numbers what it
+    receives without holes, so CALF clients cannot tell. Lost prints are
+    gone for good; a lost book or index update is corrected by the next one.
+    Further losses on the same topic family are only counted (`md.bus_gaps`)
+    for a minute after this line.
+  actions:
+    - "Check the gateway's CPU on the dashboard: a gateway that cannot keep up with its clients' subscriptions falls behind the engine."
+    - "Look for clients holding very many subscriptions, or move pm-md-gwy to a less busy CPU."
+
+- logger: edumatcher.md_gateway.gateway
   template: "md_gateway handler error on engine topic=%s"
   level: WARNING
   explanation: >
