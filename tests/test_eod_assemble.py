@@ -209,3 +209,41 @@ def test_an_unsettled_date_is_an_error(
     clearing, ledger = dbs
     with pytest.raises(LedgerError, match="not settled"):
         build_day(clearing, ledger, "2026-07-02", ROSTER)
+
+
+def test_a_broken_stats_db_is_a_warning_not_a_failure(
+    dbs: tuple[sqlite3.Connection, sqlite3.Connection],
+) -> None:
+    clearing, ledger = dbs
+    with closing(sqlite3.connect(":memory:")) as stats:  # no daily_stats table
+        rep = build_day(clearing, ledger, "2026-07-01", ROSTER, stats)
+    assert rep.summary.symbols is None
+    assert any(
+        w.startswith("market statistics unavailable: ") and "daily_stats" in w
+        for w in rep.warnings
+    )
+
+
+def test_an_interval_over_a_skipped_close_names_its_start(
+    dbs: tuple[sqlite3.Connection, sqlite3.Connection],
+) -> None:
+    clearing, ledger = dbs
+    flush_batch(clearing, [], [pos("A", 100, 6000.0), pos("B", -100, -6000.0)], [])
+    write_close_snapshot(clearing, "2026-07-02")  # closed, never settled
+    flush_batch(clearing, [], [pos("A", 100, 7000.0), pos("B", -100, -7000.0)], [])
+    write_close_snapshot(clearing, "2026-07-03")
+    record_day(
+        ledger,
+        "2026-07-03",
+        settle_date(clearing, "2026-07-03", "2026-07-01"),
+    )
+    by = {
+        s.gateway: s
+        for s in build_day(clearing, ledger, "2026-07-03", ROSTER).statements
+    }
+    assert by["A"].since == "2026-07-01" and by["A"].amount_minor == 2000
+    by = {
+        s.gateway: s
+        for s in build_day(clearing, ledger, "2026-07-01", ROSTER).statements
+    }
+    assert by["A"].since is None

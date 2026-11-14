@@ -37,7 +37,10 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import sqlite3
+import uuid
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -348,6 +351,22 @@ def apply_schema(conn: sqlite3.Connection) -> None:
         "tick_decimals",
         "INTEGER NOT NULL DEFAULT 2",
     )
+    # A random id per database file, written once.  pm-eod keeps the id each
+    # date was settled from, so it can tell this file from a replacement
+    # (pm-opctl-cli clear --state) that happens to have the same dates.
+    conn.execute(
+        "INSERT OR IGNORE INTO clearing_meta (key, value) VALUES ('instance_id', ?)",
+        (uuid.uuid4().hex,),
+    )
+    conn.commit()
+
+
+def clearing_instance(conn: sqlite3.Connection) -> str | None:
+    """This database file's ``instance_id`` (see :func:`apply_schema`)."""
+    row = conn.execute(
+        "SELECT value FROM clearing_meta WHERE key = 'instance_id'"
+    ).fetchone()
+    return None if row is None else str(row[0])
 
 
 def require_trade_events_id_primary_key(conn: sqlite3.Connection) -> None:
@@ -507,6 +526,22 @@ ON CONFLICT(gateway_id, symbol) DO UPDATE SET
   last_trade_ts_ns = excluded.last_trade_ts_ns,
   updated_ts_ns    = excluded.updated_ts_ns
 """
+
+
+_OPTIONAL_FILTER = re.compile(r"\(:(\w+)\s+IS NULL OR ([^()]+?)\)")
+
+
+def _drop_unset_filters(sql: str, params: Mapping[str, object]) -> str:
+    """Resolve each ``(:x IS NULL OR <condition>)`` before SQLite plans it.
+
+    SQLite plans that form as a full scan whatever ``:x`` turns out to be, so
+    a one-day read walked the whole table.  An unset filter becomes ``1`` and
+    a set one its bare condition, which can use an index; the rows returned
+    are the same.  Conditions containing parentheses are left as they are.
+    """
+    return _OPTIONAL_FILTER.sub(
+        lambda m: "1" if params.get(m.group(1)) is None else f"({m.group(2)})", sql
+    )
 
 
 def _pow10(column: str) -> str:
@@ -1406,17 +1441,15 @@ def query_close_snapshots(
         " ORDER BY trade_date DESC, gateway_id ASC, symbol ASC"
         " LIMIT :limit"
     )
-    rows = conn.execute(
-        sql,
-        {
-            "gateway": gateway,
-            "symbol": symbol,
-            "date_value": date_value,
-            "from_date": from_date,
-            "to_date": to_date,
-            "limit": limit,
-        },
-    ).fetchall()
+    params = {
+        "gateway": gateway,
+        "symbol": symbol,
+        "date_value": date_value,
+        "from_date": from_date,
+        "to_date": to_date,
+        "limit": limit,
+    }
+    rows = conn.execute(_drop_unset_filters(sql, params), params).fetchall()
     return [dict(r) for r in rows]
 
 
@@ -1658,14 +1691,12 @@ def query_reconcile(
       )
     ORDER BY k.trade_date ASC, k.side ASC, k.gateway_id ASC, k.symbol ASC
     """
-    rows = conn.execute(
-        sql,
-        {
-            "from_date": from_date,
-            "to_date": to_date,
-            "gateway": gateway,
-            "symbol": symbol,
-            "retention_days": retention_days,
-        },
-    ).fetchall()
+    params = {
+        "from_date": from_date,
+        "to_date": to_date,
+        "gateway": gateway,
+        "symbol": symbol,
+        "retention_days": retention_days,
+    }
+    rows = conn.execute(_drop_unset_filters(sql, params), params).fetchall()
     return [dict(r) for r in rows]

@@ -12,8 +12,18 @@ from collections.abc import Mapping
 from datetime import UTC, datetime
 from decimal import Decimal
 
-from edumatcher.clearing.store import query_close_snapshots, query_day_trades
-from edumatcher.eod.ledger import LedgerError, balances, day_amounts, day_detail
+from edumatcher.clearing.store import (
+    query_close_snapshot_dates,
+    query_close_snapshots,
+    query_day_trades,
+)
+from edumatcher.eod.ledger import (
+    LedgerError,
+    balances,
+    day_amounts,
+    day_detail,
+    last_settled_before,
+)
 from edumatcher.eod.report import (
     DayReport,
     PositionLine,
@@ -41,6 +51,13 @@ def build_day(
     roster: Mapping[str, Trader],
     stats: sqlite3.Connection | None = None,
 ) -> DayReport:
+    """The statements, summary and warnings of a settled ``trade_date``.
+
+    One statement per gateway that was settled or is in the roster. Market
+    figures come from ``stats`` when given; a ``stats.db`` that cannot be read
+    becomes a warning, never an error.  Raises :class:`LedgerError` for a
+    date that is not settled.
+    """
     amounts = day_amounts(ledger, trade_date)
     if not amounts:
         raise LedgerError(f"{trade_date} is not settled")
@@ -51,6 +68,7 @@ def build_day(
         as_of=trade_date,
         openings={g: t.opening_minor for g, t in roster.items()},
     )
+    since = _since(clearing, ledger, trade_date)
 
     held: dict[str, list[PositionLine]] = {}
     for r in query_close_snapshots(clearing, date_value=trade_date, limit=_ALL):
@@ -91,6 +109,7 @@ def build_day(
                 symbol_pnl=symbol_pnl,
                 positions=tuple(held.get(gateway, ())),
                 trades=tuple(trades.get(gateway, ())),
+                since=since,
             )
         )
 
@@ -103,13 +122,29 @@ def build_day(
             for s in statements
             if not s.listed
         )
-    summary = Summary(
-        trade_date,
-        rounding,
-        sum(amounts.values()) + rounding,
-        None if stats is None else _market(stats, trade_date),
-    )
+    market = None
+    if stats is not None:
+        try:
+            market = _market(stats, trade_date)
+        except sqlite3.Error as exc:
+            # The market table is informational: never withhold statements.
+            warnings += (f"market statistics unavailable: {exc}",)
+    summary = Summary(trade_date, rounding, sum(amounts.values()) + rounding, market)
     return DayReport(trade_date, tuple(statements), summary, warnings)
+
+
+def _since(
+    clearing: sqlite3.Connection, ledger: sqlite3.Connection, trade_date: str
+) -> str | None:
+    """The previous settled date if a snapshot date between it and this one
+    was never settled (the result then covers several days), else ``None``."""
+    previous = last_settled_before(ledger, trade_date)
+    if previous is None:
+        return None
+    skipped = any(
+        previous < d < trade_date for d in query_close_snapshot_dates(clearing)
+    )
+    return previous if skipped else None
 
 
 def _trades(

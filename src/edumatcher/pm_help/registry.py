@@ -1814,7 +1814,10 @@ _ADMIN_AND_OPS: tuple[CommandInfo, ...] = (
             "Traders are identified by gateway; ref_data/roster.yaml adds names, emails and "
             "opening balances. The ledger is <data>/eod.db.",
             "Exit codes of 'run': 0 clean, 1 the gate, settlement or report failed, "
-            "2 only housekeeping warnings. 'status -q' exits 0 when no closed date is waiting.",
+            "2 usage error, 3 settled and reported but a step warned (housekeeping, "
+            "or a settled date's snapshot changed). "
+            "'status -q' exits 0 when no closed date is waiting, 1 when one is "
+            "or clearing.db is missing.",
         ),
         options=(
             Option(
@@ -1840,13 +1843,15 @@ _ADMIN_AND_OPS: tuple[CommandInfo, ...] = (
             Option(
                 "--only STEP",
                 "all steps",
-                "run: re-run just report, audit, logs or backup for a settled date",
+                "run: re-run just report, audit, logs or backup for a settled date "
+                "(not with --redo, --force or --dry-run)",
                 "run",
             ),
             Option(
                 "--force",
                 "off",
-                "run: do not require the CLOSED session event (exchanges without a scheduler)",
+                "run: skip the 'has the day closed?' test (exchanges without a "
+                "scheduler); the snapshot and reconcile checks still apply",
                 "run",
             ),
             Option(
@@ -1858,19 +1863,20 @@ _ADMIN_AND_OPS: tuple[CommandInfo, ...] = (
             Option(
                 "--dry-run",
                 "off",
-                "run: gate and compute, print the amounts, write nothing (not with --only)",
+                "run: gate and settle into an in-memory copy of the ledger, print the "
+                "amounts, write nothing (not with --only)",
                 "run",
             ),
             Option(
                 "--log-keep-days N",
                 "14",
-                "run: delete compressed fallback logs older than N days",
+                "run: delete compressed fallback logs older than N days (N >= 0)",
                 "run",
             ),
             Option(
                 "--backup-keep-days N",
                 "7",
-                "run: delete backup folders older than N days",
+                "run: delete backup folders older than N days (N >= 0)",
                 "run",
             ),
             Option(
@@ -1882,7 +1888,8 @@ _ADMIN_AND_OPS: tuple[CommandInfo, ...] = (
             Option(
                 "-q, --quiet",
                 "off",
-                "status: print nothing; exit 0 if healthy, 1 otherwise",
+                "status: print nothing; exit 0 if no closed date waits, 1 if one does "
+                "or clearing.db is missing",
                 "status",
             ),
             Option("--limit N", "30", "status: number of runs shown", "status"),

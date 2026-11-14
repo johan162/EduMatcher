@@ -1580,25 +1580,34 @@ pm-eod [--datapath DIR] [--format table|json|csv] balances [--date YYYY-MM-DD] [
 |---|---|---|
 | `--date YYYY-MM-DD` | — | The trading date to close. Exactly one of `--date` and `--pending` is required. |
 | `--pending` | off | Every closed date that has a close snapshot and no `ok` run, oldest first. Stops at the first failing date. With more than one date, each date's `backup` step is deferred and one backup is taken at the end, under the last date that got through. |
-| `--only STEP` | all steps | Re-run just `report`, `audit`, `logs` or `backup` for an already settled date. Not recorded in the run history. |
-| `--force` | off | Do not require the `CLOSED` session event (for exchanges without a scheduler). The close snapshot and reconcile checks still apply. |
-| `--redo` | off | Recompute the date: deletes its settlement **and the settlement of every later date**, then settles it again, all in one transaction (if the recomputation fails, nothing is deleted). |
-| `--dry-run` | off | Run the gate and compute the amounts, print them, write nothing. Cannot be combined with `--only`. |
-| `--log-keep-days N` | `14` | Delete compressed fallback logs older than N days |
-| `--backup-keep-days N` | `7` | Delete backup folders older than N days |
+| `--only STEP` | all steps | Re-run just `report`, `audit`, `logs` or `backup` for an already settled date. Not recorded in the run history. Cannot be combined with `--redo`, `--force` or `--dry-run`. |
+| `--force` | off | Skip the "has the day closed?" test (for exchanges without a scheduler). The close snapshot and reconcile checks still apply. |
+| `--redo` | off | Recompute the date: deletes its settlement **and the settlement of every later date**, then settles it again, all in one transaction (if the recomputation fails, nothing is deleted). The `settlement/` folders of the dropped dates are removed. |
+| `--dry-run` | off | Run the gate and settle into an in-memory copy of the ledger; print the amounts (with the `EXCHANGE` line when not zero), write nothing. Refuses what a real run refuses; with `--pending`, each date is measured from the previous date's dry result. Cannot be combined with `--only`. |
+| `--log-keep-days N` | `14` | Delete compressed fallback logs older than N days (N ≥ 0) |
+| `--backup-keep-days N` | `7` | Delete backup folders older than N days (N ≥ 0) |
 | `--backup-skip NAME` | none | Leave one database out of the backup: `clearing.db`, `stats.db` or `eod.db`. Repeatable. The `backup` step's message says what was skipped. |
 
 **`status` options:** `-q` / `--quiet` prints nothing and exits 0 when no closed
 date is waiting (a closed date whose run failed counts as waiting) and 1
-otherwise; `--limit N` (default 30) caps the number of runs shown.
+otherwise, including when there is no `clearing.db` (a wrong `--datapath`);
+`--limit N` (default 30) caps the number of runs shown. `status`, `balances` and
+`show` only read `eod.db` and never create it.
+
+**A settled date run again** (no `--redo`, no `--only`) skips the gate: nothing
+is settled, only the report and housekeeping run. If that rerun fails, it is
+printed but not recorded, so an `ok` day stays `ok`.
 
 **`balances` options:** `--date` shows balances as of that date; `--gateway`
 filters to one trader (case-insensitive); `--check` verifies that every settled
 date sums to exactly zero and exits 1 if one does not.
 
 **Exit codes of `run`:** `0` clean · `1` the gate, the settlement or the report
-failed · `2` only housekeeping warnings. A second `pm-eod` started while one is
-running exits 1 (lock file `<data>/.pm-eod.lock`).
+failed · `2` usage error (nothing was done) · `3` settled and reported, but a
+step warned (a housekeeping step, or the `settle` note that a settled date's
+snapshot changed). A second `pm-eod` started while one is running exits 1
+(lock file `<data>/.pm-eod.lock`). Any database or file error outside a step
+is printed as `pm-eod: <error>` and exits 1.
 
 **Reads:** `clearing.db` (trades, positions, `position_close_snapshot`,
 `session_events`), `stats.db` (optional, for the summary's market table),
@@ -1624,7 +1633,7 @@ A missing file is an empty roster. Errors name the line (`roster.yaml: line 7: �
 | File | Content |
 |---|---|
 | `statements/<gateway>.md` | The trader's statement (the headline, result by symbol, open positions at the close, trades). Result by symbol lists a symbol only if it is held at the close, traded that day or has a non-zero result |
-| `statements/<gateway>.json` | The same, with `amount_minor` / `balance_minor` as integers in minor units |
+| `statements/<gateway>.json` | The same, with `amount_minor` / `balance_minor` as integers in minor units, and `since`: `null`, or the last settled date before this one when the amount covers more than one closed day (the `.md` then says *Result since the close of <date>*) |
 | `statements/<gateway>.csv` | One row per symbol: `symbol,day_pnl,net_qty,mark` |
 | `instructions.csv` | `gateway,name,email,amount,direction,balance`; `direction` is `receive`, `pay` or `none` |
 | `leaderboard.csv` | `rank,gateway,name,balance`; equal balances share a rank |
@@ -1636,6 +1645,8 @@ A missing file is an empty roster. Errors name the line (`roster.yaml: line 7: �
 |---|---|---|
 | `eod_settlement` | `trade_date`, `account`, `amount_minor`, `detail_json` | One row per account per settled date. `account` is a gateway identifier or `EXCHANGE` (the rounding line). The amounts of a date sum to exactly 0. |
 | `eod_runs` | `trade_date`, `status`, `started_at`, `finished_at`, `steps_json` | One row per date run. `status` is `ok`, `failed` or `report-failed`. |
+| `eod_close_equity` | `trade_date`, `gateway_id`, `symbol`, `equity` | One row per position per settled date: the cumulative equity (decimal string, display currency) the date was settled at. The next date is measured from these rows. |
+| `eod_close_source` | `trade_date`, `clearing_instance` | One row per settled date: the `instance_id` (in `clearing.db`'s `clearing_meta`) of the `clearing.db` it was settled from. A different one at the next date means `clearing.db` was replaced (`pm-opctl-cli clear --state`), so that date is measured from zero. |
 
 Balances are not stored: they are the sum of `amount_minor` plus the roster's
 opening balance. The full DDL is in the generated
@@ -1644,11 +1655,18 @@ opening balance. The full DDL is in the generated
 ### Settlement rules (reference)
 
 - A date's amount for a gateway is the sum over its symbols of
-  `(realized_pnl + unrealized_pnl)` at this date's `position_close_snapshot`
-  minus the same at the snapshot of the latest earlier **settled** date (0 if
-  there is none, or if `clearing.db` no longer has that date's snapshot), each
-  converted from ticks to currency with the symbol's own `tick_decimals`. Any
-  unsettled snapshot dates in between are part of the one interval.
+  `(realized_pnl + unrealized_pnl)` at this date's `position_close_snapshot`,
+  converted from ticks to currency with the symbol's own `tick_decimals`,
+  minus the same at the close of the latest earlier **settled** date. That
+  baseline is the equity recorded in `eod_close_equity` when the earlier date
+  was settled, not its snapshot in `clearing.db`, which changes if the date
+  closes again (a reopen, or another shutdown without a scheduler); the
+  `settle` step then warns and the difference is booked on this date. The
+  baseline is 0 if no date is settled yet, if `clearing.db` no longer has the
+  earlier date's snapshot (it was reset), or if it is a different
+  `clearing.db` than the earlier date was settled from (reset, and that date
+  traded again; the `settle` step warns). Any unsettled snapshot dates in
+  between are part of the one interval.
 - A date **has closed** when its latest `session_events` `PHASE` row is
   `CLOSED` and an earlier `PHASE` row of the same date is not, so the market
   was open that day. The `CLOSED` an engine announces when it starts, before
@@ -1656,7 +1674,9 @@ opening balance. The full DDL is in the generated
 - Dates settle in order: a date is refused while an earlier date has closed
   (with a snapshot) but is not settled.
 - Rounded to 2 decimals with the largest-remainder method; the exact total must
-  be within `0.01` per position of zero, otherwise the settlement fails.
+  be within `0.01` per position whose equity changed since the baseline (at
+  least `0.01`) of zero, otherwise the settlement fails. A non-zero rounding
+  line is named in the `settle` step's message with the day's exact total.
 - A position present in the earlier snapshot but missing from this date's is
   ignored.
 - The gate requires: the date has closed (skipped by `--force`); a close

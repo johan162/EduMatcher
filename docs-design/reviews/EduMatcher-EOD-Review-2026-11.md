@@ -26,8 +26,12 @@ backup per catch-up run, an engine boot's CLOSED is not a close.
 30 days × 100 000 trades and 200 gateways × 50 symbols (626 MB). The other
 findings are by inspection, with line numbers given.
 
-Status: **Open.** Decisions Q1–Q3 are needed before WP-EOD01, WP-EOD02 and
-WP-EOD04.
+Status: **Done, uncommitted.** WP-EOD01–08 completed 2026-11-14 in order,
+each test-first and verified with black/flake8/mypy/pyright and the full
+suite (last run: 14 073 passed, 1 skipped). Decisions Q1–Q3 taken as
+recommended. WP-EOD08's text pass found one more defect, introduced by
+WP-EOD01, and it was fixed (see WP-EOD01's follow-up). Exit codes changed:
+warnings are now **3**; 2 means only a usage error.
 
 ---
 
@@ -64,14 +68,14 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit) �
 
 | # | WP | Content | Findings | Depends on | Est. | Status | Done on |
 |---|---|---|---|---|---|---|---|
-| 1 | WP-EOD01 | A settled day's baseline cannot change under the ledger | H1, D3 | Q1 | 1 d | ☐ | |
-| 2 | WP-EOD02 | Reruns never downgrade a settled day; pruned days pass the gate | C1, C2 | Q3 | 0.5 d | ☐ | |
-| 3 | WP-EOD03 | Every failure is a recorded step with a clear exit code | C4, C10 | — | 0.5 d | ☐ | |
-| 4 | WP-EOD04 | The zero-sum tolerance tracks the day, not the history | C3 | Q2 | 0.25 d | ☐ | |
-| 5 | WP-EOD05 | CLI edges: health check, read-only commands, dry run, bounds | C5, C6, C11, C12 | — | 0.5 d | ☐ | |
-| 6 | WP-EOD06 | Report files: names, optional stats, atomic swap, stale days | C7, C8, C9, C14, C15 | — | 0.5 d | ☐ | |
-| 7 | WP-EOD07 | Housekeeping and query cost | C13, P1, P2 | — | 0.5 d | ☐ | |
-| 8 | WP-EOD08 | Comments, docstrings, help texts, operator guide | D1–D11 | WP-EOD01–07 | 0.5 d | ☐ | |
+| 1 | WP-EOD01 | A settled day's baseline cannot change under the ledger | H1, D3 | Q1 | 1 d | ☑ | 2026-11-14 |
+| 2 | WP-EOD02 | Reruns never downgrade a settled day; pruned days pass the gate | C1, C2 | Q3 | 0.5 d | ☑ | 2026-11-14 |
+| 3 | WP-EOD03 | Every failure is a recorded step with a clear exit code | C4, C10 | — | 0.5 d | ☑ | 2026-11-14 |
+| 4 | WP-EOD04 | The zero-sum tolerance tracks the day, not the history | C3 | Q2 | 0.25 d | ☑ | 2026-11-14 |
+| 5 | WP-EOD05 | CLI edges: health check, read-only commands, dry run, bounds | C5, C6, C11, C12 | — | 0.5 d | ☑ | 2026-11-14 |
+| 6 | WP-EOD06 | Report files: names, optional stats, atomic swap, stale days | C7, C8, C9, C14, C15 | — | 0.5 d | ☑ | 2026-11-14 |
+| 7 | WP-EOD07 | Housekeeping and query cost | C13, P1, P2 | — | 0.5 d | ☑ | 2026-11-14 |
+| 8 | WP-EOD08 | Comments, docstrings, help texts, operator guide | D1–D11 | WP-EOD01–07 | 0.5 d | ☑ | 2026-11-14 |
 
 Suggested order: **WP-EOD01 → WP-EOD02 → WP-EOD03 → WP-EOD04 → WP-EOD05 →
 WP-EOD06 → WP-EOD07 → WP-EOD08**. WP-EOD01 is the only finding that loses
@@ -506,11 +510,13 @@ uses (as `query_day_trades` already does, `f122c4e7`), and
 
 ## 7. Decisions
 
+All three taken as recommended on 2026-11-14.
+
 | # | Question | Recommendation |
 |---|---|---|
-| Q1 | Where does the next day's baseline come from (H1)? (a) pm-eod stores the equity rows it settled from in `eod.db` and uses them as the baseline. (b) pm-clearing refuses to rewrite a snapshot once the date has closed once, and also without a scheduler. (c) Keep reading `clearing.db`, but detect a changed snapshot and refuse to settle until `--redo`. | **(a), plus detection.** A new table `eod_close_equity(trade_date, gateway_id, symbol, equity TEXT)` is written in `record_day`'s transaction. `settle_date` takes the baseline from it. When `clearing.db` has no snapshot for the previous date at all, that is still treated as a reset (zero baseline, as today). If the clearing snapshot of the previous settled date differs from the stored one, the settle message says so ("D's snapshot changed after it was settled; the difference is in this day"), so nothing is lost and the operator can still `--redo D`. (b) cannot work without a scheduler, where the last shutdown *is* the close. (c) blocks the scheduler. `eod.db` grows by one snapshot a day: rows for positions that changed are enough if a missing row means "unchanged since the last stored value", but storing every row is simpler and is about 10 000 rows a day in the simulation. Recommend all rows; no migration (new table, `CREATE IF NOT EXISTS`; earlier dates fall back to `clearing.db`, documented). |
-| Q2 | What should the zero-sum tolerance be (C3)? | 0.01 per position **whose equity changed since the baseline**, and a minimum of 0.01. Record the exact drift in the run's settle message whenever the `EXCHANGE` line is not zero, so a growing residual is visible. Re-measure the largest residual on the next simulation run before tightening further. |
-| Q3 | How should a settled date, or one whose raw trades were pruned, pass the gate (C1, C2)? | A date that is already settled (and no `--redo`) skips the gate: nothing is settled, and only the report and housekeeping run. A failed rerun then cannot replace `ok`, because the recorded status keeps `ok` unless settle itself ran. For settle and redo, a date older than `MIN(trade_events.trade_date)` skips the reconcile check, and the gate message says so ("raw trades pruned; not reconciled"). |
+| Q1 (taken as recommended) | Where does the next day's baseline come from (H1)? (a) pm-eod stores the equity rows it settled from in `eod.db` and uses them as the baseline. (b) pm-clearing refuses to rewrite a snapshot once the date has closed once, and also without a scheduler. (c) Keep reading `clearing.db`, but detect a changed snapshot and refuse to settle until `--redo`. | **(a), plus detection.** A new table `eod_close_equity(trade_date, gateway_id, symbol, equity TEXT)` is written in `record_day`'s transaction. `settle_date` takes the baseline from it. When `clearing.db` has no snapshot for the previous date at all, that is still treated as a reset (zero baseline, as today). If the clearing snapshot of the previous settled date differs from the stored one, the settle message says so ("D's snapshot changed after it was settled; the difference is in this day"), so nothing is lost and the operator can still `--redo D`. (b) cannot work without a scheduler, where the last shutdown *is* the close. (c) blocks the scheduler. `eod.db` grows by one snapshot a day: rows for positions that changed are enough if a missing row means "unchanged since the last stored value", but storing every row is simpler and is about 10 000 rows a day in the simulation. Recommend all rows; no migration (new table, `CREATE IF NOT EXISTS`; earlier dates fall back to `clearing.db`, documented). |
+| Q2 (taken as recommended) | What should the zero-sum tolerance be (C3)? | 0.01 per position **whose equity changed since the baseline**, and a minimum of 0.01. Record the exact drift in the run's settle message whenever the `EXCHANGE` line is not zero, so a growing residual is visible. Re-measure the largest residual on the next simulation run before tightening further. |
+| Q3 (taken as recommended) | How should a settled date, or one whose raw trades were pruned, pass the gate (C1, C2)? | A date that is already settled (and no `--redo`) skips the gate: nothing is settled, and only the report and housekeeping run. A failed rerun then cannot replace `ok`, because the recorded status keeps `ok` unless settle itself ran. For settle and redo, a date older than `MIN(trade_events.trade_date)` skips the reconcile check, and the gate message says so ("raw trades pruned; not reconciled"). |
 
 ---
 
@@ -542,6 +548,43 @@ says what pm-clearing does.
 **Exit criteria.** Tests 1–5 pass; `tests/test_eod_*.py` and
 `tests/test_api_gateway_clearing_eod.py` green.
 
+**Outcome (2026-11-14).** New table `eod_close_equity` (exact decimal
+strings), written in `record_day`'s transaction and deleted by a redo.
+`Settlement` carries `equity` and `baseline_changed`. `settle_date(clearing,
+date, previous, settled)` measures from the recorded equity. It falls back
+to `previous`'s snapshot when nothing was recorded, and starts from zero
+when `clearing.db` has no snapshot for `previous` (a reset).
+`compute_settlement`/`day_pnl` now take the baseline as a
+`{(gateway, symbol): equity}` mapping (`equities()` builds one from
+snapshots). `_settle` and the dry run share `_settle_against_ledger`.
+A changed baseline makes the settle step `warn`, naming the date and the
+`--redo` alternative; the run status stays `ok`. Docs: the design doc's
+"if the date has none yet" corrected (D3); the reference manual's ledger
+table and settlement rule; the schema docs regenerated. Tests:
+`tests/test_eod_baseline.py` (6; the 4 behaviour tests failed first, with
+15.00 against 35.00), plus 3 `settle_date` tests and 1 ledger round trip.
+Full suite: 14 017 passed, 1 skipped.
+
+**Follow-up (found during WP-EOD08, 2026-11-14).** Checking the guide's
+"After `pm-opctl-cli clear`" section showed a case the recorded baseline
+made worse. `clear --state` deletes `clearing.db` and keeps `eod.db`. If
+the same calendar date then trades again, that date has a snapshot again,
+but in a new `clearing.db` whose equity restarted at zero. Without `--redo`,
+the next date was measured from the pre-reset equity and erased every
+pre-reset gain (repro: A 500 instead of 1 500). Before WP-EOD01 that case
+only lost the post-reset part of that one date. Fix: `apply_schema` writes
+a random `instance_id` into `clearing_meta` once per file
+(`store.clearing_instance()`). `record_day` stores the instance each date
+was settled from in the new table `eod_close_source`, and
+`ledger.settled_baseline()` returns a `Baseline(equity, clearing_instance)`.
+`settle_date` measures from zero (`baseline_reset`, settle step `warn`
+"clearing.db was replaced after D was settled …") when both instances are
+known and differ. Unknown counts as the same file. Tests:
+`test_a_reset_then_the_same_date_again_starts_from_zero` (failed first: 500
+against 1 500), a `settle_date` test for both instances, the instance id
+test and the ledger round trip. Reference manual and schema docs updated.
+Full suite: 14 073 passed, 1 skipped.
+
 ### WP-EOD02 — Reruns and pruned days (C1, C2; after Q3)
 
 **Tests first** (`tests/test_eod_runner.py`):
@@ -563,6 +606,17 @@ says what pm-clearing does.
 downgrade an `ok` run when settle did not run.
 
 **Exit criteria.** Tests pass; the guide's old-date paragraph (D10) is true.
+
+**Outcome (2026-11-14).** `run_day` decides up front whether this is a
+rerun (settled already, no `--redo`, no `--only`). A rerun's gate step is
+`ok` "already settled: not checked again (--redo recomputes)", and a failing
+rerun does not replace an `ok` run (it is not recorded, like `--only`). A
+`report-failed` day is still recorded, so it can heal. `_gate` accepts a
+reconcile discrepancy when the date is older than the oldest `trade_events`
+row, or the table is empty (`_raw_trades_pruned`), and says "not
+reconciled". Tests: `TestRerunAndPrunedDays` in `tests/test_eod_runner.py`
+(8; the 6 behaviour tests failed first). Full suite: 14 025 passed, 1
+skipped.
 
 ### WP-EOD03 — Every failure is a recorded step (C4, C10)
 
@@ -589,6 +643,22 @@ docstring and the guide's exit-code table.
 **Exit criteria.** Tests pass; no code path of `pm-eod run` prints a
 traceback for a foreseeable error.
 
+**Outcome (2026-11-14).** `load_roster` turns a YAML syntax error into
+`RosterError` "<path>: line N: not valid YAML: <problem> (<context> started
+on line M)", and a non-UTF-8 file into "not UTF-8 text". pm-api-gwy's roster
+reader catches `RosterError` already. `_settle` also catches
+`sqlite3.Error`; `_report` opens its databases inside its `try`. `main()`
+turns any `sqlite3.Error`/`OSError` outside a step into `pm-eod: <error>`,
+exit 1. Exit codes: **3** = settled and reported with warnings (this also
+covers WP-EOD01's settle note), and 2 is now only a usage error. No caller
+in the repo tests for 2: the scheduler only logs non-zero codes, and the
+container and emo profiles do not check it. `--only` with `--redo` or
+`--force` is a usage error. Updated: the module docstring, `exit_code`, the
+`pm-help` registry, the reference manual, and the guide's exit-code table
+and warnings table (with the settle note's row). Tests: 2 runner, 5 CLI and
+2 roster tests (all failed first); one existing assertion moved from 2 to 3.
+Full suite: 14 034 passed, 1 skipped.
+
 ### WP-EOD04 — Tolerance tracks the day (C3; after Q2)
 
 **Tests first** (`tests/test_eod_settle.py`):
@@ -603,6 +673,15 @@ traceback for a foreseeable error.
 `compute_settlement`, with a minimum of 1. `_settle` appends the drift. D4.
 
 **Exit criteria.** Tests pass; existing settle tests unchanged.
+
+**Outcome (2026-11-14).** `compute_settlement` allows 0.01 per position
+whose equity changed (at least 0.01), and the error says "N changed
+position(s)". `Settlement.drift` keeps the exact total. A non-zero rounding
+line makes the settle message "…; rounding -0.01 booked to EXCHANGE (exact
+total of the day 0.006)". The guide's troubleshooting row and the reference
+manual's settlement rule were updated; the module comments are D4
+(WP-EOD08). Tests: 3 settle tests and 1 runner test (all failed first).
+Full suite: 14 038 passed, 1 skipped.
 
 ### WP-EOD05 — CLI edges (C5, C6, C11, C12)
 
@@ -629,6 +708,25 @@ takes an in-memory baseline for batches.
 
 **Exit criteria.** Tests pass; the training chapter's CLI transcripts still
 match.
+
+**Outcome (2026-11-14).** `status`, `balances` and `show` read `eod.db`
+read-only and never create it (`balances`/`show` without one use an empty
+in-memory ledger). `pending_dates` and `run_day`'s rerun check read it
+read-only too. `status` without `clearing.db` prints `pm-eod: <path> not
+found`, and `-q` exits 1. pm-eod validates dates with
+`stats.query.validate_date` (`strptime` plus the zero-padded round trip),
+which pm-api-gwy's EOD routes already use. `clearing.store.validate_date`
+is unchanged; see §9. `--backup-keep-days`/`--log-keep-days` take 0 or
+more, and gained help texts. A dry run settles into
+`ledger.open_scratch_ledger` (an in-memory copy of `eod.db`) with the real
+`_settle`, so it says "already settled" and applies the order rule like the
+real run. With `--redo` it names what it would drop. `--pending --dry-run`
+shares one scratch ledger, so each date chains from the previous dry
+result. Amounts use `fmt_minor` with an explicit `+`, plus the `EXCHANGE`
+line when it is not zero, so the guide's transcripts still match.
+`pm-completion.zsh` regenerated. Tests: 12 CLI tests and 1 runner test (all
+behaviour tests failed first). Full suite: 14 051 passed, 1 skipped, then
+the completion test after regeneration.
 
 ### WP-EOD06 — Report files (C7, C8, C9, C14, C15)
 
@@ -657,6 +755,21 @@ the settlement rows. If Q1 is taken as recommended, it is
 
 **Exit criteria.** Tests pass.
 
+**Outcome (2026-11-14).** Statement files are `<gateway>.md|.json|.csv`
+built by string, not `with_suffix`. `load_roster` refuses a gateway with
+`/`, `\`, NUL or a leading `.`, naming its line. A real (non-dry) redo
+removes `settlement/<date>/` of every date it drops, including its own,
+which the report step writes again. A `sqlite3.Error` from `stats.db`
+becomes the warning "market statistics unavailable: <error>" and "Market
+statistics unavailable." in the summary. `write_day` renames `.D.old` back
+when the swap fails halfway. `Statement.since` (in the JSON as `since`) is
+the previous settled date when a close-snapshot date between it and this
+date was never settled; the statement then reads "Result since the close of
+<date>: X (no day in between was settled; the trades below are <D>'s)".
+It is derived from the ledger and `clearing.db` at report time, so nothing
+new is stored. Tests: 4 report, 2 assemble, 4 roster and 1 runner tests
+(all failed first). Full suite: 14 063 passed, 1 skipped.
+
 ### WP-EOD07 — Housekeeping and query cost (C13, P1, P2)
 
 **Tests first** (`tests/test_eod_housekeeping.py`, `tests/test_clearing_*.py`):
@@ -677,12 +790,64 @@ equals the compressed length. Use `PRAGMA quick_check`. Add date-scoped
 **Exit criteria.** Tests pass; on the bench database, `_gate` runs in under
 0.1 s and the backup is at least 40 % faster.
 
+**Outcome (2026-11-14).** `compress_logs` checks the size once more with
+`os.fstat` on the `r+b` handle that truncates, and leaves the file for the
+next run if it grew. `_online_copy` uses `PRAGMA quick_check`; a corrupt
+b-tree page is still refused (test). `clearing/store.py` gained
+`_drop_unset_filters`, which resolves `(:x IS NULL OR cond)` in Python
+before SQLite plans the query. It is applied only to `query_close_snapshots`
+and `query_reconcile`, pm-eod's paths; their results are unchanged for every
+caller (the whole clearing suite passes). `pending_dates` reads
+`ledger.ok_dates()`.
+
+Bench (626 MB `clearing.db`, 30 days × 100 000 trades):
+
+| | before | after |
+|---|---|---|
+| `backup_databases` | 30.7 s | 12.7 s (−59 %) |
+| `_gate` | 0.63 s | 0.29 s |
+| `settle_date` | 0.14 s | 0.10 s |
+| reconcile, first vs last day | grows with history | 0.287 s vs 0.291 s |
+
+The gate misses the 0.1 s target. Its cost is now the day's own
+aggregation, two passes over that day's 100 000 trades (one side alone
+takes 0.12 s), and no longer grows with retention, which was the finding.
+The target was a guess and is not worth a covering index. Tests: 3 in
+`tests/test_clearing_day_queries.py`, 3 housekeeping tests and 1 ledger
+test (the four behaviour tests failed first; the corrupt-page guard passed
+before and after). Guide: the backup step's check. Full suite: 14 070
+passed, 1 skipped.
+
 ### WP-EOD08 — Comments, docstrings, help texts, guide (D1, D2, D4–D11)
 
 Text only, after WP-EOD01–07 so the texts describe the final behaviour.
 Each changed help text is checked against `pm-eod run --help` output and
 the guide's command table (`100-closing-the-day.md:1190-1205`), and against
 the `pm-help` registry entry.
+
+**Outcome (2026-11-14).** D1: the gate says `not checked (--force), snapshot
+present, …` under `--force`. D2/D9: `--force`, `--only`, `--dry-run`,
+`--*-keep-days` and `status -q` help texts, in argparse and in the `pm-help`
+registry (zsh completion regenerated). D4: the `settle`/`ledger` module
+docstrings describe the tolerance and the `EXCHANGE` residual. D5:
+`report.py`'s layout is `<data>/settlement/<date>/`. D6: `write_day`. D8:
+`RosterError`. D11: `build_day` docstring, `STEPS` comment. (D3 was done in
+WP-EOD01, D7 in WP-EOD07.) D10, operator guide: the `--force` gate line;
+stopping the engine twice; rerun semantics and `status -q`; pruned days
+"not reconciled"; *Result since* and the JSON `since`; `--only`
+restrictions; dry run; `--redo` removes the dropped dates' folders; after
+`clear --state` (do **not** `--redo` a re-traded date); the rehearsal
+section; the troubleshooting and warnings tables. Training chapter 20:
+Exercise 9 (a failing rerun no longer turns an `ok` day `report-failed`:
+the run exits 1, `status -q` stays 0), Exercise 10 (`--redo --dry-run`, and
+what happens without `--redo`), the summary. Participant guide: *Result
+since …*. Reference manual: options, status, rerun rule, statement JSON.
+The changed transcripts were derived from the code's messages, not
+re-run end to end.
+
+While checking the `clear --state` section this WP found the reset defect
+fixed under WP-EOD01's follow-up. It is the only behaviour change in this
+WP. Full suite: 14 073 passed, 1 skipped.
 
 ---
 
@@ -697,6 +862,10 @@ the `pm-help` registry entry.
 - `clearing/store.py` uses the `(:x IS NULL OR col = :x)` pattern in most of
   its readers (pm-clearing-cli, pm-api-gwy). WP-EOD07 fixes only the two
   pm-eod paths. The rest belongs to a clearing review.
+- `clearing.store.validate_date` (pm-clearing-cli and, until WP-EOD05,
+  pm-eod) is a regex: it accepts `2026-02-30`. pm-eod now uses
+  `stats.query.validate_date`; pm-clearing-cli's `--date`/`--from`/`--to`
+  only returns no rows for such a date, which is harmless.
 - The scheduler's `--on-close` delay is what orders pm-clearing's snapshot
   before pm-eod's `pending_dates`. If pm-clearing lags past the delay, the
   day is not seen as pending and is settled at the next close, together

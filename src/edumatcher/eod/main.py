@@ -7,7 +7,8 @@
   pm-eod show --date D [--steps]   one date's ledger rows (or its run steps)
 
 Exit codes of ``run``: 0 clean, 1 the day failed (gate, settlement or report),
-2 only housekeeping warnings.
+2 usage error, 3 settled and reported with warnings (housekeeping, or a
+settled date's snapshot that changed).
 """
 
 from __future__ import annotations
@@ -15,6 +16,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import sqlite3
 import sys
 from collections.abc import Sequence
 from dataclasses import replace
@@ -23,19 +25,20 @@ from pathlib import Path
 from typing import Any
 
 from edumatcher.audit.archive import session_timezone, today_in
-from edumatcher.clearing.store import validate_date
 from edumatcher.config import DATA_DIR
 from edumatcher.eod.ledger import (
     balances,
     check_zero_sum,
     day_amounts,
     day_detail,
-    open_ledger,
+    open_ledger_readonly,
+    open_scratch_ledger,
     run_for,
     runs,
 )
 from edumatcher.eod.report import fmt_minor
 from edumatcher.eod.roster import RosterError, load_roster
+from edumatcher.stats.query import validate_date
 from edumatcher.eod.runner import (
     STEPS,
     Options,
@@ -54,6 +57,13 @@ _LABEL = {"ok": "ok", "warn": "warn", "fail": "FAIL"}
 
 def _today() -> str:
     return today_in(session_timezone())
+
+
+def _non_negative(text: str) -> int:
+    value = int(text)
+    if value < 0:
+        raise argparse.ArgumentTypeError(f"must be 0 or more, not {value}")
+    return value
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -86,12 +96,17 @@ def build_parser() -> argparse.ArgumentParser:
         help="Every closed date without an ok run, oldest first",
     )
     run.add_argument(
-        "--only", choices=STEPS, help="Run just this step of an already settled date"
+        "--only",
+        choices=STEPS,
+        help="Run just this step of an already settled date "
+        "(not with --redo, --force or --dry-run)",
     )
     run.add_argument(
         "--force",
         action="store_true",
-        help="Do not require the CLOSED session event (no scheduler)",
+        help="Skip the 'has the day closed?' test, for an exchange without a "
+        "scheduler (no CLOSED is ever announced); the snapshot and reconcile "
+        "checks still apply",
     )
     run.add_argument(
         "--redo",
@@ -101,10 +116,23 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument(
         "--dry-run",
         action="store_true",
-        help="Gate and compute, print the amounts, write nothing (not with --only)",
+        help="Gate and settle into an in-memory copy of the ledger; print the "
+        "amounts, write nothing (not with --only)",
     )
-    run.add_argument("--log-keep-days", type=int, default=14, metavar="N")
-    run.add_argument("--backup-keep-days", type=int, default=7, metavar="N")
+    run.add_argument(
+        "--log-keep-days",
+        type=_non_negative,
+        default=14,
+        metavar="N",
+        help="Delete compressed failover logs older than N days (default: 14)",
+    )
+    run.add_argument(
+        "--backup-keep-days",
+        type=_non_negative,
+        default=7,
+        metavar="N",
+        help="Delete backups of dates more than N days before this one (default: 7)",
+    )
     run.add_argument(
         "--backup-skip",
         action="append",
@@ -120,7 +148,8 @@ def build_parser() -> argparse.ArgumentParser:
         "-q",
         "--quiet",
         action="store_true",
-        help="Print nothing; exit 0 when no closed date is waiting, 1 otherwise",
+        help="Print nothing on stdout; exit 0 when no closed date is waiting, 1 when "
+        "one is or when there is no clearing.db to judge",
     )
     status.add_argument("--limit", type=int, default=30, metavar="N")
 
@@ -167,6 +196,11 @@ def _cmd_run(args: argparse.Namespace, paths: Paths) -> int:
         # step would really run.
         print("pm-eod run: --dry-run cannot be combined with --only", file=sys.stderr)
         return 2
+    if args.only and (args.redo or args.force):
+        # Both act on the gate and settle steps, which --only skips.
+        flag = "--redo" if args.redo else "--force"
+        print(f"pm-eod run: {flag} cannot be combined with --only", file=sys.stderr)
+        return 2
     try:
         with run_lock(paths.data):
             dates = pending_dates(paths) if args.pending else [args.date]
@@ -179,9 +213,17 @@ def _cmd_run(args: argparse.Namespace, paths: Paths) -> int:
             batch = len(dates) > 1
             day_opts = replace(opts, backup=False) if batch else opts
             worst, last_done = 0, None
+            # A dry run settles into one in-memory copy of the ledger, so each
+            # date is measured from the previous date's dry result.
+            scratch = open_scratch_ledger(paths.ledger) if opts.dry_run else None
             for day in dates:
                 outcome = run_day(
-                    paths, day, day_opts, today=_today(), now=datetime.now(UTC)
+                    paths,
+                    day,
+                    day_opts,
+                    today=_today(),
+                    now=datetime.now(UTC),
+                    scratch=scratch,
                 )
                 _print_outcome(outcome)
                 code = exit_code(outcome)
@@ -198,6 +240,8 @@ def _cmd_run(args: argparse.Namespace, paths: Paths) -> int:
                     )
                     _print_outcome(backup)
                     worst = max(worst, exit_code(backup))
+            if scratch is not None:
+                scratch.close()
             return worst
     except RunLocked as exc:
         print(f"pm-eod: {exc}", file=sys.stderr)
@@ -228,12 +272,27 @@ def _emit(
             print(" | ".join(cells))
 
 
+def _read_ledger(paths: Paths) -> sqlite3.Connection | None:
+    """``eod.db`` read-only, or ``None`` before pm-eod has settled anything.
+
+    The read commands never create the file (or the data directory): pointed
+    at the wrong ``--datapath`` they must not leave an empty ledger behind.
+    """
+    return open_ledger_readonly(paths.ledger) if paths.ledger.exists() else None
+
+
 def _cmd_status(args: argparse.Namespace, paths: Paths) -> int:
-    ledger = open_ledger(paths.ledger)
+    if not paths.clearing.exists():
+        # Nothing to judge is not healthy: a mistyped --datapath must not pass.
+        print(f"pm-eod: {paths.clearing} not found", file=sys.stderr)
+        if args.quiet:
+            return 1
+    ledger = _read_ledger(paths)
     try:
-        recent = runs(ledger, limit=args.limit)
+        recent = runs(ledger, limit=args.limit) if ledger else []
     finally:
-        ledger.close()
+        if ledger:
+            ledger.close()
     waiting = pending_dates(paths)
     if args.quiet:
         # A closed day whose run failed is still waiting, so it counts here; a
@@ -255,7 +314,7 @@ def _cmd_status(args: argparse.Namespace, paths: Paths) -> int:
 
 
 def _cmd_balances(args: argparse.Namespace, paths: Paths) -> int:
-    ledger = open_ledger(paths.ledger)
+    ledger = _read_ledger(paths) or open_scratch_ledger(paths.ledger)
     try:
         if args.check:
             bad = check_zero_sum(ledger)
@@ -288,7 +347,7 @@ def _cmd_balances(args: argparse.Namespace, paths: Paths) -> int:
 
 
 def _cmd_show(args: argparse.Namespace, paths: Paths) -> int:
-    ledger = open_ledger(paths.ledger)
+    ledger = _read_ledger(paths) or open_scratch_ledger(paths.ledger)
     try:
         if args.steps:
             run = run_for(ledger, args.date)
@@ -333,4 +392,11 @@ def main(argv: Sequence[str] | None = None) -> None:
         "balances": _cmd_balances,
         "show": _cmd_show,
     }[args.command]
-    raise SystemExit(handler(args, paths))
+    try:
+        code = handler(args, paths)
+    except (sqlite3.Error, OSError) as exc:
+        # Outside any step (the ledger itself, a damaged clearing.db): no
+        # traceback for what an operator can fix, but a failure all the same.
+        print(f"pm-eod: {exc}", file=sys.stderr)
+        code = 1
+    raise SystemExit(code)

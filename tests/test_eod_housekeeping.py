@@ -6,6 +6,7 @@ import os
 import sqlite3
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import Any
 
 import pytest
 from compression import zstd
@@ -122,6 +123,29 @@ class TestCompressLogs:
         assert f.read_text() == "old\nlate\n"
         assert not list(logs.glob("*.zst*"))
 
+    def test_an_append_just_before_the_truncation_is_kept(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        logs = tmp_path / "logs"
+        logs.mkdir()
+        f = logs / "e.log"
+        f.write_text("old\n")
+        age(f, 5)
+        real_open = Path.open
+
+        def late_writer(self: Path, mode: str = "r", *a: Any, **k: Any) -> Any:
+            if self == f and mode == "r+b":
+                with real_open(self, "a") as fh:  # after the second stat
+                    fh.write("late\n")
+            return real_open(self, mode, *a, **k)
+
+        monkeypatch.setattr(Path, "open", late_writer)
+        result = compress_logs(logs, now=NOW, keep_days=30)
+        monkeypatch.undo()
+        assert result.status == "warn"
+        assert f.read_text() == "old\nlate\n"
+        assert not list(logs.glob("*.zst*"))
+
     def test_retention_removes_only_old_archives(self, tmp_path: Path) -> None:
         logs = tmp_path / "logs"
         logs.mkdir()
@@ -211,3 +235,39 @@ class TestBackupDatabases:
             "2026-07-01",
             "notes",
         ]
+
+
+class TestBackupCheck:
+    def test_the_copy_is_checked_with_quick_check(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        db = tmp_path / "clearing.db"
+        make_db(db)
+        seen: list[str] = []
+        real = sqlite3.connect
+
+        def connect(*a: Any, **k: Any) -> sqlite3.Connection:
+            conn = real(*a, **k)
+            conn.set_trace_callback(seen.append)
+            return conn
+
+        monkeypatch.setattr(sqlite3, "connect", connect)
+        result = backup_databases([db], tmp_path / "b", "2026-07-01", keep_days=7)
+        assert result.status == "ok"
+        assert any("quick_check" in s for s in seen)
+        assert not any("integrity_check" in s for s in seen)
+
+    def test_a_corrupt_page_is_still_refused(self, tmp_path: Path) -> None:
+        db = tmp_path / "clearing.db"
+        conn = sqlite3.connect(db)
+        conn.execute("CREATE TABLE t (x TEXT)")
+        conn.executemany("INSERT INTO t VALUES (?)", [("x" * 500,)] * 200)
+        conn.commit()
+        page = conn.execute("PRAGMA page_size").fetchone()[0]
+        conn.close()
+        raw = bytearray(db.read_bytes())
+        raw[page * 3 : page * 3 + 64] = b"\xff" * 64  # a b-tree page header
+        db.write_bytes(bytes(raw))
+        result = backup_databases([db], tmp_path / "b", "2026-07-01", keep_days=7)
+        assert result.status == "warn" and "clearing.db" in result.message
+        assert not (tmp_path / "b" / "2026-07-01" / "clearing.db.zst").exists()

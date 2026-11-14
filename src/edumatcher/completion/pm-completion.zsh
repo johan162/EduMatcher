@@ -2816,12 +2816,12 @@ _shtab_pm_eod_run_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
   "--date[YYYY-MM-DD]:YYYY-MM-DD:"
   "--pending[Every closed date without an ok run, oldest first]"
-  "--only[Run just this step of an already settled date]:only:(report audit logs backup)"
-  "--force[Do not require the CLOSED session event (no scheduler)]"
+  "--only[Run just this step of an already settled date (not with --redo, --force or --dry-run)]:only:(report audit logs backup)"
+  "--force[Skip the \'has the day closed\?\' test, for an exchange without a scheduler (no CLOSED is ever announced)\; the snapshot and reconcile checks still apply]"
   "--redo[Recompute this date\; drops its settlement and every later date\'s]"
-  "--dry-run[Gate and compute, print the amounts, write nothing (not with --only)]"
-  "--log-keep-days[N]:N:"
-  "--backup-keep-days[N]:N:"
+  "--dry-run[Gate and settle into an in-memory copy of the ledger\; print the amounts, write nothing (not with --only)]"
+  "--log-keep-days[Delete compressed failover logs older than N days (default\: 14)]:N:"
+  "--backup-keep-days[Delete backups of dates more than N days before this one (default\: 7)]:N:"
   "*--backup-skip[Leave this database out of the backup (repeatable)\: clearing.db, stats.db or eod.db]:NAME:(clearing.db stats.db eod.db)"
 )
 
@@ -2840,7 +2840,7 @@ _shtab_pm_eod_show_defaults_added=0
 
 _shtab_pm_eod_status_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
-  {-q,--quiet}"[Print nothing\; exit 0 when no closed date is waiting, 1 otherwise]"
+  {-q,--quiet}"[Print nothing on stdout\; exit 0 when no closed date is waiting, 1 when one is or when there is no clearing.db to judge]"
   "--limit[N]:N:"
 )
 

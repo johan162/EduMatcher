@@ -33,6 +33,7 @@ its own piece of work.
 | L017 | 2026-11-13 | CLIs (`health -q`) | `health -q` exits `-1` (status 255) while the non-quiet path exits 1, in four CLIs | Low | Open |
 | L018 | 2026-11-13 | trader-gui (admin order detail) | A 404 from the order-audit endpoint shows "No audited events for this order." without the index's reach (`indexed_through`), so an order newer than the last index build looks unknown | Low | Open |
 | L019 | 2026-11-14 | pm-clearing (close snapshots) | `position_close_snapshot` is never pruned and keeps every flat position: one full position table per day in `clearing.db` and in every nightly backup | Low | Open |
+| L020 | 2026-11-14 | engine / market sim / bots (corporate actions) | A split or dividend is applied to the index only; nothing adjusts the market's price, so the next trade moves the index by the split factor | Medium | Open |
 
 ## L001 — Topic literals in pm-sim-forensics
 
@@ -294,3 +295,26 @@ settled date (today it re-reads it as the next baseline).
 equity in `eod.db`, give pm-clearing a snapshot retention (for example the
 same `--retention-days` as `trade_events`, but never the latest settled
 date) and document it next to the other retention rules.
+
+## L020 — Corporate actions exist only in pm-index
+
+**Found:** 2026-11-14, pm-index review
+(`docs-design/reviews/EduMatcher-Index-Review-2026-11.md`, C3 and Q1).
+
+**Finding.** `pm-index-admin-cli split`/`dividend` adjust pm-index's view of
+a constituent (shares and price for a split, price for a dividend) and keep
+the index level through the divisor. The engine, pm-market-sim and pm-mm-bot
+have no corporate actions, so the constituent keeps trading at the old
+price and the next print replaces the adjusted one: a 2:1 split moved a
+two-name index from 1000 to 1500 on the next trade, a 10.00 dividend to
+1052.6.
+
+**Interim.** The review recommends (Q1) documenting the contract for 1.0:
+the action models the index side of an ex-date, and the operator makes the
+constituent trade at the adjusted price.
+
+**Recommendation for 1.x.** An exchange-side corporate action: one command
+that adjusts the instrument's reference prices, resting order prices and
+quantities (or cancels them, as many venues do on an ex-date), the bots'
+anchors, and pm-index, at a session boundary.
+

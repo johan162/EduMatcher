@@ -750,6 +750,12 @@ CREATE INDEX ix_trade_events_ts
 
 | Object | Field | Declared type | Not null | Default | Primary key |
 |---|---|---|---|---|---|
+| `table: eod_close_equity` | `trade_date` | `TEXT` | yes |  | 1 |
+| `table: eod_close_equity` | `gateway_id` | `TEXT` | yes |  | 2 |
+| `table: eod_close_equity` | `symbol` | `TEXT` | yes |  | 3 |
+| `table: eod_close_equity` | `equity` | `TEXT` | yes |  |  |
+| `table: eod_close_source` | `trade_date` | `TEXT` | no |  | 1 |
+| `table: eod_close_source` | `clearing_instance` | `TEXT` | no |  |  |
 | `table: eod_runs` | `trade_date` | `TEXT` | no |  | 1 |
 | `table: eod_runs` | `status` | `TEXT` | yes |  |  |
 | `table: eod_runs` | `started_at` | `TEXT` | yes |  |  |
@@ -761,6 +767,28 @@ CREATE INDEX ix_trade_events_ts
 | `table: eod_settlement` | `detail_json` | `TEXT` | yes |  |  |
 
 ### DDL
+
+#### `table eod_close_equity`
+
+```sql
+CREATE TABLE eod_close_equity (
+  trade_date TEXT NOT NULL,  -- YYYY-MM-DD, a date in eod_settlement
+  gateway_id TEXT NOT NULL,
+  symbol     TEXT NOT NULL,
+  -- Exact decimal string in display currency (not minor units, not rounded).
+  equity     TEXT NOT NULL,
+  PRIMARY KEY (trade_date, gateway_id, symbol)
+)
+```
+
+#### `table eod_close_source`
+
+```sql
+CREATE TABLE eod_close_source (
+  trade_date        TEXT PRIMARY KEY,  -- YYYY-MM-DD, a date in eod_settlement
+  clearing_instance TEXT
+)
+```
 
 #### `table eod_runs`
 

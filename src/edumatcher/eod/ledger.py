@@ -1,11 +1,15 @@
 """``eod.db`` — the settlement ledger.
 
 One row per account per settled trading date.  The rows of a date add up to
-exactly zero (the rounding residual sits on the ``EXCHANGE`` account), which
+exactly zero (the residual, rounding plus any float noise under the
+settlement tolerance, sits on the ``EXCHANGE`` account), which
 :func:`record_day` checks before it commits and :func:`check_zero_sum` can
 re-check across all dates.  Amounts are integer minor units (2 decimals).
 Balances are never stored: they are the sum of the amounts, so correcting a
 day means recording it again with ``redo``, which drops every later date.
+Each settled date also keeps the equity it was settled at, the next date's
+baseline (``eod_close_equity``), and the ``clearing.db`` it was settled from
+(``eod_close_source``).
 """
 
 from __future__ import annotations
@@ -18,7 +22,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import quote
 
-from edumatcher.eod.settle import EXCHANGE, Settlement
+from edumatcher.eod.settle import EXCHANGE, Baseline, Settlement
 
 SCHEMA = """
 -- One row per account per settled trading date.  The rows of a date sum to
@@ -37,6 +41,28 @@ CREATE TABLE IF NOT EXISTS eod_settlement (
   -- amount_minor}; the unrounded parts the statement lists per symbol.
   detail_json  TEXT    NOT NULL,
   PRIMARY KEY (trade_date, account)
+);
+
+-- One row per position per settled trading date: the cumulative equity
+-- (realized + unrealized P&L) the date was settled at, copied from that date's
+-- close snapshot.  The next date is measured from these rows, not from
+-- clearing.db, whose snapshot of a date changes when the date closes again.
+CREATE TABLE IF NOT EXISTS eod_close_equity (
+  trade_date TEXT NOT NULL,  -- YYYY-MM-DD, a date in eod_settlement
+  gateway_id TEXT NOT NULL,
+  symbol     TEXT NOT NULL,
+  -- Exact decimal string in display currency (not minor units, not rounded).
+  equity     TEXT NOT NULL,
+  PRIMARY KEY (trade_date, gateway_id, symbol)
+);
+
+-- One row per settled trading date: which clearing.db it was settled from
+-- (clearing_meta.instance_id, NULL if it had none).  A different one when the
+-- next date settles means clearing.db was replaced (pm-opctl-cli clear
+-- --state), so equity restarted at zero and eod_close_equity no longer applies.
+CREATE TABLE IF NOT EXISTS eod_close_source (
+  trade_date        TEXT PRIMARY KEY,  -- YYYY-MM-DD, a date in eod_settlement
+  clearing_instance TEXT
 );
 
 -- One row per trading date pm-eod has run.  'ok' means settled and reported;
@@ -89,6 +115,29 @@ def open_ledger_readonly(path: Path) -> sqlite3.Connection:
     return conn
 
 
+def open_scratch_ledger(path: Path) -> sqlite3.Connection:
+    """An in-memory copy of ``eod.db`` (empty if there is none) for a dry run.
+
+    A dry run settles into this copy with the real code, so it refuses what
+    the real run refuses, and the dates of a ``--pending --dry-run`` chain
+    from one another.  Nothing reaches the file.
+    """
+    conn = sqlite3.connect(":memory:")
+    conn.row_factory = sqlite3.Row
+    try:
+        if path.exists():
+            source = open_ledger_readonly(path)
+            try:
+                source.backup(conn)
+            finally:
+                source.close()
+        conn.executescript(SCHEMA)
+    except Exception:
+        conn.close()
+        raise
+    return conn
+
+
 def settled_dates(conn: sqlite3.Connection) -> list[str]:
     rows = conn.execute(
         "SELECT DISTINCT trade_date FROM eod_settlement ORDER BY trade_date"
@@ -108,7 +157,7 @@ def last_settled_before(conn: sqlite3.Connection, trade_date: str) -> str | None
 def record_day(
     conn: sqlite3.Connection, trade_date: str, result: Settlement, *, redo: bool = False
 ) -> list[str]:
-    """Write one day's settlement in a single transaction.
+    """Write one day's settlement and its closing equity in a single transaction.
 
     With ``redo`` the same transaction first deletes ``trade_date`` and every
     later date (balances are cumulative, so a corrected day invalidates
@@ -130,6 +179,12 @@ def record_day(
             conn.execute(
                 "DELETE FROM eod_settlement WHERE trade_date >= ?", (trade_date,)
             )
+            conn.execute(
+                "DELETE FROM eod_close_equity WHERE trade_date >= ?", (trade_date,)
+            )
+            conn.execute(
+                "DELETE FROM eod_close_source WHERE trade_date >= ?", (trade_date,)
+            )
             conn.execute("DELETE FROM eod_runs WHERE trade_date >= ?", (trade_date,))
         conn.executemany(
             "INSERT INTO eod_settlement (trade_date, account, amount_minor, detail_json)"
@@ -146,7 +201,33 @@ def record_day(
                 for account, amount in rows.items()
             ],
         )
+        conn.executemany(
+            "INSERT INTO eod_close_equity (trade_date, gateway_id, symbol, equity)"
+            " VALUES (?, ?, ?, ?)",
+            [(trade_date, gw, sym, str(v)) for (gw, sym), v in result.equity.items()],
+        )
+        conn.execute(
+            "INSERT INTO eod_close_source (trade_date, clearing_instance)"
+            " VALUES (?, ?)",
+            (trade_date, result.clearing_instance),
+        )
     return gone
+
+
+def settled_baseline(conn: sqlite3.Connection, trade_date: str) -> Baseline | None:
+    """What ``trade_date`` was settled at; ``None`` if nothing was recorded."""
+    rows = conn.execute(
+        "SELECT gateway_id, symbol, equity FROM eod_close_equity WHERE trade_date = ?",
+        (trade_date,),
+    )
+    equity = {(r[0], r[1]): Decimal(r[2]) for r in rows}
+    if not equity:
+        return None
+    source = conn.execute(
+        "SELECT clearing_instance FROM eod_close_source WHERE trade_date = ?",
+        (trade_date,),
+    ).fetchone()
+    return Baseline(equity, None if source is None else source[0])
 
 
 def day_amounts(conn: sqlite3.Connection, trade_date: str) -> dict[str, int]:
@@ -216,6 +297,12 @@ def runs(conn: sqlite3.Connection, limit: int = 30) -> list[dict[str, str]]:
         (limit,),
     )
     return [dict(r) for r in rows]
+
+
+def ok_dates(conn: sqlite3.Connection) -> set[str]:
+    """Dates whose recorded run is ``ok``."""
+    rows = conn.execute("SELECT trade_date FROM eod_runs WHERE status = 'ok'")
+    return {r[0] for r in rows}
 
 
 def run_for(conn: sqlite3.Connection, trade_date: str) -> dict[str, str] | None:

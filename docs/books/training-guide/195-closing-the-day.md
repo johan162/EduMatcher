@@ -359,37 +359,34 @@ pm-eod run --date "$D"
 ```
 [output]
 2026-11-05:
-  [ok] gate: closed, snapshot present, reconciled
+  [ok] gate: already settled: not checked again (--redo recomputes)
   [ok] settle: already settled
   [FAIL] report: .../ref_data/roster.yaml: line 2: opening_balance has more than 2 decimals
   ...
 ```
 
-The error names the line. The settlement is safe in the ledger; only the
-statements could not be written. Now look at the day as a monitoring system
-would:
+The error names the line, and the command exits **1**. The settlement is safe
+in the ledger, and the statements of the first run are still in place: a failed
+write never replaces them. Now look at the day as a monitoring system would:
 
 ```bash
 pm-eod status
 pm-eod status -q; echo "exit code $?"
 ```
 
-Today's status is `report-failed`, and `status -q` (the health check) returns
-**1**. Fix the file back to `1000.00` and run the day again, **without**
-`--only`:
+Today's status is still `ok`, and `status -q` (the health check) returns **0**:
+the day *is* settled and reported, and a rerun that fails is printed but not
+recorded, so it cannot turn a good day bad. (A *first* run that fails at the
+report is recorded as `report-failed`, and the health check then returns 1
+until a run succeeds.) Fix the file back to `1000.00` and run the day again:
 
 ```bash
-pm-eod run --date "$D"
-pm-eod status -q; echo "exit code $?"
+pm-eod run --date "$D"; echo "exit code $?"
 ```
 
-!!! note "Why not `--only report`?"
-    `pm-eod run --date "$D" --only report` would rewrite the statements too, but
-    a run with `--only` is never recorded, so the day would stay
-    `report-failed` and the health check red. A full run records `ok`.
-
-:material-checkbox-blank-outline: **Checkpoint:** the health check went from exit
-code 1 back to 0, and today's status is `ok` again.
+:material-checkbox-blank-outline: **Checkpoint:** the run with the broken roster
+exited 1 while `status -q` stayed 0, and the run after the fix exits 0 and
+writes the statements again.
 
  
 
@@ -417,14 +414,19 @@ pm-eod run --pending
 
 It says `nothing pending`. There is **one settlement per trading date**, and
 today's is already done. The afternoon's trading is in the new close snapshot,
-but not in the ledger. See the difference:
+but not yet in the ledger. Nothing is lost if you leave it: `pm-eod` remembers
+the equity it settled today at, so the next trading date you settle includes
+the afternoon, and its `settle` line warns that today's snapshot changed after
+it was settled. To book the afternoon on today instead, see what a
+recomputation would give (a plain `--dry-run` only says `already settled`):
 
 ```bash
-pm-eod run --date "$D" --dry-run
+pm-eod run --date "$D" --redo --dry-run
 ```
 
-The dry run computes today again from the new snapshot and shows different
-amounts. To replace today's settlement with them, use `--redo`:
+The dry run computes today again from the new snapshot, shows the new amounts
+and names the dates it would drop. To replace today's settlement with them, use
+`--redo`:
 
 ```bash
 pm-eod run --date "$D" --redo
@@ -461,8 +463,9 @@ You can now:
 - Check a trader's amount by hand from the close snapshots, and check that the
   day sums to zero.
 - Read the statement, `instructions.csv`, the leaderboard and the summary.
-- Clear a backlog with `--pending`, recover from a broken roster without
-  leaving the day `report-failed`, and recompute a day with `--redo`.
+- Clear a backlog with `--pending`, recover from a broken roster, and decide
+  whether trading after the close stays on the next day or is recomputed onto
+  its own with `--redo`.
 
 ## Reflection
 
