@@ -23,9 +23,9 @@ maintenance flushes are guarded one by one. This review does not repeat them.
 `tests/engine_harness.py`; the others are by inspection, with the line
 numbers given.
 
-Status: **In progress.** WP-ENG01, WP-ENG02, WP-ENG04, WP-ENG05, WP-ENG06,
-WP-ENG07 and WP-ENG08 done 2026-11-13 (uncommitted; outcomes in §8). Open:
-WP-ENG03, WP-ENG09.
+Status: **Complete.** WP-ENG01, WP-ENG02, WP-ENG04, WP-ENG05, WP-ENG06,
+WP-ENG07 and WP-ENG08 completed 2026-11-13; WP-ENG03 and WP-ENG09 completed
+2026-11-14 under the revised decisions recorded below.
 
 ---
 
@@ -58,19 +58,21 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit) �
 |---|---|---|---|---|---|---|---|
 | 1 | WP-ENG01 | One engine-initiated cancel funnel that always runs the OCO and combo follow-ups | C1, C2 | — | 1 d | ☑ | 2026-11-13 |
 | 2 | WP-ENG02 | Structure handlers (OCO, combo, quote) always answer, including on an internal error; OCO trailing-stop reference gate | C3, C4 | — | 0.5 d | ☑ | 2026-11-13 |
-| 3 | WP-ENG03 | Reference-reload contract: what a reload may change, applied or refused consistently | C5 | Q2 | 1 d | ☐ | |
+| 3 | WP-ENG03 | Reference-reload contract: what a reload may change, applied or refused consistently | C5 | Q2 | 1 d | ☑ | 2026-11-14 |
 | 4 | WP-ENG04 | Startup-state robustness: corrupt `book_stats.json` entries, PARTIAL status on restore | C7, C8 | — | 0.5 d | ☑ | 2026-11-13 |
 | 5 | WP-ENG05 | One business date; reference schedule `today` never stale | C6, C9, D12 | — | 0.5 d | ☑ | 2026-11-13 |
 | 6 | WP-ENG06 | Halt consistency: orphaned quote legs on a CB halt, halt reason on quote rejects, admin halts at CLOSED | C10, C11, D7 | Q3 | 0.5 d | ☑ | 2026-11-13 |
 | 7 | WP-ENG07 | Small correctness cleanups | C13–C17 | — | 0.5 d | ☑ | 2026-11-13 |
 | 8 | WP-ENG08 | Performance: maintenance throttle, holiday-calendar cache, request-path lookups | P1–P5 | — | 1 d | ☑ | 2026-11-13 |
-| 9 | WP-ENG09 | Comments and docstrings: data-flow walkthroughs correct and complete | D1–D13, C12 | WP-ENG01–08 | 1 d | ◐ | |
+| 9 | WP-ENG09 | Comments and docstrings: data-flow walkthroughs correct and complete | D1–D13, C12 | WP-ENG01–08 | 1 d | ☑ | 2026-11-14 |
 
 Suggested order: **WP-ENG01 → WP-ENG02 → WP-ENG04 → WP-ENG05 → WP-ENG06 →
 WP-ENG03 → WP-ENG07 → WP-ENG08 → WP-ENG09**. WP-ENG01 and WP-ENG02 are the
 two that change client-visible behaviour on error paths and should land
 before any further end-to-end simulation run. WP-ENG03 waits for decision Q2.
 WP-ENG09 goes last so every docstring describes the code as it ends up.
+On 2026-11-14 Q2 was revised to retain the audit-required reload refusal;
+WP-ENG09 was revisited against that final contract.
 
 Estimated sequential effort: about 6.5 days, excluding review time and
 findings discovered on the way.
@@ -497,7 +499,7 @@ All five decided 2026-11-13 as recommended.
 | # | Question | Decision |
 |---|---|---|
 | Q1 | Terminal combo status when the exchange cancels a leg (kill switch, cancel-symbol, disconnect, expiry)? | `FAILED` with reason `Leg n (SYM) CANCELLED` — the status `_check_combo_after_child_event` already gives a client cancel; one rule for every cancel. |
-| Q2 | Reload contract: what may `POST /admin/reference/reload` change mid-session? | Only what the reference cache publishes (collar/limit figures, breaker ladders, descriptions, schedule), applied explicitly; refuse participant-set, role, `sessions_enabled`, enforce-flag and tuning changes with the existing "requires a restart" wording. |
+| Q2 | Reload contract: what may `POST /admin/reference/reload` change mid-session? | **Revised 2026-11-14:** nothing. Keep reload disabled under the audit-completeness contract; deploy a compiled artifact and restart. The earlier live-reload decision is superseded. |
 | Q3 | Should an admin halt without a breaker be lifted at CLOSED? | No: an operator halt is the operator's to lift. Keep it, fix the comment, and make `_handle_halt_status_request` the place it is visible the next morning. **Extended 2026-11-13 (WP-ENG06):** the same for a symbol *with* a breaker — the closing backstop no longer lifts an operator halt without a level (`ADMIN_SYMBOL`/`ADMIN_ALL`); a level-triggered operator halt (rest-of-day included) is still reopened by it. |
 | Q4 | Sibling cancels published before the fill that caused them (C12)? | Document for 1.0 (participant guide + `_publish_dispatch`); buffering is a 1.x change if a GUI needs it. |
 | Q5 | Quotes bypass the price collar and order limits; combos and OCOs bypass order limits (both documented as deliberate in `_collar_breach` and `_validate_combo`). Keep for 1.0? | Keep, and add one sentence to the participant guide's risk-controls chapter listing exactly which entry paths each control covers. Not a WP here. |
@@ -631,6 +633,10 @@ reference gate (C4) runs before either leg is posted. Engine + audit suites:
 
 ### WP-ENG03 — Reference-reload contract (C5; after Q2)
 
+The original live-reload plan below is retained for history but superseded by
+the revised Q2 decision: all reloads are refused until changed configuration
+can be recorded and replayed.
+
 **Tests first** (`tests/test_engine_reference_reload.py`, extending the
 existing reload tests):
 
@@ -656,6 +662,16 @@ reload; a diff function that refuses the non-reloadable sections.
 copies from `EngineConfig` is either applied by the reload or named in the
 refusal; `_handle_reference_reload`'s docstring lists both sets; operator
 guide reload section updated.
+
+**Outcome (2026-11-14).** Normal artifact and YAML startups already refused
+reloads for audit reasons; the formerly reachable acceptance branch under an
+artificial combined source/artifact state was removed so it cannot silently
+half-apply if startup changes. Regression tests cover both startup modes and
+the combined state, including the unchanged config and reference version.
+The new test failed before the change (accepted instead of refused), then all
+three reload tests passed. Engine suite: 695 passed with two workers; black,
+flake8, mypy, pyright and MkDocs passed. The operator guide and source
+comments now state the disabled contract.
 
 ### WP-ENG04 — Startup-state robustness (C7, C8)
 
@@ -902,13 +918,12 @@ references); `mkdocs build` passes; the three module headers (`main.py`,
 `order_book.py`, `auction.py`) are re-read end to end against the code once
 WP-ENG01–08 have landed.
 
-**Progress (2026-11-13).** The author traced the nine flows against current
-code, corrected the outstanding D1–D13 documentation and documented C12.
-Gate-reference and docstring-path checks pass; MkDocs builds. An independent
-reader unfamiliar with the code has not yet completed the required flow
-checklist, so this WP remains in progress. At the user's direction this work
-was done before WP-ENG03; revisit the affected documentation after its
-reference-reload changes land.
+**Outcome (2026-11-14).** The author traced the nine flows, corrected the
+outstanding D1–D13 documentation and documented C12, then revisited the source
+comments and three module headers after WP-ENG03. Gate-reference and
+docstring-path checks pass; MkDocs builds. The user explicitly accepted this
+final author review in place of the originally required independent reader;
+no independent reading review is claimed.
 
 ---
 

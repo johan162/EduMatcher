@@ -171,6 +171,54 @@ class TestReferenceReload:
         assert "compiled config" in msg["reason"]
         assert engine._engine_config is original_config
 
+    def test_reload_cannot_change_config_even_if_file_and_artifact_exist(
+        self, monkeypatch, tmp_path
+    ) -> None:
+        engine, pub_sock = _make_engine(monkeypatch, tmp_path)
+        original_config = engine._engine_config
+        original_version = engine._reference_config_version
+        engine._config_text = "{}"
+        changed = EngineConfig(
+            symbols={"AAPL": SymbolConfig(name="AAPL")},
+            participants={"NEW": ParticipantConfig(id="NEW")},
+        )
+        monkeypatch.setattr(
+            "edumatcher.engine.main.load_engine_config", lambda _: changed
+        )
+
+        engine._handle_reference_reload(
+            {"gateway_id": "GW01", "command_id": "CMD-RELOAD"}
+        )
+
+        topic, msg = decode(pub_sock.sent[-1])
+        assert topic == "system.reference_reload_ack.GW01"
+        assert msg["accepted"] is False
+        assert "restart" in msg["reason"]
+        assert engine._engine_config is original_config
+        assert engine._reference_config_version == original_version
+        assert engine._allowed_participants == frozenset({"GW01"})
+
+    def test_artifact_startup_rejects_reload(self, monkeypatch, tmp_path) -> None:
+        original_engine, pub_sock = _make_engine(monkeypatch, tmp_path)
+        config = original_engine._engine_config
+        assert config is not None
+        monkeypatch.setattr(
+            "edumatcher.engine.main._deployed_config", lambda: (config, "{}")
+        )
+        engine = Engine(config_path=None)
+        original_version = engine._reference_config_version
+
+        engine._handle_reference_reload(
+            {"gateway_id": "GW01", "command_id": "CMD-RELOAD"}
+        )
+
+        topic, msg = decode(pub_sock.sent[-1])
+        assert topic == "system.reference_reload_ack.GW01"
+        assert msg["accepted"] is False
+        assert "No reloadable config file" in msg["reason"]
+        assert engine._engine_config is config
+        assert engine._reference_config_version == original_version
+
 
 # ---------------------------------------------------------------------------
 # _handle_book_snapshot_request

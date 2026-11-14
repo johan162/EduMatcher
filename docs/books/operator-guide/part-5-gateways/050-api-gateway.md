@@ -406,13 +406,13 @@ tolerates ordinary floating-point error (`100.00 - 3 * 0.01` is accepted as
 sizes, resolved risk-band collars, circuit-breaker ladders, the session
 schedule and index definitions, so a client never parses `engine_config.yaml`.
 It is distinct from `GET /symbols`, `/session` and `/halts`, which report
-*live* state. Every call round-trips to the engine (no gateway cache), so a
-reload shows at once. Any key may call it, read-only included.
+*live* state. Every call round-trips to the engine (no gateway cache).
+Any key may call it, read-only included.
 
 #### `config_version`
 
 A 16-character hex prefix of a SHA-256 hash over the compiled bundle, computed
-when the engine loads or reloads its config. It changes if and only if the
+when the engine loads its config. It changes if and only if the
 reference data changes, so a client can cache the bundle and poll
 `GET /reference/config-version` to know when to refetch. Treat it as opaque.
 
@@ -424,6 +424,8 @@ reference data changes, so a client can cache the bundle and poll
 - A YAML fallback's active config is not recorded in `system.startup`, so
   accepting a reload would make the audit trail ambiguous.
 
+Even if a future startup has both a source file and a recorded config,
+reload remains disabled until changes can be recorded and replayed.
 Use `pm-config-deploy` to compile and deploy the changed configuration, then
 restart the engine. This keeps the effective config tied to the audited run.
 

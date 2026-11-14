@@ -657,13 +657,12 @@ class Engine:
         self._allowed_symbols: frozenset[str] | None = None
         self._allowed_participants: frozenset[str] | None = None
         self._engine_config: EngineConfig | None = None
-        # Path _load_config() re-reads on POST /admin/reference/reload.
-        # None when the engine was constructed from an in-memory EngineConfig
-        # (tests, or the compiled-artifact fast path) rather than a file.
+        # Source path, absent for a compiled-artifact startup. Reloads remain
+        # disabled until changed configuration can be recorded and replayed.
         self._config_path: Path | None = None
         # Compiled reference-data bundle + its content-hash version, cached
-        # so GET /reference/* doesn't recompute it on every request. Rebuilt
-        # on load and on a successful reload.
+        # so GET /reference/* doesn't recompute it on every request. Built
+        # on load; changing reference data requires a restart.
         self._reference_cache: dict[str, Any] | None = None
         self._reference_config_version: str | None = None
         self._gateway_descriptions: dict[str, str] = {}
@@ -763,11 +762,8 @@ class Engine:
         if engine_config is not None or path.exists():
             try:
                 self._engine_config = engine_config or load_engine_config(path)
-                # Reload (POST /admin/reference/reload) re-parses this same
-                # YAML file with load_engine_config(). Not offered when the
-                # engine started from a compiled artifact (engine_config is
-                # not None here) — that path has no single YAML file to
-                # re-read; the artifact is a separate build step.
+                # Keep the source for diagnostics; a compiled artifact has no
+                # single YAML file. Neither startup mode permits live reload.
                 self._config_path = path if engine_config is None else None
                 self._allowed_symbols = self._engine_config.allowed_symbols
                 self._allowed_participants = self._engine_config.allowed_participants
@@ -2321,7 +2317,7 @@ class Engine:
         self._dirty_symbols.add(order.symbol)
 
     def _rebuild_reference_cache(self) -> None:
-        """(Re)build the compiled reference-data bundle and its version hash.
+        """Build the compiled reference-data bundle and its version hash.
 
         Static data only — tick sizes, resolved risk levels, circuit-breaker
         ladders, schedule, index definitions. Deliberately excludes anything
@@ -2442,13 +2438,12 @@ class Engine:
         )
 
     def _handle_reference_reload(self, payload: dict[str, Any]) -> None:
-        """Re-read static reference data from disk without touching live state.
+        """Refuse reloads: changed configurations cannot yet be replayed.
 
-        Deliberately narrower than the startup config load: it never
-        re-seeds market-maker quotes, never creates or removes order books,
-        and never touches session/halt state. A reload that changed the
-        symbol or index set would require doing exactly those unsafe things
-        mid-session, so it is rejected rather than partially applied.
+        A compiled-artifact run has no reloadable source, and a YAML run has
+        no recorded startup config. Even if both were available, accepting a
+        new config without recording it would make the audit replay diverge.
+        Deploy the revised artifact and restart instead.
         """
         gateway_id = _clamp_wire_text(payload.get("gateway_id", ""))
         command_id = _clamp_wire_text(payload.get("command_id", ""), 64)
@@ -2481,50 +2476,12 @@ class Engine:
             )
             return
 
-        try:
-            new_config = load_engine_config(self._config_path)
-        except Exception as exc:
-            self.pub_sock.send_multipart(
-                make_reference_reload_ack_msg(
-                    gateway_id, command_id, accepted=False, reason=str(exc)
-                )
-            )
-            return
-
-        old_symbols = (
-            frozenset(self._engine_config.symbols)
-            if self._engine_config
-            else frozenset()
-        )
-        new_symbols = frozenset(new_config.symbols)
-        old_index_ids = (
-            frozenset(idx.id for idx in self._engine_config.indices)
-            if self._engine_config
-            else frozenset()
-        )
-        new_index_ids = frozenset(idx.id for idx in new_config.indices)
-        if new_symbols != old_symbols or new_index_ids != old_index_ids:
-            self.pub_sock.send_multipart(
-                make_reference_reload_ack_msg(
-                    gateway_id,
-                    command_id,
-                    accepted=False,
-                    reason=(
-                        "Reload cannot add or remove symbols/indexes mid-session "
-                        "(requires a restart); the symbol/index set changed"
-                    ),
-                )
-            )
-            return
-
-        self._engine_config = new_config
-        self._rebuild_reference_cache()
         self.pub_sock.send_multipart(
             make_reference_reload_ack_msg(
                 gateway_id,
                 command_id,
-                accepted=True,
-                config_version=self._reference_config_version,
+                accepted=False,
+                reason="Reference reload is disabled; deploy the config and restart",
             )
         )
 
@@ -4032,10 +3989,9 @@ class Engine:
             sibling_id, cancel_reason="QUOTE_LEG_FILLED"
         )
 
-        # `order` is the filled leg — already terminal, its final state is
-        # available directly. `sibling_order` is whatever _cancel_order_by_id
-        # just returned for the other leg. Attach both to the history entry
-        # remove() just recorded, same pattern as _cancel_quote_entry.
+        # `order` is the hit leg, which may still have a live remainder.
+        # `sibling_order` is what _cancel_order_by_id returned for the other
+        # leg. Attach both snapshots to the history entry remove() recorded.
         filled_snapshot = self._snapshot_quote_leg(order)
         sibling_snapshot = self._snapshot_quote_leg(sibling_order)
         bid_leg = filled_snapshot if order.side == Side.BUY else sibling_snapshot
@@ -5609,10 +5565,9 @@ class Engine:
     #
     # Note the limited meaning of "all-or-none" (AON): it is a guard at ENTRY
     # only.  If every leg could fill completely right now, the legs are
-    # matched; if any leg could not, NO leg is matched on entry and all rest
-    # as interest -- unless a leg would trade now, which rejects the combo
-    # (X28).  It is not a guarantee that the legs execute atomically later
-    # on.
+    # matched; if any leg could not, NO leg is matched on entry. Restable legs
+    # may wait as interest, but a marketable leg or one that cannot rest
+    # rejects the combo (X28). This does not guarantee atomic execution later.
     # ------------------------------------------------------------------
 
     def _validate_combo(self, combo: ComboOrder) -> str:
@@ -6572,8 +6527,9 @@ class Engine:
         """
         # Flow: gates -> parse both legs -> per-leg field checks -> register
         # the pair -> ACK the pair -> post leg 1, then leg 2 (each: ACK leg,
-        # book.process, publish).  Every reject is an ``oco.ack`` with
-        # accepted=False and neither leg ever reaches a book.
+        # book.process, publish). Pre-acceptance validation failures get an
+        # ``oco.ack`` with accepted=False; after acceptance a child can still
+        # be rejected by the book and end the pair.
         self.metrics.count(self.metrics.orders_in, payload.get("gateway_id"))
         gateway_id = str(payload.get("gateway_id", "")).upper()
         oco_id = payload.get("oco_id", "")
@@ -7100,7 +7056,7 @@ class Engine:
         This handler is the gatekeeper around that call, and applies to an
         amend the same protections a new order gets (so amending cannot be
         used to dodge them): parse -> gateway -> find the order -> ownership
-        -> tick size -> session -> halt -> collar -> size limits.  Then
+        -> tick size -> session -> halt matching mode -> collar -> size limits. Then
         ``book.amend_order``, an ``order.amended`` confirmation, and finally
         the "marketable amend" case below.
 
