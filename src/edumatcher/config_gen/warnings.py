@@ -84,11 +84,10 @@ def _port_collision_warnings(spec: ConfigSpec) -> list[str]:
 
 def evaluate_diagnostics(
     spec: ConfigSpec,
-    parsed_symbol_option_warnings: list[str],
     raw_symbols: list[str],
     output_exists: bool,
 ) -> list[str]:
-    messages: list[str] = list(parsed_symbol_option_warnings)
+    messages: list[str] = []
     messages.extend(_port_collision_warnings(spec))
 
     mm_gateways = [g for g in spec.gateways if g.role == ParticipantRole.MARKET_MAKER]
@@ -117,8 +116,9 @@ def evaluate_diagnostics(
         messages.append(
             Diagnostic(
                 "INFO",
-                "sessions_enabled: true - emitting default schedule (09:00-16:05). "
-                "Override with --pre-open, --opening-auction etc. if needed.",
+                f"sessions_enabled: true - emitting a weekday schedule "
+                f"({spec.pre_open}-{spec.closing_end}). Change it with --pre-open, "
+                "--opening-auction etc. if needed.",
             ).format()
         )
         messages.append(
@@ -196,9 +196,10 @@ def evaluate_diagnostics(
         messages.append(
             Diagnostic(
                 "INFO",
-                "Consider --seed-last-prices to emit placeholder "
-                "last_buy_price/last_sell_price fields for viewer reference. They are "
-                "required for collar initialization.",
+                "No reference prices: the engine applies no price collar to a "
+                "symbol until it starts with one (from the file or a previous "
+                "run). Use --seed-mm-mid-range MIN:MAX --seed-last-prices-from-mm "
+                "to write real ones.",
             ).format()
         )
 

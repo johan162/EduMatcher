@@ -21,7 +21,6 @@ def test_warnings_for_market_maker_and_sessions() -> None:
 
     lines = evaluate_diagnostics(
         spec=spec,
-        parsed_symbol_option_warnings=[],
         raw_symbols=["aapl"],
         output_exists=False,
     )
@@ -40,7 +39,6 @@ def test_warning_for_undefined_symbol_level() -> None:
 
     lines = evaluate_diagnostics(
         spec=spec,
-        parsed_symbol_option_warnings=[],
         raw_symbols=["AAPL"],
         output_exists=False,
     )
@@ -55,7 +53,6 @@ def test_error_for_existing_output() -> None:
     )
     lines = evaluate_diagnostics(
         spec=spec,
-        parsed_symbol_option_warnings=[],
         raw_symbols=["AAPL"],
         output_exists=True,
     )
@@ -72,7 +69,6 @@ def test_port_collision_across_auxiliary_gateways() -> None:
 
     lines = evaluate_diagnostics(
         spec=spec,
-        parsed_symbol_option_warnings=[],
         raw_symbols=["AAPL"],
         output_exists=False,
     )
@@ -91,7 +87,6 @@ def test_no_port_collision_when_ports_distinct() -> None:
 
     lines = evaluate_diagnostics(
         spec=spec,
-        parsed_symbol_option_warnings=[],
         raw_symbols=["AAPL"],
         output_exists=False,
     )

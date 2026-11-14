@@ -186,7 +186,7 @@ case "$profile" in
       --drop-copy-buffer-size 10000 --recent-trades-maxlen 20
       --depth-snapshot-tolerance-ticks 100 --static-band 0.20 --dynamic-band 0.02
       --risk-level CORE:0.18:0.02 --risk-level HIGH_BETA:0.12:0.04
-      --cb-levels L1:0.07:5 L2:0.13:15 L3:0.20:0
+      --cb-levels L1:0.07:5 L2:0.13:15 L3:0.20
       --cb-window-ns 300000000000
       --tick-decimals 2
       --symbol-opts AAPL:level=CORE

@@ -26,7 +26,7 @@ case "$(basename "$(pwd)")" in
     long_run=(--api-gateway-order-retention-sec 300 --post-trade-gateway
               --post-trade-replay-retention-sec 900)
     risk=(--static-band 0.20 --dynamic-band 0.03
-          --cb-levels L1:0.04:3 L2:0.08:10 L3:0.15:0 --cb-window-ns 300000000000)
+          --cb-levels L1:0.04:3 L2:0.08:10 L3:0.15 --cb-window-ns 300000000000)
     monitor_admin=MON01 ;;
   *) echo "Error: unknown setup directory $(pwd)" >&2; exit 1 ;;
 esac

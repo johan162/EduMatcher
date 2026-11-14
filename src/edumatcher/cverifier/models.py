@@ -41,8 +41,16 @@ class RiskSummary:
     circuit_breakers_configured: bool = False
     cb_description: str = ""
     mm_obligations_enforced: bool = False
+    mm_description: str = ""
     admin_gateway: str | None = None
     indices: list[str] = field(default_factory=list)
+    #: Filled when the summary is built from the loaded EngineConfig.
+    collared_symbols: list[str] = field(default_factory=list)
+    circuit_breaker_symbols: list[str] = field(default_factory=list)
+    mm_obligation_gateways: list[str] = field(default_factory=list)
+    #: True when built from what the engine loader produced; False when read
+    #: from a file the loader refuses (a best-effort reading of the YAML).
+    loaded: bool = False
 
 
 @dataclass
@@ -52,6 +60,8 @@ class LayerOutcome:
     name: str  # display name, e.g. "Schema"
     status: str = "ran"  # "ran" or "skipped"
     results: list[CheckResult] = field(default_factory=list)
+    #: Why a skipped layer did not run, e.g. "fix the YAML error first".
+    skip_reason: str = ""
 
 
 @dataclass

@@ -39,35 +39,42 @@ def _divider(color: bool) -> str:
     return f"{_DIM}{line}{_RESET}" if color else line
 
 
-# Each layer reports findings in a canonical unit.
-_LAYER_UNIT = {
-    "YAML syntax": ("error", "errors"),
-    "Schema": ("error", "errors"),
-    "Semantic": ("warning", "warnings"),
-    "Completeness": ("advisory", "advisories"),
+# What a layer with no findings reports, in the layer's usual unit.
+_LAYER_EMPTY = {
+    "YAML syntax": "OK",
+    "Schema": "0 errors",
+    "Semantic": "0 warnings",
+    "Completeness": "0 advisories",
+}
+
+# Severity -> (singular, plural): the same words the verdict counts in.
+_SEVERITY_UNIT = {
+    Severity.ERROR: ("error", "errors"),
+    Severity.WARN: ("warning", "warnings"),
+    Severity.INFO: ("advisory", "advisories"),
 }
 
 
 def _layer_count_line(outcome: LayerOutcome, color: bool) -> str:
     if outcome.status == "skipped":
-        line = f"  {outcome.name}: skipped (fix schema errors first)"
+        reason = outcome.skip_reason or "fix schema errors first"
+        line = f"  {outcome.name}: skipped ({reason})"
         return f"{_DIM}{line}{_RESET}" if color else line
 
-    singular, plural = _LAYER_UNIT.get(outcome.name, ("finding", "findings"))
-    n = len(outcome.results)
-    if n == 0:
-        if outcome.name == "YAML syntax":
-            return f"{_ok_icon(color)} {outcome.name}: OK"
-        return f"{_ok_icon(color)} {outcome.name}: 0 {plural}"
+    if not outcome.results:
+        empty = _LAYER_EMPTY.get(outcome.name, "0 findings")
+        return f"{_ok_icon(color)} {outcome.name}: {empty}"
 
-    if any(r.severity is Severity.ERROR for r in outcome.results):
-        max_sev = Severity.ERROR
-    elif any(r.severity is Severity.WARN for r in outcome.results):
-        max_sev = Severity.WARN
-    else:
-        max_sev = Severity.INFO
-    unit = singular if n == 1 else plural
-    return f"{_sev_icon(max_sev, color)} {outcome.name}: {n} {unit}"
+    # Counted by severity, so the layer lines add up to the verdict.
+    parts: list[str] = []
+    max_sev: Severity | None = None
+    for severity, (singular, plural) in _SEVERITY_UNIT.items():
+        n = sum(1 for r in outcome.results if r.severity is severity)
+        if n:
+            max_sev = max_sev or severity
+            parts.append(f"{n} {singular if n == 1 else plural}")
+    assert max_sev is not None
+    return f"{_sev_icon(max_sev, color)} {outcome.name}: {', '.join(parts)}"
 
 
 def _layer_summary_lines(
@@ -88,6 +95,49 @@ def _layer_summary_lines(
         LayerOutcome("Completeness", "ran", infos),
     ]
     return [_layer_count_line(lo, color) for lo in fallback]
+
+
+def _verdict_lines(
+    report: VerificationReport,
+    color: bool,
+    errors: list[CheckResult],
+    warnings: list[CheckResult],
+    infos: list[CheckResult],
+) -> list[str]:
+    lines: list[str] = []
+    lines.append(_divider(color))
+    if report.verdict == "OK":
+        verdict_icon = _ok_icon(color)
+        verdict_msg = f"{verdict_icon} OK — no issues found"
+    elif report.verdict == "WARN":
+        verdict_icon = _sev_icon(Severity.WARN, color)
+        w = len(warnings)
+        i = len(infos)
+        parts = []
+        if w:
+            parts.append(f"{w} WARNING{'S' if w > 1 else ''}")
+        if i:
+            parts.append(f"{i} ADVISOR{'IES' if i > 1 else 'Y'}")
+        verdict_msg = (
+            f"{verdict_icon} {', '.join(parts)} — engine can start but review warnings"
+        )
+    else:
+        verdict_icon = _sev_icon(Severity.ERROR, color)
+        e = len(errors)
+        if e == 0 and report.strict:
+            # Verdict promoted to ERROR by --strict; there are no hard errors.
+            w = len(warnings)
+            verdict_msg = (
+                f"{verdict_icon} {w} WARNING{'S' if w != 1 else ''} treated as errors "
+                "(--strict) — engine could start but CI gate failed"
+            )
+        else:
+            verdict_msg = f"{verdict_icon} {e} ERROR{'S' if e != 1 else ''} — engine will not start"
+    lines.append(f"Verdict:  {verdict_msg}")
+    lines.append(_divider(color))
+    lines.append("")
+
+    return lines
 
 
 def format_text(
@@ -164,12 +214,23 @@ def format_text(
         for r in section_infos:
             lines.extend(_render_finding(r))
 
-    # Risk Summary
+    # Risk Summary — none for a file that could not be read or parsed.
+    rs = report.risk_summary
+    if any(
+        lo.name == "YAML syntax"
+        and any(r.severity is Severity.ERROR for r in lo.results)
+        for lo in report.layers
+    ):
+        lines.extend(_verdict_lines(report, color, errors, warnings, infos))
+        return "\n".join(lines)
     lines.append(_divider(color))
-    lines.append("Risk Summary")
+    lines.append(
+        "Risk Summary"
+        if rs.loaded
+        else "Risk Summary (from the file as written; it does not load)"
+    )
     lines.append(_divider(color))
     lines.append("")
-    rs = report.risk_summary
     sym_str = ", ".join(rs.symbols[:5])
     if len(rs.symbols) > 5:
         sym_str += f" … +{len(rs.symbols) - 5} more"
@@ -193,6 +254,8 @@ def format_text(
     lines.append(f"Circuit breakers {cb_status} — {rs.cb_description}")
 
     mm_status = "enforced" if rs.mm_obligations_enforced else "not enforced"
+    if rs.mm_description:
+        mm_status += f" — {rs.mm_description}"
     lines.append(f"MM obligations   {mm_status}")
 
     admin_str = (
@@ -206,39 +269,7 @@ def format_text(
 
     lines.append("")
 
-    # Verdict
-    lines.append(_divider(color))
-    if report.verdict == "OK":
-        verdict_icon = _ok_icon(color)
-        verdict_msg = f"{verdict_icon} OK — no issues found"
-    elif report.verdict == "WARN":
-        verdict_icon = _sev_icon(Severity.WARN, color)
-        w = len(warnings)
-        i = len(infos)
-        parts = []
-        if w:
-            parts.append(f"{w} WARNING{'S' if w > 1 else ''}")
-        if i:
-            parts.append(f"{i} ADVISOR{'IES' if i > 1 else 'Y'}")
-        verdict_msg = (
-            f"{verdict_icon} {', '.join(parts)} — engine can start but review warnings"
-        )
-    else:
-        verdict_icon = _sev_icon(Severity.ERROR, color)
-        e = len(errors)
-        if e == 0 and report.strict:
-            # Verdict promoted to ERROR by --strict; there are no hard errors.
-            w = len(warnings)
-            verdict_msg = (
-                f"{verdict_icon} {w} WARNING{'S' if w != 1 else ''} treated as errors "
-                "(--strict) — engine could start but CI gate failed"
-            )
-        else:
-            verdict_msg = f"{verdict_icon} {e} ERROR{'S' if e != 1 else ''} — engine will not start"
-    lines.append(f"Verdict:  {verdict_msg}")
-    lines.append(_divider(color))
-    lines.append("")
-
+    lines.extend(_verdict_lines(report, color, errors, warnings, infos))
     return "\n".join(lines)
 
 
@@ -271,6 +302,10 @@ def format_json(report: VerificationReport) -> str:
             "mm_obligations_enforced": rs.mm_obligations_enforced,
             "admin_gateway": rs.admin_gateway,
             "indices": rs.indices,
+            "collared_symbols": rs.collared_symbols,
+            "circuit_breaker_symbols": rs.circuit_breaker_symbols,
+            "mm_obligation_gateways": rs.mm_obligation_gateways,
+            "loaded": rs.loaded,
         },
     }
     return json.dumps(data, indent=2)

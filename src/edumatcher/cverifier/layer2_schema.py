@@ -3,12 +3,16 @@
 from __future__ import annotations
 
 import difflib
+import math
 from pathlib import Path
 from typing import Any, cast
 
 from edumatcher.alf_gwy.config import validate_alf_gateway_section
 from edumatcher.api_gateway.config import validate_api_gateway_sections
 from edumatcher.balf_gwy.config import validate_balf_gateway_section
+from edumatcher.config_coerce import as_int
+from edumatcher.dc_gateway.config import validate_dc_gateway_section
+from edumatcher.engine.config_loader import EngineConfig, engine_config_from_raw
 from edumatcher.log_srv.config import validate_log_server_section
 from edumatcher.md_gateway.config import validate_market_data_gateway_section
 from edumatcher.monitor.config import THRESHOLD_RULES, validate_monitor_section
@@ -44,8 +48,42 @@ def _is_positive_int(val: Any) -> bool:
         return False
     try:
         return int(val) > 0
-    except TypeError, ValueError:
+    except TypeError, ValueError, OverflowError:
         return False
+
+
+def _finite_float(value: Any) -> float:
+    """``float(value)``, refusing NaN and infinity as well as non-numbers.
+
+    YAML reads ``.nan`` and ``.inf`` as floats, and NaN passes every
+    ``x <= 0`` check; no process can use either.
+    """
+    number = float(value)
+    if not math.isfinite(number):
+        raise ValueError("not a finite number")
+    return number
+
+
+def _null_field(
+    code: str,
+    path: str,
+    results: list[CheckResult],
+    suggestion: str = "Give it a value, or remove the key to use the default.",
+) -> None:
+    """Report a key written with no value (YAML ``null``).
+
+    The loaders read ``key:`` as present-and-null, not as absent, and refuse
+    it; reporting it as absent would pass a file pm-config-deploy refuses.
+    """
+    results.append(
+        CheckResult(
+            code=code,
+            severity=Severity.ERROR,
+            message=f"'{path}' has no value (null).",
+            suggestion=suggestion,
+            path=path,
+        )
+    )
 
 
 def check(raw: dict[str, Any], path: Path) -> list[CheckResult]:  # noqa: ARG001
@@ -75,6 +113,65 @@ def check(raw: dict[str, Any], path: Path) -> list[CheckResult]:  # noqa: ARG001
     _check_unknown_process_keys(raw, results)
     _check_unknown_engine_keys(raw, results)
     return results
+
+
+# ---------------------------------------------------------------------------
+# Engine loader backstop (S132)
+# ---------------------------------------------------------------------------
+
+# Sections the engine loader does not read. Their findings say nothing about
+# whether the engine section loads, so they do not suppress the backstop.
+_PROCESS_SECTIONS = frozenset(
+    {
+        "alf_gateway",
+        "balf_gateway",
+        "market_data_gateway",
+        "post_trade_gateway",
+        "dc_gateway",
+        "log_server",
+        "monitor",
+        "api_gateways",
+        "api_gateway",
+    }
+)
+
+
+def check_engine_loader(
+    raw: dict[str, Any], reported: list[CheckResult]
+) -> tuple[list[CheckResult], EngineConfig | None]:
+    """S132 — run the engine loader on the mapping, as pm-config-deploy does.
+
+    The hand-written checks give precise, independent messages; this makes
+    sure a file they pass is also one the loader accepts. The CLI calls it
+    after the semantic layer, because several M-codes describe loader errors
+    more precisely. It stays quiet when an engine-section ERROR has already
+    been reported: the loader stops at its first failure and would only
+    restate it.
+
+    Returns the findings and, when the file loads, the EngineConfig (also
+    when the finding itself was suppressed).
+    """
+    try:
+        return [], engine_config_from_raw(raw)
+    except Exception as exc:  # compile_config turns any loader error into a refusal
+        refusal = exc
+    for result in reported:
+        if result.severity is not Severity.ERROR:
+            continue
+        section = result.path.split(".", 1)[0].split("[", 1)[0]
+        if section not in _PROCESS_SECTIONS:
+            return [], None
+    return [
+        CheckResult(
+            code="S132",
+            severity=Severity.ERROR,
+            message=f"The engine loader refuses this file: {refusal}.",
+            suggestion=(
+                "pm-config-deploy refuses it with the same message. Fix the "
+                "field it names."
+            ),
+        )
+    ], None
 
 
 # ---------------------------------------------------------------------------
@@ -148,7 +245,7 @@ def _tick_decimals_of(cfg: dict[str, Any]) -> int | None:
         return None
     try:
         td_int = int(td)
-    except TypeError, ValueError:
+    except TypeError, ValueError, OverflowError:
         return None
     return td_int if 0 <= td_int <= 8 else None
 
@@ -172,8 +269,8 @@ def _check_price_on_grid(
     single bad field does not report twice.
     """
     try:
-        price = float(value)
-    except TypeError, ValueError:
+        price = _finite_float(value)
+    except TypeError, ValueError, OverflowError:
         return
     try:
         to_ticks_exact_at(price, tick_decimals, symbol)
@@ -234,7 +331,7 @@ def _check_symbol_tick_decimals(
         td_int = int(td)
         if not (0 <= td_int <= 8):
             raise ValueError("out of range")
-    except TypeError, ValueError:
+    except TypeError, ValueError, OverflowError:
         results.append(
             CheckResult(
                 code="S010",
@@ -261,14 +358,15 @@ def _check_symbol_prices(
         if val is None:
             continue
         try:
-            float(val)
-        except TypeError, ValueError:
+            _finite_float(val)
+        except TypeError, ValueError, OverflowError:
             results.append(
                 CheckResult(
                     code="S011",
                     severity=Severity.ERROR,
                     message=(
-                        f"Symbol '{sym}': {price_field} must be numeric. Got '{val}'."
+                        f"Symbol '{sym}': {price_field} must be a finite number. "
+                        f"Got '{val}'."
                     ),
                     suggestion="Set to a positive number or omit entirely.",
                     path=f"symbols.{sym}.{price_field}",
@@ -402,7 +500,18 @@ def _check_symbol_mm_quotes(
             )
         # Required fields
         for required in ("gateway_id", "bid_price", "ask_price", "bid_qty", "ask_qty"):
-            if required not in quote:
+            if required in quote and quote[required] is None:
+                # pm-config-gen writes null price stubs for the operator to fill.
+                _null_field(
+                    "S014",
+                    f"symbols.{sym}.market_maker_quotes[{i}].{required}",
+                    results,
+                    suggestion=(
+                        "Fill it in: each quote seed requires gateway_id, "
+                        "bid_price, ask_price, bid_qty and ask_qty."
+                    ),
+                )
+            elif required not in quote:
                 results.append(
                     CheckResult(
                         code="S014",
@@ -442,7 +551,7 @@ def _check_symbol_mm_quotes(
                             path=f"symbols.{sym}.market_maker_quotes[{i}]",
                         )
                     )
-            except TypeError, ValueError:
+            except TypeError, ValueError, OverflowError:
                 pass
 
         _check_mm_quote_validity(sym, i, quote, _tick_decimals_of(cfg), results)
@@ -463,9 +572,9 @@ def _check_mm_quote_validity(
         if val is None:
             continue
         try:
-            float(val)
-        except TypeError, ValueError:
-            problems.append(f"{price_field} must be numeric (got '{val}')")
+            _finite_float(val)
+        except TypeError, ValueError, OverflowError:
+            problems.append(f"{price_field} must be a finite number (got '{val}')")
             continue
         if tick_decimals is not None:
             _check_price_on_grid(
@@ -483,14 +592,14 @@ def _check_mm_quote_validity(
             continue
         try:
             qty = int(val)
-        except TypeError, ValueError:
+        except TypeError, ValueError, OverflowError:
             problems.append(f"{qty_field} must be a positive integer (got '{val}')")
             continue
         if qty <= 0:
             problems.append(f"{qty_field} must be positive (got {qty})")
 
     tif = quote.get("tif")
-    if tif is not None and str(tif).upper() not in _VALID_TIF:
+    if "tif" in quote and str(tif).upper() not in _VALID_TIF:
         problems.append(
             f"tif '{tif}' is not valid (use {' or '.join(sorted(_VALID_TIF))})"
         )
@@ -541,12 +650,14 @@ def _check_symbol_collar(
         return
 
     sbp = collar.get("static_band_pct")
-    if sbp is not None:
+    if "static_band_pct" in collar and sbp is None:
+        _null_field("S037", f"symbols.{sym}.collar.static_band_pct", results)
+    elif sbp is not None:
         try:
             sbp_f = float(sbp)
             if not (0 < sbp_f < 1):
                 raise ValueError("out of range")
-        except TypeError, ValueError:
+        except TypeError, ValueError, OverflowError:
             results.append(
                 CheckResult(
                     code="S037",
@@ -560,12 +671,14 @@ def _check_symbol_collar(
             )
 
     dbp = collar.get("dynamic_band_pct")
-    if dbp is not None:
+    if "dynamic_band_pct" in collar and dbp is None:
+        _null_field("S038", f"symbols.{sym}.collar.dynamic_band_pct", results)
+    elif dbp is not None:
         try:
             dbp_f = float(dbp)
             if not (0 < dbp_f < 1):
                 raise ValueError("out of range")
-        except TypeError, ValueError:
+        except TypeError, ValueError, OverflowError:
             results.append(
                 CheckResult(
                     code="S038",
@@ -615,7 +728,7 @@ def _check_symbol_order_limits(
             qty_i = int(qty)
             if qty_i != qty or qty_i <= 0:
                 raise ValueError("out of range")
-        except TypeError, ValueError:
+        except TypeError, ValueError, OverflowError:
             results.append(
                 CheckResult(
                     code="S115",
@@ -634,9 +747,9 @@ def _check_symbol_order_limits(
         try:
             if isinstance(value, bool):
                 raise ValueError("not a number")
-            if float(value) <= 0:
+            if _finite_float(value) <= 0:
                 raise ValueError("out of range")
-        except TypeError, ValueError:
+        except TypeError, ValueError, OverflowError:
             results.append(
                 CheckResult(
                     code="S116",
@@ -726,7 +839,7 @@ def _check_symbol_circuit_breaker(
                 psp_f = float(psp)
                 if not (0 < psp_f < 1):
                     raise ValueError("out of range")
-            except TypeError, ValueError:
+            except TypeError, ValueError, OverflowError:
                 results.append(
                     CheckResult(
                         code="S067",
@@ -746,7 +859,7 @@ def _check_symbol_circuit_breaker(
                 hd_i = int(hd)
                 if hd_i <= 0:
                     raise ValueError("must be positive")
-            except TypeError, ValueError:
+            except TypeError, ValueError, OverflowError:
                 results.append(
                     CheckResult(
                         code="S068",
@@ -906,7 +1019,10 @@ def _check_gateways(raw: dict[str, Any], results: list[CheckResult]) -> None:
             )
 
         disconnect = gw.get("disconnect_behaviour")
-        if disconnect is not None and str(disconnect).upper() not in _VALID_DISCONNECT:
+        if (
+            "disconnect_behaviour" in gw
+            and str(disconnect).upper() not in _VALID_DISCONNECT
+        ):
             results.append(
                 CheckResult(
                     code="S023",
@@ -1206,7 +1322,7 @@ def _check_market_maker_combos(raw: dict[str, Any], results: list[CheckResult]) 
 
             try:
                 parsed_leg = ComboLeg.from_dict(payload)
-            except KeyError, TypeError, ValueError:
+            except KeyError, TypeError, ValueError, OverflowError:
                 results.append(
                     CheckResult(
                         code="S059",
@@ -1252,6 +1368,25 @@ def _check_market_maker_combos(raw: dict[str, Any], results: list[CheckResult]) 
                     )
                 )
                 continue
+
+            for price_field in ("price", "stop_price"):
+                leg_price = leg.get(price_field)
+                try:
+                    if leg_price is not None:
+                        _finite_float(leg_price)
+                except TypeError, ValueError:
+                    results.append(
+                        CheckResult(
+                            code="S059",
+                            severity=Severity.ERROR,
+                            message=(
+                                f"market_maker_combos[{i}].legs[{j}].{price_field} "
+                                f"must be a finite number. Got '{leg_price}'."
+                            ),
+                            suggestion="Use a display price, e.g. 209.50.",
+                            path=f"market_maker_combos[{i}].legs[{j}].{price_field}",
+                        )
+                    )
 
             # A leg's scale comes from its own symbol: the legs of one combo
             # trade different instruments and need not share a tick size.
@@ -1367,7 +1502,7 @@ def _check_indices(raw: dict[str, Any], results: list[CheckResult]) -> None:
                 )
                 continue
             try:
-                num_val = float(raw_val)
+                num_val = _finite_float(raw_val)
                 if num_val <= 0:
                     raise ValueError
             except ValueError:
@@ -1382,9 +1517,9 @@ def _check_indices(raw: dict[str, Any], results: list[CheckResult]) -> None:
                 )
 
         for field in ("history_file", "state_file"):
-            path_val = idx.get(field)
-            if path_val is None:
+            if field not in idx:
                 continue
+            path_val = idx.get(field)
             if not isinstance(path_val, str) or not path_val.strip():
                 results.append(
                     CheckResult(
@@ -1397,8 +1532,6 @@ def _check_indices(raw: dict[str, Any], results: list[CheckResult]) -> None:
                 )
 
         constituents = idx.get("constituents")
-        if constituents is None:
-            continue
         if not isinstance(constituents, list) or not constituents:
             results.append(
                 CheckResult(
@@ -1482,7 +1615,7 @@ def _check_reopening(
             band = float(reopening["initial_band_pct"])
             if not (0 < band < 1):
                 raise ValueError("out of range")
-        except TypeError, ValueError:
+        except TypeError, ValueError, OverflowError:
             results.append(
                 CheckResult(
                     code="S106",
@@ -1501,7 +1634,7 @@ def _check_reopening(
             tail = int(reopening["random_end_max_ns"])
             if tail < 0:
                 raise ValueError("negative")
-        except TypeError, ValueError:
+        except TypeError, ValueError, OverflowError:
             results.append(
                 CheckResult(
                     code="S111",
@@ -1581,7 +1714,7 @@ def _check_reopening(
             widen = float(rung["widen_pct"])
             if not (0 < widen < 1):
                 raise ValueError("out of range")
-        except KeyError, TypeError, ValueError:
+        except KeyError, TypeError, ValueError, OverflowError:
             results.append(
                 CheckResult(
                     code="S108",
@@ -1597,7 +1730,7 @@ def _check_reopening(
             dur = int(rung["min_duration_ns"])
             if dur <= 0:
                 raise ValueError("not positive")
-        except KeyError, TypeError, ValueError:
+        except KeyError, TypeError, ValueError, OverflowError:
             results.append(
                 CheckResult(
                     code="S109",
@@ -1677,7 +1810,7 @@ def _check_cb_defaults(raw: dict[str, Any], results: list[CheckResult]) -> None:
                 if not (0 < psp_f < 1):
                     raise ValueError("out of range")
                 thresholds.append((str(name), psp_f))
-            except TypeError, ValueError:
+            except TypeError, ValueError, OverflowError:
                 results.append(
                     CheckResult(
                         code="S032",
@@ -1697,7 +1830,7 @@ def _check_cb_defaults(raw: dict[str, Any], results: list[CheckResult]) -> None:
                 hd_i = int(hd)
                 if hd_i <= 0:
                     raise ValueError("must be positive")
-            except TypeError, ValueError:
+            except TypeError, ValueError, OverflowError:
                 results.append(
                     CheckResult(
                         code="S033",
@@ -1814,12 +1947,18 @@ def _check_risk_controls(raw: dict[str, Any], results: list[CheckResult]) -> Non
             continue
 
         sbp = collar.get("static_band_pct")
-        if sbp is not None:
+        if "static_band_pct" in collar and sbp is None:
+            _null_field(
+                "S041",
+                f"risk_controls.levels.{level_name}.collar.static_band_pct",
+                results,
+            )
+        elif sbp is not None:
             try:
                 sbp_f = float(sbp)
                 if not (0 < sbp_f < 1):
                     raise ValueError("out of range")
-            except TypeError, ValueError:
+            except TypeError, ValueError, OverflowError:
                 results.append(
                     CheckResult(
                         code="S041",
@@ -1834,12 +1973,18 @@ def _check_risk_controls(raw: dict[str, Any], results: list[CheckResult]) -> Non
                 )
 
         dbp = collar.get("dynamic_band_pct")
-        if dbp is not None:
+        if "dynamic_band_pct" in collar and dbp is None:
+            _null_field(
+                "S042",
+                f"risk_controls.levels.{level_name}.collar.dynamic_band_pct",
+                results,
+            )
+        elif dbp is not None:
             try:
                 dbp_f = float(dbp)
                 if not (0 < dbp_f < 1):
                     raise ValueError("out of range")
-            except TypeError, ValueError:
+            except TypeError, ValueError, OverflowError:
                 results.append(
                     CheckResult(
                         code="S042",
@@ -1871,7 +2016,7 @@ def _get_defined_risk_levels(raw: dict[str, Any]) -> set[str]:
 
 def _check_runtime_flags(raw: dict[str, Any], results: list[CheckResult]) -> None:
     sessions_enabled = raw.get("sessions_enabled")
-    if sessions_enabled is not None and not isinstance(sessions_enabled, bool):
+    if "sessions_enabled" in raw and not isinstance(sessions_enabled, bool):
         results.append(
             CheckResult(
                 code="S060",
@@ -1891,12 +2036,12 @@ def _check_runtime_flags(raw: dict[str, Any], results: list[CheckResult]) -> Non
         if isinstance(engine_tuning, dict)
         else None
     )
-    if snapshot_interval is not None:
+    if isinstance(engine_tuning, dict) and "snapshot_interval_sec" in engine_tuning:
         try:
-            snap = float(snapshot_interval)
+            snap = _finite_float(engine_tuning["snapshot_interval_sec"])
             if snap <= 0:
                 raise ValueError
-        except TypeError, ValueError:
+        except TypeError, ValueError, OverflowError:
             results.append(
                 CheckResult(
                     code="S061",
@@ -1911,7 +2056,7 @@ def _check_runtime_flags(raw: dict[str, Any], results: list[CheckResult]) -> Non
             )
 
     enforce_collars = raw.get("enforce_collars")
-    if enforce_collars is not None and not isinstance(enforce_collars, bool):
+    if "enforce_collars" in raw and not isinstance(enforce_collars, bool):
         results.append(
             CheckResult(
                 code="S062",
@@ -1925,7 +2070,7 @@ def _check_runtime_flags(raw: dict[str, Any], results: list[CheckResult]) -> Non
         )
 
     enforce_cb = raw.get("enforce_circuit_breakers")
-    if enforce_cb is not None and not isinstance(enforce_cb, bool):
+    if "enforce_circuit_breakers" in raw and not isinstance(enforce_cb, bool):
         results.append(
             CheckResult(
                 code="S063",
@@ -1940,9 +2085,7 @@ def _check_runtime_flags(raw: dict[str, Any], results: list[CheckResult]) -> Non
         )
 
     require_mm_seed_quotes = raw.get("require_mm_seed_quotes")
-    if require_mm_seed_quotes is not None and not isinstance(
-        require_mm_seed_quotes, bool
-    ):
+    if "require_mm_seed_quotes" in raw and not isinstance(require_mm_seed_quotes, bool):
         results.append(
             CheckResult(
                 code="S113",
@@ -1986,7 +2129,7 @@ def _check_runtime_flags(raw: dict[str, Any], results: list[CheckResult]) -> Non
         ):
             results.append(
                 CheckResult(
-                    code="S065",
+                    code="S134",
                     severity=Severity.ERROR,
                     message=(
                         "'locale.country' must be a non-empty string when "
@@ -2038,7 +2181,7 @@ def _check_mm_obligation_defaults_schema(
         return
 
     enforce = section.get("enforce_mm_obligation")
-    if enforce is not None and not isinstance(enforce, bool):
+    if "enforce_mm_obligation" in section and not isinstance(enforce, bool):
         results.append(
             CheckResult(
                 code="S071",
@@ -2056,14 +2199,14 @@ def _check_mm_obligation_defaults_schema(
         ("mm_max_spread_ticks", "S072"),
         ("mm_min_qty", "S073"),
     ):
-        val = section.get(field)
-        if val is None:
+        if field not in section:
             continue
+        val = section[field]
         try:
             parsed = int(val)
             if parsed <= 0:
                 raise ValueError
-        except TypeError, ValueError:
+        except TypeError, ValueError, OverflowError:
             results.append(
                 CheckResult(
                     code=code,
@@ -2113,7 +2256,7 @@ def _check_mm_obligation_defaults_schema(
             continue
 
         sym_enforce = sym_cfg.get("enforce_mm_obligation")
-        if sym_enforce is not None and not isinstance(sym_enforce, bool):
+        if "enforce_mm_obligation" in sym_cfg and not isinstance(sym_enforce, bool):
             results.append(
                 CheckResult(
                     code="S076",
@@ -2128,14 +2271,14 @@ def _check_mm_obligation_defaults_schema(
             )
 
         for field in ("mm_max_spread_ticks", "mm_min_qty"):
-            val = sym_cfg.get(field)
-            if val is None:
+            if field not in sym_cfg:
                 continue
+            val = sym_cfg[field]
             try:
                 parsed = int(val)
                 if parsed <= 0:
                     raise ValueError
-            except TypeError, ValueError:
+            except TypeError, ValueError, OverflowError:
                 results.append(
                     CheckResult(
                         code="S077",
@@ -2241,10 +2384,10 @@ def _check_balf_gateway(raw: dict[str, Any], results: list[CheckResult]) -> None
         val = section.get(field)
         if val is not None:
             try:
-                fval = float(val)
+                fval = _finite_float(val)
                 if fval <= 0:
                     raise ValueError
-            except TypeError, ValueError:
+            except TypeError, ValueError, OverflowError:
                 local.append(
                     CheckResult(
                         code="S053",
@@ -2341,7 +2484,12 @@ def _check_alf_gateway(raw: dict[str, Any], results: list[CheckResult]) -> None:
     previously had zero validation coverage anywhere in pm-cverifier — a
     malformed alf_gateway block (bad port, non-positive timeout, etc.) would
     pass cverifier cleanly and then crash pm-alf-gwy at startup.
+
+    Only when the section is present: the loader also checks the participant
+    ids, which S084 already reports for every file.
     """
+    if "alf_gateway" not in raw:
+        return
     try:
         validate_alf_gateway_section(raw)
     except ValueError as exc:
@@ -2396,19 +2544,20 @@ def _check_market_data_gateway(raw: dict[str, Any], results: list[CheckResult]) 
 
 
 # ---------------------------------------------------------------------------
-# dc_gateway schema checks (S090–S094)
+# dc_gateway schema checks (S090–S094, S133)
 # ---------------------------------------------------------------------------
 
 _DC_POSITIVE_INT_FIELDS = ("max_connections", "max_client_queue")
 
-_DC_POSITIVE_INT_OR_FLOAT_FIELDS = (
+# Whole seconds: pm-dc-gwy reads them with as_int, which refuses 1.5 and true.
+_DC_POSITIVE_SECONDS_FIELDS = (
     "heartbeat_interval_sec",
     "idle_timeout_sec",
 )
 
 
 def _check_dc_gateway(raw: dict[str, Any], results: list[CheckResult]) -> None:
-    """Validate the optional dc_gateway section (S090–S094)."""
+    """Validate the optional dc_gateway section (S090–S094, S133)."""
     section = raw.get("dc_gateway")
     if section is None:
         return
@@ -2473,24 +2622,46 @@ def _check_dc_gateway(raw: dict[str, Any], results: list[CheckResult]) -> None:
                     )
                 )
 
-    # positive numeric timeout/interval fields
-    for field in _DC_POSITIVE_INT_OR_FLOAT_FIELDS:
+    # whole-second timeout/interval fields
+    for field in _DC_POSITIVE_SECONDS_FIELDS:
         val = section.get(field)
         if val is not None:
             try:
-                fval = float(val)
-                if fval <= 0:
+                if as_int(val, field) <= 0:
                     raise ValueError("non-positive")
-            except TypeError, ValueError:
+            except ValueError:
                 results.append(
                     CheckResult(
                         code="S094",
                         severity=Severity.ERROR,
-                        message=f"'dc_gateway.{field}' must be a positive number.",
-                        suggestion=f"Set {field} to a number > 0.",
+                        message=(
+                            f"'dc_gateway.{field}' must be a positive whole number "
+                            "of seconds."
+                        ),
+                        suggestion=f"Set {field} to an integer > 0.",
                         path=f"dc_gateway.{field}",
                     )
                 )
+
+    # Drift safety net, as for log_server (S101): only when nothing above
+    # reported on this section.
+    if any(r.path.startswith("dc_gateway") for r in results):
+        return
+    try:
+        validate_dc_gateway_section(raw)
+    except ValueError as exc:
+        results.append(
+            CheckResult(
+                code="S133",
+                severity=Severity.ERROR,
+                message=f"'dc_gateway' section is invalid: {exc}",
+                suggestion=(
+                    "The pm-dc-gwy loader rejects this section for a reason not "
+                    "covered by S090-S094. Match dc_gateway/config.py."
+                ),
+                path="dc_gateway",
+            )
+        )
 
 
 # ---------------------------------------------------------------------------

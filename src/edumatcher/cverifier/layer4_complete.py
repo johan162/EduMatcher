@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from edumatcher.config import resolve_data_path
-from edumatcher.cverifier.helpers import gateway_ids_by_role
+from edumatcher.cverifier.helpers import gateway_ids_by_role, symbol_cfg_by_upper_name
 from edumatcher.cverifier.models import CheckResult, Severity
 
 _DEFAULT_SNAPSHOT_INTERVAL_SEC = 0.5
@@ -225,7 +225,7 @@ def _check_snapshot_interval(raw: dict[str, Any], results: list[CheckResult]) ->
     )
     try:
         snap_f = float(snap)
-    except TypeError, ValueError:
+    except TypeError, ValueError, OverflowError:
         return
 
     if math.isclose(snap_f, _DEFAULT_SNAPSHOT_INTERVAL_SEC, rel_tol=0.0, abs_tol=1e-9):
@@ -275,9 +275,9 @@ def _check_index_constituents_prices(
     if not isinstance(indices, list):
         return
 
-    symbols = raw.get("symbols", {})
-    if not isinstance(symbols, dict):
-        return
+    # Keyed by the upper-cased name, as the loader resolves constituents; a
+    # constituent that is not a string (a list, say) then simply finds nothing.
+    symbols = symbol_cfg_by_upper_name(raw)
 
     for idx in indices:
         if not isinstance(idx, dict):
@@ -288,7 +288,7 @@ def _check_index_constituents_prices(
             continue
         for sym_raw in constituents:
             sym = str(sym_raw).upper()
-            sym_cfg = symbols.get(sym_raw) or symbols.get(sym)
+            sym_cfg = symbols.get(sym)
             if not isinstance(sym_cfg, dict):
                 continue
             has_price = (
@@ -299,13 +299,14 @@ def _check_index_constituents_prices(
                 results.append(
                     CheckResult(
                         code="C008",
-                        severity=Severity.WARN,
+                        severity=Severity.ERROR,
                         message=(
                             f"Index '{idx_id}' constituent '{sym}' has no reference price."
                         ),
                         suggestion=(
-                            "pm-index requires at least one of last_buy_price / last_sell_price "
-                            "to compute the initial index divisor."
+                            "pm-index refuses to start without at least one of "
+                            "last_buy_price / last_sell_price: it computes the initial "
+                            "index divisor from it."
                         ),
                         path=f"symbols.{sym}",
                     )

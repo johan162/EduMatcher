@@ -268,8 +268,8 @@ Required inputs:
 
 | Option                             | Type              | Description                               |
 |------------------------------------|-------------------|-------------------------------------------|
-| `--symbols SYM [SYM ...]`          | Repeatable tokens | Symbol universe (uppercased on parse)     |
-| `--participants GW_SPEC [GW_SPEC ...]` | Repeatable tokens | Gateway specs as `ID[:ROLE[:DISCONNECT]]`; see the `--participants` format below |
+| `--symbols SYM [SYM ...]`          | Repeatable tokens | Symbol universe (uppercased on parse; a name given twice is an error). Repeating the option adds to the list |
+| `--participants GW_SPEC [GW_SPEC ...]` | Repeatable tokens | Gateway specs as `ID[:ROLE[:DISCONNECT]]`; see the `--participants` format below. Repeating the option adds to the list |
 | `--participant-desc GW_ID:TEXT`        | Repeatable        | Sets `participants[<GW_ID>].description`; `GW_ID` must be one of `--participants`. Quote it when `TEXT` has spaces |
 | `--participant-smp GW_ID:SMP_ACTION`   | Repeatable        | Sets `participants[<GW_ID>].smp_action` (`NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH`); `GW_ID` must be one of `--participants`; omitted gateways inherit `--participant-default-smp`, else `NONE`. `GW_ID:NONE` is written when it overrides a non-`NONE` default. See [Risk Controls — Self-Match Prevention](../part-4-run-a-market/040-risk-controls.md#self-match-prevention-smp) |
 | `--participant-default-smp SMP_ACTION` | Choice            | Writes `participant_defaults.smp_action`, inherited by every gateway without its own `smp_action`. See [Participant Defaults](../../reference-manual/part-3-configuration/010-schema-and-process-blocks.md#participant-defaults) |
@@ -280,7 +280,7 @@ Session and schedule options:
 | Option                                         | Type      | Default | Description                                                            |
 |------------------------------------------------|-----------|---------|------------------------------------------------------------------------|
 | `--sessions-enabled` / `--no-sessions-enabled` | Flag pair | `false` | Enable/disable scheduler-driven sessions                               |
-| `--schedule` / `--no-schedule`                 | Flag pair | auto    | Force include/exclude `schedule`; auto emits when sessions are enabled |
+| `--schedule` / `--no-schedule`                 | Flag pair | auto    | Write / leave out `schedule`. It is written by default with `--sessions-enabled` and never without it |
 | `--pre-open HH:MM`                             | String    | `09:00` | Schedule pre-open time                                                 |
 | `--opening-auction HH:MM`                      | String    | `09:25` | Opening auction start                                                  |
 | `--continuous HH:MM`                           | String    | `09:30` | Continuous start                                                       |
@@ -290,6 +290,11 @@ Session and schedule options:
 | `--weekend-pre-open HH:MM`, `--weekend-opening-auction HH:MM`, `--weekend-continuous HH:MM`, `--weekend-closing-auction HH:MM`, `--weekend-closing-end HH:MM` | String | `10:00`, `10:25`, `10:30`, `14:00`, `14:05` | The five weekend times; only used with `--weekend` |
 | `--holidays` / `--no-holidays`                 | Flag pair | off     | Also emit a `holidays:` block. Without it bank holidays are `CLOSED`   |
 | `--holidays-pre-open HH:MM`, `--holidays-opening-auction HH:MM`, `--holidays-continuous HH:MM`, `--holidays-closing-auction HH:MM`, `--holidays-closing-end HH:MM` | String | `10:00`, `10:25`, `10:30`, `14:00`, `14:05` | The five bank-holiday times; only used with `--holidays` |
+
+`--schedule`, `--weekend`, `--holidays` and every time option need
+`--sessions-enabled`, and cannot be combined with `--no-schedule`: without a
+schedule in the file they would have no effect, so `pm-config-gen` refuses them
+(exit 2) rather than writing a file that ignores them.
 | `--country COUNTRY`                            | String    | unset   | Writes `locale.country`: a country name (`Sweden`) or ISO code (`SE`). Unset: no value written, so the engine default `Sweden` applies |
 | `--session-timezone TZ`                        | String    | unset   | Writes `locale.session_timezone`, an IANA name such as `America/New_York`. Unset: no value written, so the engine default `Europe/Stockholm` applies. Schedule times are interpreted in this timezone |
 
@@ -312,7 +317,7 @@ Core engine and risk options:
 | `--symbol-max-order-value SYM:AMOUNT`    | Repeatable       | none            | Per-symbol `order_limits.max_order_value` (notional, `> 0`) |
 | `--symbol-risk-level SYM:LEVEL`          | Repeatable       | none            | Per-symbol `symbols.<SYM>.level` override           |
 | `--risk-level NAME:STATIC[:DYNAMIC]`     | Repeatable       | none            | Add named risk levels under `risk_controls.levels`  |
-| `--cb-levels NAME:SHIFT[:HALT_MINS] ...` | List | built-in ladder | Circuit-breaker level specs |
+| `--cb-levels NAME:SHIFT[:HALT_MINS] ...` | List, repeatable | none: no `circuit_breaker_defaults` is written | Circuit-breaker level specs; `HALT_MINS` > 0, omit it for a rest-of-day halt |
 | `--cb-window-ns NS`                      | int (`> 0`)      | `300000000000`  | Circuit-breaker reference window                    |
 | `--no-ace`                               | Flag             | off             | Write `circuit_breaker_defaults.reopening.enabled: false` (no reopening corridor) |
 | `--ace-initial-band PCT`                 | float in `(0,1)` | `0.1`           | `reopening.initial_band_pct` — starting corridor half-width, as a fraction of the reference price |
@@ -322,8 +327,9 @@ Core engine and risk options:
 
 The `--no-ace` and `--ace-*` options shape the `reopening` block of
 `circuit_breaker_defaults`, which `pm-config-gen` writes when `--cb-levels` is
-given. Without `--cb-levels` they have no effect. The per-symbol forms are the
-`ace_*` keys of `--symbol-opts` below.
+given. Without `--cb-levels` they, and `--cb-window-ns`, would have no effect,
+so `pm-config-gen` refuses them (exit 2). The per-symbol forms are the `ace_*`
+keys of `--symbol-opts` below.
 
 Market-maker and symbol defaults:
 
@@ -554,7 +560,7 @@ API gateway options:
 | `--api-key KEY:GATEWAY_ID[:DESCRIPTION]` | Repeatable | none | Add an explicit bearer-token credential; use `GATEWAY_ID=null` for read-only access |
 | `--api-gateway-generate-keys` / `--no-api-gateway-generate-keys` | Flag pair | generated when emitted | Generate one key for each `participants` entry |
 | `--api-keys-for GW_ID [GW_ID ...]` | Tokens | none | Write one key for each listed participant to `api_keys.yaml` beside `--output` and point the API gateway at it with `credentials_file`; needs `--output` or `--dry-run`, and a single API gateway. See [Keys for many participants](#keys-for-many-participants) |
-| `--api-gateway-readonly-key` | Flag | off | Generate an additional read-only key with `gateway_id: null` |
+| `--api-gateway-readonly-key` / `--no-api-gateway-readonly-key` | Flag pair | on | Generate an additional read-only key with `gateway_id: null` for the dashboards (`M032` warns when an API gateway has none). `--api-gateway-readonly-key` on its own also writes the `api_gateways` section |
 | `--api-gateway-rate-limit-writes-per-second N` | int (`> 0`) | `10` | Per-key write rate limit |
 | `--api-gateway-rate-limit-burst N` | int (`> 0`) | `20` | Per-key write burst capacity |
 | `--api-gateway-engine-auth-sec SECS` | float (`> 0`) | `3.0` | Engine auth timeout field |
@@ -736,7 +742,7 @@ Supported `KEY` values:
 | `max_order_qty`                                                            | int `> 0`                 | Symbol `order_limits.max_order_qty` cap                             |
 | `max_order_value`                                                          | float `> 0`               | Symbol `order_limits.max_order_value` cap (display money)           |
 | `cb_shift_l1` / `cb_shift_l2` / `cb_shift_l3`                             | float `(0,1)`             | Override CB level shift pct                                         |
-| `cb_halt_l1` / `cb_halt_l2` / `cb_halt_l3`                                | int `>= 0` minutes        | Override CB halt duration (`0` means rest-of-day)                  |
+| `cb_halt_l1` / `cb_halt_l2` / `cb_halt_l3`                                | int `> 0` minutes         | Override CB halt duration (omit it for a rest-of-day halt)         |
 | `ace_enabled`                                                              | `true` / `false`          | Enable or disable Automated Corridor Expansion for that symbol       |
 | `ace_initial_band`                                                         | float `(0,1)`             | Symbol reopening corridor half-width                                 |
 | `ace_random_end_ns`                                                        | int `>= 0` ns             | Symbol random-end bound (`0` = predictable reopen times)             |
@@ -779,13 +785,15 @@ pm-config-gen \
 `--symbol-risk-level` is a convenience alias for `--symbol-opts SYM:level=...`.
 It writes `symbols.<SYM>.level` and uses the same runtime validation rules.
 
-Unknown symbols/keys or invalid values in `--symbol-opts` are reported as
-warnings and ignored.
+An unknown symbol or key, a token without `=`, or an invalid value in
+`--symbol-opts` is an error (exit 2), as it is for the dedicated per-symbol
+flags.
 
-The generated `symbols:` section also includes an `outstanding_shares` field
-for every symbol. Use that as the slow-changing input for statistics and future
-index-style consumers; market capitalization can then be derived from it and
-the latest price instead of being stored as a separate static field.
+With `--outstanding-shares SYM:N` the generated `symbols:` section also
+includes an `outstanding_shares` field for that symbol. Use that as the
+slow-changing input for statistics and future index-style consumers; market
+capitalization can then be derived from it and the latest price instead of
+being stored as a separate static field.
 
 ### `--combo` format
 
@@ -915,14 +923,20 @@ pm-config-gen \
   --output engine_config.yaml
 ```
 
-After generation, validate manually:
+`pm-config-gen` checks every file it writes with the same gate as
+`pm-config-deploy --check` (the verifier's errors, then every loader), and
+writes nothing when that gate refuses it. After generation, check and install
+it as usual:
 
 ```bash
-poetry run python -c 'from pathlib import Path; from edumatcher.engine.config_loader import load_engine_config; print(load_engine_config(Path("engine_config.yaml")))'
+pm-cverifier engine_config.yaml
+pm-config-deploy engine_config.yaml
 ```
 
-If MM gateways are present and you do not use `--seed-mm-mid-range`, fill all `market_maker_quotes` prices first, then
-run the validation command.
+The one exception is the market-maker stub template: if MM gateways are
+present and you do not use `--seed-mm-mid-range`, the file is written with
+`null` quote prices, which `pm-cverifier` reports as `S014` errors. Fill them
+in before deploying.
 
 Post-trade gateway config with explicit RALF listener settings:
 

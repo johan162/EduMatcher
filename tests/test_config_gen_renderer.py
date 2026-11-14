@@ -128,8 +128,8 @@ def test_renderer_injects_stub_hint_comments() -> None:
         in rendered
     )
     assert (
-        "    # REQUIRED: set last buy reference price\n    last_buy_price: null"
-        in rendered
+        "    # optional: set a last buy reference price, or remove the line\n"
+        "    last_buy_price: null" in rendered
     )
 
     # Comments must not break YAML parsing.

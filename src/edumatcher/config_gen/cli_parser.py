@@ -3,24 +3,51 @@
 from __future__ import annotations
 
 import argparse
+import math
 
 from edumatcher.config_gen.defaults import (
     DEFAULT_ACE_INITIAL_BAND_PCT,
-    DEFAULT_ACE_RANDOM_END_MAX_NS,
-    DEFAULT_CB_WINDOW_NS,
     DEFAULT_DEPTH_SNAPSHOT_TOLERANCE_TICKS,
     DEFAULT_DROP_COPY_BUFFER_SIZE,
-    DEFAULT_HOLIDAYS_SCHEDULE,
     DEFAULT_MM_MIN_QTY,
     DEFAULT_MM_SEED_SPREAD_TICKS,
     DEFAULT_MM_SPREAD_TICKS,
     DEFAULT_QUOTE_HISTORY_MAXLEN,
     DEFAULT_RECENT_TRADES_MAXLEN,
-    DEFAULT_SCHEDULE,
     DEFAULT_SNAPSHOT_INTERVAL_SEC,
     DEFAULT_TICK_DECIMALS,
-    DEFAULT_WEEKEND_SCHEDULE,
 )
+
+
+def finite_float(text: str) -> float:
+    """``float(text)``, refusing "nan" and "inf" with a ValueError.
+
+    ``float()`` accepts both, and NaN passes every ``x <= 0`` check, so it
+    would reach the generated file.
+    """
+    value = float(text)
+    if not math.isfinite(value):
+        raise ValueError(f"{text!r} is not a finite number")
+    return value
+
+
+def _finite_float_arg(text: str) -> float:
+    try:
+        return finite_float(text)
+    except ValueError:
+        raise argparse.ArgumentTypeError(
+            f"must be a finite number, got {text!r}"
+        ) from None
+
+
+def _port_arg(text: str) -> int:
+    try:
+        port = int(text)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"must be a TCP port, got {text!r}") from None
+    if not 1 <= port <= 65535:
+        raise argparse.ArgumentTypeError(f"must be in 1-65535, got {port}")
+    return port
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -30,6 +57,9 @@ def build_parser() -> argparse.ArgumentParser:
             "Generate a parser-compatible engine_config.yaml from concise CLI inputs."
         ),
         formatter_class=argparse.RawTextHelpFormatter,
+        # An abbreviation (--snapshot) would be accepted by argparse but missed
+        # by the checks that look for an option by its full name.
+        allow_abbrev=False,
     )
     from edumatcher.cli_version import add_version_argument
 
@@ -38,6 +68,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--symbols",
         nargs="+",
+        action="extend",
         required=True,
         metavar="SYM",
         help="One or more symbols.",
@@ -45,6 +76,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--participants",
         nargs="+",
+        action="extend",
         required=True,
         metavar="GW_SPEC",
         help="One or more participant specs (ID[:ROLE[:DISCONNECT]]). ID is "
@@ -97,7 +129,14 @@ def build_parser() -> argparse.ArgumentParser:
         action="append",
         default=[],
         metavar="SYMBOL:KEY=VALUE[,KEY=VALUE]",
-        help="Per-symbol overrides. Can be repeated.",
+        help=(
+            "Per-symbol overrides. Keys: tick_decimals, static_band, "
+            "dynamic_band, max_order_qty, max_order_value, level, "
+            "cb_shift_l1..l3, cb_halt_l1..l3 (minutes > 0), mm_spread_ticks, "
+            "mm_min_qty, enforce_mm_obligation, ace_enabled, ace_initial_band, "
+            "ace_random_end_ns. An unknown symbol or key, or a bad value, is "
+            "an error. Can be repeated."
+        ),
     )
     parser.add_argument(
         "--symbol-static-band",
@@ -150,7 +189,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--sessions-enabled",
         dest="sessions_enabled",
         action="store_true",
-        help="Enable scheduler-driven sessions.",
+        help=(
+            "Enable scheduler-driven sessions. Without it pm-config-gen writes "
+            "sessions_enabled: false (an absent key would mean enabled)."
+        ),
     )
     sess_group.add_argument(
         "--no-sessions-enabled",
@@ -162,7 +204,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     parser.add_argument(
         "--snapshot-interval",
-        type=float,
+        type=_finite_float_arg,
         default=DEFAULT_SNAPSHOT_INTERVAL_SEC,
         metavar="SECS",
         help="Snapshot interval seconds (> 0).",
@@ -209,14 +251,14 @@ def build_parser() -> argparse.ArgumentParser:
 
     parser.add_argument(
         "--static-band",
-        type=float,
+        type=_finite_float_arg,
         default=None,
         metavar="PCT",
         help="DEFAULT static band pct in (0,1).",
     )
     parser.add_argument(
         "--dynamic-band",
-        type=float,
+        type=_finite_float_arg,
         default=None,
         metavar="PCT",
         help="DEFAULT dynamic band pct in (0,1).",
@@ -233,14 +275,19 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--cb-levels",
         nargs="+",
+        action="extend",
         default=None,
         metavar="CB_SPEC",
-        help="NAME:SHIFT_PCT[:HALT_MINS] entries. Omit HALT_MINS for a rest-of-day halt.",
+        help=(
+            "NAME:SHIFT_PCT[:HALT_MINS] entries, HALT_MINS > 0; omit it for a "
+            "rest-of-day halt. Writes circuit_breaker_defaults, which is not "
+            "written without it. Can be repeated."
+        ),
     )
     parser.add_argument(
         "--cb-window-ns",
         type=int,
-        default=DEFAULT_CB_WINDOW_NS,
+        default=None,
         metavar="NS",
         help="CB reference window nanoseconds.",
     )
@@ -255,8 +302,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--ace-initial-band",
-        type=float,
-        default=DEFAULT_ACE_INITIAL_BAND_PCT,
+        type=_finite_float_arg,
+        default=None,
         metavar="PCT",
         help=(
             "Reopening corridor half-width as a fraction of the reference price "
@@ -277,7 +324,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--ace-random-end-ns",
         type=int,
-        default=DEFAULT_ACE_RANDOM_END_MAX_NS,
+        default=None,
         metavar="NS",
         help=(
             "Upper bound of the uniform random tail added to every call phase. "
@@ -342,7 +389,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--seed-last-prices",
         action="store_true",
-        help="Emit last_buy_price/last_sell_price null placeholders.",
+        help=(
+            "Emit last_buy_price/last_sell_price as null placeholders to fill "
+            "in by hand; a null is no reference price. For real ones use "
+            "--seed-mm-mid-range with --seed-last-prices-from-mm."
+        ),
     )
     parser.add_argument(
         "--seed",
@@ -398,10 +449,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--post-trade-port",
-        type=int,
+        type=_port_arg,
         default=None,
         metavar="N",
-        help="post_trade_gateway.port override (> 0).",
+        help="post_trade_gateway.port override (1-65535).",
     )
     parser.add_argument(
         "--post-trade-replay-retention-sec",
@@ -479,10 +530,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--market-data-port",
-        type=int,
+        type=_port_arg,
         default=None,
         metavar="N",
-        help="market_data_gateway.port override (> 0).",
+        help="market_data_gateway.port override (1-65535).",
     )
     parser.add_argument(
         "--market-data-heartbeat-interval-sec",
@@ -561,53 +612,53 @@ def build_parser() -> argparse.ArgumentParser:
         dest="api_gateway_enabled",
         action="store_true",
         default=None,
-        help="Set api_gateway.enabled: true.",
+        help="Set api_gateways.<name>.enabled: true.",
     )
     parser.add_argument(
         "--api-gateway-disabled",
         dest="api_gateway_enabled",
         action="store_false",
         default=None,
-        help="Set api_gateway.enabled: false.",
+        help="Set api_gateways.<name>.enabled: false.",
     )
     parser.add_argument(
         "--api-gateway-host",
         default=None,
         metavar="ADDR",
-        help="api_gateway.host override.",
+        help="api_gateways.<name>.host override.",
     )
     parser.add_argument(
         "--api-gateway-port",
-        type=int,
+        type=_port_arg,
         default=None,
         metavar="N",
-        help="api_gateway.port override (> 0).",
+        help="api_gateways.<name>.port override (1-65535).",
     )
     parser.add_argument(
         "--api-gateway-swagger-enabled",
         dest="api_gateway_swagger_enabled",
         action="store_true",
         default=None,
-        help="Set api_gateway.swagger_enabled: true.",
+        help="Set api_gateways.<name>.swagger_enabled: true.",
     )
     parser.add_argument(
         "--api-gateway-swagger-disabled",
         dest="api_gateway_swagger_enabled",
         action="store_false",
         default=None,
-        help="Set api_gateway.swagger_enabled: false.",
+        help="Set api_gateways.<name>.swagger_enabled: false.",
     )
     parser.add_argument(
         "--api-gateway-log-level",
         default=None,
         choices=["debug", "info", "warning", "error"],
-        help="api_gateway.log_level override.",
+        help="api_gateways.<name>.log_level override.",
     )
     parser.add_argument(
         "--api-gateway-stats-db",
         default=None,
         metavar="PATH",
-        help="api_gateway.stats_db override.",
+        help="api_gateways.<name>.stats_db override.",
     )
     parser.add_argument(
         "--api-key",
@@ -625,14 +676,14 @@ def build_parser() -> argparse.ArgumentParser:
         dest="api_gateway_generate_keys",
         action="store_true",
         default=None,
-        help="Generate one API key for each configured ALF gateway when api_gateway is emitted.",
+        help="Generate one API key for each participant when api_gateways is written.",
     )
     api_key_group.add_argument(
         "--no-api-gateway-generate-keys",
         dest="api_gateway_generate_keys",
         action="store_false",
         default=None,
-        help="Do not auto-generate API keys for ALF gateways.",
+        help="Do not auto-generate API keys for the participants.",
     )
     parser.add_argument(
         "--api-keys-for",
@@ -647,45 +698,58 @@ def build_parser() -> argparse.ArgumentParser:
             "always yields the same keys: pass your own --seed outside a classroom."
         ),
     )
-    parser.add_argument(
+    readonly_key_group = parser.add_mutually_exclusive_group()
+    readonly_key_group.add_argument(
         "--api-gateway-readonly-key",
+        dest="api_gateway_readonly_key",
         action="store_true",
-        help="Generate an additional read-only API key with gateway_id: null.",
+        default=None,
+        help=(
+            "Generate a read-only API key (gateway_id: null) for the dashboards "
+            "(the default whenever an API gateway is written)."
+        ),
+    )
+    readonly_key_group.add_argument(
+        "--no-api-gateway-readonly-key",
+        dest="api_gateway_readonly_key",
+        action="store_false",
+        default=None,
+        help="Do not generate the read-only API key.",
     )
     parser.add_argument(
         "--api-gateway-rate-limit-writes-per-second",
         type=int,
         default=None,
         metavar="N",
-        help="api_gateway.rate_limit.writes_per_second override (> 0).",
+        help="api_gateways.<name>.rate_limit.writes_per_second override (> 0).",
     )
     parser.add_argument(
         "--api-gateway-rate-limit-burst",
         type=int,
         default=None,
         metavar="N",
-        help="api_gateway.rate_limit.burst override (> 0).",
+        help="api_gateways.<name>.rate_limit.burst override (> 0).",
     )
     parser.add_argument(
         "--api-gateway-engine-auth-sec",
-        type=float,
+        type=_finite_float_arg,
         default=None,
         metavar="SECS",
-        help="api_gateway.timeouts.engine_auth_sec override (> 0).",
+        help="api_gateways.<name>.timeouts.engine_auth_sec override (> 0).",
     )
     parser.add_argument(
         "--api-gateway-engine-reply-sec",
-        type=float,
+        type=_finite_float_arg,
         default=None,
         metavar="SECS",
-        help="api_gateway.timeouts.engine_reply_sec override (> 0).",
+        help="api_gateways.<name>.timeouts.engine_reply_sec override (> 0).",
     )
     parser.add_argument(
         "--api-gateway-wait-ack-sec",
-        type=float,
+        type=_finite_float_arg,
         default=None,
         metavar="SECS",
-        help="api_gateway.timeouts.wait_ack_sec override (> 0).",
+        help="api_gateways.<name>.timeouts.wait_ack_sec override (> 0).",
     )
     parser.add_argument(
         "--api-gateway-order-retention-sec",
@@ -693,7 +757,7 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         metavar="SECS",
         help=(
-            "api_gateway.order_retention_sec override (>= 0). Seconds a "
+            "api_gateways.<name>.order_retention_sec override (>= 0). Seconds a "
             "terminal order stays in the gateway's in-memory cache. 0 "
             "disables eviction."
         ),
@@ -733,7 +797,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--alf-port",
-        type=int,
+        type=_port_arg,
         default=None,
         metavar="N",
         help="alf_gateway.port override (1-65535).",
@@ -815,10 +879,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--balf-port",
-        type=int,
+        type=_port_arg,
         default=None,
         metavar="N",
-        help="balf_gateway.port override (> 0).",
+        help="balf_gateway.port override (1-65535).",
     )
     parser.add_argument(
         "--balf-heartbeat-interval-sec",
@@ -909,10 +973,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--dc-port",
-        type=int,
+        type=_port_arg,
         default=None,
         metavar="N",
-        help="dc_gateway.port override (> 0).",
+        help="dc_gateway.port override (1-65535).",
     )
     parser.add_argument(
         "--dc-heartbeat-interval-sec",
@@ -976,10 +1040,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--log-server-port",
-        type=int,
+        type=_port_arg,
         default=None,
         metavar="N",
-        help="log_server.port override (> 0).",
+        help="log_server.port override (1-65535).",
     )
     parser.add_argument(
         "--log-server-db-path",
@@ -994,7 +1058,7 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="N",
         help=(
             "log_server.retention_days override (>= 0; 0 means unbounded "
-            "retention, same as omitting the field with retention disabled)."
+            "retention). Default 30."
         ),
     )
     parser.add_argument(
@@ -1048,17 +1112,17 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--log-server-pub-port",
-        type=int,
+        type=_port_arg,
         default=None,
         metavar="N",
-        help="log_server.pub_port override — LALF-PS ZeroMQ PUB port (> 0).",
+        help="log_server.pub_port override — LALF-PS ZeroMQ PUB port (1-65535).",
     )
     parser.add_argument(
         "--log-server-pull-port",
-        type=int,
+        type=_port_arg,
         default=None,
         metavar="N",
-        help="log_server.pull_port override — LALF-PS ZeroMQ PULL port (> 0).",
+        help="log_server.pull_port override — LALF-PS ZeroMQ PULL port (1-65535).",
     )
     parser.add_argument(
         "--log-server-lease-sec",
@@ -1165,28 +1229,28 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--monitor-pull-port",
-        type=int,
+        type=_port_arg,
         default=None,
         metavar="PORT",
         help="monitor.pull_port override, beacons in (default 5610).",
     )
     parser.add_argument(
         "--monitor-pub-port",
-        type=int,
+        type=_port_arg,
         default=None,
         metavar="PORT",
         help="monitor.pub_port override, snapshots and events out (default 5611).",
     )
     parser.add_argument(
         "--monitor-beacon-interval-sec",
-        type=float,
+        type=_finite_float_arg,
         default=None,
         metavar="SEC",
         help="monitor.beacon_interval_sec override (> 0, default 2).",
     )
     parser.add_argument(
         "--monitor-hung-after-sec",
-        type=float,
+        type=_finite_float_arg,
         default=None,
         metavar="SEC",
         help="monitor.hung_after_sec override (> beacon interval, default 5).",
@@ -1200,7 +1264,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--monitor-book-metrics-interval-sec",
-        type=float,
+        type=_finite_float_arg,
         default=None,
         metavar="SEC",
         help="monitor.book_metrics_interval_sec override (> 0, default 10).",
@@ -1238,37 +1302,38 @@ def build_parser() -> argparse.ArgumentParser:
         dest="schedule",
         action="store_true",
         default=None,
-        help="Force emit schedule section.",
+        help=(
+            "Write the schedule section; needs --sessions-enabled, where it "
+            "is the default."
+        ),
     )
     sched_group.add_argument(
         "--no-schedule",
         dest="schedule",
         action="store_false",
         default=None,
-        help="Suppress schedule section.",
+        help="Leave the schedule section out (with --sessions-enabled).",
     )
 
-    parser.add_argument(
-        "--pre-open", default=DEFAULT_SCHEDULE["pre_open"], metavar="HH:MM"
-    )
+    parser.add_argument("--pre-open", default=None, metavar="HH:MM")
     parser.add_argument(
         "--opening-auction",
-        default=DEFAULT_SCHEDULE["opening_auction_start"],
+        default=None,
         metavar="HH:MM",
     )
     parser.add_argument(
         "--continuous",
-        default=DEFAULT_SCHEDULE["continuous_start"],
+        default=None,
         metavar="HH:MM",
     )
     parser.add_argument(
         "--closing-auction",
-        default=DEFAULT_SCHEDULE["closing_auction_start"],
+        default=None,
         metavar="HH:MM",
     )
     parser.add_argument(
         "--closing-end",
-        default=DEFAULT_SCHEDULE["closing_auction_end"],
+        default=None,
         metavar="HH:MM",
     )
 
@@ -1278,32 +1343,33 @@ def build_parser() -> argparse.ArgumentParser:
         default=False,
         help=(
             "Also emit a weekend: block (Sat+Sun) using the --weekend-* "
-            "times below. Without this flag, weekends are CLOSED."
+            "times below; needs --sessions-enabled. Without this flag, "
+            "weekends are CLOSED."
         ),
     )
     parser.add_argument(
         "--weekend-pre-open",
-        default=DEFAULT_WEEKEND_SCHEDULE["pre_open"],
+        default=None,
         metavar="HH:MM",
     )
     parser.add_argument(
         "--weekend-opening-auction",
-        default=DEFAULT_WEEKEND_SCHEDULE["opening_auction_start"],
+        default=None,
         metavar="HH:MM",
     )
     parser.add_argument(
         "--weekend-continuous",
-        default=DEFAULT_WEEKEND_SCHEDULE["continuous_start"],
+        default=None,
         metavar="HH:MM",
     )
     parser.add_argument(
         "--weekend-closing-auction",
-        default=DEFAULT_WEEKEND_SCHEDULE["closing_auction_start"],
+        default=None,
         metavar="HH:MM",
     )
     parser.add_argument(
         "--weekend-closing-end",
-        default=DEFAULT_WEEKEND_SCHEDULE["closing_auction_end"],
+        default=None,
         metavar="HH:MM",
     )
 
@@ -1315,7 +1381,8 @@ def build_parser() -> argparse.ArgumentParser:
         default=False,
         help=(
             "Also emit a holidays: block using the --holidays-* times "
-            "below. Without this flag, bank holidays are CLOSED."
+            "below; needs --sessions-enabled. Without this flag, bank "
+            "holidays are CLOSED."
         ),
     )
     holidays_group.add_argument(
@@ -1327,27 +1394,27 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--holidays-pre-open",
-        default=DEFAULT_HOLIDAYS_SCHEDULE["pre_open"],
+        default=None,
         metavar="HH:MM",
     )
     parser.add_argument(
         "--holidays-opening-auction",
-        default=DEFAULT_HOLIDAYS_SCHEDULE["opening_auction_start"],
+        default=None,
         metavar="HH:MM",
     )
     parser.add_argument(
         "--holidays-continuous",
-        default=DEFAULT_HOLIDAYS_SCHEDULE["continuous_start"],
+        default=None,
         metavar="HH:MM",
     )
     parser.add_argument(
         "--holidays-closing-auction",
-        default=DEFAULT_HOLIDAYS_SCHEDULE["closing_auction_start"],
+        default=None,
         metavar="HH:MM",
     )
     parser.add_argument(
         "--holidays-closing-end",
-        default=DEFAULT_HOLIDAYS_SCHEDULE["closing_auction_end"],
+        default=None,
         metavar="HH:MM",
     )
 

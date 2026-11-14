@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 import yaml
 
+from edumatcher.config_deploy import CompileError
 from edumatcher.config_gen.cli import main as config_gen_main
 from edumatcher.config import resolve_data_path
 from edumatcher.engine.config_loader import load_engine_config
@@ -1635,6 +1636,7 @@ def test_schedule_bad_time_format_fails(
                 "AAPL",
                 "--participants",
                 "TRADER01",
+                "--sessions-enabled",
                 "--pre-open",
                 "9am",
                 "--dry-run",
@@ -1736,37 +1738,44 @@ def test_alf_port_out_of_range_is_rejected(
             ],
         )
     assert exc.value.code == 2
-    assert "--alf-port must be in 1-65535" in capsys.readouterr().err
+    err = capsys.readouterr().err
+    assert "--alf-port" in err and "1-65535" in err
 
 
-def test_alf_port_collision_is_warned(
+def test_alf_port_collision_is_warned_and_refused(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    _run_main(
-        monkeypatch,
-        [
-            "--symbols",
-            "AAPL",
-            "--participants",
-            "TRADER01",
-            "--alf-port",
-            "5570",
-            "--market-data-gateway",
-            "--output",
-            str(tmp_path / "x.yaml"),
-        ],
-    )
+    # The warning names the clash; the deploy gate (M018) then refuses it.
+    with pytest.raises(SystemExit) as exc:
+        _run_main(
+            monkeypatch,
+            [
+                "--symbols",
+                "AAPL",
+                "--participants",
+                "TRADER01",
+                "--alf-port",
+                "5570",
+                "--market-data-gateway",
+                "--output",
+                str(tmp_path / "x.yaml"),
+            ],
+        )
+    assert exc.value.code == 2
+    assert not (tmp_path / "x.yaml").exists()
     err = capsys.readouterr().err
     assert "Port collision: alf_gateway" in err and "market_data_gateway" in err
+    assert "M018" in err
 
 
 def _engine_loader_rejects(monkeypatch: pytest.MonkeyPatch) -> None:
-    def _reject(_path: Path) -> None:
-        raise ValueError("symbols.AAPL.tick_decimals must be an integer")
+    def _reject(path: Path) -> None:
+        cause = ValueError("symbols.AAPL.tick_decimals must be an integer")
+        raise CompileError(f"{path} could not be resolved: {cause}") from cause
 
-    monkeypatch.setattr("edumatcher.config_gen.cli.load_engine_config", _reject)
+    monkeypatch.setattr("edumatcher.config_gen.cli.compile_config", _reject)
 
 
 @pytest.mark.parametrize("output", ["file", "stdout", "dry-run"])
@@ -1986,11 +1995,12 @@ def test_api_keys_for_writes_a_private_keys_file_the_gateway_reads(
     assert main_raw["api_gateways"]["default"]["credentials_file"] == "api_keys.yaml"
     assert "credentials" not in main_raw["api_gateways"]["default"]
     keys_file = tmp_path / "api_keys.yaml"
-    assert [c["gateway_id"] for c in _keys(keys_file)] == ["T1", "T3"]
+    # The listed participants, then the dashboards' read-only key (default).
+    assert [c["gateway_id"] for c in _keys(keys_file)] == ["T1", "T3", None]
     assert keys_file.stat().st_mode & 0o777 == 0o600
 
     loaded = load_named_api_gateway_configs(out_file)["default"].credentials
-    assert [c.gateway_id for c in loaded] == ["T1", "T3"]
+    assert [c.gateway_id for c in loaded] == ["T1", "T3", None]
     assert compile_config(out_file).api_gateways["default"].credentials == loaded
 
 
@@ -2034,7 +2044,8 @@ def test_api_keys_for_works_together_with_split(
         "participants.yaml",
         "api_keys.yaml",
     }
-    assert len(compile_config(out_file).api_gateways["default"].credentials) == 1
+    # T1 and the read-only key.
+    assert len(compile_config(out_file).api_gateways["default"].credentials) == 2
 
 
 @pytest.mark.parametrize(
