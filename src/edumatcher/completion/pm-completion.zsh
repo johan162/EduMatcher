@@ -5029,7 +5029,7 @@ _shtab_pm_stats_options=(
   "--sql-trace[Log executed SQLite statements from the stats writer connection]"
   "--log-level[Logging level override (default\: WARNING)]:log_level:(CRITICAL ERROR WARNING INFO DEBUG)"
   "*"{-v,--verbose}"[Increase log verbosity (-v\: INFO, -vv\: DEBUG)]"
-  {-q,--quiet}"[Reduce log output to warnings\/errors]"
+  {-q,--quiet}"[Log warnings and errors only. That is already the default\; -v and --log-level take precedence]"
   "--log-target[Where this process\'s own operational log records go\: server (default, auto-detected pm-log-srv), stdout, or file]:log_target:(server stdout file)"
   "--log-file[Operational log file path \— required when --log-target file]:PATH:"
   "--log-failover-timeout[Grace window before falling back to a local log file once pm-log-srv becomes unreachable (default\: 30, from config)]:SECONDS:"
@@ -5088,7 +5088,7 @@ _shtab_pm_stats_cli_commands() {
   local _commands=(
     daily:'Show daily OHLCV summary rows'
     dates:'List available trading dates'
-    gaps:'Show detected feed gaps (trades the recorder never received)'
+    gaps:'Show detected feed gaps: messages lost on every subscribed stream (publisher sequence), and trades missing from the engine'"'"'s trade-id sequence'
     health:'Check the pm-stats process and stats database read/write health'
     index-daily:'Show daily index OHLC summary rows'
     index-ids:'List index IDs present in stats DB'
@@ -5140,9 +5140,10 @@ _shtab_pm_stats_cli_dates_defaults_added=0
 _shtab_pm_stats_cli_gaps_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
   "--date[YYYY-MM-DD]:YYYY-MM-DD:"
-  "--from[ISO_TS]:ISO_TS:"
-  "--to[ISO_TS]:ISO_TS:"
+  "--from[Start instant, inclusive. ISO-8601\; Z or an offset is converted to UTC, a value without an offset is session-local time]:ISO_TS:"
+  "--to[End instant, inclusive\; same forms as --from]:ISO_TS:"
   "--limit[N]:N:"
+  "--after[Opaque cursor from a previous run\'s truncation notice\; fetches the next page]:CURSOR:"
 )
 
 # guard to ensure default positional specs are added only once per session
@@ -5184,8 +5185,8 @@ _shtab_pm_stats_cli_index_snapshots_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
   "--index-id[INDEX_ID]:INDEX_ID:"
   "--date[YYYY-MM-DD]:YYYY-MM-DD:"
-  "--from[ISO_TS]:ISO_TS:"
-  "--to[ISO_TS]:ISO_TS:"
+  "--from[Start instant, inclusive. ISO-8601\; Z or an offset is converted to UTC, a value without an offset is session-local time]:ISO_TS:"
+  "--to[End instant, inclusive\; same forms as --from]:ISO_TS:"
   "--limit[N]:N:"
   "--after[Opaque cursor from a previous run\'s truncation notice\; fetches the next page]:CURSOR:"
 )
@@ -5207,8 +5208,8 @@ _shtab_pm_stats_cli_order_events_options=(
   "--symbol[SYMBOL]:SYMBOL:"
   "--event-type[One of\: ACK, REJECT, FILL, AMEND, CANCEL, EXPIRE, COMBO_ACK, COMBO_REJECT, COMBO_STATUS, OCO_ACK, OCO_REJECT, OCO_CANCEL, QUOTE_ACK, QUOTE_REJECT, QUOTE_STATUS, UNKNOWN, EVENT]:TYPE:(ACK REJECT FILL AMEND CANCEL EXPIRE COMBO_ACK COMBO_REJECT COMBO_STATUS OCO_ACK OCO_REJECT OCO_CANCEL QUOTE_ACK QUOTE_REJECT QUOTE_STATUS UNKNOWN EVENT)"
   "--date[YYYY-MM-DD]:YYYY-MM-DD:"
-  "--from[ISO_TS]:ISO_TS:"
-  "--to[ISO_TS]:ISO_TS:"
+  "--from[Start instant, inclusive. ISO-8601\; Z or an offset is converted to UTC, a value without an offset is session-local time]:ISO_TS:"
+  "--to[End instant, inclusive\; same forms as --from]:ISO_TS:"
   "--limit[N]:N:"
   "--after[Opaque cursor from a previous run\'s truncation notice\; fetches the next page]:CURSOR:"
 )
@@ -5229,8 +5230,8 @@ _shtab_pm_stats_cli_snapshots_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
   "--symbol[SYMBOL]:SYMBOL:"
   "--date[YYYY-MM-DD]:YYYY-MM-DD:"
-  "--from[ISO_TS]:ISO_TS:"
-  "--to[ISO_TS]:ISO_TS:"
+  "--from[Start instant, inclusive. ISO-8601\; Z or an offset is converted to UTC, a value without an offset is session-local time]:ISO_TS:"
+  "--to[End instant, inclusive\; same forms as --from]:ISO_TS:"
   "--limit[N]:N:"
   "--after[Opaque cursor from a previous run\'s truncation notice\; fetches the next page]:CURSOR:"
 )
@@ -5250,8 +5251,8 @@ _shtab_pm_stats_cli_trades_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
   "--symbol[SYMBOL]:SYMBOL:"
   "--date[YYYY-MM-DD]:YYYY-MM-DD:"
-  "--from[ISO_TS]:ISO_TS:"
-  "--to[ISO_TS]:ISO_TS:"
+  "--from[Start instant, inclusive. ISO-8601\; Z or an offset is converted to UTC, a value without an offset is session-local time]:ISO_TS:"
+  "--to[End instant, inclusive\; same forms as --from]:ISO_TS:"
   "--limit[N]:N:"
   "--after[Opaque cursor from a previous run\'s truncation notice\; fetches the next page]:CURSOR:"
 )

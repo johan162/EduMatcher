@@ -1272,8 +1272,9 @@ class TestRetention:
                     (ts,),
                 )
                 proc._conn.execute(
-                    "INSERT INTO feed_gaps (ts, stream, expected_id, received_id,"
-                    " missing_count) VALUES (?, 'trade', 1, 2, 1)",
+                    "INSERT INTO feed_gaps (ts, stream, source, expected_id,"
+                    " received_id, missing_count)"
+                    " VALUES (?, 'trade', 'trade_id', 1, 2, 1)",
                     (ts,),
                 )
             proc._conn.execute(

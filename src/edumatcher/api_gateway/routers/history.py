@@ -28,6 +28,7 @@ from edumatcher.api_gateway.responses import (
     OrderTimeline,
     PriceSnapshotPage,
     TradePage,
+    TradeRow,
 )
 from edumatcher.api_gateway.routing import ContractRoute
 from edumatcher.api_gateway.params import OrderIdPath
@@ -492,9 +493,14 @@ async def history_trades(
         return trades, next_cursor
 
     trades, next_cursor = await _in_stats_db(request, _query)
-    return _paginated_envelope(
-        "trades", to_display_prices(trades, "trades"), next_cursor
-    )
+    # query_trades also selects the columns pm-stats-cli shows (match_type,
+    # the order ids, msg_id); the public trade row is narrower.
+    fields = TradeRow.model_fields
+    rows = [
+        {key: value for key, value in row.items() if key in fields}
+        for row in to_display_prices(trades, "trades")
+    ]
+    return _paginated_envelope("trades", rows, next_cursor)
 
 
 @router.get(

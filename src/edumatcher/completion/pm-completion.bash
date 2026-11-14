@@ -8985,7 +8985,7 @@ _shtab_pm_stats_cli_index_daily_option_strings=(-h --help --date --from-date --t
 _shtab_pm_stats_cli_index_snapshots_option_strings=(-h --help --index-id --date --from --to --limit --after)
 _shtab_pm_stats_cli_index_ids_option_strings=(-h --help --date)
 _shtab_pm_stats_cli_instruments_option_strings=(-h --help --symbol)
-_shtab_pm_stats_cli_gaps_option_strings=(-h --help --date --from --to --limit)
+_shtab_pm_stats_cli_gaps_option_strings=(-h --help --date --from --to --limit --after)
 _shtab_pm_stats_cli_health_option_strings=(-h --help -q --quiet --extended -v --verbose)
 _shtab_pm_stats_cli_option_strings=(-h --help --version --db --format --no-header --timezone)
 

@@ -214,12 +214,13 @@ def test_stats_counts_recorded_and_dropped_events(
 ) -> None:
     calls = {"n": 0}
 
-    def dispatch(_topic: str, _payload: Any, _msg_id: str | None = None) -> None:
+    def dispatch(_topic: str, _payload: Any, _msg_id: str | None = None) -> bool:
         calls["n"] += 1
         if calls["n"] == 2:
             raise RuntimeError("disk full")
         if calls["n"] >= 4:
             stats_proc._running = False
+        return True
 
     monkeypatch.setattr(stats_proc, "_dispatch", dispatch)
     monkeypatch.setattr(zmq, "Poller", lambda: _StatsPoller(stats_proc))

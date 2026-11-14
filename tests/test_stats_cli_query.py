@@ -280,12 +280,16 @@ def test_query_trades_symbol_and_date_filter(seeded_db: Path) -> None:
 
 
 def test_query_symbols_uses_union_across_tables(seeded_db: Path) -> None:
+    """TSLA is seeded in trade_log alone, which pm-stats never writes (a
+    trade and its daily_stats row commit together). Without a date the tape
+    is not scanned (P3); with one, its indexed date range still is."""
     conn = open_readonly_connection(seeded_db)
     rows = query_symbols(conn, date_value=None, tz=timezone.utc)
+    dated = query_symbols(conn, date_value="2026-06-14", tz=timezone.utc)
     conn.close()
 
-    symbols = [row["symbol"] for row in rows]
-    assert symbols == ["AAPL", "MSFT", "TSLA"]
+    assert [row["symbol"] for row in rows] == ["AAPL", "MSFT"]
+    assert "TSLA" in [row["symbol"] for row in dated]
 
 
 def test_query_dates_uses_daily_stats_as_canonical_source(seeded_db: Path) -> None:

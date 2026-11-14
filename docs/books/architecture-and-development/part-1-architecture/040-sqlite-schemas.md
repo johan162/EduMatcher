@@ -40,6 +40,7 @@ constraints, keys, defaults, indexes, and views where defined.
 | `table: feed_gaps` | `seq` | `INTEGER` | no |  | 1 |
 | `table: feed_gaps` | `ts` | `TEXT` | yes |  |  |
 | `table: feed_gaps` | `stream` | `TEXT` | yes |  |  |
+| `table: feed_gaps` | `source` | `TEXT` | yes |  |  |
 | `table: feed_gaps` | `expected_id` | `INTEGER` | yes |  |  |
 | `table: feed_gaps` | `received_id` | `INTEGER` | yes |  |  |
 | `table: feed_gaps` | `missing_count` | `INTEGER` | yes |  |  |
@@ -155,6 +156,11 @@ CREATE TABLE feed_gaps (
     seq             INTEGER PRIMARY KEY AUTOINCREMENT,
     ts              TEXT    NOT NULL,
     stream          TEXT    NOT NULL,
+    -- Which check found the gap, and so which counter the ids below are in:
+    -- 'publisher_seq' (the per-topic publisher sequence; any stream, counts
+    -- messages) or 'trade_id' (the engine trade-id suffix; trade.executed
+    -- only, counts trades). One lost trade is usually found by both.
+    source          TEXT    NOT NULL,
     -- The id we expected next, the one that actually arrived, and how many
     -- are unaccounted for between them.
     expected_id     INTEGER NOT NULL,
@@ -240,6 +246,9 @@ CREATE TABLE order_events (
     side            TEXT,
     order_type      TEXT,
     tif             TEXT,
+    -- price and fill_price are display money exactly as the engine published
+    -- them on the private order events, not ticks; there is no tick_decimals
+    -- column here.
     price           REAL,
     quantity        INTEGER,
     remaining_qty   INTEGER,
@@ -377,6 +386,12 @@ CREATE INDEX idx_tl_symbol_qty ON trade_log(symbol, quantity DESC, ts)
 
 ```sql
 CREATE INDEX idx_tl_symbol_ts ON trade_log(symbol, ts)
+```
+
+#### `index idx_tl_ts`
+
+```sql
+CREATE INDEX idx_tl_ts ON trade_log(ts)
 ```
 
 ## `clearing.db`

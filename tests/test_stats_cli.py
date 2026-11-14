@@ -536,8 +536,8 @@ def test_csv_no_rows_still_prints_header(
     out = capsys.readouterr().out.strip()
 
     assert out == (
-        "ts,trade_id,symbol,price,quantity,aggressor_side,"
-        "buy_gateway_id,sell_gateway_id"
+        "ts,trade_id,symbol,price,quantity,aggressor_side,match_type,"
+        "buy_gateway_id,sell_gateway_id,buy_order_id,sell_order_id,msg_id"
     )
 
 

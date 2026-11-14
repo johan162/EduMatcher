@@ -32,9 +32,19 @@ Because ``'+'`` (0x2B) sorts before ``'.'`` (0x2E), a bound rendered *without*
 a fractional part sorts at or before every same-second row in either format,
 and a bound rendered *with* one sorts after the second-precision form of the
 same second — which is arithmetically correct, since ``09:00:00.500`` really
-is later than ``09:00:00``. :func:`canonical_ts` therefore emits a fractional
-part only when it is non-zero, and that single rule makes text comparison
-agree with instant comparison across both stored precisions.
+is later than ``09:00:00``.
+
+That gives two rules, one per kind of bound:
+
+- A **lower** bound (``ts >= b``) and a half-open **upper** bound
+  (``ts < b``) are rendered by :func:`canonical_ts`, with a fractional part only
+  when it is non-zero: ``09:00:00+00:00`` sorts at or before both
+  ``09:00:00+00:00`` and ``09:00:00.000+00:00``, so ``>=`` keeps both and ``<``
+  drops both.
+- An **inclusive upper** bound (``ts <= b``) always carries milliseconds:
+  ``09:00:00.000+00:00`` sorts at or after both stored forms of that instant,
+  so ``<=`` keeps both. Without the fraction it sorted before the
+  millisecond form and dropped a row stamped exactly ``.000``.
 """
 
 from __future__ import annotations
@@ -105,12 +115,14 @@ def trading_day_bounds(date_str: str, tz: tzinfo) -> tuple[str, str]:
     return canonical_ts(start), canonical_ts(end)
 
 
-def normalise_ts_bound(raw: str, tz: tzinfo) -> str:
+def normalise_ts_bound(raw: str, tz: tzinfo, *, inclusive_upper: bool = False) -> str:
     """Parse a user-supplied ISO timestamp and render it as a comparable bound.
 
     Accepts a ``Z`` suffix and any UTC offset, converting both to UTC. A value
     with no offset at all is read as *session-local* time, consistent with
-    ``--date`` being a trading date in the session timezone.
+    ``--date`` being a trading date in the session timezone. With
+    *inclusive_upper* the bound is rendered for ``ts <= bound`` (see the
+    module docstring).
 
     Raises :class:`ValueError` if *raw* is not a parseable ISO timestamp.
     """
@@ -120,4 +132,6 @@ def normalise_ts_bound(raw: str, tz: tzinfo) -> str:
     moment = datetime.fromisoformat(candidate)
     if moment.tzinfo is None:
         moment = moment.replace(tzinfo=tz)
+    if inclusive_upper:
+        return moment.astimezone(timezone.utc).isoformat(timespec="milliseconds")
     return canonical_ts(moment)

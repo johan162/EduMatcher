@@ -108,13 +108,19 @@ $ sqlite3 data/stats.db "SELECT key, value FROM stats_meta"
 recorder|pm-stats
 session_timezone|Europe/Stockholm
 snapshot_interval_sec|900.0
+keep_order_events_days|0.0
+human_gateways|
+keep_human_order_events_days|0.0
 ```
+
+The last three record the order-event retention in force (see
+[Retention](#retention)); they are rewritten on every start.
 
 The schema version is in `PRAGMA user_version`:
 
 ```console
 $ sqlite3 data/stats.db "PRAGMA user_version"
-11
+12
 ```
 
 The version is bumped both when the table definitions change and when the
@@ -129,8 +135,10 @@ version 8 replaced `order_events.trade_id` (always empty) with `trade_ids`, and
 version 9 added `order_events.reject_code`, the rejection's machine-readable
 code (until then only the reason text was kept), version 10 added the order
 ids, `match_type` and `msg_id` to `trade_log` and `msg_id` to `order_events`,
-and version 11 keyed `index_level_snapshots` on an arrival `seq`, so that two
-updates in one millisecond are both kept.
+version 11 keyed `index_level_snapshots` on an arrival `seq`, so that two
+updates in one millisecond are both kept, and version 12 added
+`feed_gaps.source`, which says which check found a gap, and an index on
+`trade_log(ts)`.
 
 `pm-stats` refuses to open a database whose `user_version` does not match the
 build, rather than writing new-format rows into an old-format file. If you hit
@@ -164,12 +172,10 @@ long, and the range follows local midnight either side.
 | No offset | `2026-06-14T11:00:00` | 11:00 **session-local**, so 09:00 UTC in Stockholm |
 
 The three rows above are all converted to the same UTC bound. Both bounds are
-inclusive, but the comparison is against the stored timestamp *text*, and a
-bound written without fractional seconds (`16:30:00+00:00`) sorts *before* every
-stored `16:30:00.mmm+00:00` value. So `--to 2026-06-14T16:30:00` excludes the
-whole `16:30:00` second, including a trade at exactly `16:30:00.000`. Give the
-bound sub-second precision (`--to 2026-06-14T16:30:00.999`) if you want that
-second included.
+inclusive: `--to 2026-06-14T16:30:00` includes a trade at exactly
+`16:30:00.000` (and a second-precision snapshot at `16:30:00`) but not one at
+`16:30:00.001`. Give the bound sub-second precision
+(`--to 2026-06-14T16:30:00.999`) to include the whole second.
 
 
 
@@ -456,8 +462,8 @@ Aggregated OHLCV (open, high, low, close, volume) and related metrics for each s
 | `vwap`                | REAL    | yes   | Volume-weighted average price **in ticks**. Derived (`turnover / volume`), so REAL |
 | `open_bid`            | INTEGER | yes   | Best bid at first book update of the day, **in ticks**            |
 | `open_ask`            | INTEGER | yes   | Best ask at first book update of the day, **in ticks**            |
-| `close_bid`           | INTEGER | yes   | Best bid at engine shutdown, **in ticks**                         |
-| `close_ask`           | INTEGER | yes   | Best ask at engine shutdown, **in ticks**                         |
+| `close_bid`           | INTEGER | yes   | Best bid at engine shutdown (`system.eod`), **in ticks**; filed under the trading date the symbol was trading on, even when the EOD arrives after midnight |
+| `close_ask`           | INTEGER | yes   | Best ask at engine shutdown (`system.eod`), **in ticks**; as `close_bid` |
 | `largest_trade_qty`   | INTEGER | yes   | Quantity of the single largest trade. Note this is `0`, not null, on a day with no trades |
 | `largest_trade_price` | INTEGER | yes   | Price of the single largest trade, **in ticks**                   |
 | `tick_decimals`       | INTEGER | no    | Decimal scale for this row's tick columns                         |
@@ -536,8 +542,12 @@ of the same durable trade is deduplicated regardless of its delivery timestamp.
 | `buy_gateway_id`  | TEXT    | yes   | Gateway that submitted the buy order                                 |
 | `sell_gateway_id` | TEXT    | yes   | Gateway that submitted the sell order                                |
 | `aggressor_side`  | TEXT    | yes   | `BUY` or `SELL` for a continuous match; `AUCTION` for an uncross print |
+| `buy_order_id`    | TEXT    | yes   | The buy order's id                                                   |
+| `sell_order_id`   | TEXT    | yes   | The sell order's id                                                  |
+| `match_type`      | TEXT    | yes   | How the trade came about: `CONTINUOUS`, `OPENING_AUCTION`, `CLOSING_AUCTION`, … |
+| `msg_id`          | TEXT    | yes   | The audit message id of the print, joining the row to its audit line |
 
-**Index**: `(symbol, ts)`.
+**Indexes**: `(symbol, ts)`, `(symbol, quantity DESC, ts)`, `(ts)`.
 
 `aggressor_side` is mirrored from the engine payload verbatim:
 
@@ -578,9 +588,10 @@ Messages (including trades) the recorder can prove it never received.
 | `seq`           | INTEGER | Monotonic local sequence                                        |
 | `ts`            | TEXT    | UTC instant the gap was detected: the trade's timestamp for a trade-id gap, the receipt time for a publisher-sequence gap |
 | `stream`        | TEXT    | Which topic the gap was detected on — `trade.executed` or any other subscribed topic (e.g. `book.AAPL`) |
-| `expected_id`   | INTEGER | The counter value expected next (trade-id suffix, or publisher sequence number) |
+| `source`        | TEXT    | Which check found it, and so which counter the ids are in: `publisher_seq` (the per-topic publisher sequence) or `trade_id` (the engine trade-id suffix, `trade.executed` only) |
+| `expected_id`   | INTEGER | The counter value expected next                                 |
 | `received_id`   | INTEGER | The counter value that actually arrived                         |
-| `missing_count` | INTEGER | How many trades are unaccounted for between them                |
+| `missing_count` | INTEGER | How many are unaccounted for between them: messages for `publisher_seq`, trades for `trade_id` |
 
 ZeroMQ PUB/SUB drops messages silently once a subscriber falls behind its
 high-water mark, so without this table a session that lost trades is
@@ -600,7 +611,13 @@ Detection works two ways, and both write here:
 
 The two overlap on trades deliberately: the trade-id check still catches loss
 that happened upstream of the publisher, which a publisher-side counter cannot
-see by construction.
+see by construction. One trade lost at the subscriber is therefore usually two
+rows, one per `source`, and the `stats.feed_gaps` counter counts rows. To count
+lost trades, sum `missing_count` over `source = 'trade_id'` only:
+
+```console
+$ sqlite3 data/stats.db "SELECT SUM(missing_count) FROM feed_gaps WHERE source = 'trade_id'"
+```
 
 !!! note "What an empty `feed_gaps` does and does not prove"
     A sequence counter restarts when its publisher restarts. For trade ids, the
@@ -858,6 +875,12 @@ when `pm-stats` starts and then once an hour; the daily rollups are kept for
 good. The file stops growing once it holds N days, because SQLite reuses the
 freed pages.
 
+Each round deletes in batches of a few thousand rows, one batch per table
+between messages, so recording carries on during a large deletion (for example
+the first round after a long stop) instead of pausing until it ends. A round
+over a million rows therefore takes a little longer to finish than one
+transaction would.
+
 Under an AI swarm, `order_events` are almost all of the file. Give them a
 retention of their own so a long run keeps hours of them and days of everything
 else:
@@ -1084,11 +1107,11 @@ pm-stats-cli trades --limit 50
 **Example output:**
 
 ```
-ts                            | trade_id         | symbol | price | quantity | aggressor_side | buy_gateway_id | sell_gateway_id
-------------------------------+------------------+--------+-------+----------+----------------+----------------+----------------
-2026-06-14T09:00:01.000+00:00 | 000042-000000001 | AAPL   | 150   | 100      | BUY            | TRADER01       | MM01           
-2026-06-14T09:00:05.123+00:00 | 000042-000000002 | AAPL   | 150.5 | 50       | AUCTION        | MM01           | TRADER02       
-2026-06-14T09:00:10.456+00:00 | 000042-000000003 | AAPL   | 150.2 | 200      | SELL           | TRADER02       | TRADER01       
+ts                            | trade_id         | symbol | price | quantity | aggressor_side | match_type      | buy_gateway_id | sell_gateway_id | buy_order_id | sell_order_id | msg_id                    
+------------------------------+------------------+--------+-------+----------+----------------+-----------------+----------------+-----------------+--------------+---------------+---------------------------
+2026-06-14T09:00:01.000+00:00 | 000042-000000001 | AAPL   | 150   | 100      | BUY            | CONTINUOUS      | TRADER01       | MM01            | O-AAPL-1     | O-AAPL-7      | 01JXR8M4Q7K2T9ZB3VWN5H6C1D
+2026-06-14T09:00:05.123+00:00 | 000042-000000002 | AAPL   | 150.5 | 50       | AUCTION        | OPENING_AUCTION | MM01           | TRADER02        | O-AAPL-9     | O-AAPL-4      | 01JXR8M9F2D6S1QK8YHT0P4A7E
+2026-06-14T09:00:10.456+00:00 | 000042-000000003 | AAPL   | 150.2 | 200      | SELL           | CONTINUOUS      | TRADER02       | TRADER01        | O-AAPL-12    | O-AAPL-11     | 01JXR8MEB5W3N7C0R2JX9GQ6VM
 ```
 
 #### `order-events` — Private Order Lifecycle Events
@@ -1120,14 +1143,15 @@ pm-stats-cli --format json order-events --gateway TRADER01 --from 2026-06-14T09:
 **Example output:**
 
 ```
-seq | ts                            | event_type | order_id | gateway_id | symbol | side | order_type | tif | price | quantity | remaining_qty | status   | fill_price | fill_qty | trade_ids              | reason | client_tag | combo_parent_id | oco_group_id | priority_reset
-----+-------------------------------+------------+----------+------------+--------+------+------------+-----+-------+----------+---------------+----------+------------+----------+------------------------+--------+------------+-----------------+--------------+---------------
-1   | 2026-06-14T09:00:00.100+00:00 | ACK        | O-AAPL-1 | TRADER01   | AAPL   | BUY  | LIMIT      | DAY | 150   | 100      | 100           | ACCEPTED |            |          |                        |        |            |                 |              |               
-2   | 2026-06-14T09:00:01.000+00:00 | FILL       | O-AAPL-1 | TRADER01   | AAPL   | BUY  |            |     |       |          | 0             | FILLED   | 150        | 100      | ["000042-000000001"]   |        |            |                 |              |               
+seq | ts                            | event_type | order_id | gateway_id | symbol | side | order_type | tif | price | quantity | remaining_qty | status   | fill_price | fill_qty | trade_ids            | reason | reject_code | client_tag | combo_parent_id | oco_group_id | priority_reset | msg_id                    
+----+-------------------------------+------------+----------+------------+--------+------+------------+-----+-------+----------+---------------+----------+------------+----------+----------------------+--------+-------------+------------+-----------------+--------------+----------------+---------------------------
+1   | 2026-06-14T09:00:00.100+00:00 | ACK        | O-AAPL-1 | TRADER01   | AAPL   | BUY  | LIMIT      | DAY | 150   | 100      | 100           | ACCEPTED |            |          |                      |        |             |            |                 |              |                | 01JXR8M4M1V6H9T2Q5ZC8KD3XB
+2   | 2026-06-14T09:00:01.000+00:00 | FILL       | O-AAPL-1 | TRADER01   | AAPL   | BUY  |            |     |       |          | 0             | FILLED   | 150        | 100      | ["000042-000000001"] |        |             |            |                 |              |                | 01JXR8M4QA3P0R7N1W8YF5S2JK
 ```
 
-All 21 `order_events` columns are printed (the table is wide). `price` and
-`fill_price` are display money, exactly as stored.
+All 23 `order_events` columns are printed (the table is wide), including
+`reject_code` on a `*_REJECT` row and the `msg_id` that joins a row to its
+audit line. `price` and `fill_price` are display money, exactly as stored.
 
 #### `order-lifecycle` — One Order's Event Trail
 
@@ -1239,13 +1263,13 @@ pm-stats-cli index-snapshots --index-id EDU100 --limit 50
 ```
 ts                            | index_id | level   | aggregate_cap | divisor | session_state   | day_open | day_high | day_low
 ------------------------------+----------+---------+---------------+---------+-----------------+----------+----------+--------
-2026-06-14T09:00:00.000+00:00 | EDU100   | 1042.1  | 7.35e+12      | 1.25    | OPENING_AUCTION | 1042.1   | 1042.1   | 1042.1 
-2026-06-14T09:00:05.500+00:00 | EDU100   | 1043.85 | 7.362e+12     | 1.25    | CONTINUOUS      | 1042.1   | 1043.85  | 1042.1 
+2026-06-14T09:00:00.000+00:00 | EDU100   | 1042.1  | 7350000000000 | 1.25    | OPENING_AUCTION | 1042.1   | 1042.1   | 1042.1 
+2026-06-14T09:00:05.500+00:00 | EDU100   | 1043.85 | 7362000000000 | 1.25    | CONTINUOUS      | 1042.1   | 1043.85  | 1042.1 
 ```
 
-The table renderer prints floats with `%g`, which keeps six significant digits
-and switches to exponent form for large values — hence `7.35e+12`. Use
-`--format json` or `--format csv` for the full-precision numbers.
+The table renderer prints numbers with up to 15 significant digits, so every
+display price, level and turnover appears exactly as stored; `--format json`
+and `--format csv` give the same values in machine-readable form.
 
 #### `instruments` — Instrument Reference Data
 
@@ -1278,20 +1302,25 @@ pm-stats-cli gaps --from 2026-06-14T09:00:00Z --to 2026-06-14T12:00:00Z
 
 **Options:**
 
-| Option    | Default   | Description                  |
-|-----------|-----------|------------------------------|
-| `--date`  | all dates | Restrict to one trading date |
-| `--from`  | —         | Start timestamp (inclusive)  |
-| `--to`    | —         | End timestamp (inclusive)    |
-| `--limit` | 500       | Maximum rows to return       |
+| Option    | Default   | Description                                      |
+|-----------|-----------|--------------------------------------------------|
+| `--date`  | all dates | Restrict to one trading date                     |
+| `--from`  | —         | Start timestamp (inclusive)                      |
+| `--to`    | —         | End timestamp (inclusive)                        |
+| `--limit` | 500       | Maximum rows to return                           |
+| `--after` | —         | Continue from a previous run's truncation cursor |
+
+More than `--limit` gaps print the same truncation warning and cursor as the
+other commands.
 
 **Example output:**
 
 ```
-seq | ts                            | stream         | expected_id | received_id | missing_count
-----+-------------------------------+----------------+-------------+-------------+--------------
-1   | 2026-06-14T09:14:02.115+00:00 | trade.executed | 3           | 6           | 3
-2   | 2026-06-14T11:41:55.008+00:00 | trade.executed | 8           | 20          | 12
+seq | ts                            | stream         | source        | expected_id | received_id | missing_count
+----+-------------------------------+----------------+---------------+-------------+-------------+--------------
+1   | 2026-06-14T09:14:02.115+00:00 | trade.executed | publisher_seq | 1203        | 1206        | 3            
+2   | 2026-06-14T09:14:02.115+00:00 | trade.executed | trade_id      | 3           | 6           | 3            
+3   | 2026-06-14T11:41:55.008+00:00 | book.AAPL      | publisher_seq | 88410       | 88422       | 12           
 ```
 
 `No rows found.` is the healthy result. See the
