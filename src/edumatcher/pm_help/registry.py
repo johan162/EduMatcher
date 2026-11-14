@@ -462,8 +462,8 @@ _CORE_RUNTIME: tuple[CommandInfo, ...] = (
             ),
             Option(
                 "--print-every N",
-                "100",
-                "Print in-memory P&L snapshot every N trades (0 disables)",
+                "0",
+                "Print a P&L table of every position every N trades (0: never)",
             ),
             Option(
                 "--retention-days N",
@@ -2217,7 +2217,8 @@ _SETUP_AND_CONFIG: tuple[CommandInfo, ...] = (
             Option(
                 "--sessions-enabled",
                 "disabled",
-                "Enable scheduler-driven sessions",
+                "Enable scheduler-driven sessions; without it the file says "
+                "sessions_enabled: false (an absent key means enabled)",
                 group="Session & engine",
             ),
             Option(
@@ -2233,9 +2234,10 @@ _SETUP_AND_CONFIG: tuple[CommandInfo, ...] = (
                 group="Collars & circuit breakers",
             ),
             Option(
-                "--cb-levels NAME:SHIFT[:HALT_MINS[:MODE]]",
+                "--cb-levels NAME:SHIFT[:HALT_MINS]",
                 "-",
-                "Circuit-breaker level definition; repeatable",
+                "Circuit-breaker levels (HALT_MINS > 0; omit for rest of day); "
+                "repeatable. Without it no circuit_breaker_defaults is written",
                 group="Collars & circuit breakers",
             ),
             Option(
@@ -2277,7 +2279,7 @@ _SETUP_AND_CONFIG: tuple[CommandInfo, ...] = (
             Option(
                 "--schedule / --no-schedule",
                 "auto",
-                "Force include/suppress the schedule section",
+                "Write / leave out the schedule section (needs --sessions-enabled)",
                 group="Schedule",
             ),
             Option(
@@ -2327,7 +2329,9 @@ _SETUP_AND_CONFIG: tuple[CommandInfo, ...] = (
         related=("pm-config-gen", "pm-config-deploy", "pm-config-show"),
         doc_anchor="pm-cverifier-config-verifier",
         notes=(
-            "Exit 0: no findings at/above threshold. Exit 1: one or more findings at/above threshold.",
+            "Exit 0: no errors or warnings (advisories allowed). Exit 1: warnings, "
+            "no errors. Exit 2: errors, warnings under --strict, or a file that "
+            "could not be verified. --level only filters what is shown.",
         ),
     ),
     CommandInfo(

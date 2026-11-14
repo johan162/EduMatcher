@@ -439,7 +439,7 @@ that matter for a long-running exchange:
 | `pm-stats` | `--keep-order-events-days N` | as `--keep-days` | Separate (shorter) retention for order events, which dominate the file under an AI swarm |
 | `pm-stats` | `--human-gateways GLOB,…` and `--keep-human-order-events-days N` | none | Give the order events of people (e.g. `'TRADER*'`) a longer retention than bots |
 | `pm-clearing` | `--retention-days N` | `90` | Delete individual `trade_events` rows older than N days at startup and at every close; `0` disables pruning. Daily summaries are kept |
-| `pm-clearing` | `--print-every N` | `100` | Print a P&L table every N trades; `0` never |
+| `pm-clearing` | `--print-every N` | `0` | Print a P&L table of every position every N trades; `0` never. Drawn on the thread that reads the trade feed: with thousands of positions one table takes seconds, so keep it for small classroom ledgers |
 | `pm-clearing` | `--flush-size N`, `--flush-interval SEC` | `100`, `5.0` | Write the buffered trades to SQLite when N have accumulated (1–100) or SEC seconds (≥ 0.1) have passed |
 | `pm-clearing` | `--datapath PATH`, `--db-name NAME` | data directory, `clearing.db` | Where the database lives |
 

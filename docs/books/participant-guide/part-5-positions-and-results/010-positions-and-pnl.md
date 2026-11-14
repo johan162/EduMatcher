@@ -103,7 +103,8 @@ pm-clearing [OPTIONS]
   --db-name NAME         SQLite filename within data dir (default: clearing.db)
   --flush-size N         Max buffered trades before flush (1..100, default: 100)
   --flush-interval SEC   Max seconds between flushes (>=0.1, default: 5)
-  --print-every N        Print P&L summary every N trades (0 = never, default: 100)
+  --print-every N        Print a P&L table of every position every N trades
+                         (0 = never, the default)
   --retention-days N     Prune trade_events rows older than N days on startup,
                          at every close and on each system.eod (default: 90) —
                          see the note under Retention below for what `0` does
@@ -1178,7 +1179,13 @@ false positives for legitimately pruned days.
 | `--retention-days N` | integer | off | Ignore dates older than N days (match `pm-clearing --retention-days`) so pruned-raw days are not flagged |
 
 Output columns: `side` (`BUY` or `SELL`), `trade_date`, `gateway_id`, `symbol`,
-`raw_qty`, `summary_qty`, `qty_diff`, `raw_notional`, `summary_notional`, `notional_diff`.
+`raw_qty`, `summary_qty`, `qty_diff`, `raw_notional`, `summary_notional`,
+`notional_diff` (in currency; ticks with `--raw-output`), `tick_decimals`.
+
+Raw trades are pruned after the retention window while the daily summaries
+stay, so days older than the oldest retained trade cannot be compared. They
+are left out and counted on a line of their own, for example
+`3 day(s) before 2026-07-01 not reconciled (raw trades pruned).`
 
 ```bash
 # Full reconciliation (both sides)
@@ -1188,12 +1195,11 @@ pm-clearing-cli reconcile
 pm-clearing-cli reconcile --gateway TRADER01
 pm-clearing-cli reconcile --from 2026-07-01 --to 2026-07-05
 
-# Ignore days older than the raw-retention window (avoids false positives
-# for pruned days once trade_events has been pruned but summaries remain)
+# Ignore days older than N days as well (pruned days are skipped anyway)
 pm-clearing-cli reconcile --retention-days 90
 
-# JSON output (on a clean DB the line "OK — no discrepancies found." is printed
-# on stdout ahead of the payload, so filter it or check the exit status)
+# JSON output: only the discrepancy list on stdout; the "OK" and
+# "not reconciled" lines go to stderr
 pm-clearing-cli --format json reconcile
 ```
 
@@ -1489,10 +1495,13 @@ pm-clearing-cli --format csv daily --date 2026-07-05 > clearing_2026-07-05.csv
 ```bash
 pm-clearing-cli reconcile
 # OK — no discrepancies found.
+# 2 day(s) before 2026-07-01 not reconciled (raw trades pruned).
 # No rows found.
 ```
 
 If the reconcile output shows rows, contact the EduMatcher operations team.
+Days reported as "not reconciled" are not a problem: their individual trades
+were pruned after the retention window, so there is nothing left to compare.
 
 ### "How do I isolate per-session data?"
 

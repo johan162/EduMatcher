@@ -641,6 +641,7 @@ stop the circuit-breaker timers behind it.
 | | `audit.missed_messages` | C | | Proven forward gaps in the engine's socket-wide sequence |
 | | `audit.sequence_discontinuities` | C | | Repeated or decreasing engine sequence without an observed startup; exact loss count is unknown |
 | `pm-clearing` | `clearing.trades_settled` | C | | Settlement path |
+| | `clearing.flush_failures` | C | | Failed writes of the trade buffer to `clearing.db` (clearing review 2026-11, WP-CLR03); the trades stay buffered and are retried |
 | `pm-scheduler` | `sched.next_transition_in_s` | G | | Seconds until next scheduled transition |
 | `pm-mm-bot` (B5.4) | `mmbot.msgs_out` / `mmbot.msgs_in` | C | | Messages sent to and received from the engine bus |
 | | `mmbot.symbols_active` | G | | Symbols being quoted |

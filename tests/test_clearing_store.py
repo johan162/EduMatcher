@@ -42,7 +42,6 @@ from edumatcher.clearing.store import (
     record_gateway_connect,
     record_gateway_disconnect,
     record_session_event,
-    validate_date,
     write_close_snapshot,
 )
 from edumatcher.clearing.ledger import Ledger
@@ -882,19 +881,6 @@ class TestQueryReconcile:
         buy_rows = [r for r in rows if r["side"] == "BUY"]
         assert len(buy_rows) == 1
         assert buy_rows[0]["qty_diff"] == 5  # 10 raw − 5 summary = 5
-
-
-class TestValidateDate:
-    def test_valid_date_passes(self) -> None:
-        validate_date("2026-07-01")  # should not raise
-
-    def test_invalid_format_raises(self) -> None:
-        with pytest.raises(ValueError):
-            validate_date("01-07-2026")
-
-    def test_non_date_raises(self) -> None:
-        with pytest.raises(ValueError):
-            validate_date("not-a-date")
 
 
 class TestGatewaySessionsWrite:

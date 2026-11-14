@@ -151,16 +151,15 @@ the quote you send replaces a seed that looks exactly the same.
     reference prices, so writing them over your hand-written
     `engine_config.yaml` would silently lose what later chapters need.
 
-    The first form is a trap worth knowing about: `pm-cverifier` will report
-    **0 errors** on the stub — `market_maker_quotes` entries exist, so M001
-    doesn't fire, and the required keys are all present (just `null`), so the
-    schema check doesn't fire either. The verifier cannot see that `null` is
-    unusable. It's `pm-config-deploy` that catches it, at compile time, with
-    `Symbol 'AAPL': market_maker_quotes[0] is invalid` — because loading the
-    artifact tries `float(None)`. `pm-config-gen` itself warns you about this
-    up front with `[HINT] Fill all market_maker_quotes bid_price/ask_price
-    values before starting pm-engine`, right after it writes the file — that
-    hint is the moment to either fill the two prices in by hand or rerun with
+    The first form is a template, not a finished file: the stub's `bid_price`
+    and `ask_price` keys are present but `null`, and no loader can use a null
+    price. `pm-cverifier` reports each one as an error
+    (`[S014] ERROR  'symbols.AAPL.market_maker_quotes[0].bid_price' has no
+    value (null).`), and `pm-config-deploy` refuses the file until they are
+    set. `pm-config-gen` says so as it writes the file
+    (`[HINT] Fill all market_maker_quotes bid_price/ask_price values:
+    pm-config-deploy refuses the file until they are set …`) — that is the
+    moment to either fill the prices in by hand or rerun with
     `--seed-mm-mid-range` instead.
 
     If you never want seeded quotes at all (a deliberately empty book for a
@@ -172,7 +171,7 @@ Check, deploy, then restart the engine — editing the YAML alone changes
 nothing, because every process reads the compiled artifact:
 
 ```bash
-pm-cverifier engine_config.yaml       # expect 0 errors (the M032 warning is fine)
+pm-cverifier engine_config.yaml       # expect 0 errors
 pm-config-deploy engine_config.yaml
 cp engine_config.yaml engine_config.ex1.yaml   # keep a copy of this state
 ```

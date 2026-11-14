@@ -1062,7 +1062,7 @@ pm-clearing [--datapath PATH] [--db-name NAME] [--flush-size N] [--flush-interva
 | `--db-name` | `clearing.db` | SQLite filename when `--datapath` is a directory |
 | `--flush-size` | `100` | Flush immediately when buffered trades reaches N |
 | `--flush-interval` | `5.0` | Flush interval in seconds when buffer is non-empty |
-| `--print-every` | `100` | Print in-memory P&L snapshot every N trades (`0` disables) |
+| `--print-every` | `0` | Print a P&L table of every position every N trades (`0` disables, the default) |
 | `--retention-days` | `90` | Prune `trade_events` rows older than N days on startup and at every close of the market (`0` disables pruning) |
 | `--sql-trace` | off | Log executed SQLite SQL statements from the clearing writer connection |
 | `--log-level` | `WARNING` | Explicit log level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |

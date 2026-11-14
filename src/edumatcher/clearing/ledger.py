@@ -284,7 +284,7 @@ class Ledger:
                 ),
                 tick_decimals=int(r["tick_decimals"]),
             )
-            log.debug("ledger restored positions=%d", len(rows))
+        log.debug("ledger restored positions=%d", len(rows))
 
     def apply_trade(
         self,
@@ -357,6 +357,24 @@ class Ledger:
             pos.mark_price = price
             pos.unrealized_pnl = pos.net_qty * (float(price) - pos.avg_cost)
             self._remarked_keys.add(key)
+
+    def mark_symbol(
+        self, symbol: str, price: int, tick_decimals: int
+    ) -> set[tuple[str, str]]:
+        """Mark every position in ``symbol`` at ``price`` (ticks of
+        ``tick_decimals``), flat ones included, and return their keys.
+
+        The end-of-day mark: each position is first converted to the mark's
+        precision, as a trade at that precision would convert it, so the
+        mark and the position are in the same unit (clearing review H1).
+        """
+        keys = set(self._position_keys_by_symbol.get(symbol, ()))
+        for key in keys:
+            pos = self._positions[key]
+            _rescale_position(pos, tick_decimals)
+            pos.mark_price = price
+            pos.unrealized_pnl = pos.net_qty * (float(price) - pos.avg_cost)
+        return keys
 
     def get_flush_rows(
         self,

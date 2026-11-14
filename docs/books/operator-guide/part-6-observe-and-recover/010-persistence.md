@@ -91,7 +91,7 @@ dedicated query tool.
 | File | Written by | When | Purpose | Read / extract with |
 |------|------------|------|---------|---------------------|
 | `stats.db` (SQLite) | `pm-stats` | Per trade · a price snapshot every 15 min · at EOD · every `index.update` tick | OHLCV daily stats, intraday price snapshots, per-trade log, index level snapshots and daily OHLC | **`pm-stats-cli`** or SQL — see [Statistics & Reporting](../part-4-run-a-market/060-statistics-and-reporting.md) · [schema](../../architecture-and-development/part-1-architecture/040-sqlite-schemas.md#statsdb) |
-| `clearing.db` (SQLite) | `pm-clearing` | Per trade · on gateway connect/disconnect · at EOD | Positions, VWAP cost, realized/unrealized P&L, daily summaries, trade events, sessions | **`pm-clearing-cli`** or SQL — see [Positions and P&L](../../participant-guide/part-5-positions-and-results/010-positions-and-pnl.md) · [schema](../../architecture-and-development/part-1-architecture/040-sqlite-schemas.md#clearingdb) |
+| `clearing.db` (SQLite) | `pm-clearing` | Every 100 trades or 5 seconds · on gateway connect/disconnect · at the close and at EOD | Positions, VWAP cost, realized/unrealized P&L, daily summaries, trade events, sessions | **`pm-clearing-cli`** or SQL — see [Positions and P&L](../../participant-guide/part-5-positions-and-results/010-positions-and-pnl.md) · [schema](../../architecture-and-development/part-1-architecture/040-sqlite-schemas.md#clearingdb) |
 | `eod.db` (SQLite) | `pm-eod` | Once per trading date, after the close | The settlement ledger: each trader's amount per trading date and the log of `pm-eod` runs | **`pm-eod balances`** / **`status`** / **`show`** — see [Closing the Day](../part-4-run-a-market/100-closing-the-day.md) · [schema](../../architecture-and-development/part-1-architecture/040-sqlite-schemas.md#eoddb) |
 | `settlement/<date>/` | `pm-eod` | Once per trading date | Trader statements, `instructions.csv`, leaderboard and the exchange summary | Plain files — see [Closing the Day](../part-4-run-a-market/100-closing-the-day.md#the-files-pm-eod-writes) |
 | `backup/<date>/` | `pm-eod` | Once per trading date | Verified, zstd-compressed copies of `clearing.db`, `stats.db` and `eod.db` | `zstd -d`; see [Restoring a backup](../part-4-run-a-market/100-closing-the-day.md#restoring-a-backup) |
@@ -684,7 +684,7 @@ grep '^\[2026-04-29T14:3' src/data/audit.log
 **Written by**: `pm-clearing`  
 **Written**: continuously — on every `trade.executed`, gateway connect/disconnect, and `system.eod` event  
 **Read by**: `pm-clearing-cli`, direct SQL queries, post-trade analysis scripts  
-**Reset**: delete manually; `pm-clearing` recreates the schema (`CREATE TABLE IF NOT EXISTS`) on startup, so restarting against an existing file is safe  
+**Reset**: delete manually; `pm-clearing` recreates the schema (`CREATE TABLE IF NOT EXISTS`) on startup, so restarting against an existing file is safe. Trades the engine makes while `pm-clearing` is not running never reach it: they are not booked. On its first trade after the restart `pm-clearing` compares the trade id with the last one it stored and records the missing range as a feed gap with reason `restart` (`pm-clearing-cli gaps`); positions of the traders involved stay short of those trades. Restart `pm-clearing` while the market is closed where you can  
 
 A SQLite database that accumulates across sessions. It holds an append-only
 `trade_events` fact table plus running-state tables for positions and daily

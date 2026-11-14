@@ -479,11 +479,15 @@ verify and audit the result.
 When `pm-clearing` receives `system.eod`:
 
 1. **Force-flushes** any buffered trades immediately
-2. Applies official EOD **mark-to-market** using last-trade price (or mid-price
-   if no trade occurred) to update `mark_price` and `unrealized_pnl`
-3. Writes updated positions to `gateway_symbol_positions` so
-   `end_unrealized_pnl` in `gateway_daily_summary` reflects the official EOD mark
-4. Inserts an `EOD` sentinel row into `session_events`
+2. Applies official EOD **mark-to-market** using each book's last-trade price
+   (or the mid of its best bid and ask if the symbol has never traded), at the
+   book's own tick precision, to update `mark_price` and `unrealized_pnl`
+3. Writes the re-marked positions to `gateway_symbol_positions` (the
+   `end_*` columns of `gateway_daily_summary` are not rewritten: they hold the
+   position after the day's last trade)
+4. Without a scheduler, takes the day's close snapshot (with one, the snapshot
+   taken at `CLOSED` stands)
+5. Inserts an `EOD` sentinel row into `session_events`
 
 ---
 
@@ -520,15 +524,16 @@ diff positions-before-eod.txt <(pm-clearing-cli positions) || true
 
 Most likely only `updated_ts_ns` changed. `pm-clearing` re-marks every open
 position in a symbol to the price of each new trade, so by the close the live
-mark already *is* the last trade, and the official EOD mark (the last trade of
-the session) agrees with it. The two differ when a symbol did not trade at
-all that day: then the EOD pass marks it at the mid of the book instead. What
-EOD adds is the record: the `eod` sentinel, and the `end_*` columns of
-`daily` that a clearing house settles on.
+mark already *is* the last trade, and the official EOD mark (the book's last
+trade) agrees with it. A symbol that did not trade today keeps its last trade
+from an earlier day, which is also the mark it already had. Only a symbol
+that has never traded is marked at the mid of its book. What EOD adds is the
+record: the `eod` sentinel, and (without a scheduler) the close snapshot that
+settlement starts from.
 
 :material-checkbox-blank-outline: **Checkpoint:** you can say which column the
 EOD pass changed in your `diff`, and when the EOD mark would differ from the
-live one.
+live one (a symbol that has never traded).
 
 Filter to one gateway:
 
@@ -653,7 +658,7 @@ Use `pm-clearing-cli prune` for on-demand pruning without restarting:
 # Dry run — see how many rows would be deleted
 pm-clearing-cli prune --days 30 --dry-run
 
-# Actually prune and VACUUM
+# Actually prune (the file keeps its size; SQLite reuses the freed pages)
 pm-clearing-cli prune --days 30
 ```
 
@@ -742,7 +747,7 @@ the next fill, a *settled* verb is written once and then never moves.
 | `daily` | **settled** | Daily rollup + EOD snapshots | `--gateway`, `--symbol`, `--date`, `--from`, `--to`, `--limit` |
 | `eod` | **settled** | EOD sentinel rows with mark prices | `--from`, `--to`, `--limit` |
 | `reconcile` | historical | Raw vs summary discrepancies | `--gateway`, `--symbol`, `--from`, `--to`, `--retention-days` |
-| `prune` | maintenance | Delete old `trade_events` + VACUUM (**writes**) | `--days`, `--dry-run` |
+| `prune` | maintenance | Delete old `trade_events` (**writes**; refuses a missing database) | `--days`, `--dry-run` |
 
 The two **settled** verbs are the ones that return nothing until the engine has
 shut down cleanly at least once — that is the whole reason this chapter has an

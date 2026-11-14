@@ -104,7 +104,6 @@ pm-config-deploy --show               # confirm where it landed
 ```
 
 Warnings and advisories are fine here; errors are not. Expect the warning
-`M032` (no read-only API credential — nothing in this venue uses one) and
 `C001` (no reference prices): the books have no price until the market makers
 quote, so the static collar only takes effect from the first trades on. If `pm-cverifier`
 reports an error, fix it before deploying — a refused deploy leaves the

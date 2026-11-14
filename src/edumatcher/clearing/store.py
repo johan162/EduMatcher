@@ -13,10 +13,11 @@ Separation of concerns
 
 Price note
 ----------
-``trade.price`` arrives from the engine as an integer (raw int, no implicit
-decimal scaling).  All price-derived columns (``price``, ``mark_price``,
-``traded_notional``, ``buy_notional``, ``sell_notional``, ``net_amount``) are
-stored as INTEGER.  Columns derived from weighted-average math (``avg_cost``,
+``trade.executed.price`` is a display float; pm-clearing converts it to
+integer ticks of the trade's ``tick_decimals`` at ingress. All price-derived
+columns (``price``, ``mark_price``, ``traded_notional``, ``buy_notional``,
+``sell_notional``, ``net_amount``) are stored as INTEGER ticks of the row's
+``tick_decimals``.  Columns derived from weighted-average math (``avg_cost``,
 ``realized_pnl``, ``unrealized_pnl`` and their end-of-day variants) are REAL.
 
 Ingest timestamp note
@@ -90,8 +91,11 @@ CREATE TABLE IF NOT EXISTS trade_events (
   PRIMARY KEY (id)
 );
 
-CREATE INDEX IF NOT EXISTS ix_trade_events_date
-  ON trade_events(trade_date);
+-- One trading day in query_trades' order: a day's page reads its own range
+-- instead of walking every newer day (clearing review P2); its trade_date
+-- prefix serves every other day-scoped read and the prune.
+CREATE INDEX IF NOT EXISTS ix_trade_events_date_ts
+  ON trade_events(trade_date, ts_ns, ingest_ts_ns, id);
 CREATE INDEX IF NOT EXISTS ix_trade_events_symbol_date
   ON trade_events(symbol, trade_date);
 CREATE INDEX IF NOT EXISTS ix_trade_events_buy_gw_date
@@ -470,12 +474,15 @@ def reconcile_session_timezone(
 
 
 def open_readonly_connection(db_path: Path) -> sqlite3.Connection:
-    """Open an existing clearing DB in read-only mode for pm-clearing-cli."""
-    if not db_path.exists():
-        raise FileNotFoundError(f"Clearing DB not found: {db_path}")
-    conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
-    conn.row_factory = sqlite3.Row
-    return conn
+    """Open an existing clearing DB read-only (pm-clearing-cli, pm-eod).
+
+    The one implementation is ``query.open_readonly_connection``: it
+    percent-encodes the path into the URI and waits out a checkpoint lock
+    (clearing review C7).
+    """
+    from edumatcher.clearing.query import open_readonly_connection as _open
+
+    return _open(db_path)
 
 
 # ---------------------------------------------------------------------------
@@ -659,6 +666,24 @@ def fetch_all_positions(conn: sqlite3.Connection) -> list[dict[str, Any]]:
         " FROM gateway_symbol_positions"
     ).fetchall()
     return [dict(r) for r in rows]
+
+
+def latest_trade_seq(conn: sqlite3.Connection) -> tuple[int, int] | None:
+    """The ``(run_seq, seq)`` of the newest archived engine trade id, or None.
+
+    Engine ids are ``{run_seq:06d}-{seq:09d}``, so their text order is their
+    numeric order and the primary key answers this from its last entry. Ids of
+    another shape (tests, hand-made rows) are skipped.
+    """
+    row = conn.execute(
+        "SELECT id FROM trade_events"
+        " WHERE id GLOB '[0-9][0-9][0-9][0-9][0-9][0-9]-[0-9]*'"
+        " ORDER BY id DESC LIMIT 1"
+    ).fetchone()
+    if row is None:
+        return None
+    run_text, seq_text = str(row[0]).split("-", 1)
+    return int(run_text), int(seq_text)
 
 
 def prune_old_events(conn: sqlite3.Connection, retention_days: int = 90) -> int:
@@ -907,14 +932,6 @@ def _daily_row_to_dict(d: DailySummaryRow) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
-def validate_date(raw: str) -> None:
-    """Raise ValueError if ``raw`` is not a valid YYYY-MM-DD string."""
-    import re
-
-    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", raw):
-        raise ValueError(f"Invalid date format: {raw!r} (expected YYYY-MM-DD)")
-
-
 def query_gateways(
     conn: sqlite3.Connection,
     *,
@@ -1092,21 +1109,46 @@ def query_trades(
         " ORDER BY ts_ns DESC, ingest_ts_ns DESC, id DESC"
         " LIMIT :limit"
     )
-    rows = conn.execute(
-        sql,
-        {
-            "gateway": gateway,
-            "symbol": symbol,
-            "date_value": date_value,
-            "from_date": from_date,
-            "to_date": to_date,
-            "after_ts": after_ts,
-            "after_ingest": after_ingest,
-            "after_id": after_id,
-            "limit": limit,
-        },
-    ).fetchall()
+    params = {
+        "gateway": gateway,
+        "symbol": symbol,
+        "date_value": date_value,
+        "from_date": from_date,
+        "to_date": to_date,
+        "after_ts": after_ts,
+        "after_ingest": after_ingest,
+        "after_id": after_id,
+        "limit": limit,
+    }
+    # One day: unset filters are resolved before planning so the date reaches
+    # ix_trade_events_date_ts, which holds the day in page order (clearing
+    # review P2). Otherwise the optional form stays: a newest-first page walks
+    # ix_trade_events_ts and stops at LIMIT, where a resolved gateway filter
+    # or a date range would sort every matching trade (clearing GUI F2).
+    if date_value is not None:
+        sql = _drop_unset_filters(sql, params)
+    rows = conn.execute(sql, params).fetchall()
     return [dict(r) for r in rows]
+
+
+def count_summary_days(
+    conn: sqlite3.Connection,
+    *,
+    before: str | None,
+    from_date: str | None = None,
+    to_date: str | None = None,
+) -> int:
+    """Trading days with daily summaries before ``before`` (all of them when
+    ``before`` is None) within ``from_date..to_date``: the days whose raw
+    trades were pruned, so a reconciliation cannot compare them."""
+    sql = (
+        "SELECT COUNT(DISTINCT trade_date) FROM gateway_daily_summary"
+        " WHERE (:before IS NULL OR trade_date < :before)"
+        "   AND (:from_date IS NULL OR trade_date >= :from_date)"
+        "   AND (:to_date IS NULL OR trade_date <= :to_date)"
+    )
+    params = {"before": before, "from_date": from_date, "to_date": to_date}
+    return int(conn.execute(_drop_unset_filters(sql, params), params).fetchone()[0])
 
 
 def query_retained_from(conn: sqlite3.Connection) -> str | None:
@@ -1120,7 +1162,7 @@ def query_retained_from(conn: sqlite3.Connection) -> str | None:
     return row[0] if row else None
 
 
-# A plain ``trade_date = ?`` so the planner uses ix_trade_events_date; the
+# A plain ``trade_date = ?`` so the planner uses ix_trade_events_date_ts; the
 # optional-filter form of query_trades scans the whole retained table.
 DAY_TRADES_SQL = (
     "SELECT id, ts_ns, symbol, quantity, price, tick_decimals,"
@@ -1414,6 +1456,7 @@ def query_feed_gaps(
                 "last_seq": payload.get("last_seq"),
                 "next_seq": payload.get("next_seq"),
                 "missing_trades": payload.get("missing_trades"),
+                "reason": payload.get("reason"),
             }
         )
     return gaps

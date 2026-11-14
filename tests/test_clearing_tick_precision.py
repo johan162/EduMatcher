@@ -16,6 +16,7 @@ from __future__ import annotations
 import sqlite3
 from collections.abc import Iterator
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -307,3 +308,159 @@ def test_no_sqlite_math_functions_are_needed(conn: sqlite3.Connection) -> None:
         10 * 1000 * 100 + 10 * 110_000,
         4,
     )
+
+
+# --- WP-CLR01 (clearing review H1): end-of-day marks keep their precision ----
+
+
+def _no_registry(monkeypatch: pytest.MonkeyPatch) -> None:
+    """pm-clearing is its own process: nothing registers tick precision there."""
+    from edumatcher.models import price as price_mod
+
+    monkeypatch.setattr(price_mod, "_tick_decimals_by_symbol", {})
+    monkeypatch.setattr(price_mod, "_from_scale_cache", {})
+    monkeypatch.setattr(price_mod, "_to_scale_cache", {})
+
+
+def _engine_day(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, decimals: int, price: float
+) -> tuple[list[list[bytes]], list[list[bytes]]]:
+    """A real engine's trade frames and its end-of-day frame for one symbol."""
+    from edumatcher.engine.config_loader import SymbolConfig
+    from edumatcher.models import price as price_mod
+    from edumatcher.models.message import decode, make_eod_msg
+    from edumatcher.models.order import OrderType, Side
+    from tests.engine_harness import connect, make_engine, order_payload
+
+    with monkeypatch.context() as m:
+        m.setattr(price_mod, "_tick_decimals_by_symbol", {})
+        m.setattr(price_mod, "_from_scale_cache", {})
+        m.setattr(price_mod, "_to_scale_cache", {})
+        price_mod.register_tick_decimals("FX", decimals)
+        engine, pub = make_engine(
+            monkeypatch,
+            tmp_path,
+            symbols=("FX",),
+            symbol_configs={"FX": SymbolConfig(name="FX", tick_decimals=decimals)},
+        )
+        connect(engine)
+        for side, gw in ((Side.SELL, "GW02"), (Side.BUY, "GW01")):
+            engine._handle_new_order(
+                order_payload(side, OrderType.LIMIT, 100, gw, price=price, symbol="FX")
+            )
+        trades = [f for f in pub.sent if decode(f)[0] == "trade.executed"]
+        eod = [make_eod_msg([b.snapshot() for b in engine.books.values()])]
+    return trades, eod
+
+
+def _clearing(tmp_path: Path) -> Any:
+    from edumatcher.clearing.main import ClearingProcess
+
+    return ClearingProcess(
+        pub_addr="inproc://unused", db_path=tmp_path / "clearing.db", print_every=0
+    )
+
+
+def _rows(proc: Any, table: str) -> dict[str, dict[str, Any]]:
+    return {
+        r["gateway_id"]: dict(r)
+        for r in proc._conn.execute(f"SELECT * FROM {table} ORDER BY gateway_id")
+    }
+
+
+@pytest.mark.parametrize(
+    ("decimals", "price", "ticks"), [(4, 1.2345, 12345), (0, 123.0, 123)]
+)
+def test_eod_marks_a_position_at_its_own_precision(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    decimals: int,
+    price: float,
+    ticks: int,
+) -> None:
+    trades, eod = _engine_day(monkeypatch, tmp_path, decimals, price)
+    _no_registry(monkeypatch)
+    proc = _clearing(tmp_path)
+    for frames in trades + eod:
+        proc._handle_message(frames)
+
+    for table in ("gateway_symbol_positions", "position_close_snapshot"):
+        rows = _rows(proc, table)
+        for gw in ("GW01", "GW02"):
+            assert rows[gw]["tick_decimals"] == decimals
+            assert rows[gw]["mark_price"] == ticks
+            assert rows[gw]["unrealized_pnl"] == 0.0
+
+
+def _eod_frames(book: dict[str, Any]) -> list[bytes]:
+    from edumatcher.models.message import make_eod_msg
+
+    return make_eod_msg(
+        [{"symbol": "FX", "bids": [], "asks": [], "last_price": None, **book}]
+    )
+
+
+def _seed_long(proc: Any, *, price: int, decimals: int) -> None:
+    proc._ledger.apply_trade(
+        symbol="FX",
+        buy_gateway_id="GW01",
+        sell_gateway_id="GW02",
+        price=price,
+        tick_decimals=decimals,
+        quantity=100,
+        ts_ns=_TS,
+        ingest_ts_ns=_TS,
+    )
+    rows, daily = proc._ledger.get_flush_rows(updated_ts_ns=_TS)
+    flush_batch(proc._conn, [], rows, daily)
+    proc._ledger.clear_batch()
+
+
+def test_eod_mid_of_an_untraded_book_is_at_the_books_precision(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _no_registry(monkeypatch)
+    proc = _clearing(tmp_path)
+    _seed_long(proc, price=12000, decimals=4)  # 1.2000
+    proc._handle_message(
+        _eod_frames(
+            {
+                "tick_decimals": 4,
+                "bids": [{"price": 1.2344, "qty": 1, "count": 1}],
+                "asks": [{"price": 1.2346, "qty": 1, "count": 1}],
+            }
+        )
+    )
+
+    gw01 = _rows(proc, "gateway_symbol_positions")["GW01"]
+    assert gw01["mark_price"] == 12345
+    assert gw01["unrealized_pnl"] == pytest.approx(100 * 345)
+
+
+def test_eod_mark_at_a_new_precision_converts_the_position(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A position recorded at 2 decimals, a book now quoted at 4: the
+    position is converted first, as a trade at the new precision would."""
+    _no_registry(monkeypatch)
+    proc = _clearing(tmp_path)
+    _seed_long(proc, price=1000, decimals=2)  # 10.00
+    proc._handle_message(_eod_frames({"tick_decimals": 4, "last_price": 10.5}))
+
+    gw01 = _rows(proc, "gateway_symbol_positions")["GW01"]
+    assert gw01["tick_decimals"] == 4
+    assert gw01["mark_price"] == 105000
+    assert gw01["avg_cost"] == pytest.approx(100000)
+    assert gw01["unrealized_pnl"] / 10**4 == pytest.approx(50.0)  # 100 x 0.50
+
+
+def test_eod_marks_of_two_decimal_symbols_are_unchanged(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _no_registry(monkeypatch)
+    proc = _clearing(tmp_path)
+    _seed_long(proc, price=1000, decimals=2)
+    proc._handle_message(_eod_frames({"tick_decimals": 2, "last_price": 10.25}))
+
+    gw01 = _rows(proc, "gateway_symbol_positions")["GW01"]
+    assert (gw01["mark_price"], gw01["unrealized_pnl"]) == (1025, 100 * 25.0)

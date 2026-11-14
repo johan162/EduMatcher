@@ -17,8 +17,8 @@ its own piece of work.
 | L001 | 2026-11-11 | sim_forensics / msgen | pm-sim-forensics hard-codes 185 topic literals and is exempt from the literal gate | Low | Open |
 | L002 | 2026-11-11 | trader-gui | `formatChangePct` shows "-0.00%" (and "+0.00%" for zero) for a change that rounds to zero | Low | Open |
 | L003 | 2026-11-13 | docs (operator guide, quick start, participant guide) | Container install has seven web applications (Clearing GUI on 8096), the books say six / 8090–8095 | Low | Open |
-| L004 | 2026-11-13 | pm-config-gen | `[HINT] Validate with: poetry run python -c … Path("engine_config.yaml")` is wrong for installed users and names the wrong file | Low | Open |
-| L005 | 2026-11-13 | pm-cverifier | Header counts `Semantic: 2 warnings` while the verdict says `1 WARNING` (the INFO M004 is counted as a warning) | Low | Open |
+| L004 | 2026-11-13 | pm-config-gen | `[HINT] Validate with: poetry run python -c … Path("engine_config.yaml")` is wrong for installed users and names the wrong file | Low | Fixed (Config-Tools review WP-CFG04) |
+| L005 | 2026-11-13 | pm-cverifier | Header counts `Semantic: 2 warnings` while the verdict says `1 WARNING` (the INFO M004 is counted as a warning) | Low | Fixed (Config-Tools review WP-CFG07) |
 | L006 | 2026-11-13 | consoles / pm-mm-bot | Prices printed as raw floats: `149.8`, `@149.93333333333334`, `book mid=150.51999999999998` | Low | Open |
 | L007 | 2026-11-13 | docs (operator guide, persistence) | Two diagrams say DAY combo parents are not persisted; the engine persists and restores them on a same-day restart | Low | Open |
 | L008 | 2026-11-13 | pm-admin / pm-admin-cli | `BOOK` prints `Last trade: 150.0 × None` after an engine restart (restored price, unknown quantity) | Low | Open |
@@ -34,6 +34,11 @@ its own piece of work.
 | L018 | 2026-11-13 | trader-gui (admin order detail) | A 404 from the order-audit endpoint shows "No audited events for this order." without the index's reach (`indexed_through`), so an order newer than the last index build looks unknown | Low | Open |
 | L019 | 2026-11-14 | pm-clearing (close snapshots) | `position_close_snapshot` is never pruned and keeps every flat position: one full position table per day in `clearing.db` and in every nightly backup | Low | Open |
 | L020 | 2026-11-14 | engine / market sim / bots (corporate actions) | A split or dividend is applied to the index only; nothing adjusts the market's price, so the next trade moves the index by the split factor | Medium | Open |
+| L021 | 2026-11-14 | pm-engine (halts) | Halts are not persisted: an engine restart silently clears every circuit-breaker and operator halt, so a symbol an operator halted trades again after a restart, with no resume published | Medium | Open |
+| L022 | 2026-11-14 | pm-engine / subscribers (end of a run) | Trades lost just before an engine stop are undetectable downstream: the next run starts a new id sequence, and `system.eod` does not say which id the run ended at | Medium | Open |
+| L023 | 2026-11-14 | pm-clearing (repair) | No way to repair `clearing.db` once a feed gap is known: nothing rebuilds the ledger from the audit trail | Medium | Open |
+| L024 | 2026-11-14 | engine / log-server loaders | Loaders accept values they mean to refuse: `tick_decimals: true`, `outstanding_shares: true`, `max_order_qty: 1.5` (truncated to 1), `schedule: 'x'`, `log_server.enabled: 'x'`, `.nan` where `> 0` is required | Low | Open |
+| L025 | 2026-11-14 | docs (training guide ch. 17) | Says the static collar "only takes effect from the first trades on"; the engine registers a collar only at start-up when a reference price is known | Low | Open |
 
 ## L001 — Topic literals in pm-sim-forensics
 
@@ -317,4 +322,97 @@ constituent trade at the adjusted price.
 that adjusts the instrument's reference prices, resting order prices and
 quantities (or cancels them, as many venues do on an ex-date), the bots'
 anchors, and pm-index, at a session boundary.
+
+## L021 — An engine restart clears every halt
+
+**Found:** 2026-11-14, pm-md-gwy review
+(`docs-design/reviews/EduMatcher-MD-Gateway-Review-2026-11.md`, C2).
+
+**Finding.** `_halted_symbols` and the breakers' halted state live only in
+the engine's memory (`engine/main.py:3743`, `:4990`, `:5150` set them;
+`engine/persistence.py` has no halt state). After a restart every symbol is
+tradable again, including one an operator halted on purpose (an ADMIN halt
+is meant to outlast the close, `engine/main.py:2654`), and no
+`circuit_breaker.resume` is published, so subscribers that cached the halt
+(pm-md-gwy until its WP-MDG02, the GUIs) keep showing it.
+
+**Recommendation.** Decide whether an ADMIN halt should survive a restart.
+If yes, persist it with the books and restore it at start-up; if no, say so
+in the operator guide's restart section and publish a resume for each halt
+the restart dropped, so every cache clears.
+
+## L022 — Nobody can tell that the end of an engine run was lost
+
+**Found:** 2026-11-14, pm-clearing review
+(`docs-design/reviews/EduMatcher-Clearing-Review-2026-11.md`, H2 and §9).
+
+**Finding.** Trade ids are `{run_seq}-{seq}` and `seq` restarts at 1 every
+run, so a subscriber detects a lost trade only when a later trade of the
+*same* run arrives (`clearing/main.py:625-674`). Trades lost just before an
+engine stop (a slow subscriber, a full high-water mark, a subscriber down at
+the time) are followed by the next run's first trade and look like a clean
+run boundary. `system.eod` (`engine/main.py:7463-7468`) carries the closing
+books, not the run's last trade id.
+
+**Recommendation.** Put the run's last trade id (or trade count) on
+`system.eod` and on the engine's session-status reply, so pm-clearing,
+pm-stats and pm-audit can check a run is complete at its end and after
+their own restarts.
+
+## L023 — No repair once a clearing gap is known
+
+**Found:** 2026-11-14, pm-clearing review
+(`docs-design/reviews/EduMatcher-Clearing-Review-2026-11.md`, Q1 (b)).
+
+**Finding.** After the review's WP-CLR02, a trade pm-clearing never received
+is reported as a `GAP`, but positions and P&L stay without it. Applying the
+missing trades late is not equivalent: average cost and realised P&L depend
+on order. pm-audit holds every `trade.executed`, with its `msg_id`.
+
+**Recommendation.** A `pm-clearing-cli rebuild --from-audit` (or a
+`pm-audit-replay` target) that replays the retained `trade.executed` stream
+in order into a fresh `clearing.db`, keeping the close snapshots pm-eod
+already settled from, and reports the difference against the live ledger.
+
+## L024 — Loaders accept values they mean to refuse
+
+**Found:** 2026-11-14, pm-cverifier / pm-config-gen review
+(`docs-design/reviews/EduMatcher-Config-Tools-Review-2026-11.md`, §9).
+
+**Finding.** A differential harness (one YAML leaf replaced at a time,
+verifier versus the loaders `compile_config` runs) found values the loaders
+accept although the field cannot hold them:
+
+- `engine/config_loader.py`: `tick_decimals: true` and
+  `outstanding_shares: true` (a bool is read as 1);
+  `order_limits.max_order_qty: 1.5` is truncated to 1; `schedule: 'x'` or
+  `schedule: 0` is treated as absent; `snapshot_interval_sec: .nan` passes
+  the `<= 0` check, and the engine then never publishes a book snapshot
+  (`engine/main.py:1154`).
+- `log_srv/config.py`: `enabled: 'x'`, `pubsub_enabled: 'x'`, and a number
+  for `name`, `bind_address` or `db_path`.
+
+pm-cverifier refuses all of these, so a file that goes through
+`pm-config-deploy` is safe; any other caller of the loaders is not.
+
+**Recommendation.** Make the loaders refuse bools for integer fields,
+non-integral floats for counts, non-mapping `schedule`, non-bool flags and
+non-finite numbers (`math.isfinite`), with a test per field.
+
+## L025 — When a collar without a reference price takes effect
+
+**Found:** 2026-11-14, pm-cverifier / pm-config-gen review, WP-CFG09
+(`docs-design/reviews/EduMatcher-Config-Tools-Review-2026-11.md`).
+
+**Finding.** `training-guide/170-capstone-scenario.md` (Exercise 2) says the
+books have no price until the market makers quote, "so the static collar only
+takes effect from the first trades on". The engine registers a symbol's collar
+only while it starts (`engine/main.py:1402-1416`, the only writer of
+`self._collars`), and only when the book then has a last price, from the
+config or from a previous run's persisted book stats. A collar without a
+reference price therefore applies from the next engine start after the first
+trades, not from the first trades.
+
+**Recommendation.** Either reword the chapter, or (a design decision) let the
+engine arm a symbol's collar when its first reference price becomes known.
 

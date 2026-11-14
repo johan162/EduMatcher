@@ -1555,6 +1555,7 @@ class TestGapsVerb:
                 "last_seq": 7,
                 "next_seq": 9,
                 "missing_trades": 1,
+                "reason": None,
             },
             {
                 "trade_date": "2026-07-01",
@@ -1563,6 +1564,7 @@ class TestGapsVerb:
                 "last_seq": 100,
                 "next_seq": 105,
                 "missing_trades": 4,
+                "reason": None,
             },
         ]
 

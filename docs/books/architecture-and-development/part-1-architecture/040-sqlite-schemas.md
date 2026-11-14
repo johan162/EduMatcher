@@ -712,11 +712,11 @@ CREATE INDEX ix_trade_events_buy_gw_date
   ON trade_events(buy_gateway_id, trade_date)
 ```
 
-#### `index ix_trade_events_date`
+#### `index ix_trade_events_date_ts`
 
 ```sql
-CREATE INDEX ix_trade_events_date
-  ON trade_events(trade_date)
+CREATE INDEX ix_trade_events_date_ts
+  ON trade_events(trade_date, ts_ns, ingest_ts_ns, id)
 ```
 
 #### `index ix_trade_events_sell_gw_date`
