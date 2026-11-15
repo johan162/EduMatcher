@@ -16,6 +16,7 @@ Two tiers (docs-design/EduMatcher-mm-bot-multi.md §3):
 
 from __future__ import annotations
 
+import math
 from typing import Any
 
 from edumatcher.mm_bot.pricer import QuotePricer, available_strategies
@@ -130,6 +131,8 @@ def _as_int(where: str, key: str, value: Any) -> int:
 def _as_float(where: str, key: str, value: Any) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise ValueError(f"{where}{key} must be a number (got {value!r})")
+    if not math.isfinite(value):
+        raise ValueError(f"{where}{key} must be a finite number (got {value!r})")
     return float(value)
 
 
@@ -243,4 +246,50 @@ def validate_symbol_params(symbol: str, values: dict[str, Any]) -> dict[str, Any
     except ValueError as exc:
         raise ValueError(f"{where}{exc}") from None
 
+    return out
+
+
+def validate_gateway_params(
+    gateway: dict[str, Any], logging_values: dict[str, Any]
+) -> dict[str, Any]:
+    """Type-check and range-check the resolved Tier-1 values.
+
+    ``gateway`` holds the GATEWAY_KEYS, ``logging_values`` the argparse
+    destinations of LOGGING_KEYS (``log_level``, ...). Returns the logging
+    values normalised (``log_level`` upper-cased). Raises ``ValueError``
+    naming the key.
+    """
+    for key in ("label", "gateway_id"):
+        if gateway[key] is not None:
+            _as_str("", key, gateway[key])
+    for key in ("id_suffix", "engine_pull", "engine_pub"):
+        _as_str("", key, gateway[key])
+    for key in ("startup_session_timeout_sec", "shutdown_timeout_sec"):
+        if _as_float("", key, gateway[key]) <= 0:
+            raise ValueError(f"{key} must be positive (got {gateway[key]})")
+
+    out = dict(logging_values)
+    if out.get("log_level") is not None:
+        level = _as_str("", "level", out["log_level"]).upper()
+        if level not in LOG_LEVEL_CHOICES:
+            raise ValueError(
+                f"level must be one of {', '.join(LOG_LEVEL_CHOICES)} "
+                f"(got {out['log_level']!r})"
+            )
+        out["log_level"] = level
+    if out.get("log_target") is not None:
+        target = _as_str("", "target", out["log_target"])
+        if target not in LOG_TARGET_CHOICES:
+            raise ValueError(
+                f"target must be one of {', '.join(LOG_TARGET_CHOICES)} "
+                f"(got {out['log_target']!r})"
+            )
+    if out.get("log_file") is not None:
+        _as_str("", "file", out["log_file"])
+    if out.get("log_failover_timeout") is not None:
+        if _as_float("", "failover_timeout_sec", out["log_failover_timeout"]) < 0:
+            raise ValueError(
+                "failover_timeout_sec must be non-negative "
+                f"(got {out['log_failover_timeout']})"
+            )
     return out

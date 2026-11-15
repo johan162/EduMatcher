@@ -47,6 +47,7 @@ its own piece of work.
 | L031 | 2026-11-15 | pm-engine (gateway connect) | A refused `gateway_connect` for an unknown id still creates a session, a metrics label and a published topic that are never freed: 337 B per refused id, reachable by any client through ALF `HELLO` | Low | Open |
 | L032 | 2026-11-15 | pm-engine (quotes) | `quote.new` carries `tick_decimals` but the engine ignores it, so a client with a wrong tick registry rests its quote at 1/100 or 100× the intended price without a reject | Medium | Open |
 | L033 | 2026-11-15 | pm-api-gwy (index and sim listeners) | The `IndexClient` and `SimClient` receive threads end on a ZeroMQ error while the process keeps serving: index history and the sim/news streams then go quiet with no ERROR and no exit | Low | Open |
+| L034 | 2026-11-15 | CLIs (`-q`) | `-q`/`--quiet` is documented as "Reduce output to warnings/errors" but sets WARNING, the default, so it changes nothing (5 entry points and pm-help's common log options) | Low | Open |
 
 ## L001 — Topic literals in pm-sim-forensics
 
@@ -148,6 +149,10 @@ second "warning" is the INFO-level `M004`. The two counts should agree.
 `@149.93333333333334`; `pm-admin BOOK` shows `149.8`; `pm-mm-bot --verbose`
 logs `book mid=150.51999999999998`. Prices should be printed with the
 symbol's `tick_decimals` (an average could keep more digits, but rounded).
+
+**Update (2026-11-15).** pm-mm-bot's log lines are fixed (MM bot review
+WP-MMB08: prices at `tick_decimals`, mids with one more digit); the consoles
+and `pm-admin` remain.
 
 ## L007 — DAY combo parents in the persistence diagrams
 
@@ -574,3 +579,22 @@ and news streams go silent, with nothing in the log.
 **Recommendation.** Give both the engine listener's handling: log the
 failure at ERROR and report it through the same `on_listener_failure` path,
 or at least count it in the health beacon.
+
+## L034 — `-q` is the default
+
+**Found:** 2026-11-15, pm-mm-bot review D3
+(`docs-design/reviews/EduMatcher-MM-Bot-Review-2026-11.md`).
+
+**Finding.** Most `pm-*` processes configure logging with
+`elif quiet: level = logging.WARNING` followed by `else: level =
+logging.WARNING`, so `-q` selects the level that is already the default,
+while the help text says "Reduce output to warnings/errors". Five entry points and pm-help's common log options
+still carry that text (`ai_trader/main.py`, `alf_console/main.py`, `api_gateway/main.py`, `audit/main.py`, `market_sim/main.py`, `pm_help/registry.py`);
+pm-mm-bot's was reworded to "Explicit WARNING log level (the default)" in
+WP-MMB08, matching the reference manual's wording for another tool ("Explicit
+`WARNING` (same as the default)").
+
+**Recommendation.** Decide once for every process: either `-q` means ERROR,
+or the help says it is the default. Change all entry points together so the
+flag means the same everywhere.
+

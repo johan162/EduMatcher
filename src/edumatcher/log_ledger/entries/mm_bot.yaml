@@ -15,6 +15,20 @@
     - "For authentication failures or timeouts, check the gateway credentials, engine addresses and whether the engine is running."
     - "Correct the startup problem and restart the bot to include excluded symbols."
 
+- logger: edumatcher.mm_bot.bot
+  template: "[%s] [%s] quote REJECTED: %s"
+  level: WARNING
+  explanation: >
+    The engine refused the bot's quote for one symbol; the message names the
+    gateway, the symbol and the engine's reason (a size or spread obligation,
+    a halt, a closed market). The bot keeps retrying with a delay that doubles
+    per refusal, up to one heartbeat interval, and logs a repeat of the same
+    reason at DEBUG only, so this line appears once per reason until a quote
+    is accepted again. The symbol has no quote in the book meanwhile.
+  actions:
+    - "Read the reason; for an obligation, compare the bot's `qty` and `gap` with the gateway's `mm_min_qty` and `mm_max_spread_ticks`."
+    - "Fix the bot's settings or the gateway's obligation and restart the bot; a halt or a closed market clears by itself."
+
 - logger: edumatcher.mm_bot.main
   template: "%s is gateway-wide; the value given after --symbol %s applies to every symbol"
   level: WARNING
@@ -55,14 +69,6 @@
   actions:
     - "Read the reason in the message; it names the symbol and setting."
     - "Fix the value on the command line or in the config file and start the bot again."
-
-- logger: edumatcher.mm_bot.main
-  template: "invalid startup value: %s must be positive (got %s)"
-  level: CRITICAL
-  explanation: >
-    A timeout option was zero or negative, so the bot did not start.
-  actions:
-    - "Give the option in the message a positive number of seconds and start the bot again."
 
 - logger: edumatcher.mm_bot.main
   template: "failed to create mm_bot runtime: %s"

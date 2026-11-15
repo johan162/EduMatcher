@@ -227,3 +227,23 @@ def test_version_flag_exits_zero(capsys: pytest.CaptureFixture[str]) -> None:
     with pytest.raises(SystemExit) as exc_info:
         main(["--version"])
     assert exc_info.value.code == 0
+
+
+def test_pm_mm_bot_entry_describes_the_multi_symbol_bot() -> None:
+    """pm-mm-bot quotes several symbols from one process (MM bot review D7)."""
+    from edumatcher.pm_help.registry import get_command
+
+    cmd = get_command("pm-mm-bot")
+    assert cmd is not None
+    flags = " ".join(o.flags for o in cmd.options)
+    for flag in (
+        "--symbols",
+        "--all-symbols",
+        "--config",
+        "--strategy",
+        "--label",
+        "--max-position",
+        "--retreat-ticks",
+    ):
+        assert flag in flags
+    assert "one symbol" not in cmd.summary

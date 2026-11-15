@@ -1062,19 +1062,50 @@ _AI_AND_BOTS: tuple[CommandInfo, ...] = (
         name="pm-mm-bot",
         category="AI & Bots",
         title="Autonomous Market-Maker Bot",
-        summary="Autonomous two-sided quoting bot for one symbol; connects as MARKET_MAKER.",
+        summary=(
+            "Autonomous two-sided quoting bot for one or more symbols; "
+            "connects as one MARKET_MAKER gateway."
+        ),
         synopsis=(
-            "pm-mm-bot --symbol AAPL [--gap 0.10] [--qty 500] [--id-suffix 01] [options]",
+            "pm-mm-bot --symbol AAPL [--gap 0.10] [--qty 500] [options]",
+            "pm-mm-bot --symbol AAPL --gap 0.10 --symbol TSLA --gap 0.50 [options]",
+            "pm-mm-bot --symbols AAPL,MSFT | --all-symbols | --config FILE [options]",
         ),
         description=(
-            "Posts a two-sided quote and automatically reprices on fills, mid-price "
-            "drift, and session transitions. The gateway ID is constructed as "
-            "MM_<SYMBOL>_<suffix> and must be pre-registered with role: MARKET_MAKER. "
-            "Run multiple instances (different --id-suffix) to cover several symbols "
-            "or compete on the same one.",
+            "Posts a two-sided quote per symbol and automatically reprices on "
+            "fills, mid-price drift, halts and session transitions. One process "
+            "is one gateway and can quote several symbols; per-symbol flags "
+            "after a --symbol apply to that symbol only. The gateway ID is "
+            "MM_<label>_<suffix> (the label is the symbol, SYM1_SYM2_... or ALL) "
+            "unless --gateway-id names it, and must be registered with "
+            "role: MARKET_MAKER.",
         ),
         options=(
-            Option("--symbol SYMBOL", "required", "Instrument to make a market in"),
+            Option(
+                "--symbol SYMBOL",
+                "one symbol source required",
+                "Instrument to quote; repeatable, each opens a per-symbol scope",
+            ),
+            Option(
+                "--symbols A,B,...",
+                "unset",
+                "Several symbols on the same settings; not with --symbol",
+            ),
+            Option(
+                "--all-symbols",
+                "off",
+                "Every symbol of the deployed configuration; gateway MM_ALL_<nn>",
+            ),
+            Option(
+                "--config PATH",
+                "unset",
+                "YAML file (version: 1) with gateway, defaults and per-symbol blocks",
+            ),
+            Option(
+                "--strategy NAME",
+                "symmetric",
+                "Pricing strategy: symmetric, inventory_skew or passive",
+            ),
             Option(
                 "--gap PRICE",
                 "0.10",
@@ -1082,11 +1113,32 @@ _AI_AND_BOTS: tuple[CommandInfo, ...] = (
             ),
             Option("--qty N", "500", "Quote size on each leg"),
             Option(
+                "--max-position N",
+                "unset",
+                "inventory_skew: position at which the skew saturates (required)",
+            ),
+            Option(
+                "--retreat-ticks / --behind-ticks / --min-cover-qty",
+                "5 / 1 / 1",
+                "passive: how far to step back, how far behind others, "
+                "and how much they must show",
+            ),
+            Option(
+                "--fade-ticks / --fade-sec",
+                "2 / 3.0",
+                "passive: how far and how long a side backs off after a fill",
+            ),
+            Option(
+                "--label NAME",
+                "derived",
+                "Gateway-ID symbol segment (MM_<label>_<suffix>)",
+            ),
+            Option(
                 "--id-suffix STR", "01", "Running number for gateway ID (MM_AAPL_01)"
             ),
             Option(
                 "--gateway-id STR",
-                "MM_<symbols>_<id-suffix>",
+                "MM_<label>_<id-suffix>",
                 "Use this exact gateway ID (e.g. MM01) instead of deriving one",
             ),
             Option("--drift-ticks N", "3", "Reprice when mid moves by this many ticks"),
@@ -1121,7 +1173,10 @@ _AI_AND_BOTS: tuple[CommandInfo, ...] = (
         related=("pm-ai-trader", "pm-engine", "pm-alf-console"),
         doc_anchor="pm-mm-bot-autonomous-market-maker-bot",
         doc_page="../../../docs/books/participant-guide/part-3-market-making/030-the-market-maker-bot.md",
-        examples=("pm-mm-bot --symbol AAPL --gap 0.10 --qty 500",),
+        examples=(
+            "pm-mm-bot --symbol AAPL --gap 0.10 --qty 500",
+            "pm-mm-bot --config docs/examples/mm-bot/tech-desk.yaml",
+        ),
         notes=(
             "Reference price resolution order: active quote from QBOOT (restart "
             "recovery), book mid-price, last trade price, QBOOT bootstrap snapshot, "

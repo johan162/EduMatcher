@@ -662,7 +662,8 @@ class TestMainParsing:
 
         config_path = tmp_path / "mm_skew.yaml"
         config_path.write_text(
-            "symbol: AAPL\nstrategy: inventory_skew\nmax_position: 750\n"
+            "version: 1\nsymbols:\n  AAPL:\n    strategy: inventory_skew\n"
+            "    max_position: 750\n"
         )
 
         bot_instances: list[object] = []
@@ -694,7 +695,10 @@ class TestMainParsing:
         from edumatcher.mm_bot import main as mm_main
 
         config_path = tmp_path / "mm_aapl.yaml"
-        config_path.write_text("symbol: AAPL\ngap: 0.08\nqty: 300\ntif: GTC\n")
+        config_path.write_text(
+            "version: 1\ndefaults:\n  gap: 0.08\n  qty: 300\n  tif: GTC\n"
+            "symbols: [AAPL]\n"
+        )
 
         bot_instances: list[object] = []
 
@@ -727,7 +731,7 @@ class TestMainParsing:
         from edumatcher.mm_bot import main as mm_main
 
         config_path = tmp_path / "mm_aapl.yaml"
-        config_path.write_text("symbol: AAPL\ngap: 0.08\n")
+        config_path.write_text("version: 1\ndefaults:\n  gap: 0.08\nsymbols: [AAPL]\n")
 
         bot_instances: list[object] = []
 
@@ -758,7 +762,7 @@ class TestMainParsing:
         from edumatcher.mm_bot import main as mm_main
 
         config_path = tmp_path / "mm_aapl.yaml"
-        config_path.write_text("symbol: AAPL\ngap: 0.08\n")
+        config_path.write_text("version: 1\ndefaults:\n  gap: 0.08\nsymbols: [AAPL]\n")
 
         bot_instances: list[object] = []
 
@@ -801,7 +805,7 @@ class TestMainParsing:
         from edumatcher.mm_bot import main as mm_main
 
         config_path = tmp_path / "bad.yaml"
-        config_path.write_text("symbol: AAPL\nbogus_key: 1\n")
+        config_path.write_text("version: 1\nsymbols: [AAPL]\nbogus_key: 1\n")
         with pytest.raises(SystemExit) as exc_info:
             mm_main.main(["--config", str(config_path)])
         assert exc_info.value.code == 1
@@ -1110,7 +1114,10 @@ def _symbols_msg_for(
             "symbol": s,
             "tick_decimals": 2,
             **(
-                {"mm_max_spread_ticks": mm_max_spread_ticks[s]}
+                {
+                    "enforce_mm_obligation": True,
+                    "mm_max_spread_ticks": mm_max_spread_ticks[s],
+                }
                 if s in mm_max_spread_ticks
                 else {}
             ),
@@ -1232,10 +1239,11 @@ class TestMainParsingMultiSymbol:
         bot = bot_instances[0]
         assert bot.kwargs["symbols"] == ["AAPL", "MSFT"]  # type: ignore[attr-defined]
 
-    def test_config_file_symbols_as_comma_string(
+    def test_config_file_symbols_as_comma_string_is_refused(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """A config file's symbols: AAPL,MSFT comma-string is also accepted."""
+        """A config file's symbols: AAPL,MSFT comma-string (the flat layout's
+        form) is refused: symbols is a mapping or a list."""
         from edumatcher.mm_bot import main as mm_main
 
         config_path = tmp_path / "mm_multi.yaml"
@@ -1245,10 +1253,10 @@ class TestMainParsingMultiSymbol:
         monkeypatch.setattr(
             "edumatcher.mm_bot.bot.MMBot", self._fake_bot_class(bot_instances)
         )
-        with pytest.raises(SystemExit):
+        with pytest.raises(SystemExit) as exc_info:
             mm_main.main(["--config", str(config_path)])
-        bot = bot_instances[0]
-        assert bot.kwargs["symbols"] == ["AAPL", "MSFT"]  # type: ignore[attr-defined]
+        assert exc_info.value.code == 1
+        assert bot_instances == []
 
 
 class TestMMBotMultiSymbol:
@@ -1388,10 +1396,11 @@ class TestMMBotMultiSymbol:
         assert bot._symbols_state["AAPL"].state == BotState.REISSUING
         assert bot._symbols_state["MSFT"].state == BotState.REISSUING
 
-    def test_quote_ack_fifo_demuxes_two_outstanding_quotes(
+    def test_quote_acks_with_unknown_ids_are_routed_by_symbol(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Two quote.new sent back-to-back → acks matched in send order."""
+        """Two quote.new sent back-to-back → acks with ids this bot never
+        minted are matched by the ack's own symbol."""
         bot, push, sub = _make_multi_bot(
             monkeypatch, ["AAPL", "MSFT"], initial_min=95.0, initial_max=105.0
         )
@@ -1412,14 +1421,14 @@ class TestMMBotMultiSymbol:
             st.pricer.set_mid(100.0)
 
         # Acks that carry an id this bot never minted (an engine that minted
-        # its own, say) still demux by send order — the fallback path.
+        # its own, say) are routed by the ack's symbol.
         bot._send_quote("AAPL")
         bot._send_quote("MSFT")
-        assert list(bot._pending_ack_symbols) == ["AAPL", "MSFT"]
 
         bot._handle_quote_ack(
             {
                 "accepted": True,
+                "symbol": "AAPL",
                 "quote_id": "q-aapl",
                 "bid_order_id": "bid-aapl",
                 "ask_order_id": "ask-aapl",
@@ -1427,11 +1436,11 @@ class TestMMBotMultiSymbol:
         )
         assert bot._symbols_state["AAPL"].quote_id == "q-aapl"
         assert bot._symbols_state["MSFT"].quote_id is None
-        assert list(bot._pending_ack_symbols) == ["MSFT"]
 
         bot._handle_quote_ack(
             {
                 "accepted": True,
+                "symbol": "MSFT",
                 "quote_id": "q-msft",
                 "bid_order_id": "bid-msft",
                 "ask_order_id": "ask-msft",
@@ -2167,6 +2176,7 @@ class TestMMBotStartup:
                             {
                                 "symbol": "AAPL",
                                 "tick_decimals": 2,
+                                "enforce_mm_obligation": True,
                                 "mm_max_spread_ticks": 8,
                             },
                             {"symbol": "MSFT", "tick_decimals": 2},
@@ -2207,6 +2217,7 @@ class TestMMBotStartup:
                             {
                                 "symbol": "AAPL",
                                 "tick_decimals": 2,
+                                "enforce_mm_obligation": True,
                                 "mm_max_spread_ticks": 10,
                             },
                             {"symbol": "MSFT", "tick_decimals": 2},
@@ -2518,6 +2529,7 @@ class TestMMBotQuoting:
         bot._handle_quote_ack(
             {
                 "accepted": True,
+                "symbol": "AAPL",
                 "quote_id": "q-001",
                 "bid_order_id": "bid-001",
                 "ask_order_id": "ask-001",
@@ -2669,7 +2681,16 @@ class TestMMBotQlegsReconciliation:
 
         # QLEGS response with a different quote_id
         bot._reconcile_qlegs(
-            {"legs": [{"quote_id": "q-OTHER", "order_id": "x", "side": "BUY"}]}
+            {
+                "legs": [
+                    {
+                        "symbol": "AAPL",
+                        "quote_id": "q-OTHER",
+                        "order_id": "x",
+                        "side": "BUY",
+                    }
+                ]
+            }
         )
 
         # Should have cleared local state and scheduled reissue
@@ -2697,8 +2718,18 @@ class TestMMBotQlegsReconciliation:
         bot._reconcile_qlegs(
             {
                 "legs": [
-                    {"quote_id": "q-001", "order_id": "bid-OTHER", "side": "BUY"},
-                    {"quote_id": "q-001", "order_id": "ask-OTHER", "side": "SELL"},
+                    {
+                        "symbol": "AAPL",
+                        "quote_id": "q-001",
+                        "order_id": "bid-OTHER",
+                        "side": "BUY",
+                    },
+                    {
+                        "symbol": "AAPL",
+                        "quote_id": "q-001",
+                        "order_id": "ask-OTHER",
+                        "side": "SELL",
+                    },
                 ]
             }
         )
@@ -2769,7 +2800,7 @@ class TestMMBotDispatch:
         bot, push, sub = self._ready_bot(monkeypatch)
         bot._dispatch(
             "quote.status.MM_AAPL_01",
-            {"status": "CANCELLED"},
+            {"status": "CANCELLED", "quote_id": bot._quote_id},
         )
         assert bot._reissue_at is not None
         assert bot._quote_id is None
@@ -2779,7 +2810,7 @@ class TestMMBotDispatch:
         bot, push, sub = self._ready_bot(monkeypatch)
         bot._dispatch(
             "quote.ack.MM_AAPL_01",
-            {"accepted": False, "reason": "invalid symbol"},
+            {"accepted": False, "reason": "invalid symbol", "symbol": "AAPL"},
         )
         assert bot._reissue_at is not None
 
@@ -3012,7 +3043,7 @@ class TestQuoteStatusOrphanedCancelled:
         bot, push, sub = self._reissuing_bot(monkeypatch)
         bot._reissue_at = None  # no timer already running
 
-        bot._handle_quote_status({"status": "CANCELLED"})
+        bot._handle_quote_status({"status": "CANCELLED", "quote_id": "q-old"})
 
         # Must NOT schedule a reissue — there is no tracked quote to cancel
         assert bot._reissue_at is None
@@ -3027,7 +3058,9 @@ class TestQuoteStatusOrphanedCancelled:
         bot._quote_id = "q-active"
         bot._reissue_at = None
 
-        bot._handle_quote_status({"status": "INACTIVE_BID_FILLED"})
+        bot._handle_quote_status(
+            {"status": "INACTIVE_BID_FILLED", "quote_id": "q-active"}
+        )
 
         assert bot._reissue_at is not None
         assert bot._quote_id is None  # cleared
@@ -3041,7 +3074,9 @@ class TestQuoteStatusOrphanedCancelled:
         bot._quote_id = "q-active"
         bot._reissue_at = None
 
-        bot._handle_quote_status({"status": "INACTIVE_ASK_FILLED"})
+        bot._handle_quote_status(
+            {"status": "INACTIVE_ASK_FILLED", "quote_id": "q-active"}
+        )
 
         assert bot._reissue_at is not None
         assert bot._quote_id is None
@@ -3055,7 +3090,7 @@ class TestQuoteStatusOrphanedCancelled:
         bot._quote_id = "q-tracked"
         bot._reissue_at = None
 
-        bot._handle_quote_status({"status": "CANCELLED"})
+        bot._handle_quote_status({"status": "CANCELLED", "quote_id": "q-tracked"})
 
         assert bot._reissue_at is not None
         assert bot._quote_id is None
@@ -3066,11 +3101,11 @@ class TestQuoteStatusOrphanedCancelled:
         """CANCELLED when awaiting cancel confirmation (cancel-then-reissue path)."""
         bot, push, sub = self._reissuing_bot(monkeypatch)
         bot._state = BotState.REPRICING
-        bot._quote_id = None  # cleared by cancel timeout path
+        bot._quote_id = "q-tracked"  # the quote the bot asked to cancel
         bot._awaiting_cancel_for_reissue = True
         bot._reissue_at = None
 
-        bot._handle_quote_status({"status": "CANCELLED"})
+        bot._handle_quote_status({"status": "CANCELLED", "quote_id": "q-tracked"})
 
         assert bot._reissue_at is not None
         assert bot._awaiting_cancel_for_reissue is False
@@ -3329,8 +3364,18 @@ class TestAdditionalBotPaths:
             "system.quote_legs.MM_AAPL_01",
             {
                 "legs": [
-                    {"quote_id": "q-001", "order_id": "bid-001", "side": "BUY"},
-                    {"quote_id": "q-001", "order_id": "ask-001", "side": "SELL"},
+                    {
+                        "symbol": "AAPL",
+                        "quote_id": "q-001",
+                        "order_id": "bid-001",
+                        "side": "BUY",
+                    },
+                    {
+                        "symbol": "AAPL",
+                        "quote_id": "q-001",
+                        "order_id": "ask-001",
+                        "side": "SELL",
+                    },
                 ]
             },
         )
@@ -3411,7 +3456,15 @@ class TestAdditionalBotPaths:
                 _symbols_msg(),
                 _boot_msg([active_quote]),
                 # QLEGS says different quote_id — mismatch!
-                _qlegs_msg([{"quote_id": "q-DIFFERENT", "order_id": "bid-999"}]),
+                _qlegs_msg(
+                    [
+                        {
+                            "symbol": "AAPL",
+                            "quote_id": "q-DIFFERENT",
+                            "order_id": "bid-999",
+                        }
+                    ]
+                ),
                 _session_msg("CONTINUOUS"),
             ]
         )

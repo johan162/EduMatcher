@@ -339,10 +339,12 @@ ID — instead of creating a duplicate, and periodically re-runs `QLEGS` to
 reconcile leg state in case an engine reply was ever dropped.
 
 !!! note "The 20-tick limit on `--gap`"
-    The gaps above are not arbitrary. Every symbol has a maximum quoted spread,
-    `mm_max_spread_ticks`, which is **20 ticks** unless you configure
-    otherwise — the `Max Spread` column of `SYMBOLS` in Chapter 01. At
-    `tick_decimals: 2` that is 0.20, and a bot started with a wider `--gap`
+    Every symbol has a maximum quoted spread, `mm_max_spread_ticks`, which is
+    **20 ticks** unless you configure otherwise — the `Max Spread` column of
+    `SYMBOLS` in Chapter 01. At `tick_decimals: 2` that is 0.20. It binds only
+    when the gateway has `enforce_mm_obligation: true`; the entries above leave
+    it off, so the engine accepts any spread and so does the bot. With it on,
+    the engine refuses a wider quote, and a bot started with a wider `--gap`
     refuses to quote that symbol:
     `excluded from quoting: --gap exceeds mm_max_spread_ticks obligation`.
 
@@ -687,17 +689,20 @@ force the bot to quote on its own terms with
 its configured gap.)
 
 !!! tip "A struggling symbol doesn't take the others down with it"
-    If one symbol's `gap` violates its own `mm_max_spread_ticks` obligation
-    (20 ticks unless configured), that symbol alone is excluded from quoting at
-    startup while the rest of `MM_TECH_01`'s symbols keep quoting normally — the
-    whole process only exits if *every* symbol fails. Try it: change TSLA's
-    `gap` in `mm_tech.yaml` to `0.50` and restart the bot. Its log says
+    If one symbol fails a startup check (it is not listed by the exchange, its
+    `gap` violates an enforced `mm_max_spread_ticks` obligation, it has no
+    reference price), that symbol alone is excluded from quoting while the rest
+    of `MM_TECH_01`'s symbols keep quoting normally — the whole process only
+    exits if *every* symbol fails. Try it: add a symbol the exchange does not
+    list to `mm_tech.yaml`'s `symbols:` block (`NVDA: {}`) and restart the bot.
+    Its log says
 
     ```text
-    [MM_TECH_01] [TSLA] excluded from quoting: --gap exceeds mm_max_spread_ticks obligation (0.500000 > 20 * 0.010000)
+    [MM_TECH_01] startup warning: [NVDA] startup failed: not in symbol list
+    [MM_TECH_01] startup warning: [NVDA] excluded from quoting: NVDA not in symbol list
     ```
 
-    and AAPL and MSFT quote as before.
+    and AAPL, MSFT and TSLA quote as before.
 
 :material-checkbox-blank-outline: **Checkpoint:** one `pm-mm-bot` process is
 quoting all three symbols with three different spreads and sizes, its startup

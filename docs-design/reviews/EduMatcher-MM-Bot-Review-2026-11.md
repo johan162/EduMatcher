@@ -39,8 +39,16 @@ host (Xeon W-2295, 36 threads) with `timeit` against a bot holding 1, 30 and
 300 quoting symbols. The other findings are by inspection, with line numbers
 given.
 
-Status: **Open.** Decisions Q1–Q5 are needed before WP-MMB01, WP-MMB04,
-WP-MMB05 and WP-MMB06.
+Status: **Done, uncommitted.** WP-MMB01–08 completed 2026-11-15 in order,
+each test-first and verified with `make _check` and the full suite (last run:
+14 548 passed, 1 skipped). Decisions Q1–Q5 taken as recommended (the user
+asked for all WPs in one go). Beyond the plan: the periodic QLEGS check had
+C1's primary-symbol fallback too and is now gateway-wide (WP-MMB03); the B1
+re-walk found training chapter 02 relying on the unenforced obligation C4
+removed, fixed in WP-MMB04. Behaviour visible to users: a flat config file is
+refused; a missing symbols reply is a start-up failure; the bot asks the
+engine for its position at start-up; QBOOT/QLEGS are asked once per gateway;
+a refused quote is a WARNING once per reason.
 
 ---
 
@@ -82,14 +90,14 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit) �
 
 | # | WP | Content | Findings | Depends on | Est. | Status | Done on |
 |---|---|---|---|---|---|---|---|
-| 1 | WP-MMB01 | Every fill of the bot's own legs is counted | H2, D5 | Q1 | 1 d | ☐ | |
-| 2 | WP-MMB02 | A halted or paused symbol always comes back, and never quotes while paused | H1, C2 | WP-MMB01 | 0.5 d | ☐ | |
-| 3 | WP-MMB03 | Every reply is applied to the symbol it belongs to | C1, C9, D1 | WP-MMB01 | 0.5 d | ☐ | |
-| 4 | WP-MMB04 | Obligations are applied only when enforced; a refused quote is visible and backs off | C3, C4, D10, D11 | Q3, Q4 | 0.5 d | ☐ | |
-| 5 | WP-MMB05 | Start-up uses the engine's facts: symbol metadata and the current position | C5, C6 | Q2, WP-MMB03 | 0.5 d | ☐ | |
-| 6 | WP-MMB06 | Configuration is validated before anything starts; SIGTERM is honoured during start-up | C7, C8, C10 | Q5 | 0.5 d | ☐ | |
-| 7 | WP-MMB07 | Message dispatch costs the same for 1 or 300 symbols | P1 | WP-MMB03 | 0.25 d | ☐ | |
-| 8 | WP-MMB08 | Comments, help texts, pm-help, guide and reference manual | D2–D4, D6–D9 | WP-MMB01–07 | 0.5 d | ☐ | |
+| 1 | WP-MMB01 | Every fill of the bot's own legs is counted | H2, D5 | Q1 | 1 d | ☑ | 2026-11-15 |
+| 2 | WP-MMB02 | A halted or paused symbol always comes back, and never quotes while paused | H1, C2 | WP-MMB01 | 0.5 d | ☑ | 2026-11-15 |
+| 3 | WP-MMB03 | Every reply is applied to the symbol it belongs to | C1, C9, D1 | WP-MMB01 | 0.5 d | ☑ | 2026-11-15 |
+| 4 | WP-MMB04 | Obligations are applied only when enforced; a refused quote is visible and backs off | C3, C4, D10, D11 | Q3, Q4 | 0.5 d | ☑ | 2026-11-15 |
+| 5 | WP-MMB05 | Start-up uses the engine's facts: symbol metadata and the current position | C5, C6 | Q2, WP-MMB03 | 0.5 d | ☑ | 2026-11-15 |
+| 6 | WP-MMB06 | Configuration is validated before anything starts; SIGTERM is honoured during start-up | C7, C8, C10 | Q5 | 0.5 d | ☑ | 2026-11-15 |
+| 7 | WP-MMB07 | Message dispatch costs the same for 1 or 300 symbols | P1 | WP-MMB03 | 0.25 d | ☑ | 2026-11-15 |
+| 8 | WP-MMB08 | Comments, help texts, pm-help, guide and reference manual | D2–D4, D6–D9 | WP-MMB01–07 | 0.5 d | ☑ | 2026-11-15 |
 
 Suggested order: **WP-MMB01 → WP-MMB02 → WP-MMB03 → WP-MMB04 → WP-MMB05 →
 WP-MMB06 → WP-MMB07 → WP-MMB08**. WP-MMB01 and WP-MMB02 are the two defects
@@ -563,6 +571,9 @@ loop.
 
 ## 7. Decisions
 
+All five taken as recommended on 2026-11-15 (the user asked for WP-MMB01–08
+in one go).
+
 | # | Question | Recommendation |
 |---|---|---|
 | Q1 | How should the bot attribute a fill that arrives after its quote was retired (H2)? (a) A bounded map of every leg order id it has quoted → (symbol, side), consulted before the current quote's ids. (b) Ask the engine to publish `order.fill` before the quote hook's messages. (c) Delay clearing the leg ids until the fill arrives. | **(a)**. It is local to the bot and correct whatever order the engine uses, including fills on a hit leg's remainder during the reissue delay. (b) contradicts the engine's deliberate mid-sweep hook (the sibling must not trade later in the same sweep) and its documented contract. (c) has no event to wait for: a status says nothing about how many fills follow. |
@@ -604,6 +615,24 @@ the guide stays true once WP-MMB05 seeds the position; reword it then.
 **Exit criteria.** Tests 1–6 pass; `tests/test_mm_bot*.py`,
 `tests/test_mm_quotes_engine.py` green.
 
+**Outcome (2026-11-15).** `MMBot._leg_to_symbol` (an `OrderedDict` of leg
+order id → (symbol, side), capped at `max(64, 16 × symbols)`) is filled by
+`_index_legs` from every accepted ack and every adopted QBOOT quote.
+`_leg_for_order_id` (replacing `_symbol_for_order_id`) looks there first and
+then at the symbol's current quote, which the unit tests still set without an
+ack; the fill handler takes the side from it. The own-leg quantities
+`passive` subtracts are reduced only for a leg of the current quote. To drive
+the real start-up from tests, `_run_loop` was split into `_start_up()` (steps
+1–7, returns an exit code or None) and the loop; behaviour unchanged.
+`tests/test_mm_bot_engine_wired.py` is new: a fixture wiring the bot's
+PUSH/SUB to a real `Engine`, a fake clock patched into `mm_bot.bot` and
+`mm_bot.pricer`, and a poller that advances the clock by its timeout. Tests 1–4
+failed first for the reason in H2 (bot position 0 vs engine 100/400, an
+unskewed and an unfaded reissue); test 4 first failed on the test passing the
+passive knobs as constructor kwargs, corrected to per-symbol `overrides`;
+test 6 failed on the missing index. D5 is reworded in WP-MMB05, once the
+position is also seeded. Full suite: 14 519 passed, 1 skipped.
+
 ### WP-MMB02 — A halted or paused symbol always comes back, and never quotes while paused (H1, C2)
 
 **Tests first** (`tests/test_mm_bot_engine_wired.py`):
@@ -629,6 +658,19 @@ longer empty after the resume, so its expected output may need a note.
 
 **Exit criteria.** Tests 1–4 pass; suites as above green.
 
+**Outcome (2026-11-15).** `_handle_circuit_breaker_resume` schedules an
+immediate reissue when the session is quoting and the symbol has a mid; a
+transition into `CONTINUOUS` revives `WAITING_FOR_SESSION` as well as
+`PAUSED`; a non-quoting phase also cancels a symbol in `REISSUING`; an
+accepted ack that arrives while `PAUSED` indexes the legs (WP-MMB01) and
+cancels the quote instead of setting `QUOTING`. Tests 1, 3 and 4 failed first
+for the reasons in H1 and C2 (no quote 0 s/30 s after the resume; `QUOTING`
+with legs resting in the auction); test 2 passed before and after. The
+fixture's `pump()` now ticks once even with nothing queued, as the real loop
+does after every poll. Training chapter 21 re-walked: no bot runs during
+Exercise 2 (the bot starts in Exercise 4), so its expected output stands.
+Full suite: 14 523 passed, 1 skipped.
+
 ### WP-MMB03 — Every reply is applied to the symbol it belongs to (C1, C9, D1)
 
 **Tests first** (`tests/test_mm_bot_engine_wired.py`,
@@ -652,6 +694,35 @@ now). Replace the per-symbol QBOOT/QLEGS waits with one gateway-wide request
 each. Fix D1's comments with the code.
 
 **Exit criteria.** Tests 1–5 pass; suites as above green.
+
+**Outcome (2026-11-15).** `quote.ack` is matched by its id, else by its
+`symbol` (every engine ack path sends both, `engine/main.py`, 13 of 13
+`_quote_ack` calls); the send-order FIFO `_pending_ack_symbols` is gone. A
+`quote.status` is resolved through `_symbol_for_quote_id` and acts only on
+the symbol's current quote: the acked `quote_id` or the new
+`_SymbolState.sent_quote_id` (the quote in flight, for a lost ack); anything
+else is ignored and counted. Start-up sends one QBOOT and one QLEGS with an
+empty symbol (`_adopt_existing_quotes`), waits for the longest
+`bootstrap_timeout_sec`, and checks each adoption against that symbol's legs
+only. Beyond the plan: the periodic QLEGS check had the same primary-symbol
+fallback (`_reconcile_qlegs`: "falling back to the primary symbol for a reply
+with no legs"), and the reply names no symbol, so an empty reply for MSFT
+cleared AAPL. The periodic request is now gateway-wide too (one per tick when
+any symbol is due), and the reply reconciles every quoting symbol; both
+requests ask for `ACTIVE`, since the `recent` history was never used. Tests
+1–4 failed first for the reasons in C1/C9 (AAPL re-quoted; the primary
+cleared; the ack routed by FIFO to AAPL; three requests of each). Test 5 is
+superseded: with one request there is no "next symbol" to take a late reply.
+A sixth wired test (MSFT's `CANCELLED` lost; the periodic check restores MSFT
+and leaves AAPL) was added after the fix and was not run against the old
+code. Thirteen tests in `test_mm_bot.py` sent acks, statuses or QLEGS legs
+without the `quote_id`/`symbol` the engine always sends; they now carry them,
+and one test in `test_mm_bot_multi.py` no longer clears the removed FIFO. The FIFO
+test became `test_quote_acks_with_unknown_ids_are_routed_by_symbol`, and
+`test_a_qlegs_snapshot_for_an_untracked_symbol_is_ignored` now includes
+AAPL's own leg (in a gateway-wide reply, a missing symbol means a missing
+quote). D1's comments replaced with the code. Full suite: 14 528 passed, 1
+skipped.
 
 ### WP-MMB04 — Obligations are applied only when enforced; a refused quote is visible and backs off (C3, C4, D10, D11; after Q3, Q4)
 
@@ -678,6 +749,32 @@ validation, passive obligation and troubleshooting passages (D10, D11).
 
 **Exit criteria.** Tests 1–6 pass; suites as above green.
 
+**Outcome (2026-11-15).** `_request_symbols` stores `mm_max_spread_ticks`
+and the new `_SymbolState.mm_min_qty` only when the reply's
+`enforce_mm_obligation` is `true`; start-up excludes a symbol whose `qty` is
+below an enforced `mm_min_qty`. A rejected ack logs
+`[GW] [SYM] quote REJECTED: <reason>` at WARNING the first time per reason
+(per symbol, until the next accepted quote) and at DEBUG after that; the retry
+delay is `max(reissue_delay, 50 ms) × 2^(n−1)`, capped at
+`heartbeat_interval_sec`, and both reset on an accepted ack. The 50 ms floor
+keeps `--reissue-delay-ms 0` from retrying on every tick. Test 4 drives the
+refusals by tightening the engine's participant config after start-up (a
+quote the bot cannot fix by itself). Tests 1–5 failed first for the reasons in
+C3/C4 (start-up refused `--gap 0.30`; gap 5.00; no start-up check of
+`mm_min_qty`; 20 INFO records); test 6 passed before and after. Four older
+tests sent an obligation without `enforce_mm_obligation: true`; they now
+carry the flag the engine sends when it enforces. A ledger entry was added for
+the new WARNING (`log_ledger/entries/mm_bot.yaml`; `test_log_ledger` caught
+it). Docs: the guide's gap validation, passive obligation, refresh-trigger and
+troubleshooting passages (D10, D11, plus "Per-symbol failure isolation"); the
+reference manual's passive row. **Follow-up found by the B1 re-walk:** training
+chapter 02 told students that a gap over 20 ticks is refused, and its Exercise
+8 tip demonstrated failure isolation with TSLA at `gap: 0.50`; its
+configuration does not enforce the obligation, so neither holds any more. The
+note now says the limit binds only with `enforce_mm_obligation: true`, and the
+tip uses a symbol the exchange does not list (`NVDA: {}`), with the bot's
+actual WARNING lines. Full suite: 14 534 passed, 1 skipped.
+
 ### WP-MMB05 — Start-up uses the engine's facts: symbol metadata and the current position (C5, C6; after Q2)
 
 **Tests first** (`tests/test_mm_bot.py`, `tests/test_mm_bot_engine_wired.py`):
@@ -699,6 +796,24 @@ comment ("never queries the engine") and the guide's inventory-skew sentence
 ("it does not ask the engine") and D5.
 
 **Exit criteria.** Tests 1–4 pass; suites as above green.
+
+**Outcome (2026-11-15).** An empty or missing symbols reply ends start-up
+(`startup failed: no symbol list from the engine`, exit 1), and every symbol
+must then appear in the list. After the QBOOT/QLEGS step, `_seed_positions`
+sends `system.position_request` for the gateway, waits as long as the other
+start-up replies, and overwrites each symbol's `net_position`/`avg_cost` from
+`system.position_snapshot.<GW>` (now subscribed), passing the position to an
+`inventory_skew` pricer; without a reply it warns and stays at 0. The start-up
+waits now hand `order.fill` to the fill handler (`_buffer_event`), so a fill
+on an adopted quote after the snapshot is counted; one before it is replaced
+by the snapshot. Tests 1–4 failed first for the reasons in C5/C6 (start-up
+quoted without a symbol list; positions 0 against the engine's 300 and 200;
+no warning). The fixture gained `lost_requests` and `before_send` hooks.
+Texts: the `_SymbolState` comment, the guide's inventory-skew sentence and
+D5's paragraph, and the `system.position_snapshot` spec note ("This pair has
+no consumer in `src/`"), regenerated with `pm-msgen generate` (message
+reference and `models/generated/system.py`). Full suite: 14 538 passed, 1
+skipped.
 
 ### WP-MMB06 — Configuration is validated before anything starts; SIGTERM is honoured during start-up (C7, C8, C10; after Q5)
 
@@ -728,6 +843,32 @@ validate them). Start-up checks `_running` between steps and in each wait.
 **Exit criteria.** Tests 1–6 pass; `make completion` if help texts change;
 suites as above green.
 
+**Outcome (2026-11-15).** `params.validate_gateway_params` checks the
+resolved Tier-1 values (strings for `label`, `gateway_id`, `id_suffix`,
+`engine_pull`, `engine_pub`; positive finite timeouts; `LOG_LEVEL_CHOICES`,
+case-insensitive in the file and upper-cased; `LOG_TARGET_CHOICES`; a
+non-negative failover timeout). `main._resolve_gateway_settings` calls it, and
+a failure is the existing `invalid configuration: %s` (exit 1); the separate
+`invalid startup value: …` check and its ledger entry are gone. `_as_float`
+refuses NaN and infinities, so every Tier-2 number is finite. Per Q5 the flat
+loader is removed (`load_config_file`, `_ALLOWED_KEYS`, `_from_legacy_flat`,
+`_looks_like_v1`, `_normalize_symbols_value`): every file goes through the
+`version: 1` loader, and a flat key at the top level gets a pointer
+(`'gap' is a per-symbol setting; move it under 'defaults:' …`, `'symbol' is
+not a key; list the symbols under 'symbols:'`). C10: a `_stop_requested` flag,
+set by the signal handler and `shutdown()`, ends every start-up wait, and
+`_start_up` returns 0 before any quote is sent; a separate flag because many
+unit tests call the start-up steps with `_running` still false. Tests failed
+first for the reasons in C7/C8/C10 (a `TypeError` traceback, accepted values,
+flat files loaded, start-up continuing after the stop); the zero-timeout case
+failed on wording only. `tests/test_mm_bot_config.py` was rewritten around
+`load_bot_config`; five `main()` tests now use `version: 1` files, the
+comma-string test became a refusal test, and three tests about the flat
+format were deleted. Guide: "Legacy flat files" replaced by "The old flat
+layout"; the errors table and a troubleshooting row updated (messages checked
+against the real `main()`). `make completion` produced no change. Full suite:
+14 545 passed, 1 skipped.
+
 ### WP-MMB07 — Message dispatch costs the same for 1 or 300 symbols (P1)
 
 **Tests first** (`tests/test_mm_bot_multi.py`):
@@ -744,6 +885,23 @@ the tests' direct construction) and use it in `_dispatch` and
 **Exit criteria.** Tests pass; `order.fill`/`trade.executed` dispatch at 300
 symbols within 2× the 1-symbol time on this host (measured before/after as in
 §4; the target is a guess from the dict lookup's cost).
+
+**Outcome (2026-11-15).** `MMBot.__init__` builds `_symbol_topics`
+(topic → ("book" | "halt" | "resume", symbol)) once; `_dispatch` and
+`_buffer_event` look a topic up there, and `_symbol_for_book_topic`/
+`_symbol_for_topic` are gone. Order fills were already O(1) since WP-MMB01's
+leg index. Test 2 failed first (300 topics built per trade); test 1 passed
+before and after. Measured with the §4 benchmark, same host:
+
+| symbols | `book.<last>` | `trade.executed` | `order.fill` | `_tick()` |
+|---|---|---|---|---|
+| 1 | 1.3 µs | 0.6 µs | 1.5 µs | 0.6 µs |
+| 30 | 1.4 µs | 0.6 µs | 1.5 µs | 9.5 µs |
+| 300 | 1.4 µs (was 22.9) | 0.6 µs (was 61.6) | 1.5 µs (was 62.2) | 94.4 µs |
+
+The exit criterion (within 2× of one symbol) is met. `_tick` still grows with
+the number of symbols (it visits each), at 0.2 % of a core every 50 ms; it was
+not in scope. Full suite: 14 547 passed, 1 skipped.
 
 ### WP-MMB08 — Comments, help texts, pm-help, guide and reference manual (D2–D4, D6–D9)
 
@@ -764,6 +922,31 @@ Regenerate completion (`make completion`) if help texts change.
 **Exit criteria.** Every D item resolved or noted as superseded; `make
 _check` and the full suite green.
 
+**Outcome (2026-11-15).** D2: `--max-position` help says "an error with any
+other strategy". D3: pm-mm-bot's `-q` help, guide and reference rows now say
+"Explicit WARNING (the default)", the reference manual's existing wording for
+another tool; behaviour unchanged, because every `pm-*` process treats `-q` the
+same way and changing one would make the bot the odd one out — the shared
+help text went to For-Later **L034**. D4: the guide's output section says
+which messages are WARNING, and both sample logs were rewritten from the code
+(symbol tags, the `startup warning:` prefix, real order: exclusion before the
+other symbols' references; the obligation sample states it is enforced). D6:
+the per-symbol list names `--anchor-sim` and the passive knobs; the
+`defaults:` table has `anchor_sim`. D7: the pm-help entry covers several
+symbols, `--symbols`, `--all-symbols`, `--config`, `--strategy`, `--label`,
+`--max-position` and the passive knobs; the reference manual's process table
+and see-also say "one or more symbols". D8: `PricingStrategy` names its three
+implementations and their optional hooks. D9: the bot's price log lines use
+`_price_text` (tick precision; a mid one digit more); L006's detail notes the
+bot part as done. Also from the re-read: the guide's state diagram, start-up
+sequence (one QBOOT/QLEGS, the position step, the 3 s symbols failure),
+session/halt passage and shutdown (a stop during start-up); and
+`--bootstrap-timeout-sec` help/rows (it now bounds the gateway-wide start-up
+replies). Training chapters 020 and 210 re-walked: 020 fixed under
+WP-MMB04's follow-up, 210's sample lines match. The new pm-help test failed
+first (`--symbols` missing); `make completion` regenerated the zsh script.
+Full suite: 14 548 passed, 1 skipped.
+
 ---
 
 ## 9. Out of scope, noted
@@ -777,7 +960,10 @@ _check` and the full suite green.
 - **For-Later L014** (start from the market model's value with
   `--anchor-sim`) is a feature, not a defect; it stays open.
 - **For-Later L006** covers the consoles and `pm-admin` too; only the bot's
-  log lines are in D9.
+  log lines are in D9 (done).
+- **For-Later L034** (added in WP-MMB08): `-q` selects WARNING, the default,
+  in every `pm-*` process while the help says "Reduce output"; pm-mm-bot's
+  text was reworded, the others need one decision for all.
 - **`--initial_min`/`--initial_max`** are the only underscore flags of the
   command. Renaming them changes the interface; left as is.
 - **The health beacon** reports `mmbot.symbols_active` (symbols that passed

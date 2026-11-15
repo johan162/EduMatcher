@@ -431,7 +431,7 @@ uses the web and bridge ports. They follow one scheme: `809N`, `819N`, `519N`.
 | **pm-ai-swarm**  | `pm-ai-swarm`            | Coordinated multi-agent AI trading swarm                        | No        |
 | **pm-market-sim** | `pm-market-sim`         | Market model: true values and news for the AI traders           | No        |
 | **pm-news**      | `pm-news --id ADMIN_ID …` | Instructor's news desk for `pm-market-sim`                     | No        |
-| **pm-mm-bot**    | `pm-mm-bot --symbol SYM` | Autonomous [market-maker bot](../../participant-guide/part-3-market-making/030-the-market-maker-bot.md) for a single symbol | No        |
+| **pm-mm-bot**    | `pm-mm-bot --symbol SYM` | Autonomous [market-maker bot](../../participant-guide/part-3-market-making/030-the-market-maker-bot.md) for one or more symbols | No        |
 
 !!! warning "Start the engine first"
     The engine binds the ZeroMQ sockets.  All other processes connect to those
@@ -2581,7 +2581,7 @@ same key in a `--config` file in the same scope.
 | `--tif`                          | `DAY`                  | Time-in-force for quote legs (`DAY` or `GTC`)                    |
 | `--heartbeat-interval-sec`       | `5.0`                  | Periodic live-quote check interval                               |
 | `--startup-session-timeout-sec`  | `5.0`                  | Max wait to learn the session phase (asked for, or a `session.state`)|
-| `--bootstrap-timeout-sec`        | `1.0`                  | Max wait for QBOOT reply                                         |
+| `--bootstrap-timeout-sec`        | `1.0`                  | Max wait for each startup reply (QBOOT, QLEGS, position); the longest value of any symbol applies |
 | `--cancel-timeout-sec`           | `1.0`                  | Max wait for cancel confirmation                                 |
 | `--shutdown-timeout-sec`         | `2.0`                  | Max wait for cancel on SIGINT/SIGTERM                            |
 | `--qlegs-reconcile-interval-sec` | `15.0`                 | Periodic QLEGS reconciliation interval                           |
@@ -2591,7 +2591,7 @@ same key in a `--config` file in the same scope.
 | `--engine-pub`                   | `tcp://127.0.0.1:5556` | Engine PUB address                                               |
 | `--log-level`                    | `WARNING`              | Explicit level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
 | `-v` / `--verbose`               | off                    | Increase verbosity (`-v` enables bot debug prints, `-vv` sets DEBUG) |
-| `-q` / `--quiet`                 | off                    | Reduce output to warnings/errors                                |
+| `-q` / `--quiet`                 | off                    | Explicit `WARNING` (same as the default)                        |
 | `--log-target`                   | `server`               | Where operational log records go: `server` (auto-detected `pm-log-srv`), `stdout`, or `file` |
 | `--log-file`                     | none                   | Operational log file path — required when `--log-target file`  |
 | `--log-failover-timeout`         | `30` (from config)     | Grace window in seconds before falling back to a local log file once `pm-log-srv` becomes unreachable |
@@ -2615,7 +2615,7 @@ be pre-registered in `engine_config.yaml` with `role: MARKET_MAKER`.
 |---|---|---|
 | `symmetric` | bid at mid − gap/2, ask at mid + gap/2 | `gap`, `drift_ticks` |
 | `inventory_skew` | like `symmetric`, but shifts both prices against the current position so a long bot sells more eagerly; skew saturates at `max_position` | `max_position` (required) |
-| `passive` | a backstop: steps `behind_ticks` behind other traders' best price, never tighter than its home price nor outside the `retreat_ticks` band, and fades `fade_ticks` for `fade_sec` after a fill. The mid comes from *other* traders' book only, so the bot never chases its own quote. If the symbol has a market-maker spread obligation, the band is narrowed so the widest quote still meets it | the five `passive` flags |
+| `passive` | a backstop: steps `behind_ticks` behind other traders' best price, never tighter than its home price nor outside the `retreat_ticks` band, and fades `fade_ticks` for `fade_sec` after a fill. The mid comes from *other* traders' book only, so the bot never chases its own quote. If the engine enforces a market-maker spread obligation for the symbol, the band is narrowed so the widest quote still meets it | the five `passive` flags |
 
 **Config file (`--config`):** a YAML file with `version: 1` separates
 gateway-wide settings from per-symbol ones:
@@ -4228,7 +4228,7 @@ See [Messages](../../protocols-and-clients/part-5-message-reference/010-message-
 
 **Participant Guide:**
 
-- [Market-Maker Bot](../../participant-guide/part-3-market-making/030-the-market-maker-bot.md) — autonomous quoting process for a single symbol
+- [Market-Maker Bot](../../participant-guide/part-3-market-making/030-the-market-maker-bot.md) — autonomous quoting process for one or more symbols
 
 **Operator's Guide:**
 

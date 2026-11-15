@@ -209,7 +209,8 @@ stateDiagram-v2
     QUOTING --> PAUSED : session != CONTINUOUS, or circuit_breaker.halt for this symbol
     REPRICING --> REISSUING : new quote required
     REISSUING --> QUOTING : quote.ack received
-    PAUSED --> WAITING_FOR_SESSION : resume trigger
+    PAUSED --> WAITING_FOR_SESSION : circuit_breaker.resume, or session=CONTINUOUS
+    WAITING_FOR_SESSION --> REISSUING : already CONTINUOUS at the resume
     QUOTING --> [*] : SIGINT / SIGTERM
     PAUSED --> [*] : SIGINT / SIGTERM
 ```
@@ -218,18 +219,22 @@ stateDiagram-v2
 
 1. Open ZMQ sockets (PUSH and SUB) — once per process, not once per symbol
 2. Send `gateway_connect` and wait for `gateway_auth` ACK — once per process
-3. Request symbol list and verify every `--symbol`/`--symbols` entry exists
-4. For each symbol: send `QBOOT` — if an active quote already exists for
-   this `(gateway_id, symbol)` pair, adopt it instead of creating a
-   duplicate
-5. For each symbol: send `QLEGS` to reconcile quote-leg mapping
+3. Request the symbol list (tick sizes, MM obligations) and verify every
+   symbol exists — no reply within 3 s is a startup failure, since every
+   tick size would otherwise be a guess
+4. Send one `QBOOT` for the whole gateway — any symbol whose quote is still
+   active is adopted instead of being quoted twice — and one `QLEGS` to
+   check each adopted quote's legs
+5. Ask the engine for the gateway's current position
+   (`system.position_request`) and start each symbol's tracked position from
+   it, so `inventory_skew` does not restart flat
 6. Wait for `session.state` event (fail fast if not received within
    timeout) — once per process, since session state applies to the whole
    exchange rather than to one symbol
-7. For each symbol still active after steps 3–5: resolve its initial
-   reference price and begin quoting
+7. For each symbol still active: resolve its initial reference price and
+   begin quoting
 
-Steps 3–5 and 7 run once per symbol and are where
+The per-symbol checks of step 3 and the reference price of step 7 are where
 [per-symbol failure isolation](#per-symbol-failure-isolation) applies: a
 symbol that fails one of these checks is excluded from quoting rather than
 aborting the whole process, as long as at least one other symbol succeeds.
@@ -237,7 +242,7 @@ aborting the whole process, as long as at least one other symbol succeeds.
 ### Per-symbol failure isolation
 
 A `--symbols` bot does not treat a startup problem with one symbol as fatal
-to the others. If, say, `AAPL`'s `--gap` violates its `mm_max_spread_ticks`
+to the others. If, say, `AAPL`'s `--gap` violates an enforced `mm_max_spread_ticks`
 obligation while `MSFT`'s does not, the bot logs `AAPL` as excluded and
 continues quoting `MSFT` — the process only exits with a startup failure if
 *every* symbol fails its checks (exactly the single-symbol behavior, applied
@@ -258,6 +263,9 @@ On `SIGINT` (Ctrl+C) or `SIGTERM`, the bot:
 1. Sends `quote.cancel` for every symbol still quoting
 2. Waits up to `--shutdown-timeout-sec` for cancel confirmation
 3. Closes ZMQ sockets and exits
+
+A stop that arrives during startup ends startup at once, before any quote is
+sent, and the bot exits with code 0.
 
 ---
 
@@ -307,7 +315,7 @@ own, per-side re-quote rules — see
 | Quote inactivated (one side filled) | Reissue after `--reissue-delay-ms` |
 | Mid-price drift exceeds threshold | Cancel active quote, then reissue at new mid |
 | `passive` only: a side becomes/stops being covered, must step back, or a fade starts/ends | Cancel active quote, then reissue (see [When the bot re-quotes](#when-the-bot-re-quotes)) |
-| Quote rejected | Retry after delay |
+| Quote rejected | Retry after `--reissue-delay-ms`, doubling per consecutive rejection up to `--heartbeat-interval-sec` |
 | Periodic heartbeat (no active quote) | Reissue |
 | Periodic QLEGS reconciliation mismatch | Clear local state and reissue |
 
@@ -358,7 +366,11 @@ A circuit-breaker halt is **not** a `session.state` value — it arrives on a
 separate, per-symbol `circuit_breaker.halt.<SYMBOL>` topic (and clears on the
 matching `circuit_breaker.resume.<SYMBOL>` topic), independent of the session
 state. On a halt for one of its symbols, the bot cancels that symbol's live
-quote and pauses immediately; it resumes on the matching resume event.
+quote and pauses immediately. On the matching resume it quotes again at once
+if the session is `CONTINUOUS`, otherwise when the session next enters
+`CONTINUOUS`. A quote that was on its way to the engine when the halt or
+the phase change arrived is cancelled as soon as its acknowledgement comes
+back.
 
 When the session transitions to `CONTINUOUS`, the bot resumes quoting
 automatically.
@@ -414,7 +426,8 @@ differ for every symbol:
 `--strategy`, `--gap`, `--qty`, `--max-position`, `--drift-ticks`, `--tif`,
 `--reissue-delay-ms`, `--heartbeat-interval-sec`, `--bootstrap-timeout-sec`,
 `--cancel-timeout-sec`, `--qlegs-reconcile-interval-sec`, `--initial_min`,
-`--initial_max`.
+`--initial_max`, `--anchor-sim`, and the `passive` knobs `--retreat-ticks`,
+`--behind-ticks`, `--min-cover-qty`, `--fade-ticks`, `--fade-sec`.
 
 ### Scoping flags to a symbol on the command line
 
@@ -486,14 +499,14 @@ Rules:
 | `--reissue-delay-ms N`             | per-symbol   | `200`                  | Wait after fill before re-issuing                                  |
 | `--tif {DAY,GTC}`                  | per-symbol   | `DAY`                  | Time-in-force for quote legs                                       |
 | `--heartbeat-interval-sec F`       | per-symbol   | `5.0`                  | Periodic live-quote check interval                                 |
-| `--bootstrap-timeout-sec F`        | per-symbol   | `1.0`                  | Max wait for QBOOT reply                                           |
+| `--bootstrap-timeout-sec F`        | per-symbol   | `1.0`                  | Max wait for each startup reply (QBOOT, QLEGS, position); the longest value of any symbol applies |
 | `--cancel-timeout-sec F`           | per-symbol   | `1.0`                  | Max wait for cancel confirmation before forced replacement reissue |
 | `--qlegs-reconcile-interval-sec F` | per-symbol   | `15.0`                 | Periodic QLEGS reconciliation interval                             |
 | `--initial_min PRICE`              | per-symbol   | *unset*                | Lower bound for random bootstrap price                             |
 | `--initial_max PRICE`              | per-symbol   | *unset*                | Upper bound for random bootstrap price                             |
 | `--log-level`                      | gateway      | `WARNING`              | Explicit level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG`    |
 | `-v`, `--verbose`                  | gateway      | `false`                | Increase verbosity (`-v` enables bot debug prints, `-vv` sets DEBUG) |
-| `-q`, `--quiet`                    | gateway      | `false`                | Reduce output to warnings/errors                                   |
+| `-q`, `--quiet`                    | gateway      | `false`                | Explicit `WARNING` (same as the default)                           |
 
 ¹ At least one symbol is required, from `--symbol`, `--symbols`, or the
 config file's `symbols:` block. Giving both `--symbol` and `--symbols`, or
@@ -680,6 +693,7 @@ for that symbol.
 | `min_cover_qty` | integer | `1` | ≥ 1; `passive` only |
 | `fade_ticks` | integer | `2` | ≥ 0; `passive` only |
 | `fade_sec` | number | `3.0` | ≥ 0; `passive` only |
+| `anchor_sim` | number | `0` | 0–1; quote around `pm-market-sim`'s true value (`0` = off) |
 
 Symbol keys are upper-cased on load, so `symbols: {aapl: {...}}` configures
 `AAPL`. Mapping order is preserved and is the order symbols start in.
@@ -720,33 +734,23 @@ failure rather than a bot that runs with settings you did not intend.
 |---|---|
 | Typo in a key | `unknown key 'gapp' under symbols.AAPL (did you mean 'gap'?)` |
 | Gateway-wide key in `defaults:` or a symbol block | `'engine_pull' is a gateway-wide setting; move it under 'gateway:'` |
-| Per-symbol key in `gateway:` | `'gap' is a per-symbol setting; move it under 'defaults:' or into a symbol's own block` |
+| Per-symbol key in `gateway:` or at the top level | `'gap' is a per-symbol setting; move it under 'defaults:' or into a symbol's own block` |
+| `symbol:` at the top level | `'symbol' is not a key; list the symbols under 'symbols:'` |
 | Logging key in the wrong place | `'log_level' is a logging setting; move it under 'logging:'` |
 | Unquoted `id_suffix` | `gateway.id_suffix must be a string — quote it (e.g. "01")` |
 | A future schema version | `unsupported version 2 (this build understands version 1)` |
 | An out-of-range value | `[MSFT] qty must be positive (got -1)` |
+| A quoted or non-finite number | `startup_session_timeout_sec must be a number (got '5')`, `[AAPL] gap must be a finite number (got nan)` |
+| An unknown logging level or target | `level must be one of CRITICAL, ERROR, WARNING, INFO, DEBUG (got 'verbose')` (the level is not case-sensitive in the file) |
 | `inventory_skew` without a cap | `[TSLA] max_position is required when strategy inventory_skew is selected` |
 
-### Legacy flat files
+### The old flat layout
 
-The original flat format — one mapping of CLI flag names, all of them
-gateway-wide — still loads unchanged:
-
-```yaml
-# mm_aapl.yaml (legacy format)
-symbol: AAPL
-id_suffix: "01"
-strategy: symmetric
-gap: 0.08
-qty: 300
-tif: GTC
-drift_ticks: 4
-```
-
-It is recognised by shape (no `version:`, and `symbols:` given as a string or
-list rather than a mapping) and behaves exactly as it did: every value
-applies to every symbol. Prefer `version: 1` for new files — it is the only
-format that can express per-symbol settings.
+Before `version: 1`, a config file was one flat mapping of CLI flag names
+(`symbol: AAPL`, `gap: 0.08`, …). That layout is no longer read: its keys are
+refused with a message naming the block they belong in (see the table above).
+Move per-symbol keys under `defaults:`, gateway-wide ones under `gateway:`,
+and list the symbols under `symbols:`.
 
 ### Pricing strategies
 
@@ -782,8 +786,9 @@ price move, and the point of market-making in the first place is to earn
 the spread, not to take a directional bet.
 
 `--strategy inventory_skew` addresses this by tracking the bot's own net
-position per symbol (derived locally from its own fills — it does not ask
-the engine) and shifting where it places its bid and ask relative to mid:
+position per symbol (taken from the engine's position ledger when the bot
+starts, then kept up to date from its own fills) and shifting where it places
+its bid and ask relative to mid:
 
 - **Long** (net_position > 0, the bot has bought more than it's sold): the
   effective mid shifts *down*. Both the bid and the ask come down —
@@ -995,9 +1000,9 @@ has moved, not how far the mid has moved.
 
 #### Interaction with the MM spread obligation
 
-If the symbol has an `mm_max_spread_ticks` obligation (see
-[Gap validation](#gap-validation)), the engine rejects any quote wider
-than it. The bot therefore narrows the band until even the widest quote it
+If the engine enforces an `mm_max_spread_ticks` obligation for the bot's
+gateway (`enforce_mm_obligation: true`, see
+[Gap validation](#gap-validation)), it rejects any quote wider than that. The bot therefore narrows the band until even the widest quote it
 could send (both sides fully retreated, or faded to the band edge) still
 satisfies the obligation:
 
@@ -1123,11 +1128,11 @@ engine tracks a signed net position and volume-weighted average cost for
 every gateway from its own fill records, and answers `system.
 position_request` for any `gateway_id`, not just the requester's own — a
 console (or another script) can query about a bot the same way it would
-query its own position. The `--strategy inventory_skew` bot's local
-position tracking (used for skewing, described above) is a separate,
-parallel bookkeeping of the same fills — the two should always agree, since
-both are derived from the same fill stream, but only the engine's ledger
-is reachable remotely via `POS|GW=`.
+query its own position. The bot's own position tracking (used for skewing,
+described above) starts from that same ledger when the bot starts and then
+follows the bot's fills, so the two agree; only the engine's ledger is
+reachable remotely via `POS|GW=`. If the engine does not answer the bot's
+position request at start-up, the bot logs a warning and starts from zero.
 
 The same query is available over REST for an admin-role caller, via
 [`GET /api/v1/admin/gateways/MM_AAPL_01/positions`](../../protocols-and-clients/part-2-specifications/060-rest-and-websocket.md#get-apiv1admingatewaysgateway_idpositions)
@@ -1223,27 +1228,31 @@ these automatically for every symbol, so this is only a concern when writing
 ### Gap validation
 
 The bot enforces pricing validity at startup, per symbol (each symbol has
-its own `tick_size` and, potentially, its own `mm_max_spread_ticks`):
+its own `tick_size` and, potentially, its own MM obligation):
 
 - `gap >= 2 * tick_size` (via pricer validation)
-- if `mm_max_spread_ticks` is available in that symbol's metadata, the bot
-  validates `gap <= mm_max_spread_ticks * tick_size`
+- if the engine enforces an MM obligation for this gateway and symbol
+  (`enforce_mm_obligation: true`), the bot validates
+  `gap <= mm_max_spread_ticks * tick_size` and `qty >= mm_min_qty`
+
+An obligation the engine does not enforce is ignored by the bot as well: the
+engine's symbol list carries the participant's `mm_max_spread_ticks` and
+`mm_min_qty` either way, but only an enforced one can make a quote fail.
 
 Defaulting rules:
 
 - An explicitly supplied `--gap` (in either the `--gap 0.10` or `--gap=0.10`
   form) is always respected for every symbol — it is only validated against
   each symbol's obligation, never overridden.
-- If `--gap` is not provided and `mm_max_spread_ticks` is available for a
-  symbol, that symbol's gap defaults to half its max spread:
+- If `--gap` is not provided and an enforced `mm_max_spread_ticks` applies to
+  a symbol, that symbol's gap defaults to half its max spread:
   `(mm_max_spread_ticks / 2) * tick_size`. On a `--symbols` bot this can
   differ per symbol — `AAPL` and `MSFT` need not end up with the same
   effective gap.
-- If no MM spread metadata is available for a symbol, that symbol uses the
-  standard `0.10` default.
+- Otherwise that symbol uses the standard `0.10` default.
 
-A symbol whose validated gap violates its own obligation is excluded from
-quoting rather than failing the whole process — see
+A symbol whose gap or quantity violates its own enforced obligation is
+excluded from quoting rather than failing the whole process — see
 [Per-symbol failure isolation](#per-symbol-failure-isolation) above.
 
 ---
@@ -1340,7 +1349,9 @@ itself emits is further prefixed with its own gateway ID in brackets, e.g.
 `[MM_AAPL_01] <message>`. At true default verbosity (no `-v`/`-q`/`--log-level`
 flag at all) the bot's own lifecycle messages are logged at `INFO`, but the
 default logging level is `WARNING` — so **none of them are visible** unless
-something fails outright (those paths log at `ERROR`). Pass `-v` to see the
+something goes wrong: a startup failure or an excluded symbol
+(`startup warning: …`), a quote the engine refuses (`quote REJECTED: …`) or a
+missing position snapshot is logged at `WARNING`. Pass `-v` to see the
 bot's milestones and problems (routine per-quote activity needs `-vv` or the
 dedicated `--verbose` sections below):
 
@@ -1348,7 +1359,8 @@ dedicated `--verbose` sections below):
 2026-09-20 09:30:00,001 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] starting: gateway=MM_AAPL_01 symbols=AAPL
 2026-09-20 09:30:00,002 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] [AAPL] strategy=symmetric gap=0.1 qty=500 tif=DAY drift_ticks=3
 2026-09-20 09:30:01,002 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] authenticated
-2026-09-20 09:30:01,003 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] bootstrap from random range: 150.00
+2026-09-20 09:30:01,003 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] [AAPL] bootstrap from random range: 150.00
+2026-09-20 09:30:01,004 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] running symbols=['AAPL'] session=CONTINUOUS
 2026-09-20 09:30:20,004 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] [AAPL] circuit breaker HALT
 2026-09-20 09:30:45,005 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] [AAPL] circuit breaker RESUME
 2026-09-20 09:35:00,006 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] shutdown complete
@@ -1359,18 +1371,19 @@ followed by **one line per symbol** reporting that symbol's resolved
 settings. This is the confirmation that a long command line or a config file
 resolved the way you intended — read it first when a bot is not quoting the
 way you expected. Every per-symbol log line thereafter carries an additional
-`[SYMBOL]` tag ahead of the message:
+`[SYMBOL]` tag ahead of the message. In this run the gateway's obligation is
+enforced (`enforce_mm_obligation: true`, `mm_max_spread_ticks: 10`), so
+AAPL's 0.20 gap is too wide:
 
 ```
 2026-09-20 09:30:00,001 INFO edumatcher.mm_bot.bot - [MM_TECH_01] starting: gateway=MM_TECH_01 symbols=AAPL,MSFT
-2026-09-20 09:30:00,002 INFO edumatcher.mm_bot.bot - [MM_TECH_01] [AAPL] strategy=symmetric gap=0.1 qty=500 tif=DAY drift_ticks=3
-2026-09-20 09:30:00,003 INFO edumatcher.mm_bot.bot - [MM_TECH_01] [MSFT] strategy=symmetric gap=0.2 qty=200 tif=DAY drift_ticks=3
+2026-09-20 09:30:00,002 INFO edumatcher.mm_bot.bot - [MM_TECH_01] [AAPL] strategy=symmetric gap=0.2 qty=500 tif=DAY drift_ticks=3
+2026-09-20 09:30:00,003 INFO edumatcher.mm_bot.bot - [MM_TECH_01] [MSFT] strategy=symmetric gap=0.08 qty=200 tif=DAY drift_ticks=3
 2026-09-20 09:30:01,002 INFO edumatcher.mm_bot.bot - [MM_TECH_01] authenticated
-2026-09-20 09:30:01,003 INFO edumatcher.mm_bot.bot - [MM_TECH_01] [AAPL] bootstrap from random range: 150.00
-2026-09-20 09:30:01,004 INFO edumatcher.mm_bot.bot - [MM_TECH_01] [MSFT] bootstrap from random range: 310.00
-2026-09-20 09:30:14,005 INFO edumatcher.mm_bot.bot - [MM_TECH_01] [AAPL] startup failed: --gap exceeds mm_max_spread_ticks obligation
-2026-09-20 09:30:14,006 INFO edumatcher.mm_bot.bot - [MM_TECH_01] [AAPL] excluded from quoting: --gap exceeds mm_max_spread_ticks obligation
-2026-09-20 09:30:14,007 INFO edumatcher.mm_bot.bot - [MM_TECH_01] running symbols=['MSFT'] session=CONTINUOUS
+2026-09-20 09:30:01,003 WARNING edumatcher.mm_bot.bot - [MM_TECH_01] startup warning: [AAPL] startup failed: --gap exceeds mm_max_spread_ticks obligation (0.200000 > 10 * 0.010000)
+2026-09-20 09:30:01,005 WARNING edumatcher.mm_bot.bot - [MM_TECH_01] startup warning: [AAPL] excluded from quoting: --gap exceeds mm_max_spread_ticks obligation (0.200000 > 10 * 0.010000)
+2026-09-20 09:30:01,006 INFO edumatcher.mm_bot.bot - [MM_TECH_01] [MSFT] bootstrap from random range: 310.00
+2026-09-20 09:30:01,007 INFO edumatcher.mm_bot.bot - [MM_TECH_01] running symbols=['MSFT'] session=CONTINUOUS
 2026-09-20 09:30:20,008 INFO edumatcher.mm_bot.bot - [MM_TECH_01] [MSFT] circuit breaker HALT
 2026-09-20 09:30:45,009 INFO edumatcher.mm_bot.bot - [MM_TECH_01] [MSFT] circuit breaker RESUME
 2026-09-20 09:35:00,010 INFO edumatcher.mm_bot.bot - [MM_TECH_01] shutdown complete
@@ -1393,7 +1406,7 @@ decision:
 
 ```
 2026-09-20 09:30:01,001 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] symbols received: ['AAPL', 'MSFT', 'TSLA']
-2026-09-20 09:30:01,002 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] [AAPL] reference from book/trade: 150.00
+2026-09-20 09:30:01,002 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] [AAPL] reference from book/trade: 150.000
 2026-09-20 09:30:01,003 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] [AAPL] QUOTE sent bid=149.95 ask=150.05
 2026-09-20 09:30:01,004 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] [AAPL] quote ACK id=q-001
 2026-09-20 09:30:14,005 INFO edumatcher.mm_bot.bot - [MM_AAPL_01] [AAPL] fill: ASK 200@150.05
@@ -1410,7 +1423,9 @@ bot is only quoting a single symbol.)
 `-v` also raises the underlying log level and enables the bot's own debug
 prints together — it is not just a "print more" switch, it also turns on
 low-level flow tracing (e.g. `book mid=...`, `session: OLD -> NEW`, and
-`state: OLD -> NEW` transitions of the bot's own state machine).
+`state: OLD -> NEW` transitions of the bot's own state machine). Prices are
+printed at the symbol's tick precision; a mid, which can fall between two
+ticks, with one more digit (`book mid=150.520`).
 
 ---
 
@@ -1419,7 +1434,7 @@ low-level flow tracing (e.g. `book mid=...`, `session: OLD -> NEW`, and
 | Symptom | Cause | Fix |
 |---|---|---|
 | `auth rejected` | Gateway ID not in `engine_config.yaml` | Add the `MM_<SYM>_<nn>` (or `MM_<LABEL>_<nn>`) entry with `role: MARKET_MAKER` |
-| `invalid config file: ... unknown key(s)` | A `--config` file has a typo'd or unsupported key | Check the key against [Config file](#config-file) — long flag name, dashes as underscores |
+| `invalid config file: ... unknown key '...'` | A `--config` file has a typo'd, misplaced or unsupported key | Check the key against [Config file](#config-file); the message suggests the closest key or the block it belongs in |
 | `no symbols configured: use --symbol, --symbols, or a config file with a 'symbols:' block` | Neither `--symbol` nor `--symbols` nor the config file's `symbols:` block was given | Add one of the two |
 | `--symbol and --symbols are mutually exclusive` | Both `--symbol` and `--symbols` ended up set, from any combination of CLI and `--config` | Use only one |
 | `startup failed: no reference price available (no book, no trade, no bootstrap, no random range)` | Empty book + no `--initial_min`/`--initial_max`, for a symbol with no other symbol left quoting | Add bootstrap range flags |
@@ -1427,7 +1442,7 @@ low-level flow tracing (e.g. `book mid=...`, `session: OLD -> NEW`, and
 | `startup failed: no session.state` | Engine not running or scheduler not started | Start the engine and scheduler |
 | `startup failed: no symbol survived startup checks` | Every symbol failed startup (see [Per-symbol failure isolation](#per-symbol-failure-isolation)) | Fix whichever per-symbol cause each excluded-symbol log line names |
 | `[SYM] excluded from quoting: ...` | One symbol (not all) failed a startup check on a `--symbols` bot | Expected if intentional (e.g. testing failure isolation); otherwise fix that symbol's cause and restart |
-| `quote REJECTED` | Gap or qty violates MM obligation policy | Reduce `--gap` / increase `--qty` or adjust gateway MM settings |
+| `[SYM] quote REJECTED: <reason>` (WARNING) | The engine refused the quote; the reason says why (an obligation changed since start-up, a halt, a closed market) | Fix the cause the reason names. The bot logs each reason once at WARNING (repeats at DEBUG) and retries with a delay that doubles up to `--heartbeat-interval-sec`; an accepted quote resets both |
 | Bot quotes but prices look wrong | Tick size mismatch | Check symbol `tick_size` in engine config |
 | `passive` bot never steps back behind other traders | Their orders are outside the band, below `--min-cover-qty`, or the band was narrowed to `0` by the MM spread obligation (look for `retreat_ticks ... narrowed to 0` at startup) | Raise `--retreat-ticks`, lower `--min-cover-qty`, or narrow `--gap` so the obligation leaves room |
 | `passive` bot still gets hit first after a trader joins its price | The bot was at that price first, so it has time priority until its cancel/replace goes through | Expected briefly — the bot steps back as soon as it processes the book update |
