@@ -44,6 +44,7 @@ its own piece of work.
 | L028 | 2026-11-14 | pm-engine (book requests) | `book.snapshot_request` for a symbol the engine holds no book for gets no answer, so a subscriber that cached the book before an engine restart cannot learn it is now empty | Low | Open |
 | L029 | 2026-11-15 | pm-engine (heartbeats) | A session that never sent a heartbeat is never expired, so a client that connects and dies (or is answered after it gave up) holds its gateway id until an admin disconnect or an engine restart | Medium | Open |
 | L030 | 2026-11-15 | pm-engine (admin queries) | Position and order queries about a disconnected gateway answer empty lists, so `GET /admin/gateways/{id}/positions` and `/orders` show a logged-off trader with resting orders as flat with none | Medium | Open |
+| L031 | 2026-11-15 | pm-engine (gateway connect) | A refused `gateway_connect` for an unknown id still creates a session, a metrics label and a published topic that are never freed: 337 B per refused id, reachable by any client through ALF `HELLO` | Low | Open |
 
 ## L001 — Topic literals in pm-sim-forensics
 
@@ -509,3 +510,26 @@ a `200`.
 **Recommendation.** Give the admin queries a requester field separate from
 the target, as `risk.kill_switch_gateway` already has, and answer an ADMIN
 about any configured gateway, connected or not.
+
+## L031 — An unknown gateway id costs the engine memory for good
+
+**Found:** 2026-11-15, messaging layer review §9
+(`docs-design/reviews/EduMatcher-Messaging-Review-2026-11.md`).
+
+**Finding.** Any client can send an ALF `HELLO` with a made-up gateway id;
+pm-alf-gwy forwards it as `system.gateway_connect`
+(`alf_gwy/gateway.py:997-1004`). `_handle_gateway_connect`
+(`engine/main.py:2786`) calls `_session_for_gateway`, which creates and keeps
+a `ParticipantSession`, and counts a per-gateway metric, *before* the
+allowlist check at `:2813` refuses the id. The refusal is published on the
+new topic `system.gateway_auth.<id>`, so `SequencedPublisher._seq` and every
+subscriber's per-topic sequence state gain an entry too. Measured with the
+real engine: 50 000 refused ids leave 50 000 sessions and 50 007 publisher
+topics, 337 B per refused id (16.8 MB); 136 B of each is the publisher's
+counter.
+
+**Recommendation.** Check the allowlist before `_session_for_gateway` and
+before counting the per-gateway metric. The publisher's per-topic counter
+cannot be dropped without breaking gap detection, so the remaining growth
+(one counter per refused id) is best removed by having the gateways refuse
+ids that are not configured participants before forwarding.
