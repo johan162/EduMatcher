@@ -41,7 +41,9 @@ wrapped with a counter to see what the gateway receives. *(measured)* means
 timed on this host with the same setup. The other findings are by
 inspection, with line numbers given.
 
-Status: **Open.** Decisions Q1–Q5 are needed before WP-DCG01, 02, 03 and 05.
+Status: **Done, uncommitted.** WP-DCG01–05 completed 2026-11-15 in order,
+each test-first with a full-suite run. Decisions Q1–Q5 were taken as
+recommended (the user asked for all WPs in one go); see §7.
 
 ---
 
@@ -78,11 +80,11 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit) �
 
 | # | WP | Content | Findings | Depends on | Est. | Status | Done on |
 |---|---|---|---|---|---|---|---|
-| 1 | WP-DCG01 | Other participants' traffic never costs a watched participant's fills, and a loss is counted | H1, P1 | Q1 | 0.5 d | ☐ | |
-| 2 | WP-DCG02 | Every `DC_FILL` says when it happened and which trade it was | C1 | Q2 | 0.5 d | ☐ | |
-| 3 | WP-DCG03 | The loop serves every descriptor and a stop says goodbye | C3, C4, C5 | Q4, Q5 | 0.5 d | ☐ | |
-| 4 | WP-DCG04 | The config refuses a name the gateway cannot send | C6 | — | 0.25 d | ☐ | |
-| 5 | WP-DCG05 | Comments, help texts and guides say what the code does | C2, D1–D8 | Q3, WP-DCG01–04 | 0.5 d | ☐ | |
+| 1 | WP-DCG01 | Other participants' traffic never costs a watched participant's fills, and a loss is counted | H1, P1 | Q1 | 0.5 d | ☑ | 2026-11-15 |
+| 2 | WP-DCG02 | Every `DC_FILL` says when it happened and which trade it was | C1 | Q2 | 0.5 d | ☑ | 2026-11-15 |
+| 3 | WP-DCG03 | The loop serves every descriptor and a stop says goodbye | C3, C4, C5 | Q4, Q5 | 0.5 d | ☑ | 2026-11-15 |
+| 4 | WP-DCG04 | The config refuses a name the gateway cannot send | C6 | — | 0.25 d | ☑ | 2026-11-15 |
+| 5 | WP-DCG05 | Comments, help texts and guides say what the code does | C2, D1–D8 | Q3, WP-DCG01–04 | 0.5 d | ☑ | 2026-11-15 |
 
 Suggested order: **WP-DCG01 → WP-DCG02 → WP-DCG03 → WP-DCG04 → WP-DCG05**.
 WP-DCG01 is the only path where fills are lost. WP-DCG02 changes the wire
@@ -342,6 +344,9 @@ per-ID subscriptions the gateway sees only watched traffic.
 | Q4 | Should a stop say goodbye (C4)? (a) `EXIT|REASON=shutdown|TS=…` to every session and a flush bounded at 1 s. (b) Leave as is. | **(a)**, the same as RALF Q7, so the line gateways stay alike (pm-md-gwy via L036). |
 | Q5 | Half-closed clients (C5)? (a) Document that a half-close ends the session. (b) Keep the session until a send fails or it idles out. | **(a)**, as RALF Q8, for alignment; (b) also needs send errors to disconnect (`gateway.py:313-315`). |
 
+**Taken (2026-11-15):** Q1 (a), Q2 (a), Q3 (a), Q4 (a), Q5 (a): the
+recommendations, as the user asked for all WPs to be completed in one go.
+
 ---
 
 ## 8. Work packages
@@ -379,6 +384,46 @@ the option to `make_subscriber` on this component's path only); per-ID last
 **Exit criteria.** Tests 1–7 pass; `tests/test_dc_gwy_*.py` and the monitor
 tests that read `gwy.*` samples green.
 
+**Outcome (2026-11-15).** The drop-copy SUB is still made by
+`make_subscriber` (now with `rcvhwm=100_000`), and its catch-all `""`
+subscription is removed straight after (`UNSUBSCRIBE b""`), so only the
+per-ID topics of `_dc_subscribe` remain. Keeping `make_subscriber` keeps the
+shared stub in `tests/test_gateway_metrics.py` working, which a direct
+`get_context().socket(zmq.SUB)` broke (23 errors in the first full run).
+`_check_feed_seq` tracks the last payload `seq` per watched ID: a jump adds
+the missed count to `gwy.feed_gaps` (a new counter in `metric_samples`) and
+logs one WARNING (`drop-copy feed lost %d event(s) for %s: seq %d..%d …`),
+latched for 60 s with a running "lost since the last warning" figure, as
+pm-md-gwy's `md.bus_gaps`. `seq` at or below the last one is logged at INFO
+as an engine restart and not counted. An ID's last `seq` is forgotten when
+its last watcher leaves, so fills nobody watched are not a gap for the next
+watcher (a regression found on the way; test added).
+`_poll_dc_events` returns whether the 1000-event budget ran out, and `run()`
+skips the 10 ms sleep after such a pass (P1). Idle latency is unchanged by
+design (the sleep stays when there is no backlog).
+
+Beyond the WP text: pm-monitor watches the counter (`WATCHED_INCREASES`
+`gwy.feed_gaps` → rule `dc_feed_gaps`, any increase in 5 min), mirrored in
+dash-gui's `FIXED_RULES` (`thresholds.ts`) and the health-monitor chapter's
+rule table; the new WARNING has a log-ledger entry. Without a rule the
+counter would only be visible in raw metrics, which is the H1 complaint.
+
+Measured on this host after the change: a fill published 0, 1, 5 or 20 ms
+after `WELCOME` was delivered 20/20 times each. The per-ID SUBSCRIBE is sent
+in the HELLO pass, before `WELCOME` is queued, so dropping the catch-all
+subscription opened no visible startup window on a local engine.
+
+Tests (`tests/test_dc_gwy_gateway.py`): 1 unwatched fills never decoded
+(failed first: 1000 decoded); 2 the H1 repro, all 2 001 with `SEQ` 1–2001
+(failed first: index 786, `SEQ` 1330 for 787); 3 prefix ID (unchanged,
+passed); 4 gap counted 5 then 7 with one WARNING naming `2..6` (failed
+first: 0 == 5); 5 restart at INFO, no gap (failed first: no INFO record);
+7 last watcher leaving removes the subscription (failed first: 6 decoded vs
+1); 6 no sleep after a full pass, first sleep at 2 500 decoded (failed
+first: at 1 000); plus the regression test "fills while unwatched are not a
+gap" and `test_health_contract.py`'s owner list (failed first, then passed).
+Full suite: 14 556 passed, 1 skipped.
+
 ### WP-DCG02 — Every `DC_FILL` says when it happened and which trade it was (C1; after Q2)
 
 **Tests first** (`tests/test_dc_gwy_gateway.py`, `tests/test_dc_examples.py`):
@@ -395,6 +440,19 @@ tests that read `gwy.*` samples green.
 example and D5 in the guide; the examples.
 
 **Exit criteria.** Tests 1–4 pass; `tests/test_dc_*.py` green.
+
+**Outcome (2026-11-15).** `DC_FILL` gains `TS` (`iso_utc(timestamp / 1e9)`,
+the same format as `HB`/`PONG`) and `TRADE_ID` (`trade_ids` comma-joined),
+after the six existing fields. The Python and C example subscribers print
+`trade=<TRADE_ID> … at <TS>` in their fill line; their parsers needed no
+change (the C parser holds 64 fields). Docs: the operator guide's `DC_FILL`
+row, the sequence diagram, the wire example, and a field-by-field mapping
+table that replaces "map directly from the drop-copy payload" (D5); the
+example-libraries chapter's parse example. Tests: two in
+`tests/test_dc_gwy_gateway.py` (field order and values, and two trade ids;
+both failed first: no `TS`/`TRADE_ID`), the Python example test asserting the
+new fields and a new print test, and the C example test's expected line (all
+failed first). Full suite: 14 559 passed, 1 skipped.
 
 ### WP-DCG03 — The loop serves every descriptor and a stop says goodbye (C3, C4, C5; after Q4, Q5)
 
@@ -415,6 +473,33 @@ WP-RALF04 so the two gateways' code stays the same.
 
 **Exit criteria.** Tests 1–4 pass; `tests/test_dc_gwy_*.py` green.
 
+**Outcome (2026-11-15).** `_read_client_data` builds a `select.poll` over the
+client descriptors each pass and treats any event as "call `recv`", so EOF
+and errors are settled where they were before; the WARNING is now `read poll
+failed: %s` (log-ledger entry renamed). On a normal stop, `run()` calls the
+new `_flush_for_shutdown()`: one more relay pass, `EXIT|REASON=shutdown|TS=…`
+to every session not already closing, then flushes for at most
+`SHUTDOWN_FLUSH_SEC` = 1 s; sessions that drain are disconnected as
+`shutdown`. `close()` now disconnects the rest through `_disconnect` (so they
+are counted and unsubscribed), with reason `shutdown`, or the reason a
+session was already closing with. Not run after a crash, as in pm-balf-gwy.
+Docs: the guide's Step 4 (half-close ends the session, Q5; the stop's
+`EXIT`), an `EXIT` row in the gateway→client table, the error-codes note, the
+`printf … | nc` troubleshooting example, and the reference manual's
+"Messages published" table.
+
+Tests: 1 descriptor above 1023 (failed first: timeout, `read select failed`
+logged ~100/s); 2 `EXIT|REASON=shutdown` before EOF (failed first: nothing
+before EOF); 3 non-reading client holds the stop under 1.5 s. Test 3's timing
+part passed before the change too (close() was immediate); it failed first
+only on the `shutdown` disconnect count, and it pins the new 1 s bound.
+4 half-close is `peer_closed` (unchanged, passed). Full suite: 14 563 passed,
+1 skipped.
+
+WP-RALF04 is not done yet, so pm-ralf-gwy still has the `select` loop and the
+silent stop; when it is, `_read_client_data` and `_flush_for_shutdown` here
+are the code to copy.
+
 ### WP-DCG04 — The config refuses a name the gateway cannot send (C6)
 
 **Tests first** (`tests/test_dc_gwy_config.py`, `tests/test_dc_gwy_protocol.py`):
@@ -430,6 +515,18 @@ WP-RALF04 so the two gateways' code stays the same.
 **Exit criteria.** Tests 1–3 pass; `tests/test_dc_gwy_config.py` and the
 verifier/deploy tests green.
 
+**Outcome (2026-11-15).** `_load_dc_gateway_config_from_raw` refuses an empty
+`name` or one containing `|`, CR or LF (`dc_gateway.name must be non-empty,
+without '|' or line breaks`); `build_line` refuses CR/LF in a key or value.
+The dead second `port <= 0` check is removed (D4). pm-cverifier runs the same
+loader, so `pm-config-deploy` refuses the name too: a `dc_gateway.name=dc|01`
+case was added to `tests/test_cverifier_deploy_agreement.py` (failed without
+the loader change: "the case must be one the loaders refuse"). Docs: the
+guide's `name` row and the formal specification's constraint. Tests: 4
+refused names and one kept name in `tests/test_dc_gwy_config.py`, 2 line
+breaks in `tests/test_dc_gwy_protocol.py` (all refusals failed first with
+DID NOT RAISE). Full suite: 14 571 passed, 1 skipped.
+
 ### WP-DCG05 — Comments, help texts and guides say what the code does (C2, D1–D8; after Q3 and WP-DCG01–04)
 
 **Tests first:**
@@ -443,6 +540,33 @@ for the help change; re-walk every guide passage touched by WP-DCG01–03
 
 **Exit criteria.** Test 1 passes; `make _check` and `mkdocs build` clean; the
 full suite green.
+
+**Outcome (2026-11-15).** D2: `--engine-dc-pub` help now names the real
+default (`tcp://$EDUMATCHER_ENGINE_HOST:5557`, 127.0.0.1 when unset), in
+`--help`, the guide, the reference manual and pm-help's option default. D3:
+`-q` reads "Explicit WARNING log level (the default)", as pm-mm-bot's
+(L034), in the same three places. D8: the protocol module docstring lists
+`PING`/`PONG`, `EXIT` and `ERR`. D1: re-checked after WP-DCG01, the
+"refcounted per gateway_id" wording is now true; Step 2 adds that only
+watched IDs reach the gateway and that ZeroMQ's prefix match brings in
+`TRADER10` for `TRADER1` (dropped by the exact match). D4, D5 were done in
+WP-DCG04/02. D6: the drop-copy chapter's gap advice now says no replay is
+reachable externally and names the reconciliation sources
+(`GET /api/v1/history/fills`, `pm-clearing-cli trades --gateway`); the
+de-duplicate point says duplicates come only from an in-process replay.
+C2/D7 (Q3 a): the troubleshooting row names a wrong `ID`; two rows added for
+a `SEQ` jump (pointing at `drop-copy feed lost` / `dc_feed_gaps`) and for
+`EXIT|REASON=shutdown`. `make completion` regenerated the zsh completion.
+Re-walked: the guide's quick-connect, lifecycle, protocol reference, error
+codes and troubleshooting; the drop-copy chapter's sequence and pm-dc-gwy
+sections; the example README and the example-libraries chapter; training
+chapters 13 and 20 (only references, nothing to change).
+
+Tests: two in `tests/test_dc_gwy_main.py` (both failed first on the old
+texts). `make _check` and `mkdocs build` clean; the new anchors
+(`#step-4-disconnect`, `#quick-connect-test`, `#sequence-numbers`,
+`#get-apiv1historyfills`) exist in the built site. Full suite: 14 573
+passed, 1 skipped.
 
 ---
 
@@ -464,3 +588,12 @@ full suite green.
   gateway's; recorded as **L037**.
 - **`-q` in other entry points** is L034; this review rewords only
   pm-dc-gwy's (D3).
+- **pm-alf-gwy's `DC|STATE=ON` relay** builds its own `DC_FILL` with the six
+  original fields; WP-DCG02 changed only pm-dc-gwy's line. That relay goes to
+  the participant's own session, whose `FILL` already carries the trade ids
+  (`TRADE_IDS`, `alf_gwy/gateway.py:2020`), so it is noted here, not filed.
+- **`tests/test_dc_examples.py::test_python_example_reports_backwards_seq_but_not_gaps`**
+  has a docstring saying `SEQ` is engine-wide and gaps are routine; `SEQ` is
+  per gateway ID and the example reports gaps. The test's assertions are
+  right; only the docstring is stale. Not changed (not in this review's
+  scope).

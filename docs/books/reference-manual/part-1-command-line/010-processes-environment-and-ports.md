@@ -2874,10 +2874,10 @@ pm-dc-gwy [--bind 0.0.0.0] [--port 5590] [--engine-dc-pub tcp://127.0.0.1:5557] 
 |-------------------|-------------------------|----------------------------------------------------|
 | `--bind`          | from config / `0.0.0.0` | TCP bind address for external clients              |
 | `--port`          | from config / `5590`    | TCP listen port for DC1 clients                    |
-| `--engine-dc-pub` | `tcp://127.0.0.1:5557`  | Engine drop-copy PUB address consumed by the gateway |
+| `--engine-dc-pub` | `tcp://$EDUMATCHER_ENGINE_HOST:5557` (`127.0.0.1` when unset) | Engine drop-copy PUB address consumed by the gateway; no config key |
 | `--log-level`     | `WARNING`               | Explicit log level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
 | `-v` / `--verbose`| off                     | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`)  |
-| `-q` / `--quiet`  | off                     | Reduce output to warnings/errors                      |
+| `-q` / `--quiet`  | off                     | Explicit `WARNING` (same as the default)              |
 | `--log-target`    | `server`                | Where operational log records go: `server` (auto-detected `pm-log-srv`), `stdout`, or `file` |
 | `--log-file`      | none                    | Operational log file path — required when `--log-target file` |
 | `--log-failover-timeout` | `30` (from config) | Grace window in seconds before falling back to a local log file once `pm-log-srv` becomes unreachable |
@@ -2906,6 +2906,7 @@ requested by connected clients):
 | `DC_FILL`    | Unsolicited fill relay              |
 | `HB`         | Heartbeat                           |
 | `PONG`       | Ping reply                          |
+| `EXIT`       | Gateway-initiated close (`auth_timeout`, `idle_timeout`, `shutdown`) |
 | `ERR`        | Protocol errors                     |
 
 For external usage and examples see

@@ -741,7 +741,7 @@ _EXTERNAL_GATEWAYS: tuple[CommandInfo, ...] = (
             Option("--port PORT", "5590", "TCP listen port for DC1 clients"),
             Option(
                 "--engine-dc-pub ADDR",
-                "tcp://127.0.0.1:5557",
+                "tcp://$EDUMATCHER_ENGINE_HOST:5557",
                 "Engine drop-copy PUB address consumed by the gateway",
             ),
         ),

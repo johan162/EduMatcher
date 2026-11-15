@@ -180,6 +180,8 @@ _MUTATIONS: list[tuple[tuple[Any, ...], Any]] = [
     (("dc_gateway", "heartbeat_interval_sec"), 1.5),
     (("dc_gateway", "idle_timeout_sec"), True),
     (("dc_gateway", "port"), None),
+    # A name WELCOME cannot carry (DC review C6).
+    (("dc_gateway", "name"), "dc|01"),
 ]
 
 

@@ -186,6 +186,28 @@ def test_python_example_handshakes_and_parses_gateway_fill(
         assert fill.msg_type == "DC_FILL"
         assert fill.fields["ORDER_ID"] == "ord-py-1"
         assert fill.fields["SYMBOL"] == "AAPL"
+        assert fill.fields["TRADE_ID"] == "000001-000000001"
+        assert fill.fields["TS"].endswith("Z")
+
+
+def test_python_example_prints_the_trade_id(
+    example_subscriber_module: ModuleType, capsys: pytest.CaptureFixture[str]
+) -> None:
+    parser_module = cast(
+        _ParserModule, _load_module("dc_parser", EXAMPLE_DIR / "dc_parser.py")
+    )
+    msg = parser_module.parse_dc_line(
+        "DC_FILL|SEQ=1|ORDER_ID=O1|SYMBOL=AAPL|FILL_QTY=100|FILL_PRICE=100.25"
+        "|LIQUIDITY=TAKER|TS=2026-11-15T09:30:00.123Z|TRADE_ID=000003-000000017"
+    )
+    example_subscriber_module._handle_message(
+        msg,
+        example_subscriber_module.SequenceTracker(),
+        example_subscriber_module.FillTracker(),
+    )
+    out = capsys.readouterr().out
+    assert "trade=000003-000000017" in out
+    assert "at 2026-11-15T09:30:00.123Z" in out
 
 
 def test_python_example_tallies_qty_vwap_and_liquidity(
@@ -269,12 +291,13 @@ def test_c_example_builds_receives_fills_and_prints_summary_on_sigint(
         )
         time.sleep(0.2)  # let the gateway's ZMQ SUBSCRIBE reach the publisher
 
-        # handle_message()'s DC_FILL format is
-        # "FILL  %-8s %6s @ %10s %-5s order=%s seq=%s  [...]" (dc_subscriber.c).
+        # handle_message()'s DC_FILL format is "FILL  %-8s %6s @ %10s %-5s
+        # order=%s trade=%s seq=%s at %s  [...]" (dc_subscriber.c).
         _publish_fill(pub, "ord-c-1", 100, 150.25)
         _read_pty_output(
             master_fd,
-            lambda text: "FILL  AAPL" in text and "order=ord-c-1" in text,
+            lambda text: "FILL  AAPL" in text
+            and "order=ord-c-1 trade=000001-000000001" in text,
             timeout=5.0,
             proc=proc,
         )

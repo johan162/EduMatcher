@@ -39,6 +39,12 @@ def _load_dc_gateway_config_from_raw(raw: dict[str, Any]) -> DcGatewayConfig:
         raise ValueError("dc_gateway must be a mapping")
 
     name = str(section.get("name", "dc-gwy01"))
+    # Sent as WELCOME|...|GW=<name>: build_line refuses these characters, which
+    # would end the gateway at the first HELLO.
+    if not name or any(ch in name for ch in "|\r\n"):
+        raise ValueError(
+            "dc_gateway.name must be non-empty, without '|' or line breaks"
+        )
     bind_address = resolve_gateway_bind_host(section.get("bind_address"))
     port = _as_int(section.get("port", 5590), "port")
     if port <= 0 or port > 65535:
@@ -52,8 +58,6 @@ def _load_dc_gateway_config_from_raw(raw: dict[str, Any]) -> DcGatewayConfig:
         section.get("max_client_queue", 10_000), "max_client_queue"
     )
 
-    if port <= 0:
-        raise ValueError("dc_gateway.port must be > 0")
     if heartbeat_interval_sec <= 0:
         raise ValueError("dc_gateway.heartbeat_interval_sec must be > 0")
     if idle_timeout_sec <= 0:

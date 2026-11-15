@@ -49,6 +49,7 @@ export const FIXED_RULES: Record<string, ThresholdRule> = {
   metrics_store_errors: { warn: 0, crit: null, invert: false, configurable: false },
   stats_feed_gaps: { warn: 0, crit: null, invert: false, configurable: false },
   md_bus_gaps: { warn: 0, crit: null, invert: false, configurable: false },
+  dc_feed_gaps: { warn: 0, crit: null, invert: false, configurable: false },
   slow_client_disconnects: { warn: 0, crit: null, invert: false, configurable: false },
 };
 

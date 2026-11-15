@@ -173,7 +173,9 @@ def _handle_message(
             f"{msg.fields.get('FILL_PRICE', '?'):>10} "
             f"{msg.fields.get('LIQUIDITY', '?'):<5} "
             f"order={msg.fields.get('ORDER_ID', '?')} "
-            f"seq={msg.fields.get('SEQ', '?')}  "
+            f"trade={msg.fields.get('TRADE_ID', '?')} "
+            f"seq={msg.fields.get('SEQ', '?')} "
+            f"at {msg.fields.get('TS', '?')}  "
             f"[{symbol}: {tally.total_qty} qty, VWAP {tally.vwap:.4f}]"
         )
     elif msg.msg_type == "HB":

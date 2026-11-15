@@ -122,6 +122,9 @@ WATCHED_INCREASES = {
     # pm-md-gwy: engine or pm-index messages that never reached it, so no
     # CALF client saw them either.
     "md.bus_gaps": "md_bus_gaps",
+    # pm-dc-gwy: fills of a watched participant that never reached it, so
+    # its DC1 clients saw a SEQ gap they cannot fill over DC1.
+    "gwy.feed_gaps": "dc_feed_gaps",
     # pm-audit's archiver child failed; the day's parts stay readable.
     "audit.archive_errors": "audit_archive_errors",
     # pm-audit could not write the trail (disk full, EIO); the lines wait

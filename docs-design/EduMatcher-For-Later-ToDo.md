@@ -48,7 +48,7 @@ its own piece of work.
 | L032 | 2026-11-15 | pm-engine (quotes) | `quote.new` carries `tick_decimals` but the engine ignores it, so a client with a wrong tick registry rests its quote at 1/100 or 100× the intended price without a reject | Medium | Open |
 | L033 | 2026-11-15 | pm-api-gwy (index and sim listeners) | The `IndexClient` and `SimClient` receive threads end on a ZeroMQ error while the process keeps serving: index history and the sim/news streams then go quiet with no ERROR and no exit | Low | Open |
 | L034 | 2026-11-15 | CLIs (`-q`) | `-q`/`--quiet` is documented as "Reduce output to warnings/errors" but sets WARNING, the default, so it changes nothing (5 entry points and pm-help's common log options) | Low | Open |
-| L035 | 2026-11-15 | pm-dc-gwy (engine feed) | The drop-copy subscriber keeps ZeroMQ's default 1000-message RCVHWM and subscribes to every participant, so a burst for unwatched IDs drops watched fills with no log or metric | Medium | Moved to DC review WP-DCG01 |
+| L035 | 2026-11-15 | pm-dc-gwy (engine feed) | The drop-copy subscriber keeps ZeroMQ's default 1000-message RCVHWM and subscribes to every participant, so a burst for unwatched IDs drops watched fills with no log or metric | Medium | Moved to DC review WP-DCG01 (done 2026-11-15) |
 | L036 | 2026-11-15 | pm-md-gwy (loop, shutdown) | Once a descriptor reaches 1024 `select` fails every pass and no client is read again (WARNING ~100/s); a stop closes every session with no `EXIT` and drops queued lines | Low | Open |
 | L037 | 2026-11-15 | pm-engine (drop copy) | For an uncross print (`aggressor_side` AUCTION) both drop-copy events carry `liquidity_flag` MAKER, while `drop_copy.yaml` says exactly one of the two is TAKER | Low | Open |
 

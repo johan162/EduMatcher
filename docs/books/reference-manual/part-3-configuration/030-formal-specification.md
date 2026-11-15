@@ -812,7 +812,7 @@ Spec type: `DcGwyProcSpec`.
 
 | Field | Type | Req | Default | Constraints |
 |-------|------|:---:|---------|-------------|
-| `name` | `Str` | – | `"dc-gwy01"` | non-empty; echoed in `WELCOME` |
+| `name` | `Str` | – | `"dc-gwy01"` | non-empty; no `\|`, CR or LF; echoed in `WELCOME` |
 | `bind_address` | `Str` | – | `"0.0.0.0"` | non-empty |
 | `port` | `Port` | – | `5590` | `1..65535` |
 | `heartbeat_interval_sec` | `Secs` | – | `2` | `> 0`; interval between `HB` lines |

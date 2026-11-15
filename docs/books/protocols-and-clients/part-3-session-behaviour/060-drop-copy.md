@@ -184,10 +184,14 @@ separate last-seen sequence for each gateway.
 Sequence numbers allow downstream consumers to:
 
 1. **Detect gaps** — if the consumer receives `seq=5` after `seq=3`, it knows
-   `seq=4` was missed and should request a replay.
-2. **De-duplicate** — if a message is received twice (due to a reconnect replay),
-   the consumer can discard the duplicate by checking whether the `seq` has
-   already been processed.
+   `seq=4` was missed. No replay can be requested over ZeroMQ, DC1 or any
+   other external protocol (see [Replay](#replay)), so the consumer
+   reconciles the missing fill from another record: the participant's own
+   [`GET /api/v1/history/fills`](../part-2-specifications/060-rest-and-websocket.md#get-apiv1historyfills),
+   or `pm-clearing-cli trades --gateway <ID>` on the exchange host.
+2. **De-duplicate** — if a message is received twice (an in-process
+   [replay](#replay) re-sends buffered events), the consumer can discard the
+   duplicate by checking whether the `seq` has already been processed.
 
 
 
