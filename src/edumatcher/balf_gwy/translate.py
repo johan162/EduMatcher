@@ -10,7 +10,15 @@ from __future__ import annotations
 from typing import Any
 
 from edumatcher.balf_gwy.codec import (
-    CANCEL_REASON_CLIENT,
+    CANCEL_REASON_ADMIN_CANCEL_SYMBOL,
+    CANCEL_REASON_CIRCUIT_BREAKER_HALT,
+    CANCEL_REASON_GATEWAY_DISCONNECT,
+    CANCEL_REASON_INSUFFICIENT_LIQUIDITY,
+    CANCEL_REASON_KILL_SWITCH,
+    CANCEL_REASON_QUOTE_LEG_FILLED,
+    CANCEL_REASON_QUOTE_REPLACED,
+    CANCEL_REASON_SELF_MATCH,
+    CANCEL_REASON_SYSTEM,
     decode_price,
     encode_price,
 )
@@ -140,7 +148,12 @@ def engine_fill_to_execution_report_dict(
     Returns the logical field values (display-float price, "BUY"/"SELL" side);
     ``serialise_execution_report_balf`` owns the scaling and enum-to-wire coding.
     """
-    ts = payload.get("timestamp") or payload.get("fill_timestamp") or 0
+    # The match time of the trade behind the fill, as the engine stamped it
+    # (order.fill.ts_ns, identical to trade.executed.ts_ns). The keys read
+    # here before, "timestamp" and "fill_timestamp", are not in the engine's
+    # payload, so every EXECUTION_REPORT said 1970-01-01 (review C1). 0 only
+    # for a record older than the field.
+    ts = payload.get("ts_ns") or 0
     return {
         "client_order_id": client_order_id,
         "order_id": balf_order_id,
@@ -200,12 +213,30 @@ def engine_amended_to_balf_params(
     }
 
 
+_ENGINE_CANCEL_REASON: dict[str, int] = {
+    "SELF_MATCH_PREVENTED": CANCEL_REASON_SELF_MATCH,
+    "INSUFFICIENT_LIQUIDITY": CANCEL_REASON_INSUFFICIENT_LIQUIDITY,
+    "KILL_SWITCH": CANCEL_REASON_KILL_SWITCH,
+    "CIRCUIT_BREAKER_HALT": CANCEL_REASON_CIRCUIT_BREAKER_HALT,
+    "GATEWAY_DISCONNECT": CANCEL_REASON_GATEWAY_DISCONNECT,
+    "ADMIN_CANCEL_SYMBOL": CANCEL_REASON_ADMIN_CANCEL_SYMBOL,
+    "QUOTE_REPLACED": CANCEL_REASON_QUOTE_REPLACED,
+    "QUOTE_LEG_FILLED": CANCEL_REASON_QUOTE_LEG_FILLED,
+}
+
+
 def cancel_reason_from_engine(payload: dict[str, Any]) -> int:
-    """Determine the BALF cancel_reason code from an engine cancelled payload."""
-    # Engine cancelled events triggered by gateways have no special reason field;
-    # all others (SMP, session-end, IOC) come via order.ack with accepted=False.
-    # For order.cancelled events we always treat as explicit client request.
-    return CANCEL_REASON_CLIENT
+    """BALF cancel_reason for a cancel the client did not ask for.
+
+    Called only for an ``order.cancelled`` that no request of this gateway ID
+    correlates with. The engine says why in ``cancel_reason``; a cause it has
+    not classified (null) or does not yet have a BALF code for is
+    CANCEL_REASON_SYSTEM, "the exchange did this, cause unstated".
+    """
+    reason = payload.get("cancel_reason")
+    if not isinstance(reason, str):
+        return CANCEL_REASON_SYSTEM
+    return _ENGINE_CANCEL_REASON.get(reason, CANCEL_REASON_SYSTEM)
 
 
 def new_engine_order_id() -> str:

@@ -87,7 +87,7 @@ def gateway(monkeypatch: pytest.MonkeyPatch) -> BalfGateway:
     monkeypatch.setattr("edumatcher.balf_gwy.gateway.make_pusher", lambda _addr: push)
     monkeypatch.setattr(
         "edumatcher.balf_gwy.gateway.make_subscriber",
-        lambda _addr, *_topics: sub,
+        lambda _addr, *_topics, **_kw: sub,
     )
     cfg = BalfGatewayConfig(
         name="balf-k11-k12",
@@ -232,7 +232,7 @@ def _resting_order(gw: BalfGateway, session: ClientSession) -> int:
         f"order.ack.{GW}",
         {"gateway_id": GW, "order_id": engine_uuid, "accepted": True, "reason": ""},
     )
-    balf_id = session.engine_to_balf[engine_uuid][0]
+    balf_id = session.orders.engine_to_balf[engine_uuid][0]
     session.out_queue.clear()
     _push(gw).sent.clear()
     return int(balf_id)

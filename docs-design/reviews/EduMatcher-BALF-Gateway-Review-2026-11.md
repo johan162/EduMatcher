@@ -43,8 +43,12 @@ timed on this host with the real gateway thread, real TCP and a fake engine
 thread that answers each `order.new` at once. The other findings are by
 inspection, with line numbers given.
 
-Status: **Open.** Decisions Q1–Q5 are needed before WP-BALF01, WP-BALF02,
-WP-BALF04, WP-BALF07 and WP-BALF08.
+Status: **Done, uncommitted** (2026-11-15). Decisions Q1–Q5 taken as
+recommended. Last full suite 14 435 passed, 1 skipped; `make _check` and
+`mkdocs build` clean. Beyond the plan: the order map is kept across engine
+restarts (WP-BALF01), LOGOUT bypasses the rate limit (WP-BALF05), the engine
+is told on LOGOUT rather than after the flush (WP-BALF04), two stale guide
+passages (WP-BALF09); new wire codes 0x0D, 0x0E and `cancel_reason` 1–8/254.
 
 ---
 
@@ -87,15 +91,15 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit) �
 
 | # | WP | Content | Findings | Depends on | Est. | Status | Done on |
 |---|---|---|---|---|---|---|---|
-| 1 | WP-BALF01 | A resting order stays the client's after a reconnect | H1 | Q1 | 1 d | ☐ | |
-| 2 | WP-BALF02 | A logon is never lost to the subscription race | C3, C9, C14 | — | 0.5 d | ☐ | |
-| 3 | WP-BALF03 | Engine events are not dropped silently, nor at shutdown | C5, C6 | Q5 | 0.75 d | ☐ | |
-| 4 | WP-BALF04 | A closing session always ends | C4, C15 | — | 0.5 d | ☐ | |
-| 5 | WP-BALF05 | Every request gets an answer | C2, C11 | Q2 | 0.5 d | ☐ | |
-| 6 | WP-BALF06 | Timestamps, reject codes and cancel reasons the client can use | C1, C7, C8, C13 | Q3 | 1 d | ☐ | |
-| 7 | WP-BALF07 | The loop waits for work instead of sleeping | P1, C12 | — | 0.75 d | ☐ | |
-| 8 | WP-BALF08 | Inbound sequence numbers are checked as the spec says | C10 | Q4 | 0.25 d | ☐ | |
-| 9 | WP-BALF09 | Comments, docstrings, help texts, guides | D1–D10 | WP-BALF01–08 | 0.5 d | ☐ | |
+| 1 | WP-BALF01 | A resting order stays the client's after a reconnect | H1 | Q1 | 1 d | ☑ | 2026-11-14 |
+| 2 | WP-BALF02 | A logon is never lost to the subscription race | C3, C9, C14 | — | 0.5 d | ☑ | 2026-11-14 |
+| 3 | WP-BALF03 | Engine events are not dropped silently, nor at shutdown | C5, C6 | Q5 | 0.75 d | ☑ | 2026-11-15 |
+| 4 | WP-BALF04 | A closing session always ends | C4, C15 | — | 0.5 d | ☑ | 2026-11-15 |
+| 5 | WP-BALF05 | Every request gets an answer | C2, C11 | Q2 | 0.5 d | ☑ | 2026-11-15 |
+| 6 | WP-BALF06 | Timestamps, reject codes and cancel reasons the client can use | C1, C7, C8, C13 | Q3 | 1 d | ☑ | 2026-11-15 |
+| 7 | WP-BALF07 | The loop waits for work instead of sleeping | P1, C12 | — | 0.75 d | ☑ | 2026-11-15 |
+| 8 | WP-BALF08 | Inbound sequence numbers are checked as the spec says | C10 | Q4 | 0.25 d | ☑ | 2026-11-15 |
+| 9 | WP-BALF09 | Comments, docstrings, help texts, guides | D1–D10 | WP-BALF01–08 | 0.5 d | ☑ | 2026-11-15 |
 
 Suggested order: **WP-BALF01 → WP-BALF02 → WP-BALF03 → WP-BALF04 →
 WP-BALF05 → WP-BALF06 → WP-BALF07 → WP-BALF08 → WP-BALF09**. WP-BALF01 is
@@ -584,6 +588,9 @@ measurement in WP-BALF07).
 
 ## 7. Decisions
 
+All five taken as recommended on 2026-11-14, when the WPs were asked for in one go.
+The resulting wire changes (ORDER_ACK codes 0x0D and 0x0E, `cancel_reason` 1–8 and 254, `LOGOUT` sent by the gateway, inbound sequence enforcement) were confirmed by the project owner on 2026-11-15.
+
 | # | Question | Recommendation |
 |---|---|---|
 | Q1 | H1: how should a reconnecting client keep its orders? (a) keep `engine_to_balf`, `balf_to_engine`, the order symbols and the BALF id counter per gateway ID in the gateway process, so a new session of the same ID keeps receiving events under the original BALF ids and can cancel and amend them; (b) as (a), and on logon also adopt the engine's live orders via `order.orders_request`, so a gateway restart is covered too (needs `client_order_id` sent as `client_tag` to restore it); (c) only document it and recommend `disconnect_behaviour: CANCEL_ALL` for BALF participants. | **(a)**: it covers reconnects, evictions and timeouts, the common cases, with no wire change. (b) adds a request/response and a new adoption state to a logon that K11 already made longer; worth a For-Later entry. (c) leaves the default configuration losing fills. With (a), the guide must say that a pm-balf-gwy restart still loses the map. |
@@ -620,6 +627,26 @@ until engine restart; clean entries on terminal events as today.
 **Exit criteria.** Tests 1–5 pass; `tests/test_balf_gwy_*.py` green; the guide
 and spec say what a gateway restart loses (with WP-BALF09).
 
+**Outcome (2026-11-14).** The order maps, the in-flight cancel/amend maps
+and the BALF id counter moved from `ClientSession` to a new
+`_GatewayOrders`, one per gateway ID in `BalfGateway._gateway_orders`, bound
+to the session in `_complete_logon`; a `forget()` helper replaces three
+copies of the three-map cleanup. In-flight cancels and amends moved with
+them, so a result that arrives on the next session of the same ID still
+finds its request (it also removes the K12 fall-through where a tagged
+refusal unknown to the session could be read as a new-order rejection).
+**Deviation from test 5:** the plan said to drop the map on engine restart.
+The engine restores GTC orders under their original engine ids
+(`load_gtc_orders`), so dropping it would orphan exactly those orders; the
+map is kept, and test 5 asserts that a cancel of the old BALF id after a
+restart is forwarded with the original engine id. Entries for orders a
+restarted engine forgot stay until the process ends (a cancel of one is
+refused by the engine). New `tests/balf_harness.py` (real engine ↔ real
+gateway) and `tests/test_balf_gwy_sessions.py`; tests 1–4 failed first on
+the missing report / refused cancel / id 1, test 5 on the locally refused
+cancel. `tests/test_balf_gwy_k11_k12.py` reads `session.orders.engine_to_balf`.
+Full suite: 14 368 passed, 1 skipped.
+
 ### WP-BALF02 — A logon is never lost to the subscription race (C3, C9, C14)
 
 **Tests first** (`tests/test_balf_gwy_integration.py`):
@@ -642,6 +669,30 @@ participants pattern.
 **Exit criteria.** Tests 1–3 pass; suites green; test 1 passes 20 runs in a
 row.
 
+**Outcome (2026-11-14).** `BalfGateway.__init__` subscribes
+`system.gateway_auth.`, `system.symbols.`, the six `order.*.` families and
+the restart notice once; `_subscribe_topic`, `_unsubscribe_topic`,
+`_topic_refcounts`, `_gateway_topics` and `ClientSession.subscriptions` are
+gone. Because the socket now carries every gateway's order events,
+`_poll_engine_events` skips the ones for a gateway with no session here
+before decoding them (`_for_absent_gateway`, as pm-alf-gwy). The repeated-
+`LOGON` guard covers `logon_in_progress`; the ID must match
+`[A-Z][A-Z0-9_]{0,15}` (pm-alf-gwy's pattern, at the LOGON field's 16 bytes).
+**Test 1 as planned did not fail:** 50 real-ZMQ logons with no sleep all
+succeeded before the fix, because the test thread answers slower than an
+engine. It was kept as a 20-logon real-ZMQ smoke test, and the race is
+proved by a deterministic model instead
+(`test_auth_reply_published_at_once_still_completes_the_logon`: a fake SUB
+whose runtime SUBSCRIBEs take effect one poll later, a fake engine that
+answers inside `send_multipart`), which failed first with no `LOGON_ACK`.
+Tests 2 and 3 failed first on `GW01 already connected` and on no answer.
+The race-hiding `time.sleep(0.1)` calls before the auth reply were removed
+from `_balf_authenticate` and the robustness `_do_auth` and inline copies.
+`tests/test_gateway_k16_k17.py::test_b5_…` pinned the old subscription list
+(only the restart notice); its rule (nothing subscribed that dispatch
+ignores) still holds and it now checks the new set. Full suite: 14 372
+passed, 1 skipped.
+
 ### WP-BALF03 — Engine events are not dropped silently, nor at shutdown (C5, C6; after Q5)
 
 **Tests first** (`tests/test_balf_gwy_robustness.py`):
@@ -663,6 +714,24 @@ fast path, which BALF's narrower subscription does not need) and
 
 **Exit criteria.** Tests 1–4 pass; suites green.
 
+**Outcome (2026-11-15).** `_SUB_RCVHWM = 200_000` on the SUB socket;
+`_check_sequence` counts gaps per private topic for every gateway (before
+the absent-gateway skip, so a later logon is not told of a false gap) into
+the new `gwy.events_lost` metric with a WARNING; `_end_out_of_sync_session`
+sends the session `LOGOUT` and closes it **after** the event that revealed
+the gap has been delivered (Q5). `_flush_for_shutdown` (one SUB drain,
+`LOGOUT` to authenticated sessions, flush bounded by 2 s) runs when `run()`'s
+loop ends normally, not after a crash. The absent-gateway fast path the plan
+called unnecessary is in, since WP-BALF02 widened the subscription. Two new
+log-ledger entries in `log_ledger/entries/balf_gwy.yaml` (the ledger test
+requires one per WARNING call site; the first full run failed on that).
+Test doubles of `make_subscriber` in `test_balf_gwy_k11_k12.py` and
+`test_gateway_k16_k17.py` now accept `**_kw`. `tests/balf_harness.py`
+gained `peer_of` and `read_wire` (bytes that really crossed the socket).
+All four tests failed first on the missing `rcvhwm`, the missing
+`events_lost` key and the missing `_flush_for_shutdown`. Full suite: 14 376
+passed, 1 skipped.
+
 ### WP-BALF04 — A closing session always ends (C4, C15)
 
 **Tests first** (`tests/test_balf_gwy_robustness.py`):
@@ -680,6 +749,25 @@ gateway ID from `_active_gateway_sessions` when closing starts; classify
 permanent send/recv errors as disconnects; keep the head frame on overflow.
 
 **Exit criteria.** Tests 1–3 pass; suites green.
+
+**Outcome (2026-11-15).** `_close_after_flush(session, reason)` now sets
+`close_deadline` (`_CLOSE_GRACE_SEC = 5.0`, enforced in
+`_drop_stale_clients` with reason `close_timeout`) and calls the new
+`_release_gateway_id`, which frees the ID **and sends
+`gateway_disconnect` at once**: releasing the ID without telling the engine
+would let a new session's `gateway_connect` reach an engine still holding
+the old one (found while designing the change; `_disconnect` shares the
+helper). `_sessions_holding` ignores closing sessions. `_queue_frame` drops
+frames for a closing session, and on overflow keeps a partly sent head
+frame. Send errors other than `BlockingIOError`/`InterruptedError`
+disconnect (`send_error`), as do such recv errors (`recv_error`). Closes
+carry their reason to the engine (`client_logout`, `slow_client`,
+`events_lost`, `gateway_shutdown`) where they all said `session_closed`
+before. Test 3 as first written had an unbounded precondition loop; it was
+rewritten to set the half-sent state directly (40 of 92 bytes sent), and
+then failed with 120 bytes on the wire (40 + 5 × 16), test 1 on
+`LOGON_ACK refused`, test 2 on the session still present. Full suite:
+14 379 passed, 1 skipped.
 
 ### WP-BALF05 — Every request gets an answer (C2, C11; after Q2)
 
@@ -700,6 +788,24 @@ type's reject; add `RC_RATE_LIMITED` to `protocol.py` and the spec; refuse
 zero flagged amend fields.
 
 **Exit criteria.** Tests 1–3 pass; suites green; spec reject table updated.
+
+**Outcome (2026-11-15).** `RC_RATE_LIMITED = 0x0D` in `protocol.py`;
+`_refuse_rate_limited` answers a refused `NEW_ORDER` (`ORDER_ACK`, 0x0D,
+`RATE_LIMITED`), `CANCEL_ORDER` (`CANCEL_ACK accepted=0`, order id echoed)
+or `AMEND_ORDER` (`AMEND_ACK accepted=0`); heartbeats get nothing; none of it
+counts as a session error (Q2). **Beyond the plan:** `LOGOUT` bypasses the
+bucket, since a rate-limited LOGOUT was also dropped and left the session
+open. An amend whose flagged field is zero is refused whole (`flagged amend
+field is zero`, counted as a field error). The reject tables in the spec,
+the operator guide and `docs/examples/balf/balf_parser.py`
+(`ORDER_REJECT_NAMES`, checked by `test_examples_balf_alf_current.py`, which
+failed on the first full run) name 0x0D. Two tests encoded the old
+behaviour: `test_rate_limiting_enforced` (silent drop; now asserts the
+0x0D acks) and `test_balf_gwy_rejects.py::test_a_rate_limited_message_is_reported`
+(drove `_process_frame` with an empty body, which no wire frame can have;
+now a whole body). New tests failed first: 4 acks for 10 orders, no ack for
+cancel/amend, LOGOUT ignored, the half-applied amend accepted. Full suite:
+14 383 passed, 1 skipped.
 
 ### WP-BALF06 — Timestamps, reject codes and cancel reasons the client can use (C1, C7, C8, C13; after Q3)
 
@@ -726,6 +832,33 @@ rejects.
 **Exit criteria.** Tests 1–6 pass; suites green; `classify_engine_reason`'s
 prose list reduced to the ATO/ATC split.
 
+**Outcome (2026-11-15).** Fills read `ts_ns`; `ORDER_ACK.timestamp_ns` is the
+engine ack's `ts_ns` (the order's entry time; now when absent).
+`classify_engine_reason(reason)` became `classify_engine_reject(reject_code,
+reason)`: a table from the engine's `reject_code` (verified at its raise
+sites in `engine/main.py`) to the BALF codes, prose read only to split
+`SESSION_NOT_PERMITTED` into ATO / ATC / phase and to keep
+`RC_TRAILING_STOP_NO_PRICE` apart from other `MISSING_FIELD`s; new
+`RC_RISK_LIMIT = 0x0E` for `MAX_ORDER_QTY`, `MAX_ORDER_VALUE`,
+`POSITION_LIMIT`, `KILL_SWITCH_ACTIVE`. `cancel_reason_from_engine` was not
+deleted but made true: it maps the engine's `cancel_reason` to new codec
+constants 1–8, 255 when the engine gives none; expiries send 254
+(`CANCEL_REASON_EXPIRED`). `frames_forwarded_total` is counted once (in
+`_send_to_engine`); field rejects on new orders and amends count in
+`frames_rejected_total`. A test assumption was wrong and corrected: a
+negative LIMIT price is `PRICE_OUT_OF_RANGE` at the engine, not
+`INVALID_VALUE` (both map to 0x0C). Tests changed by design:
+`test_classify_engine_reason` (now a code table), the two fill translation
+tests (`ts_ns`), `test_cancel_reason_is_client`, `test_expired_event_delivered`
+(254). The examples follow: `balf_parser.py` names 0x0E and every
+`cancel_reason` (`CANCEL_REASON_NAMES`, `by_exchange` is now `!= 0`, which
+`== 255` would have got wrong for 1–254), `balf_parser.c` the same test and
+prints the code; a new example test checks every codec `CANCEL_REASON_*`
+is named. All seven new tests failed first (timestamp 0, gateway clock,
+255 for SMP and expiry, 0xFF for the risk limit, +2 forwarded, +0
+rejected). Full suite: 14 402 passed, 1 skipped (run before a one-line
+test-import fix mypy asked for; the WP-BALF07 run covers it).
+
 ### WP-BALF07 — The loop waits for work instead of sleeping (P1, C12)
 
 **Tests first** (`tests/test_balf_gwy_integration.py`):
@@ -748,6 +881,25 @@ pending, else until the next housekeeping deadline.
 measured with the review's `bench_rtt.py` recorded in the outcome (target
 < 1 ms, a guess).
 
+**Outcome (2026-11-15).** `run()` waits on a `selectors.DefaultSelector`
+over the listener, each client socket (registered in `_accept_new_clients`,
+unregistered in `_disconnect`) and the SUB socket's `zmq.FD`; it does not
+block while `zmq.EVENTS` reports input or a session has output not waiting
+on its peer (`_has_pending_writes`). Housekeeping (client and engine
+heartbeats, timeouts) runs every `_LOOP_WAIT_SEC = 0.1` s instead of every
+pass. A send that would block sets `ClientSession.write_blocked` and
+registers write interest (`_set_write_interest`); the session is retried
+only when the selector reports it writable. `_read_client_data` reads the
+sessions the selector reported, so `select.select` and its 1 024-descriptor
+limit (C12) are gone. Measured with `bench_rtt.py` (500 round trips, fake
+engine answering at once): median **0.43 ms** (0.99 ms on a first, noisier
+run), p99 0.51 ms, against 10.6 ms before; idle CPU 0.2 % of a core against
+1.1–1.4 %. The new test failed first at 11.0 ms. Full suite: 14 414 passed,
+1 skipped. `make _check`'s pyright step fails in
+`tests/test_monitor_snapshot.py`, part of a monitor review in progress in a
+parallel session (not this WP); pyright on every file this review touches
+is clean.
+
 ### WP-BALF08 — Inbound sequence numbers are checked as the spec says (C10; after Q4)
 
 **Tests first** (`tests/test_balf_gwy_robustness.py`):
@@ -765,6 +917,25 @@ logon; wrap at `UINT32_MAX` to 1 as the spec says.
 **Exit criteria.** Tests 1–3 pass; suites green; spec's reserved-field
 sentences changed to "tolerated".
 
+**Outcome (2026-11-15).** `ClientSession.inbound_seq`; `_process_frame`
+checks every frame of a logged-on client except `LOGON` (seq 0, not
+numbered): expected is the last + 1, wrapping from `UINT32_MAX` to 1; a gap
+or a repeat is logged (`expected N, got M`), counted in
+`protocol_errors_total` and hard-closed. The check sits before the rate
+limit, so a refused frame still uses its number. New log-ledger entry for
+the WARNING. No BALF client in the repository sends frames (the
+`docs/examples/balf` files only parse), and the operator guide's minimal
+client numbers correctly. `BalfBridge.send` now numbers frames like a client
+library (`raw=True` sends them as built) and `logout()` lost its `seq_no`.
+Ten existing integration/robustness tests sent numbers the spec forbids
+(the first frame after LOGON as 2, a heartbeat as 99 or 5, a client-sent
+`ORDER_ACK` as 99) and were renumbered 1, 2, 3; each failed only on
+"connection closed by gateway". The spec now says the gateway tolerates
+non-zero `flags`/reserved bytes and closes on a sequence error. The gap and
+repeat tests failed first (session still open); the consecutive and wrap
+tests passed before, as unchanged behaviour. Full suite: 14 418 passed,
+1 skipped.
+
 ### WP-BALF09 — Comments, docstrings, help texts, guides (D1–D10)
 
 **Tests first:** none beyond `make _check` and `mkdocs build`; the text must
@@ -777,6 +948,39 @@ lifecycle, troubleshooting table and minimal client against the final code
 
 **Exit criteria.** `make _check`, `poetry run mkdocs build` clean; every D
 item resolved.
+
+**Outcome (2026-11-15).** D1 `gateway.py` module docstring rewritten (loop,
+order map, subscriptions, every defensive rule as the code now has it); D2
+went with WP-BALF02's comment; D3 with WP-BALF06 (`cancel_reason_from_engine`
+made true rather than deleted); D4 `build_amend_ack` lost its unused
+`reject_reason` parameter (no caller passed it) and its wrong docstring; D5
+`struct` imported once at the top, the in-loop import and the
+`struct_error` try/except removed (`parse_logon` checks the length before
+unpacking, so only `ValueError` can come out). Spec
+(`020-balf.md`): order ids belong to the gateway ID (identifier rules, order
+ID encoding with what a gateway restart loses, field tables, parsing notes),
+`ORDER_ACK.timestamp_ns` wording, the `cancel_reason` table, `0x0E`,
+`LOGOUT` bidirectional and what the gateway does with it, heartbeat
+liveness as implemented, `heartbeat_*` typed Number. Operator guide
+(`020-balf-gateway.md`): `auth_timeout_sec` (D9), sequence checking, LOGOUT
+behaviour, a new "Reconnecting" section (D10), `STOP_TRIGGERED` and `LOGOUT`
+in the server-message table (D6), `0x0E`, `timestamp_ns` in the execution
+report table, the `cancel_reason` table, disconnect triggers, `EVICT_OLD`
+keeps order ids, troubleshooting rows (D7 rewritten; sequence error, lost
+events, rate limit added). Beyond the D list, re-walking the books (§B1)
+found two more passages the WPs had made false, fixed here: the risk-controls
+chapter said an SMP cancel cannot be told apart over BALF, and
+`docs/examples/balf/balf_parser.py`'s docstring said order ids start over
+after a LOGOUT; the known-limitations table now names the gateway-restart
+limit. The minimal client in the guide numbers its frames correctly.
+`make _check` and `mkdocs build` clean. Full suite: 14 435 passed,
+1 skipped (with `-o faulthandler_timeout=60`). **A first full run hung** in
+one xdist worker (main thread in `poll`, two ZMQ listeners, no gateway
+thread) until the outer timeout killed it; it did not recur in the rerun or
+in 33 runs of all BALF and gateway test files. In those runs one test failed
+once: `test_balf_gwy_robustness.py::TestFrameStreaming::test_pipelined_heartbeats_both_acked`
+with `Address already in use` binding a port `free_ports()` had just
+returned (a pre-existing race in the shared helper, not this review's code).
 
 ---
 

@@ -303,7 +303,8 @@ def _balf(monkeypatch: pytest.MonkeyPatch, sub: _FakeSub) -> BalfGateway:
         "edumatcher.balf_gwy.gateway.make_pusher", lambda _addr: _FakePush()
     )
     monkeypatch.setattr(
-        "edumatcher.balf_gwy.gateway.make_subscriber", lambda _addr, *_topics: sub
+        "edumatcher.balf_gwy.gateway.make_subscriber",
+        lambda _addr, *_topics, **_kw: sub,
     )
     return BalfGateway(
         BalfGatewayConfig(
@@ -336,7 +337,7 @@ def test_b5_no_subscription_is_made_to_a_topic_dispatch_ignores(
 ) -> None:
     subscribed: list[str] = []
 
-    def _record(_addr: str, *topics: str) -> _FakeSub:
+    def _record(_addr: str, *topics: str, **_kw: object) -> _FakeSub:
         subscribed.extend(topics)
         return _FakeSub()
 
@@ -350,9 +351,23 @@ def test_b5_no_subscription_is_made_to_a_topic_dispatch_ignores(
         )
     )
 
-    assert subscribed == [
-        TOPIC_STARTUP_RECOVERY
-    ], "every other venue-wide topic is decoded and then thrown away"
+    # Since the BALF review (C3) every gateway-scoped family is subscribed
+    # once by prefix at start-up, to remove the SUBSCRIBE/reply race of a
+    # per-logon subscription. Each one is a family _dispatch_engine_event
+    # acts on; nothing venue-wide beyond the restart notice.
+    assert sorted(subscribed) == sorted(
+        [
+            "system.gateway_auth.",
+            "system.symbols.",
+            "order.ack.",
+            "order.fill.",
+            "order.cancelled.",
+            "order.amended.",
+            "order.expired.",
+            "order.triggered.",
+            TOPIC_STARTUP_RECOVERY,
+        ]
+    ), "a subscribed topic that dispatch ignores is decoded and thrown away"
 
 
 # ---------------------------------------------------------------------------

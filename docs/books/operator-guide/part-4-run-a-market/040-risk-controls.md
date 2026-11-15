@@ -1544,9 +1544,10 @@ never cause a partial fill.
 When SMP cancels a resting order, that order transitions to `CANCELLED` like
 any other cancellation and the owning gateway receives a normal
 `order.cancelled.{GW_ID}` message — there is no separate SMP-specific wire
-message. On the binary BALF protocol, a system-originated cancel is delivered as a
-`CANCEL_ACK` with `cancel_reason = 255` (system); an SMP cancel cannot be
-distinguished there from a session-end or expiry cancel. ALF (text) clients
+message. On the binary BALF protocol, an exchange-originated cancel is delivered
+as a `CANCEL_ACK` whose `cancel_reason` names the cause: `1` for self-match
+prevention, `254` for an expiry, `255` when the engine gave none (see the
+[BALF Gateway](../part-5-gateways/020-balf-gateway.md#cancel_ack) table). ALF (text) clients
 receive `CANCEL_REASON=SELF_MATCH_PREVENTED` on the cancelled event, and REST
 WebSocket clients receive a `cancel_reason` field (see above).
 

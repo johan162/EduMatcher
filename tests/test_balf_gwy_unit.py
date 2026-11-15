@@ -64,11 +64,13 @@ from edumatcher.balf_gwy.protocol import (
     RC_INVALID_FIELD,
     RC_MARKET_CLOSED,
     RC_OTHER,
+    RC_RATE_LIMITED,
+    RC_RISK_LIMIT,
     RC_PHASE_REJECTION,
     RC_PRICE_COLLAR,
     RC_SYMBOL_NOT_CONFIGURED,
     RC_TRAILING_STOP_NO_PRICE,
-    classify_engine_reason,
+    classify_engine_reject,
     validate_amend_flags,
     validate_new_order_price_logic,
     validate_order_type,
@@ -663,28 +665,53 @@ class TestLoadBalfGatewayConfig:
 
 
 @pytest.mark.parametrize(
-    "reason,expected_rc",
+    "code,reason,expected_rc",
     [
-        ("Gateway not configured: GW1", RC_GW_NOT_CONFIGURED),
-        ("Gateway not connected: GW1", RC_GW_NOT_CONNECTED),
-        ("Symbol not configured: AAPL", RC_SYMBOL_NOT_CONFIGURED),
-        ("Market is closed", RC_MARKET_CLOSED),
-        ("ATO orders only accepted during opening auction", RC_ATO_OUTSIDE_OPENING),
-        ("ATC orders only accepted during closing auction", RC_ATC_OUTSIDE_CLOSING),
-        ("all orders rejected during circuit breaker halt", RC_HALT_REJECTION),
-        ("orders not accepted during pre-open phase", RC_PHASE_REJECTION),
+        ("GATEWAY_NOT_CONFIGURED", "Gateway not configured: GW1", RC_GW_NOT_CONFIGURED),
+        ("AUTH_REQUIRED", "Gateway not connected: GW1", RC_GW_NOT_CONNECTED),
+        ("UNKNOWN_SYMBOL", "Symbol not configured: AAPL", RC_SYMBOL_NOT_CONFIGURED),
+        ("MARKET_CLOSED", "Market is closed", RC_MARKET_CLOSED),
         (
+            "SESSION_NOT_PERMITTED",
+            "ATO orders only accepted during opening auction",
+            RC_ATO_OUTSIDE_OPENING,
+        ),
+        (
+            "SESSION_NOT_PERMITTED",
+            "ATC orders only accepted during closing auction",
+            RC_ATC_OUTSIDE_CLOSING,
+        ),
+        (
+            "SESSION_NOT_PERMITTED",
+            "MARKET orders not accepted during PRE_OPEN",
+            RC_PHASE_REJECTION,
+        ),
+        ("CIRCUIT_BREAKER_ACTIVE", "AAPL is halted — ...", RC_HALT_REJECTION),
+        ("INSTRUMENT_HALTED", "AAPL is halted — ...", RC_HALT_REJECTION),
+        (
+            "MISSING_FIELD",
             "Trailing stop requires STOP= or a prior trade price",
             RC_TRAILING_STOP_NO_PRICE,
         ),
-        ("Insufficient liquidity", RC_INSUFFICIENT_LIQUIDITY),
-        ("STATIC_COLLAR_BREACH: price 15025 ticks is outside band", RC_PRICE_COLLAR),
-        ("DYNAMIC_COLLAR_BREACH: price 15025 ticks is outside band", RC_PRICE_COLLAR),
-        ("some unknown error xyz", RC_OTHER),
+        ("MISSING_FIELD", "LIMIT requires price", RC_INVALID_FIELD),
+        ("INSUFFICIENT_LIQUIDITY", "Insufficient liquidity", RC_INSUFFICIENT_LIQUIDITY),
+        ("COLLAR_BREACH", "STATIC_COLLAR_BREACH: price outside band", RC_PRICE_COLLAR),
+        (
+            "PRICE_OUT_OF_RANGE",
+            "LIMIT order requires a positive price",
+            RC_INVALID_FIELD,
+        ),
+        ("LOT_VIOLATION", "qty not a multiple of the lot", RC_INVALID_FIELD),
+        ("RATE_LIMITED", "too many orders", RC_RATE_LIMITED),
+        ("MAX_ORDER_QTY", "qty above max_order_qty", RC_RISK_LIMIT),
+        ("KILL_SWITCH_ACTIVE", "kill switch", RC_RISK_LIMIT),
+        ("ROLE_DENIED", "role may not", RC_OTHER),
+        ("SOME_NEW_CODE", "a code BALF does not know yet", RC_OTHER),
+        (None, "Market is closed", RC_OTHER),
     ],
 )
-def test_classify_engine_reason(reason: str, expected_rc: int):
-    assert classify_engine_reason(reason) == expected_rc
+def test_classify_engine_reject(code: str | None, reason: str, expected_rc: int):
+    assert classify_engine_reject(code, reason) == expected_rc
 
 
 # ===========================================================================
@@ -1031,7 +1058,7 @@ class TestEngineEventTranslations:
             "status": "PARTIAL",
             "symbol": "AAPL",
             "side": "BUY",
-            "timestamp": 999,
+            "ts_ns": 999,
         }
         p = engine_fill_to_execution_report_dict(
             payload, balf_order_id=1, client_order_id=2
@@ -1052,7 +1079,7 @@ class TestEngineEventTranslations:
             "status": "FILLED",
             "symbol": "MSFT",
             "side": "SELL",
-            "fill_timestamp": 1234,
+            "ts_ns": 1234,
         }
         p = engine_fill_to_execution_report_dict(
             payload, balf_order_id=3, client_order_id=4
@@ -1089,8 +1116,12 @@ class TestEngineEventTranslations:
         )
         assert p["new_price"] == 0
 
-    def test_cancel_reason_is_client(self):
-        assert cancel_reason_from_engine({}) == CANCEL_REASON_CLIENT
+    def test_cancel_reason_follows_the_engine(self):
+        assert cancel_reason_from_engine({}) == CANCEL_REASON_SYSTEM
+        assert cancel_reason_from_engine({"cancel_reason": None}) == 255
+        assert cancel_reason_from_engine({"cancel_reason": "SELF_MATCH_PREVENTED"}) == 1
+        assert cancel_reason_from_engine({"cancel_reason": "KILL_SWITCH"}) == 3
+        assert cancel_reason_from_engine({"cancel_reason": "NEW_ONE"}) == 255
 
     def test_new_engine_order_id_unique(self):
         ids = {new_engine_order_id() for _ in range(20)}

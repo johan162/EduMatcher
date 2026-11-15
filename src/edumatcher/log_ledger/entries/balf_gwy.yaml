@@ -222,3 +222,44 @@
   actions:
     - "Check why the engine restarted: look for its CRITICAL or ERROR rows just before, or a planned restart."
     - "Participants should log on again and reconcile their orders; most clients do this by themselves."
+
+# --- lost engine events (BALF review C5) -------------------------------------
+
+- logger: edumatcher.balf_gwy.gateway
+  template: "engine dropped %d event(s) on %s"
+  level: WARNING
+  explanation: >
+    Events from the engine were lost before reaching pm-balf-gwy (a gap in
+    the sequence numbers of one gateway's order topic). Usually the gateway
+    or the host was too slow to keep up with the engine's output. If that
+    gateway has a BALF session here, the session is ended with a LOGOUT
+    (logged separately), because its client has missed acks or fills.
+  actions:
+    - "Check the host's CPU load at that time; another heavy process on the same host is a common cause."
+    - "Check `gwy.events_lost` for pm-balf-gwy on the health dashboard to see how often it happens."
+
+- logger: edumatcher.balf_gwy.gateway
+  template: "BALF closing %s (%s): engine events for it were lost"
+  level: WARNING
+  explanation: >
+    The session was sent a LOGOUT and closed because engine events for its
+    gateway ID were lost (see the "engine dropped" message just before).
+    BALF has no message that tells a client to reconcile, so the session is
+    ended instead. The client logs on again and keeps its order ids; the
+    fills or acks it missed are not resent.
+  actions:
+    - "The participant should check its orders and position through another channel (drop-copy, REST or the clearing reports), since missed fills are not replayed."
+    - "Look for the cause of the loss as for the \"engine dropped\" message."
+
+- logger: edumatcher.balf_gwy.gateway
+  template: "BALF sequence error from %s (%s): expected %d, got %d — hard-closing"
+  level: WARNING
+  explanation: >
+    A logged-on BALF client sent a frame whose sequence number was not the
+    next one (each frame after LOGON is numbered 1, 2, 3, …). The BALF
+    specification makes a gap or a repeat a protocol error, so the
+    connection was closed and the engine applied the participant's
+    disconnect behaviour.
+  actions:
+    - "Tell the participant: their client numbers its frames wrongly; the expected and received numbers are in the message."
+    - "A client that reconnects must start again at 1 after its LOGON."

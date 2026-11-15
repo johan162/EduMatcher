@@ -104,8 +104,10 @@ In BALF `1.0.0`, all header flag bits must be zero.
 The `RETRANSMIT` bit is reserved for a future recovery extension and is not
 active in `1.0.0`.
 
-Reserved fields in all message bodies must also be zero when sent and should be
-validated as zero when received.
+Reserved fields in all message bodies must also be zero when sent. The
+gateway tolerates a non-zero `flags` byte or reserved byte on receipt (it
+logs a non-zero `flags` at debug level and ignores it), so a later protocol
+version can use them without breaking a `1.0.0` gateway.
 
 ### Identifier rules
 
@@ -114,7 +116,8 @@ validated as zero when received.
   `NEW_ORDER`) after decoding, so a lowercase value is silently normalized
   rather than rejected or matched case-sensitively.
 - `client_order_id` is a client-assigned `u64`.
-- `order_id` is a gateway-assigned session-scoped `u64`.
+- `order_id` is a gateway-assigned `u64`, unique per gateway ID for the life
+  of the `pm-balf-gwy` process (see [Order ID encoding](#order-id-encoding)).
 - `0` is reserved and must not be used as a valid accepted `order_id`.
 
 
@@ -204,12 +207,23 @@ Example:
 
 ### Order ID encoding
 
-BALF uses a compact `u64` session-scoped order ID on the wire.
+BALF uses a compact `u64` order ID on the wire.
 
 - the gateway allocates the ID when the order is accepted
 - the gateway maps that ID to the engine's internal UUID or matching-engine key
 - the `order_id` is echoed in cancel, amend, and execution messages
 - `0` is reserved and invalid
+
+The map belongs to the gateway ID, not to the TCP connection. Whether an
+order outlives a disconnect is the participant's `disconnect_behaviour`
+(the default, `CANCEL_QUOTES_ONLY`, leaves ordinary orders on the book).
+When the same gateway ID logs on again to the same `pm-balf-gwy` process,
+the new session receives those orders' `EXECUTION_REPORT`, `STOP_TRIGGERED`
+and `CANCEL_ACK` frames under their original `order_id`s and can cancel or
+amend them; IDs keep counting up, so an old ID never names a new order.
+A **restart of `pm-balf-gwy`** loses the map: orders left on the book are
+then out of reach over BALF (use drop-copy, REST or the clearing reports to
+see their fills).
 
 
 
@@ -231,7 +245,7 @@ BALF uses a compact `u64` session-scoped order ID on the wire.
 | `0x21` | `STOP_TRIGGERED` | Server -> Client | 48 | 56 |
 | `0x30` | `HEARTBEAT` | Bidirectional | 8 | 16 |
 | `0x31` | `HEARTBEAT_ACK` | Bidirectional | 8 | 16 |
-| `0x40` | `LOGOUT` | Client -> Server | 0 | 8 |
+| `0x40` | `LOGOUT` | Bidirectional | 0 | 8 |
 
 All sizes include the 8-byte header.
 
@@ -337,8 +351,8 @@ order.
 
 ```text
 Offset  0  |  client_order_id  |  u64 LE  |  Echoed from NEW_ORDER
-Offset  8  |  order_id         |  u64 LE  |  Session-scoped BALF order ID; 0 if rejected
-Offset 16  |  timestamp_ns     |  u64 LE  |  Nanoseconds since Unix epoch (engine receive time)
+Offset  8  |  order_id         |  u64 LE  |  BALF order ID; 0 if rejected
+Offset 16  |  timestamp_ns     |  u64 LE  |  The order's entry time (stamped by the gateway, carried back on the engine's ack), ns since Unix epoch
 Offset 24  |  accepted         |  u8      |  1 = accepted, 0 = rejected
 Offset 25  |  reject_code      |  u8      |  See reject codes below; 0 if accepted
 Offset 26  |  reason_len       |  u8      |  Length of meaningful bytes in reason[]
@@ -362,6 +376,8 @@ Offset 27  |  reason           |  u8[25]  |  Rejection reason string (ASCII); ze
 | `0x0A` | `RC_INSUFFICIENT_LIQUIDITY` | FOK could not be filled in full |
 | `0x0B` | `RC_PRICE_COLLAR` | Rejected by a price collar |
 | `0x0C` | `RC_INVALID_FIELD` | Invalid field — bad quantity, a price field the order type needs and lacks (`"LIMIT requires price"`) or does not use (`"LIMIT forbids trail_offset"`), or a price that is not on the instrument's tick grid (`reason` = `"price off tick grid"`) |
+| `0x0D` | `RC_RATE_LIMITED` | The session sent more than `max_messages_per_second`; `reason` = `"RATE_LIMITED"`. A rate-limited `CANCEL_ORDER` or `AMEND_ORDER` is answered with its own ack, `accepted = 0`; a rate-limited heartbeat gets no answer. `LOGOUT` is never rate-limited. |
+| `0x0E` | `RC_RISK_LIMIT` | A risk control refused the order: maximum order quantity or value, position limit, or an active kill switch |
 | `0xFF` | `RC_OTHER` | Other; inspect the `reason` string |
 
 !!! warning "Prices must land on the tick grid"
@@ -377,7 +393,7 @@ Offset 27  |  reason           |  u8[25]  |  Rejection reason string (ASCII); ze
 
 ```text
 Offset  0  |  client_order_id  |  u64 LE  |  New client ref for this cancel request
-Offset  8  |  order_id         |  u64 LE  |  Session-scoped BALF order ID to cancel
+Offset  8  |  order_id         |  u64 LE  |  BALF order ID to cancel
 ```
 
 ### `CANCEL_ACK` (0x13) - Server -> Client
@@ -388,9 +404,28 @@ Offset  8  |  order_id         |  u64 LE  |  Session-scoped BALF order ID to can
 Offset  0  |  client_order_id  |  u64 LE  |  Echoed from CANCEL_ORDER
 Offset  8  |  order_id         |  u64 LE  |  Order being cancelled
 Offset 16  |  accepted         |  u8      |  1 = cancelled, 0 = rejected
-Offset 17  |  cancel_reason    |  u8      |  0 = client request, 255 = system-originated (SMP, session-end, expiry)
+Offset 17  |  cancel_reason    |  u8      |  Why the order was cancelled; see below
 Offset 18  |  _reserved        |  u8[6]   |  Must be zero
 ```
+
+**`cancel_reason` codes** (`0` is the client's own request; every other code
+is the exchange's decision, sent with the original order's `client_order_id`):
+
+| Code | Meaning |
+|------|---------|
+| `0` | The client's `CANCEL_ORDER` was carried out |
+| `1` | Self-match prevention |
+| `2` | Insufficient liquidity (an IOC / MARKET remainder) |
+| `3` | Kill switch |
+| `4` | Circuit-breaker halt |
+| `5` | Gateway disconnect (the participant's `disconnect_behaviour`) |
+| `6` | An operator cancelled the symbol's orders |
+| `7` | Quote replaced |
+| `8` | Quote leg filled |
+| `254` | Expired: DAY at the end of the day, ATO / ATC at the end of their auction |
+| `255` | The exchange cancelled it and gave no reason |
+
+A client must treat an unknown code as "the exchange cancelled it".
 
 ### `AMEND_ORDER` (0x14) - Client -> Server
 
@@ -401,7 +436,7 @@ of the `amend_flags` bits must be set.
 
 ```text
 Offset  0  |  client_order_id  |  u64 LE  |  New client ref for this amend request
-Offset  8  |  order_id         |  u64 LE  |  Session-scoped BALF order ID to amend
+Offset  8  |  order_id         |  u64 LE  |  BALF order ID to amend
 Offset 16  |  new_price        |  i64 LE  |  New limit price x 10^8; ignored if bit 0 of amend_flags is clear
 Offset 24  |  new_quantity     |  u32 LE  |  New total quantity; ignored if bit 1 of amend_flags is clear
 Offset 28  |  amend_flags      |  u8      |  Bit 0 = price changed, bit 1 = quantity changed
@@ -463,10 +498,12 @@ Offset 42  |  _reserved        |  u8[6]   |  Must be zero
 
 ### `HEARTBEAT` (0x30) - Bidirectional
 
-Either side may send a heartbeat at any time. The recipient must respond with
-`HEARTBEAT_ACK`. A session is considered dead if no traffic (including
-heartbeats) arrives within 5 seconds (configurable). The default send interval
-is 1 second.
+Either side may send a heartbeat at any time. The gateway answers a client
+`HEARTBEAT` with `HEARTBEAT_ACK`, and sends its own `HEARTBEAT` when it has
+sent nothing for `heartbeat_interval_sec` (default 1 second); a client
+should answer it with `HEARTBEAT_ACK`. For liveness the gateway counts any
+inbound frame, not only heartbeats: a session from which nothing arrives
+within `heartbeat_timeout_sec` (default 5 seconds) is closed.
 
 If the timeout is exceeded, the connection is considered stale and should be
 closed.
@@ -485,11 +522,18 @@ Offset  0  |  send_time_ns  |  u64 LE  |  Sender's wall-clock time in nanosecond
 Offset  0  |  orig_send_time_ns  |  u64 LE  |  Echo of the send_time_ns from the HEARTBEAT
 ```
 
-### `LOGOUT` (0x40) - Client -> Server
+### `LOGOUT` (0x40) - Bidirectional
 
 Graceful disconnect. No body. After sending `LOGOUT`, the client must not send
-any further messages and should close the TCP connection. The server will flush
-any pending outbound messages and then close the connection on its side.
+any further messages and should close the TCP connection. `LOGOUT` is never
+rate-limited. The gateway tells the engine at once, so the gateway ID is free
+for a new `LOGON` straight away, then sends any pending outbound frames and
+closes the connection; a client that does not read them within 5 seconds is
+disconnected anyway.
+
+The gateway also sends `LOGOUT`, then closes, when the engine restarts, when
+engine events for the session were lost (the session is out of sync), and
+when `pm-balf-gwy` is stopped.
 
 **Body: none (total frame = 8 bytes, header only).**
 
@@ -534,8 +578,9 @@ sequenceDiagram
   the numbered sequence.
 - Sequence numbers increment by `1` per message. They wrap to `1` (not `0`) at
   `UINT32_MAX`.
-- A gap in the inbound sequence number is a protocol error; the receiver should
-  log it and may close the connection.
+- A gap or a repeat in the inbound sequence number is a protocol error. The
+  gateway logs it (`expected N, got M`) and closes the connection at once;
+  after a new `LOGON` the client starts again at `1`.
 - BALF `1.0.0` does not define a resend/recovery request. On detected gaps,
   receivers should treat the session as out-of-sync and reconnect.
 - The `RETRANSMIT` flag is reserved for a future recovery extension and must be
@@ -563,8 +608,8 @@ Path locations:
 |---|---|---|---|
 | `balf_gateway.bind_address` | IP/host bind string | `0.0.0.0` (common) | Local interface address for BALF TCP listening. |
 | `balf_gateway.port` | Integer, `1..65535` | `5560` | BALF listen port. |
-| `balf_gateway.heartbeat_interval_sec` | Integer, `> 0` | `1` | Default heartbeat send interval. |
-| `balf_gateway.heartbeat_timeout_sec` | Integer, `> 0` | `5` | Liveness timeout before session is considered dead and closed. |
+| `balf_gateway.heartbeat_interval_sec` | Number, `> 0` | `1` | Default heartbeat send interval. |
+| `balf_gateway.heartbeat_timeout_sec` | Number, `> 0` | `5` | Liveness timeout before session is considered dead and closed. |
 
 **Example:**
 
@@ -585,8 +630,9 @@ to match ALF IDs, but both use the same allowlist policy.
 
 - Read exactly 8 bytes for the header first, then read the exact remaining
   bytes for that `msg_type`; partial reads are normal on TCP.
-- Reject unknown `msg_type`, bad `magic`, wrong `version`, and non-zero reserved
-  fields deterministically; silent tolerance creates interoperability bugs.
+- Reject unknown `msg_type`, bad `magic` and wrong `version` deterministically.
+  Send `flags` and reserved fields as zero; do not rely on the gateway refusing
+  them, since it ignores them on receipt.
 - Keep separate inbound and outbound sequence counters; never mix directions.
 - Treat `LOGON` and `LOGON_ACK` as `seq_no = 0` special cases and start normal
   sequencing at `1` afterward.
@@ -609,7 +655,7 @@ If you are writing another BALF client, the most important exact behaviors are:
 2. The header is always 8 bytes.
 3. All multi-byte numeric values are little-endian.
 4. `flags` must be zero in BALF `1.0.0`.
-5. `order_id` is a compact session-scoped `u64`.
+5. `order_id` is a compact `u64`, kept for the gateway ID across its sessions.
 6. `LOGON` and `LOGON_ACK` use `seq_no = 0`.
 7. Sequence gaps are protocol errors.
 8. Combo, OCO, and recovery wire features are not part of `1.0.0`.

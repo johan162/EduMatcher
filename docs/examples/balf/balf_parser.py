@@ -12,14 +12,20 @@ What a BALF client must handle besides the happy path
   to expect in practice is ``0xFF`` with ``msg == "SYMBOLS_UNAVAILABLE"`` (the
   engine accepted the connection but never sent its symbol list within the
   gateway's ``auth_timeout_sec``): reconnect and log on again.
-* A ``LOGOUT`` (0x40, header only) from the gateway means the engine
-  restarted and no longer holds the session. The connection closes; log on
-  again from scratch (sequence numbers and order ids start over).
+* A ``LOGOUT`` (0x40, header only) from the gateway means the session is
+  over: the engine restarted, engine events for the session were lost, or
+  the gateway is stopping. The connection closes; log on again. Sequence
+  numbers start over at 1; ``order_id``s do not: orders still on the book
+  keep theirs, and their fills arrive on the new session.
+* Every frame the client sends after ``LOGON`` must be numbered 1, 2, 3, …;
+  a gap or a repeat closes the connection.
 * An order for a symbol the engine does not list is refused with an
-  ``ORDER_ACK`` ``reject_code`` 0x03, never silently priced.
+  ``ORDER_ACK`` ``reject_code`` 0x03, never silently priced; one refused by
+  the rate limit gets 0x0D, by a risk limit 0x0E.
 * ``CANCEL_ACK``, ``AMEND_ACK`` and ``STOP_TRIGGERED`` (sent before the stop
-  order's own execution reports) are decoded below; ``cancel_reason`` 255
-  means the exchange cancelled the order (SMP, IOC remainder, session end...).
+  order's own execution reports) are decoded below; a non-zero
+  ``cancel_reason`` means the exchange cancelled the order and names why
+  (``CANCEL_REASON_NAMES``).
 """
 
 from __future__ import annotations
@@ -70,12 +76,28 @@ ORDER_REJECT_NAMES: Dict[int, str] = {
     0x0A: "INSUFFICIENT_LIQUIDITY",
     0x0B: "PRICE_COLLAR",
     0x0C: "INVALID_FIELD",
+    0x0D: "RATE_LIMITED",
+    0x0E: "RISK_LIMIT",
     0xFF: "OTHER",
 }
 
 # CANCEL_ACK.cancel_reason
 CANCEL_REASON_CLIENT = 0  # the client asked
-CANCEL_REASON_SYSTEM = 255  # the exchange decided: SMP, IOC remainder, session end...
+CANCEL_REASON_SYSTEM = 255  # the exchange decided and did not say why
+#: Every other code is also an exchange decision, with its cause.
+CANCEL_REASON_NAMES: Dict[int, str] = {
+    0: "CLIENT",
+    1: "SELF_MATCH_PREVENTED",
+    2: "INSUFFICIENT_LIQUIDITY",
+    3: "KILL_SWITCH",
+    4: "CIRCUIT_BREAKER_HALT",
+    5: "GATEWAY_DISCONNECT",
+    6: "ADMIN_CANCEL_SYMBOL",
+    7: "QUOTE_REPLACED",
+    8: "QUOTE_LEG_FILLED",
+    254: "EXPIRED",
+    255: "SYSTEM",
+}
 
 STATUS_NAMES: Dict[int, str] = {1: "PARTIAL", 2: "FILLED"}
 SIDE_NAMES: Dict[int, str] = {1: "BUY", 2: "SELL"}
@@ -227,7 +249,10 @@ def parse_cancel_ack(body: bytes) -> dict[str, Any]:
         "order_id": _read_u64_le(body, 8),
         "accepted": body[16] == 1,
         "cancel_reason": cancel_reason,
-        "by_exchange": cancel_reason == CANCEL_REASON_SYSTEM,
+        "cancel_reason_name": CANCEL_REASON_NAMES.get(
+            cancel_reason, f"0x{cancel_reason:02X}"
+        ),
+        "by_exchange": cancel_reason != CANCEL_REASON_CLIENT,
     }
 
 

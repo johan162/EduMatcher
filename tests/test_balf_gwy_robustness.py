@@ -207,7 +207,6 @@ def _do_auth(
 ) -> bytes:
     bc.send(_build_logon(gateway_id))
     _drain_until(pull, "system.gateway_connect")
-    time.sleep(0.1)  # allow ZMQ PUB subscription to propagate
     _publish_auth(pub, gateway_id, accepted=True)
     # The accepted LOGON_ACK is held until symbol metadata arrives (K11/B1).
     _publish_symbols(pub, gateway_id)
@@ -318,7 +317,7 @@ class TestMalformedFrameHeader:
 
             # Send a HEARTBEAT with flags=0x01 (non-zero but reserved)
             flagged_header = struct.pack(
-                "<BBBBI", BALF_MAGIC, BALF_VERSION, MSG_HEARTBEAT, 0x01, 2
+                "<BBBBI", BALF_MAGIC, BALF_VERSION, MSG_HEARTBEAT, 0x01, 1
             )
             body = struct.pack("<Q", now_ns())
             bc.send(flagged_header + body)
@@ -337,14 +336,14 @@ class TestMalformedFrameHeader:
             _do_auth(bc, pull, pub)
 
             # MSG_ORDER_ACK = 0x11 is in FRAME_SIZE but NOT in CLIENT_MSG_TYPES
-            fake_ack = build_header(MSG_ORDER_ACK, seq_no=99) + b"\x00" * (
+            fake_ack = build_header(MSG_ORDER_ACK, seq_no=1) + b"\x00" * (
                 FRAME_SIZE[MSG_ORDER_ACK] - HEADER_SIZE
             )
             bc.send(fake_ack)
             time.sleep(0.05)  # give gateway a loop iteration to process
 
             # Connection must still be alive — verify with a heartbeat
-            bc.send(_build_heartbeat(seq_no=5))
+            bc.send(_build_heartbeat(seq_no=2))
             ack_body = bc.recv_until(MSG_HEARTBEAT_ACK, timeout=3.0)
             assert len(ack_body) > 0
 
@@ -483,7 +482,6 @@ class TestPreAuthHardening:
             bc = _BalfClient(cli)
             bc.send(_build_logon("TRADER01"))
             _drain_until(pull, "system.gateway_connect")
-            time.sleep(0.1)  # allow ZMQ PUB subscription to propagate
             _publish_auth(pub, "TRADER01", accepted=False, reason="already connected")
             body = bc.recv_until(MSG_LOGON_ACK)
             assert body[16] == 0
@@ -541,7 +539,7 @@ class TestEngineUnavailableFailFast:
             pull.close(linger=0)
             time.sleep(0.05)
 
-            bc.send(_build_new_order(seq_no=2))
+            bc.send(_build_new_order(seq_no=1))
             body = bc.recv_until(MSG_ORDER_ACK, timeout=1.5)
 
             # ORDER_ACK body:
@@ -595,7 +593,7 @@ class TestFrameStreaming:
             _do_auth(bc, pull, pub)
 
             # Pipeline two HEARTBEAT frames
-            cli.sendall(_build_heartbeat(seq_no=2) + _build_heartbeat(seq_no=3))
+            cli.sendall(_build_heartbeat(seq_no=1) + _build_heartbeat(seq_no=2))
 
             ack_bodies: list[bytes] = []
             for _ in range(10):  # drain up to 10 frames looking for 2 HB_ACKs
