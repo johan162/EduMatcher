@@ -44,9 +44,9 @@ from edumatcher.eod.settle import Settlement, settle_date
 from edumatcher.models.envelope import Envelope
 from edumatcher.models.generated.session import TOPIC_SESSION_STATE
 from edumatcher.models.generated.system import (
+    PREFIX_GATEWAY_AUTH,
     PREFIX_GATEWAY_BYE,
     TOPIC_EOD,
-    TOPIC_GATEWAY_CONNECT,
     topic_gateways,
     topic_symbols,
 )
@@ -197,7 +197,10 @@ def build_clearing_db(path: Path) -> None:
         for gateway in ("OPS01", "TRADER01", "MM01"):
             feed.at(
                 ns(DAY1, "08:00"),
-                encode(TOPIC_GATEWAY_CONNECT, {"gateway_id": gateway}),
+                encode(
+                    f"{PREFIX_GATEWAY_AUTH}{gateway}",
+                    {"gateway_id": gateway, "accepted": True},
+                ),
             )
         feed.phase(ns(DAY1, "09:00"), "CONTINUOUS", "PRE_OPEN")
         for trade, msg_id in TRADES[:3]:

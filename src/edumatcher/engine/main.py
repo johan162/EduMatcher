@@ -32,14 +32,16 @@ makes the exchange deterministic and the code free of locks.
   4. ``Engine._handle_new_order``    -- the gatekeeper: build the ``Order``,
                                      resolve SMP, then a series of checks
                                      (gateway, symbol, validation, session,
-                                     halt, collar); each failure sends ONE
-                                     reject and returns.  Survivors get the
-                                     positive ACK.
+                                     halt, collar and trailing-stop reference);
+                                     failures get a reject. The positive ACK
+                                     normally precedes matching, but is deferred
+                                     when the book may reject the order.
   5. ``OrderBook.process``           (engine/order_book.py) the matching
                                      itself; returns ``(trades, events)``.
   6. ``Engine._publish_dispatch``    turn the result into bus messages:
                                      ``order.fill`` / ``order.cancelled`` /
-                                     rejects per order, then
+                                     rejects per order. Callbacks during matching
+                                     may already have published sibling effects.
   7. ``Engine._publish_trade``       one ``trade.executed`` per trade, plus
                                      position ledger, drop copy and circuit
                                      breaker updates.
@@ -155,6 +157,7 @@ from edumatcher.models.generated.order import (
     TOPIC_ORDERS_REQUEST,
     TOPIC_PRICE_LEVEL_ORDERS_REQUEST,
     EngineTraceOutcome,
+    OrderAckRequest,
     OrderFillLiquidityFlag,
     make_order_cancelled_unchecked,
     make_order_fill_unchecked,
@@ -381,6 +384,7 @@ _LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s - %(message)s"
 #: no resume time, no corridor, and only an operator resume lifts it -- the
 #: closing backstop leaves it alone (decision Q3).
 _OPERATOR_HALT_LEVELS = frozenset({"ADMIN_SYMBOL", "ADMIN_ALL"})
+_MAINTENANCE_SLICE_NS = 10_000_000
 
 _ENDED_STATUSES = frozenset(
     {OrderStatus.FILLED, OrderStatus.CANCELLED, OrderStatus.REJECTED}
@@ -388,6 +392,13 @@ _ENDED_STATUSES = frozenset(
 
 #: What an order the book rejected is told when matching was on: only a FOK
 #: short of liquidity gets there (see ``Engine._book_reject``).
+#: The ``order.ack.request`` of an answer to each order request topic.
+_ACK_REQUEST: dict[str, OrderAckRequest] = {
+    TOPIC_ORDER_NEW: "NEW",
+    TOPIC_ORDER_CANCEL: "CANCEL",
+    TOPIC_ORDER_AMEND: "AMEND",
+}
+
 _NO_LIQUIDITY: tuple[RejectCode, str] = (
     "INSUFFICIENT_LIQUIDITY",
     "Insufficient liquidity",
@@ -650,17 +661,16 @@ class Engine:
         # interval on a freshly started engine.
         self._last_persist = 0.0
         self._next_silence_check = 0.0
-        # If None → no symbol restrictions (backward-compat mode)
+        # If None → no symbol restrictions (no configuration loaded)
         self._allowed_symbols: frozenset[str] | None = None
         self._allowed_participants: frozenset[str] | None = None
         self._engine_config: EngineConfig | None = None
-        # Path _load_config() re-reads on POST /admin/reference/reload.
-        # None when the engine was constructed from an in-memory EngineConfig
-        # (tests, or the compiled-artifact fast path) rather than a file.
+        # Source path, absent for a compiled-artifact startup. Reloads remain
+        # disabled until changed configuration can be recorded and replayed.
         self._config_path: Path | None = None
         # Compiled reference-data bundle + its content-hash version, cached
-        # so GET /reference/* doesn't recompute it on every request. Rebuilt
-        # on load and on a successful reload.
+        # so GET /reference/* doesn't recompute it on every request. Built
+        # on load; changing reference data requires a restart.
         self._reference_cache: dict[str, Any] | None = None
         self._reference_config_version: str | None = None
         self._gateway_descriptions: dict[str, str] = {}
@@ -760,11 +770,8 @@ class Engine:
         if engine_config is not None or path.exists():
             try:
                 self._engine_config = engine_config or load_engine_config(path)
-                # Reload (POST /admin/reference/reload) re-parses this same
-                # YAML file with load_engine_config(). Not offered when the
-                # engine started from a compiled artifact (engine_config is
-                # not None here) — that path has no single YAML file to
-                # re-read; the artifact is a separate build step.
+                # Keep the source for diagnostics; a compiled artifact has no
+                # single YAML file. Neither startup mode permits live reload.
                 self._config_path = path if engine_config is None else None
                 self._allowed_symbols = self._engine_config.allowed_symbols
                 self._allowed_participants = self._engine_config.allowed_participants
@@ -947,6 +954,7 @@ class Engine:
         reason: str,
         client_tag: str | None,
         request_tag: str | None,
+        request: OrderAckRequest,
     ) -> None:
         self.pub_sock.send_multipart(
             self._order_ack(
@@ -957,6 +965,7 @@ class Engine:
                 reject_code=code,
                 client_tag=client_tag,
                 request_tag=request_tag,
+                request=request,
             )
         )
 
@@ -977,10 +986,13 @@ class Engine:
         reject_code: RejectCode | None = None,
         client_tag: str | None = None,
         request_tag: str | None = None,
+        request: OrderAckRequest,
         order: dict[str, Any] | None = None,
     ) -> list[bytes]:
         # Explicit keywords, not **kwargs: this runs on every order ack, and
         # repacking a kwargs dict cost ~200 ns there (perf gate, design A4.10).
+        # `request` has no default: every ack site must say which request it
+        # answers, or a refused cancel/amend reads as a refused new order.
         if not accepted:
             self.metrics.count_reject(gateway_id, reject_code or reject_label(reason))
         return make_ack_msg(
@@ -991,6 +1003,7 @@ class Engine:
             reject_code=reject_code,
             client_tag=client_tag,
             request_tag=request_tag,
+            request=request,
             order=order,
         )
 
@@ -1325,6 +1338,7 @@ class Engine:
                             gateway_id,
                             leg.id,
                             accepted=True,
+                            request="NEW",
                             order=ack_detail(leg),
                         )
                     )
@@ -1451,7 +1465,13 @@ class Engine:
 
     def _startup(self, run_seq: int) -> None:
         """Everything ``run`` does before serving: announce, restore, seed,
-        then publish what that left in the books' trace and the collars."""
+        then publish what that left in the books' trace and the collars.
+
+        ``_restore_gtc`` rebuilds resting orders and structure links without
+        replaying trades; ``_load_config`` then restores references and seeds
+        missing interest. During service ``_flush_persistence`` checkpoints
+        the state; ``_archive_eod`` preserves the closing business day.
+        """
         self._announce_startup(run_seq)
         restored = self._restore_gtc()
         self._load_config()  # seed stats + MM orders (after GTC restore)
@@ -1917,14 +1937,13 @@ class Engine:
     def _handle_new_order(self, payload: dict[str, Any]) -> None:
         """Handle one ``order.new``: gate it, ACK it, match it, publish it.
 
-        Every order ends in exactly one of two ways, and a client must always
-        learn which:
+        The normal entry outcome is one positive or negative ACK:
 
-        * REJECTED -- a gate below fails.  ONE ``order.ack`` with
-          ``accepted=False`` and a machine-readable reject code is sent, and
-          the function returns.  The book never sees the order.
-        * ACCEPTED -- an ``order.ack`` with ``accepted=True`` is sent, then
-          the book matches, then fills/cancels/trades are published.
+        * A failed entry gate sends ``accepted=False``; the book does not
+          process the order. The book can also reject, e.g. an unfillable FOK.
+        * Otherwise ``accepted=True`` precedes matching unless the book may
+          reject; in that case the ACK waits for ``book.process``. Dispatch
+          publishes the resulting fills, cancellations and trades.
 
         The gates run cheapest-and-most-fundamental first, so the reject code
         a client gets names the first thing wrong with its order:
@@ -1933,6 +1952,7 @@ class Engine:
           2 symbol is configured          6 ATO / ATC time-in-force window
           3 (book for the symbol exists)  7 symbol halted?
           4 field validation (qty, price) 8 price collar   9 can it rest?
+         10 trailing-stop reference, if no explicit stop price
 
         Stage numbers appear again as ``# [n]`` markers in the body.
         """
@@ -1950,6 +1970,7 @@ class Engine:
                 raise
             self._dbg_count("new_order_reject_malformed")
             self._reject(
+                request="NEW",
                 gateway_id=str(payload.get("gateway_id", "")),
                 order_id=str(order_id),
                 code="MALFORMED_MESSAGE",
@@ -1978,7 +1999,7 @@ class Engine:
         # FIX gateway allowlist + connect/auth check
         # Fast-path: if gateway_id is already in _connected_participants it is
         # known-good (allowed + connected).  Only invoke _gateway_status() on
-        # first contact, disconnected gateways, or backward-compat mode.
+        # first contact, disconnected gateways, or no configuration loaded.
         # [1] gateway
         _gw_id_upper = order.gateway_id.upper()
         if _gw_id_upper not in self._connected_participants:
@@ -1986,6 +2007,7 @@ class Engine:
             if not ok:
                 self._dbg_count("new_order_reject_gateway")
                 self._reject(
+                    request="NEW",
                     gateway_id=order.gateway_id,
                     order_id=order.id,
                     code=self._gateway_reject_code(reason),
@@ -2001,6 +2023,7 @@ class Engine:
             self._dbg_count("new_order_reject_symbol")
             reason = f"Symbol not configured: {order.symbol}"
             self._reject(
+                request="NEW",
                 gateway_id=order.gateway_id,
                 order_id=order.id,
                 code="UNKNOWN_SYMBOL",
@@ -2026,6 +2049,7 @@ class Engine:
             code, validation_error = validation_result
             self._dbg_count("new_order_reject_validation")
             self._reject(
+                request="NEW",
                 gateway_id=order.gateway_id,
                 order_id=order.id,
                 code=code,
@@ -2041,6 +2065,7 @@ class Engine:
         if self._sessions_enabled and not accepts_orders(self._session_state):
             self._dbg_count("new_order_reject_session")
             self._reject(
+                request="NEW",
                 gateway_id=order.gateway_id,
                 order_id=order.id,
                 code="MARKET_CLOSED",
@@ -2058,6 +2083,7 @@ class Engine:
         ):
             self._dbg_count("new_order_reject_ato_window")
             self._reject(
+                request="NEW",
                 gateway_id=order.gateway_id,
                 order_id=order.id,
                 code="SESSION_NOT_PERMITTED",
@@ -2075,6 +2101,7 @@ class Engine:
         ):
             self._dbg_count("new_order_reject_atc_window")
             self._reject(
+                request="NEW",
                 gateway_id=order.gateway_id,
                 order_id=order.id,
                 code="SESSION_NOT_PERMITTED",
@@ -2108,6 +2135,7 @@ class Engine:
                     f"{order.order_type.value} orders rejected during {trigger}"
                 )
                 self._reject(
+                    request="NEW",
                     gateway_id=order.gateway_id,
                     order_id=order.id,
                     code=code,
@@ -2138,6 +2166,7 @@ class Engine:
                         result.reason,
                     )
                     self._reject(
+                        request="NEW",
                         gateway_id=order.gateway_id,
                         order_id=order.id,
                         code="COLLAR_BREACH",
@@ -2155,6 +2184,7 @@ class Engine:
         ):
             self._dbg_count("new_order_reject_no_match_phase")
             self._reject(
+                request="NEW",
                 gateway_id=order.gateway_id,
                 order_id=order.id,
                 code="SESSION_NOT_PERMITTED",
@@ -2169,14 +2199,14 @@ class Engine:
             f"{order.order_type.value} qty={order.quantity} price={order.price_ticks}"
         )
 
-        # ---- All gates passed: from here the order WILL be accepted. ----
-
-        # TRAILING_STOP: compute initial stop_price from last trade if not supplied
+        # [10] A trailing stop needs an explicit stop or a trade to trail.
+        # The NEW log above records the submission, not a promise of acceptance.
         if order.order_type == OrderType.TRAILING_STOP:
             book = self._book(order.symbol)
             if order.stop_price_ticks is None:
                 if book.last_trade_price is None:
                     self._reject(
+                        request="NEW",
                         gateway_id=order.gateway_id,
                         order_id=order.id,
                         code="MISSING_FIELD",
@@ -2190,6 +2220,7 @@ class Engine:
                 else:
                     order.stop_price_ticks = book.last_trade_price + order.trail_offset_ticks  # type: ignore[operator]
 
+        # Entry gates passed; the book can still reject, notably an unfillable FOK.
         # M8: order→symbol registration happens AFTER book.process() succeeds
         # (below), not here — so a failure mid-processing leaves no half-applied
         # routing entry for an order that never reached the book.
@@ -2277,6 +2308,7 @@ class Engine:
                     "trail_offset_ticks": order.trail_offset_ticks,
                     "smp_action": _ack_smp_action,
                     "client_tag": order.client_tag,
+                    "request": "NEW",
                     "tick_decimals": get_tick_decimals(order.symbol),
                     "ts_ns": now,
                 }
@@ -2312,7 +2344,7 @@ class Engine:
         self._dirty_symbols.add(order.symbol)
 
     def _rebuild_reference_cache(self) -> None:
-        """(Re)build the compiled reference-data bundle and its version hash.
+        """Build the compiled reference-data bundle and its version hash.
 
         Static data only — tick sizes, resolved risk levels, circuit-breaker
         ladders, schedule, index definitions. Deliberately excludes anything
@@ -2433,13 +2465,12 @@ class Engine:
         )
 
     def _handle_reference_reload(self, payload: dict[str, Any]) -> None:
-        """Re-read static reference data from disk without touching live state.
+        """Refuse reloads: changed configurations cannot yet be replayed.
 
-        Deliberately narrower than the startup config load: it never
-        re-seeds market-maker quotes, never creates or removes order books,
-        and never touches session/halt state. A reload that changed the
-        symbol or index set would require doing exactly those unsafe things
-        mid-session, so it is rejected rather than partially applied.
+        A compiled-artifact run has no reloadable source, and a YAML run has
+        no recorded startup config. Even if both were available, accepting a
+        new config without recording it would make the audit replay diverge.
+        Deploy the revised artifact and restart instead.
         """
         gateway_id = _clamp_wire_text(payload.get("gateway_id", ""))
         command_id = _clamp_wire_text(payload.get("command_id", ""), 64)
@@ -2472,50 +2503,12 @@ class Engine:
             )
             return
 
-        try:
-            new_config = load_engine_config(self._config_path)
-        except Exception as exc:
-            self.pub_sock.send_multipart(
-                make_reference_reload_ack_msg(
-                    gateway_id, command_id, accepted=False, reason=str(exc)
-                )
-            )
-            return
-
-        old_symbols = (
-            frozenset(self._engine_config.symbols)
-            if self._engine_config
-            else frozenset()
-        )
-        new_symbols = frozenset(new_config.symbols)
-        old_index_ids = (
-            frozenset(idx.id for idx in self._engine_config.indices)
-            if self._engine_config
-            else frozenset()
-        )
-        new_index_ids = frozenset(idx.id for idx in new_config.indices)
-        if new_symbols != old_symbols or new_index_ids != old_index_ids:
-            self.pub_sock.send_multipart(
-                make_reference_reload_ack_msg(
-                    gateway_id,
-                    command_id,
-                    accepted=False,
-                    reason=(
-                        "Reload cannot add or remove symbols/indexes mid-session "
-                        "(requires a restart); the symbol/index set changed"
-                    ),
-                )
-            )
-            return
-
-        self._engine_config = new_config
-        self._rebuild_reference_cache()
         self.pub_sock.send_multipart(
             make_reference_reload_ack_msg(
                 gateway_id,
                 command_id,
-                accepted=True,
-                config_version=self._reference_config_version,
+                accepted=False,
+                reason="Reference reload is disabled; deploy the config and restart",
             )
         )
 
@@ -2835,7 +2828,7 @@ class Engine:
             return
 
         if self._allowed_participants is None:
-            # Backward-compat mode: no gateway restrictions
+            # No configuration loaded: no gateway restrictions.
             self._connected_participants.add(gateway_id)
             session.connected = True
             self.metrics.count(self.metrics.connects, gateway_id)
@@ -2898,9 +2891,10 @@ class Engine:
             return
         orders: list[dict[str, Any]] = []
         for book in self.books.values():
-            for order in book.resting_orders():
-                if order.gateway_id == gateway_id:
-                    orders.append(order_to_display_dict(order))
+            orders.extend(
+                order_to_display_dict(order)
+                for order in book.orders_for_gateway(gateway_id)
+            )
         self.pub_sock.send_multipart(make_orders_msg(gateway_id, orders))
 
     def _handle_price_level_orders_request(self, payload: dict[str, Any]) -> None:
@@ -2991,19 +2985,18 @@ class Engine:
             self.pub_sock.send_multipart(make_quote_bootstrap_msg(gateway_id, []))
             return
 
-        order_by_id: dict[str, Order] = {}
-        for book in self.books.values():
-            for order in book.resting_orders():
-                order_by_id[order.id] = order
-
         entries = self._quote_index.entries_for_gateway(gateway_id)
         if symbol_filter:
             entries = [e for e in entries if e.symbol == symbol_filter]
 
         quotes: list[dict[str, Any]] = []
         for entry in entries:
-            bid = order_by_id.get(entry.bid_order_id)
-            ask = order_by_id.get(entry.ask_order_id)
+            bid_symbol = self._order_symbol.get(entry.bid_order_id)
+            ask_symbol = self._order_symbol.get(entry.ask_order_id)
+            bid_book = self.books.get(bid_symbol) if bid_symbol is not None else None
+            ask_book = self.books.get(ask_symbol) if ask_symbol is not None else None
+            bid = bid_book.get_order(entry.bid_order_id) if bid_book else None
+            ask = ask_book.get_order(entry.ask_order_id) if ask_book else None
             if bid is None and ask is None:
                 continue
 
@@ -3092,11 +3085,6 @@ class Engine:
         self, gateway_id: str, symbol_filter: str
     ) -> list[dict[str, Any]]:
         """Build the ACTIVE leg rows for one gateway (unchanged behavior)."""
-        order_by_id: dict[str, Order] = {}
-        for book in self.books.values():
-            for order in book.resting_orders():
-                order_by_id[order.id] = order
-
         entries = self._quote_index.entries_for_gateway(gateway_id)
         if symbol_filter:
             entries = [e for e in entries if e.symbol == symbol_filter]
@@ -3107,7 +3095,9 @@ class Engine:
                 ("BUY", entry.bid_order_id),
                 ("SELL", entry.ask_order_id),
             ):
-                leg_order = order_by_id.get(order_id)
+                symbol = self._order_symbol.get(order_id)
+                book = self.books.get(symbol) if symbol is not None else None
+                leg_order = book.get_order(order_id) if book else None
                 if leg_order is None:
                     continue
                 legs.append(
@@ -3572,7 +3562,7 @@ class Engine:
 
         With matching on, only a FOK short of liquidity is rejected. With it
         off, a MARKET/IOC/FOK cannot rest, and the reason is why matching is
-        off -- as gate 8 and the phase gate of ``_handle_new_order`` say for
+        off -- as the halt and phase gates of ``_handle_new_order`` say for
         an ordinary order (X12a). An AON combo blocked by a short leg is the
         remaining case: a liquidity shortfall again.
         """
@@ -3620,6 +3610,13 @@ class Engine:
         * PER TRADE messages (``trade.executed``) are public and go out last.
           A participant therefore learns of its own fill slightly before the
           public tape shows it.
+
+        During continuous matching, the book's synchronous quote and OCO
+        hooks may already have published a sibling cancellation or quote
+        status before this method publishes the fill that caused it (C12).
+        They run mid-sweep so that sibling cannot trade later in the same
+        sweep. Consumers must not infer the causal order solely from receipt
+        order; this is distinct from the per-order-before-tape ordering above.
         """
         # Step 0: what the book did on the way -- a stop that fired, an order
         # that rested -- before the fills it explains.
@@ -3663,6 +3660,7 @@ class Engine:
                 log.info(f"CANCEL {oid[:8]} ({evt.gateway_id})")
             elif status is OrderStatus.REJECTED:
                 self._reject(
+                    request="NEW",
                     gateway_id=evt.gateway_id,
                     order_id=oid,
                     code=reject[0],
@@ -3738,11 +3736,18 @@ class Engine:
         ends, right after its ``resume``, and an opening or closing print is
         itself the price discovery a halt would be waiting for.
 
-        If the rolling-window average has moved more than ``dynamic_band_pct``
-        from the trigger price, the symbol is halted:
+        ``record_trade`` compares the incoming price with the prior rolling
+        window's average: abs(price - average) / average must reach a level's
+        ``price_shift_pct``. The highest matching level wins. On a halt:
           - All resting quotes for the symbol are cancelled.
           - A ``circuit_breaker.halt.{symbol}`` message is broadcast.
-          - ``_halted_symbols[symbol]`` is set to True so new orders are blocked.
+          - ``_halted_symbols[symbol]`` disables matching; orders that cannot
+            rest are rejected.
+
+        ``_flush_circuit_breakers`` tests ACE's reopening corridor and either
+        extends the call or uncrosses it; ``_run_closing_backstop`` handles
+        eligible halts at close, and ``_handle_symbol_resume`` handles an
+        operator's reopen.
         """
         if not self._enforce_circuit_breakers:
             return
@@ -3826,11 +3831,11 @@ class Engine:
         that has not managed to reopen within its corridor prints *at* the
         corridor boundary rather than at the outlying equilibrium.
 
-        This is the only place in the engine where a price is imposed rather
-        than discovered. A clamped print can leave the book crossed — bids and
-        asks beyond the boundary do not trade — which is intended: that
-        interest survives to the next session rather than executing at a price
-        the corridor was built to reject.
+        A clamped print can leave the book crossed — bids and asks beyond the
+        boundary do not trade — which is intended: that interest survives to
+        the next session rather than executing at a price the corridor was
+        built to reject. An administrator can also impose a price with a
+        manual reopen.
         """
         for symbol, cb in self._circuit_breakers.items():
             if not self._halted_symbols.get(symbol):
@@ -4012,10 +4017,9 @@ class Engine:
             sibling_id, cancel_reason="QUOTE_LEG_FILLED"
         )
 
-        # `order` is the filled leg — already terminal, its final state is
-        # available directly. `sibling_order` is whatever _cancel_order_by_id
-        # just returned for the other leg. Attach both to the history entry
-        # remove() just recorded, same pattern as _cancel_quote_entry.
+        # `order` is the hit leg, which may still have a live remainder.
+        # `sibling_order` is what _cancel_order_by_id returned for the other
+        # leg. Attach both snapshots to the history entry remove() recorded.
         filled_snapshot = self._snapshot_quote_leg(order)
         sibling_snapshot = self._snapshot_quote_leg(sibling_order)
         bid_leg = filled_snapshot if order.side == Side.BUY else sibling_snapshot
@@ -4049,7 +4053,9 @@ class Engine:
         ask -> publish like any dispatch.  Unlike ``order.new`` every reject
         here is a ``quote.ack`` with ``accepted=False`` -- including a
         handler failure before the ack (``_reject_after_error``); one after
-        it ends the quote with ``quote.status CANCELLED`` instead.
+        it ends the quote with ``quote.status CANCELLED`` instead. A surviving
+        orphan leg is removed by ``_cancel_orphaned_quote_legs`` on reissue or
+        cancellation, even if the quote is no longer active in the index.
         """
         self.metrics.count(self.metrics.quotes_in, payload.get("gateway_id"))
         gateway_id = str(payload.get("gateway_id", "")).upper()
@@ -5587,10 +5593,9 @@ class Engine:
     #
     # Note the limited meaning of "all-or-none" (AON): it is a guard at ENTRY
     # only.  If every leg could fill completely right now, the legs are
-    # matched; if any leg could not, NO leg is matched on entry and all rest
-    # as interest -- unless a leg would trade now, which rejects the combo
-    # (X28).  It is not a guarantee that the legs execute atomically later
-    # on.
+    # matched; if any leg could not, NO leg is matched on entry. Restable legs
+    # may wait as interest, but a marketable leg or one that cannot rest
+    # rejects the combo (X28). This does not guarantee atomic execution later.
     # ------------------------------------------------------------------
 
     def _validate_combo(self, combo: ComboOrder) -> str:
@@ -5721,26 +5726,20 @@ class Engine:
         # the book just the same.
         aon_blocked = aon_rejected = False
         if combo.combo_type == ComboType.AON:
-            fillable = [
-                self._book(leg.symbol).fillable_quantity(
+            fillable_and_unprevented = [
+                self._book(leg.symbol).fillable_quantities(
                     leg.side,
                     leg.price_ticks,
                     gateway_id=combo.gateway_id,
                     smp_action=self._resolve_smp_action(
                         combo.gateway_id, leg.smp_action
                     ),
+                    need=leg.quantity,
                 )
                 for leg in combo.legs
             ]
-            unprevented = [
-                self._book(leg.symbol).fillable_quantity(
-                    leg.side,
-                    leg.price_ticks,
-                    gateway_id=combo.gateway_id,
-                    smp_action=SmpAction.NONE,
-                )
-                for leg in combo.legs
-            ]
+            fillable = [pair[0] for pair in fillable_and_unprevented]
+            unprevented = [pair[1] for pair in fillable_and_unprevented]
             aon_blocked = any(f < leg.quantity for f, leg in zip(fillable, combo.legs))
             aon_rejected = (
                 aon_blocked
@@ -5835,6 +5834,7 @@ class Engine:
                 combo.gateway_id,
                 child.id,
                 accepted=True,
+                request="NEW",
                 order=ack_detail(child),
             )
             defer_ack = _book_may_reject(child, do_match)
@@ -5897,7 +5897,7 @@ class Engine:
         self._accept_combo(combo, publish_ack=True)
 
     def _collar_breach(self, symbol: str, price_ticks: int | None) -> str:
-        """Why the collar refuses *price_ticks* on *symbol*, or "" -- gate 8
+        """Why the collar refuses *price_ticks* on *symbol*, or "" -- the collar gate
         of ``_handle_new_order``, for an OCO or combo leg (X30). A config-
         seeded combo and a market maker's quote are not collared."""
         if not self._enforce_collars or price_ticks is None:
@@ -6394,6 +6394,11 @@ class Engine:
         Mapping of each uncrossed symbol to ``(printed_price_ticks, traded_qty)``
         — ``printed_price_ticks`` is ``None`` when nothing printed. Callers that
         do not need the outcome (the session sweep, recovery) ignore it.
+
+        ``compute_equilibrium`` selects a price; ``execute_uncross`` walks the
+        book there, including mid-walk OCO callbacks. ``_publish_dispatch``
+        runs the auction's deferred quote follow-ups before ``run_stops``
+        releases stops, so those stops cannot hit a pulled quote sibling.
         """
         outcomes: dict[str, tuple[int | None, int]] = {}
         match_type = self._uncross_match_type(reason)
@@ -6551,8 +6556,9 @@ class Engine:
         """
         # Flow: gates -> parse both legs -> per-leg field checks -> register
         # the pair -> ACK the pair -> post leg 1, then leg 2 (each: ACK leg,
-        # book.process, publish).  Every reject is an ``oco.ack`` with
-        # accepted=False and neither leg ever reaches a book.
+        # book.process, publish). Pre-acceptance validation failures get an
+        # ``oco.ack`` with accepted=False; after acceptance a child can still
+        # be rejected by the book and end the pair.
         self.metrics.count(self.metrics.orders_in, payload.get("gateway_id"))
         gateway_id = str(payload.get("gateway_id", "")).upper()
         oco_id = payload.get("oco_id", "")
@@ -6745,7 +6751,7 @@ class Engine:
         )
 
         # X18: a halted symbol's legs rest without matching, as an ordinary
-        # order's do (gate 8); a leg that cannot rest is rejected by the book.
+        # order's do (the halt gate); a leg that cannot rest is rejected by the book.
         do_match = is_matching_enabled(
             self._session_state
         ) and not self._halted_symbols.get(symbol)
@@ -6804,6 +6810,7 @@ class Engine:
                 gateway_id,
                 leg.id,
                 accepted=True,
+                request="NEW",
                 # order_to_display_dict(leg) is the full order record
                 # (mirrors the combo leg ack below) rather than a
                 # hand-picked subset — it's what carries oco_group_id
@@ -6992,6 +6999,11 @@ class Engine:
         indexes); here we only police who may cancel what and report the
         result.  An unknown or already-finished order id is answered with an
         ORDER_NOT_FOUND reject, never silence.
+
+        After the client cancel is published, ``_after_engine_cancel`` runs
+        combo and OCO follow-ups. Exchange-initiated cancels instead go through
+        ``_cancel_order_by_id``; batches defer those follow-ups until all
+        requested legs have been removed.
         """
         self.metrics.count(self.metrics.cancels_in, payload.get("gateway_id"))
         order_id = payload["order_id"]
@@ -7003,6 +7015,7 @@ class Engine:
         if not ok:
             self._dbg_count("cancel_reject_gateway")
             self._reject(
+                request="CANCEL",
                 gateway_id=gateway_id,
                 order_id=order_id,
                 code=self._gateway_reject_code(reason),
@@ -7022,6 +7035,7 @@ class Engine:
             if resting is not None and resting.gateway_id != gateway_id:
                 self._dbg_count("cancel_reject_ownership")
                 self._reject(
+                    request="CANCEL",
                     gateway_id=gateway_id,
                     order_id=order_id,
                     code="NOT_OWNER",
@@ -7053,6 +7067,7 @@ class Engine:
 
         # Order not found — send rejection ack
         self._reject(
+            request="CANCEL",
             gateway_id=gateway_id,
             order_id=order_id,
             code="ORDER_NOT_FOUND",
@@ -7074,7 +7089,7 @@ class Engine:
         This handler is the gatekeeper around that call, and applies to an
         amend the same protections a new order gets (so amending cannot be
         used to dodge them): parse -> gateway -> find the order -> ownership
-        -> tick size -> session -> halt -> collar -> size limits.  Then
+        -> tick size -> session -> halt matching mode -> collar -> size limits. Then
         ``book.amend_order``, an ``order.amended`` confirmation, and finally
         the "marketable amend" case below.
 
@@ -7099,6 +7114,7 @@ class Engine:
             except TypeError, ValueError:
                 self._dbg_count("amend_reject_payload")
                 self._reject(
+                    request="AMEND",
                     gateway_id=gateway_id,
                     order_id=order_id,
                     code="INVALID_VALUE",
@@ -7112,6 +7128,7 @@ class Engine:
         if not ok:
             self._dbg_count("amend_reject_gateway")
             self._reject(
+                request="AMEND",
                 gateway_id=gateway_id,
                 order_id=order_id,
                 code=self._gateway_reject_code(reason),
@@ -7124,6 +7141,7 @@ class Engine:
         if new_price is None and new_qty is None:
             self._dbg_count("amend_reject_payload")
             self._reject(
+                request="AMEND",
                 gateway_id=gateway_id,
                 order_id=order_id,
                 code="MISSING_FIELD",
@@ -7139,6 +7157,7 @@ class Engine:
         if book is None:
             self._dbg_count("amend_reject_not_found")
             self._reject(
+                request="AMEND",
                 gateway_id=gateway_id,
                 order_id=order_id,
                 code="ORDER_NOT_FOUND",
@@ -7154,6 +7173,7 @@ class Engine:
         if resting is not None and resting.gateway_id != gateway_id:
             self._dbg_count("amend_reject_ownership")
             self._reject(
+                request="AMEND",
                 gateway_id=gateway_id,
                 order_id=order_id,
                 code="NOT_OWNER",
@@ -7181,6 +7201,7 @@ class Engine:
         except TickViolation as exc:
             self._dbg_count("amend_reject_tick")
             self._reject(
+                request="AMEND",
                 gateway_id=gateway_id,
                 order_id=order_id,
                 code="TICK_VIOLATION",
@@ -7194,6 +7215,7 @@ class Engine:
         if self._sessions_enabled and not accepts_orders(self._session_state):
             self._dbg_count("amend_reject_session")
             self._reject(
+                request="AMEND",
                 gateway_id=gateway_id,
                 order_id=order_id,
                 code="MARKET_CLOSED",
@@ -7225,6 +7247,7 @@ class Engine:
                         result.reason,
                     )
                     self._reject(
+                        request="AMEND",
                         gateway_id=gateway_id,
                         order_id=order_id,
                         code="COLLAR_BREACH",
@@ -7264,6 +7287,7 @@ class Engine:
                     breach[1],
                 )
                 self._reject(
+                    request="AMEND",
                     gateway_id=gateway_id,
                     order_id=order_id,
                     code=breach[0],
@@ -7292,6 +7316,7 @@ class Engine:
         if amended is None:
             self._dbg_count("amend_reject_book")
             self._reject(
+                request="AMEND",
                 gateway_id=gateway_id,
                 order_id=order_id,
                 code=self._amend_reject_code(err),
@@ -7835,6 +7860,7 @@ class Engine:
                     else None
                 ),
                 request_tag=request_tag,
+                request=_ACK_REQUEST[topic],
             )
         gw = _clamp_wire_id(gateway_id)
         oco_id = str(payload.get("oco_id", ""))[:_MAX_WIRE_COMMAND_ID_LEN]
@@ -7954,7 +7980,7 @@ class Engine:
         return out
 
     def _run_maintenance(self) -> None:
-        """Run the per-tick maintenance flushes, each guarded separately.
+        """Run one maintenance slice, with each flush guarded separately.
 
         Every one of these publishes on `pub_sock`. Unguarded, a ZMQError
         here ended run() — which skipped _shutdown(), and with it the only
@@ -8016,15 +8042,19 @@ class Engine:
         The whole exchange is this one ``while`` loop, on one thread:
 
             wait up to 200 ms for a message on the PULL socket
-              -> if one arrived: decode it, echo it, ``_dispatch_pull_message``
-            run the maintenance tick (snapshots, timers, persistence)
+              -> if one arrived: decode it, ``_echo_command``, then
+                 ``_dispatch_pull_message`` (handler errors go to
+                 ``_reject_after_error`` where a reply is possible)
+            ``_run_maintenance`` on the first pass, then every 10 ms while busy;
+            on every idle poll (snapshots, timers, persistence)
 
         Because nothing else runs concurrently, an order is always handled
         start to finish -- ack, matching, fills, trades published -- before the
         next one is even looked at.  That is the guarantee behind price-time
         priority: "arrival order" is simply the order messages come off the
-        socket.  The 200 ms poll timeout only bounds how long maintenance can
-        be delayed on an idle exchange; under load the loop never waits.
+        socket. The 200 ms poll timeout bounds maintenance delay on an idle exchange.
+        Under load, the maintenance flushes run once per 10 ms slice rather
+        than once per message.
         """
         run_seq = load_and_bump_run_seq(RUN_SEQ_FILE)
         set_run_seq(run_seq)
@@ -8065,6 +8095,7 @@ class Engine:
         tick = self._reporter.tick if self._reporter is not None else None
         msg_count = 0
         pass_count = 0
+        last_maintenance_ns = clock_ns() - _MAINTENANCE_SLICE_NS
         metrics.watch_gc()
         gc_policy = GcPolicy()
         self._gc_policy = gc_policy
@@ -8166,16 +8197,19 @@ class Engine:
                                 gc_ns=metrics.gc_ns - gc_before,
                                 order=topic in _ORDER_ENTRY_TOPICS,
                             )
-            pass_count += 1
-            if pass_count & SAMPLE_MASK:
-                self._run_maintenance()
-            else:
-                started_ns = clock_ns()
-                self._run_maintenance()
-                metrics.record_maintenance(
-                    clock_ns() - started_ns, pass_count, msg_count
-                )
             idle = self.pull_sock not in socks
+            maintenance_ns = clock_ns()
+            if idle or maintenance_ns - last_maintenance_ns >= _MAINTENANCE_SLICE_NS:
+                pass_count += 1
+                if pass_count & SAMPLE_MASK:
+                    self._run_maintenance()
+                else:
+                    started_ns = clock_ns()
+                    self._run_maintenance()
+                    metrics.record_maintenance(
+                        clock_ns() - started_ns, pass_count, msg_count
+                    )
+                last_maintenance_ns = maintenance_ns
             if idle or gc_policy.freeze_at:
                 gc_policy.tick(idle)
 

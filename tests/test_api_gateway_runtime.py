@@ -26,6 +26,7 @@ from edumatcher.api_gateway.routers import history, ws
 from edumatcher.api_gateway.schemas import MarketDataControl
 from edumatcher.api_gateway.sessions import Session, SessionRegistry, auth
 from edumatcher.models.message import make_gateway_auth_msg
+from edumatcher.models.price import has_tick_decimals
 
 
 class FakeSocket:
@@ -169,6 +170,32 @@ async def test_engine_client_auth_send_and_event_flow(
     client.stop_listener()
     assert push.closed is True
     assert sub.closed is True
+
+
+@pytest.mark.anyio
+async def test_authentication_waits_for_the_symbols_snapshot(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The request that triggered authentication goes on to the readiness
+    gate; returning before the snapshot made a cold gateway's first order
+    fail with SYMBOLS_NOT_READY."""
+    monkeypatch.setattr(engine_client, "make_pusher", lambda _addr: FakeSocket())
+    monkeypatch.setattr(
+        engine_client, "make_subscriber", lambda _addr, *_topics: FakeSocket()
+    )
+    client = EngineClient("pull", "pub", asyncio.get_running_loop())
+
+    auth_task = asyncio.create_task(client.authenticate("GW01"))
+    await asyncio.sleep(0)
+    client._handle_event("system.gateway_auth.GW01", {"accepted": True})
+    await asyncio.sleep(0)
+    assert not auth_task.done()
+    client._handle_event(
+        "system.symbols.GW01",
+        {"symbols": [{"symbol": "SNAPSYM", "tick_decimals": 3}]},
+    )
+    assert await auth_task == (True, "")
+    assert has_tick_decimals("SNAPSYM")
 
 
 @pytest.mark.anyio
@@ -366,22 +393,43 @@ def test_main_cli_success(monkeypatch: pytest.MonkeyPatch) -> None:
     try:
         calls: list[tuple[str, Any]] = []
         config = ApiGatewayConfig(host="127.0.0.9", port=9191, log_level="debug")
+        app = SimpleNamespace(state=SimpleNamespace())
         monkeypatch.setattr(sys, "argv", ["pm-api-gwy"])
         monkeypatch.setattr(main, "_config_with_overrides", lambda _args: config)
-        monkeypatch.setattr(
-            main, "create_app", lambda cfg, instance=None: {"config": cfg}
-        )
-        monkeypatch.setattr(
-            uvicorn,
-            "run",
-            lambda app, host, port, log_level, log_config: calls.append(
-                ("run", (app, host, port, log_level, log_config))
-            ),
-        )
+        monkeypatch.setattr(main, "create_app", lambda cfg, instance=None: app)
+
+        class _Server:
+            def __init__(self, server_config: uvicorn.Config) -> None:
+                self.config = server_config
+
+            def run(self) -> None:
+                c = self.config
+                calls.append(
+                    (
+                        "run",
+                        (
+                            c.app,
+                            c.host,
+                            c.port,
+                            c.log_level,
+                            c.log_config,
+                            c.timeout_graceful_shutdown,
+                        ),
+                    )
+                )
+
+        monkeypatch.setattr(uvicorn, "Server", _Server)
         main.main()
+        # A bounded graceful shutdown backs up the WebSocket handlers ending
+        # on close: no handler can hold a SIGTERM'd process open (review H2).
         assert calls == [
-            ("run", ({"config": config}, "127.0.0.9", 9191, "debug", None))
+            (
+                "run",
+                (app, "127.0.0.9", 9191, "debug", None, main.GRACEFUL_SHUTDOWN_SEC),
+            )
         ]
+        # The lifespan stops this server if the engine listener dies (C5).
+        assert isinstance(app.state.server, _Server)
     finally:
         root.setLevel(original_level)
 

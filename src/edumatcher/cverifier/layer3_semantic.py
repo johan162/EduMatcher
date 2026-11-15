@@ -1,10 +1,11 @@
-"""Layer 3 — Semantic / cross-field consistency checks (M001–M026).
+"""Layer 3 — Semantic / cross-field consistency checks (M001–M033).
 
 This layer works directly on the raw YAML mapping so that every problem is
 reported independently, even when several fields are wrong at once.  It does
 not build the typed EngineConfig: the CLI only runs this layer once Layer 2
-reports zero schema errors, so the raw values are already well-formed enough
-to reason about.
+reports zero schema errors, and runs the engine loader itself afterwards
+(S132). Layer 2 does not check every field the loader reads, so the checks
+here still tolerate malformed values.
 """
 
 from __future__ import annotations
@@ -85,7 +86,6 @@ def check(raw: dict[str, Any], path: Path) -> list[CheckResult]:  # noqa: ARG001
     _check_indices(raw, results)
     _check_combos(raw, results)
     _check_admin_gateway(raw, results)
-    _check_post_trade_admin(raw, results)
     _check_balf_gateway_semantic(raw, results)
     _check_gateway_port_collisions(raw, results)
     _check_api_gateway_semantic(raw, results)
@@ -106,13 +106,27 @@ def _positive_int(value: object) -> int | None:
         return None
     try:
         number = int(value)  # type: ignore[call-overload]
-    except TypeError, ValueError:
+    except TypeError, ValueError, OverflowError:
         return None
     return number if number > 0 else None
 
 
+def _participants_by_id(raw: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """Participant mappings by upper-cased id; the first entry wins."""
+    found: dict[str, dict[str, Any]] = {}
+    participants = raw.get("participants")
+    if isinstance(participants, list):
+        for gw in participants:
+            if isinstance(gw, dict):
+                found.setdefault(str(gw.get("id", "")).strip().upper(), gw)
+    return found
+
+
 def _effective_max_spread(
-    raw: dict[str, Any], gateway_id: str, symbol: str
+    raw: dict[str, Any],
+    gateway_id: str,
+    symbol: str,
+    participants: dict[str, dict[str, Any]],
 ) -> int | None:
     """The spread limit, in ticks, that applies to one gateway on one symbol.
 
@@ -123,16 +137,7 @@ def _effective_max_spread(
     """
     defaults = raw.get("mm_obligation_defaults")
     defaults = defaults if isinstance(defaults, dict) else {}
-    participant: dict[str, Any] = {}
-    participants = raw.get("participants")
-    if isinstance(participants, list):
-        for gw in participants:
-            if (
-                isinstance(gw, dict)
-                and str(gw.get("id", "")).strip().upper() == gateway_id
-            ):
-                participant = gw
-                break
+    participant = participants.get(gateway_id, {})
 
     per_gateway = participant.get("mm_obligations")
     per_gateway = per_gateway if isinstance(per_gateway, dict) else {}
@@ -182,6 +187,8 @@ def _check_mm_seeds(raw: dict[str, Any], results: list[CheckResult]) -> None:
     check_spread = isinstance(mm_obligation_defaults, dict) and bool(
         mm_obligation_defaults
     )
+    # Built once: looking each seed's gateway up in the list was quadratic.
+    participants_by_id = _participants_by_id(raw)
 
     for sym_raw, cfg in symbols.items():
         sym = str(sym_raw).upper()
@@ -205,7 +212,9 @@ def _check_mm_seeds(raw: dict[str, Any], results: list[CheckResult]) -> None:
                     ),
                     suggestion=(
                         "Add a bid/ask seed quote or the engine will reject startup. "
-                        "Run pm-config-gen with --seed-mm to generate placeholder seeds."
+                        "pm-config-gen writes seeds with --seed-mm-mid-range MIN:MAX "
+                        "(placeholders to fill in without it), or set "
+                        "require_mm_seed_quotes: false for an empty book."
                     ),
                     path=f"symbols.{sym}.market_maker_quotes",
                 )
@@ -255,7 +264,10 @@ def _check_mm_seeds(raw: dict[str, Any], results: list[CheckResult]) -> None:
             # M003: spread exceeds the limit that applies to this gateway/symbol
             if check_spread:
                 mm_max_spread = _effective_max_spread(
-                    raw, str(gw_id_raw or "").strip().upper(), sym
+                    raw,
+                    str(gw_id_raw or "").strip().upper(),
+                    sym,
+                    participants_by_id,
                 )
                 bid = quote.get("bid_price")
                 ask = quote.get("ask_price")
@@ -276,13 +288,16 @@ def _check_mm_seeds(raw: dict[str, Any], results: list[CheckResult]) -> None:
                                         f"({mm_max_spread})."
                                     ),
                                     suggestion=(
-                                        "The seed quote would be immediately rejected. "
-                                        "Narrow the spread or raise mm_max_spread_ticks."
+                                        "The engine injects the seed anyway, so the "
+                                        "market maker breaches its obligation from "
+                                        "the start, and a later quote this wide is "
+                                        "rejected. Narrow the spread or raise "
+                                        "mm_max_spread_ticks."
                                     ),
                                     path=f"symbols.{sym}.market_maker_quotes[{i}]",
                                 )
                             )
-                    except TypeError, ValueError:
+                    except TypeError, ValueError, OverflowError:
                         pass
 
 
@@ -440,7 +455,7 @@ def _check_sessions_schedule(raw: dict[str, Any], results: list[CheckResult]) ->
 def _check_country(raw: dict[str, Any], results: list[CheckResult]) -> None:
     """Flag a ``country`` value pm-scheduler's holiday calendar won't recognise.
 
-    Layer 2 (S065) already rejects a non-string/blank ``country``; this check
+    Layer 2 (S134) already rejects a non-string/blank ``country``; this check
     is semantic because it needs the ``python-holidays`` package to know
     which strings are valid calendars. Severity is WARN, not ERROR, because
     pm-scheduler itself does not fail on an unrecognised country — it logs a
@@ -450,7 +465,7 @@ def _check_country(raw: dict[str, Any], results: list[CheckResult]) -> None:
     locale = raw.get("locale")
     country = locale.get("country") if isinstance(locale, dict) else None
     if not isinstance(country, str) or not country.strip():
-        return  # not a string / blank — Layer 2 (S065) already reports this
+        return  # not a string / blank — Layer 2 (S134) already reports this
 
     try:
         holidays.country_holidays(country)
@@ -506,13 +521,14 @@ def _check_schedule_order(
             results.append(
                 CheckResult(
                     code="M006",
-                    severity=Severity.WARN,
+                    severity=Severity.ERROR,
                     message=(
                         f"Schedule times are out of order in '{path_prefix}': "
                         f"{name_a}={v_a} >= {name_b}={v_b}."
                     ),
                     suggestion=(
-                        "Expected order: pre_open < opening_auction_start < "
+                        "pm-scheduler refuses to start on this schedule. Expected "
+                        "order: pre_open < opening_auction_start < "
                         "continuous_start < closing_auction_start < closing_auction_end."
                     ),
                     path=path_prefix,
@@ -910,28 +926,6 @@ def _check_admin_gateway(raw: dict[str, Any], results: list[CheckResult]) -> Non
             )
 
 
-def _check_post_trade_admin(raw: dict[str, Any], results: list[CheckResult]) -> None:
-    post_trade = raw.get("post_trade_gateway")
-    if post_trade is None:
-        return
-    admin_gateways = gateway_ids_by_role(raw, "ADMIN")
-    if not admin_gateways:
-        results.append(
-            CheckResult(
-                code="M016",
-                severity=Severity.WARN,
-                message=(
-                    "post_trade_gateway is configured but no ADMIN gateway exists."
-                ),
-                suggestion=(
-                    "RALF admin commands (replay, etc.) will be unavailable. "
-                    "Add a gateway with role: ADMIN."
-                ),
-                path="post_trade_gateway",
-            )
-        )
-
-
 def _check_balf_gateway_semantic(
     raw: dict[str, Any], results: list[CheckResult]
 ) -> None:
@@ -964,7 +958,7 @@ def _check_balf_gateway_semantic(
                         path="balf_gateway.heartbeat_timeout_sec",
                     )
                 )
-        except TypeError, ValueError:
+        except TypeError, ValueError, OverflowError:
             pass  # type errors already reported by layer 2
 
 
@@ -1166,22 +1160,24 @@ def _check_readonly_api_key(raw: dict[str, Any], results: list[CheckResult]) -> 
     """Warn when no read-only API credential (gateway_id: null) is defined.
 
     The dashboards' session schedule, terminal history and book-gui all read
-    through pm-api-gwy with such a key.
+    through pm-api-gwy with such a key. A file with no API gateway at all is
+    not warned: there is no pm-api-gwy for the key to belong to.
     """
 
     named = raw.get("api_gateways")
-    if isinstance(named, dict):
-        for section in named.values():
-            creds = section.get("credentials") if isinstance(section, dict) else None
-            if not isinstance(creds, list):
-                continue
-            for cred in creds:
-                if (
-                    isinstance(cred, dict)
-                    and str(cred.get("api_key", "")).strip()
-                    and cred.get("gateway_id") is None
-                ):
-                    return
+    if not isinstance(named, dict) or not named:
+        return
+    for section in named.values():
+        creds = section.get("credentials") if isinstance(section, dict) else None
+        if not isinstance(creds, list):
+            continue
+        for cred in creds:
+            if (
+                isinstance(cred, dict)
+                and str(cred.get("api_key", "")).strip()
+                and cred.get("gateway_id") is None
+            ):
+                return
 
     results.append(
         CheckResult(

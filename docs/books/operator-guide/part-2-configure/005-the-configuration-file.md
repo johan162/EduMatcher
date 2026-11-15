@@ -240,17 +240,16 @@ pm-cverifier engine_config.yaml
 
 ✓ YAML syntax: OK
 ✓ Schema: 0 errors
-⚠ Semantic: 1 warning
-⚠ Completeness: 5 advisories
+✓ Semantic: 0 warnings
+⚠ Completeness: 1 warning, 4 advisories
 
-[M032] WARN  No read-only API credential (gateway_id: null) is defined under api_gateways.
 [C001] WARN  No symbol has a reference price (last_buy_price / last_sell_price).
 [C003] INFO  enforce_collars is true but no symbol has an effective collar ...
 [C004] INFO  enforce_circuit_breakers is true but no circuit breaker is configured ...
 [C007] INFO  snapshot_interval_sec is at the default of 0.5 seconds.
 [C009] INFO  sessions_enabled is false and no schedule is configured. ...
 
-Verdict:  ⚠ 2 WARNINGS, 4 ADVISORIES — engine can start but review warnings
+Verdict:  ⚠ 1 WARNING, 4 ADVISORIES — engine can start but review warnings
 ```
 
 (The full report also prints each suggestion and a *Risk Summary*; they are cut
@@ -1163,8 +1162,8 @@ creates it with mode `0600`).
     has read this book knows. Use long random strings, and keep the deployed
     config readable only by the exchange's own user.
     [`pm-config-gen`](010-the-configuration-workflow.md#generate-configs-with-pm-config-gen)
-    can generate keys for you. Add at least one read-only key
-    (`gateway_id: null`): without it `pm-cverifier` warns (`M032`) and
+    can generate keys for you, including a read-only key (`gateway_id:
+    null`). Keep at least one: without it `pm-cverifier` warns (`M032`) and
     `pm-dash`, the terminal GUI and the book GUI have nothing to read with.
 
 See [API Gateway](../part-5-gateways/050-api-gateway.md).
@@ -1671,10 +1670,10 @@ i Completeness: 1 advisory
 Symbols          3  (AAPL, MSFT, TSLA)
 Gateways         5  (TRADER01: TRADER, TRADER02: TRADER, MM01: MARKET_MAKER, MM02: MARKET_MAKER … +1 more)
 Sessions         enabled — 5 of 7 days scheduled
-Collars          enabled — L1: static=30%, dynamic=5%; L2: static=20%, dynamic=2%; L3: static=12%, dynamic=1%
+Collars          enabled — 3 of 3 symbols (AAPL: static 20%, dynamic 1.5%; MSFT: static 30%, dynamic 5%; TSLA: static 12%, dynamic 1%)
 Order limits     AAPL: max qty 10000, max value 2000000
-Circuit breakers enabled — L1=7% (5 min), L2=13% (15 min), L3=20% (rest-of-day)
-MM obligations   enforced
+Circuit breakers enabled — 3 of 3 symbols (AAPL, MSFT: L1=7% (5 min), L2=13% (15 min), L3=20% (rest-of-day); TSLA: L1=7% (10 min), L2=13% (30 min), L3=20% (rest-of-day))
+MM obligations   enforced — MM01, MM02
 Admin gateway    OPS01
 Indices          1  (EDU100)
 

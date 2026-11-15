@@ -322,7 +322,7 @@ must be run from `~/.edumatcher`, where rule 4 finds `./data`.
 | **pm-clearing-cli** | `pm-clearing-cli <command> [options]` | Read/query interface for `clearing.db` (includes prune) | Optional           |
 | **pm-eod**        | `pm-eod run \| status \| balances` | Close a trading day: settlement, statements, housekeeping | Optional |
 | **pm-stats-cli**  | `pm-stats-cli <command> [options]` | Read-only query interface for `stats.db`                | Optional              |
-| **pm-audit-cli**  | `pm-audit-cli <command> [options]` | Read-only query interface for audit JSONL log files     | Optional              |
+| **pm-audit-cli**  | `pm-audit-cli <command> [options]` | Read-only query interface for the audit log files       | Optional              |
 | **pm-audit-replay** | `pm-audit-replay [options] <command>` | Read-only reconstruction of the audit trail into causal episodes and stories | Optional |
 | **pm-index-cli**  | `pm-index-cli <command> [options]` | Read-only query interface for index history JSONL files | Optional              |
 | **pm-index-admin-cli** | `pm-index-admin-cli --id <GW_ID> <command> [options]` | One-shot CLI for index corporate actions and constituent changes | Optional              |
@@ -431,7 +431,7 @@ uses the web and bridge ports. They follow one scheme: `809N`, `819N`, `519N`.
 | **pm-ai-swarm**  | `pm-ai-swarm`            | Coordinated multi-agent AI trading swarm                        | No        |
 | **pm-market-sim** | `pm-market-sim`         | Market model: true values and news for the AI traders           | No        |
 | **pm-news**      | `pm-news --id ADMIN_ID …` | Instructor's news desk for `pm-market-sim`                     | No        |
-| **pm-mm-bot**    | `pm-mm-bot --symbol SYM` | Autonomous [market-maker bot](../../participant-guide/part-3-market-making/030-the-market-maker-bot.md) for a single symbol | No        |
+| **pm-mm-bot**    | `pm-mm-bot --symbol SYM` | Autonomous [market-maker bot](../../participant-guide/part-3-market-making/030-the-market-maker-bot.md) for one or more symbols | No        |
 
 !!! warning "Start the engine first"
     The engine binds the ZeroMQ sockets.  All other processes connect to those
@@ -858,7 +858,7 @@ Status colours: green=NEW, yellow=PARTIAL, bright green=FILLED, red=REJECTED/CAN
 Records every message on the bus to a day-closing log file; closed days are compressed to one zstd archive each.
 
 ```bash
-pm-audit [--audit-log-file data/audit.log] [--terminal] [--buffer-size 100] [--flush-interval 10] [--max-file-mb 10] [--keep-days 0] [--log-level LEVEL] [-v|-vv] [-q]
+pm-audit [--audit-log-file data/audit.log] [--terminal] [--buffer-size 100] [--flush-interval 10] [--max-file-mb 10] [--keep-days 0] [--fsync-interval 1] [--log-level LEVEL] [-v|-vv] [-q]
 ```
 
 **Startup options:**
@@ -868,9 +868,10 @@ pm-audit [--audit-log-file data/audit.log] [--terminal] [--buffer-size 100] [--f
 | `--audit-log-file`    | `data/audit.log` | Audit-trail output log file path                              |
 | `--terminal` / `-t`   | off              | Also print each entry to stdout                              |
 | `--buffer-size`       | 100              | Number of messages to buffer in memory before writing to disk |
-| `--flush-interval`    | 10.0             | Maximum seconds to wait before flushing buffer to disk       |
+| `--flush-interval`    | 10.0             | Maximum seconds a buffered message waits for the disk        |
 | `--max-file-mb`       | 10               | Close the audit log as a day part when it reaches this size in MB |
 | `--keep-days`         | 0                | Delete daily archives older than N days (0 keeps all)        |
+| `--fsync-interval`    | 1.0              | Sync the active file to disk at most this often; `0` syncs every flush |
 | `--log-level`         | `WARNING`        | Explicit log level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
 | `-v` / `--verbose`    | off              | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`)         |
 | `-q` / `--quiet`      | off              | Reduce output to warnings/errors                             |
@@ -889,18 +890,24 @@ To reduce disk wear, `pm-audit` buffers messages in memory before writing them
 to disk in batches. The buffer is flushed to disk when either:
 
 - The buffer reaches `--buffer-size` messages (e.g., 100 messages), or
-- `--flush-interval` seconds have elapsed since the last flush (e.g., 10 seconds)
+- the oldest buffered message has waited `--flush-interval` seconds (e.g., 10 seconds)
 
 On shutdown (Ctrl-C, SIGINT, or SIGTERM), any remaining buffered messages are
 automatically flushed to disk before the process exits, ensuring no data is lost.
+A failed write (disk full) keeps its lines in memory, counts
+`audit.write_errors` and is retried; a receive loop that dies of anything
+else ends the process with exit status 1.
 
-**Log format** (one entry per line):
+**Log format** (one entry per line: receive time in UTC, topic, sequence and
+causal envelope, JSON payload; comment lines start with `#`):
 ```
-[2026-04-29T14:32:01.123] [trade.executed] {"id": "...", "symbol": "AAPL", ...}
-[2026-04-29T14:32:01.125] [book.AAPL] {"bids": [...], "asks": [...], ...}
+[2026-04-29T14:32:01.123+00:00] [trade.executed] [seq=12 eseq=4711 msg=01J… cause=01J… chain=01J…] {"id": "000001-000000042", "symbol": "AAPL", ...}
+[2026-04-29T14:32:01.125+00:00] [book.AAPL] [seq=88 eseq=4712 msg=01J… cause=01J… chain=01J…] {"bids": [...], "asks": [...], ...}
 ```
 
-Log files rotate at 10 MB with 5 backups kept.
+The active `audit.log` holds one trading day; at the date change, or at
+`--max-file-mb`, it is closed as `audit/audit-YYYY-MM-DD.N.log`, and closed
+days are compressed to one `audit/audit-YYYY-MM-DD.log.zst` each.
 
 Use `--terminal` during demos so the class can see every event in real time.
 Use `-vv` or `--log-level DEBUG` when you want aggregated operational summaries
@@ -933,7 +940,7 @@ pm-audit --buffer-size 1 --flush-interval 0.1
 
 ## pm-audit-cli — Audit Log Query CLI
 
-`pm-audit-cli` is a read-only offline tool: it reads JSONL files directly from disk, runs one query, prints output, and exits. No ZeroMQ connection required — except for `health`, which pings the running `pm-audit` on port `5562`.
+`pm-audit-cli` is a read-only offline tool: it reads the audit files directly from disk, runs one query, prints output, and exits. No ZeroMQ connection required — except for `health`, which pings the running `pm-audit` on port `5562`.
 
 ```bash
 pm-audit-cli [--log-file data/audit.log] [--log-dir PATH] [--format table|json|csv] [--no-header] [--use-index PATH] COMMAND [options]
@@ -946,8 +953,8 @@ pm-audit-cli [--log-file data/audit.log] [--log-dir PATH] [--format table|json|c
 | `--log-file PATH` | `data/audit.log` | Primary audit log file; reads the live trail (unarchived day parts, then this file). An archive or day part named here is read alone |
 | `--log-dir PATH` | directory of `--log-file` | Directory holding the `audit/` day parts and archives |
 | `--format` | `table` | Output format: `table`, `json`, or `csv` |
-| `--no-header` | off | Suppress header row in CSV output |
-| `--use-index PATH` | auto-detected | Path to SQLite index file (auto-detected from `--log-dir` when not specified; ignored for commands that don't support it) |
+| `--no-header` | off | Suppress the header row of table and CSV output |
+| `--use-index PATH` | none | Answer `events` from this SQLite index (never used unless given; not with `--follow` or `--date`); stderr says how far it reaches |
 | `--version` | — | Print version and exit |
 
 **Subcommands:**
@@ -961,15 +968,20 @@ pm-audit-cli [--log-file data/audit.log] [--log-dir PATH] [--format table|json|c
 | `gateways` | —    | Gateway activity summary                                     | `--date`, `--from`, `--to`, `--min-events`                                 |
 | `timeline` | 500  | Raw chronological event stream for session replay            | `--from`, `--to`, `--topic`, `--gateway`, `--symbol`                       |
 | `stats`    | —    | Summary statistics about audit log files                     | `--verbose`                                                                |
-| `index`    | —    | Build or update the optional SQLite index for faster queries | `--output PATH`                                                            |
+| `index`    | —    | Build the optional SQLite index from scratch, or add to it   | `--output PATH`, `--incremental`, `--days N`, `--from`, `--to`             |
 | `archive`  | —    | Compress closed days' parts into one verified `audit-D.log.zst` per day | `--date D` or `--pending`, `--level N` (default 9), `--keep-days N` |
+| `verify`   | —    | Check the archived days against the evidence manifest's hash chain; exit `1` on any problem | `--date D` (that day's archive only; the chain is always checked whole) |
 | `health`   | —    | Check the `pm-audit` process and ping its health socket; `--extended` adds the audit log read/write and last-entry check | `--extended`, `-v`/`--verbose`, `-q`/`--quiet` (print nothing; exit `0` when healthy, `-1` otherwise) |
 
 **No-row behaviour:**
 
-- `table`: prints `No rows found.`
+- `table`: prints `No matching events found.`
 - `json`: prints `[]`
 - `csv`: prints only header row unless `--no-header` is set
+
+`--from`/`--to` are inclusive; a bare date, and a time without an offset, are
+UTC, and a bare date in `--to` means the end of that day. `events`/`timeline
+--follow` first print the newest `--limit` matching entries, like `tail -f`.
 
 
 
@@ -1050,7 +1062,7 @@ pm-clearing [--datapath PATH] [--db-name NAME] [--flush-size N] [--flush-interva
 | `--db-name` | `clearing.db` | SQLite filename when `--datapath` is a directory |
 | `--flush-size` | `100` | Flush immediately when buffered trades reaches N |
 | `--flush-interval` | `5.0` | Flush interval in seconds when buffer is non-empty |
-| `--print-every` | `100` | Print in-memory P&L snapshot every N trades (`0` disables) |
+| `--print-every` | `0` | Print a P&L table of every position every N trades (`0` disables, the default) |
 | `--retention-days` | `90` | Prune `trade_events` rows older than N days on startup and at every close of the market (`0` disables pruning) |
 | `--sql-trace` | off | Log executed SQLite SQL statements from the clearing writer connection |
 | `--log-level` | `WARNING` | Explicit log level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
@@ -1568,25 +1580,34 @@ pm-eod [--datapath DIR] [--format table|json|csv] balances [--date YYYY-MM-DD] [
 |---|---|---|
 | `--date YYYY-MM-DD` | — | The trading date to close. Exactly one of `--date` and `--pending` is required. |
 | `--pending` | off | Every closed date that has a close snapshot and no `ok` run, oldest first. Stops at the first failing date. With more than one date, each date's `backup` step is deferred and one backup is taken at the end, under the last date that got through. |
-| `--only STEP` | all steps | Re-run just `report`, `audit`, `logs` or `backup` for an already settled date. Not recorded in the run history. |
-| `--force` | off | Do not require the `CLOSED` session event (for exchanges without a scheduler). The close snapshot and reconcile checks still apply. |
-| `--redo` | off | Recompute the date: deletes its settlement **and the settlement of every later date**, then settles it again, all in one transaction (if the recomputation fails, nothing is deleted). |
-| `--dry-run` | off | Run the gate and compute the amounts, print them, write nothing. Cannot be combined with `--only`. |
-| `--log-keep-days N` | `14` | Delete compressed fallback logs older than N days |
-| `--backup-keep-days N` | `7` | Delete backup folders older than N days |
+| `--only STEP` | all steps | Re-run just `report`, `audit`, `logs` or `backup` for an already settled date. Not recorded in the run history. Cannot be combined with `--redo`, `--force` or `--dry-run`. |
+| `--force` | off | Skip the "has the day closed?" test (for exchanges without a scheduler). The close snapshot and reconcile checks still apply. |
+| `--redo` | off | Recompute the date: deletes its settlement **and the settlement of every later date**, then settles it again, all in one transaction (if the recomputation fails, nothing is deleted). The `settlement/` folders of the dropped dates are removed. |
+| `--dry-run` | off | Run the gate and settle into an in-memory copy of the ledger; print the amounts (with the `EXCHANGE` line when not zero), write nothing. Refuses what a real run refuses; with `--pending`, each date is measured from the previous date's dry result. Cannot be combined with `--only`. |
+| `--log-keep-days N` | `14` | Delete compressed fallback logs older than N days (N ≥ 0) |
+| `--backup-keep-days N` | `7` | Delete backup folders older than N days (N ≥ 0) |
 | `--backup-skip NAME` | none | Leave one database out of the backup: `clearing.db`, `stats.db` or `eod.db`. Repeatable. The `backup` step's message says what was skipped. |
 
 **`status` options:** `-q` / `--quiet` prints nothing and exits 0 when no closed
 date is waiting (a closed date whose run failed counts as waiting) and 1
-otherwise; `--limit N` (default 30) caps the number of runs shown.
+otherwise, including when there is no `clearing.db` (a wrong `--datapath`);
+`--limit N` (default 30) caps the number of runs shown. `status`, `balances` and
+`show` only read `eod.db` and never create it.
+
+**A settled date run again** (no `--redo`, no `--only`) skips the gate: nothing
+is settled, only the report and housekeeping run. If that rerun fails, it is
+printed but not recorded, so an `ok` day stays `ok`.
 
 **`balances` options:** `--date` shows balances as of that date; `--gateway`
 filters to one trader (case-insensitive); `--check` verifies that every settled
 date sums to exactly zero and exits 1 if one does not.
 
 **Exit codes of `run`:** `0` clean · `1` the gate, the settlement or the report
-failed · `2` only housekeeping warnings. A second `pm-eod` started while one is
-running exits 1 (lock file `<data>/.pm-eod.lock`).
+failed · `2` usage error (nothing was done) · `3` settled and reported, but a
+step warned (a housekeeping step, or the `settle` note that a settled date's
+snapshot changed). A second `pm-eod` started while one is running exits 1
+(lock file `<data>/.pm-eod.lock`). Any database or file error outside a step
+is printed as `pm-eod: <error>` and exits 1.
 
 **Reads:** `clearing.db` (trades, positions, `position_close_snapshot`,
 `session_events`), `stats.db` (optional, for the summary's market table),
@@ -1612,7 +1633,7 @@ A missing file is an empty roster. Errors name the line (`roster.yaml: line 7: �
 | File | Content |
 |---|---|
 | `statements/<gateway>.md` | The trader's statement (the headline, result by symbol, open positions at the close, trades). Result by symbol lists a symbol only if it is held at the close, traded that day or has a non-zero result |
-| `statements/<gateway>.json` | The same, with `amount_minor` / `balance_minor` as integers in minor units |
+| `statements/<gateway>.json` | The same, with `amount_minor` / `balance_minor` as integers in minor units, and `since`: `null`, or the last settled date before this one when the amount covers more than one closed day (the `.md` then says *Result since the close of <date>*) |
 | `statements/<gateway>.csv` | One row per symbol: `symbol,day_pnl,net_qty,mark` |
 | `instructions.csv` | `gateway,name,email,amount,direction,balance`; `direction` is `receive`, `pay` or `none` |
 | `leaderboard.csv` | `rank,gateway,name,balance`; equal balances share a rank |
@@ -1624,6 +1645,8 @@ A missing file is an empty roster. Errors name the line (`roster.yaml: line 7: �
 |---|---|---|
 | `eod_settlement` | `trade_date`, `account`, `amount_minor`, `detail_json` | One row per account per settled date. `account` is a gateway identifier or `EXCHANGE` (the rounding line). The amounts of a date sum to exactly 0. |
 | `eod_runs` | `trade_date`, `status`, `started_at`, `finished_at`, `steps_json` | One row per date run. `status` is `ok`, `failed` or `report-failed`. |
+| `eod_close_equity` | `trade_date`, `gateway_id`, `symbol`, `equity` | One row per position per settled date: the cumulative equity (decimal string, display currency) the date was settled at. The next date is measured from these rows. |
+| `eod_close_source` | `trade_date`, `clearing_instance` | One row per settled date: the `instance_id` (in `clearing.db`'s `clearing_meta`) of the `clearing.db` it was settled from. A different one at the next date means `clearing.db` was replaced (`pm-opctl-cli clear --state`), so that date is measured from zero. |
 
 Balances are not stored: they are the sum of `amount_minor` plus the roster's
 opening balance. The full DDL is in the generated
@@ -1632,11 +1655,18 @@ opening balance. The full DDL is in the generated
 ### Settlement rules (reference)
 
 - A date's amount for a gateway is the sum over its symbols of
-  `(realized_pnl + unrealized_pnl)` at this date's `position_close_snapshot`
-  minus the same at the snapshot of the latest earlier **settled** date (0 if
-  there is none, or if `clearing.db` no longer has that date's snapshot), each
-  converted from ticks to currency with the symbol's own `tick_decimals`. Any
-  unsettled snapshot dates in between are part of the one interval.
+  `(realized_pnl + unrealized_pnl)` at this date's `position_close_snapshot`,
+  converted from ticks to currency with the symbol's own `tick_decimals`,
+  minus the same at the close of the latest earlier **settled** date. That
+  baseline is the equity recorded in `eod_close_equity` when the earlier date
+  was settled, not its snapshot in `clearing.db`, which changes if the date
+  closes again (a reopen, or another shutdown without a scheduler); the
+  `settle` step then warns and the difference is booked on this date. The
+  baseline is 0 if no date is settled yet, if `clearing.db` no longer has the
+  earlier date's snapshot (it was reset), or if it is a different
+  `clearing.db` than the earlier date was settled from (reset, and that date
+  traded again; the `settle` step warns). Any unsettled snapshot dates in
+  between are part of the one interval.
 - A date **has closed** when its latest `session_events` `PHASE` row is
   `CLOSED` and an earlier `PHASE` row of the same date is not, so the market
   was open that day. The `CLOSED` an engine announces when it starts, before
@@ -1644,7 +1674,9 @@ opening balance. The full DDL is in the generated
 - Dates settle in order: a date is refused while an earlier date has closed
   (with a snapshot) but is not settled.
 - Rounded to 2 decimals with the largest-remainder method; the exact total must
-  be within `0.01` per position of zero, otherwise the settlement fails.
+  be within `0.01` per position whose equity changed since the baseline (at
+  least `0.01`) of zero, otherwise the settlement fails. A non-zero rounding
+  line is named in the `settle` step's message with the day's exact total.
 - A position present in the earlier snapshot but missing from this date's is
   ignored.
 - The gate requires: the date has closed (skipped by `--force`); a close
@@ -2549,7 +2581,7 @@ same key in a `--config` file in the same scope.
 | `--tif`                          | `DAY`                  | Time-in-force for quote legs (`DAY` or `GTC`)                    |
 | `--heartbeat-interval-sec`       | `5.0`                  | Periodic live-quote check interval                               |
 | `--startup-session-timeout-sec`  | `5.0`                  | Max wait to learn the session phase (asked for, or a `session.state`)|
-| `--bootstrap-timeout-sec`        | `1.0`                  | Max wait for QBOOT reply                                         |
+| `--bootstrap-timeout-sec`        | `1.0`                  | Max wait for each startup reply (QBOOT, QLEGS, position); the longest value of any symbol applies |
 | `--cancel-timeout-sec`           | `1.0`                  | Max wait for cancel confirmation                                 |
 | `--shutdown-timeout-sec`         | `2.0`                  | Max wait for cancel on SIGINT/SIGTERM                            |
 | `--qlegs-reconcile-interval-sec` | `15.0`                 | Periodic QLEGS reconciliation interval                           |
@@ -2559,7 +2591,7 @@ same key in a `--config` file in the same scope.
 | `--engine-pub`                   | `tcp://127.0.0.1:5556` | Engine PUB address                                               |
 | `--log-level`                    | `WARNING`              | Explicit level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
 | `-v` / `--verbose`               | off                    | Increase verbosity (`-v` enables bot debug prints, `-vv` sets DEBUG) |
-| `-q` / `--quiet`                 | off                    | Reduce output to warnings/errors                                |
+| `-q` / `--quiet`                 | off                    | Explicit `WARNING` (same as the default)                        |
 | `--log-target`                   | `server`               | Where operational log records go: `server` (auto-detected `pm-log-srv`), `stdout`, or `file` |
 | `--log-file`                     | none                   | Operational log file path — required when `--log-target file`  |
 | `--log-failover-timeout`         | `30` (from config)     | Grace window in seconds before falling back to a local log file once `pm-log-srv` becomes unreachable |
@@ -2583,7 +2615,7 @@ be pre-registered in `engine_config.yaml` with `role: MARKET_MAKER`.
 |---|---|---|
 | `symmetric` | bid at mid − gap/2, ask at mid + gap/2 | `gap`, `drift_ticks` |
 | `inventory_skew` | like `symmetric`, but shifts both prices against the current position so a long bot sells more eagerly; skew saturates at `max_position` | `max_position` (required) |
-| `passive` | a backstop: steps `behind_ticks` behind other traders' best price, never tighter than its home price nor outside the `retreat_ticks` band, and fades `fade_ticks` for `fade_sec` after a fill. The mid comes from *other* traders' book only, so the bot never chases its own quote. If the symbol has a market-maker spread obligation, the band is narrowed so the widest quote still meets it | the five `passive` flags |
+| `passive` | a backstop: steps `behind_ticks` behind other traders' best price, never tighter than its home price nor outside the `retreat_ticks` band, and fades `fade_ticks` for `fade_sec` after a fill. The mid comes from *other* traders' book only, so the bot never chases its own quote. If the engine enforces a market-maker spread obligation for the symbol, the band is narrowed so the widest quote still meets it | the five `passive` flags |
 
 **Config file (`--config`):** a YAML file with `version: 1` separates
 gateway-wide settings from per-symbol ones:
@@ -2735,10 +2767,10 @@ pm-ralf-gwy [--bind 0.0.0.0] [--port 5580] [--engine-pub tcp://127.0.0.1:5556] [
 |-------------------|-------------------------|----------------------------------------------------|
 | `--bind`          | from config / `0.0.0.0` | TCP bind address for external clients              |
 | `--port`          | from config / `5580`    | TCP listen port for RALF clients                   |
-| `--engine-pub`    | `tcp://127.0.0.1:5556`  | Engine PUB address consumed by the gateway         |
+| `--engine-pub`    | `tcp://$EDUMATCHER_ENGINE_HOST:5556` (`127.0.0.1` when unset) | Engine PUB address consumed by the gateway; no config key |
 | `--log-level`     | `WARNING`               | Explicit log level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
 | `-v` / `--verbose`| off                     | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`)  |
-| `-q` / `--quiet`  | off                     | Reduce output to warnings/errors                      |
+| `-q` / `--quiet`  | off                     | Explicit `WARNING` (same as the default)              |
 | `--log-target`    | `server`                | Where operational log records go: `server` (auto-detected `pm-log-srv`), `stdout`, or `file` |
 | `--log-file`      | none                    | Operational log file path — required when `--log-target file` |
 | `--log-failover-timeout` | `30` (from config) | Grace window in seconds before falling back to a local log file once `pm-log-srv` becomes unreachable |
@@ -2772,7 +2804,7 @@ No terminal input. External parties connect over TCP and send RALF lines:
 | `HB`         | Heartbeat                           |
 | `PONG`       | Ping reply                          |
 | `ERR`        | Protocol/entitlement/replay errors  |
-| `EXIT`       | Session termination reason          |
+| `EXIT`       | Gateway-initiated close (`auth_timeout`, `idle_timeout`, `shutdown`) |
 
 For external usage and examples see [Post-Trade Dissemination](../../operator-guide/part-5-gateways/040-ralf-gateway.md)
 and [RALF Protocol Reference](../../protocols-and-clients/part-2-specifications/040-ralf.md).
@@ -2842,10 +2874,10 @@ pm-dc-gwy [--bind 0.0.0.0] [--port 5590] [--engine-dc-pub tcp://127.0.0.1:5557] 
 |-------------------|-------------------------|----------------------------------------------------|
 | `--bind`          | from config / `0.0.0.0` | TCP bind address for external clients              |
 | `--port`          | from config / `5590`    | TCP listen port for DC1 clients                    |
-| `--engine-dc-pub` | `tcp://127.0.0.1:5557`  | Engine drop-copy PUB address consumed by the gateway |
+| `--engine-dc-pub` | `tcp://$EDUMATCHER_ENGINE_HOST:5557` (`127.0.0.1` when unset) | Engine drop-copy PUB address consumed by the gateway; no config key |
 | `--log-level`     | `WARNING`               | Explicit log level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
 | `-v` / `--verbose`| off                     | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`)  |
-| `-q` / `--quiet`  | off                     | Reduce output to warnings/errors                      |
+| `-q` / `--quiet`  | off                     | Explicit `WARNING` (same as the default)              |
 | `--log-target`    | `server`                | Where operational log records go: `server` (auto-detected `pm-log-srv`), `stdout`, or `file` |
 | `--log-file`      | none                    | Operational log file path — required when `--log-target file` |
 | `--log-failover-timeout` | `30` (from config) | Grace window in seconds before falling back to a local log file once `pm-log-srv` becomes unreachable |
@@ -2874,6 +2906,7 @@ requested by connected clients):
 | `DC_FILL`    | Unsolicited fill relay              |
 | `HB`         | Heartbeat                           |
 | `PONG`       | Ping reply                          |
+| `EXIT`       | Gateway-initiated close (`auth_timeout`, `idle_timeout`, `shutdown`) |
 | `ERR`        | Protocol errors                     |
 
 For external usage and examples see
@@ -4000,7 +4033,7 @@ dropping it as an idle client.
 | `--client-name` | `calf-spy-<pid>` | `HELLO\|CLIENT=` identifier reported in gateway logs |
 | `--channels` | `*` | Comma-separated channels; `*` = every channel in `WELCOME\|CH_SUPPORTED=` |
 | `--symbols` | `*` | Comma-separated symbols; `*` = wildcard for channels that allow it |
-| `--resume` | *(none)* | One-shot `CH:SYM:LASTSEQ` — requests single-stream replay on connect |
+| `--resume` | *(none)* | One-shot `CH:SYM:LASTSEQ:EPOCH` — requests single-stream replay on connect; `EPOCH` is the `WELCOME\|EPOCH=` of the gateway run `LASTSEQ` was seen on |
 | `--ping-interval` | `60` | Seconds between `PING` keepalives sent to the gateway; `0` disables |
 | `--format` | `human` | `human` or `json` output |
 | `--count` | `0` | Exit after N data-carrying lines (`0` = run until Ctrl-C) |
@@ -4196,7 +4229,7 @@ See [Messages](../../protocols-and-clients/part-5-message-reference/010-message-
 
 **Participant Guide:**
 
-- [Market-Maker Bot](../../participant-guide/part-3-market-making/030-the-market-maker-bot.md) — autonomous quoting process for a single symbol
+- [Market-Maker Bot](../../participant-guide/part-3-market-making/030-the-market-maker-bot.md) — autonomous quoting process for one or more symbols
 
 **Operator's Guide:**
 

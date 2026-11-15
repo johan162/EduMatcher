@@ -512,7 +512,8 @@ pm-eod run --date 2026-11-02 --force
 ```
 
 `--force` skips *only* the closed-day test. The other checks (a close snapshot
-exists; the books reconcile) still apply. The snapshot comes from `pm-clearing`
+exists; the books reconcile) still apply, and the gate line says `not checked
+(--force), snapshot present, reconciled`. The snapshot comes from `pm-clearing`
 only on the end-of-day message or on `CLOSED`, so a market that is simply
 left running has nothing to settle from.
 
@@ -534,9 +535,14 @@ date that *was* settled, so it covers both days in one amount.
 !!! note "Stopping the engine more than once a day"
     Each graceful shutdown replaces that date's snapshot, so if you stop the
     engine at lunch and again in the evening, the evening one is settled and
-    the afternoon's trading counts for that day. (On an exchange *with* a
-    scheduler, the snapshot taken at the real market close is final: a later
-    shutdown or restart that day never replaces it.)
+    the afternoon's trading counts for that day. If you had already settled
+    the lunchtime snapshot, nothing is lost either: `pm-eod` remembers what
+    it settled, so the afternoon is booked on the *next* date you settle, and
+    that date's `settle` line warns that the snapshot changed (exit code 3).
+    Run `pm-eod run --date <date> --redo` if you want it on its own day
+    instead. (On an exchange *with* a scheduler, the snapshot taken at the
+    real market close is final: a later shutdown or restart that day never
+    replaces it.)
 
 ### Where everything lives
 
@@ -588,7 +594,7 @@ The `status` column is one of:
 
 | `status` | Meaning |
 |---|---|
-| `ok` | Settled **and** reported. (Housekeeping warnings do not change this; they are listed in `steps`.) |
+| `ok` | Settled **and** reported. (Warnings do not change this; they are listed in `steps`. Running an `ok` day again only reports it again, and a failure of that rerun is printed but not recorded, so the day stays `ok`.) |
 | `report-failed` | Settled, but the statements could not be written. The money is safe in the ledger; the next `pm-eod run --pending` writes the report. |
 | `failed` | The gate or the settlement failed. Nothing was recorded for the day. |
 
@@ -596,7 +602,9 @@ The `status` column is one of:
 are closed days that have not been done yet.
 
 For monitoring, `pm-eod status -q` prints nothing and returns **exit code 0**
-when no closed day is waiting to be done, and **1** otherwise. A closed day whose
+when no closed day is waiting to be done, and **1** otherwise, including when
+there is no `clearing.db` to judge (a mistyped `--datapath` is not healthy).
+`status`, `balances` and `show` only read: they never create `eod.db`. A closed day whose
 run failed still counts as waiting, so the check stays red until it is fixed. (A
 failed run for a date that never closed, such as a mistyped date, does not.) Use
 it from a health check or a cron alert.
@@ -657,7 +665,8 @@ one date always add up to zero; a rounding residual, if any, sits on the
 |---|---|---|
 | **0** | Clean — everything succeeded | Nothing |
 | **1** | The day failed (gate, settle or report) | Read the `[FAIL]` line; see [Troubleshooting](#troubleshooting) |
-| **2** | Settled and reported, but a housekeeping step warned | Read the `[warn]` line; the statements are fine |
+| **2** | Usage error: a wrong or missing option; nothing was done | Read the message and fix the command |
+| **3** | Settled and reported, but a step warned (housekeeping, or the settle note that an earlier settled date's snapshot changed) | Read the `[warn]` line; the statements are fine |
 
 ## The files `pm-eod` writes
 
@@ -729,7 +738,14 @@ that all traders together sum to exactly zero). **Trade times are in UTC**, not
 the exchange's timezone. And the **trade list comes from `trade_events`**, which `pm-clearing`
 prunes after 90 days by default. Settling a very old date later still gives the
 correct amounts (those come from the close snapshots, which are never pruned)
-but the trade list may be empty.
+but the trade list may be empty, and the gate says `not reconciled: the day's
+raw trades were pruned` instead of comparing them with the daily totals.
+
+When a closed day in between was never settled (a skipped `--force` day, a
+day `pm-clearing` missed), the amount covers every day since the last settled
+one, and the statement says so: *Result since the close of 2026-10-30: …* in
+place of *Today's result*, with `since` set in the JSON. The trade list is
+still the date's own.
 
 ### The same statement as JSON and CSV
 
@@ -742,6 +758,7 @@ arithmetic, and as text (`amount`: `"-20.00"`) for display.
 | `trade_date`, `gateway`, `name`, `email` | Who and which day |
 | `listed` | `true` if the gateway is in the roster |
 | `amount_minor` / `amount` | Today's settlement (positive = exchange owes the trader) |
+| `since` | `null`, or the last settled date before this one when the amount covers more than one closed day |
 | `balance_minor` / `balance` | Running balance after today, including the opening balance |
 | `symbol_pnl` | Today's amount broken down by symbol. A symbol the trader no longer holds, did not trade today and made nothing on today is left out (otherwise every symbol ever traded would show 0.00 forever) |
 | `positions` | Open positions at the close: `symbol`, `net_qty`, `mark` (closing price) |
@@ -895,7 +912,9 @@ the step:
 1. Asks SQLite for a **consistent online copy** (SQLite's backup mechanism).
    This is safe while the exchange is running; you do not have to stop
    anything.
-2. Runs the database's **integrity check** on the copy.
+2. Runs SQLite's **quick check** on the copy (every page and record; the
+   slower full `integrity_check` also compares indexes with their tables,
+   which a fresh copy of a healthy database cannot get wrong).
 3. Compresses it to `backup/<date>/<name>.db.zst` and **decompresses it again
    to compare** — only a copy proven identical replaces anything.
 4. Deletes backup folders older than `--backup-keep-days` (default **7**).
@@ -962,16 +981,18 @@ write it into the command: `--on-close "pm-eod run --pending --backup-keep-days 
 ### Run a day again
 
 `pm-eod run --date 2026-11-03` is always safe. A day that is already settled
-says `already settled` and is not counted twice; the report and housekeeping run
-again (replacing the folder). To run only one step of a settled day:
+says `already settled` and is not counted twice; the gate is not checked again
+(`gate: already settled: not checked again (--redo recomputes)`), and the report
+and housekeeping run again (replacing the folder). To run only one step of a settled day:
 
 ```bash
 pm-eod run --date 2026-11-03 --only report     # rewrite the statements
 pm-eod run --date 2026-11-03 --only backup     # take the backup again
 ```
 
-`--only` accepts `report`, `audit`, `logs` or `backup`. A step run with `--only`
-is not recorded in `pm-eod status`, so it can never mark a good day as bad.
+`--only` accepts `report`, `audit`, `logs` or `backup`, and cannot be combined
+with `--redo`, `--force` or `--dry-run`. A step run with `--only` is not
+recorded in `pm-eod status`, so it can never mark a good day as bad.
 
 ### Look before you leap: `--dry-run`
 
@@ -980,7 +1001,11 @@ pm-eod run --date 2026-11-03 --dry-run
 ```
 
 runs the checks and prints the amounts that *would* be settled, writing nothing
-at all:
+at all. It settles into an in-memory copy of the ledger with the same code as a
+real run, so it refuses what the real run would refuse (`already settled`, an
+earlier day still waiting), shows the `EXCHANGE` line when there is one, and with
+`--redo` names the dates it would drop. `--pending --dry-run` measures each day
+from the previous day's dry result:
 
 ```text
 2026-11-03:
@@ -1057,28 +1082,36 @@ pm-eod run --date 2026-11-03 --redo
     Balances are a running total, so correcting one day changes everything
     after it. `--redo` therefore **deletes the settlement of that date *and every
     later date*** from the ledger, recomputes the first one, and leaves the later
-    ones to the next `pm-eod run --pending`. Statement folders of the dropped
-    dates stay on disk until they are overwritten. If the recomputation fails,
-    nothing is deleted. Run `--dry-run` first and make sure you have a backup
+    ones to the next `pm-eod run --pending`. The statement folders of the
+    dropped dates are deleted with them (their balances would be wrong) and
+    written again when those dates are settled again. If the recomputation
+    fails, nothing is deleted. Run `--dry-run` first and make sure you have a backup
     (the `backup` step makes one every day).
 
 ### After `pm-opctl-cli clear`
 
 `pm-opctl-cli clear --state` wipes `clearing.db` — but it deliberately **keeps**
 `eod.db`, `settlement/` and `backup/`, because the balances should survive a
-reset of the working data. Only `clear --all` removes them. One consequence: if
-you reset and then trade again on the *same calendar date*, that date is
-already settled in the ledger and `pm-eod` will refuse to settle it again.
-Use `pm-eod run --date <date> --redo` to replace it.
+reset of the working data. Only `clear --all` removes them. Each `clearing.db`
+carries its own id, and `pm-eod` records which one every date was settled from,
+so after a reset the next settled date starts from zero, as the new database
+does. If you reset and then trade again on the *same calendar date*, that date
+is already settled and is not settled again: its new trading is booked on the
+next date you settle, whose `settle` line warns `clearing.db was replaced after
+<date> was settled`. Do **not** `--redo` that date: the new `clearing.db` knows
+nothing of its trading before the reset, so a recomputation would lose it.
 
 ### Rehearsing with a fast clock
 
 You can rehearse with `pm-scheduler --daily --speed 600`, which runs the
 timetable ten simulated minutes per second. The trading date comes from the
 *real* clock, though, so several fast simulated days all land on **today's**
-date and share one close snapshot. You will get one settlement per real calendar
-date, not one per simulated day. That is fine for checking the whole pipeline
-works end to end; use `--redo` to run it again on the same date.
+date. The first fast day's close settles the date; every later fast day reopens
+it and rewrites its snapshot, but the date is not settled again (the scheduler's
+`--pending` says `nothing pending`). Nothing is lost: the next real date is
+measured from what was settled, so it includes the later fast days, and its
+`settle` line warns that the snapshot changed. To settle the rehearsal date as a
+whole, run `pm-eod run --date <today> --redo` after the last fast day.
 
 ### Weekends and holidays
 
@@ -1099,13 +1132,13 @@ Every message below is printed on a `[FAIL]` or `[warn]` line.
 | `no session phase recorded for <date>` | `pm-clearing` saw no session change on that date | Was `pm-clearing` running and the scheduler enabled? For a no-scheduler setup add `--force` |
 | `<date> has not closed yet` | The day has not opened *and* closed: trading is still going on, the close was never announced, or the market has not opened yet today (the `CLOSED` an engine announces when it starts is not a close) | Wait for the close, or use `--force` if you have no scheduler |
 | `no close snapshot for <date>` | The closing positions were never saved — `pm-clearing` was down at the close, or the date is from before this feature existed | `pm-clearing-cli snapshots --date <date>` shows what exists. A missing snapshot cannot be made afterwards. Nothing is lost by leaving the day unsettled: the next day that is settled includes its gains and losses. Make sure `pm-clearing` runs at the next close |
-| `clearing does not reconcile for <date> (N discrepancies; see pm-clearing-cli reconcile)` | The raw trade records and the daily totals disagree. Settling on inconsistent books would spread the error | Run `pm-clearing-cli reconcile --from <date> --to <date>` to see exactly which trader and symbol; fix the cause (a crash mid-write is the usual one) before settling |
+| `clearing does not reconcile for <date> (N discrepancies; see pm-clearing-cli reconcile)` | The raw trade records and the daily totals disagree. Settling on inconsistent books would spread the error. (A day whose raw trades were already pruned is not compared; its gate line says `not reconciled`.) | Run `pm-clearing-cli reconcile --from <date> --to <date>` to see exactly which trader and symbol; fix the cause (a crash mid-write is the usual one) before settling |
 
 ### Settlement failures (exit code 1)
 
 | Message | What it means | What to do |
 |---|---|---|
-| `the day does not sum to zero: exact total X over N position(s)` | The amounts do not cancel out by more than rounding noise could explain — a real accounting inconsistency | Nothing was written; do **not** try to force it. Run `pm-clearing-cli reconcile --from <date> --to <date>` and look at `pm-clearing-cli snapshots --date <date>` for a trader whose numbers are far off. This points at a bug or a damaged `clearing.db`: keep the files (the daily backup has a copy) and report it |
+| `the day does not sum to zero: exact total X over N changed position(s)` | The amounts do not cancel out by more than rounding noise could explain — a real accounting inconsistency | Nothing was written; do **not** try to force it. Run `pm-clearing-cli reconcile --from <date> --to <date>` and look at `pm-clearing-cli snapshots --date <date>` for a trader whose numbers are far off. This points at a bug or a damaged `clearing.db`: keep the files (the daily backup has a copy) and report it |
 | `a gateway may not be called EXCHANGE` | A trader used the reserved name | Rename the gateway in the configuration |
 | `<date> has closed but is not settled; settle the dates in order (pm-eod run --pending)` | You asked for a date while an earlier closed day is still waiting. Days are settled oldest first, so the earlier one comes first | Run `pm-eod run --pending`, which takes them in order. If that fails on the earlier day, fix what its message says |
 | `<date> is settled, which is later than <date>` | A later date was settled before this earlier one (for example you ran Friday and then Thursday by hand) | Run `pm-eod run --date <the earlier date> --redo`: it drops the later settlements and redoes them in order with the next `--pending` |
@@ -1115,7 +1148,7 @@ Every message below is printed on a `[FAIL]` or `[warn]` line.
 | Message | What it means | What to do |
 |---|---|---|
 | `<date> is not settled` | You ran `--only report` for a date that has no settlement | Run the date without `--only` first |
-| `roster.yaml: line N: …` | The roster file has an error on that line | Fix it; run the date again without `--only` (or wait for the next `--pending`) |
+| `roster.yaml: line N: …` | The roster file has an error on that line (`not valid YAML: …` for a syntax error), or a gateway that cannot be a file name | Fix it; run the date again without `--only` (or wait for the next `--pending`) |
 | An `OSError` (disk full, permission denied) | The folder could not be written | Free space or fix permissions; the next run retries |
 
 ### Other
@@ -1126,10 +1159,12 @@ Every message below is printed on a `[FAIL]` or `[warn]` line.
 | `--on-close command is still running; trigger skipped` (scheduler log) | A previous run has not finished; harmless — the next run catches up. |
 | `could not start --on-close command` (scheduler log) | The command was not found. Is `pm-eod` on the scheduler's `PATH`? |
 
-### Housekeeping warnings (exit code 2)
+### Warnings (exit code 3)
 
 | Message | Meaning |
 |---|---|
+| `settle`: `clearing.db was replaced after <D> was settled …` | `clearing.db` was reset (`pm-opctl-cli clear --state`) after D was settled, and D traded again in the new one. This date is measured from zero, as the new database is, so D's post-reset trading is booked here. Leave it: a `--redo` of D would lose D's pre-reset trading. |
+| `settle`: `the close snapshot of <D> changed after it was settled …` | Date D closed again after it was settled (it was reopened, or the engine was stopped once more without a scheduler). The ledger keeps the equity D was settled at, so nothing is lost: the difference is booked on this date. To book it on D instead, run `pm-eod run --date <D> --redo`, then `pm-eod run --pending`. |
 | `another archive run holds the lock` | A `pm-audit-cli archive` is running. Harmless; the next run retries. |
 | `archive failed: …` | The audit archive could not be made (often not enough free disk). The day's files are untouched. |
 | `N changed while compressing` | A log was written while it was being compressed; it was left alone and will be retried. |

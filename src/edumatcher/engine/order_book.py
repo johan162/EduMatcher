@@ -14,17 +14,18 @@ the *rules of matching* and knows nothing about ZeroMQ::
 
     gateway --PUSH--> Engine.run()                   (receive + decode)
                       Engine._dispatch_pull_message  (route by topic)
-                      Engine._handle_new_order       (validate, ACK, gate on session)
+                      Engine._handle_new_order       (validate and gate; ACK usually
+                                                      before matching, sometimes after)
                       OrderBook.process(order)       <== YOU ARE HERE
                           |  returns (trades, events)
                       Engine._publish_dispatch       (order.fill / order.cancelled /
                                                       reject, then trade.executed)
                       --PUB--> gateways, market data, clearing, audit ...
 
-``OrderBook`` is a plain, synchronous, single-threaded Python object.  It
-never publishes anything; it *mutates* orders and *returns* what happened, and
-the engine turns that into bus messages.  That separation is what makes the
-matching rules unit-testable without a network.
+``OrderBook`` is a plain, synchronous, single-threaded Python object. It
+mutates orders and returns what happened; it does not publish directly.
+Engine-wired quote and OCO callbacks can, however, publish sibling effects
+during matching. A bare book remains unit-testable without a network.
 
 The life of one incoming order
 ------------------------------
@@ -40,9 +41,9 @@ The life of one incoming order
                           orders' ``remaining_qty`` / ``status``, updates the
                           price-level index, and appends *both* orders to
                           ``events``.
-5. back in ``_match_limit``  whatever is left over RESTS on our own side
-                          (``_rest``) -- that is the difference between LIMIT
-                          and IOC/MARKET, which discard the remainder.
+5. back in ``_match_limit``  a live remainder RESTS on our own side
+                          (``_rest``); an SMP-cancelled order does not.
+                          IOC/MARKET discard any unfilled remainder.
 6. back in ``process``    every trade moved ``last_trade_price``, so resting
                           stops may now trigger (``_check_stops``); each
                           triggered stop is itself processed as a new order.
@@ -115,12 +116,12 @@ Order lifecycle (``OrderStatus``)
 
 Corner cases worth knowing before you read the code
 ---------------------------------------------------
-* Iceberg orders: only ``displayed_qty`` is matchable per pass; when the
-  slice is used up a fresh slice is created and queued at the BACK of its
-  price level (it loses time priority).  See ``_apply_fill`` and
-  ``_reinsert_iceberg``.
-* Self-match prevention (SMP): an order from gateway G may not trade with a
-  resting order from the same G.  Four policies, see ``SmpAction``.
+* Resting icebergs: only ``displayed_qty`` is matchable per pass; a fresh
+  slice queues at the BACK of its price level. An incoming iceberg can sweep
+  its full remaining quantity. See ``_apply_fill`` and ``_reinsert_iceberg``.
+* Self-match prevention (SMP): a configured policy controls whether an order
+  may trade with the same gateway. Four policies, including NONE, are in
+  ``SmpAction``.
 * Stops are not "in the book": they wait in separate heaps and only become
   real MARKET/LIMIT orders when a trade price crosses their trigger.
 * The *same* ``Order`` object appears in ``events`` once per fill it took
@@ -473,9 +474,9 @@ class OrderBook:
         THIS IS THE ENTRY POINT of the matching engine.  By the time an order
         gets here the engine has already authenticated the gateway, checked
         the symbol, validated quantities/prices, applied the price collar and
-        the session/halt gates, and sent the positive ACK (all in
-        ``Engine._handle_new_order``).  The book only decides *how the order
-        trades*.
+        the session/halt gates (``Engine._handle_new_order``). The positive
+        ACK normally precedes this call, but waits until afterwards if the
+        book may reject, such as for an unfillable FOK.
 
         Steps, in order:
 
@@ -495,7 +496,7 @@ class OrderBook:
         match : bool
             When False the order is rested on the book without attempting to
             sweep the opposite side.  Used during auction / no-matching phases
-            to collect interest.  MARKET and FOK orders are rejected when
+            to collect interest. MARKET, FOK and IOC orders are rejected when
             match=False because they cannot rest.
         now : int | None
             Pre-computed timestamp from the engine's dispatch loop, threaded
@@ -897,7 +898,7 @@ class OrderBook:
         return order, priority_reset, ""
 
     def resting_orders(self) -> list[Order]:
-        """Return all resting (NEW / PARTIAL) orders — used for persistence."""
+        """Return live resting orders for full-book reads, including persistence."""
         return [
             o
             for o in self._order_index.values()
@@ -1366,7 +1367,9 @@ class OrderBook:
         under-counts and spuriously rejects — and (b) excludes same-gateway
         liquidity that SMP would skip/cancel, which would otherwise let the
         sweep run dry and leave the FOK partially filled (a fill-or-kill
-        violation).  Rejecting before any fill keeps FOK all-or-nothing.
+        violation). It also counts only the first encountered leg of an OCO
+        pair, since a fill can remove its sibling. Rejecting before any fill
+        keeps FOK all-or-nothing.
         """
         opposite = self._asks if order.side == Side.BUY else self._bids
         available = self.fillable_quantity(
@@ -1374,6 +1377,7 @@ class OrderBook:
             order.price_ticks,
             gateway_id=order.gateway_id,
             smp_action=order.smp_action,
+            need=order.quantity,
         )
         if available < order.quantity:
             # The FOK cannot fully fill.  Resolve SMP the same way a sweep
@@ -1456,8 +1460,9 @@ class OrderBook:
         *,
         gateway_id: str,
         smp_action: SmpAction | None,
+        need: int,
     ) -> int:
-        """Liquidity an incoming FOK or AON child could actually execute against.
+        """Liquidity an incoming FOK could actually execute against.
 
         Walks live resting orders in priority order up to the order's
         price limit, the way the sweep will meet them (H8):
@@ -1470,6 +1475,47 @@ class OrderBook:
         - Under CANCEL_AGGRESSOR / CANCEL_BOTH the sweep *stops* at the first
           same-gateway order it meets, so nothing behind it counts.
         """
+        return self._walk_fillable_quantities(
+            side,
+            price_limit,
+            gateway_id=gateway_id,
+            smp_action=smp_action,
+            need=need,
+            include_unprevented=False,
+            cap_at_need=True,
+        )[0]
+
+    def fillable_quantities(
+        self,
+        side: Side,
+        price_limit: Optional[int],
+        *,
+        gateway_id: str,
+        smp_action: SmpAction | None,
+        need: int,
+    ) -> tuple[int, int]:
+        """Return (SMP-eligible, unprevented) liquidity in one priority walk."""
+        return self._walk_fillable_quantities(
+            side,
+            price_limit,
+            gateway_id=gateway_id,
+            smp_action=smp_action,
+            need=need,
+            include_unprevented=True,
+            cap_at_need=False,
+        )
+
+    def _walk_fillable_quantities(
+        self,
+        side: Side,
+        price_limit: Optional[int],
+        *,
+        gateway_id: str,
+        smp_action: SmpAction | None,
+        need: int,
+        include_unprevented: bool,
+        cap_at_need: bool,
+    ) -> tuple[int, int]:
         heap = self._asks if side == Side.BUY else self._bids
         smp = smp_action or SmpAction.NONE
         stops_sweep = smp in (SmpAction.CANCEL_AGGRESSOR, SmpAction.CANCEL_BOTH)
@@ -1486,9 +1532,13 @@ class OrderBook:
             and e.order.price_ticks is not None
         )
         total = 0
+        unprevented = 0
         level_price: Optional[int] = None
         level_hidden = 0  # hidden iceberg qty queued at the back of this level
+        unprevented_level_hidden = 0
         oco_seen: set[tuple[str, str]] = set()
+        unprevented_oco_seen: set[tuple[str, str]] = set()
+        sweep_stopped = False
         for entry in live:
             o = entry.order
             price = o.price_ticks
@@ -1499,32 +1549,70 @@ class OrderBook:
                 if side == Side.SELL and price < price_limit:
                     break
             if price != level_price:
-                total += level_hidden
+                if not sweep_stopped:
+                    total += level_hidden
+                    if cap_at_need:
+                        total = min(need, total)
+                if include_unprevented:
+                    unprevented += unprevented_level_hidden
+                    if cap_at_need:
+                        unprevented = min(need, unprevented)
                 level_price, level_hidden = price, 0
+                unprevented_level_hidden = 0
+                if cap_at_need and total >= need:
+                    break
             # SMP: same-gateway resting liquidity is skipped/cancelled by the
             # sweep, so it cannot be used to fill this FOK.
-            if _smp_policy(gateway_id, smp, o) != SmpAction.NONE:
-                if stops_sweep:
-                    return total
-                continue
+            count_for_sweep = False
+            if not sweep_stopped and (not cap_at_need or total < need):
+                if _smp_policy(gateway_id, smp, o) != SmpAction.NONE:
+                    if stops_sweep:
+                        sweep_stopped = True
+                else:
+                    count_for_sweep = True
             # X15: the first leg of an OCO pair the sweep fills pulls the
             # other, and a FOK that takes only part of it is done before
             # reaching the other: only the first leg met can count.
-            if o.oco_group_id is not None:
+            if count_for_sweep and o.oco_group_id is not None:
                 # Per gateway: the id is the client's own label, so two
                 # gateways' pairs may share one and are still two pairs.
                 pair = (o.gateway_id, o.oco_group_id)
                 if pair in oco_seen:
-                    continue
-                oco_seen.add(pair)
+                    count_for_sweep = False
+                else:
+                    oco_seen.add(pair)
             shown = (
                 o.displayed_qty
                 if o.order_type == OrderType.ICEBERG and o.displayed_qty is not None
                 else o.remaining_qty
             )
-            total += shown
-            level_hidden += o.remaining_qty - shown
-        return total + level_hidden
+            hidden = o.remaining_qty - shown
+            if count_for_sweep:
+                total += shown
+                if cap_at_need:
+                    total = min(need, total)
+                level_hidden += hidden
+            if include_unprevented and (not cap_at_need or unprevented < need):
+                if o.oco_group_id is None or (
+                    (o.gateway_id, o.oco_group_id) not in unprevented_oco_seen
+                ):
+                    if o.oco_group_id is not None:
+                        unprevented_oco_seen.add((o.gateway_id, o.oco_group_id))
+                    unprevented += shown
+                    if cap_at_need:
+                        unprevented = min(need, unprevented)
+                    unprevented_level_hidden += hidden
+            if cap_at_need and total >= need:
+                break
+        if not sweep_stopped:
+            total += level_hidden
+            if cap_at_need:
+                total = min(need, total)
+        if include_unprevented:
+            unprevented += unprevented_level_hidden
+            if cap_at_need:
+                unprevented = min(need, unprevented)
+        return total, unprevented
 
     def _match_iceberg(
         self, order: Order, trades: list[Trade], events: list[Order], now: int
@@ -1778,7 +1866,7 @@ class OrderBook:
           (``None`` = MARKET order, no limit);
         * self-match prevention killed the aggressor.
 
-        Each pass of the loop produces exactly ONE trade, between the
+        Each fill pass produces ONE trade, between the
         aggressor and the single best resting order, for
         ``min(aggressor remaining, resting available)``.  A big aggressor
         therefore generates a *sequence* of trades, one per resting order it
@@ -1914,8 +2002,9 @@ class OrderBook:
         5. fires the quote-leg / OCO callbacks so the engine can cancel a
            sibling leg *now*, before another trade can hit it.
 
-        Nothing is published here.  The caller returns ``trades`` and
-        ``events`` up to the engine.
+        The book does not publish directly. Engine-wired callbacks may publish
+        sibling effects before the caller returns ``trades`` and ``events``
+        for dispatch; auction quote follow-ups are deferred to dispatch.
 
         In continuous matching the aggressor is *not* resting, so only the
         passive side is counted in the price-level qty index and only that

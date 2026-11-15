@@ -90,6 +90,7 @@ describe("useOrderEventNotifications — order.ack (C1)", () => {
       reason: "collar breach",
       reject_code: "COLLAR_BREACH",
       request_tag: "amend-abc123",
+      request: "AMEND",
     });
 
     expect(toast.error).toHaveBeenCalledTimes(1);
@@ -119,8 +120,7 @@ describe("useOrderEventNotifications — order.ack (C1)", () => {
       accepted: false,
       reason: "collar breach",
       reject_code: "COLLAR_BREACH",
-      // request_tag omitted: order.new carries no such field, so the
-      // engine never sets one on a genuine new-order reject.
+      request: "NEW",
     });
 
     expect(toast.error).not.toHaveBeenCalled();
@@ -135,11 +135,29 @@ describe("useOrderEventNotifications — order.ack (C1)", () => {
       accepted: false,
       reason: "",
       request_tag: "cancel-def456",
+      request: "CANCEL",
     });
 
     expect(toast.error).toHaveBeenCalledTimes(1);
     expect(vi.mocked(toast.error).mock.calls[0]![0]).toContain("rejected");
     expect(useNotificationStore.getState().entries[0]!.detail).toBe("rejected");
+  });
+
+  it("reports an untagged refused cancel of a resting order as a refused cancel, not a kill (API gateway review C1)", () => {
+    renderHook(() => useOrderEventNotifications());
+    useOrderStore.getState().applyAck({ gateway_id: "GW1", order_id: "ORD4", accepted: true, reason: "", qty: 10 });
+
+    emitOrderAck({
+      order_id: "ORD4",
+      accepted: false,
+      reason: "Instrument halted",
+      reject_code: "INSTRUMENT_HALTED",
+      request: "CANCEL",
+    });
+
+    expect(toast.error).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(toast.error).mock.calls[0]![0]).toContain("not amended/cancelled");
+    expect(useOrderStore.getState().orders["ORD4"]!.status).toBe("NEW");
   });
 });
 
@@ -179,8 +197,9 @@ describe("useOrderEventNotifications — FOK/MARKET/IOC kill outcome (M2)", () =
       reason: "Insufficient liquidity",
       reject_code: "INSUFFICIENT_LIQUIDITY",
       order_type: "FOK",
-      // request_tag omitted, same as a genuine new-order reject -- the
-      // distinguishing signal is that the store already has this order.
+      // A refusal of the NEW order -- the distinguishing signal is that the
+      // store already has this order.
+      request: "NEW",
     });
 
     expect(toast.error).toHaveBeenCalledTimes(1);

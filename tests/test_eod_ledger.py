@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import sqlite3
 from collections.abc import Generator
+from dataclasses import replace
 from decimal import Decimal
 from pathlib import Path
 
@@ -20,8 +21,9 @@ from edumatcher.eod.ledger import (
     record_run,
     runs,
     settled_dates,
+    settled_baseline,
 )
-from edumatcher.eod.settle import EXCHANGE, Settlement
+from edumatcher.eod.settle import EXCHANGE, Baseline, Settlement
 
 
 @pytest.fixture()
@@ -69,6 +71,17 @@ class TestRecordDay:
             "SELECT detail_json FROM eod_settlement WHERE account = 'A'"
         ).fetchone()
         assert row[0] == '{"AAPL": "5"}'
+
+    def test_the_closing_equity_is_kept_exactly(self, conn: sqlite3.Connection) -> None:
+        equity = {("A", "AAPL"): Decimal("5.0001"), ("B", "AAPL"): Decimal("-5.0001")}
+        record_day(conn, "2026-07-01", replace(day(500, -500), equity=equity))
+        result = replace(day(500, -500), equity=equity, clearing_instance="abc")
+        record_day(conn, "2026-07-03", result)
+        assert settled_baseline(conn, "2026-07-03") == Baseline(equity, "abc")
+        got = settled_baseline(conn, "2026-07-01")
+        assert got is not None and got.equity == equity
+        assert got.clearing_instance is None
+        assert settled_baseline(conn, "2026-07-02") is None
 
 
 class TestBalances:
@@ -144,3 +157,11 @@ class TestRuns:
             record_run(conn, d, "ok", "a", "b", [])
         record_day(conn, "2026-07-02", day(1, -1), redo=True)
         assert [r["trade_date"] for r in runs(conn)] == ["2026-07-01"]
+
+
+def test_ok_dates(conn: sqlite3.Connection) -> None:
+    from edumatcher.eod.ledger import ok_dates
+
+    record_run(conn, "2026-07-01", "ok", "a", "b", [])
+    record_run(conn, "2026-07-02", "report-failed", "a", "b", [])
+    assert ok_dates(conn) == {"2026-07-01"}

@@ -337,3 +337,92 @@ def test_a_status_answer_with_only_a_new_target_reaches_clients() -> None:
     )
     assert norm.prior_session_state == prior
     assert norm.state_snapshot_fields("*")["NEXTPHASE"] == "PRE_OPEN"
+
+
+# ---------------------------------------------------------------------------
+# WP-MDG04: fan-out cost depends on who wants an event
+# ---------------------------------------------------------------------------
+
+
+def _subscribed(
+    gw: MarketDataGateway, pairs: set[tuple[str, str]]
+) -> tuple[ClientSession, socket.socket]:
+    left, right = socket.socketpair()
+    left.setblocking(False)
+    right.setblocking(False)
+    session = ClientSession(sock=left, addr=("local", 0), authenticated=True)
+    session.subscriptions = set(pairs)
+    gw._clients[left.fileno()] = session
+    gw._subs.set_for_client(left.fileno(), session.subscriptions)
+    return session, right
+
+
+def _trade(gw: MarketDataGateway, sym: str, n: int) -> None:
+    gw._emit_stream_event(
+        "TRADE", "TRADE", sym, {"TRADE_ID": f"t{n}", "PX": "1", "QTY": "1"}, 0.0
+    )
+
+
+def test_wildcard_and_exact_subscription_deliver_an_event_once(
+    unit_gateway: MarketDataGateway,
+) -> None:
+    session, peer = _subscribed(unit_gateway, {("TRADE", "*"), ("TRADE", "AAPL")})
+    _trade(unit_gateway, "AAPL", 1)
+    assert len(session.out_queue) == 1
+    peer.close()
+
+
+def test_unsub_and_disconnect_stop_delivery(unit_gateway: MarketDataGateway) -> None:
+    unsubbed, peer1 = _subscribed(unit_gateway, {("TRADE", "AAPL")})
+    gone, peer2 = _subscribed(unit_gateway, {("TRADE", "*")})
+    unit_gateway._handle_unsub(unsubbed, {"CH": "TRADE", "SYM": "AAPL"})
+    gone_fd = gone.sock.fileno()
+    unit_gateway._disconnect(gone, reason="peer_closed")
+    _trade(unit_gateway, "AAPL", 1)
+    assert not unsubbed.out_queue
+    assert unit_gateway._subs.wanting("TRADE", "AAPL") == set()
+    assert gone_fd not in unit_gateway._subs.wanting("TRADE", "MSFT")
+    peer1.close()
+    peer2.close()
+
+
+def test_an_event_visits_only_the_sessions_that_want_it(
+    unit_gateway: MarketDataGateway, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """P1: 64 sessions x 600 pairs used to be scanned whole for every event."""
+    symbols = [f"S{i:03d}" for i in range(300)]
+    peers = []
+    for i in range(64):
+        pairs = {
+            (ch, symbols[(i * 7 + k) % 300])
+            for k in range(200)
+            for ch in ("TOP", "TRADE", "DEPTH")
+        }
+        peers.append(_subscribed(unit_gateway, pairs)[1])
+    wanted = {
+        fd
+        for fd, s in unit_gateway._clients.items()
+        if ("TRADE", "S000") in s.subscriptions
+    }
+    visited: list[int] = []
+    real = unit_gateway._queue_raw
+
+    def counting(session: ClientSession, payload: bytes, **kw: bool) -> None:
+        visited.append(session.sock.fileno())
+        real(session, payload, **kw)
+
+    calls = {"n": 0}
+    real_wants = unit_gateway._subs.session_wants
+
+    def counting_wants(fd: int, ch: str, sym: str) -> bool:
+        calls["n"] += 1
+        return real_wants(fd, ch, sym)
+
+    monkeypatch.setattr(unit_gateway, "_queue_raw", counting)
+    monkeypatch.setattr(unit_gateway._subs, "session_wants", counting_wants)
+    _trade(unit_gateway, "S000", 1)
+
+    assert sorted(visited) == sorted(wanted) and 0 < len(wanted) < 64
+    assert calls["n"] <= len(wanted)
+    for peer in peers:
+        peer.close()

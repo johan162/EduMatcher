@@ -1,7 +1,40 @@
+"""
+pm-index — calculates the configured market indices from the engine's trades.
+
+Usage:
+  poetry run pm-index              # resume from each index's state file
+  poetry run pm-index --reset      # discard the state files, start from config
+  poetry run pm-index -v           # INFO (-vv: DEBUG); the default is WARNING
+
+Subscribes to the engine's ``trade.executed``, ``session.state``,
+``system.eod``, its own session-status reply and ``book.{symbol}`` for every
+constituent. Publishes ``index.update`` (throttled to
+``publish_interval_sec``; a throttled level is sent once the interval has
+passed) and answers ``index.history_request``, ``index.corp_action``,
+``index.constituent_change`` and ``index.rebalance`` on its PULL socket.
+
+The day: the open/high/low start at ``PRE_OPEN``; ``CLOSED`` publishes the
+close. ``system.eod`` (sent at every engine stop) also finalises, and makes
+pm-index ask for the session status again; a reply in a trading phase undoes
+that latch, and every reply requests a book snapshot per constituent, whose
+last price catches the index up on trades it missed.
+
+Files, per index: the state file (divisor, constituents, share counts, last
+prices, and the day while the session is open) is the restore authority; it
+is checkpointed at most every 30 s while prices move, on every phase change,
+at shutdown and with every command. The history file is an append-only
+structural log (INIT, CORP_ACTION, ADD_CONSTITUENT, DELIST, REBALANCE).
+
+A command is applied to a copy of the index, written to the state file and
+the history, and only then swapped in, published and acknowledged; a write
+failure rejects it and changes nothing.
+"""
+
 from __future__ import annotations
 
 import argparse
 from collections import defaultdict
+import copy
 import errno
 import json
 import logging
@@ -9,6 +42,7 @@ import math
 import signal
 import sys
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -54,9 +88,11 @@ from edumatcher.models.message import (
     make_index_error_msg,
     make_index_history_msg,
     make_index_rebalance_ack_msg,
+    make_book_snapshot_request_msg,
     make_index_update_msg,
     make_session_state_request_msg,
 )
+from edumatcher.models.generated.book import TOPIC_BOOK_SNAPSHOT, topic_book_snapshot
 from edumatcher.models.generated.trade import TOPIC_TRADE_EXECUTED
 from edumatcher.models.generated.session import TOPIC_SESSION_STATE
 from edumatcher.models.generated.index import (
@@ -74,6 +110,22 @@ _DEBUG_SUMMARY_INTERVAL_SEC = 5.0
 _SESSION_STATUS_GATEWAY_ID = "PM_INDEX"
 _SESSION_STATUS_RETRY_SEC = 1.0
 _SESSION_STATUS_WARNING_SEC = 3.0
+#: The phases of a trading day after PRE_OPEN and before CLOSED.
+_TRADING_DAY_STATES = frozenset(
+    {
+        SessionState.OPENING_AUCTION.value,
+        SessionState.CONTINUOUS.value,
+        SessionState.CLOSING_AUCTION.value,
+    }
+)
+
+#: ``book.{symbol}`` up to the symbol, as bytes: what the loop compares a raw
+#: topic frame with before it pays for decoding a book it did not ask for.
+_BOOK_TOPIC_PREFIX = TOPIC_BOOK_SNAPSHOT.removesuffix("{symbol}").encode()
+
+#: Most messages handled per socket per poll wake-up before the loop polls
+#: again (P2), as pm-stats' _DRAIN_PER_WAKE.
+_DRAIN_PER_WAKE = 1_000
 
 #: Longest a trade-driven price change stays unwritten while trading. Writing
 #: the state file on every trade would cost a file write per print; every
@@ -92,8 +144,8 @@ def _clamp_id(value: object, limit: int = _MAX_ID_LEN) -> str:
     here quotes the identifier it could not resolve, and since 5.2f those
     replies are generated constructors that *validate* — so an inbound
     index_id of five thousand characters would raise MessageValidationError
-    out of a handler that has no exception guard, and take pm-index down while
-    answering a malformed request. Before adoption the same input merely
+    instead of producing a reply: the dispatch guard only logs it, and the
+    caller waits out its timeout. Before adoption the same input merely
     published an oversized reason.
 
     Truncating loses nothing real: an identifier longer than the spec allows
@@ -101,6 +153,20 @@ def _clamp_id(value: object, limit: int = _MAX_ID_LEN) -> str:
     same lookup and produces the same rejection.
     """
     return str(value).upper()[:limit]
+
+
+def _extend_day(day: DaySummary | None, level: float) -> DaySummary:
+    """The day's open/high/low with ``level`` included; the first level opens it."""
+    if day is None:
+        return DaySummary(open=level, high=level, low=level)
+    return DaySummary(open=day.open, high=max(day.high, level), low=min(day.low, level))
+
+
+def _reason(exc: Exception) -> str:
+    """A rejection reason from ``exc``; ``str(KeyError(m))`` is ``m`` quoted."""
+    if isinstance(exc, KeyError) and exc.args:
+        return str(exc.args[0])
+    return str(exc)
 
 
 def _int_field(payload: dict[str, Any], key: str, default: int) -> int:
@@ -152,6 +218,9 @@ class _ManagedIndex:
     history: IndexHistory
     session_state: str = "UNKNOWN"
     last_publish_time: float = 0.0
+    #: A level was computed inside the publish interval and not broadcast;
+    #: the loop publishes it once the interval has passed (C1).
+    pending: bool = False
     eod_finalized_for_session: bool = False
     #: The session's open/high/low, or None before the first level is
     #: computed. One optional record rather than three optional floats: the
@@ -159,10 +228,11 @@ class _ManagedIndex:
     #: separately left a half-set state representable in the one place it
     #: could actually arise (design section 16.2).
     day: DaySummary | None = None
-    day_close: float | None = None
     #: Prices moved since the state file was last written (K7 checkpoint).
     dirty: bool = False
     last_checkpoint: float = 0.0
+    #: The history file's last flush failed; logged once, not every pass.
+    history_flush_failed: bool = False
 
 
 @dataclass(frozen=True)
@@ -175,6 +245,10 @@ class _RestoredState:
     #: the static config after a runtime ADD / DELIST / share change.
     constituents: list[str] | None = None
     shares: dict[str, int] = field(default_factory=dict)
+    #: The session's day so far, restored only when the session had not
+    #: ended at the stop (C10); a day that has ended is not continued.
+    day: DaySummary | None = None
+    eod_finalized: bool = False
 
 
 class IndexProcess:
@@ -196,6 +270,9 @@ class IndexProcess:
 
         self._indices: dict[str, _ManagedIndex] = {}
         self._constituent_to_indices: dict[str, set[str]] = {}
+        #: Constituents whose book snapshot pm-index asked for and has not
+        #: had yet; the engine's periodic book.{symbol} is ignored (C11).
+        self._awaiting_snapshot: set[str] = set()
 
         self._sub_sock = make_subscriber(
             ENGINE_PUB_ADDR,
@@ -330,34 +407,51 @@ class IndexProcess:
                     shares[str(symbol).upper()] = int(count)
                 except TypeError, ValueError:
                     continue
+
+        eod_finalized = payload.get("eod_finalized") is True
+        day: DaySummary | None = None
+        day_values = [payload.get(key) for key in ("day_open", "day_high", "day_low")]
+        if not eod_finalized and all(
+            isinstance(v, (int, float)) and not isinstance(v, bool) for v in day_values
+        ):
+            open_, high, low = (float(v) for v in day_values)
+            day = DaySummary(open=open_, high=high, low=low)
         return _RestoredState(
             divisor=divisor,
             last_prices=last_prices,
             constituents=constituents or None,
             shares=shares,
+            day=day,
+            eod_finalized=eod_finalized,
         )
 
-    def _persist_state(self, idx: _ManagedIndex, last_level: float) -> None:
+    def _write_state(
+        self,
+        idx: _ManagedIndex,
+        calc: IndexCalculator,
+        day: DaySummary | None,
+        last_level: float,
+    ) -> None:
         state_path = self._state_path(idx.cfg)
         state_path.parent.mkdir(parents=True, exist_ok=True)
         payload = {
             "index_id": idx.cfg.id,
             "description": idx.cfg.description,
-            "divisor": idx.calc.divisor,
-            "constituents": idx.calc.constituent_symbols(),
+            "divisor": calc.divisor,
+            "constituents": calc.constituent_symbols(),
             "outstanding_shares": {
-                symbol: idx.calc.shares_outstanding(symbol)
-                for symbol in idx.calc.constituent_symbols()
+                symbol: calc.shares_outstanding(symbol)
+                for symbol in calc.constituent_symbols()
             },
             "last_prices": {
-                symbol: idx.calc.last_price(symbol)
-                for symbol in idx.calc.constituent_symbols()
+                symbol: calc.last_price(symbol) for symbol in calc.constituent_symbols()
             },
-            # The day_* keys are a persisted diagnostic, not the wire, and
-            # nothing reads them back; everything above them is restored.
-            "day_open": idx.day.open if idx.day else None,
-            "day_high": idx.day.high if idx.day else None,
-            "day_low": idx.day.low if idx.day else None,
+            # The day is restored while the session is still open, so a
+            # restart mid-session keeps the day's open/high/low (C10).
+            "day_open": day.open if day else None,
+            "day_high": day.high if day else None,
+            "day_low": day.low if day else None,
+            "eod_finalized": idx.eod_finalized_for_session,
             "last_level": last_level,
             "last_updated": time.time(),
         }
@@ -365,14 +459,17 @@ class IndexProcess:
         # written every checkpoint, so a kill mid-write must leave the
         # previous one whole -- a truncated file would stop startup.
         atomic_write_text(state_path, json.dumps(payload, indent=2))
-        idx.dirty = False
-        idx.last_checkpoint = time.monotonic()
         log.debug(
             "persisted index state index_id=%s level=%s path=%s",
             idx.cfg.id,
             last_level,
             state_path,
         )
+
+    def _persist_state(self, idx: _ManagedIndex, last_level: float) -> None:
+        self._write_state(idx, idx.calc, idx.day, last_level)
+        idx.dirty = False
+        idx.last_checkpoint = time.monotonic()
 
     def _initialise(self) -> None:
         configs = self._runtime_configs()
@@ -401,10 +498,17 @@ class IndexProcess:
                 last_prices=restored.last_prices,
             )
             history = IndexHistory(cfg.history_file)
-            managed = _ManagedIndex(cfg=cfg, calc=calc, history=history)
+            managed = _ManagedIndex(
+                cfg=cfg,
+                calc=calc,
+                history=history,
+                eod_finalized_for_session=restored.eod_finalized,
+                day=restored.day,
+            )
             self._indices[cfg.id] = managed
             for symbol in live_symbols:
                 self._constituent_to_indices.setdefault(symbol, set()).add(cfg.id)
+                self._subscribe_book(symbol)
 
             level = calc.recalculate()
             if is_fresh_start:
@@ -429,20 +533,56 @@ class IndexProcess:
             )
 
     def _update_day_ohlc(self, idx: _ManagedIndex, level: float) -> None:
-        if idx.day is None:
-            idx.day = DaySummary(open=level, high=level, low=level)
-            return
-        idx.day = DaySummary(
-            open=idx.day.open,
-            high=max(idx.day.high, level),
-            low=min(idx.day.low, level),
-        )
+        idx.day = _extend_day(idx.day, level)
+
+    def _commit(
+        self, idx: _ManagedIndex, calc: IndexCalculator, record: dict[str, Any]
+    ) -> float:
+        """Make ``calc``, a changed copy of ``idx.calc``, the index's state.
+
+        The state file (the restore authority) is written first, then the
+        history record, and only then is the copy swapped in and the level
+        published. An OSError from either write leaves memory, the wire and
+        the state file as they were and propagates; the caller rejects, and a
+        retry applies the command once (C5).
+        """
+        level = calc.recalculate()
+        day = _extend_day(idx.day, level)
+        self._write_state(idx, calc, day, level)
+        try:
+            idx.history.write_through(
+                {
+                    "type": record["type"],
+                    "ts_ns": time.time_ns(),
+                    "index_id": idx.cfg.id,
+                    **record,
+                    "level": level,
+                }
+            )
+        except OSError:
+            try:
+                self._write_state(idx, idx.calc, idx.day, idx.calc.recalculate())
+            except OSError as exc:
+                log.error(
+                    "index %s: could not restore the state file after a failed "
+                    "history write; it holds the rejected command: %s",
+                    idx.cfg.id,
+                    exc,
+                )
+            raise
+        idx.calc = calc
+        idx.day = day
+        idx.dirty = False
+        idx.last_checkpoint = time.monotonic()
+        self._publish_level(idx, level, force=True)
+        return level
 
     def _publish_level(
         self, idx: _ManagedIndex, level: float, force: bool = False
     ) -> None:
         now = time.monotonic()
         if not force and now - idx.last_publish_time < idx.cfg.publish_interval_sec:
+            idx.pending = True
             return
 
         aggregate_cap = idx.calc.aggregate_cap()
@@ -456,6 +596,7 @@ class IndexProcess:
         )
         self._pub_sock.send_multipart(frames)
         idx.last_publish_time = now
+        idx.pending = False
         self._dbg_count("index_updates_published")
 
     def _finalize_eod(self) -> None:
@@ -464,7 +605,6 @@ class IndexProcess:
             if idx.eod_finalized_for_session:
                 continue
             level = idx.calc.recalculate()
-            idx.day_close = level
             self._update_day_ohlc(idx, level)
             idx.session_state = "CLOSED"
 
@@ -473,11 +613,22 @@ class IndexProcess:
             # index_daily_stats tables like every other tick. It is not
             # written to the structural JSONL audit log.
             self._publish_level(idx, level, force=True)
-            self._persist_state(idx, level)
             idx.eod_finalized_for_session = True
+            idx.dirty = True
             idx.last_publish_time = 0.0
+        self._checkpoint(force=True)
 
-    def _handle_trade(self, payload: dict[str, Any]) -> None:
+    def _handle_engine_eod(self) -> None:
+        """system.eod is the engine's last message at every stop, the end of
+        the day or not. Finalise, and ask for the session status again: an
+        engine that comes back mid-session says so only in its reply (C4)."""
+        self._finalize_eod()
+        self._session_status_received = False
+
+    def _handle_trade(self, payload: dict[str, Any], catch_up: bool = False) -> None:
+        """Apply a trade's price. A ``catch_up`` price (a book snapshot's
+        last_price) may be yesterday's, so it extends the day but does not
+        open it: the day's open is the session's first print (C2)."""
         symbol_raw = payload.get("symbol")
         price_raw = payload.get("price")
         if not isinstance(symbol_raw, str):
@@ -504,7 +655,7 @@ class IndexProcess:
             idx.dirty = True
             level = idx.calc.recalculate()
             # Guarded: the arguments are evaluated whether or not the record
-            # is emitted, and aggregate_cap() walks every constituent.
+            # is emitted.
             if log.isEnabledFor(logging.DEBUG):
                 log.debug(
                     "trade applied index_id=%s symbol=%s price=%.6f level=%.6f "
@@ -516,24 +667,39 @@ class IndexProcess:
                     idx.calc.divisor,
                     idx.calc.aggregate_cap(),
                 )
-            self._update_day_ohlc(idx, level)
+            if not catch_up or idx.day is not None:
+                self._update_day_ohlc(idx, level)
             self._publish_level(idx, level)
 
     def _reset_for_new_session(self) -> None:
         for idx in self._indices.values():
             idx.eod_finalized_for_session = False
             idx.day = None
-            idx.day_close = None
+
+    def _resume_session(self) -> None:
+        """The engine is trading again after a stop: the session has not
+        ended, so a close latched by its system.eod must not stand (C4)."""
+        for idx in self._indices.values():
+            idx.eod_finalized_for_session = False
+
+    def _apply_phase(self, state: str) -> None:
+        """Day bookkeeping for the engine's phase. PRE_OPEN, the only state
+        after CLOSED, starts the day: the opening uncross prints before the
+        engine publishes the phase that follows it, so a later phase must not
+        clear the day (C2)."""
+        if state == SessionState.PRE_OPEN.value:
+            self._reset_for_new_session()
+        elif state == SessionState.CLOSED.value:
+            self._finalize_eod()
+        elif state in _TRADING_DAY_STATES:
+            self._resume_session()
 
     def _handle_session_state(self, payload: dict[str, Any]) -> None:
         state = str(payload.get("state", "")).upper()
         log.info("received session.state=%s", state)
         for idx in self._indices.values():
             idx.session_state = state or idx.session_state
-        if state in {"OPENING_AUCTION", "CONTINUOUS"}:
-            self._reset_for_new_session()
-        if state == "CLOSED":
-            self._finalize_eod()
+        self._apply_phase(state)
         self._checkpoint(force=True)
 
     def _request_session_status(self) -> None:
@@ -555,9 +721,41 @@ class IndexProcess:
 
         log.info("received initial engine session status=%s", state)
         self._session_status_received = True
+        self._request_snapshots()
+        if state != SessionState.CLOSED.value:
+            self._apply_phase(state)
         for idx in self._indices.values():
             idx.session_state = state
             self._publish_level(idx, idx.calc.recalculate(), force=True)
+
+    def _subscribe_book(self, symbol: str) -> None:
+        # Subscribed for good rather than per request: a subscription made
+        # just before the request can reach the engine after its reply.
+        self._sub_sock.setsockopt(zmq.SUBSCRIBE, topic_book_snapshot(symbol).encode())
+
+    def _request_snapshots(self) -> None:
+        """Ask the engine for every constituent's book, whose last_price
+        catches the index up on trades it missed while it or the engine was
+        down (C11). No sequence checking: a missed print is replaced by the
+        next one, and this covers the restarts."""
+        for symbol in sorted(
+            s for s, ids in self._constituent_to_indices.items() if ids
+        ):
+            try:
+                self._engine_push.send_multipart(make_book_snapshot_request_msg(symbol))
+            except zmq.Again:
+                log.debug("could not request book snapshot symbol=%s", symbol)
+                continue
+            self._awaiting_snapshot.add(symbol)
+
+    def _handle_book_snapshot(self, symbol: str, payload: dict[str, Any]) -> None:
+        if symbol not in self._awaiting_snapshot:
+            return
+        self._awaiting_snapshot.discard(symbol)
+        # _handle_trade refuses a missing or unusable price, as for a trade.
+        self._handle_trade(
+            {"symbol": symbol, "price": payload.get("last_price")}, catch_up=True
+        )
 
     def _handle_history_request(self, payload: dict[str, Any]) -> None:
         gateway_id = _clamp_id(payload.get("gateway_id", ""))
@@ -634,12 +832,13 @@ class IndexProcess:
                 )
             return
 
+        old_divisor = idx.calc.divisor
+        calc = copy.deepcopy(idx.calc)
         try:
-            old_divisor = idx.calc.divisor
             if action == "SPLIT":
                 numerator = _int_field(payload, "ratio_numerator", 0)
                 denominator = _int_field(payload, "ratio_denominator", 0)
-                idx.calc.apply_split(
+                calc.apply_split(
                     symbol,
                     ratio_numerator=numerator,
                     ratio_denominator=denominator,
@@ -647,45 +846,55 @@ class IndexProcess:
                 detail = f"{numerator}:{denominator}"
             elif action == "CASH_DIVIDEND":
                 dividend = _float_field(payload, "dividend_per_share", 0.0)
-                idx.calc.apply_cash_dividend(symbol, dividend_per_share=dividend)
+                calc.apply_cash_dividend(symbol, dividend_per_share=dividend)
                 detail = f"div={dividend}"
             elif action == "SHARES_ISSUANCE":
-                new_shares = _int_field(payload, "new_shares_outstanding", 0)
-                idx.calc.apply_shares_issuance(
-                    symbol, new_shares_outstanding=new_shares
-                )
-                detail = f"shares={new_shares}"
+                if ("new_shares_outstanding" in payload) == ("shares_delta" in payload):
+                    raise ValueError(
+                        "exactly one of new_shares_outstanding and shares_delta "
+                        "is required"
+                    )
+                if "shares_delta" in payload:
+                    # Resolved against the live count, which only pm-index
+                    # holds: splits and rebalances change it without a
+                    # record a client could read it back from (C6).
+                    delta = _int_field(payload, "shares_delta", 0)
+                    new_shares = calc.shares_outstanding(symbol) + delta
+                    if new_shares <= 0:
+                        raise ValueError(
+                            f"shares_delta {delta:+d} would leave {symbol} with "
+                            f"{new_shares} shares"
+                        )
+                    detail = f"shares={new_shares} delta={delta:+d}"
+                else:
+                    new_shares = _int_field(payload, "new_shares_outstanding", 0)
+                    detail = f"shares={new_shares}"
+                calc.apply_shares_issuance(symbol, new_shares_outstanding=new_shares)
             else:
                 raise ValueError(f"Unsupported corporate action '{action}'")
-        except (KeyError, ValueError) as exc:
+            level = self._commit(
+                idx,
+                calc,
+                {
+                    "type": "CORP_ACTION",
+                    "symbol": symbol,
+                    "action": action,
+                    "detail": detail,
+                    "old_divisor": old_divisor,
+                    "new_divisor": calc.divisor,
+                },
+            )
+        except (KeyError, ValueError, OSError) as exc:
             self._pub_sock.send_multipart(
                 make_index_corp_action_ack_msg(
                     gateway_id,
                     accepted=False,
-                    reason=str(exc),
+                    reason=_reason(exc),
                     index_id=index_id,
                     command_id=command_id,
                 )
             )
             return
-
-        level = idx.calc.recalculate()
-        self._update_day_ohlc(idx, level)
-        self._publish_level(idx, level, force=True)
-        idx.history.append(
-            {
-                "type": "CORP_ACTION",
-                "ts_ns": time.time_ns(),
-                "index_id": idx.cfg.id,
-                "symbol": symbol,
-                "action": action,
-                "detail": detail,
-                "old_divisor": old_divisor,
-                "new_divisor": idx.calc.divisor,
-                "level": level,
-            }
-        )
-        self._persist_state(idx, level)
 
         self._pub_sock.send_multipart(
             make_index_corp_action_ack_msg(
@@ -697,6 +906,7 @@ class IndexProcess:
                 divisor=idx.calc.divisor,
                 old_divisor=old_divisor,
                 command_id=command_id,
+                shares_outstanding=idx.calc.shares_outstanding(symbol),
             )
         )
 
@@ -722,57 +932,50 @@ class IndexProcess:
                 )
             return
 
+        old_divisor = idx.calc.divisor
+        calc = copy.deepcopy(idx.calc)
         try:
-            old_divisor = idx.calc.divisor
             if change_type == "DELIST":
-                idx.calc.delist_symbol(symbol)
-                self._constituent_to_indices.get(symbol, set()).discard(index_id)
-                event_type = "DELIST"
-                event_payload: dict[str, Any] = {
+                calc.delist_symbol(symbol)
+                record: dict[str, Any] = {
+                    "type": "DELIST",
                     "symbol": symbol,
                     "old_divisor": old_divisor,
-                    "new_divisor": idx.calc.divisor,
+                    "new_divisor": calc.divisor,
                 }
             elif change_type == "ADD":
+                if symbol not in idx.cfg.tradeable_symbols:
+                    raise ValueError(f"{symbol} is not a configured symbol")
                 shares = _int_field(payload, "shares_outstanding", 0)
                 initial_price = _float_field(payload, "initial_price", 0.0)
-                idx.calc.add_constituent(symbol, shares, initial_price)
-                self._constituent_to_indices.setdefault(symbol, set()).add(index_id)
-                event_type = "ADD_CONSTITUENT"
-                event_payload = {
+                calc.add_constituent(symbol, shares, initial_price)
+                record = {
+                    "type": "ADD_CONSTITUENT",
                     "symbol": symbol,
                     "shares_outstanding": shares,
                     "reference_price": initial_price,
                     "old_divisor": old_divisor,
-                    "new_divisor": idx.calc.divisor,
+                    "new_divisor": calc.divisor,
                 }
             else:
                 raise ValueError(f"Unsupported change_type '{change_type}'")
-        except (KeyError, ValueError) as exc:
+            level = self._commit(idx, calc, record)
+        except (KeyError, ValueError, OSError) as exc:
             self._pub_sock.send_multipart(
                 make_index_constituent_change_ack_msg(
                     gateway_id,
                     accepted=False,
-                    reason=str(exc),
+                    reason=_reason(exc),
                     index_id=index_id,
                     command_id=command_id,
                 )
             )
             return
-
-        level = idx.calc.recalculate()
-        self._update_day_ohlc(idx, level)
-        self._publish_level(idx, level, force=True)
-        idx.history.append(
-            {
-                "type": event_type,
-                "ts_ns": time.time_ns(),
-                "index_id": idx.cfg.id,
-                "level": level,
-                **event_payload,
-            }
-        )
-        self._persist_state(idx, level)
+        if change_type == "DELIST":
+            self._constituent_to_indices.get(symbol, set()).discard(index_id)
+        else:
+            self._constituent_to_indices.setdefault(symbol, set()).add(index_id)
+            self._subscribe_book(symbol)
 
         self._pub_sock.send_multipart(
             make_index_constituent_change_ack_msg(
@@ -794,10 +997,9 @@ class IndexProcess:
         applied once per {symbol, new_shares_outstanding} pair in the batch,
         followed by a single recalculate/publish/persist — not one per
         symbol. The whole batch is validated (shape, unknown symbols,
-        non-positive share counts) *before* any mutation, so an invalid
-        entry anywhere in the batch rejects it without applying any of it —
-        the same all-or-nothing guarantee the single-action corp-action
-        handlers get for free by only ever doing one mutation.
+        non-positive share counts) first, then applied to a copy of the
+        index that is swapped in only once persisted, so an invalid entry or
+        a failure anywhere rejects the batch without applying any of it.
         """
         gateway_id = _clamp_id(payload.get("gateway_id", ""))
         index_id = _clamp_id(payload.get("index_id", ""))
@@ -865,43 +1067,28 @@ class IndexProcess:
             parsed.append((symbol, new_shares))
 
         old_divisor = idx.calc.divisor
-        applied: list[str] = []
+        calc = copy.deepcopy(idx.calc)
+        applied = [symbol for symbol, _ in parsed]
         try:
             for symbol, new_shares in parsed:
-                idx.calc.apply_shares_issuance(symbol, new_shares)
-                applied.append(symbol)
-        except ValueError as exc:
-            # Only the aggregate-cap-non-positive guard inside
-            # apply_shares_issuance can still fail here — everything
-            # pre-validated above. Whatever already applied in this batch
-            # stays applied; the corp-action handlers accept the same
-            # limitation for a single mutation, and this is no worse. It is
-            # persisted like any applied change, or a restart would revert it.
-            self._persist_state(idx, idx.calc.recalculate())
-            log.error(
-                "rebalance partially applied before failure index_id=%s applied=%s: %s",
-                index_id,
-                applied,
-                exc,
+                calc.apply_shares_issuance(symbol, new_shares)
+            level = self._commit(
+                idx,
+                calc,
+                {
+                    "type": "REBALANCE",
+                    "symbols": applied,
+                    "updates": [
+                        {"symbol": symbol, "new_shares_outstanding": shares}
+                        for symbol, shares in parsed
+                    ],
+                    "old_divisor": old_divisor,
+                    "new_divisor": calc.divisor,
+                },
             )
-            _reject(f"applied {len(applied)} of {len(parsed)} update(s), then: {exc}")
+        except (ValueError, OSError) as exc:
+            _reject(str(exc))
             return
-
-        level = idx.calc.recalculate()
-        self._update_day_ohlc(idx, level)
-        self._publish_level(idx, level, force=True)
-        idx.history.append(
-            {
-                "type": "REBALANCE",
-                "ts_ns": time.time_ns(),
-                "index_id": idx.cfg.id,
-                "symbols": applied,
-                "old_divisor": old_divisor,
-                "new_divisor": idx.calc.divisor,
-                "level": level,
-            }
-        )
-        self._persist_state(idx, level)
 
         self._pub_sock.send_multipart(
             make_index_rebalance_ack_msg(
@@ -918,6 +1105,10 @@ class IndexProcess:
 
     def _handle_sub_message(self, frames: list[bytes]) -> None:
         """One message from the engine feed; a bad one is logged, never fatal."""
+        if frames and frames[0].startswith(_BOOK_TOPIC_PREFIX):
+            symbol = frames[0][len(_BOOK_TOPIC_PREFIX) :].decode(errors="replace")
+            if symbol not in self._awaiting_snapshot:
+                return
         try:
             topic, payload = decode(frames)
         except Exception as exc:
@@ -932,7 +1123,9 @@ class IndexProcess:
             elif topic == topic_session_status(_SESSION_STATUS_GATEWAY_ID):
                 self._handle_session_status(payload)
             elif topic == TOPIC_EOD:
-                self._finalize_eod()
+                self._handle_engine_eod()
+            elif topic.startswith(_BOOK_TOPIC_PREFIX.decode()):
+                self._handle_book_snapshot(topic[len(_BOOK_TOPIC_PREFIX) :], payload)
         except Exception as exc:
             log.warning("error handling %s: %s", topic, exc)
 
@@ -956,6 +1149,15 @@ class IndexProcess:
         except Exception as exc:
             log.warning("error handling %s: %s", topic, exc)
 
+    def _publish_pending(self, now: float) -> None:
+        """Broadcast each throttled level whose publish interval has passed."""
+        for idx in self._indices.values():
+            if (
+                idx.pending
+                and now - idx.last_publish_time >= idx.cfg.publish_interval_sec
+            ):
+                self._publish_level(idx, idx.calc.recalculate())
+
     def _checkpoint(self, now: float | None = None, force: bool = False) -> None:
         """Write the state of every index whose prices moved since its last write.
 
@@ -968,7 +1170,36 @@ class IndexProcess:
                 continue
             if not force and now - idx.last_checkpoint < CHECKPOINT_INTERVAL_SEC:
                 continue
-            self._persist_state(idx, idx.calc.recalculate())
+            try:
+                self._persist_state(idx, idx.calc.recalculate())
+            except OSError as exc:
+                # The state file is a checkpoint: failing to write it must not
+                # stop the live index (C8). It stays dirty and is retried at
+                # the next interval, not on every pass.
+                idx.last_checkpoint = now
+                log.error(
+                    "index %s: state checkpoint failed, retrying in %.0f s: %s",
+                    idx.cfg.id,
+                    CHECKPOINT_INTERVAL_SEC,
+                    exc,
+                )
+
+    def _flush_history(self) -> None:
+        """Flush every history file; a failure keeps the records buffered for
+        the next pass and is logged once until a flush succeeds (C8)."""
+        for idx in self._indices.values():
+            try:
+                idx.history.flush()
+            except OSError as exc:
+                if not idx.history_flush_failed:
+                    log.error(
+                        "index %s: history flush failed, retrying: %s",
+                        idx.cfg.id,
+                        exc,
+                    )
+                idx.history_flush_failed = True
+                continue
+            idx.history_flush_failed = False
 
     def run(self) -> None:
         self._initialise()
@@ -1001,20 +1232,32 @@ class IndexProcess:
             except zmq.ZMQError as exc:
                 if exc.errno != errno.EINTR:
                     raise
-                break
+                # A signal: its handler has run, and stop() is what ends the
+                # loop (C9).
+                continue
 
             if self._health_rep in socks:
                 answer_health_ping(self._health_rep)
 
+            # Take what is already queued, up to a bound, before polling
+            # again: one poll per message was a syscall, a checkpoint scan
+            # and a history flush per trade (P2).
             if self._sub_sock in socks:
-                self._handle_sub_message(self._sub_sock.recv_multipart())
+                self._drain(self._sub_sock, self._handle_sub_message)
 
             if self._pull_sock in socks:
-                self._handle_pull_message(self._pull_sock.recv_multipart())
+                self._drain(self._pull_sock, self._handle_pull_message)
 
+            self._publish_pending(time.monotonic())
             self._checkpoint()
-            for idx in self._indices.values():
-                idx.history.flush()
+            self._flush_history()
+
+    def _drain(self, sock: Any, handle: Callable[[list[bytes]], None]) -> None:
+        handle(sock.recv_multipart())
+        drained = 1
+        while drained < _DRAIN_PER_WAKE and sock.poll(0):
+            handle(sock.recv_multipart())
+            drained += 1
 
     def stop(self) -> None:
         """Ask the poll loop to exit; run() returns within one poll timeout."""
@@ -1033,8 +1276,15 @@ class IndexProcess:
         log.info("closing index process")
         self._checkpoint(force=True)
         for idx in self._indices.values():
-            idx.history.flush()
-            idx.history.close()
+            try:
+                idx.history.close()  # flushes
+            except OSError as exc:
+                log.error(
+                    "index %s: history file could not be written at close; "
+                    "its unwritten records are lost: %s",
+                    idx.cfg.id,
+                    exc,
+                )
         self._sub_sock.close()
         self._engine_push.close()
         self._pull_sock.close()
@@ -1068,7 +1318,10 @@ def build_parser() -> argparse.ArgumentParser:
         "-q",
         "--quiet",
         action="store_true",
-        help="Reduce log output to warnings/errors",
+        help=(
+            "Log warnings and errors only; this is the default, and -v or "
+            "--log-level override it"
+        ),
     )
     parser.add_argument(
         "--log-target",

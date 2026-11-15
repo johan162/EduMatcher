@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from edumatcher.config_gen.cli_parser import finite_float
+
 
 @dataclass
 class SymbolOverride:
@@ -51,18 +53,18 @@ _ALLOWED_KEYS = {
 def parse_symbol_opts(
     specs: list[str],
     allowed_symbols: set[str],
-) -> tuple[dict[str, SymbolOverride], list[str]]:
+) -> dict[str, SymbolOverride]:
+    """Parse every --symbol-opts spec; any problem is a ValueError.
+
+    Like the dedicated per-symbol flags, a bad spec is refused rather than
+    left out of the file with a warning.
+    """
     overrides: dict[str, SymbolOverride] = {}
-    warnings: list[str] = []
 
     for raw in specs:
         symbol, csv_payload = _split_symbol_spec(raw)
         if symbol not in allowed_symbols:
-            warnings.append(
-                f"[WARN] --symbol-opts references unknown symbol {symbol}. "
-                "Override ignored."
-            )
-            continue
+            raise ValueError(f"--symbol-opts references unknown symbol '{symbol}'")
 
         override = overrides.setdefault(symbol, SymbolOverride())
         for token in csv_payload.split(","):
@@ -70,30 +72,27 @@ def parse_symbol_opts(
             if not token:
                 continue
             if "=" not in token:
-                warnings.append(
-                    f"[WARN] Ignoring malformed symbol option '{token}' in '{raw}'."
+                raise ValueError(
+                    f"Invalid --symbol-opts '{raw}': '{token}' is not KEY=VALUE"
                 )
-                continue
 
             key_raw, value_raw = token.split("=", 1)
             key = key_raw.strip().lower()
             value = value_raw.strip()
             if key not in _ALLOWED_KEYS:
-                warnings.append(
-                    f"[WARN] Unknown --symbol-opts key '{key_raw}' for {symbol}. "
-                    "Ignored."
+                raise ValueError(
+                    f"Invalid --symbol-opts '{raw}': unknown key '{key_raw}'; "
+                    f"one of {', '.join(sorted(_ALLOWED_KEYS))}"
                 )
-                continue
 
-            _apply_symbol_option(
-                override=override,
-                symbol=symbol,
-                key=key,
-                value=value,
-                warnings=warnings,
-            )
+            try:
+                _apply_symbol_option(override=override, key=key, value=value)
+            except ValueError as exc:
+                raise ValueError(
+                    f"Invalid --symbol-opts '{raw}': {key}={value} ({exc})"
+                ) from None
 
-    return overrides, warnings
+    return overrides
 
 
 def _split_symbol_spec(raw: str) -> tuple[str, str]:
@@ -112,119 +111,110 @@ def _split_symbol_spec(raw: str) -> tuple[str, str]:
     return symbol, payload
 
 
-def _apply_symbol_option(
-    override: SymbolOverride,
-    symbol: str,
-    key: str,
-    value: str,
-    warnings: list[str],
-) -> None:
-    try:
-        if key == "tick_decimals":
-            parsed_int = int(value)
-            if not (0 <= parsed_int <= 8):
-                raise ValueError("tick_decimals must be in range 0..8")
-            override.tick_decimals = parsed_int
-            return
+def _apply_symbol_option(override: SymbolOverride, key: str, value: str) -> None:
+    """Apply one KEY=VALUE to *override*; a bad value is a ValueError."""
+    if key == "tick_decimals":
+        parsed_int = int(value)
+        if not (0 <= parsed_int <= 8):
+            raise ValueError("tick_decimals must be in range 0..8")
+        override.tick_decimals = parsed_int
+        return
 
-        if key == "static_band":
-            parsed_float = float(value)
-            if not (0 < parsed_float < 1):
-                raise ValueError("static_band must be in (0, 1)")
-            override.static_band_pct = parsed_float
-            return
+    if key == "static_band":
+        parsed_float = float(value)
+        if not (0 < parsed_float < 1):
+            raise ValueError("static_band must be in (0, 1)")
+        override.static_band_pct = parsed_float
+        return
 
-        if key == "dynamic_band":
-            parsed_float = float(value)
-            if not (0 < parsed_float < 1):
-                raise ValueError("dynamic_band must be in (0, 1)")
-            override.dynamic_band_pct = parsed_float
-            return
+    if key == "dynamic_band":
+        parsed_float = float(value)
+        if not (0 < parsed_float < 1):
+            raise ValueError("dynamic_band must be in (0, 1)")
+        override.dynamic_band_pct = parsed_float
+        return
 
-        if key == "max_order_qty":
-            parsed_int = int(value)
-            if parsed_int <= 0:
-                raise ValueError("max_order_qty must be > 0")
-            override.max_order_qty = parsed_int
-            return
+    if key == "max_order_qty":
+        parsed_int = int(value)
+        if parsed_int <= 0:
+            raise ValueError("max_order_qty must be > 0")
+        override.max_order_qty = parsed_int
+        return
 
-        if key == "max_order_value":
-            parsed_float = float(value)
-            if parsed_float <= 0:
-                raise ValueError("max_order_value must be > 0")
-            override.max_order_value = parsed_float
-            return
+    if key == "max_order_value":
+        parsed_float = finite_float(value)
+        if parsed_float <= 0:
+            raise ValueError("max_order_value must be > 0")
+        override.max_order_value = parsed_float
+        return
 
-        if key.startswith("cb_shift_l"):
-            level = key.split("_")[-1].upper()
-            parsed_float = float(value)
-            if not (0 < parsed_float < 1):
-                raise ValueError("cb_shift must be in (0, 1)")
-            override.cb_shift[level] = parsed_float
-            return
+    if key.startswith("cb_shift_l"):
+        level = key.split("_")[-1].upper()
+        parsed_float = float(value)
+        if not (0 < parsed_float < 1):
+            raise ValueError("cb_shift must be in (0, 1)")
+        override.cb_shift[level] = parsed_float
+        return
 
-        if key.startswith("cb_halt_l"):
-            level = key.split("_")[-1].upper()
-            parsed_int = int(value)
-            if parsed_int < 0:
-                raise ValueError("cb_halt must be >= 0")
-            override.cb_halt_mins[level] = parsed_int
-            return
+    if key.startswith("cb_halt_l"):
+        level = key.split("_")[-1].upper()
+        parsed_int = int(value)
+        if parsed_int <= 0:
+            raise ValueError(
+                "cb_halt must be > 0 minutes; omit it for a rest-of-day halt"
+            )
+        override.cb_halt_mins[level] = parsed_int
+        return
 
-        if key == "level":
-            parsed_level = value.strip().upper()
-            if not parsed_level:
-                raise ValueError("level cannot be empty")
-            override.level = parsed_level
-            return
+    if key == "level":
+        parsed_level = value.strip().upper()
+        if not parsed_level:
+            raise ValueError("level cannot be empty")
+        override.level = parsed_level
+        return
 
-        if key == "mm_spread_ticks":
-            parsed_int = int(value)
-            if parsed_int <= 0:
-                raise ValueError("mm_spread_ticks must be > 0")
-            override.mm_spread_ticks = parsed_int
-            return
+    if key == "mm_spread_ticks":
+        parsed_int = int(value)
+        if parsed_int <= 0:
+            raise ValueError("mm_spread_ticks must be > 0")
+        override.mm_spread_ticks = parsed_int
+        return
 
-        if key == "mm_min_qty":
-            parsed_int = int(value)
-            if parsed_int <= 0:
-                raise ValueError("mm_min_qty must be > 0")
-            override.mm_min_qty = parsed_int
-            return
+    if key == "mm_min_qty":
+        parsed_int = int(value)
+        if parsed_int <= 0:
+            raise ValueError("mm_min_qty must be > 0")
+        override.mm_min_qty = parsed_int
+        return
 
-        if key == "enforce_mm_obligation":
-            if value.lower() in ("true", "1", "yes"):
-                override.enforce_mm_obligation = True
-            elif value.lower() in ("false", "0", "no"):
-                override.enforce_mm_obligation = False
-            else:
-                raise ValueError("enforce_mm_obligation must be true or false")
-            return
+    if key == "enforce_mm_obligation":
+        if value.lower() in ("true", "1", "yes"):
+            override.enforce_mm_obligation = True
+        elif value.lower() in ("false", "0", "no"):
+            override.enforce_mm_obligation = False
+        else:
+            raise ValueError("enforce_mm_obligation must be true or false")
+        return
 
-        if key == "ace_enabled":
-            if value.lower() in ("true", "1", "yes"):
-                override.ace_enabled = True
-            elif value.lower() in ("false", "0", "no"):
-                override.ace_enabled = False
-            else:
-                raise ValueError("ace_enabled must be true or false")
-            return
+    if key == "ace_enabled":
+        if value.lower() in ("true", "1", "yes"):
+            override.ace_enabled = True
+        elif value.lower() in ("false", "0", "no"):
+            override.ace_enabled = False
+        else:
+            raise ValueError("ace_enabled must be true or false")
+        return
 
-        if key == "ace_initial_band":
-            parsed_float = float(value)
-            if not (0 < parsed_float < 1):
-                raise ValueError("ace_initial_band must be in (0, 1)")
-            override.ace_initial_band_pct = parsed_float
-            return
+    if key == "ace_initial_band":
+        parsed_float = float(value)
+        if not (0 < parsed_float < 1):
+            raise ValueError("ace_initial_band must be in (0, 1)")
+        override.ace_initial_band_pct = parsed_float
+        return
 
-        if key == "ace_random_end_ns":
-            parsed_int = int(value)
-            if parsed_int < 0:
-                raise ValueError("ace_random_end_ns must be >= 0")
-            override.ace_random_end_max_ns = parsed_int
-            return
-
-    except ValueError as exc:
-        warnings.append(
-            f"[WARN] Invalid value for {symbol}:{key}={value} ({exc}). Ignored."
-        )
+    if key == "ace_random_end_ns":
+        parsed_int = int(value)
+        if parsed_int < 0:
+            raise ValueError("ace_random_end_ns must be >= 0")
+        override.ace_random_end_max_ns = parsed_int
+        return

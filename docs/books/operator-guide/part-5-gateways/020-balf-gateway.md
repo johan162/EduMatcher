@@ -124,7 +124,7 @@ listed in `participants` can connect to `pm-balf-gwy`.
 | `heartbeat_interval_sec` | `1` | Seconds between server-initiated `HEARTBEAT` frames |
 | `heartbeat_timeout_sec` | `5` | Disconnect if no inbound traffic for this many seconds |
 | `idle_timeout_sec` | `30` | Accepted but currently unused by the gateway runtime (only `heartbeat_timeout_sec` drives idle-session disconnects); reserved for future use |
-| `auth_timeout_sec` | `10` | Hard-close if `LOGON` is not answered within this window |
+| `auth_timeout_sec` | `10` | Close a connection that has not completed `LOGON` this many seconds after it was opened (no `LOGON_ACK` is sent); also the longest wait for the engine's symbol metadata after it accepted the logon, which ends with `LOGON_ACK(accepted=0, msg=SYMBOLS_UNAVAILABLE)` |
 | `max_connections` | `64` | Maximum simultaneous TCP connections |
 | `max_client_queue` | `10000` | Per-client outbound frame buffer capacity |
 | `max_messages_per_second` | `100` | Token-bucket rate limit per client |
@@ -329,7 +329,10 @@ After `accepted = 1`, the client may send `NEW_ORDER`, `CANCEL_ORDER`,
 `AMEND_ORDER`, `HEARTBEAT`, `HEARTBEAT_ACK`, and `LOGOUT`.
 
 Sequence numbers start at `1` for the first non-LOGON message in each
-direction.
+direction and go up by one per frame. The gateway checks the client's: a gap
+or a repeat closes the connection at once (logged as
+`BALF sequence error … expected N, got M`). After a new `LOGON` the client
+starts again at `1`.
 
 ### Step 4 — Receive server messages
 
@@ -340,8 +343,28 @@ client messages.  The client must always be able to read them.  See
 ### Step 5 — Disconnect
 
 Send `LOGOUT` (msg_type `0x40`, 8 bytes, header only) for a graceful close.
-The gateway notifies the engine and closes the TCP connection after flushing
-any pending outbound frames.
+The gateway notifies the engine at once, so the gateway ID can log on again
+straight away, then sends any pending outbound frames and closes the TCP
+connection. A client that does not read them within 5 seconds is
+disconnected anyway.
+
+### Reconnecting
+
+BALF `order_id`s belong to the gateway ID, not to the TCP connection.
+Whether an order survives a disconnect is the participant's
+`disconnect_behaviour` (see [below](#disconnect-behaviour-and-passive-order-policy));
+the default, `CANCEL_QUOTES_ONLY`, leaves ordinary orders on the book. When
+the same gateway ID logs on again to the same `pm-balf-gwy`, the new session
+receives the `EXECUTION_REPORT`, `STOP_TRIGGERED` and `CANCEL_ACK` frames of
+those orders under their original `order_id` and `client_order_id`, and can
+cancel or amend them. New orders continue the numbering, so an old ID never
+names a new order.
+
+Events that arrive while no session of the ID is logged on are not replayed.
+A **restart of `pm-balf-gwy`** forgets every `order_id`: orders left on the
+book can no longer be reached over BALF. A participant who cannot afford that
+should use `disconnect_behaviour: CANCEL_ALL`, or reconcile through
+drop-copy, REST or the clearing reports.
 
 
 ## Message reference
@@ -371,7 +394,9 @@ byte layouts, offset tables, and encoding rules for all messages.
 | `0x15` | `AMEND_ACK` | 48 | Amend confirmed or rejected |
 | `0x20` | `EXECUTION_REPORT` | 64 | Partial or full fill |
 | `0x30` | `HEARTBEAT` | 16 | Server-initiated liveness probe |
+| `0x21` | `STOP_TRIGGERED` | 56 | A stop, stop-limit or trailing stop fired; sent before its `EXECUTION_REPORT`s |
 | `0x31` | `HEARTBEAT_ACK` | 16 | Reply to a client `HEARTBEAT` |
+| `0x40` | `LOGOUT` | 8 | The gateway is ending the session: engine restart, lost engine events, or gateway shutdown |
 
 !!! tip "Reading frame size"
     All frame sizes are fixed and known from the header `msg_type` byte.  Read
@@ -431,6 +456,8 @@ When `ORDER_ACK.accepted = 0`, the `reject_code` byte classifies the rejection.
 | `0x0A` | Insufficient liquidity |
 | `0x0B` | Price collar rejection |
 | `0x0C` | Invalid field / gateway validation failure |
+| `0x0D` | Rate limited — more than `max_messages_per_second`; resend later |
+| `0x0E` | Risk limit — maximum order quantity or value, position limit, or an active kill switch |
 | `0xFF` | Other — read the `reason` field for the engine detail text |
 
 The `reason` field (25 bytes, ASCII) always contains the authoritative engine
@@ -543,10 +570,11 @@ event).
 | Field | Description |
 |-------|-------------|
 | `client_order_id` | Echoed from the original `NEW_ORDER` |
-| `order_id` | Gateway-assigned session-scoped ID |
+| `order_id` | Gateway-assigned ID (kept across sessions of the gateway ID) |
 | `fill_price` | Execution price × 10⁸ (i64 LE) |
 | `fill_qty` | Quantity matched in this event |
 | `remaining_qty` | Unfilled quantity after this fill |
+| `timestamp_ns` | Match time of the trade, as the engine stamped it |
 | `status` | `1` = PARTIAL, `2` = FILLED |
 
 ### CANCEL_ACK
@@ -555,12 +583,21 @@ A `CANCEL_ACK` may arrive because:
 
 1. **Client cancel confirmed** — the engine processed a `CANCEL_ORDER` request
 2. **Cancel rejected** — `CANCEL_ORDER` failed (e.g. order not found); `accepted = 0`
-3. **System-originated cancel** — SMP, session-end policy, or expiry; `cancel_reason = 255`
+3. **Exchange-originated cancel** — the exchange cancelled the order; `cancel_reason` says why
 
 | `cancel_reason` | Meaning |
 |-----------------|---------|
 | `0` | Explicit client `CANCEL_ORDER` confirmed |
-| `255` | System-originated (SMP, session-end, expiry) |
+| `1` | Self-match prevention |
+| `2` | Insufficient liquidity (an IOC / MARKET remainder) |
+| `3` | Kill switch |
+| `4` | Circuit-breaker halt |
+| `5` | Gateway disconnect (`disconnect_behaviour`) |
+| `6` | An operator cancelled the symbol's orders |
+| `7` | Quote replaced |
+| `8` | Quote leg filled |
+| `254` | Expired (DAY at the end of the day, ATO / ATC at the end of their auction) |
+| `255` | The exchange cancelled it and gave no reason |
 
 ### AMEND_ACK
 
@@ -590,10 +627,12 @@ gateway identity in `participants`:
 
 Disconnect trigger classes:
 
-- Graceful client `LOGOUT`
+- Graceful client `LOGOUT` (the engine is told at once, before the last frames are flushed)
 - Heartbeat timeout (`heartbeat_timeout_sec` without inbound traffic)
-- Transport break (TCP FIN / RST, peer closed)
-- Protocol safety disconnect (bad framing, unknown `msg_type`, outbound queue overflow, repeated errors). A non-zero `flags` byte is currently tolerated (logged, not rejected), not a disconnect trigger
+- Transport break (TCP FIN / RST, peer closed, a send or receive error)
+- Protocol safety disconnect (bad framing, unknown `msg_type`, a sequence gap or repeat, outbound queue overflow, repeated errors). A non-zero `flags` byte is tolerated (logged, not rejected), not a disconnect trigger
+- Lost engine events: the gateway saw a gap in the engine's sequence for this gateway ID, sends `LOGOUT` and closes (counted in `gwy.events_lost`)
+- Gateway shutdown: `LOGOUT` to every session after the frames already owed are sent
 
 
 ## Duplicate session policy
@@ -604,7 +643,7 @@ session, the gateway's response depends on `duplicate_session_policy`:
 | Policy | Behaviour |
 |--------|-----------|
 | `REJECT_NEW` (default) | Second `LOGON` receives `LOGON_ACK(accepted=0, reject_code=0x02)` |
-| `EVICT_OLD` | First session is disconnected; second session proceeds to auth |
+| `EVICT_OLD` | First session is disconnected; second session proceeds to auth and keeps the first session's `order_id`s |
 
 
 ## Example: minimal Python BALF client
@@ -867,10 +906,12 @@ EOF
 | `LOGON_ACK accepted=0, code=0x02` | Same gateway ID already connected | Disconnect the other session, or use `duplicate_session_policy: EVICT_OLD` |
 | `LOGON_ACK accepted=0, code=0x03` | `proto_version` byte is not `1` | Fix the LOGON frame builder |
 | `LOGON_ACK accepted=0, code=0xFF, msg=SYMBOLS_UNAVAILABLE` | Engine accepted the connection but never answered `system.symbols_request` | Check `pm-engine` health, then log on again |
-| Session receives `LOGOUT` and the TCP connection closes | `pm-engine` restarted, so it no longer holds this session | Log on again; the gateway re-requests symbol metadata |
+| Session receives `LOGOUT` and the TCP connection closes | `pm-engine` restarted, so it no longer holds this session; or engine events for the session were lost (pm-balf-gwy logs `engine dropped … event(s)`) | Log on again (the gateway re-requests symbol metadata); after lost events, check orders and position through drop-copy, REST or clearing, since missed fills are not resent |
+| Connection closes right after a frame, log says `BALF sequence error … expected N, got M` | The client numbered a frame wrongly | Number every frame after `LOGON` 1, 2, 3, …; start again at 1 after each `LOGON` |
+| `ORDER_ACK accepted=0, code=0x0D` | More than `max_messages_per_second` | Slow down; the order was not sent to the engine |
 | Connection closes ~5 s after last message | `heartbeat_timeout_sec` elapsed | Send `HEARTBEAT` frames and reply to server `HEARTBEAT` with `HEARTBEAT_ACK` |
 | `ORDER_ACK accepted=0` | Field validation failure or engine rejection | Inspect `reason` field; check reject code table above |
-| Unknown `msg_type` → connection closed | Client sent a server-direction frame | Only send client-direction frames: `LOGON`, `NEW_ORDER`, `CANCEL_ORDER`, `AMEND_ORDER`, `HEARTBEAT`, `HEARTBEAT_ACK`, `LOGOUT` |
+| Connection closed right after connecting and sending a frame | The first frame was not `LOGON`, or its `msg_type` is not a BALF type | Send `LOGON` first. After logon, a known server-direction frame (e.g. `ORDER_ACK`) is ignored, but an unknown `msg_type` always closes the connection |
 | Corrupt response / partial reads | Client reads wrong number of bytes | Always read header first (8 bytes), look up `FRAME_SIZES[msg_type]`, then read exactly that many additional bytes |
 | Gateway not reachable from another host | `bind_address: 127.0.0.1` | Change `bind_address` to `0.0.0.0` or the specific interface IP |
 

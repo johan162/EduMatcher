@@ -231,6 +231,8 @@ static void handle_message(const dc_message_t *msg) {
         const char *px_str = dc_get_field(msg, "FILL_PRICE");
         const char *liquidity = dc_get_field(msg, "LIQUIDITY");
         const char *order_id = dc_get_field(msg, "ORDER_ID");
+        const char *trade_id = dc_get_field(msg, "TRADE_ID");
+        const char *ts = dc_get_field(msg, "TS");
         symbol = symbol ? symbol : "";
         check_sequence(seq);
 
@@ -252,10 +254,10 @@ static void handle_message(const dc_message_t *msg) {
                 tally->taker_qty += qty;
             }
         }
-        printf("FILL  %-8s %6s @ %10s %-5s order=%s seq=%s  [%s: %ld qty, VWAP %.4f]\n", symbol,
-               qty_str ? qty_str : "?", px_str ? px_str : "?", liquidity ? liquidity : "?",
-               order_id ? order_id : "?", seq ? seq : "?", symbol, tally ? tally->total_qty : 0L,
-               tally ? vwap(tally) : 0.0);
+        printf("FILL  %-8s %6s @ %10s %-5s order=%s trade=%s seq=%s at %s  [%s: %ld qty, VWAP %.4f]\n",
+               symbol, qty_str ? qty_str : "?", px_str ? px_str : "?", liquidity ? liquidity : "?",
+               order_id ? order_id : "?", trade_id ? trade_id : "?", seq ? seq : "?", ts ? ts : "?",
+               symbol, tally ? tally->total_qty : 0L, tally ? vwap(tally) : 0.0);
     } else if (strcmp(msg->msg_type, "HB") == 0) {
         printf("HB    (gateway heartbeat)\n");
     } else if (strcmp(msg->msg_type, "PONG") == 0) {

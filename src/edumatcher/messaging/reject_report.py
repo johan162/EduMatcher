@@ -12,7 +12,10 @@ host, not ``host:port``: a client that opens a new connection per request (any
 plain HTTP client against the REST gateway) comes from a new source port each
 time.  The record still names the full peer of the refusal that sent it.  The
 count of the final burst is lost if the peer then goes quiet; the first record
-of the burst, with its time, is not.
+of the burst, with its time, is not.  That is the only loss: a record the
+engine could not take is retried, with everything folded since, at the next
+refusal after ``interval``, and a full table sends what it folded before it
+forgets it.
 """
 
 from __future__ import annotations
@@ -48,8 +51,9 @@ class RejectReporter:
         self._send = send
         self._interval = interval
         self._clock = clock
-        #: (peer host, code) -> (time of last record, refusals folded in since)
-        self._state: dict[tuple[str, str], tuple[float, int]] = {}
+        #: (peer host, code) -> (time of the last record tried, refusals folded
+        #: in since, and the gateway id, peer and reason of the last of them)
+        self._state: dict[tuple[str, str], tuple[float, int, str, str, str]] = {}
 
     @property
     def tracked(self) -> int:
@@ -61,13 +65,47 @@ class RejectReporter:
             return
         now = self._clock()
         key = (_host(peer), code)
-        last, folded = self._state.get(key, (None, 0))
-        if last is not None and now - last < self._interval:
-            self._state[key] = (last, folded + 1)
-            return
-        if len(self._state) >= _MAX_TRACKED:
-            self._state.clear()
-        self._state[key] = (now, 0)
+        entry = self._state.get(key)
+        folded = 0
+        if entry is not None:
+            last, folded = entry[0], entry[1]
+            if now - last < self._interval:
+                self._state[key] = (last, folded + 1, gateway_id, peer, reason)
+                return
+        elif len(self._state) >= _MAX_TRACKED:
+            self._flush()
+        if self._record(code, gateway_id, peer, reason, folded + 1):
+            self._state[key] = (now, 0, gateway_id, peer, reason)
+        else:
+            # Not sent: keep the refusal for the next try, an interval on.
+            self._state[key] = (now, folded + 1, gateway_id, peer, reason)
+
+    def _flush(self) -> None:
+        """Send every folded count, then forget every peer.  With the engine
+        away the counts are lost, said once rather than once a peer."""
+        lost = 0
+        for (_host_key, code), (_, folded, gateway_id, peer, reason) in list(
+            self._state.items()
+        ):
+            if folded and not self._record(
+                code, gateway_id, peer, reason, folded, warn=False
+            ):
+                lost += folded
+        self._state.clear()
+        if lost:
+            log.warning("cannot report %d folded refusals to the engine", lost)
+
+    def _record(
+        self,
+        code: str,
+        gateway_id: str,
+        peer: str,
+        reason: str,
+        count: int,
+        *,
+        warn: bool = True,
+    ) -> bool:
+        """Send one record; whether it went."""
         try:
             self._send(
                 make_gateway_reject_msg(
@@ -76,12 +114,17 @@ class RejectReporter:
                     peer=peer[:64],
                     reject_code=code,
                     reason=reason[:256],
-                    count=folded + 1,
+                    count=count,
                     ts_ns=time.time_ns(),
                 )
             )
         except Exception as exc:  # recording must never stop a gateway
-            log.warning("cannot report %s from %s to the engine: %s", code, peer, exc)
+            if warn:
+                log.warning(
+                    "cannot report %s from %s to the engine: %s", code, peer, exc
+                )
+            return False
+        return True
 
 
 def _host(peer: str) -> str:

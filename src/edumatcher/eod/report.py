@@ -4,7 +4,8 @@ Everything here is pure data in, text out; :mod:`edumatcher.eod.assemble`
 builds the :class:`DayReport` from the databases.  The wording of the
 statements lives in this module only.
 
-Layout of ``<eod dir>/<date>/``::
+Layout of ``<data>/settlement/<date>/`` (not ``<data>/eod/``, which is the
+engine's)::
 
     statements/<gateway>.md|.json|.csv
     summary.md|.json
@@ -53,6 +54,10 @@ class Statement:
     symbol_pnl: dict[str, Decimal]
     positions: tuple[PositionLine, ...]
     trades: tuple[TradeLine, ...]
+    #: The last settled date before ``trade_date`` when the result covers more
+    #: than one closed day (a closed day in between was never settled); the
+    #: trade list is ``trade_date``'s only.  ``None`` for a one-day result.
+    since: str | None = None
 
 
 @dataclass(frozen=True)
@@ -108,7 +113,12 @@ def render_statement_md(s: Statement) -> str:
         "",
         f"**{_verdict(s.amount_minor)}**",
         "",
-        f"- Today's result: {fmt_minor(s.amount_minor)}",
+        (
+            f"- Result since the close of {s.since}: {fmt_minor(s.amount_minor)}"
+            f" (no day in between was settled; the trades below are {s.trade_date}'s)"
+            if s.since
+            else f"- Today's result: {fmt_minor(s.amount_minor)}"
+        ),
         f"- Balance after today: {fmt_minor(s.balance_minor)}",
         "",
         "## Result by symbol",
@@ -152,6 +162,7 @@ def _statement_dict(s: Statement) -> dict[str, Any]:
         "listed": s.listed,
         "amount_minor": s.amount_minor,
         "amount": fmt_minor(s.amount_minor),
+        "since": s.since,
         "balance_minor": s.balance_minor,
         "balance": fmt_minor(s.balance_minor),
         "symbol_pnl": {k: f"{v:.2f}" for k, v in sorted(s.symbol_pnl.items())},
@@ -309,12 +320,16 @@ def _render_summary_md(rep: DayReport) -> str:
 def _write_files(root: Path, rep: DayReport) -> None:
     (root / "statements").mkdir(parents=True)
     for s in rep.statements:
-        stem = root / "statements" / s.gateway
-        stem.with_suffix(".md").write_text(render_statement_md(s), encoding="utf-8")
-        stem.with_suffix(".json").write_text(
+        # Not with_suffix(): it would cut "GW.A" to "GW" and let "GW.B"
+        # overwrite it.
+        folder = root / "statements"
+        (folder / f"{s.gateway}.md").write_text(
+            render_statement_md(s), encoding="utf-8"
+        )
+        (folder / f"{s.gateway}.json").write_text(
             json.dumps(_statement_dict(s), indent=2) + "\n", encoding="utf-8"
         )
-        _write_statement_csv(stem.with_suffix(".csv"), s)
+        _write_statement_csv(folder / f"{s.gateway}.csv", s)
     (root / "summary.md").write_text(_render_summary_md(rep), encoding="utf-8")
     (root / "summary.json").write_text(
         json.dumps(_summary_dict(rep), indent=2) + "\n", encoding="utf-8"
@@ -327,17 +342,18 @@ def write_day(base: Path, rep: DayReport) -> Path:
     """Write the day under ``base/<date>``, replacing any earlier version.
 
     Files go to a sibling work directory that is renamed into place at the end,
-    so a reader never sees a half-written day and a failed write leaves the
-    previous one untouched.
+    so a reader never sees a half-written day.  A failed write leaves the
+    previous version in place; if the final rename fails after the previous
+    version was moved aside, it is moved back.
     """
     final = base / rep.trade_date
     work = base / f".{rep.trade_date}.partial"
+    old = base / f".{rep.trade_date}.old"
     shutil.rmtree(work, ignore_errors=True)
     work.mkdir(parents=True)
     try:
         _write_files(work, rep)
         if final.exists():
-            old = base / f".{rep.trade_date}.old"
             shutil.rmtree(old, ignore_errors=True)
             final.rename(old)
             work.rename(final)
@@ -346,5 +362,7 @@ def write_day(base: Path, rep: DayReport) -> Path:
             work.rename(final)
     except BaseException:
         shutil.rmtree(work, ignore_errors=True)
+        if old.exists() and not final.exists():
+            old.rename(final)  # the swap failed halfway: put the old day back
         raise
     return final

@@ -167,11 +167,14 @@ static void parse_cancel_ack(const uint8_t *body, size_t len) {
         fprintf(stderr, "CANCEL_ACK body size error: %zu\n", len);
         return;
     }
-    printf("CANCEL_ACK client_order_id=%llu order_id=%llu accepted=%u by=%s\n",
+    /* 0 = the client asked; any other code is the exchange's decision
+       (1-8 name the cause, 254 = expired, 255 = cause unstated). */
+    printf("CANCEL_ACK client_order_id=%llu order_id=%llu accepted=%u by=%s reason=%u\n",
            (unsigned long long)read_u64_le(body),
            (unsigned long long)read_u64_le(body + 8),
            (unsigned)body[16],
-           body[17] == CANCEL_REASON_SYSTEM ? "exchange" : "client");
+           body[17] != CANCEL_REASON_CLIENT ? "exchange" : "client",
+           (unsigned)body[17]);
 }
 
 static void parse_amend_ack(const uint8_t *body, size_t len) {

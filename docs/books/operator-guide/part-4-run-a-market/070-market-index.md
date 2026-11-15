@@ -252,30 +252,54 @@ evolves only through explicit corporate-action adjustments.
 ### Update trigger
 
 `pm-index` recalculates after every `trade.executed` message for a constituent
-symbol. Trades in non-constituent symbols are ignored. The calculation is O(N)
-in the number of constituents — fast enough for any educational exchange.
+symbol. Trades in non-constituent symbols are ignored. A trade adjusts the
+aggregate market cap by its own price change, so its cost does not grow with
+the number of constituents; a corporate action or constituent change
+recomputes the cap in full.
 
 ### Reference prices
 
-When no trade has occurred for a constituent since startup, a reference price
-seeded from the engine config is used: the average of `last_buy_price` and
+On a fresh start (no state file), each constituent starts at a reference
+price seeded from the engine config: the average of `last_buy_price` and
 `last_sell_price` when both are set, or whichever one is set if only one is
 present. A symbol with neither field set fails to load as an index
-constituent. Once the first real trade arrives the reference price is
-replaced by the actual trade price.
+constituent. After a restart, the state file's last prices are used instead.
+
+Either way, `pm-index` then catches up: when the engine answers its
+session-status request — at start, and again after the engine has shut
+down (its `system.eod`) and come back; an engine that was killed sends no
+`system.eod` — `pm-index` asks the engine for every constituent's
+book and applies the book's last traded price as if it were a trade. Trades
+that happened while `pm-index` or the engine was down are therefore reflected
+straight away, not only when the constituent next trades. A book with no
+trade yet changes nothing. A caught-up price moves the level but does not
+open the day: before the session's first print it is the previous day's
+price.
 
 ### Publish throttle
 
 Recalculation happens on every trade, but publishing is throttled to
 `publish_interval_sec` (default 1 s). The internal level is always up to date;
-the throttle controls only how often `index.update` messages are broadcast.
+the throttle controls only how often `index.update` messages are broadcast. A
+level computed inside the interval is not lost: it is broadcast once the
+interval has passed (within a fifth of a second), so the last published level
+always catches up with the last trade. Corporate actions, constituent changes,
+the close and the reply to the engine's session status are published at once.
 
 ### Intraday OHLC
 
-`pm-index` tracks day open, high, and low internally. They are cleared at every
-`OPENING_AUCTION` or `CONTINUOUS` session transition and start again from the
-next level update; the day is finalised with a closing value when the session
-reaches `CLOSED`.
+`pm-index` tracks day open, high, and low internally. A new day starts at
+`PRE_OPEN`, the only phase after `CLOSED`: the open/high/low are cleared and
+start again from the next level, which is normally the opening auction's
+print (the engine publishes an uncross's trades before the phase that
+follows it, so they count in the day). The day is finalised with a closing
+value when the session reaches `CLOSED`.
+
+The engine also sends `system.eod` whenever it stops, mid-session included.
+`pm-index` publishes a close then too, but when the engine comes back and
+reports a trading phase, the session goes on: the day is kept and the real
+`CLOSED` publishes the real close. A `pm-index` restart mid-session keeps the
+day as well (see [State file](#state-file)).
 
 
 ## Corporate Actions
@@ -305,7 +329,7 @@ $$
 |---|---|---|---|
 | Stock split | `SPLIT` | `ratio_numerator`, `ratio_denominator` | Increases shares, reduces price by the same factor; divisor corrected for integer-rounding drift |
 | Cash dividend | `CASH_DIVIDEND` | `dividend_per_share` | Reduces price by the dividend amount; divisor adjusted to preserve index level |
-| Shares issuance | `SHARES_ISSUANCE` | `new_shares_outstanding` | Sets the new total share count outright (not a delta); divisor rescaled to preserve index level — typically upward for a genuine issuance, but the code does not require `new_shares_outstanding` to exceed the current count, so supplying a smaller value rescales the divisor downward instead |
+| Shares issuance | `SHARES_ISSUANCE` | exactly one of `new_shares_outstanding`, `shares_delta` | Sets the total share count outright, or changes the current count by a signed delta (negative for a buy-back); divisor rescaled to preserve index level. The acknowledgement reports the resulting count |
 
 ### Applying corporate actions
 
@@ -328,10 +352,17 @@ history file. See [Index Administration (`pm-index-admin-cli`)](080-index-admini
 subcommand reference, `--dry-run` output, and exit codes.
 
 !!! important "Apply corporate actions before the market opens"
-    It is safest to apply corporate actions during `PRE_OPEN` before trading
-    starts for the day. Applying them during continuous trading means the index
-    will have a brief moment where the pre-adjustment divisor is used for one
-    more trade before the action takes effect.
+    A split or dividend lowers the constituent's price *in the index* and
+    adjusts the divisor so the level does not move. Nothing in EduMatcher
+    lowers the price in the market: the engine, the market makers and
+    `pm-market-sim` keep trading the symbol where it was. The next trade at
+    the unchanged price therefore replaces the adjusted price and moves the
+    index — after a 2:1 split of one of two equal constituents, a level of
+    1000 becomes 1500. Apply a split or dividend only when the symbol will
+    trade at the adjusted price from then on (for a simulation, change its
+    reference price or the bots' anchor to match), ideally during
+    `PRE_OPEN`. A shares issuance or a constituent change has no such
+    effect.
 
 !!! note "Under the hood: `ExchangeCommandClient`"
     `pm-index-admin-cli` is a thin wrapper over the `ExchangeCommandClient`
@@ -416,6 +447,7 @@ have moved since the last write. A trade does not write the file by itself.
   "day_open": 1002.45,
   "day_high": 1012.35,
   "day_low": 998.4,
+  "eod_finalized": false,
   "last_level": 1008.9195,
   "last_updated": 1749760800.0
 }
@@ -430,9 +462,12 @@ configured ones, `pm-index` logs a warning and keeps the persisted set. If the
 `index_id` in the file does not match, `pm-index` exits with an error telling
 you to use `--reset`, which discards the file and returns to the configuration
 (including a new divisor). A crash can lose at most the price moves of the last
-30 seconds; they are replaced by the next trade in each constituent.
-`day_open`, `day_high` and `day_low` are diagnostics only: the session's
-open/high/low starts afresh in a new process.
+30 seconds; the catch-up from the engine's books (see
+[Reference prices](#reference-prices)) restores them when `pm-index` starts.
+`day_open`, `day_high` and `day_low` are restored as well while the session
+has not closed (`eod_finalized` is `false`), so a restart mid-session keeps
+the day's open, high and low. After the close they are not restored, and the
+next day starts at `PRE_OPEN`.
 
 ### History file
 
@@ -579,7 +614,7 @@ the wire is as shown, but clients should parse by key.
 | `LEVEL`   | decimal | Current index level                                                 |
 | `CHG`     | decimal | Change from day open (signed); omitted before first open            |
 | `PCTCHG`  | decimal | Percentage change from day open (signed); omitted before first open |
-| `OPEN`    | decimal | Day open level; omitted until the first level update after the day's open/high/low were last cleared (each `OPENING_AUCTION` / `CONTINUOUS` transition) |
+| `OPEN`    | decimal | Day open level; omitted from `PRE_OPEN` until the day's first level update |
 | `HIGH`    | decimal | Day high; omitted together with `OPEN`                              |
 | `LOW`     | decimal | Day low; omitted together with `OPEN`                               |
 | `AGGCAP`  | int     | Current aggregate market cap                                        |

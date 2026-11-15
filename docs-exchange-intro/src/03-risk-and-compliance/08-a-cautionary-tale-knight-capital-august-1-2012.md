@@ -35,6 +35,8 @@ The warning signs had started even before the open. Between 8:01am and 9:30am, K
 
 By 10:15am the damage was done. Knight announced a pre-tax loss of about **$440 million** the following day; the SEC later put the loss at more than $460 million. Knight's share price fell by roughly three-quarters within two trading days, and the firm no longer had enough capital to continue operating on its own.
 
+![How Knight lost the money. Years of left-over code and a reused flag set the trap; a deployment that missed one of eight servers sprang it. The 97 warning e-mails before the open went unheeded, and once trading began the rollback of the seven correctly updated servers turned one runaway server into eight. In 45 minutes Knight built a gross exposure of $6.65 billion, and within days the firm had lost its independence.](assets/risk-knight-timeline-small.png)
+
 ## The Aftermath
 
 Knight survived only through an emergency capital injection arranged over the following two days. A consortium of investment firms provided $400 million in rescue financing in exchange for equity stakes that gave them majority ownership. Effectively, Knight Capital ceased to exist as an independent firm. Several months later, what remained of Knight merged with Getco LLC to form KCG Holdings, which was eventually acquired by Virtu Financial in 2017.

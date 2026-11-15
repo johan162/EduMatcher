@@ -11,7 +11,7 @@ per-symbol attributes on ``self``.
 
 from __future__ import annotations
 
-from collections import OrderedDict, defaultdict, deque
+from collections import OrderedDict, defaultdict
 from dataclasses import dataclass, field
 import logging
 import random
@@ -34,9 +34,11 @@ from edumatcher.models.price import (
 from edumatcher.models.message import (
     GATEWAY_HEARTBEAT_INTERVAL_SEC,
     decode,
+    make_book_snapshot_request_msg,
     make_gateway_connect_msg,
     make_gateway_disconnect_msg,
     make_gateway_heartbeat_msg,
+    make_position_request_msg,
     make_quote_bootstrap_request_msg,
     make_quote_cancel_msg,
     make_quote_legs_request_msg,
@@ -68,6 +70,7 @@ from edumatcher.models.generated.quote import (
 )
 from edumatcher.models.generated.system import (
     topic_gateway_auth,
+    topic_position_snapshot,
     topic_quote_bootstrap,
     topic_quote_legs,
     topic_session_status,
@@ -171,12 +174,18 @@ class _SymbolState:
     """
 
     tick_size: float = 0.01
+    # The symbol's MM obligation, set only when the engine enforces it for
+    # this gateway (an unenforced one is not applied by the engine either).
     mm_max_spread_ticks: int | None = None
+    mm_min_qty: int | None = None
     gap: float = 0.0
     gap_was_explicit: bool = False
     pricer: PricingStrategy | None = None
     state: BotState = BotState.CONNECTING
     quote_id: str | None = None
+    # The id of the last quote.new sent; with quote_id, what counts as this
+    # symbol's current quote when a quote.status arrives (an ack can be lost).
+    sent_quote_id: str | None = None
     bid_order_id: str | None = None
     ask_order_id: str | None = None
     quoted_at_mid: float | None = None
@@ -186,6 +195,10 @@ class _SymbolState:
     last_heartbeat: float = 0.0
     awaiting_cancel_for_reissue: bool = False
     pending_fills: list[dict[str, Any]] = field(default_factory=list)
+    # Quote rejections since the last accepted quote, and the reasons already
+    # reported at WARNING in that run (later ones of a reason go to DEBUG).
+    consecutive_rejects: int = 0
+    reject_reasons_warned: set[str] = field(default_factory=set)
     # --- Tier-2 parameters. Resolved before construction (CLI scopes and/or
     # the config file, see mm_bot/resolve.py) and fixed for the run, except
     # `gap`, which startup may derive from the symbol's MM spread obligation
@@ -224,11 +237,10 @@ class _SymbolState:
     # crashing the whole process. None while startup is still in progress
     # or has succeeded.
     startup_failed_reason: str | None = None
-    # Net position and VWAP average cost tracked locally from this symbol's
-    # own fills (see _update_position). Feeds the "inventory_skew" pricing
-    # strategy; unused by "symmetric". Mirrors the engine's own per-gateway
-    # ledger (engine/main.py::_update_position) but is purely local
-    # bookkeeping -- the bot never queries the engine for it.
+    # Net position and VWAP average cost: seeded from the engine's
+    # per-gateway ledger at start-up (system.position_request), then kept up
+    # to date locally from this symbol's own fills (see _update_position).
+    # Feeds the "inventory_skew" pricing strategy; unused by "symmetric".
     net_position: int = 0
     avg_cost: float = 0.0
 
@@ -287,6 +299,15 @@ def _others_levels(
             qty -= own_qty
         out.append((price, qty))
     return out
+
+
+def _price_text(symbol: str, price: float | None, extra_digits: int = 0) -> str:
+    """A price for a log line, at the symbol's tick precision (a mid, which
+    can fall between ticks, with ``extra_digits`` more) — not a raw float
+    such as ``150.51999999999998``."""
+    if price is None:
+        return "None"
+    return f"{price:.{get_tick_decimals(symbol) + extra_digits}f}"
 
 
 def _make_symbol_state(symbol: str, params: dict[str, Any], now: float) -> _SymbolState:
@@ -356,6 +377,9 @@ class MMBot:
 
         # Runtime state
         self._running = False
+        # Set by SIGINT/SIGTERM and shutdown(): start-up's waits read it, so a
+        # stop during start-up ends it without quoting.
+        self._stop_requested = False
         self._session_state: str | None = None
 
         # Every keyword argument above is the baseline applied to *every*
@@ -393,9 +417,9 @@ class MMBot:
             for sym in resolved_symbols
         }
 
-        # quote.ack and quote.status are per-*gateway* topics whose payloads
-        # carry quote_id but not symbol, so a multi-symbol bot has to map one
-        # to the other itself. `_send_quote` mints the quote_id and the engine
+        # quote.ack and quote.status are per-*gateway* topics, and quote.status
+        # carries quote_id but not symbol, so a multi-symbol bot maps one to
+        # the other itself. `_send_quote` mints the quote_id and the engine
         # echoes it on every reply, so this is populated at **send** time —
         # early enough that a status for a quote rejected or cancelled before
         # its ack still resolves.
@@ -404,17 +428,30 @@ class MMBot:
         # accumulate an entry per quote for the life of the process. Only the
         # most recent few per symbol can still attract a late quote.status, so
         # older entries are evicted in insertion order.
+        # Per-symbol topic -> (kind, symbol), so a message finds its symbol
+        # with one lookup instead of building every symbol's topics (P1).
+        self._symbol_topics: dict[str, tuple[str, str]] = {}
+        for sym in resolved_symbols:
+            self._symbol_topics[topic_book_snapshot(sym)] = ("book", sym)
+            self._symbol_topics[topic_circuit_breaker_halt(sym)] = ("halt", sym)
+            self._symbol_topics[topic_circuit_breaker_resume(sym)] = ("resume", sym)
+
         self._quote_id_to_symbol: OrderedDict[str, str] = OrderedDict()
         self._quote_id_index_cap = max(32, 8 * len(resolved_symbols))
 
-        # Fallback only, for an ack that carries no quote_id. Send order is a
-        # weaker signal than an id: it assumes every quote.new produces exactly
-        # one ack, in order, so a single dropped ack leaves the queue
-        # permanently off by one. Appended in _send_quote, consumed in
-        # _handle_quote_ack.
-        self._pending_ack_symbols: deque[str] = deque()
+        # Every leg order id this bot has quoted -> (symbol, "BID"/"ASK"),
+        # current and retired. The engine may publish a quote's
+        # quote.status INACTIVE_* (and the sibling's cancel) before the
+        # order.fill that caused it (engine/main.py `_publish_dispatch`), and
+        # a partly filled leg keeps resting until the reissue replaces it, so
+        # a fill routinely arrives for a leg the bot no longer tracks as its
+        # current quote. Bounded like the quote-id index above.
+        self._leg_to_symbol: OrderedDict[str, tuple[str, str]] = OrderedDict()
+        self._leg_index_cap = max(64, 16 * len(resolved_symbols))
 
         self._pending_fills: list[dict[str, Any]] = []
+        # The start-up QBOOT reply, kept for the reference-price step.
+        self._boot_payload: dict[str, Any] | None = None
         self._debug_counts: defaultdict[str, int] = defaultdict(int)
         # Health beacon (operator dashboard, B5.4): main() attaches a reporter.
         self._reporter: HealthReporter | None = None
@@ -802,6 +839,7 @@ class MMBot:
             topic_quote_status(self.gateway_id),
             TOPIC_SESSION_STATE,
             topic_session_status(self.gateway_id),
+            topic_position_snapshot(self.gateway_id),
             *per_symbol_topics,
         )
         if any(st.anchor_sim > 0 for st in self._symbols_state.values()):
@@ -848,7 +886,7 @@ class MMBot:
         deadline = time.monotonic() + timeout_sec
         time.sleep(0.05)
         while not self._send_quietly(make_gateway_connect_msg(self.gateway_id)):
-            if time.monotonic() >= deadline:
+            if time.monotonic() >= deadline or self._stop_requested:
                 self._log("engine not reachable")
                 return False
             time.sleep(0.1)
@@ -858,7 +896,7 @@ class MMBot:
         poller = zmq.Poller()
         poller.register(self._sub_sock, zmq.POLLIN)
 
-        while time.monotonic() < deadline:
+        while time.monotonic() < deadline and not self._stop_requested:
             remaining_ms = max(1, int((deadline - time.monotonic()) * 1000))
             socks = dict(poller.poll(timeout=min(remaining_ms, 200)))
             if self._sub_sock not in socks:
@@ -898,7 +936,7 @@ class MMBot:
         poller.register(self._sub_sock, zmq.POLLIN)
         deadline = time.monotonic() + timeout_sec
 
-        while time.monotonic() < deadline:
+        while time.monotonic() < deadline and not self._stop_requested:
             remaining_ms = max(1, int((deadline - time.monotonic()) * 1000))
             socks = dict(poller.poll(timeout=min(remaining_ms, 200)))
             if self._sub_sock not in socks:
@@ -917,11 +955,14 @@ class MMBot:
                         tick_decimals = int(meta["tick_decimals"])
                         st.tick_size = 10**-tick_decimals
                         register_tick_decimals(meta_symbol, tick_decimals)
-                    if "mm_max_spread_ticks" in meta:
-                        try:
-                            st.mm_max_spread_ticks = int(meta["mm_max_spread_ticks"])
-                        except TypeError, ValueError:
-                            st.mm_max_spread_ticks = None
+                    # The engine applies the obligation only when it enforces
+                    # it; the reply carries the values either way.
+                    if meta.get("enforce_mm_obligation") is True:
+                        for key in ("mm_max_spread_ticks", "mm_min_qty"):
+                            try:
+                                setattr(st, key, int(meta[key]))
+                            except KeyError, TypeError, ValueError:
+                                setattr(st, key, None)
                 return symbols
             if topic == TOPIC_SESSION_STATE:
                 self._session_state = str(payload.get("state", "")).upper()
@@ -929,17 +970,26 @@ class MMBot:
         self._log("symbols request timed out")
         return []
 
-    def _request_bootstrap(self, symbol: str | None = None) -> dict[str, Any] | None:
-        """Request QBOOT for one symbol and wait for reply within timeout."""
-        symbol = symbol if symbol is not None else self._primary_symbol
+    def _startup_reply_timeout_sec(self) -> float:
+        """How long the gateway-wide QBOOT/QLEGS waits last: the longest
+        ``bootstrap_timeout_sec`` of any symbol."""
+        return max(st.bootstrap_timeout_sec for st in self._symbols_state.values())
+
+    def _request_bootstrap(self) -> dict[str, Any] | None:
+        """Request QBOOT for every symbol of this gateway (an empty symbol
+        filter) and wait for the reply within the timeout.
+
+        One request for the gateway, not one per symbol: the reply topic is
+        per gateway, so per-symbol waits could take each other's late reply.
+        """
         assert self._sub_sock is not None
-        self._send(make_quote_bootstrap_request_msg(self.gateway_id, symbol))
+        self._send(make_quote_bootstrap_request_msg(self.gateway_id, ""))
 
         poller = zmq.Poller()
         poller.register(self._sub_sock, zmq.POLLIN)
-        deadline = time.monotonic() + self._symbols_state[symbol].bootstrap_timeout_sec
+        deadline = time.monotonic() + self._startup_reply_timeout_sec()
 
-        while time.monotonic() < deadline:
+        while time.monotonic() < deadline and not self._stop_requested:
             remaining_ms = max(1, int((deadline - time.monotonic()) * 1000))
             socks = dict(poller.poll(timeout=min(remaining_ms, 100)))
             if self._sub_sock not in socks:
@@ -950,20 +1000,20 @@ class MMBot:
             # Capture other events during wait
             self._buffer_event(topic, payload)
 
-        self._debug(f"[{symbol}] QBOOT request timed out — continuing with fallback")
+        self._debug("QBOOT request timed out — continuing with fallback")
         return None
 
-    def _request_qlegs(self, symbol: str | None = None) -> dict[str, Any] | None:
-        """Request QLEGS snapshot for one symbol and wait for reply."""
-        symbol = symbol if symbol is not None else self._primary_symbol
+    def _request_qlegs(self) -> dict[str, Any] | None:
+        """Request the QLEGS snapshot of every symbol of this gateway and
+        wait for the reply (see `_request_bootstrap`)."""
         assert self._sub_sock is not None
-        self._send(make_quote_legs_request_msg(self.gateway_id, symbol, "ALL"))
+        self._send(make_quote_legs_request_msg(self.gateway_id, "", "ACTIVE"))
 
         poller = zmq.Poller()
         poller.register(self._sub_sock, zmq.POLLIN)
-        deadline = time.monotonic() + self._symbols_state[symbol].bootstrap_timeout_sec
+        deadline = time.monotonic() + self._startup_reply_timeout_sec()
 
-        while time.monotonic() < deadline:
+        while time.monotonic() < deadline and not self._stop_requested:
             remaining_ms = max(1, int((deadline - time.monotonic()) * 1000))
             socks = dict(poller.poll(timeout=min(remaining_ms, 100)))
             if self._sub_sock not in socks:
@@ -973,7 +1023,7 @@ class MMBot:
                 return payload
             self._buffer_event(topic, payload)
 
-        self._debug(f"[{symbol}] QLEGS request timed out")
+        self._debug("QLEGS request timed out")
         return None
 
     def _buffer_event(self, topic: str, payload: dict[str, Any]) -> None:
@@ -981,12 +1031,60 @@ class MMBot:
         if topic == TOPIC_SESSION_STATE:
             self._session_state = str(payload.get("state", "")).upper()
             return
-        for sym in self.symbols:
-            if topic == topic_book_snapshot(sym):
-                self._handle_book(payload, symbol=sym)
-                return
+        kind, sym = self._symbol_topics.get(topic, ("", ""))
+        if kind == "book":
+            self._handle_book(payload, symbol=sym)
+            return
         if topic == TOPIC_TRADE_EXECUTED:
             self._handle_trade(payload)
+        elif topic == topic_order_fill(self.gateway_id):
+            # A fill on an adopted quote; one before the position snapshot is
+            # replaced by the snapshot, which already holds it.
+            self._handle_order_fill(payload)
+
+    def _seed_positions(self) -> None:
+        """Take each symbol's net position and average cost from the engine.
+
+        The snapshot overwrites whatever was counted so far: fills the
+        engine published before it are in it, later ones follow it on the
+        same PUB stream. Without a reply the positions stay at zero.
+        """
+        assert self._sub_sock is not None
+        self._send(make_position_request_msg(self.gateway_id))
+        poller = zmq.Poller()
+        poller.register(self._sub_sock, zmq.POLLIN)
+        deadline = time.monotonic() + self._startup_reply_timeout_sec()
+
+        while time.monotonic() < deadline and not self._stop_requested:
+            remaining_ms = max(1, int((deadline - time.monotonic()) * 1000))
+            socks = dict(poller.poll(timeout=min(remaining_ms, 100)))
+            if self._sub_sock not in socks:
+                continue
+            topic, payload = decode(self._sub_sock.recv_multipart())
+            if topic != topic_position_snapshot(self.gateway_id):
+                self._buffer_event(topic, payload)
+                continue
+            held = {
+                str(p.get("symbol", "")).upper(): p
+                for p in payload.get("positions", [])
+            }
+            for symbol, st in self._symbols_state.items():
+                entry = held.get(symbol, {})
+                st.net_position = int(entry.get("net_qty", 0))
+                st.avg_cost = float(entry.get("avg_cost", 0.0))
+                if hasattr(st.pricer, "update_position"):
+                    st.pricer.update_position(st.net_position)  # type: ignore[union-attr]
+                if st.net_position:
+                    self._log(
+                        f"[{symbol}] position from the engine: {st.net_position} "
+                        f"@ {st.avg_cost}"
+                    )
+            return
+
+        self._warn(
+            "no position snapshot from the engine; positions start at 0 "
+            "(inventory_skew quotes as if flat)"
+        )
 
     def _try_adopt_from_bootstrap(
         self, symbol: str, boot_payload: dict[str, Any] | None
@@ -1008,6 +1106,7 @@ class MMBot:
                 st.ask_order_id = str(q.get("ask_order_id", ""))
                 if st.quote_id:
                     self._quote_id_to_symbol[st.quote_id] = symbol
+                self._index_legs(symbol, st.bid_order_id, st.ask_order_id)
                 bid_price = q.get("bid_price")
                 ask_price = q.get("ask_price")
                 if bid_price is not None and ask_price is not None:
@@ -1039,7 +1138,10 @@ class MMBot:
         #    received during startup waits already set the mid via the handlers,
         #    so any existing mid covers both the book and last-trade fallbacks.
         if st.pricer.mid_price is not None:
-            self._debug(f"[{symbol}] reference from book/trade: {st.pricer.mid_price}")
+            self._debug(
+                f"[{symbol}] reference from book/trade: "
+                f"{_price_text(symbol, st.pricer.mid_price, 1)}"
+            )
             return True
 
         # 2. QBOOT inactive quote prices as reference
@@ -1052,7 +1154,10 @@ class MMBot:
                     if bid_price is not None and ask_price is not None:
                         mid = (float(bid_price) + float(ask_price)) / 2.0
                         st.pricer.set_mid(mid)
-                        self._debug(f"[{symbol}] reference from bootstrap quote: {mid}")
+                        self._debug(
+                            f"[{symbol}] reference from bootstrap quote: "
+                            f"{_price_text(symbol, mid, 1)}"
+                        )
                         return True
 
         # 3. Random bootstrap range
@@ -1064,7 +1169,9 @@ class MMBot:
                 st.pricer.price_decimals,
             )
             st.pricer.set_mid(price)
-            self._log(f"[{symbol}] bootstrap from random range: {price}")
+            self._log(
+                f"[{symbol}] bootstrap from random range: {_price_text(symbol, price)}"
+            )
             return True
 
         return False
@@ -1086,7 +1193,7 @@ class MMBot:
         poller.register(self._sub_sock, zmq.POLLIN)
         deadline = time.monotonic() + timeout_sec
 
-        while time.monotonic() < deadline:
+        while time.monotonic() < deadline and not self._stop_requested:
             remaining_ms = max(1, int((deadline - time.monotonic()) * 1000))
             socks = dict(poller.poll(timeout=min(remaining_ms, 200)))
             if self._sub_sock not in socks:
@@ -1153,6 +1260,7 @@ class MMBot:
         st.own_bid_price, st.own_ask_price = bid, ask
         st.own_bid_qty = st.own_ask_qty = st.qty
         st.last_quote_sent_at = time.monotonic()
+        st.sent_quote_id = quote_id
         self._set_state(symbol, BotState.REISSUING)
         # Indexed at send time, not ack time: quote.status for a quote that is
         # rejected or cancelled before its ack is processed would otherwise
@@ -1160,8 +1268,15 @@ class MMBot:
         self._quote_id_to_symbol[quote_id] = symbol
         while len(self._quote_id_to_symbol) > self._quote_id_index_cap:
             self._quote_id_to_symbol.popitem(last=False)
-        self._pending_ack_symbols.append(symbol)
         self._debug(f"[{symbol}] QUOTE sent bid={bid} ask={ask}")
+
+    def _index_legs(self, symbol: str, bid_order_id: str, ask_order_id: str) -> None:
+        """Remember which symbol and side two leg order ids belong to."""
+        for order_id, side in ((bid_order_id, "BID"), (ask_order_id, "ASK")):
+            if order_id:
+                self._leg_to_symbol[order_id] = (symbol, side)
+        while len(self._leg_to_symbol) > self._leg_index_cap:
+            self._leg_to_symbol.popitem(last=False)
 
     def _cancel_quote(self, symbol: str) -> None:
         """Send quote.cancel for one symbol."""
@@ -1230,7 +1345,9 @@ class MMBot:
             st.pricer.update_mid(best_bid, best_ask)
         if held is not None:
             st.pricer.set_mid(held)
-        self._debug(f"[{symbol}] book mid={st.pricer.mid_price}")
+        self._debug(
+            f"[{symbol}] book mid={_price_text(symbol, st.pricer.mid_price, 1)}"
+        )
 
     def _anchor(self, st: _SymbolState) -> None:
         """Close ``anchor_sim`` of the gap between the mid and the true value.
@@ -1281,53 +1398,48 @@ class MMBot:
         price = payload.get("price")
         if price is not None and st.pricer.mid_price is None:
             st.pricer.set_mid(float(price))
-            self._debug(f"[{symbol}] mid from trade: {price}")
+            self._debug(
+                f"[{symbol}] mid from trade: {_price_text(symbol, float(price))}"
+            )
 
     def _handle_quote_ack(self, payload: dict[str, Any]) -> None:
         """Handle quote.ack — record IDs or handle rejection.
 
-        quote.ack carries no `symbol` — only quote_id/accepted/reason/
-        bid_order_id/ask_order_id. Since `_send_quote` supplies its own
-        `quote_id` and the engine echoes it, the ack is matched **by id**.
-
-        The send-order FIFO (`_pending_ack_symbols`) remains as a fallback for
-        an ack carrying no id, but it is no longer the primary mechanism, and
-        that matters: the FIFO assumes every quote.new produces exactly one
-        ack, in order. Lose one ack to a PUB/SUB drop and the queue is
-        permanently off by one, silently attributing every later ack to the
-        wrong symbol. Matching by id cannot desynchronise.
+        Matched by ``quote_id`` (minted by `_send_quote` and echoed by the
+        engine), else by the ack's own ``symbol``; an ack matching neither is
+        not this bot's and is ignored.
         """
         ack_quote_id = str(payload.get("quote_id", ""))
         symbol = self._quote_id_to_symbol.get(ack_quote_id) if ack_quote_id else None
-        if symbol is not None:
-            # Keep the fallback queue aligned: drop this symbol's oldest entry
-            # rather than leaving a stale one to mis-pair a later ack.
-            try:
-                self._pending_ack_symbols.remove(symbol)
-            except ValueError:
-                pass
-        else:
-            if ack_quote_id:
-                self._dbg_count("quote_ack_unknown_id")
-                log.debug(
-                    "quote.ack unknown quote_id=%s — falling back to FIFO "
-                    "(pending_ack_symbols=%s)",
-                    ack_quote_id,
-                    list(self._pending_ack_symbols),
-                )
-            symbol = (
-                self._pending_ack_symbols.popleft()
-                if self._pending_ack_symbols
-                else self._primary_symbol
-            )
+        if symbol is None:
+            symbol = str(payload.get("symbol", "")).upper()
+            if symbol not in self._symbols_state:
+                self._dbg_count("quote_ack_unknown")
+                log.debug("quote.ack for no quoted symbol ignored: %s", payload)
+                return
         st = self._symbols_state.get(symbol)
         if st is None:
             return
         accepted = bool(payload.get("accepted", False))
+        if accepted and st.state == BotState.PAUSED:
+            # Sent before a halt or a phase change paused the symbol: the
+            # engine took it, so pull it again. Its legs are indexed so a fill
+            # in between is still counted.
+            self._index_legs(
+                symbol,
+                str(payload.get("bid_order_id", "")),
+                str(payload.get("ask_order_id", "")),
+            )
+            self._cancel_quote(symbol)
+            self._debug(f"[{symbol}] quote ACK while paused — cancelled")
+            return
         if accepted:
+            st.consecutive_rejects = 0
+            st.reject_reasons_warned.clear()
             st.quote_id = str(payload.get("quote_id", ""))
             st.bid_order_id = str(payload.get("bid_order_id", ""))
             st.ask_order_id = str(payload.get("ask_order_id", ""))
+            self._index_legs(symbol, st.bid_order_id, st.ask_order_id)
             # Already indexed at send time; re-assert only if the engine
             # minted an id of its own (it does that when a client sends none,
             # which this bot no longer does — but a rolling upgrade might).
@@ -1339,23 +1451,50 @@ class MMBot:
             self._process_pending_fills()
         else:
             reason = str(payload.get("reason", "unknown"))
-            self._log(f"[{symbol}] quote REJECTED: {reason}")
-            # Retry after delay
-            st.reissue_at = time.monotonic() + st.reissue_delay_sec
+            st.consecutive_rejects += 1
+            # A refusal the engine will repeat (a size or spread rule, a
+            # closed market) must be visible at the default level, once.
+            if reason not in st.reject_reasons_warned:
+                st.reject_reasons_warned.add(reason)
+                log.warning(
+                    "[%s] [%s] quote REJECTED: %s", self.gateway_id, symbol, reason
+                )
+            else:
+                log.debug(
+                    "[%s] [%s] quote REJECTED again (%d in a row): %s",
+                    self.gateway_id,
+                    symbol,
+                    st.consecutive_rejects,
+                    reason,
+                )
+            # Retry, backing off: the delay doubles per consecutive refusal,
+            # up to one heartbeat interval.
+            base = max(st.reissue_delay_sec, _TICK_MIN_SEC)
+            delay = min(
+                base * 2 ** (st.consecutive_rejects - 1), st.heartbeat_interval_sec
+            )
+            st.reissue_at = time.monotonic() + delay
 
     def _handle_quote_status(self, payload: dict[str, Any]) -> None:
         """Handle quote.status — detect INACTIVE/CANCELLED.
 
-        Resolved via quote_id (the payload carries no `symbol`), falling
-        back to the primary symbol if the quote_id is unknown — this
-        mirrors the single-symbol bot's original behavior when a test
-        drives this handler directly without going through quote.ack first
-        (see the backward-compatible accessors above).
+        The payload carries no ``symbol``, so it is resolved through the
+        quote id. It acts only on the symbol's current quote: the one acked
+        (``quote_id``) or the one in flight (``sent_quote_id``). A status for
+        a quote the bot has already replaced or forgotten (a replace's
+        CANCELLED, a late confirmation) is ignored — applying it would clear
+        the live quote it does not describe.
         """
         quote_id = str(payload.get("quote_id", ""))
-        symbol = self._quote_id_to_symbol.get(quote_id, self._primary_symbol)
+        symbol = self._symbol_for_quote_id(quote_id)
+        if symbol is None:
+            self._dbg_count("quote_status_unknown_id")
+            return
         st = self._symbols_state.get(symbol)
         if st is None:
+            return
+        if quote_id not in (st.quote_id, st.sent_quote_id):
+            self._dbg_count("quote_status_stale")
             return
 
         status = str(payload.get("status", "")).upper()
@@ -1390,12 +1529,25 @@ class MMBot:
                     )
                 st.awaiting_cancel_for_reissue = False
 
+    def _symbol_for_quote_id(self, quote_id: str) -> str | None:
+        """The symbol *quote_id* was sent or adopted for, or None."""
+        if not quote_id:
+            return None
+        symbol = self._quote_id_to_symbol.get(quote_id)
+        if symbol is not None:
+            return symbol
+        # A quote set without a send or an ack (tests drive the state).
+        for sym, st in self._symbols_state.items():
+            if quote_id in (st.quote_id, st.sent_quote_id):
+                return sym
+        return None
+
     def _handle_order_fill(self, payload: dict[str, Any]) -> None:
         """Handle order.fill — check if it belongs to one of our quotes."""
         order_id = str(payload.get("order_id", ""))
 
-        symbol = self._symbol_for_order_id(order_id, payload.get("symbol"))
-        if symbol is None:
+        leg = self._leg_for_order_id(order_id, payload.get("symbol"))
+        if leg is None:
             # The order_id doesn't match any symbol's known legs. That is
             # ambiguous, not definitive, while the symbol has not acked yet
             # -- this fill could belong to it once its order IDs are known.
@@ -1416,8 +1568,8 @@ class MMBot:
                 self._pending_fills.append(payload)
             return  # not a leg we recognise (or not yet)
 
+        symbol, side = leg
         st = self._symbols_state[symbol]
-        side = "BID" if order_id == st.bid_order_id else "ASK"
         fill_qty = int(payload.get("fill_qty", 0))
         fill_price = float(payload.get("fill_price", 0.0))
         self._debug(
@@ -1446,9 +1598,10 @@ class MMBot:
         )
         if hasattr(st.pricer, "update_position"):
             st.pricer.update_position(st.net_position)  # type: ignore[union-attr]
-        if side == "BID":
+        # Only a leg of the current quote is still among the bot's own levels.
+        if order_id == st.bid_order_id:
             st.own_bid_qty = max(0, st.own_bid_qty - fill_qty)
-        else:
+        elif order_id == st.ask_order_id:
             st.own_ask_qty = max(0, st.own_ask_qty - fill_qty)
         if hasattr(st.pricer, "on_fill"):
             st.pricer.on_fill(side, time.monotonic())  # type: ignore[union-attr]
@@ -1460,29 +1613,39 @@ class MMBot:
         if not st.awaiting_cancel_for_reissue:
             st.reissue_at = time.monotonic() + st.reissue_delay_sec
 
-    def _symbol_for_order_id(self, order_id: str, symbol: object = None) -> str | None:
-        """The symbol whose current quote has the leg *order_id*.
+    def _leg_for_order_id(
+        self, order_id: str, symbol: object = None
+    ) -> tuple[str, str] | None:
+        """(symbol, "BID"/"ASK") of the leg *order_id*, or None.
 
-        Order events name their symbol; then only that symbol is checked
-        (a scan of every symbol per fill was most of the bot's CPU at 300
-        symbols). Without one, every symbol is scanned.
+        Every leg this bot was acked or adopted is in ``_leg_to_symbol``,
+        retired ones included. A current leg set without an ack (tests drive
+        the state directly) is found on its symbol's quote: order events name
+        their symbol, so only that symbol is checked; without one, every
+        symbol is scanned.
         """
+        leg = self._leg_to_symbol.get(order_id)
+        if leg is not None:
+            return leg
         hinted = self._symbols_state.get(str(symbol or ""))
-        if hinted is not None:
-            if order_id in (hinted.bid_order_id, hinted.ask_order_id):
-                return str(symbol)
-            return None
-        for sym, st in self._symbols_state.items():
-            if order_id in (st.bid_order_id, st.ask_order_id):
-                return sym
+        candidates = (
+            [(str(symbol), hinted)]
+            if hinted is not None
+            else list(self._symbols_state.items())
+        )
+        for sym, st in candidates:
+            if order_id == st.bid_order_id:
+                return sym, "BID"
+            if order_id == st.ask_order_id:
+                return sym, "ASK"
         return None
 
     def _handle_order_cancelled(self, payload: dict[str, Any]) -> None:
         """Handle order.cancelled — track leg cleanup."""
         order_id = str(payload.get("order_id", ""))
-        symbol = self._symbol_for_order_id(order_id, payload.get("symbol"))
-        if symbol is not None:
-            self._debug(f"[{symbol}] leg cancelled: {order_id}")
+        leg = self._leg_for_order_id(order_id, payload.get("symbol"))
+        if leg is not None:
+            self._debug(f"[{leg[0]}] leg cancelled: {order_id}")
 
     def _handle_session_state(self, payload: dict[str, Any]) -> None:
         """Handle session.state transitions — applies to every symbol."""
@@ -1494,14 +1657,19 @@ class MMBot:
         for symbol in self._active_symbols():
             st = self._symbols_state[symbol]
             if new_state in _QUOTING_SESSIONS:
-                if st.state == BotState.PAUSED:
+                if st.state in (BotState.PAUSED, BotState.WAITING_FOR_SESSION):
                     self._set_state(symbol, BotState.WAITING_FOR_SESSION)
                     # Trigger reissue if we have reference
                     if st.pricer and st.pricer.mid_price is not None:
                         st.reissue_at = time.monotonic()
             else:
-                # Non-trading phase — cancel and pause
-                if st.state in (BotState.QUOTING, BotState.REPRICING):
+                # Non-trading phase — cancel and pause. REISSUING too: the
+                # quote in flight would otherwise rest through the phase.
+                if st.state in (
+                    BotState.QUOTING,
+                    BotState.REPRICING,
+                    BotState.REISSUING,
+                ):
                     self._cancel_quote(symbol)
                     self._clear_quote_state(symbol)
                 self._set_state(symbol, BotState.PAUSED)
@@ -1524,8 +1692,18 @@ class MMBot:
         """Handle circuit_breaker.resume.SYMBOL for one symbol."""
         symbol = symbol if symbol is not None else self._primary_symbol
         self._log(f"[{symbol}] circuit breaker RESUME")
-        if symbol in self._symbols_state:
-            self._set_state(symbol, BotState.WAITING_FOR_SESSION)
+        st = self._symbols_state.get(symbol)
+        if st is None:
+            return
+        self._set_state(symbol, BotState.WAITING_FOR_SESSION)
+        # Nothing else moves a waiting symbol on while the session stays
+        # open, so the reissue is scheduled here.
+        if (
+            self._session_state in _QUOTING_SESSIONS
+            and st.pricer is not None
+            and st.pricer.mid_price is not None
+        ):
+            st.reissue_at = time.monotonic()
 
     def _process_pending_fills(self) -> None:
         """Process fills that arrived before any quote.ack."""
@@ -1543,20 +1721,16 @@ class MMBot:
         self._dbg_count("incoming_total")
         self._dbg_count(f"incoming_topic_{self._topic_family(topic)}")
 
-        book_symbol = self._symbol_for_book_topic(topic)
-        if book_symbol is not None:
-            self._handle_book(payload, symbol=book_symbol)
-            self._reprice_if_drifted(book_symbol)
+        kind, symbol = self._symbol_topics.get(topic, ("", ""))
+        if kind == "book":
+            self._handle_book(payload, symbol=symbol)
+            self._reprice_if_drifted(symbol)
             return
-
-        halt_symbol = self._symbol_for_topic(topic, topic_circuit_breaker_halt)
-        if halt_symbol is not None:
-            self._handle_circuit_breaker_halt(halt_symbol)
+        if kind == "halt":
+            self._handle_circuit_breaker_halt(symbol)
             return
-
-        resume_symbol = self._symbol_for_topic(topic, topic_circuit_breaker_resume)
-        if resume_symbol is not None:
-            self._handle_circuit_breaker_resume(resume_symbol)
+        if kind == "resume":
+            self._handle_circuit_breaker_resume(symbol)
             return
 
         if topic == TOPIC_TRADE_EXECUTED:
@@ -1578,18 +1752,6 @@ class MMBot:
         else:
             self._dbg_count("incoming_unhandled")
 
-    def _symbol_for_book_topic(self, topic: str) -> str | None:
-        for sym in self.symbols:
-            if topic == topic_book_snapshot(sym):
-                return sym
-        return None
-
-    def _symbol_for_topic(self, topic: str, topic_fn: Any) -> str | None:
-        for sym in self.symbols:
-            if topic == topic_fn(sym):
-                return sym
-        return None
-
     def _tick(self) -> None:
         """Periodic housekeeping — reissue timer, heartbeat, QLEGS. Runs
         independently for every symbol still active (§5a.4)."""
@@ -1601,10 +1763,17 @@ class MMBot:
         ):
             self._send_engine_heartbeat(now)
 
+        qlegs_due = False
         for symbol in self._active_symbols():
-            self._tick_symbol(symbol, now)
+            qlegs_due = self._tick_symbol(symbol, now) or qlegs_due
+        if qlegs_due:
+            # One snapshot for the whole gateway: the reply names no symbol,
+            # so only a gateway-wide one says which quotes are missing.
+            self._send(make_quote_legs_request_msg(self.gateway_id, "", "ACTIVE"))
+            self._dbg_count("qlegs_reconcile_requests")
 
-    def _tick_symbol(self, symbol: str, now: float) -> None:
+    def _tick_symbol(self, symbol: str, now: float) -> bool:
+        """Run one symbol's timers. True when its QLEGS check is due."""
         st = self._symbols_state[symbol]
 
         # Reissue timer
@@ -1678,43 +1847,37 @@ class MMBot:
                 self._cancel_and_reissue(symbol)
             st.last_heartbeat = now
 
-        # Periodic QLEGS reconciliation — request only (non-blocking). The
-        # reply is handled in _dispatch so steady-state fills/status events
-        # are never dropped while waiting for the snapshot.
+        # Periodic QLEGS reconciliation — request only (non-blocking), sent
+        # by _tick. The reply is handled in _dispatch so steady-state
+        # fills/status events are never dropped while waiting for it.
         if now - st.last_qlegs_reconcile >= st.qlegs_reconcile_interval_sec:
             st.last_qlegs_reconcile = now
-            if st.state == BotState.QUOTING and st.quote_id is not None:
-                self._send(make_quote_legs_request_msg(self.gateway_id, symbol, "ALL"))
-                self._dbg_count("qlegs_reconcile_requests")
+            return st.state == BotState.QUOTING and st.quote_id is not None
+        return False
 
     def _reconcile_qlegs(self, payload: dict[str, Any]) -> None:
-        """Reconcile a QLEGS snapshot against local quote state.
+        """Reconcile a gateway-wide QLEGS snapshot against every symbol.
 
-        QLEGS replies carry `symbol` on each leg but the request itself was
-        for one symbol, so every leg in a reply belongs to the same symbol
-        — resolved from the first leg present, falling back to the primary
-        symbol for a reply with no legs (mirrors the single-symbol bot's
-        original "no legs but we think we have a quote" mismatch check,
-        which otherwise has nothing to resolve a symbol from).
-
-        Only acts while actively quoting a tracked quote for that symbol; a
-        divergence clears local state and schedules an immediate reissue.
-        Reconciles against ``legs`` (the currently-active set) only —
-        ``recent`` (the engine's bounded inactivation history, present when
-        ``show=ALL``) is informational and not used for reconciliation.
+        The bot asks for the whole gateway's ``ACTIVE`` legs (the reply names
+        no symbol, so only then does a missing symbol mean a missing quote).
+        Each leg carries its ``symbol``. Every symbol actively quoting a
+        tracked quote is checked; a divergence (no legs, another quote_id,
+        other leg order ids) clears that symbol's local state and schedules
+        an immediate reissue. Legs of symbols this bot does not quote are
+        ignored.
         """
-        legs = payload.get("legs", [])
-        if legs:
-            symbol = str(legs[0].get("symbol", "")).upper() or self._primary_symbol
-        else:
-            symbol = self._primary_symbol
-        st = self._symbols_state.get(symbol)
-        if st is None or st.state != BotState.QUOTING or st.quote_id is None:
-            return
-
         if not payload.get("complete", True):
-            self._debug(f"[{symbol}] QLEGS reply marked incomplete by engine")
+            self._debug("QLEGS reply marked incomplete by engine")
+        legs_by_symbol: dict[str, list[dict[str, Any]]] = defaultdict(list)
+        for leg in payload.get("legs", []):
+            legs_by_symbol[str(leg.get("symbol", "")).upper()].append(leg)
+        for symbol in self._active_symbols():
+            st = self._symbols_state[symbol]
+            if st.state == BotState.QUOTING and st.quote_id is not None:
+                self._reconcile_symbol_legs(symbol, legs_by_symbol.get(symbol, []))
 
+    def _reconcile_symbol_legs(self, symbol: str, legs: list[dict[str, Any]]) -> None:
+        st = self._symbols_state[symbol]
         if not legs:
             # Engine says no legs but we think we have a quote
             self._log(
@@ -1759,7 +1922,6 @@ class MMBot:
             )
             self._clear_quote_state(symbol)
             st.reissue_at = time.monotonic()
-            return
 
     def attach_reporter(self, reporter: HealthReporter) -> None:
         """Ship this bot's health beacon through ``reporter`` (main()).
@@ -1799,6 +1961,7 @@ class MMBot:
         # Install signal handlers
         def _sig_handler(signum: int, frame: Any) -> None:
             self._running = False
+            self._stop_requested = True
 
         signal.signal(signal.SIGINT, _sig_handler)
         signal.signal(signal.SIGTERM, _sig_handler)
@@ -1812,56 +1975,10 @@ class MMBot:
 
     def _run_loop(self) -> int:
         """Internal event loop."""
-        # Step 1: Authenticate (gateway-wide — one auth covers every symbol)
-        if not self._authenticate():
-            self._warn("startup failed: authentication")
-            return 1
-
-        # Step 2: Request symbols (registers tick/MM-obligation metadata for
-        # every symbol found in the reply)
-        symbols_seen = self._request_symbols()
-
-        # Steps 3-5, per symbol: gap validation, pricer creation, QBOOT/QLEGS.
-        # A symbol that fails any of these is excluded from the rest of the
-        # run (§5a.4 per-symbol failure isolation) rather than failing the
-        # whole process — unless it is the *only* symbol, in which case
-        # failing it is exactly the original single-symbol failure behavior.
-        for symbol in list(self.symbols):
-            self._startup_one_symbol(symbol, symbols_seen)
-
+        rc = self._start_up()
+        if rc is not None:
+            return rc
         active = self._active_symbols()
-        if not active:
-            self._warn("startup failed: no symbol survived startup checks")
-            return 1
-        for symbol in self.symbols:
-            if symbol not in active:
-                st = self._symbols_state[symbol]
-                self._warn(
-                    f"[{symbol}] excluded from quoting: {st.startup_failed_reason}"
-                )
-
-        # Step 6: Wait for session state (gateway-wide)
-        if not self._wait_for_session(self._startup_session_timeout_sec):
-            self._warn("startup failed: no session.state received within timeout")
-            return 1
-
-        # Step 7: Determine initial state, per active symbol. This can
-        # exclude a symbol too (no reference price available anywhere) —
-        # recompute the active set afterwards and, same as after steps 3-5,
-        # fail the whole process if nothing survived.
-        for symbol in active:
-            self._resolve_initial_state(symbol)
-
-        active = self._active_symbols()
-        if not active:
-            self._warn("startup failed: no symbol survived startup checks")
-            return 1
-
-        self._log(f"running symbols={active} session={self._session_state}")
-        now = time.monotonic()
-        for symbol in active:
-            self._symbols_state[symbol].last_qlegs_reconcile = now
-            self._symbols_state[symbol].last_heartbeat = now
 
         # Main event loop
         assert self._sub_sock is not None
@@ -1890,10 +2007,86 @@ class MMBot:
         self._do_shutdown()
         return 0
 
+    def _start_up(self) -> int | None:
+        """Steps 1-7 of the start-up sequence. Returns the exit code when
+        start-up ends the run, None when the bot goes on to quote."""
+        # A stop (SIGINT/SIGTERM) during start-up ends it before any quote
+        # is sent: each step's wait gives up at once, and exit code is 0.
+        # Step 1: Authenticate (gateway-wide — one auth covers every symbol)
+        authenticated = self._authenticate()
+        if self._stop_requested:
+            return 0
+        if not authenticated:
+            self._warn("startup failed: authentication")
+            return 1
+
+        # Step 2: Request symbols (registers tick/MM-obligation metadata for
+        # every symbol found in the reply)
+        symbols_seen = self._request_symbols()
+        if self._stop_requested:
+            return 0
+        if not symbols_seen:
+            # Without it every tick size and obligation would be a guess.
+            self._warn("startup failed: no symbol list from the engine")
+            return 1
+
+        # Step 3, per symbol: gap validation, pricer creation. A symbol that
+        # fails is excluded from the rest of the run (§5a.4 per-symbol failure
+        # isolation) rather than failing the whole process — unless it is the
+        # *only* symbol, in which case failing it is exactly the original
+        # single-symbol failure behavior.
+        for symbol in list(self.symbols):
+            self._startup_one_symbol(symbol, symbols_seen)
+
+        # Steps 4-5, once for the gateway: QBOOT adoption, QLEGS check, and
+        # the position the gateway already holds.
+        self._adopt_existing_quotes()
+        self._seed_positions()
+        if self._stop_requested:
+            return 0
+
+        active = self._active_symbols()
+        if not active:
+            self._warn("startup failed: no symbol survived startup checks")
+            return 1
+        for symbol in self.symbols:
+            if symbol not in active:
+                st = self._symbols_state[symbol]
+                self._warn(
+                    f"[{symbol}] excluded from quoting: {st.startup_failed_reason}"
+                )
+
+        # Step 6: Wait for session state (gateway-wide)
+        session_known = self._wait_for_session(self._startup_session_timeout_sec)
+        if self._stop_requested:
+            return 0
+        if not session_known:
+            self._warn("startup failed: no session.state received within timeout")
+            return 1
+
+        # Step 7: Determine initial state, per active symbol. This can
+        # exclude a symbol too (no reference price available anywhere) —
+        # recompute the active set afterwards and, same as after steps 3-5,
+        # fail the whole process if nothing survived.
+        for symbol in active:
+            self._resolve_initial_state(symbol)
+
+        active = self._active_symbols()
+        if not active:
+            self._warn("startup failed: no symbol survived startup checks")
+            return 1
+
+        self._log(f"running symbols={active} session={self._session_state}")
+        now = time.monotonic()
+        for symbol in active:
+            self._symbols_state[symbol].last_qlegs_reconcile = now
+            self._symbols_state[symbol].last_heartbeat = now
+        return None
+
     def _startup_one_symbol(self, symbol: str, symbols_seen: list[str]) -> None:
         st = self._symbols_state[symbol]
 
-        if symbols_seen and symbol not in symbols_seen:
+        if symbol not in symbols_seen:
             st.startup_failed_reason = f"{symbol} not in symbol list"
             self._warn(f"[{symbol}] startup failed: not in symbol list")
             return
@@ -1914,6 +2107,12 @@ class MMBot:
                 )
                 self._warn(f"[{symbol}] startup failed: {st.startup_failed_reason}")
                 return
+        if st.mm_min_qty is not None and st.qty < st.mm_min_qty:
+            st.startup_failed_reason = (
+                f"--qty {st.qty} is below the mm_min_qty obligation {st.mm_min_qty}"
+            )
+            self._warn(f"[{symbol}] startup failed: {st.startup_failed_reason}")
+            return
 
         # Initialize pricing strategy
         try:
@@ -1945,33 +2144,42 @@ class MMBot:
                     f"{st.mm_max_spread_ticks}"
                 )
 
-        # QBOOT — try adoption
-        boot_payload = self._request_bootstrap(symbol)
-        self._try_adopt_from_bootstrap(symbol, boot_payload)
+        # Ask for the book now: a quiet book publishes no update, and without
+        # one the reference fallback finds no mid. The reply arrives during
+        # the QBOOT/QLEGS waits, which pass it to _handle_book.
+        self._send(make_book_snapshot_request_msg(symbol))
 
-        # QLEGS reconciliation
-        qlegs_payload = self._request_qlegs(symbol)
-        if qlegs_payload and st.quote_id:
-            legs = qlegs_payload.get("legs", [])
-            if legs:
-                for leg in legs:
-                    if str(leg.get("quote_id", "")) != st.quote_id:
-                        self._log(
-                            f"[{symbol}] startup QLEGS mismatch — clearing "
-                            "adopted state"
-                        )
-                        self._clear_quote_state(symbol)
-                        break
+    def _adopt_existing_quotes(self) -> None:
+        """Adopt each active symbol's live quote from one gateway-wide QBOOT,
+        then drop an adoption the QLEGS snapshot contradicts."""
+        active = self._active_symbols()
+        if not active:
+            return
+        self._boot_payload = self._request_bootstrap()
+        for symbol in active:
+            self._try_adopt_from_bootstrap(symbol, self._boot_payload)
 
-        # Stash the resolved boot_payload for the initial-state step so we
-        # don't have to re-request QBOOT — resolved lazily via a private
-        # attribute since dataclass fields are typed narrowly above.
-        self._boot_payloads = getattr(self, "_boot_payloads", {})
-        self._boot_payloads[symbol] = boot_payload
+        qlegs_payload = self._request_qlegs()
+        if not qlegs_payload:
+            return
+        legs = qlegs_payload.get("legs", [])
+        for symbol in active:
+            st = self._symbols_state[symbol]
+            if not st.quote_id:
+                continue
+            for leg in legs:
+                if str(leg.get("symbol", "")).upper() != symbol:
+                    continue
+                if str(leg.get("quote_id", "")) != st.quote_id:
+                    self._log(
+                        f"[{symbol}] startup QLEGS mismatch — clearing " "adopted state"
+                    )
+                    self._clear_quote_state(symbol)
+                    break
 
     def _resolve_initial_state(self, symbol: str) -> None:
         st = self._symbols_state[symbol]
-        boot_payload = getattr(self, "_boot_payloads", {}).get(symbol)
+        boot_payload = self._boot_payload
         has_adopted = st.quote_id is not None
         if has_adopted:
             if self._session_state in _QUOTING_SESSIONS:
@@ -2029,6 +2237,7 @@ class MMBot:
     def shutdown(self) -> None:
         """External shutdown trigger."""
         self._running = False
+        self._stop_requested = True
 
 
 def _resolve_symbols_arg(*, symbol: str | None, symbols: list[str] | None) -> list[str]:

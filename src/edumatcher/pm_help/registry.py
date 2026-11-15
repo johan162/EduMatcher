@@ -462,8 +462,8 @@ _CORE_RUNTIME: tuple[CommandInfo, ...] = (
             ),
             Option(
                 "--print-every N",
-                "100",
-                "Print in-memory P&L snapshot every N trades (0 disables)",
+                "0",
+                "Print a P&L table of every position every N trades (0: never)",
             ),
             Option(
                 "--retention-days N",
@@ -665,14 +665,15 @@ _EXTERNAL_GATEWAYS: tuple[CommandInfo, ...] = (
         name="pm-md-gwy",
         category="External Gateways",
         title="CALF Market-Data Gateway",
-        summary="External market-data gateway distributing top/trade/state channels over CALF/TCP.",
+        summary="External market-data gateway distributing CALF channels over TCP.",
         synopsis=(
             "pm-md-gwy [--bind 0.0.0.0] [--port 5570] [--engine-pub tcp://127.0.0.1:5556]",
             "          [--index-pub tcp://127.0.0.1:5558]",
         ),
         description=(
             "Consumes the engine and index PUB feeds internally and republishes "
-            "sequence-aware TOP, TRADE, and STATE channels to external CALF clients.",
+            "sequence-aware TOP, DEPTH, TRADE, STATE, AUCTION, CB and INDEX "
+            "channels to external CALF clients.",
         ),
         options=(
             Option("--bind ADDR", "0.0.0.0", "TCP bind address for external clients"),
@@ -685,7 +686,7 @@ _EXTERNAL_GATEWAYS: tuple[CommandInfo, ...] = (
             Option(
                 "--index-pub ADDR",
                 "tcp://127.0.0.1:5558",
-                "Index PUB socket address (overrides config)",
+                "pm-index PUB address consumed by the gateway",
             ),
         ),
         has_common_log_options=True,
@@ -711,7 +712,7 @@ _EXTERNAL_GATEWAYS: tuple[CommandInfo, ...] = (
             Option("--port PORT", "5580", "TCP listen port for RALF clients"),
             Option(
                 "--engine-pub ADDR",
-                "tcp://127.0.0.1:5556",
+                "tcp://$EDUMATCHER_ENGINE_HOST:5556",
                 "Engine PUB address consumed by the gateway",
             ),
         ),
@@ -740,7 +741,7 @@ _EXTERNAL_GATEWAYS: tuple[CommandInfo, ...] = (
             Option("--port PORT", "5590", "TCP listen port for DC1 clients"),
             Option(
                 "--engine-dc-pub ADDR",
-                "tcp://127.0.0.1:5557",
+                "tcp://$EDUMATCHER_ENGINE_HOST:5557",
                 "Engine drop-copy PUB address consumed by the gateway",
             ),
         ),
@@ -843,7 +844,7 @@ _PROTOCOL_SPIES: tuple[CommandInfo, ...] = (
                 "Comma-separated symbols; * = wildcard where allowed",
             ),
             Option(
-                "--resume CH:SYM:LASTSEQ",
+                "--resume CH:SYM:LASTSEQ:EPOCH",
                 "none",
                 "One-shot single-stream replay request on connect",
             ),
@@ -905,7 +906,12 @@ _PROTOCOL_SPIES: tuple[CommandInfo, ...] = (
             Option(
                 "--lastseq N",
                 "0",
-                "Requests replay on connect via HELLO|LASTSEQ=N (0 = no replay)",
+                "Checkpoint sent as HELLO|LASTSEQ=N, replayed on SUB (0 = none)",
+            ),
+            Option(
+                "--epoch HEX",
+                "",
+                "WELCOME|EPOCH of the run --lastseq came from; required with it",
             ),
             Option(
                 "--ping-interval SEC",
@@ -1061,19 +1067,50 @@ _AI_AND_BOTS: tuple[CommandInfo, ...] = (
         name="pm-mm-bot",
         category="AI & Bots",
         title="Autonomous Market-Maker Bot",
-        summary="Autonomous two-sided quoting bot for one symbol; connects as MARKET_MAKER.",
+        summary=(
+            "Autonomous two-sided quoting bot for one or more symbols; "
+            "connects as one MARKET_MAKER gateway."
+        ),
         synopsis=(
-            "pm-mm-bot --symbol AAPL [--gap 0.10] [--qty 500] [--id-suffix 01] [options]",
+            "pm-mm-bot --symbol AAPL [--gap 0.10] [--qty 500] [options]",
+            "pm-mm-bot --symbol AAPL --gap 0.10 --symbol TSLA --gap 0.50 [options]",
+            "pm-mm-bot --symbols AAPL,MSFT | --all-symbols | --config FILE [options]",
         ),
         description=(
-            "Posts a two-sided quote and automatically reprices on fills, mid-price "
-            "drift, and session transitions. The gateway ID is constructed as "
-            "MM_<SYMBOL>_<suffix> and must be pre-registered with role: MARKET_MAKER. "
-            "Run multiple instances (different --id-suffix) to cover several symbols "
-            "or compete on the same one.",
+            "Posts a two-sided quote per symbol and automatically reprices on "
+            "fills, mid-price drift, halts and session transitions. One process "
+            "is one gateway and can quote several symbols; per-symbol flags "
+            "after a --symbol apply to that symbol only. The gateway ID is "
+            "MM_<label>_<suffix> (the label is the symbol, SYM1_SYM2_... or ALL) "
+            "unless --gateway-id names it, and must be registered with "
+            "role: MARKET_MAKER.",
         ),
         options=(
-            Option("--symbol SYMBOL", "required", "Instrument to make a market in"),
+            Option(
+                "--symbol SYMBOL",
+                "one symbol source required",
+                "Instrument to quote; repeatable, each opens a per-symbol scope",
+            ),
+            Option(
+                "--symbols A,B,...",
+                "unset",
+                "Several symbols on the same settings; not with --symbol",
+            ),
+            Option(
+                "--all-symbols",
+                "off",
+                "Every symbol of the deployed configuration; gateway MM_ALL_<nn>",
+            ),
+            Option(
+                "--config PATH",
+                "unset",
+                "YAML file (version: 1) with gateway, defaults and per-symbol blocks",
+            ),
+            Option(
+                "--strategy NAME",
+                "symmetric",
+                "Pricing strategy: symmetric, inventory_skew or passive",
+            ),
             Option(
                 "--gap PRICE",
                 "0.10",
@@ -1081,11 +1118,32 @@ _AI_AND_BOTS: tuple[CommandInfo, ...] = (
             ),
             Option("--qty N", "500", "Quote size on each leg"),
             Option(
+                "--max-position N",
+                "unset",
+                "inventory_skew: position at which the skew saturates (required)",
+            ),
+            Option(
+                "--retreat-ticks / --behind-ticks / --min-cover-qty",
+                "5 / 1 / 1",
+                "passive: how far to step back, how far behind others, "
+                "and how much they must show",
+            ),
+            Option(
+                "--fade-ticks / --fade-sec",
+                "2 / 3.0",
+                "passive: how far and how long a side backs off after a fill",
+            ),
+            Option(
+                "--label NAME",
+                "derived",
+                "Gateway-ID symbol segment (MM_<label>_<suffix>)",
+            ),
+            Option(
                 "--id-suffix STR", "01", "Running number for gateway ID (MM_AAPL_01)"
             ),
             Option(
                 "--gateway-id STR",
-                "MM_<symbols>_<id-suffix>",
+                "MM_<label>_<id-suffix>",
                 "Use this exact gateway ID (e.g. MM01) instead of deriving one",
             ),
             Option("--drift-ticks N", "3", "Reprice when mid moves by this many ticks"),
@@ -1120,7 +1178,10 @@ _AI_AND_BOTS: tuple[CommandInfo, ...] = (
         related=("pm-ai-trader", "pm-engine", "pm-alf-console"),
         doc_anchor="pm-mm-bot-autonomous-market-maker-bot",
         doc_page="../../../docs/books/participant-guide/part-3-market-making/030-the-market-maker-bot.md",
-        examples=("pm-mm-bot --symbol AAPL --gap 0.10 --qty 500",),
+        examples=(
+            "pm-mm-bot --symbol AAPL --gap 0.10 --qty 500",
+            "pm-mm-bot --config docs/examples/mm-bot/tech-desk.yaml",
+        ),
         notes=(
             "Reference price resolution order: active quote from QBOOT (restart "
             "recovery), book mid-price, last trade price, QBOOT bootstrap snapshot, "
@@ -1814,7 +1875,10 @@ _ADMIN_AND_OPS: tuple[CommandInfo, ...] = (
             "Traders are identified by gateway; ref_data/roster.yaml adds names, emails and "
             "opening balances. The ledger is <data>/eod.db.",
             "Exit codes of 'run': 0 clean, 1 the gate, settlement or report failed, "
-            "2 only housekeeping warnings. 'status -q' exits 0 when no closed date is waiting.",
+            "2 usage error, 3 settled and reported but a step warned (housekeeping, "
+            "or a settled date's snapshot changed). "
+            "'status -q' exits 0 when no closed date is waiting, 1 when one is "
+            "or clearing.db is missing.",
         ),
         options=(
             Option(
@@ -1840,13 +1904,15 @@ _ADMIN_AND_OPS: tuple[CommandInfo, ...] = (
             Option(
                 "--only STEP",
                 "all steps",
-                "run: re-run just report, audit, logs or backup for a settled date",
+                "run: re-run just report, audit, logs or backup for a settled date "
+                "(not with --redo, --force or --dry-run)",
                 "run",
             ),
             Option(
                 "--force",
                 "off",
-                "run: do not require the CLOSED session event (exchanges without a scheduler)",
+                "run: skip the 'has the day closed?' test (exchanges without a "
+                "scheduler); the snapshot and reconcile checks still apply",
                 "run",
             ),
             Option(
@@ -1858,19 +1924,20 @@ _ADMIN_AND_OPS: tuple[CommandInfo, ...] = (
             Option(
                 "--dry-run",
                 "off",
-                "run: gate and compute, print the amounts, write nothing (not with --only)",
+                "run: gate and settle into an in-memory copy of the ledger, print the "
+                "amounts, write nothing (not with --only)",
                 "run",
             ),
             Option(
                 "--log-keep-days N",
                 "14",
-                "run: delete compressed fallback logs older than N days",
+                "run: delete compressed fallback logs older than N days (N >= 0)",
                 "run",
             ),
             Option(
                 "--backup-keep-days N",
                 "7",
-                "run: delete backup folders older than N days",
+                "run: delete backup folders older than N days (N >= 0)",
                 "run",
             ),
             Option(
@@ -1882,7 +1949,8 @@ _ADMIN_AND_OPS: tuple[CommandInfo, ...] = (
             Option(
                 "-q, --quiet",
                 "off",
-                "status: print nothing; exit 0 if healthy, 1 otherwise",
+                "status: print nothing; exit 0 if no closed date waits, 1 if one does "
+                "or clearing.db is missing",
                 "status",
             ),
             Option("--limit N", "30", "status: number of runs shown", "status"),
@@ -2210,7 +2278,8 @@ _SETUP_AND_CONFIG: tuple[CommandInfo, ...] = (
             Option(
                 "--sessions-enabled",
                 "disabled",
-                "Enable scheduler-driven sessions",
+                "Enable scheduler-driven sessions; without it the file says "
+                "sessions_enabled: false (an absent key means enabled)",
                 group="Session & engine",
             ),
             Option(
@@ -2226,9 +2295,10 @@ _SETUP_AND_CONFIG: tuple[CommandInfo, ...] = (
                 group="Collars & circuit breakers",
             ),
             Option(
-                "--cb-levels NAME:SHIFT[:HALT_MINS[:MODE]]",
+                "--cb-levels NAME:SHIFT[:HALT_MINS]",
                 "-",
-                "Circuit-breaker level definition; repeatable",
+                "Circuit-breaker levels (HALT_MINS > 0; omit for rest of day); "
+                "repeatable. Without it no circuit_breaker_defaults is written",
                 group="Collars & circuit breakers",
             ),
             Option(
@@ -2270,7 +2340,7 @@ _SETUP_AND_CONFIG: tuple[CommandInfo, ...] = (
             Option(
                 "--schedule / --no-schedule",
                 "auto",
-                "Force include/suppress the schedule section",
+                "Write / leave out the schedule section (needs --sessions-enabled)",
                 group="Schedule",
             ),
             Option(
@@ -2320,7 +2390,9 @@ _SETUP_AND_CONFIG: tuple[CommandInfo, ...] = (
         related=("pm-config-gen", "pm-config-deploy", "pm-config-show"),
         doc_anchor="pm-cverifier-config-verifier",
         notes=(
-            "Exit 0: no findings at/above threshold. Exit 1: one or more findings at/above threshold.",
+            "Exit 0: no errors or warnings (advisories allowed). Exit 1: warnings, "
+            "no errors. Exit 2: errors, warnings under --strict, or a file that "
+            "could not be verified. --level only filters what is shown.",
         ),
     ),
     CommandInfo(

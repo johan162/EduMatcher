@@ -167,23 +167,28 @@ message — an ordered list of byte-array frames sent and received atomically.
 ZeroMQ (ZMQ) is a high-performance messaging library; the application, not
 ZMQ, decides what the frames mean.
 
-The first two frames are the message itself. Behind them ride the
-**envelope**: metadata *about* the message — a delivery sequence and a causal
-trace — rather than content of it:
+The first two frames are the message itself. Behind them rides one more
+frame, the **envelope**: metadata *about* the message — delivery sequences and
+a causal trace — rather than content of it, as ASCII fields separated by `|`:
 
 | Frame | PUB (engine → subscribers) | PUSH (client → engine) |
 |---|---|---|
 | `frame[0]` | Topic string (UTF-8) — used for PUB/SUB prefix filtering | Topic string |
 | `frame[1]` | JSON payload (UTF-8) | JSON payload |
-| `frame[2]` | Per-topic sequence number, so a subscriber can detect a drop | Causal envelope |
-| `frame[3]` | Causal envelope: `msg_id` / `causation_id` / `correlation_id` | — |
+| `frame[2]` | `seq`\|`eseq`\|`msg_id`\|`causation_id`\|`correlation_id` | `msg_id`\|`causation_id`\|`correlation_id` |
 
-The causal envelope is what lets `pm-audit-replay` (and `pm-audit-cli`'s
-`[seq=… msg=… cause=… chain=…]` log annotation) state *which submission caused
-which fill*, rather than inferring it from timing. `decode()` reads only
-`frame[0]` and `frame[1]`, so this extension cost nothing on the hot path and
-every existing subscriber kept working unchanged. The full wire layout, why it
-is frames rather than payload fields, and how to read it programmatically are
+`seq` counts per topic, so a subscriber can detect a drop on the topics it
+takes; `eseq` counts everything the socket published, so a subscriber that
+takes every topic (pm-audit) can prove the whole stream complete. The causal
+envelope is what lets `pm-audit-replay` (and `pm-audit-cli`'s
+`[seq=… eseq=… msg=… cause=… chain=…]` log annotation) state *which submission
+caused which fill*, rather than inferring it from timing. An empty field means
+absent. `decode()` reads only `frame[0]` and `frame[1]`, so a subscriber that
+needs only the message never parses the envelope. The envelope is not free on
+the publishing side: stamping it costs about 4 µs per published message
+(6.4 µs against 2.3 µs for a bare send, measured 2026-11), most of it the ULID
+and the extra frame. The full wire layout, why it is a frame rather than
+payload fields, and how to read it programmatically are
 covered in the [architecture guide](../../architecture-and-development/part-1-architecture/020-guided-tour.md#message-format).
 
 ## Transport channels
@@ -539,7 +544,7 @@ Every topic in the system, and which process puts it on the wire.
 | `admin.action.{gateway_id}` | `admin` | `engine` |
 | `auction.indicative.{symbol}` | `auction` | `engine` |
 | `auction.result.{symbol}` | `auction` | `engine` |
-| `book.snapshot_request` | `book` | `stats`, `gateway` |
+| `book.snapshot_request` | `book` | `stats`, `gateway`, `index` |
 | `book.{symbol}` | `book` | `engine` |
 | `circuit_breaker.extend.{symbol}` | `circuit_breaker` | `engine` |
 | `circuit_breaker.halt.{symbol}` | `circuit_breaker` | `engine` |
@@ -860,7 +865,7 @@ Broadcast an aggregated view of one instrument's order book, on a timer. What ev
 
 ### `book.snapshot_request`
 
-**Published by:** `stats`, `gateway`
+**Published by:** `stats`, `gateway`, `index`
 
 **Transport:** `engine_push`
 
@@ -1419,6 +1424,15 @@ The session's open, high and low index level. All three arrive together or not a
 | `high` | `float` | required | unit `dimensionless` |  |
 | `low` | `float` | required | unit `dimensionless` |  |
 
+#### `RebalanceUpdate`
+
+One entry of a rebalance batch. Mechanically a SHARES_ISSUANCE corporate action, applied to every named existing constituent as one batch with a single recompute and publish rather than one round-trip per symbol.
+
+| Field | Type | Presence | Rules | Description |
+|---|---|---|---|---|
+| `symbol` | `string` | required | max_len 16 |  |
+| `new_shares_outstanding` | `int` | required | gt 0, unit `shares` |  |
+
 #### `HistoryRecord`
 
 One structural audit entry, replayed verbatim from pm-index's append-only JSONL archive. This is a union of five shapes discriminated by `type`, and the IDL has no variant construct (section 20.3). Every field the five do not share is therefore optional, and the spec cannot state "a CORP_ACTION always carries action and detail" - that rule lives in _handle_corp_action. What it can state is the field set, the units and the types, which is what every consumer needs: all six read the records with `.get(key, default)` and dispatch on `type`. The optional fields omit rather than null because the archive omits: a record written before this spec existed must read back and re-emit unchanged, or specifying the family would rewrite history.
@@ -1440,15 +1454,7 @@ One structural audit entry, replayed verbatim from pm-index's append-only JSONL 
 | `shares_outstanding` | `int` | omitted when unset | unit `shares` | ADD_CONSTITUENT only, and absent on records written before 5.2e: the handler used the share count to weight the constituent and then dropped it from the audit entry, so what a constituent was added with was durably recorded nowhere. Optional rather than required because the archive on disk still holds records without it. |
 | `reference_price` | `float` | omitted when unset | unit `display_price` | ADD_CONSTITUENT only. |
 | `symbols` | list of `string` | omitted when empty | — | REBALANCE only: the symbols the batch actually applied to. |
-
-#### `RebalanceUpdate`
-
-One entry of a rebalance batch. Mechanically a SHARES_ISSUANCE corporate action, applied to every named existing constituent as one batch with a single recompute and publish rather than one round-trip per symbol.
-
-| Field | Type | Presence | Rules | Description |
-|---|---|---|---|---|
-| `symbol` | `string` | required | max_len 16 |  |
-| `new_shares_outstanding` | `int` | required | gt 0, unit `shares` |  |
+| `updates` | list of [`RebalanceUpdate`](#rebalanceupdate) | omitted when empty | — | REBALANCE only: each symbol's new share count, so the archive says what the batch set and not only which symbols it touched. |
 
 ### `index.update`
 
@@ -1555,12 +1561,13 @@ Operator to pm-index: apply a corporate action.
 | `ratio_numerator` | `int` | omitted when unset | gt 0, unit `dimensionless` | SPLIT. |
 | `ratio_denominator` | `int` | omitted when unset | gt 0, unit `dimensionless` | SPLIT. |
 | `dividend_per_share` | `float` | omitted when unset | gt 0, unit `money` | CASH_DIVIDEND. |
-| `new_shares_outstanding` | `int` | omitted when unset | gt 0, unit `shares` | SHARES_ISSUANCE. |
+| `new_shares_outstanding` | `int` | omitted when unset | gt 0, unit `shares` | SHARES_ISSUANCE: the new absolute count. |
+| `shares_delta` | `int` | omitted when unset | unit `shares` | SHARES_ISSUANCE: a signed change to pm-index's live count (negative for a buy-back), applied by pm-index so no client has to know the count. Exactly one of this and new_shares_outstanding; the handler enforces that, the IDL cannot say it (section 20.3). |
 | `command_id` | `string` | omitted when empty | max_len 64 | Echoed on the ack so a caller can correlate. |
 
 !!! note
 
-    The four parameters are action-specific and flat: SPLIT reads the two ratio fields, CASH_DIVIDEND reads dividend_per_share, SHARES_ISSUANCE reads new_shares_outstanding, and each is read with `.get(key, 0)` inside its own branch of _handle_corp_action.
+    The five parameters are action-specific and flat: SPLIT reads the two ratio fields, CASH_DIVIDEND reads dividend_per_share, SHARES_ISSUANCE reads exactly one of new_shares_outstanding and shares_delta, each in its own branch of _handle_corp_action.
 
     A discriminated union would say that properly and the IDL has none - see design section 20.3 for why one was not built for a single family.
 
@@ -1635,6 +1642,7 @@ pm-index to requestor: the corporate action's outcome.
 | `level` | `float` | omitted when unset | unit `dimensionless` |  |
 | `divisor` | `float` | omitted when unset | unit `dimensionless` |  |
 | `old_divisor` | `float` | omitted when unset | unit `dimensionless` | The divisor immediately before this action was applied. Same field name and purpose as HistoryRecord.old_divisor, so a post-mortem does not need pm-index's local JSONL archive to see what changed — the wire event is self-contained. Present only alongside divisor, i.e. on acceptance. |
+| `shares_outstanding` | `int` | omitted when unset | unit `shares` | The constituent's share count after the action, on acceptance only. A SHARES_ISSUANCE sent as shares_delta learns the count it resulted in from here. |
 | `command_id` | `string` | omitted when empty | max_len 64 |  |
 
 !!! note
@@ -2327,6 +2335,7 @@ Acknowledge acceptance or rejection of a new order, addressed to the gateway tha
 | `smp_action` | enum: `NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH` | omitted when unset | — | Self-match prevention. Null means the client did not specify SMP at all, distinct from an explicit NONE. See SmpAction's docstring. |
 | `client_tag` | `string` | omitted when unset | max_len 64 |  |
 | `request_tag` | `string` | omitted when unset | max_len 64 | Client correlation tag for this request, echoed on the resulting event or rejection. Distinct from the target order's client_tag, which identifies the order rather than the request acting on it. A client may have several requests outstanding against one order. |
+| `request` | enum: `NEW`, `CANCEL`, `AMEND` | omitted when unset | — | Which request this ack answers: a new order (accepted or refused), or a cancel or amend the engine refused (an accepted cancel or amend is answered by order.cancelled or order.amended instead). A refused CANCEL or AMEND leaves the order it targets as it was, still resting; only a refused NEW order ends as REJECTED. request_tag cannot tell them apart, because a cancel or amend carries one only when the client set it. The engine sets this on every order.ack. |
 | `oco_group_id` | `string` | omitted when unset | max_len 64 |  |
 | `combo_parent_id` | `string` | omitted when unset | max_len 64 |  |
 | `quote_id` | `string` | omitted when unset | max_len 64 |  |
@@ -4783,13 +4792,7 @@ Engine to gateway: per-symbol net position and average cost, for the asking gate
 
     An unauthenticated or unknown gateway gets an empty list rather than a rejection -- flat and not-a-gateway are the same answer here, which is deliberate: the alternative tells an unauthenticated caller whether an id exists.
 
-    This pair has no consumer in `src/` at all.
-
-    It is exercised only by `tests/test_position_snapshot.py`, which is section 27.4's shape -- a capability exercised only by its own tests.
-
-    It is specified rather than removed because unlike `drop_copy.replay_request` it is fully implemented on both sides and reachable by any gateway; what it lacks is a caller, not an implementation.
-
-    Recorded here so the next phase to touch it knows the difference.
+    pm-mm-bot asks for its own gateway's snapshot at start-up and seeds each symbol's tracked position from it, so `inventory_skew` does not restart flat while the gateway holds inventory.
 
 **See also:** `system.position_request`, `trade.executed`
 

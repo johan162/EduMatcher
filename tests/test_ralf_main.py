@@ -99,3 +99,21 @@ def test_main_runs_gateway(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> N
     monkeypatch.setattr(ralf_main, "RalfGateway", _DummyGateway)
     ralf_main.main()
     assert called["run"] is True
+
+
+def _help_for(option: str) -> str:
+    action = next(a for a in build_parser()._actions if option in a.option_strings)
+    return str(action.help)
+
+
+def test_engine_pub_help_names_the_real_default() -> None:
+    """There is no config key for it (RALF review D7)."""
+    text = _help_for("--engine-pub")
+    assert "config" not in text
+    assert "EDUMATCHER_ENGINE_HOST" in text
+    assert ":5556" in text
+
+
+def test_quiet_help_says_it_is_the_default() -> None:
+    """-q selects WARNING, which is already the default (RALF review D8)."""
+    assert _help_for("--quiet") == "Explicit WARNING log level (the default)"

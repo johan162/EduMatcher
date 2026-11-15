@@ -101,7 +101,7 @@ dc_gateway:
 
 | Field | Default | Description |
 |-------|---------|-------------|
-| `name` | `dc-gwy01` | Process name echoed in `WELCOME` |
+| `name` | `dc-gwy01` | Process name echoed in `WELCOME` as `GW`. Must not be empty or contain `\|` or a line break |
 | `bind_address` | `0.0.0.0` | Network interface to listen on (`127.0.0.1` for local-only) |
 | `port` | `5590` | TCP listen port |
 | `heartbeat_interval_sec` | `2` | Seconds between `HB` lines, sent whether or not fills were sent in between |
@@ -141,10 +141,10 @@ CLI override options:
 |--------|---------|-------------|
 | `--bind ADDR` | from config / `0.0.0.0` | Override TCP bind address |
 | `--port PORT` | from config / `5590` | Override TCP listen port |
-| `--engine-dc-pub ADDR` | from config / `tcp://127.0.0.1:5557` | Override the engine drop-copy PUB address this gateway subscribes to |
+| `--engine-dc-pub ADDR` | `tcp://$EDUMATCHER_ENGINE_HOST:5557` (`127.0.0.1` when unset) | Override the engine drop-copy PUB address this gateway subscribes to; there is no config key for it |
 | `--log-level` | `WARNING` | Explicit level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
 | `-v` / `--verbose` | off | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`) |
-| `-q` / `--quiet` | off | Reduce output to warnings/errors |
+| `-q` / `--quiet` | off | Explicit `WARNING` level (the default) |
 | `--log-target` | `server` | Where this process's own operational log records go: `server` (auto-detected `pm-log-srv`), `stdout`, or `file` |
 | `--log-file PATH` | — | Operational log file path — required when `--log-target file` |
 | `--log-failover-timeout SECONDS` | `30` | Grace window before falling back to a local log file once `pm-log-srv` becomes unreachable |
@@ -199,7 +199,7 @@ sequenceDiagram
     G-->>C: WELCOME|PROTO=DC1|GW=dc-gwy01|ID=TRADER01|HBINT=2|IDLE=20
     Note over C,G: Session active — no further commands needed
     D-->>G: drop_copy.event.TRADER01 {fill payload}
-    G-->>C: DC_FILL|SEQ=..|ORDER_ID=..|SYMBOL=..|FILL_QTY=..|FILL_PRICE=..|LIQUIDITY=..
+    G-->>C: DC_FILL|SEQ=..|ORDER_ID=..|SYMBOL=..|FILL_QTY=..|FILL_PRICE=..|LIQUIDITY=..|TS=..|TRADE_ID=..
     C->>G: PING
     G-->>C: PONG|TS=...
     C->>G: EXIT
@@ -245,6 +245,10 @@ WELCOME|PROTO=DC1|GW=dc-gwy01|ID=TRADER01|HBINT=2|IDLE=20
 The gateway subscribes this session to `drop_copy.event.TRADER01` on its
 internal SUB socket (refcounted — sharing the ZMQ subscription across every
 connected session watching the same gateway ID) before sending `WELCOME`.
+The SUB subscribes to watched IDs only, so other participants' fills do not
+reach the gateway (ZeroMQ matches by prefix, so `TRADER1` also brings in
+`TRADER10`'s fills; the gateway drops those, since only an exact `ID` match
+is relayed).
 
 ### Step 3 — Receive fills
 
@@ -257,6 +261,17 @@ as the session stays connected.
 Send `EXIT` for a graceful close, or simply close the TCP connection. The
 gateway decrements the internal subscription refcount and, if no other
 session still wants that gateway ID, unsubscribes from the topic.
+
+Closing only the client's sending side (a half-close, as
+`printf 'HELLO|…\n' | nc host 5590` does when `printf` ends) also ends the
+session: the gateway reads end-of-file and disconnects with reason
+`peer_closed`, before any fill. A client that wants fills keeps its sending
+side open.
+
+When `pm-dc-gwy` is stopped (`SIGINT`/`SIGTERM`), every session receives
+`EXIT|REASON=shutdown|TS=…` after the lines already queued for it, and is
+then closed. A client that is not reading gets at most one second to take
+them before its connection is closed regardless.
 
 
 ## Protocol reference
@@ -280,21 +295,35 @@ model, and no replay-by-sequence.
 | Message | Fields | Trigger |
 |---|---|---|
 | `WELCOME` | `PROTO`, `GW`, `ID`, `HBINT`, `IDLE` | Reply to a valid `HELLO` |
-| `DC_FILL` | `SEQ`, `ORDER_ID`, `SYMBOL`, `FILL_QTY`, `FILL_PRICE`, `LIQUIDITY` | Unsolicited, one per fill for the session's gateway ID |
+| `DC_FILL` | `SEQ`, `ORDER_ID`, `SYMBOL`, `FILL_QTY`, `FILL_PRICE`, `LIQUIDITY`, `TS`, `TRADE_ID` | Unsolicited, one per fill for the session's gateway ID |
 | `PONG` | `TS` | Reply to `PING` |
 | `HB` | `TS` | Heartbeat every `HBINT` seconds |
+| `EXIT` | `REASON`, `TS` | The gateway is closing the session: `auth_timeout`, `idle_timeout` or `shutdown`. The connection closes after it |
 | `ERR` | `CODE`, `DETAIL` | See [Error codes](#error-codes) |
 
-`DC_FILL` fields map directly from the drop-copy payload — see
+Each `DC_FILL` field is one field of the drop-copy payload — see
 [Drop Copy → order.fill event](../../protocols-and-clients/part-3-session-behaviour/060-drop-copy.md#orderfill-event) for the
-full source payload and field semantics. `SEQ` and `LIQUIDITY`
-(`MAKER`/`TAKER`) come from the drop-copy envelope; `DC_FILL` does not carry
-order state fields like `REMAINING`/`STATUS`.
+full source payload and field semantics:
+
+| `DC_FILL` field | Payload field | Notes |
+|---|---|---|
+| `SEQ` | `seq` | The engine's own counter for this gateway ID, passed through: a jump means fills were lost on the way, a drop to 1 an engine restart. See [Sequence numbers](../../protocols-and-clients/part-3-session-behaviour/060-drop-copy.md#sequence-numbers) |
+| `ORDER_ID` | `order_id` | |
+| `SYMBOL` | `symbol` | |
+| `FILL_QTY` | `fill_qty` | |
+| `FILL_PRICE` | `fill_price` | Display price |
+| `LIQUIDITY` | `liquidity_flag` | `MAKER` or `TAKER` |
+| `TS` | `timestamp` | When the engine published the fill, ISO-8601 UTC with milliseconds |
+| `TRADE_ID` | `trade_ids` | The public trade id (`trade.executed` `id`, RALF `EXEC_ID`); several are comma-joined. Its prefix is the engine run, so it also shows a restart |
+
+The payload's `gateway_id` is the session's own `ID` and its `event_type` is
+always `order.fill`, so neither is repeated. `DC_FILL` carries no side and no
+order state such as `REMAINING`/`STATUS`.
 
 ```text
 > HELLO|CLIENT=risksys|PROTO=DC1|ID=TRADER01
 WELCOME|PROTO=DC1|GW=dc-gwy01|ID=TRADER01|HBINT=2|IDLE=20
-DC_FILL|SEQ=42|ORDER_ID=ORD-001|SYMBOL=AAPL|FILL_QTY=100|FILL_PRICE=150.05|LIQUIDITY=TAKER
+DC_FILL|SEQ=42|ORDER_ID=ORD-001|SYMBOL=AAPL|FILL_QTY=100|FILL_PRICE=150.05|LIQUIDITY=TAKER|TS=2026-11-15T09:31:02.417Z|TRADE_ID=000003-000000017
 ```
 
 
@@ -311,7 +340,8 @@ Every error arrives as `ERR|CODE=<CODE>|DETAIL=<message>`.
 `SLOW_CLIENT` and the idle timeout end the connection even for a client that
 has stopped reading: the gateway tries to deliver the final line, then closes
 the connection after at most 5 seconds. On idle timeout the final line is
-`EXIT|REASON=idle_timeout`.
+`EXIT|REASON=idle_timeout`; when the gateway is stopped it is
+`EXIT|REASON=shutdown`.
 
 
 ## Minimal zero-dependency client (Python)
@@ -403,7 +433,12 @@ netstat -tlnp | grep 5590
 printf 'HELLO|CLIENT=test|PROTO=DC1|ID=TRADER01\nEXIT\n' | nc 127.0.0.1 5590
 ```
 
-Expected output: `WELCOME|...` followed by a clean connection close.
+Expected output: `WELCOME|...` followed by a clean connection close. Without
+the `EXIT` the session still ends straight after `WELCOME`: when `printf`
+finishes, `nc` half-closes the connection, and a half-close ends a DC1
+session (see [Step 4](#step-4-disconnect)). To watch fills from the command
+line, use the interactive `nc 127.0.0.1 5590` of the
+[Quick connect test](#quick-connect-test).
 
 ### Common problems
 
@@ -411,7 +446,9 @@ Expected output: `WELCOME|...` followed by a clean connection close.
 |---|---|---|
 | `Connection refused` | Gateway not started or wrong port | Confirm `pm-dc-gwy` is running; check `dc_gateway.port` in config |
 | `ERR\|CODE=AUTH_REQUIRED` immediately | First line was not `HELLO`, or a required field was missing | Ensure the first line is `HELLO\|CLIENT=..\|PROTO=DC1\|ID=..` |
-| `WELCOME` arrives but no `DC_FILL` ever does | No fills have occurred for that gateway ID yet, or `pm-engine`'s drop-copy publisher failed to bind | Check `pm-engine` logs for drop-copy bind warnings; confirm trades are occurring for that gateway ID |
+| `WELCOME` arrives but no `DC_FILL` ever does | The `ID` in `HELLO` is not a participant's gateway ID (any `ID` is welcomed — there is no check), no fills have occurred for that ID yet, or `pm-engine`'s drop-copy publisher failed to bind | Compare the `ID` echoed in `WELCOME` with the participant list (`pm-config-show`); check `pm-engine` logs for drop-copy bind warnings; confirm trades are occurring for that gateway ID |
+| `DC_FILL` `SEQ` jumps (for example 41, then 45) | Fills were lost between `pm-engine` and `pm-dc-gwy`, or the client missed lines | If `pm-dc-gwy` logged `drop-copy feed lost …` (and `gwy.feed_gaps` rose, a `dc_feed_gaps` breach on the dashboard), the loss was before the gateway; reconcile those fills as in [Drop Copy → Sequence numbers](../../protocols-and-clients/part-3-session-behaviour/060-drop-copy.md#sequence-numbers). `SEQ` back to 1 is an engine restart, not a loss |
+| `EXIT\|REASON=shutdown` | `pm-dc-gwy` was stopped | Reconnect when it is back; fills from the outage are not replayed |
 | `EXIT\|REASON=idle_timeout` | Writes to the client stopped succeeding for `idle_timeout_sec` — it is not reading its socket | Read continuously; heartbeats alone keep a reading client connected |
 | `EXIT\|REASON=auth_timeout` | No `HELLO` within 5 seconds of connecting | Send `HELLO` as the first line, straight after connecting |
 | Gateway not reachable from another host | `bind_address: 127.0.0.1` | Change `bind_address` to `0.0.0.0` (or the specific interface IP) |

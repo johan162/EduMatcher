@@ -546,6 +546,7 @@ _LOSS_COUNTERS = (
     "stats.records_dropped",
     "stats.feed_gaps",
     "audit.decode_errors",
+    "audit.write_errors",
     "health.beacons_dropped",
     "health.samples_rejected",
     "monitor.beacons_invalid",

@@ -19,9 +19,10 @@ and receive everyone's order flow.  Each message is:
 
 Replay
 ~~~~~~
-The engine calls ``replay(recipient_id, N, gateway_id=...)`` to re-publish
-one gateway's buffered events with ``seq >= N`` on the
-``drop_copy.replay.{recipient_id}`` topic.
+The ``replay(recipient_id, N, gateway_id=...)`` library hook re-publishes one
+gateway's buffered events with ``seq >= N`` on the
+``drop_copy.replay.{recipient_id}`` topic. It is available to in-process
+consumers and tests; the engine does not call it.
 
 This is **in-process only**. There is no request message: this docstring
 described a ``drop_copy.replay_request`` for a long time, and no producer,
@@ -166,7 +167,20 @@ class DropCopyPublisher:
             liquidity_flag=liquidity_flag,
         )
         self._log.append(msg)
-        self._pub.send_multipart(make_drop_copy_event(**asdict(msg)))
+        self._pub.send_multipart(
+            make_drop_copy_event(
+                seq=msg.seq,
+                timestamp=msg.timestamp,
+                gateway_id=msg.gateway_id,
+                event_type=msg.event_type,
+                order_id=msg.order_id,
+                trade_ids=msg.trade_ids,
+                symbol=msg.symbol,
+                fill_qty=msg.fill_qty,
+                fill_price=msg.fill_price,
+                liquidity_flag=msg.liquidity_flag,
+            )
+        )
 
     def replay(self, recipient_id: str, from_seq: int, *, gateway_id: str) -> int:
         """

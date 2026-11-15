@@ -26,7 +26,10 @@ _KEYS = {"gateway", "name", "email", "opening_balance"}
 
 
 class RosterError(ValueError):
-    """The roster file is unusable; the message names the line."""
+    """The roster file is unusable; the message names the file and the line.
+
+    Only an undecodable (non-UTF-8) file has no line to name.
+    """
 
 
 @dataclass(frozen=True)
@@ -41,8 +44,14 @@ def load_roster(path: Path) -> dict[str, Trader]:
     """Read the roster, keyed by upper-cased gateway id."""
     if not path.exists():
         return {}
-    text = path.read_text(encoding="utf-8")
-    data = yaml.safe_load(text)
+    try:
+        text = path.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        raise RosterError(f"{path}: not UTF-8 text") from None
+    try:
+        data = yaml.safe_load(text)
+    except yaml.YAMLError as exc:
+        raise RosterError(_yaml_error(path, exc)) from None
     if data is None:
         return {}
     if not isinstance(data, dict) or "traders" not in data:
@@ -61,6 +70,16 @@ def load_roster(path: Path) -> dict[str, Trader]:
             )
         roster[trader.gateway] = trader
     return roster
+
+
+def _yaml_error(path: Path, exc: yaml.YAMLError) -> str:
+    """A syntax error as ``<path>: line N: not valid YAML: <problem>``."""
+    if not isinstance(exc, yaml.MarkedYAMLError) or exc.problem_mark is None:
+        return f"{path}: not valid YAML: {exc}"
+    message = f"{path}: line {exc.problem_mark.line + 1}: not valid YAML: {exc.problem}"
+    if exc.context and exc.context_mark is not None:
+        message += f" ({exc.context} started on line {exc.context_mark.line + 1})"
+    return message
 
 
 def _item_lines(text: str) -> list[int]:
@@ -86,6 +105,12 @@ def _trader(path: Path, line: int, item: Any) -> Trader:
         raise RosterError(f"{where}: a trader needs a gateway")
     if gateway == EXCHANGE:
         raise RosterError(f"{where}: a gateway may not be called {EXCHANGE}")
+    if gateway.startswith(".") or any(c in gateway for c in "/\\\0"):
+        # The statement files are named after the gateway.
+        raise RosterError(
+            f"{where}: gateway {gateway} cannot be used as a file name"
+            " (no '/', '\\', NUL or leading '.')"
+        )
     return Trader(
         gateway,
         str(item.get("name") or gateway),

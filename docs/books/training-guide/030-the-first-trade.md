@@ -47,7 +47,7 @@ pm-clearing --print-every 1
 P&L, and writes batched results to `clearing.db` (SQLite) in the data
 directory — not a CSV file. It starts silent: there is nothing to show until
 the first trade. `--print-every 1` makes it print its P&L summary table after
-every trade; by default it prints only every 100 trades. (Use
+every trade; by default it prints none. (Use
 `pm-clearing-cli --format csv ...` afterwards if you want a CSV export.) Leave
 `pm-clearing` running while you work through this chapter.
 

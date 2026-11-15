@@ -13,6 +13,7 @@ from edumatcher.monitor.config import MonitorConfig, MonitorThresholds
 from edumatcher.monitor.thresholds import (
     CLEAR_AFTER,
     RAISE_AFTER,
+    Change,
     Reading,
     ThresholdBook,
     band_reading,
@@ -219,3 +220,19 @@ def test_a_process_breach_makes_that_process_degraded(
         ("pm-engine@box", "DEGRADED")
     ]
     assert snap["exchange"]["status"] == "DEGRADED"
+
+
+def test_a_change_prints_its_value_without_an_exponent() -> None:
+    """C9 (Monitor review): ``:g`` turned a 1.2 s p99 into 1.23457e+06."""
+    change = Change(
+        rule="engine_handle_p99_us",
+        subject="pm-engine@box",
+        previous="OK",
+        level="CRIT",
+        value=1234567.0,
+        threshold=20000.0,
+        inverted=False,
+    )
+    assert change.detail == "engine_handle_p99_us CRIT 1234567 > 20000"
+    cleared = Change("host_cpu_pct", "host", "WARN", "OK", 49.25, 80.0, False)
+    assert cleared.detail == "host_cpu_pct cleared (49.25)"

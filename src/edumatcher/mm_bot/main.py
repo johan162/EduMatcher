@@ -35,6 +35,7 @@ from edumatcher.mm_bot.params import (
     LOGGING_KEY_TO_DEST,
     PASSIVE_KEYS,
     TIER2_KEYS,
+    validate_gateway_params,
 )
 from edumatcher.mm_bot.resolve import NoSymbolsError, resolve_symbol_params
 
@@ -121,8 +122,8 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help=(
             "Net position (either direction) at which inventory skewing "
-            "saturates. Required when --strategy inventory_skew; unused "
-            "by every other strategy"
+            "saturates. Required when --strategy inventory_skew; an error "
+            "with any other strategy"
         ),
     )
     parser.add_argument(
@@ -234,7 +235,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--bootstrap-timeout-sec",
         type=float,
         default=None,
-        help="Max wait for QBOOT reply (default: 1.0)",
+        help=(
+            "Max wait for each start-up reply (QBOOT, QLEGS, position); "
+            "the longest value of any symbol applies (default: 1.0)"
+        ),
     )
     parser.add_argument(
         "--cancel-timeout-sec",
@@ -292,7 +296,7 @@ def build_parser() -> argparse.ArgumentParser:
         "-q",
         "--quiet",
         action="store_true",
-        help="Reduce output to warnings/errors",
+        help="Explicit WARNING log level (the default)",
     )
     parser.add_argument(
         "--log-target",
@@ -436,6 +440,14 @@ def _resolve_gateway_settings(
     args.verbose = max(args.verbose, hoisted.get("verbose", 0))
     args.quiet = args.quiet or hoisted.get("quiet", False)
 
+    # The file's values arrive untyped; check them like the per-symbol ones.
+    logging_values = validate_gateway_params(
+        {key: getattr(args, key) for key in GATEWAY_DEFAULTS},
+        {dest: getattr(args, dest) for dest in LOGGING_KEY_TO_DEST.values()},
+    )
+    for dest, value in logging_values.items():
+        setattr(args, dest, value)
+
 
 def _deployed_symbols(parser: argparse.ArgumentParser) -> list[str]:
     """The symbols of the deployed configuration, for ``--all-symbols``."""
@@ -497,7 +509,11 @@ def main(argv: list[str] | None = None) -> None:
         )
 
     symbol_cli, hoisted = _parse_symbol_scopes(parser, scopes.symbol_argv)
-    _resolve_gateway_settings(args, hoisted, file_config)
+    try:
+        _resolve_gateway_settings(args, hoisted, file_config)
+    except ValueError as exc:
+        log.critical("invalid configuration: %s", exc)
+        raise SystemExit(1)
 
     if args.all_symbols:
         extra_symbols = _deployed_symbols(parser)
@@ -522,16 +538,6 @@ def main(argv: list[str] | None = None) -> None:
     except ValueError as exc:
         log.critical("invalid configuration: %s", exc)
         raise SystemExit(1)
-
-    for flag, value in (
-        ("--startup-session-timeout-sec", args.startup_session_timeout_sec),
-        ("--shutdown-timeout-sec", args.shutdown_timeout_sec),
-    ):
-        if value <= 0:
-            log.critical(
-                "invalid startup value: %s must be positive (got %s)", flag, value
-            )
-            raise SystemExit(1)
 
     log_level = _configure_logging(args)
     log.info("starting pm-mm-bot with log level %s", logging.getLevelName(log_level))

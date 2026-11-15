@@ -499,32 +499,32 @@ class TestLayer2RuntimeAndMMDefaults:
         results = layer2_schema.check(raw, Path("x.yaml"))
         assert "S064" in _codes(results)
 
-    def test_s065_country_not_string(self) -> None:
+    def test_s134_country_not_string(self) -> None:
         raw = _raw(
             "symbols:\n  AAPL: {}\n"
             "participants:\n    - id: GW01\n"
             "locale:\n  country: 42\n"
         )
         results = layer2_schema.check(raw, Path("x.yaml"))
-        assert "S065" in _codes(results)
+        assert "S134" in _codes(results)
 
-    def test_s065_country_blank(self) -> None:
+    def test_s134_country_blank(self) -> None:
         raw = _raw(
             "symbols:\n  AAPL: {}\n"
             "participants:\n    - id: GW01\n"
             'locale:\n  country: ""\n'
         )
         results = layer2_schema.check(raw, Path("x.yaml"))
-        assert "S065" in _codes(results)
+        assert "S134" in _codes(results)
 
-    def test_s065_country_valid_string_ok(self) -> None:
+    def test_s134_country_valid_string_ok(self) -> None:
         raw = _raw(
             "symbols:\n  AAPL: {}\n"
             "participants:\n    - id: GW01\n"
             "locale:\n  country: Sweden\n"
         )
         results = layer2_schema.check(raw, Path("x.yaml"))
-        assert "S065" not in _codes(results)
+        assert "S134" not in _codes(results)
 
     def test_s070_mm_defaults_not_mapping(self) -> None:
         raw = _raw(
@@ -1692,13 +1692,14 @@ class TestLayer3AdminGateway:
         results = layer3_semantic.check(raw, Path("x.yaml"))
         assert "C010" in _codes(results)
 
-    def test_m016_post_trade_no_admin(self) -> None:
+    def test_post_trade_gateway_needs_no_admin_gateway(self) -> None:
+        """pm-ralf-gwy has no admin commands (RALF review D14): M016 is gone."""
         raw = _raw(
             "symbols:\n  AAPL: {}\nparticipants:\n    - id: GW01\n      role: TRADER\n"
             "post_trade_gateway:\n  id: RALF01\n"
         )
         results = layer3_semantic.check(raw, Path("x.yaml"))
-        assert "M016" in _codes(results)
+        assert "M016" not in _codes(results)
 
     def test_admin_gateway_checks_tolerate_bad_gateway_shape(self) -> None:
         raw = _raw(
@@ -1710,7 +1711,6 @@ class TestLayer3AdminGateway:
         )
         results = layer3_semantic.check(raw, Path("x.yaml"))
         assert "M013" in _codes(results)
-        assert "M016" in _codes(results)
 
     def test_admin_gateway_checks_return_on_invalid_participants_container(
         self,
@@ -1819,9 +1819,10 @@ class TestLayer3ApiGatewaySemantic:
         results = layer3_semantic.check(raw, Path("x.yaml"))
         assert [r.severity for r in results if r.code == "M032"] == [Severity.WARN]
 
-    def test_m032_warns_without_api_gateways(self) -> None:
+    def test_m032_is_quiet_without_api_gateways(self) -> None:
+        # No pm-api-gwy at all: there is no gateway for the key to belong to.
         raw = _raw("symbols:\n  AAPL: {}\n")
-        assert "M032" in _codes(layer3_semantic.check(raw, Path("x.yaml")))
+        assert "M032" not in _codes(layer3_semantic.check(raw, Path("x.yaml")))
 
 
 # ---------------------------------------------------------------------------
@@ -2820,7 +2821,7 @@ class TestLayerSkipSemantics:
         )
         from edumatcher.cverifier.cli import run_layers
 
-        layers, _ = run_layers(p)
+        layers, _, _ = run_layers(p)
         by_name = {lo.name: lo for lo in layers}
         assert by_name["Schema"].status == "ran"
         assert by_name["Semantic"].status == "skipped"
@@ -2833,7 +2834,7 @@ class TestLayerSkipSemantics:
         p = _write_yaml(tmp_path, "key: [unclosed\n")
         from edumatcher.cverifier.cli import run_layers
 
-        layers, _ = run_layers(p)
+        layers, _, _ = run_layers(p)
         by_name = {lo.name: lo for lo in layers}
         assert any(r.code == "Y003" for r in by_name["YAML syntax"].results)
         assert by_name["Schema"].status == "skipped"
@@ -2842,7 +2843,7 @@ class TestLayerSkipSemantics:
         from edumatcher.cverifier.cli import run_layers
 
         p = _write_yaml(tmp_path, "key: [unclosed\n")
-        layers, _ = run_layers(p)
+        layers, _, _ = run_layers(p)
         report = VerificationReport(
             file=str(p),
             results=[r for lo in layers for r in lo.results],

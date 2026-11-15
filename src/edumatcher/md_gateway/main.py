@@ -38,12 +38,14 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--engine-pub",
         default=None,
-        help="Engine PUB socket address (overrides config; default: tcp://127.0.0.1:5556)",
+        help="Engine PUB socket address (default: tcp://127.0.0.1:5556; the "
+        "configuration file does not set it)",
     )
     parser.add_argument(
         "--index-pub",
         default=INDEX_PUB_CONNECT_ADDR,
-        help="Index PUB socket address (default: tcp://127.0.0.1:5558)",
+        help="pm-index PUB socket address (default: tcp://127.0.0.1:5558; the "
+        "configuration file does not set it)",
     )
     parser.add_argument(
         "--log-level",

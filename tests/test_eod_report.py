@@ -193,3 +193,52 @@ class TestWriteDay:
             write_day(tmp_path, report(statement(0)))
         assert (out / "summary.md").read_text() == before
         assert [p.name for p in tmp_path.iterdir()] == ["2026-07-01"]
+
+
+def test_dotted_gateway_ids_get_their_own_files(tmp_path: Path) -> None:
+    out = write_day(
+        tmp_path,
+        report(statement(100, gateway="GW.A"), statement(-100, gateway="GW.B")),
+    )
+    assert sorted(p.name for p in (out / "statements").iterdir()) == [
+        "GW.A.csv",
+        "GW.A.json",
+        "GW.A.md",
+        "GW.B.csv",
+        "GW.B.json",
+        "GW.B.md",
+    ]
+
+
+def test_a_failed_swap_puts_the_previous_day_back(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    out = write_day(tmp_path, report(statement(1234)))
+    before = (out / "summary.md").read_text()
+    real = Path.rename
+
+    def rename(self: Path, target: Path) -> Path:
+        if self.name.endswith(".partial"):
+            raise OSError("rename failed")
+        return real(self, target)
+
+    monkeypatch.setattr(Path, "rename", rename)
+    with pytest.raises(OSError):
+        write_day(tmp_path, report(statement(0)))
+    assert (out / "summary.md").read_text() == before
+    assert [p.name for p in tmp_path.iterdir()] == ["2026-07-01"]
+
+
+def test_a_result_over_several_days_says_since_when(tmp_path: Path) -> None:
+    text = render_statement_md(statement(since="2026-06-29"))
+    assert "Result since the close of 2026-06-29: 12.34" in text
+    assert "Today's result" not in text
+    out = write_day(tmp_path, report(statement(since="2026-06-29")))
+    data = json.loads((out / "statements" / "GW_A.json").read_text())
+    assert data["since"] == "2026-06-29"
+
+
+def test_a_one_day_result_says_today(tmp_path: Path) -> None:
+    assert "Today's result: 12.34" in render_statement_md(statement())
+    out = write_day(tmp_path, report(statement()))
+    assert json.loads((out / "statements" / "GW_A.json").read_text())["since"] is None

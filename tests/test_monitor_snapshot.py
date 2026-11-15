@@ -13,7 +13,7 @@ from edumatcher.models.generated.health import HealthSnapshot
 from edumatcher.monitor.activity import GATEWAYS
 from edumatcher.monitor.collector import Monitor
 from edumatcher.monitor.config import MonitorConfig
-from edumatcher.monitor.thresholds import RAISE_AFTER
+from edumatcher.monitor.thresholds import CLEAR_AFTER, RAISE_AFTER
 from tests.conftest import free_ports
 from tests.test_monitor_main import QuietHost, _beacon_frames
 
@@ -440,6 +440,47 @@ def test_heap_bloat_is_judged_against_the_compaction_bound(
     snap = snaps[-1]
     rules = [(b.rule, b.subject) for b in snap.thresholds]
     assert rules == ([("heap_bloat_ratio", "AAA")] if breached else [])
+
+
+def _books(seq: int, boot: str, ratios: dict[str, float], **kw: Any) -> list[bytes]:
+    return _beacon_frames(
+        seq=seq,
+        boot_id=boot,
+        metrics=[_g("engine.book_heap_bloat_ratio", r, s) for s, r in ratios.items()],
+        **kw,
+    )
+
+
+def test_a_book_the_engine_no_longer_reports_leaves(
+    mon: Monitor, clocks: _Clocks
+) -> None:
+    """C5 (Monitor review): an engine restarted without OLD."""
+    for seq in range(RAISE_AFTER):
+        mon.receive(_books(seq, "a" * 16, {"OLD": 4.0, "AAA": 0.5}), clocks.mono)
+        clocks.advance(1.0)
+    before = _snapshot(mon)
+    assert [(b.subject, b.level) for b in before.thresholds] == [("OLD", "CRIT")]
+    assert before.exchange.status == "DEGRADED"
+    for seq in range(CLEAR_AFTER):
+        mon.receive(_books(seq, "b" * 16, {"AAA": 0.5}), clocks.mono)
+        _snapshot(mon)
+        clocks.advance(1.0)
+    after = _snapshot(mon)
+    assert [b.symbol for b in after.books] == ["AAA"]
+    assert after.thresholds == []
+    assert after.exchange.status == "OPERATIONAL"
+
+
+def test_books_of_a_stopped_engine_are_not_judged(
+    mon: Monitor, clocks: _Clocks
+) -> None:
+    mon.receive(_books(0, "a" * 16, {"AAA": 4.0}, final=True), clocks.mono)
+    for _ in range(RAISE_AFTER):
+        _snapshot(mon)
+        clocks.advance(1.0)
+    snap = _snapshot(mon)
+    assert snap.thresholds == []
+    assert [b.symbol for b in snap.books] == ["AAA"]  # still shown, as last seen
 
 
 def test_a_stopped_engine_has_no_connections_or_latency(

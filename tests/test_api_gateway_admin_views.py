@@ -364,12 +364,48 @@ async def test_lifecycle_returns_the_full_ordered_history(
         result = await admin.admin_order_lifecycle("ORD-1", request, _admin_session())
 
     check_contract(admin.admin_order_lifecycle, result)
+    assert result["indexed_through"] is None  # no build recorded one
     assert result["count"] == 3
     assert [e["topic"] for e in result["events"]] == [
         "order.ack.GW01",
         "order.fill.GW01",
         "order.cancelled.GW01",
     ]
+
+
+@pytest.mark.anyio
+async def test_lifecycle_says_how_far_the_index_reaches(
+    engine: EngineClient, tmp_path: Path
+) -> None:
+    """WP-AUD05 (C1, Q1): the index is built by hand, so an order newer
+    than the build is "not indexed yet", not unknown; the answer says how
+    far it reaches."""
+    db = tmp_path / "audit_index.db"
+    conn = open_index(db)
+    conn.execute(
+        "INSERT INTO audit_events (timestamp, topic, payload, order_id)"
+        " VALUES ('2026-08-05T10:00:00.000+00:00', 'order.ack.GW01', '{}', 'A')"
+    )
+    conn.execute(
+        "INSERT INTO index_meta (key, value) VALUES"
+        " ('last_indexed_timestamp', '2026-08-05T10:00:00.000+00:00')"
+    )
+    conn.commit()
+    conn.close()
+    request = _admin_request(engine)
+    request.app.state.config = ApiGatewayConfig(
+        credentials=(ApiCredential("key", "ADMIN01", "test"),), audit_db=db
+    )
+    with patch.object(admin, "require_admin", return_value="ADMIN01"):
+        result = await admin.admin_order_lifecycle("A", request, _admin_session())
+        check_contract(admin.admin_order_lifecycle, result)
+        assert result["indexed_through"] == "2026-08-05T10:00:00.000+00:00"
+        with pytest.raises(HTTPException) as excinfo:
+            await admin.admin_order_lifecycle("NEWER", request, _admin_session())
+    assert excinfo.value.status_code == 404
+    detail = excinfo.value.detail
+    assert isinstance(detail, dict)
+    assert "2026-08-05T10:00:00.000+00:00" in detail["error"]["message"]
 
 
 def test_the_gateway_never_writes_the_audit_index(tmp_path: Path) -> None:

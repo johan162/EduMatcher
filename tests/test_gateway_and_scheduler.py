@@ -10,6 +10,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 from rich.table import Table
 
+from tests.conftest import opened
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -983,6 +985,7 @@ class TestAuditProcess:
             patch("edumatcher.audit.main.make_replier"),
         ):
             proc = AuditProcess(log_path=tmp_path / "audit.log", to_terminal=False)
+        opened(proc._file)
         assert proc._file is not None
         assert proc._to_terminal is False
 
@@ -995,6 +998,7 @@ class TestAuditProcess:
             patch("edumatcher.audit.main.make_replier"),
         ):
             proc = AuditProcess(log_path=tmp_path / "audit.log", to_terminal=True)
+        opened(proc._file)
         assert proc._file is not None
         assert proc._to_terminal is True
 
@@ -1007,6 +1011,7 @@ class TestAuditProcess:
             patch("edumatcher.audit.main.make_replier"),
         ):
             proc = AuditProcess(log_path=tmp_path / "audit.log", to_terminal=False)
+        opened(proc._file)
         proc._stop()
         assert proc._running is False
 

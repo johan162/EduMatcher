@@ -12,6 +12,7 @@ from edumatcher.alf_gwy.gateway import AlfGateway, ClientSession
 from edumatcher.alf_gwy.protocol import parse_alf_line
 from edumatcher.messaging import bus as bus_mod
 from edumatcher.models.message import decode, encode
+from tests.conftest import opened
 
 
 class _FakePush:
@@ -104,7 +105,7 @@ def gateway(monkeypatch: pytest.MonkeyPatch) -> AlfGateway:
 
 
 def _make_session() -> tuple[ClientSession, socket.socket]:
-    left, right = socket.socketpair()
+    left, right = map(opened, socket.socketpair())
     left.setblocking(False)
     right.setblocking(False)
     session = ClientSession(sock=left, addr=("local", 0))
@@ -935,6 +936,29 @@ def test_duplicate_hello_while_pending_is_rejected_without_disconnect(
     frame = parse_alf_line(session.out_queue[0].decode("utf-8"))
     assert frame.command == "ERR"
     assert frame.fields["CODE"] == "HELLO_ALREADY_PENDING"
+    peer.close()
+
+
+def test_lines_sent_behind_hello_are_handled_after_welcome(
+    gateway: AlfGateway,
+) -> None:
+    """printf 'HELLO...\nPING\n' | nc: the client does not wait for WELCOME."""
+    session, peer = _make_session()
+    gateway._clients[session.sock.fileno()] = session
+
+    gateway._handle_client_line(session, "HELLO|CLIENT=BOT|PROTO=ALF1|ID=TRADER01")
+    gateway._handle_client_line(session, "PING")
+    assert not session.out_queue  # held, not refused
+    assert session.closing is False
+
+    gateway._handle_gateway_auth("TRADER01", {"accepted": True})
+
+    commands = [
+        parse_alf_line(line.decode("utf-8")).command for line in session.out_queue
+    ]
+    assert commands[0] == "WELCOME"
+    assert commands[-1] == "PONG"
+    assert session.held_lines == []
     peer.close()
 
 

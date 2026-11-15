@@ -93,9 +93,11 @@ make dev                                             # Vite on :8196, /api → l
   Fills are written in batches (100 trades or 5 seconds), so up to 5 seconds
   of lag is normal; minutes mean `pm-clearing` is stalled or not receiving.
 - *Feed gap* (red alert): `pm-clearing` saw the engine's trade ids jump on
-  the latest session date — trades it never received. Positions and P&L may
-  be missing them. Run a reconciliation and check the audit trail. No gap
-  does not prove the feed was complete; it is only the absence of evidence.
+  the latest session date — trades it never received, either lost on the bus
+  while it ran or made while it was not running (`pm-clearing-cli gaps` shows
+  the reason, `feed` or `restart`). Positions and P&L are missing them.
+  Check the audit trail for the missing ids. No gap does not prove the feed
+  was complete: trades lost at the very end of an engine run cannot be seen.
 - *Health*: two separate lines. **Database** — whether `clearing.db` could be
   read, its journal mode and row counts. **pm-clearing process** — whether
   its receive loop answered a ping. A readable database with a silent

@@ -20,6 +20,7 @@ from edumatcher.audit.archive import (
 )
 from edumatcher.audit.cli import main as cli_main
 from edumatcher.audit.query import discover_log_files, iter_entries
+from edumatcher.audit.writer import RECORDER_START_PREFIX, header_line
 
 
 class _Usage(NamedTuple):
@@ -312,6 +313,23 @@ class TestCli:
         assert self._run(monkeypatch, tmp_path, "archive", "--date", DAY) == 1
         assert "not closed yet" in capsys.readouterr().err
         assert len(_names(tmp_path / "audit")) == 3
+
+    def test_a_marked_active_log_is_dated_by_its_stamp_not_its_mtime(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """audit.log begun by a started recorder (header + marker) still holds
+        DAY although its mtime is TODAY (WP-AUD01, C2)."""
+        _make_parts(tmp_path / "audit")
+        log = tmp_path / "audit.log"
+        log.write_text(
+            f"{header_line()}\n{RECORDER_START_PREFIX}pm-audit=1 started=x\n"
+            + _line(999)
+        )
+        assert self._run(monkeypatch, tmp_path, "archive", "--date", DAY) == 1
+        assert "not closed yet" in capsys.readouterr().err
 
     def test_an_os_error_on_one_day_does_not_stop_the_next(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path

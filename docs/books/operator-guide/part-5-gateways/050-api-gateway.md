@@ -170,6 +170,34 @@ poetry run pm-api-gwy --instance desk --log-level debug \
   > api-gateway.log 2>&1
 ```
 
+### Stopping and restarting
+
+Each `pm-api-gwy` holds, at the engine, the gateway ids of the participants
+that used it. Stopping it ends those sessions:
+
+- **A clean stop** (`Ctrl-C`, SIGTERM, `pm-opctl-cli stop`) disconnects every
+  id it holds, and the engine applies each participant's
+  `disconnect_behaviour` at once. With the default for traders
+  (`CANCEL_ALL`), a planned restart therefore **cancels their resting
+  orders, GTC included**; market makers (`CANCEL_QUOTES_ONLY`) keep their
+  orders and lose their quotes. Open WebSockets are closed, and the process
+  waits at most 5 seconds for them before it exits.
+- **A killed process** (SIGKILL, a crash) sends nothing. The engine keeps
+  its ids connected until they miss three heartbeats (60 seconds each), so
+  for up to **3 minutes** every login for those ids, through any gateway, is
+  refused with `403 ENGINE_AUTH` "Gateway already connected". Then the
+  engine disconnects them and applies their `disconnect_behaviour`.
+- **To free an id at once**, an ADMIN calls
+  `POST /api/v1/admin/gateways/{gateway_id}/disconnect` (on any running API
+  gateway). The disconnect behaviour runs then.
+- **After a restart** a client's private WebSocket gets a fresh
+  `orders.snapshot` built from the engine, so its working orders and
+  positions are complete; only the finished orders this process had cached
+  are gone (see [Order cache retention](#order-cache-retention)).
+
+If `pm-api-gwy` exits with status 1 after logging
+"engine listener died", its connection to the engine failed; start it again.
+
 
 ## Swagger interface
 
@@ -406,13 +434,13 @@ tolerates ordinary floating-point error (`100.00 - 3 * 0.01` is accepted as
 sizes, resolved risk-band collars, circuit-breaker ladders, the session
 schedule and index definitions, so a client never parses `engine_config.yaml`.
 It is distinct from `GET /symbols`, `/session` and `/halts`, which report
-*live* state. Every call round-trips to the engine (no gateway cache), so a
-reload shows at once. Any key may call it, read-only included.
+*live* state. Every call round-trips to the engine (no gateway cache).
+Any key may call it, read-only included.
 
 #### `config_version`
 
 A 16-character hex prefix of a SHA-256 hash over the compiled bundle, computed
-when the engine loads or reloads its config. It changes if and only if the
+when the engine loads its config. It changes if and only if the
 reference data changes, so a client can cache the bundle and poll
 `GET /reference/config-version` to know when to refetch. Treat it as opaque.
 
@@ -424,6 +452,8 @@ reference data changes, so a client can cache the bundle and poll
 - A YAML fallback's active config is not recorded in `system.startup`, so
   accepting a reload would make the audit trail ambiguous.
 
+Even if a future startup has both a source file and a recorded config,
+reload remains disabled until changes can be recorded and replayed.
 Use `pm-config-deploy` to compile and deploy the changed configuration, then
 restart the engine. This keeps the effective config tied to the audited run.
 
@@ -595,14 +625,20 @@ sources:
     It opens **`audit_index.db` read-only** (`api_gateways[].audit_db`): the
     only store the gateway reads but does not own. The dependency is optional:
     without `pm-audit` or its index, that one route answers
-    `503 AUDIT_INDEX_UNAVAILABLE` and every other route is unaffected. See
+    `503 AUDIT_INDEX_UNAVAILABLE` and every other route is unaffected. The
+    index is a snapshot as of its last `pm-audit-cli index` run: the response's
+    `indexed_through` says how far it reaches, and a `404 UNKNOWN_ORDER`
+    names it. See
     [Audit Trail](../part-6-observe-and-recover/020-audit-trail.md) for building
-    the index.
+    and refreshing the index.
 
 ### Order cache retention
 
-The in-memory order cache backs `GET /orders/{order_id}`, the private
-`orders.snapshot` frame and `GET /admin/orders`. Terminal orders (`FILLED`,
+The in-memory order cache backs `GET /orders/{order_id}`, the finished
+orders in the private `orders.snapshot` frame, and `GET /admin/orders`. It
+holds what this process has seen since it started, so after a restart it is
+empty. The snapshot's resting orders and positions are asked from the engine
+on every connect and do not depend on it. Terminal orders (`FILLED`,
 `CANCELLED`, `EXPIRED`, `REJECTED`) are evicted after **`order_retention_sec`**
 (default `3600`). Resting orders are never evicted, and positions are never
 affected. `order_retention_sec: 0` disables eviction, and the cache then grows
@@ -848,14 +884,20 @@ curl -v --no-buffer \
 | Symptom | Likely cause | Fix |
 |---|---|---|
 | `Connection refused` | Gateway not started or wrong port | Confirm `pm-api-gwy` is running; check `port` in `api_gateways` config |
-| `503 {"ok": false}` from `/healthz` | Gateway `enabled: false` in config, or its engine-listener thread crashed | Check `enabled` in the config block and the gateway's own logs — restarting `pm-engine` alone will not fix an already-`false` result, since `/healthz` doesn't actually probe engine liveness |
-| `401 Unauthorized` | Missing, malformed or unknown key in the `Authorization` header (`AUTH`) — or, as `403 ENGINE_AUTH`, the engine rejected the gateway's own handshake for that `gateway_id` | Use `Authorization: Bearer <key>` with a key listed in `credentials`; if you get `403 ENGINE_AUTH` instead, check that the `gateway_id` is allowed by the engine's `participants` list |
+| `503 {"ok": false}` from `/healthz` | Gateway `enabled: false` in config, or the engine listener is stopping. A listener that dies stops the whole process with exit status 1 ("engine listener died" in its log) | Check `enabled` in the config block and the gateway's own logs; start `pm-api-gwy` again. `/healthz` does not probe the engine itself |
+| `401 Unauthorized` | Missing, malformed or unknown key in the `Authorization` header (`AUTH`) | Use `Authorization: Bearer <key>` with a key listed in `credentials` |
+| `403 ENGINE_AUTH` (not "already connected", not "timed out") | The engine refused the gateway's handshake for that `gateway_id` | Check that the `gateway_id` is allowed by the engine's `participants` list |
+| `403 ENGINE_AUTH` "Gateway already connected: ID" | Another process holds the id at the engine: an ALF or BALF client, a console, another `pm-api-gwy`, or a previous instance of this one that was killed | Stop that process. A killed one is timed out after up to 3 minutes (three missed heartbeats). To free the id at once, an ADMIN calls `POST /api/v1/admin/gateways/{gateway_id}/disconnect` (its `disconnect_behaviour` runs). See [Stopping and restarting](#stopping-and-restarting) |
+| `403 ENGINE_AUTH` "Engine authentication timed out" | The engine did not answer the handshake within `timeouts.engine_auth_sec` (busy: the open, a long pause) | Retry. If the engine accepts late, `pm-api-gwy` adopts the connection ("late engine accept adopted" in its log) and the next request succeeds |
 | `403 Forbidden` | Credential has no `gateway_id` (`READ_ONLY`); or lacks the ADMIN role on an `/admin/*` call (`ROLE_DENIED`) | Use a credential with a non-null `gateway_id` for order-entry endpoints, or one whose engine gateway has `role: ADMIN` for admin endpoints |
 | `429 Too Many Requests` (`RATE_LIMIT`) | Per-key write rate limit (`rate_limit.writes_per_second`/`burst`) exceeded | Slow down write requests for that API key |
 | `404` on all endpoints | Wrong base path or wrong `--instance` flag | Check `pm-api-gwy --instance NAME` matches the config block name |
 | Swagger UI not loading | `swagger_enabled: false` | Set `swagger_enabled: true` in the config block and restart |
-| History endpoints return empty results | `pm-stats` not running or wrong `stats_db` path | Start `pm-stats`; verify the `stats_db` path in config points to the correct file |
+| History endpoints answer `503 STATS_DB` | `stats.db` is missing at the configured `stats_db` path, is not a database, or stayed locked | Start `pm-stats`; verify the `stats_db` path in config points to the file it writes |
+| History endpoints return empty or stale results | `pm-stats` is not running (the database exists but is not being written), or `stats_db` points at another exchange's file | Start `pm-stats`; check the `stats_db` path |
 | `GET /admin/orders/{order_id}/audit` returns `503 AUDIT_INDEX_UNAVAILABLE` | `pm-audit` not deployed, or its index not built | Start `pm-audit` and run `pm-audit-cli index`; check `audit_db`. Every other endpoint is unaffected |
+| `GET /admin/orders/{order_id}/audit` returns `404 UNKNOWN_ORDER` for an order you know exists | The order is newer than the index's last build (the message names how far it reaches) | Run `pm-audit-cli index --incremental`, or schedule it |
 | An order vanished from `GET /admin/orders` | It reached a terminal status more than `order_retention_sec` ago | Expected — that view is current state. Use `GET /admin/orders/{order_id}/audit` for its history |
 | `GET /admin/orders` grows without bound | `order_retention_sec: 0` disables eviction | Set a positive value |
-| WebSocket disconnects immediately | Engine not running or client rate limit hit | Start engine; check gateway logs for disconnect reason |
+| WebSocket closes with code `1008` | No `api_key` frame within 5 s, an unknown key, a read-only key on `/ws/private` or an admin socket, the engine refused the gateway id (an `error` frame says why), or the key is not ADMIN on an admin socket | Fix the key or its role; an `error` frame before the close names the reason. WebSockets have no rate limit |
+| WebSocket closes with code `1013` | The engine did not answer in time while the gateway built `/ws/private`'s opening snapshot, or confirmed the role on an admin socket | Transient: the client reconnects with backoff. If it repeats, check that `pm-engine` is running and responsive |

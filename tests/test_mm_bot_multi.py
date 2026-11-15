@@ -550,30 +550,6 @@ symbols:
         )
         assert listed == mapped
 
-    def test_legacy_flat_file_still_means_what_it_did(self, tmp_path: Path) -> None:
-        legacy = load_bot_config(
-            write(tmp_path, "symbol: AAPL\ngap: 0.08\nqty: 300\ntif: GTC\n", "l.yaml")
-        )
-        modern = load_bot_config(
-            write(
-                tmp_path,
-                "version: 1\ndefaults:\n  gap: 0.08\n  qty: 300\n  tif: GTC\n"
-                "symbols:\n  AAPL: {}\n",
-                "m.yaml",
-            )
-        )
-        assert resolve_cli([], legacy) == resolve_cli([], modern)
-
-    def test_legacy_flat_multi_symbol_file_shares_its_settings(
-        self, tmp_path: Path
-    ) -> None:
-        loaded = load_bot_config(
-            write(tmp_path, "symbols: AAPL,MSFT\ngap: 0.3\n", "flat.yaml")
-        )
-        params = resolve_cli([], loaded)
-        assert list(params) == ["AAPL", "MSFT"]
-        assert all(p["gap"] == 0.3 for p in params.values())
-
 
 # ========================================================================
 # 8. Config-file schema rules
@@ -616,13 +592,6 @@ symbols: [AAPL]
         """The shape is enough to tell the two formats apart."""
         loaded = load_bot_config(write(tmp_path, "symbols:\n  AAPL:\n    gap: 0.2\n"))
         assert loaded.symbols == {"AAPL": {"gap": 0.2}}
-
-    def test_a_legacy_file_naming_no_symbol_contributes_only_defaults(
-        self, tmp_path: Path
-    ) -> None:
-        loaded = load_bot_config(write(tmp_path, "gap: 0.3\nqty: 20\n"))
-        assert loaded.symbols == {}
-        assert loaded.defaults == {"gap": 0.3, "qty": 20}
 
     def test_an_empty_file_configures_nothing(self, tmp_path: Path) -> None:
         assert load_bot_config(write(tmp_path, "")) == EMPTY_FILE_CONFIG
@@ -1380,6 +1349,51 @@ class TestEventLoopTicks:
         assert 0 < ticks < 100
 
 
+class TestDispatchCost:
+    """Matching a message to its symbol does not walk every symbol (P1)."""
+
+    SYMBOLS = [f"S{i:03d}" for i in range(300)]
+
+    def test_per_symbol_topics_reach_their_symbol(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from edumatcher.mm_bot.pricer import QuotePricer
+
+        bot, _push, _sub, _ = _build_bot(monkeypatch, self.SYMBOLS)
+        last = self.SYMBOLS[-1]
+        st = bot._symbols_state[last]
+        st.pricer = QuotePricer(tick_size=0.01, gap=0.10, drift_ticks=3)
+        st.state = BotState.QUOTING
+
+        bot._dispatch(
+            f"book.{last}",
+            {"bids": [{"price": 99.0, "qty": 1}], "asks": [{"price": 101.0, "qty": 1}]},
+        )
+        assert st.pricer.mid_price == pytest.approx(100.0)
+        bot._dispatch(f"circuit_breaker.halt.{last}", {})
+        assert bot._symbols_state[last].state == BotState.PAUSED
+        bot._dispatch(f"circuit_breaker.resume.{last}", {})
+        assert bot._symbols_state[last].state == BotState.WAITING_FOR_SESSION
+        assert bot._symbols_state[self.SYMBOLS[0]].state != BotState.PAUSED
+
+    def test_a_trade_is_dispatched_without_building_per_symbol_topics(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from edumatcher.models.generated.book import topic_book_snapshot as real
+
+        bot, _push, _sub, _ = _build_bot(monkeypatch, self.SYMBOLS)
+        built = 0
+
+        def counting(symbol: str) -> str:
+            nonlocal built
+            built += 1
+            return real(symbol)
+
+        monkeypatch.setattr("edumatcher.mm_bot.bot.topic_book_snapshot", counting)
+        bot._dispatch("trade.executed", {"symbol": "S150", "price": 100.0})
+        assert built == 0
+
+
 class TestBotOverrideContract:
     """``overrides`` is a narrow, checked surface, not an escape hatch."""
 
@@ -1553,6 +1567,7 @@ class TestStartupResilience:
                             {
                                 "symbol": "AAPL",
                                 "tick_decimals": 2,
+                                "enforce_mm_obligation": True,
                                 "mm_max_spread_ticks": "wide",
                             }
                         ]
@@ -1588,6 +1603,43 @@ class TestStartupResilience:
             ]
         )
         assert bot.run() == 0
+        assert set(_quotes(push)) == {"AAPL"}
+
+    def test_a_quiet_book_is_asked_for_and_seeds_the_reference_price(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A book that is not moving publishes nothing, so the bot asks for it."""
+        bot, push, sub, _ = _build_bot(
+            monkeypatch, ["AAPL"], initial_min=None, initial_max=None
+        )
+        sub.recv_queue.extend(
+            [
+                encode(f"system.gateway_auth.{GW}", {"accepted": True}),
+                encode(
+                    f"system.symbols.{GW}",
+                    {"symbols": [{"symbol": "AAPL", "tick_decimals": 2}]},
+                ),
+                # The engine's reply to the snapshot request.
+                encode(
+                    "book.AAPL",
+                    {
+                        "symbol": "AAPL",
+                        "bids": [{"price": 99.9, "qty": 10}],
+                        "asks": [{"price": 100.1, "qty": 10}],
+                    },
+                ),
+                encode(f"system.quote_bootstrap.{GW}", {"quotes": []}),
+                encode(f"system.quote_legs.{GW}", {"legs": []}),
+                encode("session.state", {"state": "CONTINUOUS"}),
+            ]
+        )
+        assert bot.run() == 0
+        requests = [
+            msg_decode(frames)[1]
+            for frames in push.sent
+            if msg_decode(frames)[0] == "book.snapshot_request"
+        ]
+        assert requests == [{"symbol": "AAPL"}]
         assert set(_quotes(push)) == {"AAPL"}
 
     def test_a_bootstrap_quote_for_another_symbol_is_not_adopted(
@@ -1928,7 +1980,14 @@ class TestLifecycleAcrossSymbols:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         bot, _push, _sub = self._running_bot(monkeypatch, ["AAPL"])
-        bot._reconcile_qlegs({"legs": [{"symbol": "NVDA", "quote_id": "Q-X"}]})
+        bot._reconcile_qlegs(
+            {
+                "legs": [
+                    {"symbol": "AAPL", "quote_id": "Q-AAPL"},
+                    {"symbol": "NVDA", "quote_id": "Q-X"},
+                ]
+            }
+        )
         assert bot._symbols_state["AAPL"].quote_id == "Q-AAPL"
 
     def test_a_fill_reaches_its_symbol_through_the_normal_dispatch_path(
@@ -2000,7 +2059,6 @@ class TestUnattributableEvents:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         bot, _push, _sub = self._bot(monkeypatch)
-        bot._pending_ack_symbols.clear()
         bot._quote_id_to_symbol["Q-X"] = "AAPL"
         bot._handle_quote_ack(
             {

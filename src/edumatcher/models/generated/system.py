@@ -6130,13 +6130,9 @@ class PositionSnapshot:
 
     An unauthenticated or unknown gateway gets an empty list rather than a rejection --
     flat and not-a-gateway are the same answer here, which is deliberate: the
-    alternative tells an unauthenticated caller whether an id exists. This pair has no
-    consumer in `src/` at all. It is exercised only by
-    `tests/test_position_snapshot.py`, which is section 27.4's shape -- a capability
-    exercised only by its own tests. It is specified rather than removed because unlike
-    `drop_copy.replay_request` it is fully implemented on both sides and reachable by
-    any gateway; what it lacks is a caller, not an implementation. Recorded here so the
-    next phase to touch it knows the difference.
+    alternative tells an unauthenticated caller whether an id exists. pm-mm-bot asks for
+    its own gateway's snapshot at start-up and seeds each symbol's tracked position from
+    it, so `inventory_skew` does not restart flat while the gateway holds inventory.
     """
 
     gateway_id: str

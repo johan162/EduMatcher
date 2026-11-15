@@ -114,42 +114,24 @@ Start processes with that config:
 
 ```bash
 pm-engine --verbose
-pm-balf-gwy
+pm-balf-gwy -v
 ```
 
-:material-checkbox-blank-outline: Checkpoint: `pm-balf-gwy` starts, logs that it is listening on port 5560, and reports a successful engine ZMQ connection.
+:material-checkbox-blank-outline: Checkpoint: `pm-balf-gwy -v` starts and logs
+`BALF gateway listening on 127.0.0.1:5560 (engine: pull=tcp://127.0.0.1:5555 pub=tcp://127.0.0.1:5556)`
+(`0.0.0.0` in the container, as in chapter 23).
 
  
 
 ## Exercise 2: Verify the Port Is Listening with CLI Tools
 
-Before writing client code, confirm the gateway is bound to the configured port.
+Check the port exactly as in [chapter 27, Exercise 2](260-alf-gwy.md#exercise-2-verify-the-port-is-listening-with-cli-tools),
+with 5560 instead of 5565: `ss -tlnp 'sport = :5560'` (Linux) or
+`sudo lsof -iTCP:5560 -sTCP:LISTEN` (macOS). In the container, the
+`listening` line of `pm-balf-gwy -v` is the check, and Exercise 3's probe
+proves the port answers.
 
-**macOS:**
-
-```bash
-sudo lsof -iTCP:5560 -sTCP:LISTEN
-netstat -an | grep LISTEN | grep 5560
-```
-
-Expected: a line with `pm-balf-gwy` (or `Python` under Poetry) and `LISTEN`.
-
-**Linux:**
-
-```bash
-ss -tlnp 'sport = :5560'
-sudo lsof -iTCP:5560 -sTCP:LISTEN
-netstat -tlnp | grep 5560
-```
-
-If no output appears:
-
-- the gateway is not running or failed to start
-- `balf_gateway.enabled` may be `false` in config
-- the port may differ from expectation
-- `pm-engine` must be running before `pm-balf-gwy` can complete its startup handshake
-
-:material-checkbox-blank-outline: Checkpoint: at least one CLI command shows a process listening on port 5560.
+:material-checkbox-blank-outline: Checkpoint: the gateway is listening on port 5560.
 
  
 
@@ -364,9 +346,10 @@ Expected behavior:
 Exercise 4 sent an order and cancelled it. The other half of order entry is
 what comes back when the order trades. This exercise uses two sessions —
 `TRADER01` rests a bid, amends it, and `TRADER02` sells into it — and decodes
-the `AMEND_ACK` and both sides' `EXECUTION_REPORT`. The market must be open
-(`SESSION|STATE=PRE_OPEN`, then `CONTINUOUS`, from `pm-admin --id OPS01`) and
-AAPL's book empty (the configuration from Exercise 1 has no seed quotes).
+the `AMEND_ACK` and both sides' `EXECUTION_REPORT`. AAPL's book must be empty
+(the configuration from Exercise 1 has no seed quotes). The market is open:
+this configuration has `sessions_enabled: false`, so there are no session
+phases to move through.
 
 ```bash
 python3 - <<'EOF'

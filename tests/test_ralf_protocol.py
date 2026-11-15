@@ -53,3 +53,10 @@ def test_iso_utc_has_z_suffix() -> None:
     text = iso_utc(0.0)
     assert text.endswith("Z")
     assert "1970-01-01T00:00:00" in text
+
+
+@pytest.mark.parametrize("value", ["a\nb", "a\rb"])
+def test_build_line_line_break_in_value_raises(value: str) -> None:
+    """A line break would split the line in two on the wire."""
+    with pytest.raises(RalfProtocolError):
+        build_line("WELCOME", {"GW": value})

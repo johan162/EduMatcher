@@ -96,8 +96,10 @@ class ApiGatewayConfig:
     #: How long a *terminal* order (FILLED, CANCELLED, EXPIRED, REJECTED)
     #: stays in the in-memory order cache before being evicted.
     #:
-    #: The cache is the read model behind `GET /orders` and the admin order
-    #: table. Without eviction it grows for the lifetime of the process and an
+    #: The cache is the read model behind `GET /orders/{order_id}`, the
+    #: admin order table and the finished orders in the private
+    #: `orders.snapshot`; `GET /orders` asks the engine instead and never
+    #: falls back to it. Without eviction it grows for the lifetime of the process and an
     #: admin table would still be showing orders that filled hours ago. One
     #: hour keeps a session's recent activity visible while bounding the
     #: memory; older orders live in the audit trail, which is durable.

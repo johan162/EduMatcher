@@ -31,7 +31,7 @@ describe("readEnvelope", () => {
 
 describe("parseWelcome", () => {
   const line =
-    "WELCOME|PROTO=CALF1|GW=md-gwy01|HBINT=1|REPLAY=30" +
+    "WELCOME|PROTO=CALF1|GW=md-gwy01|HBINT=1|REPLAY=30|EPOCH=3f9a01bc" +
     "|CH_SUPPORTED=AUCTION,CB,DEPTH,INDEX,STATE,TOP,TRADE|SYMBOLS=AAPL,MSFT,TSLA";
 
   it("parses the handshake the shipped gateway actually sends", () => {
@@ -39,6 +39,7 @@ describe("parseWelcome", () => {
     expect(welcome.gateway).toBe("md-gwy01");
     expect(welcome.hbint).toBe(1);
     expect(welcome.replaySec).toBe(30);
+    expect(welcome.epoch).toBe("3f9a01bc");
     expect(welcome.symbols).toEqual(["AAPL", "MSFT", "TSLA"]);
     expect(welcome.chSupported.has("AUCTION")).toBe(true);
     expect(welcome.chSupported.has("CB")).toBe(true);

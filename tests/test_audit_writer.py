@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 import threading
 import time
@@ -104,6 +105,26 @@ class TestAuditFile:
         assert discover_log_files(log) == [log]
         assert _lines(log)[-1] == "next"
 
+    def test_the_day_reads_past_the_recorder_start_marker_not_the_mtime(
+        self, tmp_path: Path
+    ) -> None:
+        """A started recorder writes the header and a marker: two comment
+        lines before the first record (WP-AUD01, C2)."""
+        log = tmp_path / "audit.log"
+        f = AuditFile(log, 1 << 20, timezone.utc, announce_start=True)
+        f.write("2026-11-10", ["[2026-11-10T23:59:59.000+00:00] [x] {}"])
+        f.close()
+        later = datetime(2026, 11, 11, 0, 0, 5, tzinfo=timezone.utc).timestamp()
+        os.utime(log, (later, later))
+        assert file_day(log, timezone.utc) == "2026-11-10"
+
+    def test_a_file_of_comment_lines_only_holds_no_day(self, tmp_path: Path) -> None:
+        log = tmp_path / "audit.log"
+        log.write_text(
+            f"{header_line()}\n{RECORDER_START_PREFIX}pm-audit=1 started=x\n"
+        )
+        assert file_day(log, timezone.utc) is None
+
     def test_a_failing_roll_keeps_every_line_and_is_retried(
         self, tmp_path: Path
     ) -> None:
@@ -203,6 +224,23 @@ class TestAuditProcessDay:
     def test_start_up_closes_a_day_that_ended_while_down(self, tmp_path: Path) -> None:
         (tmp_path / "audit.log").write_text("[2026-10-23T10:00:00.000+00:00] [x] {}\n")
         clock = [datetime(2026, 10, 25, 8, 0, tzinfo=timezone.utc)]
+        proc = _process(tmp_path, timezone.utc, clock)
+        proc._file.close()
+        assert _parts(tmp_path) == ["audit-2026-10-23.1.log"]
+
+    def test_start_up_closes_a_marked_day_whose_mtime_is_past_midnight(
+        self, tmp_path: Path
+    ) -> None:
+        """The last flush of the 23rd landed just after midnight: the stamp,
+        not the mtime, says which day the file holds (WP-AUD01, C2)."""
+        log = tmp_path / "audit.log"
+        log.write_text(
+            f"{header_line()}\n{RECORDER_START_PREFIX}pm-audit=1 started=x\n"
+            "[2026-10-23T23:59:59.000+00:00] [x] {}\n"
+        )
+        later = datetime(2026, 10, 24, 0, 0, 5, tzinfo=timezone.utc).timestamp()
+        os.utime(log, (later, later))
+        clock = [datetime(2026, 10, 24, 8, 0, tzinfo=timezone.utc)]
         proc = _process(tmp_path, timezone.utc, clock)
         proc._file.close()
         assert _parts(tmp_path) == ["audit-2026-10-23.1.log"]
@@ -400,3 +438,54 @@ def test_the_receive_loop_syncs_a_quiet_tail(tmp_path: Path) -> None:
         proc._receive()
     assert fsync.call_count >= 1
     proc._file.close()
+
+
+class _TornWrites:
+    """A file object whose next write lands only partly, then fails."""
+
+    def __init__(self, fh: Any) -> None:
+        self._fh = fh
+
+    def write(self, data: bytes) -> int:
+        self._fh.write(data[:7])
+        self._fh.flush()
+        raise OSError(28, "No space left on device")
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._fh, name)
+
+
+def test_a_torn_write_is_undone_so_the_retry_writes_each_line_once(
+    tmp_path: Path,
+) -> None:
+    """WP-AUD04 (C7): a write that fails part-way leaves the file as it was,
+    and the retry writes the header, the marker and the lines once."""
+    import pytest
+
+    log = tmp_path / "audit.log"
+    f = AuditFile(log, 1 << 20, timezone.utc, announce_start=True)
+    f._fh = _TornWrites(f._fh)
+    with pytest.raises(OSError):
+        f.write("2026-10-24", ["a", "b"])
+    assert log.read_bytes() == b""
+    f.write("2026-10-24", ["a", "b"])
+    f.close()
+    lines = log.read_text().splitlines()
+    assert lines[0].startswith("# edumatcher-audit format=1")
+    assert lines[1].startswith(RECORDER_START_PREFIX)
+    assert lines[2:] == ["a", "b"]
+
+
+def test_a_failed_sync_after_a_whole_write_does_not_repeat_the_lines(
+    tmp_path: Path,
+) -> None:
+    """The lines are in the file; only their fsync failed.  write() keeps
+    them written, and the sync stays due for the loop to retry and count."""
+    log = tmp_path / "audit.log"
+    f = AuditFile(log, 1 << 20, timezone.utc, fsync_interval=0)
+    with patch("edumatcher.audit.writer.os.fsync", side_effect=OSError(5, "EIO")):
+        f.write("2026-10-24", ["a"])
+    assert f.sync_due()
+    f.write("2026-10-24", ["b"])
+    f.close()
+    assert _lines(log) == ["a", "b"]

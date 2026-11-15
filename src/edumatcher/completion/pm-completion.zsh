@@ -799,8 +799,8 @@ _shtab_pm_audit_cli_options=(
   "--log-file[Primary audit log file (default\: \<EDUMATCHER_DATA_DIR\>\/audit.log).]:PATH:"
   "--log-dir[Directory holding the audit\/ day parts and archives.]:PATH:"
   "--format[Output format\: table (default), json, or csv]:format:(table json csv)"
-  "--no-header[Suppress header row for csv output]"
-  "--use-index[Path to SQLite index file.]:PATH:"
+  "--no-header[Suppress the header row of table and csv output]"
+  "--use-index[Answer \`events\` from this SQLite index (see \`index\`).]:PATH:"
 )
 
 # guard to ensure default positional specs are added only once per session
@@ -823,8 +823,8 @@ _shtab_pm_audit_cli_events_options=(
   "--gateway[Filter by gateway ID]:GW_ID:"
   "--symbol[Filter by symbol]:SYMBOL:"
   "--date[Read this trading day (session timezone)\: its archive, or its parts before it is archived]:YYYY-MM-DD:"
-  "--from[Start of time range]:ISO_TS:"
-  "--to[End of time range]:ISO_TS:"
+  "--from[Start of the time range, inclusive\: ISO-8601, or a bare date (its midnight). Times without an offset, and bare dates, are UTC]:ISO_TS:"
+  "--to[End of the time range, inclusive\: ISO-8601, or a bare date (the end of that day). Times without an offset, and bare dates, are UTC]:ISO_TS:"
   "--limit[Maximum rows (default\: 100)]:N:"
   "--reverse[Show newest first]"
   {-f,--follow}"[Watch for new events instead of exiting (Ctrl-C to stop)]"
@@ -837,8 +837,8 @@ _shtab_pm_audit_cli_events_defaults_added=0
 _shtab_pm_audit_cli_gateways_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
   "--date[Read this trading day (session timezone)\: its archive, or its parts before it is archived]:YYYY-MM-DD:"
-  "--from[Start of time range]:ISO_TS:"
-  "--to[End of time range]:ISO_TS:"
+  "--from[Start of the time range, inclusive\: ISO-8601, or a bare date (its midnight). Times without an offset, and bare dates, are UTC]:ISO_TS:"
+  "--to[End of the time range, inclusive\: ISO-8601, or a bare date (the end of that day). Times without an offset, and bare dates, are UTC]:ISO_TS:"
   "--min-events[Minimum events to include a gateway]:N:"
 )
 
@@ -857,12 +857,11 @@ _shtab_pm_audit_cli_health_defaults_added=0
 
 _shtab_pm_audit_cli_index_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
-  "--output[SQLite database path (default\: \<log-dir\>\/audit_index.db)]:PATH:"
+  "--output[SQLite database path (default\: audit_index.db beside --log-file)]:PATH:"
   "--days[Index last N days only]:N:"
-  "--from[Start of index range]:ISO_TS:"
-  "--to[End of index range]:ISO_TS:"
-  "--rebuild[Rebuild index from scratch]"
-  "--incremental[Add only new entries since last index]"
+  "--from[Start of the time range, inclusive\: ISO-8601, or a bare date (its midnight). Times without an offset, and bare dates, are UTC]:ISO_TS:"
+  "--to[End of the time range, inclusive\: ISO-8601, or a bare date (the end of that day). Times without an offset, and bare dates, are UTC]:ISO_TS:"
+  "--incremental[Add only the entries after the last indexed one.]"
 )
 
 # guard to ensure default positional specs are added only once per session
@@ -874,8 +873,8 @@ _shtab_pm_audit_cli_orders_options=(
   "--gateway[Filter by gateway ID]:GW_ID:"
   "--symbol[Filter by symbol]:SYMBOL:"
   "--date[Read this trading day (session timezone)\: its archive, or its parts before it is archived]:YYYY-MM-DD:"
-  "--from[Start of time range]:ISO_TS:"
-  "--to[End of time range]:ISO_TS:"
+  "--from[Start of the time range, inclusive\: ISO-8601, or a bare date (its midnight). Times without an offset, and bare dates, are UTC]:ISO_TS:"
+  "--to[End of the time range, inclusive\: ISO-8601, or a bare date (the end of that day). Times without an offset, and bare dates, are UTC]:ISO_TS:"
   "--limit[Maximum rows (default\: 100)]:N:"
 )
 
@@ -892,8 +891,8 @@ _shtab_pm_audit_cli_stats_defaults_added=0
 
 _shtab_pm_audit_cli_timeline_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
-  "--from[Start time]:ISO_TS:"
-  "--to[End time]:ISO_TS:"
+  "--from[Start of the time range, inclusive\: ISO-8601, or a bare date (its midnight). Times without an offset, and bare dates, are UTC]:ISO_TS:"
+  "--to[End of the time range, inclusive\: ISO-8601, or a bare date (the end of that day). Times without an offset, and bare dates, are UTC]:ISO_TS:"
   "--topic[Filter by topic prefix]:PREFIX:"
   "--gateway[Filter by gateway]:GW_ID:"
   "--symbol[Filter by symbol]:SYMBOL:"
@@ -908,8 +907,8 @@ _shtab_pm_audit_cli_timeline_defaults_added=0
 _shtab_pm_audit_cli_topics_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
   "--date[Read this trading day (session timezone)\: its archive, or its parts before it is archived]:YYYY-MM-DD:"
-  "--from[Start of time range]:ISO_TS:"
-  "--to[End of time range]:ISO_TS:"
+  "--from[Start of the time range, inclusive\: ISO-8601, or a bare date (its midnight). Times without an offset, and bare dates, are UTC]:ISO_TS:"
+  "--to[End of the time range, inclusive\: ISO-8601, or a bare date (the end of that day). Times without an offset, and bare dates, are UTC]:ISO_TS:"
   "--prefix[Filter topics by prefix (e.g. order.)]:PREFIX:"
   "--sort[Sort by event count (default) or alphabetically]:sort:(count alpha)"
 )
@@ -927,8 +926,8 @@ _shtab_pm_audit_cli_trades_options=(
   "--max-price[Maximum trade price]:PRICE:"
   "--min-qty[Minimum trade quantity]:QTY:"
   "--date[Read this trading day (session timezone)\: its archive, or its parts before it is archived]:YYYY-MM-DD:"
-  "--from[Start of time range]:ISO_TS:"
-  "--to[End of time range]:ISO_TS:"
+  "--from[Start of the time range, inclusive\: ISO-8601, or a bare date (its midnight). Times without an offset, and bare dates, are UTC]:ISO_TS:"
+  "--to[End of the time range, inclusive\: ISO-8601, or a bare date (the end of that day). Times without an offset, and bare dates, are UTC]:ISO_TS:"
   "--limit[Maximum rows (default\: 100)]:N:"
   "--reverse[Show newest first]"
 )
@@ -1564,7 +1563,7 @@ _shtab_pm_calf_spy_options=(
   "--client-name[HELLO\|CLIENT\= identifier reported in gateway logs (default\: calf-spy-\<pid\>)]:NAME:"
   "--channels[Comma-separated channels to subscribe to, e.g. TOP,TRADE,CB. \'\*\' (default) subscribes to every channel the gateway advertises via WELCOME\|CH_SUPPORTED\= (falling back to TOP,TRADE,STATE if that field is absent).]:CH[,CH...]:"
   "--symbols[Comma-separated symbols to subscribe to, e.g. AAPL,MSFT. \'\*\' (default) requests the wildcard for every channel that allows it (TOP, TRADE, STATE, AUCTION)\; channels that reject SYM\=\* (INDEX, DEPTH, CB) will report an ERR\|CODE\=INVALID_SYMBOL for that channel alone rather than aborting the whole session -- pass explicit symbols to subscribe to those too.]:SYM[,SYM...]:"
-  "--resume[Request single-stream replay on connect, e.g. TOP\:AAPL\:1042 (sends RESUME\|CH\=..\|SYM\=..\|LASTSEQ\=.. after the handshake). This flag resumes one stream\; live subscriptions from --channels\/--symbols are still applied afterwards.]:CH:SYM:LASTSEQ:"
+  "--resume[Request single-stream replay on connect, e.g. TRADE\:AAPL\:1042\:3f9a01bc (sends RESUME\|CH\=..\|SYM\=..\|LASTSEQ\=..\|EPOCH\=.. after the handshake). EPOCH is the WELCOME\|EPOCH\= of the gateway run LASTSEQ was seen on\; a restarted gateway answers REPLAY_MISS. This flag resumes one stream\; live subscriptions from --channels\/--symbols are still applied afterwards.]:CH:SYM:LASTSEQ:EPOCH:"
   "--ping-interval[Send PING to the gateway every SECONDS seconds (default\: 60)\; belt-and-braces, since the gateway\'s own HB lines already keep a reading client connected. The gateway replies PONG (hidden by default, see --show-heartbeats). Set to 0 to disable.]:SECONDS:"
   "--format[Output format (default\: human)]:format:(human json)"
   "--raw[Also echo the raw wire line under each formatted line (human format only\; ignored in json format, where the parsed record already carries every field verbatim)]"
@@ -1642,12 +1641,12 @@ _shtab_pm_clearing_options=(
   "--db-name[SQLite filename within data directory (default\: clearing.db)]:NAME:"
   "--flush-size[Max buffered trades before flush (1..100, default\: 100)]:N:"
   "--flush-interval[Max seconds between flushes (\>\=0.1, default\: 5.0)]:SEC:"
-  "--print-every[Print P\&L summary every N trades (0 \= never, default\: 100)]:N:"
+  "--print-every[Print a P\&L table of every position every N trades (0 \= never, the default)\; drawn on the receive thread, so keep it for small classroom ledgers]:N:"
   "--retention-days[Delete trade_events rows older than N days on startup and at every close (default\: 90\; 0 \= disable pruning)]:N:"
   "--sql-trace[Log executed SQLite statements from the clearing writer connection]"
   "--log-level[Logging level override (default\: WARNING)]:log_level:(CRITICAL ERROR WARNING INFO DEBUG)"
   "*"{-v,--verbose}"[Increase log verbosity (-v\: INFO, -vv\: DEBUG)]"
-  {-q,--quiet}"[Reduce log output to warnings\/errors]"
+  {-q,--quiet}"[Log warnings and errors only\; this is the default, and -v or --log-level override it]"
   "--log-target[Where this process\'s own operational log records go\: server (default, auto-detected pm-log-srv), stdout, or file]:log_target:(server stdout file)"
   "--log-file[Operational log file path \— required when --log-target file]:PATH:"
   "--log-failover-timeout[Grace window before falling back to a local log file once pm-log-srv becomes unreachable (default\: 30, from config)]:SECONDS:"
@@ -1713,7 +1712,7 @@ _shtab_pm_clearing_cli_commands() {
     health:'Check the pm-clearing process and clearing database read/write health'
     pnl:'Realized/unrealized/total P&L'
     positions:'Current positions by gateway/symbol'
-    prune:'Delete trade_events rows older than N days (default: 90) and VACUUM'
+    prune:'Delete trade_events rows older than N days (default: 90); the file keeps its size, SQLite reuses the freed pages'
     reconcile:'Compare raw trade_events against gateway_daily_summary aggregates'
     sessions:'Gateway connection and disconnection history'
     snapshots:'Position snapshots taken at each session close (basis for settlement)'
@@ -1729,7 +1728,7 @@ _shtab_pm_clearing_cli_options=(
   "--datapath[Data directory or explicit .db file path]:PATH:"
   "--db-name[SQLite filename within data directory (default\: clearing.db)]:NAME:"
   "--format[Output format\: table, json, csv (default\: table)]:format:(table json csv)"
-  "--no-header[Suppress header row for csv output]"
+  "--no-header[Suppress the header row (table and csv output)]"
   "--raw-output[Show raw tick-unit values instead of normalized display values]"
 )
 
@@ -2185,20 +2184,20 @@ _shtab_pm_config_gen_commands() {
 _shtab_pm_config_gen_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
   "(- : *)--version[show program\'s version number and exit]"
-  "--symbols[One or more symbols.]:SYM:"
-  "--participants[One or more participant specs (ID\[\:ROLE\[\:DISCONNECT\]\]). ID is uppercase letters, digits and _, starting with a letter.]:GW_SPEC:"
+  "*--symbols[One or more symbols.]:SYM:"
+  "*--participants[One or more participant specs (ID\[\:ROLE\[\:DISCONNECT\]\]). ID is uppercase letters, digits and _, starting with a letter.]:GW_SPEC:"
   "*--participant-desc[Free-text description for one participant, written as participants\[\].description. GW_ID must be one of the IDs given to --participants. Quote it when TEXT has spaces. Can be repeated.]:GW_ID:TEXT:"
   "*--participant-smp[Gateway-level self-match-prevention default (NONE, CANCEL_AGGRESSOR, CANCEL_RESTING, CANCEL_BOTH), applied by the engine to any order, combo leg, or quote from GW_ID that doesn\'t specify its own SMP\=. GW_ID must be one of the IDs given to --participants. Omit for a participant to leave its default at NONE. Can be repeated.]:GW_ID:SMP_ACTION:"
   "--participant-default-smp[Write participant_defaults.smp_action\: the self-match-prevention default every participant inherits unless it has its own smp_action (--participant-smp GW_ID\:SMP_ACTION overrides it per participant, including GW_ID\:NONE). Choices\: NONE, CANCEL_AGGRESSOR, CANCEL_RESTING, CANCEL_BOTH.]:SMP_ACTION:(NONE CANCEL_AGGRESSOR CANCEL_RESTING CANCEL_BOTH)"
   "--participant-default-disconnect[Write participant_defaults.disconnect_behaviour\: the disconnect behaviour inherited by every participant whose --participants spec does not name one (replacing the per-role default for those participants). Choices\: CANCEL_ALL, CANCEL_QUOTES_ONLY, LEAVE_ALL.]:DISCONNECT:(CANCEL_ALL CANCEL_QUOTES_ONLY LEAVE_ALL)"
-  "*--symbol-opts[Per-symbol overrides. Can be repeated.]:SYMBOL:KEY=VALUE[,KEY=VALUE]:"
+  "*--symbol-opts[Per-symbol overrides. Keys\: tick_decimals, static_band, dynamic_band, max_order_qty, max_order_value, level, cb_shift_l1..l3, cb_halt_l1..l3 (minutes \> 0), mm_spread_ticks, mm_min_qty, enforce_mm_obligation, ace_enabled, ace_initial_band, ace_random_end_ns. An unknown symbol or key, or a bad value, is an error. Can be repeated.]:SYMBOL:KEY=VALUE[,KEY=VALUE]:"
   "*--symbol-static-band[Per-symbol collar static band pct in (0,1). Can be repeated.]:SYM:PCT:"
   "*--symbol-dynamic-band[Per-symbol collar dynamic band pct in (0,1). Can be repeated.]:SYM:PCT:"
   "*--symbol-max-order-qty[Per-symbol order_limits.max_order_qty in shares (\> 0). Can be repeated.]:SYM:N:"
   "*--symbol-max-order-value[Per-symbol order_limits.max_order_value as notional (\> 0). Can be repeated.]:SYM:AMOUNT:"
   "*--symbol-risk-level[Per-symbol risk level key override. Can be repeated.]:SYM:LEVEL:"
   "*--outstanding-shares[Per-symbol outstanding shares (positive integer). Can be repeated.]:SYM:N:"
-  "--sessions-enabled[Enable scheduler-driven sessions.]"
+  "--sessions-enabled[Enable scheduler-driven sessions. Without it pm-config-gen writes sessions_enabled\: false (an absent key would mean enabled).]"
   "--no-sessions-enabled[Disable scheduler-driven sessions.]"
   "--snapshot-interval[Snapshot interval seconds (\> 0).]:SECS:"
   "--quote-history-maxlen[Max RECENT\/ALL quote-history entries kept per gateway (\> 0).]:N:"
@@ -2210,7 +2209,7 @@ _shtab_pm_config_gen_options=(
   "--static-band[DEFAULT static band pct in (0,1).]:PCT:"
   "--dynamic-band[DEFAULT dynamic band pct in (0,1).]:PCT:"
   "*--risk-level[Repeatable NAME\:STATIC_PCT\[\:DYNAMIC_PCT\]]:LEVEL_SPEC:"
-  "--cb-levels[NAME\:SHIFT_PCT\[\:HALT_MINS\] entries. Omit HALT_MINS for a rest-of-day halt.]:CB_SPEC:"
+  "*--cb-levels[NAME\:SHIFT_PCT\[\:HALT_MINS\] entries, HALT_MINS \> 0\; omit it for a rest-of-day halt. Writes circuit_breaker_defaults, which is not written without it. Can be repeated.]:CB_SPEC:"
   "--cb-window-ns[CB reference window nanoseconds.]:NS:"
   "--no-ace[Disable Automated Corridor Expansion. A halt then reopens at the equilibrium price whatever it is, with no corridor and no extensions.]"
   "--ace-initial-band[Reopening corridor half-width as a fraction of the reference price (default 0.1).]:PCT:"
@@ -2223,7 +2222,7 @@ _shtab_pm_config_gen_options=(
   "--enforce-mm-obligations[Enable MM obligations globally.]"
   "--no-enforce-mm-obligations[Disable MM obligations globally.]"
   "--tick-decimals[Default symbol tick decimals.]:N:"
-  "--seed-last-prices[Emit last_buy_price\/last_sell_price null placeholders.]"
+  "--seed-last-prices[Emit last_buy_price\/last_sell_price as null placeholders to fill in by hand\; a null is no reference price. For real ones use --seed-mm-mid-range with --seed-last-prices-from-mm.]"
   "--seed[Deterministic RNG seed for generated training values.]:N:"
   "--seed-mm-mid-range[Seed MM quotes from a random midpoint in the inclusive MIN\:MAX range, rounded to the symbol tick grid.]:MIN:MAX:"
   "--seed-last-prices-from-mm[When seeding MM quotes, set last_buy_price\/last_sell_price to the same midpoint used for the generated quote.]"
@@ -2231,7 +2230,7 @@ _shtab_pm_config_gen_options=(
   "--post-trade-gateway[Emit a top-level post_trade_gateway section for pm-ralf-gwy.]"
   "--post-trade-name[post_trade_gateway.name override.]:NAME:"
   "--post-trade-bind-address[post_trade_gateway.bind_address override.]:ADDR:"
-  "--post-trade-port[post_trade_gateway.port override (\> 0).]:N:"
+  "--post-trade-port[post_trade_gateway.port override (1-65535).]:N:"
   "--post-trade-replay-retention-sec[post_trade_gateway.replay_retention_sec override (\> 0).]:N:"
   "--post-trade-heartbeat-interval-sec[post_trade_gateway.heartbeat_interval_sec override (\> 0).]:N:"
   "--post-trade-idle-timeout-sec[post_trade_gateway.idle_timeout_sec override (\> 0).]:N:"
@@ -2243,7 +2242,7 @@ _shtab_pm_config_gen_options=(
   "--market-data-disabled[Set market_data_gateway.enabled\: false.]"
   "--market-data-name[market_data_gateway.name override.]:NAME:"
   "--market-data-bind-address[market_data_gateway.bind_address override.]:ADDR:"
-  "--market-data-port[market_data_gateway.port override (\> 0).]:N:"
+  "--market-data-port[market_data_gateway.port override (1-65535).]:N:"
   "--market-data-heartbeat-interval-sec[market_data_gateway.heartbeat_interval_sec override (\> 0).]:N:"
   "--market-data-idle-timeout-sec[market_data_gateway.idle_timeout_sec override (\> 0).]:N:"
   "--market-data-replay-window-sec[market_data_gateway.replay_window_sec override (\> 0).]:N:"
@@ -2254,25 +2253,26 @@ _shtab_pm_config_gen_options=(
   "--api-gateway[Emit a top-level api_gateways section for pm-api-gwy.]"
   "--api-gateway-name[Name for the generated api_gateways entry when using a single API gateway.]:NAME:"
   "*--api-gateway-instance[Repeatable named API gateway process. Generates credentials only for the listed gateway IDs and optionally overrides port. Use NAME\:\:PORT for an identity-free read-only gateway.]:NAME:GATEWAY[,GATEWAY...][:PORT]:"
-  "--api-gateway-enabled[Set api_gateway.enabled\: true.]"
-  "--api-gateway-disabled[Set api_gateway.enabled\: false.]"
-  "--api-gateway-host[api_gateway.host override.]:ADDR:"
-  "--api-gateway-port[api_gateway.port override (\> 0).]:N:"
-  "--api-gateway-swagger-enabled[Set api_gateway.swagger_enabled\: true.]"
-  "--api-gateway-swagger-disabled[Set api_gateway.swagger_enabled\: false.]"
-  "--api-gateway-log-level[api_gateway.log_level override.]:api_gateway_log_level:(debug info warning error)"
-  "--api-gateway-stats-db[api_gateway.stats_db override.]:PATH:"
+  "--api-gateway-enabled[Set api_gateways.\<name\>.enabled\: true.]"
+  "--api-gateway-disabled[Set api_gateways.\<name\>.enabled\: false.]"
+  "--api-gateway-host[api_gateways.\<name\>.host override.]:ADDR:"
+  "--api-gateway-port[api_gateways.\<name\>.port override (1-65535).]:N:"
+  "--api-gateway-swagger-enabled[Set api_gateways.\<name\>.swagger_enabled\: true.]"
+  "--api-gateway-swagger-disabled[Set api_gateways.\<name\>.swagger_enabled\: false.]"
+  "--api-gateway-log-level[api_gateways.\<name\>.log_level override.]:api_gateway_log_level:(debug info warning error)"
+  "--api-gateway-stats-db[api_gateways.\<name\>.stats_db override.]:PATH:"
   "*--api-key[Explicit api_gateways credential for single-instance generation. Use GATEWAY_ID\=null for a read-only market-data key. Can be repeated.]:KEY:GATEWAY_ID[:DESCRIPTION]:"
-  "--api-gateway-generate-keys[Generate one API key for each configured ALF gateway when api_gateway is emitted.]"
-  "--no-api-gateway-generate-keys[Do not auto-generate API keys for ALF gateways.]"
+  "--api-gateway-generate-keys[Generate one API key for each participant when api_gateways is written.]"
+  "--no-api-gateway-generate-keys[Do not auto-generate API keys for the participants.]"
   "--api-keys-for[Write an API key for each listed participant to api_keys.yaml beside --output, and point the API gateway at it with credentials_file. Needs --output (or --dry-run). The keys follow from --seed, or from a fixed default seed when --seed is not given, so the same command always yields the same keys\: pass your own --seed outside a classroom.]:GW_ID:"
-  "--api-gateway-readonly-key[Generate an additional read-only API key with gateway_id\: null.]"
-  "--api-gateway-rate-limit-writes-per-second[api_gateway.rate_limit.writes_per_second override (\> 0).]:N:"
-  "--api-gateway-rate-limit-burst[api_gateway.rate_limit.burst override (\> 0).]:N:"
-  "--api-gateway-engine-auth-sec[api_gateway.timeouts.engine_auth_sec override (\> 0).]:SECS:"
-  "--api-gateway-engine-reply-sec[api_gateway.timeouts.engine_reply_sec override (\> 0).]:SECS:"
-  "--api-gateway-wait-ack-sec[api_gateway.timeouts.wait_ack_sec override (\> 0).]:SECS:"
-  "--api-gateway-order-retention-sec[api_gateway.order_retention_sec override (\>\= 0). Seconds a terminal order stays in the gateway\'s in-memory cache. 0 disables eviction.]:SECS:"
+  "--api-gateway-readonly-key[Generate a read-only API key (gateway_id\: null) for the dashboards (the default whenever an API gateway is written).]"
+  "--no-api-gateway-readonly-key[Do not generate the read-only API key.]"
+  "--api-gateway-rate-limit-writes-per-second[api_gateways.\<name\>.rate_limit.writes_per_second override (\> 0).]:N:"
+  "--api-gateway-rate-limit-burst[api_gateways.\<name\>.rate_limit.burst override (\> 0).]:N:"
+  "--api-gateway-engine-auth-sec[api_gateways.\<name\>.timeouts.engine_auth_sec override (\> 0).]:SECS:"
+  "--api-gateway-engine-reply-sec[api_gateways.\<name\>.timeouts.engine_reply_sec override (\> 0).]:SECS:"
+  "--api-gateway-wait-ack-sec[api_gateways.\<name\>.timeouts.wait_ack_sec override (\> 0).]:SECS:"
+  "--api-gateway-order-retention-sec[api_gateways.\<name\>.order_retention_sec override (\>\= 0). Seconds a terminal order stays in the gateway\'s in-memory cache. 0 disables eviction.]:SECS:"
   "--alf-gateway[Emit a top-level alf_gateway section for pm-alf-gwy.]"
   "--alf-enabled[Set alf_gateway.enabled\: true.]"
   "--alf-disabled[Set alf_gateway.enabled\: false.]"
@@ -2290,7 +2290,7 @@ _shtab_pm_config_gen_options=(
   "--balf-gateway[Emit a top-level balf_gateway section for pm-balf-gwy.]"
   "--balf-name[balf_gateway.name override.]:NAME:"
   "--balf-bind-address[balf_gateway.bind_address override.]:ADDR:"
-  "--balf-port[balf_gateway.port override (\> 0).]:N:"
+  "--balf-port[balf_gateway.port override (1-65535).]:N:"
   "--balf-heartbeat-interval-sec[balf_gateway.heartbeat_interval_sec override (\> 0).]:N:"
   "--balf-heartbeat-timeout-sec[balf_gateway.heartbeat_timeout_sec override (\> 0).]:N:"
   "--balf-idle-timeout-sec[balf_gateway.idle_timeout_sec override (\> 0).]:N:"
@@ -2304,7 +2304,7 @@ _shtab_pm_config_gen_options=(
   "--dc-gateway[Emit a top-level dc_gateway section for pm-dc-gwy.]"
   "--dc-name[dc_gateway.name override.]:NAME:"
   "--dc-bind-address[dc_gateway.bind_address override.]:ADDR:"
-  "--dc-port[dc_gateway.port override (\> 0).]:N:"
+  "--dc-port[dc_gateway.port override (1-65535).]:N:"
   "--dc-heartbeat-interval-sec[dc_gateway.heartbeat_interval_sec override (\> 0).]:N:"
   "--dc-idle-timeout-sec[dc_gateway.idle_timeout_sec override (\> 0).]:N:"
   "--dc-max-connections[dc_gateway.max_connections override (\> 0).]:N:"
@@ -2314,9 +2314,9 @@ _shtab_pm_config_gen_options=(
   "--log-server-disabled[Set log_server.enabled\: false.]"
   "--log-server-name[log_server.name override.]:NAME:"
   "--log-server-bind-address[log_server.bind_address override.]:ADDR:"
-  "--log-server-port[log_server.port override (\> 0).]:N:"
+  "--log-server-port[log_server.port override (1-65535).]:N:"
   "--log-server-db-path[log_server.db_path override.]:PATH:"
-  "--log-server-retention-days[log_server.retention_days override (\>\= 0\; 0 means unbounded retention, same as omitting the field with retention disabled).]:N:"
+  "--log-server-retention-days[log_server.retention_days override (\>\= 0\; 0 means unbounded retention). Default 30.]:N:"
   "--log-server-max-message-bytes[log_server.max_message_bytes override (\> 0).]:N:"
   "--log-server-max-client-queue[log_server.max_client_queue override (\> 0).]:N:"
   "--log-server-write-batch-size[log_server.write_batch_size override (\> 0).]:N:"
@@ -2324,8 +2324,8 @@ _shtab_pm_config_gen_options=(
   "--log-server-heartbeat-interval-sec[log_server.heartbeat_interval_sec override (\> 0).]:N:"
   "--log-server-pubsub-enabled[Set log_server.pubsub_enabled\: true (LALF-PS log distribution).]"
   "--log-server-pubsub-disabled[Set log_server.pubsub_enabled\: false (bind no ZeroMQ sockets).]"
-  "--log-server-pub-port[log_server.pub_port override \— LALF-PS ZeroMQ PUB port (\> 0).]:N:"
-  "--log-server-pull-port[log_server.pull_port override \— LALF-PS ZeroMQ PULL port (\> 0).]:N:"
+  "--log-server-pub-port[log_server.pub_port override \— LALF-PS ZeroMQ PUB port (1-65535).]:N:"
+  "--log-server-pull-port[log_server.pull_port override \— LALF-PS ZeroMQ PULL port (1-65535).]:N:"
   "--log-server-lease-sec[log_server.lease_sec override (\> 0) \— subscription lease TTL\; a subscriber that stops renewing is reaped after this long.]:N:"
   "--log-server-max-lease-sec[log_server.max_lease_sec override (\>\= lease_sec).]:N:"
   "--log-server-max-subscribers[log_server.max_subscribers override (\> 0).]:N:"
@@ -2349,20 +2349,20 @@ _shtab_pm_config_gen_options=(
   "--monitor-raw-hours[monitor.retention.raw_hours override (\> 0, default 6).]:N:"
   "--monitor-minute-days[monitor.retention.minute_days override (\> 0, default 7).]:N:"
   "*--monitor-threshold[monitor.thresholds.\<RULE\> override, repeatable, e.g. host_cpu_pct\:70\:90. Rules\: host_cpu_pct, host_mem_pct, disk_free_pct (warn above crit), engine_handle_p99_us, reject_pct_5m, rss_growth_pct_1h, heap_bloat_ratio.]:RULE:WARN:CRIT:"
-  "--schedule[Force emit schedule section.]"
-  "--no-schedule[Suppress schedule section.]"
+  "--schedule[Write the schedule section\; needs --sessions-enabled, where it is the default.]"
+  "--no-schedule[Leave the schedule section out (with --sessions-enabled).]"
   "--pre-open[HH\:MM]:HH:MM:"
   "--opening-auction[HH\:MM]:HH:MM:"
   "--continuous[HH\:MM]:HH:MM:"
   "--closing-auction[HH\:MM]:HH:MM:"
   "--closing-end[HH\:MM]:HH:MM:"
-  "--weekend[Also emit a weekend\: block (Sat\+Sun) using the --weekend-\* times below. Without this flag, weekends are CLOSED.]"
+  "--weekend[Also emit a weekend\: block (Sat\+Sun) using the --weekend-\* times below\; needs --sessions-enabled. Without this flag, weekends are CLOSED.]"
   "--weekend-pre-open[HH\:MM]:HH:MM:"
   "--weekend-opening-auction[HH\:MM]:HH:MM:"
   "--weekend-continuous[HH\:MM]:HH:MM:"
   "--weekend-closing-auction[HH\:MM]:HH:MM:"
   "--weekend-closing-end[HH\:MM]:HH:MM:"
-  "--holidays[Also emit a holidays\: block using the --holidays-\* times below. Without this flag, bank holidays are CLOSED.]"
+  "--holidays[Also emit a holidays\: block using the --holidays-\* times below\; needs --sessions-enabled. Without this flag, bank holidays are CLOSED.]"
   "--no-holidays[Suppress the holidays\: block (the default).]"
   "--holidays-pre-open[HH\:MM]:HH:MM:"
   "--holidays-opening-auction[HH\:MM]:HH:MM:"
@@ -2582,10 +2582,10 @@ _shtab_pm_dc_gwy_options=(
   "(- : *)--version[show program\'s version number and exit]"
   "--bind[TCP bind address override]:bind:"
   "--port[TCP bind port override]:port:"
-  "--engine-dc-pub[Engine drop-copy PUB socket address (default\: value from config, then tcp\:\/\/127.0.0.1\:5557)]:engine_dc_pub:"
+  "--engine-dc-pub[Engine drop-copy PUB socket address to subscribe to (default\: tcp\:\/\/\$EDUMATCHER_ENGINE_HOST\:5557, host 127.0.0.1 when unset)]:engine_dc_pub:"
   "--log-level[Logging level override (default\: WARNING)]:log_level:(CRITICAL ERROR WARNING INFO DEBUG)"
   "*"{-v,--verbose}"[Increase log verbosity (-v\: INFO, -vv\: DEBUG)]"
-  {-q,--quiet}"[Reduce log output to warnings\/errors]"
+  {-q,--quiet}"[Explicit WARNING log level (the default)]"
   "--log-target[Where this process\'s own operational log records go\: server (default, auto-detected pm-log-srv), stdout, or file]:log_target:(server stdout file)"
   "--log-file[Operational log file path \— required when --log-target file]:PATH:"
   "--log-failover-timeout[Grace window before falling back to a local log file once pm-log-srv becomes unreachable (default\: 30, from config)]:SECONDS:"
@@ -2817,12 +2817,12 @@ _shtab_pm_eod_run_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
   "--date[YYYY-MM-DD]:YYYY-MM-DD:"
   "--pending[Every closed date without an ok run, oldest first]"
-  "--only[Run just this step of an already settled date]:only:(report audit logs backup)"
-  "--force[Do not require the CLOSED session event (no scheduler)]"
+  "--only[Run just this step of an already settled date (not with --redo, --force or --dry-run)]:only:(report audit logs backup)"
+  "--force[Skip the \'has the day closed\?\' test, for an exchange without a scheduler (no CLOSED is ever announced)\; the snapshot and reconcile checks still apply]"
   "--redo[Recompute this date\; drops its settlement and every later date\'s]"
-  "--dry-run[Gate and compute, print the amounts, write nothing (not with --only)]"
-  "--log-keep-days[N]:N:"
-  "--backup-keep-days[N]:N:"
+  "--dry-run[Gate and settle into an in-memory copy of the ledger\; print the amounts, write nothing (not with --only)]"
+  "--log-keep-days[Delete compressed failover logs older than N days (default\: 14)]:N:"
+  "--backup-keep-days[Delete backups of dates more than N days before this one (default\: 7)]:N:"
   "*--backup-skip[Leave this database out of the backup (repeatable)\: clearing.db, stats.db or eod.db]:NAME:(clearing.db stats.db eod.db)"
 )
 
@@ -2841,7 +2841,7 @@ _shtab_pm_eod_show_defaults_added=0
 
 _shtab_pm_eod_status_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
-  {-q,--quiet}"[Print nothing\; exit 0 when no closed date is waiting, 1 otherwise]"
+  {-q,--quiet}"[Print nothing on stdout\; exit 0 when no closed date is waiting, 1 when one is or when there is no clearing.db to judge]"
   "--limit[N]:N:"
 )
 
@@ -2976,7 +2976,7 @@ _shtab_pm_index_options=(
   "--reset[Ignore\/delete persisted index state and initialise from config]"
   "--log-level[Logging level override (default\: WARNING)]:log_level:(CRITICAL ERROR WARNING INFO DEBUG)"
   "*"{-v,--verbose}"[Increase log verbosity (-v\: INFO, -vv\: DEBUG)]"
-  {-q,--quiet}"[Reduce log output to warnings\/errors]"
+  {-q,--quiet}"[Log warnings and errors only\; this is the default, and -v or --log-level override it]"
   "--log-target[Where this process\'s own operational log records go\: server (default, auto-detected pm-log-srv), stdout, or file]:log_target:(server stdout file)"
   "--log-file[Operational log file path \— required when --log-target file]:PATH:"
   "--log-failover-timeout[Grace window before falling back to a local log file once pm-log-srv becomes unreachable (default\: 30, from config)]:SECONDS:"
@@ -3093,8 +3093,8 @@ _shtab_pm_index_admin_cli_history_options=(
   "--index[Index ID]:INDEX_ID:"
   "--from[Start of range as a Unix timestamp (default\: 24h ago).]:UNIX_TS:"
   "--to[End of range as a Unix timestamp (default\: now).]:UNIX_TS:"
-  "--types[Comma-separated filter\: INIT, CORP_ACTION, DELIST, ADD_CONSTITUENT (default\: all).]:TYPE,TYPE,...:"
-  "--limit[Maximum rows shown (default\: 50).]:N:"
+  "--types[Comma-separated filter\: INIT, CORP_ACTION, DELIST, ADD_CONSTITUENT, REBALANCE (default\: all).]:TYPE,TYPE,...:"
+  "--limit[Maximum rows shown, the newest of the range (default\: 50).]:N:"
 )
 
 # guard to ensure default positional specs are added only once per session
@@ -3105,7 +3105,7 @@ _shtab_pm_index_admin_cli_shares_options=(
   "--index[Index ID]:INDEX_ID:"
   "--sym[Constituent symbol]:SYMBOL:"
   "--new-shares[New absolute total shares outstanding.]:N:"
-  "--delta[Signed change applied to the constituent\'s last known shares outstanding (negative for a buy-back, positive for an issuance). Resolved via \'history\' before sending\; the computed absolute value is shown in the confirmation prompt.]:N:"
+  "--delta[Signed change to the constituent\'s shares outstanding (negative for a buy-back, positive for an issuance). pm-index applies it to its live count\; the resulting count is printed.]:N:"
 )
 
 # guard to ensure default positional specs are added only once per session
@@ -3174,7 +3174,7 @@ fi
 
 _shtab_pm_index_cli_commands() {
   local _commands=(
-    events:'Show structural events: INIT, CORP_ACTION, ADD_CONSTITUENT, DELIST.'
+    events:'Show structural events: INIT, CORP_ACTION, ADD_CONSTITUENT, DELIST, REBALANCE.'
     health:'Check the pm-index process and its state/history file health'
     indices:'List indices from --config, or the deployed exchange'"'"'s compiled configuration if --config is omitted.'
   )
@@ -3187,7 +3187,7 @@ _shtab_pm_index_cli_options=(
   {--config,-c}"[Path to an engine_config.yaml to query instead of the]:PATH:"
   "--data-dir[Directory containing history files (default\: data\/indexes).]:DIR:"
   "--format[Output format\: table (default), json, or csv.]:format:(table json csv)"
-  "--no-header[Suppress header row (csv output only).]"
+  "--no-header[Suppress the header row (table and csv output).]"
 )
 
 # guard to ensure default positional specs are added only once per session
@@ -3792,8 +3792,8 @@ _shtab_pm_md_gwy_options=(
   "(- : *)--version[show program\'s version number and exit]"
   "--bind[TCP bind address override]:bind:"
   "--port[TCP bind port override]:port:"
-  "--engine-pub[Engine PUB socket address (overrides config\; default\: tcp\:\/\/127.0.0.1\:5556)]:engine_pub:"
-  "--index-pub[Index PUB socket address (default\: tcp\:\/\/127.0.0.1\:5558)]:index_pub:"
+  "--engine-pub[Engine PUB socket address (default\: tcp\:\/\/127.0.0.1\:5556\; the configuration file does not set it)]:engine_pub:"
+  "--index-pub[pm-index PUB socket address (default\: tcp\:\/\/127.0.0.1\:5558\; the configuration file does not set it)]:index_pub:"
   "--log-level[Logging level override (default\: WARNING)]:log_level:(CRITICAL ERROR WARNING INFO DEBUG)"
   "*"{-v,--verbose}"[Increase log verbosity (-v\: INFO, -vv\: DEBUG)]"
   {-q,--quiet}"[Reduce log output to warnings\/errors]"
@@ -3868,7 +3868,7 @@ _shtab_pm_mm_bot_options=(
   "--label[Override the gateway-ID symbol segment (default\: the single symbol, or SYM1_SYM2_... derived from every symbol) \— mainly useful to keep a multi-symbol gateway ID short]:label:"
   "--strategy[Pricing strategy (default\: symmetric)]:strategy:"
   "--gap[Total spread in price units (default\: 0.10)]:gap:"
-  "--max-position[Net position (either direction) at which inventory skewing saturates. Required when --strategy inventory_skew\; unused by every other strategy]:max_position:"
+  "--max-position[Net position (either direction) at which inventory skewing saturates. Required when --strategy inventory_skew\; an error with any other strategy]:max_position:"
   "--retreat-ticks[passive strategy\: how many ticks beyond its home price each side may step back to stay behind other traders (default\: 5)]:retreat_ticks:"
   "--behind-ticks[passive strategy\: how many ticks behind other traders\' best price a covered side quotes (default\: 1)]:behind_ticks:"
   "--min-cover-qty[passive strategy\: quantity other traders must show inside the retreat band before a side counts as covered (default\: 1)]:min_cover_qty:"
@@ -3883,7 +3883,7 @@ _shtab_pm_mm_bot_options=(
   "--tif[Time-in-force for quote legs (default\: DAY)]:tif:(DAY GTC)"
   "--heartbeat-interval-sec[Periodic live-quote check interval (default\: 5.0)]:heartbeat_interval_sec:"
   "--startup-session-timeout-sec[Max wait to learn the session phase (default\: 5.0)]:startup_session_timeout_sec:"
-  "--bootstrap-timeout-sec[Max wait for QBOOT reply (default\: 1.0)]:bootstrap_timeout_sec:"
+  "--bootstrap-timeout-sec[Max wait for each start-up reply (QBOOT, QLEGS, position)\; the longest value of any symbol applies (default\: 1.0)]:bootstrap_timeout_sec:"
   "--cancel-timeout-sec[Max wait for cancel confirmation (default\: 1.0)]:cancel_timeout_sec:"
   "--shutdown-timeout-sec[Max wait for cancel on shutdown (default\: 2.0)]:shutdown_timeout_sec:"
   "--qlegs-reconcile-interval-sec[Interval for QLEGS snapshot reconciliation (default\: 15.0)]:qlegs_reconcile_interval_sec:"
@@ -3893,7 +3893,7 @@ _shtab_pm_mm_bot_options=(
   "--engine-pub[Engine PUB address (default\: tcp\:\/\/127.0.0.1\:5556)]:engine_pub:"
   "--log-level[Logging level override (default\: WARNING)]:log_level:(CRITICAL ERROR WARNING INFO DEBUG)"
   "*"{-v,--verbose}"[Increase verbosity (-v\: INFO \+ bot debug prints, -vv\: DEBUG)]"
-  {-q,--quiet}"[Reduce output to warnings\/errors]"
+  {-q,--quiet}"[Explicit WARNING log level (the default)]"
   "--log-target[Where this process\'s own operational log records go\: server (default, auto-detected pm-log-srv), stdout, or file]:log_target:(server stdout file)"
   "--log-file[Operational log file path \— required when --log-target file]:PATH:"
   "--log-failover-timeout[Grace window before falling back to a local log file once pm-log-srv becomes unreachable (default\: 30, from config)]:SECONDS:"
@@ -4039,7 +4039,7 @@ _shtab_pm_monitor_cli_defaults_added=0
 
 _shtab_pm_monitor_cli_events_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
-  "--since[Only events at or after]:ISO_TS:"
+  "--since[Only events at or after this ISO-8601 time (UTC without an offset)]:ISO_TS:"
   "--kind[One of\: CONNECT, AUTH_REJECT, DISCONNECT, DIAGNOSTIC, SESSION, HALT, RESUME, PROCESS_STATUS, THRESHOLD]:KIND:(CONNECT AUTH_REJECT DISCONNECT DIAGNOSTIC SESSION HALT RESUME PROCESS_STATUS THRESHOLD)"
   "--subject[Only events whose subject contains TEXT]:TEXT:"
   "--limit[The newest N matching events (default\: 50)]:N:"
@@ -4663,10 +4663,10 @@ _shtab_pm_ralf_gwy_options=(
   "(- : *)--version[show program\'s version number and exit]"
   "--bind[TCP bind address override]:bind:"
   "--port[TCP bind port override]:port:"
-  "--engine-pub[Engine PUB socket address (default\: value from config, then tcp\:\/\/127.0.0.1\:5556)]:engine_pub:"
+  "--engine-pub[Engine PUB socket address to subscribe to (default\: tcp\:\/\/\$EDUMATCHER_ENGINE_HOST\:5556, host 127.0.0.1 when unset)]:engine_pub:"
   "--log-level[Logging level override (default\: WARNING)]:log_level:(CRITICAL ERROR WARNING INFO DEBUG)"
   "*"{-v,--verbose}"[Increase log verbosity (-v\: INFO, -vv\: DEBUG)]"
-  {-q,--quiet}"[Reduce log output to warnings\/errors]"
+  {-q,--quiet}"[Explicit WARNING log level (the default)]"
   "--log-target[Where this process\'s own operational log records go\: server (default, auto-detected pm-log-srv), stdout, or file]:log_target:(server stdout file)"
   "--log-file[Operational log file path \— required when --log-target file]:PATH:"
   "--log-failover-timeout[Grace window before falling back to a local log file once pm-log-srv becomes unreachable (default\: 30, from config)]:SECONDS:"
@@ -4737,7 +4737,8 @@ _shtab_pm_ralf_spy_options=(
   "--role[HELLO\|ROLE\= to authenticate as (default\: AUDIT). AUDIT is entitled to every channel\; CLEARING\/DROP_COPY are entitled only to their own same-named channel.]:role:(CLEARING DROP_COPY AUDIT)"
   "--channels[Comma-separated channels to subscribe to, e.g. CLEARING,DROP_COPY. \'\*\' (default) subscribes to every channel --role is entitled to (all three for AUDIT\; just its own name for CLEARING\/DROP_COPY).]:CH[,CH...]:"
   "--symbols[Comma-separated symbols to subscribe to, e.g. AAPL,MSFT. \'\*\' (default) subscribes to every symbol -- RALF has no per-channel wildcard restriction the way CALF does.]:SYM[,SYM...]:"
-  "--lastseq[Request replay on connect via HELLO\|LASTSEQ\=N for every channel --role is entitled to (0 \= no replay, default). Unlike CALF\'s separate RESUME command, RALF replay is requested directly on HELLO and is not scoped to a single channel\/symbol.]:N:"
+  "--lastseq[Send the checkpoint HELLO\|LASTSEQ\=N on connect\; the SUB that follows is answered with the events after it on the subscribed channels and symbols (0 \= no replay, default). Unlike CALF\'s separate RESUME command, RALF takes the checkpoint on HELLO and is not scoped to a single channel\/symbol.]:N:"
+  "--epoch[The WELCOME\|EPOCH of the gateway run --lastseq came from\; required with a non-zero --lastseq. Sequences restart when pm-ralf-gwy restarts, so a checkpoint from another run is answered with ERR\|CODE\=REPLAY_MISS and a SNAP baseline.]:HEX:"
   "--ping-interval[Send PING to the gateway every SECONDS seconds (default\: 60)\; belt-and-braces, since the gateway\'s own HB lines already keep a reading client connected. The gateway replies PONG (hidden by default, see --show-heartbeats). Set to 0 to disable.]:SECONDS:"
   "--format[Output format (default\: human)]:format:(human json)"
   "--raw[Also echo the raw wire line under each formatted line (human format only\; ignored in json format, where the parsed record already carries every field verbatim)]"
@@ -5030,7 +5031,7 @@ _shtab_pm_stats_options=(
   "--sql-trace[Log executed SQLite statements from the stats writer connection]"
   "--log-level[Logging level override (default\: WARNING)]:log_level:(CRITICAL ERROR WARNING INFO DEBUG)"
   "*"{-v,--verbose}"[Increase log verbosity (-v\: INFO, -vv\: DEBUG)]"
-  {-q,--quiet}"[Reduce log output to warnings\/errors]"
+  {-q,--quiet}"[Log warnings and errors only. That is already the default\; -v and --log-level take precedence]"
   "--log-target[Where this process\'s own operational log records go\: server (default, auto-detected pm-log-srv), stdout, or file]:log_target:(server stdout file)"
   "--log-file[Operational log file path \— required when --log-target file]:PATH:"
   "--log-failover-timeout[Grace window before falling back to a local log file once pm-log-srv becomes unreachable (default\: 30, from config)]:SECONDS:"
@@ -5089,7 +5090,7 @@ _shtab_pm_stats_cli_commands() {
   local _commands=(
     daily:'Show daily OHLCV summary rows'
     dates:'List available trading dates'
-    gaps:'Show detected feed gaps (trades the recorder never received)'
+    gaps:'Show detected feed gaps: messages lost on every subscribed stream (publisher sequence), and trades missing from the engine'"'"'s trade-id sequence'
     health:'Check the pm-stats process and stats database read/write health'
     index-daily:'Show daily index OHLC summary rows'
     index-ids:'List index IDs present in stats DB'
@@ -5141,9 +5142,10 @@ _shtab_pm_stats_cli_dates_defaults_added=0
 _shtab_pm_stats_cli_gaps_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
   "--date[YYYY-MM-DD]:YYYY-MM-DD:"
-  "--from[ISO_TS]:ISO_TS:"
-  "--to[ISO_TS]:ISO_TS:"
+  "--from[Start instant, inclusive. ISO-8601\; Z or an offset is converted to UTC, a value without an offset is session-local time]:ISO_TS:"
+  "--to[End instant, inclusive\; same forms as --from]:ISO_TS:"
   "--limit[N]:N:"
+  "--after[Opaque cursor from a previous run\'s truncation notice\; fetches the next page]:CURSOR:"
 )
 
 # guard to ensure default positional specs are added only once per session
@@ -5185,8 +5187,8 @@ _shtab_pm_stats_cli_index_snapshots_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
   "--index-id[INDEX_ID]:INDEX_ID:"
   "--date[YYYY-MM-DD]:YYYY-MM-DD:"
-  "--from[ISO_TS]:ISO_TS:"
-  "--to[ISO_TS]:ISO_TS:"
+  "--from[Start instant, inclusive. ISO-8601\; Z or an offset is converted to UTC, a value without an offset is session-local time]:ISO_TS:"
+  "--to[End instant, inclusive\; same forms as --from]:ISO_TS:"
   "--limit[N]:N:"
   "--after[Opaque cursor from a previous run\'s truncation notice\; fetches the next page]:CURSOR:"
 )
@@ -5208,8 +5210,8 @@ _shtab_pm_stats_cli_order_events_options=(
   "--symbol[SYMBOL]:SYMBOL:"
   "--event-type[One of\: ACK, REJECT, FILL, AMEND, CANCEL, EXPIRE, COMBO_ACK, COMBO_REJECT, COMBO_STATUS, OCO_ACK, OCO_REJECT, OCO_CANCEL, QUOTE_ACK, QUOTE_REJECT, QUOTE_STATUS, UNKNOWN, EVENT]:TYPE:(ACK REJECT FILL AMEND CANCEL EXPIRE COMBO_ACK COMBO_REJECT COMBO_STATUS OCO_ACK OCO_REJECT OCO_CANCEL QUOTE_ACK QUOTE_REJECT QUOTE_STATUS UNKNOWN EVENT)"
   "--date[YYYY-MM-DD]:YYYY-MM-DD:"
-  "--from[ISO_TS]:ISO_TS:"
-  "--to[ISO_TS]:ISO_TS:"
+  "--from[Start instant, inclusive. ISO-8601\; Z or an offset is converted to UTC, a value without an offset is session-local time]:ISO_TS:"
+  "--to[End instant, inclusive\; same forms as --from]:ISO_TS:"
   "--limit[N]:N:"
   "--after[Opaque cursor from a previous run\'s truncation notice\; fetches the next page]:CURSOR:"
 )
@@ -5230,8 +5232,8 @@ _shtab_pm_stats_cli_snapshots_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
   "--symbol[SYMBOL]:SYMBOL:"
   "--date[YYYY-MM-DD]:YYYY-MM-DD:"
-  "--from[ISO_TS]:ISO_TS:"
-  "--to[ISO_TS]:ISO_TS:"
+  "--from[Start instant, inclusive. ISO-8601\; Z or an offset is converted to UTC, a value without an offset is session-local time]:ISO_TS:"
+  "--to[End instant, inclusive\; same forms as --from]:ISO_TS:"
   "--limit[N]:N:"
   "--after[Opaque cursor from a previous run\'s truncation notice\; fetches the next page]:CURSOR:"
 )
@@ -5251,8 +5253,8 @@ _shtab_pm_stats_cli_trades_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
   "--symbol[SYMBOL]:SYMBOL:"
   "--date[YYYY-MM-DD]:YYYY-MM-DD:"
-  "--from[ISO_TS]:ISO_TS:"
-  "--to[ISO_TS]:ISO_TS:"
+  "--from[Start instant, inclusive. ISO-8601\; Z or an offset is converted to UTC, a value without an offset is session-local time]:ISO_TS:"
+  "--to[End instant, inclusive\; same forms as --from]:ISO_TS:"
   "--limit[N]:N:"
   "--after[Opaque cursor from a previous run\'s truncation notice\; fetches the next page]:CURSOR:"
 )

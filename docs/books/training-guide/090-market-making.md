@@ -66,7 +66,7 @@ quoting AAPL, and clear the symbol from the operator console:
 Expected:
 
 ```
-QUOTE ACK   Q001  bid=<bid_id> ask=<ask_id>
+QUOTE ACK  Q001  bid=<bid_id> ask=<ask_id>
 QUOTE ACTIVE  Q001
 ```
 
@@ -107,7 +107,7 @@ misread:
   `ACTIVE`, `INACTIVE_BID_FILLED`, `INACTIVE_ASK_FILLED` or `CANCELLED`.
   There is no `ACTIVE` leg status — a resting, untouched leg shows `NEW`.
 - **The `Order` column holds the full order ID** — the same IDs the
-  `QUOTE ACK` line printed, ready for a `CANCEL` (but see Exercise 7 before
+  `QUOTE ACK` line printed, ready for a `CANCEL` (but see Exercise 8 before
   you cancel a single leg).
 
 Try the filters — `SHOW=` accepts `ALL`, `ACTIVE` or `RECENT`:
@@ -119,8 +119,10 @@ Try the filters — `SHOW=` accepts `ALL`, `ACTIVE` or `RECENT`:
 
 `ACTIVE` keeps legs that are still working (an active status, or any remaining
 quantity); `RECENT` shows the complement — legs that are done. Right now
-`ACTIVE` should list both of your legs and `RECENT` should be empty; after
-Exercise 3 that flips.
+`ACTIVE` should list both of your legs and `RECENT` should say
+`No quote legs match this filter.` Run both again after Exercise 3: the
+cancelled bid has moved to `RECENT`, while the partly filled ask (400 still
+resting) stays in `ACTIVE`.
 
 :material-checkbox-blank-outline: **Checkpoint:** `QLEGS` shows both a `BUY` and a
 `SELL` row for `Q001`, each with `Leg status` `NEW` and `Quote status` `ACTIVE`,
@@ -179,7 +181,7 @@ lines are the two legs of `Q002` being replaced):
 CANCELLED <Q002 bid id> reason=QUOTE_REPLACED
 CANCELLED <Q002 ask id> reason=QUOTE_REPLACED
 QUOTE CANCELLED  Q002  Replaced by new quote
-QUOTE ACK   Q003  bid=<bid_id> ask=<ask_id>
+QUOTE ACK  Q003  bid=<bid_id> ask=<ask_id>
 QUOTE ACTIVE  Q003
 ```
 
@@ -213,70 +215,11 @@ QUOTE CXL OK AAPL  legs cancelled=2
 
  
 
-## Exercise 7: Cancel a Single Leg Directly — and See Why You Shouldn't
+## Exercise 7: Check Quote Bootstrap State (QBOOT)
 
-`QLEGS` gives you each leg's full order ID. Nothing stops you from feeding that ID straight into a plain
-`CANCEL`, bypassing `QUOTE_CANCEL` entirely. Try it.
-
-Submit a fresh quote and note the bid's full order ID from the `QUOTE ACK` line:
-
-```
-[MM_MANUAL_01]> QUOTE|SYM=AAPL|BID=149.90|ASK=150.10|BID_QTY=500|ASK_QTY=500|TIF=DAY|QUOTE_ID=Q004
-```
-
-Now cancel *only* the bid leg, by order ID, with plain `CANCEL` — not
-`QUOTE_CANCEL`:
-
-```
-[MM_MANUAL_01]> CANCEL|ID=<bid_id>
-```
-
-Expected:
-
-```
-CANCELLED <bid_id>
-```
-
-That's it — no `QUOTE CANCELLED` line, no sibling cancel. Now inspect both views:
-
-```
-[MM_MANUAL_01]> QLEGS|SYM=AAPL|SHOW=ALL
-[MM_MANUAL_01]> QBOOT|SYM=AAPL
-```
-
-You should see the bid leg's `Leg status` as `CANCELLED`, but the ask leg is
-still `NEW` and resting, and **`Quote status` on both rows still reads
-`ACTIVE`** — `QBOOT` agrees, still showing `Q004` as the active slot for this
-symbol. Compare this with Exercise 3: a fill on one leg makes the engine
-cancel the sibling and publish `QUOTE INACTIVE_*_FILLED` for you. A manual
-`CANCEL` on one leg does not — the engine treats it as an ordinary,
-independent order cancel and never consults the quote it belongs to.
-
-!!! warning "This is a real trap, not just an exercise"
-    The engine has no special handling for cancelling a single quote leg by
-    order ID. Only `QUOTE_CANCEL` (whole quote, both legs) and a fill
-    (subject to `quote_refresh_policy`) keep the quote's state consistent.
-    If you cancel one leg manually, the other leg keeps resting — silently
-    carrying one-sided market risk — while your own state and the engine's
-    have quietly diverged. Always use `QUOTE_CANCEL|SYM=<symbol>` to pull a
-    quote, never a bare `CANCEL` on one of its legs.
-
-Clean up before moving on:
-
-```
-[MM_MANUAL_01]> QUOTE_CANCEL|SYM=AAPL
-```
-
-:material-checkbox-blank-outline: **Checkpoint:** you have seen a single-leg
-`CANCEL` leave the sibling resting and both `Quote status` rows stuck on
-`ACTIVE`, and can explain why `QUOTE_CANCEL` is the only safe way to pull a
-whole quote.
-
- 
-
-## Exercise 8: Check Quote Bootstrap State (QBOOT)
-
-After submitting a quote, inspect the bootstrap state:
+`QLEGS` is the leg-level history. `QBOOT` asks a narrower question: which
+quote is live for you right now? After Exercise 6 you have none, so start
+there:
 
 ```
 [MM_MANUAL_01]> QBOOT|SYM=AAPL
@@ -291,10 +234,10 @@ whether a slot is already active so the new process can adopt or replace safely
 instead of creating duplicates.
 
 !!! note "The engine, not just your bot, can restart between quotes"
-    Quote legs now persist across an **engine** restart the same way any
+    Quote legs persist across an **engine** restart the same way any
     other resting order does: unconditionally if `TIF=GTC`, or if `TIF=DAY`
     and the restart happens on the same business day. So `QBOOT` right after
-    an engine restart can legitimately show your `Q001` slot still `ACTIVE`
+    an engine restart can legitimately show your quote's slot still `ACTIVE`
     with the same leg IDs, even though you never resubmitted the quote — the
     engine restored it and re-registered it in its own `QuoteIndex`. Only a
     business-day rollover (or an explicit `QUOTE_CANCEL`/fill) clears a
@@ -322,11 +265,20 @@ No active quote bootstrap entries returned.
 That empty response is the useful one on startup: it means the slot is free
 and you can quote without first cancelling something.
 
-Run it in both states to see the difference. With a quote active, as `Q001`
-was after Exercise 1, you get a row. Once a fill has inactivated the quote, as
-in Exercise 3, `QBOOT` reports **no entry at all** — the slot is free again —
-even though `QLEGS|SYM=AAPL|SHOW=ALL` still lists the quote's legs with
-`Quote status` `INACTIVE_ASK_FILLED`. That is the difference between the two
+You got that line just now. Quote again and ask once more:
+
+```
+[MM_MANUAL_01]> QUOTE|SYM=AAPL|BID=149.90|ASK=150.10|BID_QTY=500|ASK_QTY=500|TIF=DAY|QUOTE_ID=Q004
+[MM_MANUAL_01]> QBOOT|SYM=AAPL
+```
+
+This time you get a row: `Q004`, `ACTIVE`, 149.90 / 150.10, 500 / 500. Leave
+`Q004` in place; Exercise 8 uses it.
+
+A quote that a fill has inactivated, like `Q001` in Exercise 3, is **not**
+listed either. The slot is free again, even though
+`QLEGS|SYM=AAPL|SHOW=ALL` still lists that quote's legs with `Quote status`
+`INACTIVE_ASK_FILLED`. That is the difference between the two
 commands: `QBOOT` answers "is there a live quote I must not duplicate?",
 `QLEGS` keeps the history.
 
@@ -338,6 +290,62 @@ commands: `QBOOT` answers "is there a live quote I must not duplicate?",
 :material-checkbox-blank-outline: **Checkpoint:** you have seen both responses —
 a table with a `State` of `ACTIVE`, and the "No active quote bootstrap entries"
 line — and can say which one tells a restarting bot it is safe to quote.
+
+ 
+
+## Exercise 8: Cancel a Single Leg Directly — and See Why You Shouldn't
+
+`QLEGS` gives you each leg's full order ID. Nothing stops you from feeding that ID straight into a plain
+`CANCEL`, bypassing `QUOTE_CANCEL` entirely. Try it.
+
+Take the bid's full order ID from the `QUOTE ACK` line of `Q004`, the quote
+you left resting in Exercise 7. Now cancel *only* the bid leg, by order ID,
+with plain `CANCEL` — not `QUOTE_CANCEL`:
+
+```
+[MM_MANUAL_01]> CANCEL|ID=<bid_id>
+```
+
+Expected:
+
+```
+CANCELLED <bid_id>
+```
+
+That's it — no `QUOTE CANCELLED` line, no sibling cancel. Now inspect both views:
+
+```
+[MM_MANUAL_01]> QLEGS|SYM=AAPL|SHOW=ALL
+[MM_MANUAL_01]> QBOOT|SYM=AAPL
+```
+
+You should see the bid leg's `Leg status` as `CANCELLED`, but the ask leg is
+still `NEW` and resting, and **`Quote status` on both rows still reads
+`ACTIVE`**. `QBOOT` agrees: it still lists `Q004` as `ACTIVE`, now with `-`
+under `Bid` and a `BidRem` of 0. Compare this with Exercise 3: a fill on one
+leg makes the engine cancel the sibling and publish `QUOTE INACTIVE_*_FILLED` for you. A manual
+`CANCEL` on one leg does not — the engine treats it as an ordinary,
+independent order cancel and never consults the quote it belongs to.
+
+!!! warning "This is a real trap, not just an exercise"
+    The engine has no special handling for cancelling a single quote leg by
+    order ID. Only `QUOTE_CANCEL` (whole quote, both legs) and a fill
+    (subject to `quote_refresh_policy`) keep the quote's state consistent.
+    If you cancel one leg manually, the other leg keeps resting — silently
+    carrying one-sided market risk — while your own state and the engine's
+    have quietly diverged. Always use `QUOTE_CANCEL|SYM=<symbol>` to pull a
+    quote, never a bare `CANCEL` on one of its legs.
+
+Clean up before moving on:
+
+```
+[MM_MANUAL_01]> QUOTE_CANCEL|SYM=AAPL
+```
+
+:material-checkbox-blank-outline: **Checkpoint:** you have seen a single-leg
+`CANCEL` leave the sibling resting and both `Quote status` rows stuck on
+`ACTIVE`, and can explain why `QUOTE_CANCEL` is the only safe way to pull a
+whole quote.
 
  
 
@@ -404,7 +412,7 @@ have observed at least two of them.
 Two more ways a quote gets pulled that have nothing to do with `QUOTE_CANCEL`
 or a fill: your gateway disconnecting, and the self-service kill switch.
 Both matter for risk — a quote left resting after your process dies is the
-one-sided exposure Exercise 7 warned about, just caused by a dropped
+one-sided exposure Exercise 8 warned about, just caused by a dropped
 connection instead of a stray `CANCEL`.
 
 **Part A — disconnect behaviour.** Recall the Prerequisites config:
@@ -443,7 +451,7 @@ additionally sweeps every plain resting order too, and `LEAVE_ALL` cancels
 nothing at all, leaving both quotes and orders resting across the
 disconnect. Which one you want is a risk decision, not a technical one —
 `LEAVE_ALL` trusts the MM to reconcile via `QBOOT`/`QLEGS` on reconnect
-(Exercise 8's note on surviving quotes); `CANCEL_QUOTES_ONLY` assumes a
+(Exercise 7's note on surviving quotes); `CANCEL_QUOTES_ONLY` assumes a
 disconnected quoting engine can no longer manage its own risk and should not
 keep resting prices in the book; `CANCEL_ALL` extends that same assumption
 to every order, not just quotes.
@@ -451,16 +459,22 @@ to every order, not just quotes.
 **Part B — self-service `KILL`.** `QUOTE_CANCEL` is symbol-scoped and only
 touches quotes. When you need to pull everything for your own gateway in one
 shot — every active quote *and* every plain resting order, across every
-symbol — use `KILL`:
+symbol — use `KILL`. Put a quote back first, so there is something of both
+kinds to pull (the `MSFT` order from Part A is still resting):
 
 ```
+[MM_MANUAL_01]> QUOTE|SYM=AAPL|BID=149.90|ASK=150.10|BID_QTY=500|ASK_QTY=500|TIF=DAY|QUOTE_ID=Q021
 [MM_MANUAL_01]> KILL
 ```
 
-Expected:
+Expected (each line also carries a `[HH:MM:SS.mmm]` time):
 
 ```
-[<time>] KILL ACK  orders=<n> quote_legs=<n>
+CANCELLED <bid_id> reason=KILL_SWITCH
+CANCELLED <ask_id> reason=KILL_SWITCH
+QUOTE CANCELLED  Q021  Kill switch
+CANCELLED <msft_order_id> reason=KILL_SWITCH
+KILL ACK  orders=1 quote_legs=2
 ```
 
 `quote_legs` counts individual legs, not quote records, so a single

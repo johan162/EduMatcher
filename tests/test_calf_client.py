@@ -43,7 +43,7 @@ def _observe(tracker: SequenceTracker, seq: int, msg_type: str = "TRADE") -> tup
 
 def test_first_message_is_never_a_gap() -> None:
     tracker = SequenceTracker()
-    tracker.new_connection()
+    tracker.new_connection("run-a")
     # Whatever SEQ it starts at: there is nothing yet for it to be a gap in.
     process, gap = _observe(tracker, 40)
     assert process is True
@@ -52,7 +52,7 @@ def test_first_message_is_never_a_gap() -> None:
 
 def test_consecutive_sequences_are_not_a_gap() -> None:
     tracker = SequenceTracker()
-    tracker.new_connection()
+    tracker.new_connection("run-a")
     _observe(tracker, 1)
     process, gap = _observe(tracker, 2)
     assert (process, gap) == (True, None)
@@ -60,7 +60,7 @@ def test_consecutive_sequences_are_not_a_gap() -> None:
 
 def test_gap_is_reported_with_its_range() -> None:
     tracker = SequenceTracker()
-    tracker.new_connection()
+    tracker.new_connection("run-a")
     _observe(tracker, 1)
     process, gap = _observe(tracker, 4)
 
@@ -77,7 +77,7 @@ def test_replay_backfill_is_kept_and_duplicates_dropped() -> None:
     were missing with ones already delivered above them.
     """
     tracker = SequenceTracker()
-    tracker.new_connection()
+    tracker.new_connection("run-a")
     _observe(tracker, 1)
     _observe(tracker, 4)  # hole 2..3, RESUME|LASTSEQ=1
 
@@ -90,7 +90,7 @@ def test_replay_backfill_is_kept_and_duplicates_dropped() -> None:
 
 def test_snapshot_rebaselines_rather_than_reporting_a_gap() -> None:
     tracker = SequenceTracker()
-    tracker.new_connection()
+    tracker.new_connection("run-a")
     tracker.observe("SNAP", "TOP", "AAPL", 1)
     # The SNAP answering a REPLAY_MISS lands far ahead. Gap-checking it
     # would ask to replay history it just superseded, and loop.
@@ -106,13 +106,29 @@ def test_backward_sequence_on_a_new_connection_is_a_restart() -> None:
     long as the new gateway lives.
     """
     tracker = SequenceTracker()
-    tracker.new_connection()
+    tracker.new_connection("run-a")
     _observe(tracker, 5000)
     assert _observe(tracker, 1)[0] is False, "backward within one connection is a dupe"
 
-    tracker.new_connection()
+    tracker.new_connection("run-b")
     assert _observe(tracker, 1)[0] is True, "backward across connections is a restart"
     assert _observe(tracker, 2)[0] is True
+
+
+def test_a_gap_names_the_gateway_run_its_last_position_came_from() -> None:
+    """WP-MDG03: RESUME must name the run LASTSEQ was counted in. After a
+    reconnect to a restarted gateway that is the old run, so the gateway
+    can answer REPLAY_MISS instead of serving its own events."""
+    tracker = SequenceTracker()
+    tracker.new_connection("run-a")
+    _observe(tracker, 1)
+    assert _observe(tracker, 3)[1].epoch == "run-a"
+
+    tracker.new_connection("run-b")
+    gap = _observe(tracker, 6)[1]
+    assert (gap.first_seq, gap.last_seq, gap.epoch) == (4, 5, "run-a")
+    # Positions taken from here on belong to the new run.
+    assert _observe(tracker, 8)[1].epoch == "run-b"
 
 
 def test_unsequenced_message_passes_through_without_baselining() -> None:
@@ -120,7 +136,7 @@ def test_unsequenced_message_passes_through_without_baselining() -> None:
     # RESUME|LASTSEQ=0, which the gateway rejects with BAD_MESSAGE rather
     # than REPLAY_MISS -- a hole nobody is told about.
     tracker = SequenceTracker()
-    tracker.new_connection()
+    tracker.new_connection("run-a")
     assert _observe(tracker, 0)[0] is True
     assert tracker.position("TRADE", "AAPL") is None
     assert _observe(tracker, 7)[1] is None
@@ -128,7 +144,7 @@ def test_unsequenced_message_passes_through_without_baselining() -> None:
 
 def test_abandoned_hole_stops_absorbing_late_arrivals() -> None:
     tracker = SequenceTracker()
-    tracker.new_connection()
+    tracker.new_connection("run-a")
     _observe(tracker, 1)
     _observe(tracker, 9)
     tracker.abandon_holes("TRADE", "AAPL")
@@ -137,7 +153,7 @@ def test_abandoned_hole_stops_absorbing_late_arrivals() -> None:
 
 def test_streams_are_tracked_independently() -> None:
     tracker = SequenceTracker()
-    tracker.new_connection()
+    tracker.new_connection("run-a")
     tracker.observe("TRADE", "TRADE", "AAPL", 1)
     tracker.observe("TRADE", "TRADE", "MSFT", 1)
     assert tracker.observe("TRADE", "TRADE", "AAPL", 5)[1] is not None
@@ -291,15 +307,15 @@ class StubGateway:
     to.
     """
 
-    def __init__(self, welcome: str | None = None) -> None:
+    def __init__(self, welcome: str | None = None, port: int = 0) -> None:
         self._welcome = welcome or (
-            "WELCOME|PROTO=CALF1|GW=stub|HBINT=1|REPLAY=30"
+            "WELCOME|PROTO=CALF1|GW=stub|HBINT=1|REPLAY=30|EPOCH=stubrun"
             "|CH_SUPPORTED=TOP,TRADE,STATE,DEPTH,CB,AUCTION,INDEX"
             "|SYMBOLS=AAPL,TSLA|REF=AAPL:2,TSLA:4"
         )
         self._srv = socket.socket()
         self._srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self._srv.bind(("127.0.0.1", 0))
+        self._srv.bind(("127.0.0.1", port))
         self._srv.listen(1)
         self.port = self._srv.getsockname()[1]
         self.received: list[str] = []
@@ -348,6 +364,9 @@ class StubGateway:
     def close(self) -> None:
         if self._conn is not None:
             try:
+                # shutdown, not just close: the serve thread is blocked in
+                # recv on this socket, and a close alone sends no FIN.
+                self._conn.shutdown(socket.SHUT_RDWR)
                 self._conn.close()
             except OSError:
                 pass
@@ -366,12 +385,14 @@ def gateway() -> Iterator[StubGateway]:
 
 def _client(stub: StubGateway, **overrides) -> CalfClient:
     options = CalfClientOptions(
-        host="127.0.0.1",
-        port=stub.port,
-        symbols=["AAPL"],
-        ping_interval_sec=0,
-        reconnect=False,
-        **overrides,
+        **{
+            "host": "127.0.0.1",
+            "port": stub.port,
+            "symbols": ["AAPL"],
+            "ping_interval_sec": 0,
+            "reconnect": False,
+            **overrides,
+        }
     )
     return CalfClient(options)
 
@@ -434,7 +455,9 @@ def test_client_resumes_a_gap_and_drops_the_duplicates_replay_returns(
         "TRADE|CH=TRADE|SYM=AAPL|SEQ=4|TS=t4|TRADE_ID=000001-000000004|RUN_SEQ=1|PX=150.10|QTY=25|SIDE=BUY"
     )
     _wait_for(
-        lambda: gateway.sent_matching("RESUME|CH=TRADE|SYM=AAPL|LASTSEQ=1"),
+        lambda: gateway.sent_matching(
+            "RESUME|CH=TRADE|SYM=AAPL|LASTSEQ=1|EPOCH=stubrun"
+        ),
         label="the RESUME",
     )
 
@@ -453,6 +476,54 @@ def test_client_resumes_a_gap_and_drops_the_duplicates_replay_returns(
 
     client.stop()
     gateway.close()
+    thread.join(timeout=2)
+
+
+def test_trades_lost_across_a_gateway_restart_are_reported() -> None:
+    """The C3 scenario: positions from run A, a reconnect to run B whose
+    TRADE stream has already passed them. The RESUME names run A, the
+    gateway answers REPLAY_MISS, and the loss reaches on_gap."""
+    run_a = StubGateway(
+        welcome="WELCOME|PROTO=CALF1|GW=stub|HBINT=1|REPLAY=30|EPOCH=run-a"
+    )
+    client = _client(run_a, reconnect=True, reconnect_min_sec=0.05)
+    gaps: list[Gap] = []
+    seen: list[str] = []
+    thread = _run_in_thread(
+        client,
+        on_frame=lambda f: seen.append(f.fields.get("TRADE_ID", "")),
+        on_gap=gaps.append,
+    )
+    run_a.wait_ready()
+    for n in (1, 2, 3):
+        run_a.send(
+            f"TRADE|CH=TRADE|SYM=AAPL|SEQ={n}|TS=t|TRADE_ID=000001-00000000{n}"
+            "|RUN_SEQ=1|PX=1|QTY=1|SIDE=BUY"
+        )
+    _wait_for(lambda: len([t for t in seen if t]) == 3, label="run A's prints")
+    port = run_a.port
+    run_a.close()
+
+    run_b = StubGateway(
+        welcome="WELCOME|PROTO=CALF1|GW=stub|HBINT=1|REPLAY=30|EPOCH=run-b",
+        port=port,
+    )
+    run_b.wait_ready(timeout=5)
+    _wait_for(lambda: run_b.sent_matching("SUB"), label="the SUB to run B")
+    run_b.send(
+        "TRADE|CH=TRADE|SYM=AAPL|SEQ=6|TS=t|TRADE_ID=000001-000000106"
+        "|RUN_SEQ=1|PX=1|QTY=1|SIDE=BUY"
+    )
+    _wait_for(
+        lambda: run_b.sent_matching("RESUME|CH=TRADE|SYM=AAPL|LASTSEQ=3|EPOCH=run-a"),
+        label="a RESUME naming run A",
+    )
+    run_b.send("ERR|CODE=REPLAY_MISS|CH=TRADE|SYM=AAPL")
+    _wait_for(lambda: bool(gaps), label="the gap report")
+    assert (gaps[0].channel, gaps[0].symbol) == ("TRADE", "AAPL")
+
+    client.stop()
+    run_b.close()
     thread.join(timeout=2)
 
 

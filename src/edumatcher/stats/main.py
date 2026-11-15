@@ -3,17 +3,21 @@ Statistics Process — records market data to a SQLite database.
 
 Usage:
   poetry run pm-stats [--db data/stats.db] [--snapshot-interval SEC]
-                      [--timezone TZ] [--keep-days N]
+                      [--keep-days N]
                       [--keep-order-events-days N]
                       [--human-gateways GLOB,...]
                       [--keep-human-order-events-days N]
 
+  The session timezone is not an option: it comes from engine config (see
+  "Dates and timestamps" below).
+
 Retention
 ---------
   With ``--keep-days N`` the per-event tables (trade_log, order_events,
-  price_snapshots, feed_gaps) keep the last N days; older rows are deleted
-  at startup and once an hour. The daily rollups are kept for good. The
-  file stops growing once it holds N days (SQLite reuses the freed pages).
+  price_snapshots, feed_gaps) keep the last N days; a deletion round starts
+  at startup and once an hour, and deletes in small batches between
+  messages. The daily rollups are kept for good. The file stops growing once
+  it holds N days (SQLite reuses the freed pages).
   ``--keep-order-events-days`` gives order_events a retention of its own:
   under an AI swarm they are almost all of the file, so a long run keeps
   hours of them and days of everything else.
@@ -36,9 +40,15 @@ Dates and timestamps
   edumatcher/stats/trading_day.py.
 
 Subscribes to (engine PUB, ENGINE_PUB_ADDR):
-  trade.executed  — to track OHLCV, VWAP, min/max, volume
-  book.*          — to record periodic price snapshots (default: every 15 min)
-  system.eod      — engine shutdown: record closing bid/ask/last price
+  trade.executed  — trade_log, and OHLCV, VWAP, min/max, volume in daily_stats
+  book.{symbol}   — opening bid/ask, and periodic price snapshots
+                    (default: every 15 min)
+  system.eod      — engine shutdown: record closing bid/ask
+  system.symbols.STATS — reply to the startup symbols request: tick scale per
+                    symbol, then one book snapshot request each
+  order.{ack,fill,amended,cancelled,expired}.*, combo.{ack,status}.*,
+  oco.{ack,cancelled}.*, quote.{ack,status}.*
+                  — order_events, the private order lifecycle history
 
 Subscribes to (pm-index PUB, INDEX_PUB_CONNECT_ADDR — a separate socket,
 since pm-index binds its own PUB endpoint distinct from the engine's):
@@ -50,21 +60,43 @@ Binds (STATS_HEALTH_BIND_ADDR, a REP socket):
 
 SQLite tables
 -------------
+  Prices are INTEGER ticks with a tick_decimals column beside them, except
+  order_events' prices (REAL display money, as the engine published them).
+  The DDL in SCHEMA below is the authoritative column list.
+
+  stats_meta
+    Key/value: session timezone, snapshot interval, retention in force.
+
+  instruments
+    Tick scale per symbol, from engine config or observed on the wire.
+
   daily_stats
     Columns: date, symbol, open_price, high_price, low_price, close_price,
              open_bid, open_ask, close_bid, close_ask, volume, trade_count,
-             vwap, largest_trade_qty, largest_trade_price
-    One row per (date, symbol), upserted on each trade / EOD event.
+             turnover, vwap, largest_trade_qty, largest_trade_price,
+             tick_decimals
+    One row per (date, symbol), upserted on each trade, on the day's first
+    book quote, and on EOD.
 
   price_snapshots
-    Columns: ts, symbol, mid_price, best_bid, best_ask, pct_change
+    Columns: ts, symbol, mid_price, best_bid, best_ask, pct_change,
+             tick_decimals
     One row every N seconds per symbol (default: 900 s / 15 minutes).
     Override with --snapshot-interval.
 
   trade_log
-    Columns: ts, trade_id, symbol, price, quantity,
-             buy_gateway_id, sell_gateway_id
-    Append-only log of every individual trade.
+    Columns: ts, trade_id, symbol, price, quantity, tick_decimals,
+             buy_gateway_id, sell_gateway_id, aggressor_side,
+             buy_order_id, sell_order_id, match_type, msg_id
+    Append-only log of every individual trade, keyed on the engine trade id.
+
+  order_events
+    One row per private order lifecycle event (ack/reject, fill, amend,
+    cancel, expire, and the combo/OCO/quote equivalents).
+
+  feed_gaps
+    One row per detected loss: a publisher-sequence jump on any stream, or a
+    jump in the engine trade-id suffix (column ``source``).
 
   index_daily_stats
     Columns: date, index_id, open_level, high_level, low_level, close_level,
@@ -110,7 +142,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import datetime, timezone, tzinfo
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, NamedTuple, Optional
 
 import errno
 
@@ -306,7 +338,7 @@ class _DayAccum:
 
 @dataclass
 class _IndexDayAccum:
-    """Holds intraday OHLC statistics for one index on one calendar date.
+    """Holds intraday OHLC statistics for one index on one trading date.
 
     Mirrors ``_DayAccum``'s day-rollover/upsert shape, but tracks index
     *level* (a computed, dimensionless value) rather than instrument price,
@@ -385,17 +417,28 @@ class _IndexDayAccum:
 #: 11 — ``index_level_snapshots`` is keyed on an arrival ``seq`` instead of
 #:     ``(ts, index_id)``: two updates in one millisecond used to collapse into
 #:     one row, so a rehydrated rollup under-counted them.
-SCHEMA_VERSION = 11
+#: 12 — ``feed_gaps.source`` names the check that found a gap; both checks
+#:     fire on one lost trade and their rows were indistinguishable (C5).
+#:     ``trade_log`` gains an index on ``ts`` (P3).
+SCHEMA_VERSION = 12
 
 #: How long pm-stats keeps recording already-queued engine messages after it
 #: is told to stop (see StatsProcess._drain).
 _DRAIN_SEC = 0.5
+
+#: Most engine messages handled per poll wake-up before the loop polls the
+#: other sockets (health ping, index) and runs a prune batch again.
+_DRAIN_PER_WAKE = 1_000
 
 #: Stream name recorded in ``feed_gaps.stream`` for engine trade prints.
 #: Taken from the generated binding rather than retyped, so a topic rename in
 #: spec/messages/trade.yaml reaches this recorder instead of silently leaving
 #: it subscribed to a topic nobody publishes any more.
 TRADE_STREAM = TOPIC_TRADE_EXECUTED
+
+#: ``feed_gaps.source`` values: which check found a gap.
+GAP_SOURCE_PUBLISHER_SEQ = "publisher_seq"
+GAP_SOURCE_TRADE_ID = "trade_id"
 
 
 def _payload_tick_decimals(payload: dict[str, Any]) -> int:
@@ -457,8 +500,9 @@ CREATE TABLE IF NOT EXISTS instruments (
     updated_ts    TEXT    NOT NULL
 );
 
--- Price columns below are INTEGER *ticks*, not display money. Divide by
--- 10^tick_decimals to get a display price. See the tick handling section of
+-- Price columns below are INTEGER *ticks*, not display money — except
+-- order_events.price and fill_price (REAL display money, see there). Divide
+-- by 10^tick_decimals to get a display price. See the tick handling section of
 -- ../../../docs/books/operator-guide/part-4-run-a-market/060-statistics-and-reporting.md.
 CREATE TABLE IF NOT EXISTS daily_stats (
     date                TEXT NOT NULL,
@@ -530,6 +574,9 @@ CREATE TABLE IF NOT EXISTS trade_log (
 );
 
 CREATE INDEX IF NOT EXISTS idx_tl_symbol_ts ON trade_log(symbol, ts);
+-- Time order across all symbols: the tape page of `trades` without a symbol
+-- (and GET /history/trades) reads it instead of sorting the whole table.
+CREATE INDEX IF NOT EXISTS idx_tl_ts ON trade_log(ts);
 -- Covers the largest-trade-of-the-day rehydration: symbol equality then an
 -- ordered scan, so LIMIT 1 short-circuits instead of sorting into a temp
 -- B-tree.
@@ -539,6 +586,11 @@ CREATE TABLE IF NOT EXISTS feed_gaps (
     seq             INTEGER PRIMARY KEY AUTOINCREMENT,
     ts              TEXT    NOT NULL,
     stream          TEXT    NOT NULL,
+    -- Which check found the gap, and so which counter the ids below are in:
+    -- 'publisher_seq' (the per-topic publisher sequence; any stream, counts
+    -- messages) or 'trade_id' (the engine trade-id suffix; trade.executed
+    -- only, counts trades). One lost trade is usually found by both.
+    source          TEXT    NOT NULL,
     -- The id we expected next, the one that actually arrived, and how many
     -- are unaccounted for between them.
     expected_id     INTEGER NOT NULL,
@@ -558,6 +610,9 @@ CREATE TABLE IF NOT EXISTS order_events (
     side            TEXT,
     order_type      TEXT,
     tif             TEXT,
+    -- price and fill_price are display money exactly as the engine published
+    -- them on the private order events, not ticks; there is no tick_decimals
+    -- column here.
     price           REAL,
     quantity        INTEGER,
     remaining_qty   INTEGER,
@@ -682,8 +737,8 @@ WHERE
 """
 
 INSERT_FEED_GAP = """
-INSERT INTO feed_gaps (ts, stream, expected_id, received_id, missing_count)
-VALUES (?,?,?,?,?)
+INSERT INTO feed_gaps (ts, stream, source, expected_id, received_id, missing_count)
+VALUES (?,?,?,?,?,?)
 """
 
 INSERT_ORDER_EVENT = """
@@ -929,6 +984,10 @@ class StatsProcess:
             else keep_human_order_events_days
         )
         self._last_prune: float | None = None
+        #: (statement, cutoff) still to run in the current prune round; a
+        #: round deletes in batches, one per statement per loop iteration.
+        self._prune_pending: list[tuple[str, dict[str, Any]]] = []
+        self._prune_deleted = 0
         self._sql_trace = bool(sql_trace)
         # Taken before the database is opened, so a rejected second recorder
         # never touches the file at all.
@@ -957,6 +1016,8 @@ class StatsProcess:
         self._records_dropped = 0
         self._feed_gaps = 0
         self._record_retention_meta()
+        # Built once: the retention settings do not change while running.
+        self._prune_plan = self._prune_statements()
         self._snapshot_interval_sec = snapshot_interval_sec
         self._tz = session_tz
         # Set when the receive thread stops for any reason other than a clean
@@ -964,16 +1025,14 @@ class StatsProcess:
         # success after having recorded nothing.
         self._receive_failure: str | None = None
 
-        # symbol → _DayAccum for current calendar date
+        # symbol → _DayAccum for the trading date it last saw
         self._accum: dict[str, _DayAccum] = {}
 
-        # symbol → last snapshot mid_price (for % change)
         # symbol → mid_price of the last *persisted* snapshot row. The value
         # may be None: a row with no usable mid still becomes the baseline, so
         # pct_change always refers to the immediately preceding row.
         self._last_snap_mid: dict[str, Optional[float]] = {}
 
-        # symbol → timestamp of last snapshot written
         # symbol → time.monotonic() of the last snapshot written. A plain dict
         # with an explicit "absent means never" check, not defaultdict(float):
         # monotonic() is seconds since boot on Linux/macOS, so a 0.0 default
@@ -982,7 +1041,7 @@ class StatsProcess:
         # the opening snapshot the startup book request exists to capture.
         self._last_snap_ts: dict[str, float] = {}
 
-        # index_id → _IndexDayAccum for current calendar date
+        # index_id → _IndexDayAccum for the trading date it last saw
         self._index_accum: dict[str, _IndexDayAccum] = {}
 
         # Last engine trade id seen, split as (run_seq, suffix), for gap
@@ -997,6 +1056,12 @@ class StatsProcess:
         # sequence frame so the warning is logged once per topic.
         self._last_topic_seq: dict[str, int] = {}
         self._unsequenced_topics: set[str] = set()
+
+        # symbol -> (tick_decimals, source) last written to instruments, so an
+        # unchanged scale costs no write (P1).
+        self._instrument_written: dict[str, tuple[int, str]] = {}
+        # (symbol, date) whose mid-day scale change was already reported.
+        self._scale_change_reported: set[tuple[str, str]] = set()
 
         # Initialised before the sockets so close() is safe to call for
         # cleanup if socket construction fails part-way — it flushes the
@@ -1141,6 +1206,7 @@ class StatsProcess:
                 (
                     datetime.now(tz=timezone.utc).isoformat(timespec="milliseconds"),
                     topic,
+                    GAP_SOURCE_PUBLISHER_SEQ,
                     last + 1,
                     seq,
                     missing,
@@ -1203,7 +1269,8 @@ class StatsProcess:
         )
         self._feed_gaps += 1
         self._conn.execute(
-            INSERT_FEED_GAP, (ts, TRADE_STREAM, last_suffix + 1, suffix, missing)
+            INSERT_FEED_GAP,
+            (ts, TRADE_STREAM, GAP_SOURCE_TRADE_ID, last_suffix + 1, suffix, missing),
         )
         self._dbg_count("trades_missing", missing)
 
@@ -1217,7 +1284,10 @@ class StatsProcess:
         covers everything that actually traded rather than only what was
         configured.
         """
-        if not symbol:
+        if not symbol or self._instrument_written.get(symbol) == (
+            tick_decimals,
+            source,
+        ):
             return
         now = datetime.now(tz=timezone.utc).isoformat(timespec="milliseconds")
         with self._conn:
@@ -1225,17 +1295,22 @@ class StatsProcess:
                 UPSERT_INSTRUMENT,
                 (symbol, tick_decimals, 10.0**-tick_decimals, source, now),
             )
+        self._instrument_written[symbol] = (tick_decimals, source)
 
     def _note_tick_decimals(self, acc: _DayAccum, tick_decimals: int) -> None:
         """Record the scale this symbol's prices are being captured at.
 
         A symbol's tick size changing mid-day would silently make the day's
         integers incomparable with each other, so it is worth saying out loud
-        rather than quietly re-scaling. Callers must hold the lock.
+        rather than quietly re-scaling — once per symbol and day, not on every
+        later message. Callers must hold the lock.
         """
         if acc.trade_count == 0 and acc.open_bid is None and acc.open_ask is None:
             acc.tick_decimals = tick_decimals
         elif acc.tick_decimals != tick_decimals:
+            if (acc.symbol, acc.date) in self._scale_change_reported:
+                return
+            self._scale_change_reported.add((acc.symbol, acc.date))
             log.error(
                 "%s tick_decimals changed from %d to %d mid-day; "
                 "keeping %d so today's stored ticks stay comparable",
@@ -1254,24 +1329,21 @@ class StatsProcess:
     def _accum_for(self, symbol: str, day: str) -> _DayAccum:
         """Return the accumulator for *symbol* on trading date *day*.
 
-        On the *first* touch in this process the accumulator is rebuilt from
-        what is already in the database. Without that, a mid-session restart
-        starts from a blank accumulator and the next flush overwrites the
-        day's real open/high/low/volume/VWAP with post-restart-only figures —
-        silently, and with volume going *down*.
-
-        A same-process day rollover does not rehydrate: the outgoing day was
-        fully accumulated in memory and has just been flushed, so the incoming
-        day genuinely starts empty.
+        Whenever the held accumulator is for another day (or there is none),
+        the requested day is rebuilt from what is already in the database.
+        Without that, a blank accumulator's next flush overwrites the day's
+        real open/high/low/volume/VWAP with a handful of trades — silently,
+        and with volume going *down*. That happens after a mid-session
+        restart, and also when a symbol moves to another day and back (a late
+        print, an EOD on the receipt clock, a clock step) (C1). A genuine
+        forward rollover finds nothing on disk and starts empty.
         """
         acc = self._accum.get(symbol)
         if acc is not None and acc.date == day:
             return acc
-        if acc is None:
-            acc = self._rehydrate_daily(symbol, day)
-        else:
+        if acc is not None:
             self._flush_daily(acc)
-            acc = _DayAccum(date=day, symbol=symbol)
+        acc = self._rehydrate_daily(symbol, day)
         self._accum[symbol] = acc
         return acc
 
@@ -1386,11 +1458,9 @@ class StatsProcess:
         acc = self._index_accum.get(index_id)
         if acc is not None and acc.date == day:
             return acc
-        if acc is None:
-            acc = self._rehydrate_index_daily(index_id, day)
-        else:
+        if acc is not None:
             self._flush_index_daily(acc)
-            acc = _IndexDayAccum(date=day, index_id=index_id)
+        acc = self._rehydrate_index_daily(index_id, day)
         self._index_accum[index_id] = acc
         return acc
 
@@ -1463,12 +1533,23 @@ class StatsProcess:
     # Message handlers
     # ------------------------------------------------------------------
 
-    def _on_trade(self, payload: dict[str, Any], msg_id: str | None = None) -> None:
+    def _on_trade(self, payload: dict[str, Any], msg_id: str | None = None) -> bool:
+        """Record one trade print. Returns False if it was not stored."""
         symbol = payload.get("symbol", "")
         price = payload.get("price")
         qty = payload.get("quantity")
-        if not symbol or price is None or qty is None:
-            return
+        trade_id = payload.get("id")
+        if not symbol or price is None or qty is None or not trade_id:
+            # The id is the dedupe key: storing an id-less trade under "" made
+            # every later one a "duplicate" (C11). A malformed print is a
+            # record pm-stats could not store, so it counts as dropped.
+            log.warning(
+                "dropping malformed trade without id, symbol, price or quantity: %s",
+                payload,
+            )
+            self._dbg_count("records_dropped")
+            self._records_dropped += 1
+            return False
 
         ts_ns = payload.get("ts_ns")
         if ts_ns is None:
@@ -1511,7 +1592,7 @@ class StatsProcess:
                     INSERT_TRADE,
                     (
                         ts,
-                        payload.get("id", ""),
+                        trade_id,
                         symbol,
                         price_ticks,
                         qty,
@@ -1529,14 +1610,15 @@ class StatsProcess:
                     # Inside the same transaction as the trade itself, so a
                     # recorded gap can never survive without the trade that
                     # revealed it, or vice versa.
-                    self._check_trade_sequence(str(payload.get("id", "")), ts)
+                    self._check_trade_sequence(str(trade_id), ts)
                     acc.on_trade(price_ticks, qty)
                     self._write_daily(acc)
             if not inserted:
                 self._dbg_count("duplicate_trades")
-                return
+                return False
             self._accum[symbol] = acc
         self._dbg_count("trades_persisted")
+        return True
 
     def _snapshot_baseline(self, symbol: str) -> Optional[float]:
         """The mid of the last persisted snapshot for *symbol*, or None.
@@ -1579,13 +1661,17 @@ class StatsProcess:
             best_bid = _to_ticks(bids[0].get("price") if bids else None, tick_decimals)
             best_ask = _to_ticks(asks[0].get("price") if asks else None, tick_decimals)
 
+            opened = False
             if acc.open_bid is None and best_bid is not None:
                 acc.open_bid = best_bid
+                opened = True
             if acc.open_ask is None and best_ask is not None:
                 acc.open_ask = best_ask
+                opened = True
             # Persist opening prices as soon as we know them, so the row
-            # exists in daily_stats even if no trades occur today.
-            if acc.open_bid is not None or acc.open_ask is not None:
+            # exists in daily_stats even if no trades occur today. Only then:
+            # a later book changes nothing in the row (P1).
+            if opened:
                 self._flush_daily(acc)
 
             # 15-minute price snapshot
@@ -1649,7 +1735,7 @@ class StatsProcess:
                 )
                 self._dbg_count("snapshots_written")
 
-    def _on_index_update(self, payload: dict[str, Any]) -> None:
+    def _on_index_update(self, payload: dict[str, Any]) -> bool:
         """Persist one throttled index.update event from pm-index.
 
         Every message received here already represents one throttled
@@ -1667,7 +1753,7 @@ class StatsProcess:
                 payload,
             )
             self._dbg_count("index_updates_ignored")
-            return
+            return False
 
         aggregate_cap = payload.get("aggregate_cap")
         divisor = payload.get("divisor")
@@ -1733,15 +1819,22 @@ class StatsProcess:
             ts,
         )
         self._dbg_count("index_updates_persisted")
+        return True
 
     def _on_eod(self, payload: dict[str, Any]) -> None:
-        day = self._trading_date(time.time())
+        # system.eod carries no timestamp, so receipt time is the only clock.
+        # It closes the session a symbol was trading in, though, so a symbol
+        # with an accumulator keeps that accumulator's day: an EOD handled just
+        # after midnight, or on a host whose clock runs ahead of the engine's,
+        # must not file the closing quotes under the next day (C4).
+        receipt_day = self._trading_date(time.time())
         with self._lock:
             for book in payload.get("books", []):
                 symbol = book.get("symbol", "")
                 if not symbol:
                     continue
-                acc = self._accum_for(symbol, day)
+                held = self._accum.get(symbol)
+                acc = held if held is not None else self._accum_for(symbol, receipt_day)
                 self._note_tick_decimals(acc, _payload_tick_decimals(book))
                 bids = book.get("bids", [])
                 asks = book.get("asks", [])
@@ -1761,8 +1854,12 @@ class StatsProcess:
 
     def _on_order_event(
         self, topic: str, payload: dict[str, Any], msg_id: str | None = None
-    ) -> None:
-        """Persist one private order lifecycle event for history queries."""
+    ) -> bool:
+        """Persist one private order lifecycle event for history queries.
+
+        Returns False for an event without a gateway or an id, which is not
+        stored.
+        """
         parts = topic.split(".")
         gateway_id = (
             parts[-1] if len(parts) >= 3 else str(payload.get("gateway_id", ""))
@@ -1779,7 +1876,8 @@ class StatsProcess:
         # live quote is refused for (gateway, symbol), which the row keeps
         # (X6). Every other event without an id is noise.
         if not gateway_id or not (order_id or event_name == "QUOTE_REJECT"):
-            return
+            self._dbg_count("order_events_ignored")
+            return False
         ts = datetime.now(tz=timezone.utc).isoformat(timespec="milliseconds")
         # `or` would treat a legitimate quantity of 0 as absent and fall
         # through to `qty`, recording NULL when that is missing too.
@@ -1835,6 +1933,7 @@ class StatsProcess:
                     + (payload.get("reason"), None, None, None, order_id, None, msg_id),
                 )
         self._dbg_count("order_events_written")
+        return True
 
     # ------------------------------------------------------------------
     # Main receive loop
@@ -1871,8 +1970,7 @@ class StatsProcess:
             except zmq.ZMQError as exc:
                 if exc.errno != errno.EINTR:
                     raise
-                self._receive_failure = "interrupted while polling (EINTR)"
-                return
+                continue  # interrupted, not failed: poll again (C13)
 
             # On this thread, so the deletes never interleave with the
             # writes sharing the connection.
@@ -1885,7 +1983,14 @@ class StatsProcess:
                 self._receive_one_index_message()
 
             if self.sub in socks:
+                # Take what is already queued, up to a bound, before polling
+                # again: one poll per message was a syscall, a prune check and
+                # a health tick for every book update (P4).
                 self._receive_one_engine_message()
+                drained = 1
+                while drained < _DRAIN_PER_WAKE and self.sub.poll(0):
+                    self._receive_one_engine_message()
+                    drained += 1
         self._drain()
 
     def _drain(self) -> None:
@@ -1915,7 +2020,9 @@ class StatsProcess:
 
         try:
             env = decode_envelope(frames)
-            self._dispatch(topic, payload, env.msg_id if env is not None else None)
+            recorded = self._dispatch(
+                topic, payload, env.msg_id if env is not None else None
+            )
         except Exception as exc:
             # Reaching here means the event was not persisted. That is a
             # dropped record, not a warning-level curiosity.
@@ -1923,7 +2030,10 @@ class StatsProcess:
             self._dbg_count("records_dropped")
             self._records_dropped += 1
         else:
-            self._events_recorded += 1
+            # A message the handler deliberately ignored (malformed, a
+            # duplicate, a topic pm-stats does not store) is not a record.
+            if recorded:
+                self._events_recorded += 1
 
     def _record_retention_meta(self) -> None:
         """Publish the order-event retention into ``stats_meta``.
@@ -1949,14 +2059,14 @@ class StatsProcess:
         )
         self._conn.commit()
 
-    def _order_event_prune_tiers(self) -> list[tuple[str, float]]:
+    def _order_event_prune_tiers(self) -> list[tuple[_Prune, float]]:
         """``(statement, days)`` for each order-event retention tier.
 
-        Without ``--human-gateways`` this is the single statement it has
-        always been. With it, the table is split in two: matched gateways
-        prune on their own (longer) clock, everyone else on the ordinary
-        one. A tier with retention 0 keeps everything, so it contributes
-        no statement — which is how exempting a gateway outright works.
+        Without ``--human-gateways`` this is a single statement. With it, the
+        table is split in two: matched gateways prune on their own (longer)
+        clock, everyone else on the ordinary one. A tier with retention 0 keeps
+        everything, so it contributes no statement — which is how exempting a
+        gateway outright works.
         """
         if not self._human_gateways:
             days = self._keep_order_events_days
@@ -1971,49 +2081,82 @@ class StatsProcess:
             if days > 0
         ]
 
-    def _prune_if_due(self) -> None:
-        order_event_tiers = self._order_event_prune_tiers()
-        if self._keep_days <= 0 and not order_event_tiers:
-            return
-        now = time.monotonic()
-        if (
-            self._last_prune is not None
-            and now - self._last_prune < _PRUNE_INTERVAL_SEC
-        ):
-            return
-        self._last_prune = now
+    def _prune_statements(self) -> list[tuple[_Prune, float]]:
+        """Every ``(statement, days)`` retention runs; empty keeps everything."""
         statements = [
             (statement, self._keep_days)
             for statement in (_PRUNE_STATEMENTS if self._keep_days > 0 else ())
         ]
-        statements.extend(order_event_tiers)
-        deleted = 0
-        with self._lock, self._conn:
-            for statement, days in statements:
-                cutoff = datetime.fromtimestamp(
-                    time.time() - days * 86_400, tz=timezone.utc
-                ).isoformat(timespec="seconds")
-                deleted += self._conn.execute(statement, {"cutoff": cutoff}).rowcount
-        if deleted:
-            log.info("retention: deleted %d rows", deleted)
+        return statements + self._order_event_prune_tiers()
+
+    def _prune_if_due(self) -> None:
+        """Run retention in bounded batches, on this (the receive) thread.
+
+        Once an hour a round starts, fixing every statement's cutoff. Each call
+        then deletes at most ``_PRUNE_BATCH_ROWS`` rows per statement, each
+        batch in its own short transaction, and the receive loop reads its
+        sockets between calls. One transaction for the whole round held the
+        lock for seconds under a swarm (900 000 rows took 3.4 s) while ZeroMQ
+        queued, and then dropped, the messages arriving meanwhile (P2).
+        """
+        if not self._prune_plan:
+            return
+        if not self._prune_pending:
+            now = time.monotonic()
+            if (
+                self._last_prune is not None
+                and now - self._last_prune < _PRUNE_INTERVAL_SEC
+            ):
+                return
+            self._last_prune = now
+            self._prune_pending = [
+                (prune.delete, self._prune_params(prune, days))
+                for prune, days in self._prune_plan
+            ]
+            self._prune_deleted = 0
+        still_pending = []
+        for statement, params in self._prune_pending:
+            with self._lock, self._conn:
+                deleted = self._conn.execute(statement, params).rowcount
+            self._prune_deleted += deleted
+            if deleted >= _PRUNE_BATCH_ROWS:
+                still_pending.append((statement, params))
+        self._prune_pending = still_pending
+        if not still_pending and self._prune_deleted:
+            log.info("retention: deleted %d rows", self._prune_deleted)
+
+    def _prune_params(self, prune: _Prune, days: float) -> dict[str, Any]:
+        """Bind one statement's cutoff (and watermark) for this round."""
+        cutoff = datetime.fromtimestamp(
+            time.time() - days * 86_400, tz=timezone.utc
+        ).isoformat(timespec="seconds")
+        params: dict[str, Any] = {"cutoff": cutoff, "batch": _PRUNE_BATCH_ROWS}
+        if prune.watermark is not None:
+            with self._lock:
+                (params["watermark"],) = self._conn.execute(
+                    prune.watermark, {"cutoff": cutoff}
+                ).fetchone()
+        return params
 
     def _dispatch(
         self, topic: str, payload: dict[str, Any], msg_id: str | None = None
-    ) -> None:
+    ) -> bool:
         """Route one decoded engine message to its handler.
 
-        Split out of the receive loop so the topic-matching rules are
+        Returns whether the message was recorded; False for one that was
+        ignored. Split out of the receive loop so the topic-matching rules are
         reachable from a test without driving a socket.
         """
         if topic.startswith(TOPIC_TRADE_EXECUTED):
             self._dbg_count("trade_topics")
-            self._on_trade(payload, msg_id)
+            return self._on_trade(payload, msg_id)
         elif topic.startswith(PREFIX_BOOK_SNAPSHOT):
             self._dbg_count("book_topics")
             symbol = topic.split(".", 1)[1]
-            # A `book.` subscription also matches any sub-topic such as
-            # `book.depth.AAPL`, and naively taking everything after the first
-            # dot would record a phantom instrument named "depth.AAPL".
+            # A `book.` subscription matches any topic under `book.`. Today the
+            # engine publishes only `book.{symbol}` there (depth is on
+            # `depth.{symbol}`), but a future sub-topic such as `book.x.AAPL`
+            # would otherwise be recorded as a phantom instrument "x.AAPL".
             # Symbols are alphanumeric (balf_gwy/protocol.py::validate_symbol),
             # so a dot here means this is not a single-symbol book snapshot.
             if "." in symbol:
@@ -2021,34 +2164,47 @@ class StatsProcess:
                 log.warning(
                     "ignoring %s: not a book snapshot for a single symbol", topic
                 )
-            else:
-                self._on_book(symbol, payload)
+                return False
+            self._on_book(symbol, payload)
+            return True
         elif topic == TOPIC_EOD:
             self._dbg_count("eod_topics")
             self._on_eod(payload)
+            return True
         elif topic == topic_symbols(STATS_GATEWAY_ID):
             self._dbg_count("startup_symbols_topics")
             self._on_startup_symbols(payload)
+            return True
         elif _is_order_event_topic(topic):
             self._dbg_count("order_event_topics")
-            self._on_order_event(topic, payload, msg_id)
+            return self._on_order_event(topic, payload, msg_id)
+        return False
 
     def _receive_one_index_message(self) -> None:
+        """The index counterpart of :meth:`_receive_one_engine_message`, with
+        the same accounting (C8)."""
         try:
             frames = self.index_sub.recv_multipart()
             topic, payload = decode(frames)
         except Exception as exc:
             log.warning("failed to decode index_sub message: %s", exc)
+            self._dbg_count("messages_undecodable")
             return
 
         self._dbg_count("index_messages_received")
         self._check_topic_sequence(topic, decode_sequence(frames))
+        if topic != TOPIC_INDEX_UPDATE:
+            return
+        self._dbg_count("index_update_topics")
         try:
-            if topic == TOPIC_INDEX_UPDATE:
-                self._dbg_count("index_update_topics")
-                self._on_index_update(payload)
+            recorded = self._on_index_update(payload)
         except Exception as exc:
-            log.warning("error handling index topic=%s err=%s", topic, exc)
+            log.error("failed to record topic=%s err=%s", topic, exc)
+            self._dbg_count("records_dropped")
+            self._records_dropped += 1
+        else:
+            if recorded:
+                self._events_recorded += 1
 
     def _on_startup_symbols(self, payload: dict[str, Any]) -> None:
         """Received in response to our startup symbols request.
@@ -2105,8 +2261,11 @@ class StatsProcess:
             while self._running and not self._request_startup_symbols():
                 time.sleep(_ENGINE_RETRY_SEC)
         if not self._running:
+            # Either a stop arrived while waiting for the engine, or the
+            # receive thread died; only the first is a clean exit (C2).
+            t.join(timeout=1.0)
             self.close()
-            return 0
+            return self._exit_code()
         log.debug("requested startup symbols for gateway_id=STATS")
 
         log.info("recording market statistics (Ctrl-C to stop)")
@@ -2123,7 +2282,10 @@ class StatsProcess:
                     "closing anyway may abort an in-flight write"
                 )
             self.close()
+        return self._exit_code()
 
+    def _exit_code(self) -> int:
+        """1 when the receive loop failed, else 0, logging the failure."""
         if self._receive_failure is not None:
             log.critical("pm-stats stopped recording: %s", self._receive_failure)
             return 1
@@ -2200,14 +2362,40 @@ class StatsProcess:
 _PRUNE_INTERVAL_SEC = 3600.0
 
 
+#: Rows one retention statement deletes per transaction. About 20 ms of
+#: order_events on a typical disk, so the receive loop is never held for long.
+_PRUNE_BATCH_ROWS = 5_000
+
+
 # ``ts`` is an ISO UTC instant, so text order is time order. trade_log and
-# order_events are append-only with no index leading on ts: deleting below
-# the first row (in insertion order) still inside the window scans only the
-# rows being deleted.
-def _prune_by_key(table: str, key: str) -> str:
-    return f"""DELETE FROM {table} WHERE {key} < COALESCE(
+# order_events are append-only, and order_events has no index leading on ts:
+# the watermark (the first row, in insertion order, still inside the window)
+# is found by a scan from the head of the table, which holds only rows being
+# deleted. trade_log uses the same form (it has idx_tl_ts since schema 12,
+# which the planner may use for the watermark). Each run deletes at most
+# :batch rows below it, oldest first.
+class _Prune(NamedTuple):
+    """One retention statement, run in batches of ``:batch`` rows.
+
+    ``watermark``, when set, is evaluated once when a round starts and bound
+    as ``:watermark``: finding it scans the rows due for deletion, so doing
+    it per batch made a round quadratic.
+    """
+
+    delete: str
+    watermark: str | None = None
+
+
+def _prune_by_key(table: str, key: str, predicate: str = "") -> _Prune:
+    extra = f" AND {predicate}" if predicate else ""
+    return _Prune(
+        delete=f"""DELETE FROM {table} WHERE {key} IN (
+        SELECT {key} FROM {table} WHERE {key} < :watermark{extra}
+        ORDER BY {key} LIMIT :batch)""",
+        watermark=f"""SELECT COALESCE(
         (SELECT {key} FROM {table} WHERE ts >= :cutoff ORDER BY {key} LIMIT 1),
-        (SELECT MAX({key}) + 1 FROM {table}))"""
+        (SELECT MAX({key}) + 1 FROM {table}))""",
+    )
 
 
 def _gateway_glob_predicate(patterns: Sequence[str], *, negate: bool) -> str:
@@ -2226,25 +2414,31 @@ def _gateway_glob_predicate(patterns: Sequence[str], *, negate: bool) -> str:
     return f"NOT ({joined})" if negate else f"({joined})"
 
 
-def _prune_order_events(patterns: Sequence[str], *, human: bool) -> str:
+def _prune_order_events(patterns: Sequence[str], *, human: bool) -> _Prune:
     """Prune ``order_events`` for one retention tier.
 
-    The ``seq`` watermark subquery is kept from the single-tier statement:
-    it finds the first row inside the window in primary-key order, so the
-    delete still only touches rows at the head of the table. The
-    ``gateway_id`` test then splits that range between the two tiers,
-    which is why each tier's cutoff can differ without a second scan.
+    The ``seq`` watermark is the first row inside the window in primary-key
+    order, so the delete only touches rows at the head of the table. The
+    ``gateway_id`` test then splits that range between the two tiers, which is
+    why each tier's cutoff can differ.
     """
-    base = _prune_by_key("order_events", "seq")
     if not patterns:
-        return base
-    return f"{base} AND {_gateway_glob_predicate(patterns, negate=not human)}"
+        return _prune_by_key("order_events", "seq")
+    return _prune_by_key(
+        "order_events", "seq", _gateway_glob_predicate(patterns, negate=not human)
+    )
 
 
 _PRUNE_STATEMENTS = (
     _prune_by_key("trade_log", "rowid"),
-    "DELETE FROM price_snapshots WHERE ts < :cutoff",
-    "DELETE FROM feed_gaps WHERE ts < :cutoff",
+    _Prune(
+        "DELETE FROM price_snapshots WHERE rowid IN (SELECT rowid FROM"
+        " price_snapshots WHERE ts < :cutoff LIMIT :batch)"
+    ),
+    _Prune(
+        "DELETE FROM feed_gaps WHERE rowid IN (SELECT rowid FROM feed_gaps"
+        " WHERE ts < :cutoff LIMIT :batch)"
+    ),
 )
 
 
@@ -2419,7 +2613,10 @@ def build_parser() -> argparse.ArgumentParser:
         "-q",
         "--quiet",
         action="store_true",
-        help="Reduce log output to warnings/errors",
+        help=(
+            "Log warnings and errors only. That is already the default; "
+            "-v and --log-level take precedence"
+        ),
     )
     parser.add_argument(
         "--log-target",

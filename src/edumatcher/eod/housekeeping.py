@@ -135,7 +135,9 @@ def compress_logs(
     A failover log is held open for appending by the process that writes it, so
     the file is never deleted: its content is compressed to a dated ``.zst`` and
     the file is then truncated in place (the writer's append position follows).
-    A file that changes while it is being compressed is left for the next run.
+    A file that changes while it is being compressed is left for the next run;
+    the size is checked last on the handle that truncates, so only a write in
+    the microseconds between that check and the truncation could be lost.
     """
     if not logs_dir.is_dir():
         return StepResult("logs", "ok", "no log directory")
@@ -151,15 +153,21 @@ def compress_logs(
             target = _free_name(logs_dir, path.stem, stamp)
             _verified_zstd(path, target, before.st_size)
             after = path.stat()
-            if (after.st_size, after.st_mtime_ns) != (
+            changed = (after.st_size, after.st_mtime_ns) != (
                 before.st_size,
                 before.st_mtime_ns,
-            ):
+            )
+            if not changed:
+                with path.open("r+b") as fh:
+                    # Checked again on the handle that truncates: a line
+                    # appended since the stat above would otherwise be lost.
+                    changed = os.fstat(fh.fileno()).st_size != before.st_size
+                    if not changed:
+                        fh.truncate(0)
+            if changed:
                 target.unlink()
                 skipped += 1
                 continue
-            with path.open("r+b") as fh:
-                fh.truncate(0)
             compressed += 1
         except OSError as exc:
             warnings.append(f"{path.name}: {exc}")
@@ -186,7 +194,7 @@ def backup_databases(
     """Back up each existing database to ``dest_root/<date>/<name>.zst``.
 
     SQLite's online backup gives a consistent copy while the writer runs; the
-    copy is integrity-checked, compressed and verified before it replaces an
+    copy is checked (``quick_check``), compressed and verified before it replaces an
     earlier backup of the same date.  Date directories older than ``keep_days``
     are removed.
     """
@@ -225,9 +233,12 @@ def _online_copy(source: Path, copy: Path) -> None:
     dst = sqlite3.connect(str(copy))
     try:
         src.backup(dst)
-        verdict = dst.execute("PRAGMA integrity_check").fetchone()[0]
+        # quick_check verifies every page and record but skips comparing each
+        # index with its table: a copy of a healthy database cannot get that
+        # wrong, and the full check took most of the backup's time.
+        verdict = dst.execute("PRAGMA quick_check").fetchone()[0]
         if verdict != "ok":
-            raise sqlite3.DatabaseError(f"integrity check: {verdict}")
+            raise sqlite3.DatabaseError(f"quick check: {verdict}")
     finally:
         dst.close()
         src.close()

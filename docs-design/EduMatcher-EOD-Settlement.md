@@ -669,9 +669,14 @@ documented in E7.
 - **Found while documenting, and fixed:**
   - With `sessions_enabled: false` no `CLOSED` is ever announced, so no close
     snapshot existed and `pm-eod` could never settle. `pm-clearing` now also
-    takes the snapshot on `system.eod` (the engine's graceful shutdown) **if
-    the date has none yet**, so a real `CLOSED` snapshot is never overwritten.
-    This is what makes the documented `--force` / cron route work.
+    takes the snapshot on `system.eod` (the engine's graceful shutdown)
+    **unless the date's snapshot is final** (taken at a real close), so a real
+    `CLOSED` snapshot is never overwritten, while a later shutdown on the same
+    day replaces an earlier shutdown's snapshot. This is what makes the
+    documented `--force` / cron route work. *(Corrected 2026-11-14, EOD review
+    D3: this said "if the date has none yet". Because the snapshot can change
+    after a settlement, pm-eod keeps the equity it settled at in
+    `eod_close_equity`, WP-EOD01.)*
   - Prices printed as `10.2` instead of `10.20`; they now keep the symbol's
     decimals.
   - A mistyped `--date` was recorded as a failed run and kept `status -q`

@@ -3,8 +3,8 @@
 The design rests on three claims, and each has its own section below:
 
 1. A ULID is unique and sorts by generation time.
-2. The envelope frame sits behind the sequence frame, so `decode_sequence`
-   keeps reading `frames[2]` whatever else is on the wire.
+2. The sequences and the envelope share one trailing frame behind the
+   payload, and each decode helper reads its own field of it.
 3. A gateway submission is a causal root, and everything the engine publishes
    while handling it cites that submission and inherits its chain.
 """
@@ -125,15 +125,15 @@ class TestEnvelope:
 
 
 class TestFrameLayout:
-    """`decode_sequence` reads frames[2]; the envelope must not displace it."""
+    """The sequences and the envelope share the trailer, ``frames[2]``."""
 
-    def test_sequence_stays_at_index_two(self) -> None:
+    def test_sequence_and_envelope_share_the_trailer(self) -> None:
         sock = FakeSock()
         pub = CausalPublisher(SequencedPublisher(sock))
         pub.send_multipart([b"trade.executed", b"{}"])
 
         frames = sock.sent[0]
-        assert len(frames) == 5  # topic, payload, seq, eseq, envelope
+        assert len(frames) == 3  # topic, payload, seq|eseq|envelope
         assert decode_sequence(frames) == 1
         assert decode_envelope(frames) is not None
 

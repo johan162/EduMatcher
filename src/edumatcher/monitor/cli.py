@@ -30,8 +30,10 @@ import os
 import sqlite3
 import sys
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, get_args
+from urllib.parse import quote
 
 import zmq
 
@@ -48,6 +50,8 @@ from edumatcher.models.generated.health import (
     parse_health_snapshot,
 )
 from edumatcher.monitor.config import MonitorConfig, load_default_monitor_config
+from edumatcher.monitor.thresholds import fmt_value
+from edumatcher.monitor.timefmt import iso_utc
 
 PROG = "pm-monitor-cli"
 
@@ -78,6 +82,21 @@ EVENT_KINDS: tuple[str, ...] = get_args(HealthEventKind)
 # ---------------------------------------------------------------------------
 # parser
 # ---------------------------------------------------------------------------
+
+
+def iso_instant(text: str) -> str:
+    """``--since``: any ISO-8601 date or date-time, as metrics.db stores
+    ``ts`` (UTC, milliseconds, ``Z``). Without an offset it is UTC, the time
+    the output shows."""
+    try:
+        moment = datetime.fromisoformat(text)
+    except ValueError:
+        raise argparse.ArgumentTypeError(
+            f"not an ISO-8601 date-time: {text!r} (e.g. 2026-11-14T10:00:00Z)"
+        ) from None
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=timezone.utc)
+    return iso_utc(moment.timestamp())
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -161,7 +180,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     events = sub.add_parser("events", help="Show the event log from metrics.db")
-    events.add_argument("--since", metavar="ISO_TS", help="Only events at or after")
+    events.add_argument(
+        "--since",
+        type=iso_instant,
+        metavar="ISO_TS",
+        help="Only events at or after this ISO-8601 time (UTC without an offset)",
+    )
     events.add_argument(
         "--kind",
         type=str.upper,
@@ -285,6 +309,14 @@ def _deployed_session_timezone() -> str:
     )
 
 
+def _open_readonly(db: Path) -> sqlite3.Connection:
+    """A read-only connection; the path is percent-encoded, or a ``#`` or
+    ``?`` in it would end the URI's path and open another file."""
+    return sqlite3.connect(
+        f"file:{quote(str(db.resolve()))}?mode=ro", uri=True, timeout=2.0
+    )
+
+
 def _file_size(path: Path) -> int:
     try:
         return path.stat().st_size
@@ -306,7 +338,7 @@ def check_database(
     if not db.exists():
         result["detail"] = f"database not found: {db} (has pm-monitor run here?)"
         return result
-    conn = sqlite3.connect(f"file:{db}?mode=ro", uri=True, timeout=2.0)
+    conn = _open_readonly(db)
     try:
         check = str(conn.execute("PRAGMA quick_check").fetchone()[0])
         if check != "ok":
@@ -471,8 +503,8 @@ def render_status(snap: HealthSnapshot) -> list[str]:
                         b.level,
                         b.rule,
                         b.subject,
-                        f"{b.value:g}",
-                        f"{b.threshold:g}",
+                        fmt_value(b.value),
+                        fmt_value(b.threshold),
                         b.since,
                     ]
                     for b in snap.thresholds
@@ -539,9 +571,8 @@ def query_events(
         sql += " WHERE " + " AND ".join(where)
     sql += " ORDER BY seq DESC LIMIT ?"
     params.append(limit)
-    conn = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+    conn = _open_readonly(db)
     try:
-        conn.execute("PRAGMA busy_timeout = 2000")
         rows = conn.execute(sql, params).fetchall()
     finally:
         conn.close()
@@ -550,12 +581,20 @@ def query_events(
 
 def newest_seq(db: Path) -> int:
     """The newest event's seq in the log; -1 when it is empty."""
-    conn = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+    conn = _open_readonly(db)
     try:
         row = conn.execute("SELECT max(seq) FROM events").fetchone()
     finally:
         conn.close()
     return -1 if row is None or row[0] is None else int(row[0])
+
+
+def _in_history(db: Path, event: HealthEvent) -> bool:
+    """Whether metrics.db holds this very event (same seq and time)."""
+    if not db.exists():
+        return False
+    rows = query_events(db, limit=1, seq_range=(event.seq - 1, event.seq + 1))
+    return bool(rows) and rows[0]["ts"] == event.ts
 
 
 def _event_dict(event: HealthEvent) -> dict[str, Any]:
@@ -662,7 +701,11 @@ def _follow(
             except Exception:
                 continue
             if event.seq <= last_seq:
-                continue  # already in the history
+                if _in_history(db, event):
+                    continue  # already in the history
+                # Not in it: pm-monitor numbers anew (it runs without
+                # metrics.db, or with a new one), so this starts the feed.
+                last_seq = -1
             rows: list[dict[str, Any]] = []
             if last_seq >= 0 and event.seq > last_seq + 1 and db.exists():
                 rows = query_events(

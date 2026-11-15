@@ -124,7 +124,19 @@ SMP_TO_STR: Final[dict[int, str]] = {
 
 # Cancel reason codes (outbound CANCEL_ACK.cancel_reason)
 CANCEL_REASON_CLIENT: Final[int] = 0
-CANCEL_REASON_SYSTEM: Final[int] = 255  # SMP, session-end, IOC expire, etc.
+# The exchange cancelled the order, one code per engine order.cancelled
+# cancel_reason (spec/messages/order.yaml), so a client can tell its own
+# self-match from a kill switch (BALF review C8, decision Q3).
+CANCEL_REASON_SELF_MATCH: Final[int] = 1
+CANCEL_REASON_INSUFFICIENT_LIQUIDITY: Final[int] = 2
+CANCEL_REASON_KILL_SWITCH: Final[int] = 3
+CANCEL_REASON_CIRCUIT_BREAKER_HALT: Final[int] = 4
+CANCEL_REASON_GATEWAY_DISCONNECT: Final[int] = 5
+CANCEL_REASON_ADMIN_CANCEL_SYMBOL: Final[int] = 6
+CANCEL_REASON_QUOTE_REPLACED: Final[int] = 7
+CANCEL_REASON_QUOTE_LEG_FILLED: Final[int] = 8
+CANCEL_REASON_EXPIRED: Final[int] = 254  # DAY / ATO / ATC end of its period
+CANCEL_REASON_SYSTEM: Final[int] = 255  # the exchange did it, cause unstated
 
 # Status codes (EXECUTION_REPORT.status)
 STATUS_PARTIAL: Final[int] = 0x01
@@ -420,15 +432,12 @@ def build_amend_ack(
     new_quantity: int = 0,
     remaining_qty: int = 0,
     priority_reset: bool = False,
-    reject_reason: str = "",
 ) -> bytes:
     """Build an AMEND_ACK frame (48 bytes).
 
-    When ``accepted=False``, ``reject_reason`` is carried as an ORDER_ACK
-    reject path (see spec §5.9 notes). This frame itself does not carry a
-    reason field — the caller should send ORDER_ACK for rejects.
-
-    For accepted amends the price/quantity fields carry post-amend values.
+    The frame has no reason field: a refused amend is an AMEND_ACK with
+    ``accepted=False`` and zero price/quantity fields. For accepted amends
+    the price/quantity fields carry post-amend values.
     """
     body = struct.pack(
         _AMEND_ACK_FMT,

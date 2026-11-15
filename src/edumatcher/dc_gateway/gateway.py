@@ -39,6 +39,7 @@ from edumatcher.health.samples import client_gateway_samples
 from edumatcher.models.generated.health import MetricSample
 from edumatcher.dc_gateway.config import DcGatewayConfig
 from edumatcher.dc_gateway.protocol import DcFrame, build_line, iso_utc, parse_line
+from edumatcher.health.samples import counter
 from edumatcher.messaging.bus import make_subscriber
 from edumatcher.models.generated.drop_copy import PREFIX_DROP_COPY_EVENT
 from edumatcher.models.message import decode
@@ -53,12 +54,22 @@ CLOSE_GRACE_SEC = 5.0
 #: A connection must send HELLO within this long or is closed with
 #: EXIT|REASON=auth_timeout -- the same deadline in all three line gateways.
 HELLO_TIMEOUT_SEC = 5.0
+#: On a stop, how long sessions get to take their queued lines and the final
+#: EXIT|REASON=shutdown before close() drops what is left.
+SHUTDOWN_FLUSH_SEC = 1.0
 
 _MAX_LINE_BYTES = 4096
 _MAX_DC_EVENTS_PER_LOOP = 1000
 # Topic prefix used by DropCopyPublisher (engine/drop_copy.py) for live
 # (non-replay) fill events.
 _DC_EVENT_TOPIC_PREFIX = PREFIX_DROP_COPY_EVENT
+# Receive high-water mark of the drop-copy SUB. ZeroMQ's default of 1000
+# drops silently during a burst; the other whole-stream consumers (pm-md-gwy,
+# pm-alf-gwy, pm-stats, pm-audit) use 1e5.
+_SUB_RCVHWM = 100_000
+# After a WARNING about lost drop-copy events, further losses are only
+# counted (gwy.feed_gaps) until this long has passed.
+_FEED_GAP_LOG_INTERVAL_SEC = 60.0
 
 
 @dataclass
@@ -117,8 +128,22 @@ class DcGateway:
         self._sessions_by_gateway: dict[str, set[int]] = {}
         # Refcounted ZMQ topic subscriptions on the internal drop-copy SUB.
         self._topic_refcounts: dict[str, int] = {}
+        # Last payload seq per watched gateway_id, to count events the SUB
+        # never received (gwy.feed_gaps). Forgotten when the ID's last
+        # watcher leaves: fills nobody watched are not a loss.
+        self._feed_seq: dict[str, int] = {}
+        self._feed_gaps = 0
+        self._feed_gaps_unlogged = 0
+        self._feed_gap_logged_at: float | None = None
 
-        self._sub: zmq.Socket[bytes] = make_subscriber(config.drop_copy_pub_addr)
+        # Only watched IDs are subscribed, in _dc_subscribe(). The catch-all
+        # subscription make_subscriber() adds without topics is dropped: with
+        # it, a burst for IDs nobody watches filled the receive buffer and
+        # cost a watched ID its fills (review H1).
+        self._sub: zmq.Socket[bytes] = make_subscriber(
+            config.drop_copy_pub_addr, rcvhwm=_SUB_RCVHWM
+        )
+        self._sub.setsockopt(zmq.UNSUBSCRIBE, b"")
         self._last_heartbeat = time.monotonic()
 
     def run(self) -> None:
@@ -147,13 +172,40 @@ class DcGateway:
                     reporter.tick_and_publish(self.metric_samples)
                 self._accept_new_clients()
                 self._read_client_data()
-                self._poll_dc_events()
+                backlog = self._poll_dc_events()
                 self._send_heartbeat_if_due()
                 self._flush_client_writes()
                 self._drop_idle_clients()
-                time.sleep(0.01)
+                if not backlog:
+                    time.sleep(0.01)
+            self._flush_for_shutdown()
         finally:
             self.close()
+
+    def _flush_for_shutdown(self) -> None:
+        """Say goodbye to every session before a requested stop.
+
+        close() used to close every socket at once: queued lines died with
+        it and a client read only EOF, which looks like a crash (review C4).
+        Now: one more relay pass, ``EXIT|REASON=shutdown`` to every session
+        not already closing, then a flush bounded by SHUTDOWN_FLUSH_SEC;
+        close() drops whatever a peer has not taken by then. Not run after a
+        crash (run() calls it only when the loop ends normally).
+        """
+        self._poll_dc_events()
+        for sess in list(self._clients.values()):
+            if not sess.closing:
+                self._queue_line(
+                    sess, "EXIT", {"REASON": "shutdown", "TS": iso_utc(time.time())}
+                )
+            self._close_after_flush(sess, reason="shutdown")
+        deadline = time.monotonic() + SHUTDOWN_FLUSH_SEC
+        while self._clients and time.monotonic() < deadline:
+            # _flush_client_writes disconnects each session whose queue has
+            # drained; one whose peer takes nothing stays until the deadline.
+            self._flush_client_writes()
+            if self._clients:
+                time.sleep(0.01)
 
     def stop(self) -> None:
         log.info("stop requested")
@@ -165,26 +217,29 @@ class DcGateway:
 
     def metric_samples(self) -> list[MetricSample]:
         """Design §8.5: clients, lines out, disconnects by reason, plus the
-        two signals for clients stuck in close-after-flush."""
-        return client_gateway_samples(
-            "gwy",
-            clients=len(self._clients),
-            clients_max=self.config.max_connections,
-            msgs_out=self._msgs_out,
-            disconnects=self._disconnects,
-            slow_clients=self._slow_clients,
-            closing_clients=sum(1 for s in self._clients.values() if s.closing),
-        )
+        two signals for clients stuck in close-after-flush, and the watched
+        drop-copy events that never reached this gateway."""
+        return [
+            *client_gateway_samples(
+                "gwy",
+                clients=len(self._clients),
+                clients_max=self.config.max_connections,
+                msgs_out=self._msgs_out,
+                disconnects=self._disconnects,
+                slow_clients=self._slow_clients,
+                closing_clients=sum(1 for s in self._clients.values() if s.closing),
+            ),
+            counter("gwy.feed_gaps", self._feed_gaps),
+        ]
 
     def close(self) -> None:
         if self._reporter is not None:
             self._reporter.stop()
         log.info("closing DC gateway")
         for sess in list(self._clients.values()):
-            try:
-                sess.sock.close()
-            except OSError:
-                pass
+            self._disconnect(
+                sess, reason=sess.close_reason if sess.closing else "shutdown"
+            )
         self._clients.clear()
         self._sessions_by_gateway.clear()
         self._topic_refcounts.clear()
@@ -230,15 +285,20 @@ class DcGateway:
         if not self._clients:
             return
 
-        readable: list[socket.socket] = [s.sock for s in self._clients.values()]
+        # poll(), not select(): select() refuses a descriptor of 1024 or
+        # more, which stopped every client being read (review C3).
+        poller = select.poll()
+        for fd in self._clients:
+            poller.register(fd, select.POLLIN)
         try:
-            ready, _, _ = select.select(readable, [], [], 0)
-        except (OSError, ValueError) as exc:
-            log.warning("read select failed: %s", exc)
+            ready = poller.poll(0)
+        except OSError as exc:
+            log.warning("read poll failed: %s", exc)
             return
 
-        for sock_obj in ready:
-            sess = self._clients.get(sock_obj.fileno())
+        # Any event (data, EOF, error) is settled by recv() below.
+        for fd, _event in ready:
+            sess = self._clients.get(fd)
             if sess is None:
                 continue
             try:
@@ -436,11 +496,14 @@ class DcGateway:
         ref = self._topic_refcounts.get(topic, 0)
         if ref <= 1:
             self._topic_refcounts.pop(topic, None)
+            self._feed_seq.pop(gateway_id, None)
             self._sub.setsockopt(zmq.UNSUBSCRIBE, topic.encode("utf-8"))
             return
         self._topic_refcounts[topic] = ref - 1
 
-    def _poll_dc_events(self) -> None:
+    def _poll_dc_events(self) -> bool:
+        """Relay up to _MAX_DC_EVENTS_PER_LOOP events; True if the budget ran
+        out, so the loop goes round again without sleeping."""
         budget = _MAX_DC_EVENTS_PER_LOOP
         while budget > 0 and self._sub.poll(timeout=0):
             try:
@@ -452,7 +515,7 @@ class DcGateway:
                         "events for this tick",
                         exc.errno,
                     )
-                break
+                return False
             except Exception:
                 log.warning("decode error on drop-copy SUB event", exc_info=True)
                 budget -= 1
@@ -466,6 +529,7 @@ class DcGateway:
             fds = self._sessions_by_gateway.get(gateway_id)
             if not fds:
                 continue
+            self._check_feed_seq(gateway_id, payload.get("seq"))
 
             line = build_line(
                 "DC_FILL",
@@ -476,12 +540,61 @@ class DcGateway:
                     "FILL_QTY": str(payload.get("fill_qty", "")),
                     "FILL_PRICE": str(payload.get("fill_price", "")),
                     "LIQUIDITY": str(payload.get("liquidity_flag", "")),
+                    # When the engine published the fill, and the public
+                    # trade(s) it belongs to (trade.executed id, RALF
+                    # EXEC_ID); the trade id's prefix is the engine run.
+                    "TS": iso_utc(int(payload.get("timestamp", 0)) / 1e9),
+                    "TRADE_ID": ",".join(payload.get("trade_ids", [])),
                 },
             )
             for fd in fds:
                 sess = self._clients.get(fd)
                 if sess is not None:
                     self._queue_raw(sess, line)
+        return budget == 0
+
+    def _check_feed_seq(self, gateway_id: str, seq: object) -> None:
+        """Count the events of a watched ID that never arrived.
+
+        ``seq`` is the engine's per-participant counter. A jump is loss
+        between the engine and this gateway; the client sees it as a ``SEQ``
+        gap but cannot recover it over DC1, so the operator is told. ``seq``
+        not above the last one is a new engine run (it restarts at 1).
+        """
+        if not isinstance(seq, int):
+            return
+        last = self._feed_seq.get(gateway_id)
+        self._feed_seq[gateway_id] = seq
+        if last is None:
+            return
+        if seq <= last:
+            log.info(
+                "drop-copy seq for %s went from %d to %d: engine restart",
+                gateway_id,
+                last,
+                seq,
+            )
+            return
+        missed = seq - last - 1
+        if missed == 0:
+            return
+        self._feed_gaps += missed
+        self._feed_gaps_unlogged += missed
+        now = time.monotonic()
+        logged = self._feed_gap_logged_at
+        if logged is not None and now - logged < _FEED_GAP_LOG_INTERVAL_SEC:
+            return
+        self._feed_gap_logged_at = now
+        log.warning(
+            "drop-copy feed lost %d event(s) for %s: seq %d..%d never arrived "
+            "(%d lost since the last warning); DC1 clients cannot recover them",
+            missed,
+            gateway_id,
+            last + 1,
+            seq - 1,
+            self._feed_gaps_unlogged,
+        )
+        self._feed_gaps_unlogged = 0
 
     # ------------------------------------------------------------------
     # Maintenance

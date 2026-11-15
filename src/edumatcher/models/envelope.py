@@ -1,8 +1,8 @@
 """Causal envelope: who caused this message, and which chain it belongs to.
 
-Every message the exchange publishes carries an envelope in a dedicated ZMQ
-frame, beside the per-topic sequence that ``messaging.bus.SequencedPublisher``
-already stamps. The envelope answers three questions the payload cannot:
+Every message on the bus carries an envelope in the frame behind its payload:
+the whole frame on PUSH, and behind the sequences that
+``messaging.bus.SequencedPublisher`` stamps on PUB. The envelope answers three questions the payload cannot:
 
 ``msg_id``
     What *is* this message? A ULID, unique across the deployment and sortable
@@ -29,9 +29,11 @@ one idea that the generator would then have to keep in step.
 
 Wire format
 -----------
-One frame, ASCII, three fields separated by ``|``::
+ASCII, three fields separated by ``|`` (``envelope_frame``)::
 
     01JR8Z7Q3K5N2X9V4B6C8D0E1F|01JR8Z7Q2A...|01JR8Z7Q1B...
+
+On PUB the same text follows ``seq|eseq|`` in one frame.
 
 An empty field means absent. Fixed-width and delimiter-separated rather than
 JSON: parsing is a single ``split``, which matters on a path that runs for
@@ -55,6 +57,8 @@ _SEP = "|"
 _lock = threading.Lock()
 _last_ms = -1
 _last_rand = 0
+#: ``_last_ms`` encoded: it changes once a millisecond, not once an id.
+_last_prefix = ""
 
 # 80 bits of randomness, per the ULID spec.
 _RAND_MAX = (1 << 80) - 1
@@ -62,6 +66,10 @@ _RAND_MAX = (1 << 80) - 1
 
 #: Reverse of ``_B32``, for reading a timestamp back out of a ULID.
 _B32_INDEX = {char: index for index, char in enumerate(_B32)}
+
+#: Every two-character pair, indexed by the 10 bits it encodes: the 80 random
+#: bits are 8 lookups instead of 16 trips round a Python loop.
+_B32_PAIRS = tuple(a + b for a in _B32 for b in _B32)
 
 
 def _encode_b32(value: int, length: int) -> str:
@@ -80,10 +88,13 @@ def new_ulid() -> str:
     would undermine the one property that makes a ULID more useful here than a
     UUID4 -- that lexicographic order is generation order. When the clock has
     not advanced, the random component is incremented instead of redrawn.
+
+    Runs for every message the exchange publishes, so the time prefix is
+    encoded once per millisecond and the randomness through ``_B32_PAIRS``.
     """
-    global _last_ms, _last_rand
+    global _last_ms, _last_rand, _last_prefix
     with _lock:
-        ms = int(time.time() * 1000)
+        ms = time.time_ns() // 1_000_000
         if ms == _last_ms:
             # Same millisecond: step the randomness rather than redraw it.
             _last_rand = (_last_rand + 1) & _RAND_MAX
@@ -95,8 +106,21 @@ def new_ulid() -> str:
         else:
             _last_ms = ms
             _last_rand = int.from_bytes(os.urandom(10), "big")
-        rand = _last_rand
-    return _encode_b32(ms, 10) + _encode_b32(rand, 16)
+            _last_prefix = _encode_b32(ms, 10)
+        r = _last_rand
+        prefix = _last_prefix
+    pairs = _B32_PAIRS
+    return (
+        prefix
+        + pairs[r >> 70 & 1023]
+        + pairs[r >> 60 & 1023]
+        + pairs[r >> 50 & 1023]
+        + pairs[r >> 40 & 1023]
+        + pairs[r >> 30 & 1023]
+        + pairs[r >> 20 & 1023]
+        + pairs[r >> 10 & 1023]
+        + pairs[r & 1023]
+    )
 
 
 def ulid_millis(value: str) -> int | None:
@@ -151,9 +175,9 @@ class Envelope:
         )
 
     def to_frame(self) -> bytes:
-        return _SEP.join(
-            (self.msg_id, self.causation_id or "", self.correlation_id or "")
-        ).encode("ascii")
+        return envelope_frame(
+            self.msg_id, self.causation_id or "", self.correlation_id or ""
+        )
 
     @classmethod
     def from_frame(cls, frame: bytes) -> "Envelope | None":
@@ -174,3 +198,12 @@ class Envelope:
             causation_id=parts[1] or None,
             correlation_id=parts[2] or None,
         )
+
+
+def envelope_frame(msg_id: str, causation_id: str, correlation_id: str) -> bytes:
+    """The wire form of an envelope, from its fields; ``""`` means absent.
+
+    ``Envelope.to_frame`` without building the object, for the publish path,
+    which runs for every message and has the ids as strings already.
+    """
+    return f"{msg_id}{_SEP}{causation_id}{_SEP}{correlation_id}".encode("ascii")

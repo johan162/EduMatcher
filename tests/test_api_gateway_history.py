@@ -694,3 +694,23 @@ async def test_missing_stats_db_returns_503(tmp_path: Path) -> None:
     detail = exc_info.value.detail
     assert isinstance(detail, dict)
     assert detail["error"]["code"] == "STATS_DB"
+
+
+@pytest.mark.anyio
+async def test_an_unreadable_stats_db_is_503_not_500(tmp_path: Path) -> None:
+    """API gateway review C3: a file that is not a database (or a database
+    locked past busy_timeout) raises sqlite3.DatabaseError at the first
+    query. It is the same STATS_DB answer as a missing file, as clearing.db
+    already gives CLEARING_DB."""
+    from tests.api_gateway_harness import READ_ONLY_KEY, call, make_app
+
+    bogus = tmp_path / "stats.db"
+    bogus.write_bytes(b"not a database " * 100)
+    app = make_app(object())
+    app.state.config = ApiGatewayConfig(swagger_enabled=False, stats_db=bogus)
+
+    status, _, body = await call(
+        app, "GET", "/api/v1/history/trades", authorization=f"Bearer {READ_ONLY_KEY}"
+    )
+
+    assert (status, body["error"]["code"]) == (503, "STATS_DB")

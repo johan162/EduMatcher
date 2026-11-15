@@ -232,3 +232,137 @@ def test_show_an_unknown_date_has_no_rows(
 ) -> None:
     assert cli(data, "show", "--date", "2026-07-02") == 0
     assert capsys.readouterr().out.strip() == "No rows found."
+
+
+def test_balances_with_a_broken_roster_is_a_clean_error(
+    data: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    (data / "ref_data" / "roster.yaml").write_text("traders: [\n")
+    assert cli(data, "balances") == 1
+    err = capsys.readouterr().err
+    assert err.startswith("pm-eod: ") and "roster.yaml" in err
+    assert "Traceback" not in err
+
+
+def test_housekeeping_warnings_exit_three(
+    data: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from edumatcher.eod import housekeeping
+
+    monkeypatch.setattr(
+        "edumatcher.eod.runner.backup_databases",
+        lambda *a, **k: housekeeping.StepResult("backup", "warn", "disk full"),
+    )
+    assert cli(data, "run", "--date", "2026-07-01") == 3
+
+
+@pytest.mark.parametrize("flag", ["--redo", "--force"])
+def test_only_refuses_flags_it_would_ignore(
+    data: Path, flag: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert cli(data, "run", "--date", "2026-07-01", "--only", "report", flag) == 2
+    assert flag in capsys.readouterr().err
+
+
+def test_a_database_error_outside_a_step_is_a_clean_error(
+    data: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    import sqlite3
+
+    def full(*_a: object, **_k: object) -> None:
+        raise sqlite3.OperationalError("database or disk is full")
+
+    monkeypatch.setattr("edumatcher.eod.runner.record_run", full)
+    assert cli(data, "run", "--date", "2026-07-01") == 1
+    assert capsys.readouterr().err == "pm-eod: database or disk is full\n"
+
+
+class TestReadOnlyCommands:
+    def test_status_quiet_without_clearing_db_is_unhealthy(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        data = tmp_path / "typo" / "data"
+        assert cli(data, "status", "-q") == 1
+        assert "clearing.db" in capsys.readouterr().err
+        assert not data.exists()
+
+    @pytest.mark.parametrize(
+        "args",
+        [
+            ("status",),
+            ("balances",),
+            ("balances", "--check"),
+            ("show", "--date", "2026-07-01"),
+        ],
+    )
+    def test_read_commands_create_no_ledger(
+        self, data: Path, args: tuple[str, ...]
+    ) -> None:
+        assert cli(data, *args) == 0
+        assert not (data / "eod.db").exists()
+
+    def test_balances_without_a_ledger_are_the_openings(
+        self, data: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        assert cli(data, "--format", "json", "balances") == 0
+        assert json.loads(capsys.readouterr().out) == [
+            {"account": "A", "balance": "10.00"}
+        ]
+
+
+class TestBounds:
+    def test_an_impossible_date_is_a_usage_error(
+        self, data: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        assert cli(data, "run", "--date", "2026-02-30") == 2
+        assert "2026-02-30" in capsys.readouterr().err
+        assert not (data / "eod.db").exists()
+
+    @pytest.mark.parametrize("flag", ["--backup-keep-days", "--log-keep-days"])
+    def test_negative_retention_is_a_usage_error(self, data: Path, flag: str) -> None:
+        assert cli(data, "run", "--date", "2026-07-01", flag, "-1") == 2
+        assert not (data / "eod.db").exists()
+
+
+class TestDryRun:
+    def test_a_settled_date_says_already_settled(
+        self, data: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        cli(data, "run", "--date", "2026-07-01")
+        capsys.readouterr()
+        assert cli(data, "run", "--date", "2026-07-01", "--dry-run") == 0
+        assert "[ok] settle: already settled" in capsys.readouterr().out
+
+    def test_the_order_rule_fails_like_the_real_run(
+        self, data: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        close_day(data, "2026-07-02", 2000.0)
+        assert cli(data, "run", "--date", "2026-07-02", "--dry-run") == 1
+        out = capsys.readouterr().out
+        assert "[FAIL] settle: 2026-07-01 has closed but is not settled" in out
+        assert not (data / "eod.db").exists()
+
+    def test_a_pending_dry_run_chains_the_dates(
+        self, data: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        close_day(data, "2026-07-02", 2000.0)
+        assert cli(data, "run", "--pending", "--dry-run") == 0
+        out = capsys.readouterr().out
+        assert "would settle: A +50.00, B -50.00" in out
+        assert "would settle: A -30.00, B +30.00" in out  # from 07-01, not zero
+        assert not (data / "eod.db").exists()
+
+    def test_redo_dry_run_names_what_it_would_drop(
+        self, data: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        close_day(data, "2026-07-02", 2000.0)
+        cli(data, "run", "--pending")
+        capsys.readouterr()
+        assert cli(data, "run", "--date", "2026-07-01", "--redo", "--dry-run") == 0
+        out = capsys.readouterr().out
+        assert (
+            "would settle: A +50.00, B -50.00; would drop 2026-07-01, 2026-07-02" in out
+        )
+        ledger = open_ledger(data / "eod.db")
+        assert [r["trade_date"] for r in runs(ledger)] == ["2026-07-02", "2026-07-01"]
+        ledger.close()

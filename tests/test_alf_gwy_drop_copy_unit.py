@@ -18,6 +18,7 @@ from edumatcher.alf_gwy.config import AlfGatewayConfig
 from edumatcher.alf_gwy.gateway import AlfGateway, ClientSession
 from edumatcher.alf_gwy.protocol import parse_alf_line
 from edumatcher.models.message import encode
+from tests.conftest import opened
 
 
 class _FakePush:
@@ -56,7 +57,7 @@ class _FakeSub:
 
 
 def _make_session() -> tuple[ClientSession, socket.socket]:
-    left, right = socket.socketpair()
+    left, right = map(opened, socket.socketpair())
     left.setblocking(False)
     right.setblocking(False)
     session = ClientSession(sock=left, addr=("local", 0))

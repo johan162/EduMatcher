@@ -45,7 +45,20 @@
     - "If the load is genuine, raise `dc_gateway.max_connections`, run `pm-config-deploy` and restart pm-dc-gwy."
 
 - logger: edumatcher.dc_gateway.gateway
-  template: "read select failed: %s"
+  template: "drop-copy feed lost %d event(s) for %s: seq %d..%d never arrived (%d lost since the last warning); DC1 clients cannot recover them"
+  level: WARNING
+  explanation: >
+    Fills of a participant that a DC1 client watches never reached pm-dc-gwy:
+    its receive buffer was full and ZeroMQ discarded them, or the engine's
+    send buffer was. The client sees a jump in `SEQ` but DC1 has no replay,
+    so those fills are gone for it. Further losses are only counted
+    (`gwy.feed_gaps`) for a minute after this line.
+  actions:
+    - "Tell the client which participant and `SEQ` range were lost; it must reconcile them from pm-clearing or the REST API."
+    - "Check pm-dc-gwy's CPU on the dashboard: a gateway that cannot keep up with its clients falls behind the engine."
+
+- logger: edumatcher.dc_gateway.gateway
+  template: "read poll failed: %s"
   level: WARNING
   explanation: >
     Waiting for data from the connected clients failed for one pass of the main

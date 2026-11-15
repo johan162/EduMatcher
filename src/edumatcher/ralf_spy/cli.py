@@ -59,7 +59,7 @@ def build_parser() -> argparse.ArgumentParser:
             "  pm-ralf-spy --role AUDIT --symbols AAPL\n"
             "  pm-ralf-spy --role CLEARING --format json\n"
             "  pm-ralf-spy --role DROP_COPY --symbols AAPL,MSFT --count 5\n"
-            "  pm-ralf-spy --role AUDIT --lastseq 1042\n"
+            "  pm-ralf-spy --role AUDIT --lastseq 1042 --epoch 9f3c2a71\n"
             "\n"
             "Run several instances at once (e.g. one per terminal) to watch "
             "different roles/channels side by side -- pm-ralf-gwy accepts "
@@ -117,10 +117,20 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=0,
         metavar="N",
-        help="Request replay on connect via HELLO|LASTSEQ=N for every "
-        "channel --role is entitled to (0 = no replay, default). Unlike "
-        "CALF's separate RESUME command, RALF replay is requested directly on HELLO and "
+        help="Send the checkpoint HELLO|LASTSEQ=N on connect; the SUB that "
+        "follows is answered with the events after it on the subscribed "
+        "channels and symbols (0 = no replay, default). Unlike CALF's "
+        "separate RESUME command, RALF takes the checkpoint on HELLO and "
         "is not scoped to a single channel/symbol.",
+    )
+    sub.add_argument(
+        "--epoch",
+        default="",
+        metavar="HEX",
+        help="The WELCOME|EPOCH of the gateway run --lastseq came from; "
+        "required with a non-zero --lastseq. Sequences restart when "
+        "pm-ralf-gwy restarts, so a checkpoint from another run is answered "
+        "with ERR|CODE=REPLAY_MISS and a SNAP baseline.",
     )
     sub.add_argument(
         "--ping-interval",
@@ -316,6 +326,9 @@ def main() -> None:
     if args.ping_interval < 0:
         parser.error("--ping-interval must be >= 0")
         return  # unreachable, parser.error() raises SystemExit
+    if args.lastseq > 0 and not args.epoch:
+        parser.error("--lastseq needs --epoch (the WELCOME|EPOCH it came from)")
+        return  # unreachable, parser.error() raises SystemExit
 
     client_name = args.client_name or f"ralf-spy-{os.getpid()}"
     requested_symbols = _parse_csv_upper(args.symbols) or ["*"]
@@ -327,6 +340,7 @@ def main() -> None:
         role=args.role,
         symbols=requested_symbols,
         last_seq=args.lastseq,
+        epoch=args.epoch,
         ping_interval_sec=args.ping_interval,
     )
     client = RalfSpyClient(options)

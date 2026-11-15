@@ -4,7 +4,8 @@ DC1 is deliberately the simplest of EduMatcher's TCP protocols: unlike RALF
 (role-gated channels, replay-by-sequence) or CALF (channel/symbol
 subscription grammar), the drop-copy feed has exactly one thing a client can
 ask for -- "give me fills for gateway ID X" -- so the wire grammar is just
-HELLO/WELCOME plus unsolicited DC_FILL/HB lines. See
+HELLO/WELCOME, unsolicited DC_FILL/HB lines, PING/PONG, EXIT in either
+direction and ERR. See
 ../../../docs/books/operator-guide/part-5-gateways/060-drop-copy-gateway.md for the full protocol reference.
 """
 
@@ -70,5 +71,7 @@ def build_line(msg_type: str, fields: dict[str, str] | None = None) -> bytes:
                 raise DcProtocolError("empty field key")
             if "|" in key or "|" in value:
                 raise DcProtocolError("'|' not allowed in key/value")
+            if any(ch in key or ch in value for ch in "\r\n"):
+                raise DcProtocolError("line break not allowed in key/value")
             tokens.append(f"{key}={value}")
     return ("|".join(tokens) + "\n").encode("utf-8")

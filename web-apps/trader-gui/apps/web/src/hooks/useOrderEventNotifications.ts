@@ -17,20 +17,17 @@ import { formatPrice } from "@/lib/formatters.js";
  * `accepted` — so for FOK/MARKET/IOC, whose book can reject or discard the
  * order in a *second* ack/cancel after the first accepted=true ack the
  * ticket already consumed, that terminal outcome reaches no one (M2). This
- * bridge is where it's surfaced: a request_tag-less reject ack for an order
+ * bridge is where it's surfaced: a reject ack of the NEW request for an order
  * the store already has resting (i.e. not the first ack) is that second,
  * authoritative FOK verdict, and a cancel that never had a fill is the
  * MARKET/IOC "book ran out" case, `cancel_reason: INSUFFICIENT_LIQUIDITY`
  * on the wire.
  *
- * A rejected cancel or amend has no synchronous surface either —
- * `DELETE /orders/{id}?wait=ack` only waits on `order.cancelled`, so it
- * times out rather than reporting the reject (C1) — so this bridge is also
- * the only place a trader learns their cancel/amend failed. Correlated by
- * `request_tag`, which every cancel/amend request already carries
- * (queries/index.ts `newOrderRequestTag`) and which is exactly the signal
- * `useOrderStore.applyAck` uses to tell a cancel/amend reject apart from a
- * new-order reject.
+ * A rejected cancel or amend is surfaced here too. It is told apart from a
+ * new-order reject by the ack's `request` (`CANCEL` / `AMEND`), the same
+ * signal `useOrderStore.applyAck` uses; `request_tag` cannot do it, because
+ * a cancel or amend carries one only when its sender set it (API gateway
+ * review C1).
  */
 export function useOrderEventNotifications(): void {
   const push = useNotificationStore((s) => s.push);
@@ -38,7 +35,7 @@ export function useOrderEventNotifications(): void {
   useWsEvent("order.ack", (env) => {
     const d = env.data;
     if (d.accepted) return;
-    if (d.request_tag != null) {
+    if (d.request === "CANCEL" || d.request === "AMEND") {
       const id8 = d.order_id.slice(0, 8);
       toast.error(`Order ${id8} not amended/cancelled: ${d.reason || "rejected"}`);
       push({
@@ -50,7 +47,7 @@ export function useOrderEventNotifications(): void {
       });
       return;
     }
-    // request_tag == null: either the first ack of a rejected new order
+    // A refused NEW request: either the first ack of a rejected new order
     // (the ticket's own ?wait=ack already reported this — skip it here) or
     // FOK's second, authoritative kill ack for an order already resting
     // (M2 — the ticket's wait resolved on the *first* ack and never sees

@@ -829,19 +829,18 @@ frames = make_trade_executed(
 publisher.send_multipart(frames)
 ```
 
-`make_*` returns **exactly two frames**: topic and payload. Everything behind
-them is added at publish time by the wrappers in `messaging/bus.py`, never by
-`make_*` — adding either here would double-stamp every message:
+`make_*` returns **exactly two frames**: topic and payload. The third is added
+at publish time by the wrappers in `messaging/bus.py`, never by `make_*` —
+adding it here would double-stamp every message:
 
 | Frame | Added by | Contains |
 |---|---|---|
 | 0–1 | `make_*` | topic, JSON payload |
-| 2 | `SequencedPublisher` | per-topic sequence number |
-| 3 | `CausalPublisher` | causal envelope (`msg_id`, `causation_id`, `correlation_id`) |
+| 2 | `CausalPublisher`, then `SequencedPublisher` in front | `seq`\|`eseq`\|`msg_id`\|`causation_id`\|`correlation_id` |
 
-On the PUSH side there is no sequence, so `CausalPusher` puts the envelope at
-frame 2 instead. Readers find it by shape rather than by index — see
-`models/message.py::decode_envelope`.
+On the PUSH side there is no sequence, so `CausalPusher`'s frame 2 is the
+envelope alone. `models/message.py` reads both shapes:
+`decode_sequence`, `decode_publisher_sequence` and `decode_envelope`.
 
 !!! tip "Missing and mistyped arguments"
     `make_*` takes keyword arguments and routes them through `from_dict`, so it

@@ -520,8 +520,16 @@ def load_engine_config(path: Path) -> EngineConfig:
     if not path.exists():
         raise FileNotFoundError(f"Engine config file not found: {path}")
 
-    raw = load_config_mapping(path).data
+    return engine_config_from_raw(load_config_mapping(path).data)
 
+
+def engine_config_from_raw(raw: dict[str, Any]) -> EngineConfig:
+    """Build an EngineConfig from an already-loaded config mapping.
+
+    Raises ValueError if the structure is invalid. pm-cverifier calls this
+    on the mapping it has already parsed, so it judges the file exactly as
+    ``load_engine_config`` does.
+    """
     symbols_raw = raw.get("symbols")
     if not isinstance(symbols_raw, dict):
         raise ValueError("Engine config must have a 'symbols' mapping")

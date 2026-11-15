@@ -271,13 +271,17 @@ preset, while the full one does not?
 
 List Tornfalk on your exchange and trade it.
 
-1. Stop the exchange and list the priced IPO:
+1. Stop the exchange — `Ctrl-C` every `pm-*` program you started by hand;
+   `pm-opctl-cli stop` stops any that `pm-opctl-cli` started — and list the
+   priced IPO:
 
     ```bash
-    pm-opctl-cli stop
     pm-valuation --case tornfalk --no-tui --mode deterministic --list
-    pm-opctl-cli start
     ```
+
+    Then start `pm-engine`, the operator console and two trader consoles
+    again, as in every earlier chapter, and open the market yourself
+    (`SESSION|STATE=PRE_OPEN`).
 
     ```text
     [output]
@@ -333,8 +337,9 @@ where the examples live; with a container or `pipx` install they are inside the
 package: replace `docs/examples` below by `$EX`, with
 `EX=$(python -c "from edumatcher.config_deploy import examples_root; print(examples_root().parent)")`):
 
+Stop the exchange again as in Exercise 7, then:
+
 ```bash
-pm-opctl-cli stop
 cp docs/examples/ref_data/s3-nominal-nomm-setup/engine_config.yaml classroom.yaml
 pm-config-deploy classroom.yaml
 pm-valuation --case tornfalk --no-tui --mode deterministic --list

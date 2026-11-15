@@ -971,6 +971,13 @@ def test_running_process_detection_is_best_effort(
     assert emo_cli._running_pm_pids() == []
 
 
+def test_running_process_detection_ignores_itself(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(emo_cli, "pgrep_pids", lambda program: [os.getpid(), 42])
+    assert emo_cli._running_pm_pids() == [42]
+
+
 @pytest.mark.parametrize(
     "answer, expected_rc, remains", [("n", 1, True), ("y", 0, False)]
 )

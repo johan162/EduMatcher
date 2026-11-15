@@ -115,15 +115,54 @@
     - "If it repeats, report it as a bug with the topic and error."
 
 - logger: edumatcher.index.main
-  template: "rebalance partially applied before failure index_id=%s applied=%s: %s"
+  template: "index %s: could not restore the state file after a failed history write; it holds the rejected command: %s"
   level: ERROR
   explanation: >
-    A rebalance (new shares outstanding for several constituents) failed part
-    of the way through. The constituents listed as applied have their new
-    shares and are saved; the rest are unchanged.
+    A corporate action, constituent change or rebalance was refused because
+    its history record could not be written. pm-index had already saved the
+    index state with the change in it, and could not put the previous state
+    back. The running index does not have the change, but a restart would load
+    it from the state file.
   actions:
-    - "Check the index with `pm-index-admin-cli history --index <INDEX>`."
-    - "Send a corrected rebalance for the constituents that were not applied."
+    - "Free space on, or repair, the disk named in the error."
+    - "Before restarting pm-index, send the refused command again so the running index, the state file and the history agree."
+
+# --- writing the state and history files -----------------------------------
+
+- logger: edumatcher.index.main
+  template: "index %s: state checkpoint failed, retrying in %.0f s: %s"
+  level: ERROR
+  explanation: >
+    pm-index could not write the index's state file, its restore point, for
+    example because the disk is full. The index keeps being calculated and
+    published; pm-index tries again after the interval in the message. Until
+    a write succeeds, a restart would go back to the last state file written.
+  actions:
+    - "Free space on, or repair, the disk named in the error."
+    - "Do not restart pm-index until the error stops repeating."
+
+- logger: edumatcher.index.main
+  template: "index %s: history flush failed, retrying: %s"
+  level: ERROR
+  explanation: >
+    pm-index could not write the index's history file, for example because
+    the disk is full. The records stay in memory and pm-index keeps trying;
+    this is logged once until a write succeeds. A command (corporate action,
+    constituent change, rebalance) whose record cannot be written is refused.
+  actions:
+    - "Free space on, or repair, the disk named in the error."
+    - "Check pm-index's files with `pm-index-cli health`."
+
+- logger: edumatcher.index.main
+  template: "index %s: history file could not be written at close; its unwritten records are lost: %s"
+  level: ERROR
+  explanation: >
+    pm-index was stopping and could not write the last records of the index's
+    history file. The state file, which a restart loads, is not affected; the
+    history is missing those records.
+  actions:
+    - "Free space on, or repair, the disk named in the error."
+    - "Compare `pm-index-admin-cli history --index <INDEX>` with what was done before the stop."
 
 # --- history file ------------------------------------------------------------
 

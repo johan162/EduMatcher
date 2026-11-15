@@ -14,10 +14,10 @@ orders, ticker tape, market board, audit trail, statistics, and clearing/P&L.
 
 ## Prerequisites
 
-- Chapters 01–03 completed, with `pm-engine` running, the market open in
-  `CONTINUOUS`, and at least `TRADER01` connected.
-- Market-maker liquidity from chapter 02, or another gateway placing opposite-side
-  orders so trades and book updates are visible.
+- Chapter 17 completed, with its exchange still running: `pm-engine`,
+  `pm-stats`, `pm-clearing`, `pm-audit --terminal` and `pm-viewer`, the market
+  reopened after its Exercise 9, `TRADER01` and `TRADER02` connected, and the
+  three market makers quoting.
 - Several terminals available. These observer processes are intentionally separate
   so you can start, stop, and compare them independently.
 
@@ -42,42 +42,22 @@ visible from different angles.
 
  
 
-## Exercise 1: Start the Baseline Exchange
+Three of the processes in the table have had a chapter each and are already
+running from the capstone: `pm-audit` (chapter 13), `pm-stats` and
+`pm-stats-cli` (chapter 15) and `pm-clearing` (chapter 12). Do not start
+second copies — two `pm-clearing` processes would record every trade twice.
+This chapter adds the four live screens, then compares all of them.
 
-Start the engine if it is not already running, and open the market from the
-operator console if it is closed (chapter 01, "Open the market for the
-chapters ahead"):
+## Exercise 1: Watch One Book with pm-viewer
 
-```bash
-pm-engine
-```
-
-Connect two trader gateways:
-
-```bash
-pm-alf-console --id TRADER01
-pm-alf-console --id TRADER02
-```
-
-Create one resting order so observers have a visible book update:
-
-```
-[TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=149.80|TIF=DAY
-```
-
-:material-checkbox-blank-outline: **Checkpoint:** `TRADER01` receives an acknowledgement and `ORDERS` shows the order.
-
- 
-
-## Exercise 2: Watch One Book with pm-viewer
-
-In a new terminal, start the single-symbol book viewer:
+The capstone already started `pm-viewer --symbol AAPL`. Leave it running, or
+restart it with an explicit depth:
 
 ```bash
 pm-viewer --symbol AAPL --depth 10
 ```
 
-From `TRADER01`, add or cancel another resting order:
+From `TRADER01`, add or cancel a resting order:
 
 ```
 [TRADER01]> NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=50|PRICE=150.20|TIF=DAY
@@ -90,7 +70,7 @@ data changes.
 
  
 
-## Exercise 3: Monitor Orders Across Gateways with pm-orders
+## Exercise 2: Monitor Orders Across Gateways with pm-orders
 
 Start the cross-gateway order monitor:
 
@@ -113,66 +93,15 @@ Place one order from each trader:
 
 Compare this process with the gateway-local `ORDERS` command. `ORDERS` is useful
 inside one gateway; `pm-orders` is useful when you want an exchange-wide monitor.
+`pm-orders` only shows events it saw arrive, so start it before the orders.
+A rejected order shows `?` in most columns: the rejection carries the order
+ID, not the order.
 
 :material-checkbox-blank-outline: **Checkpoint:** `pm-orders` shows orders from both gateways, while `ORDERS` shows only the current gateway's cache.
 
  
 
-## Exercise 4: Record the Event Stream with pm-audit
-
-Start the audit logger in terminal mode:
-
-```bash
-pm-audit --terminal
-```
-
-To also write the log to a known file:
-
-```bash
-pm-audit --terminal --audit-log-file "$EDUMATCHER_DATA_DIR/audit.log"
-```
-
-Execute a trade:
-
-```
-[TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=25
-```
-
-Watch the raw topics and payloads printed by `pm-audit`. This is the most direct
-view of what the engine publishes.
-
-:material-checkbox-blank-outline: **Checkpoint:** you can find the order acknowledgement, fill, trade, and book update events in the audit output.
-
- 
-
-## Exercise 5: Build Persistent Statistics with pm-stats
-
-Start the statistics recorder:
-
-```bash
-pm-stats
-```
-
-Execute several trades, then query the database:
-
-```bash
-pm-stats-cli trades --symbol AAPL --limit 10
-pm-stats-cli daily --symbol AAPL
-```
-
-(`daily` gives the day's OHLCV summary, including a `vwap` column — see
-[15 — Statistics & Reporting](150-statistics-reporting.md) for the full
-`pm-stats-cli` verb reference; there is no separate `ohlcv`, `vwap`, or
-`summary` verb.)
-
-`pm-stats` is a long-running subscriber. `pm-stats-cli` is a read-only query tool
-for the SQLite database written by `pm-stats`.
-
-:material-checkbox-blank-outline: **Checkpoint:** `pm-stats-cli` shows recent trades and at least one aggregate statistic after activity occurs.
-
- 
-
-## Exercise 6: Launch the Scrolling Ticker
+## Exercise 3: Launch the Scrolling Ticker
 
 Start the ticker. The book updates it receives are pushed live by the engine;
 `--db-interval` controls only how often it re-reads the daily aggregates from
@@ -182,8 +111,8 @@ Start the ticker. The book updates it receives are pushed live by the engine;
 pm-ticker --db-interval 30
 ```
 
-The ticker combines live book updates with statistics from `stats.db` when they
-are available. If no symbols appear yet, create a book update or trade in a
+The ticker combines live book updates with the day's high, low, volume and
+change from `stats.db`, which the capstone's `pm-stats` has been writing. If no symbols appear yet, create a book update or trade in a
 gateway.
 
 ```
@@ -194,7 +123,7 @@ gateway.
 
  
 
-## Exercise 7: Launch the Multi-Symbol Board
+## Exercise 4: Launch the Multi-Symbol Board
 
 Start the market board:
 
@@ -210,30 +139,14 @@ more symbols than rows.
 
  
 
-## Exercise 8: Track Positions and P&L with pm-clearing
+## Exercise 5: Compare the Views
 
-Start clearing in a separate terminal:
-
-```bash
-pm-clearing
-```
-
-Create a trade between two gateways:
+Make one more trade, so every observer has something new to show:
 
 ```
 [TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=50|PRICE=150.00|TIF=DAY
 [TRADER02]> NEW|SYM=AAPL|SIDE=SELL|TYPE=MARKET|QTY=50
 ```
-
-`pm-clearing` consumes `trade.executed` events and maintains per-gateway position
-and P&L, writing batched results to `clearing.db` (SQLite) in the data
-directory. Use `pm-clearing-cli --format csv ...` if you want a CSV export.
-
-:material-checkbox-blank-outline: **Checkpoint:** `pm-clearing` shows the changed position or records the trade in its report.
-
- 
-
-## Exercise 9: Compare the Views
 
 For one trade, identify where each process shows it:
 
@@ -243,7 +156,7 @@ For one trade, identify where each process shows it:
 | Which gateways have live/resting orders? | `pm-orders` |
 | What exact messages were published? | `pm-audit` |
 | What trades and aggregates were persisted? | `pm-stats-cli` |
-| What changed in participant positions/P&L? | `pm-clearing` |
+| What changed in participant positions/P&L? | `pm-clearing-cli positions` |
 | What is the compact live tape view? | `pm-ticker` |
 
 :material-checkbox-blank-outline: **Checkpoint:** explain why no single observer replaces the others.

@@ -10,6 +10,8 @@ import pytest
 import zmq
 
 from edumatcher.audit.main import AuditProcess, main
+from edumatcher.audit.writer import AuditFile
+from tests.conftest import opened
 
 
 class _FakeSub:
@@ -32,9 +34,13 @@ class _FakeSub:
 
 
 class _PollerWithNEvents:
-    def __init__(self, sub: Any, events: int) -> None:
+    """``events`` polls that find ``sub`` readable, then one that stops
+    ``proc`` (as a SIGTERM would)."""
+
+    def __init__(self, sub: Any, events: int, proc: AuditProcess) -> None:
         self._sub = sub
         self._events = events
+        self._proc = proc
 
     def register(self, _sock: Any, _mask: int) -> None:
         return None
@@ -44,7 +50,8 @@ class _PollerWithNEvents:
         if self._events > 0:
             self._events -= 1
             return [(self._sub, zmq.POLLIN)]
-        raise zmq.ZMQError(errno.EINTR)
+        self._proc._running = False
+        return []
 
 
 @pytest.fixture
@@ -53,9 +60,7 @@ def anyio_backend() -> str:
 
 
 def test_receive_buffers_and_flushes_audit_lines(tmp_path: Path) -> None:
-    """Intent: audit should persist every decodable message line with topic and payload,
-    even when receive loop exits via EINTR.
-    """
+    """Intent: audit should persist every decodable message line with topic and payload."""
     fake_sub = _FakeSub(frame_count=2)
     log_path = tmp_path / "audit.log"
 
@@ -64,11 +69,12 @@ def test_receive_buffers_and_flushes_audit_lines(tmp_path: Path) -> None:
         patch("edumatcher.audit.main.make_replier"),
     ):
         proc = AuditProcess(log_path=log_path, to_terminal=False, buffer_size=100)
+        opened(proc._file)
 
     with (
         patch(
             "edumatcher.audit.main.zmq.Poller",
-            return_value=_PollerWithNEvents(fake_sub, events=2),
+            return_value=_PollerWithNEvents(fake_sub, events=2, proc=proc),
         ),
         patch(
             "edumatcher.audit.main.decode",
@@ -90,6 +96,24 @@ def test_receive_buffers_and_flushes_audit_lines(tmp_path: Path) -> None:
     assert '"order_id": "ORD-1"' in contents
 
 
+def test_terminal_prints_each_line_before_the_flush(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Intent: --terminal shows an event when it arrives, not flush_interval later."""
+    with (
+        patch("edumatcher.audit.main.make_subscriber", return_value=_FakeSub(0)),
+        patch("edumatcher.audit.main.make_replier"),
+    ):
+        proc = AuditProcess(log_path=tmp_path / "audit.log", to_terminal=True)
+        opened(proc._file)
+
+    proc._add_to_buffer("2026-11-13", "[trade.executed] {}")
+
+    assert capsys.readouterr().out == "[trade.executed] {}\n"
+    proc._flush_buffer()
+    assert capsys.readouterr().out == ""
+
+
 def test_receive_survives_decode_errors_and_continues(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
@@ -102,11 +126,12 @@ def test_receive_survives_decode_errors_and_continues(
         patch("edumatcher.audit.main.make_replier"),
     ):
         proc = AuditProcess(log_path=log_path, to_terminal=False, buffer_size=100)
+        opened(proc._file)
 
     with (
         patch(
             "edumatcher.audit.main.zmq.Poller",
-            return_value=_PollerWithNEvents(fake_sub, events=2),
+            return_value=_PollerWithNEvents(fake_sub, events=2, proc=proc),
         ),
         patch(
             "edumatcher.audit.main.decode",
@@ -125,7 +150,7 @@ def test_receive_survives_decode_errors_and_continues(
     contents = log_path.read_text(encoding="utf-8")
     assert "[trade.executed]" in contents
     assert '"symbol": "MSFT"' in contents
-    assert "failed to decode/log message" in caplog.text
+    assert "failed to decode message" in caplog.text
 
 
 def test_a_stop_drains_until_the_engines_eod(tmp_path: Path) -> None:
@@ -141,12 +166,13 @@ def test_a_stop_drains_until_the_engines_eod(tmp_path: Path) -> None:
         patch("edumatcher.audit.main.make_replier"),
     ):
         proc = AuditProcess(log_path=log_path, to_terminal=False, buffer_size=100)
+        opened(proc._file)
 
     with (
-        # EINTR at once: the SIGTERM ends the loop before any frame is read.
+        # The SIGTERM ends the loop before any frame is read.
         patch(
             "edumatcher.audit.main.zmq.Poller",
-            return_value=_PollerWithNEvents(fake_sub, events=0),
+            return_value=_PollerWithNEvents(fake_sub, events=0, proc=proc),
         ),
         patch(
             "edumatcher.audit.main.decode",
@@ -207,6 +233,7 @@ class TestTopicFamily:
             patch("edumatcher.audit.main.make_replier"),
         ):
             proc = AuditProcess(log_path=tmp_path / "a.log", to_terminal=False)
+            opened(proc._file)
         assert proc._topic_family(topic) == expected
 
 
@@ -226,30 +253,13 @@ def test_add_to_buffer_flushes_on_overflow(tmp_path: Path) -> None:
         patch("edumatcher.audit.main.make_replier"),
     ):
         proc = AuditProcess(log_path=log_path, to_terminal=False, buffer_size=3)
+        opened(proc._file)
 
     for i in range(3):
         proc._add_to_buffer("2026-10-24", f"line {i}")
 
     # After reaching buffer_size, the buffer should have been flushed.
     assert log_path.read_text(encoding="utf-8").count("line") == 3
-
-
-def test_flush_timer_is_scheduled_on_first_message(tmp_path: Path) -> None:
-    """The flush timer should be started when the first line enters an empty buffer."""
-    from unittest.mock import patch
-
-    with (
-        patch("edumatcher.audit.main.make_subscriber"),
-        patch("edumatcher.audit.main.make_replier"),
-    ):
-        proc = AuditProcess(
-            log_path=tmp_path / "t.log", to_terminal=False, buffer_size=100
-        )
-
-    assert proc._flush_timer is None
-    proc._add_to_buffer("2026-10-24", "first line")
-    assert proc._flush_timer is not None
-    proc._flush_timer.cancel()
 
 
 def test_flush_buffer_is_idempotent_on_empty(tmp_path: Path) -> None:
@@ -262,6 +272,7 @@ def test_flush_buffer_is_idempotent_on_empty(tmp_path: Path) -> None:
         patch("edumatcher.audit.main.make_replier"),
     ):
         proc = AuditProcess(log_path=log_path, to_terminal=False)
+        opened(proc._file)
 
     proc._flush_buffer()  # Buffer already empty — should not raise.
     # No output written for an empty flush.
@@ -300,10 +311,11 @@ def test_receive_answers_health_ping_with_utc_timestamp(tmp_path: Path) -> None:
         patch("edumatcher.audit.main.make_replier", return_value=fake_rep),
     ):
         proc = AuditProcess(log_path=tmp_path / "audit.log", to_terminal=False)
+        opened(proc._file)
 
     with patch(
         "edumatcher.audit.main.zmq.Poller",
-        return_value=_PollerWithNEvents(fake_rep, events=1),
+        return_value=_PollerWithNEvents(fake_rep, events=1, proc=proc),
     ):
         proc._eod_seen = True  # the exit's drain has nothing to wait for
         proc._receive()
@@ -318,6 +330,7 @@ def test_rotation_defaults_to_10_mb(tmp_path: Path) -> None:
         patch("edumatcher.audit.main.make_replier"),
     ):
         proc = AuditProcess(log_path=tmp_path / "audit.log", to_terminal=False)
+        opened(proc._file)
 
     assert proc._file._max_bytes == 10 * 1024 * 1024
 
@@ -333,6 +346,7 @@ def test_part_size_is_configurable(tmp_path: Path) -> None:
             to_terminal=False,
             max_file_mb=256,
         )
+        opened(proc._file)
 
     assert proc._file._max_bytes == 256 * 1024 * 1024
 
@@ -365,11 +379,15 @@ def test_failed_health_socket_setup_closes_the_subscriber(tmp_path: Path) -> Non
             "edumatcher.audit.main.make_replier",
             side_effect=zmq.ZMQError(errno.EADDRINUSE),
         ),
+        patch.object(
+            AuditFile, "close", autospec=True, side_effect=AuditFile.close
+        ) as file_close,
         pytest.raises(zmq.ZMQError),
     ):
         AuditProcess(log_path=tmp_path / "audit.log", to_terminal=False)
 
     assert fake_sub.closed is True
+    file_close.assert_called_once()
 
 
 def _record(proc: AuditProcess, topic: str, eseq: int | None) -> None:
@@ -396,7 +414,9 @@ class TestMissedMessages:
             patch("edumatcher.audit.main.make_subscriber", return_value=_FakeSub(0)),
             patch("edumatcher.audit.main.make_replier"),
         ):
-            return AuditProcess(log_path=tmp_path / "audit.log", to_terminal=False)
+            proc = AuditProcess(log_path=tmp_path / "audit.log", to_terminal=False)
+        opened(proc._file)
+        return proc
 
     def test_a_dense_stream_misses_nothing(self, tmp_path: Path) -> None:
         proc = self._proc(tmp_path)
@@ -437,3 +457,239 @@ class TestMissedMessages:
         samples = _samples(proc)
         assert samples["audit.missed_messages"] == 0
         assert samples["audit.sequence_discontinuities"] == 1
+
+
+# ---------------------------------------------------------------------------
+# WP-AUD04: a write error is counted as one, and a dead loop ends the process
+# ---------------------------------------------------------------------------
+
+
+def _quiet_process(tmp_path: Path, **kwargs: Any) -> AuditProcess:
+    with (
+        patch("edumatcher.audit.main.make_subscriber", return_value=_FakeSub(0)),
+        patch("edumatcher.audit.main.make_replier"),
+    ):
+        return AuditProcess(
+            log_path=tmp_path / "audit.log", to_terminal=False, **kwargs
+        )
+
+
+class _StoppingPoller:
+    """Returns nothing ``polls`` times, then stops the process."""
+
+    def __init__(self, proc: AuditProcess, polls: int, before: Any = None) -> None:
+        self._proc = proc
+        self._polls = polls
+        self._before = before
+        self.count = 0
+
+    def register(self, _sock: Any, _mask: int) -> None:
+        return None
+
+    def poll(self, timeout: int) -> dict[Any, int]:
+        _ = timeout
+        self.count += 1
+        if self._before is not None:
+            self._before(self.count)
+        if self.count >= self._polls:
+            self._proc._running = False
+        return {}
+
+
+def _all_text(root: Path) -> str:
+    """Every line written: the day parts, then the active file."""
+    files = [*sorted((root / "audit").glob("*.log")), root / "audit.log"]
+    return "".join(p.read_text() for p in files if p.exists())
+
+
+def _metric(proc: AuditProcess, name: str) -> float:
+    return next(s.value for s in proc.metric_samples() if s.name == name)
+
+
+class TestWriteErrors:
+    def test_a_failing_day_check_flush_is_a_write_error_and_the_loop_lives(
+        self, tmp_path: Path
+    ) -> None:
+        proc = _quiet_process(tmp_path)
+        proc._add_to_buffer("2026-10-24", "[x] a")
+        real = proc._close_ended_day
+        calls = {"n": 0}
+
+        def failing_once() -> None:
+            calls["n"] += 1
+            if calls["n"] == 1:
+                raise OSError(errno.ENOSPC, "No space left on device")
+            real()
+
+        proc._close_ended_day = failing_once
+        # The closed day would start a real archiver, compressing the part
+        # this test reads and outliving it.
+        proc._start_archiver = lambda: None
+        # Every poll is a due day check.
+        poller = _StoppingPoller(
+            proc, 3, before=lambda _n: setattr(proc, "_last_day_check", 0.0)
+        )
+        with patch("edumatcher.audit.main.zmq.Poller", return_value=poller):
+            proc._eod_seen = True
+            proc._receive()
+        assert poller.count == 3  # the loop went on after the error
+        assert _metric(proc, "audit.write_errors") == 1
+        assert _metric(proc, "audit.decode_errors") == 0
+        proc._flush_buffer()
+        proc._file.close()
+        # The day check that worked closed 2026-10-24 into a day part.
+        assert _all_text(tmp_path).count("[x] a") == 1
+
+    def test_a_failing_size_flush_on_receive_keeps_the_line_and_is_no_decode_error(
+        self, tmp_path: Path
+    ) -> None:
+        fake_sub = _FakeSub(frame_count=1)
+        with (
+            patch("edumatcher.audit.main.make_subscriber", return_value=fake_sub),
+            patch("edumatcher.audit.main.make_replier"),
+        ):
+            proc = AuditProcess(
+                log_path=tmp_path / "audit.log", to_terminal=False, buffer_size=1
+            )
+        with (
+            patch(
+                "edumatcher.audit.main.decode",
+                return_value=("trade.executed", {"symbol": "AAPL"}),
+            ),
+            patch.object(proc._file, "write", side_effect=OSError(errno.EIO, "io")),
+            # The loop counts it as a write error (test above).
+            pytest.raises(OSError),
+        ):
+            proc._receive_one_message()
+        assert proc._records == 1  # accepted, still buffered
+        assert len(proc._buffer) == 1
+        assert _metric(proc, "audit.decode_errors") == 0
+        proc._file.close()
+
+    def test_a_flush_whose_second_day_fails_writes_the_first_day_once(
+        self, tmp_path: Path
+    ) -> None:
+        proc = _quiet_process(tmp_path, buffer_size=1000)
+        proc._add_to_buffer("2026-10-24", "[x] day1")
+        proc._add_to_buffer("2026-10-25", "[x] day2")
+        real = proc._file.write
+        calls = {"n": 0}
+
+        def second_fails(day: str, lines: list[str]) -> None:
+            calls["n"] += 1
+            if calls["n"] == 2:
+                raise OSError(errno.ENOSPC, "full")
+            real(day, lines)
+
+        with patch.object(proc._file, "write", side_effect=second_fails):
+            with pytest.raises(OSError):
+                proc._flush_buffer()
+            proc._flush_buffer()
+        proc._file.close()
+        text = _all_text(tmp_path)
+        assert text.count("[x] day1") == 1 and text.count("[x] day2") == 1
+
+    def test_eintr_does_not_end_the_loop(self, tmp_path: Path) -> None:
+        proc = _quiet_process(tmp_path)
+        polls = {"n": 0}
+
+        class _Poller:
+            def register(self, _sock: Any, _mask: int) -> None:
+                return None
+
+            def poll(self, timeout: int) -> dict[Any, int]:
+                _ = timeout
+                polls["n"] += 1
+                if polls["n"] == 1:
+                    raise zmq.ZMQError(errno.EINTR)
+                proc._running = False
+                return {}
+
+        with patch("edumatcher.audit.main.zmq.Poller", return_value=_Poller()):
+            proc._eod_seen = True
+            proc._receive()
+        assert polls["n"] == 2
+        proc._file.close()
+
+
+class TestDeadLoop:
+    def test_a_receive_loop_that_dies_ends_run_with_a_failure(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        import time
+
+        proc = _quiet_process(tmp_path)
+
+        def dies() -> None:
+            raise zmq.ZMQError(errno.ENOTSOCK)
+
+        proc._receive = dies
+        started = time.monotonic()
+        with caplog.at_level(logging.CRITICAL):
+            assert proc.run() == 1
+        assert time.monotonic() - started < 3
+        assert "receive loop died" in caplog.text
+
+    def test_a_stopped_run_succeeds(self, tmp_path: Path) -> None:
+        proc = _quiet_process(tmp_path)
+        proc._running = False
+        with patch.object(proc, "_receive"):
+            assert proc.run() == 0
+
+    def test_main_exits_1_when_run_fails(self) -> None:
+        with (
+            patch("sys.argv", ["pm-audit"]),
+            patch("edumatcher.audit.main._configure_logging", return_value=30),
+            patch("edumatcher.audit.main.session_timezone"),
+            patch("edumatcher.audit.main.AuditProcess") as cls,
+            patch(
+                "edumatcher.audit.main.HealthReporter.start_from_compiled_config",
+                return_value=None,
+            ),
+        ):
+            cls.return_value.run.return_value = 1
+            with pytest.raises(SystemExit) as exc:
+                main()
+        assert exc.value.code == 1
+
+
+class TestIntervalFlush:
+    def test_a_line_is_flushed_by_the_loop_within_the_interval_without_a_timer(
+        self, tmp_path: Path
+    ) -> None:
+        import threading
+        import time
+
+        proc = _quiet_process(tmp_path, flush_interval=0.2)
+        log_path = tmp_path / "audit.log"
+
+        class _Idle:
+            def register(self, _sock: Any, _mask: int) -> None:
+                return None
+
+            def poll(self, timeout: int) -> dict[Any, int]:
+                time.sleep(min(timeout, 50) / 1000)
+                return {}
+
+        with (
+            patch("edumatcher.audit.main.zmq.Poller", return_value=_Idle()),
+            patch("threading.Timer", side_effect=AssertionError("no timer")),
+        ):
+            proc._add_to_buffer("2026-10-24", "[x] a")
+            proc._eod_seen = True
+            t = threading.Thread(target=proc._receive)
+            t.start()
+            deadline = time.monotonic() + 0.5
+            while time.monotonic() < deadline and "[x] a" not in log_path.read_text():
+                time.sleep(0.02)
+            proc._running = False
+            t.join(timeout=5)
+        assert "[x] a" in log_path.read_text()
+        proc._file.close()
+
+    def test_a_young_buffer_waits_for_the_interval(self, tmp_path: Path) -> None:
+        proc = _quiet_process(tmp_path, flush_interval=60.0)
+        proc._add_to_buffer("2026-10-24", "[x] a")
+        proc._flush_if_due()
+        assert len(proc._buffer) == 1
+        proc._file.close()

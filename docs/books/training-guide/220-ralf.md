@@ -40,8 +40,19 @@ Recommended startup terminals:
       `EX=$(python -c "from edumatcher.config_deploy import examples_root; print(examples_root().parent)")`
       and then `$EX/ralf/…` wherever this chapter says `docs/examples/ralf`.
       The C example needs `make` and a C compiler, which the container image
-      does not have; the Python subscriber and `nc` are enough for every
-      exercise.
+      does not have; the Python subscriber is enough for every other exercise.
+    - Several exercises type protocol lines by hand with `nc 127.0.0.1 5580`.
+      The container image has no `nc`; define this small helper once in each
+      container terminal that needs it, and use `tcp 127.0.0.1 5580` wherever
+      the chapter says `nc 127.0.0.1 5580`:
+
+      ```bash
+      tcp() { ( exec 3<>/dev/tcp/"$1"/"$2"; cat <&3 & trap "kill $! 2>/dev/null" EXIT; cat >&3 ); }
+      ```
+
+      It uses bash's built-in `/dev/tcp`: what you type goes to the gateway,
+      what the gateway sends is printed. `Ctrl-C` ends the session. When the
+      gateway closes the connection (after an error, say), press `Ctrl-C` too.
     - Port 5580 can only have one owner. If the AI-simulation container is
       running, its own `pm-ralf-gwy` holds the port: yours will fail to start,
       and `nc 127.0.0.1 5580` would talk to the *simulation's* gateway (you
@@ -99,8 +110,13 @@ Start or restart processes with that config:
 
 ```bash
 pm-engine --verbose
-pm-ralf-gwy
+pm-ralf-gwy -v
 ```
+
+Without `-v` the gateway starts silently. With it, it ends its startup with
+`listening on 127.0.0.1:5580 (engine_pub=tcp://127.0.0.1:5556)`. (In the
+container the address is `0.0.0.0`: the container sets
+`EDUMATCHER_GATEWAY_BIND_HOST` so that the port can be reached from outside.)
 
 :material-checkbox-blank-outline: Checkpoint: gateway starts and listens on the configured port.
 
@@ -108,7 +124,8 @@ pm-ralf-gwy
 
 ## Exercise 2: Use the Python Example as a CLEARING Consumer
 
-From the example directory:
+From the example directory (`cd "$EX/ralf"` on a container or `pipx`
+install):
 
 ```bash
 cd docs/examples/ralf
@@ -120,11 +137,18 @@ python3 ralf_subscriber.py \
   --symbols '*'
 ```
 
-Observe:
+Then make a trade (the two limit orders in the note above). Expected:
 
-- WELCOME line parsed by the Python library
-- subscription acknowledgment flow
-- incoming EXEC and EOD messages for CLEARING
+```
+WELCOME: type=WELCOME fields={'PROTO': 'RALF1', 'GW': 'ralf-gwy01', 'ROLE': 'CLEARING', 'REPLAY': '86400', 'HBINT': '2'}
+Subscribed CH=['CLEARING'] SYM=* as role=CLEARING
+SNAP  CH=CLEARING SYM=* SEQ=0
+HB    (gateway heartbeat)
+EXEC  AAPL         60 @      150.0 BUY  ch=CLEARING
+```
+
+`HB` arrives every 2 seconds (`HBINT=2`). An `EOD` line follows only when the
+engine shuts down cleanly (chapter 12).
 
 :material-checkbox-blank-outline: Checkpoint: subscriber prints parsed EXEC events with expected symbols and sequence values.
 
@@ -222,7 +246,7 @@ Then send lines:
 
 ```text
 HELLO|CLIENT=manual01|PROTO=RALF1|ROLE=CLEARING|LASTSEQ=0
-SUB|CH=CLEARING|SYM=*
+SUB|CH=CLEARING|SYM=AAPL,MSFT
 PING
 UNSUB|CH=CLEARING|SYM=AAPL
 ```
@@ -231,11 +255,13 @@ Expected behavior:
 
 - PING yields `PONG|TS=…`
 - UNSUB updates the delivery set and sends no reply of its own: trades in AAPL
-  stop arriving, other symbols continue
+  stop arriving, MSFT continues. `UNSUB` removes exactly the pairs it names,
+  so `UNSUB|CH=CLEARING|SYM=AAPL` after `SUB|CH=CLEARING|SYM=*` changes
+  nothing: the `*` pair still matches AAPL
 
 !!! note "`EXIT` goes both ways"
     The gateway sends `EXIT|REASON=…|TS=…` when it ends a session (e.g.
-    `EXIT|REASON=idle_timeout`). A client may send a bare `EXIT` to end its
+    `EXIT|REASON=idle_timeout`, or `shutdown` when it is stopped). A client may send a bare `EXIT` to end its
     own session; the gateway closes after flushing pending output. All three
     line gateways (`pm-md-gwy`, `pm-ralf-gwy`, `pm-dc-gwy`) behave the same.
 
@@ -265,15 +291,20 @@ Use these to bootstrap both quick lab subscribers and production-like integratio
 4. Reconnect with LASTSEQ set to the saved sequence:
 
 ```text
-HELLO|CLIENT=replay01|PROTO=RALF1|ROLE=CLEARING|LASTSEQ=<saved_seq>
+HELLO|CLIENT=replay01|PROTO=RALF1|ROLE=CLEARING|LASTSEQ=<saved_seq>|EPOCH=<saved_epoch>
+SUB|CH=CLEARING|SYM=*
 ```
+
+`<saved_epoch>` is the `EPOCH` from the `WELCOME` of the first session: the
+gateway refuses a `LASTSEQ` without it (`ERR|CODE=BAD_MESSAGE`).
 
 Observe replay behavior:
 
-- replayed EXEC/EOD events for SEQ greater than LASTSEQ when retained; they
-  arrive immediately after `WELCOME`, before you have sent `SUB`
-- `ERR|CODE=REPLAY_MISS|DETAIL=requested seq outside retention` followed by a
-  `SNAP` baseline when outside the retention window (try `LASTSEQ=999`)
+- nothing but `WELCOME` until you send `SUB`; then the replayed EXEC/EOD events
+  for SEQ greater than LASTSEQ when retained, then the `SUB`'s `SNAP`
+- `ERR|CODE=REPLAY_MISS|DETAIL=requested seq outside retention` followed by the
+  `SNAP` baseline when outside the retention window (try `LASTSEQ=999`), or
+  when `EPOCH` is not the running gateway's (try `EPOCH=00000000`)
 
 :material-checkbox-blank-outline: Checkpoint: you can describe the recovery path for both replay-hit and replay-miss cases.
 

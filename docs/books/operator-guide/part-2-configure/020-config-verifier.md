@@ -32,7 +32,9 @@ without comment.
 deeply and produces a human-friendly report covering:
 
 - every YAML syntax error that would prevent the file from being parsed
-- every hard error that `load_engine_config()` would raise, plus additional ones
+- every hard error that `pm-config-deploy` would refuse the file for, plus
+  additional ones: the verifier finishes by running the same loaders, so a
+  file it passes without an `ERROR` compiles
 - completeness gaps — settings that are missing but probably should be present
 - advisory suggestions for settings that are valid but likely to surprise
 - a plain-English **Risk Summary** that shows what risk controls are actually active
@@ -92,10 +94,13 @@ options:
 ## Verification Layers
 
 The verifier runs checks in four sequential layers.  A hard error in Layer 1
-(unparseable file) or in Layer 2 (schema errors) stops the later layers, which
-are reported as `skipped (fix schema errors first)`.  Within a layer, every
-independent problem is reported, so a single pass surfaces as many issues as
-possible.
+(unreadable or unparseable file) or in Layer 2 (schema errors) stops the later
+layers, which are reported as `skipped (fix the YAML error first)` or
+`skipped (fix schema errors first)`; a file that could not be read gets no
+Risk Summary.  Within a layer, every independent problem is reported, so a
+single pass surfaces as many issues as possible.  Each layer line counts its
+findings by severity (`⚠ Completeness: 1 warning, 3 advisories`), so the lines
+add up to the verdict.
 
 ```mermaid
 flowchart TD
@@ -115,7 +120,7 @@ flowchart TD
 | 1 — YAML Syntax  | ERROR         | File readable, valid YAML, top-level is a mapping       |
 | 2 — Schema       | ERROR         | Required keys, correct types, in-range values           |
 | 3 — Semantic     | ERROR or WARN | Cross-field consistency, referential integrity          |
-| 4 — Completeness | WARN or INFO  | Missing-but-recommended settings, default-value notices |
+| 4 — Completeness | ERROR, WARN or INFO | Missing-but-recommended settings, default-value notices; ERROR (`C008`) where a process would refuse to start |
 
 
 ## Understanding the Output
@@ -148,7 +153,7 @@ Risk Summary
 Symbols          2  (AAPL, MSFT)
 Gateways         2  (TRADER01: TRADER, MM01: MARKET_MAKER)
 Sessions         disabled — always CONTINUOUS
-Collars          enabled — DEFAULT: static=20%, dynamic=2%
+Collars          enabled — 2 of 2 symbols (AAPL, MSFT: static 20%, dynamic 2%)
 Order limits     none configured
 Circuit breakers enabled — enabled but no circuit breaker configured ⚠
 MM obligations   not enforced
@@ -203,7 +208,7 @@ reporting scripts.
 | `Y004` | Top-level document is not a mapping |
 | `Y005` | An `include:` list is invalid or an included file is missing, unreadable, not valid YAML or clashes with another file; the message names the file (see [Splitting the file](005-the-configuration-file.md#splitting-the-file-with-include)) |
 
-### Layer 2 — Schema (`S001`–`S131`)
+### Layer 2 — Schema (`S001`–`S133`)
 
 **Top-level structure**
 
@@ -247,7 +252,8 @@ the key if it appears on a risk level.
 | `S114` | `symbols.<SYMBOL>.order_limits` present but not a mapping              |
 | `S115` | `symbols.<SYMBOL>.order_limits.max_order_qty` not a positive integer   |
 | `S116` | `symbols.<SYMBOL>.order_limits.max_order_value` not a positive number  |
-| `S065` | `symbols.<SYMBOL>.circuit_breaker` or `.levels` not a mapping — **also reused** for `locale.country` present but not a non-empty string (unrelated condition, same code) |
+| `S065` | `symbols.<SYMBOL>.circuit_breaker` or `.levels` not a mapping |
+| `S134` | `locale.country` present but not a non-empty string |
 | `S122` | `locale` present but not a mapping |
 | `S123` | `locale.session_timezone` present but not a non-empty string |
 | `S066` | `symbols.<SYMBOL>.circuit_breaker.levels.<LEVEL>` missing `price_shift_pct` |
@@ -379,6 +385,23 @@ trade different instruments, which need not share a tick size. The check
 stands down for a symbol whose `tick_decimals` is itself invalid — `S010`
 reports that, and there is no grid to check against until it is fixed.
 
+**Engine loader backstop**
+
+| Code   | Condition                                              |
+|--------|--------------------------------------------------------|
+| `S132` | The engine loader refuses the file for a reason no other check reported. The message is the loader's own, the one `pm-config-deploy` would print |
+
+`S132` runs after the semantic layer, because several `M` codes describe a
+loader error more precisely, and only when no `ERROR` has been reported for
+the engine sections (everything except the gateway, `log_server`, `monitor`
+and `api_gateways` blocks): the loader stops at its first problem and would
+only restate one already reported. It is counted in the Semantic line.
+
+A key written with no value (`bid_price:` on its own, which YAML reads as
+`null`) is not the same as a missing key: the loaders refuse it. The field's
+own check reports it as "has no value (null)" — for example `S014` for the
+`null` price stubs `pm-config-gen` writes for a market maker.
+
 **API gateway sections**
 
 | Code   | Condition                                              |
@@ -418,7 +441,7 @@ api_gateways:
 
 | Code   | Condition                                              |
 |--------|--------------------------------------------------------|
-| `S081` | `alf_gateway` section fails runtime-loader validation |
+| `S081` | `alf_gateway` is present and fails runtime-loader validation |
 | `S082` | `post_trade_gateway` section fails runtime-loader validation |
 | `S083` | `market_data_gateway` section fails runtime-loader validation |
 
@@ -441,7 +464,8 @@ api_gateways:
 | `S091` | `dc_gateway.port` not an integer in `1..65535`                            |
 | `S092` | `dc_gateway.name` or `.bind_address` blank or not a string                |
 | `S093` | `dc_gateway.max_connections` or `.max_client_queue` not a positive integer |
-| `S094` | `dc_gateway.heartbeat_interval_sec` or `.idle_timeout_sec` not a positive number |
+| `S094` | `dc_gateway.heartbeat_interval_sec` or `.idle_timeout_sec` not a positive whole number of seconds |
+| `S133` | `dc_gateway` fails runtime-loader validation for a reason not covered by `S090`–`S094` (drift safety net; only fires when none of those already reported) |
 
 **Log server fields (`log_server`)**
 
@@ -510,7 +534,7 @@ is validated while parsing `circuit_breaker_defaults`.
 | `M003` | WARN     | MM seed spread exceeds the `mm_max_spread_ticks` that applies to that gateway and symbol (participant `mm_obligations`, then `mm_obligation_defaults.symbols`, then the participant's own value, then `mm_obligation_defaults`, then 20) |
 | `M004` | INFO     | Sessions enabled (the default) but no `schedule`: the built-in weekday timetable is used |
 | `M005` | WARN     | `sessions_enabled: false` but a `schedule` is present         |
-| `M006` | WARN     | Schedule times not in chronological order                     |
+| `M006` | ERROR    | Schedule times not strictly increasing within a block (pm-scheduler refuses to start on it) |
 | `M007` | WARN     | `enforce_collars: false` while collars are defined            |
 | `M008` | WARN     | `enforce_circuit_breakers: false` while CB levels are defined |
 | `M009` | ERROR    | Index constituent not in `symbols`                            |
@@ -518,9 +542,8 @@ is validated while parsing `circuit_breaker_defaults`.
 | `M011` | ERROR    | More than 5 indices defined                                   |
 | `M012` | WARN     | Combo uses `tif: GTC`                                         |
 | `M013` | WARN     | No ADMIN gateway configured                                   |
-| `M014` | WARN     | CB level thresholds not strictly increasing                   |
+| `M014` | WARN     | `circuit_breaker_defaults.levels` not listed in ascending order of `price_shift_pct` |
 | `M015` | ERROR    | Combo leg references symbol not in `symbols`                  |
-| `M016` | WARN     | `post_trade_gateway` configured but no ADMIN gateway          |
 | `M017` | WARN     | `balf_gateway.heartbeat_timeout_sec <= heartbeat_interval_sec` |
 | `M018` | ERROR    | Two configured listeners are bound to the same port. Covers `alf_gateway`, `balf_gateway`, `post_trade_gateway`, `market_data_gateway`, `dc_gateway`, every `api_gateways.<name>`, `monitor.pull_port`/`pub_port` (counted even when the `monitor` block is absent, since `pm-monitor` then binds 5610/5611; skipped only for `enabled: false`), and all three of `log_server`'s own ports — `port` (LALF/TCP) plus `pub_port`/`pull_port` (LALF-PS), the latter two skipped when `pubsub_enabled: false` since a disabled interface binds nothing. Each of these is also checked against the fixed listeners that are not configured in `engine_config.yaml` — the engine's 5555–5557, pm-market-sim's 5553/5554, pm-index's 5558/5559 and the health ping ports 5561–5564 — using any `EDUMATCHER_*_PORT` override in the verifier's environment |
 | `M019` | ERROR    | `mm_obligation_defaults.symbols` references an unknown symbol |
@@ -536,7 +559,7 @@ is validated while parsing `circuit_breaker_defaults`.
 | `M029` | ERROR    | A `monitor.thresholds` band is in the wrong order: `warn` must be strictly below `crit`, except `disk_free_pct`, where a lower value is worse and `warn` must be strictly above `crit` |
 | `M030` | ERROR    | `monitor.hung_after_sec` is not greater than `monitor.beacon_interval_sec` |
 | `M031` | WARN     | `monitor.bind_address` is neither a wildcard nor `monitor.host` (loopback on both sides counts as a match): every process sends its beacons to `host`, where pm-monitor may not be listening. A warning because `EDUMATCHER_GATEWAY_BIND_HOST` overrides the bind address at run time |
-| `M032` | WARN     | No read-only API credential (`gateway_id: null`) under `api_gateways`: pm-dash has no session schedule, terminal-gui no history and book-gui no data |
+| `M032` | WARN     | An `api_gateways` section has no read-only API credential (`gateway_id: null`): pm-dash has no session schedule, terminal-gui no history and book-gui no data. A file without `api_gateways` is not warned |
 | `M033` | ERROR    | `idle_timeout_sec` is not more than twice `heartbeat_interval_sec` in `post_trade_gateway`, `market_data_gateway` or `dc_gateway` (an omitted field is checked at its default). The gateway's own heartbeats keep a reading client from timing out, so a timeout this close to the interval drops healthy quiet sessions |
 
 ### Layer 4 — Completeness (`C001`–`C013`)
@@ -556,7 +579,7 @@ all is deliberately left quiet (confirmed by
 | `C004` | INFO     | `enforce_circuit_breakers: true` but no circuit breaker is configured (no `circuit_breaker_defaults`, no symbol `circuit_breaker`): no symbol will be halted |
 | `C006` | WARN     | `enforce_mm_obligation: false`                                      |
 | `C007` | INFO     | `engine_tuning.snapshot_interval_sec` is at the default `0.5`                   |
-| `C008` | WARN     | Index constituent has no reference price                            |
+| `C008` | ERROR    | Index constituent has no reference price (pm-index refuses to start) |
 | `C009` | INFO     | `sessions_enabled: false` and no schedule (always-on)               |
 | `C010` | WARN     | `disconnect_behaviour: LEAVE_ALL` on a non-ADMIN gateway            |
 | `C011` | INFO     | Risk level defined but no symbol uses it                            |
@@ -591,10 +614,10 @@ actually do at runtime?"*
 | Symbols          | Total count and names                            |
 | Gateways         | Total count, ID, and role for each               |
 | Sessions         | Enabled/disabled, schedule summary               |
-| Collars          | Whether enforced and which levels are configured |
+| Collars          | Whether enforced, and which symbols have a collar with which bands (`k of N symbols (AAPL, MSFT: static 20%, dynamic 2%; …)`; a group of more than three symbols is counted). `no reference price in the file` marks a collar the engine applies only if it starts with a price from a previous run |
 | Order limits     | Per-symbol max order qty/value, or "none configured" |
-| Circuit breakers | Whether enforced and threshold summary; reads "no circuit breaker configured ⚠" when neither `circuit_breaker_defaults` nor any symbol `circuit_breaker` block exists |
-| MM obligations   | Whether enforcement is active                    |
+| Circuit breakers | Whether enforced, and which symbols have a breaker with which ladder, grouped like collars; reads "no circuit breaker configured ⚠" when no symbol has one |
+| MM obligations   | Whether enforcement is active, and for which market makers (`MM01 on 2 of 3 symbols` when not every symbol) |
 | Admin gateway    | Which gateway (if any) has role `ADMIN`          |
 | Indices          | Index IDs if any are configured                  |
 
@@ -602,10 +625,18 @@ A ⚠ next to a Risk Summary line marks a potentially risky or incomplete
 subsystem configuration (for example missing ADMIN gateway or missing collar
 configuration), even if the overall verdict is `OK`.
 
+The summary is built from what the engine loader makes of the file: levels,
+defaults and per-symbol blocks are already merged, so each line states what
+the engine will apply to each symbol. When the file does not load, the heading
+reads `Risk Summary (from the file as written; it does not load)` and the lines
+are a best-effort reading of the YAML.
+
 The JSON `risk_summary` object carries a few additional machine-readable
-fields not shown in the text table above, including `circuit_breakers_configured`
-(`false` when neither a `circuit_breaker_defaults` block nor a symbol
-`circuit_breaker` block exists, so no symbol will be halted).
+fields not shown in the text table above: `collared_symbols`,
+`circuit_breaker_symbols` and `mm_obligation_gateways` (the symbols and market
+makers each control applies to), `circuit_breakers_configured` (`false` when no
+symbol has a breaker, so no symbol will be halted), and `loaded` (`false` for
+the best-effort reading).
 
 
 ## Relationship to Other Tools

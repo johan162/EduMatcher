@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Coroutine
 from typing import Any
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status
+from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect, status
 from pydantic import ValidationError
 
 from edumatcher.api_gateway.events import market_data_symbol, now_iso
@@ -141,6 +142,39 @@ async def _authenticate_ws(websocket: WebSocket) -> tuple[str, str | None]:
     return api_key, credential.gateway_id
 
 
+async def _until_client_closes(websocket: WebSocket) -> None:
+    """Return when the client closes the socket; ignore what else it sends."""
+    while True:
+        message = await websocket.receive()
+        if message["type"] == "websocket.disconnect":
+            return
+
+
+async def _send_until_closed(
+    websocket: WebSocket, sender: Coroutine[Any, Any, None]
+) -> None:
+    """Run *sender* until it ends or fails, or the client closes.
+
+    A handler that only sends notices a closed socket when its next send
+    fails, which for an idle client is never: the handler, its queue and its
+    sink stay registered, and uvicorn's graceful shutdown waits for it, so
+    SIGTERM did not stop the process. Racing a receiver that ends on the
+    client's close, as the market-data socket does, ends it at once.
+    """
+    tasks = {
+        asyncio.create_task(sender),
+        asyncio.create_task(_until_client_closes(websocket)),
+    }
+    try:
+        done, _ = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+    finally:
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+    for task in done:
+        task.result()
+
+
 @router.websocket("/private")
 async def private_events(websocket: WebSocket) -> None:
     await websocket.accept()
@@ -158,50 +192,56 @@ async def private_events(websocket: WebSocket) -> None:
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
             return
         engine = websocket.app.state.engine
-        # Register the sink *before* the snapshot is taken and sent. Doing it
-        # after would drop every event that landed in between — the gap a
-        # reconnecting client is least able to notice, because the snapshot
-        # would look complete. Registering first means the worst case is a
-        # duplicate: an event both included in the snapshot and delivered
-        # live. Order state is idempotent, so applying it twice is harmless,
-        # whereas missing it is not.
+        # Register the sink *before* the snapshot is asked for. The snapshot
+        # is cut at the engine's `order.orders` reply, which arrives through
+        # this same queue: everything numbered above it is live, and nothing
+        # can fall between the two.
         queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue(maxsize=256)
         engine.add_sink(gateway_id, queue)
-        try:
-            await websocket.send_json(
-                {
-                    "type": "authenticated",
-                    "gateway_id": gateway_id,
-                    "stream_seq": engine.stream_seq(gateway_id),
-                }
-            )
-            # The snapshot removes the reconnect round-trip to GET /orders and
-            # the race it opens. `stream_seq` is the point the snapshot is
-            # accurate as of: anything numbered above it arrives live.
-            cache = engine.get_caches(gateway_id)
-            await websocket.send_json(
-                {
-                    "type": "orders.snapshot",
-                    "gateway_id": gateway_id,
-                    "stream_seq": engine.stream_seq(gateway_id),
-                    "ts": now_iso(),
-                    "data": {
-                        "orders": list(cache.orders.values()),
-                        "positions": dict(cache.positions),
-                        "quote_legs": list(cache.quote_legs.values()),
-                    },
-                }
-            )
-        except Exception:
-            log.exception("[%s] private stream snapshot/setup failed", gateway_id)
-            engine.remove_sink(gateway_id, queue)
-            raise
-        try:
+
+        async def _stream() -> None:
+            try:
+                await websocket.send_json(
+                    {
+                        "type": "authenticated",
+                        "gateway_id": gateway_id,
+                        "stream_seq": engine.stream_seq(gateway_id),
+                    }
+                )
+                # The engine's state, not this process's memory, which is
+                # empty after a gateway restart (H1). `stream_seq` is the
+                # point it is accurate as of.
+                try:
+                    stream_seq, data = await engine.private_snapshot(
+                        gateway_id,
+                        queue,
+                        websocket.app.state.config.timeouts.engine_reply_sec,
+                    )
+                except TimeoutError:
+                    # No partial snapshot: a client rebuilds its order state
+                    # from it, so try again later is the honest answer.
+                    log.warning("[%s] private snapshot: engine timeout", gateway_id)
+                    await websocket.close(code=status.WS_1013_TRY_AGAIN_LATER)
+                    return
+                await websocket.send_json(
+                    {
+                        "type": "orders.snapshot",
+                        "gateway_id": gateway_id,
+                        "stream_seq": stream_seq,
+                        "ts": now_iso(),
+                        "data": data,
+                    }
+                )
+            except Exception:
+                log.exception("[%s] private stream snapshot/setup failed", gateway_id)
+                raise
             while True:
-                event = await queue.get()
-                await websocket.send_json(event)
+                await websocket.send_json(await queue.get())
+
+        try:
+            await _send_until_closed(websocket, _stream())
         finally:
-            websocket.app.state.engine.remove_sink(gateway_id, queue)
+            engine.remove_sink(gateway_id, queue)
     except WebSocketDisconnect, TimeoutError:
         return
 
@@ -229,6 +269,30 @@ async def _next_admin_batch(
     return batch
 
 
+async def _admin_confirmed(websocket: WebSocket, gateway_id: str) -> bool:
+    """Whether *gateway_id* holds the ADMIN role; closes the socket if not.
+
+    A role the engine did not confirm in time is `1013` (try again later),
+    not a refusal: nothing is granted, but the client is not told it lacks a
+    role it may hold (C2).
+    """
+    try:
+        role = await websocket.app.state.engine.resolve_role(
+            gateway_id, websocket.app.state.config.timeouts.engine_reply_sec
+        )
+    except HTTPException:
+        log.warning("[%s] admin socket: role not confirmed by the engine", gateway_id)
+        await websocket.close(code=status.WS_1013_TRY_AGAIN_LATER)
+        return False
+    if role != "ADMIN":
+        await websocket.send_json(
+            {"type": "error", "data": {"message": "ADMIN role required"}}
+        )
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        return False
+    return True
+
+
 @router.websocket("/admin/monitor")
 async def admin_monitor(websocket: WebSocket) -> None:
     await websocket.accept()
@@ -249,14 +313,7 @@ async def admin_monitor(websocket: WebSocket) -> None:
             await websocket.send_json({"type": "error", "data": {"message": reason}})
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
             return
-        role = await engine.resolve_role(
-            gateway_id, websocket.app.state.config.timeouts.engine_reply_sec
-        )
-        if role != "ADMIN":
-            await websocket.send_json(
-                {"type": "error", "data": {"message": "ADMIN role required"}}
-            )
-            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        if not await _admin_confirmed(websocket, gateway_id):
             return
         queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue(maxsize=_ADMIN_QUEUE_MAX)
         # Registered before the snapshot for the same reason as the private
@@ -270,9 +327,13 @@ async def admin_monitor(websocket: WebSocket) -> None:
             log.exception("[%s] admin monitor snapshot/setup failed", gateway_id)
             engine.remove_admin_sink(queue)
             raise
-        try:
+
+        async def _stream() -> None:
             while True:
                 await websocket.send_json(await _next_admin_batch(queue))
+
+        try:
+            await _send_until_closed(websocket, _stream())
         finally:
             engine.remove_admin_sink(queue)
     except WebSocketDisconnect, TimeoutError:
@@ -285,18 +346,13 @@ async def admin_sim(websocket: WebSocket) -> None:
     await websocket.accept()
     try:
         _, gateway_id = await _authenticate_ws(websocket)
-        role = (
-            await websocket.app.state.engine.resolve_role(
-                gateway_id, websocket.app.state.config.timeouts.engine_reply_sec
-            )
-            if gateway_id is not None
-            else None
-        )
-        if role != "ADMIN":
+        if gateway_id is None:
             await websocket.send_json(
                 {"type": "error", "data": {"message": "ADMIN role required"}}
             )
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+            return
+        if not await _admin_confirmed(websocket, gateway_id):
             return
         sim = websocket.app.state.sim
         queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue(maxsize=64)
@@ -304,8 +360,12 @@ async def admin_sim(websocket: WebSocket) -> None:
         try:
             await websocket.send_json({"type": "authenticated"})
             await websocket.send_json({"type": "sim.snapshot", "data": sim.snapshot()})
-            while True:
-                await websocket.send_json(await queue.get())
+
+            async def _stream() -> None:
+                while True:
+                    await websocket.send_json(await queue.get())
+
+            await _send_until_closed(websocket, _stream())
         finally:
             sim.remove_sink(queue)
     except WebSocketDisconnect, TimeoutError:
@@ -315,7 +375,7 @@ async def admin_sim(websocket: WebSocket) -> None:
 async def _monitor_snapshot(websocket: WebSocket, gateway_id: str) -> dict[str, Any]:
     """Assemble the admin monitor's opening state.
 
-    Orders come from the gateway's own cross-gateway cache. Halts and the
+    Working orders come from the gateway's own cross-gateway cache. Halts and the
     gateway roster come from the **engine**, not from local state:
     `engine.active_gateways()` lists only the gateways that authenticated
     through *this* API gateway instance, so an admin monitor built on it
@@ -353,7 +413,11 @@ async def _monitor_snapshot(websocket: WebSocket, gateway_id: str) -> dict[str, 
         "type": "monitor.snapshot",
         "ts": now_iso(),
         "data": {
-            "orders": engine.all_orders(),
+            # Working orders only (Q5): terminal history is in
+            # GET /admin/orders and the audit view, and sending every
+            # retained terminal order stalled the loop and built a 77 MiB
+            # frame at the s300 open (P1).
+            "orders": engine.all_orders(working=True),
             "halts": halts,
             "gateways": gateways,
             "last_seq": {

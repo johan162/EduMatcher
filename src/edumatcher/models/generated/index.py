@@ -70,151 +70,6 @@ class DaySummary:
         }
 
 
-_HISTORY_RECORD_TYPE_VALUES = (
-    "INIT",
-    "CORP_ACTION",
-    "ADD_CONSTITUENT",
-    "DELIST",
-    "REBALANCE",
-)
-HistoryRecordType = Literal[
-    "INIT",
-    "CORP_ACTION",
-    "ADD_CONSTITUENT",
-    "DELIST",
-    "REBALANCE",
-]
-
-
-@dataclass(frozen=True, slots=True)
-class HistoryRecord:
-    """One structural audit entry, replayed verbatim from pm-index's append-only
-    JSONL archive. This is a union of five shapes discriminated by `type`, and the
-    IDL has no variant construct (section 20.3). Every field the five do not share
-    is therefore optional, and the spec cannot state "a CORP_ACTION always carries
-    action and detail" - that rule lives in _handle_corp_action. What it can state
-    is the field set, the units and the types, which is what every consumer needs:
-    all six read the records with `.get(key, default)` and dispatch on `type`. The
-    optional fields omit rather than null because the archive omits: a record
-    written before this spec existed must read back and re-emit unchanged, or
-    specifying the family would rewrite history.
-    """
-
-    type: HistoryRecordType
-    ts_ns: int  # unit: epoch_nanos
-    index_id: str
-    level: float  # unit: dimensionless
-    symbol: str = ""
-    action: str = ""
-    detail: str = ""
-    old_divisor: float | None = None  # unit: dimensionless
-    new_divisor: float | None = None  # unit: dimensionless
-    base_value: float | None = None  # unit: dimensionless
-    divisor: float | None = None  # unit: dimensionless
-    constituents: list[str] = field(default_factory=list)
-    shares_outstanding: int | None = None  # unit: shares
-    reference_price: float | None = None  # unit: display_price
-    symbols: list[str] = field(default_factory=list)
-
-    def validate(self) -> None:
-        """Raise MessageValidationError if any declared rule fails.
-
-        The only strictness gate: ``from_dict`` coerces but never validates, so a reader
-        of historical data can opt out of the rules by calling ``from_dict`` alone
-        (design section 5.1.1).
-        """
-        if self.type not in _HISTORY_RECORD_TYPE_VALUES:
-            raise MessageValidationError(
-                f"type: {self.type!r} is not one of {_HISTORY_RECORD_TYPE_VALUES!r}"
-            )
-        if len(self.index_id) > 32:
-            raise MessageValidationError(
-                f"index_id: length {len(self.index_id)} exceeds max_len 32"
-            )
-        if len(self.symbol) > 16:
-            raise MessageValidationError(
-                f"symbol: length {len(self.symbol)} exceeds max_len 16"
-            )
-        if len(self.action) > 32:
-            raise MessageValidationError(
-                f"action: length {len(self.action)} exceeds max_len 32"
-            )
-        if len(self.detail) > 128:
-            raise MessageValidationError(
-                f"detail: length {len(self.detail)} exceeds max_len 128"
-            )
-
-    @classmethod
-    def from_dict(cls, p: Mapping[str, Any]) -> "HistoryRecord":
-        """Coerce a payload mapping into this message. Does NOT validate.
-
-        Mirrors the hand-written payload's coercion exactly, including its lenient
-        fallbacks, so it is a drop-in replacement for readers of already-published data
-        (design section 5.1.1).
-        """
-        return cls(
-            type=cast(HistoryRecordType, str(p["type"])),
-            ts_ns=int(p["ts_ns"]),
-            index_id=str(p["index_id"]),
-            level=float(p["level"]),
-            symbol=str(p.get("symbol", "")),
-            action=str(p.get("action", "")),
-            detail=str(p.get("detail", "")),
-            old_divisor=(
-                None if p.get("old_divisor") is None else float(p["old_divisor"])
-            ),
-            new_divisor=(
-                None if p.get("new_divisor") is None else float(p["new_divisor"])
-            ),
-            base_value=None if p.get("base_value") is None else float(p["base_value"]),
-            divisor=None if p.get("divisor") is None else float(p["divisor"]),
-            constituents=[str(item) for item in p.get("constituents", [])],
-            shares_outstanding=(
-                None
-                if p.get("shares_outstanding") is None
-                else int(p["shares_outstanding"])
-            ),
-            reference_price=(
-                None
-                if p.get("reference_price") is None
-                else float(p["reference_price"])
-            ),
-            symbols=[str(item) for item in p.get("symbols", [])],
-        )
-
-    def to_dict(self) -> dict[str, Any]:
-        """Return the bus payload, in the spec's declared field order."""
-        payload: dict[str, Any] = {
-            "type": self.type,
-            "ts_ns": self.ts_ns,
-            "index_id": self.index_id,
-            "level": self.level,
-        }
-        if self.symbol:
-            payload["symbol"] = self.symbol
-        if self.action:
-            payload["action"] = self.action
-        if self.detail:
-            payload["detail"] = self.detail
-        if self.old_divisor is not None:
-            payload["old_divisor"] = self.old_divisor
-        if self.new_divisor is not None:
-            payload["new_divisor"] = self.new_divisor
-        if self.base_value is not None:
-            payload["base_value"] = self.base_value
-        if self.divisor is not None:
-            payload["divisor"] = self.divisor
-        if self.constituents:
-            payload["constituents"] = self.constituents
-        if self.shares_outstanding is not None:
-            payload["shares_outstanding"] = self.shares_outstanding
-        if self.reference_price is not None:
-            payload["reference_price"] = self.reference_price
-        if self.symbols:
-            payload["symbols"] = self.symbols
-        return payload
-
-
 @dataclass(frozen=True, slots=True)
 class RebalanceUpdate:
     """One entry of a rebalance batch. Mechanically a SHARES_ISSUANCE corporate
@@ -260,6 +115,157 @@ class RebalanceUpdate:
             "symbol": self.symbol,
             "new_shares_outstanding": self.new_shares_outstanding,
         }
+
+
+_HISTORY_RECORD_TYPE_VALUES = (
+    "INIT",
+    "CORP_ACTION",
+    "ADD_CONSTITUENT",
+    "DELIST",
+    "REBALANCE",
+)
+HistoryRecordType = Literal[
+    "INIT",
+    "CORP_ACTION",
+    "ADD_CONSTITUENT",
+    "DELIST",
+    "REBALANCE",
+]
+
+
+@dataclass(frozen=True, slots=True)
+class HistoryRecord:
+    """One structural audit entry, replayed verbatim from pm-index's append-only
+    JSONL archive. This is a union of five shapes discriminated by `type`, and the
+    IDL has no variant construct (section 20.3). Every field the five do not share
+    is therefore optional, and the spec cannot state "a CORP_ACTION always carries
+    action and detail" - that rule lives in _handle_corp_action. What it can state
+    is the field set, the units and the types, which is what every consumer needs:
+    all six read the records with `.get(key, default)` and dispatch on `type`. The
+    optional fields omit rather than null because the archive omits: a record
+    written before this spec existed must read back and re-emit unchanged, or
+    specifying the family would rewrite history.
+    """
+
+    type: HistoryRecordType
+    ts_ns: int  # unit: epoch_nanos
+    index_id: str
+    level: float  # unit: dimensionless
+    symbol: str = ""
+    action: str = ""
+    detail: str = ""
+    old_divisor: float | None = None  # unit: dimensionless
+    new_divisor: float | None = None  # unit: dimensionless
+    base_value: float | None = None  # unit: dimensionless
+    divisor: float | None = None  # unit: dimensionless
+    constituents: list[str] = field(default_factory=list)
+    shares_outstanding: int | None = None  # unit: shares
+    reference_price: float | None = None  # unit: display_price
+    symbols: list[str] = field(default_factory=list)
+    updates: list[RebalanceUpdate] = field(default_factory=list)
+
+    def validate(self) -> None:
+        """Raise MessageValidationError if any declared rule fails.
+
+        The only strictness gate: ``from_dict`` coerces but never validates, so a reader
+        of historical data can opt out of the rules by calling ``from_dict`` alone
+        (design section 5.1.1).
+        """
+        if self.type not in _HISTORY_RECORD_TYPE_VALUES:
+            raise MessageValidationError(
+                f"type: {self.type!r} is not one of {_HISTORY_RECORD_TYPE_VALUES!r}"
+            )
+        if len(self.index_id) > 32:
+            raise MessageValidationError(
+                f"index_id: length {len(self.index_id)} exceeds max_len 32"
+            )
+        if len(self.symbol) > 16:
+            raise MessageValidationError(
+                f"symbol: length {len(self.symbol)} exceeds max_len 16"
+            )
+        if len(self.action) > 32:
+            raise MessageValidationError(
+                f"action: length {len(self.action)} exceeds max_len 32"
+            )
+        if len(self.detail) > 128:
+            raise MessageValidationError(
+                f"detail: length {len(self.detail)} exceeds max_len 128"
+            )
+        for updates_item in self.updates:
+            updates_item.validate()
+
+    @classmethod
+    def from_dict(cls, p: Mapping[str, Any]) -> "HistoryRecord":
+        """Coerce a payload mapping into this message. Does NOT validate.
+
+        Mirrors the hand-written payload's coercion exactly, including its lenient
+        fallbacks, so it is a drop-in replacement for readers of already-published data
+        (design section 5.1.1).
+        """
+        return cls(
+            type=cast(HistoryRecordType, str(p["type"])),
+            ts_ns=int(p["ts_ns"]),
+            index_id=str(p["index_id"]),
+            level=float(p["level"]),
+            symbol=str(p.get("symbol", "")),
+            action=str(p.get("action", "")),
+            detail=str(p.get("detail", "")),
+            old_divisor=(
+                None if p.get("old_divisor") is None else float(p["old_divisor"])
+            ),
+            new_divisor=(
+                None if p.get("new_divisor") is None else float(p["new_divisor"])
+            ),
+            base_value=None if p.get("base_value") is None else float(p["base_value"]),
+            divisor=None if p.get("divisor") is None else float(p["divisor"]),
+            constituents=[str(item) for item in p.get("constituents", [])],
+            shares_outstanding=(
+                None
+                if p.get("shares_outstanding") is None
+                else int(p["shares_outstanding"])
+            ),
+            reference_price=(
+                None
+                if p.get("reference_price") is None
+                else float(p["reference_price"])
+            ),
+            symbols=[str(item) for item in p.get("symbols", [])],
+            updates=[RebalanceUpdate.from_dict(item) for item in p.get("updates", [])],
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return the bus payload, in the spec's declared field order."""
+        payload: dict[str, Any] = {
+            "type": self.type,
+            "ts_ns": self.ts_ns,
+            "index_id": self.index_id,
+            "level": self.level,
+        }
+        if self.symbol:
+            payload["symbol"] = self.symbol
+        if self.action:
+            payload["action"] = self.action
+        if self.detail:
+            payload["detail"] = self.detail
+        if self.old_divisor is not None:
+            payload["old_divisor"] = self.old_divisor
+        if self.new_divisor is not None:
+            payload["new_divisor"] = self.new_divisor
+        if self.base_value is not None:
+            payload["base_value"] = self.base_value
+        if self.divisor is not None:
+            payload["divisor"] = self.divisor
+        if self.constituents:
+            payload["constituents"] = self.constituents
+        if self.shares_outstanding is not None:
+            payload["shares_outstanding"] = self.shares_outstanding
+        if self.reference_price is not None:
+            payload["reference_price"] = self.reference_price
+        if self.symbols:
+            payload["symbols"] = self.symbols
+        if self.updates:
+            payload["updates"] = [item.to_dict() for item in self.updates]
+        return payload
 
 
 TOPIC_INDEX_UPDATE = "index.update"
@@ -836,8 +842,15 @@ _INDEX_CORP_ACTION_FIELDS: tuple[dict[str, Any], ...] = (
         "type": "int",
         "unit": "shares",
         "required": False,
-        "doc": "SHARES_ISSUANCE.",
+        "doc": "SHARES_ISSUANCE: the new absolute count.",
         "constraints": {"gt": 0},
+    },
+    {
+        "name": "shares_delta",
+        "type": "int",
+        "unit": "shares",
+        "required": False,
+        "doc": "SHARES_ISSUANCE: a signed change to pm-index's live count (negative for a buy-back), applied by pm-index so no client has to know the count. Exactly one of this and new_shares_outstanding; the handler enforces that, the IDL cannot say it (section 20.3).",
     },
     {
         "name": "command_id",
@@ -854,11 +867,11 @@ _INDEX_CORP_ACTION_FIELDS: tuple[dict[str, Any], ...] = (
 class IndexCorpAction:
     """Operator to pm-index: apply a corporate action.
 
-    The four parameters are action-specific and flat: SPLIT reads the two ratio fields,
-    CASH_DIVIDEND reads dividend_per_share, SHARES_ISSUANCE reads
-    new_shares_outstanding, and each is read with `.get(key, 0)` inside its own branch
-    of _handle_corp_action. A discriminated union would say that properly and the IDL
-    has none - see design section 20.3 for why one was not built for a single family.
+    The five parameters are action-specific and flat: SPLIT reads the two ratio fields,
+    CASH_DIVIDEND reads dividend_per_share, SHARES_ISSUANCE reads exactly one of
+    new_shares_outstanding and shares_delta, each in its own branch of
+    _handle_corp_action. A discriminated union would say that properly and the IDL has
+    none - see design section 20.3 for why one was not built for a single family.
     """
 
     action: IndexCorpActionAction
@@ -869,6 +882,7 @@ class IndexCorpAction:
     ratio_denominator: int | None = None  # unit: dimensionless
     dividend_per_share: float | None = None  # unit: money
     new_shares_outstanding: int | None = None  # unit: shares
+    shares_delta: int | None = None  # unit: shares
     command_id: str = ""
 
     def validate(self) -> None:
@@ -950,6 +964,9 @@ class IndexCorpAction:
                 if p.get("new_shares_outstanding") is None
                 else int(p["new_shares_outstanding"])
             ),
+            shares_delta=(
+                None if p.get("shares_delta") is None else int(p["shares_delta"])
+            ),
             command_id=str(p.get("command_id", "")),
         )
 
@@ -969,6 +986,8 @@ class IndexCorpAction:
             payload["dividend_per_share"] = self.dividend_per_share
         if self.new_shares_outstanding is not None:
             payload["new_shares_outstanding"] = self.new_shares_outstanding
+        if self.shares_delta is not None:
+            payload["shares_delta"] = self.shares_delta
         if self.command_id:
             payload["command_id"] = self.command_id
         return payload
@@ -1004,6 +1023,7 @@ def make_index_corp_action_unchecked(
     ratio_denominator: int | None = None,
     dividend_per_share: float | None = None,
     new_shares_outstanding: int | None = None,
+    shares_delta: int | None = None,
     command_id: str = "",
 ) -> list[bytes]:
     """Identical frames to ``make_index_corp_action``, without ``validate()``.
@@ -1030,6 +1050,8 @@ def make_index_corp_action_unchecked(
         payload["dividend_per_share"] = float(dividend_per_share)
     if new_shares_outstanding is not None:
         payload["new_shares_outstanding"] = int(new_shares_outstanding)
+    if shares_delta is not None:
+        payload["shares_delta"] = int(shares_delta)
     if command_id:
         payload["command_id"] = str(command_id)
     return [
@@ -1502,6 +1524,13 @@ _INDEX_CORP_ACTION_ACK_FIELDS: tuple[dict[str, Any], ...] = (
         "doc": "The divisor immediately before this action was applied. Same field name and purpose as HistoryRecord.old_divisor, so a post-mortem does not need pm-index's local JSONL archive to see what changed — the wire event is self-contained. Present only alongside divisor, i.e. on acceptance.",
     },
     {
+        "name": "shares_outstanding",
+        "type": "int",
+        "unit": "shares",
+        "required": False,
+        "doc": "The constituent's share count after the action, on acceptance only. A SHARES_ISSUANCE sent as shares_delta learns the count it resulted in from here.",
+    },
+    {
         "name": "command_id",
         "type": "string",
         "unit": None,
@@ -1530,6 +1559,7 @@ class IndexCorpActionAck:
     level: float | None = None  # unit: dimensionless
     divisor: float | None = None  # unit: dimensionless
     old_divisor: float | None = None  # unit: dimensionless
+    shares_outstanding: int | None = None  # unit: shares
     command_id: str = ""
 
     def validate(self) -> None:
@@ -1575,6 +1605,11 @@ class IndexCorpActionAck:
             old_divisor=(
                 None if p.get("old_divisor") is None else float(p["old_divisor"])
             ),
+            shares_outstanding=(
+                None
+                if p.get("shares_outstanding") is None
+                else int(p["shares_outstanding"])
+            ),
             command_id=str(p.get("command_id", "")),
         )
 
@@ -1593,6 +1628,8 @@ class IndexCorpActionAck:
             payload["divisor"] = self.divisor
         if self.old_divisor is not None:
             payload["old_divisor"] = self.old_divisor
+        if self.shares_outstanding is not None:
+            payload["shares_outstanding"] = self.shares_outstanding
         if self.command_id:
             payload["command_id"] = self.command_id
         return payload
@@ -1634,6 +1671,7 @@ def make_index_corp_action_ack_unchecked(
     level: float | None = None,
     divisor: float | None = None,
     old_divisor: float | None = None,
+    shares_outstanding: int | None = None,
     command_id: str = "",
 ) -> list[bytes]:
     """Identical frames to ``make_index_corp_action_ack``, without ``validate()``.
@@ -1659,6 +1697,8 @@ def make_index_corp_action_ack_unchecked(
         payload["divisor"] = float(divisor)
     if old_divisor is not None:
         payload["old_divisor"] = float(old_divisor)
+    if shares_outstanding is not None:
+        payload["shares_outstanding"] = int(shares_outstanding)
     if command_id:
         payload["command_id"] = str(command_id)
     return [

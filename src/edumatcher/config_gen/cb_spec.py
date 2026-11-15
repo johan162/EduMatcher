@@ -38,8 +38,11 @@ def parse_cb_spec(raw: str) -> CbSpec:
             raise ValueError(
                 f"Invalid halt_mins in circuit-breaker spec '{raw}'"
             ) from exc
-        if parsed_halt < 0:
-            raise ValueError(f"halt_mins must be >= 0 in circuit-breaker spec '{raw}'")
+        if parsed_halt <= 0:
+            raise ValueError(
+                f"HALT_MINS must be > 0 in circuit-breaker spec '{raw}'; "
+                "omit it for a rest-of-day halt"
+            )
         halt_mins = parsed_halt
 
     return CbSpec(name=name, shift_pct=shift_pct, halt_mins=halt_mins)

@@ -229,9 +229,16 @@ def _resolve_credentials_files(
     return resolved
 
 
-def load_config_mapping(path: Path) -> LoadedConfig:
-    """Parse *path*, resolve its ``include:`` list and return the merged mapping."""
-    main_raw = _read_mapping(path)
+def load_config_mapping(
+    path: Path, main_raw: dict[str, Any] | None = None
+) -> LoadedConfig:
+    """Parse *path*, resolve its ``include:`` list and return the merged mapping.
+
+    *main_raw* is *path* already parsed (pm-cverifier parses it first to
+    classify syntax errors); passing it saves parsing the file twice.
+    """
+    if main_raw is None:
+        main_raw = _read_mapping(path)
     includes = _include_paths(path, main_raw)
     merged = {k: v for k, v in main_raw.items() if k != INCLUDE_KEY}
     origin = {k: path for k in merged}

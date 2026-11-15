@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from edumatcher.config_include import LoadedConfig
+from edumatcher.engine.config_loader import EngineConfig
 from edumatcher.cverifier import (
     layer1_yaml,
     layer2_schema,
@@ -106,46 +107,56 @@ def _attribute(
 
 def run_layers(
     config_path: Path,
-) -> tuple[list[LayerOutcome], dict[str, Any] | None]:
+) -> tuple[list[LayerOutcome], dict[str, Any] | None, EngineConfig | None]:
     """Run the verification layers, recording per-layer outcomes.
 
     Layers 3 and 4 are skipped when Layer 1 or Layer 2 reports an error, since
     later checks assume a syntactically valid, schema-correct document.
+
+    Returns the outcomes, the parsed mapping (None when it could not be
+    loaded) and the EngineConfig the engine loader builds from it (None
+    when it refuses the file or did not run).
     """
     layers: list[LayerOutcome] = []
 
-    def _skip_rest(*names: str) -> None:
+    def _skip_rest(reason: str, *names: str) -> None:
         for name in names:
-            layers.append(LayerOutcome(name, status="skipped"))
+            layers.append(LayerOutcome(name, status="skipped", skip_reason=reason))
 
     # Layer 1 — YAML syntax (parse the file exactly once and reuse the result).
     l1, raw, loaded = layer1_yaml.load_with_origins(config_path)
     layers.append(LayerOutcome("YAML syntax", "ran", l1))
     if any(r.severity is Severity.ERROR for r in l1) or raw is None:
-        _skip_rest("Schema", "Semantic", "Completeness")
-        return layers, None
+        _skip_rest("fix the YAML error first", "Schema", "Semantic", "Completeness")
+        return layers, None, None
 
     # Layer 2 — Schema
     l2 = _attribute(layer2_schema.check(raw, config_path), loaded)
     layers.append(LayerOutcome("Schema", "ran", l2))
     if any(r.severity is Severity.ERROR for r in l2):
-        _skip_rest("Semantic", "Completeness")
-        return layers, raw
+        _skip_rest("fix schema errors first", "Semantic", "Completeness")
+        # The later layers are skipped, but the Risk Summary still describes
+        # what the engine would apply if the file loads.
+        _findings, engine = layer2_schema.check_engine_loader(raw, l2)
+        return layers, raw, engine
 
-    # Layer 3 — Semantic
+    # Layer 3 — Semantic, then the engine loader itself (S132), so that an
+    # OK here means pm-config-deploy compiles the engine section.
     l3 = _attribute(layer3_semantic.check(raw, config_path), loaded)
+    backstop, engine = layer2_schema.check_engine_loader(raw, l2 + l3)
+    l3.extend(backstop)
     layers.append(LayerOutcome("Semantic", "ran", l3))
 
     # Layer 4 — Completeness
     l4 = _attribute(layer4_complete.check(raw, config_path), loaded)
     layers.append(LayerOutcome("Completeness", "ran", l4))
 
-    return layers, raw
+    return layers, raw, engine
 
 
 def run(config_path: Path) -> tuple[list[CheckResult], dict[str, Any] | None]:
     """Run all verification layers; return (flat results, raw)."""
-    layers, raw = run_layers(config_path)
+    layers, raw, _engine = run_layers(config_path)
     results = [r for layer in layers for r in layer.results]
     return results, raw
 
@@ -161,14 +172,18 @@ def main(argv: list[str] | None = None) -> None:
     if args.no_color:
         color = False
 
-    layers, raw = run_layers(config_path)
+    try:
+        layers, raw, engine = run_layers(config_path)
+        rs = risk_summary_mod.build(raw, engine) if raw is not None else RiskSummary()
+    except Exception as exc:
+        # A crash must not look like exit 1 ("warnings only") to a CI step.
+        print(
+            f"[ERROR] pm-cverifier cannot verify {config_path}: "
+            f"{type(exc).__name__}: {exc}",
+            file=sys.stderr,
+        )
+        sys.exit(_EXIT_ERROR)
     results = [r for layer in layers for r in layer.results]
-
-    rs: RiskSummary
-    if raw is not None:
-        rs = risk_summary_mod.build(raw)
-    else:
-        rs = RiskSummary()
 
     n_errors = sum(1 for r in results if r.severity is Severity.ERROR)
     n_warns = sum(1 for r in results if r.severity is Severity.WARN)

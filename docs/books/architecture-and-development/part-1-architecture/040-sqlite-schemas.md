@@ -40,6 +40,7 @@ constraints, keys, defaults, indexes, and views where defined.
 | `table: feed_gaps` | `seq` | `INTEGER` | no |  | 1 |
 | `table: feed_gaps` | `ts` | `TEXT` | yes |  |  |
 | `table: feed_gaps` | `stream` | `TEXT` | yes |  |  |
+| `table: feed_gaps` | `source` | `TEXT` | yes |  |  |
 | `table: feed_gaps` | `expected_id` | `INTEGER` | yes |  |  |
 | `table: feed_gaps` | `received_id` | `INTEGER` | yes |  |  |
 | `table: feed_gaps` | `missing_count` | `INTEGER` | yes |  |  |
@@ -155,6 +156,11 @@ CREATE TABLE feed_gaps (
     seq             INTEGER PRIMARY KEY AUTOINCREMENT,
     ts              TEXT    NOT NULL,
     stream          TEXT    NOT NULL,
+    -- Which check found the gap, and so which counter the ids below are in:
+    -- 'publisher_seq' (the per-topic publisher sequence; any stream, counts
+    -- messages) or 'trade_id' (the engine trade-id suffix; trade.executed
+    -- only, counts trades). One lost trade is usually found by both.
+    source          TEXT    NOT NULL,
     -- The id we expected next, the one that actually arrived, and how many
     -- are unaccounted for between them.
     expected_id     INTEGER NOT NULL,
@@ -240,6 +246,9 @@ CREATE TABLE order_events (
     side            TEXT,
     order_type      TEXT,
     tif             TEXT,
+    -- price and fill_price are display money exactly as the engine published
+    -- them on the private order events, not ticks; there is no tick_decimals
+    -- column here.
     price           REAL,
     quantity        INTEGER,
     remaining_qty   INTEGER,
@@ -377,6 +386,12 @@ CREATE INDEX idx_tl_symbol_qty ON trade_log(symbol, quantity DESC, ts)
 
 ```sql
 CREATE INDEX idx_tl_symbol_ts ON trade_log(symbol, ts)
+```
+
+#### `index idx_tl_ts`
+
+```sql
+CREATE INDEX idx_tl_ts ON trade_log(ts)
 ```
 
 ## `clearing.db`
@@ -697,11 +712,11 @@ CREATE INDEX ix_trade_events_buy_gw_date
   ON trade_events(buy_gateway_id, trade_date)
 ```
 
-#### `index ix_trade_events_date`
+#### `index ix_trade_events_date_ts`
 
 ```sql
-CREATE INDEX ix_trade_events_date
-  ON trade_events(trade_date)
+CREATE INDEX ix_trade_events_date_ts
+  ON trade_events(trade_date, ts_ns, ingest_ts_ns, id)
 ```
 
 #### `index ix_trade_events_sell_gw_date`
@@ -735,6 +750,12 @@ CREATE INDEX ix_trade_events_ts
 
 | Object | Field | Declared type | Not null | Default | Primary key |
 |---|---|---|---|---|---|
+| `table: eod_close_equity` | `trade_date` | `TEXT` | yes |  | 1 |
+| `table: eod_close_equity` | `gateway_id` | `TEXT` | yes |  | 2 |
+| `table: eod_close_equity` | `symbol` | `TEXT` | yes |  | 3 |
+| `table: eod_close_equity` | `equity` | `TEXT` | yes |  |  |
+| `table: eod_close_source` | `trade_date` | `TEXT` | no |  | 1 |
+| `table: eod_close_source` | `clearing_instance` | `TEXT` | no |  |  |
 | `table: eod_runs` | `trade_date` | `TEXT` | no |  | 1 |
 | `table: eod_runs` | `status` | `TEXT` | yes |  |  |
 | `table: eod_runs` | `started_at` | `TEXT` | yes |  |  |
@@ -746,6 +767,28 @@ CREATE INDEX ix_trade_events_ts
 | `table: eod_settlement` | `detail_json` | `TEXT` | yes |  |  |
 
 ### DDL
+
+#### `table eod_close_equity`
+
+```sql
+CREATE TABLE eod_close_equity (
+  trade_date TEXT NOT NULL,  -- YYYY-MM-DD, a date in eod_settlement
+  gateway_id TEXT NOT NULL,
+  symbol     TEXT NOT NULL,
+  -- Exact decimal string in display currency (not minor units, not rounded).
+  equity     TEXT NOT NULL,
+  PRIMARY KEY (trade_date, gateway_id, symbol)
+)
+```
+
+#### `table eod_close_source`
+
+```sql
+CREATE TABLE eod_close_source (
+  trade_date        TEXT PRIMARY KEY,  -- YYYY-MM-DD, a date in eod_settlement
+  clearing_instance TEXT
+)
+```
 
 #### `table eod_runs`
 
@@ -1094,6 +1137,12 @@ CREATE VIEW v_samples_raw AS
 
 ```sql
 CREATE INDEX idx_daily_name ON daily_totals(name, label, date)
+```
+
+#### `index idx_daily_name_date`
+
+```sql
+CREATE INDEX idx_daily_name_date ON daily_totals(name, date)
 ```
 
 #### `index idx_ev_ts`

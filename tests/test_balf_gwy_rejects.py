@@ -11,6 +11,7 @@ from tests.test_balf_gwy_k11_k12 import (  # noqa: F401  (fixtures)
     GW,
     _connect,
     _logon,
+    _new_order_frame,
     _publish,
     _push,
     _ready_session,
@@ -36,7 +37,9 @@ def test_a_rate_limited_message_is_reported(gateway: BalfGateway, peers: Any) ->
     session = _ready_session(gateway, peers)
     session.rate_tokens = 0.0
     session.rate_updated = float("inf")
-    gateway._process_frame(session, 0x10, 1, b"")
+    # A whole NEW_ORDER body, as _drain_frames always hands over: since the
+    # BALF review (C2) the refused order is answered, so it is parsed.
+    gateway._process_frame(session, 0x10, 1, _new_order_frame())
     (sent,) = _sent(gateway, TOPIC)
     assert sent["reject_code"] == "RATE_LIMITED"
     assert sent["gateway_id"] == GW

@@ -20,6 +20,8 @@ from typing import Any
 
 import pytest
 
+from edumatcher.api_gateway.caches import SessionCaches
+
 from edumatcher.models.price import (
     TickViolation,
     clear_tick_registry,
@@ -254,7 +256,7 @@ def _app() -> Any:
     class _Engine:
         def get_caches(self, gateway_id: str) -> Any:
             _ = gateway_id
-            return type("Caches", (), {"orders": {}})()
+            return SessionCaches()
 
         def send_new_order(self, order: Any) -> None:
             _ = order

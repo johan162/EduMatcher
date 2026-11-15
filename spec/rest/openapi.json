@@ -201,7 +201,8 @@
                         "tif": "DAY",
                         "qty": 100,
                         "price": 187.25,
-                        "client_tag": "strategy-7"
+                        "client_tag": "strategy-7",
+                        "request": "NEW"
                       },
                       "ack_timeout": false
                     }
@@ -225,7 +226,8 @@
                         "order_type": "LIMIT",
                         "tif": "DAY",
                         "qty": 100,
-                        "client_tag": "strategy-7"
+                        "client_tag": "strategy-7",
+                        "request": "NEW"
                       },
                       "ack_timeout": false
                     }
@@ -743,7 +745,8 @@
                         "accepted": false,
                         "reason": "Order already filled",
                         "reject_code": "ORDER_ALREADY_TERMINAL",
-                        "request_tag": "cxl-1"
+                        "request_tag": "cxl-1",
+                        "request": "CANCEL"
                       },
                       "ack_timeout": false
                     }
@@ -1486,7 +1489,8 @@
                         "tif": "DAY",
                         "qty": 100,
                         "price": 187.25,
-                        "client_tag": "strategy-7"
+                        "client_tag": "strategy-7",
+                        "request": "NEW"
                       },
                       "ack_timeout": false
                     }
@@ -17149,7 +17153,7 @@
           "admin"
         ],
         "summary": "Audit trail of one order",
-        "description": "The full cross-gateway lifecycle of one order, from the audit trail.\n\nRead from `pm-audit`'s index (`audit_index.db`), **not** from the\ngateway's cache: the cache folds each event into current state and keeps\nno history, so a lifecycle served from it would be a weaker duplicate of\nan audit trail that already exists, is complete, and is durable.\n\nThe dependency is read-only and optional. If `pm-audit` is not deployed\nor has not built its index, this endpoint returns 503 with a specific\nreason and every other route is unaffected.",
+        "description": "The full cross-gateway lifecycle of one order, from the audit trail.\n\nRead from `pm-audit`'s index (`audit_index.db`), **not** from the\ngateway's cache: the cache folds each event into current state and keeps\nno history, so a lifecycle served from it would be a weaker duplicate of\nan audit trail that already exists, is complete, and is durable.\n\nThe dependency is read-only and optional. If `pm-audit` is not deployed\nor has not built its index, this endpoint returns 503 with a specific\nreason and every other route is unaffected.\n\nThe index is built by hand (`pm-audit-cli index`), so it is a snapshot:\n`indexed_through` is the stamp of its newest line, and a 404 names it,\nso an order newer than the build reads as not indexed yet.",
         "operationId": "admin_order_lifecycle",
         "security": [
           {
@@ -17195,6 +17199,7 @@
                 },
                 "example": {
                   "order_id": "9f2c4e7a1b3d4c58a6e0f1d2c3b4a596",
+                  "indexed_through": "2026-08-29T15:10:41.207+00:00",
                   "count": 2,
                   "events": [
                     {
@@ -23823,6 +23828,21 @@
             ],
             "title": "Symbols",
             "description": "REBALANCE only: the symbols the batch actually applied to."
+          },
+          "updates": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/RebalanceUpdate"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updates",
+            "description": "REBALANCE only: each symbol's new share count, so the archive says what the\nbatch set and not only which symbols it touched."
           }
         },
         "type": "object",
@@ -25286,6 +25306,18 @@
             "type": "string",
             "title": "Order Id"
           },
+          "indexed_through": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Indexed Through",
+            "description": "Stamp of the newest line in the audit index, which is built by hand (`pm-audit-cli index`): later events are not in `events` yet. Null when the index records none."
+          },
           "events": {
             "items": {
               "$ref": "#/components/schemas/AuditEvent"
@@ -25299,6 +25331,7 @@
         "required": [
           "count",
           "order_id",
+          "indexed_through",
           "events"
         ],
         "title": "OrderAudit"
@@ -27394,6 +27427,28 @@
             "symbol": "AAPL"
           }
         ]
+      },
+      "RebalanceUpdate": {
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "maxLength": 16,
+            "title": "Symbol"
+          },
+          "new_shares_outstanding": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "New Shares Outstanding",
+            "description": "Unit: shares."
+          }
+        },
+        "type": "object",
+        "required": [
+          "symbol",
+          "new_shares_outstanding"
+        ],
+        "title": "RebalanceUpdate",
+        "description": "One entry of a rebalance batch. Mechanically a SHARES_ISSUANCE corporate\naction, applied to every named existing constituent as one batch with a single\nrecompute and publish rather than one round-trip per symbol."
       },
       "RecentQuote": {
         "properties": {

@@ -2,9 +2,10 @@
 
 ## Objective
 
-Practice advanced exchange-operator controls that are documented but were not
-covered in earlier training chapters: `KICK`, `QCANCEL`, `CANCEL_SYM`, and
-manual session overrides via `SESSION|STATE=...`.
+Practice the two targeted exchange-operator controls the earlier chapters
+did not use — `KICK` and `QCANCEL` — and combine them with `CANCEL_SYM` (used
+since chapter 08) into a short incident runbook, in both the console and the
+one-shot CLI.
 
  
 
@@ -16,7 +17,9 @@ manual session overrides via `SESSION|STATE=...`.
 
 - Chapters 01-18 completed.
 - `GW_ADMIN` configured with `role: ADMIN`.
-- Engine and at least one trader and one MM gateway connected.
+- Engine running with `pm-admin --id GW_ADMIN`, `TRADER01`, `TRADER02` and a
+  `MM_AAPL_01` console connected, and the market open in `CONTINUOUS`. After
+  chapter 17's engine restart, start any of these consoles again.
 
  
 
@@ -28,7 +31,6 @@ operations, admins also need targeted controls for:
 - Disconnecting a specific participant (`KICK`).
 - Cancelling one MM quote on one symbol without killing the whole gateway (`QCANCEL`).
 - Clearing one symbol's resting book across all gateways (`CANCEL_SYM`).
-- Forcing session state for controlled drills (`SESSION|STATE=...`).
 
 These controls exist in both:
 
@@ -76,9 +78,13 @@ pm-alf-console --id TRADER02
 
 ## Exercise 2: Cancel One MM Quote with QCANCEL
 
-First ensure an MM has an active quote on AAPL.
+Give `MM_AAPL_01` an active quote on AAPL first:
 
-From admin console:
+```
+[MM_AAPL_01]> QUOTE|SYM=AAPL|BID=149.95|ASK=150.05|BID_QTY=500|ASK_QTY=500|TIF=DAY|QUOTE_ID=AAPL-QC-001
+```
+
+Then pull it from the admin console:
 
 ```
 [GW_ADMIN|ADMIN]> QCANCEL|GW=MM_AAPL_01|SYM=AAPL
@@ -90,13 +96,17 @@ Or with CLI:
 pm-admin-cli --id ADMIN_CLI qcancel --gw MM_AAPL_01 --sym AAPL
 ```
 
-Verify from MM gateway:
+The admin console answers `QCANCEL OK  MM_AAPL_01  AAPL`, and the market
+maker sees its quote go (each line also carries a `[HH:MM:SS.mmm]` time):
 
 ```
-[MM_AAPL_01]> QLEGS|SYM=AAPL|SHOW=ALL
+CANCELLED <bid_id> reason=KILL_SWITCH
+CANCELLED <ask_id> reason=KILL_SWITCH
+QUOTE CANCELLED  AAPL-QC-001  ADMIN kill switch
 ```
 
-You should see the prior quote legs no longer active.
+`QLEGS|SYM=AAPL|SHOW=ALL` on the market maker shows both legs `CANCELLED`.
+Re-send the `QUOTE` (with a new `QUOTE_ID`) before trying the CLI form.
 
 When to use this instead of manual MM-side `QUOTE_CANCEL`: use `QCANCEL` when
 the MM process is unresponsive or when operations needs immediate symbol-scoped
@@ -106,73 +116,7 @@ intervention without relying on the MM terminal.
 
  
 
-## Exercise 3: Clear One Symbol Book with CANCEL_SYM
-
-Create a few resting orders on TSLA from multiple gateways, then run:
-
-From admin console:
-
-```
-[GW_ADMIN|ADMIN]> CANCEL_SYM|SYM=TSLA
-```
-
-Or with CLI:
-
-```bash
-pm-admin-cli --id ADMIN_CLI cancel-sym --sym TSLA
-```
-
-Verify:
-
-```bash
-pm-admin-cli --id ADMIN_CLI book --sym TSLA
-```
-
-Confirm TSLA resting orders were cleared while other symbols remain unchanged.
-
-:material-checkbox-blank-outline: **Checkpoint:** symbol-scoped cancel works across gateways.
-
- 
-
-## Exercise 4: Force Session State for Controlled Drills
-
-Set session state explicitly. Transitions are validated by the engine: from
-`CLOSED` the only legal move is `PRE_OPEN`, and `PRE_OPEN` must precede
-`CONTINUOUS`. The sequence below starts from `CLOSED`; if the market is open
-(`CONTINUOUS`), the first two requests are ignored and the console or CLI
-only prints a timeout, so start from the step that matches `SESSION_STATUS`
-(an illegal jump is silently ignored).
-
-From admin console:
-
-```
-[GW_ADMIN|ADMIN]> SESSION|STATE=PRE_OPEN
-[GW_ADMIN|ADMIN]> SESSION|STATE=CONTINUOUS
-[GW_ADMIN|ADMIN]> SESSION|STATE=CLOSING_AUCTION
-[GW_ADMIN|ADMIN]> SESSION|STATE=CLOSED
-```
-
-Or with CLI:
-
-```bash
-pm-admin-cli --id ADMIN_CLI session --state PRE_OPEN
-pm-admin-cli --id ADMIN_CLI session --state CONTINUOUS
-pm-admin-cli --id ADMIN_CLI session --state CLOSING_AUCTION
-pm-admin-cli --id ADMIN_CLI session --state CLOSED
-pm-admin-cli --id ADMIN_CLI session-status
-```
-
-Use this to reproduce auction and close transitions deterministically in training.
-For example, after reaching `CONTINUOUS`, requesting `CONTINUOUS` again is an
-invalid transition: the engine does not publish a new `session.state`, so the
-CLI waits until its timeout. The REST transition endpoint instead returns
-`409 TRANSITION_REJECTED` with the engine's reason.
-
-:material-checkbox-blank-outline: **Checkpoint:** forced session transitions are visible and verifiable.
-
- 
-
-## Exercise 5: Run an Incident Micro-Runbook
+## Exercise 3: Run an Incident Micro-Runbook
 
 Simulate a short incident response sequence:
 
@@ -180,7 +124,7 @@ Simulate a short incident response sequence:
 2. `KICK` the gateway.
 3. `QCANCEL` one affected MM quote.
 4. `CANCEL_SYM` for one stressed symbol.
-5. `SESSION|STATE=CONTINUOUS` to restore normal operation if needed.
+5. Check the session is still `CONTINUOUS`.
 
 Example CLI sequence:
 
@@ -188,8 +132,13 @@ Example CLI sequence:
 pm-admin-cli --id ADMIN_CLI kick --gw TRADER02 --reason "Training incident"
 pm-admin-cli --id ADMIN_CLI qcancel --gw MM_AAPL_01 --sym AAPL
 pm-admin-cli --id ADMIN_CLI cancel-sym --sym AAPL
+pm-admin-cli --id ADMIN_CLI book --sym AAPL
 pm-admin-cli --id ADMIN_CLI session-status
 ```
+
+Each prints one line (`KICK  sent disconnect for TRADER02`,
+`QCANCEL OK  MM_AAPL_01  AAPL`, `CANCEL_SYM OK  AAPL  orders=<n>  quotes=<n>`),
+then the empty AAPL book and the session state.
 
 `TRADER02` is now disconnected: leave its console and start a new one before
 the next chapter, which needs it.
@@ -204,8 +153,7 @@ You can now operate advanced admin controls beyond halt/resume:
 
 - `KICK` for participant disconnection.
 - `QCANCEL` for targeted MM quote cancellation.
-- `CANCEL_SYM` for symbol-wide book clearing.
-- `SESSION|STATE=...` for deterministic phase management.
+- `CANCEL_SYM` for symbol-wide book clearing, now from a script as well.
 
 ## Reflection
 

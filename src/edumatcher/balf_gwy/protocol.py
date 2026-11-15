@@ -37,6 +37,13 @@ RC_TRAILING_STOP_NO_PRICE: int = 0x09
 RC_INSUFFICIENT_LIQUIDITY: int = 0x0A
 RC_PRICE_COLLAR: int = 0x0B
 RC_INVALID_FIELD: int = 0x0C
+#: The session's token bucket was empty (decision Q2 of the BALF review).
+#: A request used to be dropped with no answer at all; now it is refused
+#: with its own ack type. The engine's reject_code has RATE_LIMITED too.
+RC_RATE_LIMITED: int = 0x0D
+#: A per-order or per-participant risk control refused the order:
+#: max order quantity or value, position limit, or an active kill switch.
+RC_RISK_LIMIT: int = 0x0E
 RC_OTHER: int = 0xFF
 
 # ---------------------------------------------------------------------------
@@ -57,45 +64,69 @@ class BalfValidationError(Exception):
 
 
 # ---------------------------------------------------------------------------
-# Engine reason -> reject code classifier
-# Deterministic, ordered, first-match-wins — spec §5.5
+# Engine reject_code -> BALF reject code
 # ---------------------------------------------------------------------------
 
+#: The engine's machine-readable ``order.ack.reject_code`` (stable across
+#: every transport, spec/messages/order.yaml) mapped onto BALF's one-byte
+#: codes. Codes not listed are RC_OTHER, with the engine's text in ``reason``.
+_ENGINE_CODE_TO_RC: dict[str, int] = {
+    "GATEWAY_NOT_CONFIGURED": RC_GW_NOT_CONFIGURED,
+    # The engine refuses a gateway that has no session with AUTH_REQUIRED
+    # ("Gateway not connected: <ID>", engine/main.py _gateway_reject_code).
+    "AUTH_REQUIRED": RC_GW_NOT_CONNECTED,
+    "UNKNOWN_SYMBOL": RC_SYMBOL_NOT_CONFIGURED,
+    "MARKET_CLOSED": RC_MARKET_CLOSED,
+    "INSTRUMENT_HALTED": RC_HALT_REJECTION,
+    "CIRCUIT_BREAKER_ACTIVE": RC_HALT_REJECTION,
+    "INSUFFICIENT_LIQUIDITY": RC_INSUFFICIENT_LIQUIDITY,
+    "COLLAR_BREACH": RC_PRICE_COLLAR,
+    "MALFORMED_MESSAGE": RC_INVALID_FIELD,
+    "MISSING_FIELD": RC_INVALID_FIELD,
+    "INVALID_VALUE": RC_INVALID_FIELD,
+    "UNSUPPORTED_FIELD": RC_INVALID_FIELD,
+    "TICK_VIOLATION": RC_INVALID_FIELD,
+    "LOT_VIOLATION": RC_INVALID_FIELD,
+    "PRICE_OUT_OF_RANGE": RC_INVALID_FIELD,
+    "QTY_OUT_OF_RANGE": RC_INVALID_FIELD,
+    "RATE_LIMITED": RC_RATE_LIMITED,
+    "MAX_ORDER_QTY": RC_RISK_LIMIT,
+    "MAX_ORDER_VALUE": RC_RISK_LIMIT,
+    "POSITION_LIMIT": RC_RISK_LIMIT,
+    "KILL_SWITCH_ACTIVE": RC_RISK_LIMIT,
+}
 
-def classify_engine_reason(reason: str) -> int:
-    """Map an engine rejection reason string to a BALF ORDER_ACK reject code.
 
-    Matching is case-sensitive to match exact engine strings.
+def classify_engine_reject(reject_code: str | None, reason: str) -> int:
+    """Map an engine order rejection to a BALF ORDER_ACK reject code.
+
+    Classifies on the engine's ``reject_code``, not its prose. The prose
+    classifier this replaces matched eleven sentences; anything else, a
+    reworded sentence included, became RC_OTHER with a 25-byte stump of a
+    reason, so a negative price or a risk-limit refusal could not be told
+    from an internal error (review C7). The text is still read where BALF
+    splits one engine code in two:
+
+    - SESSION_NOT_PERMITTED is ATO outside the opening auction, ATC outside
+      the closing auction, or any other type the phase refuses;
+    - MISSING_FIELD on a trailing stop with no STOP= and no prior trade has
+      its own code, RC_TRAILING_STOP_NO_PRICE.
+
+    A rejection without a code (the spec says every one has it) is RC_OTHER.
     """
-    if reason.startswith("Gateway not configured:"):
-        return RC_GW_NOT_CONFIGURED
-    if reason.startswith("Gateway not connected:"):
-        return RC_GW_NOT_CONNECTED
-    if reason.startswith("Symbol not configured:"):
-        return RC_SYMBOL_NOT_CONFIGURED
-    if reason == "Market is closed":
-        return RC_MARKET_CLOSED
-    if reason.startswith("ATO orders only accepted during"):
-        return RC_ATO_OUTSIDE_OPENING
-    if reason.startswith("ATC orders only accepted during"):
-        return RC_ATC_OUTSIDE_CLOSING
-    # Matches both halt wordings the engine produces: a circuit-breaker trip
-    # and a discretionary admin halt now say which they are, and BALF has one
-    # reject code for both. Keying on the shorter stable fragment rather than
-    # the full sentence is why widening the engine's wording did not silently
-    # demote these to RC_OTHER — and is also the argument for classifying on
-    # order_ack.reject_code instead of prose, when BALF next changes.
-    if "orders rejected during" in reason:
-        return RC_HALT_REJECTION
-    if "orders not accepted during" in reason:
+    if reject_code == "SESSION_NOT_PERMITTED":
+        if reason.startswith("ATO orders only accepted during"):
+            return RC_ATO_OUTSIDE_OPENING
+        if reason.startswith("ATC orders only accepted during"):
+            return RC_ATC_OUTSIDE_CLOSING
         return RC_PHASE_REJECTION
-    if reason == "Trailing stop requires STOP= or a prior trade price":
+    if reject_code == "MISSING_FIELD" and reason.startswith(
+        "Trailing stop requires STOP= or a prior trade price"
+    ):
         return RC_TRAILING_STOP_NO_PRICE
-    if reason == "Insufficient liquidity":
-        return RC_INSUFFICIENT_LIQUIDITY
-    if "COLLAR_BREACH" in reason:
-        return RC_PRICE_COLLAR
-    return RC_OTHER
+    if reject_code is None:
+        return RC_OTHER
+    return _ENGINE_CODE_TO_RC.get(reject_code, RC_OTHER)
 
 
 # ---------------------------------------------------------------------------

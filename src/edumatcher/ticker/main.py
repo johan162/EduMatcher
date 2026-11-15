@@ -115,21 +115,27 @@ def _query_daily_stats(
 ) -> dict[str, dict[str, Any]]:
     rows = conn.execute(
         "SELECT symbol, open_price, high_price, low_price, close_price, "
-        "       volume, trade_count, vwap "
+        "       volume, trade_count, vwap, tick_decimals "
         "FROM daily_stats WHERE date = ?",
         (today,),
     ).fetchall()
+
+    # Prices are stored in integer ticks; the live book prices beside them
+    # on the tape are display prices.
+    def price(ticks: float | None, tick_decimals: int | None) -> float | None:
+        return None if ticks is None else ticks / 10 ** (tick_decimals or 0)
+
     return {
         sym: {
-            "open_price": op,
-            "high_price": hi,
-            "low_price": lo,
-            "close_price": cl,
+            "open_price": price(op, td),
+            "high_price": price(hi, td),
+            "low_price": price(lo, td),
+            "close_price": price(cl, td),
             "volume": vol or 0,
             "trade_count": tc or 0,
-            "vwap": vwap,
+            "vwap": price(vwap, td),
         }
-        for sym, op, hi, lo, cl, vol, tc, vwap in rows
+        for sym, op, hi, lo, cl, vol, tc, vwap, td in rows
     }
 
 

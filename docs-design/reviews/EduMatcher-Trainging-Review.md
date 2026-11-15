@@ -369,7 +369,27 @@ scratch directory (`./edumatcher.sh start`), with the exchange image built from
 | 06 | Ran unchanged; "about 20 s" |
 | 07 | ATO remainder now expires `(Opening auction ended)` (Q17 fixed in the product); misplaced "reopen the market" reminder |
 | 08 | **Exercise 4 merged into 3** (both were `ORDERS`), **Exercise 8 removed** (repeat of chapter 01 Exercise 11); Exercise 5 (was 6) never created the `TRADER02` order it cancels |
-| 09–29 | Not yet run in this pass |
+| 09 | Exercises 7 and 8 swapped: `QBOOT` is now introduced (and leaves `Q004` resting) before the single-leg `CANCEL` uses it. `QLEGS` `ACTIVE`/`RECENT` after a partial fill described correctly; `KILL` exercise quotes first so both counts are non-zero |
+| 10 | 15 → 14 exercises. Ex. 4 merged into Ex. 3 (it repeated the clean-up cancel); cut: OCO stop-limit/trailing variants (chapter 05), basket "ten-leg" instructor extension, stop-limit combo variant, auction/ATO-ATC combo steps, `market_maker_combos` extension. **DAY combo parents do persist** on a same-day restart (the chapter said not). `POS` introduced for recording positions; average-cost caveat for P&L |
+| 11 | State reset (`clear --state`) moved to Ex. 1 — every collar/breaker prediction depends on it. Cut: "open the admin console" (chapter 01) and the console `HALT` exercise (repeat of the CLI one). Breaker halt = `halt_duration_ns` **plus a random 0–30 s**; reopening log lines added. `KILL` exercise stages orders first. Risk-level exercise ends with `KILL\|GW=TRADER01` (its resting bids skewed chapter 12's market maker). Duplicated paragraph removed |
+| 12 | Ex. 8 + 9 merged. `pm-mm-bot` needs `--initial_*` after the reset. Clearing writes in 5 s batches. EOD marks normally equal the live marks (clearing re-marks every position on each trade) — the "find a changed mark" checkpoint rewritten. A same-day reopen **changes today's `daily` row**; only `eod` is fixed |
+| 13 | 7 → 4 exercises: `pm-viewer`/`pm-orders`/`pm-board` left to chapter 18, the engine restart (only to see a log line) dropped. Expected `pm-dc-spy` output added |
+| 14 | Starts with `clear --state`; **ends by returning to the learner's own configuration** (nothing did before, yet chapters 15–20 assume it). Scenarios verified: JPM +1.5 % on the rumour, +18 % on confirmation; ENERGY dip and recovery; NVDA +11 %, AMD −7 % |
+| 15 | Ex. 4 (read the `vwap` column) and Ex. 7 (CSV export) merged into neighbours |
+| 16 | One restart for a GTC and a DAY order together; 145.00 instead of 140.00 (chapter 11's L2 collar). Stats/audit exercises (repeats of 13/15) replaced by a paragraph |
+| 17 | `clear --state` is now a step of Ex. 3; 11 gateways, not 10; `HALT_SYM` pulls the TSLA quote, so re-quote |
+| 18 | Rebuilt on the running capstone stack: no second `pm-clearing`/`pm-stats`/`pm-audit`; prerequisites said "chapters 01–03" |
+| 19 | `CANCEL_SYM` and `SESSION\|STATE=` exercises removed (used since chapters 06–08); `QCANCEL` places its own quote |
+| 20 | Ran unchanged; Ex. 5 re-quotes before the sell (`INACTIVATE_ON_ANY_FILL`) |
+| 21 | One gap script instead of two (the first could not show a gap); recipe for `TRADER01` fills; replay-limits reading exercise folded into the background |
+| 22 | Ex. 5 (empty-book bootstrap) folded into Ex. 4, Ex. 6 (re-write Ex. 2) into Ex. 2 as the idempotency check. `-v` does print each `QUOTE sent` |
+| 23 | **No `nc` in the container**: a `tcp` bash helper (`/dev/tcp`) introduced and used by 24 and 27; `-v` for the listening line |
+| 24 | Ex. 4 merged into Ex. 2, 4E (`REF`) into 2B, 4D (ACE, impossible with this config) turned into a note; changelog notes ("as of CALF 1.0.0") removed; `pm-calf-spy '*'` *skips* CB/DEPTH/INDEX |
+| 25 | `pm-admin --id OPS01` must be closed before the admin REST calls (`ENGINE_AUTH`); illegal transition is now `409 TRANSITION_REJECTED`, not `503`; Ex. 11 (replaces the config) moved last and given its deploy/restart |
+| 26 | After the split the market maker must re-quote at half price (else the index jumps +54 %); `pm-alf-console --id OPS01` needs `pm-admin` closed; Ex. 9 (export) merged into 8 |
+| 27 | Container has no `ss`/`lsof`/`netstat`/`nc`/`telnet`; one-liner waits before `EXIT` |
+| 28 | Ex. 2 points to chapter 27's; sessions are disabled in this config (no "open the market") |
+| 29 | `pm-opctl-cli start` (starts a whole profile with a clock-driven scheduler) replaced by the manual start |
 
 ### 5.2 Product fixes
 
@@ -377,7 +397,14 @@ scratch directory (`./edumatcher.sh start`), with the exchange image built from
 |-----|-------|------|
 | `pm-mm-bot` exited with code 1 and **no output** when it could not start (no reference price, auth refused, every symbol excluded): all its messages were INFO, shown only with `--verbose`. Startup failures, auth rejection and "excluded from quoting" are now WARNING. | `src/edumatcher/mm_bot/bot.py` | `test_mm_bot_multi.py::…::test_a_startup_failure_is_visible_without_verbose` |
 | `pm-clearing --print-every N` printed the table *before* the triggering trade was applied (trades are batched): after the first trade nothing was printed, after the second the table showed the state after the first. It now flushes the batch before printing. | `src/edumatcher/clearing/main.py` | `test_clearing_main.py::TestPrintEvery` |
+| `pm-opctl-cli clear` always warned "1 pm-* process(es) appear to be running" — it counted itself. | `src/edumatcher/emo/cli.py` | `test_emo_cli.py::test_running_process_detection_ignores_itself` |
+| `pm-clearing` recorded **every gateway session twice** (`pm-clearing-cli sessions`), and would record a refused connect as a session: the engine echoes inbound commands (`system.gateway_connect`) onto PUB for the audit trail, and clearing subscribed to them as well as to `system.gateway_auth.*`. It now uses the broadcasts only. | `src/edumatcher/clearing/main.py` | `test_clearing_advanced_integration.py::…::test_echoed_connect_command_does_not_record_a_second_session` |
+| `pm-audit --terminal` printed nothing until the buffer flushed (up to 10 s) — the "pm-audit captured nothing at first" mystery of the first pass. It now prints each entry on arrival. | `src/edumatcher/audit/main.py` | `test_audit_main_runtime.py::test_terminal_prints_each_line_before_the_flush` |
+| `pm-mm-bot` never asked for the book at start-up, so on a quiet book it found no reference: a restarted `MM01 --all-symbols` failed on 141 of 150 symbols. It now sends `book.snapshot_request` per symbol (2 of 150 failed, both with empty books). | `src/edumatcher/mm_bot/bot.py` | `test_mm_bot_multi.py::…::test_a_quiet_book_is_asked_for_and_seeds_the_reference_price` |
+| `pm-ticker` showed the day's high/low/open from `stats.db` in raw ticks (`H:41995.00`, change `-99.00%`). | `src/edumatcher/ticker/main.py` | `test_stats_and_orders.py::TestQueryDailyStats::test_returns_row_for_today_in_display_prices` |
+| A cold `pm-api-gwy` refused its **first order** with `503 SYMBOLS_NOT_READY`: authentication requested the symbols but did not wait for them. It now waits (up to the handshake timeout). | `src/edumatcher/api_gateway/engine_client.py` | `test_api_gateway_runtime.py::test_authentication_waits_for_the_symbols_snapshot` |
+| `pm-alf-gwy` refused lines sent behind `HELLO` before `WELCOME` with the false "HELLO must be the first message" — so the documented `printf … \| nc` probe never worked. It now holds them until the logon completes. | `src/edumatcher/alf_gwy/gateway.py` | `test_alf_gwy_gateway_unit.py::test_lines_sent_behind_hello_are_handled_after_welcome` |
 
 Answered from the first pass: Q8 (`STATUS` quote legs) and Q17 (ATO expiry
 text) no longer reproduce. Q14 (illegal transition → `TIMEOUT`) still does.
-Out-of-scope findings went to `EduMatcher-For-Later-ToDo.md` as L003–L006.
+Out-of-scope findings went to `EduMatcher-For-Later-ToDo.md` as L003–L015 (L009 is Q14's console half: REST now answers `409`, the consoles still `TIMEOUT`).

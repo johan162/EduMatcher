@@ -26,7 +26,7 @@ class IndexHistory:
 
     Holds only structural/corporate-action events (index creation,
     splits, dividends, share issuance, delistings, constituent
-    additions) — never per-tick level updates. Level and end-of-day
+    additions, rebalances) — never per-tick level updates. Level and end-of-day
     history now lives exclusively in pm-stats' SQLite tables.
     """
 
@@ -42,7 +42,7 @@ class IndexHistory:
     def append(self, record: dict[str, Any]) -> None:
         # Validate on write so the archive is canonical by construction; a
         # record that fails is a producer bug — log it and store as-is rather
-        # than crash the process (pm-index does not guard its pull handlers).
+        # than raise out of the command that is writing it.
         try:
             canonical = HistoryRecord.from_dict(record)
             canonical.validate()
@@ -60,6 +60,25 @@ class IndexHistory:
             record.get("type", "?"),
             record.get("index_id", "?"),
         )
+
+    def write_through(self, record: dict[str, Any]) -> None:
+        """Append ``record`` and flush it, for a command that must be on disk
+        before it is acknowledged.
+
+        On an OSError the handle is reopened: a failed flush keeps the line
+        buffered, and the next flush would write the record of a command
+        pm-index then rejected.
+        """
+        try:
+            self.append(record)
+            self._fh.flush()
+        except OSError:
+            try:
+                self._fh.close()
+            except OSError:
+                pass
+            self._fh = self._path.open("a", encoding="utf-8")
+            raise
 
     def flush(self) -> None:
         self._fh.flush()

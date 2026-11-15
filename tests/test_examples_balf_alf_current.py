@@ -117,8 +117,27 @@ class TestBalfExampleAgainstTheGateway:
             "order_id": 42,
             "accepted": True,
             "cancel_reason": 255,
+            "cancel_reason_name": "SYSTEM",
             "by_exchange": True,
         }
+
+    def test_every_cancel_reason_the_gateway_sends_is_named(
+        self, balf: ModuleType
+    ) -> None:
+        gateway_codes = {
+            v for k, v in vars(codec).items() if k.startswith("CANCEL_REASON_")
+        }
+        assert gateway_codes == set(balf.CANCEL_REASON_NAMES)
+        frame = codec.build_cancel_ack(
+            client_order_id=7,
+            balf_order_id=42,
+            seq_no=2,
+            accepted=True,
+            cancel_reason=codec.CANCEL_REASON_SELF_MATCH,
+        )
+        ack = balf.parse_cancel_ack(balf.split_frame(frame)[1])
+        assert ack["cancel_reason_name"] == "SELF_MATCH_PREVENTED"
+        assert ack["by_exchange"]
 
     def test_amend_ack(self, balf: ModuleType) -> None:
         frame = codec.build_amend_ack(

@@ -19,7 +19,10 @@ class PricingStrategy(Protocol):
     Any class implementing these six members can stand in for
     ``QuotePricer`` in ``MMBot._pricer`` — the state machine, ZMQ handling,
     and reissue/heartbeat logic never depend on which concrete strategy is
-    active. ``QuotePricer`` (below) is today's only implementation.
+    active. Three implement it: ``QuotePricer`` (``symmetric``),
+    ``InventorySkewPricer`` and ``PassivePricer``; the last two add optional
+    hooks (``update_position``, ``update_book``, ``on_fill``,
+    ``requote_due``) that ``MMBot`` calls only when present.
     """
 
     @property

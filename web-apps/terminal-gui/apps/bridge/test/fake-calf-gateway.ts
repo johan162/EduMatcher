@@ -60,6 +60,11 @@ export class FakeCalfGateway {
   readonly received: string[] = [];
   connectionCount = 0;
   port = 0;
+  /**
+   * `WELCOME|EPOCH=`. Change it to model a gateway restart: a `RESUME` naming
+   * another run is answered `REPLAY_MISS`, as `_handle_resume` does.
+   */
+  epoch = "fake-run-1";
 
   constructor(private readonly opts: FakeGatewayOptions = {}) {}
 
@@ -152,7 +157,7 @@ export class FakeCalfGateway {
     const lastSeq = Number(fields["LASTSEQ"]);
     const key = `${ch}|${sym}`;
 
-    if (this.replayMisses.has(key)) {
+    if (this.replayMisses.has(key) || fields["EPOCH"] !== this.epoch) {
       socket.write(`ERR|CODE=REPLAY_MISS|CH=${ch}|SYM=${sym}\n`);
       // Older gateways followed the ERR with a snapshot on every channel, and
       // `_send_snapshot_for_stream` has no branch for TRADE or AUCTION — so
@@ -173,7 +178,7 @@ export class FakeCalfGateway {
 
   private welcomeLine(): string {
     const channels = this.opts.chSupported ?? ["AUCTION", "CB", "DEPTH", "INDEX", "STATE", "TOP", "TRADE"];
-    const parts = ["WELCOME", "PROTO=CALF1", "GW=fake-gwy01", "HBINT=1", "REPLAY=30"];
+    const parts = ["WELCOME", "PROTO=CALF1", "GW=fake-gwy01", "HBINT=1", "REPLAY=30", `EPOCH=${this.epoch}`];
     if (channels !== null) parts.push(`CH_SUPPORTED=${channels.join(",")}`);
     const symbols = this.opts.symbols ?? [];
     if (symbols.length > 0) {

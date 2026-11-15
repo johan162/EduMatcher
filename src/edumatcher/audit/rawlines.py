@@ -86,7 +86,8 @@ def lines(
             if topics is not None and not raw.startswith(topics, a + 3):
                 continue
             meta = raw[b + 3 : c]
-            chain = meta[meta.rfind("chain=") + 6 :]
+            at = meta.rfind("chain=")
+            chain = meta[at + 6 :] if at >= 0 else ""
             seq = eseq = None
             if meta.startswith("seq="):
                 end = meta.find(" ")

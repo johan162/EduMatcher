@@ -280,7 +280,7 @@ def _apply_time_filters(
         params.append(normalise_ts_bound(from_ts, tz))
     if to_ts is not None:
         sql += " AND ts <= ?"
-        params.append(normalise_ts_bound(to_ts, tz))
+        params.append(normalise_ts_bound(to_ts, tz, inclusive_upper=True))
     return sql
 
 
@@ -314,25 +314,35 @@ def query_feed_gaps(
     to_ts: str | None,
     limit: int,
     tz: tzinfo,
-) -> list[dict[str, Any]]:
-    """Return recorded feed gaps, newest last.
+    after: str | None = None,
+) -> tuple[list[dict[str, Any]], str | None]:
+    """Return up to *limit* recorded feed gaps, oldest first, plus a cursor.
 
     An empty result means no gap was *detected*, which is a weaker statement
     than "nothing was lost" — see the completeness discussion in the user
     guide for what detection does and does not cover.
     """
     sql = (
-        "SELECT seq, ts, stream, expected_id, received_id, missing_count "
+        "SELECT seq, ts, stream, source, expected_id, received_id, missing_count "
         "FROM feed_gaps WHERE 1=1"
     )
     params: list[Any] = []
     sql = _apply_time_filters(
         sql, params, date_value=date_value, from_ts=from_ts, to_ts=to_ts, tz=tz
     )
+    if after is not None:
+        after_ts, after_seq = _decode_two_field_cursor(after, "ts", "seq")
+        sql += " AND (ts > ? OR (ts = ? AND seq > ?))"
+        params.extend([after_ts, after_ts, after_seq])
     sql += " ORDER BY ts ASC, seq ASC LIMIT ?"
     params.append(limit)
     rows = _execute_fetchall(conn, sql, params)
-    return [dict(row) for row in rows]
+    results = [dict(row) for row in rows]
+    next_cursor = None
+    if len(results) == limit:
+        last = results[-1]
+        next_cursor = encode_cursor({"ts": last["ts"], "seq": last["seq"]})
+    return results, next_cursor
 
 
 def latest_daily_date(conn: sqlite3.Connection) -> str | None:
@@ -556,7 +566,8 @@ def query_trades(
     op, direction = ("<", "DESC") if newest_first else (">", "ASC")
     sql = (
         "SELECT rowid AS _rowid, ts, trade_id, symbol, price, quantity, "
-        "tick_decimals, buy_gateway_id, sell_gateway_id, aggressor_side "
+        "tick_decimals, buy_gateway_id, sell_gateway_id, aggressor_side, "
+        "match_type, buy_order_id, sell_order_id, msg_id "
         "FROM trade_log WHERE 1=1"
     )
     params: list[Any] = []
@@ -676,7 +687,11 @@ def order_events_retention_days(
 def query_order_events_retained_from(
     conn: sqlite3.Connection, *, gateway_id: str, now: float | None = None
 ) -> str | None:
-    """Instant before which *gateway_id*'s order events have been pruned.
+    """Instant before which *gateway_id*'s order events may have been pruned.
+
+    An upper bound, not an exact edge: pm-stats starts a deletion round
+    once an hour, and only while it runs, so rows up to about an hour older
+    than this can still be present. Nothing newer has been deleted.
 
     ``pm-stats`` deletes old ``order_events`` on its own retention clock,
     which under an AI swarm is routinely hours rather than days. Without
@@ -725,12 +740,16 @@ def query_symbols(
     timezone. Filtering the ``ts`` tables on ``substr(ts, 1, 10)`` instead
     would mix a UTC date into a union with a trading date and report symbols
     from two different days.
+
+    Without a date, ``trade_log`` is left out: every trade's
+    ``daily_stats`` row is written in the same transaction and never pruned,
+    so it already names every symbol that traded, and scanning the tape for
+    them cost a full pass over every trade (P3).
     """
     if date_value is None:
         sql = (
             "SELECT symbol FROM daily_stats "
             "UNION SELECT symbol FROM price_snapshots "
-            "UNION SELECT symbol FROM trade_log "
             "ORDER BY symbol ASC"
         )
         params: list[Any] = []

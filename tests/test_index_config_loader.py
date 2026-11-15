@@ -177,3 +177,23 @@ indices:
         assert index_runtime_configs(
             compile_config(source).engine
         ) == load_index_runtime_configs(source)
+
+
+def test_runtime_config_carries_every_tradeable_symbol() -> None:
+    """WP-IDX05 (C12): pm-index refuses an ADD of a symbol not in this set."""
+    idx = IndexConfig(
+        id="EDU100",
+        description="Test",
+        base_value=1000.0,
+        publish_interval_sec=1.0,
+        history_file="/tmp/h.jsonl",
+        state_file="/tmp/s.json",
+        constituents=["AAPL"],
+    )
+    symbols = {
+        name: SymbolConfig(name=name, outstanding_shares=1_000, last_buy_price=100.0)
+        for name in ("AAPL", "MSFT")
+    }
+
+    rt = _to_runtime_index_config(idx, symbols)
+    assert rt.tradeable_symbols == frozenset({"AAPL", "MSFT"})

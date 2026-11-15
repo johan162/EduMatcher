@@ -1,7 +1,10 @@
 """Optional SQLite index builder and query helper for pm-audit-cli.
 
 The index provides faster multi-dimensional queries when the audit log grows
-large.  It is entirely optional: all ``pm-audit-cli`` queries work without it.
+large.  It is entirely optional: all ``pm-audit-cli`` queries work without it,
+and use it only when given ``--use-index``.  It is built by hand
+(``pm-audit-cli index``), so it is a snapshot: ``indexed_through`` says how
+far it reaches, and pm-api-gwy's order-lifecycle endpoint reports it.
 
 Schema
 ------
@@ -22,8 +25,8 @@ from edumatcher.audit.query import (
     AuditEntry,
     date_to_range,
     discover_log_files,
+    event_name,
     iter_entries,
-    parse_ts,
 )
 
 # ---------------------------------------------------------------------------
@@ -111,8 +114,6 @@ def open_readonly_index(db_path: Path) -> sqlite3.Connection:
 
 
 def _entry_to_row(entry: AuditEntry) -> tuple[Any, ...]:
-    parts = entry.topic.split(".")
-    event_type = parts[-1] if len(parts) > 1 else entry.topic
     return (
         entry.timestamp,
         entry.topic,
@@ -121,7 +122,7 @@ def _entry_to_row(entry: AuditEntry) -> tuple[Any, ...]:
         entry.symbol,
         entry.order_id,
         entry.trade_id,
-        event_type,
+        event_name(entry.topic),
         entry.seq,
         entry.msg_id,
         entry.causation_id,
@@ -132,6 +133,11 @@ def _entry_to_row(entry: AuditEntry) -> tuple[Any, ...]:
 def _get_meta(conn: sqlite3.Connection, key: str) -> str | None:
     row = conn.execute("SELECT value FROM index_meta WHERE key = ?", (key,)).fetchone()
     return str(row["value"]) if row else None
+
+
+def indexed_through(conn: sqlite3.Connection) -> str | None:
+    """Stamp of the newest indexed line, or None before any line was indexed."""
+    return _get_meta(conn, _LAST_TS_KEY)
 
 
 def _set_meta(conn: sqlite3.Connection, key: str, value: str) -> None:
@@ -149,11 +155,11 @@ def build_index(
     from_dt: datetime | None = None,
     to_dt: datetime | None = None,
     days: int | None = None,
-    rebuild: bool = False,
     incremental: bool = False,
     batch_size: int = 500,
 ) -> int:
-    """Populate or update the SQLite index from JSONL log files.
+    """Build the SQLite index from the live trail, or with ``incremental``
+    add what was recorded since the last build.
 
     Parameters
     ----------
@@ -167,10 +173,9 @@ def build_index(
         Restrict indexing to a time window.
     days:
         Shorthand: index the last *N* days.
-    rebuild:
-        Drop and recreate the entire table before indexing.
     incremental:
-        Only add entries newer than the last indexed timestamp.
+        Keep the rows and add only the entries after the last indexed one.
+        Otherwise every row is replaced.
     batch_size:
         Insert rows in batches of this size.
 
@@ -189,23 +194,21 @@ def build_index(
 
     conn = open_index(db_path)
     try:
-        if rebuild:
+        after_ts: str | None = None
+        after_skip = 0
+        if incremental:
+            # Resume after the rows already indexed: the newest stamp, and
+            # how many rows it has.  Stamps have millisecond precision, so
+            # lines of that millisecond can still arrive after the build.
+            after_ts = _get_meta(conn, _LAST_TS_KEY)
+            if after_ts is not None:
+                after_skip = conn.execute(
+                    "SELECT COUNT(*) FROM audit_events WHERE timestamp = ?",
+                    (after_ts,),
+                ).fetchone()[0]
+        else:
             conn.execute("DELETE FROM audit_events")
             conn.execute("DELETE FROM index_meta")
-            conn.commit()
-
-        last_ts_str: str | None = None
-        if incremental and not rebuild:
-            last_ts_str = _get_meta(conn, _LAST_TS_KEY)
-            if last_ts_str:
-                try:
-                    from_dt = parse_ts(last_ts_str)
-                    # Exclude the last-indexed timestamp itself (already in DB)
-                    from datetime import timedelta
-
-                    from_dt = from_dt + timedelta(microseconds=1)
-                except ValueError:
-                    last_ts_str = None
 
         inserted = 0
         batch: list[tuple[Any, ...]] = []
@@ -223,6 +226,8 @@ def build_index(
             from_dt=from_dt,
             to_dt=to_dt,
             limit=None,
+            after_ts=after_ts,
+            after_skip=after_skip,
         ):
             batch.append(_entry_to_row(entry))
             newest_ts = entry.timestamp
@@ -278,8 +283,12 @@ def _where_clauses(
         clauses.append("topic LIKE ?")
         params.append(topic_prefix + "%")
     if gateway:
-        clauses.append("gateway_id = ?")
-        params.append(gateway)
+        # As iter_entries: a trade matches its buyer or its seller.
+        clauses.append(
+            "(gateway_id = ? OR json_extract(payload, '$.buy_gateway_id') = ?"
+            " OR json_extract(payload, '$.sell_gateway_id') = ?)"
+        )
+        params.extend([gateway] * 3)
     if symbol:
         clauses.append("symbol = ?")
         params.append(symbol)

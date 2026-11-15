@@ -26,7 +26,7 @@ import os
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from edumatcher.cli_version import package_version
 
@@ -56,13 +56,15 @@ def _raw_lines(audit_dir: Path) -> list[str]:
 
 
 def read_entries(audit_dir: Path) -> list[dict[str, Any]]:
-    """Every parseable entry, in order (``verify`` reports the rest)."""
+    """Every entry (a JSON object), in order (``verify`` reports the rest)."""
     entries: list[dict[str, Any]] = []
     for line in _raw_lines(audit_dir):
         try:
-            entries.append(json.loads(line))
+            entry = json.loads(line)
         except ValueError:
             continue
+        if isinstance(entry, dict):
+            entries.append(cast(dict[str, Any], entry))
     return entries
 
 
@@ -159,25 +161,26 @@ def verify(audit_dir: Path, day: str | None = None) -> list[Problem]:
     expected = GENESIS
     for n, line in enumerate(_raw_lines(audit_dir), start=1):
         try:
-            entry = json.loads(line)
-            if not isinstance(entry, dict):
-                raise ValueError("not an object")
+            parsed: object = json.loads(line)
+            problem = f"manifest line {n} is not a JSON object (edited)"
         except ValueError:
-            problems.append(
-                Problem(None, f"manifest line {n} is not valid JSON (torn or edited)")
-            )
+            parsed = None
+            problem = f"manifest line {n} is not valid JSON (torn or edited)"
+        if not isinstance(parsed, dict):
+            problems.append(Problem(None, problem))
             expected = _line_hash(line)
             continue
-        if entry.get("prev") != expected:
+        item = cast(dict[str, Any], parsed)
+        if item.get("prev") != expected:
             problems.append(
                 Problem(
-                    entry.get("day"),
+                    item.get("day"),
                     f"chain broken at manifest line {n}: an earlier entry was "
                     "changed or removed",
                 )
             )
         expected = _line_hash(line)
-        entries.append(entry)
+        entries.append(item)
 
     current = _current(entries)
     for d in [day] if day is not None else sorted(current):
@@ -190,8 +193,9 @@ def verify(audit_dir: Path, day: str | None = None) -> list[Problem]:
         if entry.get("kind") == KIND_RETIRED:
             continue
         if not archive.exists():
-            if not list(audit_dir.glob(f"audit-{d}.*.log")):
-                problems.append(Problem(d, "archive is missing (not retired)"))
+            # An entry is written only once its archive is in place, and only
+            # retention (recording "retired" first) deletes one.
+            problems.append(Problem(d, "archive is missing (not retired)"))
             continue
         try:
             sha, lines = _digest_archive(archive)

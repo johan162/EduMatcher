@@ -123,6 +123,31 @@ class TestVerify:
         assert [p.day for p in problems] == [D1]
         assert "missing" in problems[0].message
 
+    def test_a_missing_archive_is_reported_though_the_day_has_parts(
+        self, tmp_path: Path
+    ) -> None:
+        """WP-AUD06 (C9): an entry is written only after its archive is in
+        place, so parts of a reopened day do not excuse a missing archive."""
+        _archived(tmp_path, D1)
+        (tmp_path / f"audit-{D1}.log.zst").unlink()
+        (tmp_path / f"audit-{D1}.1.log").write_text("late\n")
+        problems = verify(tmp_path)
+        assert [p.day for p in problems] == [D1]
+        assert "missing" in problems[0].message
+
+    def test_a_json_line_that_is_no_object_is_reported_and_skipped(
+        self, tmp_path: Path
+    ) -> None:
+        """WP-AUD06 (C8): valid JSON, but not an entry."""
+        _archived(tmp_path, D1)
+        with (tmp_path / MANIFEST_NAME).open("a") as fh:
+            fh.write("[1]\n")
+        _archived(tmp_path, D2)  # the archiver still appends past it
+        assert [e["day"] for e in read_entries(tmp_path)] == [D1, D2]
+        assert [(p.day, p.message) for p in verify(tmp_path)] == [
+            (None, "manifest line 2 is not a JSON object (edited)")
+        ]
+
     def test_retention_leaves_a_verifiable_chain(self, tmp_path: Path) -> None:
         _archived(tmp_path, D1, D2)
         removed = apply_retention(tmp_path, 2, TODAY)
@@ -189,6 +214,16 @@ class TestCli:
         code, out = self._run(tmp_path, capsys=capsys)
         assert code == 1
         assert D1 in out
+
+    def test_a_non_object_line_fails_without_a_traceback(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        _archived(tmp_path / "audit", D1)
+        with (tmp_path / "audit" / MANIFEST_NAME).open("a") as fh:
+            fh.write("[1]\n")
+        code, out = self._run(tmp_path, capsys=capsys)
+        assert code == 1
+        assert "not a JSON object" in out and "1 day(s)" in out
 
     def test_date_restricts_the_check(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]

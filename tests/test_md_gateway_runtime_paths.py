@@ -1064,3 +1064,343 @@ def test_lines_after_the_closing_one_are_ignored(
         "AUTH_REQUIRED"
     ]
     peer.close()
+
+
+# ---------------------------------------------------------------------------
+# WP-MDG01: engine-bus sequence gaps are counted, logged and less likely
+# ---------------------------------------------------------------------------
+
+
+def _sequenced(frames: list[bytes], seq: int) -> list[bytes]:
+    """The frames as SequencedPublisher puts them on the wire."""
+    return [frames[0], frames[1], b"%d|1|%b" % (seq, b"".join(frames[2:]))]
+
+
+def _trade_frames(n: int, seq: int) -> list[bytes]:
+    from edumatcher.models.message import make_trade_msg
+
+    return _sequenced(
+        make_trade_msg(
+            {
+                "id": f"000001-{n:09d}",
+                "run_seq": 1,
+                "symbol": "AAPL",
+                "buy_order_id": "b",
+                "sell_order_id": "s",
+                "buy_gateway_id": "G1",
+                "sell_gateway_id": "G2",
+                "price": 100.0,
+                "quantity": 1,
+                "aggressor_side": "BUY",
+                "ts_ns": 1_000_000_000,
+                "tick_decimals": 2,
+            }
+        ),
+        seq,
+    )
+
+
+def _bus_gap_samples(gw: MarketDataGateway) -> dict[str, float]:
+    return {s.label: s.value for s in gw.metric_samples() if s.name == "md.bus_gaps"}
+
+
+def test_bus_gap_is_counted_and_logged_once(
+    unit_gateway: MarketDataGateway, caplog: pytest.LogCaptureFixture
+) -> None:
+    unit_gateway._sub_sock.close()
+    unit_gateway._sub_sock = _FakeSubscriber(
+        [_trade_frames(1, 1), _trade_frames(2, 2), _trade_frames(5, 5)]  # type: ignore[list-item]
+    )
+    with caplog.at_level("WARNING", logger="edumatcher.md_gateway.gateway"):
+        unit_gateway._poll_engine_events()
+
+    assert _bus_gap_samples(unit_gateway) == {"trade.executed": 2.0}
+    warnings = [r for r in caplog.records if r.levelname == "WARNING"]
+    assert len(warnings) == 1
+    assert "trade.executed" in warnings[0].getMessage()
+    assert "3..4" in warnings[0].getMessage()
+    # The trades that did arrive are still delivered.
+    assert unit_gateway._sequencer.current("TRADE", "AAPL") == 3
+
+
+def test_second_bus_gap_counts_without_another_warning(
+    unit_gateway: MarketDataGateway, caplog: pytest.LogCaptureFixture
+) -> None:
+    unit_gateway._sub_sock.close()
+    unit_gateway._sub_sock = _FakeSubscriber(
+        [_trade_frames(1, 1), _trade_frames(3, 3), _trade_frames(6, 6)]  # type: ignore[list-item]
+    )
+    with caplog.at_level("WARNING", logger="edumatcher.md_gateway.gateway"):
+        unit_gateway._poll_engine_events()
+
+    assert _bus_gap_samples(unit_gateway) == {"trade.executed": 3.0}
+    assert len([r for r in caplog.records if r.levelname == "WARNING"]) == 1
+
+
+def test_bus_sequence_going_back_is_a_restart_not_a_gap(
+    unit_gateway: MarketDataGateway, caplog: pytest.LogCaptureFixture
+) -> None:
+    with caplog.at_level("INFO", logger="edumatcher.md_gateway.gateway"):
+        assert unit_gateway._check_bus_sequence(_trade_frames(1, 1)) is False
+        assert unit_gateway._check_bus_sequence(_trade_frames(2, 2)) is False
+        assert unit_gateway._check_bus_sequence(_trade_frames(3, 1)) is True
+
+    assert _bus_gap_samples(unit_gateway) == {}
+    restarts = [r for r in caplog.records if "restart" in r.getMessage()]
+    assert len(restarts) == 1 and restarts[0].levelname == "INFO"
+
+
+def test_frames_without_a_sequence_are_processed_as_before(
+    unit_gateway: MarketDataGateway,
+) -> None:
+    unsequenced = _trade_frames(1, 1)
+    del unsequenced[2:4]
+    unit_gateway._sub_sock.close()
+    unit_gateway._sub_sock = _FakeSubscriber([unsequenced])  # type: ignore[list-item]
+    unit_gateway._poll_engine_events()
+
+    assert unit_gateway._sequencer.current("TRADE", "AAPL") == 1
+    assert _bus_gap_samples(unit_gateway) == {}
+
+
+def test_index_bus_gap_is_counted(unit_gateway: MarketDataGateway) -> None:
+    from edumatcher.models.message import make_index_update_msg
+
+    def frames(seq: int) -> list[bytes]:
+        return _sequenced(
+            make_index_update_msg(
+                index_id="EDU50",
+                level=1000.0,
+                aggregate_cap=1.0,
+                divisor=1.0,
+                session_state="CONTINUOUS",
+            ),
+            seq,
+        )
+
+    unit_gateway._sub_sock.close()
+    unit_gateway._sub_sock = _FakeSubscriber([])
+    unit_gateway._index_sub.close()
+    unit_gateway._index_sub = _FakeSubscriber([frames(1), frames(4)])  # type: ignore[list-item]
+    unit_gateway._poll_engine_events()
+
+    assert _bus_gap_samples(unit_gateway) == {"index.update": 2.0}
+
+
+def test_subscribers_have_a_deep_receive_buffer(
+    unit_gateway: MarketDataGateway,
+) -> None:
+    import zmq
+
+    assert unit_gateway._sub_sock.getsockopt(zmq.RCVHWM) == gateway_mod._SUB_RCVHWM
+    assert unit_gateway._index_sub.getsockopt(zmq.RCVHWM) == gateway_mod._SUB_RCVHWM
+    assert gateway_mod._SUB_RCVHWM >= 100_000
+
+
+def test_bus_gaps_are_a_watched_monitor_increase() -> None:
+    from edumatcher.monitor.activity import WATCHED_INCREASES
+
+    assert WATCHED_INCREASES["md.bus_gaps"] == "md_bus_gaps"
+
+
+# ---------------------------------------------------------------------------
+# WP-MDG02: SNAP baselines match the engine after a gateway start or an
+# engine restart
+# ---------------------------------------------------------------------------
+
+
+def _status_frames(seq: int, state: str = "CONTINUOUS") -> list[bytes]:
+    from edumatcher.models.message import make_session_status_msg
+
+    return _sequenced(make_session_status_msg("MD-GWY01", state, True), seq)
+
+
+def _halt_status_frames(seq: int, halted: list[dict[str, object]]) -> list[bytes]:
+    from edumatcher.models.message import make_halt_status_msg
+
+    return _sequenced(make_halt_status_msg("MD-GWY01", halted), seq)
+
+
+def _feed(gw: MarketDataGateway, *frames: list[bytes]) -> None:
+    gw._sub_sock.close()
+    gw._sub_sock = _FakeSubscriber(list(frames))  # type: ignore[arg-type]
+    gw._poll_engine_events()
+
+
+def _requests(sent: list[list[bytes]]) -> list[tuple[str, dict[str, object]]]:
+    from edumatcher.models.message import decode
+
+    return [decode(frames) for frames in sent]
+
+
+def _resync_requests(sent: list[list[bytes]]) -> list[tuple[str, str]]:
+    return sorted(
+        (topic, str(payload.get("symbol", payload.get("gateway_id", ""))))
+        for topic, payload in _requests(sent)
+        if topic in ("book.snapshot_request", "system.halt_status_request")
+    )
+
+
+_FULL_RESYNC = [
+    ("book.snapshot_request", "AAPL"),
+    ("book.snapshot_request", "MSFT"),
+    ("system.halt_status_request", "MD-GWY01"),
+]
+
+
+def test_first_session_status_answer_asks_for_books_and_halts(
+    unit_gateway: MarketDataGateway, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    sent: list[list[bytes]] = []
+    _replace_push(unit_gateway, monkeypatch, sent.append)
+    _feed(unit_gateway, _status_frames(1))
+    assert _resync_requests(sent) == _FULL_RESYNC
+
+
+def test_engine_restart_asks_again_and_a_repeated_answer_does_not(
+    unit_gateway: MarketDataGateway, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    sent: list[list[bytes]] = []
+    _replace_push(unit_gateway, monkeypatch, sent.append)
+    _feed(unit_gateway, _status_frames(1), _status_frames(2), _status_frames(3))
+    assert _resync_requests(sent) == _FULL_RESYNC
+
+    sent.clear()
+    _feed(unit_gateway, _status_frames(1))  # the engine restarted
+    assert _resync_requests(sent) == _FULL_RESYNC
+
+
+def test_halt_status_answer_halts_a_symbol_on_calf(
+    unit_gateway: MarketDataGateway,
+) -> None:
+    unit_gateway._normaliser.session_state = "CONTINUOUS"
+    sess, peer = _make_session()
+    sess.authenticated = True
+    unit_gateway._clients[sess.sock.fileno()] = sess
+    unit_gateway._handle_sub(sess, {"CH": "STATE,CB", "SYM": "AAPL"})
+    sess.out_queue.clear()
+
+    _feed(
+        unit_gateway,
+        _halt_status_frames(
+            1, [{"symbol": "AAPL", "level": "L2", "halt_source": "CB"}]
+        ),
+    )
+    lines = [parse_line(raw.decode()) for raw in sess.out_queue]
+    assert [(f.msg_type, f.fields["CH"]) for f in lines] == [
+        ("STATE", "STATE"),
+        ("CB", "CB"),
+    ]
+    assert lines[0].fields["SESSION"] == "HALTED"
+    assert lines[1].fields["STATUS"] == "HALTED"
+    assert lines[1].fields["LEVEL"] == "L2"
+    assert lines[1].fields["SRC"] == "CB"
+
+    sess.out_queue.clear()
+    unit_gateway._send_snapshot_for_stream(sess, "CB", "AAPL")
+    snap = parse_line(sess.out_queue[0].decode())
+    assert snap.fields["STATUS"] == "HALTED" and snap.fields["LEVEL"] == "L2"
+    peer.close()
+
+
+def test_halt_status_answer_without_a_halted_symbol_resumes_it(
+    unit_gateway: MarketDataGateway,
+) -> None:
+    unit_gateway._normaliser.session_state = "CONTINUOUS"
+    unit_gateway._normaliser.normalise_halt("AAPL")
+    unit_gateway._normaliser.normalise_cb_halt("AAPL", {"level": "L1"})
+    sess, peer = _make_session()
+    sess.authenticated = True
+    unit_gateway._clients[sess.sock.fileno()] = sess
+    unit_gateway._handle_sub(sess, {"CH": "STATE,CB", "SYM": "AAPL"})
+    sess.out_queue.clear()
+
+    _feed(unit_gateway, _halt_status_frames(1, []))
+    lines = [parse_line(raw.decode()) for raw in sess.out_queue]
+    assert [
+        (f.msg_type, f.fields.get("SESSION"), f.fields.get("STATUS")) for f in lines
+    ] == [
+        ("STATE", "CONTINUOUS", None),
+        ("CB", None, "ACTIVE"),
+    ]
+    peer.close()
+
+
+def test_halt_is_cleared_after_an_engine_restart(
+    unit_gateway: MarketDataGateway, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The C2 repro: halt AAPL, restart the engine (which forgets halts),
+    and a new subscriber must not be told AAPL is halted."""
+    sent: list[list[bytes]] = []
+    _replace_push(unit_gateway, monkeypatch, sent.append)
+    from edumatcher.models.generated.circuit_breaker import make_circuit_breaker_halt
+
+    halt = _sequenced(
+        make_circuit_breaker_halt(
+            symbol="AAPL",
+            trigger_price=95.0,
+            reference_price=100.0,
+            level="L1",
+            halt_source="CB",
+        ),
+        1,
+    )
+    _feed(unit_gateway, _status_frames(1), _status_frames(2), halt)
+    assert unit_gateway._normaliser.cb_snapshot_fields("AAPL")["STATUS"] == "HALTED"
+
+    sent.clear()
+    # The engine restarts: its next status answer starts again at 1, and it
+    # holds no halts.
+    _feed(unit_gateway, _status_frames(1))
+    assert ("system.halt_status_request", "MD-GWY01") in _resync_requests(sent)
+    _feed(unit_gateway, _halt_status_frames(1, []))
+
+    sess, peer = _make_session()
+    sess.authenticated = True
+    unit_gateway._clients[sess.sock.fileno()] = sess
+    unit_gateway._handle_sub(sess, {"CH": "STATE,CB", "SYM": "AAPL"})
+    snaps = {
+        f.fields["CH"]: f.fields
+        for f in (parse_line(r.decode()) for r in sess.out_queue)
+    }
+    assert snaps["CB"]["STATUS"] == "ACTIVE"
+    assert snaps["STATE"]["SESSION"] == "CONTINUOUS"
+    peer.close()
+
+
+# ---------------------------------------------------------------------------
+# WP-MDG06: md.msgs_out counts lines sent, not lines queued
+# ---------------------------------------------------------------------------
+
+
+def _msgs_out(gw: MarketDataGateway) -> float:
+    return next(s.value for s in gw.metric_samples() if s.name == "md.msgs_out")
+
+
+def test_msgs_out_counts_only_lines_actually_sent(
+    unit_gateway: MarketDataGateway,
+) -> None:
+    sess, peer = _make_session()
+    sess.authenticated = True
+    unit_gateway._clients[sess.sock.fileno()] = sess
+    line = b"TRADE|CH=TRADE|SYM=AAPL|SEQ=1|" + b"X" * 1000 + b"\n"
+    for _ in range(10_000):
+        unit_gateway._queue_raw(sess, line, is_market_data=True)
+    # The peer never reads: the socket buffer fills, the client is slow, and
+    # its backlog (max_client_queue=2 here) is discarded unsent.
+    unit_gateway._flush_client_writes()
+    assert sess.closing is True
+
+    received = b""
+    while True:
+        try:
+            chunk = peer.recv(1 << 20)
+        except BlockingIOError:
+            break
+        if not chunk:
+            break
+        received += chunk
+    sent_lines = received.count(b"\n")
+    assert 0 < sent_lines < 10_000
+    assert _msgs_out(unit_gateway) == sent_lines
+    peer.close()

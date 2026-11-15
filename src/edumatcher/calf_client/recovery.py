@@ -69,6 +69,11 @@ class Gap:
     #: ``TS`` of the message that revealed the hole, so a viewer can place
     #: it in time against the gateway's clock rather than the client's.
     ts: str
+    #: The gateway run (``WELCOME|EPOCH=``) the position before the hole was
+    #: counted in -- what a ``RESUME`` for it must name. After a reconnect to
+    #: a restarted gateway that is the old run, and the gateway answers
+    #: ``REPLAY_MISS`` rather than serve its own events as the missing ones.
+    epoch: str = ""
 
     @property
     def count(self) -> int:
@@ -94,6 +99,8 @@ class StreamPosition:
     #: Sequence ranges a ``RESUME`` was sent for and which have not arrived
     #: yet, as inclusive ``(low, high)`` pairs.
     holes: list[tuple[int, int]] = field(default_factory=list)
+    #: The gateway run (``WELCOME|EPOCH=``) :attr:`seq` was counted in.
+    epoch: str = ""
 
 
 class SequenceTracker:
@@ -105,9 +112,11 @@ class SequenceTracker:
     def __init__(self) -> None:
         self._streams: dict[tuple[str, str], StreamPosition] = {}
         self._generation = 0
+        self._epoch = ""
 
-    def new_connection(self) -> None:
-        """Note that a fresh connection was established.
+    def new_connection(self, epoch: str) -> None:
+        """Note that a fresh connection was established, to gateway run
+        ``epoch`` (its ``WELCOME|EPOCH=``).
 
         Positions are deliberately **kept** across a reconnect: the
         gateway's counters live in its process, not the socket, so the
@@ -118,6 +127,7 @@ class SequenceTracker:
         replayed duplicate.
         """
         self._generation += 1
+        self._epoch = epoch
 
     def position(self, channel: str, symbol: str) -> int | None:
         """Highest sequence seen on a stream, or ``None`` if never seen."""
@@ -154,12 +164,15 @@ class SequenceTracker:
         if entry is None:
             # The first message on a stream establishes the baseline. It is
             # never a gap, because there is nothing yet for it to be a gap in.
-            self._streams[key] = StreamPosition(seq=seq, generation=self._generation)
+            self._streams[key] = StreamPosition(
+                seq=seq, generation=self._generation, epoch=self._epoch
+            )
             return True, None
 
         if msg_type == "SNAP":  # rule 2
             entry.seq = seq
             entry.generation = self._generation
+            entry.epoch = self._epoch
             entry.holes.clear()
             return True, None
 
@@ -176,15 +189,17 @@ class SequenceTracker:
                 )
                 entry.seq = seq
                 entry.generation = self._generation
+                entry.epoch = self._epoch
                 entry.holes.clear()
                 return True, None
             # rule 1: backfill inside a hole is wanted, anything else is a
             # duplicate. Either way the baseline stays put.
             return self._take_from_hole(entry, seq), None
 
-        previous = entry.seq
+        previous, previous_epoch = entry.seq, entry.epoch
         entry.seq = seq
         entry.generation = self._generation
+        entry.epoch = self._epoch
 
         if seq == previous + 1:
             return True, None
@@ -205,6 +220,7 @@ class SequenceTracker:
             first_seq=previous + 1,
             last_seq=seq - 1,
             ts="",
+            epoch=previous_epoch,
         )
 
     def abandon_holes(self, channel: str, symbol: str) -> None:

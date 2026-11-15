@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from edumatcher.dc_gateway.config import (
+    _load_dc_gateway_config_from_raw,
     load_default_dc_gateway_config,
     load_dc_gateway_config,
 )
@@ -134,3 +135,16 @@ dc_gateway:
 def test_load_default_config_callable() -> None:
     cfg = load_default_dc_gateway_config()
     assert cfg.port > 0
+
+
+@pytest.mark.parametrize("name", ["dc|01", "a\nb", "a\rb", ""])
+def test_a_name_welcome_cannot_carry_is_refused(name: str) -> None:
+    """``name`` is sent as ``WELCOME|…|GW=<name>``; a ``|`` there made
+    build_line raise at the first HELLO and killed the gateway (review C6)."""
+    with pytest.raises(ValueError, match=r"dc_gateway\.name"):
+        _load_dc_gateway_config_from_raw({"dc_gateway": {"name": name}})
+
+
+def test_an_ordinary_name_is_kept() -> None:
+    cfg = _load_dc_gateway_config_from_raw({"dc_gateway": {"name": "dc-gwy.02"}})
+    assert cfg.name == "dc-gwy.02"

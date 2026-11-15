@@ -79,3 +79,10 @@ def test_iso_utc_format() -> None:
     formatted = iso_utc(1700000000.123)
     assert formatted.endswith("Z")
     assert "T" in formatted
+
+
+@pytest.mark.parametrize("value", ["a\nb", "a\rb"])
+def test_build_line_line_break_in_value_raises(value: str) -> None:
+    """A line break would split the line in two on the wire."""
+    with pytest.raises(DcProtocolError):
+        build_line("WELCOME", {"GW": value})

@@ -203,10 +203,19 @@ class SequenceTracker:
        be too old.
     3. **Never let a lower SEQ move the baseline backward.** That turns the
        next ordinary message into a phantom gap, or hides a real one.
+
+    Every `RESUME` names the gateway run its `LASTSEQ` was counted in
+    (`WELCOME|EPOCH=`). Sequences restart at 1 with the gateway, so a
+    position from another run gets `REPLAY_MISS` rather than the new run's
+    events. This example does not reconnect, so that is always the epoch of
+    the one `WELCOME` it receives; a client that reconnects must keep the
+    epoch with each position.
     """
 
     def __init__(self, sock: socket.socket) -> None:
         self._sock = sock
+        #: `WELCOME|EPOCH=` of the gateway run this connection is to.
+        self.epoch = ""
         self._last_seq: dict[tuple[str, str], int] = {}
         self._holes: dict[tuple[str, str], tuple[int, int]] = {}
 
@@ -262,7 +271,12 @@ class SequenceTracker:
         send_line(
             self._sock,
             "RESUME",
-            {"CH": channel, "SYM": symbol, "LASTSEQ": str(previous)},
+            {
+                "CH": channel,
+                "SYM": symbol,
+                "LASTSEQ": str(previous),
+                "EPOCH": self.epoch,
+            },
         )
         return True
 
@@ -270,8 +284,8 @@ class SequenceTracker:
         """The gateway cannot replay the gap: it is permanent.
 
         Either the events aged out of the replay window, or `LASTSEQ` was
-        ahead of the stream -- a position from before a gateway restart,
-        which numbers its streams from 1 again.
+        counted by another gateway run (`EPOCH`): one from before a
+        restart, which numbers its streams from 1 again.
 
         On `TOP`/`STATE`/`INDEX`/`DEPTH`/`CB` a fresh `SNAP` follows this
         error and re-baselines the stream. On `TRADE`/`AUCTION` nothing
@@ -425,6 +439,11 @@ def main() -> None:
     parser.add_argument("--resume-ch", default="TOP")
     parser.add_argument("--resume-sym", default="AAPL")
     parser.add_argument("--lastseq", default="0")
+    parser.add_argument(
+        "--epoch",
+        help="The WELCOME|EPOCH= of the gateway run --lastseq was seen on "
+        "(default: the run this connection reaches)",
+    )
     args = parser.parse_args()
 
     symbols = [s.strip().upper() for s in args.symbols.split(",") if s.strip()]
@@ -451,6 +470,7 @@ def main() -> None:
                 f"{welcome.fields.get('CODE', '')}: {welcome.fields.get('DETAIL', '')}"
             )
         print(f"WELCOME: type={welcome.msg_type} fields={welcome.fields}")
+        seq_tracker.epoch = welcome.fields.get("EPOCH", "")
 
         # Display precision, if this gateway is new enough to advertise it.
         # The presence of REF is the capability signal; its absence means
@@ -516,6 +536,7 @@ def main() -> None:
                     "CH": args.resume_ch.upper(),
                     "SYM": args.resume_sym.upper(),
                     "LASTSEQ": args.lastseq,
+                    "EPOCH": args.epoch or seq_tracker.epoch,
                 },
             )
             print(

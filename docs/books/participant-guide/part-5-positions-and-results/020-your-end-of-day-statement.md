@@ -81,6 +81,11 @@ There are exactly three possible sentences:
 
 - **Today's result** is the same number as the headline, with a sign:
   positive means you gained, negative means you lost.
+- Instead of *Today's result* you may see *Result since the close of
+  2026-10-30*. That happens when a trading day in between was not settled on
+  its own (for example the exchange's settlement did not run that evening):
+  the number then covers every day since that date, while the trade list still
+  shows only this statement's date.
 - **Balance after today** is the running total of all your daily results since
   the start, plus any starting amount your instructor gave you (your *opening
   balance*). It can be negative; a negative balance simply means you are down

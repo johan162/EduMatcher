@@ -36,6 +36,10 @@ You will practise:
   exercise is optional in the container image):
   - `python/alf_parser.py`, `python/alf_client.py`
   - `c/alf_parser.h`, `c/alf_parser.c`, `c/alf_client.c`, `c/Makefile`
+- The container image has none of `ss`, `lsof`, `netstat`, `nc` or `telnet`.
+  Use the `tcp` helper of [chapter 23](220-ralf.md) wherever this chapter
+  says `nc 127.0.0.1 5565`; Exercise 2 shows the container's way to check
+  the port.
 
 Recommended startup terminals:
 
@@ -114,7 +118,7 @@ Start processes with that config:
 
 ```bash
 pm-engine --verbose
-pm-alf-gwy
+pm-alf-gwy -v
 ```
 
 !!! note "Orders from earlier chapters are still in the data directory"
@@ -127,7 +131,8 @@ pm-alf-gwy
     [Starting over](110-risk-controls.md#starting-over) for the reset matrix
     and preconditions.
 
-:material-checkbox-blank-outline: Checkpoint: `pm-alf-gwy` starts, logs that it is listening on port 5565, and reports a successful engine ZMQ connection.
+:material-checkbox-blank-outline: Checkpoint: `pm-alf-gwy -v` starts and logs
+`listening on 0.0.0.0:5565 (engine_pull=tcp://127.0.0.1:5555 engine_pub=tcp://127.0.0.1:5556 max_connections=1024)`.
 
  
 
@@ -170,6 +175,11 @@ If no output appears:
 - `alf_gateway.enabled` may be `false` in the config
 - the port may differ from what you expect — re-run `grep -A5 'alf_gateway:' engine_config.yaml`
 - `pm-engine` must be running before `pm-alf-gwy` can complete its ZMQ handshake
+
+**Container:** the image has none of these tools, and on your computer they
+would show the container's port forwarding rather than the gateway. Inside the
+container, the `listening on 0.0.0.0:5565` line of `pm-alf-gwy -v` is the
+check, and the `HELLO` of the next exercise proves the port answers.
 
 :material-checkbox-blank-outline: Checkpoint: at least one CLI command shows a process listening on port 5565.
 
@@ -217,7 +227,7 @@ Expected: `ORDERS|COUNT=0|GW=TRADER01` and `END|TYPE=ORDERS`.
 
 ## Exercise 3B: telnet and Non-Interactive One-Liner
 
-**telnet** (macOS / Linux):
+**telnet** (macOS / Linux; not in the container image):
 
 ```bash
 telnet 127.0.0.1 5565
@@ -231,12 +241,19 @@ type `quit` to close.
 **Non-interactive probe — useful in scripts or CI pipelines:**
 
 ```bash
-printf 'HELLO|CLIENT=ci|PROTO=ALF1|ID=TRADER01\nSYMBOLS\nEXIT\n' \
+{ printf 'HELLO|CLIENT=ci|PROTO=ALF1|ID=TRADER01\nSYMBOLS\n'; sleep 1; printf 'EXIT\n'; } \
   | nc 127.0.0.1 5565
 ```
 
-Expected: the full session including `WELCOME`, `SYMBOLS` block, and
-`END|TYPE=SYMBOLS` is printed to stdout and the command exits cleanly.
+(In the container: the same with `| tcp 127.0.0.1 5565`.) Expected: the full
+session including `WELCOME`, `SYMBOLS` block, and `END|TYPE=SYMBOLS` is
+printed to stdout and the command exits cleanly.
+
+Two details make this work. Lines sent straight after `HELLO` are fine: the
+gateway holds them until the engine has accepted the logon, then handles
+them in order. But a script must not end before the replies have arrived —
+`EXIT`, or the end of the input, closes the session, and a reply still on its
+way from the engine is lost. Hence the `sleep 1` before `EXIT`.
 
 :material-checkbox-blank-outline: Checkpoint: the one-liner prints `WELCOME` and `END|TYPE=SYMBOLS` without interaction.
 

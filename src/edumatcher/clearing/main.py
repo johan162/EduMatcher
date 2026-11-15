@@ -14,9 +14,16 @@ The flush transaction atomically writes:
 2. current position snapshots  (UPSERT into gateway_symbol_positions)
 3. incremental daily deltas    (UPSERT into gateway_daily_summary)
 
-On startup, and at every close of the market (``session.state`` CLOSED), the
-process prunes trade_events rows older than ``--retention-days`` (90) and logs
-the count of deleted rows.
+On startup, at every close of the market (``session.state`` CLOSED) and at
+every ``system.eod``, the process prunes trade_events rows older than
+``--retention-days`` (90) and logs the count of deleted rows.
+
+A failed write keeps the buffer and is retried every flush interval, logged
+once per outage and counted in the ``clearing.flush_failures`` beacon metric;
+trades still unwritten at shutdown are logged at CRITICAL and the process
+exits 1. The first trade after a start is compared with the newest archived
+trade id, so trades made while pm-clearing was down are recorded as a feed
+gap.
 
 Health endpoint
 ---------------
@@ -63,6 +70,7 @@ from edumatcher.clearing.store import (
     close_snapshot_is_final,
     fetch_all_positions,
     flush_batch,
+    latest_trade_seq,
     open_writer_connection,
     prune_old_events,
     reconcile_session_timezone,
@@ -86,15 +94,12 @@ from edumatcher.models.feed_schema import (
     TradeExecutedPayload,
 )
 from edumatcher.models.message import decode, decode_envelope
-from edumatcher.models.price import to_ticks
 from edumatcher.models.trade import Trade
 from edumatcher.models.generated.trade import TOPIC_TRADE_EXECUTED
 from edumatcher.models.generated.system import (
     PREFIX_GATEWAY_AUTH,
     PREFIX_GATEWAY_BYE,
     TOPIC_EOD,
-    TOPIC_GATEWAY_CONNECT,
-    TOPIC_GATEWAY_DISCONNECT,
 )
 
 FLUSH_SIZE: int = 100
@@ -104,6 +109,13 @@ _DRAIN_POLL_MS: int = 250
 #: Ids per ``trade_events`` lookup (SQLite's bound-variable limit is 999 on old builds).
 _ID_LOOKUP_CHUNK: int = 500
 _RETENTION_DAYS: int = 90
+#: The trade subscriber's receive high-water mark. ZMQ's default of 1 000
+#: queued messages drops silently past it; pm-stats and pm-audit raised
+#: theirs for the same feed (clearing review C10).
+_SUB_RCVHWM: int = 100_000
+#: No console table by default: it is drawn on the receive thread, and at
+#: 6 000 positions one draw takes about 4 s (clearing review P1).
+_PRINT_EVERY: int = 0
 _DEBUG_SUMMARY_INTERVAL_SEC: float = 5.0
 # trade.executed carries `ts_ns`: integer Unix epoch NANOSECONDS, the engine's
 # own clock reading, unscaled. The magnitude guard that used to live here
@@ -197,7 +209,8 @@ class ClearingProcess:
     print_every:
         Print a P&L summary table to the console every N trades (0 = never).
     retention_days:
-        Trade events older than this many days are pruned on startup.
+        Trade events older than this many days are pruned on startup, at
+        every close (``session.state`` CLOSED) and at every ``system.eod``.
     """
 
     def __init__(
@@ -207,7 +220,7 @@ class ClearingProcess:
         *,
         flush_size: int = FLUSH_SIZE,
         flush_interval_sec: float = FLUSH_INTERVAL_SEC,
-        print_every: int = 100,
+        print_every: int = _PRINT_EVERY,
         retention_days: int = _RETENTION_DAYS,
         session_tz: tzinfo = timezone.utc,
         sql_trace: bool = False,
@@ -247,6 +260,10 @@ class ClearingProcess:
         # dropped one or more trades. A run-prefix change is a restart, not a
         # gap.
         self._last_seq: tuple[int, int] | None = None
+        #: The first trade after a start is compared with the newest archived
+        #: id, so trades published while pm-clearing was down are a gap too
+        #: (clearing review H2); later ones with the previous trade.
+        self._gap_reason = "restart"
         self._gap_count = 0
 
         self._running = False
@@ -255,12 +272,19 @@ class ClearingProcess:
         # whichever thread flushes and read on the loop thread: an int.
         self._reporter: HealthReporter | None = None
         self._trades_settled = 0
+        #: The latest connect time per gateway seen by this process. Nothing
+        #: here reads it (gateway_sessions is the record, CL-M5); the test
+        #: harness uses it as its readiness probe.
+        self._gw_connect_ts: dict[str, int] = {}
+        #: Failed flush attempts since start (beacon), and whether the latest
+        #: one failed: an outage is logged once, not once per trade (C1).
+        self._flush_failures = 0
+        self._flush_failing = False
+        #: Trades still buffered when run() ended; main() exits non-zero.
+        self.unwritten_trades = 0
         self._lock = threading.RLock()
         self._last_flush_mono = time.monotonic()
 
-        # Track the latest connect_at_ns per gateway so we can match the
-        # corresponding row when a disconnect message arrives.
-        self._gw_connect_ts: dict[str, int] = {}
         self._debug_counts: OrderedDict[str, int] = OrderedDict()
         self._debug_last_summary = time.monotonic()
 
@@ -274,6 +298,7 @@ class ClearingProcess:
         # trades arrive, so a restart accumulates onto the persisted positions
         # rather than overwriting them from flat (finding CL-C4).
         self._hydrate_ledger()
+        self._last_seq = latest_trade_seq(self._conn)
 
     def _dbg_count(self, key: str, amount: int = 1) -> None:
         if not log.isEnabledFor(logging.DEBUG):
@@ -379,10 +404,11 @@ class ClearingProcess:
             # Disconnect broadcast — the PUB counterpart to gateway_auth
             # (engine/main.py _handle_gateway_disconnect → make_gateway_bye_msg).
             PREFIX_GATEWAY_BYE,
-            # Kept for the test harness's readiness/ordering probe and any
-            # direct-injection clients; harmless in production where it is silent.
-            TOPIC_GATEWAY_CONNECT,
-            TOPIC_GATEWAY_DISCONNECT,
+            # Not system.gateway_connect / system.gateway_disconnect: the
+            # engine echoes every inbound command onto PUB for the audit trail
+            # (Engine._echo_command), so subscribing to them as well recorded
+            # each session twice, and a refused connect as a session.
+            rcvhwm=_SUB_RCVHWM,
         )
         health_rep: zmq.Socket[bytes] | None = None
         try:
@@ -398,11 +424,33 @@ class ClearingProcess:
             sub.close()
             if health_rep is not None:
                 health_rep.close()
-            self._force_flush()
-            self._flush_debug_summary(force=True)
-            self._conn.close()
-            log.info("clearing DB connection closed")
-            log.info("shutdown complete")
+            self._shutdown()
+
+    def _shutdown(self) -> None:
+        """Write what is buffered and close the database.
+
+        Trades that cannot be written are lost with the process: they are
+        logged at CRITICAL with their id range, ``unwritten_trades`` makes
+        main() exit non-zero, and the next start reports the range as a feed
+        gap (clearing review C1).
+        """
+        with self._lock:
+            try:
+                self._flush()
+            except Exception as exc:
+                ids = [t.id for t in self._buffer]
+                self.unwritten_trades = len(ids)
+                log.critical(
+                    "pm-clearing stopped with %d trade(s) not written (ids %s .. %s): %s",
+                    len(ids),
+                    ids[0],
+                    ids[-1],
+                    exc,
+                )
+        self._flush_debug_summary(force=True)
+        self._conn.close()
+        log.info("clearing DB connection closed")
+        log.info("shutdown complete")
 
     def attach_reporter(self, reporter: HealthReporter) -> None:
         """Ship this process's health beacon through ``reporter`` (main())."""
@@ -410,7 +458,10 @@ class ClearingProcess:
 
     def metric_samples(self) -> list[MetricSample]:
         """Design §8.5: trades persisted to clearing.db since start."""
-        return [counter("clearing.trades_settled", self._trades_settled)]
+        return [
+            counter("clearing.trades_settled", self._trades_settled),
+            counter("clearing.flush_failures", self._flush_failures),
+        ]
 
     def stop(self) -> None:
         """Signal the receive loop to exit cleanly."""
@@ -452,7 +503,9 @@ class ClearingProcess:
             except zmq.ZMQError as exc:
                 if exc.errno != errno.EINTR:
                     raise
-                break
+                # A signal: its handler has run, and stop() is what ends the
+                # loop (C9).
+                continue
 
             if health_rep is not None and health_rep in socks:
                 answer_health_ping(health_rep)
@@ -506,15 +559,20 @@ class ClearingProcess:
                     if env is not None:
                         self._msg_ids[trade.id] = env.msg_id
                     self._dbg_count("trades_buffered")
-                    if len(self._buffer) >= self._flush_size:
-                        self._flush()
+                    # While writes fail, the timer retries; retrying on every
+                    # trade only repeats the failure (C1).
+                    if (
+                        len(self._buffer) >= self._flush_size
+                        and not self._flush_failing
+                    ):
+                        self._try_flush()
                 print_now = (
                     self._print_every > 0 and self._trade_count % self._print_every == 0
                 )
                 if print_now:
                     # Positions only change when the buffer is applied, so
                     # flush first: the table must include this trade.
-                    self._flush()
+                    self._try_flush()
 
             if print_now:
                 self._print_pnl_table()
@@ -535,14 +593,6 @@ class ClearingProcess:
             self._dbg_count("gateway_bye_topics")
             self._handle_gateway_bye(payload)
 
-        elif topic == TOPIC_GATEWAY_CONNECT:
-            self._dbg_count("gateway_connect_topics")
-            self._handle_gateway_connect(payload)
-
-        elif topic == TOPIC_GATEWAY_DISCONNECT:
-            self._dbg_count("gateway_disconnect_topics")
-            self._handle_gateway_disconnect(payload)
-
     # ------------------------------------------------------------------
     # Timer loop
     # ------------------------------------------------------------------
@@ -554,12 +604,9 @@ class ClearingProcess:
                 elapsed = time.monotonic() - self._last_flush_mono
                 if elapsed >= self._flush_interval_sec and self._buffer:
                     self._dbg_count("timer_flushes")
-                    # A failed flush keeps its buffer for the next tick; the
-                    # thread must survive to make that retry.
-                    try:
-                        self._flush()
-                    except Exception as exc:
-                        log.warning("timer flush failed, will retry: %s", exc)
+                    # A failed flush keeps its buffer for the next interval;
+                    # the thread must survive to make that retry.
+                    self._try_flush()
 
     # ------------------------------------------------------------------
     # Flush (must be called with self._lock held)
@@ -650,6 +697,7 @@ class ClearingProcess:
 
         last = self._last_seq
         self._last_seq = current
+        reason, self._gap_reason = self._gap_reason, "feed"
         if last is None:
             return
         last_run, last_seq = last
@@ -671,14 +719,16 @@ class ClearingProcess:
                             "last_seq": last_seq,
                             "next_seq": seq,
                             "missing_trades": missing,
+                            "reason": reason,
                         }
                     ),
                 )
                 log.error(
-                    "trade feed gap — %d trade(s) missing between id %s and %s",
+                    "trade feed gap — %d trade(s) missing between id %s and %s (%s)",
                     missing,
                     last_seq,
                     seq,
+                    reason,
                 )
             except Exception as exc:
                 log.warning("failed to record feed gap: %s", exc)
@@ -726,6 +776,12 @@ class ClearingProcess:
             self._rollback_ledger()
             raise
 
+        if self._flush_failing:
+            self._flush_failing = False
+            log.info(
+                "clearing writes recovered after %d failed attempt(s)",
+                self._flush_failures,
+            )
         count = len(fresh)
         self._trades_settled += count
         self._buffer.clear()
@@ -739,10 +795,26 @@ class ClearingProcess:
 
         return count
 
-    def _force_flush(self) -> None:
-        """Flush remaining buffer on shutdown (called without lock)."""
-        with self._lock:
+    def _try_flush(self) -> None:
+        """``_flush``, with a failure kept for the retry instead of raised
+        (must be called with ``self._lock`` held).
+
+        An outage is one ERROR and a recovery one INFO; every failed attempt
+        counts in ``clearing.flush_failures``. A failure also restarts the
+        flush interval, so the timer retries once per interval (C1).
+        """
+        try:
             self._flush()
+        except Exception as exc:
+            self._flush_failures += 1
+            self._last_flush_mono = time.monotonic()
+            if not self._flush_failing:
+                self._flush_failing = True
+                log.error(
+                    "clearing write failed; %d trade(s) kept in memory and retried: %s",
+                    len(self._buffer),
+                    exc,
+                )
 
     # ------------------------------------------------------------------
     # Secondary event handlers
@@ -753,11 +825,14 @@ class ClearingProcess:
         Handle system.eod — engine end-of-day shutdown event.
 
         Actions:
-        1. Force-flush any buffered trades immediately.
-        2. Perform a final mark-to-market pass using EOD last-traded prices
-           from the payload and write updated positions to the DB.
-        3. Write an EOD sentinel row to session_events so pm-clearing-cli
-           can report exact session close times.
+        1. Flush any buffered trades.
+        2. Mark every position to its book's last trade price (or bid/ask mid
+           if it never traded), at the book's precision, and write the
+           re-marked positions.
+        3. Take the day's close snapshot unless the day's real close already
+           took a final one (no scheduler: the shutdown is the close).
+        4. Write an EOD sentinel row to session_events.
+        5. Prune trade_events past the retention window.
         """
         try:
             ts_ns = now_ns()
@@ -772,26 +847,33 @@ class ClearingProcess:
             # ``last_trade_price`` / ``best_bid`` / ``best_ask`` this handler used
             # to look for (finding CL-C2, which left eod_marks permanently empty).
             # Everything downstream stores marks in integer ticks, so convert at
-            # this ingress boundary via to_ticks (CL-M4: keeps mark and avg_cost
-            # in the same unit).
+            # this ingress boundary (CL-M4: keeps mark and avg_cost in the same
+            # unit) -- at the scale the book states. Nothing registers tick
+            # precision in pm-clearing, so the registry's answer would be 2 for
+            # every symbol (clearing review H1).
             eod_marks: dict[str, int] = {}
+            mark_decimals: dict[str, int] = {}
             eod_payload = _gen_system.Eod.from_dict(payload)
             for book in eod_payload.books:
                 sym = book.symbol
                 if not sym:
                     continue
+                scale = 10**book.tick_decimals
                 last_price = book.last_price
                 bids = book.bids
                 asks = book.asks
                 if last_price is not None:
-                    eod_marks[sym] = to_ticks(last_price, sym)
+                    eod_marks[sym] = round(last_price * scale)
                 elif bids and asks:
                     # `EodBookLevel.price` is required, so no None guard: the
                     # dataclass this replaced made it optional and the only
                     # producer, OrderBook.snapshot(), has never omitted it.
                     eod_marks[sym] = (
-                        to_ticks(bids[0].price, sym) + to_ticks(asks[0].price, sym)
+                        round(bids[0].price * scale) + round(asks[0].price * scale)
                     ) // 2
+                else:
+                    continue
+                mark_decimals[sym] = book.tick_decimals
 
             with self._lock:
                 # 1. Flush all buffered trades first.
@@ -800,14 +882,10 @@ class ClearingProcess:
                 # 2. EOD mark-to-market: update mark_price from EOD snapshot.
                 if eod_marks:
                     marked_keys: set[tuple[str, str]] = set()
-                    for pos in self._ledger.all_positions():
-                        mark = eod_marks.get(pos.symbol)
-                        if mark is not None:
-                            pos.mark_price = mark
-                            pos.unrealized_pnl = pos.net_qty * (
-                                float(mark) - pos.avg_cost
-                            )
-                            marked_keys.add((pos.gateway_id, pos.symbol))
+                    for sym, mark in eod_marks.items():
+                        marked_keys |= self._ledger.mark_symbol(
+                            sym, mark, mark_decimals[sym]
+                        )
                     # Flush only the re-marked position snapshots (CL-M9); the
                     # mark pass runs outside the batch-delta accumulator, so pass
                     # the touched keys explicitly.
@@ -969,9 +1047,9 @@ class ClearingProcess:
 
     def _handle_gateway_disconnect(self, payload: dict[str, Any]) -> None:
         """
-        Handle system.gateway_disconnect — update disconnect timestamp and reason.
-        Also force-flush buffered trades for that gateway before the engine
-        cancels its resting orders.
+        Handle system.gateway_disconnect — close the gateway's open session
+        with the disconnect timestamp and reason, after writing what is
+        buffered so the session's trades are on disk when it is marked closed.
         """
         try:
             gateway_id = str(payload.get("gateway_id", "")).upper()
@@ -980,13 +1058,9 @@ class ClearingProcess:
 
             ts_ns = now_ns()
             reason = payload.get("reason") or payload.get("disconnect_reason")
-            # Drop the in-memory connect timestamp (housekeeping only); the DB
-            # is the source of truth for matching the open session (CL-M5).
             self._gw_connect_ts.pop(gateway_id, None)
 
             with self._lock:
-                # Force flush so any buffered fills for this gateway are persisted
-                # before the engine-side order cancellations arrive.
                 self._flush()
                 # Close the latest open session in SQL (MAX open connected_at_ns)
                 # rather than relying on the in-memory dict — so a clearing
@@ -1137,9 +1211,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--print-every",
         type=int,
-        default=100,
+        default=_PRINT_EVERY,
         metavar="N",
-        help="Print P&L summary every N trades (0 = never, default: 100)",
+        help=(
+            "Print a P&L table of every position every N trades (0 = never, "
+            "the default); drawn on the receive thread, so keep it for small "
+            "classroom ledgers"
+        ),
     )
     parser.add_argument(
         "--retention-days",
@@ -1172,7 +1250,10 @@ def build_parser() -> argparse.ArgumentParser:
         "-q",
         "--quiet",
         action="store_true",
-        help="Reduce log output to warnings/errors",
+        help=(
+            "Log warnings and errors only; this is the default, and -v or "
+            "--log-level override it"
+        ),
     )
     parser.add_argument(
         "--log-target",
@@ -1296,6 +1377,8 @@ def main() -> None:
     if reporter is not None:
         process.attach_reporter(reporter)
     process.run()
+    if process.unwritten_trades:
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":

@@ -31,7 +31,10 @@ After a pm-monitor restart the tracker is *primed* from ``metrics.db``
 (``counter_last``, WP-B4): the first value of a primed series is a
 ``RESUMED`` step whose increment is exactly what happened while pm-monitor
 was down (or the whole value, if the process restarted meanwhile). It counts
-towards today but not into a rolling window, where it would be a spike.
+towards today but not into a rolling window, where it would be a spike. Only
+values recorded on the current trading date are primed: across a date change
+the increment would book part of an earlier day to today, so such a series
+starts with a first value, as above.
 """
 
 from __future__ import annotations
@@ -142,11 +145,18 @@ class CounterTracker:
     def __init__(self) -> None:
         self._last: dict[SeriesKey, tuple[str, float]] = {}  # -> (boot_id, value)
         self._primed: set[SeriesKey] = set()
+        #: Series stepped since :meth:`clear_heard`.
+        self._heard: set[SeriesKey] = set()
 
-    @property
-    def state(self) -> dict[SeriesKey, tuple[str, float]]:
-        """``(boot_id, value)`` per series, for ``metrics.db``'s ``counter_last``."""
-        return self._last
+    def heard(self) -> dict[SeriesKey, tuple[str, float]]:
+        """``(boot_id, value)`` of every series heard since :meth:`clear_heard`,
+        for ``metrics.db``'s ``counter_last``: a series not heard keeps the
+        row of when it was, so retention can expire a source gone for good."""
+        return {key: self._last[key] for key in self._heard}
+
+    def clear_heard(self) -> None:
+        """What :meth:`heard` returned is written."""
+        self._heard.clear()
 
     def prime(self, state: dict[SeriesKey, tuple[str, float]]) -> None:
         """Resume from the counter state ``metrics.db`` last recorded."""
@@ -161,6 +171,7 @@ class CounterTracker:
         """
         last = self._last.get(key)
         self._last[key] = (boot_id, value)
+        self._heard.add(key)
         if last is None:
             return value, Step.FIRST
         last_boot, last_value = last
@@ -175,6 +186,15 @@ class CounterTracker:
         for key in [k for k in self._last if k[0] == source]:
             del self._last[key]
             self._primed.discard(key)
+            self._heard.discard(key)
+
+    def forget_expired(self, keys: list[SeriesKey]) -> None:
+        """Drop primed series never heard since, whose ``counter_last`` rows
+        retention has deleted: their source has not come back."""
+        for key in keys:
+            if key in self._primed:
+                del self._last[key]
+                self._primed.discard(key)
 
     def __len__(self) -> int:
         return len(self._last)

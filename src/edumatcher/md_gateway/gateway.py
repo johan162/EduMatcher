@@ -11,6 +11,7 @@ The gateway bridges engine PUB topics onto CALF/TCP streams.
 from __future__ import annotations
 
 import logging
+import secrets
 import select
 import signal
 import socket
@@ -22,7 +23,7 @@ from typing import Any
 import zmq
 
 from edumatcher.health import HealthReporter
-from edumatcher.health.samples import client_gateway_samples
+from edumatcher.health.samples import client_gateway_samples, counter
 from edumatcher.models.generated.health import MetricSample
 from edumatcher.md_gateway.client_session import ClientSession
 from edumatcher.md_gateway.config import MarketDataGatewayConfig
@@ -32,7 +33,13 @@ from edumatcher.md_gateway.protocol import build_line, iso_utc, parse_line
 from edumatcher.md_gateway.replay_buffer import ReplayBuffer, ReplayMissError
 from edumatcher.md_gateway.sequencer import SequenceAllocator
 from edumatcher.messaging.bus import PushSocket, make_pusher, make_subscriber
-from edumatcher.models.message import decode, make_session_state_request_msg
+from edumatcher.models.message import (
+    decode,
+    decode_sequence,
+    make_book_snapshot_request_msg,
+    make_halt_status_request_msg,
+    make_session_state_request_msg,
+)
 from edumatcher.models.price import DEFAULT_TICK_DECIMALS
 from edumatcher.models.generated.trade import TOPIC_TRADE_EXECUTED
 from edumatcher.models.generated.session import TOPIC_SESSION_STATE
@@ -47,7 +54,10 @@ from edumatcher.models.generated.circuit_breaker import (
     PREFIX_CIRCUIT_BREAKER_RESUME,
 )
 from edumatcher.models.generated.index import TOPIC_INDEX_UPDATE
-from edumatcher.models.generated.system import topic_session_status
+from edumatcher.models.generated.system import (
+    topic_halt_status,
+    topic_session_status,
+)
 
 _ALLOWED_CHANNELS = frozenset(
     {"TOP", "TRADE", "STATE", "INDEX", "DEPTH", "AUCTION", "CB"}
@@ -85,6 +95,23 @@ _DEBUG_SUMMARY_INTERVAL_SEC = 5.0
 # asked once: an engine restarted under a running gateway comes back CLOSED
 # without broadcasting a transition, and only a fresh answer reveals that.
 _SESSION_QUERY_INTERVAL_SEC = 2.0
+# Receive high-water mark of both SUB sockets. ZeroMQ's default of 1000 drops
+# silently during a burst the fan-out has not caught up with; the other
+# whole-stream consumers (pm-stats, pm-alf-gwy, pm-audit) use 1e5 or more.
+_SUB_RCVHWM = 100_000
+# After a WARNING about lost bus messages on a topic family, further losses on
+# it are only counted (md.bus_gaps) until this long has passed.
+_BUS_GAP_LOG_INTERVAL_SEC = 60.0
+# Per-symbol topic families on the engine bus; a gap or restart is reported
+# under the family, so a burst across 300 books is one line, not 300.
+_PER_SYMBOL_PREFIXES = (
+    PREFIX_BOOK_SNAPSHOT,
+    PREFIX_CIRCUIT_BREAKER_HALT,
+    PREFIX_CIRCUIT_BREAKER_RESUME,
+    PREFIX_CIRCUIT_BREAKER_EXTEND,
+    PREFIX_AUCTION_RESULT,
+    PREFIX_AUCTION_INDICATIVE,
+)
 
 log = logging.getLogger(__name__)
 
@@ -123,6 +150,12 @@ class MarketDataGateway:
         self._slow_clients = 0
         self._disconnects: dict[str, int] = {}
 
+        # This run's identity on the wire (WELCOME|EPOCH=). Sequences live in
+        # memory and begin again at 1 when the gateway restarts, so a RESUME
+        # must name the run its LASTSEQ came from: once the new run's stream
+        # passes LASTSEQ, a replay would otherwise serve the new run's events
+        # as the continuation of the old.
+        self._epoch = secrets.token_hex(4)
         self._subs = SubscriptionRegistry()
         self._normaliser = EngineNormaliser(depth_levels=config.depth_levels)
         self._sequencer = SequenceAllocator()
@@ -140,8 +173,19 @@ class MarketDataGateway:
             PREFIX_CIRCUIT_BREAKER_EXTEND,
             PREFIX_AUCTION_RESULT,
             PREFIX_AUCTION_INDICATIVE,
+            rcvhwm=_SUB_RCVHWM,
         )
-        self._index_sub = make_subscriber(config.index_pub_addr, "index.")
+        self._index_sub = make_subscriber(
+            config.index_pub_addr, "index.", rcvhwm=_SUB_RCVHWM
+        )
+        # Bus sequence per topic (SequencedPublisher), and what was lost:
+        # messages missed per topic family, those not yet in a WARNING, and
+        # when each family last logged.
+        self._bus_seq: dict[str, int] = {}
+        self._bus_gaps: dict[str, int] = {}
+        self._bus_gaps_unlogged: dict[str, int] = {}
+        self._bus_gap_logged_at: dict[str, float] = {}
+        self._bus_restart_logged_at: dict[str, float] = {}
 
         # The engine broadcasts its session only on a transition, so a gateway
         # started after the last one -- or an exchange booted CLOSED outside
@@ -152,8 +196,15 @@ class MarketDataGateway:
         self._sub_sock.setsockopt(
             zmq.SUBSCRIBE, self._session_status_topic.encode("utf-8")
         )
+        self._halt_status_topic = topic_halt_status(self._session_query_id)
+        self._sub_sock.setsockopt(
+            zmq.SUBSCRIBE, self._halt_status_topic.encode("utf-8")
+        )
         self._push: PushSocket = make_pusher(config.engine_pull_addr)
         self._next_session_query = 0.0
+        # Whether books and halts were asked for since the engine (re)started;
+        # see _resync_engine_state.
+        self._engine_synced = False
 
     def _dbg_count(self, key: str, amount: int = 1) -> None:
         if not log.isEnabledFor(logging.DEBUG):
@@ -230,7 +281,7 @@ class MarketDataGateway:
     def metric_samples(self) -> list[MetricSample]:
         """Design §8.5: clients, messages out, disconnects by reason, plus the
         two signals for clients stuck in close-after-flush."""
-        return client_gateway_samples(
+        samples = client_gateway_samples(
             "md",
             clients=len(self._clients),
             clients_max=self.config.max_connections,
@@ -239,6 +290,12 @@ class MarketDataGateway:
             slow_clients=self._slow_clients,
             closing_clients=sum(1 for s in self._clients.values() if s.closing),
         )
+        # Engine or pm-index messages that never arrived, by topic family.
+        samples.extend(
+            counter("md.bus_gaps", n, family)
+            for family, n in sorted(self._bus_gaps.items())
+        )
+        return samples
 
     def close(self) -> None:
         if self._reporter is not None:
@@ -426,6 +483,9 @@ class MarketDataGateway:
                 if session.out_offset >= len(payload):
                     session.out_queue.popleft()
                     session.out_offset = 0
+                    # Counted here, not when queued: a slow client's backlog
+                    # is discarded unsent, and so is a closed session's.
+                    self._msgs_out += 1
 
             if (
                 not session.closing
@@ -540,6 +600,7 @@ class MarketDataGateway:
             "GW": self.config.name,
             "HBINT": str(self.config.heartbeat_interval_sec),
             "REPLAY": str(self.config.replay_window_sec),
+            "EPOCH": self._epoch,
             # CH_SUPPORTED lets a client detect gateway capability without a
             # PROTO version bump (EduMatcher-CALF-Extensions.md §3.2). Always
             # the full _ALLOWED_CHANNELS list since every channel in it ships
@@ -635,6 +696,15 @@ class MarketDataGateway:
             )
             return
 
+        epoch = fields.get("EPOCH", "")
+        if not epoch:
+            self._queue_line(
+                session,
+                "ERR",
+                {"CODE": "BAD_MESSAGE", "DETAIL": "RESUME requires EPOCH"},
+            )
+            return
+
         last_seq_raw = fields.get("LASTSEQ", "")
         try:
             last_seq = int(last_seq_raw)
@@ -683,14 +753,21 @@ class MarketDataGateway:
         # but only where the client is not already receiving it. A wildcard
         # subscriber (SUB|CH=TRADE|SYM=*, which is how the terminal bridge
         # follows the tape) would otherwise accumulate one redundant concrete
-        # pair per RESUME, permanently: nothing ever removes them, and
-        # session_wants scans the set linearly for every client on every
-        # stream event.
+        # pair per RESUME, permanently: nothing ever removes them.
+        # The pair it adds counts against max_symbols_per_client, as on SUB:
+        # the limit bounds each client's share of the fan-out.
         if not self._subs.session_wants(session.sock.fileno(), ch, sym):
+            held = {held_sym for _, held_sym in session.subscriptions}
+            if sym not in held and len(held) >= self.config.max_symbols_per_client:
+                self._queue_line(session, "ERR", {"CODE": "SUB_LIMIT"})
+                return
             session.subscriptions.add((ch, sym))
             self._subs.set_for_client(session.sock.fileno(), session.subscriptions)
 
         try:
+            if epoch != self._epoch:
+                # LASTSEQ counts another gateway run's events.
+                raise ReplayMissError(f"epoch {epoch} is not this run's")
             lines = self._replay.replay_since(
                 ch, sym, last_seq, self._sequencer.current(ch, sym) or 0
             )
@@ -746,13 +823,15 @@ class MarketDataGateway:
             if sym == "*" and not set(channels).issubset(_WILDCARD_ELIGIBLE_CHANNELS):
                 self._queue_line(session, "ERR", {"CODE": "INVALID_SYMBOL", "SYM": sym})
                 return
-            if sym != "*" and self._known_symbols and sym not in self._known_symbols:
-                if not any(ch == "INDEX" for ch in channels):
-                    self._queue_line(
-                        session, "ERR", {"CODE": "INVALID_SYMBOL", "SYM": sym}
-                    )
-                    return
-            if any(ch == "INDEX" for ch in channels) and not sym:
+            # Index ids are a namespace of their own, so INDEX is exempt from
+            # the instrument check -- that pair only: SUB|CH=INDEX,TOP|SYM=X
+            # still asks for (TOP, X).
+            if (
+                sym != "*"
+                and self._known_symbols
+                and sym not in self._known_symbols
+                and any(ch != "INDEX" for ch in channels)
+            ):
                 self._queue_line(session, "ERR", {"CODE": "INVALID_SYMBOL", "SYM": sym})
                 return
 
@@ -784,7 +863,7 @@ class MarketDataGateway:
             # known symbol instead (EduMatcher-CALF-Extensions.md §5.4). The
             # ("TOP", "*") pair itself is still stored in session.subscriptions
             # above so future live MD events fan out via the wildcard match in
-            # SubscriptionRegistry.session_wants, including for symbols that
+            # SubscriptionRegistry.wanting, including for symbols that
             # become known only after this SUB.
             if ch == "TOP" and sym == "*":
                 for real_sym in sorted(self._known_symbols):
@@ -879,22 +958,79 @@ class MarketDataGateway:
         self._replay.append(ch, sym, seq, line, trade_id=trade_id)
         self._dbg_count("stream_events")
 
-        for target in self._clients.values():
-            if not target.authenticated or target.closing:
+        for fd in self._subs.wanting(ch, sym):
+            target = self._clients.get(fd)
+            if target is None or not target.authenticated or target.closing:
                 continue
-            if self._subs.session_wants(target.sock.fileno(), ch, sym):
-                self._queue_raw(target, line, is_market_data=True)
+            self._queue_raw(target, line, is_market_data=True)
 
     # ------------------------------------------------------------------
     # Engine event mapping
     # ------------------------------------------------------------------
+
+    def _check_bus_sequence(self, frames: list[bytes]) -> bool:
+        """Count bus messages that never arrived; True on a publisher restart.
+
+        The engine and pm-index number each topic (``SequencedPublisher``),
+        so a jump means ZeroMQ dropped messages at a high-water mark. Without
+        this the gateway numbered whatever arrived contiguously and neither
+        it nor any CALF client could see the loss. A number that goes back
+        is the publisher restarting (sequences begin again at 1), not a gap.
+        Frames without a sequence say nothing either way.
+        """
+        seq = decode_sequence(frames)
+        if seq is None:
+            return False
+        topic = frames[0].decode("utf-8", errors="replace")
+        last = self._bus_seq.get(topic)
+        self._bus_seq[topic] = seq
+        if last is None:
+            return False
+        family = _bus_family(topic)
+        now = time.monotonic()
+        if seq <= last:
+            logged = self._bus_restart_logged_at.get(family)
+            if logged is None or now - logged >= _BUS_GAP_LOG_INTERVAL_SEC:
+                self._bus_restart_logged_at[family] = now
+                log.info(
+                    "%s sequence went from %d to %d: publisher restart",
+                    topic,
+                    last,
+                    seq,
+                )
+            return True
+        missed = seq - last - 1
+        if missed == 0:
+            return False
+        self._bus_gaps[family] = self._bus_gaps.get(family, 0) + missed
+        unlogged = self._bus_gaps_unlogged.get(family, 0) + missed
+        logged = self._bus_gap_logged_at.get(family)
+        if logged is not None and now - logged < _BUS_GAP_LOG_INTERVAL_SEC:
+            self._bus_gaps_unlogged[family] = unlogged
+            return False
+        self._bus_gap_logged_at[family] = now
+        self._bus_gaps_unlogged[family] = 0
+        log.warning(
+            "engine bus dropped %d message(s) on %s: sequence %d..%d never "
+            "arrived (%d lost on %s since the last warning); CALF clients "
+            "cannot see this loss",
+            missed,
+            topic,
+            last + 1,
+            seq - 1,
+            unlogged,
+            family,
+        )
+        return False
 
     def _poll_engine_events(self) -> None:
         budget = _MAX_ENGINE_EVENTS_PER_LOOP
         while budget > 0 and self._sub_sock.poll(timeout=0):
             self._dbg_count("engine_sub_messages")
             try:
-                topic, payload = decode(self._sub_sock.recv_multipart())
+                frames = self._sub_sock.recv_multipart()
+                restarted = self._check_bus_sequence(frames)
+                topic, payload = decode(frames)
             except Exception as exc:
                 log.warning("md_gateway decode error on engine SUB event: %s", exc)
                 budget -= 1
@@ -943,6 +1079,10 @@ class MarketDataGateway:
 
                 if topic == self._session_status_topic:
                     self._dbg_count("session_status_topics")
+                    # The answer comes every _SESSION_QUERY_INTERVAL_SEC, so
+                    # its sequence going back is how an engine restart shows.
+                    if restarted or not self._engine_synced:
+                        self._resync_engine_state()
                     before = self._normaliser.session_state
                     change = self._normaliser.apply_session_status(payload)
                     if change is None:
@@ -953,6 +1093,14 @@ class MarketDataGateway:
                         # Only the next transition moved: no symbol changed
                         # phase, and the timetable rides the wildcard alone.
                         self._emit_stream_event("STATE", "STATE", *change, now_seconds)
+                    continue
+
+                if topic == self._halt_status_topic:
+                    self._dbg_count("halt_status_topics")
+                    for ch, sym, fields in self._normaliser.apply_halt_status(
+                        payload.get("halted") or []
+                    ):
+                        self._emit_stream_event(ch, ch, sym, fields, now_seconds)
                     continue
 
                 if topic.startswith(PREFIX_CIRCUIT_BREAKER_HALT):
@@ -1034,7 +1182,9 @@ class MarketDataGateway:
         while budget > 0 and self._index_sub.poll(timeout=0):
             self._dbg_count("index_sub_messages")
             try:
-                topic, payload = decode(self._index_sub.recv_multipart())
+                frames = self._index_sub.recv_multipart()
+                self._check_bus_sequence(frames)
+                topic, payload = decode(frames)
             except Exception as exc:
                 log.warning("md_gateway decode error on index SUB event: %s", exc)
                 budget -= 1
@@ -1087,6 +1237,35 @@ class MarketDataGateway:
         except zmq.Again:
             # Engine not up (the PUSH is non-blocking): ask again next time.
             pass
+
+    def _resync_engine_state(self) -> None:
+        """Ask the engine for its halts and for every known symbol's book.
+
+        The engine publishes a book only when it changes and a halt only when
+        it happens, so a gateway started while the market is quiet had empty
+        TOP/DEPTH baselines and no halts, and after an engine restart (which
+        forgets halts without a resume) it kept a halted symbol HALTED. The
+        answers arrive as ordinary ``book.{SYM}`` and
+        ``system.halt_status.{GW}`` messages and update clients like live
+        events. The engine does not answer for a symbol it holds no book for.
+        """
+        try:
+            self._push.send_multipart(
+                make_halt_status_request_msg(self._session_query_id)
+            )
+        except zmq.Again:
+            return  # engine gone again: retried on its next status answer
+        self._engine_synced = True
+        log.info("asking the engine for halts and %d book(s)", len(self._known_symbols))
+        for sym in sorted(self._known_symbols):
+            try:
+                self._push.send_multipart(make_book_snapshot_request_msg(sym))
+            except zmq.Again:
+                # The rest arrive with their next change.
+                log.info(
+                    "engine not taking requests; book requests from %s on not sent", sym
+                )
+                return
 
     def _send_heartbeats_if_due(self) -> None:
         now = time.monotonic()
@@ -1145,7 +1324,6 @@ class MarketDataGateway:
             # only grows the backlog of a client that is being dropped.
             return
         session.out_queue.append(payload)
-        self._msgs_out += 1
         if is_market_data:
             session.last_market_data_sent = time.monotonic()
 
@@ -1213,19 +1391,23 @@ class MarketDataGateway:
         return [token.strip().upper() for token in raw.split(",") if token.strip()]
 
 
-def _extract_ts(payload: dict[str, Any]) -> float:
-    """Extract event time as epoch seconds, with a robust fallback.
+def _bus_family(topic: str) -> str:
+    """``book.AAPL`` -> ``book``; a topic that is not per symbol is its own."""
+    for prefix in _PER_SYMBOL_PREFIXES:
+        if topic.startswith(prefix):
+            return prefix.rstrip(".")
+    return topic
 
-    This runs over every topic on both SUB sockets, and the bus carries two
-    different time fields: `ts_ns` (integer epoch nanoseconds -- trade.executed,
-    the book's recent-trade rows, and, since AR-0.3, index.update and every
-    other index-family message too) and `timestamp` (float epoch seconds --
-    log.yaml's messages are the remaining holdout, per CP-0's own checklist).
-    Prefer the nanosecond field where it exists and scale it here, at the one
-    place the CALF envelope needs seconds; the `timestamp` fallback below
-    predates AR-0.3 and is believed dead for every topic this function
-    currently sees, kept only because removing an untested fallback branch on
-    a guess is worse than a comment correction.
+
+def _extract_ts(payload: dict[str, Any]) -> float:
+    """Event time as epoch seconds, for the CALF ``TS`` field.
+
+    ``ts_ns`` (integer epoch nanoseconds) where the message carries it: book
+    snapshots, ``trade.executed`` and ``index.update``. ``session.state``,
+    ``system.session_status``, ``system.halt_status``, ``circuit_breaker.*``
+    and ``auction.*`` carry no time at all, so their ``TS`` is this gateway's
+    clock when it received them. A ``timestamp`` field (float epoch seconds)
+    is read if present; no topic this gateway subscribes to sends one today.
     """
     raw_ns = payload.get("ts_ns")
     if raw_ns is not None:

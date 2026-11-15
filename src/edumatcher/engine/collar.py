@@ -20,9 +20,11 @@ Dynamic band
   against wherever the last trade occurred, so the first step outside the
   dynamic band is caught.
 
-Both bands are checked on every LIMIT and ICEBERG order. MARKET/FOK/IOC
-orders bypass collar checks — they are not price-limited and will execute
-against whatever is available.
+When collars are enabled and configured, the engine checks an order's
+``price_ticks`` if present, including priced FOK, IOC and STOP_LIMIT orders.
+Orders without a limit price have no price to check. Live combo and OCO legs
+and amended prices are checked too; market-maker quotes and config-seeded
+combos are not collared.
 
 Integer arithmetic
 ~~~~~~~~~~~~~~~~~~

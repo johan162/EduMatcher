@@ -37,7 +37,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--engine-pub",
         default=None,
-        help="Engine PUB socket address (default: value from config, then tcp://127.0.0.1:5556)",
+        help=(
+            "Engine PUB socket address to subscribe to (default: "
+            "tcp://$EDUMATCHER_ENGINE_HOST:5556, host 127.0.0.1 when unset)"
+        ),
     )
     parser.add_argument(
         "--log-level",
@@ -55,7 +58,7 @@ def build_parser() -> argparse.ArgumentParser:
         "-q",
         "--quiet",
         action="store_true",
-        help="Reduce log output to warnings/errors",
+        help="Explicit WARNING log level (the default)",
     )
     parser.add_argument(
         "--log-target",

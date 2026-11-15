@@ -20,10 +20,7 @@ This document defines the client-visible wire behaviour of RALF version token
 `RALF1`: framing, message set, fields, roles, sequencing, timeouts, and errors. The
 key words **MUST**, **MUST NOT**, **SHOULD**, and **MAY** are used per RFC 2119.
 A conforming client or gateway MUST implement the message set in §6 with the field
-constraints in §6 and §10. Behaviour not stated here is unspecified. Where the
-current implementation deviates from what a robust protocol would require, the
-deviation is called out with a **⚠ Known deviation** note and tracked in the
-project's suspected-bugs report.
+constraints in §6 and §10. Behaviour not stated here is unspecified.
 
 ## 3. Transport & session model
 
@@ -45,6 +42,12 @@ any other message; a non-`HELLO` first message is rejected with
 receives `EXIT|REASON=auth_timeout` and is closed. Once the gateway has sent
 the line that ends a session, it ignores anything more the client sends.
 
+A client that closes its sending side (a TCP half-close, as
+`printf 'HELLO|…\nSUB|…\n' | nc host 5580` does once its input ends) ends the
+session: the gateway disconnects it when it reads the end of input, so it
+receives only what was already sent. A read-only client MUST keep its
+sending side open — the same rule as in `pm-md-gwy` and `pm-dc-gwy`.
+
 ## 4. Wire format
 
 Every message is one line:
@@ -58,6 +61,9 @@ MSGTYPE|KEY=VALUE|KEY=VALUE|...\n
 - A parser MUST ignore unknown fields (forward compatibility) except where a field
   is required for validation.
 - Values do not contain `|` or `\n`.
+- Field order is not significant: a parser MUST look fields up by key. (The
+  gateway appends `SEQ` last; the examples in this document may show it
+  elsewhere.)
 
 **Reserved cross-message keys** (present on most messages):
 
@@ -78,8 +84,8 @@ MSGTYPE|KEY=VALUE|KEY=VALUE|...\n
 | `UNSUB` | client → gw | remove subscriptions |
 | `SNAP` | gw → client | subscription/recovery baseline (carries current `SEQ`) |
 | `EXEC` | gw → client | one executed trade (post-trade view) |
-| `EOD` | gw → client | end-of-day per-symbol summary marker |
-| `HB` | gw → client | heartbeat when the stream is quiet |
+| `EOD` | gw → client | per-symbol summary when the engine stops (§6) |
+| `HB` | gw → client | heartbeat every `HBINT` seconds |
 | `PING` / `PONG` | client → gw / gw → client | liveness probe and reply |
 | `EXIT` | both | from the gateway: session terminated, with `REASON` (e.g. `idle_timeout`); from the client: close after flushing |
 | `ERR` | gw → client | protocol, entitlement, or replay error |
@@ -94,10 +100,11 @@ MSGTYPE|KEY=VALUE|KEY=VALUE|...\n
 | `PROTO` | string | ✔ | MUST equal `RALF1` |
 | `ROLE` | enum | ✔ | one of `CLEARING`, `DROP_COPY`, `AUDIT`; MUST be in the gateway's `allowed_roles` |
 | `LASTSEQ` | int | – | replay checkpoint; requests events with `SEQ > LASTSEQ` (see §8) |
+| `EPOCH` | string | with `LASTSEQ > 0` | the `WELCOME\|EPOCH` of the gateway run `LASTSEQ` came from (see §8) |
 
 Missing `CLIENT`/`PROTO`/`ROLE` → `ERR|CODE=AUTH_REQUIRED`. A `ROLE` outside
-`allowed_roles` → `ERR|CODE=ENTITLEMENT_DENIED`. A non-integer `LASTSEQ` →
-`ERR|CODE=BAD_MESSAGE`.
+`allowed_roles` → `ERR|CODE=ENTITLEMENT_DENIED`. A non-integer `LASTSEQ`, or a
+`LASTSEQ` above 0 without `EPOCH` → `ERR|CODE=BAD_MESSAGE`; each ends the session.
 
 ### `WELCOME` (gateway → client)
 
@@ -105,6 +112,7 @@ Missing `CLIENT`/`PROTO`/`ROLE` → `ERR|CODE=AUTH_REQUIRED`. A `ROLE` outside
 |-------|---------|
 | `PROTO` | negotiated version (`RALF1`) |
 | `GW` | gateway id (`post_trade_gateway.name`) |
+| `EPOCH` | this gateway run's identity: 8 hex digits, new at every start of `pm-ralf-gwy`; store it with the checkpoint |
 | `ROLE` | accepted role |
 | `REPLAY` | replay retention window, seconds (`replay_retention_sec`) |
 | `HBINT` | heartbeat interval, seconds (`heartbeat_interval_sec`) |
@@ -117,7 +125,10 @@ Missing `CLIENT`/`PROTO`/`ROLE` → `ERR|CODE=AUTH_REQUIRED`. A `ROLE` outside
 | `SYM` | csv of symbols or `*` | – | `*` | scope filter |
 
 A subscription is the set of `(channel, symbol)` pairs. `SUB` is cumulative; `UNSUB`
-removes matching pairs and is idempotent. After a `SUB`, the gateway emits one `SNAP`.
+removes exactly the pairs it names and is idempotent (`UNSUB` of one symbol does not
+narrow a `SYM=*` pair). After a `SUB`, the gateway emits one `SNAP`;
+in a session whose `HELLO` carried a checkpoint, the replay for the pairs the `SUB`
+added (or `ERR|CODE=REPLAY_MISS`) comes first, in the same reply (§8).
 A missing/empty `CH` → `ERR|CODE=INVALID_CHANNEL`; an unknown channel →
 `ERR|CODE=INVALID_CHANNEL`; a channel the role may not access →
 `ERR|CODE=ENTITLEMENT_DENIED`.
@@ -140,7 +151,7 @@ One line per executed trade, per subscribed channel.
 | `MATCH_ID` | match id — **identical to `EXEC_ID`** in `RALF1` |
 | `BUY_ORDER_ID` / `SELL_ORDER_ID` | resting/aggressing order ids |
 | `BUY_GW` / `SELL_GW` | buy-side / sell-side gateway ids |
-| `SIDE` | aggressor side (`BUY`/`SELL`) |
+| `SIDE` | aggressor side (`BUY`/`SELL`); `AUCTION` for an uncross print, where both sides rested |
 | `QTY` | executed quantity |
 | `PX` | execution price (display units) |
 
@@ -149,12 +160,15 @@ each copy consuming its own `SEQ` (§8).
 
 ### `EOD` (gateway → client)
 
-Per-symbol end-of-day marker, derived from the engine `system.eod` broadcast.
+Per-symbol summary, derived from the engine `system.eod` broadcast. The engine
+sends that broadcast in its shutdown sequence, whenever it stops (mid-session
+included), not at a fixed end of the trading day; a killed engine sends none.
 
 | Field | Description |
 |-------|-------------|
-| `CH` `SYM` `SEQ` `TS` | envelope |
-| `TRADE_COUNT` | trades executed for the symbol since the previous `EOD` (the counter resets to zero at every `EOD`, not just once per session) |
+| `CH` `SYM` `SEQ` | envelope |
+| `TS` | when the gateway received `system.eod` (the broadcast carries no time) |
+| `TRADE_COUNT` | trades for the symbol that **this gateway run** disseminated since it started or since its previous `EOD` (the counter resets to zero at every `EOD` and when `pm-ralf-gwy` restarts). It counts the `EXEC` lines sent, so trades lost before the gateway are not in it |
 | `EXEC_COUNT` | execution count — **identical to `TRADE_COUNT`** in `RALF1` |
 
 `EOD` is emitted once per symbol on all three channels:
@@ -164,7 +178,9 @@ Per-symbol end-of-day marker, derived from the engine `system.eod` broadcast.
 
 `HB|TS=…` is sent to every authenticated client every `HBINT` seconds. A client
 MAY send `PING`; the gateway replies `PONG|TS=…`. `EXIT|REASON=…|TS=…` signals
-gateway-initiated termination (`idle_timeout`, `auth_timeout`). A client MAY send
+gateway-initiated termination (`idle_timeout`, `auth_timeout`, or `shutdown`
+when `pm-ralf-gwy` is stopped: lines already queued are sent before it, for up
+to 1 s). A client MAY send
 a bare `EXIT` to end its session; the gateway closes after flushing — as
 `pm-md-gwy` and `pm-dc-gwy` do.
 
@@ -190,25 +206,40 @@ Only roles listed in `post_trade_gateway.allowed_roles` may authenticate.
   ordered or globally unique.
 - Clients MUST do gap detection and ordering **within a given `CH` stream**, not
   across mixed channels.
+- A `SEQ` jump is a gap only on a `SYM=*` subscription: with a symbol filter,
+  the channel's `SEQ` also moves for every other symbol's events. A filtered
+  client still keeps the last `SEQ` as its replay checkpoint.
+- The gateway numbers what it emits: an engine message that never reached the
+  gateway leaves no gap in any channel. The gateway counts such losses for the
+  operator (`gwy.bus_gaps`); they cannot be replayed.
+
+Sequences and the replay journal live in the gateway's memory: they begin again
+at 1 when `pm-ralf-gwy` restarts. `WELCOME|EPOCH` names the run, and a checkpoint
+is the pair (`EPOCH`, `LASTSEQ`). A client that resumes MUST send both; a
+checkpoint from another run is a `REPLAY_MISS` whatever its `LASTSEQ`.
 
 `LASTSEQ` in `HELLO` is a single integer checkpoint. The gateway applies that same
-threshold to each entitled channel independently and replays events where
+threshold to each channel independently and replays events where
 `event.SEQ > LASTSEQ` for that event's channel.
 
-**Replay.** If `HELLO` carries `LASTSEQ`, the gateway attempts to resend journalled
-events with `SEQ > LASTSEQ` (per channel, as above) and only for channels the role
-is entitled to receive (§7). If `LASTSEQ` predates the retained journal window for
-any entitled channel (`replay_retention_sec`) — including a channel whose
-journal has aged out entirely — or is ahead of any entitled channel, as after a
-gateway restart, the gateway emits
-`ERR|CODE=REPLAY_MISS` followed by a `SNAP` baseline; the client MUST reset to that
-baseline.
+**Replay.** `HELLO` only records the checkpoint; `WELCOME` is followed by nothing
+until the client subscribes. Each `SUB` then answers, in this order and in one
+pass, so no event falls between them:
 
-!!! warning "⚠ Known deviation — replay is entitlement-filtered but not subscription-filtered"
-    Replay happens during `HELLO`, before any `SUB` is processed, so replay cannot
-    apply symbol/channel subscription state from the current connection. The current
-    gateway filters replay by role entitlement (§7), but does **not** filter by
-    subscriptions.
+1. the journalled events with `SEQ > LASTSEQ` that the pairs this `SUB` added
+   want and the session's earlier pairs did not (so a channel is replayed once,
+   and only the subscribed symbols), in journal order;
+2. the `SNAP`, whose `SEQ` is the last of them; live events follow it.
+
+If the checkpoint's `EPOCH` is not this run's, or `LASTSEQ` predates the retained
+journal window (`replay_retention_sec`) for a channel of the `SUB` — including a
+channel whose journal has aged out entirely — or is ahead of one, the `SUB` is
+answered with `ERR|CODE=REPLAY_MISS` and then its `SNAP`; the client MUST reset to
+that baseline. A `HELLO` with a checkpoint and no `SUB` receives nothing beyond
+`WELCOME` (and heartbeats): nothing was subscribed.
+
+Replayed lines do not count towards `max_client_queue` (§9): a client that resumes
+from far back is not a slow client while it takes the replay.
 
 ## 9. Liveness & timeouts
 
@@ -224,17 +255,18 @@ in **both** directions — a line received, or a line the client actually took
 off the socket — so a client that keeps reading is never idle: the heartbeats
 alone keep it alive. In practice the idle timeout fires only when writes to a
 client have stopped succeeding; it then sends `EXIT|REASON=idle_timeout`. A client whose outbound queue exceeds
-`max_client_queue` receives `ERR|CODE=SLOW_CLIENT` and is disconnected.
+`max_client_queue` beyond the replayed lines it has still to take (§8) receives
+`ERR|CODE=SLOW_CLIENT` and is disconnected.
 
 ## 10. Error codes
 
 | Code | Meaning / trigger |
 |------|-------------------|
 | `AUTH_REQUIRED` | first message was not `HELLO`, or `HELLO` missing `CLIENT`/`PROTO`/`ROLE` |
-| `BAD_MESSAGE` | unparseable line, unsupported message type, or malformed field (e.g. non-integer `LASTSEQ`); an oversized line (`DETAIL=line exceeds 4096 bytes`) also ends the session |
+| `BAD_MESSAGE` | unparseable line, unsupported message type, or malformed field (e.g. non-integer `LASTSEQ`, or `LASTSEQ` without `EPOCH`; both end the session); an oversized line (`DETAIL=line exceeds 4096 bytes`) also ends the session |
 | `INVALID_CHANNEL` | `SUB` with missing/empty or unknown `CH` |
 | `ENTITLEMENT_DENIED` | role not in `allowed_roles`, or channel outside the role's entitlement |
-| `REPLAY_MISS` | requested `LASTSEQ` is older than the retained journal window, or ahead of the channel (e.g. after a gateway restart) |
+| `REPLAY_MISS` | the checkpoint's `EPOCH` is not this gateway run's, or `LASTSEQ` is older than the retained journal window or ahead of the channel |
 | `SLOW_CLIENT` | outbound queue exceeded `max_client_queue`; session disconnected |
 
 `ERR` carries `CODE` and a human-readable `DETAIL`, e.g.
@@ -248,7 +280,7 @@ client have stopped succeeding; it then sends `EXIT|REASON=idle_timeout`. A clie
 
 | Key | Default | Purpose |
 |-----|---------|---------|
-| `name` | `ralf-gwy01` | gateway id in `WELCOME\|GW=` |
+| `name` | `ralf-gwy01` | gateway id in `WELCOME\|GW=`; non-empty, without `\|` or line breaks |
 | `bind_address` | `0.0.0.0` | TCP listen address |
 | `port` | `5580` | TCP listen port |
 | `replay_retention_sec` | `86400` | journal window; advertised as `WELCOME\|REPLAY=` |
@@ -256,7 +288,7 @@ client have stopped succeeding; it then sends `EXIT|REASON=idle_timeout`. A clie
 | `idle_timeout_sec` | `20` | disconnect after this long with no traffic in either direction |
 | `max_connections` | `64` | simultaneous TCP connections; one beyond this is accepted and closed at once |
 | `max_client_queue` | `10000` | outbound backlog before `SLOW_CLIENT` |
-| `allowed_roles` | `[CLEARING, DROP_COPY, AUDIT]` | roles permitted to authenticate |
+| `allowed_roles` | `[CLEARING, DROP_COPY, AUDIT]` | roles permitted to authenticate; a non-empty list of those three |
 
 ## 12. Conformance notes
 
@@ -269,8 +301,7 @@ A conforming `RALF1` implementation:
 - MUST enforce the §7 entitlement matrix on `SUB` (live path).
 - MUST apply per-channel `SEQ` semantics from §8 (no global `SEQ` stream).
 - MUST advertise `REPLAY`/`HBINT` in `WELCOME` matching its configuration.
-- SHOULD treat replay as role-entitled but pre-`SUB` (therefore not
-  subscription-filtered) on reconnect.
+- MUST replay on `SUB`, for the pairs that `SUB` adds, before its `SNAP` (§8).
 
 Future revisions may add `CORRECT`, `BUST`, `ALLOC`, and `SETTLE` event families as
 the corresponding engine events become available; they are **not** part of `RALF1`.

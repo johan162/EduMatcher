@@ -43,8 +43,8 @@ with the scheduler stopped, using the
 [freeze/advance procedure](060-time-in-force-sessions.md#freezeadvance-procedure-deterministic-session-control).
 The session exercise explicitly changes this.
 
-Exercises 1–4 build on each other. Before Exercise 5 and before **each
-independent run or variant** in Exercises 6–15, clear the affected books:
+Exercises 1–3 build on each other. Before Exercise 4 and before **each
+independent run or variant** in Exercises 5–14, clear the affected books:
 
 ```text
 [GW_ADMIN|ADMIN]> CANCEL_SYM|SYM=AAPL
@@ -53,8 +53,11 @@ independent run or variant** in Exercises 6–15, clear the affected books:
 ```
 
 Only use the TSLA command if that symbol is configured. These commands cancel
-orders, **not positions or trade history**. Record positions before and after
-each lab and measure changes, rather than assuming a flat account. Price
+orders, **not positions or trade history**. Record positions with `POS` in the
+trader console before and after each lab and measure the change, rather than
+assuming a flat account. `POS` values its `Real P&L` at the average cost of
+*everything* that gateway has traded, so after a few labs it will not show a
+single exercise's P&L exactly; work that out from the fills. Price
 collars and circuit breakers must allow the example prices (AAPL 148–153,
 MSFT near 420 and TSLA near 250); have the instructor align the configuration
 before starting rather than treating a risk rejection as a strategy result.
@@ -71,11 +74,11 @@ really has resting, and `pm-audit --terminal` is useful alongside the consoles.
 
 | Exercises | Skill |
 |---|---|
-| 1–4 | Entry atomicity, resting leg risk and parent cancellation |
-| 5–8 | OCO entries/exits, partial fills, breakouts and trailing protection |
-| 9–10 | Hedge ratios, closing a pair and three-to-ten-leg baskets |
-| 11–12 | Depth, execution instructions and conditional combo legs |
-| 13–15 | Failure handling, self-match prevention, sessions and recovery |
+| 1–3 | Entry atomicity, resting leg risk and parent cancellation |
+| 4–7 | OCO entries/exits, partial fills and breakouts |
+| 8–9 | Hedge ratios, closing a pair and multi-leg baskets |
+| 10–11 | Depth, execution instructions and conditional combo legs |
+| 12–14 | Failure handling, self-match prevention, sessions and recovery |
 
 ## Background
 
@@ -90,7 +93,7 @@ chapter teaches:
 The experiments below begin with ordinary limit legs, external liquidity,
 continuous matching and no halt. AON is a submission-time liquidity check,
 not transaction rollback if a later child encounters SMP or another
-execution restriction; Exercises 12–14 explore those boundaries.
+execution restriction; Exercises 11–13 explore those boundaries.
 
 !!! important "AON is atomic **at entry**, not for the combo's lifetime"
     When you submit an AON combo the engine checks, at that instant, whether
@@ -230,46 +233,39 @@ why this does not contradict "all-or-none".
 !!! tip "What a real desk does about this"
     Because a resting AON combo can be picked apart, desks do not leave them
     resting. They either submit only when both sides are already fillable, or
-    they cancel the whole combo the moment it fails to execute at entry:
+    they cancel the whole combo the moment it fails to execute at entry, as
+    you do in step 4. That cancels every remaining leg. Fills that already
+    happened are **not** reversed — cancel the combo before someone hits a
+    leg, not after.
 
-    ```
-    [TRADER01]> CANCEL|COMBO_ID=PAIR-003
-    ```
-
-    That cancels every remaining leg. Fills that already happened are **not**
-    reversed — cancel the combo before someone hits a leg, not after.
-
-Clean up before continuing:
+**4.** Cancel what is left of the combo as a whole:
 
 ```
 [TRADER01]> CANCEL|COMBO_ID=PAIR-003
 ```
 
- 
-
-## Exercise 4: Cancel a Resting Combo
-
-Exercise 3's clean-up already cancelled `PAIR-003`. Submit one more combo that
-cannot fill — there is no MSFT bid at 420.50 now, and the AAPL leg bids below
-the AAPL sell — so it rests, then cancel it as a whole:
+Expected (each line also carries a `[HH:MM:SS.mmm]` time):
 
 ```
-[TRADER01]> NEW|TYPE=COMBO|COMBO_ID=PAIR-004|COMBO_TYPE=AON|TIF=DAY|LEG_COUNT=2|LEG0.SYM=AAPL|LEG0.SIDE=BUY|LEG0.QTY=100|LEG0.PRICE=149.00|LEG1.SYM=MSFT|LEG1.SIDE=SELL|LEG1.QTY=50|LEG1.PRICE=420.50
-[TRADER01]> CANCEL|COMBO_ID=PAIR-004
+CANCELLED <aapl_leg_id>
+COMBO CANCELLED  PAIR-003
+COMBO CXL OK PAIR-003  legs cancelled=1
 ```
 
-All legs are cancelled together, and the console reports
-`COMBO CANCELLED  PAIR-004`.
+Only one leg is cancelled — the resting AAPL buy. The MSFT leg had already
+filled, and that fill stands. Cancel a combo before anyone hits a leg and
+`legs cancelled` equals the number of legs.
 
-:material-checkbox-blank-outline: **Checkpoint:** full combo cancellation confirmed.
+:material-checkbox-blank-outline: **Checkpoint:** you can explain why
+`legs cancelled=1`, and what position the cancel left you with.
 
  
 
-## Exercise 5: OCO — One-Cancels-Other
+## Exercise 4: OCO — One-Cancels-Other
 
 Link two independent orders so that when one **fully fills** or otherwise
 ends (cancel, rejection or expiry), the other is automatically cancelled.
-A partial fill alone does not end the pair; Exercise 7 tests this distinction.
+A partial fill alone does not end the pair; Exercise 6 tests this distinction.
 
 ```
 [TRADER01]> NEW|TYPE=OCO|OCO_ID=OCO-AAPL-ENTRY|SYM=AAPL|QTY=100|TIF=DAY|LEG1_SIDE=BUY|LEG1_TYPE=LIMIT|LEG1_PRICE=149.50|LEG2_SIDE=BUY|LEG2_TYPE=LIMIT|LEG2_PRICE=148.00
@@ -303,7 +299,7 @@ Both legs are cancelled: `OCO CXL OK OCO-AAPL-ENTRY-2  legs cancelled=2`.
 
  
 
-## Exercise 6: OCO — Protect an Existing Long Position
+## Exercise 5: OCO — Protect an Existing Long Position
 
 A common exit pattern is a take-profit plus a stop-loss. Both legs are
 **SELL**, not different sides: each is an alternative way to close the
@@ -344,7 +340,7 @@ trade at the trigger price.
 identify the sibling cancellation, and calculate P&L from actual fills rather
 than from the stop trigger.
 
-## Exercise 7: OCO — A Partial Fill Is Not a Completed Choice
+## Exercise 6: OCO — A Partial Fill Is Not a Completed Choice
 
 **Predict first:** after 40 shares of a 100-share leg fill, does the sibling
 remain at 100, resize to 60, or disappear?
@@ -364,10 +360,9 @@ The first leg has 60 remaining and is `PARTIAL`. The sibling still bids for
    and the 148.00 sibling is cancelled.
 2. Reset and repeat with a fresh ID, but after the first 40-share fill,
    cancel the **partially filled child** with `CANCEL|ID=<child_id>`.
-   Both remaining interests disappear. The 40 bought shares remain.
-3. Reset and repeat once more, replacing the child cancel with
-   `CANCEL|OCO_ID=<new_oco_id>`. Compare the position change, not just the
-   cancellation messages.
+   The sibling is cancelled with it (`OCO sibling … reached CANCELLED`).
+   `CANCEL|OCO_ID=<new_oco_id>` would have the same effect. Either way the
+   40 bought shares remain: compare `POS`, not just the cancel messages.
 
 Explain why the higher of two ordinary buy limits usually fills first.
 These are not two independent opportunities to buy 100 shares each. Nor
@@ -379,11 +374,9 @@ position and outstanding quantities yourself.
 remaining on one leg and 100 on its sibling; prove that cancellation does
 not undo the 40-share fill.
 
-## Exercise 8: OCO — Breakout Entry and Protective-Exit Variants
+## Exercise 7: OCO — Breakout Entry
 
-### A. Choose a direction only after a breakout
-
-Unlike Exercise 6, this pair has **opposite sides**. It expresses an
+Unlike Exercise 5, this pair has **opposite sides**. It expresses an
 alternative entry, not protection of an existing position.
 
 First establish a last trade of 150.00 with a one-share sell from `TRADER02`
@@ -402,45 +395,21 @@ and a one-share buy from `TRADER03`. Then submit:
   The position change is −100 AAPL.
 
 Repeat with only 1 share at the trigger price, leaving no liquidity for the
-stop. Observe that a triggered market order can end unfilled and still end
-its sibling. **OCO cancellation does not prove a position was acquired.**
+stop. The triggered stop ends `CANCELLED … reason=INSUFFICIENT_LIQUIDITY`, and
+its sibling is cancelled all the same (`OCO sibling … reached CANCELLED`).
+**OCO cancellation does not prove a position was acquired.**
 
-### B. Price protection versus execution risk
+The stop-limit and trailing-stop exits of [chapter 05](050-order-types.md)
+work as OCO legs too (`LEG2_TYPE=STOP_LIMIT` with `LEG2_STOP` and
+`LEG2_PRICE`, or `LEG2_TYPE=TRAILING_STOP` with `LEG2_TRAIL`) and keep the
+risks you met there: a stop-limit can trigger and still not fill.
 
-Acquire a fresh 100-share long at 150.00, as in Exercise 6. Use this exit:
+:material-checkbox-blank-outline: **Checkpoint:** you can tell an entry OCO
+(opposite sides) from an exit OCO (same side), and you have seen a triggered
+stop end with `CANCELLED … reason=INSUFFICIENT_LIQUIDITY` while still
+cancelling its sibling.
 
-```text
-[TRADER01]> NEW|TYPE=OCO|OCO_ID=EXIT-LIMIT-01|SYM=AAPL|QTY=100|TIF=DAY|LEG1_SIDE=SELL|LEG1_TYPE=LIMIT|LEG1_PRICE=153.00|LEG2_SIDE=SELL|LEG2_TYPE=STOP_LIMIT|LEG2_STOP=149.00|LEG2_PRICE=148.90
-```
-
-`TRADER02` bids for 101 at 148.50 and `TRADER03` sells 1 there. The gap
-print triggers the stop-limit, but its sell limit of 148.90 cannot hit
-148.50. It remains working, as does the take-profit. You still own the 100
-shares. Cancel the group and compare this with the market-stop outcome.
-
-### C. Trail a profitable position
-
-Acquire another 100 shares at 150.00 and submit:
-
-```text
-[TRADER01]> NEW|TYPE=OCO|OCO_ID=EXIT-TRAIL-01|SYM=AAPL|QTY=100|TIF=DAY|LEG1_SIDE=SELL|LEG1_TYPE=LIMIT|LEG1_PRICE=153.00|LEG2_SIDE=SELL|LEG2_TYPE=TRAILING_STOP|LEG2_TRAIL=1.00|LEG2_STOP=149.00
-```
-
-1. `TRADER02` offers 1 at 152.00; `TRADER03` buys it. The sell trailing
-   trigger ratchets up to 151.00 (152.00 − 1.00).
-2. `TRADER02` bids for 101 at 151.00; `TRADER03` sells 1 there.
-   The stop sells 100 at the remaining bid and cancels the 153.00 exit.
-3. Explain why the trigger must not move back down on a price decline.
-
-The explicit initial `STOP` removes ambiguity about initialization. Without
-it, a trailing stop needs an existing last trade from which to derive its
-trigger.
-
-:material-checkbox-blank-outline: **Checkpoint:** distinguish entry versus
-exit OCO, stop-market versus stop-limit, and fixed versus trailing triggers.
-For each run, report actual fills, remaining interest and position change.
-
-## Exercise 9: Size a Pairs Trade and Close It
+## Exercise 8: Size a Pairs Trade and Close It
 
 Exercise 1's 100 AAPL versus 50 MSFT is not dollar-neutral: at 150 and 420,
 the notionals are 15,000 versus 21,000. A combo supplies execution mechanics,
@@ -471,6 +440,10 @@ Calculate before reading the answer:
 - Gross strategy P&L: **+360**, before fees. The combined position change
   over entry and exit is zero.
 
+Compute this from the four `FILL` lines. `POS` will show a different
+`Real P&L` change unless `TRADER01` was flat before you started (see Lab
+discipline).
+
 Equal notionals are not equal market sensitivities. Discuss how different
 volatility, beta and correlation could invalidate this hedge. Prices moving
 together do not guarantee a profit, and a pairs trade is not risk-free
@@ -483,7 +456,7 @@ the position.
 :material-checkbox-blank-outline: **Checkpoint:** justify the 280:100 ratio,
 prove both parents matched, and reconcile four leg fills to +360 gross P&L.
 
-## Exercise 10: Three-Leg Basket, Then Scale the Process
+## Exercise 9: Three-Leg Basket
 
 Model a hypothetical relative-value signal: buy AAPL against a basket of
 MSFT and TSLA. Use unequal quantities to balance cash notionals:
@@ -505,25 +478,15 @@ MSFT and TSLA. Use unequal quantities to balance cash notionals:
    though no entire leg has finished. Record the remaining quantities.
    Cancel the parent and identify the residual +10 AAPL position.
 
-**Instructor extension — up to ten legs:** configure seven more distinct
-symbols with known tick sizes and approved price ranges. Have students build
-a leg worksheet (symbol, side, quantity, limit, notional, available depth),
-then expand the all-limit basket to `LEG_COUNT=10` and `LEG0` through `LEG9`.
-Run it once with full liquidity and once with one missing share on the last
-leg. Also try `LEG_COUNT=11`: the gateway must refuse it. A leg per symbol
-is mandatory; repeating a symbol is not a way to construct an options
-butterfly or a two-sided quote.
-
-As a strategy variation, design a sector rotation basket with several buys
-and sells. A calendar-spread analogy requires two separately configured
-symbols; this lab does not add futures expiry, options payoffs or contract
-multipliers to the exchange.
+The same rules hold for up to ten legs (`LEG_COUNT=10`, `LEG0` … `LEG9`),
+each on a different symbol; Exercise 13 shows the console refusing
+`LEG_COUNT=11`.
 
 :material-checkbox-blank-outline: **Checkpoint:** submit a three-leg basket,
-diagnose a one-share shortfall, and explain how checking each book scales
-to the supported two-to-ten-leg range.
+diagnose a one-share shortfall, and explain why a resting basket can be
+`PARTIALLY_MATCHED` with no leg finished.
 
-## Exercise 11: Execution Cost — Depth, MARKET, IOC and FOK Legs
+## Exercise 10: Execution Cost — Depth, MARKET, IOC and FOK Legs
 
 An AON pre-check needs the **whole quantity**, not merely a visible best
 price. On cleared books stage this ladder:
@@ -536,7 +499,9 @@ price. On cleared books stage this ladder:
 [TRADER01]> NEW|TYPE=COMBO|COMBO_ID=DEPTH-01|COMBO_TYPE=AON|TIF=DAY|LEG_COUNT=2|LEG0.SYM=AAPL|LEG0.SIDE=BUY|LEG0.QTY=100|LEG0.TYPE=LIMIT|LEG0.PRICE=150.10|LEG1.SYM=MSFT|LEG1.SIDE=SELL|LEG1.QTY=50|LEG1.TYPE=LIMIT|LEG1.PRICE=420.40
 ```
 
-Calculate the leg VWAPs from executions: AAPL **150.06**, MSFT **420.44**.
+Calculate the leg VWAPs: AAPL (40 × 150.00 + 60 × 150.10) / 100 = **150.06**,
+MSFT **420.44**. The trader console prints one `FILL` line per leg with that
+average already worked out (`qty=100 @150.06`).
 The entry receives 21,022 − 15,006 = **6,016 cash** before fees, but it
 also creates a short liability. That receipt is not a profit.
 
@@ -564,7 +529,7 @@ only `AON`, not a ratio-fill, net-debit or net-credit execution mode.
 VWAPs across multiple price levels, and explain the interaction between
 parent AON and each child's execution instruction.
 
-## Exercise 12: Conditional Combo Legs Are Not a Synchronized Trigger
+## Exercise 11: Conditional Combo Legs Are Not a Synchronized Trigger
 
 The engine accepts `STOP` and `STOP_LIMIT` combo legs, but their triggers
 belong to their individual symbol books. Use them to study conditional
@@ -586,13 +551,6 @@ Establish a one-share AAPL trade at 150.00 between `TRADER02` and
    Explain why this is two separate exposures in time, not an atomic
    event at the AAPL trigger.
 
-**Stop-limit variant:** reset and re-establish AAPL's last trade at 150.
-Replace leg 0 with
-`LEG0.TYPE=STOP_LIMIT|LEG0.STOP=151.00|LEG0.PRICE=151.05`.
-Trigger with a one-share print at **151.20**, leaving an offer there.
-The released buy limit cannot pay 151.20, so it remains unfilled. Fill the
-MSFT leg and record the resulting unhedged position; then cancel the combo.
-
 !!! important "Do not generalize the all-limit entry experiment"
     A stop's trigger and subsequent liquidity are separate from the combo's
     submission-time depth check. Neither the parent ACK nor AON means that
@@ -600,21 +558,23 @@ MSFT leg and record the resulting unhedged position; then cancel the combo.
     The same caution applies to later auctions, halts and SMP interactions.
 
 :material-checkbox-blank-outline: **Checkpoint:** demonstrate both dormant
-and triggered legs, and distinguish trigger price, limit price and actual
-fill price.
+and triggered legs, and explain why the parent was `PARTIALLY_MATCHED` for
+as long as the MSFT leg stayed unfilled.
 
-## Exercise 13: Parent Cancel, Child Failure and Self-Match Prevention
+## Exercise 12: Parent Cancel, Child Failure and Self-Match Prevention
 
 ### A. Cancel one child, fail the strategy
 
-Submit `PAIR-004`'s passive limits from Exercise 4 with a fresh ID to empty
-books. Save the child order IDs. Instead of cancelling the parent, send:
+Submit a passive combo to empty books and save the child order IDs. Instead
+of cancelling the parent, cancel one child:
 
 ```text
+[TRADER01]> NEW|TYPE=COMBO|COMBO_ID=PAIR-005|COMBO_TYPE=AON|TIF=DAY|LEG_COUNT=2|LEG0.SYM=AAPL|LEG0.SIDE=BUY|LEG0.QTY=100|LEG0.PRICE=149.00|LEG1.SYM=MSFT|LEG1.SIDE=SELL|LEG1.QTY=50|LEG1.PRICE=420.50
 [TRADER01]> CANCEL|ID=<aapl_child_id>
 ```
 
-The parent becomes `FAILED` and its MSFT sibling is cancelled. Contrast
+The MSFT sibling is cancelled too, and the parent reports
+`COMBO FAILED  PAIR-005  Leg 0 (AAPL) CANCELLED`. Contrast
 this with `CANCEL|COMBO_ID=...`, which produces `CANCELLED`. Repeat after a
 10-share AAPL fill: failure cancels the remaining interest, not that fill.
 
@@ -699,7 +659,7 @@ preflight rejects own-only liquidity under any non-`NONE` policy, why an
 amended resting combo child applies its own SMP policy when it becomes the
 aggressor, and why cascade cancellation cannot roll back a previous execution.
 
-## Exercise 14: Validation and TIF — When Should Nothing Be Posted?
+## Exercise 13: Validation and TIF — When Should Nothing Be Posted?
 
 ### A. Reject malformed intent before trading
 
@@ -708,13 +668,16 @@ Use a new label for every attempt and preserve the error message:
 
 | Change | What to establish |
 |---|---|
-| `LEG_COUNT=1` or `11` | Gateway refuses the supported-range violation |
+| `LEG_COUNT=1` or `11` | The console refuses it: `LEG_COUNT must be between 2 and 10` |
 | Use AAPL for both legs | Engine refuses duplicate symbols |
 | Remove a required limit `.PRICE` | Engine refuses it: `COMBO REJ … Leg 0: LIMIT requires price` |
-| Supply a price between that symbol's valid ticks | Gateway refuses an off-grid price; each symbol has its own tick scale |
+| Supply a price between that symbol's valid ticks | The console refuses it: `Leg 0 parse error: 149.005 is not a multiple of AAPL's tick size 0.01` |
 | `LEG0.TYPE=TRAILING_STOP` or `ICEBERG` | Unsupported combo leg shape is refused |
 | Set a leg quantity to zero | Invalid quantity is refused |
 | Use an unconfigured symbol | Submission is refused, not partially posted |
+
+A line with no `[HH:MM:SS.mmm]` time was refused by the console itself; the
+order never left your terminal. A `COMBO REJ` line came back from the engine.
 
 Combo legs support LIMIT, MARKET, IOC, FOK, STOP and STOP_LIMIT. OCO also
 supports TRAILING_STOP, but **not ICEBERG**. For OCO, try an immediate
@@ -723,7 +686,7 @@ paired with a passive second leg: when the first ends at entry, the second
 must not trade. Repeat IOC with too little liquidity and FOK with none;
 compare actual fills before sibling cancellation.
 
-### B. DAY/GTC and auction-only interest
+### B. DAY versus GTC at the close
 
 With the scheduler stopped and sessions enabled, submit passive combos
 under two fresh labels, one `TIF=DAY` and one `TIF=GTC`, to empty books.
@@ -731,22 +694,13 @@ Advance from `CONTINUOUS` through `CLOSING_AUCTION` to `CLOSED`.
 The DAY children expire and the parent fails; GTC interest survives.
 Cancel the GTC combo after reopening.
 
-Now use [Auctions](070-auctions.md)'s manual procedure:
-
-1. In `OPENING_AUCTION`, submit an all-limit `TIF=ATO` combo to empty books.
-   Stage counter-interest on only one symbol, then advance to
-   `CONTINUOUS`. Record auction fills and expiries of unmatched ATO
-   children, the parent outcome and any residual position.
-2. Repeat in `CLOSING_AUCTION` with `TIF=ATC`, then advance to `CLOSED`.
-3. In a no-matching phase, compare passive LIMIT legs with a combo containing
-   MARKET, IOC or FOK. Those immediate instructions cannot wait for an
-   auction and fail as child orders; passive interest can wait.
-
-Do not expect a cross-symbol auction to rerun the original combo depth
-check as a synchronized transaction. Each book uncrosses separately.
-Distinguish a structural parent rejection from an accepted parent whose
-child later fails, and distinguish `TIF=DAY` from `LEG0.TYPE=IOC`:
-TIF controls lifetime; the leg type controls execution.
+The expiry arrives as `EXPIRED <leg_id>  (Trading day ended)` for each DAY
+child, followed by `COMBO FAILED  <id>  Leg 1 (MSFT) EXPIRED`. Combos in the
+auction phases follow the same per-book rules as ordinary orders
+([chapter 07](070-auctions.md)): each book uncrosses on its own, so an auction
+does not rerun the combo's entry check across symbols. `TIF=DAY` and
+`LEG0.TYPE=IOC` are different things: TIF controls lifetime; the leg type
+controls execution.
 
 ### C. A halted hedge leg
 
@@ -765,7 +719,7 @@ fills; do not assume resuming reconstructs an atomic hedge. Restore
 parent rejection, child failure and expiry, using the ACKs and status events
 rather than a single "accepted" line.
 
-## Exercise 15: Advanced Operations — Recovery and Strategy Liquidity
+## Exercise 14: Advanced Operations — Recovery and Strategy Liquidity
 
 This lab extends [Persistence & Recovery](160-persistence-recovery.md).
 Use a dedicated data directory, the same configuration on restart, and a
@@ -791,15 +745,15 @@ clean stop. Do not hand-edit persistence files to manufacture a result.
    resulting parent status; do not resubmit the original full quantities.
 
 **Comparison:** repeat the passive combo with `TIF=DAY` and restart on the
-same business day, without a session-close transition first. Individual
-DAY child orders can survive, but the **DAY combo parent is not persisted**.
-Do not assume `CANCEL|COMBO_ID=...` can manage those restored plain orders;
-reconcile and cancel them by their child IDs. This is different from the
-DAY expiry exercise at session close.
+same business day, without a session-close transition first. The DAY combo
+comes back as well, parent and children, and `CANCEL|COMBO_ID=...` still
+cancels both legs. Only a new business day (or the close of Exercise 13)
+ends it: on a later day's restart the engine discards a DAY combo together
+with its legs.
 
 ### B. Provide liquidity for another participant's strategy
 
-As `TRADER02`, post the opposite of Exercise 9's entry as a passive live
+As `TRADER02`, post the opposite of Exercise 8's entry as a passive live
 combo: sell 280 AAPL at 150 and buy 100 MSFT at 420. With both legs resting,
 submit the entry from `TRADER01`. Both parents can complete through ordinary
 book matching; there is no separate combo order book.
@@ -809,18 +763,10 @@ first. Recompute the depth before `TRADER01` submits. The provider's
 remaining pair is no longer a guaranteed hedge package. This is why a
 strategy liquidity provider needs per-leg inventory monitoring.
 
-**Instructor configuration extension:** use
-[`market_maker_combos`](../participant-guide/part-2-orders/030-combo-and-oco-orders.md#configuration)
-to seed passive strategy interest at startup. Verify and deploy the
-configuration before restarting. Inspect the resulting child orders and
-compare them with a live-submitted combo. Seeded combos have the internal
-owner `MM`, not the live `TRADER02` identity; a trader's
-`CANCEL|COMBO_ID=...` cannot cancel them. Coordinate cleanup with the admin.
-Do not treat startup seeding as a promise of entry-time atomic execution.
 
 :material-checkbox-blank-outline: **Checkpoint:** prove restored GTC
-relationships still work, explain the DAY-parent limitation, and distinguish
-live combo liquidity from configuration-owned seeds.
+relationships still work, say when a DAY combo is discarded, and explain why
+a provider's partly taken combo is no longer a hedge package.
 
  
 

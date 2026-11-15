@@ -105,8 +105,9 @@
   template: "failed to record topic=%s err=%s"
   level: ERROR
   explanation: >
-    A message was received but could not be written to stats.db, so it is
-    missing there. pm-stats carries on with the next message.
+    A message (an engine message or an index update) was received but could
+    not be written to stats.db, so it is missing there and counted in
+    `stats.records_dropped`. pm-stats carries on with the next message.
   actions:
     - "Read the error; disk space or a locked database are typical."
     - "Check the database with `pm-stats-cli health`."
@@ -184,13 +185,14 @@
     - "Make sure pm-index and pm-stats run the same EduMatcher release."
 
 - logger: edumatcher.stats.main
-  template: "error handling index topic=%s err=%s"
+  template: "dropping malformed trade without id, symbol, price or quantity: %s"
   level: WARNING
   explanation: >
-    Recording an index update raised an error, so that index level is missing
-    from the index history.
+    A trade print arrived without a trade id, symbol, price or quantity, so it
+    was not recorded and is missing from trade_log and the day's rollup. It is
+    counted in `stats.records_dropped`.
   actions:
-    - "If it repeats, check the database with `pm-stats-cli health` and report the error."
+    - "Make sure pm-engine and pm-stats run the same EduMatcher release."
 
 - logger: edumatcher.stats.main
   template: "ignoring malformed index.update payload (missing index_id/level): %s"

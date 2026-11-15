@@ -1182,3 +1182,55 @@ class TestPayloadParsing:
         assert topic == "trade.executed"
         assert trade.price == 15075
         assert trade.ts_ns == 1_700_000_000_000_000_000
+
+
+# --- WP-CLR04 (clearing review P1, C10) --------------------------------------
+
+
+def test_the_console_table_is_off_by_default(tmp_path: Path) -> None:
+    from edumatcher.clearing.main import build_parser
+
+    assert build_parser().parse_args([]).print_every == 0
+    process = ClearingProcess(pub_addr="inproc://unused", db_path=tmp_path / "c.db")
+    try:
+        assert process._print_every == 0
+    finally:
+        process._conn.close()
+
+
+def test_the_trade_subscriber_has_a_deep_receive_buffer(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    import threading
+
+    import edumatcher.clearing.main as clearing_main
+
+    seen: dict[str, Any] = {}
+
+    class _Stop(Exception):
+        pass
+
+    def make_subscriber(*_topics: Any, **kwargs: Any) -> Any:
+        seen.update(kwargs)
+        raise _Stop
+
+    monkeypatch.setattr(clearing_main, "make_subscriber", make_subscriber)
+    process = ClearingProcess(
+        pub_addr="inproc://unused", db_path=tmp_path / "c.db", print_every=0
+    )
+    errors: list[BaseException] = []
+
+    def run() -> None:
+        try:
+            process.run()
+        except _Stop as exc:
+            errors.append(exc)
+
+    thread = threading.Thread(target=run)  # not the main thread: no signal setup
+    thread.start()
+    thread.join(5)
+    process.stop()
+    process._conn.close()
+
+    assert errors
+    assert seen.get("rcvhwm", 0) >= 100_000

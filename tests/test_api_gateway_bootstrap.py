@@ -17,7 +17,7 @@ from fastapi import HTTPException
 
 from edumatcher.api_gateway import routers
 from edumatcher.api_gateway.config import ApiGatewayConfig
-from edumatcher.api_gateway.caches import SessionCaches
+from edumatcher.api_gateway.caches import TERMINAL_ORDER_STATUSES, SessionCaches
 from edumatcher.api_gateway.rate_limit import RateLimiter
 from edumatcher.api_gateway.routers import bootstrap
 from edumatcher.api_gateway.schemas import OrderAccepted
@@ -93,8 +93,12 @@ class BootstrapFakeEngine:
     def get_caches(self, gid: str) -> SessionCaches:
         return self.cache
 
-    def all_orders(self) -> list[dict[str, Any]]:
-        return list(self._orders)
+    def all_orders(self, *, working: bool = False) -> list[dict[str, Any]]:
+        return [
+            o
+            for o in self._orders
+            if not working or o.get("status") not in TERMINAL_ORDER_STATUSES
+        ]
 
     def active_gateways(self) -> set[str]:
         return set(self._active)

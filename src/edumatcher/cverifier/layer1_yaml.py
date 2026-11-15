@@ -58,6 +58,20 @@ def load_with_origins(
             )
         )
         return results, None, None
+    except UnicodeDecodeError as exc:
+        results.append(
+            CheckResult(
+                code="Y002",
+                severity=Severity.ERROR,
+                message=(
+                    f"Cannot read '{path}': it is not UTF-8 text "
+                    f"(byte {exc.start})."
+                ),
+                suggestion="Save the file as UTF-8.",
+                path=str(path),
+            )
+        )
+        return results, None, None
 
     try:
         data = yaml.safe_load(text)
@@ -92,7 +106,7 @@ def load_with_origins(
         return results, None, None
 
     try:
-        loaded = load_config_mapping(path)
+        loaded = load_config_mapping(path, main_raw=data)
     except ConfigIncludeError as exc:
         results.append(
             CheckResult(

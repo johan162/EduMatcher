@@ -370,8 +370,9 @@ def test_b7_finds_dropped_records_and_feed_gaps(
     sql(world / "metrics.db", "UPDATE samples_1m SET v_max = 3")
     sql(
         world / "stats.db",
-        "INSERT INTO feed_gaps (ts, stream, expected_id, received_id, missing_count) "
-        "VALUES ('2026-06-15T08:00:00Z', 'trade.executed', 5, 7, 2)",
+        "INSERT INTO feed_gaps (ts, stream, source, expected_id, received_id, "
+        "missing_count) "
+        "VALUES ('2026-06-15T08:00:00Z', 'trade.executed', 'trade_id', 5, 7, 2)",
     )
     assert run(open_ds, world, "B7").samples == [
         {

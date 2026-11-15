@@ -540,3 +540,63 @@ class TestTheTopicsAreAllDeclared:
         ).to_dict()
         assert "gateway_id" not in emitted
         assert emitted["accepted"] is False
+
+
+class TestShareDeltasIdx08:
+    """WP-IDX08 (index review C6, Q2): pm-index resolves a share delta from
+    its live count, and the archive records what a rebalance set."""
+
+    def test_a_shares_issuance_may_carry_a_signed_delta(self) -> None:
+        payload = {
+            "action": "SHARES_ISSUANCE",
+            "index_id": "OMX30",
+            "symbol": "ACME",
+            "gateway_id": "GW1",
+            "shares_delta": -100,
+        }
+        parsed = G.IndexCorpAction.from_dict(payload)
+        parsed.validate()
+        assert parsed.new_shares_outstanding is None
+        assert parsed.to_dict() == payload
+
+    def test_the_ack_carries_the_resulting_count(self) -> None:
+        payload = {
+            "gateway_id": "GW1",
+            "accepted": True,
+            "reason": "",
+            "ts_ns": 1,
+            "index_id": "OMX30",
+            "level": 1000.0,
+            "divisor": 2.0,
+            "old_divisor": 2.0,
+            "shares_outstanding": 1_900,
+        }
+        emitted = G.IndexCorpActionAck.from_dict(payload).to_dict()
+        assert emitted["shares_outstanding"] == 1_900
+
+    def test_a_rejection_carries_no_count(self) -> None:
+        payload = {"gateway_id": "GW1", "accepted": False, "reason": "x", "ts_ns": 1}
+        assert (
+            "shares_outstanding"
+            not in G.IndexCorpActionAck.from_dict(payload).to_dict()
+        )
+
+    def test_a_rebalance_record_lists_the_new_counts(self) -> None:
+        record = {
+            "type": "REBALANCE",
+            "ts_ns": 5,
+            "index_id": "OMX30",
+            "symbols": ["ACME", "COG"],
+            "updates": [
+                {"symbol": "ACME", "new_shares_outstanding": 900},
+                {"symbol": "COG", "new_shares_outstanding": 1_100},
+            ],
+            "old_divisor": 2.0,
+            "new_divisor": 2.2,
+            "level": 1004.0,
+        }
+        assert G.HistoryRecord.from_dict(record).to_dict() == record
+
+    def test_other_records_gain_no_updates_key(self) -> None:
+        record = {"type": "INIT", "ts_ns": 1, "index_id": "OMX30", "level": 1.0}
+        assert "updates" not in G.HistoryRecord.from_dict(record).to_dict()

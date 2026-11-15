@@ -201,17 +201,15 @@ echo $?
 
 Expected for this chapter config:
 
-- Verdict is `WARN`, with one warning, `M032`: no read-only API credential is
-  defined under `api_gateways`. That credential is what the browser
-  dashboards use; this configuration starts no API gateway until Chapter 25,
-  so you can leave the warning alone for now. Below it you will see a few
-  `INFO` advisories (`M004`, `C003`, `C004`, `C007`) — suggestions, not
-  problems.
-- Exit code is `0` when there are no warnings/errors, `1` when warnings exist, and `2` when hard errors exist. Here it is `1`, because of `M032`.
+- Verdict is `OK`, with no errors and no warnings. Above it you will see a
+  few `INFO` advisories (`M004`, `C003`, `C004`, `C007`) — suggestions, not
+  problems — and the layer lines count them: `i Semantic: 1 advisory`,
+  `i Completeness: 3 advisories`.
+- Exit code is `0` when there are no warnings/errors, `1` when warnings exist, and `2` when hard errors exist. Here it is `0`.
 
-Run it on `generated.yaml` as well and compare: that file has the same
-`M032`, plus the `C001` warning about the missing reference prices that
-Exercise 2 told you to expect.
+Run it on `generated.yaml` as well and compare: that file has the `C001`
+warning about the missing reference prices that Exercise 2 told you to
+expect, so its verdict is `WARN` and its exit code `1`.
 
 !!! tip "CI-style validation"
     Treat warnings as failures and emit machine-readable output:
@@ -257,13 +255,11 @@ the first layer that finds an error, because later checks would be judging a
 file it already knows is broken. Fix `tick_decimals` and run it again: now
 you see
 
-- `M013` warning (`No gateway has role: ADMIN.`), alongside the `M032` warning
-  from Exercise 3.
+- `M013` warning (`No gateway has role: ADMIN.`).
 
-Both `M013` and the `M032` you already know are now reported. (Had you removed
-only `GW_ADMIN`, there would be no `M013`: `ADMIN_CLI` is an operator too, and
-the rule only asks for *one*.) Put the two entries back and rerun until only
-`M032` remains.
+(Had you removed only `GW_ADMIN`, there would be no `M013`: `ADMIN_CLI` is an
+operator too, and the rule only asks for *one*.) Put the two entries back and
+rerun until the verdict is `OK` again.
 
 :material-checkbox-blank-outline: **Checkpoint:** you can reproduce a verifier finding, map it to a check code, and clear it by fixing the config.
 
@@ -841,8 +837,8 @@ just deploy.
 
 Verify the country was picked up. The summary should read `Sessions enabled
 — 7 of 7 days scheduled, holidays overridden`, and there should be no `M026`
-(the `M032` and `C001` warnings are the ones you already know, and this file
-has no reference prices, as in Exercise 2):
+(the `C001` warning is the one you already know: this file has no reference
+prices, as in Exercise 2):
 
 ```bash
 pm-cverifier schedule.yaml

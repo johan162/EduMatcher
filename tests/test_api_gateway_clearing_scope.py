@@ -115,13 +115,21 @@ async def test_a_read_only_key_has_no_clearing_scope() -> None:
 
 
 @pytest.mark.anyio
-async def test_an_unanswered_role_lookup_fails_closed() -> None:
-    """EngineClient.resolve_role answers TRADER when the engine is silent: an
-    ADMIN then sees only its own gateway, never more."""
+async def test_an_unanswered_role_lookup_is_not_a_narrower_scope() -> None:
+    """EngineClient.resolve_role raises 503 ENGINE_UNAVAILABLE when the engine is
+    silent (API gateway review C2): the scope is not resolved at all, rather
+    than narrowed to the caller's own gateway in a 200."""
     request = _request()
-    request.app.state.engine.roles = {}
-    scope = await clearing_scope(request, _session("OPS01"), None)
-    assert scope == ClearingScope(caller="OPS01", admin=False, gateway="OPS01")
+
+    async def silent(gateway_id: str, timeout: float) -> str:
+        raise HTTPException(
+            status_code=503, detail={"error": {"code": "ENGINE_UNAVAILABLE"}}
+        )
+
+    request.app.state.engine.resolve_role = silent
+    with pytest.raises(HTTPException) as refused:
+        await clearing_scope(request, _session("OPS01"), None)
+    assert refused.value.status_code == 503
 
 
 # ---------------------------------------------------------------------------

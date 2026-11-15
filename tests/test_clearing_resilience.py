@@ -32,8 +32,6 @@ _TOPICS = [
     "session.state",
     "system.gateway_auth.GW01",
     "system.gateway_bye.GW01",
-    "system.gateway_connect",
-    "system.gateway_disconnect",
 ]
 _FIELDS = ["gateway_id", "accepted", "state", "ts_ns", "price", "quantity", "symbol"]
 
@@ -154,4 +152,162 @@ def test_timer_flush_survives_a_failed_flush(
 
     assert process._buffer == []
     assert [r["id"] for r in query_trades(process._conn)] == ["1-1"]
+    process._conn.close()
+
+
+# --- WP-CLR03 (clearing review C1, C9): a failing write is visible ----------
+
+
+def _full_disk() -> Exception:
+    import sqlite3
+
+    return sqlite3.OperationalError("database or disk is full")
+
+
+def _batching(db: Path) -> ClearingProcess:
+    return ClearingProcess(
+        pub_addr="inproc://k5-unused",
+        db_path=db,
+        flush_size=100,
+        flush_interval_sec=3600.0,
+        print_every=0,
+        retention_days=3650,
+    )
+
+
+def _trades(process: ClearingProcess, first: int, last: int) -> None:
+    from edumatcher.models.message import make_trade_msg
+
+    for i in range(first, last + 1):
+        process._handle_message(
+            make_trade_msg(
+                {
+                    "id": f"000001-{i:09d}",
+                    "run_seq": 1,
+                    "symbol": "AAPL",
+                    "buy_order_id": "b",
+                    "sell_order_id": "s",
+                    "buy_gateway_id": "GW01",
+                    "sell_gateway_id": "GW02",
+                    "price": 100.0,
+                    "quantity": 1,
+                    "aggressor_side": "BUY",
+                    "ts_ns": time.time_ns(),
+                    "tick_decimals": 2,
+                    "price_ticks": 10000,
+                    "match_type": "CONTINUOUS",
+                }
+            )
+        )
+
+
+def _metric(process: ClearingProcess, name: str) -> float:
+    (sample,) = [s for s in process.metric_samples() if s.name == name]
+    return float(sample.value)
+
+
+def test_a_failing_write_is_one_error_and_a_metric(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    process = _batching(tmp_path / "c.db")
+    with fail_always(monkeypatch, clearing_main, "flush_batch", _full_disk()):
+        with caplog.at_level("WARNING", logger="edumatcher.clearing"):
+            _trades(process, 1, 500)
+
+    problems = [r for r in caplog.records if r.levelno >= 30]
+    assert len(problems) == 1
+    assert problems[0].levelname == "ERROR"
+    assert "disk is full" in problems[0].getMessage()
+    assert _metric(process, "clearing.flush_failures") >= 1
+    assert len(process._buffer) == 500
+    process._conn.close()
+
+
+def test_a_write_that_recovers_writes_the_buffer_once(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    process = _batching(tmp_path / "c.db")
+    with fail_always(monkeypatch, clearing_main, "flush_batch", _full_disk()):
+        _trades(process, 1, 150)
+    failures = _metric(process, "clearing.flush_failures")
+
+    with caplog.at_level("INFO", logger="edumatcher.clearing.main"):
+        process.flush_now()
+
+    assert "recovered" in caplog.text
+    assert process._buffer == []
+    assert len(query_trades(process._conn, limit=1000)) == 150
+    assert _metric(process, "clearing.flush_failures") == failures
+    process._conn.close()
+
+
+def test_shutdown_with_unwritten_trades_is_critical_and_exits_non_zero(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    process = _batching(tmp_path / "c.db")
+    with fail_always(monkeypatch, clearing_main, "flush_batch", _full_disk()):
+        _trades(process, 1, 30)
+        with caplog.at_level("CRITICAL", logger="edumatcher.clearing.main"):
+            process._shutdown()
+
+    (record,) = [r for r in caplog.records if r.levelname == "CRITICAL"]
+    message = record.getMessage()
+    assert "30 trade(s)" in message
+    assert "000001-000000001" in message and "000001-000000030" in message
+    assert process.unwritten_trades == 30
+    with pytest.raises(Exception):
+        process._conn.execute("SELECT 1")  # closed
+
+
+def test_main_exits_non_zero_when_trades_were_not_written(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    def run(self: ClearingProcess) -> None:
+        self.unwritten_trades = 3
+        self._conn.close()
+
+    monkeypatch.setattr(ClearingProcess, "run", run)
+    from edumatcher.health import HealthReporter
+
+    monkeypatch.setattr(HealthReporter, "start_from_compiled_config", lambda _n: None)
+    monkeypatch.setattr(
+        "sys.argv", ["pm-clearing", "--datapath", str(tmp_path / "c.db")]
+    )
+    with pytest.raises(SystemExit) as exc:
+        clearing_main.main()
+    assert exc.value.code == 1
+
+
+def test_eintr_from_poll_does_not_end_the_loop(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    import errno
+
+    import zmq
+
+    process = _process(tmp_path / "c.db")
+    polls = {"n": 0}
+
+    class _EintrThenStop:
+        def register(self, _sock: Any, _mask: int) -> None:
+            return None
+
+        def poll(self, timeout: int) -> list[tuple[Any, int]]:
+            polls["n"] += 1
+            if polls["n"] == 1:
+                raise zmq.ZMQError(errno.EINTR)
+            process.stop()
+            return []
+
+    monkeypatch.setattr(zmq, "Poller", _EintrThenStop)
+    process._running = True
+    process._receive_loop(sub=object())  # type: ignore[arg-type]
+
+    assert polls["n"] >= 2
     process._conn.close()

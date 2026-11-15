@@ -68,7 +68,7 @@ export function buildDefaultEngineFieldCommentLines(): string[] {
     "  When true (default), every symbol must define at least one",
     "  market_maker_quotes entry once any MARKET_MAKER gateway is configured.",
     "  Set to false to allow a MARKET_MAKER gateway with a genuinely empty",
-    "  book at startup (see ../../../docs/books/participant-guide/part-3-market-making/010-market-maker-quotes.md).",
+    "  book at startup (see the participant guide, Market-Maker Quotes).",
     "",
     "mm_obligation_defaults:",
     "  enforce_mm_obligation: false",

@@ -15,9 +15,11 @@ and does not exist in the current EduMatcher runtime.
 
 ## Prerequisites
 
-- Chapters 01-20 completed.
-- Engine running with drop-copy PUB enabled on `:5557`.
-- Basic Python command-line familiarity.
+- Chapters 01-20 completed, with the engine running (it always binds the
+  drop-copy feed on `:5557`), the market open and `TRADER01` and `TRADER02`
+  connected.
+- Basic Python command-line familiarity. The scripts run with the container
+  shell's `python` (see chapter 13, Exercise 3, for other installs).
 
  
 
@@ -43,7 +45,10 @@ Important current limitation:
   clients to call directly — and even once one exists, replay is bounded by
   that 10,000-event buffer, not unlimited history.
 
-So operationally, reconnect handling is currently:
+The [Drop Copy](../protocols-and-clients/part-3-session-behaviour/060-drop-copy.md)
+reference describes the replay method; `pm-dc-gwy` (chapter 13) has no
+replay either. A downstream client cannot ask for "events N through M"
+again. So operationally, reconnect handling is currently:
 
 1. Detect gap by sequence numbers.
 2. Recover from available audit/statistics artifacts.
@@ -73,7 +78,20 @@ for _ in range(10):
 PY
 ```
 
-Generate a few trades from gateways while this runs.
+While it runs, make `TRADER01` trade. Have `TRADER02` rest an offer, then
+buy from it one share at a time — every fill is one drop-copy event for
+`TRADER01`:
+
+```
+[GW_ADMIN|ADMIN]> CANCEL_SYM|SYM=AAPL
+[TRADER02]> NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=150.00|TIF=DAY
+[TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=1
+```
+
+Repeat the last line a few times. (`CANCEL_SYM` first, so the market maker's
+bid does not take `TRADER02`'s offer. If AAPL has drifted far from 150 since
+chapter 17, a 150.00 offer may be refused with `COLLAR_BREACH`; offer near
+the last trade from `BOOK|SYM=AAPL` instead.)
 
 :material-checkbox-blank-outline: **Checkpoint:** you can observe increasing `seq` values on live drop-copy events.
 
@@ -81,40 +99,11 @@ Generate a few trades from gateways while this runs.
 
 ## Exercise 2: Detect a Synthetic Gap
 
-Use a subscriber with simple gap detection:
-
-```bash
-python - <<'PY'
-import json
-import zmq
-
-last = None
-ctx = zmq.Context()
-sock = ctx.socket(zmq.SUB)
-sock.connect("tcp://127.0.0.1:5557")
-sock.subscribe(b"drop_copy.event.TRADER01")
-
-print("watching for sequence gaps")
-for _ in range(30):
-    topic, payload = sock.recv_multipart()
-    if topic != b"drop_copy.event.TRADER01":  # prefix match: skip TRADER010...
-        continue
-    msg = json.loads(payload)
-    seq = msg.get("seq")
-    if last is not None and seq is not None and seq != last + 1:
-        print(f"GAP detected: expected {last + 1}, got {seq}")
-    last = seq
-PY
-```
-
-!!! warning "Restarting the subscriber will *not* show you a gap"
-    A restart resets `last` to `None`, and the guard `if last is not None`
-    exempts the first message after every restart. That is correct behaviour
-    for a real consumer — on a cold start it has no expectation to violate —
-    but it means the obvious experiment cannot produce a `GAP detected` line.
-
-To actually see the detector fire, drop messages *inside* a single run. This
-version discards every fifth event it receives, simulating lost datagrams:
+A gap is a sequence number that is not the last one plus one. You cannot
+provoke a real one on a quiet local machine, and restarting a subscriber does
+not produce one either: a fresh subscriber has no last number to compare
+with. So this subscriber throws away every fifth event it receives itself,
+simulating lost messages:
 
 ```bash
 python - <<'EOF'
@@ -144,9 +133,10 @@ for _ in range(30):
 EOF
 ```
 
-With trades flowing you should now see a `GAP detected` line roughly every
-fifth event. That is the whole mechanism: the **consumer**, not the publisher,
-notices the discontinuity — which is why every consumer you write needs this
+Send `TRADER01`'s one-share buys again (a dozen or so). You should see a line
+such as `GAP detected: expected 8, got 9` for every fifth event. That is the
+whole mechanism: the **consumer**, not the publisher, notices the
+discontinuity — which is why every consumer you write needs this
 check.
 
 :material-checkbox-blank-outline: **Checkpoint:** you have seen at least one
@@ -155,40 +145,11 @@ one.
 
  
 
-## Exercise 3: Validate Current Replay Constraint
+## Exercise 3: Recovery Workflow with Audit + Stats
 
-Confirm current behavior from docs:
-
-1. Review replay section in [Drop Copy](../protocols-and-clients/part-3-session-behaviour/060-drop-copy.md).
-2. Note that replay is in-process and there is no external replay-request
-   handler wired into the engine loop.
-
-Operational implication:
-
-- Downstream clients cannot request historical replay over ZMQ yet.
-
-!!! note "Current workaround vs. a future replay API"
-    **Today:** if a subscriber detects a sequence gap, it must reconstruct
-    lost events itself — cross-referencing `pm-audit`'s append-only log and
-    `pm-stats-cli` trade history (Exercise 4), because there is no message it
-    can send back to the engine asking "resend events N through M".
-
-    **If/when an external replay-request handler is added:** a subscriber
-    would instead publish a request (e.g. on a `drop_copy.replay.<recipient_id>`
-    topic) naming the missing sequence range, and the engine would push just
-    those events back — removing the need to reconstruct history from audit
-    logs and stats queries. The recovery workflow in Exercise 4 is the
-    practical stand-in for that capability until it exists; the underlying
-    goal (resume with no lost events) is the same either way, only the
-    mechanism differs.
-
-:material-checkbox-blank-outline: **Checkpoint:** you can state the exact replay limitation and its impact on downstream consumers.
-
- 
-
-## Exercise 4: Recovery Workflow with Audit + Stats
-
-When a gap is detected, run a practical recovery checklist:
+Because there is no replay, a consumer that saw a gap has to rebuild what it
+missed from the records other processes keep. When a gap is detected, run a
+practical recovery checklist:
 
 1. Use `pm-audit --terminal --audit-log-file ...` to keep an append-only event
    trail. Note the flag: `--audit-log-file` sets the *audit trail* path;
@@ -208,7 +169,7 @@ tail -40 "$EDUMATCHER_DATA_DIR/audit.log"
 
  
 
-## Exercise 5: Design a Consumer Gap Policy
+## Exercise 4: Design a Consumer Gap Policy
 
 Write a short policy for your drop-copy consumer:
 

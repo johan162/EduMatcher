@@ -119,8 +119,20 @@ WATCHED_INCREASES = {
     # A write-rate limiter said no to some API key.
     API_KEY_THROTTLED: "api_throttled",
     "stats.feed_gaps": "stats_feed_gaps",
+    # pm-md-gwy: engine or pm-index messages that never reached it, so no
+    # CALF client saw them either.
+    "md.bus_gaps": "md_bus_gaps",
+    # pm-dc-gwy: fills of a watched participant that never reached it, so
+    # its DC1 clients saw a SEQ gap they cannot fill over DC1.
+    "gwy.feed_gaps": "dc_feed_gaps",
+    # pm-ralf-gwy: trades or EOD messages that never reached it; RALF numbers
+    # what it emits, so its clients' SEQ stays dense and cannot show this.
+    "gwy.bus_gaps": "ralf_bus_gaps",
     # pm-audit's archiver child failed; the day's parts stay readable.
     "audit.archive_errors": "audit_archive_errors",
+    # pm-audit could not write the trail (disk full, EIO); the lines wait
+    # in memory for the next try.
+    "audit.write_errors": "audit_write_errors",
     # pm-monitor's own: history that was not written. It makes pm-monitor
     # DEGRADED, so a failing or missing metrics.db shows on the dashboard
     # rather than only in a log line (I123).
@@ -290,6 +302,11 @@ class Activity:
             gateway.totals = {}
             if gateway.since is None:
                 gateway.since = now
+        elif process == ENGINE:
+            # Every engine beacon carries every book: one it no longer
+            # reports is gone (a restart without that symbol).
+            for book in self.books.values():
+                book.gauges = {}
         for sample in beacon.metrics:
             name, label, value = sample.name, sample.label, sample.value
             if sample.kind == "GAUGE":
@@ -538,9 +555,12 @@ class Activity:
         return out
 
     def book_records(self) -> list[dict[str, Any]]:
+        """``BookStats`` of the books in the engine's latest beacon."""
         out = []
         for symbol, b in sorted(self.books.items()):
             g = b.gauges
+            if not g:
+                continue
             out.append(
                 {
                     "symbol": symbol[:16],

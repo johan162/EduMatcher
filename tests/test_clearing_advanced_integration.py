@@ -37,7 +37,6 @@ from edumatcher.clearing.store import (
 )
 from edumatcher.models.generated.system import (
     TOPIC_GATEWAY_CONNECT,
-    TOPIC_GATEWAY_DISCONNECT,
     TOPIC_EOD,
     PREFIX_GATEWAY_AUTH,
     PREFIX_GATEWAY_BYE,
@@ -309,7 +308,7 @@ class TestReceiveLoopTopicRouting:
     def test_gateway_connect_message_through_loop(
         self, db_path: Path, zmq_addr: str
     ) -> None:
-        """system.gateway_connect message via PUB → ClearingProcess writes a session."""
+        """An accepted gateway_auth via PUB → ClearingProcess writes a session."""
         pub = _InprocPub(zmq_addr)
         p = ClearingProcess(
             pub_addr=zmq_addr,
@@ -322,7 +321,9 @@ class TestReceiveLoopTopicRouting:
         t = self._start(p)
         time.sleep(0.2)
 
-        pub.send(TOPIC_GATEWAY_CONNECT, {"gateway_id": "GW_LOOP"})
+        pub.send(
+            f"{PREFIX_GATEWAY_AUTH}GW_LOOP", {"gateway_id": "GW_LOOP", "accepted": True}
+        )
         time.sleep(0.3)
 
         self._stop(p, t)
@@ -333,10 +334,11 @@ class TestReceiveLoopTopicRouting:
         conn.close()
         assert len(rows) == 1
 
-    def test_gateway_disconnect_message_through_loop(
+    def test_echoed_connect_command_does_not_record_a_second_session(
         self, db_path: Path, zmq_addr: str
     ) -> None:
-        """gateway_connect then gateway_disconnect closes the session."""
+        """The engine echoes the inbound system.gateway_connect onto PUB for the
+        audit trail, beside its own gateway_auth broadcast: one session, not two."""
         pub = _InprocPub(zmq_addr)
         p = ClearingProcess(
             pub_addr=zmq_addr,
@@ -349,19 +351,19 @@ class TestReceiveLoopTopicRouting:
         t = self._start(p)
         time.sleep(0.2)
 
-        pub.send(TOPIC_GATEWAY_CONNECT, {"gateway_id": "GW_DISC"})
-        time.sleep(0.15)
-        pub.send(TOPIC_GATEWAY_DISCONNECT, {"gateway_id": "GW_DISC", "reason": "Test"})
+        pub.send(TOPIC_GATEWAY_CONNECT, {"gateway_id": "GW_ECHO"})
+        pub.send(
+            f"{PREFIX_GATEWAY_AUTH}GW_ECHO", {"gateway_id": "GW_ECHO", "accepted": True}
+        )
         time.sleep(0.3)
 
         self._stop(p, t)
         pub.close()
 
         conn = open_writer_connection(db_path)
-        rows = query_sessions(conn, gateway="GW_DISC")
+        rows = query_sessions(conn, gateway="GW_ECHO")
         conn.close()
         assert len(rows) == 1
-        assert rows[0]["disconnected_at_ns"] is not None
 
     def test_eod_message_through_loop(self, db_path: Path, zmq_addr: str) -> None:
         """system.eod message via PUB loop writes an EOD session_event."""
@@ -469,7 +471,9 @@ class TestReceiveLoopTopicRouting:
         t = self._start(p)
         time.sleep(0.2)
 
-        pub.send(TOPIC_GATEWAY_CONNECT, {"gateway_id": "BYE_GW"})
+        pub.send(
+            f"{PREFIX_GATEWAY_AUTH}BYE_GW", {"gateway_id": "BYE_GW", "accepted": True}
+        )
         time.sleep(0.1)
         bye_topic = f"{PREFIX_GATEWAY_BYE}BYE_GW"
         pub.send(bye_topic, {"gateway_id": "BYE_GW", "reason": "normal"})

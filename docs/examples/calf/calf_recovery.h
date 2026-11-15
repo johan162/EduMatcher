@@ -45,7 +45,7 @@
  *     if (act == CALF_DROP) continue;              // replayed duplicate
  *     if (act == CALF_RESUME) {
  *         char line[CALF_RESUME_LINE_LEN];
- *         calf_recovery_build_resume(line, sizeof(line), &gap);
+ *         calf_recovery_build_resume(line, sizeof(line), &gap, epoch);
  *         send_line(fd, line);
  *     }
  *     // CALF_PROCESS, or after either of the above: use the message
@@ -63,7 +63,8 @@
 
 #define CALF_RECOVERY_CH_LEN 16
 #define CALF_RECOVERY_SYM_LEN 32
-/* Comfortably fits "RESUME|CH=..|SYM=..|LASTSEQ=..\n". */
+/* Comfortably fits "RESUME|CH=..|SYM=..|LASTSEQ=..|EPOCH=..\n" (the
+ * gateway's EPOCH is 8 hex digits). */
 #define CALF_RESUME_LINE_LEN 128
 
 /* What the caller should do with the message just observed. */
@@ -146,12 +147,16 @@ void calf_recovery_abandon(calf_recovery_t *rec, const char *channel, const char
 long calf_recovery_position(const calf_recovery_t *rec, const char *channel,
                             const char *symbol);
 
-/* Write "RESUME|CH=..|SYM=..|LASTSEQ=..\n" for `gap` into `buf`.
+/* Write "RESUME|CH=..|SYM=..|LASTSEQ=..|EPOCH=..\n" for `gap` into `buf`.
  *
  * LASTSEQ is the position *before* the hole, which is what the gateway
- * replays from. Returns the number of bytes written, or a negative value
- * if the buffer was too small. */
-int calf_recovery_build_resume(char *buf, unsigned long cap, const calf_gap_t *gap);
+ * replays from. `epoch` is the WELCOME|EPOCH= of the gateway run that
+ * position was counted in: a restarted gateway numbers its streams from 1
+ * again and answers REPLAY_MISS for another run's position. A client that
+ * reconnects must keep the epoch with its positions. Returns the number of
+ * bytes written, or a negative value if the buffer was too small. */
+int calf_recovery_build_resume(char *buf, unsigned long cap, const calf_gap_t *gap,
+                               const char *epoch);
 
 /* Whether a REPLAY_MISS on this channel is followed by a fresh SNAP.
  *

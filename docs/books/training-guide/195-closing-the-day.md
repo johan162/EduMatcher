@@ -21,11 +21,10 @@ Close a trading day the way an exchange operator does, using `pm-eod`:
 
 - Chapters 01–19 completed. Chapter 12 (`pm-clearing`) matters most here:
   settlement reads what `pm-clearing` recorded.
-- The engine running with `TRADER01`, `TRADER02`, `GW_ADMIN` and the market
-  makers from chapter 02 connected, and `pm-clearing` running. If chapter 19
-  left `TRADER02` kicked, start a new console for it, and re-send a `QUOTE`
-  from `MM_AAPL_01` if its quote was cancelled: Exercise 5 needs liquidity on
-  AAPL.
+- The engine running with `TRADER01`, `TRADER02`, `GW_ADMIN` and a
+  `MM_AAPL_01` console connected, and `pm-clearing` running. Chapter 19 left
+  `TRADER02` kicked and AAPL without a quote: start a new `TRADER02` console.
+  Exercise 5 has the market maker quote again.
 - **No `pm-scheduler` running.** You move the session phases yourself, as in
   earlier chapters. A running `--daily` scheduler would close the day at its
   own time.
@@ -202,13 +201,22 @@ running balance, added whenever a balance is shown.
 ## Exercise 5: Trade a day
 
 Give both traders something to settle. TRADER01 buys and keeps a position;
-TRADER02 buys and sells part of it again:
+TRADER02 buys and sells part of it again. The market maker quotes first, and
+again before the sell: its first fill pulls the bid (`INACTIVATE_ON_ANY_FILL`,
+chapter 09), and a market sell would find nobody to sell to.
 
 ```
+[MM_AAPL_01]> QUOTE|SYM=AAPL|BID=149.95|ASK=150.05|BID_QTY=500|ASK_QTY=500|TIF=DAY|QUOTE_ID=AAPL-EOD-001
 [TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=200
 [TRADER02]> NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=100
+[MM_AAPL_01]> QUOTE|SYM=AAPL|BID=149.95|ASK=150.05|BID_QTY=500|ASK_QTY=500|TIF=DAY|QUOTE_ID=AAPL-EOD-002
 [TRADER02]> NEW|SYM=AAPL|SIDE=SELL|TYPE=MARKET|QTY=50
 ```
+
+The AI traders of chapter 17 may have moved AAPL away from 150. That does
+not matter here: a market maker's quote is not checked against the price
+collars, and the market orders carry no price to check. Your amounts will
+differ from the examples below either way.
 
 Look at their positions and P&L before the close:
 
@@ -351,37 +359,34 @@ pm-eod run --date "$D"
 ```
 [output]
 2026-11-05:
-  [ok] gate: closed, snapshot present, reconciled
+  [ok] gate: already settled: not checked again (--redo recomputes)
   [ok] settle: already settled
   [FAIL] report: .../ref_data/roster.yaml: line 2: opening_balance has more than 2 decimals
   ...
 ```
 
-The error names the line. The settlement is safe in the ledger; only the
-statements could not be written. Now look at the day as a monitoring system
-would:
+The error names the line, and the command exits **1**. The settlement is safe
+in the ledger, and the statements of the first run are still in place: a failed
+write never replaces them. Now look at the day as a monitoring system would:
 
 ```bash
 pm-eod status
 pm-eod status -q; echo "exit code $?"
 ```
 
-Today's status is `report-failed`, and `status -q` (the health check) returns
-**1**. Fix the file back to `1000.00` and run the day again, **without**
-`--only`:
+Today's status is still `ok`, and `status -q` (the health check) returns **0**:
+the day *is* settled and reported, and a rerun that fails is printed but not
+recorded, so it cannot turn a good day bad. (A *first* run that fails at the
+report is recorded as `report-failed`, and the health check then returns 1
+until a run succeeds.) Fix the file back to `1000.00` and run the day again:
 
 ```bash
-pm-eod run --date "$D"
-pm-eod status -q; echo "exit code $?"
+pm-eod run --date "$D"; echo "exit code $?"
 ```
 
-!!! note "Why not `--only report`?"
-    `pm-eod run --date "$D" --only report` would rewrite the statements too, but
-    a run with `--only` is never recorded, so the day would stay
-    `report-failed` and the health check red. A full run records `ok`.
-
-:material-checkbox-blank-outline: **Checkpoint:** the health check went from exit
-code 1 back to 0, and today's status is `ok` again.
+:material-checkbox-blank-outline: **Checkpoint:** the run with the broken roster
+exited 1 while `status -q` stayed 0, and the run after the fix exits 0 and
+writes the statements again.
 
  
 
@@ -409,14 +414,19 @@ pm-eod run --pending
 
 It says `nothing pending`. There is **one settlement per trading date**, and
 today's is already done. The afternoon's trading is in the new close snapshot,
-but not in the ledger. See the difference:
+but not yet in the ledger. Nothing is lost if you leave it: `pm-eod` remembers
+the equity it settled today at, so the next trading date you settle includes
+the afternoon, and its `settle` line warns that today's snapshot changed after
+it was settled. To book the afternoon on today instead, see what a
+recomputation would give (a plain `--dry-run` only says `already settled`):
 
 ```bash
-pm-eod run --date "$D" --dry-run
+pm-eod run --date "$D" --redo --dry-run
 ```
 
-The dry run computes today again from the new snapshot and shows different
-amounts. To replace today's settlement with them, use `--redo`:
+The dry run computes today again from the new snapshot, shows the new amounts
+and names the dates it would drop. To replace today's settlement with them, use
+`--redo`:
 
 ```bash
 pm-eod run --date "$D" --redo
@@ -453,8 +463,9 @@ You can now:
 - Check a trader's amount by hand from the close snapshots, and check that the
   day sums to zero.
 - Read the statement, `instructions.csv`, the leaderboard and the summary.
-- Clear a backlog with `--pending`, recover from a broken roster without
-  leaving the day `report-failed`, and recompute a day with `--redo`.
+- Clear a backlog with `--pending`, recover from a broken roster, and decide
+  whether trading after the close stays on the next day or is recomputed onto
+  its own with `--redo`.
 
 ## Reflection
 

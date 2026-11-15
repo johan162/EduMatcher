@@ -752,7 +752,7 @@ Spec type: `RalfGwyProcSpec`.
 
 | Field | Type | Req | Default | Constraints |
 |-------|------|:---:|---------|-------------|
-| `name` | `Str` | – | `"ralf-gwy01"` | |
+| `name` | `Str` | – | `"ralf-gwy01"` | non-empty; no `\|`, CR or LF; echoed in `WELCOME` |
 | `bind_address` | `Str` | – | `"0.0.0.0"` | |
 | `port` | `Port` | – | `5580` | `1..65535` |
 | `replay_retention_sec` | `Int` | – | `86400` | `> 0` |
@@ -760,7 +760,7 @@ Spec type: `RalfGwyProcSpec`.
 | `idle_timeout_sec` | `Int` | – | `20` | `> 0` |
 | `max_connections` | `Int` | – | `64` | `> 0` |
 | `max_client_queue` | `Int` | – | `10000` | `> 0` |
-| `allowed_roles` | `List<Str>` | – | `[CLEARING, DROP_COPY, AUDIT]` | values upper-cased |
+| `allowed_roles` | `List<Str>` | – | `[CLEARING, DROP_COPY, AUDIT]` | non-empty; values upper-cased, each `CLEARING`, `DROP_COPY` or `AUDIT` |
 
 This block has no `enabled` key.
 
@@ -812,7 +812,7 @@ Spec type: `DcGwyProcSpec`.
 
 | Field | Type | Req | Default | Constraints |
 |-------|------|:---:|---------|-------------|
-| `name` | `Str` | – | `"dc-gwy01"` | non-empty; echoed in `WELCOME` |
+| `name` | `Str` | – | `"dc-gwy01"` | non-empty; no `\|`, CR or LF; echoed in `WELCOME` |
 | `bind_address` | `Str` | – | `"0.0.0.0"` | non-empty |
 | `port` | `Port` | – | `5590` | `1..65535` |
 | `heartbeat_interval_sec` | `Secs` | – | `2` | `> 0`; interval between `HB` lines |

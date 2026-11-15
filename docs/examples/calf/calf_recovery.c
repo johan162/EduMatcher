@@ -186,14 +186,15 @@ long calf_recovery_position(const calf_recovery_t *rec, const char *channel,
     return -1;
 }
 
-int calf_recovery_build_resume(char *buf, unsigned long cap, const calf_gap_t *gap) {
-    if (!buf || !gap || cap == 0) {
+int calf_recovery_build_resume(char *buf, unsigned long cap, const calf_gap_t *gap,
+                               const char *epoch) {
+    if (!buf || !gap || !epoch || cap == 0) {
         return -1;
     }
     /* LASTSEQ is the position before the hole: the gateway replays
-     * everything *past* it. */
-    int written = snprintf(buf, cap, "RESUME|CH=%s|SYM=%s|LASTSEQ=%ld\n", gap->channel,
-                           gap->symbol, gap->first_seq - 1);
+     * everything *past* it, if it is still the run named by EPOCH. */
+    int written = snprintf(buf, cap, "RESUME|CH=%s|SYM=%s|LASTSEQ=%ld|EPOCH=%s\n",
+                           gap->channel, gap->symbol, gap->first_seq - 1, epoch);
     if (written < 0 || (unsigned long)written >= cap) {
         return -1;
     }

@@ -208,6 +208,9 @@ def test_md_counts_messages_out_and_a_slow_client(fake_zmq: None) -> None:
     gateway._clients[session.sock.fileno()] = session
     for _ in range(3):
         gateway._queue_line(session, "HB", {})
+    # Counted when sent, not when queued (WP-MDG06).
+    assert _value(gateway.metric_samples(), "md.msgs_out") == 0
+    gateway._flush_client_writes()
     assert _value(gateway.metric_samples(), "md.msgs_out") == 3
 
     # Past max_client_queue with a peer that never reads: more bytes than
@@ -626,9 +629,12 @@ def test_engine_client_counts_a_timeout() -> None:
         client = EngineClient(
             "tcp://127.0.0.1:1", "tcp://127.0.0.1:2", asyncio.get_running_loop()
         )
-        with pytest.raises(TimeoutError):
-            await client.await_topic("system.nothing", timeout=0.01)
-        return client.engine_timeouts
+        try:
+            with pytest.raises(TimeoutError):
+                await client.await_topic("system.nothing", timeout=0.01)
+            return client.engine_timeouts
+        finally:
+            client.stop_listener()
 
     assert asyncio.run(scenario()) == 1
 

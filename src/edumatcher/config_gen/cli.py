@@ -19,8 +19,8 @@ import holidays
 
 from edumatcher.cli_version import package_version
 
-from edumatcher.api_gateway.config import load_named_api_gateway_configs
-from edumatcher.engine.config_loader import is_known_timezone, load_engine_config
+from edumatcher.config_deploy import CompileError, compile_config
+from edumatcher.engine.config_loader import is_known_timezone
 from edumatcher.models.order import SmpAction
 from edumatcher.models.participant import DisconnectBehaviour, ParticipantRole
 from edumatcher.models.price import TickViolation, to_ticks_exact_at
@@ -43,6 +43,12 @@ from edumatcher.config_gen.builder import MarketDataGatewaySpec
 from edumatcher.config_gen.builder import PostTradeGatewaySpec
 from edumatcher.config_gen.cb_spec import CbSpec, parse_cb_spec
 from edumatcher.config_gen.defaults import (
+    DEFAULT_ACE_INITIAL_BAND_PCT,
+    DEFAULT_ACE_RANDOM_END_MAX_NS,
+    DEFAULT_CB_WINDOW_NS,
+    DEFAULT_HOLIDAYS_SCHEDULE,
+    DEFAULT_SCHEDULE,
+    DEFAULT_WEEKEND_SCHEDULE,
     DEFAULT_ALF_GATEWAY_BIND_ADDRESS,
     DEFAULT_ALF_GATEWAY_ERROR_WINDOW_SEC,
     DEFAULT_ALF_GATEWAY_HANDSHAKE_TIMEOUT_SEC,
@@ -140,8 +146,86 @@ from edumatcher.config_gen.symbol_spec import parse_symbol_opts
 from edumatcher.config_gen.warnings import evaluate_diagnostics
 
 
-from edumatcher.config_gen.cli_parser import build_parser
+from edumatcher.config_gen.cli_parser import build_parser, finite_float
 from edumatcher.config_gen.cli_comments import build_default_engine_field_comment_lines
+
+# (dest, flag, default) of every schedule time option, weekdays first.
+_SCHEDULE_TIME_OPTIONS: tuple[tuple[str, str, str], ...] = tuple(
+    (f"{prefix}{dest}", f"--{prefix.replace('_', '-')}{flag}", defaults[key])
+    for prefix, defaults in (
+        ("", DEFAULT_SCHEDULE),
+        ("weekend_", DEFAULT_WEEKEND_SCHEDULE),
+        ("holidays_", DEFAULT_HOLIDAYS_SCHEDULE),
+    )
+    for dest, flag, key in (
+        ("pre_open", "pre-open", "pre_open"),
+        ("opening_auction", "opening-auction", "opening_auction_start"),
+        ("continuous", "continuous", "continuous_start"),
+        ("closing_auction", "closing-auction", "closing_auction_start"),
+        ("closing_end", "closing-end", "closing_auction_end"),
+    )
+)
+
+# (dest, flag, default) of the options that shape circuit_breaker_defaults.
+_BREAKER_OPTIONS: tuple[tuple[str, str, object], ...] = (
+    ("cb_window_ns", "--cb-window-ns", DEFAULT_CB_WINDOW_NS),
+    ("ace_initial_band", "--ace-initial-band", DEFAULT_ACE_INITIAL_BAND_PCT),
+    ("ace_random_end_ns", "--ace-random-end-ns", DEFAULT_ACE_RANDOM_END_MAX_NS),
+    ("ace_expansions", "--ace-expansions", None),
+    ("ace_random_seed", "--ace-random-seed", None),
+)
+
+
+def _needs(flags: list[str]) -> str:
+    return "needs" if len(flags) == 1 else "need"
+
+
+def _resolve_gated_options(args: argparse.Namespace) -> None:
+    """Refuse options that would be dropped, then fill in their defaults.
+
+    The schedule is written only with --sessions-enabled (and not with
+    --no-schedule), and circuit_breaker_defaults only with --cb-levels. An
+    option shaping either one without it used to be accepted and silently
+    left out of the file.
+    """
+    schedule_given = [
+        flag
+        for dest, flag, _ in _SCHEDULE_TIME_OPTIONS
+        if getattr(args, dest) is not None
+    ]
+    if args.schedule:
+        schedule_given.insert(0, "--schedule")
+    schedule_given += [
+        flag for flag in ("--weekend", "--holidays") if getattr(args, flag[2:])
+    ]
+    if schedule_given and not args.sessions_enabled:
+        raise ValueError(
+            f"{', '.join(schedule_given)} {_needs(schedule_given)} "
+            "--sessions-enabled: without it the file has sessions_enabled: false "
+            "and no schedule"
+        )
+    if schedule_given and args.schedule is False:
+        raise ValueError(
+            f"{', '.join(schedule_given)} cannot be combined with --no-schedule, "
+            "which leaves the schedule out of the file"
+        )
+    for dest, _flag, default in _SCHEDULE_TIME_OPTIONS:
+        if getattr(args, dest) is None:
+            setattr(args, dest, default)
+
+    breaker_given = [
+        flag for dest, flag, _ in _BREAKER_OPTIONS if getattr(args, dest) is not None
+    ]
+    if args.no_ace:
+        breaker_given.append("--no-ace")
+    if breaker_given and not args.cb_levels:
+        raise ValueError(
+            f"{', '.join(breaker_given)} {_needs(breaker_given)} --cb-levels: "
+            "circuit_breaker_defaults, which they shape, is written only with it"
+        )
+    for dest, _flag, breaker_default in _BREAKER_OPTIONS:
+        if getattr(args, dest) is None:
+            setattr(args, dest, breaker_default)
 
 
 def _validate_basic_args(args: argparse.Namespace) -> None:
@@ -169,10 +253,6 @@ def _validate_basic_args(args: argparse.Namespace) -> None:
         raise ValueError("--ace-initial-band must be in (0, 1)")
     if args.ace_random_end_ns < 0:
         raise ValueError("--ace-random-end-ns must be >= 0")
-    if args.post_trade_port is not None and args.post_trade_port <= 0:
-        raise ValueError("--post-trade-port must be > 0")
-    if args.market_data_port is not None and args.market_data_port <= 0:
-        raise ValueError("--market-data-port must be > 0")
     if (
         args.post_trade_replay_retention_sec is not None
         and args.post_trade_replay_retention_sec <= 0
@@ -230,8 +310,6 @@ def _validate_basic_args(args: argparse.Namespace) -> None:
         raise ValueError("--market-data-max-client-queue must be > 0")
     if args.market_data_depth_levels is not None and args.market_data_depth_levels <= 0:
         raise ValueError("--market-data-depth-levels must be > 0")
-    if args.api_gateway_port is not None and args.api_gateway_port <= 0:
-        raise ValueError("--api-gateway-port must be > 0")
     if (
         args.api_gateway_rate_limit_writes_per_second is not None
         and args.api_gateway_rate_limit_writes_per_second <= 0
@@ -261,8 +339,6 @@ def _validate_basic_args(args: argparse.Namespace) -> None:
     if args.api_gateway_wait_ack_sec is not None and args.api_gateway_wait_ack_sec <= 0:
         raise ValueError("--api-gateway-wait-ack-sec must be > 0")
 
-    if args.alf_port is not None and not 0 < args.alf_port <= 65535:
-        raise ValueError("--alf-port must be in 1-65535")
     for flag, value in (
         ("--alf-heartbeat-interval-sec", args.alf_heartbeat_interval_sec),
         ("--alf-handshake-timeout-sec", args.alf_handshake_timeout_sec),
@@ -276,8 +352,6 @@ def _validate_basic_args(args: argparse.Namespace) -> None:
         if value is not None and value <= 0:
             raise ValueError(f"{flag} must be > 0")
 
-    if args.balf_port is not None and args.balf_port <= 0:
-        raise ValueError("--balf-port must be > 0")
     if (
         args.balf_heartbeat_interval_sec is not None
         and args.balf_heartbeat_interval_sec <= 0
@@ -309,8 +383,6 @@ def _validate_basic_args(args: argparse.Namespace) -> None:
     if args.balf_error_window_sec is not None and args.balf_error_window_sec <= 0:
         raise ValueError("--balf-error-window-sec must be > 0")
 
-    if args.dc_port is not None and args.dc_port <= 0:
-        raise ValueError("--dc-port must be > 0")
     if (
         args.dc_heartbeat_interval_sec is not None
         and args.dc_heartbeat_interval_sec <= 0
@@ -323,8 +395,6 @@ def _validate_basic_args(args: argparse.Namespace) -> None:
     if args.dc_max_client_queue is not None and args.dc_max_client_queue <= 0:
         raise ValueError("--dc-max-client-queue must be > 0")
 
-    if args.log_server_port is not None and args.log_server_port <= 0:
-        raise ValueError("--log-server-port must be > 0")
     if (
         args.log_server_retention_days is not None
         and args.log_server_retention_days < 0
@@ -376,8 +446,6 @@ def _validate_basic_args(args: argparse.Namespace) -> None:
 
 
 _LOG_SERVER_PUBSUB_POSITIVE_INT_FLAGS = (
-    ("log_server_pub_port", "--log-server-pub-port"),
-    ("log_server_pull_port", "--log-server-pull-port"),
     ("log_server_lease_sec", "--log-server-lease-sec"),
     ("log_server_max_lease_sec", "--log-server-max-lease-sec"),
     ("log_server_max_subscribers", "--log-server-max-subscribers"),
@@ -538,11 +606,11 @@ def _parse_seed_mm_mid_range(raw: str) -> tuple[float, float]:
 
     min_raw, max_raw = raw.split(":", 1)
     try:
-        min_price = float(min_raw.strip())
-        max_price = float(max_raw.strip())
+        min_price = finite_float(min_raw.strip())
+        max_price = finite_float(max_raw.strip())
     except ValueError as exc:
         raise ValueError(
-            f"Invalid --seed-mm-mid-range '{raw}': MIN and MAX must be numbers"
+            f"Invalid --seed-mm-mid-range '{raw}': MIN and MAX must be finite numbers"
         ) from exc
 
     if min_price <= 0 or max_price <= 0:
@@ -823,9 +891,9 @@ def _parse_api_gateway_instance(
             raise ValueError(
                 f"Invalid --api-gateway-instance '{raw}': PORT must be an integer"
             ) from exc
-        if port <= 0:
+        if not 1 <= port <= 65535:
             raise ValueError(
-                f"Invalid --api-gateway-instance '{raw}': PORT must be > 0"
+                f"Invalid --api-gateway-instance '{raw}': PORT must be in 1-65535"
             )
     return name, gateway_ids, port
 
@@ -837,11 +905,16 @@ def _parse_specs(args: argparse.Namespace) -> tuple[
     list[CbSpec],
     list[tuple[float, int]],
     dict[str, SymbolOverride],
-    list[str],
     dict[str, int],
     tuple[float, float] | None,
 ]:
     symbols = [s.upper() for s in args.symbols]
+    duplicates = sorted({s for s in symbols if symbols.count(s) > 1})
+    if duplicates:
+        raise ValueError(
+            f"--symbols lists {', '.join(duplicates)} more than once "
+            "(names are upper-cased)"
+        )
 
     gateways = [parse_gateway_spec(raw) for raw in args.participants]
 
@@ -882,7 +955,7 @@ def _parse_specs(args: argparse.Namespace) -> tuple[
         else list(DEFAULT_ACE_EXPANSIONS)
     )
 
-    symbol_overrides, symbol_opt_warnings = parse_symbol_opts(
+    symbol_overrides = parse_symbol_opts(
         specs=args.symbol_opts,
         allowed_symbols=set(symbols),
     )
@@ -918,7 +991,7 @@ def _parse_specs(args: argparse.Namespace) -> tuple[
         specs=args.symbol_max_order_value,
         allowed_symbols=set(symbols),
         flag_name="--symbol-max-order-value",
-        cast=float,
+        cast=finite_float,
     )
     for sym, max_order_value in symbol_max_order_values.items():
         symbol_overrides.setdefault(sym, SymbolOverride()).max_order_value = (
@@ -950,7 +1023,6 @@ def _parse_specs(args: argparse.Namespace) -> tuple[
         cb_levels,
         ace_expansions,
         symbol_overrides,
-        symbol_opt_warnings,
         outstanding_shares,
         seed_mm_mid_range,
     )
@@ -1301,10 +1373,13 @@ def _parse_monitor_thresholds(values: list[str]) -> dict[str, dict[str, float]]:
         if rule in out:
             raise ValueError(f"--monitor-threshold given twice for {rule!r}")
         try:
-            out[rule] = {"warn": float(warn_text), "crit": float(crit_text)}
+            out[rule] = {
+                "warn": finite_float(warn_text),
+                "crit": finite_float(crit_text),
+            }
         except ValueError:
             raise ValueError(
-                f"--monitor-threshold {value!r}: WARN and CRIT must be numbers"
+                f"--monitor-threshold {value!r}: WARN and CRIT must be finite numbers"
             ) from None
     return out
 
@@ -1582,7 +1657,9 @@ def _build_api_gateway_specs(
     host = str(args.api_gateway_host or DEFAULT_API_GATEWAY_HOST)
     log_level = str(args.api_gateway_log_level or DEFAULT_API_GATEWAY_LOG_LEVEL)
     stats_db = str(args.api_gateway_stats_db or DEFAULT_API_GATEWAY_STATS_DB)
-    generate_readonly_key = bool(args.api_gateway_readonly_key)
+    # On unless --no-api-gateway-readonly-key: pm-dash, terminal-gui and
+    # book-gui read through such a key (M032).
+    generate_readonly_key = args.api_gateway_readonly_key is not False
     rate_limit_writes_per_second = int(
         args.api_gateway_rate_limit_writes_per_second
         or DEFAULT_API_GATEWAY_RATE_LIMIT_WRITES_PER_SECOND
@@ -1770,10 +1847,10 @@ def _parse_index_specs(
             raise ValueError(f"--index-base-value references unknown index '{idx_id}'")
         _reject_repeated_index_flag("--index-base-value", idx_id, index_base_values)
         try:
-            value = float(val_raw.strip())
+            value = finite_float(val_raw.strip())
         except ValueError as exc:
             raise ValueError(
-                f"--index-base-value '{raw}': value must be numeric"
+                f"--index-base-value '{raw}': value must be a finite number"
             ) from exc
         if value <= 0:
             raise ValueError(f"--index-base-value '{raw}': value must be > 0")
@@ -1790,10 +1867,10 @@ def _parse_index_specs(
             raise ValueError(f"--index-interval references unknown index '{idx_id}'")
         _reject_repeated_index_flag("--index-interval", idx_id, index_intervals)
         try:
-            value = float(val_raw.strip())
+            value = finite_float(val_raw.strip())
         except ValueError as exc:
             raise ValueError(
-                f"--index-interval '{raw}': value must be numeric"
+                f"--index-interval '{raw}': value must be a finite number"
             ) from exc
         if value <= 0:
             raise ValueError(f"--index-interval '{raw}': value must be > 0")
@@ -1941,7 +2018,7 @@ def _parse_leg_price(raw: str, tick_decimals: int, symbol: str, label: str) -> f
     """
     text = raw.strip()
     try:
-        price = float(text)
+        price = finite_float(text)
     except ValueError as exc:
         raise ValueError(f"{label} must be a decimal price") from exc
     try:
@@ -2130,11 +2207,11 @@ def _write_output(
 
 
 def _validate_generated(content: str, parts: dict[str, str] | None = None) -> None:
-    """Load the rendered YAML exactly as pm-engine will, or raise ValueError.
+    """Compile the rendered files as pm-config-deploy will, or raise ValueError.
 
-    A config the engine's own loader rejects is never written or printed: it
-    would only move the failure from generation to engine startup, after the
-    file may already have been deployed.
+    The same gate as the deploy: pm-cverifier's ERRORs, then every loader.
+    A config it refuses is never written or printed: it would only move the
+    failure from generation to deployment.
     """
     with TemporaryDirectory() as tmp:
         tmp_path = Path(tmp) / "engine_config.yaml"
@@ -2142,10 +2219,17 @@ def _validate_generated(content: str, parts: dict[str, str] | None = None) -> No
         for name, text in (parts or {}).items():
             (Path(tmp) / name).write_text(text, encoding="utf-8")
         try:
-            load_engine_config(tmp_path)
-            load_named_api_gateway_configs(tmp_path)
-        except Exception as exc:
-            raise ValueError(f"Generated config failed validation: {exc}") from exc
+            compile_config(tmp_path)
+        except CompileError as exc:
+            if exc.findings:
+                detail = "\n".join(
+                    f"  {f.code} [{f.path}]: {f.message}" for f in exc.findings
+                )
+                detail = f"pm-config-deploy would refuse it:\n{detail}"
+            else:
+                # A loader refused it; its own message names the field.
+                detail = str(exc.__cause__ or exc)
+            raise ValueError(f"Generated config failed validation: {detail}") from exc
 
 
 def _require_index_reference_prices(config: dict[str, Any]) -> None:
@@ -2178,6 +2262,7 @@ def main() -> None:
     args = parser.parse_args()
 
     try:
+        _resolve_gated_options(args)
         _validate_basic_args(args)
         (
             symbols,
@@ -2186,7 +2271,6 @@ def main() -> None:
             cb_levels,
             ace_expansions,
             symbol_overrides,
-            symbol_opt_warnings,
             outstanding_shares,
             seed_mm_mid_range,
         ) = _parse_specs(args)
@@ -2331,7 +2415,6 @@ def main() -> None:
 
     diagnostics = evaluate_diagnostics(
         spec=spec,
-        parsed_symbol_option_warnings=symbol_opt_warnings,
         raw_symbols=args.symbols,
         output_exists=output_exists,
     )
@@ -2397,7 +2480,7 @@ def main() -> None:
             print("[ERROR] Nothing was written.", file=sys.stderr)
             raise SystemExit(2) from exc
         print(
-            "[INFO] Generated config passed load_engine_config() validation.",
+            "[INFO] Generated config passes pm-config-deploy --check.",
             file=sys.stderr,
         )
 
@@ -2428,16 +2511,13 @@ def main() -> None:
 
     if mm_quotes_pending_fill:
         print(
-            "[HINT] Fill all market_maker_quotes bid_price/ask_price values before "
-            "starting pm-engine.",
+            "[HINT] Fill all market_maker_quotes bid_price/ask_price values: "
+            "pm-config-deploy refuses the file until they are set "
+            "(pm-cverifier reports each one as S014).",
             file=sys.stderr,
         )
-    print(
-        "[HINT] Validate with: poetry run python -c 'from pathlib import Path; "
-        "from edumatcher.engine.config_loader import load_engine_config; "
-        'print(load_engine_config(Path("engine_config.yaml")))\'',
-        file=sys.stderr,
-    )
+    print(f"[HINT] Check it with: pm-cverifier {output_path}", file=sys.stderr)
+    print(f"[HINT] Install it with: pm-config-deploy {output_path}", file=sys.stderr)
 
 
 if __name__ == "__main__":

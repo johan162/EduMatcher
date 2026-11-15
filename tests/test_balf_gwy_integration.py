@@ -21,7 +21,7 @@ import zmq
 from edumatcher.balf_gwy.codec import (
     BALF_MAGIC,
     BALF_VERSION,
-    CANCEL_REASON_SYSTEM,
+    CANCEL_REASON_EXPIRED,
     FRAME_SIZE,
     HEADER_SIZE,
     LOGON_REJECT_ALREADY_CONNECTED,
@@ -37,6 +37,7 @@ from edumatcher.balf_gwy.codec import (
     MSG_HEARTBEAT_ACK,
     MSG_LOGON,
     MSG_LOGON_ACK,
+    MSG_LOGOUT,
     MSG_NEW_ORDER,
     MSG_ORDER_ACK,
     SIDE_BUY,
@@ -237,9 +238,6 @@ def _balf_authenticate(
 
     # Wait until gateway_connect lands on the engine PULL.
     _drain_pull_until(engine_pull, "system.gateway_connect", timeout=3.0)
-
-    # Allow ZMQ subscription to propagate before publishing the auth reply.
-    time.sleep(0.1)
 
     engine_pub.send_multipart(
         encode(
@@ -814,7 +812,7 @@ def test_cancelled_event_for_client_cancel(running_gateway: GatewayFixture) -> N
 
 
 def test_expired_event_delivered(running_gateway: GatewayFixture) -> None:
-    """order.expired → client receives CANCEL_ACK with CANCEL_REASON_SYSTEM."""
+    """order.expired → client receives CANCEL_ACK with CANCEL_REASON_EXPIRED (254)."""
     _, pull, pub, port = running_gateway
 
     with socket.create_connection(("127.0.0.1", port), timeout=3) as cli:
@@ -841,7 +839,7 @@ def test_expired_event_delivered(running_gateway: GatewayFixture) -> None:
 
         body = bc.recv_until(MSG_CANCEL_ACK, timeout=3.0)
         assert body[16] == 1  # accepted=true
-        assert body[17] == CANCEL_REASON_SYSTEM
+        assert body[17] == CANCEL_REASON_EXPIRED
 
 
 def test_amended_event_delivered(running_gateway: GatewayFixture) -> None:
@@ -932,7 +930,7 @@ def test_cancel_unknown_order_rejects_immediately(
         _balf_authenticate(bc, pull, pub)
         _drain_pull_until(pull, "system.symbols_request", timeout=2.0)
 
-        bc.send(_build_cancel_order(client_order_id=1, balf_order_id=9999, seq_no=2))
+        bc.send(_build_cancel_order(client_order_id=1, balf_order_id=9999, seq_no=1))
 
         body = bc.recv_until(MSG_CANCEL_ACK, timeout=3.0)
         assert body[16] == 0  # accepted=false
@@ -947,7 +945,7 @@ def test_cancel_order_id_zero_rejects(running_gateway: GatewayFixture) -> None:
         _balf_authenticate(bc, pull, pub)
         _drain_pull_until(pull, "system.symbols_request", timeout=2.0)
 
-        bc.send(_build_cancel_order(client_order_id=1, balf_order_id=0, seq_no=2))
+        bc.send(_build_cancel_order(client_order_id=1, balf_order_id=0, seq_no=1))
 
         body = bc.recv_until(MSG_CANCEL_ACK, timeout=3.0)
         assert body[16] == 0  # accepted=false
@@ -970,7 +968,7 @@ def test_amend_unknown_order_rejects_immediately(
                 balf_order_id=9999,
                 new_price=1,
                 amend_flags=0x01,
-                seq_no=2,
+                seq_no=1,
             )
         )
 
@@ -1142,7 +1140,11 @@ def test_max_connections_enforced(running_gateway: GatewayFixture) -> None:
 
 
 def test_rate_limiting_enforced(running_gateway: GatewayFixture) -> None:
-    """Exceeding max_messages_per_second drops frames without closing the session."""
+    """Exceeding max_messages_per_second refuses frames without closing the session.
+
+    Since the BALF review (C2) each refused NEW_ORDER is answered with
+    ORDER_ACK reject_code 0x0D RATE_LIMITED instead of being dropped.
+    """
     gw, pull, pub, port = running_gateway
 
     gw.config = BalfGatewayConfig(
@@ -1161,8 +1163,18 @@ def test_rate_limiting_enforced(running_gateway: GatewayFixture) -> None:
         # Wait >1s so the token bucket refills to 1 token before the heartbeat.
         # The session must still be open (rate-limit does not close it).
         time.sleep(1.5)
-        bc.send(_build_heartbeat(seq_no=99))
-        bc.recv_until(MSG_HEARTBEAT_ACK, timeout=3.0)
+        bc.send(_build_heartbeat(seq_no=11))
+        codes = []
+        while True:
+            mt, body = bc.recv_frame(timeout=3.0)
+            if mt == MSG_HEARTBEAT_ACK:
+                break
+            if mt == MSG_ORDER_ACK:
+                codes.append(body[25])
+        # Every order is answered: those the bucket refused with 0x0D, the
+        # rest by the (silent) fake engine, so they have no ack here.
+        assert codes and set(codes) == {0x0D}
+        assert len(codes) >= 9
 
 
 # ---------------------------------------------------------------------------
@@ -1182,8 +1194,9 @@ def test_second_logon_after_auth_ignored(running_gateway: GatewayFixture) -> Non
         bc.send(_build_logon("TRADER01"))
         time.sleep(0.2)
 
-        # Session still alive: heartbeat round-trip succeeds
-        bc.send(_build_heartbeat(seq_no=2))
+        # Session still alive: heartbeat round-trip succeeds. The LOGON
+        # carries seq 0 and is not numbered, so this is frame 1.
+        bc.send(_build_heartbeat(seq_no=1))
         bc.recv_until(MSG_HEARTBEAT_ACK, timeout=3.0)
 
 
@@ -1377,7 +1390,7 @@ def test_symbols_response_with_metadata(
         time.sleep(0.2)
 
         # Session must still respond normally after processing symbols
-        bc.send(_build_heartbeat(seq_no=2))
+        bc.send(_build_heartbeat(seq_no=1))
         bc.recv_until(MSG_HEARTBEAT_ACK, timeout=3.0)
 
 
@@ -1402,3 +1415,107 @@ def test_too_many_errors_causes_disconnect(
 
         # Gateway should hard-close immediately
         assert bc.is_closed(timeout=2.0)
+
+
+# ---------------------------------------------------------------------------
+# WP-BALF02 — a logon is never lost to the subscription race (review C3)
+# ---------------------------------------------------------------------------
+
+
+def test_back_to_back_logons_never_lose_the_auth_reply(
+    running_gateway: GatewayFixture,
+) -> None:
+    """The engine answers each gateway_connect the moment it arrives.
+
+    A SUBSCRIBE sent just before the connect travels on another TCP
+    connection and is applied asynchronously by the PUB; an answer that beats
+    it is filtered out and the logon times out with no LOGON_ACK. In the
+    review's repro 137 of 300 replies were lost that way. This loop does not
+    lose them reliably (the test thread answers slower than an engine does);
+    the deterministic model of the race is in test_balf_gwy_sessions.py.
+    This is the real-ZMQ smoke test of the start-up subscriptions.
+    """
+    _, pull, pub, port = running_gateway
+    for i in range(20):
+        gw_id = f"RACE{i:02d}"
+        with socket.create_connection(("127.0.0.1", port), timeout=3) as cli:
+            bc = _BalfClient(cli)
+            bc.send(_build_logon(gw_id))
+            _drain_pull_until(pull, "system.gateway_connect", timeout=3.0)
+            # No sleep: answer as fast as a real engine does.
+            pub.send_multipart(
+                encode(
+                    f"system.gateway_auth.{gw_id}",
+                    {"gateway_id": gw_id, "accepted": True, "reason": ""},
+                )
+            )
+            pub.send_multipart(
+                encode(
+                    f"system.symbols.{gw_id}",
+                    {"symbols": [{"symbol": "AAPL", "tick_decimals": 2}]},
+                )
+            )
+            body = bc.recv_until(MSG_LOGON_ACK, timeout=2.0)
+            assert body[16] == 1, f"logon {i} refused"
+            bc.send(build_header(MSG_LOGOUT, 1))
+
+
+# ---------------------------------------------------------------------------
+# WP-BALF07 — the loop waits for work instead of sleeping (review P1)
+# ---------------------------------------------------------------------------
+
+
+def test_order_round_trip_is_not_paced_by_a_fixed_sleep(
+    running_gateway: GatewayFixture,
+) -> None:
+    """NEW_ORDER -> ORDER_ACK against an engine that answers at once.
+
+    With a fixed 5 ms sleep per loop pass a round trip took two passes:
+    10.6 ms median on the review host, whatever the load. The target for a
+    loop that waits on its sockets is below 1 ms there; 2 ms leaves room for
+    a busy CI host.
+    """
+    _, pull, pub, port = running_gateway
+    with socket.create_connection(("127.0.0.1", port), timeout=3) as cli:
+        cli.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+        bc = _BalfClient(cli)
+        _balf_authenticate(bc, pull, pub)
+        _drain_pull_until(pull, "system.symbols_request", timeout=2.0)
+
+        stop = threading.Event()
+
+        def engine() -> None:
+            # Owns both engine sockets from here on.
+            from edumatcher.models.message import decode as zmq_decode
+
+            while not stop.is_set():
+                if not pull.poll(20):
+                    continue
+                topic, p = zmq_decode(pull.recv_multipart())
+                if topic == "order.new":
+                    pub.send_multipart(
+                        encode(
+                            f"order.ack.{p['gateway_id']}",
+                            {
+                                "gateway_id": p["gateway_id"],
+                                "order_id": p["id"],
+                                "accepted": True,
+                            },
+                        )
+                    )
+
+        t = threading.Thread(target=engine, daemon=True)
+        t.start()
+        try:
+            rtts = []
+            for i in range(1, 201):
+                t0 = time.perf_counter()
+                bc.send(_build_new_order(client_order_id=i, seq_no=i))
+                bc.recv_until(MSG_ORDER_ACK, timeout=2.0)
+                rtts.append(time.perf_counter() - t0)
+        finally:
+            stop.set()
+            t.join(timeout=2.0)
+        rtts.sort()
+        median_ms = rtts[len(rtts) // 2] * 1000
+        assert median_ms < 2.0, f"median round trip {median_ms:.2f} ms"

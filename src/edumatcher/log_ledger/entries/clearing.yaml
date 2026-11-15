@@ -42,12 +42,15 @@
     - "Report it: the trade message and the error are needed to fix the cause."
 
 - logger: edumatcher.clearing.main
-  template: "trade feed gap — %d trade(s) missing between id %s and %s"
+  template: "trade feed gap — %d trade(s) missing between id %s and %s (%s)"
   level: ERROR
   explanation: >
     pm-clearing saw a gap in the engine's trade numbering: trades were executed
     but never reached it, so they are not booked. Positions and P&L of the
-    participants in those trades are wrong. The gap is also stored in the
+    participants in those trades are wrong. The reason is "feed" when trades
+    were lost while pm-clearing was running, and "restart" when they were
+    made while it was not running (the first trade after its start is
+    compared with the last one it stored). The gap is also stored in the
     clearing database, where `pm-clearing-cli gaps` lists it.
   actions:
     - "Run `pm-clearing-cli gaps` to see every gap recorded, with the trade ids either side."
@@ -88,15 +91,30 @@
     - "Report it with the topic and error."
 
 - logger: edumatcher.clearing.main
-  template: "timer flush failed, will retry: %s"
-  level: WARNING
+  template: "clearing write failed; %d trade(s) kept in memory and retried: %s"
+  level: ERROR
   explanation: >
     Writing the buffered trades and positions to the clearing database failed.
-    They stay in memory and are retried; if pm-clearing stops before a flush
-    succeeds, they are lost.
+    They stay in memory and pm-clearing retries once per flush interval. This
+    is logged once per outage; "clearing writes recovered" follows when a
+    write succeeds, and the beacon's clearing.flush_failures counts the failed
+    attempts. If pm-clearing stops before a write succeeds, the buffered trades
+    are lost (logged at CRITICAL) and reported as a feed gap at the next start.
   actions:
     - "Read the error; \"database is locked\" during heavy reads is usually transient."
-    - "If it repeats, check disk space and `pm-clearing-cli health`, and do not stop pm-clearing until a flush succeeds."
+    - "If it repeats, check disk space and `pm-clearing-cli health`, and do not stop pm-clearing until \"clearing writes recovered\" is logged."
+
+- logger: edumatcher.clearing.main
+  template: "pm-clearing stopped with %d trade(s) not written (ids %s .. %s): %s"
+  level: CRITICAL
+  explanation: >
+    pm-clearing stopped while its last trades could not be written to the
+    clearing database. Those trades are not booked: the positions and P&L of
+    the participants in them are short of them. pm-clearing exits with status
+    1, and on its next start reports the id range as a feed gap.
+  actions:
+    - "Fix the cause (disk space, permissions, a lost mount) before starting pm-clearing again."
+    - "Find the missing trades by id with `pm-audit-cli` or `pm-stats-cli trades`, and treat the affected positions as wrong."
 
 - logger: edumatcher.clearing.main
   template: "error handling system.eod: %s"

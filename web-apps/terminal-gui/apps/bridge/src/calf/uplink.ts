@@ -119,6 +119,13 @@ interface StreamPosition {
    */
   gen: number;
   /**
+   * The gateway run (`WELCOME|EPOCH=`) `seq` was counted in, which is what a
+   * `RESUME` from it must name. After a reconnect to a restarted gateway
+   * that is the old run, so the gateway answers `REPLAY_MISS` instead of
+   * serving its own events as the missing ones.
+   */
+  epoch: string;
+  /**
    * Sequence ranges a `RESUME` was sent for and which have not arrived yet.
    *
    * `replay_since` answers with everything past `LASTSEQ`, so a reply mixes
@@ -211,6 +218,8 @@ export class CalfUplink extends EventEmitter<CalfUplinkEvents> {
    * within one session apart from a gateway that restarted between two.
    */
   private generation = 0;
+  /** `WELCOME|EPOCH=` of the gateway run this connection reaches. */
+  private epoch = "";
   /**
    * `TS` of the message that revealed each gap a `RESUME` was sent for.
    *
@@ -436,6 +445,7 @@ export class CalfUplink extends EventEmitter<CalfUplinkEvents> {
     const welcome = parseWelcome(fields);
     this.handshaken = true;
     this.gateway = welcome.gateway;
+    this.epoch = welcome.epoch;
     this.supportedChannels = welcome.chSupported;
     this.reconnectDelayMs = RECONNECT_MIN_MS;
 
@@ -519,7 +529,7 @@ export class CalfUplink extends EventEmitter<CalfUplinkEvents> {
       // Outstanding holes go with it: a snapshot supersedes them, and nothing
       // is coming to fill them.
       if (sequenced) {
-        this.streams.set(streamKey(ch, sym), { seq, gen: this.generation, holes: [] });
+        this.streams.set(streamKey(ch, sym), { seq, gen: this.generation, epoch: this.epoch, holes: [] });
       }
 
       // ...and `_send_snapshot_for_stream` only knows how to fill
@@ -677,7 +687,7 @@ export class CalfUplink extends EventEmitter<CalfUplinkEvents> {
     if (position === undefined) {
       // The first message on a stream establishes the baseline; it is never a
       // gap, because there is nothing yet for it to be a gap in.
-      this.streams.set(key, { seq, gen: this.generation, holes: [] });
+      this.streams.set(key, { seq, gen: this.generation, epoch: this.epoch, holes: [] });
       return true;
     }
 
@@ -686,7 +696,7 @@ export class CalfUplink extends EventEmitter<CalfUplinkEvents> {
       // its numbering is the only alternative to discarding the stream for
       // good — see `StreamPosition.gen`.
       if (position.gen !== this.generation) {
-        this.streams.set(key, { seq, gen: this.generation, holes: [] });
+        this.streams.set(key, { seq, gen: this.generation, epoch: this.epoch, holes: [] });
         return true;
       }
       // Backfill inside a hole is wanted; anything else is a redelivery of a
@@ -697,8 +707,10 @@ export class CalfUplink extends EventEmitter<CalfUplinkEvents> {
     }
 
     const previous = position.seq;
+    const previousEpoch = position.epoch;
     position.seq = seq;
     position.gen = this.generation;
+    position.epoch = this.epoch;
 
     if (seq === previous + 1) return true;
 
@@ -707,7 +719,7 @@ export class CalfUplink extends EventEmitter<CalfUplinkEvents> {
       // Held so the REPLAY_MISS that may answer this can be placed in time by
       // the gateway's clock rather than ours — see `pendingResumeTs`.
       this.pendingResumeTs.set(key, ts);
-      this.send(buildResume(ch, sym, previous));
+      this.send(buildResume(ch, sym, previous, previousEpoch));
       return true;
     }
 

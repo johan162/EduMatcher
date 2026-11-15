@@ -1,9 +1,9 @@
 """Threshold rules with hysteresis (design §9.6).
 
 Every second the collector hands in one :class:`Reading` per rule and subject
-it can measure. A warning of a configurable rule is raised only after ``RAISE_AFTER`` consecutive
-evaluations over its threshold (a single noisy sample is not a breach); a
-critical level, and a warning of a fixed rule (a counter that moved, a late
+it can measure. A warning of a configurable rule is raised only after
+``RAISE_AFTER`` consecutive evaluations over its threshold (a single noisy
+sample is not a breach); a critical level, and a warning of a fixed rule (a counter that moved, a late
 loop), is raised at once. A level falls only after ``CLEAR_AFTER``
 consecutive evaluations at the lower level, and an evaluation counts only
 once the value is ``CLEAR_RATIO`` of the way back inside the threshold it
@@ -105,6 +105,12 @@ def increase_reading(rule: str, subject: str, increase: float) -> Reading:
     return Reading(rule, subject, increase, warn=0.0, debounce=False)
 
 
+def fmt_value(value: float) -> str:
+    """A reading for people: up to three decimals, never an exponent (``:g``
+    printed a 1.2 s p99 as ``1.23457e+06``)."""
+    return f"{value:.3f}".rstrip("0").rstrip(".")
+
+
 @dataclass(frozen=True)
 class Change:
     """A level change of one rule on one subject."""
@@ -124,9 +130,10 @@ class Change:
     @property
     def detail(self) -> str:
         if self.level == "OK":
-            return f"{self.rule} cleared ({self.value:g})"
+            return f"{self.rule} cleared ({fmt_value(self.value)})"
         op = "<" if self.inverted else ">"
-        return f"{self.rule} {self.level} {self.value:g} {op} {self.threshold:g}"
+        value, threshold = fmt_value(self.value), fmt_value(self.threshold)
+        return f"{self.rule} {self.level} {value} {op} {threshold}"
 
 
 @dataclass

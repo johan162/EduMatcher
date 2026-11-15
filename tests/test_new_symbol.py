@@ -73,7 +73,7 @@ def test_lists_and_deploys_the_deployed_source(source: Path, data_dir: Path) -> 
     assert result.deployed and result.source == source
     updated = source.read_text(encoding="utf-8")
     # Inserted after the last symbol, before the next section's comment.
-    head = original[: original.index("# -- Additional fields --")]
+    head = original[: original.index("# -- Market-maker seed quotes --")]
     assert updated.startswith(head.rstrip("\n") + "\n  IPO1:\n")
     assert updated.endswith(original[len(head) :])
     assert oct(source.stat().st_mode & 0o777) == "0o644"

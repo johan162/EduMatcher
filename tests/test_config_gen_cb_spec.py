@@ -24,5 +24,5 @@ def test_parse_cb_spec_invalid_shift() -> None:
 
 
 def test_parse_cb_spec_invalid_halt() -> None:
-    with pytest.raises(ValueError, match="halt_mins"):
+    with pytest.raises(ValueError, match="HALT_MINS"):
         parse_cb_spec("L1:0.07:-1")

@@ -1,11 +1,9 @@
 """YAML config-file support for ``pm-mm-bot``.
 
-Two file shapes are accepted.
-
-**Schema version 1** (``version: 1``) is the structured form. It separates
-gateway-wide settings from per-symbol ones, so one file can say "AAPL quotes
-0.10 wide in 500 lots, TSLA quotes 0.50 wide in 100 lots with inventory
-skew"::
+The file uses schema version 1 (``version: 1``, which may be left out). It
+separates gateway-wide settings from per-symbol ones, so one file can say
+"AAPL quotes 0.10 wide in 500 lots, TSLA quotes 0.50 wide in 100 lots with
+inventory skew"::
 
     version: 1
     gateway:
@@ -21,10 +19,8 @@ skew"::
         strategy: inventory_skew
         max_position: 5000
 
-**The legacy flat form** is the original shape: one mapping of CLI flag
-names (dashes as underscores), every one of them gateway-wide. It still
-loads, and is reported through the same :class:`FileConfig` structure so
-nothing downstream has to know which shape it came from.
+The original flat layout (CLI flag names at the top level) is no longer read;
+its keys are refused with a message saying which block they belong in.
 """
 
 from __future__ import annotations
@@ -46,42 +42,13 @@ _V1_TOP_LEVEL_KEYS = {"version", "gateway", "logging", "defaults", "symbols"}
 # "unknown key" when they turn up outside the ``logging:`` block.
 _LOGGING_DEST_HINTS = {"log_level", "log_target", "log_file", "log_failover_timeout"}
 
-# Keys the *legacy flat* config file may set — every one mirrors an existing
-# CLI flag's argparse ``dest`` name and is applied as an argparse default, so
-# an unrecognized key is almost certainly a typo rather than a new feature.
-_ALLOWED_KEYS = {
-    "symbol",
-    "symbols",
-    "label",
-    "id_suffix",
-    "strategy",
-    "gap",
-    "max_position",
-    "qty",
-    "drift_ticks",
-    "reissue_delay_ms",
-    "tif",
-    "heartbeat_interval_sec",
-    "startup_session_timeout_sec",
-    "bootstrap_timeout_sec",
-    "cancel_timeout_sec",
-    "shutdown_timeout_sec",
-    "qlegs_reconcile_interval_sec",
-    "initial_min",
-    "initial_max",
-    "engine_pull",
-    "engine_pub",
-}
-
 
 @dataclass(frozen=True)
 class FileConfig:
     """A loaded config file, normalised to the two-tier shape.
 
     ``symbols`` maps SYMBOL -> that symbol's Tier-2 overrides, in file
-    order. A legacy flat file lands its Tier-2 keys in ``defaults`` and
-    contributes empty override blocks, which is why nothing downstream
-    needs to branch on the file's shape.
+    order.
     """
 
     gateway: dict[str, Any] = field(default_factory=dict)
@@ -94,41 +61,15 @@ EMPTY_FILE_CONFIG = FileConfig()
 
 
 def load_bot_config(path: Path, symbols_required: bool = True) -> FileConfig:
-    """Load a config file in either supported shape.
+    """Load and validate a config file.
 
-    The discriminator is structural as well as declared: ``version:``, a
-    ``symbols:`` mapping, or any v1-only block selects the structured
-    loader. A legacy flat file has ``symbols`` as a string or list of
-    strings and never has ``gateway:``/``logging:``/``defaults:``.
+    Raises ``ValueError`` (with the file path and the reason) for a file that
+    cannot be read, is not YAML, is not a mapping, or breaks the schema.
     """
     raw = _read_yaml_mapping(path)
     if raw is None:
         return EMPTY_FILE_CONFIG
-    if _looks_like_v1(raw):
-        return _load_v1(raw, path, symbols_required)
-    return _from_legacy_flat(load_config_file(path))
-
-
-def load_config_file(path: Path) -> dict[str, Any]:
-    """Load and validate a *legacy flat* ``pm-mm-bot`` YAML config file.
-
-    Returns a dict of argparse-default overrides. Raises ``ValueError`` if
-    the file cannot be parsed, is not a mapping, or contains an unknown key.
-    """
-    raw = _read_yaml_mapping(path)
-    if raw is None:
-        return {}
-
-    unknown = set(raw) - _ALLOWED_KEYS
-    if unknown:
-        raise ValueError(
-            f"config file {path} has unknown key(s): {', '.join(sorted(unknown))}"
-        )
-
-    if "symbols" in raw:
-        raw["symbols"] = _normalize_symbols_value(raw["symbols"], path)
-
-    return raw
+    return _load_v1(raw, path, symbols_required)
 
 
 def _read_yaml_mapping(path: Path) -> dict[str, Any] | None:
@@ -144,30 +85,6 @@ def _read_yaml_mapping(path: Path) -> dict[str, Any] | None:
     if not isinstance(raw, dict):
         raise ValueError(f"config file {path} must contain a YAML mapping")
     return raw
-
-
-def _looks_like_v1(raw: dict[str, Any]) -> bool:
-    if "version" in raw:
-        return True
-    if isinstance(raw.get("symbols"), dict):
-        return True
-    return any(key in raw for key in ("gateway", "logging", "defaults"))
-
-
-def _from_legacy_flat(values: dict[str, Any]) -> FileConfig:
-    names: list[str] = []
-    symbols_value = values.get("symbols")
-    symbol_value = values.get("symbol")
-    if isinstance(symbols_value, str) and symbols_value.strip():
-        names = [s.strip().upper() for s in symbols_value.split(",") if s.strip()]
-    elif isinstance(symbol_value, str) and symbol_value.strip():
-        names = [symbol_value.strip().upper()]
-
-    return FileConfig(
-        gateway={key: values[key] for key in GATEWAY_KEYS if key in values},
-        defaults={key: values[key] for key in TIER2_KEYS if key in values},
-        symbols={name: {} for name in names},
-    )
 
 
 def _load_v1(
@@ -262,33 +179,18 @@ def _reject_unknown(
 
 def _misplaced_hint(key: str, where: str) -> str | None:
     """Point a misplaced-but-real key at its block instead of calling it unknown."""
-    if where == "gateway":
+    if where in ("gateway", ""):
         if key in TIER2_KEYS:
             return (
                 f"'{key}' is a per-symbol setting; move it under 'defaults:' "
                 "or into a symbol's own block"
             )
-        return None
+        if where == "gateway":
+            return None
+    if where == "" and key == "symbol":
+        return "'symbol' is not a key; list the symbols under 'symbols:'"
     if key in GATEWAY_KEYS:
         return f"'{key}' is a gateway-wide setting; move it under 'gateway:'"
     if key in _LOGGING_DEST_HINTS:
         return f"'{key}' is a logging setting; move it under 'logging:'"
     return None
-
-
-def _normalize_symbols_value(value: Any, path: Path) -> str:
-    """Coerce a legacy flat file's ``symbols`` key to the CLI's comma-string form.
-
-    ``main.py`` treats a legacy ``symbols`` value as a single comma-separated
-    string (matching ``pm-ai-trader --symbols``), so this is the one place a
-    YAML-native ``symbols: [AAPL, MSFT]`` list gets flattened to that shape;
-    a plain ``symbols: AAPL,MSFT`` string is accepted as-is.
-    """
-    if isinstance(value, str):
-        return value
-    if isinstance(value, list) and all(isinstance(item, str) for item in value):
-        return ",".join(value)
-    raise ValueError(
-        f"config file {path}: 'symbols' must be a comma-separated string "
-        "or a list of strings"
-    )

@@ -151,16 +151,15 @@ the quote you send replaces a seed that looks exactly the same.
     reference prices, so writing them over your hand-written
     `engine_config.yaml` would silently lose what later chapters need.
 
-    The first form is a trap worth knowing about: `pm-cverifier` will report
-    **0 errors** on the stub — `market_maker_quotes` entries exist, so M001
-    doesn't fire, and the required keys are all present (just `null`), so the
-    schema check doesn't fire either. The verifier cannot see that `null` is
-    unusable. It's `pm-config-deploy` that catches it, at compile time, with
-    `Symbol 'AAPL': market_maker_quotes[0] is invalid` — because loading the
-    artifact tries `float(None)`. `pm-config-gen` itself warns you about this
-    up front with `[HINT] Fill all market_maker_quotes bid_price/ask_price
-    values before starting pm-engine`, right after it writes the file — that
-    hint is the moment to either fill the two prices in by hand or rerun with
+    The first form is a template, not a finished file: the stub's `bid_price`
+    and `ask_price` keys are present but `null`, and no loader can use a null
+    price. `pm-cverifier` reports each one as an error
+    (`[S014] ERROR  'symbols.AAPL.market_maker_quotes[0].bid_price' has no
+    value (null).`), and `pm-config-deploy` refuses the file until they are
+    set. `pm-config-gen` says so as it writes the file
+    (`[HINT] Fill all market_maker_quotes bid_price/ask_price values:
+    pm-config-deploy refuses the file until they are set …`) — that is the
+    moment to either fill the prices in by hand or rerun with
     `--seed-mm-mid-range` instead.
 
     If you never want seeded quotes at all (a deliberately empty book for a
@@ -172,7 +171,7 @@ Check, deploy, then restart the engine — editing the YAML alone changes
 nothing, because every process reads the compiled artifact:
 
 ```bash
-pm-cverifier engine_config.yaml       # expect 0 errors (the M032 warning is fine)
+pm-cverifier engine_config.yaml       # expect 0 errors
 pm-config-deploy engine_config.yaml
 cp engine_config.yaml engine_config.ex1.yaml   # keep a copy of this state
 ```
@@ -340,10 +339,12 @@ ID — instead of creating a duplicate, and periodically re-runs `QLEGS` to
 reconcile leg state in case an engine reply was ever dropped.
 
 !!! note "The 20-tick limit on `--gap`"
-    The gaps above are not arbitrary. Every symbol has a maximum quoted spread,
-    `mm_max_spread_ticks`, which is **20 ticks** unless you configure
-    otherwise — the `Max Spread` column of `SYMBOLS` in Chapter 01. At
-    `tick_decimals: 2` that is 0.20, and a bot started with a wider `--gap`
+    Every symbol has a maximum quoted spread, `mm_max_spread_ticks`, which is
+    **20 ticks** unless you configure otherwise — the `Max Spread` column of
+    `SYMBOLS` in Chapter 01. At `tick_decimals: 2` that is 0.20. It binds only
+    when the gateway has `enforce_mm_obligation: true`; the entries above leave
+    it off, so the engine accepts any spread and so does the bot. With it on,
+    the engine refuses a wider quote, and a bot started with a wider `--gap`
     refuses to quote that symbol:
     `excluded from quoting: --gap exceeds mm_max_spread_ticks obligation`.
 
@@ -688,17 +689,20 @@ force the bot to quote on its own terms with
 its configured gap.)
 
 !!! tip "A struggling symbol doesn't take the others down with it"
-    If one symbol's `gap` violates its own `mm_max_spread_ticks` obligation
-    (20 ticks unless configured), that symbol alone is excluded from quoting at
-    startup while the rest of `MM_TECH_01`'s symbols keep quoting normally — the
-    whole process only exits if *every* symbol fails. Try it: change TSLA's
-    `gap` in `mm_tech.yaml` to `0.50` and restart the bot. Its log says
+    If one symbol fails a startup check (it is not listed by the exchange, its
+    `gap` violates an enforced `mm_max_spread_ticks` obligation, it has no
+    reference price), that symbol alone is excluded from quoting while the rest
+    of `MM_TECH_01`'s symbols keep quoting normally — the whole process only
+    exits if *every* symbol fails. Try it: add a symbol the exchange does not
+    list to `mm_tech.yaml`'s `symbols:` block (`NVDA: {}`) and restart the bot.
+    Its log says
 
     ```text
-    [MM_TECH_01] [TSLA] excluded from quoting: --gap exceeds mm_max_spread_ticks obligation (0.500000 > 20 * 0.010000)
+    [MM_TECH_01] startup warning: [NVDA] startup failed: not in symbol list
+    [MM_TECH_01] startup warning: [NVDA] excluded from quoting: NVDA not in symbol list
     ```
 
-    and AAPL and MSFT quote as before.
+    and AAPL, MSFT and TSLA quote as before.
 
 :material-checkbox-blank-outline: **Checkpoint:** one `pm-mm-bot` process is
 quoting all three symbols with three different spreads and sizes, its startup

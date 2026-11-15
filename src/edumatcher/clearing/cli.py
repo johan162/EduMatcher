@@ -11,11 +11,16 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, TypedDict
+from urllib.parse import quote
 
-from edumatcher.clearing.query import day_bounds_ns, session_timezone
-from edumatcher.clearing.store import (
-    require_trade_events_id_primary_key,
+from edumatcher.clearing.query import (
+    day_bounds_ns,
     open_readonly_connection,
+    session_timezone,
+)
+from edumatcher.clearing.store import (
+    count_summary_days,
+    require_trade_events_id_primary_key,
     open_writer_connection as _open_writer,
     prune_old_events,
     query_daily,
@@ -31,9 +36,10 @@ from edumatcher.clearing.store import (
     query_session_events,
     query_sessions,
     query_symbols,
+    query_retained_from,
     query_trades,
-    validate_date,
 )
+from edumatcher.stats.query import validate_date
 from edumatcher.config import CLEARING_HEALTH_ADDR
 from edumatcher.healthcheck import (
     PING_TIMEOUT_MS,
@@ -112,6 +118,8 @@ _TRADES_COLS = [
     "sell_gateway_id",
     "aggressor_side",
     "ingest_ts_ns",
+    "match_type",
+    "msg_id",
 ]
 _EXPOSURE_COLS = [
     "gateway_id",
@@ -201,6 +209,7 @@ _RECONCILE_COLS = [
     "raw_notional",
     "summary_notional",
     "notional_diff",
+    "tick_decimals",
 ]
 _SESSION_EVENTS_COLS = [
     "id",
@@ -216,6 +225,7 @@ _FEED_GAPS_COLS = [
     "last_seq",
     "next_seq",
     "missing_trades",
+    "reason",
 ]
 _SNAPSHOTS_COLS = [
     "trade_date",
@@ -270,6 +280,7 @@ _NORMALIZE_FIELDS: dict[str, tuple[str, ...]] = {
     ),
     "symbols": ("traded_notional", "realized_pnl", "open_unrealized_pnl"),
     "snapshots": ("mark_price", "realized_pnl", "unrealized_pnl"),
+    "reconcile": ("raw_notional", "summary_notional", "notional_diff"),
 }
 
 
@@ -309,7 +320,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--no-header",
         action="store_true",
-        help="Suppress header row for csv output",
+        help="Suppress the header row (table and csv output)",
     )
     parser.add_argument(
         "--raw-output",
@@ -490,7 +501,10 @@ def build_parser() -> argparse.ArgumentParser:
     # prune
     prune = sub.add_parser(
         "prune",
-        help="Delete trade_events rows older than N days (default: 90) and VACUUM",
+        help=(
+            "Delete trade_events rows older than N days (default: 90); the "
+            "file keeps its size, SQLite reuses the freed pages"
+        ),
     )
     prune.add_argument(
         "--days",
@@ -532,7 +546,8 @@ def _stringify(value: Any) -> str:
     if value is None:
         return ""
     if isinstance(value, float):
-        return f"{value:g}"
+        # 15 significant digits: %g printed 12345.67 as 12345.7 (C4).
+        return f"{value:.15g}"
     return str(value)
 
 
@@ -745,17 +760,36 @@ def _run_query(
     assert (
         cmd == "reconcile"
     ), f"Unhandled command: {cmd}"  # prune handled before _run_query
-    rows = query_reconcile(
-        conn,
-        gateway=_upper(getattr(args, "gateway", None)),
-        symbol=_upper(getattr(args, "symbol", None)),
-        from_date=args.from_date,
-        to_date=args.to_date,
-        retention_days=getattr(args, "retention_days", None),
+    # Days whose raw trades were pruned cannot be compared: start at the
+    # oldest retained raw date, as pm-api-gwy does, and say what was skipped
+    # rather than report every pruned day as a discrepancy (C2).
+    retained = query_retained_from(conn)
+    start = None if retained is None else max(args.from_date or retained, retained)
+    rows = (
+        []
+        if start is None or (args.to_date is not None and start > args.to_date)
+        else query_reconcile(
+            conn,
+            gateway=_upper(getattr(args, "gateway", None)),
+            symbol=_upper(getattr(args, "symbol", None)),
+            from_date=start,
+            to_date=args.to_date,
+            retention_days=getattr(args, "retention_days", None),
+        )
     )
+    pruned = count_summary_days(
+        conn, before=retained, from_date=args.from_date, to_date=args.to_date
+    )
+    # Status lines go to stdout only for the table; json/csv stay parseable.
+    status = sys.stdout if args.format == "table" else sys.stderr
     if not rows:
-        print("OK — no discrepancies found.")
-        return _RECONCILE_COLS, []
+        print("OK — no discrepancies found.", file=status)
+    if pruned:
+        before = f" before {retained}" if retained else ""
+        print(
+            f"{pruned} day(s){before} not reconciled (raw trades pruned).",
+            file=status,
+        )
     return _RECONCILE_COLS, rows
 
 
@@ -764,11 +798,16 @@ def _upper(val: str | None) -> str | None:
 
 
 def _run_prune(db_path: Path, args: argparse.Namespace) -> None:
-    """Execute or dry-run the 90-day retention prune."""
+    """Execute or dry-run the retention prune of an existing clearing DB."""
     days: int = args.days
     if days < 1:
         print("[ERROR] --days must be >= 1", file=sys.stderr)
         raise SystemExit(2)
+    # The writer would create the file (and its directory): a mistyped
+    # --datapath must not become a fresh, empty ledger (C6).
+    if not db_path.exists():
+        print(f"[ERROR] Clearing DB not found: {db_path}", file=sys.stderr)
+        raise SystemExit(1)
 
     try:
         conn = _open_writer(db_path)
@@ -832,8 +871,11 @@ def _check_database_health(
         return False, f"database not found: {db_path}", None
     conn: sqlite3.Connection | None = None
     try:
-        # mode=rw: never create the file, unlike a plain connect.
-        conn = sqlite3.connect(f"file:{db_path}?mode=rw", uri=True, timeout=2.0)
+        # mode=rw: never create the file, unlike a plain connect. The path is
+        # percent-encoded: a '?' in it would otherwise end the path (C7).
+        conn = sqlite3.connect(
+            f"file:{quote(str(db_path.resolve()))}?mode=rw", uri=True, timeout=2.0
+        )
         conn.row_factory = sqlite3.Row
         quick_check = str(conn.execute("PRAGMA quick_check").fetchone()[0])
         if quick_check != "ok":
@@ -846,9 +888,13 @@ def _check_database_health(
         if missing:
             return False, f"missing table(s): {', '.join(missing)}", None
         require_trade_events_id_primary_key(conn)
-        conn.execute("BEGIN")
-        conn.execute("CREATE TEMP TABLE pm_clearing_health_check (value INTEGER)")
-        conn.execute("INSERT INTO pm_clearing_health_check VALUES (1)")
+        # Take clearing.db's own write lock and write a row, then roll back:
+        # a TEMP table never touched the file, so a read-only file passed (C8).
+        conn.execute("BEGIN IMMEDIATE")
+        conn.execute(
+            "INSERT INTO clearing_meta (key, value) VALUES ('health_check', '1')"
+            " ON CONFLICT(key) DO NOTHING"
+        )
         conn.rollback()
         stats = _collect_db_stats(conn, db_path) if collect_stats else None
     except RuntimeError as exc:

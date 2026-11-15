@@ -11,14 +11,12 @@ folded all three the same way: mark the order REJECTED. For a cancel/amend
 reject the target order never stopped resting, so that overwrote a live
 order's status with a lie.
 
-The engine already threads a reliable discriminator through the wire:
-request_tag. Every new-order reject path (_handle_new_order and friends)
-always publishes request_tag=None (order.new carries no such field); only
-_handle_cancel/_handle_amend forward the client's request_tag. These tests
-pin that the gateway cache (`SessionCaches.apply`) honours it, and that the
-one path that could silently drop request_tag on the way out -
-`_reject_after_error`, the engine's handler-exception fallback - carries it
-too. The GUI-side fix (`useOrderStore.applyAck`,
+The discriminator is `order.ack.request` (NEW / CANCEL / AMEND, API
+gateway review 2026-11 C1). request_tag, used here before, could not do it:
+a cancel or amend carries one only when the client set it. These tests pin
+that the gateway cache (`SessionCaches.apply`) honours `request`, and that
+`_reject_after_error`, the engine's handler-exception fallback, still
+carries the request_tag. The GUI-side fix (`useOrderStore.applyAck`,
 `useOrderEventNotifications`) is covered by
 web-apps/trader-gui/apps/web/test/orderStore.test.ts and
 orderEventNotifications.test.ts.
@@ -65,8 +63,7 @@ class TestSessionCachesRejectDiscrimination:
                 "accepted": False,
                 "reason": "collar breach",
                 "reject_code": "COLLAR_BREACH",
-                # A genuine new-order reject: no request_tag (order.new has
-                # no such field, so the engine always omits it here).
+                "request": "NEW",
             },
         )
         assert caches.orders["ORD1"]["status"] == "REJECTED"
@@ -90,6 +87,7 @@ class TestSessionCachesRejectDiscrimination:
                 "reason": "Order not found",
                 "reject_code": "ORDER_NOT_FOUND",
                 "request_tag": "RT-CXL-001",
+                "request": "CANCEL",
             },
         )
         assert caches.orders["ORD1"]["status"] == "NEW"
@@ -112,6 +110,7 @@ class TestSessionCachesRejectDiscrimination:
                 "reason": "Amend price outside collar",
                 "reject_code": "COLLAR_BREACH",
                 "request_tag": "RT-AMD-001",
+                "request": "AMEND",
             },
         )
         assert caches.orders["ORD1"]["status"] == "NEW"
@@ -145,6 +144,7 @@ class TestSessionCachesRejectDiscrimination:
                 "reason": "collar breach",
                 "reject_code": "COLLAR_BREACH",
                 "request_tag": "RT-AMD-002",
+                "request": "AMEND",
             },
         )
         assert caches.orders["ORD1"]["status"] == "PARTIAL"
@@ -180,6 +180,7 @@ class TestSessionCachesRejectDiscrimination:
                 "reason": "Order not found",
                 "reject_code": "ORDER_NOT_FOUND",
                 "request_tag": "RT-CXL-003",
+                "request": "CANCEL",
             },
         )
         assert caches.orders["ORD1"]["status"] == "FILLED"

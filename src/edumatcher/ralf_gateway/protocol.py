@@ -62,5 +62,7 @@ def build_line(msg_type: str, fields: dict[str, str] | None = None) -> bytes:
                 raise RalfProtocolError("empty field key")
             if "|" in key or "|" in value:
                 raise RalfProtocolError("'|' not allowed in key/value")
+            if any(ch in key or ch in value for ch in "\r\n"):
+                raise RalfProtocolError("line break not allowed in key/value")
             tokens.append(f"{key}={value}")
     return ("|".join(tokens) + "\n").encode("utf-8")

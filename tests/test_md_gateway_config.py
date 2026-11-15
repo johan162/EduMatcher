@@ -72,3 +72,21 @@ market_data_gateway:
 """)
     with pytest.raises(ValueError):
         load_market_data_gateway_config(p)
+
+
+# WP-MDG06: `enabled` is a boolean, not anything truthy.
+
+
+@pytest.mark.parametrize("value", ['"false"', '"no"', "1"])
+def test_enabled_must_be_a_boolean(tmp_path: Path, value: str) -> None:
+    p = tmp_path / "engine_config.yaml"
+    p.write_text(f"market_data_gateway:\n  enabled: {value}\n")
+    with pytest.raises(ValueError, match="market_data_gateway.enabled"):
+        load_market_data_gateway_config(p)
+
+
+@pytest.mark.parametrize(("value", "expected"), [("false", False), ("true", True)])
+def test_enabled_booleans_load(tmp_path: Path, value: str, expected: bool) -> None:
+    p = tmp_path / "engine_config.yaml"
+    p.write_text(f"market_data_gateway:\n  enabled: {value}\n")
+    assert load_market_data_gateway_config(p).enabled is expected

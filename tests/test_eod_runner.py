@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import sqlite3
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -209,7 +210,7 @@ class TestSteps:
         outcome = run_day(
             Paths(data), "2026-07-01", Options(), today="2026-07-05", now=NOW
         )
-        assert exit_code(outcome) == 2
+        assert exit_code(outcome) == 3
         assert (data / "settlement" / "2026-07-01").is_dir()
         ledger = open_ledger(data / "eod.db")
         assert [r["status"] for r in runs(ledger)] == ["ok"]
@@ -410,3 +411,196 @@ def test_the_lock_refuses_a_second_holder(tmp_path: Path) -> None:
                 pass
     with run_lock(tmp_path):
         pass
+
+
+def _raw_trade(data: Path, day: str, trade_id: str = "T") -> None:
+    conn = open_writer_connection(data / "clearing.db")
+    conn.execute(
+        "INSERT INTO trade_events (id, ts_ns, trade_date, symbol, quantity,"
+        " price, buy_gateway_id, sell_gateway_id, ingest_ts_ns)"
+        " VALUES (?, 1, ?, 'AAPL', 5, 100, 'A', 'B', 1)",
+        (trade_id, day),
+    )
+    conn.commit()
+    conn.close()
+
+
+def _summary_only(data: Path, day: str) -> None:
+    """A daily summary whose raw trade_events rows were pruned."""
+    conn = open_writer_connection(data / "clearing.db")
+    conn.execute(
+        "INSERT INTO gateway_daily_summary VALUES"
+        " (?, 'A', 'AAPL', 10, 10000, 10, 0, 10000, 0, -10000, 0, 10, 1000, 0,"
+        " 2, 1, 1)",
+        (day,),
+    )
+    conn.commit()
+    conn.close()
+
+
+def _statuses(data: Path) -> dict[str, str]:
+    ledger = open_ledger(data / "eod.db")
+    try:
+        return {r["trade_date"]: r["status"] for r in runs(ledger)}
+    finally:
+        ledger.close()
+
+
+class TestRerunAndPrunedDays:
+    def test_a_rerun_of_a_settled_day_skips_the_gate(self, data: Path) -> None:
+        run(data)
+        _raw_trade(data, "2026-07-01")  # reconcile would fail now
+        steps = run(data)
+        assert steps[:3] == ["gate:ok", "settle:ok", "report:ok"]
+        assert _statuses(data) == {"2026-07-01": "ok"}
+        assert pending_dates(Paths(data)) == []
+
+    def test_a_failed_rerun_keeps_the_ok_run(
+        self, data: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        run(data)
+        monkeypatch.setattr(
+            "edumatcher.eod.runner.write_day",
+            lambda *_a, **_k: (_ for _ in ()).throw(OSError("disk full")),
+        )
+        assert run(data)[:3] == ["gate:ok", "settle:ok", "report:fail"]
+        assert _statuses(data) == {"2026-07-01": "ok"}
+        assert pending_dates(Paths(data)) == []
+
+    def test_a_report_failed_day_is_still_recorded_on_rerun(
+        self, data: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        with monkeypatch.context() as m:
+            m.setattr(
+                "edumatcher.eod.runner.write_day",
+                lambda *_a, **_k: (_ for _ in ()).throw(OSError("disk full")),
+            )
+            run(data)
+        assert _statuses(data) == {"2026-07-01": "report-failed"}
+        run(data)
+        assert _statuses(data) == {"2026-07-01": "ok"}
+
+    def test_pending_goes_past_a_rerun_that_failed(self, data: Path) -> None:
+        run(data)
+        _raw_trade(data, "2026-07-01")
+        run(data)
+        close_day(data, "2026-07-02", 2000.0)
+        assert pending_dates(Paths(data)) == ["2026-07-02"]
+        assert run(data, "2026-07-02")[:2] == ["gate:ok", "settle:ok"]
+
+    def test_a_pruned_day_settles_without_reconcile(self, data: Path) -> None:
+        _summary_only(data, "2026-07-01")
+        _raw_trade(data, "2026-07-04")  # the oldest raw trade left
+        outcome = run_day(
+            Paths(data), "2026-07-01", Options(), today="2026-07-05", now=NOW
+        )
+        gate = outcome.steps[0]
+        assert gate.status == "ok" and "not reconciled" in gate.message
+        assert outcome.steps[1].status == "ok"
+
+    def test_a_day_with_every_raw_trade_pruned_settles(self, data: Path) -> None:
+        _summary_only(data, "2026-07-01")
+        assert run(data)[:2] == ["gate:ok", "settle:ok"]
+
+    def test_a_pruned_day_can_be_redone(self, data: Path) -> None:
+        run(data)
+        _summary_only(data, "2026-07-01")
+        _raw_trade(data, "2026-07-04")
+        assert run(data, redo=True)[:2] == ["gate:ok", "settle:ok"]
+
+    def test_a_real_discrepancy_with_raw_trades_still_fails(self, data: Path) -> None:
+        _summary_only(data, "2026-07-01")
+        _raw_trade(data, "2026-07-01")
+        assert run(data) == ["gate:fail"]
+
+
+class TestFailuresAreSteps:
+    def test_a_roster_syntax_error_fails_the_report_step(self, data: Path) -> None:
+        (data / "ref_data").mkdir()
+        roster = data / "ref_data" / "roster.yaml"
+        roster.write_text("traders:\n  - gateway: A\n    name: [unclosed\n")
+        outcome = run_day(
+            Paths(data), "2026-07-01", Options(), today="2026-07-05", now=NOW
+        )
+        steps = {s.step: s for s in outcome.steps}
+        assert steps["report"].status == "fail"
+        assert str(roster) in steps["report"].message
+        assert "line 4" in steps["report"].message
+        assert [s.step for s in outcome.steps][3:] == ["audit", "logs", "backup"]
+        assert _statuses(data) == {"2026-07-01": "report-failed"}
+
+    def test_a_database_error_while_settling_is_a_failed_step(
+        self, data: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def locked(*_a: object, **_k: object) -> None:
+            raise sqlite3.OperationalError("database is locked")
+
+        monkeypatch.setattr("edumatcher.eod.runner.record_day", locked)
+        outcome = run_day(
+            Paths(data), "2026-07-01", Options(), today="2026-07-05", now=NOW
+        )
+        settle = outcome.steps[1]
+        assert settle.step == "settle" and settle.status == "fail"
+        assert "database is locked" in settle.message
+        assert exit_code(outcome) == 1
+        assert _statuses(data) == {"2026-07-01": "failed"}
+
+
+def test_a_rounding_line_puts_the_exact_drift_in_the_settle_message(
+    tmp_path: Path,
+) -> None:
+    conn = open_writer_connection(tmp_path / "clearing.db")
+    flush_batch(conn, [], [pos("A", 100, 1000.6), pos("B", -100, -1000.0)], [])
+    for ts, state in ((0, "CONTINUOUS"), (1, "CLOSED")):
+        record_session_event(
+            conn,
+            event_type="PHASE",
+            ts_ns=ts,
+            trade_date="2026-07-01",
+            payload_json=json.dumps({"state": state}),
+        )
+    write_close_snapshot(conn, "2026-07-01")
+    conn.close()
+    outcome = run_day(
+        Paths(tmp_path), "2026-07-01", Options(), today="2026-07-05", now=NOW
+    )
+    settle = outcome.steps[1]
+    assert settle.status == "ok"
+    assert settle.message == (
+        "settled; rounding -0.01 booked to EXCHANGE (exact total of the day 0.006)"
+    )
+
+
+def test_dry_run_shows_the_rounding_line(tmp_path: Path) -> None:
+    conn = open_writer_connection(tmp_path / "clearing.db")
+    flush_batch(conn, [], [pos("A", 100, 1000.6), pos("B", -100, -1000.0)], [])
+    for ts, state in ((0, "CONTINUOUS"), (1, "CLOSED")):
+        record_session_event(
+            conn,
+            event_type="PHASE",
+            ts_ns=ts,
+            trade_date="2026-07-01",
+            payload_json=json.dumps({"state": state}),
+        )
+    write_close_snapshot(conn, "2026-07-01")
+    conn.close()
+    outcome = run_day(
+        Paths(tmp_path),
+        "2026-07-01",
+        Options(dry_run=True),
+        today="2026-07-05",
+        now=NOW,
+    )
+    assert outcome.steps[1].message.startswith(
+        "would settle: A +10.01, B -10.00, EXCHANGE -0.01;"
+    )
+
+
+def test_redo_removes_the_files_of_the_dates_it_drops(data: Path) -> None:
+    close_day(data, "2026-07-02", 2000.0)
+    run(data)
+    run(data, "2026-07-02")
+    assert (data / "settlement" / "2026-07-02").is_dir()
+    run(data, redo=True)
+    assert (data / "settlement" / "2026-07-01").is_dir()
+    assert not (data / "settlement" / "2026-07-02").exists()

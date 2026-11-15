@@ -86,13 +86,14 @@ class FakeEngine:
         success_topic: str,
         gateway_id: str,
         order_id: str,
-        request_tag: str,
+        request: str,
+        request_tag: str | None,
         timeout: float,
     ) -> dict[str, Any]:
         self.calls.append(
             (
                 "await_cancel_or_amend_outcome",
-                (success_topic, gateway_id, order_id, request_tag, timeout),
+                (success_topic, gateway_id, order_id, request, request_tag, timeout),
             )
         )
         return {
@@ -209,10 +210,11 @@ class TimeoutEngine(FakeEngine):
         success_topic: str,
         gateway_id: str,
         order_id: str,
-        request_tag: str,
+        request: str,
+        request_tag: str | None,
         timeout: float,
     ) -> dict[str, Any]:
-        _ = (success_topic, gateway_id, order_id, request_tag, timeout)
+        _ = (success_topic, gateway_id, order_id, request, request_tag, timeout)
         raise TimeoutError("no reply")
 
 
@@ -239,13 +241,14 @@ class RejectedCancelOrAmendEngine(FakeEngine):
         success_topic: str,
         gateway_id: str,
         order_id: str,
-        request_tag: str,
+        request: str,
+        request_tag: str | None,
         timeout: float,
     ) -> dict[str, Any]:
         self.calls.append(
             (
                 "await_cancel_or_amend_outcome",
-                (success_topic, gateway_id, order_id, request_tag, timeout),
+                (success_topic, gateway_id, order_id, request, request_tag, timeout),
             )
         )
         return {
@@ -427,6 +430,7 @@ async def test_cancel_and_amend_route_request_tags_are_forwarded() -> None:
             topic_order_cancelled("GW01"),
             "GW01",
             "ORD1",
+            "CANCEL",
             "RT-CXL-001",
             request.app.state.config.timeouts.wait_ack_sec,
         ),
@@ -437,6 +441,7 @@ async def test_cancel_and_amend_route_request_tags_are_forwarded() -> None:
             topic_order_amended("GW01"),
             "GW01",
             "ORD1",
+            "AMEND",
             "RT-AMD-001",
             request.app.state.config.timeouts.wait_ack_sec,
         ),
@@ -736,6 +741,7 @@ async def test_rejected_cancel_is_reported_not_timed_out() -> None:
             topic_order_cancelled("GW01"),
             "GW01",
             "ORD1",
+            "CANCEL",
             "RT-CXL-001",
             request.app.state.config.timeouts.wait_ack_sec,
         ),
@@ -799,9 +805,9 @@ async def test_accepted_amend_still_reports_acked() -> None:
 
 
 @pytest.mark.anyio
-async def test_cancel_wait_ack_without_request_tag_falls_back_to_single_topic() -> None:
-    """No request_tag means nothing safe to race the reject topic on — this
-    keeps the pre-C1-fix behaviour (single-topic wait) rather than guessing."""
+async def test_cancel_wait_ack_without_request_tag_still_races_the_refusal() -> None:
+    """No request_tag: the refusal is told apart by `order.ack.request`, so
+    the reject topic is raced all the same (API gateway review C1)."""
     engine = FakeEngine()
     request = fake_request(engine)
     session = trading_session()
@@ -812,14 +818,16 @@ async def test_cancel_wait_ack_without_request_tag_falls_back_to_single_topic() 
 
     assert cancelled.status == "ACKED"
     assert (
-        "await_event",
+        "await_cancel_or_amend_outcome",
         (
             topic_order_cancelled("GW01"),
-            {"order_id": "ORD1"},
+            "GW01",
+            "ORD1",
+            "CANCEL",
+            None,
             request.app.state.config.timeouts.wait_ack_sec,
         ),
     ) in engine.calls
-    assert not any(call[0] == "await_cancel_or_amend_outcome" for call in engine.calls)
 
 
 @pytest.mark.anyio

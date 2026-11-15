@@ -69,6 +69,24 @@ def test_a_bad_message_leaves_the_session_open(example: ModuleType) -> None:
     _handle(example, "ERR", {"CODE": "BAD_MESSAGE", "DETAIL": "LASTSEQ must be > 0"})
 
 
+def test_a_gap_resume_names_the_gateway_run(example: ModuleType) -> None:
+    """WP-MDG03: RESUME requires the WELCOME's EPOCH."""
+    import socket
+
+    ours, theirs = socket.socketpair()
+    try:
+        tracker = example.SequenceTracker(sock=ours)
+        tracker.epoch = "3f9a01bc"
+        tracker.accept("TRADE", "TRADE", "AAPL", "1")
+        tracker.accept("TRADE", "TRADE", "AAPL", "4")
+        assert theirs.recv(4096) == (
+            b"RESUME|CH=TRADE|SYM=AAPL|LASTSEQ=1|EPOCH=3f9a01bc\n"
+        )
+    finally:
+        ours.close()
+        theirs.close()
+
+
 @pytest.fixture()
 def running_gateway() -> Generator[int, None, None]:
     port, engine_pub, engine_pull, index_pub = free_ports(4)

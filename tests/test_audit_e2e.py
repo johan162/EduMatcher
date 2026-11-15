@@ -100,8 +100,6 @@ def exchange(
         proc._eod_seen = True  # or the stop drains _DRAIN_SEC for system.eod
         proc._running = False
         thread.join(timeout=5)
-        if proc._flush_timer is not None:
-            proc._flush_timer.cancel()
         proc._flush_buffer()
         if not proc._file._fh.closed:
             proc._file.close()
@@ -276,8 +274,6 @@ def test_events_after_subscription_are_recorded_once_within_flush_interval(
     proc._running = False
     proc._eod_seen = True
     thread.join(timeout=5)
-    if proc._flush_timer is not None:
-        proc._flush_timer.cancel()
     proc._flush_buffer()
     proc._file.close()
     reopened = AuditFile(tmp_path / "audit.log", 10_000_000, timezone.utc)
@@ -348,8 +344,6 @@ def test_publication_before_audit_subscription_is_not_replayed(
             proc._running = False
             if thread is not None:
                 thread.join(timeout=5)
-            if proc._flush_timer is not None:
-                proc._flush_timer.cancel()
             proc._flush_buffer()
             if not proc._file._fh.closed:
                 proc._file.close()

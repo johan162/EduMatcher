@@ -350,14 +350,20 @@ class CalfClient:
         if self._sock is not None:
             self._send("SUB", {"CH": ",".join(wanted), "SYM": ",".join(symbols)})
 
-    def resume(self, channel: str, symbol: str, last_seq: int) -> None:
+    def resume(self, channel: str, symbol: str, last_seq: int, epoch: str) -> None:
         """Send an explicit ``RESUME`` for one stream.
 
         Rarely needed: :meth:`run` already resumes any gap it detects. This
         exists for a client resuming from a position it persisted across a
-        process restart, which nothing else can know about.
+        process restart, which nothing else can know about. ``epoch`` is the
+        ``WELCOME|EPOCH=`` of the gateway run ``last_seq`` was counted in, so
+        persist it with the position: a gateway that has restarted since
+        answers ``REPLAY_MISS``.
         """
-        self._send("RESUME", {"CH": channel, "SYM": symbol, "LASTSEQ": str(last_seq)})
+        self._send(
+            "RESUME",
+            {"CH": channel, "SYM": symbol, "LASTSEQ": str(last_seq), "EPOCH": epoch},
+        )
 
     # -- connection -----------------------------------------------------
 
@@ -374,11 +380,6 @@ class CalfClient:
         sock.settimeout(None)
         self._sock = sock
         self._buf.clear()
-        # A new connection may be a new gateway process, and so a new
-        # numbering for every stream. Positions are kept -- that is what
-        # makes a gap across the drop visible at all -- but the generation
-        # moves, which is what lets a restart be told from a replay.
-        self._sequence.new_connection()
         log.info("connected to %s:%s", self._opts.host, self._opts.port)
 
     def _close_socket(self) -> None:
@@ -421,6 +422,12 @@ class CalfClient:
             raise CalfConnectionError(f"unexpected reply to HELLO: {frame.msg_type}")
 
         self._welcome = frame
+        # A new connection may be a new gateway process, and so a new
+        # numbering for every stream. Positions are kept -- that is what
+        # makes a gap across the drop visible at all -- but the generation
+        # moves, which is what lets a restart be told from a replay, and the
+        # run's EPOCH is what a later RESUME names.
+        self._sequence.new_connection(frame.fields.get("EPOCH", ""))
         raw_supported = frame.fields.get("CH_SUPPORTED")
         self._supported = set(raw_supported.split(",")) if raw_supported else set()
         self._reference.learn(frame.fields.get("REF"))
@@ -568,7 +575,7 @@ class CalfClient:
                 gap.first_seq,
                 gap.last_seq,
             )
-            self.resume(gap.channel, gap.symbol, gap.first_seq - 1)
+            self.resume(gap.channel, gap.symbol, gap.first_seq - 1, gap.epoch)
             return
 
         # A gap on a snapshot-baselined channel closes itself: the SUB that

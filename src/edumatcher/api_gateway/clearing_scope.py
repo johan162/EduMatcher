@@ -39,8 +39,8 @@ async def clearing_scope(
     """Resolve the caller's scope, then check *requested* against it.
 
     The role comes from the engine (the credential store holds none); an
-    unanswered lookup resolves to ``TRADER``, so an ADMIN that cannot be
-    confirmed sees its own gateway only.
+    unanswered lookup is ``503 ENGINE_UNAVAILABLE``, never a narrower scope that
+    a client could not tell from a real answer.
     """
     caller = require_trading(session)
     role = await request.app.state.engine.resolve_role(

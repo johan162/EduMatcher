@@ -24,15 +24,17 @@
 ## What this process is
 
 `pm-md-gwy` is the CALF market-data gateway.  The matching engine publishes
-market events on an internal ZeroMQ PUB socket (`:5556`) that is not accessible
-to external clients.  `pm-md-gwy` bridges that gap: it subscribes to the engine
-PUB socket, normalises raw engine events into CALF lines, and re-publishes them
+market events on an internal ZeroMQ PUB socket (`:5556`), and `pm-index` its
+index levels on another (`:5558`); neither is accessible to external clients.
+`pm-md-gwy` bridges that gap: it subscribes to both PUB sockets, normalises
+their events into CALF lines, and re-publishes them
 over TCP (default port `5570`) in a format any language can consume with a plain
 socket and line-split logic.
 
 ```mermaid
 flowchart TB
-    E[pm-engine\nZMQ PUB :5556] -->|"book.*, trade.executed\nsession.state\ncircuit_breaker.halt/resume/extend\nauction.result.*\nindex.*"| G
+    E[pm-engine\nZMQ PUB :5556] -->|"book.*, trade.executed\nsession.state\ncircuit_breaker.halt/resume/extend\nauction.result.* / auction.indicative.*"| G
+    X[pm-index\nZMQ PUB :5558] -->|"index.*"| G
 
     subgraph G["pm-md-gwy  (TCP :5570)"]
         direction TB
@@ -62,11 +64,17 @@ Responsibilities of `pm-md-gwy`:
   availability without a protocol version bump
 - enforces per-client subscription limits and disconnects slow clients
 - asks the engine for its session phase every two seconds, over the engine's
-  PULL socket (`:5555`). This is the gateway's only traffic towards the engine.
-  The engine announces its phase only on a transition, so without the query a
-  gateway started after the last transition, or an exchange started outside
-  trading hours, would never learn it. Until the first answer arrives, `STATE`
-  reports `SESSION=UNKNOWN`.
+  PULL socket (`:5555`). The engine announces its phase only on a transition,
+  so without the query a gateway started after the last transition, or an
+  exchange started outside trading hours, would never learn it. Until the
+  first answer arrives, `STATE` reports `SESSION=UNKNOWN`.
+- on the first answer, and again when the answers show that the engine has
+  restarted, asks the engine for every known symbol's book and for the list of
+  halted symbols. The engine publishes a book only when it changes, so without
+  this a gateway started while the market is quiet would send `SNAP`s with no
+  bid or ask; and an engine restart ends every halt without publishing a
+  resume. The engine does not answer for a symbol it holds no book for: such
+  a symbol's `TOP` and `DEPTH` stay as they were until its first order.
 
 
 ## The feed at a glance
@@ -100,7 +108,7 @@ code.**
 | Message | Purpose |
 |---------|---------|
 | `HELLO\|CLIENT=..\|PROTO=CALF1` | Open a session |
-| `RESUME\|CH=..\|SYM=..\|LASTSEQ=..` | Replay one stream from a known sequence; send one per stream on reconnect |
+| `RESUME\|CH=..\|SYM=..\|LASTSEQ=..\|EPOCH=..` | Replay one stream from a known sequence of the gateway run named by `EPOCH`; send one per stream on reconnect |
 | `SUB\|CH=..\|SYM=..` | Subscribe. Channels × symbols, comma-separated; `SYM=*` where allowed. Cumulative across lines |
 | `SYMBOLS` | Ask which instruments the gateway knows; replies `SYMBOLS\|COUNT=n\|SYMBOLS=..\|REF=..`. Repeatable — use this rather than relying on `WELCOME\|SYMBOLS=`, which is optional and sent once |
 | `UNSUB\|CH=..\|SYM=..` | Cancel subscriptions (idempotent) |
@@ -190,7 +198,7 @@ omitted. `pm-md-gwy` reads only this `market_data_gateway` block — see
 | `heartbeat_interval_sec` | `1` | `HB` cadence when idle; advertised as `WELCOME\|HBINT=` |
 | `idle_timeout_sec` | `5` | Disconnect a client after this many seconds with no traffic in **either** direction. Outbound market data and heartbeats reset the timer, so a purely passive consumer stays connected without sending anything; a client is aged out only once writes to it stop succeeding |
 | `replay_window_sec` | `30` | Per-stream replay retention; advertised as `WELCOME\|REPLAY=` |
-| `max_symbols_per_client` | `200` | Cap on the number of *unique symbol strings* a client has subscribed to, counted once across all channels — `SYM=*` counts as a single entry; exceeding it returns `ERR\|CODE=SUB_LIMIT` |
+| `max_symbols_per_client` | `200` | Cap on the number of *unique symbol strings* a client has subscribed to, counted once across all channels — `SYM=*` counts as a single entry; exceeding it, by `SUB` or by `RESUME`, returns `ERR\|CODE=SUB_LIMIT` |
 | `max_client_queue` | `10000` | Outbound backlog limit; exceeding it drops the backlog, sends `ERR\|CODE=SLOW_CLIENT` and disconnects the client (within 5 s if it has stopped reading) |
 | `max_connections` | `64` | Max simultaneous TCP connections; an over-limit connection is accepted at the socket level and then closed immediately with no `HELLO`/`WELCOME` exchange at all |
 | `max_messages_per_second` | `200` | Inbound token-bucket rate limit per client; exceeding it returns `ERR\|CODE=RATE_LIMITED` (connection stays open) |
@@ -199,12 +207,15 @@ omitted. `pm-md-gwy` reads only this `market_data_gateway` block — see
 All values must be positive integers (`port`, the intervals, the limits); the
 gateway refuses to start otherwise.
 
-!!! warning "If `engine_config.yaml` fails to load"
-    If `pm-md-gwy` cannot load the engine config's symbol list at startup (missing
-    file, parse error, etc.), it silently falls back to an empty known-symbol set,
-    which disables known-symbol validation gateway-wide — any non-wildcard symbol
-    is then accepted on `SUB`, not just configured ones. Treat this as a
-    misconfiguration to fix, not a supported mode.
+!!! warning "If no configuration has been deployed"
+    `pm-md-gwy` takes its symbol list from the compiled configuration that
+    `pm-config-deploy` installs. If none is installed, it logs a WARNING
+    ("no compiled configuration at …") and starts with an empty known-symbol
+    set, which disables known-symbol validation gateway-wide — any non-wildcard
+    symbol is then accepted on `SUB`, not just configured ones — and sends no
+    `SYMBOLS=` on `WELCOME`. Treat this as a misconfiguration to fix, not a
+    supported mode. A deployed file that cannot be read stops the gateway
+    instead ("failed to resolve configuration").
 
 
 ## Start the gateway
@@ -230,7 +241,7 @@ CLI override options:
 | `--bind ADDR` | from config / `0.0.0.0` | Override TCP bind address |
 | `--port PORT` | from config / `5570` | Override TCP listen port |
 | `--engine-pub ADDR` | `tcp://127.0.0.1:5556` | Override engine PUB socket address — always the fixed engine-side default; not configurable via the `market_data_gateway` YAML block |
-| `--index-pub ADDR` | `tcp://127.0.0.1:5558` | Override index PUB socket address |
+| `--index-pub ADDR` | `tcp://127.0.0.1:5558` | Override the `pm-index` PUB socket address — likewise not configurable via the YAML block |
 | `--log-level` | `WARNING` | Explicit level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
 | `-v` / `--verbose` | off | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`) |
 | `-q` / `--quiet` | off | Reduce output to warnings/errors |
@@ -720,7 +731,7 @@ sequenceDiagram
 
     C->>G: TCP connect :5570
     C->>G: HELLO|CLIENT=mybot|PROTO=CALF1
-    G-->>C: WELCOME|PROTO=CALF1|GW=md-gwy01|HBINT=1|REPLAY=30|SYMBOLS=AAPL,MSFT|REF=AAPL:2,MSFT:4|CH_SUPPORTED=AUCTION,CB,DEPTH,INDEX,STATE,TOP,TRADE
+    G-->>C: WELCOME|PROTO=CALF1|GW=md-gwy01|HBINT=1|REPLAY=30|EPOCH=3f9a01bc|SYMBOLS=AAPL,MSFT|REF=AAPL:2,MSFT:4|CH_SUPPORTED=AUCTION,CB,DEPTH,INDEX,STATE,TOP,TRADE
     C->>G: SUB|CH=TOP,TRADE|SYM=AAPL,MSFT
     G-->>C: SNAP|CH=TOP|SYM=AAPL|SEQ=100|...
     G-->>C: SNAP|CH=TOP|SYM=MSFT|SEQ=55|...
@@ -743,7 +754,9 @@ the connection on protocol error.  Check the `SYMBOLS` field in `WELCOME` for
 the list of configured symbols — useful for building a dynamic subscription
 list.  `SYMBOLS` is **omitted entirely** if the gateway has not learned of any
 symbols yet, so treat a missing field the same as an empty list rather than an
-error.  Also check `CH_SUPPORTED`: if present, it lists every channel this
+error.  Keep `EPOCH`: it names this run of the gateway, and a later `RESUME`
+must quote the `EPOCH` its `LASTSEQ` came from (see "Gap detection and replay
+recovery").  Also check `CH_SUPPORTED`: if present, it lists every channel this
 gateway build actually supports (e.g. `AUCTION,CB,DEPTH,INDEX,STATE,TOP,TRADE`).
 If `CH_SUPPORTED` is **absent**, assume a pre-`1.0.0` gateway that only
 supports `TOP`/`TRADE`/`STATE` and no `SYM=*` wildcard outside `STATE`;
@@ -851,12 +864,14 @@ gap detected when:  received_seq != last_seq + 1
 
 **Recovery option 1 — replay within window**
 
-Reconnect, then send one `RESUME` per stream you were following:
+Reconnect, then send one `RESUME` per stream you were following. `EPOCH` is
+the `WELCOME|EPOCH=` of the gateway run each `LASTSEQ` was received from, so
+keep it with your positions:
 
 ```text
 HELLO|CLIENT=mybot|PROTO=CALF1
-RESUME|CH=TOP|SYM=AAPL|LASTSEQ=99
-RESUME|CH=TRADE|SYM=AAPL|LASTSEQ=41
+RESUME|CH=TOP|SYM=AAPL|LASTSEQ=99|EPOCH=3f9a01bc
+RESUME|CH=TRADE|SYM=AAPL|LASTSEQ=41|EPOCH=3f9a01bc
 ```
 
 The gateway replays all events with `SEQ` greater than each `LASTSEQ` that are
@@ -879,11 +894,14 @@ unaffected.
 
 **Recovery option 3 — the gateway cannot place `LASTSEQ`**
 
-If the buffer has aged out everything after `LASTSEQ`, or `LASTSEQ` is ahead
-of the stream — the gateway was restarted and numbers from 1 again, or has
-never emitted that `(CH, SYM)` — the answer is also `ERR|CODE=REPLAY_MISS`
-(with a `SNAP` on the snapshot-backed channels). Zero replay lines with no
-error mean only that you were already up to date.
+If `EPOCH` names another gateway run (the gateway restarted, so its
+sequences began again at 1 and nothing it holds continues your position),
+the buffer has aged out everything after `LASTSEQ`, or `LASTSEQ` is ahead of
+the stream (the gateway has never emitted that `(CH, SYM)` that far), the
+answer is also `ERR|CODE=REPLAY_MISS` (with a `SNAP` on the snapshot-backed
+channels). The epoch check holds even when the restarted gateway's own stream
+has already passed your `LASTSEQ`. Zero replay lines with no error mean only
+that you were already up to date.
 
 !!! note "`RESUME` is per stream, and repeatable"
     Each `RESUME` recovers one `(CH, SYM)` stream, because `LASTSEQ` describes
@@ -1175,6 +1193,7 @@ python3 calf_subscriber.py --symbols AAPL --no-state-wildcard
 # Send one explicit RESUME after the handshake, to see replay in isolation
 # (gaps noticed while running are always resumed automatically, regardless
 # of this flag)
+# (--epoch defaults to the run this connection reaches)
 python3 calf_subscriber.py --resume --resume-ch TOP --resume-sym AAPL --lastseq 1042
 ```
 
@@ -1217,7 +1236,7 @@ calf_action_t act = calf_recovery_observe(&rec, msg.msg_type,
 if (act == CALF_DROP) continue;              // replayed duplicate
 if (act == CALF_RESUME) {
     char line[CALF_RESUME_LINE_LEN];
-    calf_recovery_build_resume(line, sizeof(line), &gap);
+    calf_recovery_build_resume(line, sizeof(line), &gap, epoch);  // WELCOME|EPOCH=
     send_line(fd, line);
 }
 if (act == CALF_GAP_UNREPAIRABLE) {

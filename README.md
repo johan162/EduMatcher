@@ -1,6 +1,6 @@
 # EduMatcher
 
-**Learn how market microstructure end exchanges works.**
+**Learn how market microstructure end exchanges works through simulation.**
 
 | Category          | Link         |
 | ----------------- | ------------ |
@@ -45,7 +45,7 @@ curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment
 cd ~/.edumatcher-sim
 ```
 
-### A clean exchange with only you as a trader
+### A clean quet simulated exchange with only you as a trader
 
 With Podman or Docker installed, one command gets you a running simulation and
 five web applications with only two default traders. This will be a silent market as only your actions will move it. 
@@ -186,7 +186,7 @@ If you use this tool in teaching or courses, please cite:
   author = {Johan Persson},
   year = {2026},
   url = {https://github.com/johan162/EduMatcher},
-  version = {0.78.4}
+  version = {0.80.0}
 }
 ```
 

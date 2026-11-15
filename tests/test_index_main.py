@@ -6,7 +6,7 @@ import argparse
 from collections.abc import Generator
 from pathlib import Path
 import time
-from typing import Any
+from typing import Any, cast
 
 import pytest
 import zmq
@@ -14,11 +14,12 @@ import zmq
 import edumatcher.index.main as index_main
 from edumatcher.index.config_loader import IndexRuntimeConfig
 from edumatcher.models.generated.index import DaySummary
-from edumatcher.models.message import decode
+from edumatcher.models.message import decode, encode
 
 
 class _FakeSocket:
     def __init__(self) -> None:
+        self.options: list[tuple[int, bytes]] = []
         self.inbound: list[list[bytes]] = []
         self.sent: list[list[bytes]] = []
         self.closed = False
@@ -35,6 +36,9 @@ class _FakeSocket:
 
     def close(self) -> None:
         self.closed = True
+
+    def setsockopt(self, option: int, value: bytes) -> None:
+        self.options.append((option, value))
 
 
 @pytest.fixture()
@@ -62,6 +66,7 @@ def proc_with_fakes(
         constituents=["AAPL", "MSFT"],
         outstanding_shares={"AAPL": 10_000, "MSFT": 20_000},
         reference_prices={"AAPL": 100.0, "MSFT": 50.0},
+        tradeable_symbols=frozenset({"AAPL", "MSFT", "GOOG", "AMZN"}),
     )
     monkeypatch.setattr(index_main, "load_index_runtime_configs", lambda _p: [cfg])
 
@@ -117,6 +122,7 @@ def test_each_configured_index_publishes_on_its_own_throttle(
             constituents=["AAPL"],
             outstanding_shares={"AAPL": 10_000},
             reference_prices={"AAPL": 100.0},
+            tradeable_symbols=frozenset({"AAPL", "MSFT", "GOOG", "AMZN"}),
         ),
         IndexRuntimeConfig(
             id="TECH2",
@@ -128,6 +134,7 @@ def test_each_configured_index_publishes_on_its_own_throttle(
             constituents=["AAPL"],
             outstanding_shares={"AAPL": 10_000},
             reference_prices={"AAPL": 100.0},
+            tradeable_symbols=frozenset({"AAPL", "MSFT", "GOOG", "AMZN"}),
         ),
     ]
     monkeypatch.setattr(index_main, "load_index_runtime_configs", lambda _p: configs)
@@ -489,7 +496,7 @@ def test_run_loop_answers_health_ping_with_utc_timestamp(
 
     health = _FakeReplier()
 
-    class _HealthThenEintr:
+    class _HealthThenStop:
         def __init__(self) -> None:
             self._polled = False
 
@@ -500,13 +507,14 @@ def test_run_loop_answers_health_ping_with_utc_timestamp(
             if not self._polled:
                 self._polled = True
                 return [(health, zmq.POLLIN)]
-            raise zmq.ZMQError(errno.EINTR)
+            proc.stop()
+            return []
 
     for name in ("make_subscriber", "make_pusher", "make_puller", "make_publisher"):
         monkeypatch.setattr(index_main, name, lambda *_a, **_k: _FakeSocket())
     monkeypatch.setattr(index_main, "make_replier", lambda *_a, **_k: health)
     monkeypatch.setattr(index_main, "load_index_runtime_configs", lambda _p: [])
-    monkeypatch.setattr(zmq, "Poller", _HealthThenEintr)
+    monkeypatch.setattr(zmq, "Poller", _HealthThenStop)
 
     proc = index_main.IndexProcess(config_path=tmp_path / "x.yaml", reset=False)
     proc.run()
@@ -532,6 +540,7 @@ def test_load_state_reset_deletes_file(
         constituents=["AAPL"],
         outstanding_shares={"AAPL": 1},
         reference_prices={"AAPL": 1.0},
+        tradeable_symbols=frozenset({"AAPL", "MSFT", "GOOG", "AMZN"}),
     )
     Path(cfg.state_file).write_text('{"index_id":"EDU100"}', encoding="utf-8")
 
@@ -568,6 +577,7 @@ def test_load_state_mismatch_validations(
         constituents=["AAPL"],
         outstanding_shares={"AAPL": 1},
         reference_prices={"AAPL": 1.0},
+        tradeable_symbols=frozenset({"AAPL", "MSFT", "GOOG", "AMZN"}),
     )
 
     Path(cfg.state_file).write_text('{"index_id":"OTHER"}', encoding="utf-8")
@@ -612,10 +622,8 @@ def test_session_state_resets_intraday_fields(
     proc, _ = proc_with_fakes
     idx = proc._indices["EDU100"]
     idx.day = DaySummary(open=1.0, high=2.0, low=0.5)
-    idx.day_close = 1.5
-    proc._handle_session_state({"state": "CONTINUOUS"})
+    proc._handle_session_state({"state": "PRE_OPEN"})
     assert idx.day is None
-    assert idx.day_close is None
 
 
 def test_history_request_missing_gateway_id_noop(
@@ -803,3 +811,149 @@ def test_build_parser_logging_flags() -> None:
 def test_configure_logging_prefers_explicit_level() -> None:
     args = argparse.Namespace(log_level="INFO", verbose=2, quiet=True)
     assert index_main._configure_logging(args) == 20
+
+
+# --- WP-IDX09 (C11, Q3): catch up on prices from book snapshots --------------
+
+
+def _snapshot_requests(proc: index_main.IndexProcess) -> list[str]:
+    push = cast(_FakeSocket, proc._engine_push)
+    return [
+        payload["symbol"]
+        for topic, payload in map(decode, push.sent)
+        if topic == "book.snapshot_request"
+    ]
+
+
+def _book(proc: index_main.IndexProcess, symbol: str, last_price: Any) -> None:
+    proc._handle_sub_message(
+        encode(f"book.{symbol}", {"symbol": symbol, "last_price": last_price})
+    )
+
+
+def test_pm_index_subscribes_to_each_constituents_book(
+    proc_with_fakes: tuple[index_main.IndexProcess, _FakeSocket],
+) -> None:
+    proc, _ = proc_with_fakes
+    sub = cast(_FakeSocket, proc._sub_sock)
+    assert {(zmq.SUBSCRIBE, b"book.AAPL"), (zmq.SUBSCRIBE, b"book.MSFT")} <= set(
+        sub.options
+    )
+
+
+def test_the_status_reply_requests_one_snapshot_per_constituent(
+    proc_with_fakes: tuple[index_main.IndexProcess, _FakeSocket],
+) -> None:
+    proc, _ = proc_with_fakes
+    proc._handle_session_status({"state": "CONTINUOUS"})
+    assert sorted(_snapshot_requests(proc)) == ["AAPL", "MSFT"]
+
+
+def test_a_requested_snapshot_updates_the_constituent_like_a_trade(
+    proc_with_fakes: tuple[index_main.IndexProcess, _FakeSocket],
+) -> None:
+    proc, fake_pub = proc_with_fakes
+    proc._handle_session_status({"state": "CONTINUOUS"})
+    fake_pub.sent.clear()
+
+    _book(proc, "AAPL", 120.0)
+
+    idx = proc._indices["EDU100"]
+    assert idx.calc.last_price("AAPL") == 120.0
+    assert idx.dirty is True
+    topic, payload = decode(fake_pub.sent[-1])
+    assert topic == "index.update"
+    assert payload["level"] == pytest.approx(idx.calc.recalculate())
+
+
+@pytest.mark.parametrize("last_price", [None, 0.0, "x"])
+def test_a_snapshot_without_a_usable_last_price_changes_nothing(
+    proc_with_fakes: tuple[index_main.IndexProcess, _FakeSocket], last_price: Any
+) -> None:
+    proc, fake_pub = proc_with_fakes
+    proc._handle_session_status({"state": "CONTINUOUS"})
+    fake_pub.sent.clear()
+
+    _book(proc, "AAPL", last_price)
+
+    assert proc._indices["EDU100"].calc.last_price("AAPL") == 100.0
+    assert fake_pub.sent == []
+
+
+def test_an_unrequested_snapshot_is_ignored(
+    proc_with_fakes: tuple[index_main.IndexProcess, _FakeSocket],
+) -> None:
+    """The engine publishes book.{symbol} on every book change; only the
+    answer to pm-index's own request is a catch-up."""
+    proc, fake_pub = proc_with_fakes
+    proc._handle_session_status({"state": "CONTINUOUS"})
+    _book(proc, "AAPL", 120.0)
+    fake_pub.sent.clear()
+
+    _book(proc, "AAPL", 130.0)
+
+    assert proc._indices["EDU100"].calc.last_price("AAPL") == 120.0
+    assert fake_pub.sent == []
+
+
+def test_a_status_reply_after_an_engine_restart_requests_again(
+    proc_with_fakes: tuple[index_main.IndexProcess, _FakeSocket],
+) -> None:
+    proc, _ = proc_with_fakes
+    proc._handle_session_status({"state": "CONTINUOUS"})
+    proc._handle_sub_message(encode("system.eod", {"books": []}))
+    proc._handle_session_status({"state": "CONTINUOUS"})
+
+    assert sorted(_snapshot_requests(proc)) == ["AAPL", "AAPL", "MSFT", "MSFT"]
+
+
+def test_an_added_constituent_is_subscribed_and_caught_up(
+    proc_with_fakes: tuple[index_main.IndexProcess, _FakeSocket],
+) -> None:
+    proc, _ = proc_with_fakes
+    proc._handle_constituent_change(
+        {
+            "gateway_id": "GW1",
+            "index_id": "EDU100",
+            "change_type": "ADD",
+            "symbol": "GOOG",
+            "shares_outstanding": 100,
+            "initial_price": 10.0,
+        }
+    )
+    sub = cast(_FakeSocket, proc._sub_sock)
+    assert (zmq.SUBSCRIBE, b"book.GOOG") in sub.options
+
+    proc._handle_session_status({"state": "CONTINUOUS"})
+    assert "GOOG" in _snapshot_requests(proc)
+
+
+def test_a_catch_up_before_the_first_trade_does_not_open_the_day(
+    proc_with_fakes: tuple[index_main.IndexProcess, _FakeSocket],
+) -> None:
+    """In PRE_OPEN the book's last_price is yesterday's: it moves the level,
+    but today's open is still the first print (C2)."""
+    proc, _ = proc_with_fakes
+    proc._handle_session_status({"state": "PRE_OPEN"})
+    _book(proc, "AAPL", 120.0)
+
+    idx = proc._indices["EDU100"]
+    assert idx.calc.last_price("AAPL") == 120.0
+    assert idx.day is None
+
+    proc._handle_trade({"symbol": "MSFT", "price": 60.0})
+    assert idx.day is not None
+    assert idx.day.open == pytest.approx(idx.calc.recalculate())
+
+
+def test_a_catch_up_extends_a_day_that_has_begun(
+    proc_with_fakes: tuple[index_main.IndexProcess, _FakeSocket],
+) -> None:
+    proc, _ = proc_with_fakes
+    proc._handle_session_status({"state": "CONTINUOUS"})
+    proc._handle_trade({"symbol": "MSFT", "price": 50.0})  # opens at 1000
+    _book(proc, "AAPL", 120.0)
+
+    idx = proc._indices["EDU100"]
+    assert idx.day is not None
+    assert idx.day.high == pytest.approx(idx.calc.recalculate())

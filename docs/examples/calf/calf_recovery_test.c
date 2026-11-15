@@ -52,11 +52,11 @@ static void test_gap_triggers_resume(void) {
     check(gap.first_seq == 2 && gap.last_seq == 3, "the hole is 2..3");
 
     char line[CALF_RESUME_LINE_LEN];
-    int n = calf_recovery_build_resume(line, sizeof(line), &gap);
+    int n = calf_recovery_build_resume(line, sizeof(line), &gap, "3f9a01bc");
     /* LASTSEQ is the position *before* the hole: the gateway replays
-     * everything past it. */
-    check(n > 0 && strcmp(line, "RESUME|CH=TRADE|SYM=AAPL|LASTSEQ=1\n") == 0,
-          "RESUME asks from LASTSEQ=1, not from the first missing SEQ");
+     * everything past it. EPOCH names the gateway run it was counted in. */
+    check(n > 0 && strcmp(line, "RESUME|CH=TRADE|SYM=AAPL|LASTSEQ=1|EPOCH=3f9a01bc\n") == 0,
+          "RESUME asks from LASTSEQ=1 of this gateway run, not from the first missing SEQ");
 }
 
 static void test_replay_is_reconciled(void) {

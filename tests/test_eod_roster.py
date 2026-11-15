@@ -52,6 +52,7 @@ def test_empty_file_is_an_empty_roster(tmp_path: Path) -> None:
         ("traders:\n  - gateway: EXCHANGE\n", 2, "EXCHANGE"),
         ("traders: 5\n", 1, "list"),
         ("people: []\n", 1, "traders"),
+        ("traders:\n  - gateway: A\n    name: [unclosed\n", 4, "not valid YAML"),
     ],
 )
 def test_errors_name_the_line(
@@ -60,3 +61,20 @@ def test_errors_name_the_line(
     with pytest.raises(RosterError, match=message) as err:
         load_roster(write(tmp_path, text))
     assert f"line {line}" in str(err.value)
+
+
+def test_a_file_that_is_not_utf8_is_a_roster_error(tmp_path: Path) -> None:
+    path = tmp_path / "roster.yaml"
+    path.write_bytes(b"traders:\n  - gateway: \xff\n")
+    with pytest.raises(RosterError, match="UTF-8"):
+        load_roster(path)
+
+
+@pytest.mark.parametrize("gateway", ["A/B", "..", ".HIDDEN", "A\\\\B"])
+def test_a_gateway_that_is_not_a_file_name_is_refused(
+    tmp_path: Path, gateway: str
+) -> None:
+    text = f"traders:\n  - gateway: A\n  - gateway: '{gateway}'\n"
+    with pytest.raises(RosterError, match="line 3: .*file name") as err:
+        load_roster(write(tmp_path, text))
+    assert gateway.upper() in str(err.value)

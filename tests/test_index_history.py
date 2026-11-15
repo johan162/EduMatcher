@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -175,3 +176,47 @@ def test_query_treats_eod_as_unknown_type(tmp_path: Path) -> None:
     rows, warnings = history.query(0, 10, {"CORP_ACTION"})
     assert rows == []
     assert any("unknown record type: EOD" in w for w in warnings)
+
+
+class _FullDisk:
+    """A buffered handle on a full disk: writes buffer, every flush fails and
+    keeps the buffer, as CPython's BufferedWriter does (close() included)."""
+
+    def __init__(self, inner: Any) -> None:
+        self._inner = inner
+        self.closed = False
+
+    def write(self, text: str) -> int:
+        return len(text)
+
+    def flush(self) -> None:
+        raise OSError(28, "No space left on device")
+
+    def close(self) -> None:
+        self.closed = True
+        self._inner.close()
+        self.flush()
+
+
+def test_a_record_that_could_not_be_written_is_not_written_later(
+    tmp_path: Path,
+) -> None:
+    """WP-IDX01: a failed flush leaves the line in the handle's buffer, and the
+    next flush would write a record whose command was rejected."""
+    path = tmp_path / "index_history.jsonl"
+    history = IndexHistory(str(path))
+    history.append({"type": "INIT", "ts_ns": 1, "index_id": "IDX", "level": 1.0})
+    history.flush()
+    history._fh = _FullDisk(history._fh)
+
+    with pytest.raises(OSError):
+        history.write_through(
+            {"type": "CORP_ACTION", "ts_ns": 2, "index_id": "IDX", "level": 2.0}
+        )
+    history.write_through(
+        {"type": "CORP_ACTION", "ts_ns": 3, "index_id": "IDX", "level": 3.0}
+    )
+    history.close()
+
+    rows, _ = history.query(0, 10, {"INIT", "CORP_ACTION"})
+    assert [r["ts_ns"] for r in rows] == [1, 3]

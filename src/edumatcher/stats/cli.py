@@ -82,8 +82,12 @@ _TRADES_COLUMNS = [
     "price",
     "quantity",
     "aggressor_side",
+    "match_type",
     "buy_gateway_id",
     "sell_gateway_id",
+    "buy_order_id",
+    "sell_order_id",
+    "msg_id",
 ]
 _ORDER_EVENTS_COLUMNS = [
     "seq",
@@ -103,10 +107,12 @@ _ORDER_EVENTS_COLUMNS = [
     "fill_qty",
     "trade_ids",
     "reason",
+    "reject_code",
     "client_tag",
     "combo_parent_id",
     "oco_group_id",
     "priority_reset",
+    "msg_id",
 ]
 _SYMBOLS_COLUMNS = ["symbol"]
 _DATES_COLUMNS = ["date"]
@@ -156,6 +162,7 @@ _FEED_GAPS_COLUMNS = [
     "seq",
     "ts",
     "stream",
+    "source",
     "expected_id",
     "received_id",
     "missing_count",
@@ -164,6 +171,11 @@ _FEED_GAPS_COLUMNS = [
 _AFTER_HELP = (
     "Opaque cursor from a previous run's truncation notice; fetches the next page"
 )
+_FROM_HELP = (
+    "Start instant, inclusive. ISO-8601; Z or an offset is converted to UTC, "
+    "a value without an offset is session-local time"
+)
+_TO_HELP = "End instant, inclusive; same forms as --from"
 
 # The integrity/read-write check does a full-file PRAGMA quick_check, which on
 # a multi-hundred-MB stats.db can run well past a few seconds -- opt-in via
@@ -277,16 +289,16 @@ def build_parser() -> argparse.ArgumentParser:
     snapshots = sub.add_parser("snapshots", help="Show intraday price snapshots")
     snapshots.add_argument("--symbol", required=True, metavar="SYMBOL")
     snapshots.add_argument("--date", metavar="YYYY-MM-DD")
-    snapshots.add_argument("--from", dest="from_ts", metavar="ISO_TS")
-    snapshots.add_argument("--to", dest="to_ts", metavar="ISO_TS")
+    snapshots.add_argument("--from", dest="from_ts", metavar="ISO_TS", help=_FROM_HELP)
+    snapshots.add_argument("--to", dest="to_ts", metavar="ISO_TS", help=_TO_HELP)
     snapshots.add_argument("--limit", type=int, default=500, metavar="N")
     snapshots.add_argument("--after", metavar="CURSOR", help=_AFTER_HELP)
 
     trades = sub.add_parser("trades", help="Show matched trades")
     trades.add_argument("--symbol", metavar="SYMBOL")
     trades.add_argument("--date", metavar="YYYY-MM-DD")
-    trades.add_argument("--from", dest="from_ts", metavar="ISO_TS")
-    trades.add_argument("--to", dest="to_ts", metavar="ISO_TS")
+    trades.add_argument("--from", dest="from_ts", metavar="ISO_TS", help=_FROM_HELP)
+    trades.add_argument("--to", dest="to_ts", metavar="ISO_TS", help=_TO_HELP)
     trades.add_argument("--limit", type=int, default=200, metavar="N")
     trades.add_argument("--after", metavar="CURSOR", help=_AFTER_HELP)
 
@@ -303,8 +315,10 @@ def build_parser() -> argparse.ArgumentParser:
         help="One of: " + ", ".join(EVENT_TYPES),
     )
     order_events.add_argument("--date", metavar="YYYY-MM-DD")
-    order_events.add_argument("--from", dest="from_ts", metavar="ISO_TS")
-    order_events.add_argument("--to", dest="to_ts", metavar="ISO_TS")
+    order_events.add_argument(
+        "--from", dest="from_ts", metavar="ISO_TS", help=_FROM_HELP
+    )
+    order_events.add_argument("--to", dest="to_ts", metavar="ISO_TS", help=_TO_HELP)
     order_events.add_argument("--limit", type=int, default=500, metavar="N")
     order_events.add_argument("--after", metavar="CURSOR", help=_AFTER_HELP)
 
@@ -350,8 +364,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     index_snapshots.add_argument("--index-id", required=True, metavar="INDEX_ID")
     index_snapshots.add_argument("--date", metavar="YYYY-MM-DD")
-    index_snapshots.add_argument("--from", dest="from_ts", metavar="ISO_TS")
-    index_snapshots.add_argument("--to", dest="to_ts", metavar="ISO_TS")
+    index_snapshots.add_argument(
+        "--from", dest="from_ts", metavar="ISO_TS", help=_FROM_HELP
+    )
+    index_snapshots.add_argument("--to", dest="to_ts", metavar="ISO_TS", help=_TO_HELP)
     index_snapshots.add_argument("--limit", type=int, default=500, metavar="N")
     index_snapshots.add_argument("--after", metavar="CURSOR", help=_AFTER_HELP)
 
@@ -365,12 +381,19 @@ def build_parser() -> argparse.ArgumentParser:
     instruments.add_argument("--symbol", metavar="SYMBOL")
 
     gaps = sub.add_parser(
-        "gaps", help="Show detected feed gaps (trades the recorder never received)"
+        "gaps",
+        help="Show detected feed gaps (messages the recorder never received)",
+        description=(
+            "Show detected feed gaps: messages lost on every subscribed stream "
+            "(publisher sequence), and trades missing from the engine's "
+            "trade-id sequence"
+        ),
     )
     gaps.add_argument("--date", metavar="YYYY-MM-DD")
-    gaps.add_argument("--from", dest="from_ts", metavar="ISO_TS")
-    gaps.add_argument("--to", dest="to_ts", metavar="ISO_TS")
+    gaps.add_argument("--from", dest="from_ts", metavar="ISO_TS", help=_FROM_HELP)
+    gaps.add_argument("--to", dest="to_ts", metavar="ISO_TS", help=_TO_HELP)
     gaps.add_argument("--limit", type=int, default=500, metavar="N")
+    gaps.add_argument("--after", metavar="CURSOR", help=_AFTER_HELP)
 
     health = sub.add_parser(
         "health",
@@ -425,7 +448,7 @@ def _collect_db_stats(conn: sqlite3.Connection, db_path: Path) -> _HealthDatabas
 def _check_database_health(
     db_path: Path, *, collect_stats: bool = False
 ) -> tuple[bool, str, _HealthDatabaseStats | None]:
-    """Check integrity, schema version, and a rolled-back write transaction."""
+    """Check integrity, schema version, and that stats.db takes a write lock."""
     if not db_path.exists():
         return False, f"database not found: {db_path}", None
     conn: sqlite3.Connection | None = None
@@ -437,10 +460,16 @@ def _check_database_health(
         version = int(conn.execute("PRAGMA user_version").fetchone()[0])
         if version != SCHEMA_VERSION:
             return False, f"schema version {version}, expected {SCHEMA_VERSION}", None
-        conn.execute("BEGIN")
-        conn.execute("CREATE TEMP TABLE pm_stats_health_check (value INTEGER)")
-        conn.execute("INSERT INTO pm_stats_health_check VALUES (1)")
-        conn.rollback()
+        # A real write to stats.db itself, rolled back: a read-only file or
+        # directory fails here. The TEMP table used before lived in the temp
+        # database and passed on a read-only stats.db (C7).
+        conn.isolation_level = None
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            conn.execute("CREATE TABLE main.pm_stats_health_check (value INTEGER)")
+            conn.execute("INSERT INTO main.pm_stats_health_check VALUES (1)")
+        finally:
+            conn.execute("ROLLBACK")
         stats = _collect_db_stats(conn, db_path) if collect_stats else None
     except (OSError, sqlite3.Error, TypeError, ValueError) as exc:
         return False, f"database read/write check failed: {exc}", None
@@ -529,7 +558,10 @@ def _stringify(value: Any) -> str:
     if value is None:
         return ""
     if isinstance(value, float):
-        return f"{value:g}"
+        # 15 significant digits: every display price and turnover exactly,
+        # without the binary noise of repr (0.30000000000000004). %g's six
+        # turned 12345.67 into 12345.7 (C3).
+        return f"{value:.15g}"
     return str(value)
 
 
@@ -687,15 +719,16 @@ def _run_query(
         return _INSTRUMENTS_COLUMNS, rows, None
 
     if args.command == "gaps":
-        rows = query_feed_gaps(
+        rows, next_cursor = query_feed_gaps(
             conn,
             date_value=args.date,
             from_ts=args.from_ts,
             to_ts=args.to_ts,
             limit=args.limit,
             tz=tz,
+            after=args.after,
         )
-        return _FEED_GAPS_COLUMNS, rows, None
+        return _FEED_GAPS_COLUMNS, rows, next_cursor
 
     assert args.command == "index-ids", f"Unhandled command: {args.command}"
     rows = query_index_ids(conn, date_value=args.date, tz=tz)

@@ -45,7 +45,7 @@
     - "If the load is genuine, raise `post_trade_gateway.max_connections`, run `pm-config-deploy` and restart pm-ralf-gwy."
 
 - logger: edumatcher.ralf_gateway.gateway
-  template: "read select failed: %s"
+  template: "read poll failed: %s"
   level: WARNING
   explanation: >
     Waiting for data from the connected clients failed for one pass of the main
@@ -93,3 +93,17 @@
   actions:
     - "Make sure pm-engine and pm-ralf-gwy run the same EduMatcher release."
     - "Clients should reconcile against pm-clearing or the audit trail for the time of the message."
+
+- logger: edumatcher.ralf_gateway.gateway
+  template: "engine bus dropped %d message(s) on %s: sequence %d..%d never arrived (%d lost on %s since the last warning); RALF clients cannot see this loss"
+  level: WARNING
+  explanation: >
+    Trades (`trade.executed`) or end-of-day messages (`system.eod`) from
+    pm-engine never reached pm-ralf-gwy: its receive buffer was full and
+    ZeroMQ discarded them. The gateway numbers the lines it emits, so every
+    channel's `SEQ` stays dense and no RALF client can see the loss, nor can
+    a replay recover it. Further losses on the same topic are only counted
+    (`gwy.bus_gaps`) for a minute after this line.
+  actions:
+    - "Tell the clearing, drop-copy and audit consumers the time of the loss; they must reconcile those trades from pm-clearing or the REST API."
+    - "Check pm-ralf-gwy's CPU on the dashboard: a gateway that cannot keep up with its clients falls behind the engine."

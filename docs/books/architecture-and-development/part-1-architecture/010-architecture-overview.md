@@ -159,16 +159,17 @@ graph TD
 
 ## Message Topics
 
-Messages are multipart ZMQ. The first two frames are the message; the frames
-behind them are the **envelope** — metadata about the message rather than
-content of it.
+Messages are multipart ZMQ. The first two frames are the message; the frame
+behind them is the **envelope** — metadata about the message rather than
+content of it, as `|`-separated ASCII fields.
 
 | Frame | PUB (engine → subscribers) | PUSH (client → engine) |
 |---|---|---|
 | 0 | topic string (used for SUB filtering) | topic string |
 | 1 | JSON payload | JSON payload |
-| 2 | per-topic sequence number | causal envelope |
-| 3 | causal envelope | — |
+| 2 | `seq`\|`eseq`\|`msg_id`\|`causation_id`\|`correlation_id` | `msg_id`\|`causation_id`\|`correlation_id` |
+
+One frame rather than one per field, because ZeroMQ charges per frame.
 
 **Why the envelope is not in the payload.** Keeping it in frames means the hot
 publish path never decodes and re-encodes a message to stamp it, and the same
@@ -176,11 +177,13 @@ three fields do not have to be declared on each of the 121 message types in
 `spec/messages/` — and re-declared on every type added later. `decode()` reads
 only frames 0 and 1, so a consumer that does not care is unaffected.
 
-**Frame 2 (PUB) — per-topic sequence.** ZeroMQ PUB/SUB drops silently once a
+**`seq` and `eseq` (PUB) — sequences.** ZeroMQ PUB/SUB drops silently once a
 subscriber falls behind its high-water mark, and nothing in the delivered
 message reveals it. A monotonic counter, counted *per topic* so that filtering
 by topic prefix does not produce phantom gaps, lets any subscriber notice a
-hole. Read it with `decode_sequence`.
+hole. Read it with `decode_sequence`. `eseq` counts every message the socket
+published, so a subscriber that takes every topic (pm-audit) can prove the
+whole stream complete; read it with `decode_publisher_sequence`.
 
 **The causal envelope** — `msg_id`, `causation_id`, `correlation_id`; see
 `models/envelope.py` and [Causal envelope](#causal-envelope) below. Read it

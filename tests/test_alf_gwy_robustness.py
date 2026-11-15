@@ -31,6 +31,7 @@ from edumatcher.alf_gwy.gateway import (
 )
 from edumatcher.alf_gwy.protocol import parse_alf_line
 from edumatcher.models.price import register_tick_decimals
+from tests.conftest import opened
 
 # ---------------------------------------------------------------------------
 # Minimal stubs
@@ -88,7 +89,7 @@ def _make_gateway(monkeypatch: pytest.MonkeyPatch, **cfg_overrides: Any) -> AlfG
 
 
 def _make_session() -> tuple[ClientSession, socket.socket]:
-    left, right = socket.socketpair()
+    left, right = map(opened, socket.socketpair())
     left.setblocking(False)
     right.setblocking(False)
     return ClientSession(sock=left, addr=("local", 0)), right
@@ -661,10 +662,11 @@ class TestSlowClientOverflow:
 
 
 def _seq_sub(*events: tuple[str, int]) -> _QueueSub:
-    """A SUB stub whose messages carry the publisher's per-topic sequence."""
+    """A SUB stub whose messages carry the publisher's per-topic sequence
+    (trailer ``seq|eseq|``, as SequencedPublisher sends it)."""
     sub = _QueueSub()
     sub.queue = [
-        [topic.encode(), json.dumps({"order_id": f"o{seq}"}).encode(), b"%d" % seq]
+        [topic.encode(), json.dumps({"order_id": f"o{seq}"}).encode(), b"%d|1|" % seq]
         for topic, seq in events
     ]
     return sub

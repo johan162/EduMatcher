@@ -41,14 +41,16 @@ The checks, in order, and what a failure looks like:
 | The key is a trading key (has a `gateway_id`) | `private`, `admin/monitor`, `admin/sim` | `error` frame (admin sockets), then close `1008` |
 | The engine accepts the gateway's identity | `private`, `admin/monitor` | `error` frame with the engine's reason, then close `1008` |
 | The gateway holds the ADMIN role | `admin/monitor`, `admin/sim` | `error` frame `"ADMIN role required"`, then close `1008` |
+| The engine confirms the role in time | `admin/monitor`, `admin/sim` | close `1013` (no `error` frame) |
 
 ### Close codes
 
-The gateway itself closes a socket with exactly one code:
+The gateway itself closes a socket with one of two codes:
 
 | Code | Meaning |
 |---|---|
 | `1008` | Policy violation: authentication or authorisation failed (see above). The client MUST NOT reconnect with the same key without fixing the cause |
+| `1013` | Try again later: the engine did not answer in time, either while the gateway built the opening snapshot (`/ws/private`; no snapshot was sent) or while it looked up the caller's role (`admin/monitor`, `admin/sim`). It is not a verdict on the key. The client SHOULD reconnect with backoff |
 
 Any other closure (a normal close, the server shutting down, or a dropped
 connection with no close frame) is not a verdict on the client: it SHOULD
@@ -143,11 +145,25 @@ The caller gateway's own events, unfiltered.
 | `type` | Fields | Meaning |
 |---|---|---|
 | `authenticated` | `gateway_id`, `stream_seq` | Authenticated; `stream_seq` is the stream position now |
-| `orders.snapshot` | `gateway_id`, `stream_seq`, `ts`, `data: {orders, positions, quote_legs}` | The gateway's view of the caller's orders, positions and quote legs, accurate as of `stream_seq` |
+| `orders.snapshot` | `gateway_id`, `stream_seq`, `ts`, `data: {orders, positions, quote_legs}` | The caller's orders and positions as the engine holds them, and its quote legs, accurate as of `stream_seq` |
 
-The event sink is registered before the snapshot is taken: the worst case is
-an event both in the snapshot and delivered live, never one in neither. Order
-state is idempotent, so a client MAY apply such a duplicate twice.
+The snapshot is asked from the engine on every connect, so it is complete
+after a gateway restart and for orders this gateway never saw (GTC orders
+from earlier days, orders entered over another gateway process):
+
+- `orders`: every order resting at the engine (its `order.orders` rows, with
+  `order_id` beside `id` and `client_tag` always present), plus this gateway's
+  cached finished orders (`FILLED`, `CANCELLED`, `EXPIRED`, `REJECTED`) for
+  `order_retention_sec`. An order this gateway believed working but the engine
+  no longer holds is left out.
+- `positions`: net quantity per symbol, non-zero only, from the engine.
+- `quote_legs`: this gateway's cached quote legs.
+
+`stream_seq` is the stream position of the engine's `order.orders` reply the
+snapshot was cut at: every event numbered above it is newer than the snapshot
+and arrives live, and nothing at or below it is sent after the snapshot. If
+the engine does not answer within the gateway's `engine_reply_sec`, the
+socket is closed with `1013` and no snapshot is sent.
 
 ### Private event catalogue
 
@@ -183,11 +199,16 @@ or refused, echoing the cancel's `request_tag`; the submit acks (`oco.ack`,
 The `order.*` events carry the order's `client_tag`, and cancels and amends
 their `request_tag` (see the REST spec's
 [order correlation](060-rest-and-websocket.md#order-correlation-with-client_tag)).
+A refused cancel or amend arrives as `order.ack` with `accepted: false` and
+`request` `CANCEL` or `AMEND`: the order it targets is unchanged and still
+working. Only an `order.ack` refusal with `request: NEW` ends an order as
+`REJECTED`.
 
 ### Recovery
 
-On reconnect the server sends a fresh `orders.snapshot`. A client MUST rebuild
-its order state from it, then apply live events with a higher `stream_seq`.
+On reconnect the server sends a fresh `orders.snapshot`, built from the
+engine's state. A client MUST rebuild its order state from it, then apply live
+events with a higher `stream_seq`.
 There is no replay of missed private events: the snapshot is the recovery. For
 history, use `GET /api/v1/history/orders` and `GET /api/v1/history/fills`.
 
@@ -292,7 +313,7 @@ everything that is sent stays contiguous.
 | `type` | Fields | Meaning |
 |---|---|---|
 | `authenticated` | none | Authenticated |
-| `monitor.snapshot` | `ts`, `data: {orders, halts, gateways, last_seq, incomplete}` | Current state: the gateway's cross-gateway order view, the engine's halts and gateway roster, each active gateway's `stream_seq`; names of any part that timed out in `incomplete` |
+| `monitor.snapshot` | `ts`, `data: {orders, halts, gateways, last_seq, incomplete}` | Current state: the working orders (`PENDING`, `NEW`, `PARTIAL`, `AMENDED`) of the gateway's cross-gateway order view, the engine's halts and gateway roster, each active gateway's `stream_seq`; names of any part that timed out in `incomplete`. Finished orders are in `GET /api/v1/admin/orders` and the audit trail |
 
 ### Events
 
@@ -308,9 +329,13 @@ All private event types above, for every gateway, `session` and
 |---|---|---|
 | `admin.action` | `admin.action.{gateway_id}` | [admin.action](../part-5-message-reference/010-message-reference.md#adminactiongateway_id): one admin-gated command, who ran it and what it did |
 
-Other engine topics (system replies addressed to any gateway, index and
-reference events) also arrive here, with `type` derived as in
-[Event types](#event-types). A monitor MUST ignore types it does not render.
+Other engine events also arrive here, with `type` derived as in
+[Event types](#event-types). Replies to one gateway's requests and acks of its
+admin commands (`system.reference.*`, `system.gateways.*`,
+`system.position_snapshot.*`, `risk.*_ack.*` and the like: every engine topic
+addressed to one gateway that is not on its private stream) do not; the
+command itself is reported as `admin.action`. A monitor MUST ignore types it
+does not render.
 
 ### Recovery
 
@@ -320,9 +345,8 @@ audit trail (`GET /api/v1/admin/orders/{order_id}/audit`, `pm-audit-cli`).
 A `seq` gap on a live connection means the gateway dropped events because this
 client's queue was full. A dropped fill or cancel leaves an order looking
 working. The monitor SHOULD repair its working-order view from
-`GET /api/v1/admin/orders?status=…` (one call per working status) rather than
-by reconnecting: the opening snapshot also carries every cached terminal order,
-which under the load that caused the gap is far larger than the working set.
+`GET /api/v1/admin/orders?status=…` (one call per working status) or by
+reconnecting: both cost what is working, not what has finished.
 
 ## `/api/v1/ws/admin/sim`
 

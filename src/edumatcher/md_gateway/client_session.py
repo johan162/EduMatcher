@@ -33,7 +33,8 @@ class ClientSession:
     # Absolute connection timestamp for handshake-timeout checks.
     connected_at: float = field(default_factory=time.monotonic)
 
-    # Timestamp used for both auth-timeout and idle-timeout checks.
+    # Last inbound line or completed send, for the idle-timeout check (the
+    # HELLO deadline uses connected_at).
     last_activity: float = field(default_factory=time.monotonic)
 
     # Token-bucket limiter used for inbound client message pacing.
