@@ -42,42 +42,7 @@ The sequence in which pre-trade checks run is not arbitrary. Checks requiring ex
 
 Failing at step 1 takes nanoseconds. Failing at step 7 takes longer because it requires consulting external state. Running all checks in parallel wastes resources on orders that would be rejected at step 1; running them in this sequence minimises latency for both accepted and rejected orders.
 
-```mermaid{.mermaid width=450}
-flowchart TD
-    A["Incoming order\nfrom participant"] --> B
-
-    B{"1. Format &\nsyntax valid?"}
-    B -->|No| R1["REJECTED\nMalformed message"]
-    B -->|Yes| C
-
-    C{"2. Symbol\nvalid & tradeable?"}
-    C -->|No| R2["REJECTED\nUnknown / halted symbol"]
-    C -->|Yes| D
-
-    D{"3. Within rate\nlimit for gateway?"}
-    D -->|No| R3["REJECTED or QUEUED\nThrottle limit exceeded"]
-    D -->|Yes| E
-
-    E{"4. Price within\nfat-finger band?"}
-    E -->|No| R4["REJECTED\nPrice too far from reference"]
-    E -->|Yes| F
-
-    F{"5. Quantity &\nnotional within limits?"}
-    F -->|No| R5["REJECTED\nSize / value limit exceeded"]
-    F -->|Yes| G
-
-    G{"6. Short sale\nflag correct?"}
-    G -->|No| R6["REJECTED\nMissing or invalid sale marking"]
-    G -->|Yes| H
-
-    H{"7. Position &\ncredit limits OK?"}
-    H -->|No| R7["REJECTED\nPosition / credit limit breached"]
-    H -->|Yes| I
-
-    I{"8. SMP\npre-check"}
-    I -->|Self-match| R8["CANCELLED\nper SMP policy"]
-    I -->|Clear| J["→ Matching Engine"]
-```
+![The eight gateway checks in fail-fast order. Each check either passes the order down to the next or rejects it at once; only an order that clears all eight reaches the matching engine. The cost bar on the left rises from checks on the message alone to the position and credit check, which must consult data from the clearing system.](assets/risk-pretrade-check-order-small.png)
 
 ## The Gateway as Risk Layer
 

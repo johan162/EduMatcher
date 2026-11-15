@@ -3,28 +3,7 @@
 
 Now let us look at how all these concepts are realised in a production technology stack.
 
-```mermaid
-flowchart LR
-    P1["Participant A\nGW01"]
-    P2["Participant B\nGW02"]
-    P3["Participant C\nGW03"]
-    LB["Load Balancer"]
-    GW["Gateway Layer\nAuth · Validation · FIX Translation"]
-    ME["Matching Engine\nSingle-threaded\nOne book per symbol\nDeterministic"]
-    PUB["PUB Socket\nMessage Bus"]
-    CL["Clearing\nProcess"]
-    AL["Audit\nLog"]
-    MD["Market Data\nFeed"]
-    ST["Stats\nRecorder"]
-    DC["Drop Copy\nFeed"]
-
-    P1 & P2 & P3 --> LB --> GW
-    GW -- "Validated orders\n(PUSH)" --> ME
-    ME -- "ACKs and fills\n(PULL)" --> GW
-    GW -- "Fill notifications" --> P1 & P2 & P3
-    ME -- "Trades, fills,\nbook updates" --> PUB
-    PUB --> CL & AL & MD & ST & DC
-```
+![The exchange technology stack. Participants connect through a load balancer to the gateway layer, which authenticates, validates and translates their orders. Validated orders are pushed to the single-threaded matching engine, and ACKs and fills flow back to the gateways and on to the participants. Every trade, fill and book update is published on the message bus, where clearing, the audit log, the market data feed, the stats recorder and the drop copy feed each subscribe.](assets/tech-architecture-overview-small.png)
 
 ## The Gateway
 
@@ -87,20 +66,7 @@ Market data uses **UDP multicast**. UDP (User Datagram Protocol) has no reliabil
 
 How does UDP's unreliability get handled? Through **sequence numbers**. Every ITCH/MDP3 message carries a sequence number. If a subscriber receives message 1000 followed by 1002, it knows 1001 was lost. It requests a retransmission via a separate **TCP unicast recovery channel** (specifically for replay requests). This hybrid design, UDP multicast for the live feed plus a separate recovery path (a TCP replay service, or periodically published snapshots on their own multicast channel), is standard across major exchange market data architectures.
 
-```mermaid
-flowchart LR
-    ME["Matching Engine"]
-    UDP["UDP Multicast\n(live feed)"]
-    SUB1["Subscriber A"]
-    SUB2["Subscriber B"]
-    SUB3["Subscriber C"]
-    TCP["TCP Unicast\n(replay channel)"]
-
-    ME -- "Seq 1,2,3…\nBroadcast to all" --> UDP
-    UDP --> SUB1 & SUB2 & SUB3
-    SUB3 -- "Gap detected!\nResend seq 47" --> TCP
-    TCP -- "seq 47 retransmitted" --> SUB3
-```
+![Market data over UDP multicast with TCP recovery. The matching engine sends each sequenced packet once, and multicast delivers it to every subscriber. Subscriber C sees 46 followed by 48, knows 47 was lost, and asks the TCP replay channel for that one message, while subscribers A and B carry on undisturbed.](assets/tech-md-gap-recovery-small.png)
 
 Order submission uses the reverse pattern, TCP from participant to exchange, because every order must be reliably received and acknowledged.
 
