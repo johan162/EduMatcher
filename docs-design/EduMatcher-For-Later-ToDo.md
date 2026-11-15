@@ -48,6 +48,8 @@ its own piece of work.
 | L032 | 2026-11-15 | pm-engine (quotes) | `quote.new` carries `tick_decimals` but the engine ignores it, so a client with a wrong tick registry rests its quote at 1/100 or 100× the intended price without a reject | Medium | Open |
 | L033 | 2026-11-15 | pm-api-gwy (index and sim listeners) | The `IndexClient` and `SimClient` receive threads end on a ZeroMQ error while the process keeps serving: index history and the sim/news streams then go quiet with no ERROR and no exit | Low | Open |
 | L034 | 2026-11-15 | CLIs (`-q`) | `-q`/`--quiet` is documented as "Reduce output to warnings/errors" but sets WARNING, the default, so it changes nothing (5 entry points and pm-help's common log options) | Low | Open |
+| L035 | 2026-11-15 | pm-dc-gwy (engine feed) | The drop-copy subscriber keeps ZeroMQ's default 1000-message RCVHWM and does no bus-sequence check, so a burst of fills is dropped silently and DC1 `SEQ` stays dense | Medium | Open |
+| L036 | 2026-11-15 | pm-md-gwy, pm-dc-gwy (loop, shutdown) | Once a descriptor reaches 1024 `select` fails every pass and no client is read again (WARNING ~100/s); a stop closes every session with no `EXIT` and drops queued lines | Low | Open |
 
 ## L001 — Topic literals in pm-sim-forensics
 
@@ -597,4 +599,38 @@ WP-MMB08, matching the reference manual's wording for another tool ("Explicit
 **Recommendation.** Decide once for every process: either `-q` means ERROR,
 or the help says it is the default. Change all entry points together so the
 flag means the same everywhere.
+
+## L035 — pm-dc-gwy drops engine bursts silently
+
+**Found:** 2026-11-15, pm-ralf-gwy review H2
+(`docs-design/reviews/EduMatcher-RALF-Gateway-Review-2026-11.md`).
+
+**Finding.** `dc_gateway/gateway.py:121` creates its drop-copy subscriber
+with `make_subscriber(config.drop_copy_pub_addr)`: no `rcvhwm`, so ZeroMQ's
+default of 1000 messages applies, and past it a SUB socket drops without a
+trace. The poll loop decodes with `decode()` and never reads the bus
+sequence trailer, so a drop is neither counted nor logged. The gateway
+numbers its DC1 lines after the loss, so a client's gap check stays silent.
+pm-ralf-gwy lost 14 000 of a 20 000-trade burst this way (review H2, repro);
+pm-dc-gwy was not measured.
+
+**Recommendation.** The same fix as WP-RALF02: `rcvhwm=100_000` and the
+pm-md-gwy bus-sequence check with a `gwy.bus_gaps` counter and a latched
+WARNING.
+
+## L036 — pm-md-gwy and pm-dc-gwy: select limit and silent stop
+
+**Found:** 2026-11-15, pm-ralf-gwy review C5 and C7
+(`docs-design/reviews/EduMatcher-RALF-Gateway-Review-2026-11.md`).
+
+**Finding.** Both gateways read clients with `select.select` and catch the
+`ValueError` it raises for a descriptor of 1024 or more
+(`md_gateway/gateway.py:364-369`, `dc_gateway/gateway.py:233-238`). The pass
+then returns without reading anyone, every pass: no client is served and the
+WARNING repeats about 100 times a second (reproduced in pm-ralf-gwy, which has
+the same code). Their `close()` closes every session without a final line,
+so a planned stop looks like a crash to clients and queued lines are lost.
+
+**Recommendation.** Port WP-RALF04 (`select.poll`, `EXIT|REASON=shutdown`
+with a bounded flush) so the three line gateways stay alike.
 
