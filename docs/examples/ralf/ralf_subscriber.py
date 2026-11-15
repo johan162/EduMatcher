@@ -7,7 +7,8 @@ protocol reference), then puts the received `EXEC`/`EOD` data to use --
 a running per-symbol executed-volume tally that correctly de-duplicates
 `EXEC` lines by `EXEC_ID` (an `AUDIT` client subscribed to more than one
 channel receives the *same* trade once per channel, by design, see §6)
-and a per-channel sequence-gap check.
+and a per-channel sequence-gap check (on `--symbols '*'` only: SEQ counts
+every symbol of a channel).
 
 See docs/books/protocols-and-clients/part-2-specifications/040-ralf.md for
 the normative wire contract this client follows. The session rules it relies
@@ -72,6 +73,19 @@ def send_line(sock: socket.socket, msg_type: str, fields: dict[str, str]) -> Non
     sock.sendall(build_ralf_line(msg_type, fields).encode("utf-8"))
 
 
+def hello_fields(client: str, role: str, lastseq: str, epoch: str) -> dict[str, str]:
+    """The HELLO fields; a resume names the gateway run it continues.
+
+    Sequences begin again at 1 when pm-ralf-gwy restarts, so a non-zero
+    `LASTSEQ` must travel with the `EPOCH` from the `WELCOME` of the run it
+    came from (protocol reference §8). A checkpoint should store both.
+    """
+    fields = {"CLIENT": client, "PROTO": "RALF1", "ROLE": role, "LASTSEQ": lastseq}
+    if lastseq not in ("", "0"):
+        fields["EPOCH"] = epoch
+    return fields
+
+
 def subscribe(sock: socket.socket, channels: Iterable[str], symbols: str) -> None:
     """One SUB covering every channel in *channels*, all scoped to *symbols*.
 
@@ -88,9 +102,13 @@ class ChannelSequenceTracker:
     Unlike CALF, RALF sequences are per-*channel*, not per-(channel,
     symbol) -- see §8 of the protocol reference: "SEQ is maintained per
     channel ... across different channels, SEQ values are independent."
+    So a jump is a gap only on a subscription to every symbol (`SYM=*`):
+    with a symbol filter, every other symbol's trade also moves the
+    channel's SEQ, and the check is switched off.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, symbols: str = "*") -> None:
+        self._check_gaps = symbols.strip() == "*"
         self._last_seq: dict[str, int] = {}
 
     def rebaseline(self, channels: str, seq_field: str | None) -> None:
@@ -119,7 +137,7 @@ class ChannelSequenceTracker:
         except ValueError:
             return
         previous = self._last_seq.get(channel)
-        if previous is not None and seq != previous + 1:
+        if self._check_gaps and previous is not None and seq != previous + 1:
             print(
                 f"!! sequence gap on channel {channel}: "
                 f"expected {previous + 1}, got {seq}",
@@ -303,6 +321,12 @@ def main() -> None:
     )
     parser.add_argument("--symbols", default="*", help="Symbol scope for SUB")
     parser.add_argument("--lastseq", default="0")
+    parser.add_argument(
+        "--epoch",
+        default="",
+        help="WELCOME|EPOCH of the gateway run --lastseq came from "
+        "(required with a non-zero --lastseq)",
+    )
     args = parser.parse_args()
 
     channels = (
@@ -311,7 +335,7 @@ def main() -> None:
         else list(_ROLE_CHANNELS[args.role])
     )
 
-    seq_tracker = ChannelSequenceTracker()
+    seq_tracker = ChannelSequenceTracker(args.symbols)
     exec_tracker = ExecTracker()
 
     with socket.create_connection((args.host, args.port), timeout=5) as sock:
@@ -319,12 +343,7 @@ def main() -> None:
         send_line(
             sock,
             "HELLO",
-            {
-                "CLIENT": args.client,
-                "PROTO": "RALF1",
-                "ROLE": args.role,
-                "LASTSEQ": args.lastseq,
-            },
+            hello_fields(args.client, args.role, args.lastseq, args.epoch),
         )
 
         welcome = parse_ralf_line(reader.recv_line())

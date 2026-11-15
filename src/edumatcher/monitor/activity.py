@@ -125,6 +125,9 @@ WATCHED_INCREASES = {
     # pm-dc-gwy: fills of a watched participant that never reached it, so
     # its DC1 clients saw a SEQ gap they cannot fill over DC1.
     "gwy.feed_gaps": "dc_feed_gaps",
+    # pm-ralf-gwy: trades or EOD messages that never reached it; RALF numbers
+    # what it emits, so its clients' SEQ stays dense and cannot show this.
+    "gwy.bus_gaps": "ralf_bus_gaps",
     # pm-audit's archiver child failed; the day's parts stay readable.
     "audit.archive_errors": "audit_archive_errors",
     # pm-audit could not write the trail (disk full, EIO); the lines wait

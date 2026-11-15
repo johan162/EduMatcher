@@ -639,8 +639,9 @@ so a planned stop looks like a crash to clients and queued lines are lost.
 
 **Recommendation.** Port WP-RALF04 (`select.poll`, `EXIT|REASON=shutdown`
 with a bounded flush) so the three line gateways stay alike. pm-dc-gwy's share
-is now WP-DCG03 of the DC gateway review (2026-11-15); this entry remains for
-pm-md-gwy.
+is now WP-DCG03 of the DC gateway review (2026-11-15), and pm-ralf-gwy's is
+WP-RALF04 (done 2026-11-15); this entry remains for pm-md-gwy. The code to
+copy is `_read_client_data` and `_flush_for_shutdown` in either.
 
 ## L037 — Uncross prints have no TAKER in drop copy
 

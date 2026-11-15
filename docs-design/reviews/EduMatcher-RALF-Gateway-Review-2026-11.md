@@ -43,8 +43,9 @@ trailer the engine sends) with `trade.executed` payloads in the shape of
 gateway's handlers directly on a synthetic day of 10⁵ trades. The other
 findings are by inspection, with line numbers given.
 
-Status: **Open.** Decisions Q1–Q8 are needed before WP-RALF01, 02, 03, 04
-and 06.
+Status: **Done, uncommitted.** WP-RALF01–06 completed 2026-11-15 in order,
+each test-first with a full-suite run. Decisions Q1–Q8 were taken as
+recommended (the user asked for all WPs in one go); see §7.
 
 ---
 
@@ -84,12 +85,12 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit) �
 
 | # | WP | Content | Findings | Depends on | Est. | Status | Done on |
 |---|---|---|---|---|---|---|---|
-| 1 | WP-RALF01 | A checkpoint from another gateway run is never replayed as this run's | H1 | Q1 | 0.75 d | ☐ | |
-| 2 | WP-RALF02 | Engine bursts are not lost, and a loss is counted | H2, P1 | Q4 | 0.5 d | ☐ | |
-| 3 | WP-RALF03 | A resuming client receives every event from its checkpoint to live | C1, C2 | Q2, Q3 | 1 d | ☐ | |
-| 4 | WP-RALF04 | The loop serves every descriptor and a stop says goodbye | C5, C7, C8 | Q7, Q8 | 0.5 d | ☐ | |
-| 5 | WP-RALF05 | The config refuses what the gateway cannot serve | C6 | — | 0.25 d | ☐ | |
-| 6 | WP-RALF06 | Comments, help texts, guide and spec say what the code does | C3, C4, P2, D1–D14 | Q5, Q6, WP-RALF01–05 | 0.75 d | ☐ | |
+| 1 | WP-RALF01 | A checkpoint from another gateway run is never replayed as this run's | H1 | Q1 | 0.75 d | ☑ | 2026-11-15 |
+| 2 | WP-RALF02 | Engine bursts are not lost, and a loss is counted | H2, P1 | Q4 | 0.5 d | ☑ | 2026-11-15 |
+| 3 | WP-RALF03 | A resuming client receives every event from its checkpoint to live | C1, C2 | Q2, Q3 | 1 d | ☑ | 2026-11-15 |
+| 4 | WP-RALF04 | The loop serves every descriptor and a stop says goodbye | C5, C7, C8 | Q7, Q8 | 0.5 d | ☑ | 2026-11-15 |
+| 5 | WP-RALF05 | The config refuses what the gateway cannot serve | C6 | — | 0.25 d | ☑ | 2026-11-15 |
+| 6 | WP-RALF06 | Comments, help texts, guide and spec say what the code does | C3, C4, P2, D1–D14 | Q5, Q6, WP-RALF01–05 | 0.75 d | ☑ | 2026-11-15 |
 
 Suggested order: **WP-RALF01 → WP-RALF02 → WP-RALF03 → WP-RALF04 →
 WP-RALF05 → WP-RALF06**. WP-RALF01 and WP-RALF02 close the two paths where a
@@ -511,6 +512,9 @@ makes the scan frequent.
 | Q7 | Should a stop say goodbye (C7)? (a) On stop, queue `EXIT|REASON=shutdown|TS=…` to every session and flush for at most a short bound (1 s) before closing. (b) Leave as is. | **(a)**, matching the close model used for every other gateway-initiated close. pm-md-gwy and pm-dc-gwy get the same in a For-Later item (L036) so the three stay alike. |
 | Q8 | Half-closed clients (C8)? (a) Document that a half-close ends the session (as in pm-md-gwy and pm-dc-gwy). (b) Keep a half-closed session open until a send fails or it idles out. | **(a)**, for alignment with the other line gateways; (b) also needs send errors to disconnect, which they do not today (`gateway.py:313-314`). |
 
+**Taken (2026-11-15):** Q1–Q8 all (a), the recommendations, as the user asked
+for all WPs to be completed in one go.
+
 ---
 
 ## 8. Work packages
@@ -540,6 +544,32 @@ changes.
 **Exit criteria.** Tests 1–6 pass; `tests/test_ralf_*.py` and
 `tests/test_ralf_examples.py` green.
 
+**Outcome (2026-11-15).** `RalfGateway._epoch = secrets.token_hex(4)`, sent
+as `WELCOME|EPOCH=` (after `GW`). `_handle_hello` refuses `LASTSEQ` above 0
+without `EPOCH` (`ERR|CODE=BAD_MESSAGE|DETAIL=LASTSEQ requires EPOCH`, then
+close, as for a non-integer `LASTSEQ`); a different epoch is a replay miss
+(`ERR|CODE=REPLAY_MISS` + `SNAP`) whatever the `LASTSEQ`. pm-ralf-spy gains
+`--epoch` (a non-zero `--lastseq` without it is a usage error, exit 2) and
+`RalfSpyOptions.epoch`, sent beside `LASTSEQ`. The Python example gains
+`--epoch` and a `hello_fields()` helper; the C example never resumes (it
+always sends `LASTSEQ=0`), so it needed no change. Docs: spec §6 (`HELLO`
+`EPOCH`, `WELCOME` `EPOCH`), §8 (a checkpoint is the pair), §10; the guide's
+sequence diagram, Step 1, "Gap detection and replay", the examples, both
+error tables and the runbook; the spy chapter's options; pm-help;
+`make completion`.
+
+Tests: `tests/test_ralf_gateway.py` gained the review harness (the engine's
+`make_publisher`, `trade.yaml`-shaped payloads, a gateway restartable on one
+port, a threaded line client); 1 one epoch per run, new after a restart
+(failed first: `KeyError: 'EPOCH'`); 2 the H1 restart scenario (failed
+first: same); 3 `LASTSEQ` without `EPOCH` (failed first: no EOF, the session
+stayed open); 5 `LASTSEQ` absent or 0 (unchanged, passed). 4 is the existing
+`test_replay_from_lastseq`, which now sends the `EPOCH` of its first
+session. 6 in `tests/test_ralf_spy.py` (parser, usage error, and the HELLO
+fields; the usage-error test failed first with exit 1 from a refused
+connect) and `tests/test_ralf_examples.py` (`hello_fields`). Full suite:
+14 581 passed, 1 skipped.
+
 ### WP-RALF02 — Engine bursts are not lost, and a loss is counted (H2, P1; after Q4)
 
 **Tests first** (`tests/test_ralf_gateway.py`, `tests/test_ralf_gateway_unit.py`):
@@ -563,6 +593,30 @@ md-gwy's bus-sequence tracking (`md_gateway/gateway.py:940-1012`) using
 
 **Exit criteria.** Tests 1–4 pass; `tests/test_ralf_*.py` and the monitor
 tests that read `gwy.*` samples green.
+
+**Outcome (2026-11-15).** The engine SUB is made with `rcvhwm=_SUB_RCVHWM`
+(100 000). `_check_bus_sequence` is pm-md-gwy's, per engine topic (there are
+only two, `trade.executed` and `system.eod`, so the topic is the label, not a
+family): a jump adds to `gwy.bus_gaps{<topic>}` and logs one WARNING per
+topic per 60 s with a running "lost since the last warning" figure; a
+sequence at or below the last is an engine restart, logged at INFO and not
+counted. `_poll_engine_events` returns whether the 1000-event budget ran
+out, and `run()` skips the 10 ms sleep after such a pass (P1). A failed
+`recv` still ends the pass; a decode error still skips one message.
+
+Beyond the WP text, as for pm-dc-gwy's `gwy.feed_gaps`: pm-monitor watches
+the counter (`WATCHED_INCREASES` `gwy.bus_gaps` → rule `ralf_bus_gaps`, any
+increase in 5 min), mirrored in dash-gui's `FIXED_RULES` and the
+health-monitor chapter's rule table; the WARNING has a log-ledger entry;
+`tests/test_health_contract.py` lists the counter's owner.
+
+Tests (`tests/test_ralf_gateway.py`, on the engine's sequenced publisher):
+1 the H2 burst, 20 000 trades with ten AUDIT sessions (failed first: 17 499
+per channel); 2 a jump of 5 then 2 counts 5 then 7 with one WARNING (failed
+first: `{}`); 3 a sequence back to 1 is an INFO restart, no gap (failed
+first: no INFO record); 4 with 2 500 events queued, the first sleep comes
+after all 2 500 (failed first: after 1 000). Full suite: 14 585 passed,
+1 skipped.
 
 ### WP-RALF03 — A resuming client receives every event from its checkpoint to live (C1, C2; after Q2, Q3)
 
@@ -596,6 +650,50 @@ deviation"; spec and guide describe the new order.
 replay of test 5 completes in under 2 s on this host (a guess, to be
 measured).
 
+**Outcome (2026-11-15).** `HELLO` now only records the checkpoint
+(`ClientSession.last_seq_seen`, and `same_run` = its `EPOCH` is this run's);
+`_handle_sub` notes the pairs it held before, adds the new ones, and, when the
+session has a checkpoint, calls `_replay_for_sub` before queueing its `SNAP`,
+all in one pass. `_replay_for_sub` (replacing `_replay_from`) checks the miss
+conditions for the `SUB`'s channels only (foreign epoch, `LASTSEQ` ahead of a
+channel or older than its journal) and answers `ERR|CODE=REPLAY_MISS`, the
+`SNAP` following as the baseline; otherwise it queues, in journal order, the
+lines after `LASTSEQ` that the new pairs want and the old did not, so replay
+is subscription-filtered and each channel/symbol is replayed once. The
+spec's "known deviation" and the unused `_entitled_channels` are gone;
+matching moved to a module-level `_wants()`. A `SUB` after an `UNSUB` of the
+same pair replays it again from `LASTSEQ` (duplicates, never a loss; a client
+de-duplicates by `SEQ`).
+
+C2: `ClientSession.replay_allowance` counts the replayed lines; the
+slow-client check allows `max_client_queue + replay_allowance`, and after
+every flush the allowance shrinks to the queue length, so it is released as
+the replay drains and live overflow beyond it is still `SLOW_CLIENT`;
+`_drop_backlog` resets it. A client that stops reading during a replay is
+still dropped by the idle timeout (that path did not change).
+
+Docs: spec §6 `SUB`, §8 (replay order, miss on `SUB`, allowance), §9, §12;
+the guide's Step 3, recovery options and runbook; training exercise 6 (which
+said replay arrives before `SUB`, and now needs `EPOCH`); the spy chapter,
+`--lastseq` help, the spy client docstring and pm-help.
+
+Tests (`tests/test_ralf_gateway.py`): 1 the C1 repro, SEQ 7–14 then
+`SNAP` 14 then 15–16 (failed first: the `SNAP` came after 13 lines short); 2
+DROP_COPY `SYM=AAPL` resumes only AAPL (failed first: MSFT lines too); 3
+AUDIT `SUB CLEARING`, `SUB CLEARING,AUDIT`, `SUB CLEARING SYM=AAPL`: each
+channel once, no DROP_COPY (failed first: DROP_COPY replayed at HELLO); 5 the
+C2 repro, 30 000 lines to a 256 KiB reader 50 ms late, no `ERR` (failed
+first: `SLOW_CLIENT`). In `tests/test_ralf_gateway_unit.py` the replay
+tests that called `_replay_from` now go through `HELLO`+`SUB` (4: a miss is
+the `SUB` reply, nothing after `HELLO`; failed first: `ERR`,`SNAP` came
+after `HELLO`), plus 6 the allowance (20 replayed lines then 5 live is fine
+with `max_client_queue=5`, the 6th live line is `SLOW_CLIENT`). 7 is the
+existing fresh-session tests, unchanged. The existing
+`test_replay_from_lastseq` now sends its `SUB`. Measured: the 30 000-line
+replay completes in 0.36–0.49 s standalone (under 2 s); the first
+`-n logical` run took 2.006 s because the test client re-parsed every line
+on each poll, fixed in the harness. Full suite: 14 590 passed, 1 skipped.
+
 ### WP-RALF04 — The loop serves every descriptor and a stop says goodbye (C5, C7, C8; after Q7, Q8)
 
 **Tests first** (`tests/test_ralf_gateway.py`, `tests/test_ralf_gateway_unit.py`):
@@ -620,6 +718,34 @@ closing; text for C8 in spec §3.
 gateway with 64 non-reading clients completes within 1.5 s (measured in
 test 3).
 
+**Outcome (2026-11-15).** pm-dc-gwy's WP-DCG03 code, ported:
+`_read_client_data` builds a `select.poll` over the client descriptors each
+pass and lets `recv` settle every event; the WARNING is now `read poll
+failed: %s` (log-ledger entry renamed). On a normal stop `run()` calls
+`_flush_for_shutdown()`: one more engine pass, `EXIT|REASON=shutdown|TS=…`
+to every session not already closing, then a flush bounded by
+`SHUTDOWN_FLUSH_SEC` = 1 s; sessions that drain are disconnected as
+`shutdown`. `close()` disconnects the rest through `_disconnect` (counted,
+reason `shutdown` or the reason a session was already closing with). Not
+run after a crash. Half-close (Q8 a) is unchanged and now documented: spec
+§3, the guide's Step 6. Docs also: spec §6 `EXIT` reasons, the guide's Step
+6 (the stop's `EXIT`), the reference manual's "Messages published" row.
+
+Tests (`tests/test_ralf_gateway.py`): 1 a client on a descriptor above 1023
+gets `WELCOME` and `PONG`, no read WARNING (failed first: timeout, `read
+select failed` logged every pass); 2 three queued `EXEC` then
+`EXIT|REASON=shutdown` before EOF, `shutdown` counted (failed first: no
+`EXIT`); 3 one AUDIT client with a 4 KiB receive buffer that reads nothing,
+20 000 trades queued, stop under 1.5 s (failed first on the `shutdown`
+count; the timing passed before too, close() was immediate); 4 half-close
+is `peer_closed` after `WELCOME`, `SNAP` (unchanged, passed). The exit
+criterion's "64 non-reading clients" was tested with one: the bound is one
+deadline shared by all sessions, not per session. Full suite: 14 594
+passed, 1 skipped.
+
+pm-ralf-gwy and pm-dc-gwy now share this code; pm-md-gwy still has the
+`select` loop and the silent stop (L036).
+
 ### WP-RALF05 — The config refuses what the gateway cannot serve (C6)
 
 **Tests first** (`tests/test_ralf_config.py`, `tests/test_ralf_protocol.py`):
@@ -639,6 +765,25 @@ test 3).
 
 **Exit criteria.** Tests 1–5 pass; `tests/test_ralf_config.py`,
 `tests/test_cverifier*.py`, `tests/test_config_deploy*.py` green.
+
+**Outcome (2026-11-15).** `_load_ralf_gateway_config_from_raw` refuses an
+empty `name` or one containing `|`, CR or LF
+(`post_trade_gateway.name must be non-empty, without '|' or line breaks`, as
+pm-dc-gwy's), and an `allowed_roles` list that is empty or names anything
+but `CLEARING`, `DROP_COPY`, `AUDIT` (after upper-casing). `build_line`
+refuses CR/LF in a key or value. The dead second `port <= 0` check is gone
+(D9). pm-cverifier runs the same loader, so `pm-config-deploy` refuses both:
+`tests/test_cverifier_deploy_agreement.py` gained a `post_trade_gateway`
+block in its base config and two cases (`name: ralf|01`,
+`allowed_roles: [RISK]`), which failed without the loader change ("the case
+must be one the loaders refuse"); that test stands for WP test 4. Docs: the
+formal specification's §6.4 constraints and the protocol spec's §11 table.
+
+Tests: 4 refused names, 3 refused role lists, an ordinary name kept and
+roles upper-cased in `tests/test_ralf_config.py`; 2 line breaks in
+`tests/test_ralf_protocol.py` (every refusal failed first with DID NOT
+RAISE). Test 5 (defaults and bundled configs load) is the existing suite.
+Full suite: 14 607 passed, 1 skipped.
 
 ### WP-RALF06 — Comments, help texts, guide and spec say what the code does (C3, C4, P2, D1–D14; after Q5, Q6 and WP-RALF01–05)
 
@@ -661,6 +806,47 @@ WP-RALF01–04 (lessons-learned §B1).
 
 **Exit criteria.** Tests 1–3 pass; `make _check` and `mkdocs build` clean;
 the full suite green.
+
+**Outcome (2026-11-15).** D7/D8: `--engine-pub` help names the real default
+(`tcp://$EDUMATCHER_ENGINE_HOST:5556`, 127.0.0.1 when unset, no config key)
+and `-q` reads "Explicit WARNING log level (the default)", in `--help`, the
+guide, the reference manual and pm-help; `make completion`. D14: M016 and
+its check `_check_post_trade_admin` are removed, and its row in the verifier
+chapter. C4/Q6 (a): the Python example's `ChannelSequenceTracker` takes the
+`--symbols` value and checks gaps only for `*` (the C example always
+subscribes `SYM=*`); spec §8, the guide's gap rule and annotated subscriber
+say so. C3/Q5 (a): spec §6 `EOD` and a new guide section "What `EOD` means"
+(sent when the engine stops; `TRADE_COUNT` counts this gateway run's lines;
+`TS` is receipt time; reconcile from pm-clearing or REST). D1 (`HB` every
+interval) in spec §5 and three guide places; D2 (no `CLIENT` limit); D3
+(`DROP_COPY` carries `EOD`); D4 (`SIDE` may be `AUCTION`); D5 with C3; D6
+(the deployed compiled config); D10 with C4; D11 (the "lossless" note now
+says when replay is complete and when it is not); D12 (the
+suspected-bugs sentence removed, as the spec has no deviations left); D13
+(field order not significant, spec §4). P2: the measured journal cost
+(about 1.3 KB per trade, 20–35 ms per replay scan at 10⁵ trades) and the
+`gwy.bus_gaps` signal in the guide's operational notes. D9 was done in
+WP-RALF05.
+
+Re-walk (lessons-learned §B1): the guide's quick start, Steps 1–6, gap
+detection and replay, quick-connect, annotated subscriber, bundled
+examples, error tables and runbook; the spec end to end; the spy chapter;
+training chapter 22 (`220-ralf.md`); the reference manual section; the
+verifier and health-monitor chapters. **Follow-up found on the way:**
+training exercise 4 said `UNSUB|CH=CLEARING|SYM=AAPL` after
+`SUB|CH=CLEARING|SYM=*` stops AAPL; `_handle_unsub` removes exactly the
+named pairs, so it does not. The code is consistent (UNSUB is the inverse of
+SUB); the texts were wrong. A unit test pins the behaviour (passed as
+written); the exercise now subscribes `AAPL,MSFT`, and the spec §6 and the
+guide's Step 4 state the rule. Training's `EXIT` note gained `shutdown`.
+L036 now names pm-ralf-gwy's code as the one to copy.
+
+Tests: two in `tests/test_ralf_main.py` (both failed first on the old
+texts); `tests/test_cverifier.py`'s M016 test inverted (failed first:
+M016 present) and the bad-shape test no longer expects M016; one example
+test (failed first: `ChannelSequenceTracker` took no argument).
+`make _check` and `mkdocs build` clean; the new anchor `#what-eod-means`
+exists in the built site. Full suite: 14 611 passed, 1 skipped.
 
 ---
 

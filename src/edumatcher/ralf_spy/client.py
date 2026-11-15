@@ -46,6 +46,9 @@ class RalfSpyOptions:
     channels: list[str] = field(default_factory=list)
     symbols: list[str] = field(default_factory=lambda: ["*"])
     last_seq: int = 0
+    #: The WELCOME|EPOCH of the gateway run ``last_seq`` came from; sent
+    #: beside a non-zero ``last_seq``, which the gateway refuses without it.
+    epoch: str = ""
     ping_interval_sec: float = _DEFAULT_PING_INTERVAL_SEC
 
 
@@ -106,9 +109,9 @@ class RalfSpyClient:
         """Send HELLO (with role and optional LASTSEQ) and return WELCOME.
 
         Unlike CALF, RALF has no separate ``RESUME`` command -- a non-zero
-        ``LASTSEQ`` directly on ``HELLO`` triggers replay for every channel
-        the chosen ``ROLE`` is entitled to (see
-        :meth:`RalfSpyOptions.last_seq`).
+        ``LASTSEQ`` (with its ``EPOCH``) on ``HELLO`` is the checkpoint, and
+        each later ``SUB`` is answered with the events after it on the pairs
+        that ``SUB`` adds (see :meth:`RalfSpyOptions.last_seq`).
 
         Raises :class:`RalfSpyConnectionError` if the connection closes
         before a WELCOME arrives, or if the gateway sends ERR instead.
@@ -120,6 +123,7 @@ class RalfSpyClient:
         }
         if self._opts.last_seq > 0:
             hello_fields["LASTSEQ"] = str(self._opts.last_seq)
+            hello_fields["EPOCH"] = self._opts.epoch
         self._send_line("HELLO", hello_fields)
 
         line = self._recv_line()

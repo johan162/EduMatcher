@@ -39,6 +39,12 @@ def _load_ralf_gateway_config_from_raw(raw: dict[str, Any]) -> RalfGatewayConfig
         raise ValueError("post_trade_gateway must be a mapping")
 
     name = str(pg.get("name", "ralf-gwy01"))
+    # Sent as WELCOME|...|GW=<name>: build_line refuses these characters, which
+    # would end the gateway at the first HELLO.
+    if not name or any(ch in name for ch in "|\r\n"):
+        raise ValueError(
+            "post_trade_gateway.name must be non-empty, without '|' or line breaks"
+        )
     bind_address = resolve_gateway_bind_host(pg.get("bind_address"))
     port = _as_int(pg.get("port", 5580), "port")
     if port <= 0 or port > 65535:
@@ -57,9 +63,15 @@ def _load_ralf_gateway_config_from_raw(raw: dict[str, Any]) -> RalfGatewayConfig
     if not isinstance(allowed_roles_raw, list):
         raise ValueError("post_trade_gateway.allowed_roles must be a list")
     allowed_roles = tuple(str(x).upper() for x in allowed_roles_raw)
+    # A role is also the channel it may read: any other name authenticated and
+    # was then denied every SUB, and an empty list refused every HELLO.
+    unknown = [r for r in allowed_roles if r not in ("CLEARING", "DROP_COPY", "AUDIT")]
+    if not allowed_roles or unknown:
+        raise ValueError(
+            "post_trade_gateway.allowed_roles must be a non-empty list of "
+            f"CLEARING, DROP_COPY, AUDIT (got {list(allowed_roles)})"
+        )
 
-    if port <= 0:
-        raise ValueError("post_trade_gateway.port must be > 0")
     if replay_retention_sec <= 0:
         raise ValueError("post_trade_gateway.replay_retention_sec must be > 0")
     if heartbeat_interval_sec <= 0:

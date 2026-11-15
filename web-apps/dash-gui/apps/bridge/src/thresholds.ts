@@ -50,6 +50,7 @@ export const FIXED_RULES: Record<string, ThresholdRule> = {
   stats_feed_gaps: { warn: 0, crit: null, invert: false, configurable: false },
   md_bus_gaps: { warn: 0, crit: null, invert: false, configurable: false },
   dc_feed_gaps: { warn: 0, crit: null, invert: false, configurable: false },
+  ralf_bus_gaps: { warn: 0, crit: null, invert: false, configurable: false },
   slow_client_disconnects: { warn: 0, crit: null, invert: false, configurable: false },
 };
 

@@ -93,7 +93,8 @@ occur (and until the next end-of-day cycle for `EOD`).
 | `--role` | `AUDIT` | `HELLO\|ROLE=` to authenticate as: `CLEARING`, `DROP_COPY`, or `AUDIT`. `AUDIT` is the most useful default for a spy tool since it is entitled to every channel |
 | `--channels` | `*` | Comma-separated channels, e.g. `CLEARING,DROP_COPY`. `*` subscribes to every channel `--role` is entitled to (all three for `AUDIT`; just its own name for `CLEARING`/`DROP_COPY`) |
 | `--symbols` | `*` | Comma-separated symbols, e.g. `AAPL,MSFT`. `*` subscribes to every symbol — RALF has no per-channel wildcard restriction the way CALF's `INDEX`/`DEPTH`/`CB` do |
-| `--lastseq` | `0` | Requests replay on connect via `HELLO\|LASTSEQ=N` for every channel `--role` is entitled to (`0` = no replay) |
+| `--lastseq` | `0` | Sends the checkpoint on connect as `HELLO\|LASTSEQ=N`; the spy's `SUB` is then answered with the events after it on the subscribed channels and symbols (`0` = no replay) |
+| `--epoch` | — | The `WELCOME\|EPOCH` of the gateway run `--lastseq` came from; required with a non-zero `--lastseq` (a usage error without it). A checkpoint from another run of `pm-ralf-gwy` gets `ERR\|CODE=REPLAY_MISS` and a fresh `SNAP` |
 
 `--channels`/`--symbols` are applied as a single `SUB` for the full
 Cartesian product. If a requested channel is outside your role's
@@ -103,10 +104,13 @@ aborting the whole session, so you can see exactly what was rejected.
 
 !!! note "`--lastseq` vs. CALF's `RESUME`"
     RALF has no separate resume message: a non-zero `LASTSEQ` goes directly
-    on `HELLO` and requests replay across **every** channel your role is
-    entitled to at once (not scoped to one channel/symbol pair the way
-    CALF's `RESUME|CH=..|SYM=..` is). If the requested sequence is
-    older than `replay_retention_sec`, the gateway sends
+    on `HELLO`, and the replay covers whatever the spy's `SUB` then
+    subscribes (`--channels` × `--symbols`, possibly several channels at
+    once), not one channel/symbol pair the way CALF's
+    `RESUME|CH=..|SYM=..` is. Like `RESUME`, it must name the
+    gateway run it came from (`--epoch`, from the `WELCOME` the spy prints).
+    If the checkpoint is from another run, or older than
+    `replay_retention_sec`, the gateway sends
     `ERR|CODE=REPLAY_MISS` followed by a fresh `SNAP` — accept it and reset
     any local state.
 

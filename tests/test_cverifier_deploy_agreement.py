@@ -62,6 +62,7 @@ _BASE: dict[str, Any] = {
         {"id": "MM01", "role": "MARKET_MAKER"},
     ],
     "dc_gateway": {"heartbeat_interval_sec": 2, "idle_timeout_sec": 20},
+    "post_trade_gateway": {"heartbeat_interval_sec": 2, "idle_timeout_sec": 20},
     "symbols": {
         "AAPL": {
             "tick_decimals": 2,
@@ -182,6 +183,9 @@ _MUTATIONS: list[tuple[tuple[Any, ...], Any]] = [
     (("dc_gateway", "port"), None),
     # A name WELCOME cannot carry (DC review C6).
     (("dc_gateway", "name"), "dc|01"),
+    # The same for pm-ralf-gwy (RALF review C6), and a role with no channel.
+    (("post_trade_gateway", "name"), "ralf|01"),
+    (("post_trade_gateway", "allowed_roles"), ["RISK"]),
 ]
 
 

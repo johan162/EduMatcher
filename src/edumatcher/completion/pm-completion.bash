@@ -8094,7 +8094,7 @@ complete -o bashdefault -F _shtab_pm_ralf_gwy pm-ralf-gwy
 
 
 
-_shtab_pm_ralf_spy_option_strings=(-h --help --version --host --port --client-name --role --channels --symbols --lastseq --ping-interval --format --raw --no-color --show-heartbeats --count --log-level -v --verbose -q --quiet --log-target --log-file --log-failover-timeout)
+_shtab_pm_ralf_spy_option_strings=(-h --help --version --host --port --client-name --role --channels --symbols --lastseq --epoch --ping-interval --format --raw --no-color --show-heartbeats --count --log-level -v --verbose -q --quiet --log-target --log-file --log-failover-timeout)
 
 
 

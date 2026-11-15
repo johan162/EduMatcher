@@ -1692,13 +1692,14 @@ class TestLayer3AdminGateway:
         results = layer3_semantic.check(raw, Path("x.yaml"))
         assert "C010" in _codes(results)
 
-    def test_m016_post_trade_no_admin(self) -> None:
+    def test_post_trade_gateway_needs_no_admin_gateway(self) -> None:
+        """pm-ralf-gwy has no admin commands (RALF review D14): M016 is gone."""
         raw = _raw(
             "symbols:\n  AAPL: {}\nparticipants:\n    - id: GW01\n      role: TRADER\n"
             "post_trade_gateway:\n  id: RALF01\n"
         )
         results = layer3_semantic.check(raw, Path("x.yaml"))
-        assert "M016" in _codes(results)
+        assert "M016" not in _codes(results)
 
     def test_admin_gateway_checks_tolerate_bad_gateway_shape(self) -> None:
         raw = _raw(
@@ -1710,7 +1711,6 @@ class TestLayer3AdminGateway:
         )
         results = layer3_semantic.check(raw, Path("x.yaml"))
         assert "M013" in _codes(results)
-        assert "M016" in _codes(results)
 
     def test_admin_gateway_checks_return_on_invalid_participants_container(
         self,

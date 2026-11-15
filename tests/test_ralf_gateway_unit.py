@@ -105,10 +105,30 @@ def test_parse_error_branch(unit_gateway: RalfGateway) -> None:
     peer.close()
 
 
-def test_replay_miss_emits_err_and_snap(unit_gateway: RalfGateway) -> None:
+def _resume(
+    gw: RalfGateway,
+    sess: ClientSession,
+    last_seq: int,
+    sub: str,
+    *,
+    role: str = "CLEARING",
+) -> tuple[list[str], list[str]]:
+    """HELLO with a checkpoint of this run, then ``sub``: the message types
+    queued after the WELCOME, and those queued in reply to the SUB."""
+    gw._handle_client_line(
+        sess,
+        f"HELLO|CLIENT=x|PROTO=RALF1|ROLE={role}|LASTSEQ={last_seq}"
+        f"|EPOCH={gw._epoch}",
+    )
+    after_hello = [parse_line(x.decode()).msg_type for x in sess.out_queue][1:]
+    sess.out_queue.clear()
+    gw._handle_client_line(sess, sub)
+    return after_hello, [parse_line(x.decode()).msg_type for x in sess.out_queue]
+
+
+def test_replay_miss_is_the_sub_reply(unit_gateway: RalfGateway) -> None:
+    """WP-RALF03: HELLO only records the checkpoint; the SUB answers it."""
     sess, peer = _make_session()
-    sess.authenticated = True
-    sess.role = "CLEARING"
     unit_gateway._journal.append(
         JournalEvent(
             seq=100,
@@ -118,36 +138,26 @@ def test_replay_miss_emits_err_and_snap(unit_gateway: RalfGateway) -> None:
             symbol="AAPL",
         )
     )
-    unit_gateway._replay_from(sess, last_seq=1)
-    assert len(sess.out_queue) >= 2
-    err = parse_line(sess.out_queue[0].decode("utf-8"))
-    snap = parse_line(sess.out_queue[1].decode("utf-8"))
-    assert err.msg_type == "ERR"
-    assert err.fields["CODE"] == "REPLAY_MISS"
-    assert snap.msg_type == "SNAP"
+    unit_gateway._next_seq_by_channel["CLEARING"] = 101
+    after_hello, reply = _resume(unit_gateway, sess, 1, "SUB|CH=CLEARING|SYM=*")
+    assert after_hello == []
+    assert reply == ["ERR", "SNAP"]
+    assert b"CODE=REPLAY_MISS" in sess.out_queue[0]
     peer.close()
 
 
-def _clearing_session() -> tuple[ClientSession, socket.socket]:
-    sess, peer = _make_session()
-    sess.authenticated = True
-    sess.role = "CLEARING"
-    return sess, peer
-
-
-def _trade(unit_gateway: RalfGateway, trade_id: str) -> None:
+def _trade(unit_gateway: RalfGateway, trade_id: str, symbol: str = "AAPL") -> None:
     unit_gateway._handle_trade(
-        {"id": trade_id, "symbol": "AAPL", "quantity": 1, "price": 1.0}
+        {"id": trade_id, "symbol": symbol, "quantity": 1, "price": 1.0}
     )
 
 
 def test_replay_ahead_of_the_journal_is_a_miss(unit_gateway: RalfGateway) -> None:
     """W5: after a gateway restart the journal is empty and a client's
     LASTSEQ is from the old run; that used to be a silent empty replay."""
-    sess, peer = _clearing_session()
-    unit_gateway._replay_from(sess, last_seq=10)
-    codes = [parse_line(x.decode()).msg_type for x in sess.out_queue]
-    assert codes == ["ERR", "SNAP"]
+    sess, peer = _make_session()
+    _, reply = _resume(unit_gateway, sess, 10, "SUB|CH=CLEARING|SYM=*")
+    assert reply == ["ERR", "SNAP"]
     assert b"CODE=REPLAY_MISS" in sess.out_queue[0]
     assert b"SEQ=0" in sess.out_queue[1]
     peer.close()
@@ -156,33 +166,72 @@ def test_replay_ahead_of_the_journal_is_a_miss(unit_gateway: RalfGateway) -> Non
 def test_replay_after_everything_aged_out_is_a_miss(
     unit_gateway: RalfGateway,
 ) -> None:
-    sess, peer = _clearing_session()
+    sess, peer = _make_session()
     for trade_id in ("T1", "T2", "T3"):
         _trade(unit_gateway, trade_id)
     unit_gateway._journal.clear()  # all pruned by retention
-    unit_gateway._replay_from(sess, last_seq=1)
-    assert b"CODE=REPLAY_MISS" in sess.out_queue[0]
+    _, reply = _resume(unit_gateway, sess, 1, "SUB|CH=CLEARING|SYM=*")
+    assert reply == ["ERR", "SNAP"]
     assert b"SEQ=3" in sess.out_queue[1]
     peer.close()
 
 
-def test_replay_when_up_to_date_sends_nothing(unit_gateway: RalfGateway) -> None:
-    sess, peer = _clearing_session()
+def test_replay_when_up_to_date_sends_only_the_snap(unit_gateway: RalfGateway) -> None:
+    sess, peer = _make_session()
     for trade_id in ("T1", "T2"):
         _trade(unit_gateway, trade_id)
     unit_gateway._journal.clear()  # nothing retained, but nothing missed
-    unit_gateway._replay_from(sess, last_seq=2)
-    assert not sess.out_queue
+    _, reply = _resume(unit_gateway, sess, 2, "SUB|CH=CLEARING|SYM=*")
+    assert reply == ["SNAP"]
     peer.close()
 
 
 def test_replay_resends_what_follows_last_seq(unit_gateway: RalfGateway) -> None:
-    sess, peer = _clearing_session()
+    sess, peer = _make_session()
     for trade_id in ("T1", "T2", "T3"):
         _trade(unit_gateway, trade_id)
-    unit_gateway._replay_from(sess, last_seq=1)
-    assert [b"SEQ=2" in x or b"SEQ=3" in x for x in sess.out_queue] == [True, True]
+    _, reply = _resume(unit_gateway, sess, 1, "SUB|CH=CLEARING|SYM=*")
+    assert reply == ["EXEC", "EXEC", "SNAP"]
+    assert [b"SEQ=2" in x or b"SEQ=3" in x for x in list(sess.out_queue)[:2]] == [
+        True,
+        True,
+    ]
     peer.close()
+
+
+def test_replay_audit_role_receives_each_subscribed_channel(
+    unit_gateway: RalfGateway,
+) -> None:
+    """An AUDIT session is replayed every channel it subscribes, once each."""
+    sess, peer = _make_session()
+    for trade_id in ("T1", "T2"):
+        _trade(unit_gateway, trade_id)
+    _, reply = _resume(
+        unit_gateway, sess, 1, "SUB|CH=CLEARING,DROP_COPY,AUDIT|SYM=*", role="AUDIT"
+    )
+    assert reply == ["EXEC", "EXEC", "EXEC", "SNAP"]
+    channels = [parse_line(x.decode()).fields["CH"] for x in list(sess.out_queue)[:3]]
+    assert sorted(channels) == ["AUDIT", "CLEARING", "DROP_COPY"]
+    peer.close()
+
+
+def test_replay_for_a_clearing_role_is_its_channel_only(
+    unit_gateway: RalfGateway,
+) -> None:
+    sess, peer = _make_session()
+    for trade_id in ("T1", "T2"):
+        _trade(unit_gateway, trade_id)
+    _, reply = _resume(unit_gateway, sess, 1, "SUB|CH=CLEARING|SYM=*")
+    assert reply == ["EXEC", "SNAP"]
+    assert b"CH=CLEARING" in sess.out_queue[0]
+    peer.close()
+
+
+def _clearing_session() -> tuple[ClientSession, socket.socket]:
+    sess, peer = _make_session()
+    sess.authenticated = True
+    sess.role = "CLEARING"
+    return sess, peer
 
 
 def test_handle_eod_emits_for_subscribed_channels(unit_gateway: RalfGateway) -> None:
@@ -244,56 +293,6 @@ def test_prune_journal(unit_gateway: RalfGateway) -> None:
     unit_gateway._prune_journal()
     assert len(unit_gateway._journal) == 1
     assert unit_gateway._journal[0].seq == 2
-
-
-def test_replay_filters_by_role_entitlement(unit_gateway: RalfGateway) -> None:
-    """A CLEARING-role session must not receive DROP_COPY or AUDIT events."""
-    sess, peer = _make_session()
-    sess.authenticated = True
-    sess.role = "CLEARING"
-
-    for seq, ch in ((1, "CLEARING"), (1, "DROP_COPY"), (1, "AUDIT")):
-        unit_gateway._journal.append(
-            JournalEvent(
-                seq=seq,
-                created_mono=time.monotonic(),
-                line=f"EXEC|CH={ch}|SYM=AAPL|SEQ={seq}\n".encode(),
-                channel=ch,
-                symbol="AAPL",
-            )
-        )
-
-    unit_gateway._replay_from(sess, last_seq=0)
-
-    replayed = [parse_line(m.decode()) for m in sess.out_queue]
-    channels = [f.fields["CH"] for f in replayed]
-    assert channels == ["CLEARING"]
-    peer.close()
-
-
-def test_replay_audit_role_receives_all_channels(unit_gateway: RalfGateway) -> None:
-    """An AUDIT-role session must receive events from all channels."""
-    sess, peer = _make_session()
-    sess.authenticated = True
-    sess.role = "AUDIT"
-
-    for seq, ch in ((1, "CLEARING"), (1, "DROP_COPY"), (1, "AUDIT")):
-        unit_gateway._journal.append(
-            JournalEvent(
-                seq=seq,
-                created_mono=time.monotonic(),
-                line=f"EXEC|CH={ch}|SYM=AAPL|SEQ={seq}\n".encode(),
-                channel=ch,
-                symbol="AAPL",
-            )
-        )
-
-    unit_gateway._replay_from(sess, last_seq=0)
-
-    replayed = [parse_line(m.decode()) for m in sess.out_queue]
-    channels = [f.fields["CH"] for f in replayed]
-    assert set(channels) == {"CLEARING", "DROP_COPY", "AUDIT"}
-    peer.close()
 
 
 def test_emit_event_uses_per_channel_seq(unit_gateway: RalfGateway) -> None:
@@ -450,3 +449,65 @@ def test_engine_events_are_bounded_per_pass(unit_gateway: RalfGateway) -> None:
     unit_gateway._poll_engine_events()
     unit_gateway._sub = real_sub
     assert endless.reads == ralf_mod._MAX_ENGINE_EVENTS_PER_LOOP
+
+
+class _BlockedSocket:
+    """A client socket whose peer has stopped reading: every send blocks."""
+
+    def __init__(self, fd: int) -> None:
+        self._fd = fd
+
+    def fileno(self) -> int:
+        return self._fd
+
+    def send(self, _data: bytes) -> int:
+        raise BlockingIOError
+
+    def close(self) -> None:
+        pass
+
+
+def test_replayed_lines_do_not_count_towards_the_slow_client_limit() -> None:
+    """WP-RALF03 (review C2): the limit applies to what is queued beyond the
+    replay; live overflow after it is still SLOW_CLIENT."""
+    gateway_port, engine_pub_port = free_ports(2)
+    gw = RalfGateway(
+        RalfGatewayConfig(
+            bind_address="127.0.0.1",
+            port=gateway_port,
+            engine_pub_addr=f"tcp://127.0.0.1:{engine_pub_port}",
+            max_client_queue=5,
+        )
+    )
+    try:
+        sess = ClientSession(sock=_BlockedSocket(9999), addr=("local", 0))  # type: ignore[arg-type]
+        gw._clients[9999] = sess
+        for n in range(21):
+            _trade(gw, f"T{n}")
+        _resume(gw, sess, 1, "SUB|CH=CLEARING|SYM=*")
+        assert len(sess.out_queue) == 21  # 20 replayed + SNAP
+        gw._flush_client_writes()
+        assert not sess.closing
+
+        for n in range(4):  # 25 queued: 5 beyond the 20 replayed
+            _trade(gw, f"L{n}")
+        gw._flush_client_writes()
+        assert not sess.closing
+
+        _trade(gw, "L4")  # 26: one live line too many
+        gw._flush_client_writes()
+        assert sess.closing and sess.close_reason == "slow_client"
+    finally:
+        gw._clients.clear()
+        gw.close()
+
+
+def test_unsub_removes_only_the_exact_pair(unit_gateway: RalfGateway) -> None:
+    """UNSUB of one symbol does not carve it out of a SYM=* subscription
+    (found re-walking training ch. 22, exercise 4)."""
+    sess, peer = _clearing_session()
+    unit_gateway._handle_client_line(sess, "SUB|CH=CLEARING|SYM=*")
+    unit_gateway._handle_client_line(sess, "UNSUB|CH=CLEARING|SYM=AAPL")
+    assert sess.subscriptions == {("CLEARING", "*")}
+    assert unit_gateway._session_wants(sess, "CLEARING", "AAPL")
+    peer.close()

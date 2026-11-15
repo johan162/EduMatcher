@@ -712,7 +712,7 @@ _EXTERNAL_GATEWAYS: tuple[CommandInfo, ...] = (
             Option("--port PORT", "5580", "TCP listen port for RALF clients"),
             Option(
                 "--engine-pub ADDR",
-                "tcp://127.0.0.1:5556",
+                "tcp://$EDUMATCHER_ENGINE_HOST:5556",
                 "Engine PUB address consumed by the gateway",
             ),
         ),
@@ -906,7 +906,12 @@ _PROTOCOL_SPIES: tuple[CommandInfo, ...] = (
             Option(
                 "--lastseq N",
                 "0",
-                "Requests replay on connect via HELLO|LASTSEQ=N (0 = no replay)",
+                "Checkpoint sent as HELLO|LASTSEQ=N, replayed on SUB (0 = none)",
+            ),
+            Option(
+                "--epoch HEX",
+                "",
+                "WELCOME|EPOCH of the run --lastseq came from; required with it",
             ),
             Option(
                 "--ping-interval SEC",

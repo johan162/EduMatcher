@@ -86,7 +86,6 @@ def check(raw: dict[str, Any], path: Path) -> list[CheckResult]:  # noqa: ARG001
     _check_indices(raw, results)
     _check_combos(raw, results)
     _check_admin_gateway(raw, results)
-    _check_post_trade_admin(raw, results)
     _check_balf_gateway_semantic(raw, results)
     _check_gateway_port_collisions(raw, results)
     _check_api_gateway_semantic(raw, results)
@@ -925,28 +924,6 @@ def _check_admin_gateway(raw: dict[str, Any], results: list[CheckResult]) -> Non
                     path=f"participants[{n}].disconnect_behaviour",
                 )
             )
-
-
-def _check_post_trade_admin(raw: dict[str, Any], results: list[CheckResult]) -> None:
-    post_trade = raw.get("post_trade_gateway")
-    if post_trade is None:
-        return
-    admin_gateways = gateway_ids_by_role(raw, "ADMIN")
-    if not admin_gateways:
-        results.append(
-            CheckResult(
-                code="M016",
-                severity=Severity.WARN,
-                message=(
-                    "post_trade_gateway is configured but no ADMIN gateway exists."
-                ),
-                suggestion=(
-                    "RALF admin commands (replay, etc.) will be unavailable. "
-                    "Add a gateway with role: ADMIN."
-                ),
-                path="post_trade_gateway",
-            )
-        )
 
 
 def _check_balf_gateway_semantic(

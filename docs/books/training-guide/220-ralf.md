@@ -246,7 +246,7 @@ Then send lines:
 
 ```text
 HELLO|CLIENT=manual01|PROTO=RALF1|ROLE=CLEARING|LASTSEQ=0
-SUB|CH=CLEARING|SYM=*
+SUB|CH=CLEARING|SYM=AAPL,MSFT
 PING
 UNSUB|CH=CLEARING|SYM=AAPL
 ```
@@ -255,11 +255,13 @@ Expected behavior:
 
 - PING yields `PONG|TS=…`
 - UNSUB updates the delivery set and sends no reply of its own: trades in AAPL
-  stop arriving, other symbols continue
+  stop arriving, MSFT continues. `UNSUB` removes exactly the pairs it names,
+  so `UNSUB|CH=CLEARING|SYM=AAPL` after `SUB|CH=CLEARING|SYM=*` changes
+  nothing: the `*` pair still matches AAPL
 
 !!! note "`EXIT` goes both ways"
     The gateway sends `EXIT|REASON=…|TS=…` when it ends a session (e.g.
-    `EXIT|REASON=idle_timeout`). A client may send a bare `EXIT` to end its
+    `EXIT|REASON=idle_timeout`, or `shutdown` when it is stopped). A client may send a bare `EXIT` to end its
     own session; the gateway closes after flushing pending output. All three
     line gateways (`pm-md-gwy`, `pm-ralf-gwy`, `pm-dc-gwy`) behave the same.
 
@@ -289,15 +291,20 @@ Use these to bootstrap both quick lab subscribers and production-like integratio
 4. Reconnect with LASTSEQ set to the saved sequence:
 
 ```text
-HELLO|CLIENT=replay01|PROTO=RALF1|ROLE=CLEARING|LASTSEQ=<saved_seq>
+HELLO|CLIENT=replay01|PROTO=RALF1|ROLE=CLEARING|LASTSEQ=<saved_seq>|EPOCH=<saved_epoch>
+SUB|CH=CLEARING|SYM=*
 ```
+
+`<saved_epoch>` is the `EPOCH` from the `WELCOME` of the first session: the
+gateway refuses a `LASTSEQ` without it (`ERR|CODE=BAD_MESSAGE`).
 
 Observe replay behavior:
 
-- replayed EXEC/EOD events for SEQ greater than LASTSEQ when retained; they
-  arrive immediately after `WELCOME`, before you have sent `SUB`
-- `ERR|CODE=REPLAY_MISS|DETAIL=requested seq outside retention` followed by a
-  `SNAP` baseline when outside the retention window (try `LASTSEQ=999`)
+- nothing but `WELCOME` until you send `SUB`; then the replayed EXEC/EOD events
+  for SEQ greater than LASTSEQ when retained, then the `SUB`'s `SNAP`
+- `ERR|CODE=REPLAY_MISS|DETAIL=requested seq outside retention` followed by the
+  `SNAP` baseline when outside the retention window (try `LASTSEQ=999`), or
+  when `EPOCH` is not the running gateway's (try `EPOCH=00000000`)
 
 :material-checkbox-blank-outline: Checkpoint: you can describe the recovery path for both replay-hit and replay-miss cases.
 

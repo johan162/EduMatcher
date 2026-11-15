@@ -416,3 +416,42 @@ def test_python_example_exits_when_the_handshake_is_refused(
     assert proc.returncode == 1
     assert "handshake refused: ERR BAD_MESSAGE" in proc.stderr
     assert "Subscribed" not in proc.stdout
+
+
+def test_python_example_hello_sends_epoch_with_lastseq(
+    example_subscriber_module: ModuleType,
+) -> None:
+    """WP-RALF01: a resume names the gateway run its LASTSEQ came from."""
+    hello = example_subscriber_module.hello_fields
+    assert hello("c", "CLEARING", "42", "9f3c2a71") == {
+        "CLIENT": "c",
+        "PROTO": "RALF1",
+        "ROLE": "CLEARING",
+        "LASTSEQ": "42",
+        "EPOCH": "9f3c2a71",
+    }
+    assert "EPOCH" not in hello("c", "CLEARING", "0", "")
+
+
+def test_python_example_checks_gaps_only_on_all_symbol_subscriptions(
+    example_subscriber_module: ModuleType, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """SEQ is per channel across every symbol: on a SYM=AAPL subscription it
+    jumps whenever another symbol trades (RALF review C4)."""
+    module = example_subscriber_module
+
+    def feed(tracker: object, seqs: list[str]) -> None:
+        for seq in seqs:
+            module._handle_message(
+                module.RalfMessage(
+                    "EXEC",
+                    {"CH": "DROP_COPY", "SYM": "AAPL", "SEQ": seq, "EXEC_ID": seq},
+                ),
+                tracker,
+                module.ExecTracker(),
+            )
+
+    feed(module.ChannelSequenceTracker("AAPL"), ["202", "204", "206"])
+    assert "sequence gap" not in capsys.readouterr().err
+    feed(module.ChannelSequenceTracker("*"), ["202", "204"])
+    assert "sequence gap on channel DROP_COPY" in capsys.readouterr().err

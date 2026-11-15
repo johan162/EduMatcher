@@ -5,6 +5,7 @@ path connecting a real RalfSpyClient to a real RalfGateway over TCP.
 from __future__ import annotations
 
 import json
+import sys
 import threading
 import time
 from collections.abc import Generator
@@ -135,6 +136,24 @@ def test_cli_parser_defaults() -> None:
     assert args.ping_interval == 60.0
 
 
+def test_cli_parser_lastseq_and_epoch() -> None:
+    parser = ralf_spy_cli.build_parser()
+    args = parser.parse_args(["--lastseq", "42", "--epoch", "a1b2c3d4"])
+    assert (args.lastseq, args.epoch) == (42, "a1b2c3d4")
+
+
+def test_lastseq_without_epoch_is_a_usage_error(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """WP-RALF01: a LASTSEQ means nothing without the run it came from."""
+    monkeypatch.setattr(sys, "argv", ["pm-ralf-spy", "--lastseq", "42"])
+    monkeypatch.setattr(ralf_spy_cli, "_configure_logging", lambda _a: 30)
+    with pytest.raises(SystemExit) as exc:
+        ralf_spy_cli.main()
+    assert exc.value.code == 2
+    assert "--epoch" in capsys.readouterr().err
+
+
 def test_cli_parser_ping_interval_override() -> None:
     parser = ralf_spy_cli.build_parser()
     args = parser.parse_args(["--ping-interval", "5"])
@@ -224,6 +243,46 @@ def test_handshake_receives_welcome_with_role(running_gateway: RalfGateway) -> N
         assert welcome.fields["GW"] == running_gateway.config.name
     finally:
         client.close()
+
+
+def _hello_fields(port: int, last_seq: int, epoch: str) -> dict[str, str]:
+    """Run one spy handshake and return the fields its HELLO carried."""
+    client = RalfSpyClient(
+        RalfSpyOptions(
+            host="127.0.0.1", port=port, role="CLEARING", last_seq=last_seq, epoch=epoch
+        )
+    )
+    sent: list[dict[str, str]] = []
+    real_send = client._send_line
+
+    def recording_send(msg_type: str, fields: dict[str, str]) -> None:
+        sent.append(dict(fields))
+        real_send(msg_type, fields)
+
+    client._send_line = recording_send
+    try:
+        client.connect()
+        assert client.handshake().msg_type == "WELCOME"
+    finally:
+        client.close()
+    return sent[0]
+
+
+def test_handshake_sends_lastseq_with_epoch(running_gateway: RalfGateway) -> None:
+    """WP-RALF01: the spy's HELLO carries the checkpoint's EPOCH."""
+    port = running_gateway.config.port
+    first = RalfSpyClient(RalfSpyOptions(host="127.0.0.1", port=port, role="CLEARING"))
+    try:
+        first.connect()
+        epoch = first.handshake().fields["EPOCH"]
+    finally:
+        first.close()
+
+    resumed = _hello_fields(port, 1, epoch)
+    assert (resumed["LASTSEQ"], resumed["EPOCH"]) == ("1", epoch)
+    # LASTSEQ=0: nothing to resume, so neither is sent.
+    fresh = _hello_fields(port, 0, epoch)
+    assert "LASTSEQ" not in fresh and "EPOCH" not in fresh
 
 
 def test_handshake_rejects_disallowed_role() -> None:

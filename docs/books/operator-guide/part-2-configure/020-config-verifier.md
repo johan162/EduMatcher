@@ -544,7 +544,6 @@ is validated while parsing `circuit_breaker_defaults`.
 | `M013` | WARN     | No ADMIN gateway configured                                   |
 | `M014` | WARN     | `circuit_breaker_defaults.levels` not listed in ascending order of `price_shift_pct` |
 | `M015` | ERROR    | Combo leg references symbol not in `symbols`                  |
-| `M016` | WARN     | `post_trade_gateway` configured but no ADMIN gateway          |
 | `M017` | WARN     | `balf_gateway.heartbeat_timeout_sec <= heartbeat_interval_sec` |
 | `M018` | ERROR    | Two configured listeners are bound to the same port. Covers `alf_gateway`, `balf_gateway`, `post_trade_gateway`, `market_data_gateway`, `dc_gateway`, every `api_gateways.<name>`, `monitor.pull_port`/`pub_port` (counted even when the `monitor` block is absent, since `pm-monitor` then binds 5610/5611; skipped only for `enabled: false`), and all three of `log_server`'s own ports — `port` (LALF/TCP) plus `pub_port`/`pull_port` (LALF-PS), the latter two skipped when `pubsub_enabled: false` since a disabled interface binds nothing. Each of these is also checked against the fixed listeners that are not configured in `engine_config.yaml` — the engine's 5555–5557, pm-market-sim's 5553/5554, pm-index's 5558/5559 and the health ping ports 5561–5564 — using any `EDUMATCHER_*_PORT` override in the verifier's environment |
 | `M019` | ERROR    | `mm_obligation_defaults.symbols` references an unknown symbol |

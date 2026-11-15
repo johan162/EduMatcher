@@ -82,8 +82,9 @@ pm-engine --verbose
 pm-ralf-gwy
 ```
 
-By default it reads `engine_config.yaml` from the same resolution path used by
-other `pm-*` processes.
+It reads its `post_trade_gateway` section from the deployed configuration
+(the compiled artifact `pm-config-deploy` installs), like other `pm-*`
+processes, and runs with the defaults when nothing has been deployed.
 
 ### 3. Connect an external client
 
@@ -127,10 +128,10 @@ pm-ralf-gwy --bind 127.0.0.1 --port 5580 --engine-pub tcp://127.0.0.1:5556
 |---|---|---|
 | `--bind ADDR` | from config / `0.0.0.0` | Override TCP bind address |
 | `--port PORT` | from config / `5580` | Override TCP listen port |
-| `--engine-pub ADDR` | from config / `tcp://127.0.0.1:5556` | Override engine PUB socket address |
+| `--engine-pub ADDR` | `tcp://$EDUMATCHER_ENGINE_HOST:5556` (`127.0.0.1` when unset) | Engine PUB socket address to subscribe to; there is no config key for it |
 | `--log-level` | `WARNING` | Explicit level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
 | `-v` / `--verbose` | off | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`) |
-| `-q` / `--quiet` | off | Reduce output to warnings/errors |
+| `-q` / `--quiet` | off | Explicit `WARNING` log level (the default) |
 | `--log-target` | auto | Where operational log records go: `server` (default, auto-detected `pm-log-srv`), `stdout`, or `file` |
 | `--log-file PATH` | — | Operational log file path — required when `--log-target file` |
 | `--log-failover-timeout SECONDS` | `30` | Grace window before falling back to a local log file once `pm-log-srv` becomes unreachable |
@@ -190,13 +191,13 @@ may subscribe to.
 
 ### Channel `CLEARING` — post-trade clearing data
 
-`CLEARING` carries one `EXEC` line per matched trade plus an `EOD` summary for
-each symbol at end of day.  It is the primary channel for clearing and
-reconciliation systems.
+`CLEARING` carries one `EXEC` line per matched trade plus an `EOD` line for
+each symbol when the engine stops (see [What `EOD` means](#what-eod-means)).
+It is the primary channel for clearing and reconciliation systems.
 
 **When you get it:** Subscribe with `CH=CLEARING|SYM=*` (or a specific symbol).
 The gateway immediately sends a `SNAP` baseline, then streams `EXEC` events as
-trades occur and `EOD` events at end of day.
+trades occur and `EOD` events when the engine stops.
 
 **Typical use cases:** trade reconciliation, position keeping, clearing
 obligation calculation.
@@ -253,12 +254,33 @@ EOD|CH=AUDIT|SYM=AAPL|SEQ=2|TS=2026-06-30T16:00:00.000Z|TRADE_COUNT=1|EXEC_COUNT
 
 ---
 
+### What `EOD` means
+
+`EOD` is derived from the engine's `system.eod` broadcast, which `pm-engine`
+sends in its shutdown sequence — whenever it stops, mid-session included —
+not at a fixed end of the trading day. One `EOD` per symbol is sent on each
+of the three channels. Read its fields with that in mind:
+
+- `TRADE_COUNT` (and `EXEC_COUNT`, always equal) is the number of trades
+  **this `pm-ralf-gwy` run** disseminated for the symbol since it started or
+  since its previous `EOD`. An engine restart at noon gives an `EOD` at noon,
+  and the evening `EOD` counts only the afternoon; a killed engine sends none,
+  so the next `EOD` counts both periods; a `pm-ralf-gwy` restart starts the
+  count again at zero. It agrees with the `EXEC` lines the gateway sent, so it
+  is not a check against trades lost before the gateway (those show in
+  `gwy.bus_gaps`, see [Operational notes](#operational-notes)).
+- `TS` is when the gateway received `system.eod`, not a trading-day close
+  time.
+
+For the day's authoritative trade count, reconcile against `pm-clearing` or
+the REST API.
+
 ### Channel summary
 
 | Channel     | Message types  | Baseline `SNAP`? | `SYM=*` wildcard? | Primary consumer |
 |-------------|----------------|------------------|-------------------|------------------|
 | `CLEARING`  | `EXEC`, `EOD`  | Yes              | Yes               | Clearing and reconciliation |
-| `DROP_COPY` | `EXEC`         | Yes              | Yes               | Risk, compliance drop-copy |
+| `DROP_COPY` | `EXEC`, `EOD`  | Yes              | Yes               | Risk, compliance drop-copy |
 | `AUDIT`     | `EXEC`, `EOD`  | Yes              | Yes               | Audit, surveillance |
 
 
@@ -288,7 +310,7 @@ sequenceDiagram
 
     C->>G: TCP connect :5580
     C->>G: HELLO|CLIENT=ext01|PROTO=RALF1|ROLE=CLEARING|LASTSEQ=0
-    G-->>C: WELCOME|PROTO=RALF1|GW=ralf-gwy01|ROLE=CLEARING|REPLAY=86400|HBINT=2
+    G-->>C: WELCOME|PROTO=RALF1|GW=ralf-gwy01|EPOCH=9f3c2a71|ROLE=CLEARING|REPLAY=86400|HBINT=2
     C->>G: SUB|CH=CLEARING|SYM=*
     G-->>C: SNAP|CH=CLEARING|SYM=*|SEQ=42|TS=2026-06-30T09:30:00.000Z
     loop Live events
@@ -305,7 +327,8 @@ sequenceDiagram
 HELLO|CLIENT=ext01|PROTO=RALF1|ROLE=CLEARING|LASTSEQ=0
 ```
 
-`CLIENT` is a free-text identifier (max 32 chars) used in gateway logs.
+`CLIENT` is a free-text identifier used in gateway logs (the gateway
+applies no length limit beyond the 4096-byte line).
 `PROTO` must be exactly `RALF1`.  `ROLE` declares your access tier —
 `CLEARING`, `DROP_COPY`, or `AUDIT`.  `LASTSEQ=0` means start from the current
 live position (no replay).  The gateway replies with `WELCOME` or closes the
@@ -319,6 +342,9 @@ example) are ignored.
 
 The `REPLAY` field in `WELCOME` tells you the journal retention window in
 seconds — use it to decide how far back you can safely request on reconnect.
+`EPOCH` names this run of `pm-ralf-gwy`: keep it with your last `SEQ`, because
+a reconnect that asks for replay must send both (see
+[Gap detection and replay](#gap-detection-and-replay)).
 
 ### Step 2 — Subscribe
 
@@ -340,7 +366,9 @@ who may subscribe to any channel.  Multiple `SUB` lines are cumulative.
 
 For each `SUB` line, the gateway sends **one** immediate `SNAP` covering the
 whole requested channel/symbol set (not one per `(channel, symbol)` pair).
-Store the `SEQ` — it is your baseline sequence number for that channel.
+Store the `SEQ` — it is your baseline sequence number for that channel. When
+the `HELLO` carried a checkpoint, the replay for that `SUB` comes just before
+its `SNAP` (see [Gap detection and replay](#gap-detection-and-replay)).
 
 ### Step 4 — Cancel subscriptions
 
@@ -348,11 +376,13 @@ Store the `SEQ` — it is your baseline sequence number for that channel.
 UNSUB|CH=DROP_COPY|SYM=AAPL
 ```
 
-`UNSUB` is idempotent.
+`UNSUB` removes exactly the `(channel, symbol)` pairs it names and is
+idempotent; it cannot narrow a `SYM=*` subscription to exclude one symbol.
 
 ### Step 5 — Handle heartbeats
 
-When the stream is idle the gateway sends periodic `HB|TS=...` lines.  You can
+Every `HBINT` seconds the gateway sends `HB|TS=...` to every authenticated
+client, whether or not other lines were sent in between.  You can
 probe with `PING`; the gateway replies `PONG|TS=…`.  The idle timeout counts
 traffic in both directions, so a client that keeps reading stays connected on
 heartbeats alone; only when writes to it have stopped succeeding for
@@ -371,38 +401,72 @@ the connection is closed after at most 5 seconds whether or not it was.
 EXIT
 ```
 
+The gateway flushes what is queued, then closes. Closing only your sending
+side (a TCP half-close, as `printf '…' | nc 127.0.0.1 5580` does when its
+input ends) also ends the session: keep the connection open in both
+directions for as long as you want to receive. When `pm-ralf-gwy` itself is
+stopped, every session receives `EXIT|REASON=shutdown|TS=…` after the lines
+already queued for it (for up to 1 s), so a planned stop can be told from a
+crash or a network failure.
+
 
 ## Gap detection and replay
 
 Every **channel** has an independent, monotonically increasing `SEQ` starting
 at 1 — shared across all symbols on that channel, not scoped per symbol.
-Track `last_seq[CH]` on every received message and check:
+On a subscription to every symbol (`SYM=*`), track `last_seq[CH]` on every
+received message and check:
 
 ```
 gap detected when:  received_seq != last_seq + 1
 ```
 
+With a symbol filter (`SYM=AAPL`) the check does not work: every trade in
+another symbol moves the channel's `SEQ` too, so a jump is normal. Keep the
+last `SEQ` as your checkpoint all the same — replay works on it for filtered
+subscriptions as well.
+
+Losses before the gateway (engine messages that never reached
+`pm-ralf-gwy`) do not show as a `SEQ` gap at all, because the gateway numbers
+the lines it emits; the operator sees them as `gwy.bus_gaps` (see
+[Operational notes](#operational-notes)).
+
 **Recovery option 1 — replay within window**
 
-Reconnect with a non-zero `LASTSEQ` in `HELLO`:
+Reconnect with a non-zero `LASTSEQ` in `HELLO`, and the `EPOCH` from the
+`WELCOME` of the session that `LASTSEQ` came from:
 
 ```text
-HELLO|CLIENT=ext01|PROTO=RALF1|ROLE=CLEARING|LASTSEQ=1200
+HELLO|CLIENT=ext01|PROTO=RALF1|ROLE=CLEARING|LASTSEQ=1200|EPOCH=9f3c2a71
 ```
 
-The gateway replays all journal events with `SEQ > 1200` that are still inside
-the retention window (`replay_retention_sec`, default 86400 s — one full trading
-day), then continues live.
+A `LASTSEQ` above 0 without `EPOCH` is refused with `ERR|CODE=BAD_MESSAGE`.
+
+Nothing is replayed yet: `HELLO` only records the checkpoint. Each `SUB` you
+send then replays the journal events with `SEQ > 1200` that it subscribes and
+your earlier `SUB` lines did not, still inside the retention window
+(`replay_retention_sec`, default 86400 s — one full trading day), then sends
+its `SNAP` and continues live. Trades that happen between `WELCOME` and your
+`SUB` are part of that replay, so it does not matter how long you take to
+subscribe. A long replay is not cut off as a slow client: the
+`max_client_queue` limit counts only what is queued beyond it.
 
 **Recovery option 2 — replay miss**
 
-If the requested `LASTSEQ` is older than the retained journal the gateway sends
-`ERR|CODE=REPLAY_MISS|...` followed by a fresh `SNAP`.  Accept the `SNAP` and
+If the checkpoint is from another run of `pm-ralf-gwy` (its `EPOCH` differs:
+sequences start again at 1 after a gateway restart), or the requested
+`LASTSEQ` is older than the retained journal, the gateway answers your `SUB`
+with `ERR|CODE=REPLAY_MISS|...` followed by its `SNAP`.  Accept the `SNAP` and
 reset your local state for that stream.
 
 !!! note
-    RALF's replay journal covers a full trading day by default (86 400 s),
-    making intraday reconnects lossless in normal operation.
+    RALF's replay journal covers a full trading day by default (86 400 s), so
+    a client that reconnects to the same `pm-ralf-gwy` run with its
+    checkpoint (`LASTSEQ` and `EPOCH`) and subscribes the same channels and
+    symbols receives every line it missed, however long the replay. After a
+    `pm-ralf-gwy` restart, or for trades lost before the gateway
+    (`gwy.bus_gaps`), there is nothing to replay: reconcile from
+    `pm-clearing` or the REST API.
 
 
 ## Quick connect test
@@ -431,8 +495,8 @@ Expected response pattern:
 1. `WELCOME|PROTO=RALF1|GW=ralf-gwy01|...` — session open
 2. `SNAP|CH=CLEARING|SYM=*|SEQ=...|TS=...` — baseline snapshot
 3. `EXEC|...` when a trade executes
-4. `EOD|...` at end of day
-5. `HB|...` when the stream is idle
+4. `EOD|...` when the engine stops
+5. `HB|...` every `HBINT` seconds
 
 
 ## Python subscriber example
@@ -538,13 +602,15 @@ with socket.create_connection(("127.0.0.1", 5580), timeout=5) as sock:
     welcome = parse_ralf_line(reader.recv_line())
     assert welcome.msg_type == "WELCOME", f"unexpected: {welcome}"
     replay_sec = welcome.fields.get("REPLAY", "?")
+    epoch = welcome.fields["EPOCH"]  # store with the last SEQ: the checkpoint
     print(f"Connected. Journal retention: {replay_sec}s")
 
     # Subscribe — role must match allowed channels
     send(sock, "SUB", {"CH": "CLEARING", "SYM": "*"})
 
     # Per-channel sequence tracking — SEQ is shared across all symbols on
-    # one channel, not scoped per (channel, symbol) pair.
+    # one channel, not scoped per (channel, symbol) pair, so the gap check
+    # below is valid only because this client subscribes SYM=*.
     last_seq: dict[str, int] = {}   # CH → last seen SEQ
 
     while True:
@@ -555,7 +621,7 @@ with socket.create_connection(("127.0.0.1", 5580), timeout=5) as sock:
             sym = msg.fields.get("SYM", "")
             seq = int(msg.fields.get("SEQ", "0"))
 
-            # Gap check — reconnect with LASTSEQ={prev} to recover
+            # Gap check — reconnect with LASTSEQ={prev} and EPOCH={epoch}
             prev = last_seq.get(ch)
             if prev is not None and seq != prev + 1:
                 print(f"GAP on {ch}: expected {prev + 1}, got {seq}")
@@ -603,7 +669,7 @@ python3 ralf_subscriber.py --role DROP_COPY --channels DROP_COPY \
 
 # Reconnect with replay from last known sequence
 python3 ralf_subscriber.py --role CLEARING --channels CLEARING \
-    --symbols '*' --lastseq 1200
+    --symbols '*' --lastseq 1200 --epoch 9f3c2a71
 ```
 
 For a C client (useful for latency-sensitive environments):
@@ -621,9 +687,9 @@ cd docs/examples/ralf && make
 | `AUTH_REQUIRED`      | Any message before a successful `HELLO`, or `HELLO` itself missing `CLIENT`/`PROTO`/`ROLE` | Send a well-formed `HELLO` first |
 | `ENTITLEMENT_DENIED` | Role not permitted for that channel               | Use the channel matching your role; `AUDIT` may access all |
 | `INVALID_CHANNEL`    | Unknown `CH` value                                | Use `CLEARING`, `DROP_COPY`, or `AUDIT`            |
-| `REPLAY_MISS`        | Requested `LASTSEQ` is outside the journal window, or ahead of it after a gateway restart | Accept the recovery `SNAP` and reset local baseline |
+| `REPLAY_MISS`        | The checkpoint's `EPOCH` is from another gateway run, or `LASTSEQ` is outside the journal window | Accept the recovery `SNAP` and reset local baseline |
 | `SLOW_CLIENT`        | Client cannot drain the outbound stream fast enough | Reconnect and process faster; terminal error      |
-| `BAD_MESSAGE`        | Malformed line (parse failure, unsupported message type, or non-integer `LASTSEQ`) | Fix line syntax/framing |
+| `BAD_MESSAGE`        | Malformed line (parse failure, unsupported message type, non-integer `LASTSEQ`, or `LASTSEQ` without `EPOCH`) | Fix line syntax/framing |
 
 
 ## Operational notes
@@ -635,7 +701,16 @@ cd docs/examples/ralf && make
 - For local labs, bind to `127.0.0.1`; for multi-host deployments use a
   controlled network interface and perimeter security controls.
 - The default replay retention (86 400 s) covers one full trading day.  Tune
-  `replay_retention_sec` for your memory budget.
+  `replay_retention_sec` for your memory budget: the journal holds every line
+  of every channel for that long, about 1.3 KB per trade (129 MB for 10⁵
+  trades, measured), and each `SUB` that replays scans all of it (about
+  20–35 ms at that size, blocking the gateway's loop meanwhile).
+- `gwy.bus_gaps` counts `trade.executed` and `system.eod` messages that never
+  reached `pm-ralf-gwy` (its receive buffer overflowed), by topic; any
+  increase is a `ralf_bus_gaps` WARN on the dashboard, with a
+  `engine bus dropped …` WARNING in the log. RALF clients cannot see this
+  loss and no replay recovers it: tell them the time, and reconcile from
+  `pm-clearing` or the REST API.
 
 
 ## Dedicated Gateway Runbook (pm-ralf-gwy)
@@ -678,20 +753,22 @@ Expected sequence:
 1. `WELCOME|...`
 2. `SNAP|...`
 3. live `EXEC|...` / `EOD|...`
-4. periodic `HB|...` while idle
+4. `HB|...` every `HBINT` seconds
 
 ### Reconnect replay behavior
 
 Resume from checkpoint:
 
 ```text
-HELLO|CLIENT=clear01|PROTO=RALF1|ROLE=CLEARING|LASTSEQ=1200
+HELLO|CLIENT=clear01|PROTO=RALF1|ROLE=CLEARING|LASTSEQ=1200|EPOCH=9f3c2a71
 ```
 
 Outcomes:
 
-- replay hit: retained events with `SEQ > LASTSEQ`, then live continuation
-- replay miss: `ERR|CODE=REPLAY_MISS`, followed by recovery `SNAP`
+- replay hit: after each `SUB`, the retained events with `SEQ > LASTSEQ`
+  that it subscribes, then its `SNAP`, then live continuation
+- replay miss (another run's `EPOCH`, or outside retention):
+  `ERR|CODE=REPLAY_MISS`, followed by recovery `SNAP`
 
 ### Fast error triage
 
@@ -700,7 +777,7 @@ Outcomes:
 | `AUTH_REQUIRED`      | Any message before successful `HELLO`, or an incomplete `HELLO` | Authenticate first |
 | `ENTITLEMENT_DENIED` | Role blocked by policy          | Use an allowed role or update config      |
 | `INVALID_CHANNEL`    | Unsupported `CH` value          | Use `CLEARING`, `DROP_COPY`, `AUDIT`      |
-| `REPLAY_MISS`        | Replay point outside retention  | Accept `SNAP` and reset local baseline    |
+| `REPLAY_MISS`        | Replay point outside retention, or from another gateway run | Accept `SNAP` and reset local baseline    |
 | `SLOW_CLIENT`        | Client too slow to drain stream | Reconnect and increase consume throughput |
 | `BAD_MESSAGE`        | Malformed line syntax           | Fix message format                        |
 

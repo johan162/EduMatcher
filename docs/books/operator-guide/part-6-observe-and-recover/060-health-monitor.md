@@ -187,6 +187,7 @@ and nothing is MISSING.
 | `audit_archive_errors` (fixed) — `pm-audit`'s archiver exited with an error | `pm-audit` | any increase in 5 min | — |
 | `md_bus_gaps` (fixed) — engine or `pm-index` messages that never reached `pm-md-gwy` (dropped at its receive buffer), so no CALF client saw them; `md.bus_gaps` counts them by topic family | `pm-md-gwy` | any increase in 5 min | — |
 | `dc_feed_gaps` (fixed) — fills of a watched participant that never reached `pm-dc-gwy` (dropped at its receive buffer), so its DC1 clients saw a `SEQ` gap; `gwy.feed_gaps` counts them | `pm-dc-gwy` | any increase in 5 min | — |
+| `ralf_bus_gaps` (fixed) — trades or end-of-day messages that never reached `pm-ralf-gwy` (dropped at its receive buffer); RALF numbers the lines it emits, so no client's `SEQ` shows the loss; `gwy.bus_gaps` counts them by engine topic | `pm-ralf-gwy` | any increase in 5 min | — |
 | `audit_write_errors` (fixed) — `pm-audit` could not write the trail (disk full, I/O error); the lines wait in memory and are retried every 300 ms | `pm-audit` | any increase in 5 min | — |
 | `metrics_store_errors` (fixed) — history `pm-monitor` could not write | `pm-monitor` | any increase in 5 min | — |
 

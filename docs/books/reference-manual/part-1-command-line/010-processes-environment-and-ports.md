@@ -2767,10 +2767,10 @@ pm-ralf-gwy [--bind 0.0.0.0] [--port 5580] [--engine-pub tcp://127.0.0.1:5556] [
 |-------------------|-------------------------|----------------------------------------------------|
 | `--bind`          | from config / `0.0.0.0` | TCP bind address for external clients              |
 | `--port`          | from config / `5580`    | TCP listen port for RALF clients                   |
-| `--engine-pub`    | `tcp://127.0.0.1:5556`  | Engine PUB address consumed by the gateway         |
+| `--engine-pub`    | `tcp://$EDUMATCHER_ENGINE_HOST:5556` (`127.0.0.1` when unset) | Engine PUB address consumed by the gateway; no config key |
 | `--log-level`     | `WARNING`               | Explicit log level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
 | `-v` / `--verbose`| off                     | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`)  |
-| `-q` / `--quiet`  | off                     | Reduce output to warnings/errors                      |
+| `-q` / `--quiet`  | off                     | Explicit `WARNING` (same as the default)              |
 | `--log-target`    | `server`                | Where operational log records go: `server` (auto-detected `pm-log-srv`), `stdout`, or `file` |
 | `--log-file`      | none                    | Operational log file path — required when `--log-target file` |
 | `--log-failover-timeout` | `30` (from config) | Grace window in seconds before falling back to a local log file once `pm-log-srv` becomes unreachable |
@@ -2804,7 +2804,7 @@ No terminal input. External parties connect over TCP and send RALF lines:
 | `HB`         | Heartbeat                           |
 | `PONG`       | Ping reply                          |
 | `ERR`        | Protocol/entitlement/replay errors  |
-| `EXIT`       | Session termination reason          |
+| `EXIT`       | Gateway-initiated close (`auth_timeout`, `idle_timeout`, `shutdown`) |
 
 For external usage and examples see [Post-Trade Dissemination](../../operator-guide/part-5-gateways/040-ralf-gateway.md)
 and [RALF Protocol Reference](../../protocols-and-clients/part-2-specifications/040-ralf.md).
