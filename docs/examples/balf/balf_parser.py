@@ -320,7 +320,11 @@ def _self_test() -> None:
     msg = b"ok"
     body[18] = len(msg)
     body[20 : 20 + len(msg)] = msg
-    frame = bytes([BALF_MAGIC, BALF_VERSION, MSG_LOGON_ACK, 0]) + (0).to_bytes(4, "little") + bytes(body)
+    frame = (
+        bytes([BALF_MAGIC, BALF_VERSION, MSG_LOGON_ACK, 0])
+        + (0).to_bytes(4, "little")
+        + bytes(body)
+    )
 
     hdr, payload = split_frame(frame)
     assert hdr.msg_type == MSG_LOGON_ACK
