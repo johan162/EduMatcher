@@ -116,7 +116,10 @@ Any other failure to open `metrics.db` — a read-only or full data directory �
 costs history, not monitoring: `pm-monitor` logs the error and runs on
 without history, and the `metrics_store_errors` rule (below) shows it
 DEGRADED until it is restarted with a usable data directory. A write that
-fails later is counted the same way.
+fails later is counted the same way; while writes keep failing (a full
+disk), `pm-monitor` holds the last ten minutes of 1-minute rows for the
+next write that succeeds, and drops and counts older ones, so its memory
+stays bounded.
 
 With `monitor.enabled: false` it prints that monitoring is disabled and then
 **idles** until stopped (exit 0), binding nothing and writing nothing. It does
@@ -232,14 +235,19 @@ them into increments, so a process restart neither loses nor double-counts
 - **per minute now** — the last 60 seconds;
 - **average per minute** — the last 60 minutes;
 - **average per hour** — today divided by the hours since the session opened
-  today (else since midnight);
+  today (else since midnight). After a restart the opening time comes from
+  today's `SESSION` event in `metrics.db`;
 - **average per day** — the mean daily total over the last 7 trading days
   with data.
 
-When `pm-monitor` restarts it resumes from `metrics.db`: today's totals come
-back, and the first beacon of a process that kept running counts exactly what
-happened while `pm-monitor` was down. Only the very first start of a new
-`metrics.db` begins the day at zero for processes that started earlier.
+When `pm-monitor` restarts on the same trading date it resumes from
+`metrics.db`: today's totals come back, and the first beacon of a process
+that kept running counts exactly what happened while `pm-monitor` was down.
+When it was down across a trading-date change, there is no such point: what a
+process counted meanwhile is partly the earlier day's (and the engine resets
+its daily trade counters at PRE_OPEN), so `pm-monitor` begins the day at zero
+for processes that started on an earlier day, as on the first start of a new
+`metrics.db`. A process that started today counts in full.
 
 ## `metrics.db`
 
@@ -251,7 +259,7 @@ happened while `pm-monitor` was down. Only the very first start of a new
 | `samples_raw` | The latest value of every unlabelled series, every 10 s | `retention.raw_hours` (6 h) |
 | `samples_1m` | Per series and minute: min, average, max, last, samples, and for counters the increment (a counter only in the minutes it moved) | `retention.minute_days` (7 days) |
 | `daily_totals` | Per trading date and series, the day's increments | For good |
-| `counter_last` | The last value of every counter, for an exact restart | `minute_days` |
+| `counter_last` | The last value of every counter, for an exact restart on the same trading date; written when it changes and once a day | `minute_days` after the series was last heard |
 | `events` | Every event; its `seq` is the event's sequence number | `minute_days` |
 | `metrics_meta` | The session timezone the file was recorded under | — |
 
@@ -416,10 +424,15 @@ pm-monitor-cli events [--since ISO_TS] [--kind KIND] [--subject TEXT]
 ```
 
 The newest `--limit` (50) matching events from `metrics.db`, oldest first.
+`--since` takes any ISO-8601 date or time (`2026-10-19`,
+`2026-10-19T14:00:00Z`, `2026-10-19 16:00+02:00`); without an offset it is
+UTC, the time the `TS` column shows. Anything else is a usage error (exit 2).
 `--kind` is one of the kinds above; `--subject` matches part of the subject.
 `--follow` then prints live events as they happen until Ctrl-C (`--count N`:
 stop after N). No event is lost or repeated between the history and the live
-feed: a gap in the sequence numbers is filled from `metrics.db`.
+feed: a gap in the sequence numbers is filled from `metrics.db`. When
+`pm-monitor` numbers its events anew (it runs without `metrics.db`, or with a
+new one), the follow carries on with the new numbers.
 
 ### Cookbook
 
@@ -449,7 +462,7 @@ pm-monitor-cli --format json status | jq '.processes[] | {key, state}'
 | A process DEGRADED | A threshold on it, or its loop ran late | `status` lists the breach; `events --subject <key>` |
 | `pm-monitor` exits: another `pm-monitor` writes `metrics.db` | Two started on one data directory | Stop the other one |
 | `pm-monitor` exits: recorded with another timezone | `locale.session_timezone` changed | Restore it, or move `metrics.db` aside |
-| Today's counts start from zero after a `pm-monitor` restart | First start with this `metrics.db` (or it was cleared) | Expected once; later restarts resume exactly |
+| Today's counts start from zero after a `pm-monitor` restart | First start with this `metrics.db` (or it was cleared), or `pm-monitor` was down across midnight in the session timezone | Expected; later restarts on the same day resume exactly |
 | `pm-monitor` DEGRADED by `metrics_store_errors` | It cannot write `metrics.db`: a read-only or full data directory, or a broken file | Its log names the error; free space or fix the permissions, then restart `pm-monitor` |
 | The exchange DEGRADED by `reject_pct_5m` | Many rejected requests | The dashboard's "Rejects today by reason" says why; `ORDER_NOT_FOUND` is mostly cancels of orders that had just filled, an ordinary race for an active trader |
 

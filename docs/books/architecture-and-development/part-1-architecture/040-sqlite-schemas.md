@@ -1139,6 +1139,12 @@ CREATE VIEW v_samples_raw AS
 CREATE INDEX idx_daily_name ON daily_totals(name, label, date)
 ```
 
+#### `index idx_daily_name_date`
+
+```sql
+CREATE INDEX idx_daily_name_date ON daily_totals(name, date)
+```
+
 #### `index idx_ev_ts`
 
 ```sql

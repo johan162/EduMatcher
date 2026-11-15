@@ -436,3 +436,151 @@ class TestHealthExtended:
         # A read of a WAL database may create the empty -wal/-shm SQLite needs;
         # nothing is written into either.
         assert not wal.exists() or wal.stat().st_size == 0
+
+
+# ---------------------------------------------------------------------------
+# Monitor review WP-MON05
+# ---------------------------------------------------------------------------
+
+
+class TestSince:
+    """C7: ``--since`` is an instant, not text (Q4: no offset means UTC)."""
+
+    @pytest.fixture
+    def events_db(self, tmp_path: Path) -> Path:
+        path = tmp_path / "metrics.db"
+        store = MetricsStore(path, "Europe/Stockholm", raw_hours=6, minute_days=7)
+        try:
+            for seq, ts in enumerate(
+                [
+                    "2026-11-14T06:00:00.000Z",
+                    "2026-11-14T09:30:00.000Z",
+                    "2026-11-14T11:00:00.000Z",
+                ],
+                start=1,
+            ):
+                store.add_event(seq, ts, "SESSION", "INFO", "session", f"e{seq}")
+        finally:
+            store.close(0.0)
+        return path
+
+    @pytest.mark.parametrize(
+        ("since", "seqs"),
+        [
+            ("2026-11-14T10:00:00Z", [3]),
+            ("2026-11-14T10:00:00.000Z", [3]),
+            ("2026-11-14T10:00", [3]),
+            ("2026-11-14 10:00", [3]),
+            ("2026-11-14T11:00:00+01:00", [3]),
+            ("2026-11-14T10:00:00+01:00", [2, 3]),
+            ("2026-11-14", [1, 2, 3]),
+        ],
+    )
+    def test_every_iso_form_is_the_same_instant(
+        self,
+        events_db: Path,
+        capsys: pytest.CaptureFixture[str],
+        since: str,
+        seqs: list[int],
+    ) -> None:
+        code, out, _ = _run(
+            capsys,
+            "--db",
+            str(events_db),
+            "--format",
+            "json",
+            "events",
+            "--since",
+            since,
+        )
+        assert code == 0
+        assert [json.loads(line)["seq"] for line in out.splitlines()] == seqs
+
+    def test_anything_else_is_a_usage_error(
+        self, events_db: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        code, _, err = _run(
+            capsys, "--db", str(events_db), "events", "--since", "yesterday"
+        )
+        assert code == 2 and "--since" in err
+
+
+@pytest.mark.parametrize("name", ["x#y", "a?b", "p%41"])
+def test_a_data_path_with_uri_characters(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], name: str
+) -> None:
+    """C8: the read-only URI is built from the percent-encoded path."""
+    directory = tmp_path / name
+    directory.mkdir()
+    path = directory / "metrics.db"
+    store = MetricsStore(path, "Europe/Stockholm", raw_hours=6, minute_days=7)
+    try:
+        store.add_event(1, "2026-11-14T06:00:00.000Z", "HALT", "WARN", "AAA", "x")
+    finally:
+        store.close(0.0)
+    code, out, err = _run(capsys, "--db", str(path), "--format", "json", "events")
+    assert code == 0, err
+    assert [json.loads(line)["seq"] for line in out.splitlines()] == [1]
+    assert cli.check_database(path, "Europe/Stockholm")["healthy"]
+
+
+def test_follow_takes_a_new_numbering(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """C6: pm-monitor without metrics.db numbers events from 0 again; a
+    follower that read an older history of 500 events must not drop them."""
+    import argparse
+
+    old = tmp_path / "metrics.db"
+    store = MetricsStore(old, "Europe/Stockholm", raw_hours=6, minute_days=7)
+    try:
+        store.add_event(500, "2026-11-14T06:00:00.000Z", "HALT", "WARN", "AAA", "x")
+    finally:
+        store.close(0.0)
+    pull, pub = free_ports(2)
+    fresh = Monitor(
+        MonitorConfig(pull_port=pull, pub_port=pub),
+        TZ,
+        host_sampler=QuietHost(),
+        local_host="box",
+    )
+    args = argparse.Namespace(kind=None, subject=None, count=2, format="json")
+    sub = cli._subscriber(f"tcp://127.0.0.1:{pub}", "health.event")
+    try:
+        time.sleep(0.3)  # the follower is connected from here on
+        fresh.publish_event("SESSION", "INFO", "session", "CLOSED -> PRE_OPEN")
+        fresh.publish_event("HALT", "WARN", "AAA", "L1 CB")
+        # Bounded: a follower that drops the events would wait for ever.
+        follower = threading.Thread(
+            target=cli._follow,
+            args=(args, old, sub),
+            kwargs={"last_seq": 500, "header": False},
+            daemon=True,
+        )
+        follower.start()
+        follower.join(timeout=5.0)
+        assert not follower.is_alive(), "the new numbering was dropped"
+    finally:
+        fresh.close()
+    sub.close()
+    rows = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+    assert [(r["seq"], r["kind"]) for r in rows] == [(0, "SESSION"), (1, "HALT")]
+
+
+def test_breach_values_print_without_an_exponent(mon: Monitor) -> None:
+    """C9: a 1.2 s engine p99 reads 1234567, not 1.23457e+06."""
+    from edumatcher.models.generated.health import HealthSnapshot
+
+    snap = mon.snapshot()
+    snap["thresholds"] = [
+        {
+            "rule": "engine_handle_p99_us",
+            "subject": "pm-engine@box",
+            "level": "CRIT",
+            "value": 1234567.0,
+            "threshold": 20000.0,
+            "since": "2026-11-14T06:00:00.000Z",
+        }
+    ]
+    text = "\n".join(cli.render_status(HealthSnapshot.from_dict(snap)))
+    assert "1234567" in text and "e+06" not in text

@@ -296,6 +296,11 @@ class Activity:
             gateway.totals = {}
             if gateway.since is None:
                 gateway.since = now
+        elif process == ENGINE:
+            # Every engine beacon carries every book: one it no longer
+            # reports is gone (a restart without that symbol).
+            for book in self.books.values():
+                book.gauges = {}
         for sample in beacon.metrics:
             name, label, value = sample.name, sample.label, sample.value
             if sample.kind == "GAUGE":
@@ -544,9 +549,12 @@ class Activity:
         return out
 
     def book_records(self) -> list[dict[str, Any]]:
+        """``BookStats`` of the books in the engine's latest beacon."""
         out = []
         for symbol, b in sorted(self.books.items()):
             g = b.gauges
+            if not g:
+                continue
             out.append(
                 {
                     "symbol": symbol[:16],

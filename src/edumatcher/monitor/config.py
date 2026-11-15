@@ -75,7 +75,7 @@ class MonitorConfig:
     """Resolved ``monitor:`` section.
 
     Present in every compiled artifact. ``enabled: false`` means no process
-    constructs a health reporter and ``pm-monitor`` refuses to start.
+    constructs a health reporter and ``pm-monitor`` idles until stopped.
     """
 
     enabled: bool = True

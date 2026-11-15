@@ -22,16 +22,25 @@ What is written, and when
   with the rest of it afterwards.
 * ``daily_totals`` -- per trading date (session timezone) and series, the sum
   of the increments counted into "today" (§9.4). Kept for good.
-* ``counter_last`` -- the last value and ``boot_id`` of every counter series.
+* ``counter_last`` -- the last value and ``boot_id`` of every counter series,
+  as last heard: a row is written when the value or ``boot_id`` changed, or
+  once on a new trading date, and only rows of the current trading date are
+  resumed from.
 * ``events`` -- every ``health.event``; its ``seq`` is the event's ``seq``.
 
 ``daily_totals`` and ``counter_last`` are written in the same transaction, so
 after a restart pm-monitor resumes exactly where the file says it was: today's
 totals come back, and the first beacon of a process that kept running counts
-only what happened while pm-monitor was down (I69).
+only what happened while pm-monitor was down (I69). Across a trading-date
+change there is no resume point: what the process counted then is partly the
+earlier day's, so its first value is a baseline, as on a new file.
 
-Retention runs hourly: raw rows older than ``raw_hours``, minute rows and
-events older than ``minute_days``; then ``PRAGMA incremental_vacuum`` returns
+While writes fail, closed minutes wait for the next write for at most
+``BACKLOG_SEC``; older ones are dropped and counted (``dropped_rows``).
+
+Retention runs hourly: raw rows older than ``raw_hours``, minute rows,
+events and the ``counter_last`` rows of series not heard from older than
+``minute_days``; then ``PRAGMA incremental_vacuum`` returns
 the freed pages, so the file stops growing once it holds its window.
 
 Timestamps are UTC ISO-8601 with milliseconds (``monitor.timefmt``); the
@@ -46,6 +55,7 @@ import sqlite3
 from collections.abc import Generator
 from contextlib import contextmanager
 from dataclasses import dataclass
+from datetime import datetime, time as dtime
 from pathlib import Path
 from typing import IO, Any
 
@@ -62,6 +72,10 @@ log = logging.getLogger(__name__)
 RAW_EVERY_SEC = 10.0
 RETENTION_EVERY_SEC = 3600.0
 MINUTE = 60.0
+#: How far back closed minutes wait for the next write while writes fail;
+#: older ones are dropped and counted (``dropped_rows``), so a full or
+#: read-only disk costs history, not memory.
+BACKLOG_SEC = 600.0
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS metrics_meta (
@@ -115,6 +129,9 @@ CREATE TABLE IF NOT EXISTS daily_totals (
 -- avg_per_day looks up one name (and label) across dates; kept for good, so
 -- without this every lookup would scan years of rows (review R6).
 CREATE INDEX IF NOT EXISTS idx_daily_name ON daily_totals(name, label, date);
+-- ... and over all labels: the last dates of one name without reading the
+-- rest of its history.
+CREATE INDEX IF NOT EXISTS idx_daily_name_date ON daily_totals(name, date);
 
 CREATE TABLE IF NOT EXISTS counter_last (
     source  TEXT NOT NULL,
@@ -227,7 +244,14 @@ class MetricsStore:
         self._unregistered: set[SeriesKey] = set()
         self._minutes: dict[SeriesKey, _Minute] = {}
         self._closed: list[tuple[SeriesKey, _Minute]] = []
+        #: Closed minutes dropped unwritten (``BACKLOG_SEC``), until taken.
+        self.dropped_rows = 0
         self._daily: dict[tuple[str, str, str, str], float] = {}
+        #: ``(boot_id, value, trading date)`` of each ``counter_last`` row as
+        #: last written, so an unchanged series is written once a date.
+        self._written: dict[SeriesKey, tuple[str, float, str]] = {}
+        #: Counter series whose ``counter_last`` row retention deleted.
+        self.expired_counters: list[SeriesKey] = []
         self._next_raw = 0.0
         self._next_retention = 0.0
         self._new_series: list[SeriesKey] = []
@@ -354,14 +378,23 @@ class MetricsStore:
     ) -> int:
         """Raw rows, daily totals and counter state in one transaction.
 
-        ``counters`` is the tracker's ``(boot_id, value)`` per counter series,
-        so the file's totals and its counter state always agree. Returns the
-        raw rows written.
+        ``counters`` is the tracker's ``(boot_id, value)`` per counter series
+        heard since the last write, so the file's totals and its counter
+        state always agree. A row is written when its value or ``boot_id``
+        changed, or once on a new trading date, so a series heard today has a
+        row of today to resume from (:meth:`counter_state`). Returns the raw
+        rows written.
         """
         self._next_raw = now_wall + RAW_EVERY_SEC
         daily = [(*k, total) for k, total in self._daily.items() if total]
         ts = iso_utc(now_wall)
-        last = [(*k, boot, v, ts) for k, (boot, v) in (counters or {}).items()]
+        date = trading_date(now_wall, self._session_tz)
+        written = {
+            k: (boot, v, date)
+            for k, (boot, v) in (counters or {}).items()
+            if self._written.get(k) != (boot, v, date)
+        }
+        last = [(*k, boot, v, ts) for k, (boot, v, _date) in written.items()]
         conn = self.conn
         with self._transaction():
             for key in self._unregistered:
@@ -385,19 +418,25 @@ class MetricsStore:
         self._raw.clear()
         self._daily.clear()
         self._unregistered.clear()
+        self._written.update(written)
         return len(raw)
 
     def flush_minutes(self, now_wall: float, *, force: bool = False) -> int:
         """Write every closed minute (and the open ones with ``force``).
 
         A bucket already in the file (written at a shutdown part-way through
-        the minute) is merged, not replaced.
+        the minute) is merged, not replaced. Minutes that waited longer than
+        ``BACKLOG_SEC`` for a write that kept failing are dropped first.
         """
         start = now_wall - now_wall % MINUTE
         for key, minute in list(self._minutes.items()):
             if force or minute.start < start:
                 self._closed.append((key, minute))
                 del self._minutes[key]
+        cutoff = start - BACKLOG_SEC
+        kept = [(key, m) for key, m in self._closed if m.start >= cutoff]
+        self.dropped_rows += len(self._closed) - len(kept)
+        self._closed = kept
         if not self._closed:
             return 0
         with self._transaction():
@@ -448,11 +487,16 @@ class MetricsStore:
         raw_cut = iso_utc(now_wall - self.raw_hours * 3600)
         minute_cut = iso_utc(now_wall - self.minute_days * 86400)
         with self._transaction():
-            self._delete_old(raw_cut, minute_cut)
+            expired = self._delete_old(raw_cut, minute_cut)
+        for key in expired:
+            self._written.pop(key, None)
+        self.expired_counters.extend(expired)
         self.conn.execute("PRAGMA incremental_vacuum")
         return True
 
-    def _delete_old(self, raw_cut: str, minute_cut: str) -> None:
+    def _delete_old(self, raw_cut: str, minute_cut: str) -> list[SeriesKey]:
+        """Delete what is outside the windows; return the counter series
+        whose ``counter_last`` row went."""
         conn = self.conn
         # Per series, so each delete is a range of the primary key rather
         # than a scan of the table.
@@ -466,7 +510,13 @@ class MetricsStore:
             [(sid, minute_cut) for (sid,) in ids],
         )
         conn.execute("DELETE FROM events WHERE ts < ?", (minute_cut,))
-        conn.execute("DELETE FROM counter_last WHERE ts < ?", (minute_cut,))
+        return [
+            (s, n, lb)
+            for s, n, lb in conn.execute(
+                "DELETE FROM counter_last WHERE ts < ? RETURNING source, name, label",
+                (minute_cut,),
+            )
+        ]
 
     def next_event_seq(self) -> int:
         """The ``seq`` the next event takes: past every event ever stored,
@@ -531,12 +581,24 @@ class MetricsStore:
     # restart
     # ------------------------------------------------------------------
 
-    def counter_state(self) -> dict[SeriesKey, tuple[str, float]]:
-        """The ``(boot_id, value)`` of every counter series last written."""
+    def counter_state(self, date: str) -> dict[SeriesKey, tuple[str, float]]:
+        """The ``(boot_id, value)`` of every counter series last written on
+        trading date ``date``; they count as written today.
+
+        A value written on an earlier date is no resume point: the increment
+        from it would book part of that date (and, for the engine's counters
+        it resets at PRE_OPEN, lose its total) to ``date``.
+        """
+        day = datetime.strptime(date, "%Y-%m-%d").date()
+        start = datetime.combine(day, dtime.min, self._session_tz).timestamp()
         rows = self.conn.execute(
-            "SELECT source, name, label, boot_id, value FROM counter_last"
+            "SELECT source, name, label, boot_id, value FROM counter_last "
+            "WHERE ts >= ?",
+            (iso_utc(start),),
         )
-        return {(s, n, lb): (boot, v) for s, n, lb, boot, v in rows}
+        state = {(s, n, lb): (boot, v) for s, n, lb, boot, v in rows}
+        self._written.update({key: (boot, v, date) for key, (boot, v) in state.items()})
+        return state
 
     def totals_for(self, date: str) -> list[tuple[str, str, str, float]]:
         """``(source, name, label, total)`` of one trading date."""
@@ -546,21 +608,38 @@ class MetricsStore:
         )
         return [(s, n, lb, float(t)) for s, n, lb, t in rows]
 
+    def session_opened(self, date: str) -> float | None:
+        """When the session first left ``CLOSED`` on trading date ``date``,
+        from its ``SESSION`` event (``CLOSED -> PRE_OPEN``); ``None`` if it
+        has not."""
+        day = datetime.strptime(date, "%Y-%m-%d").date()
+        start = datetime.combine(day, dtime.min, self._session_tz).timestamp()
+        row = self.conn.execute(
+            "SELECT ts FROM events WHERE kind = 'SESSION' AND ts >= ? "
+            "AND detail LIKE 'CLOSED -> %' AND detail != 'CLOSED -> CLOSED' "
+            "ORDER BY ts LIMIT 1",
+            (iso_utc(start),),
+        ).fetchone()
+        return None if row is None else datetime.fromisoformat(row[0]).timestamp()
+
     def avg_per_day(
         self, name: str, label: str | None, before: str, days: int = 7
     ) -> float | None:
         """Mean daily total of ``name`` (one label, or all summed) over the
         last ``days`` trading dates with data before ``before``; ``None``
         without any."""
-        where = "name = ? AND date < ?"
-        args: list[Any] = [name, before]
+        where = "name = ?"
+        args: list[Any] = [name]
         if label is not None:
             where += " AND label = ?"
             args.append(label)
+        # The dates first, from the index, then only their rows: grouping
+        # every date of a name read its whole history, kept for good.
         rows = self.conn.execute(
-            f"SELECT SUM(total) FROM daily_totals WHERE {where} "
-            f"GROUP BY date ORDER BY date DESC LIMIT ?",
-            (*args, days),
+            f"SELECT SUM(total) FROM daily_totals WHERE {where} AND date IN ("
+            f"SELECT DISTINCT date FROM daily_totals WHERE {where} AND date < ? "
+            f"ORDER BY date DESC LIMIT ?) GROUP BY date",
+            (*args, *args, before, days),
         ).fetchall()
         if not rows:
             return None

@@ -381,7 +381,7 @@ class Monitor:
             self._reporter = None
         if self.store is not None:
             try:
-                self.store.close(self._wall_clock(), self.activity.tracker.state)
+                self.store.close(self._wall_clock(), self.activity.tracker.heard())
             except sqlite3.Error as exc:
                 log.error("metrics.db not closed cleanly: %s", exc)
             self.store = None
@@ -589,7 +589,11 @@ class Monitor:
                                 t, "engine_handle_p99_us", state.key, sample.value
                             )
                         )
-        for symbol, book in self.activity.books.items():
+        engine_live = any(
+            s.beacon.process == "pm-engine" and s.is_live(now, self.rules)
+            for s in self.table.states()
+        )
+        for symbol, book in self.activity.books.items() if engine_live else ():
             bloat = book.gauges.get("engine.book_heap_bloat_ratio")
             if bloat is not None:
                 out.append(band_reading(t, "heap_bloat_ratio", symbol, bloat))
@@ -706,7 +710,9 @@ class Monitor:
         bridge can fetch what it missed by sequence. The number continues
         from metrics.db (``_resume_from``) and is never reused: an event
         whose write failed is published under its number all the same, and
-        the next one takes the following number.
+        the next one takes the following number. Without metrics.db the
+        numbering starts at 0 on every start; readers take a lower number
+        that is not in the history as a new numbering.
         """
         ts = iso_utc(self._wall_clock())
         subject, detail = subject[:200], detail[:512]
@@ -757,8 +763,9 @@ class Monitor:
         """Continue the day metrics.db recorded (a pm-monitor restart, I69)."""
         now, now_wall = self._clock(), self._wall_clock()
         a = self.activity
-        a.tracker.prime(store.counter_state())
         a.roll_day(now_wall)
+        a.tracker.prime(store.counter_state(a.date))
+        a.session_opened_at = store.session_opened(a.date)
         restored = store.totals_for(a.date)
         for source, name, label, total in restored:
             a.restore(source, name, label, total, now, now_wall)
@@ -866,12 +873,19 @@ class Monitor:
             return
         now_wall = self._wall_clock()
         try:
+            tracker = self.activity.tracker
             if store.due_raw(now_wall):
-                store.flush_raw(now_wall, self.activity.tracker.state)
+                store.flush_raw(now_wall, tracker.heard())
+                tracker.clear_heard()
             store.flush_minutes(now_wall)
-            store.apply_retention(now_wall)
+            if store.apply_retention(now_wall):
+                tracker.forget_expired(store.expired_counters)
+                store.expired_counters.clear()
         except sqlite3.Error as exc:
             self._store_failed(exc)
+        # Minutes the store gave up on are history lost, as a failed write is.
+        self.store_errors += store.dropped_rows
+        store.dropped_rows = 0
 
     def _store_failed(self, exc: Exception) -> None:
         self.store_errors += 1

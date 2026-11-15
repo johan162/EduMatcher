@@ -15,9 +15,11 @@ import pytest
 from edumatcher.config import METRICS_DB_FILE
 from edumatcher.emo import cli as emo_cli
 from edumatcher.models.generated.health import HealthSnapshot
+from edumatcher.models.generated.session import make_session_state
 from edumatcher.monitor.collector import Monitor
 from edumatcher.monitor.config import MonitorConfig
 from edumatcher.monitor.store import (
+    BACKLOG_SEC,
     IncompatibleStoreError,
     MetricsStore,
     StoreLockedError,
@@ -482,6 +484,266 @@ def test_a_restart_across_an_engine_restart(db: Path, clocks: _Clocks) -> None:
         second.close()
 
 
+def _engine(
+    seq: int,
+    orders: float,
+    trades: float,
+    *,
+    boot: str = "a" * 16,
+    started: int = STARTED,
+) -> list[bytes]:
+    """An engine beacon with a cumulative counter and a PRE_OPEN-reset one."""
+    return _beacon_frames(
+        seq=seq,
+        boot_id=boot,
+        started_at_ns=started,
+        metrics=[
+            {
+                "name": "engine.orders_in",
+                "kind": "COUNTER",
+                "label": "GW1",
+                "value": orders,
+            },
+            {
+                "name": "engine.trades",
+                "kind": "COUNTER",
+                "label": "AAA",
+                "value": trades,
+            },
+        ],
+    )
+
+
+def _day_totals(db: Path, date: str) -> dict[str, float]:
+    return dict(
+        _rows(
+            db,
+            "SELECT name, SUM(total) FROM daily_totals WHERE date = ? GROUP BY name",
+            date,
+        )
+    )
+
+
+class TestRestartAcrossDays:
+    """C2 (Monitor review): a counter value recorded on an earlier trading
+    date is no resume point -- the step follows the first-value rule."""
+
+    def _day_one(self, db: Path, clocks: _Clocks) -> None:
+        """09:00-15:00 on 2026-10-19, then pm-monitor stops."""
+        first = _monitor(db, clocks)
+        try:
+            first.receive(_engine(0, 0.0, 0.0), clocks.mono)
+            clocks.advance(6 * 3600.0)
+            first.receive(_engine(1, 6000.0, 3000.0), clocks.mono)
+            first.store_tick()
+        finally:
+            first.close()
+        assert _day_totals(db, "2026-10-19") == {
+            "engine.orders_in": 6000.0,
+            "engine.trades": 3000.0,
+        }
+
+    def test_an_engine_running_on_counts_nothing_from_before_today(
+        self, db: Path, clocks: _Clocks
+    ) -> None:
+        """The engine kept running overnight: what it counted since 15:00
+        yesterday is partly yesterday's, so none of it is today's."""
+        self._day_one(db, clocks)
+        clocks.advance(20 * 3600.0)  # 2026-10-20 11:00
+        second = _monitor(db, clocks)
+        try:
+            second.receive(_engine(2, 15000.0, 4000.0), clocks.mono)
+            second.store_tick()
+            assert second.activity.orders.today == 0.0  # not 9000
+            assert second.activity.trades.today == 0.0  # not 1000
+            second.receive(_engine(3, 15010.0, 4002.0), clocks.mono + 2.0)
+            assert second.activity.orders.today == 10.0
+            assert second.activity.trades.today == 2.0
+        finally:
+            second.close()
+        assert _day_totals(db, "2026-10-20") == {
+            "engine.orders_in": 10.0,
+            "engine.trades": 2.0,
+        }
+        assert _day_totals(db, "2026-10-19")["engine.orders_in"] == 6000.0
+
+    def test_an_engine_started_today_counts_its_whole_value(
+        self, db: Path, clocks: _Clocks
+    ) -> None:
+        self._day_one(db, clocks)
+        clocks.advance(20 * 3600.0)
+        today = int((clocks.wall - 2 * 3600.0) * 1e9)  # 09:00 on 2026-10-20
+        second = _monitor(db, clocks)
+        try:
+            second.receive(
+                _engine(0, 800.0, 40.0, boot="b" * 16, started=today), clocks.mono
+            )
+            assert second.activity.orders.today == 800.0
+            assert second.activity.trades.today == 40.0
+        finally:
+            second.close()
+
+    def test_increments_after_midnight_go_to_the_new_date(
+        self, db: Path, clocks: _Clocks
+    ) -> None:
+        """pm-monitor running through midnight: unchanged."""
+        mon = _monitor(db, clocks)
+        try:
+            mon.receive(_engine(0, 0.0, 0.0), clocks.mono)
+            clocks.advance(14 * 3600.0)  # 23:00
+            mon.receive(_engine(1, 100.0, 10.0), clocks.mono)
+            clocks.advance(2 * 3600.0)  # 01:00 on 2026-10-20
+            mon.receive(_engine(2, 130.0, 10.0), clocks.mono)
+            mon.store_tick()
+        finally:
+            mon.close()
+        assert _day_totals(db, "2026-10-19")["engine.orders_in"] == 100.0
+        assert _day_totals(db, "2026-10-20") == {"engine.orders_in": 30.0}
+
+
+class TestSessionOpenedAfterRestart:
+    """C4 (Monitor review): "avg / hour" counts from today's open after a
+    restart, which metrics.db's SESSION events record."""
+
+    def _open_then_restart(
+        self, db: Path, clocks: _Clocks, *, opens: bool
+    ) -> HealthSnapshot:
+        first = _monitor(db, clocks)
+        try:
+            if opens:  # 09:00, as the engine bus says it
+                first.receive_engine(
+                    make_session_state(state="PRE_OPEN", prev_state="CLOSED")
+                )
+            first.receive(_engine(0, 0.0, 0.0), clocks.mono)
+            clocks.advance(2 * 3600.0)  # 11:00
+            first.receive(_engine(1, 12000.0, 0.0), clocks.mono)
+        finally:
+            first.close()
+        clocks.advance(5.0)
+        second = _monitor(db, clocks)
+        try:
+            second.receive(_engine(2, 12000.0, 0.0), clocks.mono)
+            return HealthSnapshot.from_dict(second.snapshot())
+        finally:
+            second.close()
+
+    def test_avg_per_hour_counts_from_the_open(self, db: Path, clocks: _Clocks) -> None:
+        snap = self._open_then_restart(db, clocks, opens=True)
+        hours = (2 * 3600.0 + 5.0) / 3600.0
+        assert snap.trading.orders.avg_per_hour == pytest.approx(12000.0 / hours)
+
+    def test_before_any_open_today_it_counts_from_midnight(
+        self, db: Path, clocks: _Clocks
+    ) -> None:
+        snap = self._open_then_restart(db, clocks, opens=False)
+        hours = (11 * 3600.0 + 5.0) / 3600.0
+        assert snap.trading.orders.avg_per_hour == pytest.approx(12000.0 / hours)
+
+    def test_an_open_on_an_earlier_date_does_not_count(
+        self, db: Path, clocks: _Clocks
+    ) -> None:
+        first = _monitor(db, clocks)
+        try:
+            first.receive_engine(
+                make_session_state(state="PRE_OPEN", prev_state="CLOSED")
+            )
+        finally:
+            first.close()
+        clocks.advance(24 * 3600.0)  # 2026-10-20 09:00, not opened yet
+        second = _monitor(db, clocks)
+        try:
+            assert second.activity.session_opened_at is None
+        finally:
+            second.close()
+
+
+class TestCounterState:
+    """C1/P2 (Monitor review): ``counter_last`` holds what was last heard,
+    so the state of a source that never returns expires with retention."""
+
+    BOT = "pm-mm-bot/MM07@box"
+
+    def _bot(self, seq: int, value: float) -> list[bytes]:
+        return _beacon_frames(
+            process="pm-mm-bot",
+            instance="MM07",
+            seq=seq,
+            boot_id="c" * 16,
+            started_at_ns=STARTED,
+            metrics=[
+                {"name": "bot.orders", "kind": "COUNTER", "label": "", "value": value}
+            ],
+        )
+
+    def _last(self, db: Path, source: str) -> list[tuple[Any, ...]]:
+        return _rows(
+            db, "SELECT name, value, ts FROM counter_last WHERE source = ?", source
+        )
+
+    def test_a_source_that_never_returns_expires(
+        self, db: Path, clocks: _Clocks
+    ) -> None:
+        first = _monitor(db, clocks)
+        try:
+            first.receive(self._bot(0, 5.0), clocks.mono)
+            first.store_tick()
+        finally:
+            first.close()
+        assert len(self._last(db, self.BOT)) == 1
+        clocks.advance(300.0)  # same day: MM07's state is primed
+        second = _monitor(db, clocks)
+        try:
+            assert len(second.activity.tracker) == 1
+            for _ in range(8 * 24):  # eight days, MM07 never heard again
+                clocks.advance(3600.0)
+                second.store_tick()
+            assert len(second.activity.tracker) == 0
+        finally:
+            second.close()
+        assert self._last(db, self.BOT) == []
+
+    def test_an_unchanged_counter_is_not_rewritten(
+        self, mon: Monitor, clocks: _Clocks, db: Path
+    ) -> None:
+        mon.receive(self._bot(0, 5.0), clocks.mono)
+        mon.store_tick()
+        before = self._last(db, self.BOT)
+        for seq in range(1, 10):  # 18 s of beacons, value unchanged
+            clocks.advance(2.0)
+            mon.receive(self._bot(seq, 5.0), clocks.mono)
+            mon.store_tick()
+        assert self._last(db, self.BOT) == before
+        clocks.advance(2.0)
+        mon.receive(self._bot(10, 6.0), clocks.mono)
+        clocks.advance(10.0)
+        mon.store_tick()
+        assert self._last(db, self.BOT)[0][1] == 6.0
+
+    def test_a_quiet_counter_heard_today_resumes_today(
+        self, db: Path, clocks: _Clocks
+    ) -> None:
+        """An unchanged value is written again once on a new trading date,
+        so a restart that day still resumes it exactly."""
+        first = _monitor(db, clocks)
+        try:
+            first.receive(self._bot(0, 5.0), clocks.mono)
+            first.store_tick()
+            clocks.advance(24 * 3600.0)  # 2026-10-20 09:00, still 5
+            first.receive(self._bot(1, 5.0), clocks.mono)
+            first.store_tick()
+        finally:
+            first.close()
+        assert self._last(db, self.BOT)[0][2] == iso_utc(clocks.wall)
+        clocks.advance(300.0)  # down 5 min; MM07 sent 7 orders meanwhile
+        second = _monitor(db, clocks)
+        try:
+            second.receive(self._bot(2, 12.0), clocks.mono)
+            second.store_tick()
+        finally:
+            second.close()
+        assert _day_totals(db, "2026-10-20") == {"bot.orders": 7.0}
+
+
 # ---------------------------------------------------------------------------
 # events, retention, daily averages
 # ---------------------------------------------------------------------------
@@ -584,6 +846,52 @@ def test_avg_per_day_from_the_last_7_days_with_data(db: Path, clocks: _Clocks) -
         m.close()
 
 
+@pytest.mark.parametrize("label", [None, "GW1"])
+def test_avg_per_day_reads_only_the_last_dates(db: Path, label: str | None) -> None:
+    """P1 (Monitor review): kept for good, so a plan that groups every date
+    of a name grows with history (65 ms at a year for engine.trades)."""
+    store = _store(db)
+    try:
+        store.conn.executemany(
+            "INSERT INTO daily_totals VALUES (?, ?, ?, ?, ?)",
+            [
+                (f"2026-10-{d:02d}", "pm-engine@box", "engine.orders_in", gw, 1.0)
+                for d in range(1, 19)
+                for gw in ("GW1", "GW2")
+            ],
+        )
+        executed: list[str] = []
+        store.conn.set_trace_callback(executed.append)
+        store.avg_per_day("engine.orders_in", label, before="2026-10-19")
+        store.conn.set_trace_callback(None)
+        (sql,) = [q for q in executed if "daily_totals" in q]
+        plan = [r[3] for r in store.conn.execute("EXPLAIN QUERY PLAN " + sql)]
+    finally:
+        store.close(OPEN)
+    assert not any("TEMP B-TREE" in step or step.startswith("SCAN") for step in plan)
+
+
+def test_avg_per_day_with_gaps_and_few_dates(db: Path) -> None:
+    store = _store(db)
+    try:
+        assert store.avg_per_day("engine.trades", None, before="2026-10-19") is None
+        store.conn.executemany(
+            "INSERT INTO daily_totals VALUES (?, ?, ?, ?, ?)",
+            [
+                ("2026-10-01", "pm-engine@box", "engine.trades", "AAA", 10.0),
+                ("2026-10-01", "pm-engine@box", "engine.trades", "BBB", 20.0),
+                ("2026-10-09", "pm-engine@box", "engine.trades", "AAA", 60.0),
+                ("2026-10-19", "pm-engine@box", "engine.trades", "AAA", 999.0),
+            ],
+        )
+        assert store.avg_per_day("engine.trades", None, before="2026-10-19") == 45.0
+        assert store.avg_per_day("engine.trades", "AAA", before="2026-10-19") == 35.0
+        assert store.avg_per_day("engine.trades", "BBB", before="2026-10-19") == 20.0
+        assert store.avg_per_day("engine.trades", "CCC", before="2026-10-19") is None
+    finally:
+        store.close(OPEN)
+
+
 def test_a_failing_disk_costs_history_not_the_snapshot(
     mon: Monitor, clocks: _Clocks
 ) -> None:
@@ -592,6 +900,77 @@ def test_a_failing_disk_costs_history_not_the_snapshot(
     _beacons(mon, clocks, [0.0, 1.0])
     assert mon.store_errors >= 1
     HealthSnapshot.from_dict(mon.snapshot()).validate()
+
+
+class TestFailingWrites:
+    """C3 (Monitor review): while every write fails, what waits for the next
+    write is bounded, and what is dropped is counted."""
+
+    SERIES = [("pm-engine@box", "engine.book_est_bytes", f"S{i}") for i in range(40)]
+
+    def _run(self, store: MetricsStore, start: float, seconds: int) -> int:
+        """One sample per series every 2 s and a minute flush per sample;
+        the number of flushes that failed."""
+        failed = 0
+        for t in range(0, seconds, 2):
+            for key in self.SERIES:
+                store.record(key, float(t), start + t, counter=False, raw=False)
+            try:
+                store.flush_minutes(start + t)
+            except sqlite3.Error:
+                failed += 1
+        return failed
+
+    def test_the_backlog_is_bounded_and_written_when_the_disk_returns(
+        self, db: Path
+    ) -> None:
+        store = _store(db)
+        try:
+            store.conn.execute("PRAGMA query_only = 1")  # every write fails
+            assert self._run(store, OPEN, 2 * 3600) > 0
+            kept_minutes = int(BACKLOG_SEC // 60) + 1
+            assert len(store._closed) <= len(self.SERIES) * kept_minutes
+            closed = len(self.SERIES) * 119  # minutes closed in two hours
+            assert store.dropped_rows == closed - len(store._closed)
+            store.conn.execute("PRAGMA query_only = 0")
+            store.flush_minutes(OPEN + 2 * 3600)
+        finally:
+            store.close(OPEN + 2 * 3600)
+        starts = sorted({r[0] for r in _rows(db, "SELECT DISTINCT ts FROM samples_1m")})
+        # The newest minutes, with no gap, for every series.
+        assert starts == [iso_utc(OPEN + 60 * m) for m in range(120 - len(starts), 120)]
+        assert _rows(db, "SELECT COUNT(DISTINCT series) FROM samples_1m") == [
+            (len(self.SERIES),)
+        ]
+
+    def test_one_failed_write_loses_nothing(self, db: Path) -> None:
+        store = _store(db)
+        try:
+            self._run(store, OPEN, 120)
+            store.conn.execute("PRAGMA query_only = 1")
+            assert self._run(store, OPEN + 120, 60) > 0
+            store.conn.execute("PRAGMA query_only = 0")
+            self._run(store, OPEN + 180, 62)
+        finally:
+            store.close(OPEN + 242)
+        assert _rows(db, "SELECT COUNT(DISTINCT ts) FROM samples_1m") == [(5,)]
+        assert store.dropped_rows == 0
+
+    def test_dropped_rows_are_store_errors(self, mon: Monitor, clocks: _Clocks) -> None:
+        assert mon.store is not None
+        mon.store.conn.execute("PRAGMA query_only = 1")
+        failures: list[Exception] = []
+        real = mon._store_failed
+
+        def failed(exc: Exception) -> None:
+            failures.append(exc)
+            real(exc)
+
+        with patch.object(mon, "_store_failed", side_effect=failed):
+            _beacons(mon, clocks, [float(i) for i in range(900)])  # 30 minutes
+        # Every failed write counts one, and every dropped minute one more.
+        assert mon.store_errors > len(failures) > 0
+        assert mon.store.dropped_rows == 0  # taken by the collector
 
 
 # ---------------------------------------------------------------------------

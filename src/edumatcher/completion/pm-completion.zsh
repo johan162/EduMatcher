@@ -4039,7 +4039,7 @@ _shtab_pm_monitor_cli_defaults_added=0
 
 _shtab_pm_monitor_cli_events_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
-  "--since[Only events at or after]:ISO_TS:"
+  "--since[Only events at or after this ISO-8601 time (UTC without an offset)]:ISO_TS:"
   "--kind[One of\: CONNECT, AUTH_REJECT, DISCONNECT, DIAGNOSTIC, SESSION, HALT, RESUME, PROCESS_STATUS, THRESHOLD]:KIND:(CONNECT AUTH_REJECT DISCONNECT DIAGNOSTIC SESSION HALT RESUME PROCESS_STATUS THRESHOLD)"
   "--subject[Only events whose subject contains TEXT]:TEXT:"
   "--limit[The newest N matching events (default\: 50)]:N:"

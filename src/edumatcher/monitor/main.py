@@ -4,6 +4,7 @@ pm-monitor — the health collector behind the operator dashboard.
 Usage:
   poetry run pm-monitor [--log-level LEVEL] [-v|-vv] [-q]
                         [--log-target server|stdout|file] [--log-file PATH]
+                        [--log-failover-timeout SECONDS] [--version]
 
 Every long-running pm-* process PUSHes a ``health.beacon`` every
 ``monitor.beacon_interval_sec``; pm-monitor keeps the latest state of each
