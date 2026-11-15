@@ -48,8 +48,9 @@ its own piece of work.
 | L032 | 2026-11-15 | pm-engine (quotes) | `quote.new` carries `tick_decimals` but the engine ignores it, so a client with a wrong tick registry rests its quote at 1/100 or 100× the intended price without a reject | Medium | Open |
 | L033 | 2026-11-15 | pm-api-gwy (index and sim listeners) | The `IndexClient` and `SimClient` receive threads end on a ZeroMQ error while the process keeps serving: index history and the sim/news streams then go quiet with no ERROR and no exit | Low | Open |
 | L034 | 2026-11-15 | CLIs (`-q`) | `-q`/`--quiet` is documented as "Reduce output to warnings/errors" but sets WARNING, the default, so it changes nothing (5 entry points and pm-help's common log options) | Low | Open |
-| L035 | 2026-11-15 | pm-dc-gwy (engine feed) | The drop-copy subscriber keeps ZeroMQ's default 1000-message RCVHWM and does no bus-sequence check, so a burst of fills is dropped silently and DC1 `SEQ` stays dense | Medium | Open |
-| L036 | 2026-11-15 | pm-md-gwy, pm-dc-gwy (loop, shutdown) | Once a descriptor reaches 1024 `select` fails every pass and no client is read again (WARNING ~100/s); a stop closes every session with no `EXIT` and drops queued lines | Low | Open |
+| L035 | 2026-11-15 | pm-dc-gwy (engine feed) | The drop-copy subscriber keeps ZeroMQ's default 1000-message RCVHWM and subscribes to every participant, so a burst for unwatched IDs drops watched fills with no log or metric | Medium | Moved to DC review WP-DCG01 |
+| L036 | 2026-11-15 | pm-md-gwy (loop, shutdown) | Once a descriptor reaches 1024 `select` fails every pass and no client is read again (WARNING ~100/s); a stop closes every session with no `EXIT` and drops queued lines | Low | Open |
+| L037 | 2026-11-15 | pm-engine (drop copy) | For an uncross print (`aggressor_side` AUCTION) both drop-copy events carry `liquidity_flag` MAKER, while `drop_copy.yaml` says exactly one of the two is TAKER | Low | Open |
 
 ## L001 — Topic literals in pm-sim-forensics
 
@@ -608,17 +609,22 @@ flag means the same everywhere.
 **Finding.** `dc_gateway/gateway.py:121` creates its drop-copy subscriber
 with `make_subscriber(config.drop_copy_pub_addr)`: no `rcvhwm`, so ZeroMQ's
 default of 1000 messages applies, and past it a SUB socket drops without a
-trace. The poll loop decodes with `decode()` and never reads the bus
-sequence trailer, so a drop is neither counted nor logged. The gateway
-numbers its DC1 lines after the loss, so a client's gap check stays silent.
-pm-ralf-gwy lost 14 000 of a 20 000-trade burst this way (review H2, repro);
-pm-dc-gwy was not measured.
+trace; nothing counts or logs a drop.
+
+**Correction and status (2026-11-15).** The first version of this entry said
+DC1 `SEQ` stays dense after a loss. It does not: `SEQ` is the engine's
+per-participant counter, passed through, so the client sees the gap (at its
+next fill). The pm-dc-gwy review found the subscriber is also subscribed to
+every participant, so unwatched traffic causes the loss (857 of 2 001 watched
+fills lost in its repro). Taken over by
+`docs-design/reviews/EduMatcher-DC-Gateway-Review-2026-11.md` H1 /
+WP-DCG01.
 
 **Recommendation.** The same fix as WP-RALF02: `rcvhwm=100_000` and the
 pm-md-gwy bus-sequence check with a `gwy.bus_gaps` counter and a latched
 WARNING.
 
-## L036 — pm-md-gwy and pm-dc-gwy: select limit and silent stop
+## L036 — pm-md-gwy: select limit and silent stop
 
 **Found:** 2026-11-15, pm-ralf-gwy review C5 and C7
 (`docs-design/reviews/EduMatcher-RALF-Gateway-Review-2026-11.md`).
@@ -632,5 +638,23 @@ the same code). Their `close()` closes every session without a final line,
 so a planned stop looks like a crash to clients and queued lines are lost.
 
 **Recommendation.** Port WP-RALF04 (`select.poll`, `EXIT|REASON=shutdown`
-with a bounded flush) so the three line gateways stay alike.
+with a bounded flush) so the three line gateways stay alike. pm-dc-gwy's share
+is now WP-DCG03 of the DC gateway review (2026-11-15); this entry remains for
+pm-md-gwy.
+
+## L037 — Uncross prints have no TAKER in drop copy
+
+**Found:** 2026-11-15, pm-dc-gwy review §9
+(`docs-design/reviews/EduMatcher-DC-Gateway-Review-2026-11.md`).
+
+**Finding.** `engine/main.py:3510-3517` sets each side's drop-copy
+`liquidity_flag` to TAKER when that side equals `trade.aggressor_side`. An
+uncross print has `aggressor_side` AUCTION, so both events are MAKER.
+`spec/messages/drop_copy.yaml` (`liquidity_flag`) says "Exactly one of the two
+events a trade produces is TAKER". A fee or rebate computed from the flag
+treats both auction counterparties as liquidity providers.
+
+**Recommendation.** Decide what an auction fill is (a third value such as
+AUCTION, or MAKER for both, documented) and make the spec and the engine
+agree.
 

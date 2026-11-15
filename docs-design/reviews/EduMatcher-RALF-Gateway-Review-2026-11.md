@@ -673,7 +673,8 @@ the full suite green.
   `select.select` read loop with the same `ValueError` handling
   (`md_gateway/gateway.py:364-369`, `dc_gateway/gateway.py:233-238`) and the
   same `close()` without `EXIT`. Recorded as **L036**, so the three line
-  gateways can be aligned again after WP-RALF04.
+  gateways can be aligned again after WP-RALF04. pm-dc-gwy's share moved to
+  WP-DCG03 of the DC gateway review, which also took over L035.
 - **`-q` in other entry points** is L034; this review rewords only
   pm-ralf-gwy's (D8).
 - **`trade.yaml` header** (lines 5-8) says the RALF projection's `encoding`
