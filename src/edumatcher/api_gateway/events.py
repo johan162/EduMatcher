@@ -102,6 +102,24 @@ PRIVATE_PREFIXES = (
 )
 
 
+#: Engine topics addressed to one gateway that are not part of its private
+#: stream: replies to its requests (reference bundle, gateway roster, position
+#: snapshot, halt status, ...) and acks of its admin commands. Read from the
+#: spec, like COMMAND_TOPICS: every engine-published topic whose only
+#: parameter is the gateway id, less the private stream and admin.action.
+#: They resolve the waiter that asked and go no further.
+REPLY_PREFIXES: tuple[str, ...] = tuple(
+    sorted(
+        entry["prefix"]
+        for entry in TOPIC_REGISTRY.values()
+        if "engine_pub" in entry["transport"]
+        and tuple(entry["params"]) == ("gateway_id",)
+        and not entry["prefix"].startswith(PRIVATE_PREFIXES)
+        and not entry["prefix"].startswith(ADMIN_ACTION_PREFIX)
+    )
+)
+
+
 def now_iso() -> str:
     """Return an RFC3339-ish UTC timestamp for outgoing envelopes."""
     return (

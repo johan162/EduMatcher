@@ -123,6 +123,10 @@ class _Socket:
             raise WebSocketDisconnect()
         return self.messages.pop(0)
 
+    async def receive(self) -> dict[str, Any]:
+        await asyncio.Event().wait()  # the client stays connected
+        raise AssertionError("unreachable")
+
     async def send_json(self, value: Any) -> None:
         self.sent.append(json.loads(json.dumps(value)))
 

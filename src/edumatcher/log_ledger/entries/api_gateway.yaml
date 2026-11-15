@@ -27,6 +27,18 @@
     - "Otherwise set `enabled: true` on that entry, run `pm-config-deploy` and start it again."
 
 - logger: edumatcher.api_gateway.main
+  template: "engine listener died; exiting with status 1"
+  level: CRITICAL
+  explanation: >
+    pm-api-gwy stopped because its engine receive thread died (see the
+    "engine listener died" ERROR before it). Its REST and WebSocket clients
+    are disconnected, and the engine applies each participant's disconnect
+    behaviour.
+  actions:
+    - "Read the ERROR line and traceback logged just before this one."
+    - "Start pm-api-gwy again."
+
+- logger: edumatcher.api_gateway.main
   template: "fatal runtime error: %s"
   level: CRITICAL
   explanation: >
@@ -41,6 +53,18 @@
 # --- engine connection ------------------------------------------------------
 
 - logger: edumatcher.api_gateway.engine_client
+  template: "engine listener died; stopping pm-api-gwy"
+  level: ERROR
+  explanation: >
+    The thread that receives the engine's messages failed (the traceback
+    follows). Without it pm-api-gwy can no longer see engine replies or
+    events, so it stops and exits with status 1 rather than answer every
+    request with a timeout.
+  actions:
+    - "Read the traceback; a ZeroMQ error names the cause."
+    - "Start pm-api-gwy again (`pm-opctl-cli start` restarts it with the profile)."
+
+- logger: edumatcher.api_gateway.engine_client
   template: "auth handshake timed out gateway_id=%s"
   level: WARNING
   explanation: >
@@ -50,6 +74,43 @@
   actions:
     - "Check that pm-engine is running and responsive (`pm-monitor-cli status`)."
     - "If the engine is busy (an opening burst), retries usually succeed a moment later."
+
+- logger: edumatcher.api_gateway.engine_client
+  template: "late engine accept adopted gateway_id=%s"
+  level: WARNING
+  explanation: >
+    The engine accepted a participant's connection after pm-api-gwy had
+    already told the client "Engine authentication timed out". pm-api-gwy now
+    holds the connection and heartbeats it, so the client's next request
+    succeeds. It follows an "auth handshake timed out" line for the same id.
+  actions:
+    - "Nothing to do for this participant; retry the request that failed."
+    - "If it is frequent, the engine is answering slower than `timeouts.engine_auth_sec`: check its load (`pm-monitor-cli status`)."
+
+- logger: edumatcher.api_gateway.routers.ws
+  template: "[%s] private snapshot: engine timeout"
+  level: WARNING
+  explanation: >
+    A participant opened the private WebSocket, but the engine did not answer
+    the orders and positions requests the opening snapshot is built from in
+    time (`timeouts.engine_reply_sec`). pm-api-gwy closed the socket with
+    code 1013 (try again later) rather than send an incomplete snapshot; the
+    client reconnects with backoff.
+  actions:
+    - "Nothing to do if it is occasional: the client reconnects and gets a full snapshot."
+    - "If it repeats, check that pm-engine is running and responsive (`pm-monitor-cli status`)."
+
+- logger: edumatcher.api_gateway.routers.ws
+  template: "[%s] admin socket: role not confirmed by the engine"
+  level: WARNING
+  explanation: >
+    An ADMIN monitor or market-sim WebSocket was opened, but the engine did
+    not answer the role lookup in time (`timeouts.engine_reply_sec`).
+    pm-api-gwy closed the socket with code 1013 (try again later) instead of
+    refusing a role the caller may hold; the client reconnects with backoff.
+  actions:
+    - "Nothing to do if it is occasional: the next connect asks the engine again."
+    - "If it repeats, check that pm-engine is running and responsive (`pm-monitor-cli status`)."
 
 - logger: edumatcher.api_gateway.engine_client
   template: "symbols snapshot not received gateway_id=%s"
@@ -147,6 +208,17 @@
     different trading day than pm-stats recorded.
   actions:
     - "Check the session timezone in the source config (`locale.session_timezone`) and that it is a valid name such as Europe/Stockholm."
+
+- logger: edumatcher.api_gateway.routers.history
+  template: "history: cannot read %s: %s"
+  level: WARNING
+  explanation: >
+    A history request could not read pm-stats' database: the file is not a
+    database, is damaged, or stayed locked past the busy timeout. The client
+    got 503 STATS_DB and can retry.
+  actions:
+    - "A locked database clears by itself; retry the request."
+    - "Otherwise check pm-stats and stats.db with `pm-stats-cli health`, and the path in `api_gateways[].stats_db`."
 
 - logger: edumatcher.api_gateway.routers.reference
   template: "positions: cannot open clearing DB %s"

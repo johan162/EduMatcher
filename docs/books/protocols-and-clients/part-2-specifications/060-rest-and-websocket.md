@@ -920,7 +920,7 @@ Purpose: cancel one live order in the caller's gateway.
 | Name | Type | Req | Description |
 |---|---|---|---|
 | `order_id` | `Str` | yes (path) | Order to cancel |
-| `wait` | `Bool` | no | `?wait=ack` waits for `order.cancelled.*` |
+| `wait` | `Bool` | no | `?wait=ack` waits for `order.cancelled.*` or the refusal (`order.ack` with `request: CANCEL`) |
 | `request_tag` | `Str` | no | Query parameter echoed on `order.cancelled.*` or rejected ACK; max 64 chars |
 
 **Reply**
@@ -931,9 +931,9 @@ Purpose: cancel one live order in the caller's gateway.
 | `200 OK` | `{"order_id": "...", "status": "ACKED" \| "REJECTED", "accepted": ..., "reject_code": ..., "event": {...}}` | With `?wait=ack`: the cancel's outcome |
 | `202 Accepted` | `{..., "status": "PENDING_CANCEL", "ack_timeout": true}` | `?wait=ack` and the outcome did not arrive in time; the cancel was sent |
 
-Without a `request_tag`, `?wait=ack` waits for `order.cancelled` alone, so a
-refused cancel shows as an ack timeout; pass a `request_tag` to get it as
-`REJECTED`.
+A refused cancel is `REJECTED` with or without a `request_tag`: the refusal is
+the `order.ack` whose `request` is `CANCEL`. A `request_tag` additionally tells
+two cancels of the same order apart.
 
 **Errors**
 
@@ -955,7 +955,7 @@ Purpose: amend price and/or quantity on one live order.
 | `price` | `Price` | conditional | New order price |
 | `quantity` | `Qty` | conditional | New order quantity |
 | `request_tag` | `Str` | no | Body field echoed on `order.amended.*` or rejected ACK; max 64 chars |
-| `wait` | `Bool` | no | `?wait=ack` waits for `order.amended.*` |
+| `wait` | `Bool` | no | `?wait=ack` waits for `order.amended.*` or the refusal (`order.ack` with `request: AMEND`) |
 
 **Reply**
 
@@ -1030,7 +1030,7 @@ orders plus recently finished ones.
 | Code | Status | When |
 |---|---|---|
 | `READ_ONLY` | `403` | Read-only credential used |
-| `ENGINE_TIMEOUT` | `503` | The engine did not answer in time. There is no fallback to the gateway's cache; the private WebSocket `orders.snapshot` is the cached view |
+| `ENGINE_TIMEOUT` | `503` | The engine did not answer in time. There is no fallback to the gateway's cache |
 
 ### `GET /api/v1/orders/{order_id}`
 
@@ -3105,8 +3105,8 @@ restart the engine to apply configuration changes.
 
 - Read-only dashboard keys can call reference and public history endpoints,
   but not trading or admin write endpoints.
-- `order_retention_sec` bounds the live order cache, the private
-  `orders.snapshot` frame, and `GET /api/v1/admin/orders`.
+- `order_retention_sec` bounds the live order cache, the finished orders in
+  the private `orders.snapshot` frame, and `GET /api/v1/admin/orders`.
 - `market_data_cache_sec` bounds the market-data stream cache that backs the
   snapshot-on-subscribe, `snapshot`, and `resume` controls on
   `WS /api/v1/ws/market-data` (latest `book`/`depth`/`auction` snapshots are kept

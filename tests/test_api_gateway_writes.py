@@ -114,7 +114,8 @@ class _Engine:
         success_topic: str,
         gateway_id: str,
         order_id: str,
-        request_tag: str,
+        request: str,
+        request_tag: str | None,
         timeout: float,
     ) -> dict[str, Any]:
         if self.delay:

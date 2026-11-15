@@ -191,7 +191,7 @@ def test_all_orders_filters_case_insensitively(client: EngineClient) -> None:
         },
     )
 
-    def ids(**kw: str) -> set[str]:
+    def ids(**kw: Any) -> set[str]:
         return {o["order_id"] for o in client.all_orders(**kw)}
 
     assert ids() == {"A", "B", "C"}

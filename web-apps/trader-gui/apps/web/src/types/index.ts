@@ -1097,6 +1097,8 @@ export interface OrderAckData {
   reason: string;
   reject_code?: RejectCode | null;
   request_tag?: string | null;
+  /** Which request this ack answers; a refused CANCEL/AMEND leaves the order resting. */
+  request?: "NEW" | "CANCEL" | "AMEND" | null;
   symbol?: string;
   side?: Side;
   order_type?: OrderType;

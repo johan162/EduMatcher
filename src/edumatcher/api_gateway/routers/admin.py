@@ -407,7 +407,7 @@ async def halt_symbol(  # pyright: ignore[reportUnusedFunction]
     ack = await _await_ack(
         request,
         topic_symbol_halt_ack(gateway_id),
-        match={"symbol": symbol},
+        match={"command_id": command_id},
     )
     return _require_accepted(ack, "HALT_REJECTED")
 
@@ -450,7 +450,7 @@ async def resume_symbol(  # pyright: ignore[reportUnusedFunction]
     ack = await _await_ack(
         request,
         topic_symbol_resume_ack(gateway_id),
-        match={"symbol": symbol},
+        match={"command_id": command_id},
     )
     return _require_accepted(ack, "RESUME_REJECTED")
 
@@ -593,7 +593,7 @@ async def cancel_symbol_orders(  # pyright: ignore[reportUnusedFunction]
     ack = await _await_ack(
         request,
         topic_cancel_symbol_ack(gateway_id),
-        match={"symbol": symbol},
+        match={"command_id": command_id},
     )
     return _require_accepted(ack, "KILL_SWITCH_REJECTED")
 

@@ -8,6 +8,8 @@ from collections.abc import Iterator, Mapping
 from typing import Any, cast
 
 import pytest
+
+from edumatcher.api_gateway.caches import SessionCaches
 from fastapi import Response
 from fastapi.exceptions import RequestValidationError
 from pydantic import BaseModel
@@ -228,7 +230,7 @@ class _RejectedOrderEngine:
     def __init__(self, reject_code: str, reason: str) -> None:
         self.reject_code = reject_code
         self.reason = reason
-        self.cache = type("Cache", (), {"orders": {}})()
+        self.cache = SessionCaches()
 
     def get_caches(self, gateway_id: str) -> object:
         _ = gateway_id

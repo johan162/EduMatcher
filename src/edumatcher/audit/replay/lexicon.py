@@ -82,6 +82,8 @@ PHRASES: Mapping[str, Mapping[str, str]] = {
     },
     "combo_type": {"AON": "all-or-none"},
     "liquidity_flag": {"MAKER": "resting", "TAKER": "aggressing"},
+    # order.ack.request: which request an ack answers.
+    "request": {"NEW": "a new order", "CANCEL": "a cancel", "AMEND": "an amend"},
     "becomes": {"MARKET": "a market order", "LIMIT": "a limit order"},
     "match_type": {
         "CONTINUOUS": "in continuous matching",

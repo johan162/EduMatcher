@@ -13,11 +13,13 @@ from typing import Any, Callable
 import zmq
 from fastapi import HTTPException, status
 
-from edumatcher.api_gateway.caches import SessionCaches
+from edumatcher.api_gateway.caches import TERMINAL_ORDER_STATUSES, SessionCaches
 from edumatcher.api_gateway.market_cache import MarketDataCache, channel_for_topic
 from edumatcher.api_gateway.events import (
     ADMIN_ACTION_PREFIX,
     COMMAND_TOPICS,
+    ORDER_FILL_PREFIX,
+    REPLY_PREFIXES,
     envelope,
     gateway_from_topic,
 )
@@ -63,7 +65,12 @@ from edumatcher.models.message import (
     make_symbols_request_msg,
     make_volume_request_msg,
 )
-from edumatcher.models.generated.order import PREFIX_ENGINE_TRACE, topic_order_ack
+from edumatcher.models.generated.order import (
+    PREFIX_ENGINE_TRACE,
+    OrderAckRequest,
+    topic_order_ack,
+    topic_orders,
+)
 from edumatcher.models.order import Order
 from edumatcher.models.price import register_tick_decimals
 from edumatcher.models.generated.risk import topic_kill_switch_ack
@@ -76,6 +83,7 @@ from edumatcher.models.generated.system import (
     match_gateway_bye,
     topic_gateway_auth,
     topic_gateways,
+    topic_position_snapshot,
     topic_reference_reload_ack,
     topic_symbols,
 )
@@ -92,6 +100,9 @@ class _PendingWait:
 
     future: asyncio.Future[dict[str, Any]]
     match: dict[str, str] | None = field(default=None)
+    #: Called as the waiter resolves, inside the event's own handling, so it
+    #: sees the private streams exactly as of that event.
+    on_resolve: Callable[[], None] | None = field(default=None)
 
 
 class EngineClient:
@@ -113,10 +124,17 @@ class EngineClient:
         self._sub = make_subscriber(pub_addr, "")
         self._running = False
         self._thread: threading.Thread | None = None
+        #: Called on the event loop when the receive thread dies while it was
+        #: meant to run; the app stops the server so the process exits
+        #: non-zero rather than serving timeouts (C5).
+        self.on_listener_failure: Callable[[], None] | None = None
         self._authenticated: set[str] = set()
         # Per-gateway locks prevent duplicate gateway_connect messages when
         # concurrent requests authenticate the same gateway simultaneously.
         self._auth_locks: dict[str, asyncio.Lock] = {}
+        # A gateway_connect whose reply did not arrive in time, per gateway:
+        # the engine may still accept it, and that accept is adopted (H3).
+        self._late_auth: dict[str, asyncio.Future[dict[str, Any]]] = {}
         # There is deliberately no kill-switch lock here any more. One existed
         # because risk.kill_switch_ack carried no per-call identifier, so two
         # concurrent mass cancels for one gateway could consume each other's
@@ -141,7 +159,9 @@ class EngineClient:
         # Latest-snapshot-per-topic plus a bounded trades tail, feeding the
         # snapshot/resume verbs on WS /api/v1/ws/market-data.
         self._market_cache = MarketDataCache(market_cache_sec)
-        # ADMIN monitor sinks receive every event across all gateways.
+        # ADMIN monitor sinks: every event across all gateways except public
+        # market data, engine.trace and replies addressed to one gateway
+        # (see _handle_event).
         self._admin_sinks: set[asyncio.Queue[dict[str, Any]]] = set()
         # Cache of resolved gateway roles (keyed by upper-cased gateway id).
         self._role_cache: dict[str, str] = {}
@@ -298,6 +318,12 @@ class EngineClient:
                 timeout,
             )
             auth_key = topic_gateway_auth(gateway_id)
+            stale = self._late_auth.pop(gateway_id, None)
+            if stale is not None:
+                # This attempt's waiter takes over: replies come FIFO, so the
+                # earlier connect's late answer now resolves this one.
+                self._drop_pending(auth_key, stale)
+                stale.cancel()
             future = self._register_future(auth_key)
             try:
                 self._send(make_gateway_connect_msg(gateway_id))
@@ -311,10 +337,17 @@ class EngineClient:
                 raise
             self._dbg_count("gateway_connect_sent")
             try:
-                payload = await asyncio.wait_for(future, timeout=timeout)
+                # Shielded: the waiter must outlive the timeout, because the
+                # engine may have taken the connect and answer it later.
+                payload = await asyncio.wait_for(asyncio.shield(future), timeout)
             except TimeoutError:
+                self._engine_timeouts += 1
                 log.warning("auth handshake timed out gateway_id=%s", gateway_id)
+                self._await_late_accept(gateway_id, future)
                 return False, "Engine authentication timed out"
+            except asyncio.CancelledError:
+                self._await_late_accept(gateway_id, future)
+                raise
             accepted = bool(payload.get("accepted", False))
             reason = str(payload.get("reason", ""))
             log.info(
@@ -330,6 +363,31 @@ class EngineClient:
                 self.send_heartbeat(gateway_id)
                 await self._seed_symbols(gateway_id, timeout)
             return accepted, reason
+
+    def _await_late_accept(
+        self, gateway_id: str, future: asyncio.Future[dict[str, Any]]
+    ) -> None:
+        """Adopt an accept that arrives after its caller gave up (H3).
+
+        The engine marks the session connected when it accepts. Ignoring a
+        late accept left the id connected there but unknown here: never
+        heartbeated, so never expired, and every later gateway_connect was
+        refused as "already connected". Adopting it makes the next request
+        succeed.
+        """
+        self._late_auth[gateway_id] = future
+
+        def _on_reply(done: asyncio.Future[dict[str, Any]]) -> None:
+            if self._late_auth.get(gateway_id) is done:
+                del self._late_auth[gateway_id]
+            if done.cancelled() or not done.result().get("accepted", False):
+                return
+            log.warning("late engine accept adopted gateway_id=%s", gateway_id)
+            self._authenticated.add(gateway_id)
+            self.send_heartbeat(gateway_id)
+            self._send(make_symbols_request_msg(gateway_id), require_engine=False)
+
+        future.add_done_callback(_on_reply)
 
     async def _seed_symbols(self, gateway_id: str, timeout: float) -> None:
         """Request the symbols snapshot and wait for it, briefly.
@@ -351,10 +409,15 @@ class EngineClient:
             log.warning("symbols snapshot not received gateway_id=%s", gateway_id)
 
     def _register_future(
-        self, key: str, match: dict[str, str] | None = None
+        self,
+        key: str,
+        match: dict[str, str] | None = None,
+        on_resolve: Callable[[], None] | None = None,
     ) -> asyncio.Future[dict[str, Any]]:
         future: asyncio.Future[dict[str, Any]] = self._loop.create_future()
-        self._pending[key].append(_PendingWait(future=future, match=match))
+        self._pending[key].append(
+            _PendingWait(future=future, match=match, on_resolve=on_resolve)
+        )
         self._dbg_count("futures_registered")
         return future
 
@@ -414,11 +477,11 @@ class EngineClient:
                 continue
             if waiter.match is not None:
                 if all(str(payload.get(k, "")) == v for k, v in waiter.match.items()):
-                    waiter.future.set_result(payload)
+                    self._resolve(waiter, payload)
                 else:
                     remaining.append(waiter)
             elif not resolved_unmatched:
-                waiter.future.set_result(payload)
+                self._resolve(waiter, payload)
                 resolved_unmatched = True
             else:
                 remaining.append(waiter)
@@ -426,6 +489,108 @@ class EngineClient:
             self._pending[topic] = remaining
         else:
             del self._pending[topic]
+
+    @staticmethod
+    def _resolve(waiter: _PendingWait, payload: dict[str, Any]) -> None:
+        waiter.future.set_result(payload)
+        if waiter.on_resolve is not None:
+            waiter.on_resolve()
+
+    async def private_snapshot(
+        self,
+        gateway_id: str,
+        queue: asyncio.Queue[dict[str, Any]],
+        timeout: float,
+    ) -> tuple[int, dict[str, Any]]:
+        """The ``orders.snapshot`` of *gateway_id*, from the engine (H1).
+
+        Returns ``(stream_seq, data)``: the caller's orders, positions and
+        quote legs as of private-stream position ``stream_seq``. Raises
+        ``TimeoutError`` when the engine does not answer.
+
+        This process's cache only knows what it has seen since it started:
+        after a gateway restart it reported no orders and no positions while
+        the engine still held both. So the engine is asked. *queue* is the
+        caller's private sink, registered before this call; every event in it
+        up to the cut is consumed here, and the rest stays for the live
+        stream.
+
+        The cut is the ``order.orders`` reply: it is a private event with a
+        ``stream_seq``, so every live event numbered above it is newer than
+        the snapshot. Positions are asked for first, because the engine
+        answers one sender's requests in order, and the fills between the
+        position snapshot and the cut are added to it. The position waiter
+        observes rather than consumes (``match={}``), so a concurrent
+        ``GET /positions`` cannot move it past the cut. Cached terminal
+        orders are kept: the engine lists resting orders only.
+        """
+        orders_topic = topic_orders(gateway_id)
+        positions_topic = topic_position_snapshot(gateway_id)
+        positions_at: list[int] = []
+        positions_future = self._register_future(
+            positions_topic,
+            match={},
+            on_resolve=lambda: positions_at.append(
+                self._gateway_stream_seq[gateway_id]
+            ),
+        )
+        try:
+            self.request_position(gateway_id)
+            self.request_orders(gateway_id)
+        except HTTPException:
+            self._drop_pending(positions_topic, positions_future)
+            raise
+        deadline = self._loop.time() + timeout
+        passed: list[dict[str, Any]] = []
+        try:
+            while True:
+                event = await asyncio.wait_for(
+                    queue.get(), deadline - self._loop.time()
+                )
+                if (
+                    event.get("topic") == orders_topic
+                    and positions_at
+                    and event["stream_seq"] > positions_at[0]
+                ):
+                    break
+                passed.append(event)
+            positions_reply = positions_future.result()
+        except TimeoutError as exc:
+            self._drop_pending(positions_topic, positions_future)
+            self._engine_timeouts += 1
+            raise TimeoutError(f"Timed out waiting for {orders_topic}") from exc
+        stream_seq = int(event["stream_seq"])
+        positions: dict[str, int] = {}
+        for entry in positions_reply.get("positions", []):
+            positions[str(entry["symbol"])] = int(entry["net_qty"])
+        for fill in passed:
+            if fill["stream_seq"] <= positions_at[0] or not str(
+                fill.get("topic", "")
+            ).startswith(ORDER_FILL_PREFIX):
+                continue
+            data = fill["data"]
+            sign = {"BUY": 1, "SELL": -1}.get(str(data.get("side", "")), 0)
+            symbol = str(data.get("symbol", ""))
+            positions[symbol] = positions.get(symbol, 0) + sign * int(
+                data.get("fill_qty", 0) or 0
+            )
+        resting = [
+            {**row, "order_id": row["id"], "client_tag": row.get("client_tag")}
+            for row in event["data"].get("orders", [])
+        ]
+        resting_ids = {row["order_id"] for row in resting}
+        cache = self._caches[gateway_id]
+        finished = [
+            order
+            for order_id, order in cache.orders.items()
+            if order_id not in resting_ids
+            and order.get("status") in TERMINAL_ORDER_STATUSES
+        ]
+        return stream_seq, {
+            "orders": resting + finished,
+            "positions": {sym: qty for sym, qty in positions.items() if qty},
+            "quote_legs": list(cache.quote_legs.values()),
+        }
 
     def _receive_loop(self) -> None:
         poller = zmq.Poller()
@@ -438,7 +603,7 @@ class EngineClient:
                 except zmq.ZMQError as exc:
                     if exc.errno != errno.EINTR:
                         raise
-                    break
+                    continue
                 if self._sub not in ready:
                     continue
                 # Drain what is already queued and hand it over in one call.
@@ -461,10 +626,17 @@ class EngineClient:
                 if batch:
                     self._dbg_count("pub_messages", len(batch))
                     self._loop.call_soon_threadsafe(self._handle_events, batch)
+        except Exception:
+            # Still meant to run, so not a stop_listener() closing the
+            # sockets under it: the process can no longer reach the engine.
+            if self._running:
+                log.exception("engine listener died; stopping pm-api-gwy")
+                if self.on_listener_failure is not None:
+                    self._loop.call_soon_threadsafe(self.on_listener_failure)
         finally:
             self._flush_debug_summary(force=True)
             # Ensure is_running()/`/healthz` reflect reality even if this thread
-            # exits on EINTR or an unrecoverable ZMQError instead of a clean stop.
+            # exits on an unrecoverable error instead of a clean stop.
             self._running = False
 
     def _next_seq(self, topic: str) -> int:
@@ -559,12 +731,22 @@ class EngineClient:
                     ", ".join(sorted(self._authenticated)),
                 )
             self._authenticated.clear()
+            # Roles change only through the engine config and a restart.
+            self._role_cache.clear()
         bye_gateway = match_gateway_bye(topic)
         if bye_gateway is not None:
             # The engine closed this session (an admin disconnect, or a missed
             # heartbeat). Forget it, so the next request re-authenticates
             # rather than being refused as "not connected" indefinitely.
             self._authenticated.discard(bye_gateway)
+        if topic.startswith(REPLY_PREFIXES):
+            # The answer to one gateway's request (or its admin command's
+            # ack), already handed to the waiter above. It is nobody's
+            # private event and no market data: fanning it out tested it
+            # against every market-data filter and queued it on every admin
+            # monitor, where nothing renders it (P3).
+            self._dbg_count("reply_handled")
+            return
         if topic in COMMAND_TOPICS:
             # A client's own request, re-published by the engine for the audit
             # trail. It is nobody's market data and it is not addressed to the
@@ -737,6 +919,7 @@ class EngineClient:
         symbol: str | None = None,
         gateway_id: str | None = None,
         status: str | None = None,
+        working: bool = False,
     ) -> list[dict[str, Any]]:
         """Every cached order across every gateway, tagged with its owner.
 
@@ -752,15 +935,27 @@ class EngineClient:
         monitor's gap resync asks for the few thousand working ones every
         10 s while the gateway is overloaded, so copying everything and
         filtering afterwards was the expensive half of the call.
+
+        ``working=True``, or a status that is not terminal, reads only the
+        working orders through each cache's ``live`` index: the cost is the
+        live orders, not the terminal ones retained beside them (P1, P2).
         """
         wanted_symbol = symbol.upper() if symbol else None
         wanted_gateway = gateway_id.upper() if gateway_id else None
         wanted_status = status.upper() if status else None
+        live_only = working or (
+            wanted_status is not None and wanted_status not in TERMINAL_ORDER_STATUSES
+        )
         out: list[dict[str, Any]] = []
         for gid, cache in self._caches.items():
             if wanted_gateway is not None and gid.upper() != wanted_gateway:
                 continue
-            for order in cache.orders.values():
+            orders = (
+                [cache.orders[order_id] for order_id in cache.live]
+                if live_only
+                else cache.orders.values()
+            )
+            for order in orders:
                 if (
                     wanted_symbol is not None
                     and str(order.get("symbol", "")).upper() != wanted_symbol
@@ -806,32 +1001,29 @@ class EngineClient:
         success_topic: str,
         gateway_id: str,
         order_id: str,
-        request_tag: str,
+        request: OrderAckRequest,
+        request_tag: str | None,
         timeout: float,
     ) -> dict[str, Any]:
         """Wait for a cancel or amend to resolve, racing success against reject.
 
         `order.cancelled`/`order.amended` is the success outcome. A rejected
-        cancel or amend instead publishes `order.ack accepted=false` (C1) —
-        the same ack a rejected *new* order publishes, told apart here only
-        by carrying this request's `request_tag`, which a new-order reject
-        never does (order.new has no such field; only order.cancel/order.amend
-        do). A caller that only awaited *success_topic*, as this used to,
-        would time out on every rejected cancel/amend instead of reporting it.
-        Mirrors IndexClient.request_history's two-topic race.
+        cancel or amend instead publishes `order.ack accepted=false` — the
+        same topic a rejected *new* order uses, told apart by its `request`
+        (*request* is ``"CANCEL"`` or ``"AMEND"``). A caller that only
+        awaited *success_topic* would time out on every rejected cancel or
+        amend instead of reporting it. Matched on `request_tag` too when the
+        client set one, so two tagged requests against one order each get
+        their own outcome. Mirrors IndexClient.request_history's two-topic
+        race.
         """
         reject_topic = topic_order_ack(gateway_id)
-        success_future = self._register_future(
-            success_topic, match={"order_id": order_id, "request_tag": request_tag}
-        )
-        reject_future = self._register_future(
-            reject_topic,
-            match={
-                "order_id": order_id,
-                "request_tag": request_tag,
-                "accepted": "False",
-            },
-        )
+        success_match = {"order_id": order_id}
+        reject_match = {"order_id": order_id, "accepted": "False", "request": request}
+        if request_tag is not None:
+            success_match["request_tag"] = reject_match["request_tag"] = request_tag
+        success_future = self._register_future(success_topic, match=success_match)
+        reject_future = self._register_future(reject_topic, match=reject_match)
         try:
             done, pending = await asyncio.wait(
                 {success_future, reject_future},
@@ -1103,8 +1295,15 @@ class EngineClient:
         """Resolve a gateway's ParticipantRole from the engine gateways reply.
 
         The API credential store does not carry role, so it is resolved from
-        the engine and cached. On timeout the safe (non-admin) default
-        ``"TRADER"`` is returned so admin gating fails closed.
+        the engine and cached until the engine restarts. An unanswered lookup
+        raises ``503 ENGINE_UNAVAILABLE`` and is not cached: it grants nothing,
+        so admin gating still fails closed, but it is not a verdict. It is
+        ENGINE_UNAVAILABLE, not ENGINE_TIMEOUT, because the lookup comes
+        before the caller's own command, so nothing was sent; clients read
+        ENGINE_TIMEOUT on a write as "sent, outcome unknown". Answering
+        ``"TRADER"`` instead told an ADMIN it was not one, put a false
+        ``ROLE_DENIED`` in the audit trail and narrowed its clearing reads to
+        its own gateway in a ``200`` (C2).
         """
         gid = gateway_id.upper()
         cached = self._role_cache.get(gid)
@@ -1113,8 +1312,17 @@ class EngineClient:
         self.request_gateways(gid)
         try:
             reply = await self.await_topic(topic_gateways(gid), timeout)
-        except TimeoutError:
-            return "TRADER"
+        except TimeoutError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail={
+                    "error": {
+                        "code": "ENGINE_UNAVAILABLE",
+                        "message": f"Engine did not confirm the role of {gid} "
+                        "in time; nothing was sent. Retry shortly",
+                    }
+                },
+            ) from exc
         role = "TRADER"
         gateways = reply.get("gateways", [])
         if isinstance(gateways, list):

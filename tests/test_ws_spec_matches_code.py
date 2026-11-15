@@ -127,14 +127,14 @@ def test_the_auth_timeout_is_as_documented() -> None:
     assert "within **5 seconds**" in _section("Connecting")
 
 
-def test_the_only_close_code_is_documented() -> None:
+def test_the_close_codes_are_documented() -> None:
     used = {
         int(node.attr.split("_")[1])
         for node in ast.walk(_ws_tree())
         if isinstance(node, ast.Attribute) and node.attr.startswith("WS_")
     }
     documented = {int(_code(r[0])) for r in _rows(_section("Close codes"))}
-    assert used == documented == {1008}
+    assert used == documented == {1008, 1013}
 
 
 # --- envelope and types -----------------------------------------------------

@@ -64,6 +64,10 @@ from edumatcher.models.price import TickViolation
 _CLIENT_NAME = "pm-api-gwy"
 #: How often the health task wakes; its oversleep is the event-loop lag.
 HEALTH_TICK_SEC = 0.25
+#: Longest uvicorn waits for open connections at shutdown. A backstop: every
+#: WebSocket handler ends when its client closes, but one that did not would
+#: otherwise keep a SIGTERM'd process (and port 8080) alive indefinitely.
+GRACEFUL_SHUTDOWN_SEC = 5
 _LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s - %(message)s"
 
 log = logging.getLogger(__name__)
@@ -145,6 +149,16 @@ def create_app(config: ApiGatewayConfig, *, instance: str | None = None) -> Fast
             loop,
             market_cache_sec=config.market_data_cache_sec,
         )
+
+        def _listener_died() -> None:
+            # main() turns this into exit status 1 once the server has
+            # stopped, so a supervisor sees the failure (review C5).
+            app.state.listener_failed = True
+            server = getattr(app.state, "server", None)
+            if server is not None:
+                server.should_exit = True
+
+        engine.on_listener_failure = _listener_died
         engine.start_listener()
         index_client = IndexClient(config.index_pull_addr, config.index_pub_addr, loop)
         index_client.start_listener()
@@ -554,17 +568,27 @@ def main() -> None:
         sys.exit(1)
     app = create_app(config, instance=args.instance)
     _route_uvicorn_logging(config.log_level)
-    try:
-        uvicorn.run(
+    # A Server rather than uvicorn.run(): the lifespan needs a handle to stop
+    # it when the engine listener dies.
+    server = uvicorn.Server(
+        uvicorn.Config(
             app,
             host=config.host,
             port=config.port,
             log_level=config.log_level,
             log_config=None,
+            timeout_graceful_shutdown=GRACEFUL_SHUTDOWN_SEC,
         )
+    )
+    app.state.server = server
+    try:
+        server.run()
     except Exception as exc:
         log.critical("fatal runtime error: %s", exc)
         raise
+    if getattr(app.state, "listener_failed", False):
+        log.critical("engine listener died; exiting with status 1")
+        sys.exit(1)
 
 
 if __name__ == "__main__":

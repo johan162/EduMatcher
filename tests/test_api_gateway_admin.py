@@ -317,11 +317,11 @@ async def test_market_kill_switch_carries_the_note() -> None:
 
 
 @pytest.mark.anyio
-async def test_symbol_scoped_admin_acks_pass_symbol_match() -> None:
-    """halt/resume/cancel-orders must await their acks with
-    match={"symbol": ...} — without it, two concurrent calls for different
-    symbols would race on the same unfiltered topic (see
-    EngineClient._resolve_pending).
+async def test_symbol_scoped_admin_acks_match_their_own_command_id() -> None:
+    """halt/resume/cancel-orders await their acks matched on the command_id
+    they sent, which the acks echo. Matching on the symbol let two operators
+    acting on one symbol each receive the other's verdict (API gateway review
+    C4); see tests/test_api_gateway_wait_matching.py for that race.
     """
     engine = AdminFakeEngine(ack_accepted=True)
     request = admin_request(engine)
@@ -335,9 +335,17 @@ async def test_symbol_scoped_admin_acks_pass_symbol_match() -> None:
     topics_and_matches = {
         topic: match for _, (topic, match, _timeout) in await_event_calls
     }
-    assert topics_and_matches["risk.symbol_halt_ack.GW01"] == {"symbol": "AAPL"}
-    assert topics_and_matches["risk.symbol_resume_ack.GW01"] == {"symbol": "AAPL"}
-    assert topics_and_matches["risk.cancel_symbol_ack.GW01"] == {"symbol": "AAPL"}
+    ids = set()
+    for topic in (
+        "risk.symbol_halt_ack.GW01",
+        "risk.symbol_resume_ack.GW01",
+        "risk.cancel_symbol_ack.GW01",
+    ):
+        match = topics_and_matches[topic]
+        assert set(match) == {"command_id"}, topic
+        assert match["command_id"].startswith("cmd-")
+        ids.add(match["command_id"])
+    assert len(ids) == 3
 
 
 @pytest.mark.anyio

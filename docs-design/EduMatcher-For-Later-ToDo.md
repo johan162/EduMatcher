@@ -46,6 +46,7 @@ its own piece of work.
 | L030 | 2026-11-15 | pm-engine (admin queries) | Position and order queries about a disconnected gateway answer empty lists, so `GET /admin/gateways/{id}/positions` and `/orders` show a logged-off trader with resting orders as flat with none | Medium | Open |
 | L031 | 2026-11-15 | pm-engine (gateway connect) | A refused `gateway_connect` for an unknown id still creates a session, a metrics label and a published topic that are never freed: 337 B per refused id, reachable by any client through ALF `HELLO` | Low | Open |
 | L032 | 2026-11-15 | pm-engine (quotes) | `quote.new` carries `tick_decimals` but the engine ignores it, so a client with a wrong tick registry rests its quote at 1/100 or 100× the intended price without a reject | Medium | Open |
+| L033 | 2026-11-15 | pm-api-gwy (index and sim listeners) | The `IndexClient` and `SimClient` receive threads end on a ZeroMQ error while the process keeps serving: index history and the sim/news streams then go quiet with no ERROR and no exit | Low | Open |
 
 ## L001 — Topic literals in pm-sim-forensics
 
@@ -557,3 +558,19 @@ tick registry falls back to 2 decimals, review C5) rests a quote at 1/100 or
 **Recommendation.** Reject a `quote.new` (and any order) whose
 `tick_decimals` differs from the symbol's, with a reason naming both values.
 
+## L033 — pm-api-gwy's index and sim listeners die silently
+
+**Found:** 2026-11-15, API gateway review WP-AGW06
+(`docs-design/reviews/EduMatcher-API-Gateway-Review-2026-11.md`, C5).
+
+**Finding.** WP-AGW06 made a dead engine receive thread log at ERROR and
+stop pm-api-gwy with exit status 1. `IndexClient._receive_loop`
+(`api_gateway/index_client.py`) and `SimClient._receive_loop`
+(`api_gateway/sim_client.py`) have the same shape as the old engine loop: a
+non-EINTR `ZMQError` ends the thread and the process keeps serving.
+`/history/index-events` then answers only with timeouts, and the admin sim
+and news streams go silent, with nothing in the log.
+
+**Recommendation.** Give both the engine listener's handling: log the
+failure at ERROR and report it through the same `on_listener_failure` path,
+or at least count it in the health beacon.

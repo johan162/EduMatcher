@@ -393,22 +393,43 @@ def test_main_cli_success(monkeypatch: pytest.MonkeyPatch) -> None:
     try:
         calls: list[tuple[str, Any]] = []
         config = ApiGatewayConfig(host="127.0.0.9", port=9191, log_level="debug")
+        app = SimpleNamespace(state=SimpleNamespace())
         monkeypatch.setattr(sys, "argv", ["pm-api-gwy"])
         monkeypatch.setattr(main, "_config_with_overrides", lambda _args: config)
-        monkeypatch.setattr(
-            main, "create_app", lambda cfg, instance=None: {"config": cfg}
-        )
-        monkeypatch.setattr(
-            uvicorn,
-            "run",
-            lambda app, host, port, log_level, log_config: calls.append(
-                ("run", (app, host, port, log_level, log_config))
-            ),
-        )
+        monkeypatch.setattr(main, "create_app", lambda cfg, instance=None: app)
+
+        class _Server:
+            def __init__(self, server_config: uvicorn.Config) -> None:
+                self.config = server_config
+
+            def run(self) -> None:
+                c = self.config
+                calls.append(
+                    (
+                        "run",
+                        (
+                            c.app,
+                            c.host,
+                            c.port,
+                            c.log_level,
+                            c.log_config,
+                            c.timeout_graceful_shutdown,
+                        ),
+                    )
+                )
+
+        monkeypatch.setattr(uvicorn, "Server", _Server)
         main.main()
+        # A bounded graceful shutdown backs up the WebSocket handlers ending
+        # on close: no handler can hold a SIGTERM'd process open (review H2).
         assert calls == [
-            ("run", ({"config": config}, "127.0.0.9", 9191, "debug", None))
+            (
+                "run",
+                (app, "127.0.0.9", 9191, "debug", None, main.GRACEFUL_SHUTDOWN_SEC),
+            )
         ]
+        # The lifespan stops this server if the engine listener dies (C5).
+        assert isinstance(app.state.server, _Server)
     finally:
         root.setLevel(original_level)
 

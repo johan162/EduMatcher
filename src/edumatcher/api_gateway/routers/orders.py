@@ -72,6 +72,7 @@ from edumatcher.models.generated.structure import (
     topic_oco_cancel_ack,
 )
 from edumatcher.models.generated.order import (
+    OrderAckRequest,
     topic_order_ack,
     topic_order_amended,
     topic_order_cancelled,
@@ -151,24 +152,23 @@ async def _await_cancel_or_amend_event(
     gateway_id: str,
     order_id: str,
     wait: str | None,
+    kind: OrderAckRequest,
     request_tag: str | None,
 ) -> tuple[dict[str, Any] | None, bool]:
     """Wait for a cancel/amend, reporting a reject rather than timing out on it.
 
-    Without a request_tag there is nothing to safely race the reject topic
-    on (see EngineClient.await_cancel_or_amend_outcome), so this waits on the
-    success topic alone, and a reject then shows as a timeout. Returns
-    ``(event, timed_out)`` like ``_await_ack``.
+    *kind* (``CANCEL``/``AMEND``) is the ``order.ack.request`` of this
+    request's refusal (see EngineClient.await_cancel_or_amend_outcome).
+    Returns ``(event, timed_out)`` like ``_await_ack``.
     """
     if wait != "ack":
         return None, False
-    if request_tag is None:
-        return await _await_ack(request, success_topic, {"order_id": order_id}, wait)
     try:
         event = await request.app.state.engine.await_cancel_or_amend_outcome(
             success_topic=success_topic,
             gateway_id=gateway_id,
             order_id=order_id,
+            request=kind,
             request_tag=request_tag,
             timeout=request.app.state.config.timeouts.wait_ack_sec,
         )
@@ -245,15 +245,18 @@ def _cache_submitted(
     request: Request, gateway_id: str, order_id: str, body: OrderRequest
 ) -> None:
     """Seed the gateway's view of an order it is about to send."""
-    request.app.state.engine.get_caches(gateway_id).orders[order_id] = {
-        "order_id": order_id,
-        "client_tag": body.client_tag,
-        "symbol": body.symbol,
-        "side": wire_value(body.side),
-        "order_type": wire_value(body.order_type),
-        "quantity": body.quantity,
-        "status": "PENDING",
-    }
+    request.app.state.engine.get_caches(gateway_id).submitted(
+        order_id,
+        {
+            "order_id": order_id,
+            "client_tag": body.client_tag,
+            "symbol": body.symbol,
+            "side": wire_value(body.side),
+            "order_type": wire_value(body.order_type),
+            "quantity": body.quantity,
+            "status": "PENDING",
+        },
+    )
 
 
 @router.post(
@@ -388,6 +391,7 @@ async def cancel_order(
         gateway_id=gateway_id,
         order_id=order_id,
         wait=wait,
+        kind="CANCEL",
         request_tag=request_tag,
     )
     _ok_when_answered(response, event)
@@ -465,6 +469,7 @@ async def amend_order(
         gateway_id=gateway_id,
         order_id=order_id,
         wait=wait,
+        kind="AMEND",
         request_tag=body.request_tag,
     )
     _ok_when_answered(response, event)
@@ -568,6 +573,7 @@ async def replace_order(
                         success_topic=topic_order_cancelled(gateway_id),
                         gateway_id=gateway_id,
                         order_id=order_id,
+                        request="CANCEL",
                         request_tag=tag,
                         timeout=request.app.state.config.timeouts.wait_ack_sec,
                     ),
@@ -965,9 +971,14 @@ async def submit_quote(
 
     async def run(_saga: dict[str, Any]) -> QuoteAccepted:
         request.app.state.engine.send_quote(build_quote_payload(body, gateway_id))
-        # The ack always names the symbol; quote_id is optional on the request.
+        # The ack echoes quote_id, so two quotes in flight on one symbol each
+        # get their own verdict; quote_id is optional on the request, and
+        # without one the symbol is all there is to match on.
+        match = (
+            {"quote_id": body.quote_id} if body.quote_id else {"symbol": body.symbol}
+        )
         event, timed_out = await _await_ack(
-            request, topic_quote_ack(gateway_id), {"symbol": body.symbol}, wait
+            request, topic_quote_ack(gateway_id), match, wait
         )
         return QuoteAccepted(
             symbol=body.symbol,

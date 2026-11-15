@@ -50,6 +50,11 @@ class _Engine:
     ) -> dict[str, Any]:
         return {"accepted": True, **(match or {})}
 
+    async def await_cancel_or_amend_outcome(
+        self, *, order_id: str, request_tag: str | None, **_: Any
+    ) -> dict[str, Any]:
+        return {"order_id": order_id, "request_tag": request_tag}
+
     def request_orders(self, gateway_id: str) -> None:
         raise RuntimeError("boom: internal detail that must not leak")
 

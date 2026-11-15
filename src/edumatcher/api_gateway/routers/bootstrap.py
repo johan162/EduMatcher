@@ -66,9 +66,6 @@ router = APIRouter(
     prefix="/api/v1/bootstrap", tags=["bootstrap"], route_class=ContractRoute
 )
 
-# Terminal statuses are not counted in the per-gateway active-order totals.
-_TERMINAL = frozenset({"FILLED", "CANCELLED", "EXPIRED", "REJECTED"})
-
 _FILLS_LIMIT_MAX = 500
 _FILLS_LIMIT_DEFAULT = 50
 _QueryResult: TypeAlias = dict[str, Any] | list[dict[str, Any]] | BaseException
@@ -204,10 +201,9 @@ def _active_order_counts(request: Request) -> dict[str, int]:
     """
     engine = request.app.state.engine
     counts: dict[str, int] = {gid: 0 for gid in engine.active_gateways()}
-    for order in engine.all_orders():
-        if str(order.get("status", "")).upper() not in _TERMINAL:
-            gid = str(order.get("gateway_id", ""))
-            counts[gid] = counts.get(gid, 0) + 1
+    for order in engine.all_orders(working=True):
+        gid = str(order.get("gateway_id", ""))
+        counts[gid] = counts.get(gid, 0) + 1
     return counts
 
 

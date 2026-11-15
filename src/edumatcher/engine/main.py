@@ -157,6 +157,7 @@ from edumatcher.models.generated.order import (
     TOPIC_ORDERS_REQUEST,
     TOPIC_PRICE_LEVEL_ORDERS_REQUEST,
     EngineTraceOutcome,
+    OrderAckRequest,
     OrderFillLiquidityFlag,
     make_order_cancelled_unchecked,
     make_order_fill_unchecked,
@@ -391,6 +392,13 @@ _ENDED_STATUSES = frozenset(
 
 #: What an order the book rejected is told when matching was on: only a FOK
 #: short of liquidity gets there (see ``Engine._book_reject``).
+#: The ``order.ack.request`` of an answer to each order request topic.
+_ACK_REQUEST: dict[str, OrderAckRequest] = {
+    TOPIC_ORDER_NEW: "NEW",
+    TOPIC_ORDER_CANCEL: "CANCEL",
+    TOPIC_ORDER_AMEND: "AMEND",
+}
+
 _NO_LIQUIDITY: tuple[RejectCode, str] = (
     "INSUFFICIENT_LIQUIDITY",
     "Insufficient liquidity",
@@ -946,6 +954,7 @@ class Engine:
         reason: str,
         client_tag: str | None,
         request_tag: str | None,
+        request: OrderAckRequest,
     ) -> None:
         self.pub_sock.send_multipart(
             self._order_ack(
@@ -956,6 +965,7 @@ class Engine:
                 reject_code=code,
                 client_tag=client_tag,
                 request_tag=request_tag,
+                request=request,
             )
         )
 
@@ -976,10 +986,13 @@ class Engine:
         reject_code: RejectCode | None = None,
         client_tag: str | None = None,
         request_tag: str | None = None,
+        request: OrderAckRequest,
         order: dict[str, Any] | None = None,
     ) -> list[bytes]:
         # Explicit keywords, not **kwargs: this runs on every order ack, and
         # repacking a kwargs dict cost ~200 ns there (perf gate, design A4.10).
+        # `request` has no default: every ack site must say which request it
+        # answers, or a refused cancel/amend reads as a refused new order.
         if not accepted:
             self.metrics.count_reject(gateway_id, reject_code or reject_label(reason))
         return make_ack_msg(
@@ -990,6 +1003,7 @@ class Engine:
             reject_code=reject_code,
             client_tag=client_tag,
             request_tag=request_tag,
+            request=request,
             order=order,
         )
 
@@ -1324,6 +1338,7 @@ class Engine:
                             gateway_id,
                             leg.id,
                             accepted=True,
+                            request="NEW",
                             order=ack_detail(leg),
                         )
                     )
@@ -1955,6 +1970,7 @@ class Engine:
                 raise
             self._dbg_count("new_order_reject_malformed")
             self._reject(
+                request="NEW",
                 gateway_id=str(payload.get("gateway_id", "")),
                 order_id=str(order_id),
                 code="MALFORMED_MESSAGE",
@@ -1991,6 +2007,7 @@ class Engine:
             if not ok:
                 self._dbg_count("new_order_reject_gateway")
                 self._reject(
+                    request="NEW",
                     gateway_id=order.gateway_id,
                     order_id=order.id,
                     code=self._gateway_reject_code(reason),
@@ -2006,6 +2023,7 @@ class Engine:
             self._dbg_count("new_order_reject_symbol")
             reason = f"Symbol not configured: {order.symbol}"
             self._reject(
+                request="NEW",
                 gateway_id=order.gateway_id,
                 order_id=order.id,
                 code="UNKNOWN_SYMBOL",
@@ -2031,6 +2049,7 @@ class Engine:
             code, validation_error = validation_result
             self._dbg_count("new_order_reject_validation")
             self._reject(
+                request="NEW",
                 gateway_id=order.gateway_id,
                 order_id=order.id,
                 code=code,
@@ -2046,6 +2065,7 @@ class Engine:
         if self._sessions_enabled and not accepts_orders(self._session_state):
             self._dbg_count("new_order_reject_session")
             self._reject(
+                request="NEW",
                 gateway_id=order.gateway_id,
                 order_id=order.id,
                 code="MARKET_CLOSED",
@@ -2063,6 +2083,7 @@ class Engine:
         ):
             self._dbg_count("new_order_reject_ato_window")
             self._reject(
+                request="NEW",
                 gateway_id=order.gateway_id,
                 order_id=order.id,
                 code="SESSION_NOT_PERMITTED",
@@ -2080,6 +2101,7 @@ class Engine:
         ):
             self._dbg_count("new_order_reject_atc_window")
             self._reject(
+                request="NEW",
                 gateway_id=order.gateway_id,
                 order_id=order.id,
                 code="SESSION_NOT_PERMITTED",
@@ -2113,6 +2135,7 @@ class Engine:
                     f"{order.order_type.value} orders rejected during {trigger}"
                 )
                 self._reject(
+                    request="NEW",
                     gateway_id=order.gateway_id,
                     order_id=order.id,
                     code=code,
@@ -2143,6 +2166,7 @@ class Engine:
                         result.reason,
                     )
                     self._reject(
+                        request="NEW",
                         gateway_id=order.gateway_id,
                         order_id=order.id,
                         code="COLLAR_BREACH",
@@ -2160,6 +2184,7 @@ class Engine:
         ):
             self._dbg_count("new_order_reject_no_match_phase")
             self._reject(
+                request="NEW",
                 gateway_id=order.gateway_id,
                 order_id=order.id,
                 code="SESSION_NOT_PERMITTED",
@@ -2181,6 +2206,7 @@ class Engine:
             if order.stop_price_ticks is None:
                 if book.last_trade_price is None:
                     self._reject(
+                        request="NEW",
                         gateway_id=order.gateway_id,
                         order_id=order.id,
                         code="MISSING_FIELD",
@@ -2282,6 +2308,7 @@ class Engine:
                     "trail_offset_ticks": order.trail_offset_ticks,
                     "smp_action": _ack_smp_action,
                     "client_tag": order.client_tag,
+                    "request": "NEW",
                     "tick_decimals": get_tick_decimals(order.symbol),
                     "ts_ns": now,
                 }
@@ -3633,6 +3660,7 @@ class Engine:
                 log.info(f"CANCEL {oid[:8]} ({evt.gateway_id})")
             elif status is OrderStatus.REJECTED:
                 self._reject(
+                    request="NEW",
                     gateway_id=evt.gateway_id,
                     order_id=oid,
                     code=reject[0],
@@ -5806,6 +5834,7 @@ class Engine:
                 combo.gateway_id,
                 child.id,
                 accepted=True,
+                request="NEW",
                 order=ack_detail(child),
             )
             defer_ack = _book_may_reject(child, do_match)
@@ -6781,6 +6810,7 @@ class Engine:
                 gateway_id,
                 leg.id,
                 accepted=True,
+                request="NEW",
                 # order_to_display_dict(leg) is the full order record
                 # (mirrors the combo leg ack below) rather than a
                 # hand-picked subset — it's what carries oco_group_id
@@ -6985,6 +7015,7 @@ class Engine:
         if not ok:
             self._dbg_count("cancel_reject_gateway")
             self._reject(
+                request="CANCEL",
                 gateway_id=gateway_id,
                 order_id=order_id,
                 code=self._gateway_reject_code(reason),
@@ -7004,6 +7035,7 @@ class Engine:
             if resting is not None and resting.gateway_id != gateway_id:
                 self._dbg_count("cancel_reject_ownership")
                 self._reject(
+                    request="CANCEL",
                     gateway_id=gateway_id,
                     order_id=order_id,
                     code="NOT_OWNER",
@@ -7035,6 +7067,7 @@ class Engine:
 
         # Order not found — send rejection ack
         self._reject(
+            request="CANCEL",
             gateway_id=gateway_id,
             order_id=order_id,
             code="ORDER_NOT_FOUND",
@@ -7081,6 +7114,7 @@ class Engine:
             except TypeError, ValueError:
                 self._dbg_count("amend_reject_payload")
                 self._reject(
+                    request="AMEND",
                     gateway_id=gateway_id,
                     order_id=order_id,
                     code="INVALID_VALUE",
@@ -7094,6 +7128,7 @@ class Engine:
         if not ok:
             self._dbg_count("amend_reject_gateway")
             self._reject(
+                request="AMEND",
                 gateway_id=gateway_id,
                 order_id=order_id,
                 code=self._gateway_reject_code(reason),
@@ -7106,6 +7141,7 @@ class Engine:
         if new_price is None and new_qty is None:
             self._dbg_count("amend_reject_payload")
             self._reject(
+                request="AMEND",
                 gateway_id=gateway_id,
                 order_id=order_id,
                 code="MISSING_FIELD",
@@ -7121,6 +7157,7 @@ class Engine:
         if book is None:
             self._dbg_count("amend_reject_not_found")
             self._reject(
+                request="AMEND",
                 gateway_id=gateway_id,
                 order_id=order_id,
                 code="ORDER_NOT_FOUND",
@@ -7136,6 +7173,7 @@ class Engine:
         if resting is not None and resting.gateway_id != gateway_id:
             self._dbg_count("amend_reject_ownership")
             self._reject(
+                request="AMEND",
                 gateway_id=gateway_id,
                 order_id=order_id,
                 code="NOT_OWNER",
@@ -7163,6 +7201,7 @@ class Engine:
         except TickViolation as exc:
             self._dbg_count("amend_reject_tick")
             self._reject(
+                request="AMEND",
                 gateway_id=gateway_id,
                 order_id=order_id,
                 code="TICK_VIOLATION",
@@ -7176,6 +7215,7 @@ class Engine:
         if self._sessions_enabled and not accepts_orders(self._session_state):
             self._dbg_count("amend_reject_session")
             self._reject(
+                request="AMEND",
                 gateway_id=gateway_id,
                 order_id=order_id,
                 code="MARKET_CLOSED",
@@ -7207,6 +7247,7 @@ class Engine:
                         result.reason,
                     )
                     self._reject(
+                        request="AMEND",
                         gateway_id=gateway_id,
                         order_id=order_id,
                         code="COLLAR_BREACH",
@@ -7246,6 +7287,7 @@ class Engine:
                     breach[1],
                 )
                 self._reject(
+                    request="AMEND",
                     gateway_id=gateway_id,
                     order_id=order_id,
                     code=breach[0],
@@ -7274,6 +7316,7 @@ class Engine:
         if amended is None:
             self._dbg_count("amend_reject_book")
             self._reject(
+                request="AMEND",
                 gateway_id=gateway_id,
                 order_id=order_id,
                 code=self._amend_reject_code(err),
@@ -7817,6 +7860,7 @@ class Engine:
                     else None
                 ),
                 request_tag=request_tag,
+                request=_ACK_REQUEST[topic],
             )
         gw = _clamp_wire_id(gateway_id)
         oco_id = str(payload.get("oco_id", ""))[:_MAX_WIRE_COMMAND_ID_LEN]

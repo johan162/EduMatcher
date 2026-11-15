@@ -35,6 +35,11 @@ class SessionCaches:
     #: only for eviction. Kept beside `orders` rather than inside the order
     #: dicts so it never reaches the wire.
     terminal_at: dict[str, float] = field(default_factory=dict)
+    #: Ids of the orders that are still working (not terminal), in the order
+    #: they became so. A dict for its order; the values are unused. Kept so a
+    #: working-order view costs O(live orders), not a scan of every terminal
+    #: order retained for `order_retention_sec` (P1, P2).
+    live: dict[str, None] = field(default_factory=dict)
 
     def apply(self, topic: str, payload: dict[str, Any]) -> None:
         """Fold one engine event into the local cache."""
@@ -43,19 +48,16 @@ class SessionCaches:
             if order_id:
                 current = self.orders.setdefault(order_id, {"order_id": order_id})
                 current.update(payload)
-                # order.ack accepted=false is shared by three different
-                # requests: a rejected NEW order, and a rejected cancel or
-                # amend against an order that is still resting (C1). The
-                # engine's own new-order reject paths always publish
-                # request_tag=None (order.new carries no such field); only
-                # _handle_cancel/_handle_amend forward the client's
-                # request_tag. A cancel/amend reject must not touch the
-                # order's status — the order it targets never stopped
-                # resting, so overwriting it with REJECTED here is the bug.
-                is_cancel_or_amend_reject = (
-                    not payload.get("accepted")
-                    and payload.get("request_tag") is not None
-                )
+                # order.ack accepted=false answers three different requests:
+                # a refused NEW order, and a refused cancel or amend against
+                # an order that is still resting. `request` says which. A
+                # cancel/amend refusal must not touch the order's status: the
+                # order it targets never stopped resting. (request_tag cannot
+                # tell them apart: a cancel or amend carries one only when the
+                # client set it; API gateway review C1.)
+                is_cancel_or_amend_reject = not payload.get("accepted") and payload.get(
+                    "request"
+                ) in ("CANCEL", "AMEND")
                 if not is_cancel_or_amend_reject:
                     self._set_status(
                         order_id,
@@ -167,8 +169,15 @@ class SessionCaches:
         order["status"] = status
         if status in TERMINAL_ORDER_STATUSES:
             self.terminal_at.setdefault(order_id, time.time())
+            self.live.pop(order_id, None)
         else:
             self.terminal_at.pop(order_id, None)
+            self.live[order_id] = None
+
+    def submitted(self, order_id: str, order: dict[str, Any]) -> None:
+        """Cache an order this gateway is about to send, as ``PENDING``."""
+        self.orders[order_id] = order
+        self._set_status(order_id, order, "PENDING")
 
     def evict_terminal_orders(
         self, retention_sec: int, now: float | None = None

@@ -49,7 +49,7 @@ over 300 gateways and 30 symbols, which is the open-burst size noted in the
 2026-11-07 sim run. The other findings are by inspection, with line numbers
 given.
 
-Status: **Open.** Decisions Q1–Q5 are needed before WP-AGW03, 04, 05 and 07.
+Status: **Done, uncommitted (2026-11-15).** All eight WPs implemented; Q1–Q5 taken as recommended (a), with one deviation in WP-AGW05 to confirm (§7, Q4).
 
 ---
 
@@ -90,14 +90,14 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit) �
 
 | # | WP | Content | Findings | Depends on | Est. | Status | Done on |
 |---|---|---|---|---|---|---|---|
-| 1 | WP-AGW01 | A closed WebSocket ends its handler; shutdown is prompt | H2 | — | 0.5 d | ☐ | |
-| 2 | WP-AGW02 | A late engine accept is adopted, never a lockout | H3 | — | 0.25 d | ☐ | |
-| 3 | WP-AGW03 | The private snapshot is the engine's state | H1, D1, D2 | Q1 | 1 d | ☐ | |
-| 4 | WP-AGW04 | A refused cancel or amend never ends a resting order | C1, D3 | Q2 | 1 d | ☐ | |
-| 5 | WP-AGW05 | Engine silence is a 503, never a role verdict | C2 | Q4 | 0.5 d | ☐ | |
-| 6 | WP-AGW06 | Waits match their own reply; failures are visible | C3, C4, C5 | — | 0.5 d | ☐ | |
-| 7 | WP-AGW07 | Order scans and the monitor snapshot scale with live orders | P1, P2, P3 | Q5 | 0.75 d | ☐ | |
-| 8 | WP-AGW08 | Comments, operator guide, spec | D4–D9 | WP-AGW01–07 | 0.5 d | ☐ | |
+| 1 | WP-AGW01 | A closed WebSocket ends its handler; shutdown is prompt | H2 | — | 0.5 d | ☑ | 2026-11-15 |
+| 2 | WP-AGW02 | A late engine accept is adopted, never a lockout | H3 | — | 0.25 d | ☑ | 2026-11-15 |
+| 3 | WP-AGW03 | The private snapshot is the engine's state | H1, D1, D2 | Q1 | 1 d | ☑ | 2026-11-15 |
+| 4 | WP-AGW04 | A refused cancel or amend never ends a resting order | C1, D3 | Q2 | 1 d | ☑ | 2026-11-15 |
+| 5 | WP-AGW05 | Engine silence is a 503, never a role verdict | C2 | Q4 | 0.5 d | ☑ | 2026-11-15 |
+| 6 | WP-AGW06 | Waits match their own reply; failures are visible | C3, C4, C5 | — | 0.5 d | ☑ | 2026-11-15 |
+| 7 | WP-AGW07 | Order scans and the monitor snapshot scale with live orders | P1, P2, P3 | Q5 | 0.75 d | ☑ | 2026-11-15 |
+| 8 | WP-AGW08 | Comments, operator guide, spec | D4–D9 | WP-AGW01–07 | 0.5 d | ☑ | 2026-11-15 |
 
 Suggested order: **WP-AGW01 → WP-AGW02 → WP-AGW03 → WP-AGW04 → WP-AGW05 →
 WP-AGW06 → WP-AGW07 → WP-AGW08**. WP-AGW01 first: a hung shutdown leaves
@@ -565,6 +565,12 @@ cost O(live orders). Route reply topics past both fan-outs.
 
 ---
 
+**Decided 2026-11-15:** (a) for all five (the user accepted the
+recommendations). Q4 was implemented with `503 ENGINE_UNAVAILABLE` instead of
+`503 ENGINE_TIMEOUT`, because clients read `ENGINE_TIMEOUT` on a write as
+"sent, outcome late" and a role lookup happens before anything is sent; see
+the WP-AGW05 outcome. To confirm.
+
 ## 8. Work packages
 
 ### WP-AGW01 — A closed WebSocket ends its handler; shutdown is prompt (H2)
@@ -596,6 +602,33 @@ Set L010 to Fixed in `EduMatcher-For-Later-ToDo.md`.
 `tests/test_ws_spec_matches_code.py` green; SIGTERM-to-exit ≤ 2 s with a
 closed private socket, measured with the review's repro script.
 
+**Outcome (2026-11-15).** `routers/ws.py` has a shared
+`_send_until_closed(websocket, send_next)`: it races the handler's send loop
+against `_until_client_closes`, a task that reads `websocket.receive()` until
+`websocket.disconnect` (anything else a client sends on these sockets is
+ignored, as before), and returns when either ends, cancelling and awaiting the
+other. `private_events`, `admin_monitor` and `admin_sim` use it, so their
+`finally` removes the sink as soon as the client closes. `main.py` passes
+`timeout_graceful_shutdown=GRACEFUL_SHUTDOWN_SEC` (5 s) to `uvicorn.run` as
+the backstop. L010 is set to Fixed.
+
+Tests: `tests/test_api_gateway_ws_lifecycle.py` (new). Tests 1–4 failed first
+with `TimeoutError` (each handler still waiting on its queue after the client
+closed). Test 5 is two tests (events in order; a send failure removes the
+sink) and passed before and after. `test_main_cli_success` now asserts the
+graceful-shutdown bound (failed first on the missing constant). Test 6 is
+`tests/test_api_gateway_e2e.py::test_stop_after_a_closed_private_socket`
+(`-m e2e`): with both changes reverted it failed with "pm-api-gwy still running
+after stop"; it passes with the handler fix alone (backstop reverted) and with
+both. The `FakeWebSocket` doubles in `test_api_gateway_private_recovery.py`
+and `test_api_gateway_sim.py` gained a `receive` that stays connected.
+
+Measured with the review's repro (scratch script on the mini exchange, a
+`/ws/private` socket opened and closed by the client, then SIGTERM to the
+desk gateway): **0.28 s** SIGTERM-to-exit (was > 120 s).
+
+Full suite: 14 472 passed, 1 skipped; `make _check` green.
+
 ### WP-AGW02 — A late engine accept is adopted, never a lockout (H3; after Q3)
 
 **Tests first** (`tests/test_api_gateway_auth_handshake.py`, new):
@@ -619,6 +652,35 @@ and seeds symbols. Count the timeout. Add L029 to the For-Later list (§9).
 **Exit criteria.** Tests 1–5 pass; `tests/test_api_gateway_*.py` green; the
 review's SIGSTOP repro gets a `200` on the first request after the engine
 resumes.
+
+**Outcome (2026-11-15).** `EngineClient.authenticate` waits on
+`asyncio.shield(future)`, so a timeout no longer cancels the waiter. On a
+timeout (or a cancelled caller) `_await_late_accept` keeps the waiter in
+`_late_auth[gateway_id]` with a done-callback: a later `accepted=true` adds
+the id to `_authenticated`, sends the first heartbeat and asks for the
+symbols snapshot (without waiting: the reply lands in the cache as usual).
+A late refusal does nothing. A new attempt for the same id drops the old
+waiter before registering its own; replies are FIFO, so the first connect's
+late accept then resolves the new attempt, and the engine's "already
+connected" answer to the second connect finds no waiter. An auth timeout now
+counts in `engine_timeouts`. New log-ledger entry for the WARNING
+"late engine accept adopted gateway_id=%s". L029 was already on the For-Later
+list (added with the review).
+
+Tests: `tests/test_api_gateway_auth_handshake.py` (new). Tests 1, 2, 4 (both
+halves) and 5 failed first: GW01 not in `active_gateways()`, `(False, …)` on
+the second attempt, two cancelled waiters left in `_pending`,
+`engine_timeouts == 0`. Test 3 (late refusal) and the extra regression test
+"a new attempt still adopts the first connect's accept" passed before and
+after. The done-callback runs one loop tick after the reply, so the tests
+yield once (`asyncio.sleep(0)`) after delivering it.
+
+SIGSTOP repro (scratch script, mini exchange, engine paused 5 s across
+TRADER02's first request): `403 Engine authentication timed out (3.0 s)`
+while paused, then **`200`** on the first request after the engine resumed
+(was 239 × `403 Gateway already connected` for 240 s).
+
+Full suite: 14 478 passed, 1 skipped; `make _check` green.
 
 ### WP-AGW03 — The private snapshot is the engine's state (H1, D1, D2; after Q1)
 
@@ -649,6 +711,66 @@ the replies plus cached terminal orders. Update `070-websocket.md`
 
 **Exit criteria.** Tests 1–6 pass; `tests/test_api_gateway_*.py`,
 `tests/test_ws_spec_matches_code.py` and trader-gui `npm test` green.
+
+**Outcome (2026-11-15).** Q1 (a). New `EngineClient.private_snapshot(gateway_id,
+queue, timeout) -> (stream_seq, data)`. After the sink is registered it sends
+`system.position_request` and then `order.orders_request`, and reads the
+socket's own queue until the `order.orders.<gw>` reply arrives; that event's
+`stream_seq` is the cut, and every event dequeued before it is covered by the
+snapshot and not sent. Details that came out of writing the tests:
+
+- **Positions are exact at the cut.** The engine answers one sender's
+  requests in order, so the position snapshot is published before the orders
+  reply. Its waiter is registered with `match={}` (observes, does not take a
+  concurrent `GET /positions` caller's FIFO slot) and a new
+  `_PendingWait.on_resolve` hook that records the private `stream_seq` at the
+  moment the position snapshot is handled. Fills between that point and the
+  cut are added to the engine's net quantities; zero quantities are dropped,
+  as the engine drops them.
+- **The cut is the first `order.orders` reply after the position snapshot**,
+  not merely the first one: a reply to someone else's earlier `GET /orders`
+  published before the position snapshot would make positions newer than
+  orders.
+- **Orders:** the engine's resting rows (`OrderDisplay`, with `order_id`
+  added beside `id` and `client_tag` always present) plus the cached terminal
+  orders the engine does not list. A cached *working* order the engine no
+  longer holds (a missed terminal event) is left out. Quote legs still come
+  from the cache.
+- **Engine silent** for `engine_reply_sec`: the socket is closed with `1013`
+  (`WS_1013_TRY_AGAIN_LATER`), no snapshot is sent, `engine_timeouts` counts
+  it, and a WARNING (new log-ledger entry) names the gateway.
+- `private_events` now builds and sends the snapshot inside the sender task
+  of WP-AGW01's helper (renamed argument: it takes the sender coroutine), so a
+  client that closes while the engine is being asked still ends the handler at
+  once.
+
+Residual, not handled: if more than 256 private events for one gateway were
+queued between two turns of the snapshot loop, a fill between the position
+snapshot and the cut could be dropped from the queue and be missing from the
+snapshot's positions. The loop drains the queue on every turn and the receive
+thread hands over at most 256 events per batch across all gateways, so this
+needs several batches handled back to back for one gateway; it was not
+reproduced.
+
+Docs: `070-websocket.md` (snapshot source, contents, cut, the new `1013`
+close code; D1), the operator guide's "Order cache retention" (D2), and two
+sentences in `060-rest-and-websocket.md` that called the snapshot "the cached
+view". `test_ws_spec_matches_code` pins the close codes as `{1008, 1013}`.
+
+Tests (`tests/test_api_gateway_private_recovery.py`, replacing the old
+cache-based snapshot test): 1 failed first with `[] == ['ORD-R']`; 2 with
+`stream_seq 0 == 2`; the extra "earlier orders reply is not the cut" test
+with `[] == ['ORD-R']`; 3 with `{'ORD-DONE', 'ORD-GONE'}` (the stale working
+order was reported); 4 never closed. Test 5 is
+`tests/test_api_gateway_e2e.py::test_snapshot_after_a_gateway_restart`
+(`-m e2e`, MM01 buys 10 AAPL and rests BUY 5 @ 20.00 GTC, desk SIGTERM'd and
+started again): with the pre-WP `ws.py` it failed with the resting order
+absent from `{}`; it passes now, and so does WP-AGW01's e2e. Test 6: a new
+trader-gui `orderStore` test seeds the engine row shape beside a cached
+terminal row; `npm run typecheck` and `npm test` (559) green. The WP-AGW01
+lifecycle tests now answer the two snapshot requests.
+
+Full suite: 14 482 passed, 1 skipped; `make _check` green.
 
 ### WP-AGW04 — A refused cancel or amend never ends a resting order (C1, D3; after Q2)
 
@@ -681,6 +803,55 @@ payloads.
 `make _check` green; trader-gui `npm run typecheck && npm test` green; the
 review's amend repro shows `NEW` in all four views.
 
+**Outcome (2026-11-15).** Q2 (a). `spec/messages/order.yaml` `order_ack` has a
+new optional enum `request: NEW | CANCEL | AMEND` (additive on the wire;
+regenerated with `pm-msgen`, message reference included). The engine sets it
+on every ack: `Engine._order_ack` and `_reject` take `request` as a required
+keyword with no default, so a new ack site cannot forget it (31 call sites:
+`_handle_new_order`, `_publish_dispatch` (book rejects only ever end a new
+order), the seeded quote legs, combo and OCO legs → `NEW`; `_handle_cancel`
+→ `CANCEL`; `_handle_amend` → `AMEND`; `_error_answer` by request topic via
+`_ACK_REQUEST`); the inline hot-path ack carries `"request": "NEW"`.
+`make_ack_msg` gained the `request` argument.
+
+Consumers: `SessionCaches.apply` leaves the status alone for a refusal whose
+`request` is `CANCEL` or `AMEND` (D3 comment rewritten; the `request_tag`
+heuristic is gone). `EngineClient.await_cancel_or_amend_outcome` takes
+`request` and an optional `request_tag`, and races the refusal matched on
+`order_id` + `accepted=False` + `request` (+ `request_tag` when set); the
+cancel and amend routes always race now, and the replace saga passes
+`request="CANCEL"`. trader-gui: `OrderAckData.request`, and both
+`useOrderStore.applyAck` and `useOrderEventNotifications` (which used the
+same `request_tag` heuristic and would have toasted an untagged refused
+cancel as "killed") key on it. Audit-replay lexicon gloss for the new enum.
+Audit replay's own refusal detection (causation id, refusal-only codes) and
+pm-stats' `REJECT` event type were checked and need no change. Docs: the
+REST spec's cancel/amend `wait` rows and the "Without a `request_tag`"
+paragraph, a paragraph in `070-websocket.md`, the OpenAPI examples
+(`make openapi`).
+
+Tests first: `tests/test_engine_ack_request.py` (new; all five failed with
+`KeyError: 'request'`), `tests/test_api_gateway_ack_request.py` (new; the
+two cache tests failed with `'REJECTED' == 'NEW'`, the untagged
+`DELETE ?wait=ack` with a timeout; the new-order test passed before and
+after), trader-gui `orderStore.test.ts` ("an untagged refused amend or
+cancel leaves a resting order working" failed first) and
+`orderEventNotifications.test.ts` (failed first: `'Order ORD4 killed: …'`).
+Existing tests that encoded the old rule were updated:
+`test_trader_gui_review_c1.py` payloads now carry `request`,
+`test_cancel_wait_ack_without_request_tag_falls_back_to_single_topic`
+became `…_still_races_the_refusal`, and four test doubles of
+`await_cancel_or_amend_outcome` take the new argument.
+
+Amend repro (scratch script, mini exchange, TRADER01, untagged
+`PATCH {"price": 20.005}?wait=ack`): the reply is now `200 REJECTED
+TICK_VIOLATION` (was a timeout), and engine `GET /orders`, cache
+`GET /orders/{id}`, `GET /admin/orders?status=NEW` and `GET /admin/orders`
+all show **`NEW`**.
+
+Full suite: 14 494 passed, 1 skipped; `make _check` green; trader-gui
+typecheck and `npm test` (561) green.
+
 ### WP-AGW05 — Engine silence is a 503, never a role verdict (C2; after Q4)
 
 **Tests first** (`tests/test_api_gateway_admin.py`,
@@ -707,6 +878,40 @@ docstring and the error-code declarations (`docs.errors`, `make openapi`).
 `tests/test_api_gateway_error_codes.py`, `test_rest_spec_matches_contract.py`
 and `make _check` green.
 
+**Outcome (2026-11-15).** Q4 (a), with one deviation in the error code:
+an unanswered role lookup is **`503 ENGINE_UNAVAILABLE`**, not
+`503 ENGINE_TIMEOUT`. Found while checking the clients: trader-gui reads
+`ENGINE_TIMEOUT` on a write as "the command reached the engine, the outcome
+is late" (`lib/bulkOutcome.ts` `isUnconfirmed`); the kill-switch panel then
+toasts "Kill switch submitted — awaiting engine confirmation". The role
+lookup runs before the command is sent, so that toast would have been false.
+`ENGINE_UNAVAILABLE` is the registry's "could not be handed to the engine;
+nothing was sent. Transient; retry", which is exactly the case, and it is
+already a code every route declares, so no route's contract changes. The
+substance of Q4 (a 503, not cached, no refusal recorded, cache cleared on
+`startup_recovery`) is as decided. **To confirm with the user.**
+
+Changes: `EngineClient.resolve_role` raises that 503 on timeout and caches
+nothing; `system.startup_recovery` clears `_role_cache` beside
+`_authenticated`. `require_admin`, `clearing_scope`, the bootstrap routes and
+`GET /status` pass the 503 through unchanged. The admin WebSockets share a
+new `ws._admin_confirmed`: an unconfirmed role closes the socket with
+`1013` (WARNING with a new log-ledger entry), not an `error` frame and
+`1008`. `clearing_scope`'s docstring and the WebSocket spec's checks table
+and `1013` row are updated.
+
+Tests: `tests/test_api_gateway_role_lookup.py` (new, real `EngineClient`
+through the app): 1 failed first with `403 ROLE_DENIED`; 2 (given a real
+clearing ledger, so the scope is reached) answered `200` with the caller's
+rows; 3 "DID NOT RAISE"; 4 `'TRADER' == 'ADMIN'` (stale cache); 5 (a
+TRADER is still `403 ROLE_DENIED`, refusal recorded) passed before and
+after. The extra admin-socket test (both sockets close `1013`) failed with
+the 503 escaping the handler. `test_api_gateway_clearing_scope.py`'s
+"unanswered lookup fails closed" test, which pinned the old narrowing,
+now pins the 503.
+
+Full suite: 14 501 passed, 1 skipped; `make _check` green.
+
 ### WP-AGW06 — Waits match their own reply; failures are visible (C3, C4, C5)
 
 **Tests first:**
@@ -729,6 +934,43 @@ dies unexpectedly logs at ERROR and triggers the server's shutdown. Remove
 the dead `EINTR` branch's `break` or turn it into `continue`.
 
 **Exit criteria.** Tests 1–5 pass; `tests/test_api_gateway_*.py` green.
+
+**Outcome (2026-11-15).**
+
+- **C3.** `history._in_stats_db` maps `sqlite3.DatabaseError` from the
+  worker thread to `503 STATS_DB` and logs a WARNING (new ledger entry), as
+  `_in_clearing_db` does. Test (`test_api_gateway_history.py`, through the
+  real app with a 1.5 kB non-database `stats_db`) failed first with
+  `sqlite3.DatabaseError: file is not a database` escaping the app.
+- **C4.** `POST /quotes?wait=ack` matches `quote_id` when the request has
+  one (the symbol otherwise, as before). Symbol halt, resume and
+  cancel-orders match the `command_id` they send; every engine path of the
+  three acks echoes it (`engine/main.py` `_handle_symbol_halt`, `…_resume`,
+  `…_cancel_symbol`, checked). Tests (`tests/test_api_gateway_wait_matching.py`,
+  new, real `EngineClient`, acks delivered in reverse order) failed first
+  with swapped verdicts (`('Q-1', False)`; `409 == 200`).
+  `test_symbol_scoped_admin_acks_pass_symbol_match`, which pinned the symbol
+  match, now pins the `command_id` match.
+- **C5.** `EngineClient._receive_loop` catches what kills the thread: if
+  the listener was still meant to run (not `stop_listener` closing its
+  sockets), it logs `engine listener died; stopping pm-api-gwy` at ERROR with
+  the traceback and calls `on_listener_failure` on the loop. The lifespan
+  sets that callback to mark `app.state.listener_failed` and set
+  `should_exit` on the uvicorn server; `main()` now builds
+  `uvicorn.Server(uvicorn.Config(...))` itself (it needs the handle; same
+  settings as the old `uvicorn.run`) and exits with status 1 after the server
+  returns when the flag is set (CRITICAL line). The EINTR branch is a
+  `continue`. Tests (`tests/test_api_gateway_listener.py`, new): the dying
+  listener test failed first (the callback never ran); the normal-stop test
+  passed before and after; the `main()` exit-status test was not run against
+  the old code, because the old `main()` calls the real `uvicorn.run` and
+  starts a server (it hung the first attempt until the timeout killed it).
+  `test_main_cli_success` now patches `uvicorn.Server`. Both e2e tests
+  (`-m e2e`) pass with the `Server`-based `main()`. `IndexClient` and
+  `SimClient` have the same receive-loop shape and were not changed (the WP
+  names the engine listener); noted in §9 and as For-Later L033.
+
+Full suite: 14 507 passed, 1 skipped; `make _check` green.
 
 ### WP-AGW07 — Order scans and the monitor snapshot scale with live orders (P1, P2, P3; after Q5)
 
@@ -754,6 +996,62 @@ list) so `_handle_event` resolves waiters and stops there.
 the bench in §4 shows the monitor snapshot under 50 ms at 200 000 terminal
 orders (a guess, to be confirmed by measurement).
 
+**Outcome (2026-11-15).** Q5 (a).
+
+- `SessionCaches.live` (a dict used as an ordered set) holds the ids of the
+  non-terminal orders; `_set_status` maintains it beside `terminal_at`, so
+  eviction (terminal only) never touches it. The one write that bypassed
+  `_set_status`, `_cache_submitted`'s `PENDING` entry, now goes through a new
+  `SessionCaches.submitted()`.
+- `EngineClient.all_orders` gained `working=True`, and a status filter for a
+  non-terminal status (`NEW`, `PARTIAL`, `AMENDED`, `PENDING`) reads through
+  `live` too. The monitor snapshot sends `all_orders(working=True)`;
+  `bootstrap._active_order_counts` counts the same, and its now-unused
+  `_TERMINAL` set is gone. A terminal status filter (`?status=FILLED`) and
+  the unfiltered `GET /admin/orders` still read everything; that is what
+  they ask for.
+- P3: `events.REPLY_PREFIXES`, read from the message registry like
+  `COMMAND_TOPICS`: every engine-published topic whose only parameter is the
+  gateway id, less the private stream and `admin.action` (24 topics: the
+  `system.*` replies, `risk.*_ack`, `session.transition_ack`,
+  `system.gateway_bye`, `order.price_level_orders`, the `index.*` acks).
+  `_handle_event` resolves their waiters and returns: no `seq`, no
+  market-data filter, no admin sink. `system.gateway_bye` is still acted on
+  (it is handled before the return). trader-gui's monitor renders none of
+  these (`lib/monitorEvents.ts`: `order.*`, `session`, `circuit_breaker`,
+  `admin.action`), and the spec already told monitors to ignore types they do
+  not render.
+- P2 itself (each process caches every gateway's orders, about 700 B per
+  order) is unchanged: the admin views need the cross-gateway cache. What
+  changed is that no hot path scans it any more.
+
+Docs: `070-websocket.md` (snapshot contents, which events the monitor gets,
+the recovery advice that relied on the snapshot being large).
+
+Tests (`tests/test_api_gateway_order_index.py`, new): the monitor snapshot,
+the no-scan status filter (an order dict that refuses iteration), and the
+reply fan-out test failed first for the right reasons (statuses included
+FILLED/CANCELLED/REJECTED; "scanned every cached order"; the reply was on
+the admin queue). The active-count and live-index tests failed first on the
+missing `submitted()` helper they use to cache a `PENDING` order, so they do
+not prove much against the old code; the count test compares with a full
+scan. "A `system.symbols` reply still reaches its gateway" passed before and
+after. Two test doubles (`test_tick_validation.py`,
+`test_cross_transport_rejects.py`) now use a real `SessionCaches`, and the
+bootstrap fake's `all_orders` takes `working`.
+
+Measured (scratch bench, 200 000 terminal + 2 000 working orders over 300
+gateways and 30 symbols, fed as real ack and fill frames):
+
+| | Before | After |
+|---|---|---|
+| Monitor snapshot orders + `json.dumps` | 900 ms, 61 MiB | **4.2 ms, 471 KiB** |
+| `all_orders(status="NEW")` | full scan (183 ms in §4) | **1.0 ms** |
+| `all_orders(status="FILLED")` / unfiltered | 387 / 339 ms | unchanged (they return everything) |
+| `_handle_events` per event | 6.7 µs | 6.7 µs |
+
+Full suite: 14 513 passed, 1 skipped; `make _check` green.
+
 ### WP-AGW08 — Comments, operator guide, spec (D4–D9)
 
 **Change.** Fix D4 and D5 in code comments. Operator guide
@@ -767,6 +1065,49 @@ against the code after WP-AGW01–07 (lessons-learned B1).
 
 **Exit criteria.** `make _check` green; every row of §5 resolved; the
 re-walk recorded in the outcome.
+
+**Outcome (2026-11-15).** §5, row by row: D1 and D2 were fixed in WP-AGW03
+and D3 in WP-AGW04. **D4** `config.py`'s `order_retention_sec` comment names
+what the cache backs (`GET /orders/{order_id}`, the admin order table, the
+snapshot's finished orders) and says `GET /orders` never falls back to it.
+**D5** the `_admin_sinks` comment lists what the admin feed leaves out.
+**D6** the operator guide's Common problems splits `403 ENGINE_AUTH` into
+three rows: a refused id, "Gateway already connected" (who can hold it, the
+3-minute timeout after a kill, the admin disconnect), and "Engine
+authentication timed out" (retry; a late accept is adopted). The `401` row
+is now only `AUTH`. **D7** the WebSocket row is replaced by `1008` (with
+every cause, and "WebSockets have no rate limit") and `1013`. **D8** history:
+`503 STATS_DB` for a missing or unreadable file, empty or stale results when
+pm-stats is stopped. **D9** a new "Stopping and restarting" subsection under
+"Start the process": a clean stop disconnects every id and runs its
+`disconnect_behaviour` (traders' resting orders, GTC included, are cancelled
+by the default `CANCEL_ALL`); open sockets are closed and the process waits at
+most 5 s; a killed process blocks its ids for up to 3 minutes (60 s × 3
+missed heartbeats, `engine/main.py` `_HEARTBEAT_MISSED_LIMIT`,
+`GATEWAY_HEARTBEAT_INTERVAL_SEC`); `POST /admin/gateways/{id}/disconnect`
+frees one at once; after a restart the private snapshot comes from the
+engine; exit status 1 after "engine listener died". The `/healthz` row no
+longer says a dead listener leaves the process up (WP-AGW06 stops it).
+
+Checked by running, not only by reading: an **open** `/ws/private` socket at
+SIGTERM receives close code `1012` within 0.1 s and the process exits in
+0.46 s (scratch script on the mini exchange), which is what the D9 text
+says.
+
+Re-walk (lessons-learned B1): the operator guide's start, restart,
+WebSocket ("What operators need to know"), admin, cross-gateway views and
+cache-retention passages, the WebSocket spec's connection, close-code,
+private and admin-monitor sections, the REST spec's write-outcome table and
+the cancel/amend sections, and training guide chapter 24 (`240-api-gwy.md`).
+One more stale statement was found and fixed: chapter 24 said every history
+call answers `503 STATS_DB` when pm-stats "is not running"; it does so only
+when `stats.db` is missing or unreadable. The chapter's private-stream
+transcript (`authenticated`, then `orders.snapshot` with your orders and
+positions) and its admin exercises (`403 ROLE_DENIED` for a trading key,
+"Gateway already connected: OPS01" while `pm-admin` holds the id) are still
+what the code does. `mkdocs build --strict` passes.
+
+Full suite: 14 513 passed, 1 skipped; `make _check` green.
 
 ---
 
@@ -793,6 +1134,11 @@ re-walk recorded in the outcome.
 - **L027 (BALF, existing)** is the BALF counterpart of H1: after a restart
   the gateway knows nothing about the orders its participants have resting.
 - **L010 (existing)** is reproduced by H2 and closed by WP-AGW01.
+- **`IndexClient` and `SimClient` receive threads** (found in WP-AGW06):
+  they end on a non-EINTR `ZMQError` like the engine listener did, and the
+  process keeps serving. The engine listener now stops the process (C5);
+  these two feed `/history/index-events` and the sim/news streams, whose
+  loss is less severe. Recorded as For-Later **L033**.
 - **RSS growth on the s300 sim (110 → 730 MB).** P2 accounts for about
   133 MiB per 200 000 cached orders per process. The rest was not
   investigated here.

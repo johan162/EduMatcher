@@ -340,6 +340,7 @@ ORDER_ACK_EVENT: dict[str, Any] = {
     "qty": 100,
     "price": 187.25,
     "client_tag": "strategy-7",
+    "request": "NEW",
 }
 
 ORDER_REJECT_EVENT: dict[str, Any] = {
@@ -354,6 +355,7 @@ ORDER_REJECT_EVENT: dict[str, Any] = {
     "tif": "DAY",
     "qty": 100,
     "client_tag": "strategy-7",
+    "request": "NEW",
 }
 
 ORDER_SUBMITTED = {
@@ -457,6 +459,7 @@ ORDER_CANCEL_RESULT = {
                 "reason": "Order already filled",
                 "reject_code": "ORDER_ALREADY_TERMINAL",
                 "request_tag": "cxl-1",
+                "request": "CANCEL",
             },
             "ack_timeout": False,
         },

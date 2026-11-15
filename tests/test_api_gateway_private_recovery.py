@@ -27,6 +27,8 @@ from edumatcher.models.message import (
     make_cancelled_msg,
     make_expired_msg,
     make_fill_msg,
+    make_orders_msg,
+    make_position_snapshot_msg,
 )
 
 
@@ -215,6 +217,10 @@ class FakeWebSocket:
             raise WebSocketDisconnect()
         return self.messages.pop(0)
 
+    async def receive(self) -> dict[str, Any]:
+        await asyncio.Event().wait()  # the client stays connected
+        raise AssertionError("unreachable")
+
     async def send_json(self, value: Any) -> None:
         self.sent.append(json.loads(json.dumps(value)))  # must be serialisable
 
@@ -222,59 +228,194 @@ class FakeWebSocket:
         self.closed.append(code)
 
 
-@pytest.mark.anyio
-async def test_snapshot_follows_authentication() -> None:
-    """Drives the real private_events handler rather than reproducing it, so
-    the assertions cannot pass against a handler that no longer sends this."""
-    from contextlib import suppress
+class _Desk:
+    """A real private_events handler on a real EngineClient, engine faked.
 
-    from edumatcher.api_gateway.config import ApiCredential, ApiGatewayConfig
-    from edumatcher.api_gateway.sessions import SessionRegistry
+    The engine's replies are fed through ``_handle_event`` from the real
+    message builders, as the receive thread would deliver them.
+    """
 
-    # Built on the *running* loop: EngineClient creates futures on the loop it
-    # was given, and authenticate() awaits one.
-    with (
-        patch(
-            "edumatcher.api_gateway.engine_client.make_pusher",
-            return_value=MagicMock(closed=False),
-        ),
-        patch(
-            "edumatcher.api_gateway.engine_client.make_subscriber",
-            return_value=MagicMock(),
-        ),
-    ):
-        client = EngineClient(
-            "tcp://127.0.0.1:1", "tcp://127.0.0.1:2", asyncio.get_running_loop()
+    def __init__(self, reply_sec: float = 1.0) -> None:
+        from edumatcher.api_gateway.config import (
+            ApiCredential,
+            ApiGatewayConfig,
+            TimeoutConfig,
         )
-    # The gateway handshake is not what this test is about.
-    client._authenticated.add("GW01")
+        from edumatcher.api_gateway.sessions import SessionRegistry
 
-    cache = client.get_caches("GW01")
-    cache.orders["ORD-1"] = {"order_id": "ORD-1", "status": "NEW"}
-    cache.positions["AAPL"] = 100
+        # Built on the *running* loop: EngineClient creates futures on it.
+        with (
+            patch(
+                "edumatcher.api_gateway.engine_client.make_pusher",
+                return_value=MagicMock(closed=False),
+            ),
+            patch(
+                "edumatcher.api_gateway.engine_client.make_subscriber",
+                return_value=MagicMock(),
+            ),
+        ):
+            self.engine = EngineClient(
+                "tcp://127.0.0.1:1", "tcp://127.0.0.1:2", asyncio.get_running_loop()
+            )
+        # The gateway handshake is not what these tests are about.
+        self.engine._authenticated.add("GW01")
+        config = ApiGatewayConfig(
+            credentials=(ApiCredential("key", "GW01", "test"),),
+            timeouts=TimeoutConfig(engine_reply_sec=reply_sec),
+        )
+        self.socket = FakeWebSocket([{"api_key": "key"}], self.engine)
+        self.socket.app.state.sessions = SessionRegistry.from_config(config)
+        self.socket.app.state.config = config
+        self.task: asyncio.Task[None] | None = None
 
-    config = ApiGatewayConfig(credentials=(ApiCredential("key", "GW01", "test"),))
-    socket = FakeWebSocket([{"api_key": "key"}], client)
-    socket.app.state.sessions = SessionRegistry.from_config(config)
-    socket.app.state.config = config
+    async def open(self) -> None:
+        self.task = asyncio.create_task(ws.private_events(self.socket))  # type: ignore[arg-type]
+        await self.until(
+            lambda: self.requested() >= 2
+            or bool(self.socket.closed)
+            or "orders.snapshot" in self.types()
+        )
 
-    task = asyncio.create_task(ws.private_events(socket))  # type: ignore[arg-type]
-    for _ in range(50):
-        if len(socket.sent) >= 2:
-            break
-        await asyncio.sleep(0)
-    task.cancel()
-    with suppress(asyncio.CancelledError):
-        await task
+    def requested(self) -> int:
+        push: Any = self.engine._push
+        return int(push.send_multipart.call_count)
 
-    assert [m["type"] for m in socket.sent] == ["authenticated", "orders.snapshot"]
-    auth, snapshot = socket.sent
-    assert auth["gateway_id"] == "GW01"
-    assert "stream_seq" in auth
-    assert snapshot["data"]["orders"] == [{"order_id": "ORD-1", "status": "NEW"}]
-    assert snapshot["data"]["positions"] == {"AAPL": 100}
-    # The snapshot names the point it is accurate as of.
-    assert snapshot["stream_seq"] == client.stream_seq("GW01")
+    def deliver(self, frames: list[bytes]) -> None:
+        self.engine._handle_event(*decode(frames))
+
+    async def until(self, predicate: Any) -> None:
+        for _ in range(200):
+            if predicate():
+                return
+            await asyncio.sleep(0.005)
+        raise AssertionError("condition never became true")
+
+    async def close(self) -> None:
+        from contextlib import suppress
+
+        assert self.task is not None
+        self.task.cancel()
+        with suppress(asyncio.CancelledError):
+            await self.task
+
+    def types(self) -> list[str]:
+        return [m["type"] for m in self.socket.sent]
+
+    def snapshot(self) -> dict[str, Any]:
+        (snap,) = [m for m in self.socket.sent if m["type"] == "orders.snapshot"]
+        return snap
+
+
+RESTING = {
+    "id": "ORD-R",
+    "symbol": "AAPL",
+    "side": "BUY",
+    "order_type": "LIMIT",
+    "tif": "GTC",
+    "quantity": 5,
+    "remaining_qty": 5,
+    "gateway_id": "GW01",
+    "ts_ns": 1,
+    "status": "NEW",
+    "tick_decimals": 2,
+    "price": 20.0,
+}
+AAPL_PLUS_10 = [{"symbol": "AAPL", "net_qty": 10, "avg_cost": 20.0}]
+BUY_5_AAPL = make_fill_msg(
+    "GW01", "ORD-F", 5, 20.0, 0, "FILLED", order={"symbol": "AAPL", "side": "BUY"}
+)
+
+
+@pytest.mark.anyio
+async def test_snapshot_is_the_engines_state() -> None:
+    """H1: a fresh process (empty cache) still reports the engine's resting
+    order and position."""
+    desk = _Desk()
+    await desk.open()
+    desk.deliver(make_position_snapshot_msg("GW01", AAPL_PLUS_10))
+    desk.deliver(make_orders_msg("GW01", [RESTING]))
+    await desk.until(lambda: "orders.snapshot" in desk.types())
+    await desk.close()
+
+    assert desk.types()[:2] == ["authenticated", "orders.snapshot"]
+    snapshot = desk.snapshot()
+    assert snapshot["gateway_id"] == "GW01"
+    assert [o["order_id"] for o in snapshot["data"]["orders"]] == ["ORD-R"]
+    assert snapshot["data"]["positions"] == {"AAPL": 10}
+
+
+@pytest.mark.anyio
+async def test_snapshot_is_cut_at_the_orders_reply() -> None:
+    """The snapshot's stream_seq is the order.orders reply's. A fill between
+    the position snapshot and that reply is in the snapshot's positions and is
+    not sent after it; a later fill is sent live with a higher stream_seq."""
+    desk = _Desk()
+    await desk.open()
+    desk.deliver(make_position_snapshot_msg("GW01", AAPL_PLUS_10))
+    desk.deliver(BUY_5_AAPL)
+    desk.deliver(make_orders_msg("GW01", [RESTING]))
+    reply_seq = desk.engine.stream_seq("GW01")
+    desk.deliver(BUY_5_AAPL)
+    await desk.until(lambda: len(desk.socket.sent) >= 3)
+    await desk.close()
+
+    snapshot = desk.snapshot()
+    assert snapshot["stream_seq"] == reply_seq
+    assert snapshot["data"]["positions"] == {"AAPL": 15}
+    live = desk.socket.sent[2:]
+    assert [(m["type"], m["stream_seq"]) for m in live] == [
+        ("order.fill", reply_seq + 1)
+    ]
+
+
+@pytest.mark.anyio
+async def test_an_earlier_orders_reply_is_not_the_cut() -> None:
+    """An order.orders reply to someone else's request, published before the
+    position snapshot, cannot be the cut: positions would then be newer than
+    the orders."""
+    desk = _Desk()
+    await desk.open()
+    desk.deliver(make_orders_msg("GW01", []))
+    desk.deliver(make_position_snapshot_msg("GW01", AAPL_PLUS_10))
+    desk.deliver(make_orders_msg("GW01", [RESTING]))
+    await desk.until(lambda: "orders.snapshot" in desk.types())
+    await desk.close()
+
+    assert [o["order_id"] for o in desk.snapshot()["data"]["orders"]] == ["ORD-R"]
+    assert desk.snapshot()["stream_seq"] == desk.engine.stream_seq("GW01")
+
+
+@pytest.mark.anyio
+async def test_cached_terminal_orders_stay_in_the_snapshot() -> None:
+    desk = _Desk()
+    cache = desk.engine.get_caches("GW01")
+    cache.orders["ORD-DONE"] = {"order_id": "ORD-DONE", "status": "FILLED"}
+    # Working in the cache but not resting at the engine: a missed terminal
+    # event. The engine is the truth, so it is not reported as working.
+    cache.orders["ORD-GONE"] = {"order_id": "ORD-GONE", "status": "NEW"}
+    await desk.open()
+    desk.deliver(make_position_snapshot_msg("GW01", []))
+    desk.deliver(make_orders_msg("GW01", [RESTING]))
+    await desk.until(lambda: "orders.snapshot" in desk.types())
+    await desk.close()
+
+    orders = {o["order_id"]: o for o in desk.snapshot()["data"]["orders"]}
+    assert set(orders) == {"ORD-R", "ORD-DONE"}
+    assert orders["ORD-R"]["status"] == "NEW"
+    assert orders["ORD-R"]["client_tag"] is None
+
+
+@pytest.mark.anyio
+async def test_engine_silent_closes_with_try_again_later() -> None:
+    desk = _Desk(reply_sec=0.05)
+    await desk.open()
+    await desk.until(lambda: bool(desk.socket.closed))
+    await desk.close()
+
+    assert "orders.snapshot" not in desk.types()
+    assert desk.socket.closed == [1013]
+    assert not desk.engine._sinks["GW01"]
+    assert desk.engine.engine_timeouts == 1
 
 
 def test_the_cache_survives_a_disconnect(client: EngineClient) -> None:

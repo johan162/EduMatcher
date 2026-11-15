@@ -424,7 +424,9 @@ Expected behavior:
 - `/history/trades` and `/history/daily` are public and show both sides
 - every page carries `next_cursor`: a string while `"has_more": true` (pass it
   back unchanged as `after` for the next page) and `null` on the last page
-- if `pm-stats` is not running, every history call returns `503 STATS_DB`
+- if `stats.db` does not exist (pm-stats never ran) or cannot be read, every
+  history call returns `503 STATS_DB`; if pm-stats is merely stopped, the
+  calls answer with what it recorded before it stopped
 
 :material-checkbox-blank-outline: Checkpoint: you can explain why
 `/history/orders` is gateway-scoped but `/history/trades` is not.

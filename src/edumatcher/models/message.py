@@ -421,6 +421,7 @@ def make_ack_msg(
     reject_code: _gen_order.OrderAckRejectCode | None = None,
     client_tag: str | None = None,
     request_tag: str | None = None,
+    request: _gen_order.OrderAckRequest | None = None,
     order: dict[str, Any] | None = None,
 ) -> list[bytes]:
     """Generated from ``spec/messages/order.yaml``.
@@ -452,6 +453,7 @@ def make_ack_msg(
         smp_action=detail.get("smp_action"),
         client_tag=order_client_tag(client_tag, order),
         request_tag=request_tag,
+        request=request,
         is_seed=bool(detail.get("is_seed", False)),
         tick_decimals=(
             get_tick_decimals(detail["symbol"]) if detail.get("symbol") else None

@@ -2335,6 +2335,7 @@ Acknowledge acceptance or rejection of a new order, addressed to the gateway tha
 | `smp_action` | enum: `NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH` | omitted when unset | — | Self-match prevention. Null means the client did not specify SMP at all, distinct from an explicit NONE. See SmpAction's docstring. |
 | `client_tag` | `string` | omitted when unset | max_len 64 |  |
 | `request_tag` | `string` | omitted when unset | max_len 64 | Client correlation tag for this request, echoed on the resulting event or rejection. Distinct from the target order's client_tag, which identifies the order rather than the request acting on it. A client may have several requests outstanding against one order. |
+| `request` | enum: `NEW`, `CANCEL`, `AMEND` | omitted when unset | — | Which request this ack answers: a new order (accepted or refused), or a cancel or amend the engine refused (an accepted cancel or amend is answered by order.cancelled or order.amended instead). A refused CANCEL or AMEND leaves the order it targets as it was, still resting; only a refused NEW order ends as REJECTED. request_tag cannot tell them apart, because a cancel or amend carries one only when the client set it. The engine sets this on every order.ack. |
 | `oco_group_id` | `string` | omitted when unset | max_len 64 |  |
 | `combo_parent_id` | `string` | omitted when unset | max_len 64 |  |
 | `quote_id` | `string` | omitted when unset | max_len 64 |  |

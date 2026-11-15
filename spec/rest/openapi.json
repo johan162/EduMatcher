@@ -201,7 +201,8 @@
                         "tif": "DAY",
                         "qty": 100,
                         "price": 187.25,
-                        "client_tag": "strategy-7"
+                        "client_tag": "strategy-7",
+                        "request": "NEW"
                       },
                       "ack_timeout": false
                     }
@@ -225,7 +226,8 @@
                         "order_type": "LIMIT",
                         "tif": "DAY",
                         "qty": 100,
-                        "client_tag": "strategy-7"
+                        "client_tag": "strategy-7",
+                        "request": "NEW"
                       },
                       "ack_timeout": false
                     }
@@ -743,7 +745,8 @@
                         "accepted": false,
                         "reason": "Order already filled",
                         "reject_code": "ORDER_ALREADY_TERMINAL",
-                        "request_tag": "cxl-1"
+                        "request_tag": "cxl-1",
+                        "request": "CANCEL"
                       },
                       "ack_timeout": false
                     }
@@ -1486,7 +1489,8 @@
                         "tif": "DAY",
                         "qty": 100,
                         "price": 187.25,
-                        "client_tag": "strategy-7"
+                        "client_tag": "strategy-7",
+                        "request": "NEW"
                       },
                       "ack_timeout": false
                     }

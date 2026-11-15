@@ -1307,6 +1307,8 @@ _ORDER_ACK_SMP_ACTION_VALUES = (
     "CANCEL_BOTH",
 )
 OrderAckSmpAction = Literal["NONE", "CANCEL_AGGRESSOR", "CANCEL_RESTING", "CANCEL_BOTH"]
+_ORDER_ACK_REQUEST_VALUES = ("NEW", "CANCEL", "AMEND")
+OrderAckRequest = Literal["NEW", "CANCEL", "AMEND"]
 
 
 _ORDER_ACK_FIELDS: tuple[dict[str, Any], ...] = (
@@ -1449,6 +1451,14 @@ _ORDER_ACK_FIELDS: tuple[dict[str, Any], ...] = (
         "constraints": {"max_len": 64},
     },
     {
+        "name": "request",
+        "type": "enum",
+        "unit": None,
+        "required": False,
+        "doc": "Which request this ack answers: a new order (accepted or refused), or a cancel or amend the engine refused (an accepted cancel or amend is answered by order.cancelled or order.amended instead). A refused CANCEL or AMEND leaves the order it targets as it was, still resting; only a refused NEW order ends as REJECTED. request_tag cannot tell them apart, because a cancel or amend carries one only when the client set it. The engine sets this on every order.ack.",
+        "values": _ORDER_ACK_REQUEST_VALUES,
+    },
+    {
         "name": "oco_group_id",
         "type": "string",
         "unit": None,
@@ -1545,6 +1555,7 @@ class OrderAck:
     smp_action: OrderAckSmpAction | None = None
     client_tag: str | None = None
     request_tag: str | None = None
+    request: OrderAckRequest | None = None
     oco_group_id: str | None = None
     combo_parent_id: str | None = None
     quote_id: str | None = None
@@ -1617,6 +1628,11 @@ class OrderAck:
                 raise MessageValidationError(
                     f"request_tag: length {len(self.request_tag)} exceeds max_len 64"
                 )
+        if self.request is not None:
+            if self.request not in _ORDER_ACK_REQUEST_VALUES:
+                raise MessageValidationError(
+                    f"request: {self.request!r} is not one of {_ORDER_ACK_REQUEST_VALUES!r}"
+                )
         if self.oco_group_id is not None:
             if len(self.oco_group_id) > 64:
                 raise MessageValidationError(
@@ -1679,6 +1695,11 @@ class OrderAck:
             ),
             client_tag=None if p.get("client_tag") is None else str(p["client_tag"]),
             request_tag=None if p.get("request_tag") is None else str(p["request_tag"]),
+            request=(
+                None
+                if p.get("request") is None
+                else cast(OrderAckRequest, str(p["request"]))
+            ),
             oco_group_id=(
                 None if p.get("oco_group_id") is None else str(p["oco_group_id"])
             ),
@@ -1740,6 +1761,8 @@ class OrderAck:
             payload["client_tag"] = self.client_tag
         if self.request_tag is not None:
             payload["request_tag"] = self.request_tag
+        if self.request is not None:
+            payload["request"] = self.request
         if self.oco_group_id is not None:
             payload["oco_group_id"] = self.oco_group_id
         if self.combo_parent_id is not None:
@@ -1805,6 +1828,7 @@ def make_order_ack_unchecked(
     smp_action: OrderAckSmpAction | None = None,
     client_tag: str | None = None,
     request_tag: str | None = None,
+    request: OrderAckRequest | None = None,
     oco_group_id: str | None = None,
     combo_parent_id: str | None = None,
     quote_id: str | None = None,
@@ -1859,6 +1883,8 @@ def make_order_ack_unchecked(
         payload["client_tag"] = str(client_tag)
     if request_tag is not None:
         payload["request_tag"] = str(request_tag)
+    if request is not None:
+        payload["request"] = str(request)
     if oco_group_id is not None:
         payload["oco_group_id"] = str(oco_group_id)
     if combo_parent_id is not None:

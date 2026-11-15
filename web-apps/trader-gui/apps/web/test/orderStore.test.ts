@@ -72,6 +72,21 @@ describe("useOrderStore reducers", () => {
     expect(Object.keys(orders)).toEqual(["b"]);
   });
 
+  it("seed takes the engine's resting rows beside cached terminal ones (API gateway review H1)", () => {
+    // Since WP-AGW03 the snapshot's working orders are the engine's
+    // `order.orders` rows (OrderDisplay, plus order_id), not the cache's.
+    useOrderStore.getState().seed([
+      {
+        id: "r1", order_id: "r1", symbol: "AAPL", side: "BUY", order_type: "LIMIT", tif: "GTC",
+        quantity: 5, remaining_qty: 5, price: 20, status: "NEW", ts_ns: 1_000_000, client_tag: null,
+      },
+      { order_id: "f1", symbol: "AAPL", qty: 10, remaining_qty: 0, status: "FILLED" },
+    ]);
+    const { orders } = useOrderStore.getState();
+    expect(orders["r1"]).toMatchObject({ status: "NEW", quantity: 5, remaining_qty: 5, tif: "GTC", price: 20 });
+    expect(orders["f1"]?.status).toBe("FILLED");
+  });
+
   it("ack accept marks NEW with full remaining; reject marks REJECTED", () => {
     useOrderStore.getState().applyAck(
       ack({ order_id: "o1", accepted: true, symbol: "AAPL", side: "BUY", order_type: "LIMIT", qty: 100, price: 150 }),
@@ -112,15 +127,15 @@ describe("useOrderStore reducers", () => {
   describe("C1 — a rejected cancel/amend must not mark a live order REJECTED", () => {
     // order.ack accepted=false is shared by three requests: a rejected NEW
     // order, and a rejected cancel or amend against an order that is still
-    // resting. The engine's new-order reject paths always publish
-    // request_tag=null (order.new carries no such field); only a cancel or
-    // amend request carries one — that is what applyAck now keys on.
+    // resting. The engine says which in `request` (API gateway review C1);
+    // request_tag cannot, because a cancel or amend carries one only when
+    // the client set it.
     it("a rejected cancel (request_tag set) leaves a resting order's status untouched", () => {
       useOrderStore.getState().applyAck(ack({ order_id: "o1", accepted: true, qty: 100 }));
       expect(useOrderStore.getState().orders["o1"]!.status).toBe("NEW");
 
       useOrderStore.getState().applyAck(
-        ack({ order_id: "o1", accepted: false, reason: "Order not found", reject_code: "ORDER_NOT_FOUND", request_tag: "cancel-abc" }),
+        ack({ order_id: "o1", accepted: false, reason: "Order not found", reject_code: "ORDER_NOT_FOUND", request_tag: "cancel-abc", request: "CANCEL" }),
       );
       const o1 = useOrderStore.getState().orders["o1"]!;
       expect(o1.status).toBe("NEW");
@@ -131,7 +146,7 @@ describe("useOrderStore reducers", () => {
       useOrderStore.getState().applyAck(ack({ order_id: "o1", accepted: true, qty: 100, price: 150 }));
 
       useOrderStore.getState().applyAck(
-        ack({ order_id: "o1", accepted: false, reason: "collar breach", reject_code: "COLLAR_BREACH", request_tag: "amend-def" }),
+        ack({ order_id: "o1", accepted: false, reason: "collar breach", reject_code: "COLLAR_BREACH", request_tag: "amend-def", request: "AMEND" }),
       );
       const o1 = useOrderStore.getState().orders["o1"]!;
       expect(o1.status).toBe("NEW");
@@ -146,7 +161,7 @@ describe("useOrderStore reducers", () => {
       expect(useOrderStore.getState().orders["o1"]!.status).toBe("PARTIAL");
 
       useOrderStore.getState().applyAck(
-        ack({ order_id: "o1", accepted: false, reason: "collar breach", request_tag: "amend-ghi" }),
+        ack({ order_id: "o1", accepted: false, reason: "collar breach", request_tag: "amend-ghi", request: "AMEND" }),
       );
       expect(useOrderStore.getState().orders["o1"]!.status).toBe("PARTIAL");
     });
@@ -159,15 +174,26 @@ describe("useOrderStore reducers", () => {
       expect(useOrderStore.getState().orders["o1"]!.status).toBe("FILLED");
 
       useOrderStore.getState().applyAck(
-        ack({ order_id: "o1", accepted: false, reason: "Order not found", reject_code: "ORDER_NOT_FOUND", request_tag: "cancel-jkl" }),
+        ack({ order_id: "o1", accepted: false, reason: "Order not found", reject_code: "ORDER_NOT_FOUND", request_tag: "cancel-jkl", request: "CANCEL" }),
       );
       expect(useOrderStore.getState().orders["o1"]!.status).toBe("FILLED");
     });
 
-    it("a genuine new-order reject (no request_tag) still marks REJECTED even if the id happens to already exist", () => {
-      // Defends the discriminator itself: request_tag absent is what keeps
-      // this branch behaving like a plain new-order reject.
-      useOrderStore.getState().applyAck(ack({ order_id: "o9", accepted: false, reason: "collar breach" }));
+    it("an untagged refused amend or cancel leaves a resting order working", () => {
+      useOrderStore.getState().applyAck(ack({ order_id: "o1", accepted: true, qty: 100, price: 150 }));
+      useOrderStore.getState().applyAck(
+        ack({ order_id: "o1", accepted: false, reason: "tick", reject_code: "TICK_VIOLATION", request: "AMEND" }),
+      );
+      useOrderStore.getState().applyAck(
+        ack({ order_id: "o1", accepted: false, reason: "halted", reject_code: "INSTRUMENT_HALTED", request: "CANCEL" }),
+      );
+      expect(useOrderStore.getState().orders["o1"]!.status).toBe("NEW");
+    });
+
+    it("a genuine new-order reject still marks REJECTED", () => {
+      useOrderStore.getState().applyAck(
+        ack({ order_id: "o9", accepted: false, reason: "collar breach", request: "NEW" }),
+      );
       expect(useOrderStore.getState().orders["o9"]!.status).toBe("REJECTED");
     });
   });

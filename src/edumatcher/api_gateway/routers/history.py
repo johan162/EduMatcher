@@ -169,13 +169,26 @@ async def _in_stats_db(
     handler stalls everything else sharing the event loop -- including the
     engine round-trips the write endpoints are blocked on. Opening the
     connection inside the thread also keeps it on the thread that uses it.
+
+    A file that is not a database, or one locked past ``busy_timeout``,
+    raises ``sqlite3.DatabaseError`` at the first query: ``503 STATS_DB``,
+    as a missing file is, not a ``500`` with a traceback.
     """
 
     def _run() -> _T:
         with closing(_open_stats(request)) as conn:
             return work(conn)
 
-    return await asyncio.to_thread(_run)
+    try:
+        return await asyncio.to_thread(_run)
+    except sqlite3.DatabaseError as exc:
+        log.warning(
+            "history: cannot read %s: %s", request.app.state.config.stats_db, exc
+        )
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={"error": {"code": "STATS_DB", "message": str(exc)}},
+        ) from exc
 
 
 def _invalid(field: str, message: str) -> HTTPException:
