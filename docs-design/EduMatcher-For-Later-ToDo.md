@@ -23,7 +23,7 @@ its own piece of work.
 | L007 | 2026-11-13 | docs (operator guide, persistence) | Two diagrams say DAY combo parents are not persisted; the engine persists and restores them on a same-day restart | Low | Open |
 | L008 | 2026-11-13 | pm-admin / pm-admin-cli | `BOOK` prints `Last trade: 150.0 × None` after an engine restart (restored price, unknown quantity) | Low | Open |
 | L009 | 2026-11-13 | ExchangeCommandClient / pm-admin / pm-admin-cli | An illegal session transition prints `TIMEOUT`, although the engine answers on `session.transition_ack` (REST shows `409` with the reason) | Medium | Open |
-| L010 | 2026-11-13 | pm-api-gwy | Once hung at shutdown on "Waiting for background tasks to complete"; second Ctrl-C needed (not reproduced) | Low | Open |
+| L010 | 2026-11-13 | pm-api-gwy | Once hung at shutdown on "Waiting for background tasks to complete"; second Ctrl-C needed (not reproduced) | Low | Fixed (API Gateway review WP-AGW01) |
 | L011 | 2026-11-13 | pm-alf-gwy | A client that half-closes (`printf … \| nc`) loses the replies still on their way from the engine | Low | Open |
 | L012 | 2026-11-13 | engine (combo/OCO validation) | `TRAILING_STOP is not supported on a combo leg: it needs trail_offset` is shown even when `LEG0.TRAIL=` was given | Low | Open |
 | L013 | 2026-11-13 | pm-stats-cli (CLIs) | `pm-stats-cli daily \| head` ends with a `BrokenPipeError` traceback | Low | Open |
@@ -45,6 +45,7 @@ its own piece of work.
 | L029 | 2026-11-15 | pm-engine (heartbeats) | A session that never sent a heartbeat is never expired, so a client that connects and dies (or is answered after it gave up) holds its gateway id until an admin disconnect or an engine restart | Medium | Open |
 | L030 | 2026-11-15 | pm-engine (admin queries) | Position and order queries about a disconnected gateway answer empty lists, so `GET /admin/gateways/{id}/positions` and `/orders` show a logged-off trader with resting orders as flat with none | Medium | Open |
 | L031 | 2026-11-15 | pm-engine (gateway connect) | A refused `gateway_connect` for an unknown id still creates a session, a metrics label and a published topic that are never freed: 337 B per refused id, reachable by any client through ALF `HELLO` | Low | Open |
+| L032 | 2026-11-15 | pm-engine (quotes) | `quote.new` carries `tick_decimals` but the engine ignores it, so a client with a wrong tick registry rests its quote at 1/100 or 100× the intended price without a reject | Medium | Open |
 
 ## L001 — Topic literals in pm-sim-forensics
 
@@ -194,6 +195,12 @@ minute; a second `Ctrl-C` ended it with a `CancelledError` traceback from a
 `receive_queue.get()`. Three later attempts shut down cleanly. While it hung,
 the IDs it held stayed connected in the engine. A
 `timeout_graceful_shutdown` on `uvicorn.run` would bound it.
+
+**Fixed** (2026-11-15, API Gateway review H2, WP-AGW01). Reproduced: a
+`/ws/private` or admin socket the client had closed kept its handler waiting
+for the next event, and uvicorn's graceful shutdown waited for that handler.
+The handlers now end when the client closes, and `uvicorn.run` gets
+`timeout_graceful_shutdown=5` as a backstop.
 
 ## L011 — ALF replies lost on half-close
 
@@ -533,3 +540,20 @@ before counting the per-gateway metric. The publisher's per-topic counter
 cannot be dropped without breaking gap detection, so the remaining growth
 (one counter per refused id) is best removed by having the gateways refuse
 ids that are not configured participants before forwarding.
+
+## L032 — The engine ignores a quote's `tick_decimals`
+
+**Found:** 2026-11-15, pm-mm-bot review §9
+(`docs-design/reviews/EduMatcher-MM-Bot-Review-2026-11.md`).
+
+**Finding.** `_handle_quote_new` reads `bid_price_ticks`/`ask_price_ticks`
+as integers (`engine/main.py:4121-4141`) and never compares the payload's
+`tick_decimals` with the symbol's configured value. A client that converted
+with the wrong scale (pm-mm-bot does when its symbols reply times out and the
+tick registry falls back to 2 decimals, review C5) rests a quote at 1/100 or
+100× the intended price, and nothing refuses it. The order paths that carry
+`tick_decimals` may share the gap.
+
+**Recommendation.** Reject a `quote.new` (and any order) whose
+`tick_decimals` differs from the symbol's, with a reason naming both values.
+
