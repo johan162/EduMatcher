@@ -1,3 +1,41 @@
+## [v0.80.0] - 2026-11-15
+
+Release Type: major
+
+### 📋 Summary
+This release expands EduMatcher's participant-facing and operator APIs, strengthens audit and monitoring workflows, and substantially broadens configuration and GUI capabilities. It also introduces breaking changes to configuration and gateway protocols.
+
+### ⚠️ Breaking Changes
+- Aligned the CALF `ERR`, `HELLO` and `PONG` wire format with RALF and DC1; update CALF clients
+- Froze the REST API v1 resource layout and revised WebSocket subscription semantics; update clients to the documented v1 contract
+- Renamed example configurations to the shorter `s<N>` naming scheme
+
+### ✨ Additions
+- Added REST API v1 and WebSocket event subscriptions, sequencing, and administration endpoints
+- Added read-only clearing and end-of-day REST APIs and the Clearing GUI for positions, trades, reconciliation, and settlement
+- Added configuration include files, credential-file support, and participant and symbol import/export tools
+- Added `pm-log-cli explain` and `ledger`, with actionable log explanations in the log GUI
+- Added audit evidence manifests, replay and rerun workflows, and a project-version-matched `pm-sim-forensics` command
+
+### 🚀 Improvements
+- Improved gateway event delivery with batching, sequence-gap reporting, reconnect recovery, and per-symbol subscriptions
+- Improved engine, monitoring, and index reliability, including more efficient maintenance, bounded monitoring backlogs, and robust end-of-day reruns
+- Improved configuration validation and deployment consistency, and expanded simulator support for multi-leg combo strategies
+- Improved dashboard and clearing interfaces with searchable, paginated views and more consistent layouts
+
+### 🐛 Bug Fixes
+- Fixed gateway reconnects and shutdown paths that could lose queued events or leave stale participant state
+- Fixed end-of-day settlement calculations and reruns to use the recorded baseline consistently
+- Fixed configuration generation and verification disagreements that could silently omit or misrepresent settings
+- Fixed engine recovery and order lifecycle edge cases involving cancellations, halts, persistence, and invalid input
+
+### 📚 Documentation
+- Expanded the exchange introduction with new illustrations and chapters on risk, clearing, and settlement
+- Updated API, gateway, configuration, audit, operator, and training documentation for the new contracts and workflows
+
+### 🛠 Internal
+- Added extensive contract, integration, recovery, and component-review regression coverage across the engine, gateways, APIs, and GUIs
+
 ## [v0.78.4] - 2026-11-13
 
 Release Type: patch
